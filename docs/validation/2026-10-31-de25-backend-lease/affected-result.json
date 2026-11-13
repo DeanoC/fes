@@ -1,0 +1,212 @@
+{
+  "format": 1,
+  "root": "/home/deano/fes/out/dev/de25-linux-platform/out/backend-lease-source",
+  "base": "905817f7365b944d6621b84af1abeaa7c53a7e5b",
+  "head": "a92247ffd8b3484464470c046a98ab67e26d901b",
+  "checkout_head": "a92247ffd8b3484464470c046a98ab67e26d901b",
+  "merge_base": "905817f7365b944d6621b84af1abeaa7c53a7e5b",
+  "local_paths": [],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": false,
+      "runtime": false,
+      "contracts": false,
+      "fpga": false
+    },
+    "skipped": [
+      "host",
+      "runtime",
+      "contracts",
+      "fpga"
+    ],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": false,
+      "full_race": false
+    },
+    "paths": [
+      "image/kernel/de25-dma/README.md",
+      "image/kernel/de25-dma/de25_dma.c",
+      "image/kernel/de25-dma/de25_dma_internal.h",
+      "image/kernel/de25-dma/de25_dma_test.c",
+      "scripts/de25_kernel_test.py"
+    ],
+    "reasons": [
+      "image/kernel/de25-dma/de25_dma.c: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/de25_dma_internal.h: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/de25_dma_test.c: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/de25_kernel_test.py: parent orchestration/tests/assembly; component sources unchanged"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "scripts/check_diff.py",
+        "--base",
+        "905817f7365b944d6621b84af1abeaa7c53a7e5b",
+        "--head",
+        "a92247ffd8b3484464470c046a98ab67e26d901b"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"image/kernel/de25-dma/README.md\", \"image/kernel/de25-dma/de25_dma.c\", \"image/kernel/de25-dma/de25_dma_internal.h\", \"image/kernel/de25-dma/de25_dma_test.c\", \"scripts/de25_kernel_test.py\"]"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "passed",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "source_revision": "f9ff4d4f276753cd44e962b4a2131d6bd990180e",
+  "menu_first_fit": {
+    "package_timing_admission": true,
+    "all_reported_timing_pass": true,
+    "unreviewed_failed_rules": 0
+  },
+  "menu_video_paths": 216,
+  "menu_reset_paths": 208,
+  "independent_repeat": "superseded by the terminal readiness no-replication repair; only the owned process group was stopped",
+  "zx81_failure": "fitter made hdmi_active~DUPLICATE, giving27 physical reset loads; exact26-load admission rejected it",
+  "change": "HDL dont_replicate on hdmi_active and a source guard; no expanded warning, consumer or timing acceptance",
+  "compiler_reference": "https://cdrdv2-public.intel.com/740110/ug-683236-740110.pdf"
+}

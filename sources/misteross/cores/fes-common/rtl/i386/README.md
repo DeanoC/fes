@@ -106,8 +106,9 @@ start: a select, with no add. Measured in simulation, with D always ready:
 
 Lengths follow the oracle's decoder for every encoding it defines. The i386
 raises #UD for the rest, so their length is not architectural, and D decides
-#UD. MOV to and from TR6 and TR7 (0F 24, 0F 26), which the design accepts and
-the oracle does not, take the CR/DR rule: ModRM is always a register form.
+#UD. MOV to and from TR4-TR7 (0F 24, 0F 26), which the 386 runs and the
+oracle does not, take the CR/DR rule: ModRM is always a register form. UMOV
+(0F 10-0F 13) takes MOV's ModRM length (#1730).
 
 ## D's address operands and AG
 
@@ -201,10 +202,17 @@ its #UD entry (reenigne/x86_microcode `80386/decoder23.txt` and
 `decode2.txt`, entry 82B), the register forms of the memory-only
 instructions and the undefined ModRM reg fields included, and XBTS and IBTS
 (0F A6, 0F A7), which only the B-step 386 ran. Over 15 bytes raises #GP(0).
-The 386's instructions this build does not run, ICEBP (F1h), LOADALL
-(0F 07), UMOV (0F 10-0F 13) and MOV to and from TR4-TR7 (0F 24, 0F 26),
-decode as `FAULT_UNIMPLEMENTED`, which stops the CPU at WB, so no check can
-pass over one; with a LOCK they raise #UD, as any invalid LOCK does. An immediate after a ModRM's operand bytes is the instruction's last
+The 386's undocumented instructions (#1730) follow its decoder ROM and
+microcode: ICEBP (F1h) is INT 1 through INT n's routines as an exception's
+delivery (no IOPL check in V86 mode, the gate not checked against CPL, EXT
+in a fault's error code, DR7.GD cleared as its first uop reaches WB, no
+DR6 bit); UMOV (0F 10-0F 13) decodes as MOV (88h-8Bh); MOV to and from
+TR4-TR7 (0F 24, 0F 26, either ModRM form) reads and writes four registers
+that keep what is written, #GP(0) above CPL 0, with no GD check (TR6's TLB
+test is not built). LOADALL (0F 07), the one instruction of the 386 this
+build does not run, decodes as `FAULT_UNIMPLEMENTED`, which stops the CPU
+at WB, so no check can pass over it. A LOCK on any of these raises #UD, as
+any invalid LOCK does. An immediate after a ModRM's operand bytes is the instruction's last
 bytes, so DC takes it from the length, beside the decode. DC also registers
 the address registers and scale a memory ModRM names (`fes_i386_amode`), or
 ESP (EBP for LEAVE) for a stack operation.
@@ -1528,8 +1536,9 @@ as Bochs's `translate_linear_legacy` at CPU level 3.
   divide unit's LOAD and HI) translates nothing (`nx`): Bochs pushes and
   faults on the pushes, as the stores then do. ENTER's last check
   translates as a write (`wx`, Bochs's `tickle_write_virtual`), and so do
-  XCHG m's and ARPL m's loads of their operands; XCHG m's load also takes
-  its store's segment check, so a segment it cannot write raises #GP(0)
+  XCHG m's load of its operand. ARPL m's initial load translates as a read;
+  only an adjustment performs a separate write translation (#1665). XCHG m's
+  load also takes its store's segment check, so a segment it cannot write raises #GP(0)
   (#SS(0)) before the load's #PF (#1644). A uop whose fault is a later one
   than its pages' #PF (`dfl`: a st2 store's segment check) still
   translates, replaying when it is not the oldest, and its #PF comes first.
@@ -1647,14 +1656,14 @@ lockstep under a preset and fails on any architectural difference from max.
 ## Synthesis notes
 
 The i386 RTL has its own toolchain lock, [`toolchain.lock`](toolchain.lock)
-here: the DeanoC Yosys fork's main at `0a7927bf`, with nextpnr `bd7a1c0d`
+here: the DeanoC Yosys fork's main at `e240a465`, with nextpnr `bd7a1c0d`
 and Mistral `8fcc4cb4`. It is the pc386 lock's Yosys pin, so lockstep, the
-Quartus spikes and the pc386 seal read the CPU with one Yosys (#1581 D2,
+Quartus spikes and the pc386 seal read the CPU with one Yosys (#1581 D2, S4,
 [record](../../../../../../docs/validation/2026-11-10-1581-d2-yosys-lock/README.md)).
 The timing spikes default to it. The repository's
 shared lock stays at Yosys `3a5accbd`, which reads this RTL wrongly, so check
 and route the i386 RTL with this lock's Yosys. Each later Yosys fix is a
-small bump of this lock, the removal of its one workaround, the `--yosys`
+small bump of this lock, the removal of its one workaround, the `--netlist`
 check and a re-measure.
 
 Synthesis runs `proc -norom` first, by choice: it keeps case tables in
@@ -1697,9 +1706,11 @@ what it reads correctly:
 it as a signal name, so the forwarding modules spell the distance `dist_a` or
 `ahead`.
 
-`scripts/test_fes_i386_frontend.py --yosys <yosys>` and
-`scripts/test_fes_i386_lockstep.py --yosys <yosys>` run every check on the
-netlist Yosys writes from this RTL, which is what the spikes route. Run them
+`scripts/test_fes_i386_frontend.py --netlist` and
+`scripts/test_fes_i386_lockstep.py --netlist` run every check on the netlist
+the pc386 seal's Yosys program writes from this RTL
+(`scripts/yosys_netlist.py`), with the pc386 lock's Yosys: the netlist the seal
+and the spikes are built from. Run them
 after any RTL change. The front-end runner also synthesizes Q's aligner on its
 own and fails if any multiplier or carry cell appears there: Q has no wide sum,
 and the front-end spike does not show #59's multiplier.

@@ -1,0 +1,237 @@
+{
+  "archive_sha256": "2338be14d90fb32b279833e82e4876baeaeff9ec0e4fcd7470393a06f13b3947",
+  "archive_size": 13202484,
+  "archived_regular_files_verified": 37,
+  "classification": "CPU/build and reproducible DE25 bootstrap proof; not a managed factory/card or native boot acceptance",
+  "completed_jobs": [
+    {
+      "command": [
+        "python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-bootstrap-platform/proof.py",
+        "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-b07487a8b",
+        "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-b07487a8b/out/bootstrap-proof"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-b07487a8b",
+      "elapsed_seconds": 7.6,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-01T21:16:54.082391+00:00",
+      "pid": 2295719,
+      "returncode": 1,
+      "source_revision": "b07487a8b713607810bdff80b3581130621c25a8",
+      "started_utc": "2026-11-01T21:16:46.496204+00:00",
+      "state": "failed",
+      "time_cap_seconds": 1200
+    },
+    {
+      "command": [
+        "python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-bootstrap-platform/finish.py",
+        "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-finish",
+        "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-finish/out/bootstrap-proof"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-finish",
+      "elapsed_seconds": 26.8,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-01T21:18:04.174165+00:00",
+      "pid": 2301359,
+      "returncode": 0,
+      "source_revision": "e06d5e3a1f32170cf6458c172288259baf04aae0",
+      "started_utc": "2026-11-01T21:17:37.340846+00:00",
+      "state": "passed",
+      "time_cap_seconds": 1200
+    },
+    {
+      "command": [
+        "make",
+        "platform-test"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-finish",
+      "elapsed_seconds": 37.6,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-01T21:18:42.364738+00:00",
+      "pid": 2311064,
+      "returncode": 0,
+      "source_revision": "e06d5e3a1f32170cf6458c172288259baf04aae0",
+      "started_utc": "2026-11-01T21:18:04.761724+00:00",
+      "state": "passed",
+      "time_cap_seconds": 1200
+    }
+  ],
+  "completed_own_pids_pgids": [
+    2295678,
+    2295719,
+    2301330,
+    2301359,
+    2311021,
+    2311022,
+    2311064,
+    2311067,
+    2325066,
+    2325108
+  ],
+  "files": {
+    "affected-job/job.json": {
+      "sha256": "1bcd42facba99e2392d63463c5ecc3557ea6ccf366b01ef7295cf8f4b5a4a776",
+      "size": 538
+    },
+    "affected-job/stdout.log": {
+      "sha256": "d7ef2e2e2dd91741459230dbd537453d44c5f6dcbf651daffb900487aa416b17",
+      "size": 365864
+    },
+    "affected-launch.json": {
+      "sha256": "048e465e5ef223e96968d753595d902d2e7f470d2694a5616b5ae5c81c5bc801",
+      "size": 537
+    },
+    "affected-plan.json": {
+      "sha256": "bf8ddbac24e5bd7ec6eb0d358dec30a2d840292f1b07b4f51fc000850aca7e84",
+      "size": 5661
+    },
+    "affected-summary.json": {
+      "sha256": "75f1b679f2e7e127c94b65e6a71f0d23881492afe1ad9a953a377f0d7d61be81",
+      "size": 1504
+    },
+    "archive-members.json": {
+      "sha256": "b061a2568bec4ac0662885a18bd7a4d83630a72f3db4036fb4873d32aa93249a",
+      "size": 5915
+    },
+    "documentation-checks.json": {
+      "sha256": "0820d9ce3f76402deb49f5bfa666027b2fb8a378031cd3a41ec71fd1e30ec256",
+      "size": 447
+    },
+    "proofs.tar.gz": {
+      "sha256": "2338be14d90fb32b279833e82e4876baeaeff9ec0e4fcd7470393a06f13b3947",
+      "size": 13202484
+    },
+    "retain.py": {
+      "sha256": "cd52fd16c403bd1fb8347b1825ea1633a6d27b9723f1a2d1be169b0d7ecaf592",
+      "size": 6062
+    },
+    "retention-job/job.json": {
+      "sha256": "c52a5a03ec4f137c9d811c911740ea65afeea2f7a36a114542187dc4ac87c211",
+      "size": 533
+    },
+    "retention-job/stdout.log": {
+      "sha256": "17907e535c706c7aa71b6c14e4646584f7208062a4dd6c6fdfec574d9d9c05ca",
+      "size": 1990
+    },
+    "retention-launch.json": {
+      "sha256": "3f02059116e2c56d3e04adcc1ccb109eecdbce19ba0cc8a201934fe6f060d619",
+      "size": 446
+    },
+    "source-a0e.bundle": {
+      "sha256": "4410a655efad665a1a81ef1402daab0212e567e29ef4e8121163c1045ec1c33c",
+      "size": 15746
+    },
+    "source-base.bundle": {
+      "sha256": "b85c94328886fc06979e1225cbbad6f3fc2d180ebf32c7993b85597271d4a7f3",
+      "size": 286062917
+    },
+    "source-bootstrap.bundle": {
+      "sha256": "18a71bae9296aa71058cf9ef78f716f0baea5468c460f2745af14a3f6a505256",
+      "size": 9128
+    },
+    "source-e0fa.bundle": {
+      "sha256": "e1f778126ac54547abc24ca2c6ff28da2d4902db35ee5eb210764e73b85b94d0",
+      "size": 10099
+    },
+    "source-incremental.bundle": {
+      "sha256": "d8251c612c1ea54b8567e01f52c4037ae3ed6e51094a164fd30b21cff0dd9356",
+      "size": 17427
+    },
+    "source-scope.json": {
+      "sha256": "bed44949df54f85f7c25887c7a0f70f7dd4bca39806f89c2643e508a1fe61016",
+      "size": 479
+    }
+  },
+  "full_affected": {
+    "base": "e0fa19cee49558910a4da16cc0dd976cee8e58b2",
+    "commands": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      }
+    ],
+    "elapsed_seconds": 302.4,
+    "hardware_access": false,
+    "log_sha256": "d7ef2e2e2dd91741459230dbd537453d44c5f6dcbf651daffb900487aa416b17",
+    "source_revision": "e06d5e3a1f32170cf6458c172288259baf04aae0",
+    "status": "passed",
+    "unittest_summaries": [
+      {
+        "outcome": "OK",
+        "seconds": 0.317,
+        "tests": 30
+      },
+      {
+        "outcome": "OK",
+        "seconds": 0.895,
+        "tests": 32
+      },
+      {
+        "outcome": "OK",
+        "seconds": 3.212,
+        "tests": 3
+      },
+      {
+        "outcome": "OK",
+        "seconds": 22.547,
+        "tests": 3
+      },
+      {
+        "outcome": "OK",
+        "seconds": 48.152,
+        "tests": 33
+      },
+      {
+        "outcome": "OK",
+        "seconds": 0.0,
+        "tests": 1
+      },
+      {
+        "outcome": "OK (skipped=41)",
+        "seconds": 294.878,
+        "tests": 1280
+      }
+    ]
+  },
+  "hardware_access": false,
+  "live_completed_processes": [],
+  "scope": {
+    "appliance_tree": "f7c16542236c4690875ea5b28ad74eb26b376d3683da626c71aa739580c06a30",
+    "canonical_menu_inputs_verified": 374,
+    "compiler_source_sha256_verified": 59,
+    "hardware_access": false,
+    "platform_tree": "59725c83306fe535ee0b408361d0e8f9752b9fb13650c26cbd9555dc2b36751e",
+    "source_restored": true,
+    "source_revision": "e06d5e3a1f32170cf6458c172288259baf04aae0",
+    "test_runtime_source_sha256_verified": 58,
+    "tree": "d5c26607a2a915399d8071a8c37aca6341615f34"
+  },
+  "source_revision": "e06d5e3a1f32170cf6458c172288259baf04aae0"
+}

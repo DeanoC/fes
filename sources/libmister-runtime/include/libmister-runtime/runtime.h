@@ -136,6 +136,13 @@ struct CoreBuild {
 	std::string toolchain;
 };
 
+struct CoreStaticExpansion {
+	std::string file, sha256, control_build_id;
+	std::uint64_t size = 0;
+	std::uint32_t hardware_id = 0;
+	std::string root_qdb_sha256, interface_sha256, clock_reset_sha256, pof0_hash;
+};
+
 struct CoreDescriptor {
 	std::uint16_t format = 0;
 	CoreMetadata core;
@@ -147,6 +154,7 @@ struct CoreDescriptor {
 	VersionedContract abi;
 	std::vector<CoreInterface> interfaces;
 	CoreBuild build;
+	CoreStaticExpansion static_expansion;
 };
 
 struct SupportedInterface {
@@ -244,11 +252,26 @@ struct CoreExpansionPath {
 
 struct CorePartPath { std::string role, path; };
 
+// Cold-start selection over two separate, unchanged vendor images. An empty
+// expansion_id chooses the package's sealed default persona.
+struct CoreStaticComposition {
+	std::string id, package_id, expansion_id, base_sha256, persona_sha256, control_build_id;
+	std::uint64_t base_size = 0, persona_size = 0;
+	std::uint32_t hardware_id = 0;
+};
+
+struct CoreStaticCompositionRequest {
+	std::string expansion_path;
+	CoreStaticComposition composition;
+};
+
 struct CoreCompositionRequest {
 	std::string expansion_path, payload_path;
 	std::vector<CoreExpansionPath> expansions;
 	std::vector<CorePartPath> parts;
 	CoreComposition composition;
+	bool has_static_selection = false;
+	CoreStaticCompositionRequest static_selection;
 };
 
 struct CoreROMLink {
@@ -274,6 +297,7 @@ struct ActiveCorePackage {
 	CoreComposition composition;
 	CoreROMLink rom_link;
 	CoreROMLinks rom_links;
+	CoreStaticComposition static_composition;
 };
 
 // fes.pc386.machine 1.0 settings, words 0..6 of its record.
@@ -369,6 +393,9 @@ struct MenuDisplayStatus {
  // blitter_minor is the menu-blitter minor the firmware declares, which says
  // which ops it runs. Reported in the grant, not in status.
  bool blitter=false;
+ // The peer must close its descriptor and unmap before committing each frame.
+ // Allocation-backed adapters use this to permit recovery before the reply.
+ bool frame_mapping=false;
  std::uint16_t blitter_minor=0;
  // A list frame has run on this blitter grant. The grant takes CPU frames
  // until then and only lists after. Not reported.
@@ -460,6 +487,7 @@ public:
 	virtual ~AdmittedCorePackage() {}
 	const CorePackageInfo& info() const { return info_; }
 	virtual CoreComposition composition() const { return {}; }
+	virtual CoreStaticComposition static_composition() const { return {}; }
 
 protected:
 	explicit AdmittedCorePackage(CorePackageInfo info)
@@ -600,11 +628,6 @@ public:
 		return {ErrorCode::unsupported_interface,
 			"clear computer media is unavailable", "request"};
 	}
-	virtual Error LoadComputerFirmware(const std::string&)
-	{
-		return {ErrorCode::unsupported_interface,
-			"firmware slot is unavailable", "request"};
-	}
 	virtual Error LoadComputerMediaStream(const std::string&, std::uint32_t)
 	{
 		return {ErrorCode::unsupported_interface, "computer media stream is unavailable", "request"};
@@ -646,12 +669,15 @@ public:
 	~Runtime();
 	Runtime(const Runtime&) = delete;
 	Runtime& operator=(const Runtime&) = delete;
-	Error Start();
+	// A selected MENU is the initial idle image. Empty arguments use the
+	// board's splash recipe; they never program a foreign splash before MENU.
+	Error Start(const std::string& menu_directory = {}, const std::string& menu_package_id = {});
  Error ConfigureMenuPackage(const std::string&,const std::string&);
  Error SetSessionDisplay(const std::string& expected_package_id,
   std::uint64_t expected_generation,bool visible,bool launcher_focus);
  // blitter reports whether the grant covers the blitter's lists and heap.
- Error ShareMenuWindow(std::uint64_t,int*,bool* blitter,std::uint16_t* blitter_minor);
+ Error ShareMenuWindow(std::uint64_t,int*,bool* blitter,std::uint16_t* blitter_minor,
+  bool permit_frame_mapping=false,bool* frame_mapping=nullptr);
  Error BeginMenuFrame(std::uint64_t,std::unique_ptr<MenuFrame>*);
  Error PresentMenuFrame(std::uint64_t,MenuFrame&,MenuDisplayInfo*);
 	Status status() const;
@@ -693,7 +719,6 @@ public:
 		const std::string& expected_package_id, std::uint64_t expected_generation);
 	Error ClearComputerMedia(const std::string& expected_package_id,
 		std::uint64_t expected_generation);
-	Error LoadComputerFirmware(const std::string& path);
 	Error LoadComputerMediaStream(const std::string& path,
 		const std::string& expected_package_id, std::uint64_t expected_generation,
 		std::uint32_t size);

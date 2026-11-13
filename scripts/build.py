@@ -43,13 +43,14 @@ MEDIA_RECIPE_FILES = tuple(ROOT / name for name in (
     "scripts/media_inside.py", "scripts/platform.py", "scripts/prepare_launcher.py", "boot-media.lock.toml",
     "scripts/appliance.py", "scripts/appliance_inside.py",
     "scripts/appliance_media.py", "scripts/appliance_media_inside.py",
+    "scripts/de25_appliance.py",
     "containers/boot-media/Dockerfile", "containers/boot-media/create-builder-user.sh",
     "containers/boot-media/packages.sha256"))
 # Media-owned scripts stay out of the generic build fingerprint. Cold-image
 # consumers are bound separately by image_recipe_files below.
 BUILD_RECIPE_FILES = tuple(path for path in sorted((ROOT / "scripts").glob("*.py"))
                            if path not in MEDIA_RECIPE_FILES and not is_diagnostic_recipe_file(path)
-                           and path != ROOT / "scripts/kit_software.py") + (REGISTRY_PATH,)
+                           and path not in (ROOT / "scripts/kit_software.py", ROOT / "scripts/kit_sdk.py")) + (REGISTRY_PATH,)
 IMAGE_RECIPE_SOURCE_FILES = ("scripts/platform.py",)
 IMAGE_RECIPE_NAMES = (
     "Makefile",
@@ -455,7 +456,7 @@ def source_checkout(name, revision, suffix="", restore=None):
     return module_sources.materialize(ROOT, name, revision, path)
 
 
-def selected_packages(profile, profile_name):
+def selected_packages(profile, profile_name, *, board="de10-nano"):
     packages = profile.get("fpga_packages", [])
     if not isinstance(packages, list):
         raise ValueError("fpga_packages must be an array of tables")
@@ -466,14 +467,13 @@ def selected_packages(profile, profile_name):
         if not isinstance(entry, dict) or type(entry.get("core_id")) is not str:
             raise ValueError("fpga_packages entries must be tables with a core_id")
         core_id = entry["core_id"]
-        if core_id not in FORMAT2_RECIPES:
-            supported = ", ".join(FORMAT2_RECIPES)
-            raise ValueError(f"unknown format-2 recipe {core_id!r}; supported: {supported}")
+        recipe_for(core_id, board=board)
         core_ids.append(core_id)
     if len(core_ids) != len(set(core_ids)):
         raise ValueError("duplicate format-2 package selections are not supported")
-    if profile_name != "native-integration-dev":
-        raise ValueError("format-2 packages are only selected by native-integration-dev")
+    expected = "de25-nano" if board == "de25-nano" else "native-integration-dev"
+    if profile_name != expected:
+        raise ValueError("format-2 packages are only selected by " + expected)
     return tuple(core_ids)
 
 
@@ -488,7 +488,7 @@ def _package_tuple(packages):
     return tuple(packages)
 
 
-def _package_details(packages):
+def _package_details(packages, *, board="de10-nano"):
     normalized = _package_tuple(packages)
     details = []
     core_ids = set()
@@ -500,7 +500,7 @@ def _package_details(packages):
             selection = package["inputs"]["selection"]
             core_id = selection["core_id"]
             identity = selection["package_id"]
-            recipe = recipe_for(core_id)
+            recipe = recipe_for(core_id, board=board)
         except (KeyError, TypeError):
             raise ValueError("selected format-2 package is malformed") from None
         if not isinstance(identity, str) or not re.fullmatch(r"[0-9a-f]{64}", identity):
@@ -532,8 +532,8 @@ def unavailable_manifest_for_action(output, action, unavailable):
     return None
 
 
-def package_arguments(packages, unavailable_path=None):
-    normalized, details = _package_details(packages)
+def package_arguments(packages, unavailable_path=None, *, board="de10-nano"):
+    normalized, details = _package_details(packages, board=board)
     if not normalized:
         return []
     arguments = ["FES_PACKAGE_IDS=" + ",".join(recipe.core_id for _, recipe, _ in details)]
@@ -630,8 +630,8 @@ def _package_member_fields(package):
     return tuple(fields)
 
 
-def package_output_names(package):
-    normalized, details = _package_details(package)
+def package_output_names(package, *, board="de10-nano"):
+    normalized, details = _package_details(package, board=board)
     if len(normalized) != 1:
         raise ValueError("package output names require exactly one selected package")
     _, recipe, identity = details[0]
@@ -639,9 +639,9 @@ def package_output_names(package):
     return [recipe.selection_filename] + [prefix + name for name, _ in _package_member_fields(normalized[0])]
 
 
-def package_selection_names(packages):
+def package_selection_names(packages, *, board="de10-nano"):
     """Return selected child record names in package order."""
-    _, details = _package_details(packages)
+    _, details = _package_details(packages, board=board)
     names = tuple(recipe.selection_filename for _, recipe, _ in details)
     if any('video_parts' in package for package, _, _ in details):
         names += (_VIDEO_SELECTION,)
@@ -762,9 +762,9 @@ def remove_stale_parent_outputs(output):
         path.unlink()
 
 
-def verify_package_only_outputs(output, packages, unavailable=()):
+def verify_package_only_outputs(output, packages, unavailable=(), *, board="de10-nano"):
     """Verify a package output has no stale top-level artifacts."""
-    verify_package_outputs(output, packages)
+    verify_package_outputs(output, packages, board=board)
     if stale_parent_outputs(output):
         raise ValueError('package output contains a stale top-level artifact')
     optional_cores.verify_manifest(output, unavailable)
@@ -776,10 +776,10 @@ def _format2_selection_paths(output):
                  if path.name.endswith('.package-selection.toml') or path.name == _VIDEO_SELECTION)
 
 
-def verify_package_outputs(output, packages):
+def verify_package_outputs(output, packages, *, board="de10-nano"):
     """Require a closed parent copy of the exact selected package bytes."""
     output = Path(output)
-    normalized, details = _package_details(packages)
+    normalized, details = _package_details(packages, board=board)
     if not normalized:
         try:
             for path in list(_format2_selection_paths(output)) + [output / name for name in _PACKAGE_TREES]:
@@ -792,7 +792,7 @@ def verify_package_outputs(output, packages):
             raise ValueError("package-free output contains stale FES package files") from None
         return []
     names = []
-    expected_selection_names = set(package_selection_names(packages))
+    expected_selection_names = set(package_selection_names(packages, board=board))
     for path in _format2_selection_paths(output):
         try:
             metadata = path.lstat()
@@ -818,7 +818,7 @@ def verify_package_outputs(output, packages):
             members = _package_member_fields(package)
             if sorted(entry.name for entry in directory.iterdir()) != sorted(name for name, _ in members):
                 raise ValueError
-            package_names = package_output_names(package)
+            package_names = package_output_names(package, board=board)
             expected = {output / recipe.selection_filename: package["inputs"]["selection_sha256"]}
             expected.update({directory / name: package["inputs"][field] for name, field in members})
             for path, expected_sha256 in expected.items():
@@ -1429,7 +1429,7 @@ def _restore_package_backup(output, backup, clear_current=True):
             pass
 
 
-def _recover_package_backup(output, packages):
+def _recover_package_backup(output, packages, *, board="de10-nano"):
     """Recover an interrupted package replacement before starting a publish."""
     output = Path(output)
     backup = output / ".package-generation.previous"
@@ -1454,7 +1454,7 @@ def _recover_package_backup(output, packages):
     manifest = _read_package_generation_manifest(backup)
     _validate_package_generation(backup, manifest, require_marker=True, sealed=True)
     try:
-        verify_package_outputs(output, packages)
+        verify_package_outputs(output, packages, board=board)
     except (OSError, KeyError, TypeError, ValueError):
         _restore_package_backup(output, backup)
     else:
@@ -1486,12 +1486,12 @@ def _remove_package_outputs(output):
             _remove_sealed_tree(root)
 
 
-def publish_package_state(packages, built_selections, output):
+def publish_package_state(packages, built_selections, output, *, board="de10-nano"):
     """Publish the selected pair, or close a successful package-free output."""
     if not _package_tuple(packages):
         _remove_package_outputs(output)
-        return verify_package_outputs(output, None)
-    return publish_package_outputs(packages, built_selections, output)
+        return verify_package_outputs(output, None, board=board)
+    return publish_package_outputs(packages, built_selections, output, board=board)
 
 
 def publish_action_inputs(output, action, info):
@@ -1505,11 +1505,11 @@ def publish_action_inputs(output, action, info):
     return True
 
 
-def publish_package_outputs(packages, built_selections, output):
+def publish_package_outputs(packages, built_selections, output, *, board="de10-nano"):
     """Publish the child-emitted record and an exact closed package directory."""
     output = Path(output)
-    normalized, details = _package_details(packages)
-    expected_selection_names = list(package_selection_names(packages))
+    normalized, details = _package_details(packages, board=board)
+    expected_selection_names = list(package_selection_names(packages, board=board))
     if isinstance(built_selections, dict) and len(normalized) > 1:
         selections = built_selections
     elif len(normalized) == 1 and not isinstance(built_selections, dict):
@@ -1545,7 +1545,7 @@ def publish_package_outputs(packages, built_selections, output):
                 raise ValueError
     except (OSError, KeyError, TypeError, ValueError):
         raise ValueError("child FES package selection differs from selected inputs") from None
-    _recover_package_backup(output, normalized)
+    _recover_package_backup(output, normalized, board=board)
     _clean_package_staging(output)
     staged_generation = output / ".package-generation.new"
     staged_root = staged_generation / "core-packages"
@@ -1578,7 +1578,7 @@ def publish_package_outputs(packages, built_selections, output):
             selection_stage.chmod(0o444)
         staged_root.chmod(0o555)
         staged_generation.chmod(0o755)
-        verify_package_outputs(staged_generation, normalized)
+        verify_package_outputs(staged_generation, normalized, board=board)
         _fsync_package_generation(staged_generation)
         _validate_package_output_destinations(output)
         backup.mkdir()
@@ -1615,9 +1615,9 @@ def publish_package_outputs(packages, built_selections, output):
             (staged_selections / selection_name).replace(output / selection_name)
         names = []
         for package, recipe, identity in details:
-            names.extend(package_output_names(package))
+            names.extend(package_output_names(package, board=board))
         names.extend(video_output_names(packages))
-        verify_package_outputs(output, normalized)
+        verify_package_outputs(output, normalized, board=board)
         _fsync_package_output(output)
         backup_complete = False
         _cleanup_package_backup(output, backup)
@@ -1713,7 +1713,7 @@ def resolve_package_for_action(revisions, output, env, action, recipe):
         force=action == 'rebuild', recipe=recipe)
 
 
-def resolve_packages_for_action(revisions, output, env, action, package_ids):
+def resolve_packages_for_action(revisions, output, env, action, package_ids, *, board="de10-nano"):
     """Resolve every selected format-2 recipe in profile order.
 
     Optional cores that miss timing, fail their producer or video parts, or are
@@ -1721,7 +1721,7 @@ def resolve_packages_for_action(revisions, output, env, action, package_ids):
     ignores skip flags, and does not place-and-route that core again. A failed
     producer is not replaced from a different functional key.
     """
-    recipes = tuple(recipe_for(package_id) for package_id in package_ids)
+    recipes = tuple(recipe_for(package_id, board=board) for package_id in package_ids)
     # Verify reuses the recorded image and does not interpret skip flags,
     # including an ambient value that names an unknown core.
     skip_ids = frozenset() if action == "verify" else optional_cores.parse_skip_list(env, recipes)
@@ -1751,14 +1751,59 @@ def resolve_packages_for_action(revisions, output, env, action, package_ids):
     return tuple(packages), optional_cores.canonical_cores(unavailable)
 
 
+def build_host_outputs(output, profile, revisions, host_fp, host_info, fogcast_make,
+                       env, *, force=False, diagnostics=None):
+    hit, reason = (False, "forced rebuild") if force else reuse_status(output, "host", host_fp)
+    if diagnostics is not None:
+        diagnostics.cache("host", "forced" if force else "hit" if hit else "miss", reason)
+    if hit:
+        print("Host: reusing verified output", flush=True)
+    else:
+        for target, name in (("build-fogcast", "fogcast"), ("build-fogcast-api", "fogcast-api")):
+            variable = "FOGCAST_OUTPUT" if name == "fogcast" else "FOGCAST_API_OUTPUT"
+            run_stage(diagnostics, "host subprocess", fogcast_make + [target,
+                "FOGCAST_GOOS=" + profile["host_os"], "FOGCAST_GOARCH=" + profile["host_arch"],
+                variable + "=" + str(output / name), "REVISION=" + revisions["FogCast"]], env=env)
+        write_receipt(output, "host", host_fp, ["fogcast", "fogcast-api"],
+                      os_name=profile["host_os"], arch=profile["host_arch"])
+    publish_host_inputs(output, host_fp, host_info)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["doctor", "build", "host", "image", "verify", "rebuild", "dev"])
-    parser.add_argument("--profile", default="native-integration-dev",
-                        choices=["native-integration-dev"])
+    parser.add_argument('--board', default='de10-nano', choices=('de10-nano', 'de25-nano'))
+    parser.add_argument('--profile', choices=('native-integration-dev', 'de25-nano'))
     parser.add_argument('--artifacts', type=Path,
                         help='explicit bootstrap artifact directory; required for image assembly')
+    parser.add_argument('--kernel', type=Path, help='matching DE25 owner-kernel directory')
+    parser.add_argument('--sdk', type=Path, help='DE25 owner compiler archive, pinned by its source lock')
+    parser.add_argument('--de25-image', type=Path, help='verified managed DE25 image supplying the source-build SDK and base ABI')
+    parser.add_argument('--output', type=Path, help='DE25 factory directory for image, source workspace for build/rebuild/dev; verify accepts either')
     args = parser.parse_args()
+    expected_profile = 'de25-nano' if args.board == 'de25-nano' else 'native-integration-dev'
+    args.profile = expected_profile if args.profile is None else args.profile
+    if args.profile != expected_profile:
+        raise ValueError('image profile differs from independently selected board')
+    if args.board == 'de25-nano':
+        if args.action in ('image', 'verify', 'build', 'rebuild', 'dev') and validate_image_passes() != 1:
+            raise ValueError('DE25 factory production records one actual image-build pass')
+        if args.action in ('image', 'verify'):
+            if args.de25_image is not None:
+                raise ValueError('--de25-image is a source-build SDK selection; image/verify use recorded artifacts')
+            sys.path.insert(0, str(ROOT))
+            from scripts import de25_appliance
+            return de25_appliance.image_action(ROOT, args)
+        if args.action in ('build', 'rebuild', 'dev'):
+            if args.artifacts is not None:
+                raise ValueError('DE25 source builds select committed sources and MENU, not --artifacts')
+            if any(value is None for value in (args.kernel, args.sdk, args.de25_image)):
+                raise ValueError('DE25 source builds require --kernel, --sdk and --de25-image')
+            sys.path.insert(0, str(ROOT))
+            from native_dev import build_de25_development
+            return build_de25_development(ROOT, args)
+    if any(value is not None for value in (args.kernel, args.sdk, args.output, args.de25_image)):
+        raise ValueError('--kernel, --sdk and --output require explicitly selected DE25')
     artifacts = None
     if args.action == 'image' or args.artifacts:
         if not args.artifacts:
@@ -1780,7 +1825,7 @@ def main():
     else:
         revisions = validate(ROOT, profile)
     mode = native_image_mode(profile)
-    package_ids = selected_packages(profile, args.profile)
+    package_ids = selected_packages(profile, args.profile, board=args.board)
     if not package_ids:
         raise ValueError('native integration image requires one selected format-2 package')
     if platform.system() != "Linux" or platform.machine() not in ("x86_64", "amd64"):
@@ -1857,24 +1902,8 @@ def main():
                               unavailable=unavailable, diagnostics=diagnostics)
             return
         if args.action in ("build", "host", "rebuild"):
-            host_hit, host_reason = (False, "forced rebuild") if args.action == "rebuild" else reuse_status(
-                output, "host", host_fp)
-            if host_hit:
-                diagnostics.cache("host", "hit", host_reason)
-                print("Host: reusing verified output", flush=True)
-            else:
-                diagnostics.cache("host", "forced" if args.action == "rebuild" else "miss", host_reason)
-                run_stage(diagnostics, "host subprocess", fogcast_make + ["build-fogcast", "FOGCAST_GOOS=" + profile["host_os"],
-                    "FOGCAST_GOARCH=" + profile["host_arch"],
-                    "FOGCAST_OUTPUT=" + str(output / "fogcast"),
-                    "REVISION=" + revisions["FogCast"]], env=env)
-                run_stage(diagnostics, "host subprocess", fogcast_make + ["build-fogcast-api", "FOGCAST_GOOS=" + profile["host_os"],
-                    "FOGCAST_GOARCH=" + profile["host_arch"],
-                    "FOGCAST_API_OUTPUT=" + str(output / "fogcast-api"),
-                    "REVISION=" + revisions["FogCast"]], env=env)
-                write_receipt(output, "host", host_fp, ["fogcast", "fogcast-api"],
-                              os_name=profile["host_os"], arch=profile["host_arch"])
-            publish_host_inputs(output, host_fp, host_info)
+            build_host_outputs(output, profile, revisions, host_fp, host_info, fogcast_make,
+                               env, force=args.action == "rebuild", diagnostics=diagnostics)
         unavailable_manifest = None
         if args.action in ("build", "image", "rebuild", "verify"):
             unavailable_manifest = unavailable_manifest_for_action(output, args.action, unavailable)

@@ -376,15 +376,16 @@ func (c *Coordinator) loadBoundCore(parent context.Context, size int64, content 
 		interfaces[index] = protocol.RuntimeInterface{ID: value.ID, Major: value.Major, Minor: value.Minor}
 	}
 	active.CorePackage = &protocol.CorePackageStatus{
-		ROMLink:          activation.ROMLink,
-		ROMLinks:         activation.ROMLinks,
-		Composition:      activation.Composition,
-		PartsComposition: activation.PartsComposition,
-		SlotComposition:  activation.SlotComposition,
-		ExpansionSocket:  misterruntime.ExpansionSocketReceipt(activation),
-		MediaStream:      activation.MediaStream,
-		MediaUnits:       activation.MediaUnits,
-		PackageID:        activation.PackageID, CoreID: activation.Descriptor.Core.ID, Generation: activation.Generation,
+		StaticComposition: activation.StaticComposition,
+		ROMLink:           activation.ROMLink,
+		ROMLinks:          activation.ROMLinks,
+		Composition:       activation.Composition,
+		PartsComposition:  activation.PartsComposition,
+		SlotComposition:   activation.SlotComposition,
+		ExpansionSocket:   misterruntime.ExpansionSocketReceipt(activation),
+		MediaStream:       activation.MediaStream,
+		MediaUnits:        activation.MediaUnits,
+		PackageID:         activation.PackageID, CoreID: activation.Descriptor.Core.ID, Generation: activation.Generation,
 		ABI: protocol.RuntimeContract{ID: activation.Descriptor.ABI.ID,
 			Major: uint16(activation.Descriptor.ABI.Major), Minor: uint16(activation.Descriptor.ABI.Minor)},
 		BuildID: activation.Descriptor.Build.ID, ActiveInterfaces: interfaces,
@@ -583,6 +584,10 @@ func cloneStatus(status protocol.Status) protocol.Status {
 	copy.LastError = cloneAPIError(status.LastError)
 	if status.CorePackage != nil {
 		packageCopy := *status.CorePackage
+		if status.CorePackage.StaticComposition != nil {
+			staticCopy := *status.CorePackage.StaticComposition
+			packageCopy.StaticComposition = &staticCopy
+		}
 		if status.CorePackage.Composition != nil {
 			compositionCopy := *status.CorePackage.Composition
 			packageCopy.Composition = &compositionCopy

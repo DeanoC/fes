@@ -1,0 +1,33 @@
+{
+  "classification": "physical diagnostic; first complete-frame ACK then underflow, not full-frame/normal-kit acceptance",
+  "fpga_producer": "41d508610967bb2f224c08469aa64938bbcdf123",
+  "rbf_sha256": "9bb9c0af28607232bae237eb10fbbee86326aa55326f81de9388e3a8a0ff2766",
+  "kernel_producer": "3dab0b06b3ba191444eec36c992b4d54f64301f8",
+  "boot_id": "e5e896ba-e01e-4ab4-9b2f-a236045b7d39",
+  "attempt": 1,
+  "result": "failed-underflow-after-sequence1-complete-frame-ack",
+  "cached_failure": {
+    "generation": 2,
+    "state": 6,
+    "status": 25,
+    "errors": 8,
+    "underflows": 1,
+    "outstanding": 0,
+    "accepted": 1,
+    "displayed": 1,
+    "pending": 0
+  },
+  "dma_trace": {
+    "iova_start": "0xff800000",
+    "iova_end_exclusive": "0x100000000",
+    "physical_start": "0xbcd00000",
+    "bytes": 8388608,
+    "map_pid": 443,
+    "unmap_pid": 537,
+    "recovery_unmapped_bytes": 8388608
+  },
+  "recovery": "One explicit supported OWNER_REAP returned0 after strict unchanged epoch/generation and STOP/drain proof; no retry or force release",
+  "cleanup": "Owned trace instance/mount, overlay/firmware/configfs and temp files removed under exclusive lock; same boot/MAC/owner0600 verified. SRAM remains stopped diagnostic, not factory restored or baseline promoted. All owned SSH/UART/capture closed.",
+  "capture": "360 black frames; recording ended before diagnostic client started, so no picture acceptance. Synchronize capture and client in one orchestrator next time.",
+  "physical_limit": "This eliminates the prior AXI-response failure in this trial and reaches complete-frame acknowledgement. Sustained traffic, visual content, both-slot reuse and general DDR/SID/firewall qualification remain incomplete."
+}

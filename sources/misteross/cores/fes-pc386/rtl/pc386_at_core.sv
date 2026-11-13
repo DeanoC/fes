@@ -5,6 +5,7 @@
 //   000-00F DMA 1     020-021 PIC 1    040-043 PIT (8254)   060, 064 8042
 //   061 port B        070-071 RTC      080 POST             081-08F DMA pages
 //   092 port A        0A0-0A1 PIC 2    0C0-0DF DMA 2        1F0-1F7, 3F6 ATA
+//   3F2, 3F4, 3F5, 3F7 floppy controller (pc386_fdc: IRQ 6, DMA channel 2)
 //   220-22F or 240-24F, 388-389 sound port                  3B0-3DF VGA port
 //   400-403, 500, E9 debug sink                             anything else FFh
 //
@@ -43,7 +44,7 @@ module pc386_at_core #(
     output reg [7:0] dma_wdata,
     input wire dma_done,
     input wire [7:0] dma_rdata,
-    // On-board DMA devices on channels 1-3
+    // On-board DMA devices on channels 1 and 3 (channel 2 is the floppy's)
     input wire [3:1] dma_drq,
     output reg dma_ack_valid, dma_ack_write, dma_ack_tc,
     output reg [1:0] dma_ack_channel,
@@ -89,6 +90,7 @@ module pc386_at_core #(
     input wire wall_valid,
     input wire [15:0] wall_year,
     input wire [7:0] wall_month, wall_day, wall_hour, wall_minute, wall_second, wall_weekday,
+    input wire x87_present,                 // the i386dx+387 identity (pc386_rtc)
     // Disk
     input wire disk_present,
     input wire [31:0] disk_sectors,
@@ -102,6 +104,20 @@ module pc386_at_core #(
     input wire [63:0] disk_rdata,
     input wire [6:0] dirty_index,
     output wire [15:0] dirty_word,
+    // Floppy drives A: and B: (pc386_fdc), and the controller's image port
+    input wire [1:0][2:0] floppy_type,
+    input wire [1:0] floppy_present, floppy_write_protect, floppy_two_sided,
+    input wire [1:0][6:0] floppy_cylinders,
+    input wire [1:0][5:0] floppy_spt,
+    output wire [28:0] fdc_address,
+    output wire [7:0] fdc_burstcount,
+    output wire fdc_read, fdc_write,
+    output wire [63:0] fdc_writedata,
+    output wire [7:0] fdc_byteenable,
+    input wire fdc_waitrequest, fdc_readdatavalid,
+    input wire [63:0] fdc_readdata,
+    input wire fdc_frozen,
+    output wire fdc_busy, fdc_fenced,
     // fes.media.ata-disk's fence, map clear and writer (pc386_ata)
     input wire disk_frozen,
     input wire disk_dirty_clear,
@@ -152,6 +168,7 @@ module pc386_at_core #(
     wire select_dma2 = io_cycle && port[15:5] == 11'h006;
     wire select_ata_block = io_cycle && port[15:3] == 13'h003e;
     wire select_ata_control = io_cycle && port == 16'h03f6;
+    wire select_fdc = io_cycle && port[15:3] == 13'h007e && (port[2:0] == 3'd2 || port[2] && port[1:0] != 2'd2);
     wire select_sound = io_cycle && (port[15:4] == {4'h0, sb_base_high} || port[15:1] == 15'h01c4);
     wire select_debug = io_cycle && ((port >= 16'h0400 && port <= 16'h0403) || port == 16'h0500 || port == 16'h00e9);
     wire access = cycle_access && io_cycle;
@@ -172,14 +189,14 @@ module pc386_at_core #(
     assign sound_wdata = cycle_wdata[7:0];
 
     // ---- Interrupts -------------------------------------------------------
-    wire pit_out0, pit_out1, pit_out2, irq1, irq12, irq8, irq14;
+    wire pit_out0, pit_out1, pit_out2, irq1, irq6, irq12, irq8, irq14;
     wire [7:0] pic_data;
     pc386_pic pic (
         .clk(clk), .reset(reset),
         .master_cs(cycle_cs && select_pic1), .slave_cs(cycle_cs && select_pic2),
         .read_strobe(read_strobe), .write_strobe(write_strobe), .inta_strobe(inta_strobe),
         .a0(port[0]), .wdata(cycle_wdata[7:0]), .rdata(pic_data),
-        .irq(device_irq | {1'b0, irq14, 1'b0, irq12, 3'b000, irq8, 6'b000000, irq1, pit_out0}),
+        .irq(device_irq | {1'b0, irq14, 1'b0, irq12, 3'b000, irq8, 1'b0, irq6, 4'b0000, irq1, pit_out0}),
         .intr(intr)
     );
 
@@ -239,6 +256,10 @@ module pc386_at_core #(
     always @(posedge clk) if (access && cycle_write && select_page) pages[port[3:0]] <= cycle_wdata[7:0];
     wire page_write = access && cycle_write && select_page;
 
+    reg fdc_dack_valid, fdc_dack_tc;
+    reg [7:0] fdc_dack_wdata;
+    wire fdc_drq, fdc_dack_done;
+    wire [7:0] fdc_dack_rdata;
     wire dma_tick;
     pc386_rate #(.N(DMA_N), .D(DMA_D)) dma_rate (.clk(clk), .reset(reset), .tick(dma_tick));
     wire [7:0] dma1_data, dma2_data;
@@ -255,7 +276,8 @@ module pc386_at_core #(
         .page_write(page_write && page_first),
         .reg_address(select_page ? {2'b00, page_channel} : port[3:0]), .reg_wdata(cycle_wdata[7:0]),
         .reg_rdata(dma1_data),
-        .drq(dma_drq), .refresh_clock(1'b0), .hold_request(dma1_hold), .granted(dma1_hold),
+        .drq({dma_drq[3], dma_drq[2] || fdc_drq, dma_drq[1]}), .refresh_clock(1'b0), .hold_request(dma1_hold),
+        .granted(dma1_hold),
         .cpu_waiting(1'b0), .cpu_done(1'b0),
         .cycle_valid(dma1_valid), .cycle_ready(dma1_ready), .cycle_done(dma1_done),
         .cycle_address(dma1_address), .cycle_wdata(dma1_wdata), .cycle_kind(dma1_kind),
@@ -277,7 +299,8 @@ module pc386_at_core #(
     /* verilator lint_on PINCONNECTEMPTY */
 
     // Controller 1's memory cycles go to the CPU's DMA port, its device cycles
-    // to the on-board device's DACK. Controller 2 has no data path: a cycle it
+    // to the on-board device's DACK: channel 2 to the floppy controller, the
+    // others out to the shell. Controller 2 has no data path: a cycle it
     // starts (only a software request can) completes with no transfer.
     reg dma1_busy;
     always @(posedge clk) begin
@@ -288,21 +311,25 @@ module pc386_at_core #(
             dma1_busy <= 0; dma1_rdata <= 8'hff;
             dma_valid <= 0; dma_write <= 0; dma_address <= 0; dma_wdata <= 0;
             dma_ack_valid <= 0; dma_ack_write <= 0; dma_ack_tc <= 0; dma_ack_channel <= 0; dma_ack_wdata <= 0;
+            fdc_dack_valid <= 0; fdc_dack_tc <= 0; fdc_dack_wdata <= 0;
         end else if (!dma1_busy) begin
             if (dma1_valid && !dma1_ready) begin
                 dma1_ready <= 1;
                 dma1_busy <= 1;
                 if (dma1_kind == 0) begin
                     dma_valid <= 1; dma_write <= dma1_write; dma_address <= dma1_address; dma_wdata <= dma1_wdata;
+                end else if (dma1_channel == 2'd2) begin
+                    fdc_dack_valid <= 1; fdc_dack_tc <= dma1_tc; fdc_dack_wdata <= dma1_wdata;
                 end else begin
                     dma_ack_valid <= 1; dma_ack_write <= dma1_write; dma_ack_tc <= dma1_tc;
                     dma_ack_channel <= dma1_channel; dma_ack_wdata <= dma1_wdata;
                 end
             end
-        end else if ((dma_valid && dma_done) || (dma_ack_valid && dma_ack_done)) begin
-            dma1_rdata <= dma_valid ? dma_rdata : dma_ack_rdata;
+        end else if ((dma_valid && dma_done) || (dma_ack_valid && dma_ack_done) || (fdc_dack_valid && fdc_dack_done)) begin
+            dma1_rdata <= dma_valid ? dma_rdata : fdc_dack_valid ? fdc_dack_rdata : dma_ack_rdata;
             dma_valid <= 0;
             dma_ack_valid <= 0;
+            fdc_dack_valid <= 0;
             dma1_done <= 1;
             dma1_busy <= 0;
         end
@@ -330,6 +357,7 @@ module pc386_at_core #(
         .disk_present(disk_present), .disk_cylinders(disk_cylinders),
         .disk_heads({3'b000, disk_heads}), .disk_spt({2'b00, disk_spt}),
         .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma), .ems_pages(ems_pages),
+        .x87_present(x87_present),
         .wall_valid(wall_valid), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
         .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second), .wall_weekday(wall_weekday),
         .record_write(record_write), .record_index(record_index), .record_byte(record_byte),
@@ -352,6 +380,22 @@ module pc386_at_core #(
         .writer_busy(disk_writer_busy), .fenced(disk_fenced), .written(disk_written)
     );
 
+    // ---- Floppy controller ----------------------------------------------------
+    wire [7:0] fdc_data;
+    pc386_fdc #(.US_N(US_N), .US_D(US_D)) fdc (
+        .clk(clk), .reset(reset),
+        .access(access && select_fdc), .write(cycle_write), .address(port[2:0]), .wdata(cycle_wdata[7:0]),
+        .rdata(fdc_data), .irq6(irq6),
+        .drq(fdc_drq), .dack_valid(fdc_dack_valid), .dack_tc(fdc_dack_tc), .dack_wdata(fdc_dack_wdata),
+        .dack_done(fdc_dack_done), .dack_rdata(fdc_dack_rdata),
+        .drive_type(floppy_type), .present(floppy_present), .write_protect(floppy_write_protect),
+        .two_sided(floppy_two_sided), .cylinders(floppy_cylinders), .spt(floppy_spt),
+        .aux_address(fdc_address), .aux_burstcount(fdc_burstcount), .aux_read(fdc_read), .aux_write(fdc_write),
+        .aux_writedata(fdc_writedata), .aux_byteenable(fdc_byteenable), .aux_waitrequest(fdc_waitrequest),
+        .aux_readdatavalid(fdc_readdatavalid), .aux_readdata(fdc_readdata),
+        .frozen(fdc_frozen), .busy(fdc_busy), .fenced(fdc_fenced)
+    );
+
     // ---- Read data ----------------------------------------------------------
     always @* begin
         cycle_rdata = 16'hffff;
@@ -365,6 +409,7 @@ module pc386_at_core #(
         else if (select_page) cycle_rdata = {8'hff, pages[port[3:0]]};
         else if (select_dma2) cycle_rdata = {8'hff, dma2_data};
         else if (select_ata_block || select_ata_control) cycle_rdata = ata_data;
+        else if (select_fdc) cycle_rdata = {8'hff, fdc_data};
         else if (select_sound) cycle_rdata = {8'hff, sound_rdata};
     end
 

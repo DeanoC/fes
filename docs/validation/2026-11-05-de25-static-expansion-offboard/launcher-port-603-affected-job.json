@@ -1,0 +1,16 @@
+{
+  "command": [
+    "python3",
+    "/data/fes-de25-main-integration-20261105/launcher-port-committed-check-job/run.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform/out/work/de25-linux-603e1ac17f8d849b17ca608a4fe08e9b5c140ba9",
+  "elapsed_seconds": 363.179,
+  "heartbeat_utc": "2026-11-05T15:51:22.747082+00:00",
+  "pid": 2835437,
+  "returncode": 0,
+  "scope": "Exact committed launcher-port repair affected plan. Retain previous working-copy source/recipe mismatch; no test guard change, no deployed source, no kit/FPGA/boot/image mutation.",
+  "source_revision": "603e1ac17f8d849b17ca608a4fe08e9b5c140ba9",
+  "state": "passed",
+  "supervisor_pid": 2835366,
+  "time_cap_seconds": 900
+}

@@ -130,9 +130,16 @@ func (c *Client) loadBoundCore(ctx context.Context, size int64, content io.Reade
 		return protocol.Status{}, err
 	}
 	singleComposed, slotComposed := status.CorePackage != nil && status.CorePackage.Composition != nil, status.CorePackage != nil && status.CorePackage.SlotComposition != nil
+	staticComposed := status.CorePackage != nil && status.CorePackage.StaticComposition != nil
+	forms := 0
+	for _, present := range []bool{singleComposed, slotComposed, staticComposed} {
+		if present {
+			forms++
+		}
+	}
 	// A ROM input composes on the target, so its reply may carry a composition.
 	romLinked := status.CorePackage != nil && (status.CorePackage.ROMLink != nil || status.CorePackage.ROMLinks != nil)
-	if !validCorePackageStatus(status) || (parts && (status.CorePackage.PartsComposition == nil || romLinked)) || (!parts && status.CorePackage.PartsComposition != nil && !romLinked) || (composed && singleComposed == slotComposed) || (!composed && !parts && (singleComposed || slotComposed) && !romLinked) || (libraryID != "" && (status.CorePackage.PackageID != libraryID || (status.CorePackage.PersistenceMode != "persistent" && status.CorePackage.PersistenceMode != "volatile"))) {
+	if !validCorePackageStatus(status) || (parts && (status.CorePackage.PartsComposition == nil || romLinked)) || (!parts && status.CorePackage.PartsComposition != nil && !romLinked) || (composed && forms != 1) || (!composed && !parts && forms != 0 && !romLinked) || (libraryID != "" && (status.CorePackage.PackageID != libraryID || (status.CorePackage.PersistenceMode != "persistent" && status.CorePackage.PersistenceMode != "volatile"))) {
 		return protocol.Status{}, fmt.Errorf("development core response does not match requested load")
 	}
 	// A physical load can finish after lease expiry has scheduled target cleanup.
@@ -153,6 +160,12 @@ func validCorePackageStatus(status protocol.Status) bool {
 		return false
 	}
 	value := status.CorePackage
+	if c := value.StaticComposition; c != nil {
+		id, err := expansion.StaticCompositionID(*c)
+		if err != nil || id != c.ID || c.PackageID != value.PackageID || value.Composition != nil || value.SlotComposition != nil || value.PartsComposition != nil || value.ROMLink != nil || value.ROMLinks != nil || value.PersistenceMode != "volatile" || value.ExpansionSocket != "" || value.ABI != (protocol.RuntimeContract{ID: "fes.computer", Major: 1}) {
+			return false
+		}
+	}
 	if protocol.ComputerABI(value.ABI.ID, int64(value.ABI.Major), int64(value.ABI.Minor)) &&
 		value.PersistenceMode == "persistent" && !protocol.PersistentMediaStatusValid(value) {
 		return false

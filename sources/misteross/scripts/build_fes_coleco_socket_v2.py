@@ -255,7 +255,7 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str,
     fields["roms"] = [dict(row) for row in ROMS]
     fields["rom_map"] = dict(rom_map_entry)
     fields["interfaces"] = [row for row in fields["interfaces"]
-                            if not row["id"].startswith("fes.media.blob") and row["id"] != "fes.firmware.blob"]
+                            if not row["id"].startswith("fes.media.blob")]
     fields["core"]["version"] = "1.5.0"
     fields["core"]["description"] = "ColecoVision with optional SGM expansion socket"
     fields["interfaces"].append({

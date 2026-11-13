@@ -299,12 +299,18 @@ end
 function on_hover(id)
   -- Native hero action focus keeps the selected item without drawing a
   -- second focus outline. These private hits never activate a destination.
-  if id == "native:actions" then
-    if row ~= "actions" and row ~= "menu" then body = row end
-    row = "actions"
+  -- Leaving a header route publishes the shelf item again.
+  if id == "native:actions" or id == "native:shelf" then
+    local was_menu = row == "menu"
+    if id == "native:actions" then
+      if row ~= "actions" and row ~= "menu" then body = row end
+      row = "actions"
+    else
+      row = body
+    end
+    if was_menu then publish() end
     return
   end
-  if id == "native:shelf" then row = body return end
   focus_hit(id)
 end
 function on_activate(id) focus_hit(id) end
@@ -319,36 +325,80 @@ function on_resize()
 end
 
 -- Drawing ------------------------------------------------------------
+--
+-- Each part of the picture is a gfx.segment keyed by everything its pixels
+-- depend on besides the geometry (a resize drops every segment). A focus
+-- move redraws the header, the hero and the tiles whose focus changed, and
+-- copies every other part from the frame on screen. generation is in the
+-- key of each part drawn from data.
 
 local outline = F.outline
+local measure = F.measure
+local text = F.text
 
--- A disc from horizontal slices: the device has rectangles only.
-local function disc(cx, cy, r, color)
+local function flag(b) return b and 1 or 0 end
+
+-- A disc from horizontal slices: the device has rectangles only. Returns
+-- each slice's x, y, w, h as one gfx.rects list.
+local function disc(cx, cy, r)
+  local list, n = {}, 0
   local slices = math.max(6, math.floor(r / 3))
   for i = 0, slices - 1 do
     local y0 = -r + (2 * r) * i / slices
     local y1 = -r + (2 * r) * (i + 1) / slices
     local mid = (y0 + y1) / 2
     local half = math.sqrt(math.max(0, r * r - mid * mid))
-    gfx.rect(cx - half, cy + y0, half * 2, (y1 - y0) + 1, color)
+    list[n + 1], list[n + 2], list[n + 3], list[n + 4] = cx - half, cy + y0, half * 2, (y1 - y0) + 1
+    n = n + 4
   end
+  return list
 end
 
-local function hills(x, y, w, h, color, phase)
+local function hills(x, y, w, h, phase)
+  local list, n = {}, 0
   local steps = 12
   for i = 0, steps - 1 do
     local t = (i + 0.5) / steps
     local top = h * (0.30 + 0.16 * math.sin((t + phase) * math.pi * 2))
-    gfx.rect(x + w * i / steps, y + top, w / steps + 1, h - top, color)
+    list[n + 1], list[n + 2], list[n + 3], list[n + 4] = x + w * i / steps, y + top, w / steps + 1, h - top
+    n = n + 4
   end
+  return list
+end
+
+-- A title art's moon and hills as gfx.rects lists, kept for each exact x,
+-- y, w, h and phase a title art was drawn at: recent titles are redrawn in
+-- the same few places, so each is computed once. Each width keeps an array
+-- of places, so a new place allocates no hash table.
+local arts, arts_n = {}, 0   -- w -> { {x, y, h, phase, moon, hills}, ... }
+local function art_rects(x, y, w, h, phase)
+  local placed = arts[w]
+  if placed then
+    for i = 1, #placed do
+      local e = placed[i]
+      if e[1] == x and e[2] == y and e[3] == h and e[4] == phase then return e[5], e[6] end
+    end
+  end
+  -- New places come with a new room size: past 128, start again.
+  if arts_n >= 128 then arts, arts_n, placed = {}, 0, nil end
+  if not placed then
+    placed = {}
+    arts[w] = placed
+  end
+  arts_n = arts_n + 1
+  local moon = disc(x + w * 0.36, y + h * 0.42, math.min(w, h) * 0.24)
+  local land = hills(x, y + h * 0.45, w, h * 0.55, phase)
+  placed[#placed + 1] = { x, y, h, phase, moon, land }
+  return moon, land
 end
 
 -- A recent title's art: its family's ground behind the moon-and-hills motif.
 local function title_art(g, x, y, w, h)
   local ground = F.ground(g.core_id, g.id)
   gfx.rect(x, y, w, h, ground)
-  disc(x + w * 0.36, y + h * 0.42, math.min(w, h) * 0.24, "#F5E6C8")
-  hills(x, y + h * 0.45, w, h * 0.55, C.dark, F.hash(g.title or "") % 7 / 7)
+  local moon, land = art_rects(x, y, w, h, F.hash(g.title or "") % 7 / 7)
+  gfx.rects(moon, "#F5E6C8")
+  gfx.rects(land, C.dark)
 end
 
 local function menu_art(id, x, y, w, h)
@@ -389,7 +439,7 @@ local function draw_header(h)
   for i = #MENU, 1, -1 do
     local item = MENU[i]
     local focused = row == "menu" and menu_i == i
-    local tw = gfx.measure(item.label, 20, focused)
+    local tw, lh = measure(item.label, 20, focused)
     local bw = tw + 36
     local bx = right - bw
     gfx.rect(bx, by, bw, bh, C.surface)
@@ -398,61 +448,117 @@ local function draw_header(h)
     else
       outline(bx, by, bw, bh, 1, C.divider)
     end
-    local _, lh = gfx.measure(item.label, 20, focused)
-    gfx.text(item.label, bx + 18, by + (bh - lh) / 2, { size = 20, bold = focused, color = C.text })
+    text(item.label, bx + 18, by + (bh - lh) / 2, 20, focused, C.text)
     gfx.hit("menu:" .. i, bx, by, bw, bh)
     right = bx - 12
   end
 end
 
-local function draw_hero(h)
+-- What the hero art shows: "menu", "banner", "recent", "family" or "none",
+-- and which one.
+local function hero_shows()
+  if row == "menu" then return "menu", menu_i end
+  local which = row == "actions" and body or row
+  if which == "banner" then return "banner", 1 end
+  if which == "recent" and recents[recent_i] then return "recent", recent_i end
+  if families[family_i] then return "family", family_i end
+  return "none", 0
+end
+
+local function draw_hero(h, shows, i)
   local c = h.card
   gfx.rect(c.x, c.y, c.w, c.h, C.surface)
   outline(c.x, c.y, c.w, c.h, 2, C.divider)
   local a = h.art
-  if row == "menu" then
-    menu_art(MENU[menu_i].id, a.x, a.y, a.w, a.h)
-    return
-  end
-  local which = row == "actions" and body or row
-  if which == "banner" then
+  if shows == "menu" then
+    menu_art(MENU[i].id, a.x, a.y, a.w, a.h)
+  elseif shows == "banner" then
     menu_art("settings", a.x, a.y, a.w, a.h)
-  elseif which == "recent" and recents[recent_i] then
-    title_art(recents[recent_i], a.x, a.y, a.w, a.h)
-  elseif families[family_i] then
-    F.mark(families[family_i], a.x, a.y, a.w, a.h)
+  elseif shows == "recent" then
+    title_art(recents[i], a.x, a.y, a.w, a.h)
+  elseif shows == "family" then
+    F.mark(families[i], a.x, a.y, a.w, a.h)
   else
     gfx.rect(a.x, a.y, a.w, a.h, C.raised)
   end
 end
 
+local function segment_header(h)
+  gfx.segment("header:" .. (row == "menu" and menu_i or 0) .. ":" .. room.title, draw_header, h)
+end
+
+local function segment_hero(h)
+  local shows, i = hero_shows()
+  -- A recent title's art comes from library data; a family mark and the
+  -- route art do not.
+  local key = shows == "recent" and ("hero:recent:" .. generation .. ":" .. i) or ("hero:" .. shows .. ":" .. i)
+  gfx.segment(key, draw_hero, h, shows, i)
+end
+
+local function draw_recent(x, top, cw, ch, i, focused)
+  local g = recents[i]
+  gfx.rect(x, top, cw, ch, C.surface)
+  local pad = math.max(4, math.floor(ch * 0.1))
+  local aw = math.floor((ch - pad * 2) * 1.2)
+  title_art(g, x + pad, top + pad, aw, ch - pad * 2)
+  if focused then
+    outline(x - 3, top - 3, cw + 6, ch + 6, 3, C.accent)
+  else
+    outline(x, top, cw, ch, 1, C.divider)
+  end
+  local tx = x + pad + aw + 12
+  local tw = cw - (tx - x) - 8
+  local size = ch >= 56 and 20 or 18
+  text(g.title or "", tx, top + pad, size, focused, C.text, tw)
+  text(machine_label(g), tx, top + ch - pad - size, size - 4, nil, C.secondary, tw)
+  gfx.hit("recent:" .. i, x, top, cw, ch)
+end
+
 local function draw_recents(s, top, ch)
   local gap = 16
   local cw = (s.w - gap * (RECENT_MAX - 1)) / RECENT_MAX
-  for i, g in ipairs(recents) do
-    local x = s.x + (i - 1) * (cw + gap)
+  for i = 1, #recents do
     local focused = row == "recent" and recent_i == i
-    gfx.rect(x, top, cw, ch, C.surface)
-    local pad = math.max(4, math.floor(ch * 0.1))
-    local aw = math.floor((ch - pad * 2) * 1.2)
-    title_art(g, x + pad, top + pad, aw, ch - pad * 2)
-    if focused then
-      outline(x - 3, top - 3, cw + 6, ch + 6, 3, C.accent)
-    else
-      outline(x, top, cw, ch, 1, C.divider)
-    end
-    local tx = x + pad + aw + 12
-    local tw = cw - (tx - x) - 8
-    local size = ch >= 56 and 20 or 18
-    gfx.text(g.title or "", tx, top + pad, { size = size, bold = focused, color = C.text, max_w = tw })
-    gfx.text(machine_label(g), tx, top + ch - pad - size, { size = size - 4, color = C.secondary, max_w = tw })
-    gfx.hit("recent:" .. i, x, top, cw, ch)
+    gfx.segment("recent:" .. generation .. ":" .. i .. ":" .. flag(focused), draw_recent,
+      s.x + (i - 1) * (cw + gap), top, cw, ch, i, focused)
   end
 end
 
 -- Tall tiles: the mark above the name, the state chip and its detail line.
 -- Compact tiles (below Recently played): a small mark, the short name and
 -- the chip. Below the 720p safe-room height (648), the detail line is left out.
+local function draw_family(x, top, cw, ch, i, focused, compact, detail)
+  local f = families[i]
+  local state, line = F.tile(f)
+  gfx.rect(x, top, cw, ch, C.surface)
+  if compact then
+    local pad = 8
+    local aw = math.min(math.floor(cw * 0.38), math.floor((ch - pad * 2) * 1.2))
+    F.mark(f, x + pad, top + pad, aw, ch - pad * 2)
+    local tx = x + pad + aw + 12
+    local tw = cw - (tx - x) - 8
+    text(f.art.short, tx, top + ch * 0.20, 20, focused, C.text, tw)
+    F.chip(state, tx, top + ch * 0.52, 16)
+  else
+    local art_h = math.floor(ch * (detail and 0.50 or 0.56))
+    gfx.clip(x, top, cw, art_h)
+    F.mark(f, x, top, cw, art_h)
+    gfx.unclip()
+    text(f.label, x + 14, top + art_h + 8, 22, focused, C.text, cw - 28)
+    local cy = top + art_h + 40
+    F.chip(state, x + 14, cy, 16)
+    if detail and line ~= "" then
+      text(line, x + 14, cy + 32, 18, nil, C.secondary, cw - 28)
+    end
+  end
+  if focused then
+    outline(x - 4, top - 4, cw + 8, ch + 8, 4, C.accent)
+  else
+    outline(x, top, cw, ch, 1, C.divider)
+  end
+  gfx.hit("family:" .. i, x, top, cw, ch)
+end
+
 local function draw_families(s, top, ch, compact, only_slot)
   local n = #families
   local shown = math.min(n, 4)
@@ -464,38 +570,10 @@ local function draw_families(s, top, ch, compact, only_slot)
   for slot = 0, shown - 1 do
     if only_slot == nil or only_slot == slot then
       local i = first + slot
-      local f = families[i]
-      if not f then break end
-      local x = s.x + slot * (cw + gap)
+      if not families[i] then break end
       local focused = row == "family" and family_i == i
-      local state, line = F.tile(f)
-      gfx.rect(x, top, cw, ch, C.surface)
-      if compact then
-        local pad = 8
-        local aw = math.min(math.floor(cw * 0.38), math.floor((ch - pad * 2) * 1.2))
-        F.mark(f, x + pad, top + pad, aw, ch - pad * 2)
-        local tx = x + pad + aw + 12
-        local tw = cw - (tx - x) - 8
-        gfx.text(f.art.short, tx, top + ch * 0.20, { size = 20, bold = focused, color = C.text, max_w = tw })
-        F.chip(state, tx, top + ch * 0.52, 16)
-      else
-        local art_h = math.floor(ch * (detail and 0.50 or 0.56))
-        gfx.clip(x, top, cw, art_h)
-        F.mark(f, x, top, cw, art_h)
-        gfx.unclip()
-        gfx.text(f.label, x + 14, top + art_h + 8, { size = 22, bold = focused, color = C.text, max_w = cw - 28 })
-        local cy = top + art_h + 40
-        F.chip(state, x + 14, cy, 16)
-        if detail and line ~= "" then
-          gfx.text(line, x + 14, cy + 32, { size = 18, color = C.secondary, max_w = cw - 28 })
-        end
-      end
-      if focused then
-        outline(x - 4, top - 4, cw + 8, ch + 8, 4, C.accent)
-      else
-        outline(x, top, cw, ch, 1, C.divider)
-      end
-      gfx.hit("family:" .. i, x, top, cw, ch)
+      gfx.segment("family:" .. generation .. ":" .. slot .. ":" .. i .. ":" .. flag(focused) .. flag(compact),
+        draw_family, s.x + slot * (cw + gap), top, cw, ch, i, focused, compact, detail)
     end
   end
   if (only_slot == nil or only_slot == 0) and first > 1 then
@@ -508,20 +586,19 @@ end
 
 -- The Get started banner: a warm plate with a leading bar, what is left,
 -- and Finish setup.
-local function draw_banner(s, top, ch)
-  local focused = row == "banner"
+local function draw_banner(s, top, ch, focused)
   gfx.rect(s.x, top, s.w, ch, C.raised)
   gfx.rect(s.x, top, 6, ch, "#E8C77A")
   local size = ch >= 56 and 20 or 18
-  gfx.text("Setup isn't finished", s.x + 24, top + ch * 0.12, { size = size, bold = true, color = C.text, max_w = s.w * 0.6 })
-  gfx.text("Your choices so far are kept.", s.x + 24, top + ch * 0.12 + size + 6, { size = size - 2, color = C.secondary, max_w = s.w * 0.6 })
+  text("Setup isn't finished", s.x + 24, top + ch * 0.12, size, true, C.text, s.w * 0.6)
+  text("Your choices so far are kept.", s.x + 24, top + ch * 0.12 + size + 6, size - 2, nil, C.secondary, s.w * 0.6)
   local label = "Finish setup"
-  local bw = gfx.measure(label, size, true) + 28
+  local tw, th = measure(label, size, true)
+  local bw = tw + 28
   local bh = math.min(ch - 16, size + 18)
   local bx, by = s.x + s.w - bw - 16, top + (ch - bh) / 2
   gfx.rect(bx, by, bw, bh, C.surface)
-  local _, th = gfx.measure(label, size, true)
-  gfx.text(label, bx + 14, by + (bh - th) / 2, { size = size, bold = true, color = C.text })
+  text(label, bx + 14, by + (bh - th) / 2, size, true, C.text)
   if focused then
     outline(s.x - 3, top - 3, s.w + 6, ch + 6, 3, C.accent)
   else
@@ -530,35 +607,44 @@ local function draw_banner(s, top, ch)
   gfx.hit("banner:1", s.x, top, s.w, ch)
 end
 
+-- Computers and how many families are on this kit, without a row above.
+local function draw_labels(s, label_size)
+  text("Computers", s.x, s.y, label_size, true, C.text)
+  if settled() and F.count_known() then
+    text(F.on_kit() .. " on this kit", s.x, s.y + 4, 18, nil, C.secondary, s.w, "right")
+  end
+end
+
+-- The shelf. only_slot -1 draws the labels and the row above; a slot 0-3
+-- draws that family tile.
 local function draw_shelf(h, only_slot)
   local s = h.shelf
   local label_size = s.h >= 240 and 24 or 20
-  local _, lh = gfx.measure("Computers", label_size, true)
+  local _, lh = measure("Computers", label_size, true)
   local y = s.y
   local above = top_row()
+  local labels = only_slot == nil or only_slot == -1
   if above then
     local rh = math.floor((s.h - (lh + 8) * 2 - 12) * 0.40)
-    if only_slot == nil or only_slot == -1 then
-      gfx.text(above == "banner" and "Get started" or "Recently played", s.x, y, { size = label_size, bold = true, color = C.text })
+    if labels then
+      text(above == "banner" and "Get started" or "Recently played", s.x, y, label_size, true, C.text)
       if above == "banner" then
-        draw_banner(s, y + lh + 8, rh)
+        local focused = row == "banner"
+        gfx.segment("banner:" .. flag(focused), draw_banner, s, y + lh + 8, rh, focused)
       else
         draw_recents(s, y + lh + 8, rh)
       end
     end
     y = y + lh + 8 + rh + 12
-    if only_slot == nil or only_slot == -1 then
-      gfx.text("Computers", s.x, y, { size = label_size, bold = true, color = C.text })
+    if labels then
+      text("Computers", s.x, y, label_size, true, C.text)
     end
     local top = y + lh + 8
     if only_slot ~= -1 then draw_families(s, top, s.y + s.h - top, true, only_slot) end
     return
   end
-  if only_slot == nil or only_slot == -1 then
-    gfx.text("Computers", s.x, y, { size = label_size, bold = true, color = C.text })
-    if settled() and F.count_known() then
-      gfx.text(F.on_kit() .. " on this kit", s.x, y + 4, { size = 18, color = C.secondary, max_w = s.w, align = "right" })
-    end
+  if labels then
+    gfx.segment("labels:" .. generation, draw_labels, s, label_size)
   end
   local top = y + lh + 14
   if only_slot ~= -1 then draw_families(s, top, s.y + s.h - top, false, only_slot) end
@@ -586,7 +672,8 @@ local function draw_compact()
   for i = #MENU, 1, -1 do
     local item = MENU[i]
     local focused = row == "menu" and menu_i == i
-    local bw = gfx.measure(item.label, 18, focused) + 28
+    local tw, th = measure(item.label, 18, focused)
+    local bw = tw + 28
     right = right - bw
     gfx.rect(right, 8, bw, COMPACT_MENU_H, C.surface)
     if focused then
@@ -594,8 +681,7 @@ local function draw_compact()
     else
       outline(right, 8, bw, COMPACT_MENU_H, 1, C.divider)
     end
-    local _, th = gfx.measure(item.label, 18, focused)
-    gfx.text(item.label, right + 14, 8 + (COMPACT_MENU_H - th) / 2, { size = 18, bold = focused, color = C.text })
+    text(item.label, right + 14, 8 + (COMPACT_MENU_H - th) / 2, 18, focused, C.text)
     gfx.hit("menu:" .. i, right, 8, bw, COMPACT_MENU_H)
     right = right - 8
   end
@@ -616,66 +702,66 @@ local function draw_compact()
     else
       outline(m, ry, cw, COMPACT_ROW, 1, C.divider)
     end
-    gfx.text(f.label, m + 12, ry + 6, { size = 18, bold = focused, color = C.text, max_w = math.max(1, cw - 24) })
+    text(f.label, m + 12, ry + 6, 18, focused, C.text, math.max(1, cw - 24))
     gfx.hit("family:" .. i, m, ry, cw, COMPACT_ROW)
   end
 end
 
--- Repaint only when the data, focus or geometry changes.
-local painted = nil
-local opening, opening_scene = 0, nil
+-- Repaint only when the data, focus or geometry changes. painted is the
+-- scene of the finished picture on screen and opening the scene the staged
+-- first picture started from; both tables are reused.
+local painted = { ok = false }
+local opening_scene = { ok = false }
+local opening = 0
 
-local function scene()
-  return { generation = generation, row = row, body = body, recent_i = recent_i,
-    family_i = family_i, menu_i = menu_i, width = room.width,
-    height = room.height, title = room.title }
+local function remember_scene(t)
+  t.ok, t.generation, t.row, t.body = true, generation, row, body
+  t.recent_i, t.family_i, t.menu_i = recent_i, family_i, menu_i
+  t.width, t.height, t.title = room.width, room.height, room.title
 end
 
-local function same_scene(a, b)
-  return a and b and a.generation == b.generation and a.row == b.row
-    and a.body == b.body and a.recent_i == b.recent_i
-    and a.family_i == b.family_i and a.menu_i == b.menu_i
-    and a.width == b.width and a.height == b.height and a.title == b.title
+local function same_scene(t)
+  return t.ok and t.generation == generation and t.row == row
+    and t.body == body and t.recent_i == recent_i
+    and t.family_i == family_i and t.menu_i == menu_i
+    and t.width == room.width and t.height == room.height and t.title == room.title
 end
 
 function draw()
-  local now = scene()
-  if room.presented and same_scene(painted, now) and gfx.reuse() then
+  if room.presented and same_scene(painted) and gfx.reuse() then
     return
   end
   local h = room.hero
   -- Build an initial or data-changed picture across callbacks. Each extension copies the
-  -- presented prefix, so no callback needs to draw all four family marks.
+  -- presented prefix, so one callback draws at most one family mark.
   -- Restart when an async answer, input or resize changes that prefix.
-  if h and (not painted or painted.generation ~= generation) then
-    if not room.presented or not same_scene(opening_scene, now) then opening = 0 end
+  if h and (not painted.ok or painted.generation ~= generation) then
+    if not room.presented or not same_scene(opening_scene) then opening = 0 end
     if opening == 0 then
-      painted = nil
-      draw_header(h)
-      draw_hero(h)
+      painted.ok = false
+      segment_header(h)
+      segment_hero(h)
       gfx.paint({ { "c", C.background } })
-      opening_scene = now
+      remember_scene(opening_scene)
     else
       if opening == 1 then draw_shelf(h, -1)
       else
-        draw_shelf(h, (opening - 2) * 2)
-        draw_shelf(h, (opening - 2) * 2 + 1)
+        draw_shelf(h, opening - 2)
       end
       gfx.extend({})
     end
     opening = opening + 1
-    if opening == 4 then painted = now end
+    if opening == 6 then remember_scene(painted) end
     return
   end
   if h then
-    draw_header(h)
-    draw_hero(h)
+    segment_header(h)
+    segment_hero(h)
     draw_shelf(h)
   else
     draw_compact()
   end
-  publish()
-  painted = now
+  remember_scene(painted)
   -- Paint the background after assembling the full display list. The existing
   -- engine presents a completed paint on a soft overrun, allowing the next
   -- unchanged draw to reuse it. Hard deadlines and overrun limits still apply.

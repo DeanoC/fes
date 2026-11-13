@@ -1,0 +1,77 @@
+{
+  "producer_revision": "a92f5d3cb31793f3d0f1771ebcdd54dfff794e5c",
+  "results": {
+    "menu": {
+      "all_reported_timing_pass": true,
+      "unreviewed_failed_rules": 2,
+      "package_timing_admission": false,
+      "remaining_rules": [
+        {
+          "id": "TMC-20012",
+          "severity": "High",
+          "violations": 3,
+          "waived": 0
+        },
+        {
+          "id": "TMC-20011",
+          "severity": "High",
+          "violations": 2,
+          "waived": 0
+        },
+        {
+          "id": "CLK-30028",
+          "severity": "High",
+          "violations": 1,
+          "waived": 0
+        },
+        {
+          "id": "RDC-50003",
+          "severity": "Medium",
+          "violations": 1,
+          "waived": 0
+        }
+      ]
+    },
+    "zx81": {
+      "all_reported_timing_pass": true,
+      "unreviewed_failed_rules": 2,
+      "package_timing_admission": false,
+      "remaining_rules": [
+        {
+          "id": "TMC-20012",
+          "severity": "High",
+          "violations": 5,
+          "waived": 0
+        },
+        {
+          "id": "TMC-20011",
+          "severity": "High",
+          "violations": 2,
+          "waived": 0
+        },
+        {
+          "id": "CLK-30028",
+          "severity": "High",
+          "violations": 1,
+          "waived": 0
+        },
+        {
+          "id": "RDC-50003",
+          "severity": "Medium",
+          "violations": 1,
+          "waived": 0
+        }
+      ]
+    }
+  },
+  "exported": false,
+  "hardware_programmed": false,
+  "independent_repeat_started": false,
+  "corrected_clock_diagnostic": {
+    "setup_min_ns": "8.608",
+    "hold_min_ns": "0.102",
+    "clock_warnings": 0,
+    "path_count": 216,
+    "acceptance": false
+  }
+}

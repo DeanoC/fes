@@ -1,0 +1,20 @@
+--- a/plat/intel/soc/common/socfpga_sip_svc.c
++++ b/plat/intel/soc/common/socfpga_sip_svc.c
+@@ -173,0 +174,10 @@
++			if (status != MBOX_NO_RESPONSE && status != MBOX_TIMEOUT) {
++				ERROR("FES_SDM completion error=%d length=%u completed=%u\n",
++				      status, resp_len, *count);
++				/* Retain every buffer and stop submitting after an error.
++				 * A returned buffer must not hide the error in the SiP
++				 * wrapper's count-based response. This is not a DMA fence.
++				 */
++				*count = 0;
++				return INTEL_SIP_SMC_STATUS_ERROR;
++			}
+@@ -784,2 +794,4 @@
+-		*mem = *mem - DRAM_BASE;
+-	} else {
++	}
++
++	/* Configuration start initializes the remapper without an address. */
++	if (mem != NULL) {

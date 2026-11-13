@@ -4,12 +4,12 @@ This directory is a described FES core, not an `experiments/` place-and-route
 test. The core lane is [docs/cores.md](../../docs/cores.md).
 
 This directory is the next FES emulator bring-up after ColecoVision. It is a
-reduced SG-1000-compatible console slice that uses the existing
-`fes.simple-computer` 1.0 mailbox and the DE10-Nano fixed 720p shell.
+reduced SG-1000-compatible console slice using the `fes.application` 1.0
+mailbox and the DE10-Nano fixed 720p shell.
 
 SG-1000 uses the original shared `fes_z80_nmos` CPU. The bounded TMS9918-style
-VDP, dual-port RAM wrappers, GP mailbox, video/system PLLs and 720p HDMI shell
-are shared with Coleco. This tree supplies the
+VDP, dual-port RAM wrappers, application GP mailbox, video/system PLLs and
+720p HDMI shell are shared with Coleco. This tree supplies the
 SG-1000 memory map, the 8255 joystick ports, the board top, Quartus pins and
 the oracle recipe.
 
@@ -32,8 +32,8 @@ format-3 package from a clean tree. The parent image route is package-only;
 - 1 KiB CPU RAM at `0xc000–0xc3ff`, mirrored through `0xffff`.
 - TMS9918-style VDP ports `0xbe` / `0xbf` and shared Graphics I, Graphics II,
   Text and Multicolor rendering on the fixed 256×192 logical raster.
-- Two joysticks on the SG-1000 8255 ports `0xdc` / `0xdd`, adapted from the
-  existing 40-bit keyboard matrix.
+- Two joysticks on the SG-1000 8255 ports `0xdc` / `0xdd`, adapted from
+  `fes.gamepad.ports` controller snapshots.
 - SN76489-compatible PSG writes at I/O `0x40–0x7f`, converted to signed stereo
   PCM and serialized as 48 kHz I2S over the board HDMI audio pins. System and
   audio clocks share Coleco's 52.224/12.288 MHz PLL; video uses the second PLL.
@@ -60,12 +60,13 @@ tree; the package-only recipe does not change the factory image.
 | I/O `0xdc`/`0xde` | joystick port A (P1 plus P2 left half) |
 | I/O `0xdd`/`0xdf` | joystick port B (P2 right/fire; unused bits 1) |
 
-The keyboard rows, build identity, fixed-video and audio interfaces use the
-existing `fes.simple-computer` boundary. The ROM-linked build reports keyboard,
-video and audio capability bits (`0x13`). The format-3 manifest requires no startup
+Build identity, controller ports, fixed-video and audio use the
+`fes.application` 1.0 boundary. The ROM-linked build advertises
+`fes.gamepad.ports`, `fes.video.fixed-720p60` and
+`fes.audio.pcm-s16-stereo-48k`. The format-3 manifest requires no startup
 `fes.media.blob`; the host and target agent link the selected cartridge before
-programming, then release reset. The diagnostic mailbox build still exercises
-the legacy media handshake in simulation and the Quartus oracle.
+programming, then release reset. The Quartus oracle instead uses the application
+media blob interface to load its diagnostic cartridge.
 
 VDP interrupt connects to the Z80 maskable INT input. Software selects IM1
 and enables interrupts with EI; DI masks delivery. The cartridge owns the
@@ -80,7 +81,7 @@ RAM and VDP memory paths settle before the CPU samples reads. Held I/O writes
 advance VDP and PSG state once per transaction; VDP reads retain the byte from
 before their side effect until the read ends. Refresh cycles do not assert
 read or write strobes. The [shared CPU contract and qualification
-limits](../fes-common/rtl/z80/README.md) apply here. Version 1.3.0 requires a
+limits](../fes-common/rtl/z80/README.md) apply here. A changed core requires a
 fresh seal with passing 52.224 MHz system, 74.25 MHz pixel and 12.288 MHz audio
 timing, followed by its own exact-artifact kit checks.
 
@@ -95,7 +96,7 @@ the first candidate that passes all three clocks. Its functional build record
 includes this policy; `qor-ranking.json` and `build-summary.json` retain the
 winning seed and weight. A diagnostic placement does not qualify a new seal.
 
-On 2026-10-03, package
+On 2026-10-03, the earlier 1.3.0 package
 `d6914aedd470815144308c85f456d56c9c69902b9cdc9c28df0007a63fd21ebe`
 sealed from `deb0f18d` with reported Fmax of 53.064 MHz system, 100.523 MHz
 pixel and 178.859 MHz audio, passing all three clock gates. Every pinned input
@@ -104,8 +105,9 @@ linked the original open 16 KiB sound diagnostic and verified the admitted
 package, BUILD_ID and ROM identity. The capture showed the checkerboard and a
 steady 437 Hz FFT peak; Stop left the final second of both audio channels
 exactly zero, and the lease was released. This is an exact-package development
-diagnostic. It does not establish assembled-image acceptance, commercial-game
-compatibility or equivalence to a physical NMOS chip.
+diagnostic. It does not accept the 1.4.0 application-ABI package, establish
+assembled-image acceptance, commercial-game compatibility or equivalence to a
+physical NMOS chip.
 
 The VDP INT wiring and separate pause NMI follow the
 [SG-1000 hardware reconstruction and scope measurements](https://www.leadedsolder.com/2022/05/20/sg1000-clone-v1.html).
@@ -118,29 +120,28 @@ fresh sealing and exact-artifact hardware checks remain separate.
 
 ## Standard joystick mapping
 
-Keyboard bits 0..9 keep the Coleco first-slice matrix (P1 then P2
-Up/Right/Down/Left/Fire1). The SG-1000 8255 permutes those bits onto SMS-style
-DC/DD:
+The `fes.gamepad.ports` snapshots use active-high Up/Down/Left/Right/A/B/Select/Start
+bits 0..7 on each port. The SG-1000 adapter maps Up/Down/Left/Right and A to
+the active-low DC/DD inputs. B, Select and Start are unused.
 
-| DC bit | Function | Keyboard bit |
+| DC bit | Function | Controller port and button |
 | --- | --- | --- |
-| 0 | P1 Up | 0 |
-| 1 | P1 Down | 2 |
-| 2 | P1 Left | 3 |
-| 3 | P1 Right | 1 |
-| 4 | P1 Fire 1 | 4 |
-| 5 | P2 Up | 5 |
-| 6 | P2 Down | 7 |
-| 7 | P2 Left | 8 |
+| 0 | P1 Up | 0 Up |
+| 1 | P1 Down | 0 Down |
+| 2 | P1 Left | 0 Left |
+| 3 | P1 Right | 0 Right |
+| 4 | P1 Fire 1 | 0 A |
+| 5 | P2 Up | 1 Up |
+| 6 | P2 Down | 1 Down |
+| 7 | P2 Left | 1 Left |
 
-| DD bit | Function | Keyboard bit |
+| DD bit | Function | Controller port and button |
 | --- | --- | --- |
-| 0 | P2 Right | 6 |
-| 1 | P2 Fire 1 | 9 |
+| 0 | P2 Right | 1 Right |
+| 1 | P2 Fire 1 | 1 A |
 | 2..7 | unused, read as 1 | — |
 
-Neutral ports read `ff`. This is a diagnostic mapping on the unchanged 40-bit
-`fes.simple-computer` keyboard transport, not a new physical-gamepad API.
+Neutral ports read `ff`. Execution hold neutralizes both snapshots.
 
 ## Open Graphics I diagnostic
 
@@ -162,8 +163,9 @@ The same target also emits `build/diagnostics/fes-sg1000/controller.rom` and
 continuously renders the raw active-low `DC` and `DD` bytes as two rows of
 eight indicators. Pressed bits are red and released bits are green; the
 cached bytes at `C001` and `C002` make the live polling path observable in
-simulation. Its preview accepts the unchanged 40-bit keyboard matrix with,
-for example, `--controllers --matrix 0xfffffffdfe`.
+simulation. Its static preview still accepts a 40-bit matrix as a visual
+shorthand, for example `--controllers --matrix 0xfffffffdfe`; that preview
+option is not the core input interface.
 
 It also emits `build/diagnostics/fes-sg1000/sound-16k.rom`: the same visual
 signature while alternating an approximately 437 Hz tone and white noise about
@@ -188,15 +190,16 @@ the linked cartridge does not depend on a startup media upload.
 branches with a locally supplied Quartus 17 `altera_mf.v` and Icarus Verilog.
 
 `make build-fes-sg1000-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe
-for `fes.sg1000` 1.3.0. It requires a clean committed tree, writes
+for `fes.sg1000` 1.4.0. It requires a clean committed tree, writes
 `build/fes-sg1000-quartus/build-inputs.json`, embeds that build id, and seals
 a format-2 package when timing passes. It does not program hardware.
 
 `make build-fes-sg1000` is the format-3 OSS recipe
 (`scripts/build_fes_sg1000_oss.py`). It exports a blank 16-lane M10K ROM and
 authenticated `rom-map.json` for the target agent's Go linker. The manifest
-requires one exact 16 KiB `cartridge-rom`, required
-`fes.audio.pcm-s16-stereo-48k` 1.0, and no startup media blob. The producer
+requires one exact 16 KiB `cartridge-rom`, `fes.gamepad.ports` 1.0,
+`fes.video.fixed-720p60` 1.0 and `fes.audio.pcm-s16-stereo-48k` 1.0, and no
+startup media blob. The producer
 requires two PLLs, the four routed HDMI audio pads, and passing system,
 pixel and audio timing domains.
 It copies Coleco `constraints-oss.qsf` and `clocks-oss.sdc`, and selects

@@ -4,7 +4,6 @@
 #include <linux/atomic.h>
 #include <linux/build_bug.h>
 #include <linux/completion.h>
-#include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/err.h>
 #include <linux/kref.h>
@@ -18,8 +17,20 @@
 #include <linux/uaccess.h>
 
 #include "de25_dma_internal.h"
+#include "de25_dma_owner.h"
+
+/* The pinned IOMMU DMA implementation maps page-array allocations with
+ * vm_map_pages(), allowing page pins beyond PTE revocation. Request actual
+ * contiguous backing so its DMA mmap path can install revocable I/O PFNs.
+ * The mmap shape check remains mandatory; no driver-made PFN mapping.
+ */
+#define FES_DE25_DMA_ATTRIBUTES DMA_ATTR_FORCE_CONTIGUOUS
 
 static_assert(FES_DE25_SCANOUT_DMA_ADDRESS_BITS == 32);
+static_assert(sizeof(struct fes_de25_dma_info) == 104);
+static_assert(sizeof(struct fes_de25_dma_publish) == 24);
+static_assert(sizeof(struct fes_de25_dma_diagnostics) == 48);
+static_assert(sizeof(struct fes_de25_dma_retirement) == 96);
 static_assert(FES_DE25_DMA_SLOTS == 2);
 static_assert(FES_DE25_DMA_FRAME_BYTES <= FES_DE25_DMA_SLOT_BYTES);
 static_assert(FES_DE25_DMA_ALLOCATION_BYTES == FES_DE25_DMA_SLOTS * FES_DE25_DMA_SLOT_BYTES);
@@ -42,7 +53,11 @@ struct fes_de25_dma {
 	u64 generation, epoch;
 	u32 sequence, accepted_sequence, displayed_sequence, displayed_slot, pending_slot;
 	u32 hardware_status, hardware_errors, underflows, outstanding;
-	bool revoked, exposed, uncertain, pending, cleared;
+	u32 build_id[4];
+	u32 first_fault_state, first_fault_occupancy, first_fault_gaps;
+	bool diagnostics_valid;
+	struct fes_de25_dma_retirement retirement;
+	bool revoked, exposed, uncertain, pending;
 #if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
 	struct fes_de25_dma_test_observer *observer;
 #endif
@@ -72,18 +87,23 @@ static void fes_de25_dma_destroy(struct kref *refs)
 
 	/* Exposed grants hold an independent reference and cannot get here. */
 	WARN_ON(grant->exposed);
-	dma_free_coherent(grant->dev, FES_DE25_DMA_ALLOCATION_BYTES, grant->cpu, grant->dma);
+	dma_free_attrs(grant->dev, FES_DE25_DMA_ALLOCATION_BYTES, grant->cpu, grant->dma,
+		FES_DE25_DMA_ATTRIBUTES);
 	list_for_each_entry_safe(entry, next, &grant->mms, link) {
 		mmdrop(entry->mm);
 		kfree(entry);
 	}
 	if (grant->inode)
 		iput(grant->inode);
-	put_device(grant->dev);
 #if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
 	if (grant->observer)
 		grant->observer->freed++;
 #endif
+	/* The provider may now retire its MMIO/context/domain resources. No
+	 * callback or observer access is permitted after releasing the lease.
+	 */
+	grant->backend.release(grant->backend.context);
+	put_device(grant->dev);
 	kfree(grant);
 }
 
@@ -91,29 +111,27 @@ static void fes_de25_dma_destroy(struct kref *refs)
  * serial handshake and recheck reject a delayed command or another owner.
  */
 #define FES_DE25_SNAPSHOT_TRIES 128
-#define FES_DE25_DRAIN_TRIES 20
-#define FES_DE25_DRAIN_MIN_US 1000
-#define FES_DE25_DRAIN_MAX_US 2000
 struct fes_de25_snapshot {
 	u64 generation, dma;
 	u32 status, accepted, displayed, current_sequence, slots, errors, underflows;
 	u32 outstanding, span;
+	u32 build_id[4];
+	u32 first_fault_state, first_fault_occupancy, first_fault_gaps;
 };
 
-static bool fes_de25_snapshot_is_pristine(const struct fes_de25_snapshot *snapshot)
+static bool fes_de25_cold_snapshot(const struct fes_de25_snapshot *s)
 {
-	return snapshot->status == FES_DE25_SCANOUT_STATUS_DRAINED &&
-		!snapshot->generation && !snapshot->dma && !snapshot->span &&
-		!snapshot->accepted && !snapshot->displayed &&
-		!snapshot->current_sequence && !snapshot->slots && !snapshot->errors &&
-		!snapshot->outstanding;
+	return (s->status & ~FES_DE25_SCANOUT_STATUS_DISPLAY_READY) == FES_DE25_SCANOUT_STATUS_DRAINED &&
+		!s->generation && !s->dma && !s->span && !s->accepted && !s->displayed &&
+		!s->current_sequence && !s->slots && !s->errors && !s->outstanding && !s->underflows &&
+		!s->first_fault_state && !s->first_fault_occupancy && !s->first_fault_gaps;
 }
 
 static int fes_de25_snapshot(struct fes_de25_dma *grant, struct fes_de25_snapshot *snapshot)
 {
 	struct fes_de25_dma_backend *io = &grant->backend;
 	u32 old, serial, lo, hi;
-	unsigned int attempt;
+	unsigned int attempt, word;
 	int ret;
 
 	ret = io->read32(io->context, FES_DE25_SCANOUT_SNAPSHOT_SERIAL_OFFSET, &old);
@@ -161,6 +179,37 @@ static int fes_de25_snapshot(struct fes_de25_dma *grant, struct fes_de25_snapsho
 	snapshot->dma = (u64)hi << 32 | lo;
 	READ_SNAPSHOT(span, GRANT_SPAN);
 #undef READ_SNAPSHOT
+	/* These words are sticky, outside the original frozen tuple. Read valid
+	 * first: before it rises the canonical observation is all zero; after it
+	 * rises all payload is immutable until CLEAR/reset. The grant lock and
+	 * exclusive lease exclude CLEAR. Build/serial/epoch checks below bind
+	 * the observation even if it latched after the frozen tuple was taken.
+	 */
+	snapshot->first_fault_occupancy = 0;
+	snapshot->first_fault_gaps = 0;
+	ret = io->read32(io->context, FES_DE25_SCANOUT_FIRST_FAULT_STATE_OFFSET,
+			&snapshot->first_fault_state);
+	if (ret)
+		return ret;
+	if (snapshot->first_fault_state & FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK) {
+		ret = io->read32(io->context, FES_DE25_SCANOUT_FIRST_FAULT_OCCUPANCY_OFFSET,
+				&snapshot->first_fault_occupancy);
+		if (ret)
+			return ret;
+		ret = io->read32(io->context, FES_DE25_SCANOUT_FIRST_FAULT_GAPS_OFFSET,
+				&snapshot->first_fault_gaps);
+		if (ret)
+			return ret;
+	}
+	/* Build words are immutable for this image. Pair them with the same serial
+	 * and epoch proof; a different loaded image must never inherit a grant.
+	 */
+	for (word = 0; word < ARRAY_SIZE(snapshot->build_id); word++) {
+		ret = io->read32(io->context, FES_DE25_SCANOUT_BUILD_ID0_OFFSET + word * sizeof(u32),
+				&snapshot->build_id[word]);
+		if (ret)
+			return ret;
+	}
 	ret = io->read32(io->context, FES_DE25_SCANOUT_SNAPSHOT_SERIAL_OFFSET, &lo);
 	if (ret)
 		return ret;
@@ -194,27 +243,119 @@ static void fes_de25_dma_info_locked(struct fes_de25_dma *grant, struct fes_de25
 	info->hardware_errors = grant->hardware_errors;
 	info->underflows = grant->underflows;
 	info->outstanding = grant->outstanding;
+	memcpy(info->build_id, grant->build_id, sizeof(info->build_id));
 }
 
-void fes_de25_dma_info(struct file *file, struct fes_de25_dma_info *info)
+void fes_de25_dma_info_owned(struct fes_de25_dma *grant, struct fes_de25_dma_info *info)
 {
-	struct fes_de25_dma *grant = file->private_data;
-
 	mutex_lock(&grant->lock);
 	fes_de25_dma_info_locked(grant, info);
 	mutex_unlock(&grant->lock);
 }
 
+void fes_de25_dma_info(struct file *file, struct fes_de25_dma_info *info)
+{
+	fes_de25_dma_info_owned(file->private_data, info);
+}
+
+int fes_de25_dma_diagnostics(struct file *file, struct fes_de25_dma_diagnostics *diagnostics)
+{
+	struct fes_de25_dma *grant = file->private_data;
+	int ret = 0;
+
+	mutex_lock(&grant->lock);
+	if (diagnostics->version != FES_DE25_DMA_DIAGNOSTICS_VERSION ||
+	    diagnostics->reserved || diagnostics->generation != grant->generation) {
+		ret = -EINVAL;
+		goto out;
+	}
+	memset(diagnostics, 0, sizeof(*diagnostics));
+	diagnostics->generation = grant->generation;
+	diagnostics->version = FES_DE25_DMA_DIAGNOSTICS_VERSION;
+	memcpy(diagnostics->build_id, grant->build_id, sizeof(diagnostics->build_id));
+	if (grant->diagnostics_valid) {
+		diagnostics->flags = FES_DE25_DMA_DIAGNOSTICS_VALID;
+		diagnostics->first_fault_state = grant->first_fault_state;
+		diagnostics->first_fault_occupancy = grant->first_fault_occupancy;
+		diagnostics->first_fault_gaps = grant->first_fault_gaps;
+	}
+out:
+	mutex_unlock(&grant->lock);
+	return ret;
+}
+
+int fes_de25_dma_retirement(struct file *file, struct fes_de25_dma_retirement *receipt)
+{
+ struct fes_de25_dma *grant = file->private_data;
+ int ret = 0;
+
+ mutex_lock(&grant->lock);
+ if (receipt->version != FES_DE25_DMA_RETIREMENT_VERSION || receipt->reserved ||
+     receipt->generation != grant->generation)
+  ret = -EINVAL;
+ else if (!(grant->retirement.flags & FES_DE25_DMA_RETIREMENT_VALID))
+  ret = -ENODATA;
+ else
+  *receipt = grant->retirement;
+ mutex_unlock(&grant->lock);
+ return ret;
+}
+
+static void fes_de25_dma_forget_diagnostics(struct fes_de25_dma *grant)
+{
+	grant->diagnostics_valid = false;
+	grant->first_fault_state = 0;
+	grant->first_fault_occupancy = 0;
+	grant->first_fault_gaps = 0;
+}
+
+/* Bad diagnostic packing never changes the original display/drain result. */
+static void fes_de25_dma_cache_diagnostics(struct fes_de25_dma *grant,
+		const struct fes_de25_snapshot *snapshot)
+{
+	u32 state = snapshot->first_fault_state;
+	u32 occupancy = snapshot->first_fault_occupancy;
+	bool valid = !state && !occupancy && !snapshot->first_fault_gaps;
+
+	if (state & FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK)
+		valid = !(occupancy & ~FES_DE25_SCANOUT_FIRST_FAULT_OCCUPANCY_MASK) &&
+			((state >> FES_DE25_SCANOUT_FIRST_FAULT_HORIZONTAL_SHIFT) &
+			 FES_DE25_SCANOUT_FIRST_FAULT_HORIZONTAL_MASK) < FES_DE25_DMA_WIDTH &&
+			((state >> FES_DE25_SCANOUT_FIRST_FAULT_VERTICAL_SHIFT) &
+			 FES_DE25_SCANOUT_FIRST_FAULT_VERTICAL_MASK) < FES_DE25_DMA_HEIGHT &&
+			((state >> FES_DE25_SCANOUT_FIRST_FAULT_INDEX_RELATION_SHIFT) &
+			 FES_DE25_SCANOUT_FIRST_FAULT_INDEX_RELATION_MASK) <=
+			 FES_DE25_SCANOUT_FIRST_FAULT_INDEX_RELATION_GREATER;
+	if (!valid) {
+		fes_de25_dma_forget_diagnostics(grant);
+		return;
+	}
+	grant->diagnostics_valid = true;
+	/* A trusted first record is retained until this owner issues CLEAR. */
+	if (grant->first_fault_state & FES_DE25_SCANOUT_FIRST_FAULT_VALID_MASK)
+		return;
+	grant->first_fault_state = state;
+	grant->first_fault_occupancy = occupancy;
+	grant->first_fault_gaps = snapshot->first_fault_gaps;
+}
+
 static int fes_de25_dma_identity(struct fes_de25_dma *grant, const struct fes_de25_snapshot *snapshot)
 {
 	if (grant->backend.epoch(grant->backend.context) != grant->epoch ||
-	    snapshot->generation != grant->generation)
-		return -ESTALE;
+	    snapshot->generation != grant->generation ||
+	    memcmp(snapshot->build_id, grant->build_id, sizeof(grant->build_id)))
+		goto stale;
 	if ((snapshot->status & ~FES_DE25_SCANOUT_STATUS_MASK) ||
 	    !(snapshot->status & FES_DE25_SCANOUT_STATUS_CONFIGURED) ||
 	    snapshot->dma != (u64)grant->dma || snapshot->span != FES_DE25_DMA_ALLOCATION_BYTES)
-		return -EPROTO;
+		goto protocol;
 	return 0;
+stale:
+	fes_de25_dma_forget_diagnostics(grant);
+	return -ESTALE;
+protocol:
+	fes_de25_dma_forget_diagnostics(grant);
+	return -EPROTO;
 }
 
 /* Acceptance owns the new slot but does not release the old front slot. Only
@@ -228,6 +369,7 @@ static int fes_de25_dma_update(struct fes_de25_dma *grant, const struct fes_de25
 
 	if (ret)
 		return ret;
+	fes_de25_dma_cache_diagnostics(grant, snapshot);
 	grant->hardware_status = snapshot->status;
 	grant->hardware_errors = snapshot->errors;
 	grant->underflows = snapshot->underflows;
@@ -290,13 +432,29 @@ int fes_de25_dma_poll(struct file *file, struct fes_de25_dma_info *info)
 		ret = -EBUSY;
 		goto out;
 	}
-	if (grant->exposed) {
-		ret = fes_de25_snapshot(grant, &snapshot);
-		if (!ret)
-			ret = fes_de25_dma_update(grant, &snapshot);
+	ret = fes_de25_snapshot(grant, &snapshot);
+	if (!ret && grant->exposed)
+		ret = fes_de25_dma_update(grant, &snapshot);
+	else if (!ret) {
+		if (!fes_de25_cold_snapshot(&snapshot) ||
+			grant->backend.epoch(grant->backend.context) != grant->epoch ||
+			memcmp(snapshot.build_id, grant->build_id, sizeof(grant->build_id)))
+			ret = -ESTALE;
 		if (ret)
-			grant->uncertain = true;
+			fes_de25_dma_forget_diagnostics(grant);
+		else {
+			fes_de25_dma_cache_diagnostics(grant, &snapshot);
+			grant->hardware_status = snapshot.status;
+		}
 	}
+	/* A bounded transport may report identity loss before a complete tuple
+	 * exists. Keep ordinary I/O/timeout history, but never trust it after
+	 * the transport has positively reported a stale configuration.
+	 */
+	if (ret == -ESTALE)
+		fes_de25_dma_forget_diagnostics(grant);
+	if (ret)
+		grant->uncertain = true;
 	if (!ret)
 		fes_de25_dma_info_locked(grant, info);
 out:
@@ -327,6 +485,7 @@ int fes_de25_dma_publish(struct file *file, const struct fes_de25_dma_publish *p
 		goto out;
 	}
 	if (io->epoch(io->context) != grant->epoch) {
+		fes_de25_dma_forget_diagnostics(grant);
 		if (grant->exposed)
 			grant->uncertain = true;
 		ret = -ESTALE;
@@ -380,17 +539,17 @@ int fes_de25_dma_publish(struct file *file, const struct fes_de25_dma_publish *p
 uncertain:
 	grant->uncertain = true;
 out:
+	if (ret == -ESTALE)
+		fes_de25_dma_forget_diagnostics(grant);
 	mutex_unlock(&grant->lock);
 	return ret;
 }
 
-int fes_de25_dma_revoke(struct file *file)
+int fes_de25_dma_revoke_owned(struct fes_de25_dma *grant)
 {
-	struct fes_de25_dma *grant = file->private_data;
 	struct fes_de25_dma_mm *entry;
+	struct fes_de25_snapshot retired;
 	bool drop_exposure = false;
-	bool drained = false;
-	unsigned int attempt;
 	int ret = 0;
 
 	mutex_lock(&grant->revoke_lock);
@@ -415,53 +574,40 @@ int fes_de25_dma_revoke(struct file *file)
 	mutex_lock(&grant->lock);
 	if (!grant->exposed)
 		goto out;
+	memset(&grant->retirement, 0, sizeof(grant->retirement));
 	if (grant->backend.epoch(grant->backend.context) != grant->epoch) {
+		fes_de25_dma_forget_diagnostics(grant);
 		ret = -ESTALE;
 		goto uncertain;
-	}
-	/* CLEAR consumes the old generation proof. A prior verification read may
-	 * have failed after the device accepted CLEAR; retry against the pristine
-	 * tuple and the same reset epoch instead of comparing generation zero to
-	 * the retired allocation forever.
-	 */
-	if (grant->cleared) {
-		struct fes_de25_snapshot snapshot;
-
-		ret = fes_de25_snapshot(grant, &snapshot);
-		if (!ret && (!fes_de25_snapshot_is_pristine(&snapshot) ||
-		    grant->backend.epoch(grant->backend.context) != grant->epoch))
-			ret = -ESTALE;
-		if (ret)
-			goto uncertain;
-		goto release_exposure;
 	}
 	ret = grant->backend.write32(grant->backend.context, FES_DE25_SCANOUT_COMMAND_OFFSET,
 			FES_DE25_SCANOUT_COMMAND_STOP);
 	if (!ret)
 		ret = grant->backend.io_fence(grant->backend.context);
-	for (attempt = 0; !ret && attempt < FES_DE25_DRAIN_TRIES; attempt++) {
+	if (!ret) {
 		struct fes_de25_snapshot snapshot;
 
 		ret = fes_de25_snapshot(grant, &snapshot);
 		if (!ret)
 			ret = fes_de25_dma_identity(grant, &snapshot);
-		if (!ret && (snapshot.status & FES_DE25_SCANOUT_STATUS_DRAINED) &&
-		    !(snapshot.status & (FES_DE25_SCANOUT_STATUS_RUNNING | FES_DE25_SCANOUT_STATUS_PENDING)) &&
-		    !snapshot.outstanding) {
-			drained = true;
-			break;
-		}
-		if (!ret && attempt + 1 < FES_DE25_DRAIN_TRIES)
-			usleep_range(FES_DE25_DRAIN_MIN_US, FES_DE25_DRAIN_MAX_US);
+		if (!ret)
+			fes_de25_dma_cache_diagnostics(grant, &snapshot);
+		if (!ret && (!(snapshot.status & FES_DE25_SCANOUT_STATUS_DRAINED) ||
+		    (snapshot.status & (FES_DE25_SCANOUT_STATUS_RUNNING | FES_DE25_SCANOUT_STATUS_PENDING)) ||
+		    snapshot.outstanding))
+			ret = -EAGAIN;
+		if (!ret)
+			retired = snapshot;
 	}
-	if (!ret && !drained)
-		ret = -EAGAIN;
 	if (ret)
 		goto uncertain;
 	/* Consume the old generation's drain proof before CLEAR destroys it.
 	 * Only this owner may now clear for a later, distinct allocation lease.
 	 */
-	grant->cleared = true;
+	/* A failed CLEAR may already have erased the record. Never expose it as
+	 * current afterwards, even when the following confirmation fails.
+	 */
+	fes_de25_dma_forget_diagnostics(grant);
 	ret = grant->backend.write32(grant->backend.context, FES_DE25_SCANOUT_COMMAND_OFFSET,
 			FES_DE25_SCANOUT_COMMAND_CLEAR);
 	if (!ret)
@@ -470,23 +616,46 @@ int fes_de25_dma_revoke(struct file *file)
 		struct fes_de25_snapshot snapshot;
 
 		ret = fes_de25_snapshot(grant, &snapshot);
-		if (!ret && (!fes_de25_snapshot_is_pristine(&snapshot) ||
+		if (!ret && (!fes_de25_cold_snapshot(&snapshot) ||
+		    memcmp(snapshot.build_id, grant->build_id, sizeof(grant->build_id)) ||
 		    grant->backend.epoch(grant->backend.context) != grant->epoch))
 			ret = -ESTALE;
+		if (!ret)
+			fes_de25_dma_cache_diagnostics(grant, &snapshot);
 	}
 	if (ret)
 		goto uncertain;
-
-release_exposure:
+ /* Commit the old tuple only after every existing retirement check passed.
+  * Never substitute the live cold snapshot or the earlier POLL cache. */
+ grant->retirement.generation = grant->generation;
+ grant->retirement.version = FES_DE25_DMA_RETIREMENT_VERSION;
+ memcpy(grant->retirement.build_id, grant->build_id, sizeof(grant->build_id));
+ grant->retirement.allocation_bytes = FES_DE25_DMA_ALLOCATION_BYTES;
+ grant->retirement.slot_bytes = FES_DE25_DMA_SLOT_BYTES;
+ grant->retirement.frame_bytes = FES_DE25_DMA_FRAME_BYTES;
+ grant->retirement.width = FES_DE25_DMA_WIDTH;
+ grant->retirement.height = FES_DE25_DMA_HEIGHT;
+ grant->retirement.stride = FES_DE25_DMA_STRIDE;
+ grant->retirement.slots = FES_DE25_DMA_SLOTS;
+ grant->retirement.hardware_status = retired.status;
+ grant->retirement.hardware_errors = retired.errors;
+ grant->retirement.underflows = retired.underflows;
+ grant->retirement.outstanding = retired.outstanding;
+ grant->retirement.accepted_sequence = retired.accepted;
+ grant->retirement.displayed_sequence = retired.displayed;
+ grant->retirement.current_sequence = retired.current_sequence;
+ grant->retirement.slot_state = retired.slots;
+ grant->retirement.flags = FES_DE25_DMA_RETIREMENT_VALID;
 	grant->exposed = false;
 	grant->uncertain = false;
 	grant->pending = false;
-	grant->cleared = false;
 	drop_exposure = true;
 	goto out;
 uncertain:
 	grant->uncertain = true;
 out:
+	if (ret == -ESTALE)
+		fes_de25_dma_forget_diagnostics(grant);
 	mutex_unlock(&grant->lock);
 	mutex_unlock(&grant->revoke_lock);
 	if (drop_exposure) {
@@ -494,6 +663,27 @@ out:
 		module_put(THIS_MODULE);
 	}
 	return ret;
+}
+
+struct fes_de25_dma *fes_de25_dma_get(struct file *file)
+{
+	struct fes_de25_dma *grant = file->private_data;
+
+	/* The caller holds a live file reference, so refs cannot already be zero. */
+	__module_get(THIS_MODULE);
+	kref_get(&grant->refs);
+	return grant;
+}
+
+void fes_de25_dma_put(struct fes_de25_dma *grant)
+{
+	kref_put(&grant->refs, fes_de25_dma_destroy);
+	module_put(THIS_MODULE);
+}
+
+int fes_de25_dma_revoke(struct file *file)
+{
+	return fes_de25_dma_revoke_owned(file->private_data);
 }
 
 static vm_fault_t fes_de25_dma_fault(struct vm_fault *vmf)
@@ -544,8 +734,8 @@ static int fes_de25_dma_mmap(struct file *file, struct vm_area_struct *vma)
 	 * to the strict check below. No DMA-specific operations are discarded.
 	 */
 	vma->vm_ops = NULL;
-	ret = dma_mmap_coherent(grant->dev, vma, grant->cpu, grant->dma,
-			FES_DE25_DMA_ALLOCATION_BYTES);
+	ret = dma_mmap_attrs(grant->dev, vma, grant->cpu, grant->dma,
+			FES_DE25_DMA_ALLOCATION_BYTES, FES_DE25_DMA_ATTRIBUTES);
 #if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
 	/* Refuse a successful mapping without changing the installed PTEs'
 	 * PFNMAP semantics: the mmap error path must unmap them safely.
@@ -594,6 +784,8 @@ static long fes_de25_dma_ioctl(struct file *file, unsigned int cmd, unsigned lon
 {
 	struct fes_de25_dma_publish publish;
 	struct fes_de25_dma_info info;
+	struct fes_de25_dma_diagnostics diagnostics;
+	struct fes_de25_dma_retirement retirement;
 
 	switch (cmd) {
 	case FES_DE25_DMA_INFO:
@@ -612,6 +804,24 @@ static long fes_de25_dma_ioctl(struct file *file, unsigned int cmd, unsigned lon
 				return ret;
 		}
 		return copy_to_user((void __user *)arg, &info, sizeof(info)) ? -EFAULT : 0;
+	case FES_DE25_DMA_DIAGNOSTICS:
+		if (copy_from_user(&diagnostics, (void __user *)arg, sizeof(diagnostics)))
+			return -EFAULT;
+		{
+			int ret = fes_de25_dma_diagnostics(file, &diagnostics);
+			if (ret)
+				return ret;
+		}
+		return copy_to_user((void __user *)arg, &diagnostics, sizeof(diagnostics)) ? -EFAULT : 0;
+ case FES_DE25_DMA_RETIREMENT:
+  if (copy_from_user(&retirement, (void __user *)arg, sizeof(retirement)))
+   return -EFAULT;
+  {
+   int ret = fes_de25_dma_retirement(file, &retirement);
+   if (ret)
+    return ret;
+  }
+  return copy_to_user((void __user *)arg, &retirement, sizeof(retirement)) ? -EFAULT : 0;
 	case FES_DE25_DMA_REVOKE:
 		return fes_de25_dma_revoke(file);
 	default:
@@ -645,56 +855,70 @@ static const struct file_operations fes_de25_dma_fops = {
 struct file *fes_de25_dma_create(struct device *dev, const struct fes_de25_dma_backend *backend)
 {
 	struct fes_de25_dma *grant;
+	struct fes_de25_dma_backend selected;
 	struct file *file;
 	u64 epoch, generation;
 	struct fes_de25_snapshot snapshot;
 	u32 identity, version;
 	int ret;
 
-	if (!backend || !backend->epoch || !backend->read32 || !backend->write32 || !backend->io_fence)
+	if (!dev || !backend)
 		return ERR_PTR(-EINVAL);
-	epoch = backend->epoch(backend->context);
-	if (!epoch)
-		return ERR_PTR(-EOPNOTSUPP);
-	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(FES_DE25_SCANOUT_DMA_ADDRESS_BITS));
-	if (ret)
-		return ERR_PTR(ret);
-	generation = fes_de25_dma_next_generation(&next_generation);
-	if (!generation)
-		return ERR_PTR(-EOVERFLOW);
+	selected = *backend;
+	if (!selected.acquire || !selected.release || !selected.epoch ||
+	    !selected.read32 || !selected.write32 || !selected.io_fence)
+		return ERR_PTR(-EINVAL);
 	grant = kzalloc(sizeof(*grant), GFP_KERNEL);
 	if (!grant)
 		return ERR_PTR(-ENOMEM);
 	grant->dev = get_device(dev);
-	grant->backend = *backend;
+	grant->backend = selected;
+	ret = selected.acquire(selected.context);
+	if (ret)
+		goto fail_unowned;
+	epoch = selected.epoch(selected.context);
+	if (!epoch) {
+		ret = -EOPNOTSUPP;
+		goto fail_lease;
+	}
+	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(FES_DE25_SCANOUT_DMA_ADDRESS_BITS));
+	if (ret)
+		goto fail_lease;
+	generation = fes_de25_dma_next_generation(&next_generation);
+	if (!generation) {
+		ret = -EOVERFLOW;
+		goto fail_lease;
+	}
 	grant->generation = generation;
 	grant->epoch = epoch;
-	ret = backend->read32(backend->context, FES_DE25_SCANOUT_ID_OFFSET, &identity);
+	ret = selected.read32(selected.context, FES_DE25_SCANOUT_ID_OFFSET, &identity);
 	if (!ret)
-		ret = backend->read32(backend->context, FES_DE25_SCANOUT_VERSION_OFFSET, &version);
+		ret = selected.read32(selected.context, FES_DE25_SCANOUT_VERSION_OFFSET, &version);
 	if (!ret && (identity != FES_DE25_SCANOUT_IDENTITY || version != FES_DE25_SCANOUT_VERSION))
 		ret = -EPROTONOSUPPORT;
 	if (!ret)
 		ret = fes_de25_snapshot(grant, &snapshot);
-	if (!ret && (snapshot.status != FES_DE25_SCANOUT_STATUS_DRAINED || snapshot.generation ||
-	    snapshot.accepted || snapshot.displayed || snapshot.current_sequence || snapshot.slots ||
-	    snapshot.outstanding || snapshot.errors || snapshot.dma || snapshot.span ||
-	    backend->epoch(backend->context) != epoch))
+	if (!ret && (!fes_de25_cold_snapshot(&snapshot) || selected.epoch(selected.context) != epoch))
 		ret = -EBUSY;
-	if (ret) {
-		put_device(grant->dev);
-		kfree(grant);
-		return ERR_PTR(ret);
+	if (ret)
+		goto fail_lease;
+	if (!(snapshot.build_id[0] | snapshot.build_id[1] |
+	      snapshot.build_id[2] | snapshot.build_id[3])) {
+		ret = -EPROTONOSUPPORT;
+		goto fail_lease;
 	}
+	memcpy(grant->build_id, snapshot.build_id, sizeof(grant->build_id));
+	fes_de25_dma_cache_diagnostics(grant, &snapshot);
+	grant->hardware_status = snapshot.status;
 	kref_init(&grant->refs);
 	mutex_init(&grant->lock);
 	mutex_init(&grant->revoke_lock);
 	INIT_LIST_HEAD(&grant->mms);
-	grant->cpu = dma_alloc_coherent(dev, FES_DE25_DMA_ALLOCATION_BYTES, &grant->dma, GFP_KERNEL);
+	grant->cpu = dma_alloc_attrs(dev, FES_DE25_DMA_ALLOCATION_BYTES, &grant->dma, GFP_KERNEL,
+		FES_DE25_DMA_ATTRIBUTES);
 	if (!grant->cpu) {
-		put_device(grant->dev);
-		kfree(grant);
-		return ERR_PTR(-ENOMEM);
+		ret = -ENOMEM;
+		goto fail_lease;
 	}
 	if (!IS_ALIGNED(grant->dma, FES_DE25_SCANOUT_GRANT_ALIGNMENT) ||
 	    (u64)grant->dma > (1ULL << FES_DE25_SCANOUT_DMA_ADDRESS_BITS) - FES_DE25_DMA_ALLOCATION_BYTES) {
@@ -710,6 +934,12 @@ struct file *fes_de25_dma_create(struct device *dev, const struct fes_de25_dma_b
 	grant->inode = igrab(file_inode(file));
 	i_size_write(grant->inode, FES_DE25_DMA_ALLOCATION_BYTES);
 	return file;
+fail_lease:
+	selected.release(selected.context);
+fail_unowned:
+	put_device(grant->dev);
+	kfree(grant);
+	return ERR_PTR(ret);
 }
 
 int fes_de25_dma_binding(struct device *dev)
@@ -722,7 +952,7 @@ int fes_de25_dma_binding(struct device *dev)
 
 static int fes_de25_dma_probe(struct platform_device *pdev)
 {
-	return fes_de25_dma_binding(&pdev->dev);
+	return fes_de25_owner_probe(pdev);
 }
 
 static const struct of_device_id fes_de25_dma_match[] = {
@@ -733,8 +963,10 @@ MODULE_DEVICE_TABLE(of, fes_de25_dma_match);
 
 static struct platform_driver fes_de25_dma_driver = {
 	.probe = fes_de25_dma_probe,
+	.remove_new = fes_de25_owner_remove,
 	.driver = {
 		.name = "fes-de25-dma",
+		.suppress_bind_attrs = true,
 		.of_match_table = fes_de25_dma_match,
 	},
 };

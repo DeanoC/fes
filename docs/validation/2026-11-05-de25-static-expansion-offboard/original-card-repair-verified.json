@@ -1,0 +1,44 @@
+{
+  "status": "passed",
+  "reader": {
+    "by_id": "/dev/disk/by-id/usb-Generic_STORAGE_DEVICE-0:0",
+    "resolved_path": "/dev/sda",
+    "size_bytes": 31267487744,
+    "diskseq": 59,
+    "device": 2048
+  },
+  "changed_bytes": 10,
+  "changed_sectors": 4,
+  "original_FAT_sha256": "405a0b37e1b9f36c615360c7fcc8908096b8e13144ec758a1ee6b5b891f0f62a",
+  "final_whole_FAT_sha256": "a6b172a519a416c89d1d0f97af026d2a0218ea54712d0da5614c7165a5f54f80",
+  "direct_physical_readback": {
+    "returncode": 0,
+    "bytes": 2147483648,
+    "sha256": "a6b172a519a416c89d1d0f97af026d2a0218ea54712d0da5614c7165a5f54f80",
+    "expected_sha256": "a6b172a519a416c89d1d0f97af026d2a0218ea54712d0da5614c7165a5f54f80",
+    "elapsed_seconds": 95.386,
+    "read_method": "Whole block device, dd iflag=direct, bs1MiB skip1 count2048; O_DIRECT bypasses both buffered device aliases",
+    "write_replayed": false
+  },
+  "all_file_paths_and_bytes_unchanged": true,
+  "file_count": 23,
+  "directory_count": 40,
+  "original_MBR_bootstrap_unchanged": true,
+  "data_volume": "No write; first1MiB hash and descriptor unchanged. Whole-volume hash not claimed.",
+  "filesystem_check": "Entire physical FAT exactly equals clean offline candidate; all file contents preserved",
+  "first_readback_failure": {
+    "retained": "apply-failure.json",
+    "cached_alias_sha256": "a6b172a519a416c89d1d0f97af026d2a0218ea54712d0da5614c7165a5f54f80",
+    "same_as_prewrite": false,
+    "new_writes": false,
+    "diagnosis": "Initial buffered whole-device readback failed; its actual digest was not recorded. Later buffered and complete O_DIRECT reads both match the clean repaired candidate. Stale device-alias cache is a plausible inference, not an established cause. No writes were repeated."
+  },
+  "bottom_board": "off",
+  "native_baseline_restored": false,
+  "automatic_mutation_retry": false,
+  "collector_finalization": {
+    "retained_initial_record": "/data/fes-de25-main-integration-20261105/original-card-offline-repair/applied-verified-initial-collector.json",
+    "retained_initial_record_sha256": "6fa0f25d8b15438275917a8e798dccb6439b75e9f03efbe1cfba9dc405cef5cc",
+    "correction": "Qualify unproven cause; measured hashes, physical readback and repair result unchanged"
+  }
+}

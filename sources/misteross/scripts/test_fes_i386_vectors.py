@@ -51,6 +51,9 @@ RAW = 'https://raw.githubusercontent.com/SingleStepTests/80386/' + REVISION + '/
 API = 'https://api.github.com/repos/SingleStepTests/80386/git/trees/' + REVISION + '?recursive=1'
 DATA = 'v1_ex_real_mode'
 METADATA = ('README.md', 'LICENSE', 'revocation_list.txt')
+# sha256 of receipt_digest() over a full download's receipt: every MOO file in
+# DATA and METADATA at REVISION, checked against GitHub's tree for REVISION.
+FULL_CORPUS_SHA256 = '7f0c520007492a0099c4ed72fa3c0ebc0560a27a908fc973308adbae704916ec'
 CORPUS = 'SingleStepTests/80386'
 DIVERGENCES = ROOT / 'cores/fes-common/sim/i386/divergences.toml'
 OUTPUT = ROOT / 'build/sim/fes-i386-vectors'
@@ -538,6 +541,23 @@ def download(corpus: Path, args) -> None:
     receipt = {'repository': REPOSITORY, 'revision': REVISION, 'license': 'MIT; data public domain',
                'files': files}
     receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
+
+
+def receipt_digest(files: dict) -> str:
+    return hashlib.sha256(json.dumps(files, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def full_corpus(corpus: Path) -> dict | None:
+    """The receipt's files when the corpus directory's receipt is a full
+    download of REVISION, otherwise None. verify() checks the files themselves."""
+    receipt_path = corpus / 'fes-i386-corpus.json'
+    if not receipt_path.exists():
+        return None
+    receipt = json.loads(receipt_path.read_text())
+    files = receipt.get('files')
+    if receipt.get('revision') != REVISION or not isinstance(files, dict) or receipt_digest(files) != FULL_CORPUS_SHA256:
+        return None
+    return files
 
 
 def verify(corpus: Path, paths: list[Path]) -> None:

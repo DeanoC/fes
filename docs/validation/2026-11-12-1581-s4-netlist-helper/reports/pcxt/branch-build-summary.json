@@ -1,0 +1,20 @@
+{
+  "classification": "installable-quartus-diagnostic-package",
+  "build_id": "56ca7249b76c6f865ba9a1ea35af2010",
+  "revision": "91ead94bc243d691e8de8c871fbd7840dc2a92fd",
+  "seeds": [
+    1,
+    2,
+    3
+  ],
+  "core_id": "fes.pcxt",
+  "hardware_dos": false,
+  "internal_timing_pass": true,
+  "repeat_rbf_sha256": "3b6c8274b29ab5c56bceba8fa632c8546c423ddbb79453608cb145309fe0d4da",
+  "whole_board_qualified": false,
+  "hardware_acceptance": false,
+  "limits": [
+    "external IO/HPS timing and physical reset qualification remain open",
+    "BIOS, DOS boot, host keyboard and in-play display plane are not implemented"
+  ]
+}

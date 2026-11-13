@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "native/core_package.hpp"
+#include "native/de25_core_contract.hpp"
+#include "native/generated/de25_nano_programming.hpp"
 
 #include "native/generated/de10_nano_programming.hpp"
 #include "native/generated/fes_gp.hpp"
@@ -73,6 +75,7 @@ Error CheckDirectoryEntries(int directory, unsigned format)
 	if (scan_error != 0) return Invalid("cannot inspect package directory");
 	std::set<std::string> expected = {"core.rbf", "manifest.toml"};
 	if (format == 3 || format == 4) expected.insert("rom-map.json");
+	if (format == 5) expected.insert("persona.rbf");
 	if (names != expected)
 		return Invalid("package directory members do not match manifest format");
 	return {};
@@ -399,11 +402,13 @@ Error ParseManifest(const std::string& bytes, CoreDescriptor* descriptor)
 		std::int64_t format = 0;
 		Error error = IntegerField(root, "format", &format);
 		if (!error.ok()) return error;
-		if (format != 2 && format != 3 && format != 4) return Invalid("unsupported core manifest format");
+		if (format != 2 && format != 3 && format != 4 && format != 5) return Invalid("unsupported core manifest format");
 		error = format == 3 ? CheckKeys(root,
 			{"format", "core", "target", "payload", "abi", "interfaces", "build", "rom"}) :
 			format == 4 ? CheckKeys(root,
 			{"format", "core", "target", "payload", "abi", "interfaces", "build", "roms", "rom_map"}) :
+			format == 5 ? CheckKeys(root,
+			{"format", "core", "target", "payload", "abi", "interfaces", "build", "static_expansion"}) :
 			CheckKeys(root, {"format", "core", "target", "payload", "abi", "interfaces", "build"});
 		if (!error.ok()) return error;
 		CoreDescriptor candidate;
@@ -470,6 +475,30 @@ Error ParseManifest(const std::string& bytes, CoreDescriptor* descriptor)
 				!ValidHex(candidate.rom_map.sha256, 64, true))
 				return Invalid("invalid format-4 ROM map metadata");
 			candidate.rom_map.size = static_cast<std::uint64_t>(size);
+		}
+		if (format == 5) {
+			const toml::table* table = nullptr;
+			auto& selected = candidate.static_expansion;
+			error = TableField(root, "static_expansion", &table);
+			if (error.ok()) error = CheckKeys(*table, {"file", "size", "sha256", "control_build_id", "hardware_id", "root_qdb_sha256", "interface_sha256", "clock_reset_sha256", "pof0_hash"});
+			std::int64_t size = 0, hardware_id = 0;
+			if (error.ok()) error = StringField(*table, "file", &selected.file);
+			if (error.ok()) error = IntegerField(*table, "size", &size);
+			if (error.ok()) error = IntegerField(*table, "hardware_id", &hardware_id);
+			if (error.ok()) error = StringField(*table, "sha256", &selected.sha256);
+			if (error.ok()) error = StringField(*table, "control_build_id", &selected.control_build_id);
+			if (error.ok()) error = StringField(*table, "root_qdb_sha256", &selected.root_qdb_sha256);
+			if (error.ok()) error = StringField(*table, "interface_sha256", &selected.interface_sha256);
+			if (error.ok()) error = StringField(*table, "clock_reset_sha256", &selected.clock_reset_sha256);
+			if (error.ok()) error = StringField(*table, "pof0_hash", &selected.pof0_hash);
+			if (!error.ok()) return error;
+			if (selected.file != "persona.rbf" || size < 1 || size > static_cast<std::int64_t>(kMaximumPayloadSize) || hardware_id != 0xc001a001LL ||
+				!ValidHex(selected.control_build_id, 32, true) || selected.control_build_id == std::string(32, '0'))
+				return Invalid("invalid default static persona metadata");
+			for (const auto* digest : {&selected.sha256, &selected.root_qdb_sha256, &selected.interface_sha256, &selected.clock_reset_sha256, &selected.pof0_hash})
+				if (!ValidHex(*digest, 64, true) || *digest == std::string(64, '0')) return Invalid("invalid static base/persona binding");
+			selected.size = static_cast<std::uint64_t>(size);
+			selected.hardware_id = static_cast<std::uint32_t>(hardware_id);
 		}
 		const toml::table *core = nullptr, *target = nullptr, *payload = nullptr;
 		const toml::table *abi = nullptr, *build = nullptr;
@@ -559,6 +588,9 @@ Error ParseManifest(const std::string& bytes, CoreDescriptor* descriptor)
 			!ValidHex(candidate.build.recipe_sha256, 64, true) ||
 			!ValidUtf8Text(candidate.build.toolchain, 1024, false))
 			return Invalid("invalid build provenance");
+		if (format == 5 && (candidate.target.platform != "de25_nano" || candidate.target.device != "A5EB013BB23BE4SCS" ||
+			candidate.target.programming_profile != "de25-linux-static-computer-v1"))
+			return Invalid("format 5 requires the explicit DE25 static computer target");
 		*descriptor = std::move(candidate);
 		return {};
 	} catch (const std::exception&) {
@@ -603,6 +635,7 @@ Error OpenVerifiedCorePackage(int raw_directory, const std::string& directory,
 	Artifact manifest;
 	Artifact payload;
 	Artifact rom_map;
+	Artifact persona;
 	error = opener.OpenRelative(directory_descriptor.get(), directory,
 		"manifest.toml", kMaximumManifestSize, &manifest);
 	if (!error.ok()) return Invalid("invalid package manifest file");
@@ -628,6 +661,14 @@ Error OpenVerifiedCorePackage(int raw_directory, const std::string& directory,
 			Sha256Hex(map_hash.Final()) != expected_hash)
 			return Invalid("ROM map size or digest does not match manifest");
 	}
+	if (descriptor.format == 5) {
+		error = opener.OpenRelative(directory_descriptor.get(), directory, "persona.rbf", kMaximumPayloadSize, &persona);
+		if (!error.ok()) return Invalid("invalid default persona file");
+		Sha256 persona_hash;
+		if (persona.size() != descriptor.static_expansion.size || !HashArtifact(persona, &persona_hash).ok() ||
+			Sha256Hex(persona_hash.Final()) != descriptor.static_expansion.sha256)
+			return Invalid("default persona size or digest does not match manifest");
+	}
 	if (descriptor.payload.size != payload.size())
 		return Invalid("payload size does not match manifest");
 	Sha256 payload_hash;
@@ -638,7 +679,8 @@ Error OpenVerifiedCorePackage(int raw_directory, const std::string& directory,
 		return Invalid("payload digest does not match manifest");
 
 	Sha256 package_hash;
-	const std::string domain = descriptor.format == 4 ? "FES-CORE-PACKAGE-4\n" :
+	const std::string domain = descriptor.format == 5 ? "FES-CORE-PACKAGE-5\n" :
+		descriptor.format == 4 ? "FES-CORE-PACKAGE-4\n" :
 		descriptor.format == 3 ? "FES-CORE-PACKAGE-3\n" : "FES-CORE-PACKAGE-2\n";
 	package_hash.Update(domain.data(), domain.size());
 	HashLittleEndian64(&package_hash, manifest_bytes.size());
@@ -649,6 +691,11 @@ Error OpenVerifiedCorePackage(int raw_directory, const std::string& directory,
 	if (descriptor.format == 3 || descriptor.format == 4) {
 		HashLittleEndian64(&package_hash, rom_map.size());
 		error = HashArtifact(rom_map, &package_hash);
+		if (!error.ok()) return error;
+	}
+	if (descriptor.format == 5) {
+		HashLittleEndian64(&package_hash, persona.size());
+		error = HashArtifact(persona, &package_hash);
 		if (!error.ok()) return error;
 	}
 	const std::string package_id = Sha256Hex(package_hash.Final());
@@ -662,6 +709,7 @@ Error OpenVerifiedCorePackage(int raw_directory, const std::string& directory,
 	opened.manifest_bytes = std::move(manifest_bytes);
 	opened.payload = std::move(payload);
 	opened.rom_map = std::move(rom_map);
+	opened.persona = std::move(persona);
 	opened.package_id = package_id;
 	error = RecheckCorePackage(opened);
 	if (!error.ok()) return Invalid("package changed during admission");
@@ -759,7 +807,8 @@ Error RecheckCorePackage(const OpenedCorePackage& package)
 		Sha256Hex(payload_hash.Final()) != package.descriptor.payload.sha256)
 		return changed();
 	Sha256 package_hash;
-	const std::string domain = package.descriptor.format == 4 ? "FES-CORE-PACKAGE-4\n" :
+	const std::string domain = package.descriptor.format == 5 ? "FES-CORE-PACKAGE-5\n" :
+		package.descriptor.format == 4 ? "FES-CORE-PACKAGE-4\n" :
 		package.descriptor.format == 3 ? "FES-CORE-PACKAGE-3\n" : "FES-CORE-PACKAGE-2\n";
 	package_hash.Update(domain.data(), domain.size());
 	HashLittleEndian64(&package_hash, package.manifest_bytes.size());
@@ -777,6 +826,15 @@ Error RecheckCorePackage(const OpenedCorePackage& package)
 				package.descriptor.rom.sha256 : package.descriptor.rom_map.sha256)) return changed();
 		HashLittleEndian64(&package_hash, package.rom_map.size());
 		if (!HashArtifact(package.rom_map, &package_hash).ok()) return changed();
+	}
+	if (package.descriptor.format == 5) {
+		if (fstat(package.persona.fd(), &metadata) != 0 || !S_ISREG(metadata.st_mode) || metadata.st_size < 1 ||
+			static_cast<std::uint64_t>(metadata.st_size) != package.persona.size() || package.persona.size() != package.descriptor.static_expansion.size)
+			return changed();
+		Sha256 persona_hash;
+		if (!HashArtifact(package.persona, &persona_hash).ok() || Sha256Hex(persona_hash.Final()) != package.descriptor.static_expansion.sha256) return changed();
+		HashLittleEndian64(&package_hash, package.persona.size());
+		if (!HashArtifact(package.persona, &package_hash).ok()) return changed();
 	}
 	if (Sha256Hex(package_hash.Final()) != package.package_id)
 		return changed();
@@ -796,39 +854,46 @@ Error HashOpenedArtifact(const Artifact& artifact, std::string* digest)
 	return {};
 }
 
-Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
+Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform platform)
 {
 	using namespace generated;
-	if (descriptor.target.platform != kDe10NanoProgrammingPlatform)
+	if (platform != NativePlatform::de10_nano && platform != NativePlatform::de25_nano)
+		return CompatibilityError(ErrorCode::unsupported_target, "unknown selected runtime platform");
+	const bool de25 = platform == NativePlatform::de25_nano;
+	const char* expected_platform = de25 ? kDe25NanoProgrammingPlatform : kDe10NanoProgrammingPlatform;
+	const char* expected_device = de25 ? kDe25NanoProgrammingDevice : kDe10NanoProgrammingDevice;
+	if (descriptor.target.platform != expected_platform)
 		return CompatibilityError(ErrorCode::unsupported_target,
-			"unsupported target platform", kDe10NanoProgrammingPlatform,
-			descriptor.target.platform);
-	if (descriptor.target.device != kDe10NanoProgrammingDevice)
+			"unsupported target platform", expected_platform, descriptor.target.platform);
+	if (descriptor.target.device != expected_device)
 		return CompatibilityError(ErrorCode::unsupported_target,
-			"unsupported target device", kDe10NanoProgrammingDevice,
-			descriptor.target.device);
-	bool known_profile = false;
-	bool activatable_profile = false;
-	bool paired = false;
-	for (std::size_t index = 0; index < kDe10NanoProgrammingProfilePairCount; ++index) {
-		const GeneratedProgrammingProfilePair& row = kDe10NanoProgrammingProfilePairs[index];
-		if (descriptor.target.programming_profile == row.profile) known_profile = true;
-		if (!row.diagnostic_only &&
-			descriptor.target.programming_profile == row.profile)
-			activatable_profile = true;
-		if (!row.diagnostic_only && descriptor.target.programming_profile == row.profile &&
-			row.abi != nullptr && descriptor.abi.id == row.abi &&
-			descriptor.abi.major == row.major) {
-			paired = true;
-			break;
+			"unsupported target device", expected_device, descriptor.target.device);
+	if (descriptor.target.programming_profile == "de25-linux-static-computer-v1" && !De25StaticEnabled())
+		return CompatibilityError(ErrorCode::unsupported_programming_profile, "static startup is disabled in this build");
+
+	auto check_pair = [&](const auto& rows) -> Error {
+		bool activatable = false, paired = false;
+		for (const auto& row : rows) {
+			if (descriptor.target.programming_profile != row.profile || row.diagnostic_only) continue;
+			activatable = true;
+			if (row.abi && descriptor.abi.id == row.abi && descriptor.abi.major == row.major)
+				paired = true;
 		}
-	}
-	if (!known_profile || !activatable_profile)
-		return CompatibilityError(ErrorCode::unsupported_programming_profile,
-			"unsupported programming profile", "registered profile",
-			descriptor.target.programming_profile);
-	if (!paired) return CompatibilityError(ErrorCode::unsupported_abi,
-		"unsupported profile and ABI pairing");
+		if (!activatable) return CompatibilityError(ErrorCode::unsupported_programming_profile,
+			"unsupported programming profile", "registered profile", descriptor.target.programming_profile);
+		return paired ? Error{} : CompatibilityError(ErrorCode::unsupported_abi,
+			"unsupported profile and ABI pairing");
+	};
+	Error pairing = de25 ? check_pair(kDe25NanoProgrammingProfilePairs) :
+		check_pair(kDe10NanoProgrammingProfilePairs);
+	if (!pairing.ok()) return pairing;
+	if (de25) {
+  if(descriptor.target.programming_profile=="de25-linux-computer-v1" ||
+     descriptor.target.programming_profile=="de25-linux-static-computer-v1")
+   return CheckDe25StandardComputerContract(descriptor);
+  return descriptor.abi.id == FesApplicationABIID ?
+   CheckDe25MenuContract(descriptor) : CheckDe25ComputerContract(descriptor);
+ }
 	unsigned video_socket_count = 0;
 	bool native_pixels_socket = false;
 	for (const auto& interface : descriptor.interfaces) {
@@ -847,19 +912,17 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			"native video fabric socket requires a Coleco application shell");
 	// Linked cartridges arrive in CRAM and have no later media commit. These
 	// mailbox contracts keep Start reset-held, so accepting them would publish
-	// a running session whose core never executes. Firmware delivery also holds
-	// reset until a later media commit. Firmware ROMs may still use
+	// a running session whose core never executes. Firmware ROMs may still use
 	// a separate cartridge/tape/disk delivery and retain their normal lifecycle.
 	if ((descriptor.format == 3 && descriptor.rom.role == "cartridge") ||
 		descriptor.format == 4) {
 		for (const auto& interface : descriptor.interfaces) {
 			if (interface.major == 1 && interface.minor == 0 &&
 				(interface.id == FesApplicationInterfaceMediaBlobStreamID ||
-				 interface.id == FesApplicationInterfaceFirmwareBlobID ||
 				 (descriptor.abi.id == FesApplicationABIID &&
 				  descriptor.abi.major == 1 && interface.id == FesApplicationInterfaceMediaBlobID)))
 				return CompatibilityError(ErrorCode::unsupported_interface,
-					"linked cartridge cannot declare a reset-held media or firmware mailbox");
+					"linked cartridge cannot declare a reset-held media mailbox");
 		}
 	}
 	if (descriptor.abi.id == FesApplicationABIID &&
@@ -886,7 +949,6 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			}
 			if (interface.id == "fes.expansion.coleco-bus" && interface.major == 2 &&
 				interface.minor == 0 && !interface.required) coleco_bus = true;
-			const bool firmware = interface.id == FesApplicationInterfaceFirmwareBlobID;
 			const bool known = interface.id == FesApplicationInterfaceGamepadID ||
 				interface.id == FesApplicationInterfaceGamepadPortsID ||
 				interface.id == FesApplicationInterfaceKeypadPortsID ||
@@ -897,8 +959,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == FesApplicationInterfaceMemoryHpsDdrID ||
 				interface.id == FesApplicationInterfaceVideoMenuDisplayID ||
 				interface.id == FesApplicationInterfaceVideoMenuBlitterID ||
-				interface.id == FesApplicationInterfaceVideoSessionDisplayID ||
-				firmware;
+				interface.id == FesApplicationInterfaceVideoSessionDisplayID;
 			// The blitter's minors add ops, so a menu may declare any of them.
 			const bool supported = known && interface.major == 1 && (interface.minor == 0 ||
 				(interface.id == FesApplicationInterfaceVideoMenuBlitterID &&
@@ -907,7 +968,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"required application interface is unsupported");
 			if (!supported) continue;
-			if (!interface.required && !firmware)
+			if (!interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"application operational interfaces must be required when declared");
 			if (interface.id == FesApplicationInterfaceVideoFixed720p60ID)

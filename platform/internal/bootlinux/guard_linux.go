@@ -24,6 +24,7 @@ import (
 // for the trial, 30 seconds for the device and 5 seconds between heartbeats.
 type GuardConfig struct {
 	Device            string
+	ExpectedDevice    uint64 // Optional dev_t, checked again after opening the device.
 	BootID            string
 	ImageSHA256       string
 	TrialTimeout      time.Duration
@@ -134,11 +135,21 @@ func RunGuard(ctx context.Context, cfg GuardConfig, ready io.Writer, confirmed C
 	}
 	f := os.NewFile(uintptr(fd), cfg.Device)
 	var stat unix.Stat_t
-	if err = unix.Fstat(fd, &stat); err != nil || stat.Mode&unix.S_IFMT != unix.S_IFCHR {
+	if err = unix.Fstat(fd, &stat); err == nil {
+		err = validateWatchdogDevice(stat, cfg.ExpectedDevice)
+	}
+	if err != nil {
 		_ = f.Close()
-		return errors.New("watchdog is not a character device")
+		return fmt.Errorf("verify opened watchdog: %w", err)
 	}
 	return runGuard(ctx, cfg, ready, confirmed, &watchdogFile{f})
+}
+
+func validateWatchdogDevice(stat unix.Stat_t, expected uint64) error {
+	if stat.Mode&unix.S_IFMT != unix.S_IFCHR || (expected != 0 && uint64(stat.Rdev) != expected) {
+		return errors.New("watchdog is not the expected character device")
+	}
+	return nil
 }
 
 func privateGuardNamespace() error {

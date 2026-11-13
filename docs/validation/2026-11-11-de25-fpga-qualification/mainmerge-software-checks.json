@@ -1,0 +1,330 @@
+{
+  "schema": 1,
+  "merged_main": "78b7ee4b75cec2a18055c0d23bbf92829e6d11d2",
+  "merge_revision": "03f71932c035cc8864b9c6df7e0342cba45ff4c6",
+  "test_api_repair": "7dc116032fca35b26997519baa93b9bd1c1ae6f9",
+  "current_functional_inputs": "e0623c4dad217d38cecef334c5c3d09197155fc1",
+  "scope": "Selected software checks only; no full39-command all-core pass or aggregate green CI. See separate source audit and hardware evidence.",
+  "receipts": {
+    "mainmerge-parent-0": {
+      "sha256": "a1ceb3b811a3ad684b9eb4f664b59703cc746495425b396a2163c222c7050f2b",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": 0,
+      "seconds": 0.4168284619227052
+    },
+    "mainmerge-parent-1": {
+      "sha256": "303cf92b748a947b764c41bab4594cb6bcf615277c8c1b9068efc5fbff72e072",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": 0,
+      "seconds": 1.0657350139226764
+    },
+    "mainmerge-parent-2": {
+      "sha256": "1df839e37a65108267a079fb5113134c04ee4be4d555428afe40a54e27c553fc",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "78b7ee4b75cec2a18055c0d23bbf92829e6d11d2",
+        "--head",
+        "03f71932c035cc8864b9c6df7e0342cba45ff4c6"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": 1,
+      "seconds": 0.7667297818697989
+    },
+    "mainmerge-parent-resumed-file-4": {
+      "sha256": "7dc067028cd40f3a417edc75d3b20f2114b4c348901bd216ea362b1b3ddb7db8",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "true",
+        "--media",
+        "true",
+        "--paths-json-file",
+        "/data/fes-de25-qualification-20261111/parent1297-merge/changed-paths.json"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": -15,
+      "seconds": 31.31862062588334
+    },
+    "mainmerge-parent-software": {
+      "sha256": "663dc1e4551e3bf89cd6c4b59a5afc1f5be17abea06e6f3d37cb5c099dfd9329",
+      "argv": [
+        "python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json-file",
+        "/data/fes-de25-qualification-20261111/parent1297-merge/changed-paths.json"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": 0,
+      "seconds": 362.07796431006864
+    },
+    "mainmerge-consistency": {
+      "sha256": "29a66bc72ad13d8ed4a9e526801af971b24e7ce86e9f66917d1b226c45a8dec1",
+      "argv": [
+        "python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": 0,
+      "seconds": 10.34370277216658
+    },
+    "mainmerge-parent-check": {
+      "sha256": "ff42abda71e31df2b5458c6ab50c1e994a033ebf6110ffa4d8e0cb686cc8998c",
+      "argv": [
+        "make",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": 0,
+      "seconds": 20.779198211152107
+    },
+    "mainmerge-deadcode": {
+      "sha256": "0e8b06c45e877586bbb362c780d0987cfb8a7e22cdf971e7380076846f320d94",
+      "argv": [
+        "make",
+        "deadcode"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": 0,
+      "seconds": 112.1348021440208
+    },
+    "mainmerge-host-6": {
+      "sha256": "8eec77f5d00d3a72e473c635203bb443383076b26181dec5e0c407b9b61a5f42",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/host_tests.py",
+        "--ui-if-needed",
+        "--full"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": -15,
+      "seconds": 72.75396921299398
+    },
+    "mainmerge-host-focused": {
+      "sha256": "c5e0946ba8f50574bee1715bf14d06e9cb3acf663ff22b547f17de279c4c7cd3",
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-timeout",
+        "10m",
+        "./cmd/mister-agent",
+        "./fogcast",
+        "./internal/httpapi",
+        "./targetclient",
+        "./internal/applianceupdate",
+        "./ui/tenfoot"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input/sources/FogCast",
+      "exit": 1,
+      "seconds": 610.3440603280906
+    },
+    "mainmerge-httpapi-recheck": {
+      "sha256": "95b82fd630de1f0590a581bb2fd09b21e8ce9abc747d6d3a6a3ff031cc879504",
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-timeout",
+        "90s",
+        "./internal/httpapi"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input/sources/FogCast",
+      "exit": 0,
+      "seconds": 4.071650674100965
+    },
+    "mainmerge-fogcast-repairs": {
+      "sha256": "cf895f20f7a3d9cda029311eb098744a834aad455c9c8db7b5644e9283f93153",
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-timeout",
+        "4m",
+        "./fogcast",
+        "-run",
+        "TestStaticLibrary|Test.*(Appliance|Update|DE25|De25|Firmware)"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input/sources/FogCast",
+      "exit": 1,
+      "seconds": 240.8927693059668
+    },
+    "mainmerge-static-library-resolutions": {
+      "sha256": "52de7df8d37decb708eca65fc0ead607b0941f91865994584e6c540e86943d8f",
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-timeout",
+        "90s",
+        "./fogcast",
+        "-run",
+        "^TestStaticLibrary"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input/sources/FogCast",
+      "exit": 0,
+      "seconds": 6.376788531895727
+    },
+    "mainmerge-fogcast-build": {
+      "sha256": "173fd5bee5fc93c06106604194f7ae32f28e8b32d85a143a89bbb01126b45f0f",
+      "argv": [
+        "go",
+        "build",
+        "./..."
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input/sources/FogCast",
+      "exit": 0,
+      "seconds": 8.106914815027267
+    },
+    "mainmerge-runtime-contracts-7": {
+      "sha256": "83a0a8601eb8ae38853a5e46040ce86cfc870677815c02a190da33056c9ea614",
+      "argv": [
+        "make",
+        "-j2",
+        "test"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input/sources/libmister-runtime",
+      "exit": 0,
+      "seconds": 538.9829935648013
+    },
+    "mainmerge-runtime-contracts-8": {
+      "sha256": "8bc40f8d7173c0e01ed764caff8555ae3f59a2835705c8f6c0bcf23afb58f80f",
+      "argv": [
+        "make",
+        "test",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input/sources/mister-packages",
+      "exit": 2,
+      "seconds": 0.2646784340031445
+    },
+    "mainmerge-contracts-environment": {
+      "sha256": "22d7399c2dd4ece1516fec2a4464c032175aa1ed1b9328dd86279c50cb6b07b6",
+      "argv": [
+        "make",
+        "test",
+        "PYTHON=/data/fes-de25-main-integration-20261105/test-venv/bin/python"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input/sources/mister-packages",
+      "exit": 0,
+      "seconds": 4.52266828995198
+    },
+    "mainmerge-fpga-software-13": {
+      "sha256": "a53a4cb017ac8e55a38b18123fcce83ec1bd4033530a0ee4079e6612283fed1a",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input/sources/misteross",
+      "exit": -9,
+      "seconds": 1067.9309201559518
+    },
+    "mainmerge-de10-bundle": {
+      "sha256": "94b52a3c8baf73a28145e2b82417151119437c5c35fdeb0da2aceccea37e01f4",
+      "argv": [
+        "make",
+        "kit-software",
+        "KIT_SOFTWARE_BASE=/data/fes-de25-qualification-20261111/base179.img",
+        "KIT_SOFTWARE_BASE_SHA256=179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018",
+        "KIT_SOFTWARE_VERSION=pr1312-main-7dc116032",
+        "KIT_SOFTWARE_OUTPUT=/data/fes-de25-qualification-20261111/mainmerge-de10-software"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": 2,
+      "seconds": 0.7175380438566208
+    },
+    "mainmerge-de10-bundle-shared": {
+      "sha256": "b0f4dc10e8c893536a86e70e3009012788a7b0dea1f84fd1ca7f59acd3bc8285",
+      "argv": [
+        "env",
+        "FES_TARGET_IMAGE_SHARED_CACHE=/home/deano/fes/out/cache/target-image",
+        "make",
+        "kit-software",
+        "KIT_SOFTWARE_BASE=/data/fes-de25-qualification-20261111/base179.img",
+        "KIT_SOFTWARE_BASE_SHA256=179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018",
+        "KIT_SOFTWARE_VERSION=pr1312-main-7dc116032",
+        "KIT_SOFTWARE_OUTPUT=/data/fes-de25-qualification-20261111/mainmerge-de10-software"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input",
+      "exit": 0,
+      "seconds": 111.58719426789321
+    },
+    "mainmerge-affected-fpga-repairs": {
+      "sha256": "bdc0169b61ab12f640e5e20300895a7c95bd425f3564cebc65bcc8993074bda8",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "tests.test_de25_production_identity",
+        "tests.test_de25_export_core_package",
+        "tests.test_export_core_package",
+        "tests.test_build_fes_pong",
+        "tests.test_build_fes_riscv",
+        "tests.test_functional_identity",
+        "tests.test_source_closure"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-main-input/sources/misteross",
+      "exit": 0,
+      "seconds": 81.86135387909599
+    }
+  },
+  "notes": [
+    "35 affected-planner and33 test-changed tests pass; original committed whitespace error repaired.",
+    "1714 routine parent tests pass with one skip. Extended media selection stopped before image production; original log retained.",
+    "Full native runtime passes; contracts pass in the existing test venv after system Python lacked jsonschema.",
+    "go build ./... passes. cmd/mister-agent, targetclient, appliance update and Tenfoot race packages pass.",
+    "FogCast full selected package race command reached its10m local budget; broad firmware filter reached4m during ST video cases. Neither is an aggregate pass.",
+    "One initial HTTP API software-proxy case returned503. The full HTTP API package passes independent rerun; cause unproved.",
+    "Exact static-library merge-resolution race tests pass.",
+    "Broad FPGA software suite deliberately stopped in unrelated pc386 device/OPL cases after at least1515 completed cases; subsequent device ERROR was induced by stopping its owned simulator, not an intrinsic failure.",
+    "All74/143 DE25,43 RISC-V,80/61 combined-proof input hashes match; original source-bound qualifications remain distinct from merged-userspace hardware acceptance.",
+    "No kit was touched after our approved image744 trial was restored and its claim released."
+  ],
+  "interruption": {
+    "owned_process": 3144488,
+    "reason": "Stop unrelated pc386 device/OPL benches after affected DE25/export/identity cases completed; all-core software suite not required or claimed complete in this focused qualification continuation.",
+    "signals": [
+      "SIGTERM",
+      "SIGKILL"
+    ],
+    "note": "The ERROR in test_directed_device_checks was induced by the deliberate SIGTERM, not an observed intrinsic test failure. The test runner continued to OPL; SIGKILL retired the same owned process group."
+  },
+  "affected_fpga_tests": 94,
+  "completed_scope": "Parent1714/one skip, generated41/45, full native runtime, contracts, unused-code check, FogCast production build, independent full HTTP API race package, exact static-library race tests,94 affected FPGA tests and normal ARMv7 bundle build. Broad Go/FPGA campaigns remain incomplete."
+}

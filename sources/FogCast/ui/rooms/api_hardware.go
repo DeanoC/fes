@@ -8,6 +8,7 @@ import (
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/corenames"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/misteross/expansion"
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -72,17 +73,17 @@ func (r *Instance) installHardware() *lua.LTable {
 			cb := L.CheckFunction(1)
 			s, ok := r.opts.Services.(HardwareServices)
 			if !ok {
-				r.deliver(asyncResult{cb: cb, err: errNoHardware})
+				r.deliver(asyncResult{api: "hardware.read", cb: cb, err: errNoHardware})
 				return 0
 			}
 			if r.hardwareReading {
-				r.deliver(asyncResult{cb: cb, err: errors.New("hardware refresh already in progress")})
+				r.deliver(asyncResult{api: "hardware.read", cb: cb, err: errors.New("hardware refresh already in progress")})
 				return 0
 			}
 			r.hardwareReading = true
 			go func() {
 				v, err := s.Hardware(r.ctx)
-				r.deliver(asyncResult{cb: cb, hardware: &v, err: err, hardwareRead: true})
+				r.deliver(asyncResult{api: "hardware.read", cb: cb, hardware: &v, err: err, hardwareRead: true})
 			}()
 			return 0
 		},
@@ -90,11 +91,11 @@ func (r *Instance) installHardware() *lua.LTable {
 			opts, cb := L.CheckTable(1), L.CheckFunction(2)
 			s, ok := r.opts.Services.(HardwareServices)
 			if !ok {
-				r.deliver(asyncResult{cb: cb, err: errNoHardware})
+				r.deliver(asyncResult{api: "hardware.select_expansion", cb: cb, err: errNoHardware})
 				return 0
 			}
 			if r.hardwareSaving {
-				r.deliver(asyncResult{cb: cb, err: errors.New("a setup is already being saved")})
+				r.deliver(asyncResult{api: "hardware.select_expansion", cb: cb, err: errors.New("a setup is already being saved")})
 				return 0
 			}
 			game, pkg := optString(opts, "game_id"), optString(opts, "package_id")
@@ -112,7 +113,7 @@ func (r *Instance) installHardware() *lua.LTable {
 			r.hardwareSaving = true
 			go func() {
 				v, err := s.SelectCoreEntryExpansion(r.ctx, game, pkg, expected, id)
-				r.deliver(asyncResult{cb: cb, selection: &v, err: err, hardwareSave: true})
+				r.deliver(asyncResult{api: "hardware.select_expansion", cb: cb, selection: &v, err: err, hardwareSave: true})
 			}()
 			return 0
 		},
@@ -189,9 +190,20 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 		// load: a matching composition, or a verified empty socket. It is
 		// never taken from the saved Next start setup.
 		known := false
+		expansionID := ""
 		if c := s.CorePackage; c != nil {
-			if c.Composition != nil {
+			if receipt := c.StaticComposition; receipt != nil {
+				id, err := expansion.StaticCompositionID(*receipt)
+				known = err == nil && id == receipt.ID && receipt.PackageID == c.PackageID &&
+					c.Composition == nil && c.PartsComposition == nil && c.ROMLink == nil && c.ROMLinks == nil && c.ExpansionSocket == ""
+				if known {
+					expansionID = receipt.ExpansionID
+				}
+			} else if c.Composition != nil {
 				known = c.Composition.PackageID == c.PackageID
+				if known {
+					expansionID = c.Composition.ExpansionID
+				}
 			} else {
 				known = c.ExpansionSocket == protocol.ExpansionSocketEmpty
 			}
@@ -203,11 +215,7 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 		if c := s.CorePackage; c != nil {
 			session.RawSetString("generation", lua.LString(strconv.FormatUint(c.Generation, 10)))
 			session.RawSetString("package_id", lua.LString(c.PackageID))
-			id := ""
-			if known && c.Composition != nil {
-				id = c.Composition.ExpansionID
-			}
-			session.RawSetString("expansion_id", lua.LString(id))
+			session.RawSetString("expansion_id", lua.LString(expansionID))
 		}
 		out.RawSetString("session", session)
 	}

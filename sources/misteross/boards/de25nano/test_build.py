@@ -1,22 +1,32 @@
 """Exercise the real diagnostic project path without requiring licensed tools."""
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
-import subprocess
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
+from unittest.mock import patch
+
+from scripts.quartus_tools import QuartusLock
 
 
 BOARD = Path(__file__).resolve().parent
+VERSION = "Version 26.3.0 Build 114 10/14/2026 SC Pro Edition"
 SPEC = importlib.util.spec_from_file_location("de25nano_build", BOARD / "build.py")
 BUILD = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(BUILD)
 
 
 class DiagnosticBuildTests(unittest.TestCase):
+    def locked(self, root):
+        tool = Path(root) / "quartus/bin/quartus_sh"
+        lock = QuartusLock("boards/de25nano/quartus.lock", "pro", VERSION, "agilex5",
+                           hashlib.sha256(tool.read_bytes()).hexdigest())
+        return patch("scripts.quartus_tools.load_quartus_lock", return_value=lock)
+
     def fake_tool(self, directory, version, *, fail=False, artifact=True, ip_fail=False):
-        root = Path(directory) / "Quartus Pro"
+        root = Path(directory) / "QuartusPro"
         tool = root / "quartus/bin/quartus_sh"
         tool.parent.mkdir(parents=True)
         tool.write_text(
@@ -70,27 +80,25 @@ class DiagnosticBuildTests(unittest.TestCase):
                 BUILD.prepare_project(output)
 
     def test_reject_missing_or_wrong_compiler(self):
-        with self.assertRaisesRegex(BUILD.BuildError, "explicit Quartus"):
+        with self.assertRaisesRegex(BUILD.BuildError, "QUARTUS_ROOTDIR"):
             BUILD.locate_quartus("")
-        for version in ("Version 17.0.2 Lite Edition", "Version 26.3.0 Lite Edition",
+        for version in ("Version 17.0.2 Lite Edition", "Version 26.3.0 Build 114 10/14/2026 SC Lite Edition",
                         "Version 26.3.00 Pro Edition", "Version 26.3.0.1 Pro Edition",
                         "Version 26.3.1 Pro Edition", "Version 25.1.1 Pro Edition"):
             with self.subTest(version=version), tempfile.TemporaryDirectory() as temporary:
                 root = self.fake_tool(temporary, version)
-                with self.assertRaisesRegex(BUILD.BuildError, "requires Quartus"):
+                with self.locked(root), self.assertRaises(BUILD.BuildError):
                     BUILD.locate_quartus(str(root))
 
     def test_compile_retains_logs_and_explicit_diagnostic_evidence(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = self.fake_tool(temporary, "Quartus Prime Version 26.3.0 Build 114 SC Pro Edition")
-            result = subprocess.run(
-                ["python3", str(BOARD / "build.py"), "build", "--quartus-root", str(root),
-                 "--output", str(Path(temporary) / "compiled project")],
-                text=True, capture_output=True,
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-            output = Path(temporary) / "compiled project"
+            root = self.fake_tool(temporary, VERSION)
+            with self.locked(root):
+                tool, version = BUILD.locate_quartus(str(root))
+                output = BUILD.prepare_project(Path(temporary) / "compiled project")
+                artifact = BUILD.compile_project(output, tool, version)
             record = json.loads((output / "build.json").read_text())
+            self.assertEqual(artifact.name, "de25nano_blinky.sof")
             self.assertTrue(record["diagnostic_only"])
             self.assertEqual(record["timing_acceptance"], "not-qualified")
             self.assertEqual(record["hardware_acceptance"], "not-run")
@@ -101,22 +109,24 @@ class DiagnosticBuildTests(unittest.TestCase):
     def test_compile_fails_without_a_new_sof_and_retains_failed_log(self):
         for fail, artifact in ((True, True), (False, False)):
             with self.subTest(fail=fail), tempfile.TemporaryDirectory() as temporary:
-                root = self.fake_tool(temporary, "Version 26.3.0 Pro Edition",
+                root = self.fake_tool(temporary, VERSION,
                                       fail=fail, artifact=artifact)
-                tool, version = BUILD.locate_quartus(str(root))
-                output = BUILD.prepare_project(Path(temporary) / "project")
-                with self.assertRaises(BUILD.BuildError):
-                    BUILD.compile_project(output, tool, version)
+                with self.locked(root):
+                    tool, version = BUILD.locate_quartus(str(root))
+                    output = BUILD.prepare_project(Path(temporary) / "project")
+                    with self.assertRaises(BUILD.BuildError):
+                        BUILD.compile_project(output, tool, version)
                 self.assertFalse((output / "build.json").exists())
                 self.assertTrue((output / "compile.log").exists())
 
     def test_ip_generation_failure_stops_before_compile(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = self.fake_tool(temporary, "Version 26.3.0 Pro Edition", ip_fail=True)
-            tool, version = BUILD.locate_quartus(str(root))
-            output = BUILD.prepare_project(Path(temporary) / "project")
-            with self.assertRaisesRegex(BUILD.BuildError, "IP generation failed"):
-                BUILD.compile_project(output, tool, version)
+            root = self.fake_tool(temporary, VERSION, ip_fail=True)
+            with self.locked(root):
+                tool, version = BUILD.locate_quartus(str(root))
+                output = BUILD.prepare_project(Path(temporary) / "project")
+                with self.assertRaisesRegex(BUILD.BuildError, "IP generation failed"):
+                    BUILD.compile_project(output, tool, version)
             self.assertTrue((output / "ip-generation.log").exists())
             self.assertFalse((output / "compile.log").exists())
             self.assertFalse((output / "build.json").exists())

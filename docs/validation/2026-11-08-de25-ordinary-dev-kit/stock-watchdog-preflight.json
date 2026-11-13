@@ -1,0 +1,21 @@
+{
+  "passed": true,
+  "classification": "native read-only watchdog identity metadata, not reset/expiry acceptance",
+  "source_head": "53f7f2ef6436939b8c21c65449a5444b76acec67",
+  "binary_sha256": "28a62b6889bf4e2f35e829e6cdfc706df25e6ef0ec02fb27e2594169f3440f3d",
+  "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf",
+  "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+  "generation": 7,
+  "kernel_notes_sha256": "b0c2f6b1ec6f79bf12d1b1e724fd8a5f5ba36e7f32e302ddf5adda74124f1a8e",
+  "stock_FIT_sha256": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+  "watchdog_opened": false,
+  "watchdog_armed": false,
+  "reset_or_reboot": false,
+  "FPGA_load": false,
+  "card_boot_image_or_QSPI_changed": false,
+  "temp_binary_removed": true,
+  "final_idle_free": true,
+  "preflight_output": "=== RUN   TestNativeDe25WatchdogPreflight\n    de25_watchdog_linux_test.go:153: qualified stock watchdog0 identity 246:0; device not opened\n--- PASS: TestNativeDe25WatchdogPreflight (0.00s)\nPASS\n",
+  "original_tuple_and_own_host_verified": true,
+  "catalog_independent_sampling": "Not repeated by this metadata-only preflight; original catalog evidence remains in the preceding native control."
+}

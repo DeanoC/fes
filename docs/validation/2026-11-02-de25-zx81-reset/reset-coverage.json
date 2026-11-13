@@ -1,0 +1,17 @@
+{
+  "status": "passed",
+  "classification": "actual fresh canonical fitted reset recovery/removal coverage; no hardware acceptance",
+  "source_revision": "658c97ac41079b3f8ed0ac9e0cc45c1ece803b69",
+  "paths": 24,
+  "corners": [
+    "Fast fix4 0C Model",
+    "Slow fix4 0C Model",
+    "Slow fix4 100C Model",
+    "Slow fix4a 0C Model"
+  ],
+  "worst_recovery_ns": 8.064,
+  "worst_removal_ns": 0.534,
+  "raw_paths_sha256": "e8e8d7ab0f506bd26f668dc5681a64f286075fe89386e7a437df6993b80b3933",
+  "original_inputs_unchanged": true,
+  "hardware_access": "not-performed"
+}

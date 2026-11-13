@@ -11,9 +11,9 @@ import subprocess
 import tempfile
 
 try:
-    from .appliance import canonical,digest,load_manifest,validate_ext4,validate_static_arm
+    from .appliance import BOARD,bootstrap_architecture,bootstrap_firmware,canonical,digest,load_manifest,validate_ext4,validate_static_arm
 except ImportError:
-    from appliance import canonical,digest,load_manifest,validate_ext4,validate_static_arm
+    from appliance import BOARD,bootstrap_architecture,bootstrap_firmware,canonical,digest,load_manifest,validate_ext4,validate_static_arm
 
 EPOCH=1751459412
 UUID='46455331-626f-4f74-8000-000000000001'
@@ -31,18 +31,27 @@ def debugfs(image,command,*,write=False):
     return run(['debugfs',*(['-w'] if write else []),'-R',command,image])
 
 
-def assemble(output,binary,factory):
+def assemble(output,binary,factory,*,board=BOARD):
+    architecture=bootstrap_architecture(board)
     output=Path(output)
     if output.exists() or output.is_symlink():raise ValueError('bootstrap output already exists')
-    binary_sha=validate_static_arm(binary);manifest=load_manifest(factory)
+    binary_sha=validate_static_arm(binary,architecture);manifest=load_manifest(factory,board=board)
+    root=Path(__file__).resolve().parents[1]
+    firmware=bootstrap_firmware(root,board=board)
+    directories=DIRECTORIES+(('lib','lib/firmware','lib/firmware/rtl_bt') if firmware else ())
     output.parent.mkdir(parents=True,exist_ok=True)
     try:
         with tempfile.TemporaryDirectory(prefix='.bootstrap-tree-',dir=output.parent) as temporary:
             tree=Path(temporary)
-            for name in DIRECTORIES:(tree/name).mkdir(mode=0o755,parents=True,exist_ok=True)
+            for name in directories:(tree/name).mkdir(mode=0o755,parents=True,exist_ok=True)
             shutil.copyfile(binary,tree/'sbin/init');(tree/'sbin/init').chmod(0o755)
+            (tree/'etc/fes-board').write_text(board+'\n');(tree/'etc/fes-board').chmod(0o444)
             (tree/'etc/fes/factory.json').write_bytes(canonical(manifest));(tree/'etc/fes/factory.json').chmod(0o444)
             (tree/'tmp').chmod(0o1777)
+            for name,expected in firmware.items():
+                destination=tree/'lib/firmware/rtl_bt'/Path(name).name
+                shutil.copyfile(root/name,destination);destination.chmod(0o444)
+                if digest(destination)!=expected:raise ValueError('bootstrap firmware changed during snapshot: '+name)
             for path in [*tree.rglob('*'),tree]:os.utime(path,(EPOCH,EPOCH),follow_symlinks=False)
             with output.open('xb') as stream:stream.truncate(SIZE)
             run(['mke2fs','-q','-F','-t','ext4','-b','1024','-I','256','-N','128','-m','0','-L','FES_BOOTSTRAP','-U',UUID,
@@ -54,7 +63,7 @@ def assemble(output,binary,factory):
             commands.write_text('cd /dev\nmknod console c 5 1\nmknod null c 1 3\nset_inode_field console mode 020600\nset_inode_field null mode 020666\n')
             run(['debugfs','-w','-f',commands,output])
             inodes=set()
-            for directory in ('/','/lost+found',*('/'+name for name in DIRECTORIES)):
+            for directory in ('/','/lost+found',*('/'+name for name in directories)):
                 text=debugfs(output,'ls -p '+directory)
                 for line in text.splitlines():
                     match=re.match(r'^/(\d+)/',line)
@@ -73,14 +82,20 @@ def assemble(output,binary,factory):
             commands.write_text('\n'.join(lines)+'\n');run(['debugfs','-w','-f',commands,output])
             run(['e2fsck','-f','-n',output])
             features=validate_ext4(output)
-            for name in ('/sbin/init','/etc/fes/factory.json','/dev/console','/dev/null',*('/'+n for n in DIRECTORIES)):
+            for name in ('/sbin/init','/etc/fes-board','/etc/fes/factory.json','/dev/console','/dev/null',*('/'+n for n in directories)):
                 record=debugfs(output,'stat '+name)
                 if 'Inode:' not in record or 'User:     0' not in record:raise ValueError('bootstrap inode missing or incorrectly owned: '+name)
             if 'character special' not in debugfs(output,'stat /dev/console'):raise ValueError('bootstrap console is not a device')
+            for name,expected in firmware.items():
+                extracted=Path(temporary)/'extracted-firmware'
+                extracted.unlink(missing_ok=True)
+                debugfs(output,'dump /lib/firmware/rtl_bt/'+Path(name).name+' '+str(extracted))
+                if digest(extracted)!=expected:raise ValueError('bootstrap firmware readback differs: '+name)
             return {'image_sha256':digest(output),'image_size':SIZE,'binary_sha256':binary_sha,
                 'factory_manifest_sha256':hashlib.sha256(canonical(manifest)).hexdigest(),'ext4_features':features,
                 'source_date_epoch':EPOCH,'filesystem_uuid':UUID,'mke2fs_version':run(['mke2fs','-V']).strip(),
-                'debugfs_version':run(['debugfs','-V']).strip()}
+                'debugfs_version':run(['debugfs','-V']).strip(),
+                **({'early_firmware':firmware} if firmware else {})}
     except BaseException:
         output.unlink(missing_ok=True)
         raise
@@ -89,8 +104,9 @@ def assemble(output,binary,factory):
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('command',choices=['assemble'])
     parser.add_argument('--output',type=Path,required=True);parser.add_argument('--binary',type=Path,required=True);parser.add_argument('--factory',type=Path,required=True)
+    parser.add_argument('--board',choices=(BOARD,'de25-nano'),default=BOARD)
     args=parser.parse_args()
-    try:print(json.dumps(assemble(args.output,args.binary,args.factory),sort_keys=True))
+    try:print(json.dumps(assemble(args.output,args.binary,args.factory,board=args.board),sort_keys=True))
     except (OSError,ValueError,subprocess.CalledProcessError) as error:parser.exit(1,f'appliance bootstrap: {error}\n')
 
 

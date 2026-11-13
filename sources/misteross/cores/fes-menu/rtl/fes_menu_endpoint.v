@@ -25,8 +25,7 @@ module fes_menu_endpoint (
         .clk(clk), .gpo(gpo), .build_id(build_id), .gpi(gpi), .exec_reset(exec_reset),
         .buttons(), .controller_buttons(), .controller_keypad(), .media_write_addr(),
         .media_write_data(), .media_write_enable(), .media_ready(), .media_size(),
-        .media_byte0(), .media_byte1(), .media_byte2(), .firmware_write_addr(),
-        .firmware_write_data(), .firmware_write_enable(), .firmware_ready(),
+        .media_byte0(), .media_byte1(), .media_byte2(),
         .menu_request(request), .menu_opcode(opcode), .menu_index(index), .menu_argument(argument),
         .menu_response_valid(response_valid), .menu_response_error(response_error),
         .menu_response_data(response_data), .menu_quiesced(quiesced)

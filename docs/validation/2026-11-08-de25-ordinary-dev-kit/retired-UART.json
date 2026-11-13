@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "pid": 900048,
+  "process_retired": true,
+  "port_open": false,
+  "bytes": 57728,
+  "sha256": "51551572f88058606c55de65af3e5b9d848dd3ed4f740a727d4a26b64ac2001c",
+  "completion_sample_sha256": "51551572f88058606c55de65af3e5b9d848dd3ed4f740a727d4a26b64ac2001c",
+  "same_bytes_as_completion_sample": true
+}

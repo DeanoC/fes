@@ -1,0 +1,32 @@
+{
+  "build_id": "a43e6fcf2904ca4890b22c32ab5fb4cb",
+  "classification": "corrected I2S phase canonical compile-only candidate; not sealed or board accepted",
+  "elapsed_seconds": 652.811,
+  "hardware_changed": false,
+  "independent_rebuild": "required after final producer/reference policy stabilizes",
+  "numeric_timing_pass": true,
+  "package_timing_admission": false,
+  "raw_failed_rules": [
+    {
+      "id": "TMC-20012",
+      "severity": "High",
+      "violations": 32,
+      "waived": 0
+    },
+    {
+      "id": "TMC-20011",
+      "severity": "High",
+      "violations": 2,
+      "waived": 0
+    }
+  ],
+  "rbf_bytes": 1744896,
+  "rbf_sha256": "0bd85c0b67bfcaedc9d4e7965b0e4d8e970b685c2f2d65ffe24b104c4ba90bff",
+  "reports_sha256": {
+    "golden_top.sta.summary": "043b44914a7fb52295f5196539570fc576f2dd72c00f304204fe0f7635511fce",
+    "golden_top.tq.drc.signoff.rpt": "c643371190d95c4ce3ade5cf98a84724fdb07c9c2a31d9b23b48151737a1e6f5"
+  },
+  "source_record_sha256": "73aa0c1ec79f6696163c99d32d50f5459641762015f862873d741a694b1bb300",
+  "source_revision": "446bd3eca9c8dacdeb7c071a331aab3842bb4a13",
+  "timing_check_count": 92
+}

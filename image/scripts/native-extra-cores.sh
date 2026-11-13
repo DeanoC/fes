@@ -554,7 +554,8 @@ if [ "$native_mode" = package-only ]; then
         if [ -f "$cached_package/rom-map.json" ]; then
           install -m 0444 "$cached_package/rom-map.json" "$installed/rom-map.json"
         fi
-        chmod 0555 "$installed"
+        # Clear inherited directory setgid as well as write permissions.
+        chmod 00555 "$installed"
         package_installed_record_path_for "$selected_id"
         install -D -m 0444 "$package_record" "$installed_record"
       done

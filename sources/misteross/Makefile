@@ -112,7 +112,7 @@ help:
 		"  build-fes-ts1500  Seal experimental Timex Sinclair 1500 (package-only; same lock as fes.zx81)" \
 		"  build-fes-coleco-quartus  Quartus oracle (quartus.lock) package for FES ColecoVision" \
 		"  build-fes-coleco  Seal FES ColecoVision v2 socket with HIP (CACHE_ROOT=)" \
-		"  sim-fes-sg1000  Test the FES simple-computer SG-1000 machine (Coleco sibling)" \
+		"  sim-fes-sg1000  Test the FES application SG-1000 machine (Coleco sibling)" \
 		"  sim-fes-sg1000-oss  Test OSS-conditional SG-1000 registered media, RAM and VDP" \
 		"  sim-fes-sg1000-rom-link  Test the sealed 16 KiB SG-1000 ROM path" \
 		"  sim-fes-sg1000-quartus  Test SG-1000 RAM/media with supplied Quartus 17 models and Icarus" \
@@ -164,7 +164,7 @@ help:
 		"  sim-fes-pc386-sound  Boot FreeDOS and run the audio start-up exercise; writes sound.wav" \
 		"  sim-fes-pc386-vga  Check the pc386 presenter and plane, run the VGA test disk, replay its VGA trace against Bochs" \
 		"  synth-fes-pc386  Synthesize and pack the pc386 machine without the CPU (needs CACHE_ROOT)" \
-		"  build-fes-pc386-quartus  Seal fes.pc386, the machine with fes_i386_cpu, with its locked Quartus (CACHE_ROOT=, SEED=, GPU_ROUTER=HIP|CUDA)" \
+		"  build-fes-pc386-quartus  Seal fes.pc386, the machine with fes_i386_cpu, with its locked Quartus (LOCKSTEP_REPORT=, CACHE_ROOT=, SEED=, GPU_ROUTER=HIP|CUDA)" \
 		"  build-fes-pcxt  Quartus PC/XT diagnostic package (QUARTUS_ROOTDIR and pinned Yosys)" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
@@ -541,13 +541,14 @@ zx81-openrom:
 # runs the full check. Tapes made by other tools (the FogCast starter shelf,
 # when this checkout has it) then load on 1 KiB and 16 KiB.
 ZX81_TAPES ?= $(CURDIR)/../FogCast/internal/zx81tapes/assets
+# Keep objects built with the former size policy out of the speed build.
+ZX81_OPENROM_SIM_DIR := build/sim/fes-zx81-openrom-cxx-o3
 sim-fes-zx81-openrom: zx81-openrom
 	$(require_local_sim)
 	@for spec in 1:1: 0:0: ts1000:1:-DZX81_MODEL_TS1000; do \
 		name=$${spec%%:*}; rest=$${spec#*:}; ram=$${rest%%:*}; define=$${rest#*:}; \
-		dir=build/sim/fes-zx81-openrom-cxx-o3-$$name; mkdir -p $$dir; \
-		$(VERILATOR) --cc --exe --build -O3 --top-module zx81_machine -Wall \
-			-MAKEFLAGS 'OPT_FAST=-O3 OPT_GLOBAL=-O3' \
+		dir=$(ZX81_OPENROM_SIM_DIR)-$$name; mkdir -p $$dir; \
+		$(VERILATOR) --cc --exe --build -O3 -MAKEFLAGS 'OPT_FAST=-O3 OPT_GLOBAL=-O3' --top-module zx81_machine -Wall \
 			-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 			-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 			-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
@@ -560,14 +561,14 @@ sim-fes-zx81-openrom: zx81-openrom
 			cores/fes-zx81/rtl/zx81_dpram.v \
 			"$(CURDIR)/cores/fes-zx81/sim/openrom_tb.cpp" || exit 1; \
 	done
-	@build/sim/fes-zx81-openrom-cxx-o3-1/Vzx81_machine check & one=$$!; \
-		build/sim/fes-zx81-openrom-cxx-o3-ts1000/Vzx81_machine check & ntsc=$$!; \
-		build/sim/fes-zx81-openrom-cxx-o3-0/Vzx81_machine check; sixteen=$$?; \
+	@$(ZX81_OPENROM_SIM_DIR)-1/Vzx81_machine check & one=$$!; \
+		$(ZX81_OPENROM_SIM_DIR)-ts1000/Vzx81_machine check & ntsc=$$!; \
+		$(ZX81_OPENROM_SIM_DIR)-0/Vzx81_machine check; sixteen=$$?; \
 		wait $$one; one=$$?; wait $$ntsc; ntsc=$$?; \
 		test $$one = 0 && test $$ntsc = 0 && test $$sixteen = 0
 	@if [ -f "$(ZX81_TAPES)/guess-number.p" ]; then \
-		build/sim/fes-zx81-openrom-cxx-o3-1/Vzx81_machine load "$(ZX81_TAPES)/guess-number.p" && \
-		build/sim/fes-zx81-openrom-cxx-o3-0/Vzx81_machine load "$(ZX81_TAPES)/aritm.p"; \
+		$(ZX81_OPENROM_SIM_DIR)-1/Vzx81_machine load "$(ZX81_TAPES)/guess-number.p" && \
+		$(ZX81_OPENROM_SIM_DIR)-0/Vzx81_machine load "$(ZX81_TAPES)/aritm.p"; \
 	else echo "SKIP tape loads: no FogCast starter tapes at $(ZX81_TAPES)"; fi
 
 .PHONY: zx80-openrom sim-fes-zx80-openrom
@@ -824,31 +825,7 @@ sim-fes-coleco-sgm-audio:
 $(COLECO_BOARD_TARGETS): sim-fes-coleco-board-build
 $(addsuffix -oss,$(COLECO_BOARD_TARGETS)): sim-fes-coleco-board-build-oss
 
-.PHONY: sim-fes-coleco-firmware sim-fes-coleco-firmware-oss
-sim-fes-coleco-firmware-oss: COLECO_FIRMWARE_FLAGS = -DFES_COLECO_OSS=1
-sim-fes-coleco-firmware sim-fes-coleco-firmware-oss:
-	$(require_local_sim)
-	@mkdir -p build/sim/$@
-	$(VERILATOR) --cc --exe --build --top-module firmware_model -Wall \
-		-DTV80_REFRESH=1 $(COLECO_FIRMWARE_FLAGS) \
-		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
-		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
-		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
-		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
-		-Icores/fes-coleco/generated -Icores/fes-common/generated -Icores/fes-common/rtl/tv80 \
-		--Mdir "$(CURDIR)/build/sim/$@" \
-		cores/fes-coleco/sim/firmware_model.sv \
-		cores/fes-common/rtl/fes_sn76489.sv \
-		cores/fes-coleco/rtl/coleco_application_gp.v cores/fes-common/rtl/fes_application_gp.v \
-		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-common/rtl/coleco_vdp.sv \
-		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
-		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
-		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
-		cores/fes-common/rtl/tv80/tv80_reg.v \
-		"$(CURDIR)/cores/fes-coleco/sim/firmware_tb.cpp"
-	@build/sim/$@/Vfirmware_model
-
-sim-fes-coleco-unit: sim-fes-z80-timing sim-fes-tms9918-timing sim-fes-coleco-audio sim-fes-coleco-graphics sim-fes-coleco-stream sim-fes-coleco-vdp-io sim-fes-coleco-firmware
+sim-fes-coleco-unit: sim-fes-z80-timing sim-fes-tms9918-timing sim-fes-coleco-audio sim-fes-coleco-graphics sim-fes-coleco-stream sim-fes-coleco-vdp-io
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
@@ -1006,7 +983,7 @@ sim-fes-coleco-board-build:
 		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-coleco/sim/board_tb.cpp"
 
-sim-fes-coleco-unit-oss: sim-fes-z80-timing sim-fes-coleco-graphics-oss sim-fes-coleco-stream-oss sim-fes-coleco-vdp-io-oss sim-fes-coleco-firmware-oss
+sim-fes-coleco-unit-oss: sim-fes-z80-timing sim-fes-coleco-graphics-oss sim-fes-coleco-stream-oss sim-fes-coleco-vdp-io-oss
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp-oss
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
@@ -1705,7 +1682,7 @@ sim-fes-sg1000: sim-fes-z80-timing sg1000-diagnostic
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ \
-		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated \
+		-Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-machine" \
 		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
@@ -1726,7 +1703,7 @@ sim-fes-sg1000-oss: sim-fes-z80-timing sg1000-diagnostic
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ \
-		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated \
+		-Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-machine-oss" \
 		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
@@ -1747,7 +1724,7 @@ sim-fes-sg1000-rom-link: sim-fes-z80-timing sg1000-diagnostic
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ \
-		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated \
+		-Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-rom-link" \
 		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-common/rtl/fes_z80_ce.sv cores/fes-sg1000/rtl/sg1000_rom_link.v \
 		cores/fes-common/rtl/coleco_vdp.sv \
@@ -1759,17 +1736,32 @@ sim-fes-sg1000-rom-link: sim-fes-z80-timing sg1000-diagnostic
 		build/diagnostics/fes-sg1000/graphics-i-16k.rom
 
 .PHONY: sim-fes-sg1000-gp-audio
-sim-fes-sg1000-gp-audio:
+sim-fes-sg1000-gp-audio: sim-fes-sg1000-gp-media
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sg1000-gp-audio
-	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
-		-GENABLE_MEDIA_BLOB=0 -GENABLE_AUDIO=1 \
+	$(VERILATOR) --cc --exe --build --top-module sg1000_application_gp -Wall \
+		-DFES_SG1000_ROM_LINK=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM -Wno-PINCONNECTEMPTY \
-		-Icores/fes-sg1000/generated \
+		-Icores/fes-common/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-gp-audio" \
-		cores/fes-common/rtl/fes_computer_gp.v cores/fes-common/rtl/coleco_dpram.v \
+		cores/fes-sg1000/rtl/sg1000_application_gp.v cores/fes-common/rtl/fes_application_gp.v \
+		cores/fes-common/rtl/coleco_dpram.v \
 		"$(CURDIR)/cores/fes-sg1000/sim/gp_audio_tb.cpp"
-	@build/sim/fes-sg1000-gp-audio/Vfes_computer_gp
+	@build/sim/fes-sg1000-gp-audio/Vsg1000_application_gp
+
+.PHONY: sim-fes-sg1000-gp-media
+sim-fes-sg1000-gp-media:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-sg1000-gp-media
+	$(VERILATOR) --cc --exe --build --top-module sg1000_application_gp -Wall \
+		-DFES_COLECO_OSS=1 \
+		-Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM -Wno-PINCONNECTEMPTY \
+		-Icores/fes-common/generated \
+		--Mdir "$(CURDIR)/build/sim/fes-sg1000-gp-media" \
+		cores/fes-sg1000/rtl/sg1000_application_gp.v cores/fes-common/rtl/fes_application_gp.v \
+		cores/fes-common/rtl/coleco_dpram.v \
+		"$(CURDIR)/cores/fes-sg1000/sim/gp_media_tb.cpp"
+	@build/sim/fes-sg1000-gp-media/Vsg1000_application_gp
 
 .PHONY: sim-fes-sg1000-quartus
 sim-fes-sg1000-quartus:
@@ -2916,7 +2908,8 @@ synth-fes-pc386:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/synth_fes_pc386.py --cache-root "$(CACHE_ROOT)"
 
 build-fes-pc386-quartus:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pc386_quartus.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(strip $(SEED)), --seed "$(SEED)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
+	@test -n "$(strip $(LOCKSTEP_REPORT))" || { echo 'build-fes-pc386-quartus needs LOCKSTEP_REPORT (report.json of scripts/test_fes_i386_lockstep.py --netlist)' >&2; exit 2; }
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pc386_quartus.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(strip $(SEED)), --seed "$(SEED)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",) --lockstep-report "$(LOCKSTEP_REPORT)"
 
 .PHONY: synth-fes-pcxt-isa
 synth-fes-pcxt-isa:

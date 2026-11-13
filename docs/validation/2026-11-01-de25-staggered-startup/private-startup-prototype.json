@@ -1,0 +1,12 @@
+{
+  "file": "private-startup-prototype.tar.gz",
+  "bytes": 37208920,
+  "sha256": "ba3c2af40c2503c9c6e22d62408fcd3a711989ab2ed8927c10c63ed32736e288",
+  "classification": "private finite startup prototype on actual generated source34; not the new6fa producer",
+  "prototype_job_source": "7a2415a137966351354b42f94bb14c532e91b2aa",
+  "actual_generated_source": "34c3a6cb4d2858c273e2f95a0a94fcb46f8b416b",
+  "rbf_sha256": "58181300c2ce74ba5092d154d3f04779334da7a8b4b4c8938717c95c9ccae5db",
+  "cases": 72,
+  "timing_acceptance": false,
+  "hardware_access": "not-performed"
+}

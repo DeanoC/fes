@@ -1,0 +1,19 @@
+{
+  "source_revision": "d40e023dd4e7efd17efd3c78bc13a8b9ce79c28e",
+  "command": [
+    "taskset",
+    "--cpu-list",
+    "2,3",
+    "python3",
+    "/data/fes-de25-standalone-d40e023dd/run.py"
+  ],
+  "cwd": "/data/fes-de25-standalone-d40e023dd/source",
+  "started_utc": "2026-11-01T10:47:57.323957+00:00",
+  "time_cap_seconds": 660,
+  "hardware_access": "not-performed",
+  "pid": 1917936,
+  "state": "passed",
+  "elapsed_seconds": 500.2,
+  "heartbeat_utc": "2026-11-01T10:56:17.512789+00:00",
+  "returncode": 0
+}

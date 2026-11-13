@@ -5,6 +5,11 @@ import json
 from pathlib import Path
 import subprocess
 
+try:
+    from scripts import changed_paths
+except ImportError:
+    import changed_paths
+
 RUNTIME = 'sources/libmister-runtime'
 
 
@@ -28,19 +33,15 @@ def command(paths, jobs=2, full=False):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--paths-json')
+    changed_paths.add_arguments(parser, help='JSON array of changed repository paths')
     parser.add_argument('--jobs', type=int, default=2, choices=range(1, 33))
     parser.add_argument('--full', action='store_true')
     parser.add_argument('--plan-only', action='store_true')
     args = parser.parse_args(argv)
-    paths = None
-    if args.paths_json is not None:
-        try:
-            paths = json.loads(args.paths_json)
-        except ValueError:
-            parser.error('--paths-json must be a JSON array of strings')
-        if not isinstance(paths, list) or not all(isinstance(p, str) for p in paths):
-            parser.error('--paths-json must be a JSON array of strings')
+    try:
+        paths = changed_paths.read(args)
+    except (ValueError, OSError):
+        parser.error('--paths-json or --paths-json-file must supply a JSON array of strings')
     selected = command(paths, args.jobs, args.full)
     report = {'format': 1, 'command': selected, 'status': 'planned'}
     code = 0

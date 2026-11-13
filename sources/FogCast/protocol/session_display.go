@@ -102,8 +102,11 @@ func SessionDisplayCapable(p *CorePackageStatus) bool {
 	if !simple && !computer && !applicationMachine(p) {
 		return false
 	}
-	ddr, display := false, false
+	ddr, display, allocated, plane := false, false, false, false
 	for _, i := range p.ActiveInterfaces {
+		if computer && i.ID == "fes.fabric.de25-scanout" && i.Major == 1 && i.Minor == 3 {
+			allocated = true
+		}
 		if i.Major != 1 || i.Minor != 0 {
 			continue
 		}
@@ -112,9 +115,11 @@ func SessionDisplayCapable(p *CorePackageStatus) bool {
 			ddr = true
 		case "fes.video.session-display":
 			display = true
+		case "fes.fabric.video.display-plane":
+			plane = true
 		}
 	}
-	return ddr && display
+	return display && (ddr || allocated && plane)
 }
 
 // applicationMachine is a running fes.application machine, such as the Coleco
@@ -125,7 +130,7 @@ func applicationMachine(p *CorePackageStatus) bool {
 }
 
 func (b DevelopmentMediaBinding) MatchesSessionDisplay(s Status) bool {
-	if !b.Valid() || b.Stream || b.Role == FirmwareRole || s.State != StateActive || !s.Development ||
+	if !b.Valid() || b.Stream || s.State != StateActive || !s.Development ||
 		s.Recovery != "" || s.LastError != nil || s.CorePackage == nil ||
 		s.CorePackage.PackageID != b.PackageID || s.CorePackage.Generation != b.Generation {
 		return false

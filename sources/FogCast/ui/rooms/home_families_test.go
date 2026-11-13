@@ -11,20 +11,37 @@ import (
 	"testing"
 	"time"
 
+	lua "github.com/yuin/gopher-lua"
+
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/internal/testwait"
 )
 
-// homeServices answers Home's two library reads: the fpga catalog and the
-// recents collection.
+// homeServices answers Home's admitted computer and library reads.
 type homeServices struct {
 	fakeServices
+	computers      []hostclient.ShelfComputer
+	hardwareErr    error
 	recentsMu      sync.Mutex
 	recents        []hostclient.Game
 	recentsReads   int
 	recentsQueries []hostclient.GameListQuery
 	recentsLimits  []int
+}
+
+func (s *homeServices) Hardware(context.Context) (hostclient.HardwareSnapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return hostclient.HardwareSnapshot{Computers: append([]hostclient.ShelfComputer(nil), s.computers...)}, s.hardwareErr
+}
+
+func (*homeServices) SelectCoreEntryExpansion(context.Context, string, string, string, string) (hostclient.CoreEntryExpansion, error) {
+	return hostclient.CoreEntryExpansion{}, errors.New("Home must not change hardware")
+}
+
+func computerEntry(id, coreID, reason string) hostclient.ShelfComputer {
+	return hostclient.ShelfComputer{GameID: id, CoreID: coreID, PackageID: coreZXID, Ready: reason == "", UnavailableReason: reason}
 }
 
 func (s *homeServices) setRecents(games ...hostclient.Game) {
@@ -155,7 +172,7 @@ func homeSettled(r *Instance) bool {
 	return families >= want
 }
 
-// machineEntry is a model's catalog row without media; title adds media.
+// machineEntry and titleEntry provide library rows for title counts, not machine admission.
 func machineEntry(id, coreID string, block string) hostclient.Game {
 	g := hostclient.Game{ID: id, Title: id, System: "fpga", CoreID: coreID, State: "available", RootOnline: true, Launchable: true}
 	switch block {
@@ -188,7 +205,7 @@ func loadHome(t *testing.T, opts Options) *Instance {
 }
 
 func TestHomeShowsTheFourReleaseFamiliesWithLibraryState(t *testing.T) {
-	svc := &homeServices{fakeServices: fakeServices{games: []hostclient.Game{
+	svc := &homeServices{computers: []hostclient.ShelfComputer{computerEntry("zx81", "fes.zx81", ""), computerEntry("spectrum", "fes.spectrum", ""), computerEntry("st", "fes.atari-st", "")}, fakeServices: fakeServices{games: []hostclient.Game{
 		machineEntry("zx81", "fes.zx81", ""),
 		titleEntry("zx81-a", "fes.zx81"),
 		titleEntry("zx81-b", "fes.ts1000"),
@@ -197,7 +214,7 @@ func TestHomeShowsTheFourReleaseFamiliesWithLibraryState(t *testing.T) {
 		machineEntry("c64", "fes.c64", "rom"),
 		machineEntry("pong", "fes.pong", ""),
 	}}}
-	r := loadHome(t, Options{Services: svc, ReleaseOnly: true})
+	r := loadHome(t, Options{Services: svc, ReleaseOnly: true, Local: &fakeLocalCores{cores: []localcores.Core{{CoreID: "fes.c64", Needs: "firmware"}}}})
 	f := stepUntil(t, r, func(Frame) bool { return homeSettled(r) })
 	text := frameText(f)
 	for _, want := range []string{"Sinclair ZX81\n", "ZX Spectrum\n", "Atari ST\n", "Commodore 64\n", "Computers\n", "Settings\n", "2 games\n", "No games yet\n", "Add your ROM files\n"} {
@@ -229,7 +246,7 @@ func TestHomeShowsTheFourReleaseFamiliesWithLibraryState(t *testing.T) {
 	r.Input("right")
 	d = r.Destination()
 	if d.Label != "Commodore 64" || d.Availability != AvailUnavailable || d.FamilyNeeds != "firmware" ||
-		d.Status != "Add your Commodore 64 ROM files to play" || d.Confirm() != ConfirmEnterRoom || d.CoreID != "fes.c64" || d.GameID != "c64" {
+		d.Status != "Add your Commodore 64 ROM files to play" || d.Confirm() != ConfirmEnterRoom || d.CoreID != "fes.c64" || d.GameID != "" {
 		t.Fatalf("C64 %+v confirm %v", d, d.Confirm())
 	}
 	if r.Input("right") {
@@ -263,6 +280,7 @@ func TestHomeShowsTheFourReleaseFamiliesWithLibraryState(t *testing.T) {
 func TestHomeRecentlyPlayedLeadsAndPlaysTheTitle(t *testing.T) {
 	svc := &homeServices{
 		fakeServices: fakeServices{games: []hostclient.Game{machineEntry("zx81", "fes.zx81", "")}},
+		computers:    []hostclient.ShelfComputer{computerEntry("zx81", "fes.zx81", "")},
 		recents: []hostclient.Game{
 			titleEntry("lunar", "fes.spectrum"),
 			titleEntry("pong-title", "fes.pong"),
@@ -375,12 +393,13 @@ func TestHomeFallsBackToTheKitWhenTheLibraryFails(t *testing.T) {
 	}
 }
 
-func TestHomeFailedRefreshClearsStaleLibraryData(t *testing.T) {
+func TestHomeFailedRefreshClearsStaleHostData(t *testing.T) {
 	svc := &homeServices{fakeServices: fakeServices{games: []hostclient.Game{
 		machineEntry("stale-machine", "fes.zx81", ""),
 		titleEntry("old-title-a", "fes.zx81"),
 		titleEntry("old-title-b", "fes.zx81"),
 	}}}
+	svc.computers = []hostclient.ShelfComputer{computerEntry("stale-machine", "fes.zx81", "")}
 	local := &fakeLocalCores{cores: []localcores.Core{{
 		PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "none", Launchable: true,
 	}}}
@@ -391,6 +410,9 @@ func TestHomeFailedRefreshClearsStaleLibraryData(t *testing.T) {
 	})
 
 	svc.setLibraryError(errors.New("host unreachable"))
+	svc.mu.Lock()
+	svc.hardwareErr = errors.New("host unreachable")
+	svc.mu.Unlock()
 	r.Resume()
 	stepUntil(t, r, func(Frame) bool {
 		d := r.Destination()
@@ -435,7 +457,7 @@ func TestHomeRestoresTheSavedFamily(t *testing.T) {
 }
 
 func TestHomeShowingAllCoresKeepsRoutesAndOtherFamilies(t *testing.T) {
-	svc := &homeServices{fakeServices: fakeServices{games: []hostclient.Game{machineEntry("coleco", "fes.coleco", "offline")}}}
+	svc := &homeServices{computers: []hostclient.ShelfComputer{computerEntry("coleco", "fes.coleco", "Its library is offline")}, fakeServices: fakeServices{games: []hostclient.Game{machineEntry("coleco", "fes.coleco", "offline")}}}
 	r := loadHome(t, Options{Services: svc})
 	f := stepUntil(t, r, func(Frame) bool { return homeSettled(r) })
 	for _, want := range []string{"Library\n", "Systems\n", "Settings\n"} {
@@ -610,12 +632,45 @@ func TestHomeCountsATitleOnceAcrossItsEditions(t *testing.T) {
 	grouped := uk
 	grouped.VariantCount = 2
 	grouped.Variants = []hostclient.Game{uk, us}
-	svc := &homeServices{fakeServices: fakeServices{games: []hostclient.Game{machineEntry("spectrum", "fes.spectrum", ""), grouped}}}
+	svc := &homeServices{computers: []hostclient.ShelfComputer{computerEntry("spectrum", "fes.spectrum", "")}, fakeServices: fakeServices{games: []hostclient.Game{machineEntry("spectrum", "fes.spectrum", ""), grouped}}}
 	r := loadHome(t, Options{Services: svc, ReleaseOnly: true})
 	stepUntil(t, r, func(Frame) bool { return homeSettled(r) })
 	// Spectrum is the only Ready family, so Home opens on it.
 	if d := r.Destination(); d.Label != "ZX Spectrum" || d.Status != "1 game" {
 		t.Fatalf("Spectrum %+v", d)
+	}
+}
+
+func TestHomeUsesAdmittedComputerWithSelectedCassetteAndIndependentLocalShelf(t *testing.T) {
+	const gameID = "fpga-sinclair-zx81-1b16a527befc"
+	const packageID = "bef84629d9ab7a9e64521987484b5b90384e15a01e6f10fff3dba166913322b2"
+	for _, tc := range []struct {
+		name         string
+		computers    []hostclient.ShelfComputer
+		local        []localcores.Core
+		want         Availability
+		game, status string
+	}{
+		{name: "selected cassette", computers: []hostclient.ShelfComputer{{GameID: gameID, CoreID: "fes.zx81", PackageID: packageID, Ready: true}}, want: AvailReady, game: gameID, status: "1 game"},
+		{name: "independent package block", computers: []hostclient.ShelfComputer{{GameID: gameID, CoreID: "fes.zx81", PackageID: packageID, UnavailableReason: "Needs a software update"}}, want: AvailUnavailable, game: gameID, status: "Needs a software update"},
+		{name: "title alone is not a machine", want: AvailUnavailable, status: "Not installed on this kit"},
+		{name: "independent local shelf", local: []localcores.Core{{CoreID: "fes.zx81", PackageID: coreZXID, Launchable: true, Needs: "none"}}, want: AvailReady, status: "1 game"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			title := titleEntry(gameID, "fes.zx81")
+			title.PackageID = packageID
+			svc := &homeServices{fakeServices: fakeServices{games: []hostclient.Game{title}}, computers: tc.computers}
+			local := &fakeLocalCores{cores: tc.local}
+			r := loadHome(t, Options{Services: svc, Local: local, ReleaseOnly: true})
+			stepUntil(t, r, func(Frame) bool { return homeSettled(r) })
+			d := r.Destination()
+			if d.Availability != tc.want || d.GameID != tc.game || d.Status != tc.status {
+				t.Fatalf("Home %+v", d)
+			}
+			if !strings.Contains(strings.Join(d.Details, "\n"), "In your library: 1 game") {
+				t.Fatalf("selected cassette title count lost: %v", d.Details)
+			}
+		})
 	}
 }
 
@@ -635,7 +690,7 @@ func TestHomeFamilyCapKeepsMachineAndReportsOnlyActualOverflow(t *testing.T) {
 			}
 			// This machine sorts after every title in the unfiltered catalog.
 			games = append(games, machineEntry("z-machine", "fes.zx81", ""))
-			svc := &homeServices{fakeServices: fakeServices{games: games}}
+			svc := &homeServices{computers: []hostclient.ShelfComputer{computerEntry("z-machine", "fes.zx81", "")}, fakeServices: fakeServices{games: games}}
 			r := loadHome(t, Options{Services: svc, ReleaseOnly: true, Budget: DefaultBudget()})
 			stepUntil(t, r, func(Frame) bool {
 				d := r.Destination()
@@ -646,6 +701,283 @@ func TestHomeFamilyCapKeepsMachineAndReportsOnlyActualOverflow(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHomeFamilyBatchesDiscardUnfinishedReadOnReload(t *testing.T) {
+	games := []hostclient.Game{machineEntry("old-machine", "fes.zx81", "")}
+	for i := 0; i < 512; i++ {
+		games = append(games, titleEntry(fmt.Sprintf("old-%04d", i), "fes.zx81"))
+	}
+	svc := &homeServices{computers: []hostclient.ShelfComputer{computerEntry("old-machine", "fes.zx81", "")}, fakeServices: fakeServices{games: games}}
+	r := loadHome(t, Options{Services: svc, ReleaseOnly: true, Budget: DefaultBudget()})
+	deadline := time.Now().Add(testwait.Timeout)
+	for {
+		r.pendingMu.Lock()
+		ready := false
+		for _, result := range r.pending {
+			if len(result.games) == len(games) {
+				ready = true
+				break
+			}
+		}
+		queued := len(r.pending)
+		r.pendingMu.Unlock()
+		// Four family queries and recents are queued. With
+		// every input present, Checking after one Step can only be the large
+		// answer still being processed, not a missing asynchronous reply.
+		if ready && queued >= 5 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("large family response was not delivered")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	r.Step(time.Now())
+	// An admitted host machine may already be named, but its family must
+	// remain Checking until the bounded title answer is complete.
+	if d := r.Destination(); d.Availability != AvailChecking {
+		t.Fatalf("partial family answer published: %+v", d)
+	}
+	svc.mu.Lock()
+	svc.games = []hostclient.Game{machineEntry("new-machine", "fes.zx81", ""), titleEntry("new-title", "fes.zx81")}
+	svc.computers = []hostclient.ShelfComputer{computerEntry("new-machine", "fes.zx81", "")}
+	svc.mu.Unlock()
+	r.Resume()
+	stepUntil(t, r, func(Frame) bool {
+		d := r.Destination()
+		return homeSettled(r) && d.GameID == "new-machine" && d.Status == "1 game"
+	})
+	for i := 0; i < 20; i++ {
+		r.Step(time.Now())
+	}
+	if d := r.Destination(); d.GameID != "new-machine" || d.Status != "1 game" {
+		t.Fatalf("unfinished old answer replaced refreshed data: %+v", d)
+	}
+	if _, ok := r.games["old-machine"]; ok {
+		t.Fatal("cancelled partial answer entered the game cache")
+	}
+}
+
+func TestHomeFamilyBatchesIncludeLateMachineEditions(t *testing.T) {
+	group := machineEntry("blocked", "fes.zx81", "offline")
+	for i := 0; i < 600; i++ {
+		group.Variants = append(group.Variants, machineEntry(fmt.Sprintf("blocked-%03d", i), "fes.zx81", "offline"))
+	}
+	group.Variants = append(group.Variants, machineEntry("ready-edition", "fes.zx81", ""))
+	group.VariantCount = len(group.Variants)
+	svc := &homeServices{computers: []hostclient.ShelfComputer{computerEntry("ready-edition", "fes.zx81", "")}, fakeServices: fakeServices{games: []hostclient.Game{group, titleEntry("game", "fes.zx81")}}}
+	r := loadHome(t, Options{Services: svc, ReleaseOnly: true, Budget: DefaultBudget()})
+	deadline := time.Now().Add(testwait.Timeout)
+	for {
+		r.pendingMu.Lock()
+		queued := len(r.pending)
+		r.pendingMu.Unlock()
+		if queued >= 5 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("machine editions were not delivered")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	var converted int
+	for step := 0; step < 5 && converted == 0; step++ {
+		r.Step(time.Now())
+		r.pendingMu.Lock()
+		for _, result := range r.pending {
+			if result.partialGame != nil {
+				converted = result.variantIndex
+			}
+		}
+		r.pendingMu.Unlock()
+	}
+	if converted == 0 || converted >= 128 {
+		t.Fatalf("first frame converted %d of 601 editions; want fewer than 128", converted)
+	}
+	stepUntil(t, r, func(Frame) bool {
+		d := r.Destination()
+		return homeSettled(r) && d.GameID == "ready-edition" && d.Status == "1 game"
+	})
+}
+
+func TestHomeFamilyBatchesKeepAdmissionSeparateFromEditionCache(t *testing.T) {
+	group := machineEntry("blocked", "fes.zx81", "offline")
+	group.Variants = []hostclient.Game{machineEntry("edition", "fes.zx81", "")}
+	group.VariantCount = 1
+	svc := &homeServices{computers: []hostclient.ShelfComputer{computerEntry("edition", "fes.zx81", "Host rejected this edition")}, fakeServices: fakeServices{games: []hostclient.Game{group}}}
+	r := newRoom(t, examplePack(t, "example.fes-cores"), Options{
+		Services: svc, ReleaseOnly: true, Budget: DefaultBudget(),
+	})
+	r.RefreshCachedGames([]hostclient.Game{machineEntry("edition", "fes.zx81", "offline")})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(Frame) bool {
+		d := r.Destination()
+		return homeSettled(r) && d.GameID == "edition" && d.Availability == AvailUnavailable && d.Status == "Host rejected this edition"
+	})
+}
+
+func TestHomeFamilyBatchesPreserveNewerCacheRefresh(t *testing.T) {
+	for _, phase := range []string{"before_conversion", "during_conversion", "during_reduction"} {
+		t.Run(phase, func(t *testing.T) {
+			games := []hostclient.Game{machineEntry("machine", "fes.zx81", "")}
+			for i := 0; i < 400; i++ {
+				games = append(games, titleEntry(fmt.Sprintf("game-%04d", i), "fes.zx81"))
+			}
+			svc := &homeServices{computers: []hostclient.ShelfComputer{computerEntry("machine", "fes.zx81", "Host rejected this machine")}, fakeServices: fakeServices{games: games}}
+			r := loadHome(t, Options{Services: svc, ReleaseOnly: true, Budget: DefaultBudget()})
+			newer := machineEntry("machine", "fes.zx81", "offline")
+			newer.Title = "newer refresh"
+			if phase == "before_conversion" {
+				r.RefreshCachedGames([]hostclient.Game{newer})
+			}
+			deadline := time.Now().Add(testwait.Timeout)
+			for {
+				r.pendingMu.Lock()
+				queued := len(r.pending)
+				r.pendingMu.Unlock()
+				if queued >= 5 {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("family responses were not delivered")
+				}
+				time.Sleep(time.Millisecond)
+			}
+			r.Step(time.Now())
+			if phase == "during_reduction" {
+				for i := 0; i < 15; i++ {
+					if _, ok := r.CachedGame("machine"); ok {
+						break
+					}
+					r.Step(time.Now())
+				}
+				if _, ok := r.CachedGame("machine"); !ok || homeSettled(r) {
+					t.Fatalf("family reduction was not pending: %+v", r.Destination())
+				}
+			}
+			if phase != "before_conversion" {
+				r.RefreshCachedGames([]hostclient.Game{newer})
+			}
+			stepUntil(t, r, func(Frame) bool { return homeSettled(r) })
+			if d := r.Destination(); d.Availability == AvailReady || d.Status != "Host rejected this machine" {
+				t.Fatalf("old family answer exposed stale readiness: %+v", d)
+			}
+			got, ok := r.CachedGame("machine")
+			if !ok || got.Title != newer.Title || got.RootOnline != newer.RootOnline {
+				t.Fatalf("old family answer replaced newer cache entry: %+v", got)
+			}
+		})
+	}
+}
+
+func TestHomeFamilyFullPagesSettleAcrossBoundedFrames(t *testing.T) {
+	cores := []string{"fes.zx81", "fes.spectrum", "fes.atari-st", "fes.c64"}
+	games := make([]hostclient.Game, 0, len(cores)*2000)
+	for _, core := range cores {
+		games = append(games, machineEntry(core+"-machine", core, ""))
+		for i := 0; i < 1999; i++ {
+			games = append(games, titleEntry(fmt.Sprintf("%s-%04d", core, i), core))
+		}
+	}
+	computers := make([]hostclient.ShelfComputer, 0, len(cores))
+	for _, core := range cores {
+		computers = append(computers, computerEntry(core+"-machine", core, ""))
+	}
+	svc := &homeServices{computers: computers, fakeServices: fakeServices{games: games}}
+	r := loadHome(t, Options{Services: svc, ReleaseOnly: true, Budget: DefaultBudget()})
+	deadline := time.Now().Add(testwait.Timeout)
+	for {
+		r.pendingMu.Lock()
+		queued := len(r.pending)
+		r.pendingMu.Unlock()
+		if queued >= len(cores)+1 { // families and recents; no kit is configured
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("full family answers were not delivered")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	steps := 0
+	now := time.Now()
+	var first StepTiming
+	var maxAsync, maxUpdate, maxTotal time.Duration
+	// Conversion and reduction have independent per-frame work bounds. The
+	// smaller Cortex-A9 reduction batch needs more frames, not a larger
+	// callback deadline; retain a finite bound derived from the work volume.
+	const countBatch = 64
+	maxSteps := len(cores) * (2000/familyResultBatch + 2000/countBatch + 4)
+	for steps < maxSteps && !homeSettled(r) {
+		steps++
+		now = now.Add(16 * time.Millisecond)
+		r.Step(now)
+		timing := r.LastStep()
+		maxAsync = max(maxAsync, timing.Async)
+		maxUpdate = max(maxUpdate, timing.Update)
+		maxTotal = max(maxTotal, timing.Total)
+		if steps == 1 {
+			first = r.LastStep()
+			r.pendingMu.Lock()
+			converted := 0
+			for _, result := range r.pending {
+				converted += result.gameIndex
+			}
+			r.pendingMu.Unlock()
+			if converted == 0 || converted > 128 {
+				t.Fatalf("one frame converted %d rows, want 1..128", converted)
+			}
+		}
+		if r.Err() != nil {
+			t.Fatalf("room failed: %v", r.Err())
+		}
+	}
+	if steps <= 1 || !homeSettled(r) {
+		t.Fatalf("full pages settled after %d frames, destination %+v", steps, r.Destination())
+	}
+	t.Logf("four full family pages settled in %d update frames (first async %s, update %s; max async %s, update %s, total %s)",
+		steps, first.Async, first.Update, maxAsync, maxUpdate, maxTotal)
+	for i, core := range cores {
+		if i > 0 {
+			r.Input("right")
+		}
+		if d := r.Destination(); d.GameID != core+"-machine" || d.Status != "1999 games" {
+			t.Fatalf("family %s lost or reordered results: %+v", core, d)
+		}
+	}
+	// The module must release full response pages once all family summaries
+	// have been published; otherwise Home retains thousands of Lua rows.
+	module, ok := r.modules["families"].(*lua.LTable)
+	if !ok {
+		t.Fatal("families module missing")
+	}
+	update, ok := module.RawGetString("update").(*lua.LFunction)
+	if !ok {
+		t.Fatal("families update missing")
+	}
+	var requests *lua.LTable
+	for _, upvalue := range update.Upvalues {
+		table, ok := upvalue.Value().(*lua.LTable)
+		if !ok {
+			continue
+		}
+		first, ok := table.RawGetInt(1).(*lua.LTable)
+		if ok && first.RawGetString("family") != lua.LNil {
+			requests = table
+			break
+		}
+	}
+	if requests == nil {
+		t.Fatal("family request state missing")
+	}
+	requests.ForEach(func(_, value lua.LValue) {
+		request, ok := value.(*lua.LTable)
+		if !ok || request.RawGetString("data") != lua.LNil || request.RawGetString("pending") != lua.LNil {
+			t.Errorf("completed family retained a full response: %v", value)
+		}
+	})
 }
 
 func TestHomeFamilyMachineOverflowFailsClosed(t *testing.T) {
@@ -669,7 +1001,7 @@ func TestHomeFamilyMachineBudgetDoesNotHideTitleExistence(t *testing.T) {
 		games = append(games, machineEntry(fmt.Sprintf("machine-%04d", i), "fes.zx81", ""))
 	}
 	games = append(games, titleEntry("a-title", "fes.zx81"))
-	svc := &homeServices{fakeServices: fakeServices{games: games}}
+	svc := &homeServices{computers: []hostclient.ShelfComputer{computerEntry("machine-0000", "fes.zx81", "")}, fakeServices: fakeServices{games: games}}
 	r := loadHome(t, Options{Services: svc, ReleaseOnly: true, Budget: DefaultBudget()})
 	stepUntil(t, r, func(Frame) bool { return homeSettled(r) && r.Destination().GameID != "" })
 	if d := r.Destination(); d.Status != "1+ games" || d.Availability != AvailReady {

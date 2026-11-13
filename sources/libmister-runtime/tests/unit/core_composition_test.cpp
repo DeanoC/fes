@@ -1,7 +1,9 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "native/core_composition.hpp"
+#include "native/features.hpp"
 #include "native/sha256.hpp"
+#include "daemon/json.hpp"
 #include <cassert>
 #include <fstream>
 #include <sys/stat.h>
@@ -460,7 +462,130 @@ void DeveloperVideoPartsAdmission(bool native=false,bool st=false) {
  Write(f.root+"/expansion/cart.rbf",std::string(40408,'x'));assert(!RecheckCoreComposition(out).ok());
 }
 
+
+std::string StaticFixtureFile(const std::string& name) {
+ std::ifstream in("tests/fixtures/core-bundle-v5/"+name,std::ios::binary);
+ assert(in.good());return {std::istreambuf_iterator<char>(in),std::istreambuf_iterator<char>()};
 }
-int main() {DeveloperVideoPartsAdmission();DeveloperVideoPartsAdmission(true);DeveloperVideoPartsAdmission(false,true);NativeVideoRejectsCpuOnlyComposition();SharedGoIdentityVector();ValidAndRetained();ColecoBusAdmission();ColecoV2BusAdmission();ZX81V2BusAdmission();ColecoBoundaryPatchAdmission();RejectColecoBoundaryPatchVariants();RejectBindings();RejectBytesAndPaths();
+const mister::daemon::json::Value& StaticField(const mister::daemon::json::Value& value,const char* name) {
+ for (const auto& field:value.object) if (field.first==name) return field.second;
+ assert(false);return value;
+}
+std::uint64_t StaticNumber(const mister::daemon::json::Value& value) {
+ using mister::daemon::json::Type;
+ assert(value.type==Type::integer || value.type==Type::unsigned_integer);
+ if (value.type==Type::integer) {assert(value.integer_value>=0);return value.integer_value;}
+ return value.unsigned_value;
+}
+struct StaticFixture {
+ std::string root,manifest;
+ OpenedCorePackage base;
+ CoreStaticCompositionRequest request;
+ explicit StaticFixture(bool selected=true) {
+  char path[]="/tmp/fes-static-composition.XXXXXX";const auto created=mkdtemp(path);assert(created);root=created;
+  assert(mkdir((root+"/package").c_str(),0700)==0);assert(mkdir((root+"/expansion").c_str(),0700)==0);
+  Write(root+"/package/manifest.toml",StaticFixtureFile("manifests/valid-basic.toml"));
+  Write(root+"/package/core.rbf",StaticFixtureFile("payloads/base.rbf"));
+  Write(root+"/package/persona.rbf",StaticFixtureFile("payloads/persona.rbf"));
+  manifest=StaticFixtureFile("expansions/ram16k/manifest.json");
+  Write(root+"/expansion/manifest.json",manifest);Write(root+"/expansion/cart.rbf",StaticFixtureFile("expansions/ram16k/cart.rbf"));
+  auto id=StaticFixtureFile("identities/valid-basic.sha256");assert(id.back()=='\n');id.pop_back();
+  assert(OpenCorePackage({root},root+"/package",id,&base).ok());
+  mister::daemon::json::Value vectors;std::string message;
+  assert(mister::daemon::json::Parse(StaticFixtureFile("compositions.json"),&vectors,&message));
+  assert(vectors.array.size()==2);
+  const auto& vector=vectors.array[selected ? 1 : 0];
+  assert(StaticField(vector,"name").string_value==(selected ? "ram16k" : "empty"));
+  const auto& c=StaticField(vector,"composition");auto& out=request.composition;
+  out.id=StaticField(c,"composition_id").string_value;out.package_id=StaticField(c,"package_id").string_value;
+  out.base_sha256=StaticField(c,"base_sha256").string_value;out.base_size=StaticNumber(StaticField(c,"base_size"));
+  out.persona_sha256=StaticField(c,"persona_sha256").string_value;out.persona_size=StaticNumber(StaticField(c,"persona_size"));
+  out.control_build_id=StaticField(c,"control_build_id").string_value;
+  out.hardware_id=static_cast<std::uint32_t>(StaticNumber(StaticField(c,"hardware_id")));
+  if (selected) {request.expansion_path=root+"/expansion";out.expansion_id=StaticField(c,"expansion_id").string_value;}
+ }
+ ~StaticFixture() {
+  for (const auto& name:{"package/manifest.toml","package/core.rbf","package/persona.rbf","expansion/manifest.json","expansion/cart.rbf","expansion/old.rbf","expansion/extra","alias"}) unlink((root+"/"+name).c_str());
+  assert(rmdir((root+"/package").c_str())==0);assert(rmdir((root+"/expansion").c_str())==0);assert(rmdir(root.c_str())==0);
+ }
+ Error Open(OpenedCoreStaticComposition* out) {return OpenCoreStaticComposition({root},base,request,out);}
+ void Replace(const std::string& from,const std::string& to) {
+  const auto pos=manifest.find(from);assert(pos!=std::string::npos);manifest.replace(pos,from.size(),to);Write(root+"/expansion/manifest.json",manifest);
+ }
+};
+void StaticSharedGoldenAndRetainedFiles() {
+ for (bool selected:{false,true}) {
+  StaticFixture f(selected);OpenedCoreStaticComposition out;
+  const auto result=f.Open(&out);if (!result.ok()) fprintf(stderr,"static golden: %s\n",result.message.c_str());
+  assert(result.ok());assert(out.info.id==f.request.composition.id);
+  assert(out.persona(f.base).fd()==(selected ? out.expansion.cart.fd() : f.base.persona.fd()));
+  assert(RecheckCoreStaticComposition(f.base,out).ok());
+  // The parser corpus has only two interfaces, not the full standard ABI.
+  assert(CheckCoreCompatibility(f.base.descriptor,NativePlatform::de25_nano).code==
+   (De25StaticEnabled()?ErrorCode::unsupported_abi:ErrorCode::unsupported_programming_profile));
+  CoreCompositionRequest ordinary;OpenedCoreComposition linked;
+  assert(!OpenCoreComposition({f.root},f.base,ordinary,&linked).ok());
+  if (selected) {
+   assert(rename((f.root+"/expansion/cart.rbf").c_str(),(f.root+"/expansion/old.rbf").c_str())==0);
+   Write(f.root+"/expansion/cart.rbf",std::string(out.info.persona_size,'x'));
+   assert(RecheckCoreStaticComposition(f.base,out).ok());
+   Write(f.root+"/expansion/old.rbf",std::string(out.info.persona_size,'x'));
+  } else Write(f.root+"/package/persona.rbf",std::string(out.info.persona_size,'x'));
+  assert(!RecheckCoreStaticComposition(f.base,out).ok());
+ }
+ // Selecting a partial still verifies the sealed, unused default persona.
+ StaticFixture f;OpenedCoreStaticComposition out;assert(f.Open(&out).ok());
+ Write(f.root+"/package/persona.rbf",std::string(f.base.persona.size(),'z'));
+ assert(!RecheckCoreStaticComposition(f.base,out).ok());
+}
+void StaticRejectsMismatchesAndPaths() {
+ const std::vector<std::pair<std::string,std::string>> edits={
+  {std::string(32,'1'),std::string(32,'f')},
+  {std::string(64,'2'),std::string(64,'f')},{std::string(64,'3'),std::string(64,'f')},
+  {std::string(64,'4'),std::string(64,'f')},{std::string(64,'5'),std::string(64,'f')},
+  {"3221401602","4294967295"},{"A5EB013BB23BE4SCS","5CSEBA6U23I7"},
+  {"fes.de25-zx81-bus.partial/1","fes.zx81-bus.socket/2"},
+  {"\"format\":2","\"format\":1"},{"\"slot_major\":2","\"slot_major\":1"},
+  {"\"cart_size\":25","\"cart_size\":26"},
+  {"0123456789abcdef0123456789abcdef",std::string(32,'f')},
+  {"\"shell_package_id\":\"1","\"shell_package_id\":\"f"},
+  {"\"shell_sha256\":\"e","\"shell_sha256\":\"f"},
+  {"\"partial\":{","\"extra\":0,\"partial\":{"},
+  {"\"format\":2","\"format\":2,\"format\":2"},
+ };
+ for (const auto& edit:edits) {StaticFixture f;f.Replace(edit.first,edit.second);OpenedCoreStaticComposition out;assert(!f.Open(&out).ok());}
+ for (int variant=0;variant<9;++variant) {
+  StaticFixture f;OpenedCoreStaticComposition out;
+  switch (variant) {
+   case 0:Write(f.root+"/expansion/cart.rbf",std::string(25,'x'));break;
+   case 1:Write(f.root+"/expansion/extra","x");break;
+   case 2:assert(unlink((f.root+"/expansion/manifest.json").c_str())==0);
+    assert(symlink("../package/manifest.toml",(f.root+"/expansion/manifest.json").c_str())==0);break;
+   case 3:assert(symlink("expansion",(f.root+"/alias").c_str())==0);f.request.expansion_path=f.root+"/alias";break;
+   case 4:f.request.expansion_path=f.root+"/package/../expansion";break;
+   case 5:f.request.expansion_path.clear();break;
+   case 6:Write(f.root+"/package/core.rbf",std::string(f.base.payload.size(),'x'));break;
+   case 7:f.base.descriptor.format=2;break;
+   case 8:f.base.descriptor.target.programming_profile="de25-linux-computer-v1";break;
+  }
+  assert(!f.Open(&out).ok());
+ }
+ for (int variant=0;variant<10;++variant) {
+  StaticFixture f;OpenedCoreStaticComposition out;auto& c=f.request.composition;
+  switch (variant) {
+   case 0:c.id=std::string(64,'f');break;case 1:c.package_id=std::string(64,'f');break;
+   case 2:c.expansion_id=std::string(64,'f');break;case 3:c.base_sha256=std::string(64,'f');break;
+   case 4:++c.base_size;break;case 5:c.persona_sha256=std::string(64,'f');break;
+   case 6:++c.persona_size;break;case 7:c.control_build_id=std::string(32,'f');break;
+   case 8:c.hardware_id=0xc001a001u;break;case 9:c.expansion_id.clear();break;
+  }
+  assert(!f.Open(&out).ok());
+ }
+ StaticFixture f;OpenedCoreStaticComposition out;assert(f.Open(&out).ok());
+ Write(f.root+"/expansion/manifest.json",f.manifest+" ");assert(!RecheckCoreStaticComposition(f.base,out).ok());
+}
+
+}
+int main() {StaticSharedGoldenAndRetainedFiles();StaticRejectsMismatchesAndPaths();DeveloperVideoPartsAdmission();DeveloperVideoPartsAdmission(true);DeveloperVideoPartsAdmission(false,true);NativeVideoRejectsCpuOnlyComposition();SharedGoIdentityVector();ValidAndRetained();ColecoBusAdmission();ColecoV2BusAdmission();ZX81V2BusAdmission();ColecoBoundaryPatchAdmission();RejectColecoBoundaryPatchVariants();RejectBindings();RejectBytesAndPaths();
 	SlotIdentityVector();SlotCompositionAdmission();RejectSlotCompositionVariants();
-	puts("core_composition_test: single-socket and multi-slot admission passed");}
+	puts("core_composition_test: static persona, single-socket and multi-slot admission passed");}

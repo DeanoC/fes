@@ -1,0 +1,67 @@
+{
+  "source_revision": "34c3a6cb4d2858c273e2f95a0a94fcb46f8b416b",
+  "base_revision": "bd7cae0139b918c96ce6928bef47536643cb7577",
+  "elapsed_seconds": 1951.3,
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "unittest_summaries": [
+    {
+      "tests": 30,
+      "seconds": "0.124",
+      "skipped": 0
+    },
+    {
+      "tests": 32,
+      "seconds": "0.625",
+      "skipped": 0
+    },
+    {
+      "tests": 1114,
+      "seconds": "993.645",
+      "skipped": 3
+    },
+    {
+      "tests": 1737,
+      "seconds": "950.996",
+      "skipped": 76
+    }
+  ],
+  "full_plan_passed": true,
+  "log_sha256": "b13537872594171b7d0069722cf31f2a5cb3cd35dd79494b4f47f610455f6ff3",
+  "hardware_access": "not-performed"
+}

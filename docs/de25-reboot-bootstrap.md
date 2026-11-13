@@ -8,6 +8,12 @@ initial physical cycle was needed after programming to start the new flash.
 FPGA cores remain separate Linux-loaded artifacts; this acceptance applies
 only to the recorded board and exact bootstrap/core files.
 
+The later [native watchdog proof](validation/2026-11-03-de25-watchdog/README.md)
+also recovers through the retained HPS-first flash after actual watchdog expiry,
+including while the production runtime library owns MENU and active scanout.
+This is a hardware diagnostic; it does not establish managed image-update,
+software-replacement or arbitrary failed-FPGA-load recovery acceptance.
+
 The [cold-reset investigation](validation/2026-10-30-de25-reboot/README.md)
 records working factory-QSPI reboot and stalled temporary JTAG reboot.
 [The HPS-first proof](https://github.com/DeanoC/fes/pull/1303) then boots the
@@ -29,6 +35,12 @@ Use the retained HPS-first producer's `hps/` directory containing
 rollback directory comes from the verified FES Linux build's
 `vendor-boot/factory-boot/`, independently pinned by
 [the vendor lock](../image/de25-nano/vendor.lock.toml).
+The same tool accepts the current computer and MENU/scanout HPS-first producers.
+Their classified `computer_build_id` or `scanout_build_id` remains bound to the
+package; missing, unknown, malformed or mixed identities are refused before
+conversion. The [MENU boot-package proof](validation/2026-11-02-de25-menu-bootstrap/README.md)
+retains an actual current-source compilation, conversion and independent restore.
+Packaging preserves diagnostic status and grants no board acceptance.
 
 ```sh
 python3 scripts/de25_bootstrap.py prepare \
@@ -45,7 +57,7 @@ complete SOF, and requires the resulting core RBF to match the selected core.
 It inspects both JICs for MT25QU128 and the candidate/recovery metadata for
 matching HPS IO hashes and HPS_FIRST sections without a core section. It
 publishes a closed file set only after verification. `bootstrap.json` binds
-all file hashes and preserves the producer/computer identity. Verification
+all file hashes and preserves the producer and typed computer/scanout identity. Verification
 rejects missing, changed, extra or symlinked payloads. These checks establish
 file consistency, not a signature or hardware acceptance.
 

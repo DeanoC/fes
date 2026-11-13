@@ -29,6 +29,7 @@ import uuid
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts import yosys_netlist
 from scripts.quartus_tools import load_quartus_lock, locate_quartus
 from scripts.sim_fes_pcxt import CHIP_VENDORS, SHARED_VENDORS, SYSTEM_SOURCES
 from scripts.pcxt_quartus_mailbox import validate_mailbox
@@ -77,7 +78,7 @@ def input_paths(root: Path) -> list[Path]:
         ['git', 'ls-files', '--', str(CORE), *map(str, vendor_roots)], cwd=root, text=True).splitlines()
     paths = set(map(Path, tracked)) | set(map(Path, RTL))
     paths.update((QUARTUS_LOCK, ADAPTERS, AUDIT, MAILBOX, AUDIO_SDC, PINS, AUDIO_PINS, PACKAGE_PINS, Path('scripts/sim_fes_pcxt.py'),
-                  Path('scripts/quartus_fes_pcxt.py'), Path('scripts/quartus_tools.py'),
+                  Path('scripts/quartus_fes_pcxt.py'), Path('scripts/quartus_tools.py'), Path('scripts/yosys_netlist.py'),
                   Path('scripts/pcxt_quartus_mailbox.py'), Path('scripts/pcxt_quartus_audio.py'),
                   Path('tests/test_pcxt_video_mailbox.py'), Path('tests/test_pcxt_audio_cdc.py')))
     paths.update(p.relative_to(root) for p in (root / 'cores/fes-common/generated').glob('*.vh'))
@@ -99,53 +100,30 @@ def capture_sources(root: Path, output: Path) -> tuple[Path, dict[str, str]]:
 
 def elaboration(source: Path, work: Path, library: Path, *, package_profile=False, build_id=None,
                 dos_profile=False) -> str:
+    """The PC/XT recipe of scripts/yosys_netlist.py, run as work/elaborate.ys.
+    rename -unescape runs in the same Yosys execution: the locked Quartus crashes
+    on flattened array names, and a JSON round trip loses the signed parameter
+    metadata Quartus needs on the PLL integer parameters."""
     if dos_profile and not package_profile:
         raise ValueError('DOS profile requires the package profile')
     includes = [source / 'cores/fes-common/generated', work]
     includes += [source / ('cores/fes-common/vendor' if name in SHARED_VENDORS else CORE / 'vendor') / name
                  for name in CHIP_VENDORS]
-    # Yosys unquotes filename arguments, but preserves quotes in -I values.
-    # Refuse ambiguous include tokens rather than silently losing the headers.
-    if any(any(c.isspace() or c in '\\";' for c in str(p)) for p in includes):
-        raise ValueError('Yosys include directories must not contain whitespace, quotes or semicolons')
-    quote = lambda p: '"' + str(p).replace('\\', '\\\\').replace('"', '\\"') + '"'
-    parameters = '-set MDA 0 -set SCANLINES 0 -set HALF_RATE_BOARD ' + ('0' if package_profile else '1')
-    parameters += ' -set HARDWARE_DOS ' + ('1' if dos_profile else '0')
-    parameters += ' -set ENABLE_PCXT_FLOPPY_WRITE ' + ('1' if dos_profile else '0')
+    parameters = {'MDA': 0, 'SCANLINES': 0, 'HALF_RATE_BOARD': 0 if package_profile else 1,
+                  'HARDWARE_DOS': 1 if dos_profile else 0, 'ENABLE_PCXT_FLOPPY_WRITE': 1 if dos_profile else 0}
     if package_profile:
         if not isinstance(build_id, str) or not re.fullmatch('[0-9a-f]{32}', build_id):
             raise ValueError('package profile requires an explicit BUILD_ID')
-        parameters += (" -set ENABLE_FES_COMPUTER 1 -set ENABLE_PCXT_MEDIA 1" +
-                       " -set PHASED_HDMI_CLOCK 1 -set BUILD_ID 128'h" + build_id)
+        parameters.update({'ENABLE_FES_COMPUTER': 1, 'ENABLE_PCXT_MEDIA': 1, 'PHASED_HDMI_CLOCK': 1,
+                           'BUILD_ID': "128'h" + build_id})
     selected_rtl = RTL if dos_profile else tuple(path for path in RTL if path not in DOS_RTL)
-    # The locked Yosys incorrectly drops the CGA font's asynchronous read
-    # driver when memory_dff processes that shared two-port font ROM. Collect
-    # it without read-FF merging, then retain memory_dff for every other RAM
-    # and ROM. Assert the exact exception so naming drift fails closed.
-    memory_pass = ('memory -nomap -nordff; select -assert-count 1 c:dos_font.glyphs; '
-                   'memory_dff t:$mem_v2 c:dos_font.glyphs %d; ' if dos_profile
-                   else 'memory -nomap; ')
-    return (
-        f'read_verilog -lib {quote(library)}; read_verilog -sv -defer '
-        + ' '.join('-I ' + str(p) for p in includes) + ' '
-        + ' '.join(quote(source / p) for p in (str(ADAPTERS), *selected_rtl))
-        + '; chparam ' + parameters + ' top; '
-        'hierarchy -check -top top; '
-        # Both libraries spell disabled bus hold differently: OFF is the
-        # board's Yosys primitive value, FALSE is Quartus's accepted spelling.
-        # Apply this after hierarchy because the RTL is read with -defer.
-        'setparam -set enable_bus_hold "FALSE" t:altiobuf_bidir; '
-        'proc -norom; flatten; opt -purge; '
-        # Combining byte writes before Verilog export lets Quartus infer the
-        # existing dual-read VRAMs, including their OLD_DATA collision rules.
-        # Small control arrays with multiple write processes become FFs.
-        + memory_pass + 'memory_map t:$mem_v2 r:SIZE<=32 %i; opt -purge; '
-        'check -assert; write_json before-names.json; '
-        # The locked Quartus crashes on flattened array names. This changes names only.
-        # Keep this in the SAME Yosys execution: a JSON round trip loses signed
-        # parameter metadata, which Quartus needs on PLL integer parameters.
-        'rename -unescape; write_json elaborated.json; '
-        'write_verilog -noattr elaborated.v\n')
+    try:
+        return yosys_netlist.program(
+            yosys_netlist.pcxt(str(library), dos=dos_profile), top='top',
+            sources=[source / p for p in (str(ADAPTERS), *selected_rtl)], includes=includes,
+            parameters=parameters, netlist='elaborated.v') + '\n'
+    except yosys_netlist.NetlistError as error:
+        raise ValueError(str(error)) from error
 
 
 def prepare_elaboration_inputs(source: Path, work: Path, *, dos_profile=False) -> dict:

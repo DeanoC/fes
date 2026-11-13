@@ -4,11 +4,10 @@ harness's report reading, and (when the tools are present) the RTL itself. No
 network access. Verilator cases skip unless FES_TOOLCHAIN_CACHE_ROOT names a
 cache holding the i386 lock's Verilator slot; the oracle-backed run
 skips unless the pinned Bochs checkout is already in build/; the netlist run
-needs a Yosys named by FES_I386_YOSYS."""
+needs the pc386 lock's slot in the same cache (its Yosys writes the netlist)."""
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -17,6 +16,7 @@ import unittest
 from scripts import benchmark_fes_i386 as benchmark
 from scripts import fes_i386_oracle as oracle
 from scripts import i386_verilator
+from scripts import yosys_netlist
 from scripts import test_fes_i386_frontend as frontend
 
 
@@ -32,8 +32,20 @@ def _locked_verilator():
         return None, str(error)
 
 
+def _seal_yosys():
+    """The pc386 lock's Yosys from FES_TOOLCHAIN_CACHE_ROOT (its HIP slot),
+    which --netlist reads, else None."""
+    cache = os.environ.get(i386_verilator.CACHE_ENVIRONMENT)
+    if not cache:
+        return None
+    try:
+        return yosys_netlist.authenticate(cache_root=Path(cache))
+    except yosys_netlist.NetlistError:
+        return None
+
+
 VERILATOR, VERILATOR_ABSENT = _locked_verilator()
-YOSYS = shutil.which(os.environ.get('FES_I386_YOSYS', '')) if os.environ.get('FES_I386_YOSYS') else None
+SEAL_YOSYS = _seal_yosys()
 BOCHS = (oracle.BUILD / ('bochs-' + oracle.BOCHS_REVISION) / '.git').is_dir()
 
 
@@ -217,10 +229,10 @@ class HarnessReportTest(unittest.TestCase):
         self.assertEqual(lockfile.validate_lock(benchmark.ROOT / benchmark.LOCK), [])
 
 
-@unittest.skipUnless(YOSYS, 'FES_I386_YOSYS names no Yosys')
+@unittest.skipUnless(SEAL_YOSYS, "no pc386 lock slot under FES_TOOLCHAIN_CACHE_ROOT")
 class SynthesisTest(unittest.TestCase):
     def test_q_synthesizes_without_multipliers_or_carry_cells(self):
-        synthesis = frontend.qalign_synthesis(YOSYS)
+        synthesis = frontend.qalign_synthesis(SEAL_YOSYS.path)
         self.assertEqual((synthesis['multipliers'], synthesis['carry_cells']), (0, 0), synthesis)
 
     def test_frontend_spike_yosys_elaborates_and_observes_every_field(self):
@@ -231,7 +243,7 @@ class SynthesisTest(unittest.TestCase):
             netlist = Path(tmp) / 'spike.json'
             script = (f'read_verilog -sv {files}; hierarchy -check -top spike_frontend; '
                       f'proc; memory_collect; write_json {netlist}')
-            result = subprocess.run([YOSYS, '-Q', '-q', '-p', script], cwd=benchmark.ROOT,
+            result = subprocess.run([str(SEAL_YOSYS.path), '-Q', '-q', '-p', script], cwd=benchmark.ROOT,
                                     capture_output=True, text=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stderr)
             module = json.loads(netlist.read_text())['modules']['spike_frontend']
@@ -266,11 +278,11 @@ class RtlTest(unittest.TestCase):
         self.assertIn('load [2, 2, 3], late [3, 3, 4]', result.stdout)
         self.assertIn('; 0 failures', result.stdout)
 
-    @unittest.skipUnless(YOSYS, 'FES_I386_YOSYS names no Yosys')
+    @unittest.skipUnless(SEAL_YOSYS, "no pc386 lock slot under FES_TOOLCHAIN_CACHE_ROOT")
     def test_yosys_reads_d_and_ag_as_simulated(self):
         env = dict(os.environ, FES_I386_DAG_ROUNDS='2')
         result = subprocess.run([sys.executable, 'scripts/test_fes_i386_frontend.py', '--bench', 'dag', '--jobs', '2',
-                                 '--yosys', YOSYS], cwd=frontend.ROOT, env=env, capture_output=True, text=True)
+                                 '--netlist'], cwd=frontend.ROOT, env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('; 0 failures', result.stdout)
 

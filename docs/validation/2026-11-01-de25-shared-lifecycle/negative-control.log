@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-archive-completion/out/shared-lifecycle-package/prepare.py", line 19, in <module>
+    assert all(slack>=0 for _,slack in rows), 'negative reported timing; preserve control and fix before board trial'
+           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: negative reported timing; preserve control and fix before board trial

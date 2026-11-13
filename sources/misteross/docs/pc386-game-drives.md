@@ -24,6 +24,10 @@ overrides it). It is private to the account: the directory is mode 0700.
 | `sources/dosbench/` | the DOS Benchmark Pack v1.5, fetched from the NAS share (`FES_PC386_DOSBENCH`) |
 | `sidecars/<sha256>` | config files a game's own setup wrote, which a title can put over its copy |
 
+`wfw-msdos`, the Windows corpus's drive, is an image drive: MS-DOS 6.22 and
+Windows for Workgroups 3.11 as installed, pinned by its SHA-256 and imported
+with `--import`, not built ([Windows corpus](pc386-windows-corpus.md)).
+
 eXoDOS zips are read in place from
 `/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS`
 (`FES_PC386_GAMES` overrides it). The builder checks each zip and folder
@@ -43,17 +47,17 @@ Each title's folders go into their own `C:` directory. A drive is at most 260
 cylinders: 128 MiB, the most the ATA disk window holds
 (`fes.media.ata-disk`, and the kit agent's limit).
 
-Built 2026-11-10 from the manifest with SHA-256 `c6a61087a324026c…` on the
-games image `e69194ec9a8fd5b2…` (UMBM `/I=C800-DFFF`):
+Built 2026-11-12 from the manifest with SHA-256 `c6a61087a324026c…` on the
+games image `eeea865f7713bc18…` (FreeDOS kernel 2046, #1729):
 
 | Drive | SHA-256 | Size | Titles | Free | What |
 | --- | --- | --- | --- | --- | --- |
-| `real` | `a6977555a58e19040978906948a134dc55a8fd78afb54df489cc82d56cc33e7c` | 260 cylinders, 128.0 MiB | keen4, prince, civ, jill, stunts, vikings, starcon2, wolf3d, ultima6, jazz, pinfan, wacky, hocus, monkey2, wc1, falcon3, xwing | 25.4 MiB | Real-mode and 386 real-mode games, EMS users and sound setups |
-| `xms` | `5053c36bf89cf7973ec3dfe7817ddadec92c96243f08179e3aa26edc39affcba` | 260 cylinders, 128.0 MiB | ultima7, strike, uw1, frontier, moo, darklands, tnt | 12.4 MiB | XMS and unreal-mode games and other own 386 memory managers |
-| `pmode` | `b4be6e29297168abb31ca536829cbd8a42e9fb05093d16793932ea51d72814b3` | 260 cylinders, 128.0 MiB | doom, heretic, duke3d, descent, raptor, omf, rott, machines, hotspeed | 16.1 MiB | DOS/4GW and other CPL-0 DOS extenders |
-| `dpmi` | `9e6ae3a36cdad878ea91c3af04377527ce8c94264df9eeef61e9f784d3326dbd` | 260 cylinders, 128.0 MiB | jumpbump, angband, nethack, tyrian, cyberdogs, tcircle, screamer, tv | 31.1 MiB | Ring-3 DPMI hosts (CWSDPMI, Borland RTM and 32RTM) and FPU users |
-| `fpu` | `ff322ddc211a9ead665e6cf95417e7a0086f310dce1345da7cabe46b37781c5b` | 260 cylinders, 128.0 MiB | gp2, usnf, u7si | 26.8 MiB | FPU-required simulations, and Serpent Isle (an acceptance game) where there is room |
-| `bench` | `e69a4cb6462a79c47f55adef11d41c652481017dd541ae980cf27beed5e4823c` | 80 cylinders, 39.4 MiB | 3dbench, pcpbench, topbench, speedsys, chkcpu, cachechk, si8, chrisb, quakes | 18.9 MiB | Non-game programs: PhilsComputerLab's DOS Benchmark Pack v1.5 tools |
+| `real` | `d65eb76208e3daef13fbd8e587168f25576aae372e34700ce8e482f20e188050` | 260 cylinders, 128.0 MiB | keen4, prince, civ, jill, stunts, vikings, starcon2, wolf3d, ultima6, jazz, pinfan, wacky, hocus, monkey2, wc1, falcon3, xwing | 25.3 MiB | Real-mode and 386 real-mode games, EMS users and sound setups |
+| `xms` | `e5eb47bf3df6790d7d8512bc579357b6c65ec317690f0853c5d287e421652351` | 260 cylinders, 128.0 MiB | ultima7, strike, uw1, frontier, moo, darklands, tnt | 12.4 MiB | XMS and unreal-mode games and other own 386 memory managers |
+| `pmode` | `6ee147a3d0e3b1df844fc9d9d49387d0d9fc180d1873901c01dc791c3df469e9` | 260 cylinders, 128.0 MiB | doom, heretic, duke3d, descent, raptor, omf, rott, machines, hotspeed | 16.1 MiB | DOS/4GW and other CPL-0 DOS extenders |
+| `dpmi` | `31acf283e00b4868e035bf50d2a0f306b8f27eb14f7a4e1a6e67722edd905d9c` | 260 cylinders, 128.0 MiB | jumpbump, angband, nethack, tyrian, cyberdogs, tcircle, screamer, tv | 31.1 MiB | Ring-3 DPMI hosts (CWSDPMI, Borland RTM and 32RTM) and FPU users |
+| `fpu` | `ad1197b60b878cc3228bb86677fabdae5f2d10bc38ba666b4021da84e5f46209` | 260 cylinders, 128.0 MiB | gp2, usnf, u7si | 26.8 MiB | FPU-required simulations, and Serpent Isle (an acceptance game) where there is room |
+| `bench` | `82647975ab73494279a37c1cb07862d3a5b875b6a40616683dc8b5115fec76f0` | 80 cylinders, 39.4 MiB | 3dbench, pcpbench, topbench, speedsys, chkcpu, cachechk, si8, chrisb, quakes | 18.8 MiB | Non-game programs: PhilsComputerLab's DOS Benchmark Pack v1.5 tools |
 
 Drives built before #1556 ask UMBM for C800-EFFF, which overlaps the EMS page
 frame at E000h. FreeDOS then aborts with "no RAM found at E000" and DOS gets no
@@ -66,17 +70,18 @@ lists every title with its bucket and result.
 
 ## The boot menu
 
-The games image's `FDCONFIG.SYS` has three entries. It takes entry 1 after
+The games image's `FDCONFIG.SYS` has four entries. It takes entry 1 after
 3 seconds, so runners that press nothing at boot get it
 ([games image](../cores/fes-pc386/README.md)):
 
 | Entry | Setup | Conventional memory free | For |
 | --- | --- | --- | --- |
-| 1 (default) | kernel low; its data, `FILES=30`, `BUFFERS=16` and FreeCOM in upper memory | 580K (594,256 bytes) | everything, including Ultima VII |
-| 2 | `DOS=HIGH,UMB`, `FILES=30`, `BUFFERS=16` | 622K (637,104 bytes) | programs that need more, such as Falcon 3.0; not Ultima VII |
-| 3 | entry 1 with the EMS board's driver, `FESEMS.SYS`, high: 2,048K of EMS | 580K (594,256 bytes) | titles that need EMS: Ultima Underworld, Master of Orion, Darklands, Frontier; not Ultima VII, which refuses to run with an expanded memory manager |
+| 1 (default) | kernel low; its data, `FILES=30`, `BUFFERS=16` and FreeCOM in upper memory | 582K (595,808 bytes) | everything, including Ultima VII |
+| 2 | `DOS=HIGH,UMB`, `FILES=30`, `BUFFERS=16` | 622K (637,152 bytes) | programs that need more, such as Falcon 3.0; not Ultima VII |
+| 3 | entry 1 with the EMS board's driver, `FESEMS.SYS`, high: 2,048K of EMS | 582K (595,808 bytes) | titles that need EMS: Ultima Underworld, Master of Orion, Darklands, Frontier; not Ultima VII, which refuses to run with an expanded memory manager |
+| 4 | entry 2 with FreeDOS's `SHARE.COM` high (9K of upper memory) | 622K (637,152 bytes) | Windows 3.x in 386 enhanced mode, whose DOSMGR needs SHARE on FreeDOS; not Ultima VII |
 
-To take entry 2 or 3, press its number while the menu shows. A simulation
+To take entry 2, 3 or 4, press its number while the menu shows. A simulation
 sends it with `sim_fes_pc386.py --suite game --boot-entry N`
 (`machine_tb --boot-key 1.2:N`); a kit runner types it a few times just after
 the launch and clears any extra at the prompt with Esc.
@@ -89,6 +94,11 @@ python3 scripts/build_pc386_game_drive.py --download real xms   # some drives
 python3 scripts/build_pc386_game_drive.py --list                # drives, title counts, latest builds
 python3 scripts/build_pc386_game_drive.py --resolve real        # a drive's image path and record
 ```
+
+An image drive (`kind = "image"` in the manifest) is checked and recorded
+instead: `--import IMAGE DRIVE` copies a user-supplied image into the store
+after checking its SHA-256 and size, and a run without the image in the store
+skips it.
 
 `--download` fetches the pinned FreeDOS packages and NASM the first time. The
 build is reproducible, so a rebuild from the same manifest, sources and
@@ -165,7 +175,27 @@ titles each one unlocks.
 | `io-bitmap:<v86\|pm<CPL>>:<outcome>` | IN, OUT, INS and OUTS that read the TSS I/O bitmap: in V86, or at CPL above IOPL. |
 | `paging:steps`, `paging:page-cross` | Steps with paging on; data accesses that cross a page. |
 | `tlb:dtlb16:accesses`, `tlb:dtlb16:walks`, `tlb:itlb8:accesses`, `tlb:itlb8:walks` | The Phase 5 TLBs as fully associative LRU models: a 16-entry DTLB and an 8-entry ITLB. A miss is a walk. |
+| `x87op:<form>:<mode>` | Retired ESC instructions by form ([x87 keys](#x87-keys)). |
+| `x87cw:<class>:<cw>` | The control word (`cw & 1F3Fh`, four hex digits) each retired ESC ran under, by class: `add` (FADD, FSUB, FSUBR), `mul` (FMUL) and `div` (FDIV, FDIVR), each in its D8 and DC forms, DE's popping forms and the DA and DE integer memory forms; `sqrt`; `trans` (FSIN, FCOS, FPTAN, FPATAN, F2XM1, FYL2X, FYL2XP1, FSINCOS); or `other` (FUCOMPP, FCOMPP, FPREM, FPREM1, FSCALE among them). The x87 plan's rows counted DA's register forms as `add` and FPREM, FPREM1 and FSCALE as `trans`. |
+| `x87exc:<form>:raised=<flags>:unmasked=<flags>` | Retired ESC instructions that set exception flags (status bits 6-0) that were clear, with those of them the control word left unmasked. |
+| `x87es:<form>:<mode>:ne=<0\|1>` | Retired ESC instructions that set ES. `ne` is CR0 bit 5, reserved on a 386, which Bochs at CPU level 3 reads as 1 once CR0 is written; it stays for comparison with the [x87 plan](../../../docs/validation/2026-11-12-i386-x87-plan/summary.md)'s rows. |
+| `x87fault:<form>:<mode>[:v<vector>]` | ESC instructions that did not retire, with the step's first event. |
+| `x87held:<form\|9b>[:es]:<mode>` | Steps that ended held on the AT's BUSY# latch at an ESC or WAIT (`9b`), one per step held. |
+| `x87wait[:es]:<mode>` | Retired WAIT (9Bh), with `:es` when ES was set before it. |
+| `x87ev:<7\|16>:cr0=<bits>:<stem>` | #NM and #MF, with CR0's MP, EM, TS and bit 5 (`cr0 & 2Eh`) before the step. |
+| `x87cr0:<before>><after>:<stem>` | Changes to those CR0 bits. |
+| `x87emuint:<vector>:<mode>` | INT 34h-3Eh: the Borland and Microsoft emulator fixups. |
+| `x87io:<port>:<in\|out>:<mode>` | IN and OUT with an immediate or DX port F0h-FFh: the AT's coprocessor ports. |
 
+- <a id="x87-keys"></a>**x87 keys.** Counted on every oracle step, in real
+  mode too, against the oracle's 387, which machine_tb wires as on an AT
+  (IRQ 13, the BUSY# latch, ports F0h and F1h; #1768). `<mode>` is `rm`,
+  `pm<CPL>` or `v86`. `<form>` is the opcode in lowercase hex and, for a
+  memory form, `.m<reg>`; for the register forms D9 /2-/7, DB /4, DE /3,
+  DF /4, DA /5 and DD /4-/7 the whole ModRM byte (`d9fe` is FSIN, `dfe0` is
+  FNSTSW AX); for the others `.r<reg>`. A step that only delivers an INTR or
+  NMI counts no form. The [x87 plan](../../../docs/validation/2026-11-12-i386-x87-plan/summary.md)'s
+  rows were made from these keys.
 - **Outcomes.** `ok` (no event), `int` (INT n delivered through its gate),
   `gp=<error code>` (#GP: `gp=0000` for an IOPL fault, `gp=<vector × 8 + 2>`
   for INT n through a gate below DPL 3) or `exc<vector>=<error code>`.

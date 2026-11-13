@@ -1,0 +1,166 @@
+***************************************************************
+Quartus is a registered trademark of Altera Corporation in the
+US and other countries.  Portions of the Quartus Prime software
+code, and other portions of the code included in this download
+or on this DVD, are licensed to Altera Corporation and are the
+copyrighted property of third parties. For license details,
+refer to the Altera Software License Subscription Agreements 
+on the Quartus Prime software download page.
+***************************************************************
+
+2026.10.31.12:19:20 Info: Doing: qsys-script --quartus-project=golden_top --search-path=custom_ip/**/*,fes_mailbox,$ --script=/data/fes-de25-linux-platform-36ee9c81f/smmu-component-probe.tcl
+2026.10.31.12:19:24 Info: load_system hps_subsys/hps_subsys.qsys
+2026.10.31.12:19:25 Info: load_component agilex_hps
+2026.10.31.12:19:30 Info: get_component_parameter_value f2sdram_SMMU
+FES_SMMU_BEFORE 0
+2026.10.31.12:19:30 Info: set_component_parameter_value f2sdram_SMMU true
+2026.10.31.12:19:30 Info: get_component_parameter_value f2sdram_SMMU
+FES_SMMU_AFTER 1
+2026.10.31.12:19:30 Info: get_component_interfaces 
+FES_SMMU_INTERFACE f2sdram_axi_clock
+2026.10.31.12:19:32 Info: get_component_interface_ports f2sdram_axi_clock
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram_axi_clock f2sdram_axi_clock_clk ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram_axi_clock f2sdram_axi_clock_clk WIDTH
+FES_SMMU_PORT f2sdram_axi_clock f2sdram_axi_clock_clk clk 1
+FES_SMMU_INTERFACE f2sdram_axi_reset
+2026.10.31.12:19:32 Info: get_component_interface_ports f2sdram_axi_reset
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram_axi_reset f2sdram_axi_reset_reset ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram_axi_reset f2sdram_axi_reset_reset WIDTH
+FES_SMMU_PORT f2sdram_axi_reset f2sdram_axi_reset_reset reset 1
+FES_SMMU_INTERFACE f2sdram
+2026.10.31.12:19:32 Info: get_component_interface_ports f2sdram
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_araddr ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_araddr WIDTH
+FES_SMMU_PORT f2sdram f2sdram_araddr araddr 32
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arburst ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arburst WIDTH
+FES_SMMU_PORT f2sdram f2sdram_arburst arburst 2
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arcache ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arcache WIDTH
+FES_SMMU_PORT f2sdram f2sdram_arcache arcache 4
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arid ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arid WIDTH
+FES_SMMU_PORT f2sdram f2sdram_arid arid 5
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arlen ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arlen WIDTH
+FES_SMMU_PORT f2sdram f2sdram_arlen arlen 8
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arlock ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arlock WIDTH
+FES_SMMU_PORT f2sdram f2sdram_arlock arlock 1
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arprot ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arprot WIDTH
+FES_SMMU_PORT f2sdram f2sdram_arprot arprot 3
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arqos ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arqos WIDTH
+FES_SMMU_PORT f2sdram f2sdram_arqos arqos 4
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arready ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arready WIDTH
+FES_SMMU_PORT f2sdram f2sdram_arready arready 1
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arsize ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arsize WIDTH
+FES_SMMU_PORT f2sdram f2sdram_arsize arsize 3
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arvalid ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arvalid WIDTH
+FES_SMMU_PORT f2sdram f2sdram_arvalid arvalid 1
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awaddr ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awaddr WIDTH
+FES_SMMU_PORT f2sdram f2sdram_awaddr awaddr 32
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awburst ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awburst WIDTH
+FES_SMMU_PORT f2sdram f2sdram_awburst awburst 2
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awcache ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awcache WIDTH
+FES_SMMU_PORT f2sdram f2sdram_awcache awcache 4
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awid ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awid WIDTH
+FES_SMMU_PORT f2sdram f2sdram_awid awid 5
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awlen ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awlen WIDTH
+FES_SMMU_PORT f2sdram f2sdram_awlen awlen 8
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awlock ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awlock WIDTH
+FES_SMMU_PORT f2sdram f2sdram_awlock awlock 1
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awprot ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awprot WIDTH
+FES_SMMU_PORT f2sdram f2sdram_awprot awprot 3
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awqos ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awqos WIDTH
+FES_SMMU_PORT f2sdram f2sdram_awqos awqos 4
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awready ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awready WIDTH
+FES_SMMU_PORT f2sdram f2sdram_awready awready 1
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awsize ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awsize WIDTH
+FES_SMMU_PORT f2sdram f2sdram_awsize awsize 3
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awvalid ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awvalid WIDTH
+FES_SMMU_PORT f2sdram f2sdram_awvalid awvalid 1
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_bid ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_bid WIDTH
+FES_SMMU_PORT f2sdram f2sdram_bid bid 5
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_bready ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_bready WIDTH
+FES_SMMU_PORT f2sdram f2sdram_bready bready 1
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_bresp ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_bresp WIDTH
+FES_SMMU_PORT f2sdram f2sdram_bresp bresp 2
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_bvalid ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_bvalid WIDTH
+FES_SMMU_PORT f2sdram f2sdram_bvalid bvalid 1
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_rdata ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_rdata WIDTH
+FES_SMMU_PORT f2sdram f2sdram_rdata rdata 256
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_rid ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_rid WIDTH
+FES_SMMU_PORT f2sdram f2sdram_rid rid 5
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_rlast ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_rlast WIDTH
+FES_SMMU_PORT f2sdram f2sdram_rlast rlast 1
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_rready ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_rready WIDTH
+FES_SMMU_PORT f2sdram f2sdram_rready rready 1
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_rresp ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_rresp WIDTH
+FES_SMMU_PORT f2sdram f2sdram_rresp rresp 2
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_rvalid ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_rvalid WIDTH
+FES_SMMU_PORT f2sdram f2sdram_rvalid rvalid 1
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_wdata ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_wdata WIDTH
+FES_SMMU_PORT f2sdram f2sdram_wdata wdata 256
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_wlast ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_wlast WIDTH
+FES_SMMU_PORT f2sdram f2sdram_wlast wlast 1
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_wready ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_wready WIDTH
+FES_SMMU_PORT f2sdram f2sdram_wready wready 1
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_wstrb ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_wstrb WIDTH
+FES_SMMU_PORT f2sdram f2sdram_wstrb wstrb 32
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_wvalid ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_wvalid WIDTH
+FES_SMMU_PORT f2sdram f2sdram_wvalid wvalid 1
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_aruser ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_aruser WIDTH
+FES_SMMU_PORT f2sdram f2sdram_aruser aruser 25
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awuser ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awuser WIDTH
+FES_SMMU_PORT f2sdram f2sdram_awuser awuser 25
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_wuser ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_wuser WIDTH
+FES_SMMU_PORT f2sdram f2sdram_wuser wuser 8
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_buser ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_buser WIDTH
+FES_SMMU_PORT f2sdram f2sdram_buser buser 8
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arregion ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_arregion WIDTH
+FES_SMMU_PORT f2sdram f2sdram_arregion arregion 4
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_ruser ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_ruser WIDTH
+FES_SMMU_PORT f2sdram f2sdram_ruser ruser 8
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awregion ROLE
+2026.10.31.12:19:32 Info: get_component_interface_port_property f2sdram f2sdram_awregion WIDTH
+FES_SMMU_PORT f2sdram f2sdram_awregion awregion 4
+2026.10.31.12:19:32 Info: save_component 
+2026.10.31.12:19:32 Info: save_system hps_subsys/hps_subsys.qsys
+2026.10.31.12:19:32 Info: Info: All modules have been converted to Generic Components.

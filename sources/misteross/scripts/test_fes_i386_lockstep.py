@@ -40,8 +40,11 @@ what SCOPE names, cannot pass over an unbuilt instruction. Programs from
 seeds of their own put encodings the 386 rejects in real mode, protected mode
 at CPL 0 and 3, and V86 mode (--undefined-programs).
 
-With --yosys the CPU is first run through that Yosys (read, proc -norom,
-flatten, opt) and the netlist it writes is simulated instead of the RTL.
+With --netlist the CPU is first run through the seal's Yosys program
+(scripts/yosys_netlist.py, top fes_i386_cpu) by the pc386 lock's Yosys from
+its --cache-root slot, and that netlist is simulated instead of the RTL. The
+report's "netlist" records the program, CPU source and netlist digests and the
+Yosys identity, which the pc386 seal summary records too.
 
 With --preset the speed governor (fes_i386_governor) runs at that preset in
 every mode. It only holds D, so every result must be what max gives:
@@ -57,7 +60,7 @@ pass --cache-root or set FES_TOOLCHAIN_CACHE_ROOT. The report records it.
 Example:
   python3 scripts/test_fes_i386_lockstep.py --download
   python3 scripts/test_fes_i386_lockstep.py --opcode 00 --opcode D3.4 --random-programs 0
-  python3 scripts/test_fes_i386_lockstep.py --yosys /abs/path/to/i386-locked/yosys
+  python3 scripts/test_fes_i386_lockstep.py --netlist
   python3 scripts/test_fes_i386_lockstep.py --preset 1 --same-as /abs/path/to/max/report.json
 
 Writes build/sim/fes-i386-lockstep/report.json.
@@ -71,7 +74,6 @@ import gzip
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 
@@ -82,19 +84,20 @@ from scripts import fes_i386_oracle as oracle
 from scripts import i386_verilator
 from scripts import test_fes_i386_frontend as frontend
 from scripts import test_fes_i386_vectors as vectors
+from scripts import yosys_netlist
 
 ROOT = Path(__file__).resolve().parents[1]
 RTL = ROOT / 'cores/fes-common/rtl/i386'
 SIM = ROOT / 'cores/fes-common/sim/i386'
 DDR_MODEL = ROOT / 'cores/fes-pc386/sim'  # pc386_ddr_model.h: HPS DDR port 0
 OUTPUT = ROOT / 'build/sim/fes-i386-lockstep'
-CPU_RTL = ('fes_i386_pkg.sv', 'fes_i386_gov_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i386_lstage.sv',
-           'fes_i386_btb.sv', 'fes_i386_ras.sv', 'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv', 'fes_i386_amode.sv',
-           'fes_i386_dfwd.sv', 'fes_i386_agu.sv', 'fes_i386_ucode_pkg.sv', 'fes_i386_ucode_rom.sv', 'fes_i386_decode.sv', 'fes_i386_seq.sv', 'fes_i386_dops.sv',
-           'fes_i386_shift.sv', 'fes_i386_shflags.sv', 'fes_i386_exctl.sv', 'fes_i386_muldiv.sv', 'fes_i386_ex.sv',
-           'fes_i386_tlb.sv', 'fes_i386_l1i.sv', 'fes_i386_l1d.sv', 'fes_i386_biu.sv', 'fes_i386_gov_rom.sv', 'fes_i386_governor.sv',
-           'fes_i386_cpu.sv')
-TOP = 'fes_i386_cpu'
+CPU_RTL = tuple(Path(path).name for path in yosys_netlist.CPU_SOURCES)
+TOP = yosys_netlist.CPU_TOP
+# The arguments that choose what the suite covers. A run with each at its
+# default is the default suite, the one the pc386 sealer accepts (#1581 S5).
+SUITE_ARGUMENTS = ('opcode', 'limit_per_file', 'random_programs', 'random_seeds', 'seed',
+                   'pm_programs', 'task_programs', 'debug_programs', 'undefined_programs', 'no_latency', 'preset',
+                   'same_as')
 
 # What the CPU executes, by MOO stem without 66h/67h prefixes: every form of
 # each, memory forms included. Each later slice adds its stems here.
@@ -153,6 +156,10 @@ SCOPE: frozenset[str] = frozenset([
     # The ESC instructions with no 387. The corpus has none; the directed
     # no-387 cases run every form.
     *(f'{opcode:02X}' for opcode in range(0xD8, 0xE0)),
+    # The 386's undocumented instructions (#1730): ICEBP, UMOV and MOV to
+    # and from TR4-TR7. The corpus has none; the directed #1730 cases and
+    # the unbuilt sweep run them.
+    'F1', '0F10', '0F11', '0F12', '0F13', '0F24', '0F26',
 ])
 
 
@@ -198,9 +205,20 @@ I386_UD_0F = frozenset([
     0x04, 0x05, *range(0x08, 0x10), *range(0x14, 0x20), 0x25, *range(0x27, 0x80),
     0xA2, 0xA6, 0xA7, 0xAA, 0xAE, 0xB0, 0xB1, 0xB8, 0xB9, *range(0xC0, 0x100),
 ])
-# The 0Fh opcodes the 386 defines but this build does not run: LOADALL (07h)
-# and UMOV (10h-13h); MOV to and from TR4-TR7 (24h, 26h) by reg below.
-I386_UNBUILT_0F = frozenset([0x07, 0x10, 0x11, 0x12, 0x13])
+# The 0Fh opcodes the 386 defines but this build does not run: LOADALL (07h).
+I386_UNBUILT_0F = frozenset([0x07])
+
+
+# The [[lockstep]] rules of divergences.toml where the RTL runs what Bochs
+# rejects or leaves (#1730), each counted by the directed cases.
+UNDOCUMENTED_RULES = ('umov', 'mov-tr', 'icebp-gd')
+
+# The 386's undocumented instructions this build runs (#1730), by their
+# opcode bytes: ICEBP, UMOV, MOV to and from TR4-TR7 (with TR0-TR3's #UD).
+UNDOCUMENTED = frozenset([
+    *(bytes([0xF1, following]) for following in range(256)),
+    *(bytes([0x0F, opcode]) for opcode in (0x10, 0x11, 0x12, 0x13, 0x24, 0x26)),
+])
 
 
 def i386_class(code: bytes) -> str:
@@ -210,8 +228,6 @@ def i386_class(code: bytes) -> str:
     op, modrm = (code[1], code[2]) if two else (code[0], code[1])
     reg, register = (modrm >> 3) & 7, modrm >> 6 == 3
     if not two:
-        if op == 0xF1:
-            return 'stop'  # ICEBP
         ud = (op == 0x8C and reg > 5 or op == 0x8E and (reg == 1 or reg > 5) or op == 0x8F and reg != 0
               or op in (0xC6, 0xC7) and reg != 0 or op == 0xFE and reg > 1 or op == 0xFF and reg == 7
               or op == 0xFF and reg in (3, 5) and register or op in (0x8D, 0xC4, 0xC5, 0x62) and register
@@ -220,7 +236,8 @@ def i386_class(code: bytes) -> str:
     if op in I386_UNBUILT_0F:
         return 'stop'
     if op in (0x24, 0x26):
-        return 'stop' if reg > 3 and register else 'ud'
+        # TR4-TR7 with either ModRM form (decode2.txt 49, 4B, 5D, 5F).
+        return 'defined' if reg > 3 else 'ud'
     ud = (op in I386_UD_0F or op in (0x00, 0x02, 0x03)
           or op == 0x01 and (reg in (5, 7) or reg < 4 and register)
           or op in (0x20, 0x22) and reg not in (0, 2, 3)
@@ -285,9 +302,10 @@ def unbuilt_encodings() -> list[str]:
                             matched.add(spec)
                 if kind != 'defined':
                     lines.append(f'{code.hex()} {kind}')
-                # A LOCK on what this build does not run is #UD all the same:
+                # A LOCK on what this build does not run, or on the 386's
+                # undocumented instructions (#1730), is #UD all the same:
                 # LOCK is valid only on the read-modify-write forms.
-                if kind == 'stop':
+                if kind == 'stop' or code[:2] in UNDOCUMENTED:
                     lines.append(f'f0{code.hex()} ud')
     if set(runs) - matched:
         raise LockstepError(f'[[lockstep]] ud_rtl encodings the 386 does not reject: {sorted(set(runs) - matched)}')
@@ -337,8 +355,8 @@ def run_directed(testbench: str, env: dict) -> dict:
     if result.returncode not in (0, 1):
         raise LockstepError(f'directed cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary["runs"] != 77:
-        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 77 cases')
+    if summary["runs"] != 84:
+        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 84 cases')
     return {'summary': summary, 'failures': failures}
 
 
@@ -382,7 +400,10 @@ def run_pmode(testbench: str, env: dict) -> dict:
     IRETD's image, the traps an edge merges, V86 mode and real mode, the
     TSS's T bit and DR7's enables across a switch; and #UD for what the 386's decoder
     rejects, in real mode, at CPL 0 and 3 and in V86 mode at IOPL 0 and 3
-    (#1701)."""
+    (#1701); and the 386's undocumented instructions in those five modes
+    (#1730): ICEBP through gate 1 from every CPL, its EXT, GD and TF, UMOV's
+    forms and faults, MOV to and from TR4-TR7 by either ModRM form and its
+    #GP(0) above CPL 0."""
     env = dict(env, FES_I386_MODE='pmode', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
@@ -394,8 +415,10 @@ def run_pmode(testbench: str, env: dict) -> dict:
 
 
 # 407, #1701's 42 #UD probes in real mode, at CPL 0 and 3 and in V86 mode
-# at IOPL 0 and 3, and 3 NMI-after-faulting-IRET cases.
-PMODE_CASES = 407 + 42 * 5 + 3
+# at IOPL 0 and 3 with #1730's 3 (LOCK on ICEBP, UMOV and MOV TRn), 3
+# NMI-after-faulting-IRET cases, and #1730's 91: 15 bodies in the five
+# modes, ICEBP with TF in four, and 12 others.
+PMODE_CASES = 407 + 45 * 5 + 3 + 15 * 5 + 4 + 12
 
 
 def run_paging(testbench: str, env: dict) -> dict:
@@ -412,7 +435,8 @@ def run_paging(testbench: str, env: dict) -> dict:
     switches under paging: #PF through a task gate and back by IRET, a new
     CR3 that maps the GDT elsewhere, a new TSS on a page not present; #UD
     for what the 386 rejects at CPL 0 and 3 and in V86 mode, before a
-    memory operand on a page not present (#1701)."""
+    memory operand on a page not present (#1701); ARPL paging read/write
+    semantics, checked on the RTL alone where Bochs differs (#1665)."""
     env = dict(env, FES_I386_MODE='paging', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
@@ -424,8 +448,9 @@ def run_paging(testbench: str, env: dict) -> dict:
 
 
 # 77, and #1701's #UD at CPL 0 and 3 before a memory operand on a page not
-# present (8 each) and its 42 probes in V86 mode.
-PAGING_CASES = 77 + 2 * 8 + 42
+# present (8 each), its 45 probes in V86 mode, 6 ARPL paging cases, and
+# #1730's UMOV #PF at CPL 0 and 3 (2 each).
+PAGING_CASES = 77 + 2 * 8 + 45 + 6 + 2 * 2
 
 
 def run_no387(testbench: str, env: dict) -> dict:
@@ -473,21 +498,22 @@ def label_fields(entries: list[dict], stem: str, test: vectors.MooTest) -> tuple
     return corpus, oracle_side
 
 
-def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs: int, yosys: str | None,
+def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs: int, yosys: Path | None,
              parameters: dict[str, int] | None = None) -> Path:
-    """The testbench, with the CPU's parameters (-G) if any."""
+    """The testbench, with the CPU's parameters if any: -G on the RTL, and on
+    the netlist the seal's hierarchy -chparam, since a netlist has none left."""
     output = OUTPUT / (('netlist' if yosys else 'rtl')
                        + ''.join(f'-{name}{value}' for name, value in sorted((parameters or {}).items())))
     output.mkdir(parents=True, exist_ok=True)
     if yosys:
-        design = [frontend.synthesize_netlist(yosys, [RTL / path for path in CPU_RTL], TOP, output)]
+        design = [yosys_netlist.seal_netlist(yosys, output, ROOT, parameters=parameters)]
         warnings = frontend.NETLIST_WARNINGS
     else:
         design = [RTL / path for path in CPU_RTL]
         warnings = []
     command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', TOP,
                '-Wall', '-Wno-UNUSEDSIGNAL', *warnings, '--Mdir', str(output),
-               *(f'-G{name}={value}' for name, value in sorted((parameters or {}).items())),
+               *(f'-G{name}={value}' for name, value in sorted((parameters or {}).items()) if not yosys),
                '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -I{DDR_MODEL}', '-LDFLAGS', '-pthread',
                *map(str, design), str(SIM / 'lockstep_tb.cpp'), *map(str, linked)]
     log = output / 'build.log'
@@ -663,7 +689,7 @@ def main() -> int:
                         help='programs with undefined encodings per seed (default 250)')
     parser.add_argument('--no-latency', action='store_true', help='no fetch latency in the corpus run')
     i386_verilator.add_argument(parser)
-    parser.add_argument('--yosys', help="simulate this Yosys's netlist of the CPU instead of the RTL")
+    yosys_netlist.add_arguments(parser)
     parser.add_argument('--preset', type=int, default=0, choices=range(8),
                         help="the governor's preset, fes.pc386.machine word 0 (default 0, max)")
     parser.add_argument('--same-as', type=Path, help="max's report.json (absolute), which a governed run must match")
@@ -689,14 +715,12 @@ def main() -> int:
         entries = vectors.load_divergences()
         table = OUTPUT / 'divergences.txt'
         divergence_table(entries, table)
-        yosys = None
-        if args.yosys:
-            yosys = shutil.which(args.yosys)
-            if yosys is None:
-                raise LockstepError(f'selected Yosys not found: {args.yosys}')
-            report['yosys'] = yosys
+        yosys = yosys_netlist.locate(args)
         linked = oracle.link_inputs(args.jobs, args.download)
-        testbench = str(verilate(verilator, linked, args.jobs, yosys))
+        testbench = str(verilate(verilator, linked, args.jobs, yosys.path if yosys else None))
+        if yosys:
+            report['netlist'] = yosys_netlist.report_record(
+                ROOT, yosys, args.gpu_router, Path(testbench).parent / f'{TOP}.netlist.v')
         biu_dma = run_biu_dma_test(verilator, args.jobs)
         env = dict(os.environ, FES_I386_DIVERGENCES=str(table), FES_I386_LATENCY='0' if args.no_latency else '1',
                    FES_I386_PRESET=str(args.preset))
@@ -719,6 +743,10 @@ def main() -> int:
         if args.opcode and len(paths) != len(set(args.opcode)):
             raise LockstepError('requested opcode files are absent or outside the scope')
         vectors.verify(corpus, paths + [corpus / 'revocation_list.txt'])
+        # Whether this run read every in-scope file of a full, verified download.
+        full = vectors.full_corpus(corpus)
+        complete_corpus = full is not None and {path.name for path in paths} == {
+            name for name in full if name.endswith('.MOO.gz') and in_scope(name[:-len('.MOO.gz')])}
         revoked = frozenset(vectors.revoked_hashes((corpus / 'revocation_list.txt').read_text()))
         with ProcessPoolExecutor(max_workers=args.jobs) as executor:
             files = [executor.submit(run_file, str(path), testbench, env, revoked, entries, args.limit_per_file)
@@ -753,7 +781,7 @@ def main() -> int:
             task_results = [future.result() for future in tasks]
             debug_results = [future.result() for future in debugs]
             undefined_results = [future.result() for future in undefined]
-    except (OSError, oracle.OracleError, frontend.FrontendError, vectors.CorpusError, LockstepError,
+    except (OSError, oracle.OracleError, frontend.FrontendError, yosys_netlist.NetlistError, vectors.CorpusError, LockstepError,
             json.JSONDecodeError, KeyError) as error:
         print('i386 lockstep error:', error, file=sys.stderr)
         return 2
@@ -822,6 +850,13 @@ def main() -> int:
     reset_store_failures = reset_store['failures']
     directed_failures = (directed['failures'] + unreal['failures'] + pmode_cases['failures'] + paging_cases['failures']
                          + no387['failures'])
+    # #1730's [[lockstep]] rules (divergences.toml umov, mov-tr, icebp-gd):
+    # each must still be taken by its directed cases, or its entry no longer
+    # matches.
+    undocumented = Counter(pmode_cases['summary']['divergence_retirements']) \
+        + Counter(paging_cases['summary']['divergence_retirements'])
+    directed_failures += [f'FAIL lockstep rule {rule}: no directed case took it'
+                          for rule in UNDOCUMENTED_RULES if not undocumented[rule]]
     memory_failures = memory['failures']
     if (biu_dma_failures or corpus_failures or random_failures or hash_mismatches or unbuilt_failures or reset_store_failures
             or directed_failures or memory_failures):
@@ -870,6 +905,14 @@ def main() -> int:
         report['same_as'] = {'report': str(args.same_as), 'differences': differences[:200]}
         if differences:
             exit_code = 1
+    # Whether this run passed and covered the default suite (default suite
+    # arguments over every in-scope file of the full corpus), so a consumer
+    # (the pc386 sealer's --lockstep-report) need not trust an exit status.
+    report['run'] = {'passed': exit_code == 0,
+                     'default_suite': complete_corpus and all(getattr(args, name) == parser.get_default(name)
+                                                              for name in SUITE_ARGUMENTS),
+                     'complete_corpus': complete_corpus,
+                     'arguments': {name: str(getattr(args, name)) for name in SUITE_ARGUMENTS}}
     (OUTPUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(f"corpus: {len(corpus_results)} files, {len(by_opcode)} opcodes, {totals['tests']} tests: "
           f"{totals['passed']} pass ({totals['retired_to_hlt']} to HLT, {totals['interrupts']} of them in an "
@@ -952,7 +995,9 @@ def main() -> int:
     print(f"unreal-mode cases: {unreal['summary']['passed']} pass, {unreal['summary']['failed']} fail "
           f"({unreal['summary']['cs_rule']} real-mode CS loads under the 386 rule)")
     print(f"protected-mode cases: {pmode_cases['summary']['passed']} pass, {pmode_cases['summary']['failed']} fail "
-          f"({pmode_cases['summary']['nested']} faults in a delivery delivered)")
+          f"({pmode_cases['summary']['nested']} faults in a delivery delivered; #1730's rules with paging's: "
+          f"UMOV stepped as MOV {undocumented['umov']}, MOV TRn {undocumented['mov-tr']}, "
+          f"ICEBP's GD {undocumented['icebp-gd']})")
     print(f"paging cases: {paging_cases['summary']['passed']} pass, {paging_cases['summary']['failed']} fail "
           f"({paging_cases['summary']['nested']} faults in a delivery delivered)")
     print(f"no-387 cases: {no387['summary']['passed']} pass, {no387['summary']['failed']} fail "

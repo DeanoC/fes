@@ -1,0 +1,131 @@
+{
+  "producer_revision": "4acdbf15d13344f059c77da313775d7c26073722",
+  "kind": "normal image/host/verify and release export; no native image boot",
+  "verification": {
+    "ccache_pass_1": 1,
+    "ccache_pass_2": 0,
+    "historical_baseline_match": null,
+    "image_passes": 1,
+    "image_sha256": "744789c985c686e3a9cc0e3fe2efc529d1f01fd099697a9754744fe8bb7a852a",
+    "qemu_log_sha256": "1f1773dd2097e3fe00592eaf8c0e6d97a326220144d665925b271c29f2504500",
+    "qemu_packaging": "pass",
+    "shared_cache": 1,
+    "structural": "pass",
+    "toolchain_key": "d76b0b1867badbe3584465ab989bedee79fb60a29e1d0fe3071e61bde28bbb32",
+    "toolchain_sha256": "ffcabb38ea29e7d3ff7714f2244a3a1d5500e91ce4e365f856d9fdaea828af90",
+    "two_pass_reproducibility": "not-run-single-pass"
+  },
+  "release": {
+    "board": "de10-nano",
+    "boot_abi": "fes-bootstrap-v1",
+    "fes_revision": "4acdbf15d13344f059c77da313775d7c26073722",
+    "fogcast_revision": "e3f40059de3f66bf28d5875ee06852173f01e251",
+    "format": 1,
+    "image_sha256": "744789c985c686e3a9cc0e3fe2efc529d1f01fd099697a9754744fe8bb7a852a",
+    "image_size": 201326592,
+    "kernel_sha256": "a6c7b1be0da9ba24a91bc1816737915d6a6cfba27c6c3025caded95167dc8dae",
+    "runtime_revision": "e3f40059de3f66bf28d5875ee06852173f01e251",
+    "version": "0.1.0-pr1312-4ac"
+  },
+  "receipts": {
+    "de10-image-serial-fixed.json": {
+      "result": {
+        "argv": [
+          "make",
+          "image",
+          "BOARD=de10-nano",
+          "IMAGE_ARTIFACTS=/data/fes-de25-qualification-20261111/de10-image-inputs/artifacts"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-main-input",
+        "exit": 0,
+        "seconds": 730.7130365490448
+      },
+      "sha256": "823ae7c8be45c934d84f506560c36e66a504fd367d8a7f938ea6e33676797547"
+    },
+    "de10-host-serial-fixed.json": {
+      "result": {
+        "argv": [
+          "make",
+          "host",
+          "BOARD=de10-nano"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-main-input",
+        "exit": 0,
+        "seconds": 7.786007356131449
+      },
+      "sha256": "2cb730032972bba39d39a591ee0db1e383d687b32cf39a4191c929cd319accd6"
+    },
+    "de10-verify-serial-fixed.json": {
+      "result": {
+        "argv": [
+          "make",
+          "verify",
+          "BOARD=de10-nano",
+          "IMAGE_ARTIFACTS=/data/fes-de25-qualification-20261111/de10-image-inputs/artifacts"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-main-input",
+        "exit": 0,
+        "seconds": 183.37389697297476
+      },
+      "sha256": "48030149571bccf1ef816bc4e6aacb1f9beaa063e0a7e211c0eee73eb2722814"
+    },
+    "de10-release-export-ready.json": {
+      "result": {
+        "argv": [
+          "python3",
+          "scripts/appliance.py",
+          "release",
+          "--profile",
+          "native-integration-dev",
+          "--version",
+          "0.1.0-pr1312-4ac",
+          "--image-passes",
+          "1",
+          "--output",
+          "/data/fes-de25-qualification-20261111/de10-release-4ac"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-main-input",
+        "exit": 0,
+        "seconds": 1.1665094988420606
+      },
+      "sha256": "27e05b5a1e2fa54cdd63456ece01c117ae3977764cef9ea331d28409fc85aa6a"
+    },
+    "qemu-serial-sentinel-fix.json": {
+      "result": {
+        "argv": [
+          "sh",
+          "image/scripts/tests/target-image_test.sh"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-main-input",
+        "exit": 0,
+        "seconds": 13.696845964062959
+      },
+      "sha256": "0f8c7e387c75396a4adb4fa12ab45d67765b520467aa96db16c320b6f141d72c"
+    },
+    "de10-menu-simulation.json": {
+      "result": {
+        "argv": [
+          "make",
+          "sim-fes-menu"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-main-input/sources/misteross",
+        "exit": 0,
+        "seconds": 261.15708656515926
+      },
+      "sha256": "ddcadfa136275a200db10aa25c7133046864644ec9d9382c1883156287a9fc8b"
+    },
+    "de10-zx81-simulations.json": {
+      "result": {
+        "argv": [
+          "make",
+          "sim-fes-zx81"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-main-input/sources/misteross",
+        "exit": 2,
+        "seconds": 1800.0715654699598
+      },
+      "sha256": "314298b1514de50c11a9d97152d28caf7c50c33d253fbf555ac6e62a3323ff58"
+    }
+  },
+  "physical_boot": "pending explicit image trial approval"
+}

@@ -1,0 +1,193 @@
+{
+  "rows": [
+    [
+      "Setup 'pll_inst|iopll_0_outclk0'",
+      1.509
+    ],
+    [
+      "Setup 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      3.66
+    ],
+    [
+      "Setup 'altera_reserved_tck'",
+      12.809
+    ],
+    [
+      "Setup 'adv7513_config'",
+      16.847
+    ],
+    [
+      "Setup 'fes_video_inst|video_clock|iopll_0_refclk'",
+      18.219
+    ],
+    [
+      "Hold 'pll_inst|iopll_0_outclk0'",
+      0.0
+    ],
+    [
+      "Hold 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      0.001
+    ],
+    [
+      "Hold 'altera_reserved_tck'",
+      0.095
+    ],
+    [
+      "Hold 'adv7513_config'",
+      0.101
+    ],
+    [
+      "Hold 'fes_video_inst|video_clock|iopll_0_refclk'",
+      0.111
+    ],
+    [
+      "Hold 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'",
+      0.376
+    ],
+    [
+      "Recovery 'pll_inst|iopll_0_outclk0'",
+      7.753
+    ],
+    [
+      "Recovery 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      11.979
+    ],
+    [
+      "Recovery 'adv7513_config'",
+      18.214
+    ],
+    [
+      "Recovery 'fes_video_inst|video_clock|iopll_0_refclk'",
+      18.979
+    ],
+    [
+      "Recovery 'altera_reserved_tck'",
+      61.126
+    ],
+    [
+      "Removal 'adv7513_config'",
+      0.059
+    ],
+    [
+      "Removal 'altera_reserved_tck'",
+      0.187
+    ],
+    [
+      "Removal 'pll_inst|iopll_0_outclk0'",
+      0.195
+    ],
+    [
+      "Removal 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      0.199
+    ],
+    [
+      "Removal 'fes_video_inst|video_clock|iopll_0_refclk'",
+      0.251
+    ],
+    [
+      "Setup Data Delay 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      6.098
+    ],
+    [
+      "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0'",
+      0.22
+    ],
+    [
+      "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0'",
+      0.272
+    ],
+    [
+      "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'",
+      0.419
+    ],
+    [
+      "Minimum Pulse Width 'EMIF_REF_CLOCK'",
+      2.22
+    ],
+    [
+      "Minimum Pulse Width 'pll_inst|iopll_0_outclk0'",
+      4.385
+    ],
+    [
+      "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated'",
+      4.905
+    ],
+    [
+      "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated'",
+      4.905
+    ],
+    [
+      "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated'",
+      4.905
+    ],
+    [
+      "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated'",
+      4.905
+    ],
+    [
+      "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated'",
+      4.905
+    ],
+    [
+      "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated'",
+      4.905
+    ],
+    [
+      "Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      5.861
+    ],
+    [
+      "Minimum Pulse Width 'pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0'",
+      8.313
+    ],
+    [
+      "Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0'",
+      8.583
+    ],
+    [
+      "Minimum Pulse Width 'pll_inst|iopll_0_refclk'",
+      9.231
+    ],
+    [
+      "Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0_refclk'",
+      9.589
+    ],
+    [
+      "Minimum Pulse Width 'altera_reserved_tck'",
+      28.581
+    ],
+    [
+      "Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0_n_cnt_clk'",
+      49.563
+    ],
+    [
+      "Minimum Pulse Width 'adv7513_config'",
+      50018.878
+    ],
+    [
+      "Slow fix4 100C Model Max Skew 'set_max_skew'",
+      9.026
+    ],
+    [
+      "Slow fix4 0C Model Max Skew 'set_max_skew'",
+      8.731
+    ],
+    [
+      "Slow fix4a 0C Model Max Skew 'set_max_skew'",
+      8.731
+    ],
+    [
+      "Fast fix4 0C Model Max Skew 'set_max_skew'",
+      9.187
+    ],
+    [
+      "Net Delay 'set_net_delay'",
+      6.098
+    ]
+  ],
+  "negative_rows": [],
+  "signoff_summary": [
+    "Design Assistant (Signoff) Results - 5 of 85 Rules Failed"
+  ],
+  "timing_acceptance": "not-qualified"
+}

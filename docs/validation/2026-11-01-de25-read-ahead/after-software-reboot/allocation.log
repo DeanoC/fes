@@ -1,0 +1,4 @@
+FRAME_DISPLAYED sequence=1 slot=1 generation=1
+FRAME_DISPLAYED sequence=2 slot=0 generation=1
+FRAME_DISPLAYED sequence=3 slot=1 generation=1
+DE25_OWNER_SCANOUT_PASS frames=3 allocation_reaped=true

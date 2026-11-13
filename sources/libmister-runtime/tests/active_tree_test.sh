@@ -80,6 +80,17 @@ for obsolete in 'class PoC;' 'class PoC12Hardware;' 'void run_poc3();'; do
 	expect_guard_failure 'historic compatibility term remains in the active tree'
 	rm -f -- "$fixture/src/legacy.hpp"
 done
+# The current asset hash domain cannot hide unrelated lifecycle names or be
+# copied into another active source file. The production check above exercises
+# the exact admission/recheck expressions and the independent binary filter.
+printf '%s\n' 'const char* domain = "fes-expansion-v2";' >"$fixture/src/legacy.hpp"
+expect_guard_failure 'historic compatibility term remains in the active tree'
+rm -f -- "$fixture/src/legacy.hpp"
+mkdir -p "$fixture/src/native"
+printf '%s\n' 'const char* domain = "fes-expansion-v2"; class HardwareBroker;' \
+	>"$fixture/src/native/core_composition.cpp"
+expect_guard_failure 'historic compatibility term remains in the active tree'
+rm -f -- "$fixture/src/native/core_composition.cpp"
 expect_guard_failure 'canonical build must contain exactly build/libmister-runtime.a'
 
 archive="$root/build/libmister-runtime.a"
@@ -111,6 +122,27 @@ ar r "$mutated/build/libmister-runtime.a" "$mutated/build/epoch.o"
 nm -g "$mutated/build/epoch.o" | c++filt | grep -F 'SnapshotEpochField::Epoch()' >/dev/null
 expect_guard_failure 'archive members do not exactly match the production source manifest' "$mutated"
 
+# Compilers can merge unrelated constant data into one strings record. Only
+# the exact current asset domain is allowed, and the rest of that record must
+# still pass the independent production-output name check.
+for shape in coalesced-domain adjacent-obsolete extended-domain; do
+	mutated=$(production_fixture "$shape")
+	case "$shape" in
+		coalesced-domain) literal='prefixfes-expansion-v2 valid suffix' ;;
+		adjacent-obsolete) literal='prefixfes-expansion-v2 HardwareBroker' ;;
+		extended-domain) literal='prefixfes-expansion-v2-legacy' ;;
+	esac
+	printf 'const char* IdentityDomain() { return "%s"; }\n' "$literal" \
+		>"$mutated/domain.cpp"
+	${CXX:-c++} -c "$mutated/domain.cpp" -o "$mutated/build/domain.o"
+	ar r "$mutated/build/libmister-runtime.a" "$mutated/build/domain.o"
+	if [[ "$shape" == coalesced-domain ]]; then
+		expect_guard_failure 'archive members do not exactly match the production source manifest' "$mutated"
+	else
+		expect_guard_failure 'historic name remains in production output: build/libmister-runtime.a' "$mutated"
+	fi
+done
+
 # The source is outside the scanned active tree so the actual mangled PoC
 # symbols exercise the independent built-output name guard.
 mutated=$(production_fixture obsolete-symbols)
@@ -124,7 +156,7 @@ ${CXX:-c++} -c "$mutated/obsolete.cpp" -o "$mutated/build/obsolete.o"
 ar r "$mutated/build/libmister-runtime.a" "$mutated/build/obsolete.o"
 expect_guard_failure 'historic name remains in production output: build/libmister-runtime.a' "$mutated"
 
-for member in video_recipe.o video.o i2c.o input.o linux_input.o media_data.o; do
+for member in video_recipe.o video.o i2c.o input.o linux_input.o media_data.o de25_pr_control.o de25_core_driver.o de25_fpga_manager.o de25_menu.o json.o; do
 	mutated=$(production_fixture "missing-${member%.o}")
 	ar d "$mutated/build/libmister-runtime.a" "$member"
 	expect_guard_failure \

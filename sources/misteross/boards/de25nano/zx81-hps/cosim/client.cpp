@@ -105,6 +105,7 @@ int main(int argc, char** argv) {
             wire::need(!identified.ok(), "wrong build accepted"); poisoned(computer, io);
         } else {
             okay(identified, "identify");
+            okay(computer.WaitVideoReady(deadline(io)), "board video readiness");
             wire::need(identity.build_id == selected && io.state(wire::MachineReset), "initial identity/held state differs");
             const auto start_writes = io.writes();
             if (scenario == "session") {

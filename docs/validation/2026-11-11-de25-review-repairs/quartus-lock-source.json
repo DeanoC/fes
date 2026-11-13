@@ -1,0 +1,10 @@
+{
+  "exact_version": "Version 26.3.0 Build 114 10/14/2026 SC Pro Edition",
+  "authenticated_path": "quartus/bin/quartus_sh",
+  "authenticated_sha256": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+  "native_payload_sha256": "5bafd5c88c17a0ac82d950a23ac688b7ddbea7300676a48c02b9924139e0f636",
+  "reason": "Shared locate_quartus authenticates bin/quartus_sh. Previous new lock erroneously pinned linux64 payload. Correct launcher hash is unchanged from earlier qualified MENU05a build record.",
+  "real_authentication": "PASS with board lock, shared locator, exact version and all four executable identities",
+  "compiler_invoked": false,
+  "fit_or_HIL": false
+}

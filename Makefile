@@ -1,8 +1,14 @@
 .DEFAULT_GOAL := help
-PROFILE ?= native-integration-dev
+BOARD ?= de10-nano
+PROFILE ?= $(if $(filter de25-nano,$(BOARD)),de25-nano,native-integration-dev)
 PYTHON ?= python3
 RELEASE_VERSION ?= 0.2.0-dev.1
 IMAGE_PASSES ?= 1
+APPLIANCE_BOARD ?= $(BOARD)
+APPLIANCE_FACTORY ?=
+APPLIANCE_VENDOR_BOOT ?=
+APPLIANCE_PROFILE = $(if $(filter de25-nano,$(APPLIANCE_BOARD)),de25-nano,$(PROFILE))
+APPLIANCE_SELECTION = --board "$(APPLIANCE_BOARD)" $(if $(APPLIANCE_FACTORY),--factory "$(APPLIANCE_FACTORY)")
 ifneq ($(origin FES_TARGET_IMAGE_SHARED_CACHE),undefined)
 export FES_TARGET_IMAGE_SHARED_CACHE
 endif
@@ -37,13 +43,19 @@ help:
 	@printf '%s\n' 'make package-acceptance PACKAGE_ACCEPTANCE_ARGS="--help": one sealed package, explicit hardware opt-in, no image rebuild.'
 	@printf '%s\n' 'make package-acceptance-isolated PACKAGE_ACCEPTANCE_ISOLATED_ARGS="--help": private host catalog and restart diagnostic; explicit hardware opt-in.'
 	@printf '%s\n' 'make core-dev CORE_DEV_ARGS="--help": prepare one HIP package without building an image.' 'make core-dev-accept CORE_DEV_ACCEPT_ARGS="--help": explicit isolated acceptance of a frozen candidate.'
-	@printf '%s\n' 'make kit-sdk: build and publish the current image Buildroot SDK into the toolchain cache, without an image or core build.'
+	@printf '%s\n' 'make kit-sdk: ensure the selected compiler SDK in the toolchain cache, without an image or core build; DE25 requires BOARD=de25-nano DE25_IMAGE=/absolute/verified-image.'
 	@printf '%s\n' 'make kit-software KIT_SOFTWARE_BASE=/absolute/linux.img KIT_SOFTWARE_BASE_SHA256=SHA256 KIT_SOFTWARE_VERSION=VERSION: build compatible kit userspace without an OS rebuild.'
 	@printf '%s\n' 'make fetch-de25-linux | de25-linux | verify-de25-linux | smoke-de25-linux: separate headless DE25-Nano AArch64 Linux diagnostic; see docs/de25-linux.md.'
 	@printf '%s\n' 'make smoke-de25-runtime DE25_RUNTIME_ARGS="--help": cross-build AArch64 runtime/agent and exercise software under QEMU without a board.'
+	@printf '%s\n' 'make release | bootstrap | appliance-media APPLIANCE_BOARD=de25-nano APPLIANCE_FACTORY=/absolute/factory: require the verified DE25 factory; card commands also need APPLIANCE_VENDOR_BOOT=/absolute/vendor-boot.'
+	@printf '%s\n' 'make image BOARD=de25-nano IMAGE_ARTIFACTS=/absolute/artifacts IMAGE_KERNEL=/absolute/kernel IMAGE_SDK=/absolute/owner-sdk.tar.gz: assemble the DE25 factory; make verify checks its recorded inputs. IMAGE_OUTPUT overrides out/de25-nano/factory.'
+	@printf '%s\n' 'make dev | build | rebuild BOARD=de25-nano DE25_IMAGE=/absolute/verified-managed-image IMAGE_KERNEL=/absolute/kernel IMAGE_SDK=/absolute/owner-sdk.tar.gz: build selected sources through the AArch64 builders and retained factory base; MENU admission is required first.'
 IMAGE_ARTIFACTS ?=
+IMAGE_KERNEL ?=
+IMAGE_SDK ?=
+IMAGE_OUTPUT ?=
 doctor build host image verify rebuild dev:
-	IMAGE_PASSES="$(IMAGE_PASSES)" $(PYTHON) scripts/build.py $@ --profile "$(PROFILE)" $(if $(IMAGE_ARTIFACTS),--artifacts "$(IMAGE_ARTIFACTS)")
+	IMAGE_PASSES="$(IMAGE_PASSES)" $(PYTHON) scripts/build.py $@ --board "$(BOARD)" --profile "$(PROFILE)" $(if $(IMAGE_ARTIFACTS),--artifacts "$(IMAGE_ARTIFACTS)") $(if $(IMAGE_KERNEL),--kernel "$(IMAGE_KERNEL)") $(if $(IMAGE_SDK),--sdk "$(IMAGE_SDK)") $(if $(IMAGE_OUTPUT),--output "$(IMAGE_OUTPUT)") $(if $(filter build rebuild dev,$@),$(if $(DE25_IMAGE),--de25-image "$(DE25_IMAGE)"))
 
 .PHONY: de25-linux fetch-de25-linux verify-de25-linux smoke-de25-linux
 de25-linux:
@@ -111,16 +123,16 @@ rollback-media:
 
 .PHONY: release bootstrap appliance-media verify-appliance-media
 release:
-	$(PYTHON) scripts/appliance.py release --profile "$(PROFILE)" --version "$(RELEASE_VERSION)" --image-passes "$(IMAGE_PASSES)"
+	$(PYTHON) scripts/appliance.py release --profile "$(APPLIANCE_PROFILE)" $(APPLIANCE_SELECTION) --version "$(RELEASE_VERSION)" --image-passes "$(IMAGE_PASSES)"
 bootstrap: platform-provision
 	$(if $(strip $(RELEASE)),,$(error bootstrap requires RELEASE=/absolute/path/to/release-directory))
-	$(PYTHON) scripts/appliance.py bootstrap --profile "$(PROFILE)" --release "$(RELEASE)"
+	$(PYTHON) scripts/appliance.py bootstrap --profile "$(APPLIANCE_PROFILE)" $(APPLIANCE_SELECTION) --release "$(RELEASE)"
 
 appliance-media verify-appliance-media:
 	$(if $(strip $(RELEASE)),,$(error appliance media requires RELEASE=/absolute/path/to/release-directory))
 	$(if $(strip $(BOOTSTRAP)),,$(error appliance media requires BOOTSTRAP=/absolute/path/to/bootstrap-directory))
 	$(if $(strip $(OUTPUT)),,$(error appliance media requires OUTPUT=/absolute/path/to/card-directory))
-	$(PYTHON) scripts/appliance_media.py $(if $(filter appliance-media,$@),build,verify) --profile "$(PROFILE)" --release "$(RELEASE)" --bootstrap "$(BOOTSTRAP)" --output "$(OUTPUT)"
+	$(PYTHON) scripts/appliance_media.py $(if $(filter appliance-media,$@),build,verify) --profile "$(APPLIANCE_PROFILE)" $(APPLIANCE_SELECTION) $(if $(APPLIANCE_VENDOR_BOOT),--vendor-boot "$(APPLIANCE_VENDOR_BOOT)") --release "$(RELEASE)" --bootstrap "$(BOOTSTRAP)" --output "$(OUTPUT)"
 
 .PHONY: source-status
 SOURCE_STATUS_ARGS ?=
@@ -143,7 +155,15 @@ core-catalog:
 	$(PYTHON) scripts/core_catalog.py $(CORE_CATALOG_ARGS)
 
 .PHONY: kit-sdk
+DE25_IMAGE ?=
+KIT_SDK_DE25_IMAGE ?= $(DE25_IMAGE)
 kit-sdk:
+ifeq ($(BOARD),de25-nano)
+	$(if $(strip $(KIT_SDK_DE25_IMAGE)),,$(error kit-sdk BOARD=de25-nano requires DE25_IMAGE=/absolute/verified-image))
+	$(PYTHON) scripts/kit_sdk.py --board "$(BOARD)" --de25-image "$(KIT_SDK_DE25_IMAGE)"
+else
+	$(if $(filter de10-nano,$(BOARD)),,$(error kit-sdk: unsupported BOARD=$(BOARD)))
+	$(if $(strip $(KIT_SDK_DE25_IMAGE)),$(error DE25_IMAGE/KIT_SDK_DE25_IMAGE requires BOARD=de25-nano))
 	@set -eu; \
 	  TARGET_IMAGE_CONTAINER_RUNTIME="$(or $(TARGET_IMAGE_CONTAINER_RUNTIME),$(CONTAINER_RUNTIME),docker)"; \
 	  export TARGET_IMAGE_CONTAINER_RUNTIME; \
@@ -155,11 +175,15 @@ kit-sdk:
 	  trap 'exit 143' TERM; \
 	  TARGET_IMAGE_OUTPUT_VOLUME="$$output_volume" \
 	    sh image/scripts/build-target-image.sh --ensure-kit-sdk
+endif
 
 .PHONY: kit-software
 KIT_SOFTWARE_OUTPUT ?= out/kit-software/$(KIT_SOFTWARE_VERSION)
+KIT_SOFTWARE_BOARD ?= $(BOARD)
+KIT_SOFTWARE_DE25_IMAGE ?= $(DE25_IMAGE)
+KIT_SOFTWARE_DE25_STATIC_EXPANSION ?= 0
 kit-software:
 	$(if $(strip $(KIT_SOFTWARE_BASE)),,$(error kit-software requires KIT_SOFTWARE_BASE=/absolute/linux.img))
 	$(if $(strip $(KIT_SOFTWARE_BASE_SHA256)),,$(error kit-software requires KIT_SOFTWARE_BASE_SHA256=<reviewed image SHA-256>))
 	$(if $(strip $(KIT_SOFTWARE_VERSION)),,$(error kit-software requires KIT_SOFTWARE_VERSION=<release version>))
-	$(PYTHON) scripts/kit_software.py --base "$(KIT_SOFTWARE_BASE)" --base-sha256 "$(KIT_SOFTWARE_BASE_SHA256)" --version "$(KIT_SOFTWARE_VERSION)" --output "$(KIT_SOFTWARE_OUTPUT)"
+	$(PYTHON) scripts/kit_software.py --base "$(KIT_SOFTWARE_BASE)" --base-sha256 "$(KIT_SOFTWARE_BASE_SHA256)" --version "$(KIT_SOFTWARE_VERSION)" --output "$(KIT_SOFTWARE_OUTPUT)" --board "$(KIT_SOFTWARE_BOARD)" --de25-static-expansion "$(KIT_SOFTWARE_DE25_STATIC_EXPANSION)" $(if $(strip $(KIT_SOFTWARE_DE25_IMAGE)),--de25-image "$(KIT_SOFTWARE_DE25_IMAGE)")

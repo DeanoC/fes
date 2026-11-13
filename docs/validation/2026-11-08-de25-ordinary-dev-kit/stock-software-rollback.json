@@ -1,0 +1,221 @@
+{
+  "overall": {
+    "success": false,
+    "status": "native rollback and restore accepted; rollback BASIC control failed; approved normal selection restored and verified",
+    "source_head": "2eb2873c1efdb06586820e21d746b40f238a3c5b",
+    "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf",
+    "ordinary_package_producer": "8af614f4d95e71a00e63974c73e3d8f80e1a681a",
+    "kernel_sha256": "9cec7e77f4cdb8b02d44acfd5bda5b1ee7b08801569648ab4f5ef12b6302d907",
+    "root_sha256": "0858eef044d2e4f1d3aab4ed8b88e439258075f097815eee942d70ae68222ec3",
+    "FIT_sha256": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+    "initial_bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+    "initial_generation": 1,
+    "rollback_bundle": "77e80dff0587478cf5464742e99cf1d29046b9997a964688949cb2193fa569ed",
+    "rollback_generation": 2,
+    "restored_bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+    "restored_generation": 3,
+    "final_runtime_sha256": "c681f166628ad39f00c89c7698e00d4c6995c97184e749b3504cae9025dd5844",
+    "activation_requests": 2,
+    "rollback_operation_id": "45a1dbbe9486c9231c5427aa697b35ded6aedecac90a6e485d2def4770cccfa2",
+    "restore_operation_id": "82384903dd1959fe361fc7823ae35da8633028d285af5d88acb702f65bce2359",
+    "both_exact_durable_receipts_accepted": true,
+    "same_board_boot": true,
+    "full_selected_service_group_changed_each_direction": true,
+    "ten_seconds_stable_MENU_each_direction": true,
+    "installed_files_and_actual_runtime_agent_launcher_hashes_verified": true,
+    "host_pid": 1823444,
+    "host_binary_sha256": "0de3179fb68e007f60f0b606d8fee55d77df754a5d53a483e17397db9dd88af2",
+    "host_restarted": false,
+    "ordinary_catalog_and_media_entry_preserved": true,
+    "saved923byte_program_hash_preserved": true,
+    "rollback_one_ordinary_control_attempt": true,
+    "rollback_control_passed": false,
+    "rollback_failure": "No expected BASIC7; image shows0/0 and empty output",
+    "failed_capture_sha256": "46226742c3663ba2eb31780ae8a847504f576aad47648ef73e22da4322f6bf75",
+    "initial_wrong_factory_root_guard_failure_retained": true,
+    "existing_factory_root": "/usr/share/fes/software",
+    "no_second_rollback_request": true,
+    "normal_cleanup_Stop_confirmed": true,
+    "no_repeated_failed_control": true,
+    "no_postrestore_BASIC_trial": true,
+    "final_MENU_idle_lease_free": true,
+    "normal_default_off_release_restored": true,
+    "final_claim_released": true,
+    "no_card_power_boot_image_kernel_FIT_or_QSPI_change": true,
+    "no_persona_attempt": true,
+    "full_functional_rollback_qualified": false,
+    "main_baseline_promoted": false,
+    "normal_kernel_software_producer": "ecaefd4af2bf202b94b558e4f3545249c309712f"
+  },
+  "qualification": {
+    "passed": true,
+    "source_head": "2eb2873c1efdb06586820e21d746b40f238a3c5b",
+    "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf",
+    "current": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+    "prior": "77e80dff0587478cf5464742e99cf1d29046b9997a964688949cb2193fa569ed",
+    "initial_generation": 1,
+    "matching_board_architecture_base_contract_MENU_interfaces": true,
+    "all_installed_file_hashes_verified": true,
+    "current_manifest_matches_normal_build_receipt": true,
+    "prior_binary_hashes_match_retained_factory": true,
+    "prior_manifest_provenance": {
+      "fogcast": "caef8feace77c2d35a5f0ec4de1be380f3f5a038",
+      "runtime": "7f9b2a0d19a7c03a490775a5ab08820884a424cb"
+    },
+    "current_manifest_provenance": {
+      "fogcast": "ecaefd4af2bf202b94b558e4f3545249c309712f",
+      "runtime": "ecaefd4af2bf202b94b558e4f3545249c309712f"
+    },
+    "prior_is_temporary_factory_release": true,
+    "prior_static_feature_not_qualified": true,
+    "ordinary_only_catalog": true,
+    "no_persona_attempt": true,
+    "restore_required": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+    "one_activation_each_direction": true,
+    "stable_seconds": 10,
+    "deadline_per_activation_seconds": 150,
+    "normal_API_expected_generation_CAS": true,
+    "stop_after_failed_gate_no_replay": true,
+    "no_image_kernel_FIT_QSPI_card_change": true
+  },
+  "original_rollback_postflight_failure": {
+    "error": "AssertionError: ",
+    "no_replay": true
+  },
+  "same_operation_later_postflight": {
+    "success": true,
+    "phase": "rollback",
+    "operation_id": "45a1dbbe9486c9231c5427aa697b35ded6aedecac90a6e485d2def4770cccfa2",
+    "receipt": {
+      "id": "45a1dbbe9486c9231c5427aa697b35ded6aedecac90a6e485d2def4770cccfa2",
+      "candidate": "77e80dff0587478cf5464742e99cf1d29046b9997a964688949cb2193fa569ed",
+      "requester": "Codex #1312 stock software rollback 2eb2873c1",
+      "expected_generation": 1,
+      "result": "accepted"
+    },
+    "from_bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+    "to_bundle": "77e80dff0587478cf5464742e99cf1d29046b9997a964688949cb2193fa569ed",
+    "from_generation": 1,
+    "to_generation": 2,
+    "activation_requests": 1,
+    "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf",
+    "same_boot": true,
+    "full_selected_group_replaced": true,
+    "selected_installed_files_and_actual_three_executable_hashes_verified": true,
+    "expected_roots": {
+      "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962": "/run/fogcast/fesdata3/software-releases/releases/61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+      "77e80dff0587478cf5464742e99cf1d29046b9997a964688949cb2193fa569ed": "/usr/share/fes/software"
+    },
+    "prior_root_is_existing_factory_resolver_path": true,
+    "foreign_release_roots_refused": true,
+    "original_wrong_data_volume_path_auth_failure_retained": true,
+    "no_second_activation": true,
+    "initial_stable_MENU_seconds": 10,
+    "host_and_catalog_authenticated_on_later_readonly_postflight": true,
+    "full_postflight_latency_not_measured_across_observation_gap": true,
+    "no_image_kernel_FIT_card_QSPI_or_power_change": true,
+    "ordinary_control_pending": true
+  },
+  "rollback_control": {
+    "success": false,
+    "phase": "rollback",
+    "bundle": "77e80dff0587478cf5464742e99cf1d29046b9997a964688949cb2193fa569ed",
+    "generation": 2,
+    "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf",
+    "source_head": "2eb2873c1efdb06586820e21d746b40f238a3c5b",
+    "ordinary_package": "3da0f1dfe2c71520a6953c544d9107131a2d6ec6187882bc633992dfa2751776",
+    "error": "AssertionError: no unambiguous digit output"
+  },
+  "cleanup_Stop": {
+    "response": {
+      "id": "7e2879e4-e736-4433-a732-eadccc29378c",
+      "target": "de25-bottom",
+      "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+      "state": "idle",
+      "input": {
+        "state": "detached",
+        "ready": false,
+        "metrics": {
+          "frames_sent": 55,
+          "state_resyncs": 1,
+          "sequence_gaps": 0,
+          "releases": 1,
+          "capture_to_bridge_p95_ms": 0.055159,
+          "bridge_to_uinput_p95_ms": 0,
+          "rtt_ms": 0.409241,
+          "bridge_to_uinput_measurable": false,
+          "shutdown_reason": "session_stop"
+        }
+      },
+      "flight_id": "0d3a55ea-7ef1-4b57-9df8-be23c4c00467"
+    },
+    "confirmed": {
+      "id": "7e2879e4-e736-4433-a732-eadccc29378c",
+      "target": "de25-bottom",
+      "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+      "connection": {
+        "state": "ready",
+        "address": "http://192.168.10.119:8182",
+        "target_id": "e2a51a4f-bae2-4041-a4e4-51f6774d4e45",
+        "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf"
+      },
+      "state": "idle",
+      "input": {
+        "state": "detached",
+        "ready": false,
+        "metrics": {
+          "frames_sent": 55,
+          "state_resyncs": 1,
+          "sequence_gaps": 0,
+          "releases": 1,
+          "capture_to_bridge_p95_ms": 0.055159,
+          "bridge_to_uinput_p95_ms": 0,
+          "rtt_ms": 0.409241,
+          "bridge_to_uinput_measurable": false,
+          "shutdown_reason": "target_changed"
+        }
+      },
+      "flight_id": "0d3a55ea-7ef1-4b57-9df8-be23c4c00467"
+    }
+  },
+  "restore": {
+    "success": true,
+    "phase": "restore",
+    "source_head": "2eb2873c1efdb06586820e21d746b40f238a3c5b",
+    "boot_id": "655b3ec6-d7b6-44c5-8ccc-225eb7415ccf",
+    "from_bundle": "77e80dff0587478cf5464742e99cf1d29046b9997a964688949cb2193fa569ed",
+    "to_bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+    "from_generation": 2,
+    "activation_requests": 1,
+    "cleanup_after_failed_control": true,
+    "to_generation": 3,
+    "operation_id": "82384903dd1959fe361fc7823ae35da8633028d285af5d88acb702f65bce2359",
+    "receipt": {
+      "id": "82384903dd1959fe361fc7823ae35da8633028d285af5d88acb702f65bce2359",
+      "candidate": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+      "requester": "Codex #1312 stock software rollback 2eb2873c1",
+      "expected_generation": 2,
+      "result": "accepted"
+    },
+    "same_boot": true,
+    "same_kernel_root_FIT_card": true,
+    "full_selected_process_group_replaced": true,
+    "selected_installed_files_and_running_three_process_hashes_verified": true,
+    "stable_MENU_seconds": 10,
+    "private_host_reconnected_without_restart": true,
+    "saved_media_and_entry_unchanged": true,
+    "observed_phases": [
+      "queued",
+      "applying"
+    ],
+    "elapsed_seconds": 35.829,
+    "ordinary_control_pending": false
+  },
+  "failed_capture_review": {
+    "viewed": true,
+    "sha256": "46226742c3663ba2eb31780ae8a847504f576aad47648ef73e22da4322f6bf75",
+    "observation": "Fresh fanout capture shows black-on-white 0/0 at the lower left and empty numeric output region, with no expected7. No root cause established; input/startup/media hypotheses remain unproven."
+  },
+  "tracked_issue": 1572,
+  "producer_scope": "ECA identifies the normal kernel/software; prior factory manifest provenance remains explicitly recorded in qualification."
+}

@@ -99,7 +99,8 @@ missing or invalid, or the room cannot be created, the Home picker is
 shown. The id and reason are written to stderr and posted once per
 start or Home attempt as `ui.home_room_fallback` (`room`, `reason`).
 They are not shown on the TV. Back inside a nested room pops as usual.
-Back at the home-room root opens Menu. While a session is
+Back at the home-room root opens Menu, except on a failed root Home,
+where Back or Confirm reopens a fresh Home (see Budgets). While a session is
 active, Home keeps the playing-view path and does not substitute
 `home_room`.
 
@@ -232,6 +233,7 @@ plane that is what lets the running machine show through.
 | --- | --- |
 | `gfx.clear(color)` | background for this frame |
 | `gfx.rect(x, y, w, h, color)` | filled rectangle |
+| `gfx.rects(list, color)` | one filled rectangle in `color` for each `x, y, w, h` in the flat `list` `{x1, y1, w1, h1, x2, ...}`: the ops of a `gfx.rect` call per rectangle, in one call |
 | `gfx.image(img, x, y[, w, h[, sx, sy, sw, sh]])` | blit an `image` handle (skipped until `img.ready`) |
 | `gfx.text(str, x, y[, {size=18, bold=false, color=, max_w=0, align="left"}])` | text in the embedded UI face; `align` is `left`, `center` or `right` (relative to `x`, or within `max_w` when set) |
 | `gfx.measure(str, size[, bold]) -> w, h` | text metrics |
@@ -241,8 +243,28 @@ plane that is what lets the running machine show through.
 | `gfx.paint(commands)` | record a whole frame in one call. Each command is `{"c", color}`, `{"r", x, y, w, h, color}`, `{"t", text, x, y, size, color, max_w, bold, align}`, `{"i", image, x, y, w, h}` or `{"h", id, x, y, w, h}` |
 | `gfx.extend(commands)` | append those commands to the frame already presented, after any drawing recorded earlier in this draw. A clear already recorded in this draw replaces the presented clear |
 | `gfx.reuse()` | keep the frame already presented and return true. Returns false until one has been presented. Call it before other drawing |
+| `gfx.segment(key, fn, ...)` | draw `fn(...)` as a run named `key`, or copy the run the presented frame drew under `key` without calling `fn`. Returns true when it copied |
 
 `gfx.paint` records the frame in one call. Include a clear command (`{"c", color}`). `gfx.extend` copies the presented frame, keeps ops and hits already recorded in this draw after that copy, then appends its commands. A clear recorded before the call replaces the presented clear, and a clear inside the commands replaces that. A second `gfx.extend` in the same draw appends more commands and does not copy the presented frame again, so a picture can be filled in over several draws. A finished paint or extend that misses only the soft budget is still presented, and `room.presented` becomes true, so the next unchanged draw can call `gfx.reuse` and return. Eight consecutive slow paints still retire the room. A draw that does not paint, and misses the soft budget, keeps the previous frame and sets `room.presented` false. The 4× hard deadline still retires the room on that callback.
+
+`gfx.segment` lets a draw redraw only the parts of a picture that changed.
+The run is every op and hit region `fn` records, in order; a copy puts them
+at the same place in the new frame, so hit order is what `fn` would give.
+The key must name everything the run's pixels depend on apart from the room
+size, such as focus and a data generation: Lua is not run to check. A run
+is copied only from the frame on screen and only when the clip rectangles
+and blend mode before it are the same. A resize, a frame that is not
+presented (`room.presented` false) and a new room instance drop every run.
+`gfx.reuse` keeps them, and `gfx.extend` keeps the presented frame's runs
+and moves runs drawn earlier in that draw behind the copy. A run that
+skipped an image still loading is not kept. A key may be drawn once per
+frame, and runs do not nest. Inside `fn`, `gfx.clear`, `gfx.paint`,
+`gfx.extend` and `gfx.reuse` raise an error: a copy holds only ops and hits.
+A copy does not call `fn`, so `fn` must do nothing but draw: caches,
+counters, image loads or `destination.set` inside it are skipped whenever
+the run is copied. A key drawn earlier in a draw that then calls
+`gfx.extend` must not also be in the presented frame, or `gfx.extend`
+raises an error, which retires the room.
 
 There are no lines, circles or rotation: the device has none. Draw paths as
 chains of small rects (see `widgets.nodemap`).
@@ -252,6 +274,8 @@ chains of small rects (see `widgets.nodemap`).
 `image.load("assets/x.png") -> img` decodes a pack PNG/JPEG on a background
 goroutine. `image.cover(game_id) -> img` asks the launcher for the catalog
 cover. Handles expose `ready`, `w`, `h`, `err`. Draw nothing until `ready`.
+While a room is open the launcher does not prefetch covers for the hidden
+library grid; grid cover decodes already started when the room opened finish.
 
 ### `library` (asynchronous; callbacks run on a later tick)
 
@@ -261,6 +285,10 @@ cover. Handles expose `ready`, `w`, `h`, `err`. Draw nothing until `ready`.
 | `library.platforms(fn(platforms, err))` | `{id, label, game_count, online, launchable, tags}` |
 | `library.collections(fn(collections, err))` | `{id, name}` |
 | `library.game(id, fn(game, err))` | one game. A cached list row is returned immediately. When `variant_count` is greater than one and that row has no `variants`, the call loads the detail row so grouped editions are present. |
+
+Home-family response conversion runs in batches; the callback still receives
+one complete result. Home and setup reduce its title counts across bounded
+updates, while machine readiness comes from `hardware.computers` independently.
 
 Game tables: `id, title, system, core_id, package_id, media_id, media_role, genre, year, region, state, series,
 launchable, launch_block, favorite, play_count, last_played_at,
@@ -609,7 +637,59 @@ bin/fogcast-tenfoot -api http://127.0.0.1:8787 -home rooms
 | games per `library.query` | 2000 |
 
 Exceeding a deadline or the op cap fails the room with a message naming the
-budget. Budgets are `rooms.Budget` in Go and can be tuned by the launcher.
+budget; deadline errors also name the callback that missed it, such as
+`draw callback`, `on_input callback` or `async library.query callback` (the API
+whose result was being delivered). On Linux a hard deadline miss also lists
+the load average, how busy the CPUs were and the three busiest processes over the
+second or so before the miss; the launcher log has a longer list. A time
+failure (a callback deadline, a callback that returned past its hard limit,
+or retirement after consecutive soft overruns) is
+`errors.Is(inst.Err(), rooms.ErrBudget)`; Lua, load, compile and API errors,
+including the op cap, are not. The launcher reopens a root Home room that
+failed with `ErrBudget` after a backoff, a bounded number of times, and never
+reopens one that failed with a script error (see `docs/ARCHITECTURE.md`).
+Budgets are `rooms.Budget` in Go and can be tuned by the launcher.
+
+A time failure says where the time went, in two labelled parts that cover
+different windows. On Linux, `script run` is the script run's wall time and,
+over that run, the callback thread's CPU time, voluntary/involuntary switches,
+major/minor page faults and the KiB it read from storage (`ru_inblock`,
+counted by the kernel in 512-byte units). Faults and KiB read appear only when
+non-zero. These come from one `clock_gettime` and one `getrusage` before and
+after the script, the only usage reads inside the callback's elapsed time, so
+the budget pays for nothing more than it did before.
+
+The second part, `since step start` (or `since callback start` for a callback
+outside a frame, such as `on_input`), runs from a baseline read before the
+callback's elapsed time starts to just after it ends. A frame takes one
+baseline that its callbacks share; the second read is taken only for a
+callback whose timing is reported, after its elapsed time is measured, so
+neither counts against a budget. Over that window it gives the thread's CPU
+time and run-queue wait (`runnable`, when the kernel has
+`/proc/thread-self/schedstat`), the Go GC cycles and GC stop-the-world time
+across the process (only when non-zero), the longest Go scheduler wait of any
+goroutine that ended in it (`Go sched wait`, from 1ms up), and the
+`unaccounted` rest of the window: its wall time minus that thread CPU and
+runnable (shown with `runnable`). GC stop-the-world is process-wide and can
+overlap the thread's own CPU or run-queue time, so it is shown beside
+`unaccounted` as context, not subtracted from it. If the callback ran on
+another OS thread than the baseline read, the window says `thread changed`
+and keeps only the process-wide fields. For example
+`script run 235.61ms: thread cpu 3.11ms, 15 voluntary/2 involuntary switches,
+41 major/380 minor faults, 480 KiB read; since step start 241.2ms: thread cpu
+5.4ms, runnable 1.2ms, unaccounted 234.6ms`. Faults and KiB read point at
+storage, GC at the Go runtime, runnable time at a CPU that was busy
+elsewhere, and Go sched wait at goroutines waiting for a Go scheduler slot.
+
+GC stop-the-world time is a close estimate, the runtime's GC pause CPU time
+divided by GOMAXPROCS. The runtime does not scale the stopping phase of a
+pause by GOMAXPROCS, so the estimate can be a little low. `Go sched wait` is process-wide, its value is the lower bound of
+a histogram bucket, and the runtime records only about one goroutine wakeup
+in eight, so its absence does not rule out a Go scheduler wait by the script itself.
+Unaccounted time with voluntary switches and no faults, KiB read or GC beside
+it means the thread slept for a reason this data cannot name: a Go
+locked-thread handoff, a GC mark assist whose cycle ended outside the window,
+or a lock.
 
 ## Testing rooms without a display
 

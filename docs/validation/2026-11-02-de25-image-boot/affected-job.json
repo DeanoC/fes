@@ -1,0 +1,17 @@
+{
+  "source_revision": "54440171df2ae454a87873099857c10de7e17263",
+  "command": [
+    "make",
+    "test-changed",
+    "TEST_CHANGED_ARGS=--base c083e44e4b7d611c127b5f6ca3d2b71efc8bb4a1 --jobs 2"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-image-boot-54440171d",
+  "started_utc": "2026-11-02T00:03:30.643781+00:00",
+  "time_cap_seconds": 1800,
+  "hardware_access": "not-performed",
+  "pid": 813718,
+  "state": "passed",
+  "elapsed_seconds": 214.0,
+  "heartbeat_utc": "2026-11-02T00:07:04.609824+00:00",
+  "returncode": 0
+}

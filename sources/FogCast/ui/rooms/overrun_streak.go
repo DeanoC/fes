@@ -10,14 +10,16 @@ import (
 
 // overrunStreak records a run of consecutive soft overruns so that the
 // error that retires a room says what was slow and what else was going on:
-// each callback's elapsed time and its script run's thread usage, how many
-// process-wide Go GC cycles completed during the run, and how many images
-// the launcher had already been asked to fetch. Kit reports (#761, #784)
+// each callback's elapsed time with its script run's thread usage and the
+// usage window since its baseline, how many process-wide Go GC cycles
+// completed during the run, and how many images the launcher had already
+// been asked to fetch. Kit reports (#761, #784)
 // need that evidence before any budget policy changes.
 //
 // The GC figure is process-wide cycles between the sample taken before the
 // callback that starts the streak and the sample taken at retirement. It is
-// context for the elapsed times, not pause time inside those callbacks.
+// context for the elapsed times. GC cycles and stop-the-world time around one
+// overrun are in that callback's usage window (sinceBaseline).
 // Frame and input streaks keep separate baselines. Each read uses its own
 // sample slice so two rooms can overrun at once without racing.
 type overrunStreak struct {
@@ -33,7 +35,7 @@ type overrunStreak struct {
 
 // gcCycles is the process-wide count of completed GC cycles.
 func gcCycles() uint64 {
-	sample := []metrics.Sample{{Name: "/gc/cycles/total:gc-cycles"}}
+	sample := []metrics.Sample{{Name: gcCyclesMetric}}
 	metrics.Read(sample)
 	if sample[0].Value.Kind() != metrics.KindUint64 {
 		return 0
@@ -91,13 +93,15 @@ func (s *overrunStreak) summary(r *Instance) string {
 	parts := make([]string, 0, len(s.timings))
 	for _, t := range s.timings {
 		part := t.elapsed.Round(100 * time.Microsecond).String()
-		if t.measured {
-			part += " (" + t.scriptRun() + ")"
+		if d := t.detail(); d != "" {
+			part += " (" + d + ")"
 		}
 		parts = append(parts, part)
 	}
-	return fmt.Sprintf("elapsed %s; %d process-wide GC cycles; up to %d images loading",
-		strings.Join(parts, ", "), s.cycles()-s.gcAtStart, s.imagesLoading)
+	// The short streak context leads: the room error panel wraps a bounded
+	// number of lines, and the per-overrun list is what it cuts.
+	return fmt.Sprintf("%d process-wide GC cycles; up to %d images loading; elapsed %s",
+		s.cycles()-s.gcAtStart, s.imagesLoading, strings.Join(parts, ", "))
 }
 
 // imagesLoading counts images the launcher has already been asked to fetch

@@ -1,0 +1,145 @@
+{
+  "budget_excludes": [
+    "PCB differential trace delay",
+    "unaccounted master-clock jitter and uncertainty",
+    "signal-integrity behavior"
+  ],
+  "build_record_sha256": "73aa0c1ec79f6696163c99d32d50f5459641762015f862873d741a694b1bb300",
+  "classification": "source-bound fitted clock engineering observations",
+  "clocks": {
+    "de25_i2s_bit_clock": {
+      "clock": "de25_i2s_bit_clock",
+      "edges": "3 7 11 ",
+      "master": "fes_audio_inst|clock|iopll_0_outclk0",
+      "period_ns": "325.516",
+      "waveform": "81.379 244.137 "
+    },
+    "de25_i2s_bit_clock_output": {
+      "clock": "de25_i2s_bit_clock_output",
+      "edges": "",
+      "master": "de25_i2s_bit_clock",
+      "period_ns": "325.516",
+      "waveform": "81.379 244.137 "
+    },
+    "de25_i2s_word_clock": {
+      "clock": "de25_i2s_word_clock",
+      "edges": "255 511 767 ",
+      "master": "fes_audio_inst|clock|iopll_0_outclk0",
+      "period_ns": "20833.024",
+      "waveform": "10335.133 20751.645 "
+    },
+    "de25_i2s_word_clock_output": {
+      "clock": "de25_i2s_word_clock_output",
+      "edges": "",
+      "master": "de25_i2s_word_clock",
+      "period_ns": "20833.024",
+      "waveform": "10335.133 20751.645 "
+    },
+    "fes_audio_inst|clock|iopll_0_outclk0": {
+      "clock": "fes_audio_inst|clock|iopll_0_outclk0",
+      "edges": "",
+      "master": "fes_audio_inst|clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+      "period_ns": "81.379",
+      "waveform": "0.000 40.689 "
+    }
+  },
+  "collector_seconds": 9.581,
+  "conditional_pin_budgets": [
+    {
+      "corner": "Fast fix4 0C Model",
+      "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.759",
+      "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.722"
+    },
+    {
+      "corner": "Slow fix4 0C Model",
+      "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.497",
+      "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.193"
+    },
+    {
+      "corner": "Slow fix4 100C Model",
+      "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.507",
+      "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.299"
+    },
+    {
+      "corner": "Slow fix4a 0C Model",
+      "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.552",
+      "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.297"
+    }
+  ],
+  "fitted_corner_count": 4,
+  "fitted_path_count": 32,
+  "hardware_acceptance": false,
+  "independent_pcb_timing_qualified": false,
+  "original_fit_bindings_sha256": "fcc9302ce1851fa5c846cbee8558e318caba633d98adadab64c10736cd51e54b",
+  "package_timing_admission": false,
+  "raw_findings_unchanged": true,
+  "receiver_reference": "https://www.analog.com/media/en/technical-documentation/user-guides/adv7513_hardware_user_guide.pdf#page=12",
+  "reports_sha256": {
+    "4_slow_fix4_0c_bit_clock_network_max.rpt": "9d8eda6f1df30eb2b6b22120b4d5454e2dd75f3a8bfa5037cf9dfe5f29fdf9da",
+    "4_slow_fix4_0c_bit_clock_network_min.rpt": "6604c7792f681b2f1903ecae30e4d4722e1292ec1733256663eea6f2e24ca493",
+    "4_slow_fix4_0c_bit_clock_output_max.rpt": "658152487f437ab59e0c9ec92f3c4f6923f15412ade8af251fbc858cb9353255",
+    "4_slow_fix4_0c_bit_clock_output_min.rpt": "89a5c73fe451832a6252fe78ede69b827093e4d66a9044f4410fe0c3728a054f",
+    "4_slow_fix4_0c_word_clock_network_max.rpt": "3a9536c428160e6e79d0aa9fcf83c5fd8acda79ea53e4393ee58f4806d4ec34a",
+    "4_slow_fix4_0c_word_clock_network_min.rpt": "3a6aa3b73f138b39819129a67de55e5be4480c29ed3c4796b843f0162cb0c1b5",
+    "4_slow_fix4_0c_word_clock_output_max.rpt": "18cc2492bf9643200d610d32dbee484ae0ce6fe4af144d74aa25270db8d59694",
+    "4_slow_fix4_0c_word_clock_output_min.rpt": "63d7d0202e8972013b0a171da6691c8ba84aa0dfb78525260d836d343c368e81",
+    "4_slow_fix4_100c_bit_clock_network_max.rpt": "882356dcdf1f99f084a704058e09016a204698d7c8780d4d2cff63828ac351d3",
+    "4_slow_fix4_100c_bit_clock_network_min.rpt": "c17060caf03da140b455b8b2f40db05a6d001a41e46abd2e0d67b9ce19561050",
+    "4_slow_fix4_100c_bit_clock_output_max.rpt": "d3591f0a9b19ae61972f128d68f1a71509453df4f47178ac558e0a602c61b8a2",
+    "4_slow_fix4_100c_bit_clock_output_min.rpt": "88e7c9a15f1ea7b8cc33a8b107b92ea8cd6e30188cc243aba819d6deca5443f3",
+    "4_slow_fix4_100c_word_clock_network_max.rpt": "572f91eaf80a9c1ea93094de604735065d893057b2125485ebe2292ace9eba5e",
+    "4_slow_fix4_100c_word_clock_network_min.rpt": "1607bf427ff3b9f00e990ee33fffa6833a6ddf765c3239bca2f139168ac24059",
+    "4_slow_fix4_100c_word_clock_output_max.rpt": "acf2644e66a0e7aa586be7025bcf664480fc731fc397140d8b527fcef917ac77",
+    "4_slow_fix4_100c_word_clock_output_min.rpt": "a51f9fb9e451e825d2732617e84a804b84cca355543d9da6caf49276c6621481",
+    "4_slow_fix4a_0c_bit_clock_network_max.rpt": "d72fd3fcc47c050b97bd2746407d84d37fd766e92b9ab90ed3cc49ee059ef64b",
+    "4_slow_fix4a_0c_bit_clock_network_min.rpt": "ac387d1a184397a15228244e8ddd6198cf0b83c2d84363f01091e37ea7a99e52",
+    "4_slow_fix4a_0c_bit_clock_output_max.rpt": "d8c1040e3bc068e5447750af2312df115a14b34c2accc1401937a28df36e115a",
+    "4_slow_fix4a_0c_bit_clock_output_min.rpt": "a333ce30b758a15bbe65d23284fafbc0b4c88ffdefb2e2c27b7737535fdc1e9e",
+    "4_slow_fix4a_0c_word_clock_network_max.rpt": "8231390814926ec7eb6bd0239112cd0a3f75249c766a730abf88cbc2c26f9477",
+    "4_slow_fix4a_0c_word_clock_network_min.rpt": "c81c8ff864c4f99b3d7c97c5c5f3af420ece8e276dcc4853855cab4fda72f834",
+    "4_slow_fix4a_0c_word_clock_output_max.rpt": "00a9a47691e5365be86a210af41284ebe6f2e2817738ce1268484315d43e788c",
+    "4_slow_fix4a_0c_word_clock_output_min.rpt": "cea66b95c7c34e1e90c8514dd4d656462fd76535bb4117ce84ec2e616b94e2b1",
+    "MIN_fast_fix4_0c_bit_clock_network_max.rpt": "0b596612614a3c46894f265417d0b8190efcdaf59551e138a1ed89d3f442b831",
+    "MIN_fast_fix4_0c_bit_clock_network_min.rpt": "04dc19da79213b7fa6bdc94140769c80042813d30632dca3e9232562dd072c0b",
+    "MIN_fast_fix4_0c_bit_clock_output_max.rpt": "f2e879b74e1928b14b5bb53b7c0da1e4e2d220a760a43770c2d2919815e1f34d",
+    "MIN_fast_fix4_0c_bit_clock_output_min.rpt": "09e21bbbe82bdcc2e0bc03e0c2091ed398dada5143c3b38ec7ff446771e7cdc5",
+    "MIN_fast_fix4_0c_word_clock_network_max.rpt": "3bf9e13f2f46af6289052b65e872b0fe10140411fba3871bb6369bb7f6badfa6",
+    "MIN_fast_fix4_0c_word_clock_network_min.rpt": "c648ab6ebd137401019b623c121e9793d2344413c084b03b13725ae9c26191c0",
+    "MIN_fast_fix4_0c_word_clock_output_max.rpt": "5c5b968307d17759d2a93260ce88ae5f5eec27aca07d5694aa0a790ba32a00b0",
+    "MIN_fast_fix4_0c_word_clock_output_min.rpt": "a0c237a073caa0fbc351f863747396ded7393bc2f3f7e630d2ccc2ddbe9b8dda",
+    "clocks.tsv": "cc47560339e62a533996b7b5d30c918784e86abf2e1ee9852b786497a8a6a196",
+    "paths.tsv": "0de23d3655b14339a5789d324afb254c7d58023c3cb2b51279e7d475356102c1"
+  },
+  "source_revision": "446bd3eca9c8dacdeb7c071a331aab3842bb4a13",
+  "stock_audio": {
+    "derived_pll_sha256": "cb8aa1bb3910b7b50d86c25c4980a8be7267715c9505e727648056b6b0f28179",
+    "pins": {
+      "CLOCK1_50": {
+        "io_standard": "3.3-V LVCMOS",
+        "pin": "V16"
+      },
+      "HDMI_I2S": {
+        "io_standard": "3.3-V LVCMOS",
+        "pin": "CB2"
+      },
+      "HDMI_LRCLK": {
+        "io_standard": "3.3-V LVCMOS",
+        "pin": "BR6"
+      },
+      "HDMI_MCLK": {
+        "io_standard": "3.3-V LVCMOS",
+        "pin": "CF1"
+      },
+      "HDMI_SCLK": {
+        "io_standard": "3.3-V LVCMOS",
+        "pin": "BW1"
+      }
+    },
+    "vendor_archive_sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66"
+  },
+  "tools_sha256": {
+    "audio_clocks.tcl": "8295a64c71cf0b0a10ee71684ce4f74119431dc98e05c8cf6875cba636bbf953",
+    "quartus_sta": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+    "review_de25_audio_clocks.py": "7af553cf9ed31e77447b21b575614bdfa4ab03209039348a532abf119d20e885"
+  }
+}

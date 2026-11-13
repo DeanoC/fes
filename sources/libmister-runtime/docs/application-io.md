@@ -9,12 +9,9 @@ existing requirements, wire identities and startup behavior.
 Every admitted application declares required `fes.video.fixed-720p60` 1.0.
 It may additionally declare `fes.audio.pcm-s16-stereo-48k`, `fes.gamepad`,
 `fes.gamepad.ports`, `fes.keypad.ports`, `fes.media.blob`,
-`fes.media.blob-stream`, `fes.memory.hps-ddr` and optional
-`fes.firmware.blob` 1.0. Stream requires
-blob. Supported operational declarations other than firmware must be required;
-optionality for those interfaces is expressed by omission. Firmware may be
-declared required or optional so BIOS-free titles can share a firmware-capable
-package. Unknown or unsupported-version optional declarations are ignored.
+`fes.media.blob-stream` and `fes.memory.hps-ddr` 1.0. Stream requires
+blob. Supported operational declarations must be required; optionality for
+those interfaces is expressed by omission. Unknown or unsupported-version optional declarations are ignored.
 Required unknown interfaces, keyboard and persistence are rejected before
 programming.
 
@@ -23,11 +20,10 @@ commands. Registered live capability bits must exactly match supported declared
 interfaces; an undeclared live media endpoint cannot silently change startup.
 Capability bits 0 through 3 are gamepad,
 video, blob and stream; bit 4 is stereo PCM audio, bit 5 is controller ports,
-bit 6 is keypad ports, bit 7 is firmware blob and bit 8 is HPS DDR. Opcodes 1/2/3 are
-identity/execution/buttons; 4 through 6 use the existing blob codec, 7 through
-12 use the existing stream codec, and 15 through 17 are firmware begin/data/commit
-for an exact 8192-byte overlay while reset stays held. This map is distinct from
-the older game ABI's persistence opcodes.
+bit 6 is keypad ports, and bit 8 is HPS DDR; bit 7 is reserved. Opcodes 1/2/3 are
+identity/execution/buttons; 4 through 6 use the existing blob codec and 7 through
+12 use the existing stream codec. Opcodes 15 through 17 are reserved. This map is
+distinct from the older game ABI's persistence opcodes.
 
 Video-only activation configures HDMI and releases reset without opening input
 or sending keyboard/button words. A declared gamepad uses the existing single

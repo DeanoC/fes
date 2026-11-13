@@ -1737,7 +1737,7 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 				return protocol.Status{}, corePackageRequestFailure(canonicalError(protocol.CodeUnsupportedOperation, nil))
 			}
 			status, err = parts.LoadLibraryPartsCore(ctx, size, content, selected.entry.PackageID)
-		} else if selected.composition != nil || (selected.slotComposition != nil && selected.romID == "") {
+		} else if selected.staticComposition != nil || selected.composition != nil || (selected.slotComposition != nil && selected.romID == "") {
 			composed, ok := client.(interface {
 				LoadComposedCore(context.Context, int64, io.Reader, string) (protocol.Status, error)
 			})

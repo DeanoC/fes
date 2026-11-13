@@ -1,0 +1,7 @@
+{
+  "image_sha256": "01357da8a2f9971cb3bf9e7f99bd176bea46a893554d7b1c5364339310fe9b9b",
+  "image_offset": 30827192,
+  "size": 84,
+  "notes_sha256": "f6f997d95e1676f80901a656c01a9e01f55202fabff59ff37887c64ade932af6",
+  "source": "compiled Image note range from linked System.map"
+}

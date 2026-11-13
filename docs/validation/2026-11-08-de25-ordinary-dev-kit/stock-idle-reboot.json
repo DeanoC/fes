@@ -1,0 +1,21 @@
+{
+  "success": true,
+  "old_boot_id": "edf31a81-ffd7-4abd-80d2-3d3f89af59c4",
+  "new_boot_id": "1700e7b5-734e-49f8-8fe0-2b132b9ec8f4",
+  "bundle": "61a4b0aadaeebfa927d57020870fac486e7c24bb61fb9d4c3c72f26197599962",
+  "generation": 1,
+  "kernel_root_FIT_unchanged": true,
+  "native_four_binaries_and_running_runtime_authenticated": true,
+  "saved_probe_survived": true,
+  "pinned_SSH": true,
+  "stable_readiness_seconds": 10,
+  "retained_catalog": true,
+  "host_reconnected": true,
+  "MENU_idle_free": true,
+  "native_ready_observation_seconds": 53.72,
+  "postflight_completed_after_intent_seconds": 332.18,
+  "initial_host_query_HTTP503_retained": true,
+  "host_reconnect_latency_not_measured": true,
+  "original_reboot_repeated": false,
+  "no_power_card_or_QSPI_action": true
+}

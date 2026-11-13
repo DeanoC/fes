@@ -1,0 +1,10 @@
+{
+  "file": "private-debug-proof.tar.gz",
+  "bytes": 57944,
+  "sha256": "36877e69360292c7102147797f4271fbe5391756cfe346e87ac0a4201221134f",
+  "classification": "private constraint-strengthening diagnostic only; original fitted production inputs unchanged",
+  "source_revision": "34c3a6cb4d2858c273e2f95a0a94fcb46f8b416b",
+  "rbf_sha256": "58181300c2ce74ba5092d154d3f04779334da7a8b4b4c8938717c95c9ccae5db",
+  "timing_acceptance": false,
+  "hardware_access": "not-performed"
+}

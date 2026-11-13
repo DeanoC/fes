@@ -30,8 +30,6 @@ module diagnostic_machine (
         .media_data(media_data), .media_addr(media_addr),
         .peek_addr(peek_addr), .peek_data(peek_data),
         .cpu_halt_n(cpu_halt_n),
-        .firmware_we_a(1'b0), .firmware_we_b(1'b0),
-        .firmware_addr(13'b0), .firmware_data(16'b0),
         .bus_request(bus_request), .bus_response(bus_response),
         .controller1_value(), .controller2_value(),
         .logical_x(), .logical_y(), .logical_pixel(),

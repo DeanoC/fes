@@ -1,0 +1,726 @@
+{
+  "classification": "Source-bound engineering clock observations for actual standard PR fits/revisions, not package admission",
+  "records": [
+    {
+      "clocks": {
+        "fes_audio_inst|clock|iopll_0_outclk0": {
+          "clock": "fes_audio_inst|clock|iopll_0_outclk0",
+          "period_ns": "81.379",
+          "waveform": "0.000 40.689 ",
+          "edges": "",
+          "master": "fes_audio_inst|clock|iopll_0|tennm_ph2_iopll|ref_clk0"
+        },
+        "de25_i2s_bit_clock": {
+          "clock": "de25_i2s_bit_clock",
+          "period_ns": "325.516",
+          "waveform": "81.379 244.137 ",
+          "edges": "3 7 11 ",
+          "master": "fes_audio_inst|clock|iopll_0_outclk0"
+        },
+        "de25_i2s_bit_clock_output": {
+          "clock": "de25_i2s_bit_clock_output",
+          "period_ns": "325.516",
+          "waveform": "81.379 244.137 ",
+          "edges": "",
+          "master": "de25_i2s_bit_clock"
+        },
+        "de25_i2s_word_clock": {
+          "clock": "de25_i2s_word_clock",
+          "period_ns": "20833.024",
+          "waveform": "10335.133 20751.645 ",
+          "edges": "255 511 767 ",
+          "master": "fes_audio_inst|clock|iopll_0_outclk0"
+        },
+        "de25_i2s_word_clock_output": {
+          "clock": "de25_i2s_word_clock_output",
+          "period_ns": "20833.024",
+          "waveform": "10335.133 20751.645 ",
+          "edges": "",
+          "master": "de25_i2s_word_clock"
+        }
+      },
+      "conditional_pin_budgets": [
+        {
+          "corner": "Fast fix4 0C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.707",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.590"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.294",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.269"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.325",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.275"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.399",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.335"
+        }
+      ],
+      "fitted_corner_count": 4,
+      "fitted_path_count": 32,
+      "fit": "primary-job",
+      "revision": "base",
+      "producer": "aaf5155eed2f77683742f96d1a95ee83dfd4b235",
+      "descriptor_sha256": "4149fc8635c9ac21fe691a3aac6081e7c9caebca6b57b25b318fcbde67b7584b",
+      "source_closure_sha256": "b84e69c69be380fe326aa7a1daef115b1eace5aa8f1b614f7aff5032a3509563",
+      "command": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_sta",
+        "-t",
+        "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/audio-revisions.tcl",
+        "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/primary-job/project",
+        "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/primary-job/base",
+        "base"
+      ],
+      "report_sha256": {
+        "4_slow_fix4_100c_word_clock_output_max.rpt": "a705a6eb3f6638f9c45f4a5678a700b2e0c5991bd468dc53306b23899d847edc",
+        "4_slow_fix4_100c_bit_clock_network_max.rpt": "43fba5060c45b1a9fe7255c5e026af098d41876e3a2f1cbf886c58fc7787827d",
+        "4_slow_fix4a_0c_bit_clock_network_max.rpt": "fe874203476866678162a7a59f36274604ae1d5783a7f0a485c477a30440752a",
+        "4_slow_fix4a_0c_bit_clock_output_max.rpt": "3ae520a590bf123d4e991170e1ae9ae34465a9e1af848c0d88eeeee52cfd38ad",
+        "4_slow_fix4_100c_bit_clock_output_min.rpt": "87106f734108c90dbf4baf39bfb0d1511ed75156c2fb7257cf42a43d39127115",
+        "MIN_fast_fix4_0c_word_clock_output_min.rpt": "f7118ace9b98e1890915f79b0cb8343e395195c2009ba1f143f3d27642a43617",
+        "MIN_fast_fix4_0c_bit_clock_network_max.rpt": "b464632ea9ecc1e4d322d052dcbb7aecb31a93201bf90934c11c0e02945e5949",
+        "4_slow_fix4_0c_bit_clock_output_min.rpt": "abfbacc70678a97cc822ec8b7760dd0e01d043654eea130f0365b00eeff34e8a",
+        "4_slow_fix4_0c_word_clock_network_min.rpt": "cb664fa8e87b6700a0b39343757e948d4ee53ff90b7100b503ff9940c94334bc",
+        "MIN_fast_fix4_0c_word_clock_network_max.rpt": "24497a0b0d6dad9550a5ccc7b3d392bf2b81a4c03c191b4725d785e13730044f",
+        "4_slow_fix4a_0c_word_clock_output_min.rpt": "3ae5d559e39831549f4de9dade07d6e65984f49be30bb6b88e057616fffa1358",
+        "4_slow_fix4a_0c_bit_clock_output_min.rpt": "37b0ae2d754a30dd247ac8122c8f70361adf340bafe69c0e86c5c6f91a84da3a",
+        "4_slow_fix4a_0c_word_clock_network_min.rpt": "2d965c026cf5143e3ae0b5ba9435e283e28ae07b4f0f52f38b6f1d826c135d64",
+        "paths.tsv": "24e207f6cdbbfbe536c7f05f498cbdad69b29fb2d5d473c09c9155145e512e62",
+        "MIN_fast_fix4_0c_bit_clock_network_min.rpt": "ee60a1094432182a896a66b5a711044c5edb27589f6efdb1b0707c9aa1926431",
+        "4_slow_fix4_0c_word_clock_network_max.rpt": "95e3f5e5be35b3b437f1b85c61421d1db604b2b96f6af650332e40c97f1b3568",
+        "sta.log": "8d473164e733105b0347de1e554eee944bf876273a91d5da367bee4019ef09e6",
+        "4_slow_fix4_100c_word_clock_network_min.rpt": "314c52c680335f28b613bb77ab712dc9607fca31796841b91ff88716f55d95f5",
+        "MIN_fast_fix4_0c_bit_clock_output_max.rpt": "8e1666ae79ef0f28ad445233771b84bfeeeb84163d93e2366afc39b6edea9dfa",
+        "4_slow_fix4_0c_bit_clock_network_max.rpt": "4bbee44b1cb113ff5c1ce7a9c9087792c737a2bfa48c0543f3075e21e8c76189",
+        "MIN_fast_fix4_0c_bit_clock_output_min.rpt": "279a5f518fc0219182c797eb65da9ea474f141b9d47080ecf269fb3075ed56f1",
+        "4_slow_fix4_0c_word_clock_output_max.rpt": "7c4d60a4164d7b55b3dcaab83524f6430244792b3588980c042198bd913400b3",
+        "MIN_fast_fix4_0c_word_clock_network_min.rpt": "a53aa2329dfb72c2d07bf1e61338cc1604063aadb9dcb33dcc8009e88563c1d3",
+        "4_slow_fix4_0c_bit_clock_network_min.rpt": "afe01e91d7cedc3610c05fb62f0d0ec6ebbc54479cfbf1f1c4801339c02f73b6",
+        "4_slow_fix4a_0c_word_clock_output_max.rpt": "c5044badfbd31453b8cbab2acccddfafa2061ae1a5c7b8e39f3d098d448f51c2",
+        "4_slow_fix4_0c_bit_clock_output_max.rpt": "d2852b7dc00654140cef7866eb17aa31679f5ac8a06f48678fcdc5485a337854",
+        "4_slow_fix4_100c_word_clock_network_max.rpt": "7b3284de481217284eaf73b11984b170f35a4f2337bd7866a0b75aa38695423e",
+        "4_slow_fix4_0c_word_clock_output_min.rpt": "b441375782b47b1d57aa888dee46d222bbf1e78991fefe55ece4be0b849239c1",
+        "4_slow_fix4a_0c_word_clock_network_max.rpt": "1285b184d23d44c75555e2e78aad1fbb9baad0d09af2049f5f8a091f165f9d65",
+        "4_slow_fix4a_0c_bit_clock_network_min.rpt": "b8c21dea1545a7559b790f756400e077f3a89dc24c6584b097c50e35dfa017fe",
+        "clocks.tsv": "cc47560339e62a533996b7b5d30c918784e86abf2e1ee9852b786497a8a6a196",
+        "MIN_fast_fix4_0c_word_clock_output_max.rpt": "6ca737201e4c75d74336ea1230c5a795615e206730dd83c9dcceee2eac288b0b",
+        "4_slow_fix4_100c_word_clock_output_min.rpt": "c7eb25b07136f03e45ca272144186fa93750405a516b72cf7b702bf7cbe731b5",
+        "4_slow_fix4_100c_bit_clock_network_min.rpt": "cff9ab3a0306333064d1676f51442f0a2145f969bfb781d23b63e2c4dfd252c1",
+        "4_slow_fix4_100c_bit_clock_output_max.rpt": "62874bd55deba4fcdd161d76068a14dc4624a2d0efcb76825be2d2a1d20a018e"
+      },
+      "package_timing_admission": false,
+      "hardware_acceptance": false,
+      "PCB_timing_qualified": false,
+      "internal16K_exception_inherited": false
+    },
+    {
+      "clocks": {
+        "fes_audio_inst|clock|iopll_0_outclk0": {
+          "clock": "fes_audio_inst|clock|iopll_0_outclk0",
+          "period_ns": "81.379",
+          "waveform": "0.000 40.689 ",
+          "edges": "",
+          "master": "fes_audio_inst|clock|iopll_0|tennm_ph2_iopll|ref_clk0"
+        },
+        "de25_i2s_bit_clock": {
+          "clock": "de25_i2s_bit_clock",
+          "period_ns": "325.516",
+          "waveform": "81.379 244.137 ",
+          "edges": "3 7 11 ",
+          "master": "fes_audio_inst|clock|iopll_0_outclk0"
+        },
+        "de25_i2s_bit_clock_output": {
+          "clock": "de25_i2s_bit_clock_output",
+          "period_ns": "325.516",
+          "waveform": "81.379 244.137 ",
+          "edges": "",
+          "master": "de25_i2s_bit_clock"
+        },
+        "de25_i2s_word_clock": {
+          "clock": "de25_i2s_word_clock",
+          "period_ns": "20833.024",
+          "waveform": "10335.133 20751.645 ",
+          "edges": "255 511 767 ",
+          "master": "fes_audio_inst|clock|iopll_0_outclk0"
+        },
+        "de25_i2s_word_clock_output": {
+          "clock": "de25_i2s_word_clock_output",
+          "period_ns": "20833.024",
+          "waveform": "10335.133 20751.645 ",
+          "edges": "",
+          "master": "de25_i2s_word_clock"
+        }
+      },
+      "conditional_pin_budgets": [
+        {
+          "corner": "Fast fix4 0C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.707",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.590"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.294",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.269"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.325",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.275"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.399",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.335"
+        }
+      ],
+      "fitted_corner_count": 4,
+      "fitted_path_count": 32,
+      "fit": "primary-job",
+      "revision": "persona_a",
+      "producer": "aaf5155eed2f77683742f96d1a95ee83dfd4b235",
+      "descriptor_sha256": "4149fc8635c9ac21fe691a3aac6081e7c9caebca6b57b25b318fcbde67b7584b",
+      "source_closure_sha256": "b84e69c69be380fe326aa7a1daef115b1eace5aa8f1b614f7aff5032a3509563",
+      "command": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_sta",
+        "-t",
+        "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/audio-revisions.tcl",
+        "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/primary-job/project",
+        "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/primary-job/persona_a",
+        "persona_a"
+      ],
+      "report_sha256": {
+        "4_slow_fix4_100c_word_clock_output_max.rpt": "01ec7dc2a8c63642a53b7d615f1718e7f1d5fd3afa5f99b91e8894fde953c805",
+        "4_slow_fix4_100c_bit_clock_network_max.rpt": "7fbc9ed01fcdcfe590c4258b7f2098c527905253e549f1d5e2e62d173f090ed0",
+        "4_slow_fix4a_0c_bit_clock_network_max.rpt": "4a944d3326230aa8abe212e8ae5bf0c78e782a8a30fa62553be927b57c4a9986",
+        "4_slow_fix4a_0c_bit_clock_output_max.rpt": "d8dd61884f10d7d3957eee9338ff9a6ecd001600ddbee78eede30f9a76d8851c",
+        "4_slow_fix4_100c_bit_clock_output_min.rpt": "6e2ede9092a2d93604ccbb00f1bb5ef5cafaa71846d2bc7417b0e81ec9d3ef66",
+        "MIN_fast_fix4_0c_word_clock_output_min.rpt": "9af0a2f055c263066a749157fa4237a85514d36e1c81bcec42901cbe54a37cd9",
+        "MIN_fast_fix4_0c_bit_clock_network_max.rpt": "f5ea59ed4da0e2f20a6d1ceb854663997b9b43119ab9d1c593ab766d87b72dc3",
+        "4_slow_fix4_0c_bit_clock_output_min.rpt": "d9cf34ad14182c7672d32ac2ea37900fefcab9f7b1d272109c2d6d5d245956d8",
+        "4_slow_fix4_0c_word_clock_network_min.rpt": "a44e154897ddd5b6e89b25df2a21ff601af46644f668b2948924c16eaebeeca7",
+        "MIN_fast_fix4_0c_word_clock_network_max.rpt": "1540657d4f16cf34e428ebb3c0331eb5fbc79a399c9a1d1d1d0021f7970b89bf",
+        "4_slow_fix4a_0c_word_clock_output_min.rpt": "e7d8cd286f52b2bb1631feeb791e2198949b4559c7efd7f29bc8285bcd1f68de",
+        "4_slow_fix4a_0c_bit_clock_output_min.rpt": "226fae6c0ae811cf9154b1df688ead111ef8227059b3fa9122a3a850d46164c6",
+        "4_slow_fix4a_0c_word_clock_network_min.rpt": "3bea5701fedb7d76f86084270e2ecce7a3f96f4f285a2d25203de68216ff7b03",
+        "paths.tsv": "24e207f6cdbbfbe536c7f05f498cbdad69b29fb2d5d473c09c9155145e512e62",
+        "MIN_fast_fix4_0c_bit_clock_network_min.rpt": "c1b9dc3db31f4230d802da117f0ec73b5e15856d311ea8ad3557505d07774786",
+        "4_slow_fix4_0c_word_clock_network_max.rpt": "6da6fad2451c606799fe9782ab8f05f65ee5b3aab42d2299933757c808bf8bc5",
+        "sta.log": "b4e20c196b75afdbc252168d3cc09829b44ec8490e2204977cd69e8533a43eaa",
+        "4_slow_fix4_100c_word_clock_network_min.rpt": "b2381b24e024c4278583a8d451b393d188c3c10c1c3ed042d79453c2fc811dbc",
+        "MIN_fast_fix4_0c_bit_clock_output_max.rpt": "60f364782590b35b8e79a281636c13e0eddd95e8578c3e514780850d0a8132b9",
+        "4_slow_fix4_0c_bit_clock_network_max.rpt": "90fe654e47a7aa964f199a867f76b4de00abd77bd3e9c184a607415d02c49e6f",
+        "MIN_fast_fix4_0c_bit_clock_output_min.rpt": "f4049e7956335b13492c0d0e0bd58a6b8fe911bf689d036b27007a5d74f60369",
+        "4_slow_fix4_0c_word_clock_output_max.rpt": "04c9b8974bd7c36d41dadf0ef7f932b4f818ee9154eac216629ba5cc8daa5822",
+        "MIN_fast_fix4_0c_word_clock_network_min.rpt": "1d4e2ac1cfb9c8793873527480826279521423f5c223b39a324dcd06f578f515",
+        "4_slow_fix4_0c_bit_clock_network_min.rpt": "1c8817434d02cae5e6b43b6ae7b71abf6685ede9b281909140b66baba37925dd",
+        "4_slow_fix4a_0c_word_clock_output_max.rpt": "d99baaf9d25f43ec21915a4fdd73f74852dcb5584720fae180cee94adc571fa2",
+        "4_slow_fix4_0c_bit_clock_output_max.rpt": "5a099b0ba5cd3e7deb6d4c540b7d5ac35ba8ba1856b161f369588d55fb00e89e",
+        "4_slow_fix4_100c_word_clock_network_max.rpt": "4bb68ebb38c041a6a31c5e3ba084811ad67caceb63500322a6a1a9e7d56b2eff",
+        "4_slow_fix4_0c_word_clock_output_min.rpt": "f45e7a84e1c8ca6dfe4fad50fbcf5fc994fd3de841454dac3883a43bc21b6c05",
+        "4_slow_fix4a_0c_word_clock_network_max.rpt": "7331eddde29cfa361a9376e93f132e72c8e96e204a6927b6b51732eec6677f63",
+        "4_slow_fix4a_0c_bit_clock_network_min.rpt": "bb014e0293fe2b03612da6ba418fb2b2c20ac290f3a01efa8be5e303022f17a4",
+        "clocks.tsv": "cc47560339e62a533996b7b5d30c918784e86abf2e1ee9852b786497a8a6a196",
+        "MIN_fast_fix4_0c_word_clock_output_max.rpt": "c32dec041f3f7834d532a859f78c976e3120565fa1cb76843c9c70a6dba54ac2",
+        "4_slow_fix4_100c_word_clock_output_min.rpt": "504973a9c52cc2c519785c6871deda3f639d2cebc354493ff81a7265c75629cd",
+        "4_slow_fix4_100c_bit_clock_network_min.rpt": "44e494e2cf9b020f54ad87b46017a3b99be415bf2735a33b50c3ec9b412980bf",
+        "4_slow_fix4_100c_bit_clock_output_max.rpt": "f17d2a29e9f9be757777a75fdccce4e548bd08de655f405860568a7f2306342e"
+      },
+      "package_timing_admission": false,
+      "hardware_acceptance": false,
+      "PCB_timing_qualified": false,
+      "internal16K_exception_inherited": false
+    },
+    {
+      "clocks": {
+        "fes_audio_inst|clock|iopll_0_outclk0": {
+          "clock": "fes_audio_inst|clock|iopll_0_outclk0",
+          "period_ns": "81.379",
+          "waveform": "0.000 40.689 ",
+          "edges": "",
+          "master": "fes_audio_inst|clock|iopll_0|tennm_ph2_iopll|ref_clk0"
+        },
+        "de25_i2s_bit_clock": {
+          "clock": "de25_i2s_bit_clock",
+          "period_ns": "325.516",
+          "waveform": "81.379 244.137 ",
+          "edges": "3 7 11 ",
+          "master": "fes_audio_inst|clock|iopll_0_outclk0"
+        },
+        "de25_i2s_bit_clock_output": {
+          "clock": "de25_i2s_bit_clock_output",
+          "period_ns": "325.516",
+          "waveform": "81.379 244.137 ",
+          "edges": "",
+          "master": "de25_i2s_bit_clock"
+        },
+        "de25_i2s_word_clock": {
+          "clock": "de25_i2s_word_clock",
+          "period_ns": "20833.024",
+          "waveform": "10335.133 20751.645 ",
+          "edges": "255 511 767 ",
+          "master": "fes_audio_inst|clock|iopll_0_outclk0"
+        },
+        "de25_i2s_word_clock_output": {
+          "clock": "de25_i2s_word_clock_output",
+          "period_ns": "20833.024",
+          "waveform": "10335.133 20751.645 ",
+          "edges": "",
+          "master": "de25_i2s_word_clock"
+        }
+      },
+      "conditional_pin_budgets": [
+        {
+          "corner": "Fast fix4 0C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.707",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.590"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.294",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.269"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.325",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.275"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.399",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.335"
+        }
+      ],
+      "fitted_corner_count": 4,
+      "fitted_path_count": 32,
+      "fit": "primary-job",
+      "revision": "persona_b",
+      "producer": "aaf5155eed2f77683742f96d1a95ee83dfd4b235",
+      "descriptor_sha256": "4149fc8635c9ac21fe691a3aac6081e7c9caebca6b57b25b318fcbde67b7584b",
+      "source_closure_sha256": "b84e69c69be380fe326aa7a1daef115b1eace5aa8f1b614f7aff5032a3509563",
+      "command": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_sta",
+        "-t",
+        "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/audio-revisions.tcl",
+        "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/primary-job/project",
+        "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/primary-job/persona_b",
+        "persona_b"
+      ],
+      "report_sha256": {
+        "4_slow_fix4_100c_word_clock_output_max.rpt": "790cca0a5c7800b390f35bbdca57161b2c9b6fa12cf89a463d405fc6f4566672",
+        "4_slow_fix4_100c_bit_clock_network_max.rpt": "e1e3bacb0f7114eb93c8dfc123b7e5c16d38ed0969c72a17ff1409ba2479cbae",
+        "4_slow_fix4a_0c_bit_clock_network_max.rpt": "07f26fb4a31b41c6bb0c9db911b4b0e94b7a93a83b9e7b2eb98603f13ca707e5",
+        "4_slow_fix4a_0c_bit_clock_output_max.rpt": "1d21835d358a53770d4c4ef02c5b590cf7f41d512ee0a24662a920bf198a7c74",
+        "4_slow_fix4_100c_bit_clock_output_min.rpt": "7cb9563a425593b62354e7515bfb3e4f2414916409dd8a68664d380b6a7d9861",
+        "MIN_fast_fix4_0c_word_clock_output_min.rpt": "fc1b5bbb87666ecb1dcfce16282686ede8b043148beac3a8288c5963c1c18bfe",
+        "MIN_fast_fix4_0c_bit_clock_network_max.rpt": "bc28342863d3caa8f609f87dadaf2e6a8528e12f2fda1193457ca7087efd956d",
+        "4_slow_fix4_0c_bit_clock_output_min.rpt": "1e22856ed890adc343eac7995fbc543afb585e2e14c3156ba6ff734546aceeb1",
+        "4_slow_fix4_0c_word_clock_network_min.rpt": "2cc0d96c254b327f3311a7ccbaa54941a7cd3e3eaa7dfa20e4a1cd493143a129",
+        "MIN_fast_fix4_0c_word_clock_network_max.rpt": "84286674738e1fc168360fb0aa890a7f63558afd0556f1f51fc7ea112cd92163",
+        "4_slow_fix4a_0c_word_clock_output_min.rpt": "adcbd9e6792eb3f05a27c08ad8fcc9235befff4324c78e8193bcaa7868b789c7",
+        "4_slow_fix4a_0c_bit_clock_output_min.rpt": "3e1c16c5ae9aca9beb1ee4d4076634fd3e75751a6412366cfec6ea15903afa1c",
+        "4_slow_fix4a_0c_word_clock_network_min.rpt": "54b7422fe0562c8bb4a964c6f5f748d5eafdb6a5f2ba8187484a452f0b457d15",
+        "paths.tsv": "24e207f6cdbbfbe536c7f05f498cbdad69b29fb2d5d473c09c9155145e512e62",
+        "MIN_fast_fix4_0c_bit_clock_network_min.rpt": "aad681d677cbe7a559f60a761fe7fa04cd08cca31beaa83ea16767611c4ee8f2",
+        "4_slow_fix4_0c_word_clock_network_max.rpt": "e30895d4d34f0a19caecf17130fa7d15f4758929a23166dfaac45589494e691d",
+        "sta.log": "f01f2d169a650e71e0e35ad95394fa152579ec94f76e3e6237c29832064bae14",
+        "4_slow_fix4_100c_word_clock_network_min.rpt": "fd11f99c2447443b51845f92c45f6ca5ec30393bb303588e94c524f0fad632aa",
+        "MIN_fast_fix4_0c_bit_clock_output_max.rpt": "7bbc04382d0506299f1b5e20368d0f76b0100cd2ab9af85bdde9a54dd1ff7d23",
+        "4_slow_fix4_0c_bit_clock_network_max.rpt": "21e68ae9ea910008006997021e6dcfa8cf222bf8d341f44c8e81afeeac512e7c",
+        "MIN_fast_fix4_0c_bit_clock_output_min.rpt": "4b5734573d20c99f16e0b2eba5df9fb8baf2506a5d6fbd623c89f93a76e5f8ff",
+        "4_slow_fix4_0c_word_clock_output_max.rpt": "c5a69d185e45a612f59864c861fd3c5f613d22c627203600942982e72f54c75d",
+        "MIN_fast_fix4_0c_word_clock_network_min.rpt": "eb353ef2dbb326bf955d2928bb497ca185a217168daf00d1ef10e1b46d9a8bc8",
+        "4_slow_fix4_0c_bit_clock_network_min.rpt": "2174ce3a3bf4f07aa1d11ceee0740b094c85a34989bd9f38c6f997be1c29d572",
+        "4_slow_fix4a_0c_word_clock_output_max.rpt": "93df13b128476b275ec45f1b26481330a4819af27461f7d03d3289d459cdbeea",
+        "4_slow_fix4_0c_bit_clock_output_max.rpt": "8f69a4e25f77b9439c671e784af493aa3b20f9ef40b7af29e324c7932ecc53b1",
+        "4_slow_fix4_100c_word_clock_network_max.rpt": "e4f4987eba0fb96fa1daadbcdf53bae9d8d8dc73b28caac55acba087d6b91b98",
+        "4_slow_fix4_0c_word_clock_output_min.rpt": "4d96d52012be77baa8f7b6fc1e675275aed9a591374d995f7d6338faa4676d2d",
+        "4_slow_fix4a_0c_word_clock_network_max.rpt": "3a6fdd3a36113a6a7210ce36e40913bd6feaf97cec092480861a2b81639752f4",
+        "4_slow_fix4a_0c_bit_clock_network_min.rpt": "bb689c2281b8f39f4e16a4c1ef28cae57b0722c6ef580f2a7e11b8c9f4b5f0fa",
+        "clocks.tsv": "cc47560339e62a533996b7b5d30c918784e86abf2e1ee9852b786497a8a6a196",
+        "MIN_fast_fix4_0c_word_clock_output_max.rpt": "effc0b80f85ba7c4edf741de4c39ff0e960e71499747a99c8d8d19f3d593d5f7",
+        "4_slow_fix4_100c_word_clock_output_min.rpt": "351ab486a5b21ff3d3e3b0ad90cc72cfc4a8ba64f2eca00540d14a75cb5e20f5",
+        "4_slow_fix4_100c_bit_clock_network_min.rpt": "467f2daf3a64da6b7d2c31a1629d62edef39a5a53bd47a6c45efae25425d3431",
+        "4_slow_fix4_100c_bit_clock_output_max.rpt": "92e8a912d51c84b5588558f6cd0709443cf3e3f3f8c07fefb1a52286ecd40483"
+      },
+      "package_timing_admission": false,
+      "hardware_acceptance": false,
+      "PCB_timing_qualified": false,
+      "internal16K_exception_inherited": false
+    },
+    {
+      "clocks": {
+        "fes_audio_inst|clock|iopll_0_outclk0": {
+          "clock": "fes_audio_inst|clock|iopll_0_outclk0",
+          "period_ns": "81.379",
+          "waveform": "0.000 40.689 ",
+          "edges": "",
+          "master": "fes_audio_inst|clock|iopll_0|tennm_ph2_iopll|ref_clk0"
+        },
+        "de25_i2s_bit_clock": {
+          "clock": "de25_i2s_bit_clock",
+          "period_ns": "325.516",
+          "waveform": "81.379 244.137 ",
+          "edges": "3 7 11 ",
+          "master": "fes_audio_inst|clock|iopll_0_outclk0"
+        },
+        "de25_i2s_bit_clock_output": {
+          "clock": "de25_i2s_bit_clock_output",
+          "period_ns": "325.516",
+          "waveform": "81.379 244.137 ",
+          "edges": "",
+          "master": "de25_i2s_bit_clock"
+        },
+        "de25_i2s_word_clock": {
+          "clock": "de25_i2s_word_clock",
+          "period_ns": "20833.024",
+          "waveform": "10335.133 20751.645 ",
+          "edges": "255 511 767 ",
+          "master": "fes_audio_inst|clock|iopll_0_outclk0"
+        },
+        "de25_i2s_word_clock_output": {
+          "clock": "de25_i2s_word_clock_output",
+          "period_ns": "20833.024",
+          "waveform": "10335.133 20751.645 ",
+          "edges": "",
+          "master": "de25_i2s_word_clock"
+        }
+      },
+      "conditional_pin_budgets": [
+        {
+          "corner": "Fast fix4 0C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.707",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.590"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.294",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.269"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.325",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.275"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.399",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.335"
+        }
+      ],
+      "fitted_corner_count": 4,
+      "fitted_path_count": 32,
+      "fit": "independent-job",
+      "revision": "base",
+      "producer": "aaf5155eed2f77683742f96d1a95ee83dfd4b235",
+      "descriptor_sha256": "db68b230e2367dd20bed801f13424f1b2047118349737a5a2c623e5888691d44",
+      "source_closure_sha256": "7c3aeb91a5cdf04c4809ca58d5de452dfd84e01cbac24c3fe11bdb6f15c68b5d",
+      "command": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_sta",
+        "-t",
+        "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/audio-revisions.tcl",
+        "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/independent-job/project",
+        "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/independent-job/base",
+        "base"
+      ],
+      "report_sha256": {
+        "4_slow_fix4_100c_word_clock_output_max.rpt": "5c23b5a63fe7025f00319d579683c735dfec8dcd52ab590eb7e99f1858a7775d",
+        "4_slow_fix4_100c_bit_clock_network_max.rpt": "5a6759ba6f94c54e277d7944e411afe2026fcf8e40413127b6a485a4a290d404",
+        "4_slow_fix4a_0c_bit_clock_network_max.rpt": "1971d605a907b47680daa8623a79ba05cd42d7f2dfdfcfa5e46e7d121f375035",
+        "4_slow_fix4a_0c_bit_clock_output_max.rpt": "ba668e2c182067759054f0f7c8f6823c047b1d28fdc1be298e856c6298d175db",
+        "4_slow_fix4_100c_bit_clock_output_min.rpt": "8e264971ff41b40e5f0fac98a0e02c6fecd76e3a087a94bf951fc6e2a397253b",
+        "MIN_fast_fix4_0c_word_clock_output_min.rpt": "cfd1c96937011c571a617a01bb2a9b88bdeca8a189f37beb21f0333176f1d024",
+        "MIN_fast_fix4_0c_bit_clock_network_max.rpt": "000ce6d573357a557b5a0dad2343bea80977e5e7e5f080d0471ce3157f9e49dc",
+        "4_slow_fix4_0c_bit_clock_output_min.rpt": "a048835ece3b3f1caf531b758d76102307f6a24a8436522fdb2ace605e2b2804",
+        "4_slow_fix4_0c_word_clock_network_min.rpt": "c7467b7abb66bcf779449e5a3862bb83c18de86909e8c38b5b5c8c99c3ac4023",
+        "MIN_fast_fix4_0c_word_clock_network_max.rpt": "8e02f2858ceee2fa140b73cc68dd92c104502ca7870e6dc99a3c967fb5084459",
+        "4_slow_fix4a_0c_word_clock_output_min.rpt": "0a4302c4cd0e3a809f415238d14658a57dd9f8a0a3f11417e8f15e1ff26fba49",
+        "4_slow_fix4a_0c_bit_clock_output_min.rpt": "64fe642ee0d50383a240ceb284cc5f7ca489f5bb4707e85969705f2c9b1d073a",
+        "4_slow_fix4a_0c_word_clock_network_min.rpt": "7f1cd96f84b30d7857321b0c4f178bdc1af3c13f7fb5b268155cfc07a0deb487",
+        "paths.tsv": "24e207f6cdbbfbe536c7f05f498cbdad69b29fb2d5d473c09c9155145e512e62",
+        "MIN_fast_fix4_0c_bit_clock_network_min.rpt": "d3dcdd78c0a6e419e898b3aecf1073284af97a5be57b4344513409c9f390986a",
+        "4_slow_fix4_0c_word_clock_network_max.rpt": "d09b4c046def37695c1e777c179f90b571c76175810f5c649fabbe81fbc5f79d",
+        "sta.log": "2210436419cea2308aa25cc1fb1cf35a165b579fb0c73962732cffffab976f43",
+        "4_slow_fix4_100c_word_clock_network_min.rpt": "5e6ed7729e6bbbff826e772f5371f0b19bebc0a463654b1d669be8112a7c24d3",
+        "MIN_fast_fix4_0c_bit_clock_output_max.rpt": "ab824ac4e79ec9cd63c1cbc2593f97ad977850e9ecf6fd96cf55e3f48d55c600",
+        "4_slow_fix4_0c_bit_clock_network_max.rpt": "2367d357035fd07ec1c86bc821d1cc3fbf2d8e6cd18e4dba38c6bc55ba4142d5",
+        "MIN_fast_fix4_0c_bit_clock_output_min.rpt": "e7e185b167c4f38c111566eda13daf4e4e5982493652a206d2feb1eadead0ac1",
+        "4_slow_fix4_0c_word_clock_output_max.rpt": "416f78b56e3b8599ade63f5ce3b4ac00e12d650150f8e6c3fa2749a78d8aa7d3",
+        "MIN_fast_fix4_0c_word_clock_network_min.rpt": "7f76b05e1be030ee0cba550c165eef4c6367560f6a7bfe243bc4266807e6a60b",
+        "4_slow_fix4_0c_bit_clock_network_min.rpt": "e45c2f257d4629d0097e38e01260fc4fc3351249a4b590986ffe80d3481fd193",
+        "4_slow_fix4a_0c_word_clock_output_max.rpt": "f59904f0296f05263bf20fde8c0023972953bcb73b178941d2bb244a91b3a8c5",
+        "4_slow_fix4_0c_bit_clock_output_max.rpt": "8fedc71cd97eb5e0c80a165e074a173344ec918354d243fc8459c53ab2c6fb5a",
+        "4_slow_fix4_100c_word_clock_network_max.rpt": "00135c70d5b26b99afe038b237a16ace40477caa48968994adc3ee5ed31a0dee",
+        "4_slow_fix4_0c_word_clock_output_min.rpt": "1569f8c544e677feae224b0085ab066c24e974bac743f3600b54a05c0b1e7495",
+        "4_slow_fix4a_0c_word_clock_network_max.rpt": "8bfe1bb7e32f8679dac1aa9c1f0de890bca113b09d85c445da236a927ce4fe1e",
+        "4_slow_fix4a_0c_bit_clock_network_min.rpt": "f31834529bcf7abb9af3fc956d5e05a28e8a4e3572c366ce66d506fa55d63295",
+        "clocks.tsv": "cc47560339e62a533996b7b5d30c918784e86abf2e1ee9852b786497a8a6a196",
+        "MIN_fast_fix4_0c_word_clock_output_max.rpt": "249c814bd9fe07c846a732fd6273acc3d8ad928a3008e7cd04aba0443466df8a",
+        "4_slow_fix4_100c_word_clock_output_min.rpt": "b0cf29366e880a694c23bd69122853fe51606c4cae9e638a2ac8c09a7954ed24",
+        "4_slow_fix4_100c_bit_clock_network_min.rpt": "5d11dbf028f3ac992342cc05ebfbfd4712cfe85729e233e0cf1c1b8fe2d005cd",
+        "4_slow_fix4_100c_bit_clock_output_max.rpt": "c1d35cd6559855ded28d14141916be7aa674e005fd143fe511ecb196a363e2af"
+      },
+      "package_timing_admission": false,
+      "hardware_acceptance": false,
+      "PCB_timing_qualified": false,
+      "internal16K_exception_inherited": false
+    },
+    {
+      "clocks": {
+        "fes_audio_inst|clock|iopll_0_outclk0": {
+          "clock": "fes_audio_inst|clock|iopll_0_outclk0",
+          "period_ns": "81.379",
+          "waveform": "0.000 40.689 ",
+          "edges": "",
+          "master": "fes_audio_inst|clock|iopll_0|tennm_ph2_iopll|ref_clk0"
+        },
+        "de25_i2s_bit_clock": {
+          "clock": "de25_i2s_bit_clock",
+          "period_ns": "325.516",
+          "waveform": "81.379 244.137 ",
+          "edges": "3 7 11 ",
+          "master": "fes_audio_inst|clock|iopll_0_outclk0"
+        },
+        "de25_i2s_bit_clock_output": {
+          "clock": "de25_i2s_bit_clock_output",
+          "period_ns": "325.516",
+          "waveform": "81.379 244.137 ",
+          "edges": "",
+          "master": "de25_i2s_bit_clock"
+        },
+        "de25_i2s_word_clock": {
+          "clock": "de25_i2s_word_clock",
+          "period_ns": "20833.024",
+          "waveform": "10335.133 20751.645 ",
+          "edges": "255 511 767 ",
+          "master": "fes_audio_inst|clock|iopll_0_outclk0"
+        },
+        "de25_i2s_word_clock_output": {
+          "clock": "de25_i2s_word_clock_output",
+          "period_ns": "20833.024",
+          "waveform": "10335.133 20751.645 ",
+          "edges": "",
+          "master": "de25_i2s_word_clock"
+        }
+      },
+      "conditional_pin_budgets": [
+        {
+          "corner": "Fast fix4 0C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.707",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.590"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.294",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.269"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.325",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.275"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.399",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.335"
+        }
+      ],
+      "fitted_corner_count": 4,
+      "fitted_path_count": 32,
+      "fit": "independent-job",
+      "revision": "persona_a",
+      "producer": "aaf5155eed2f77683742f96d1a95ee83dfd4b235",
+      "descriptor_sha256": "db68b230e2367dd20bed801f13424f1b2047118349737a5a2c623e5888691d44",
+      "source_closure_sha256": "7c3aeb91a5cdf04c4809ca58d5de452dfd84e01cbac24c3fe11bdb6f15c68b5d",
+      "command": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_sta",
+        "-t",
+        "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/audio-revisions.tcl",
+        "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/independent-job/project",
+        "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/independent-job/persona_a",
+        "persona_a"
+      ],
+      "report_sha256": {
+        "4_slow_fix4_100c_word_clock_output_max.rpt": "f33db965906af86bb29cae8b818cda6fc487fc43460d90f999ace6602d076d74",
+        "4_slow_fix4_100c_bit_clock_network_max.rpt": "e72579af543b7de505be54195bd2c9b3e395be0d5c977a62d8b05a74ed6cad4d",
+        "4_slow_fix4a_0c_bit_clock_network_max.rpt": "f3b087ddd12c6308a478dc9644efbd2e12e4f12cd240c787769e22f9f1b36cac",
+        "4_slow_fix4a_0c_bit_clock_output_max.rpt": "25c00ab479a20b344a6be8a9158f57383d910a828149942c3307dbdbb8bdf398",
+        "4_slow_fix4_100c_bit_clock_output_min.rpt": "d8ba9d23e6d1d49ec648306b95f5dd4422a212ab4db132104e8af57727b035b8",
+        "MIN_fast_fix4_0c_word_clock_output_min.rpt": "280031638c2bed85ebb4c8400ae1850cc2777fd7846a2f04bdd0e1469b1bcdc9",
+        "MIN_fast_fix4_0c_bit_clock_network_max.rpt": "c10f95b3c528a7bfd27052b9e36836159f5e280c97f9f5834732d44421f544ca",
+        "4_slow_fix4_0c_bit_clock_output_min.rpt": "f4b9f8a95b721bd1cfcb7f882a73f67e67676a68dfe03dcfedcaabe37498b429",
+        "4_slow_fix4_0c_word_clock_network_min.rpt": "7938aff461bdd7f892238b3417713225c08962f169cead8686189ca5b13e1739",
+        "MIN_fast_fix4_0c_word_clock_network_max.rpt": "96f568d22a04dfc49d9ab5e75ecb4a998de373b77695cc61820303d5e38d0a52",
+        "4_slow_fix4a_0c_word_clock_output_min.rpt": "2dcd73a6b39d742211503886ece1942c7f58cdb00ce34dbdb39123e751330e77",
+        "4_slow_fix4a_0c_bit_clock_output_min.rpt": "8aeb3cd56290408644d2da5beb62631d53cc58616064cab805947b1acf91c0be",
+        "4_slow_fix4a_0c_word_clock_network_min.rpt": "23065ca0260aa6ce4a92d6e9dc34a87dd07e650f0a6afa0fd2c6e356f5b3382f",
+        "paths.tsv": "24e207f6cdbbfbe536c7f05f498cbdad69b29fb2d5d473c09c9155145e512e62",
+        "MIN_fast_fix4_0c_bit_clock_network_min.rpt": "39e75150791e5bd41ff16387726e96ffb96baa4dbc5e903863e545fbf5b1d1e2",
+        "4_slow_fix4_0c_word_clock_network_max.rpt": "0c740fbc5a8413ece950ec046ca33879948e2c7dad0ddc89710a89f074d6dff5",
+        "sta.log": "09aba323b625b30693e9c4a4fd3ec6b2d10fd3216ce9e05480e7e4010825a054",
+        "4_slow_fix4_100c_word_clock_network_min.rpt": "2f4c3b729763990b057f9d7de12f3202cec6a3edd5915d4ffaf59a3ce677d613",
+        "MIN_fast_fix4_0c_bit_clock_output_max.rpt": "46dcf9b13bd62bbd9429388699b75c5db9c640bf6a4d1f91d6e42a0f2ca9ab56",
+        "4_slow_fix4_0c_bit_clock_network_max.rpt": "0af19df7607eea073e9112e4f6a7010a395c7f48d455f3dcbbccbd581659fbb7",
+        "MIN_fast_fix4_0c_bit_clock_output_min.rpt": "4e506f4fb204b0619015b0c5dcb1185946d17efacffa02c9d9d27672e0c12b1c",
+        "4_slow_fix4_0c_word_clock_output_max.rpt": "4a09c880c738ef05ce61ea5953cc75e118ffd7e7aeb96314d511d444ded31b87",
+        "MIN_fast_fix4_0c_word_clock_network_min.rpt": "c3fdcce31656a34ba04cf98f69476548925927b19f60b084c62e50c58055f152",
+        "4_slow_fix4_0c_bit_clock_network_min.rpt": "bc7974398d0b3516d117f61da72fee4fdeab7693e84a93ba20664265d3b0cee8",
+        "4_slow_fix4a_0c_word_clock_output_max.rpt": "6c6001ce4e30b646f67ccf6948ef3d22b7c93d842edd2203713e34154f92cfaa",
+        "4_slow_fix4_0c_bit_clock_output_max.rpt": "94cadbe52bc5da0f1d232d5087e2e37276ab3cfe2bfe6c740bd684f58616cac6",
+        "4_slow_fix4_100c_word_clock_network_max.rpt": "4cbbc813012f93b11d3e3aa35eaed75d7e721ed476e587772448ab6d1495653e",
+        "4_slow_fix4_0c_word_clock_output_min.rpt": "f07ec466f02a942bbe287f95746aa09d95f7c1e51fd541d085d94c894e196c2c",
+        "4_slow_fix4a_0c_word_clock_network_max.rpt": "86b62ce23b20b6d0ca3eac41554c1a3626d1d9eee73b77cbc5e7fcf89836da7c",
+        "4_slow_fix4a_0c_bit_clock_network_min.rpt": "2fc723dac1032ba84042d02a5165da83fd3b6556fb65f0b14b020ecfbfd985f8",
+        "clocks.tsv": "cc47560339e62a533996b7b5d30c918784e86abf2e1ee9852b786497a8a6a196",
+        "MIN_fast_fix4_0c_word_clock_output_max.rpt": "7228f4c9f68b1f0c8ffe885bdd346636905c06a8694295b29da133936b3be3cc",
+        "4_slow_fix4_100c_word_clock_output_min.rpt": "543be0c950d1e19c373728e675a9cfafc852a426c9d7ea3d089cd65e3a4fa471",
+        "4_slow_fix4_100c_bit_clock_network_min.rpt": "84b68a7f8521dab42ce7c03a2f94252cbfb1a6ef50f2ac57be7973bcf6076381",
+        "4_slow_fix4_100c_bit_clock_output_max.rpt": "9405d19ec34c3c339da3eca91a64189b318fbbb4a1a0206e7dc9f8115e957d72"
+      },
+      "package_timing_admission": false,
+      "hardware_acceptance": false,
+      "PCB_timing_qualified": false,
+      "internal16K_exception_inherited": false
+    },
+    {
+      "clocks": {
+        "fes_audio_inst|clock|iopll_0_outclk0": {
+          "clock": "fes_audio_inst|clock|iopll_0_outclk0",
+          "period_ns": "81.379",
+          "waveform": "0.000 40.689 ",
+          "edges": "",
+          "master": "fes_audio_inst|clock|iopll_0|tennm_ph2_iopll|ref_clk0"
+        },
+        "de25_i2s_bit_clock": {
+          "clock": "de25_i2s_bit_clock",
+          "period_ns": "325.516",
+          "waveform": "81.379 244.137 ",
+          "edges": "3 7 11 ",
+          "master": "fes_audio_inst|clock|iopll_0_outclk0"
+        },
+        "de25_i2s_bit_clock_output": {
+          "clock": "de25_i2s_bit_clock_output",
+          "period_ns": "325.516",
+          "waveform": "81.379 244.137 ",
+          "edges": "",
+          "master": "de25_i2s_bit_clock"
+        },
+        "de25_i2s_word_clock": {
+          "clock": "de25_i2s_word_clock",
+          "period_ns": "20833.024",
+          "waveform": "10335.133 20751.645 ",
+          "edges": "255 511 767 ",
+          "master": "fes_audio_inst|clock|iopll_0_outclk0"
+        },
+        "de25_i2s_word_clock_output": {
+          "clock": "de25_i2s_word_clock_output",
+          "period_ns": "20833.024",
+          "waveform": "10335.133 20751.645 ",
+          "edges": "",
+          "master": "de25_i2s_word_clock"
+        }
+      },
+      "conditional_pin_budgets": [
+        {
+          "corner": "Fast fix4 0C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.707",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.590"
+        },
+        {
+          "corner": "Slow fix4 0C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.294",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.269"
+        },
+        {
+          "corner": "Slow fix4 100C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.325",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.275"
+        },
+        {
+          "corner": "Slow fix4a 0C Model",
+          "setup_budget_before_unmodeled_skew_and_jitter_ns": "159.399",
+          "hold_budget_before_unmodeled_skew_and_jitter_ns": "159.335"
+        }
+      ],
+      "fitted_corner_count": 4,
+      "fitted_path_count": 32,
+      "fit": "independent-job",
+      "revision": "persona_b",
+      "producer": "aaf5155eed2f77683742f96d1a95ee83dfd4b235",
+      "descriptor_sha256": "db68b230e2367dd20bed801f13424f1b2047118349737a5a2c623e5888691d44",
+      "source_closure_sha256": "7c3aeb91a5cdf04c4809ca58d5de452dfd84e01cbac24c3fe11bdb6f15c68b5d",
+      "command": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_sta",
+        "-t",
+        "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/audio-revisions.tcl",
+        "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/independent-job/project",
+        "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/independent-job/persona_b",
+        "persona_b"
+      ],
+      "report_sha256": {
+        "4_slow_fix4_100c_word_clock_output_max.rpt": "2418632c7f09134a88b8b729dbb947c6227cf66cbeff9bb37bd376f0db98b16b",
+        "4_slow_fix4_100c_bit_clock_network_max.rpt": "01339d9e70d4796bccb54483686d1df4bc0dc4ba3802447d7a062a847905ad97",
+        "4_slow_fix4a_0c_bit_clock_network_max.rpt": "c36c3268909e4fb0f8286592e3c6c75809e03dbf08846048129f9b98f7611eb8",
+        "4_slow_fix4a_0c_bit_clock_output_max.rpt": "2f3e6827a355a19a262b51326e3853dbc9f406579a0f717dc1419fa99d1f2eea",
+        "4_slow_fix4_100c_bit_clock_output_min.rpt": "c496cec6977f181403f9a5e57f3e04d21bfbf19c9a300afa397cb2b9450b9634",
+        "MIN_fast_fix4_0c_word_clock_output_min.rpt": "8cce9d68ee03de702b2bc6f675cfc39719f694eb9cb8d089219c080808c54a45",
+        "MIN_fast_fix4_0c_bit_clock_network_max.rpt": "4dde7e3cae28c6e0c36164caeffb332dfd4cf05fce718e91ce18695a7453f815",
+        "4_slow_fix4_0c_bit_clock_output_min.rpt": "9b20091554568c83c111212f7be1f433113ca3eb558b5d81370189d270239dd6",
+        "4_slow_fix4_0c_word_clock_network_min.rpt": "7bbdeedbcb20203fba10c37872e714bf764bd76279d5476fe573927d932001a7",
+        "MIN_fast_fix4_0c_word_clock_network_max.rpt": "163c96b095ea3868adf6ddcce9b26a042f6660b94a1b060952ad34cf2e1cc367",
+        "4_slow_fix4a_0c_word_clock_output_min.rpt": "5d9ea4b88b35c378e280ee5c9c61f573f54ecf160138e81f099714cd47867874",
+        "4_slow_fix4a_0c_bit_clock_output_min.rpt": "20453367de02d6e7636207d9c217751d2ff481b9ef4042e40e3126d0c22d5bab",
+        "4_slow_fix4a_0c_word_clock_network_min.rpt": "17b4b5ecdb732f7507fb13fc160deef5f76998d8701de12afb0193107cbfbb5b",
+        "paths.tsv": "24e207f6cdbbfbe536c7f05f498cbdad69b29fb2d5d473c09c9155145e512e62",
+        "MIN_fast_fix4_0c_bit_clock_network_min.rpt": "3f183d4abede8674d2a12d6e8c4f4e11506023a43efcb376be6a96d94ae5a50b",
+        "4_slow_fix4_0c_word_clock_network_max.rpt": "1227b8565fbe9e8353ee1e287660f849565793f0fefdecf3f291a63a626c34ec",
+        "sta.log": "a9688e08a42fe686a4155cdced53cfb4a2c3bbae9d48f6cb195212b83251a8d0",
+        "4_slow_fix4_100c_word_clock_network_min.rpt": "6595e34d8a3220c4846446b4b9ddf57a72c9f48f03e4b796226c89566df2ffda",
+        "MIN_fast_fix4_0c_bit_clock_output_max.rpt": "9b99d5aa0e89d0c96cfe01ed33db87eb4e3e3723bb4c99a447a6d5aed3ad8338",
+        "4_slow_fix4_0c_bit_clock_network_max.rpt": "b4a3f181ff4cda4d4bd8627ec39f6c887ccc59f34781a66caef7fc4acad44a7f",
+        "MIN_fast_fix4_0c_bit_clock_output_min.rpt": "8ffd137fd6241ef9c894e8410f04b19ed173e457d2c60e21e27672450150c222",
+        "4_slow_fix4_0c_word_clock_output_max.rpt": "056ff9e50c96000d896647b043184a79fa901e3e03f81d52b1d9c58c6c5accda",
+        "MIN_fast_fix4_0c_word_clock_network_min.rpt": "ebe53631f567c3ca8dc2161721912ceedbe2ff0dc9064ac8528d2276e5929cdc",
+        "4_slow_fix4_0c_bit_clock_network_min.rpt": "0e06c23a8643d9131cbe889b6f064041fb95bd91f3be34faa469bf12aec0fc36",
+        "4_slow_fix4a_0c_word_clock_output_max.rpt": "d07de23bc73ff46d27ac85beffb43b77020d4d7ec777e5c6bb3164e7b65e0a9c",
+        "4_slow_fix4_0c_bit_clock_output_max.rpt": "a459db4054c3e5ca1679d7dbdd6a6c9c1c6a6fe05b1584c1594a0086c467ebbb",
+        "4_slow_fix4_100c_word_clock_network_max.rpt": "8df954a3ff7dddd3ad5c1338b79fd35dc08aa092addbb7b73380c5a20fd71ccb",
+        "4_slow_fix4_0c_word_clock_output_min.rpt": "71fd8464f4c563ad5bafd413384de598703193dacb6614bcbe12f107a68b912e",
+        "4_slow_fix4a_0c_word_clock_network_max.rpt": "244da1331de74a5167e6efc9fb967052d6d9612a3001fd82c6c86fd63f4fd857",
+        "4_slow_fix4a_0c_bit_clock_network_min.rpt": "adf26d95586aa2150b81056cc84e540871ed6e1e11ab1c8125bb7028c0978581",
+        "clocks.tsv": "cc47560339e62a533996b7b5d30c918784e86abf2e1ee9852b786497a8a6a196",
+        "MIN_fast_fix4_0c_word_clock_output_max.rpt": "181a22ad87044f2c1f5a2d927cda04fcde6b217bb289b157179d2465147ec7a3",
+        "4_slow_fix4_100c_word_clock_output_min.rpt": "78ce91cae3a35623dc2abd5f0281c702634c1fbe2299e822da5a3122c3ef85fe",
+        "4_slow_fix4_100c_bit_clock_network_min.rpt": "b5e215227831d17536815209702a1c6c9df0b6a9d121392b8cf9b27ca9818a7a",
+        "4_slow_fix4_100c_bit_clock_output_max.rpt": "5865ac69e9b4ca24a2a195c2eaf1a7ca49ba5b69bf5d91f4ca05165cdfc774ff"
+      },
+      "package_timing_admission": false,
+      "hardware_acceptance": false,
+      "PCB_timing_qualified": false,
+      "internal16K_exception_inherited": false
+    }
+  ],
+  "tool_sha256": {
+    "/data/altera_pro/26.3/quartus/bin/quartus_sta": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+    "/data/fes-de25-standard-pr-openrom-aaf-20261105/source/sources/misteross/scripts/review_de25_audio_clocks.py": "1eb186c2b9965428b608385a3b7c76f75e564349b341257964cc62346c65ad9c",
+    "/data/fes-de25-standard-pr-openrom-aaf-20261105/source/sources/misteross/boards/de25nano/scanout/audio_clocks.tcl": "8295a64c71cf0b0a10ee71684ce4f74119431dc98e05c8cf6875cba636bbf953",
+    "/data/fes-de25-standard-pr-openrom-aaf-20261105/audio-observations-job/audio-revisions.tcl": "dd98ee1275163c31805b95bd05cdd03848ef13c629baefc445d11f4b31038a61"
+  },
+  "original_internal16K_gate": "Not invoked, bypassed or changed. Existing clock-report parser used only for engineering observations.",
+  "derivation": "Only project_open selects actual fes_link_proof revision; no SDC clock/delay/exception changes. All runs use owned full project copies.",
+  "original_fits_unchanged": true,
+  "raw_design_closure": "Remains failed; all findings retained",
+  "independent_PCB_timing_qualified": false,
+  "package_admission": false,
+  "hardware_acceptance": false,
+  "limitations": [
+    "Unmodeled PCB differential trace delay",
+    "Unaccounted jitter and uncertainty",
+    "Signal integrity",
+    "Live PCM data requires its own existing source/fit checks; clock observations alone do not qualify it"
+  ]
+}

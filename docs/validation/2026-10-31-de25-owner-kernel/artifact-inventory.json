@@ -1,0 +1,61 @@
+{
+  "location": "/home/deano/fes/out/artifacts/de25-owner-kernel/2c8df6e7ee61e8ad03e828522908c4da667867f4",
+  "files": {
+    "Image": {
+      "size": 46701056,
+      "sha256": "afdc8afe9f1a77f7fcd4285c7e170c5c618f811384ff3f79a183289f3906f9b9"
+    },
+    "SHA256SUMS": {
+      "size": 1055,
+      "sha256": "e9fa015568e92fba67e40de3835e30630e86e5a525776b46d80689c9c2e4da8d"
+    },
+    "System.map": {
+      "size": 7649154,
+      "sha256": "535c3b403ea1d7adc1e3314e30449e05c50393bfb841e6ca098c1980184a8a98"
+    },
+    "build-job.json": {
+      "size": 229,
+      "sha256": "b50abfb9e1cd10bfc8b6db3c3738d7cb785943a6c436e3ef48b3ad1e61bdc2e8"
+    },
+    "config.diff": {
+      "size": 2673,
+      "sha256": "eaf220e36611d7cfde66cb8bb7e499e3277f11ef9fcbd9e3f8147627eadc4d8a"
+    },
+    "control-without-owner.dtb": {
+      "size": 28690,
+      "sha256": "4698fbcab78c283b6228e9ec870b076fc10e4881d3fbc7b0824a8c30057baa06"
+    },
+    "de25-owner.dtb": {
+      "size": 28907,
+      "sha256": "d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7"
+    },
+    "dtb-negative-control.json": {
+      "size": 426,
+      "sha256": "58d4245612c3218ab21ff4b5543a6082f30892f6b042e6abe96f78d8924fb520"
+    },
+    "inputs.json": {
+      "size": 2878,
+      "sha256": "530879185e4b1eae57592b2319b53e251f2d76ec32c63190bf71ff56ca12925e"
+    },
+    "kernel-build.json": {
+      "size": 2857,
+      "sha256": "7417423df42809bc145d4714b720c70c475f4bfae768104bbd35fdc0687e026f"
+    },
+    "kernel.config": {
+      "size": 301866,
+      "sha256": "cec5f0d7e0713a6cb7082402e4cbbfa9bd5893569d6893c076ea0766751d253e"
+    },
+    "vendor.config": {
+      "size": 301969,
+      "sha256": "3ec2812cffb3c37bf677941283c9b65c3f5620b519cb58a4ded5f230cadbcdf7"
+    },
+    "verify-tree": {
+      "size": 62184,
+      "sha256": "51b1f3ed9de63e29e6131f3972f80323a5bba3804710da9af0ecb5825b611a95"
+    },
+    "vmlinux.symvers": {
+      "size": 793261,
+      "sha256": "46c30ddfe0c980f2cf6bb1aa10b71362d9dcbec75a564e3df2590d3083e747a1"
+    }
+  }
+}

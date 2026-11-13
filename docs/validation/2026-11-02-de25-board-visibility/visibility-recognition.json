@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "source_revision": "7656e1954f7e27d0dc3634f60e869f97cf14301d",
+  "fitted_stage_recognition": {
+    "visible_sync": "1,2",
+    "visibility_epoch_sync": "1,2",
+    "visibility_ack_sync": "1,2",
+    "active_sync": "1,2"
+  },
+  "evidence_sha256": "e34315f020abbcd6666bffd88b32b511ff64c00ed1fa24b5cc54a0c28f8973fb",
+  "scope": "Actual fitted identification as first/second stages; no physical MTBF or native acceptance"
+}

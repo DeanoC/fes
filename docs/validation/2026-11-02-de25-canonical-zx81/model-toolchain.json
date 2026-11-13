@@ -1,0 +1,14 @@
+{
+  "status": "pass",
+  "classification": "Actual imported image ID with byte-identical root filesystem; all execution settings and both SDK compilers checked, no image-ID alias",
+  "builder_image": "sha256:039368530ae61c5ae9c029c39dcff85d739fd8c45c9c7057e65264410aacac46",
+  "source_builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+  "SDK_snapshot_sha256": "515c2143f1e7c23bf84849d0df2568473e20d54365670a1d43b6a21fb242de7a",
+  "SDK_compiler_sha256": [
+    "7af69c8ea2248a756f2b697992e9ff6207a7392c499551f8c18536da7f29d799",
+    "29f631250421bf3c2fbe113fadf1cc1b89e8714c3530a43db06b507ada50145f"
+  ],
+  "qemu_sha256": "4f55e2e88dc05dc0f619562d5795b8eb25ed2ad2547504fb4835207a6911c350",
+  "SDK_volume": "fes-de25-zx81-proof-6008eb094",
+  "hardware_access": "not-performed"
+}

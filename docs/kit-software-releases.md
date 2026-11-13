@@ -58,11 +58,28 @@ and debugger helpers that also match `*.so*` are excluded; a dynamic dependency
 on an excluded file is unresolved and refused. Library/symbol closure and the
 existing ban on embedded runtime search paths apply to both targets.
 
-This adds AArch64 ABI validation to the existing bundle-update packer. The
-standalone cross-build producer and factory-image assembler still select DE10;
-DE25 SDK selection, factory bundle assembly, physical runtime/MENU binding and
-an actual managed update remain integration work. No daemon admission or
+The factory assembler also accepts explicit `--board de25-nano`. It validates
+AArch64 executables and the base ELF closure, seals the same immutable bundle
+and menu requirements, and rejects a DE10 window-driver input. DE25 uses its
+built-in DMA owner. DE10 keeps its required versioned window module. The
+selected MENU package must target the chosen board before bundle assembly;
+the runtime's interface records cover both board-specific contracts. The
+standalone cross-build producer accepts explicit DE25 selection with a retained
+headless-image or managed-base SDK. A managed SDK is authenticated against its
+actual Git producer, allowing later software changes to reuse the immutable
+base. It checks the complete artifact set, current kernel policy, board, configuration and
+archive, then extracts and relocates a private copy in the matched builder.
+Go targets ARM64 v8.0 while the pack helper stays on amd64. DE25 builds no
+window module. Complete image/bootstrap wiring, physical runtime/MENU binding
+and an actual managed update remain integration work. No daemon admission or
 supervisor compatibility rule is relaxed by this change.
+
+The base-image platform producer also builds the stable software supervisor
+and Bluetooth helper with explicit `aarch64` selection. Their ELF validator
+requires ELF64/AArch64, an executable entry in a load segment and no dynamic
+loader; ARMv7 remains an explicit separate target. This adds build support for
+those base services, without changing appliance release board admission or
+the current ARMv7 boot-selector recipe.
 
 ## Image compatibility
 
@@ -76,9 +93,23 @@ are required too. Beside its base interfaces, a bundle manifest lists the
 runtime binary's `.fes_menu_interfaces` section, which
 `sources/libmister-runtime/src/native/menu_admission.hpp` defines next to
 `CheckMenu`. A bundle accepts a required interface when it lists the same major
-version and at least the required minor. Supervisors that predate these keys
-ignore them, so a newer bundle still installs and runs on an older image. The
-image build fails when its own factory runtime does not accept its menu.
+version and at least the required minor, except DE25 allocated scanout, which
+requires the exact minor. Scanout1.3 also adds its exact cohort to the DE25 base
+ABI identity, so an older immutable supervisor refuses the newer-only runtime
+before its older additive minor rule could admit it. DE10 identity and other
+interface rules are unchanged. The image build fails when its own factory
+runtime does not accept its menu.
+
+A scanout1.2-to1.3 transition requires a coherent new DE25 factory image,
+matching kernel, MENU/ordinary-core packages and runtime. A1.3-only software
+bundle cannot be prepared against the old1.2 base; there is no assumed bridge
+bundle or software-before-image route. The existing boot resolver retains an
+incompatible durable selection and its generation, holds it back and starts
+the new image's matching factory. The reverse image transition likewise uses
+that image's factory. These are source-tested resolver rules; actual image
+update admission and native fallback must be verified with the newly built
+artifacts before selecting a deployment path. A refused update must not be
+bypassed or relabelled as successful factory fallback.
 
 The base contract includes both the system-library ABI and the supervisor's
 launcher invocation ABI. The local-host launcher uses the v2 contract; an older
@@ -576,7 +607,7 @@ acceptance for a new bundle.
 On Linux amd64, retain the verified `linux.img` and its reviewed SHA-256 from the
 appliance release manifest. Keep the matching verified SDK cache from that image
 build, or set `FES_TARGET_IMAGE_SHARED_CACHE` to its absolute cache path. An empty
-cache is filled with `make kit-sdk`, which publishes the current image key's SDK
+DE10 cache is filled with `make kit-sdk`, which publishes the current image key's SDK
 at `$FES_TARGET_IMAGE_SHARED_CACHE/toolchains/<key>/` (or the checkout toolchain
 cache when the variable is unset). That command uses the pinned Buildroot
 sources, target-image builder, `fogcast_toolchain.fragment` and key that
@@ -620,6 +651,70 @@ It also refuses a runtime that does not accept every interface the base
 image's menu requires, and lists the runtime's menu interfaces in the bundle
 manifest.
 The supplied image stays unchanged.
+
+For a DE25 software update, select the board and retain the output directory of
+the matching verified image build. Import its compiler first, then build the
+software against the reviewed managed factory base:
+
+```sh
+make kit-sdk \
+  BOARD=de25-nano \
+  DE25_IMAGE=/absolute/path/verified-de25-image
+
+make kit-software \
+  BOARD=de25-nano \
+  DE25_IMAGE=/absolute/path/verified-de25-image \
+  KIT_SOFTWARE_BASE=/absolute/path/managed-de25-rootfs.img \
+  KIT_SOFTWARE_BASE_SHA256=REVIEWED_IMAGE_SHA256 \
+  KIT_SOFTWARE_VERSION=de25-dev.1
+```
+
+The base must already be a managed DE25 image with authenticated factory
+software, its base contract and MENU requirements. Both the headless bring-up
+image and the managed-base intermediate can supply an SDK; neither has the
+factory metadata needed to accept an update bundle. A verified managed-factory
+output may also supply the SDK. SDK choice does not establish kernel, MENU,
+hardware or update acceptance. Both targets retain the same reviewed-base hash, ELF/library,
+interface and immutable-publication checks.
+
+DE25 authenticates the selected image and original Git producer on every SDK
+request, then caches the exact original archive under
+`$FES_TARGET_IMAGE_SHARED_CACHE/toolchains/<key>/`. Without that override it
+uses the standard shared cache's `target-image/toolchains/<key>/`. The key
+binds archive SHA-256, board and architecture; identical bytes can share the
+cache while receipts retain the actual selected producer, profile, kernel and
+rootfs identities. A cache hit cannot replace missing or invalid source-image
+authority. Missing/corrupt cached bytes are imported again from that verified
+source. Cache `host.tar` and its hash receipt retain the original compressed
+archive bytes; the existing builder checks a private copy, extracts its original
+root and relocates that private SDK. No shared relocated toolchain is executed.
+
+`KIT_SOFTWARE_BOARD` defaults to `BOARD`, and `KIT_SOFTWARE_DE25_IMAGE` and
+`KIT_SDK_DE25_IMAGE` default to `DE25_IMAGE`; explicit overrides remain available.
+DE10 stays the default. Supplying a DE25 image without independently selecting
+DE25 is refused. The [SDK workflow record](validation/2026-11-02-de25-sdk-workflow/README.md)
+contains actual Make import/cache-hit, normal runtime and Cortex-A76 QEMU
+evidence. Complete factory/update publication and native kit acceptance remain
+open.
+
+Static-expansion qualification software is an explicit opt-in:
+add `KIT_SOFTWARE_DE25_STATIC_EXPANSION=1` to the DE25 command above
+(direct CLI: `--de25-static-expansion 1`). The default is `0`; other values
+and enabling it for DE10 are refused. The producer ignores an ambient
+`ENABLE_DE25_STATIC`, passes the selected value explicitly to the runtime
+build, and records it in `receipt.json` as `runtime_make_variables` and in
+the toolchain record. Ordinary factory/source builds still select `0`.
+An enabled software build does not qualify a persona or install a kernel.
+The runtime also requires the matching `de25-cold-persona-retained-v1` kernel
+contract, qualified packages and separate physical acceptance. Selection is
+static: Stop, then launch a fresh full base with the chosen persona.
+
+DE25 partial-persona hardware loading is currently unsupported because it can
+leave Linux unresponsive ([#1568](https://github.com/DeanoC/fes/issues/1568)).
+Use the default-off software and an ordinary ZX81 catalog for development.
+Deano waived expansion acceptance as a blocker for the ordinary development-kit
+milestone; the [scoped waiver and physical control](validation/2026-11-08-de25-ordinary-dev-kit/README.md)
+do not qualify partial loading or diagnostic firmware.
 
 The default output is the new directory `out/kit-software/<version>/`, containing
 `bundle.tar` and `receipt.json`. Override the directory with

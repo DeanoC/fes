@@ -1,0 +1,205 @@
+{
+  "cases": [
+    {
+      "command": [
+        "/usr/bin/python3",
+        "scripts/build.py",
+        "verify",
+        "--board",
+        "de25-nano",
+        "--output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base"
+      ],
+      "environment_overrides": {},
+      "expected_refusal": "actual managed-factory receipt",
+      "name": "verify-intermediate",
+      "returncode": 1,
+      "stderr": "fes: DE25 release requires an actual managed-factory receipt\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "make",
+        "verify",
+        "BOARD=de25-nano",
+        "IMAGE_OUTPUT=/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base"
+      ],
+      "environment_overrides": {},
+      "expected_refusal": "actual managed-factory receipt",
+      "name": "make-verify-intermediate",
+      "returncode": 2,
+      "stderr": "fes: DE25 release requires an actual managed-factory receipt\nmake: *** [Makefile:57: verify] Error 1\n",
+      "stdout": "IMAGE_PASSES=\"1\" python3 scripts/build.py verify --board \"de25-nano\" --profile \"de25-nano\"    --output \"/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base\"\n"
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "scripts/image_artifacts.py",
+        "export",
+        "--board",
+        "de25-nano",
+        "--image-output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base",
+        "--output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-image-entrypoints/rejected-export"
+      ],
+      "environment_overrides": {},
+      "expected_refusal": "actual managed-factory receipt",
+      "name": "export-intermediate",
+      "returncode": 1,
+      "stderr": "Traceback (most recent call last):\n  File \"/home/deano/fes/out/dev/de25-managed-image/out/work/de25-image-entrypoints-c1152ba3c/scripts/image_artifacts.py\", line 262, in <module>\n    main()\n    ~~~~^^\n  File \"/home/deano/fes/out/dev/de25-managed-image/out/work/de25-image-entrypoints-c1152ba3c/scripts/image_artifacts.py\", line 253, in main\n    export(args.image_output, args.output, board=args.board)\n    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/deano/fes/out/dev/de25-managed-image/out/work/de25-image-entrypoints-c1152ba3c/scripts/image_artifacts.py\", line 186, in export\n    return de25_appliance.export_artifacts(Path(__file__).resolve().parents[1], image_output, output)\n           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/deano/fes/out/dev/de25-managed-image/out/work/de25-image-entrypoints-c1152ba3c/scripts/de25_appliance.py\", line 131, in export_artifacts\n    rootfs, _, provenance, _, _, selected = verified_inputs(root, PROFILE, directory)\n                                            ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/deano/fes/out/dev/de25-managed-image/out/work/de25-image-entrypoints-c1152ba3c/scripts/de25_appliance.py\", line 55, in verified_inputs\n    raise ValueError('DE25 release requires an actual managed-factory receipt')\nValueError: DE25 release requires an actual managed-factory receipt\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "scripts/build.py",
+        "image",
+        "--profile",
+        "de25-nano"
+      ],
+      "environment_overrides": {},
+      "expected_refusal": "independently selected board",
+      "name": "profile-cannot-select-board",
+      "returncode": 1,
+      "stderr": "fes: image profile differs from independently selected board\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "scripts/build.py",
+        "image",
+        "--board",
+        "de25-nano",
+        "--profile",
+        "native-integration-dev"
+      ],
+      "environment_overrides": {},
+      "expected_refusal": "independently selected board",
+      "name": "foreign-profile",
+      "returncode": 1,
+      "stderr": "fes: image profile differs from independently selected board\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "scripts/build.py",
+        "image",
+        "--board",
+        "de25-nano",
+        "--output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-image-entrypoints/rejected-factory"
+      ],
+      "environment_overrides": {},
+      "expected_refusal": "requires --kernel, --sdk and --artifacts",
+      "name": "missing-inputs",
+      "returncode": 1,
+      "stderr": "fes: DE25 image assembly requires --kernel, --sdk and --artifacts\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "scripts/build.py",
+        "image",
+        "--board",
+        "de25-nano"
+      ],
+      "environment_overrides": {
+        "IMAGE_PASSES": "2"
+      },
+      "expected_refusal": "one actual image-build pass",
+      "name": "invented-two-pass",
+      "returncode": 1,
+      "stderr": "fes: DE25 factory production records one actual image-build pass\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "scripts/build.py",
+        "image",
+        "--kernel",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base/kernel"
+      ],
+      "environment_overrides": {},
+      "expected_refusal": "explicitly selected DE25",
+      "name": "default-board-kernel",
+      "returncode": 1,
+      "stderr": "fes: --kernel, --sdk and --output require explicitly selected DE25\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "scripts/build.py",
+        "build",
+        "--board",
+        "de25-nano"
+      ],
+      "environment_overrides": {},
+      "expected_refusal": "supports image and verify",
+      "name": "unsupported-source-build",
+      "returncode": 1,
+      "stderr": "fes: DE25 top-level image selection supports image and verify; source build/dev remain unimplemented\n",
+      "stdout": ""
+    }
+  ],
+  "classification": "Actual Python/Make refusals against real intermediate or invalid independent selection; no admitted factory/export",
+  "hardware_access": "not-performed",
+  "make_dry_runs": [
+    {
+      "classification": "Make forwarding only; no construction",
+      "command": [
+        "make",
+        "--dry-run",
+        "image",
+        "BOARD=de25-nano",
+        "IMAGE_ARTIFACTS=/artifacts",
+        "IMAGE_KERNEL=/kernel",
+        "IMAGE_SDK=/sdk",
+        "IMAGE_OUTPUT=/factory",
+        "APPLIANCE_FACTORY=/factory"
+      ],
+      "stdout": "IMAGE_PASSES=\"1\" python3 scripts/build.py image --board \"de25-nano\" --profile \"de25-nano\" --artifacts \"/artifacts\" --kernel \"/kernel\" --sdk \"/sdk\" --output \"/factory\"\n"
+    },
+    {
+      "classification": "Make forwarding only; no construction",
+      "command": [
+        "make",
+        "--dry-run",
+        "verify",
+        "BOARD=de25-nano",
+        "IMAGE_ARTIFACTS=/artifacts",
+        "IMAGE_KERNEL=/kernel",
+        "IMAGE_SDK=/sdk",
+        "IMAGE_OUTPUT=/factory",
+        "APPLIANCE_FACTORY=/factory"
+      ],
+      "stdout": "IMAGE_PASSES=\"1\" python3 scripts/build.py verify --board \"de25-nano\" --profile \"de25-nano\" --artifacts \"/artifacts\" --kernel \"/kernel\" --sdk \"/sdk\" --output \"/factory\"\n"
+    },
+    {
+      "classification": "Make forwarding only; no construction",
+      "command": [
+        "make",
+        "--dry-run",
+        "release",
+        "BOARD=de25-nano",
+        "IMAGE_ARTIFACTS=/artifacts",
+        "IMAGE_KERNEL=/kernel",
+        "IMAGE_SDK=/sdk",
+        "IMAGE_OUTPUT=/factory",
+        "APPLIANCE_FACTORY=/factory"
+      ],
+      "stdout": "python3 scripts/appliance.py release --profile \"de25-nano\" --board \"de25-nano\" --factory \"/factory\" --version \"0.2.0-dev.1\" --image-passes \"1\"\n"
+    }
+  ],
+  "original_inputs_unchanged": {
+    "base.json": "70dc18e1fe4d45ea4c58825f046a287c4799d784caa65b63ae2287dc84e11e40",
+    "kernel/Image": "28201c24220c9ed11ac5943aa2583f647904d2f694796407d66a7728c1c1456b",
+    "rootfs.ext4": "2bc0aaf4a0e6eb599b5278c12b8852a704daf010eb3c2178e63d44c0d7628d06"
+  },
+  "source_revision": "c1152ba3cd4e2d7bdd079e0cc4e40478aee23d44"
+}

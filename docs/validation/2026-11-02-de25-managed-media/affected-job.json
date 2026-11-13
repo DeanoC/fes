@@ -1,0 +1,17 @@
+{
+  "source_revision": "d6cf31c8ac322a46e3d4d845139b444b57e4e04d",
+  "command": [
+    "make",
+    "test-changed",
+    "TEST_CHANGED_ARGS=--base 64c1e12a3974e874fd6a36e43b383a5349263d01 --jobs 2"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-managed-media-d6cf31c8a",
+  "started_utc": "2026-11-01T23:42:22.891492+00:00",
+  "time_cap_seconds": 1800,
+  "hardware_access": "not-performed",
+  "pid": 513044,
+  "state": "failed",
+  "elapsed_seconds": 272.9,
+  "heartbeat_utc": "2026-11-01T23:46:55.820973+00:00",
+  "returncode": 2
+}

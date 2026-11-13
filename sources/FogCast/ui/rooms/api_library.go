@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync/atomic"
 	"syscall"
 
 	lua "github.com/yuin/gopher-lua"
@@ -96,14 +97,17 @@ func (r *Instance) libraryQuery(L *lua.LState) int {
 		return 1
 	}
 	ctx, cancel := context.WithCancel(r.ctx)
-	L.Push(L.NewFunction(func(*lua.LState) int { cancel(); return 0 }))
+	queryEpoch := r.gameEpoch
+	cancelled := new(atomic.Bool)
+	L.Push(L.NewFunction(func(*lua.LState) int { cancelled.Store(true); cancel(); return 0 }))
 	go func() {
 		defer cancel()
 		games, more, err := r.opts.Services.QueryGames(ctx, q, max)
 		if games == nil && err == nil {
 			games = []hostclient.Game{}
 		}
-		r.deliver(asyncResult{cb: cb, games: games, err: err, libraryQuery: true, transient: transientLibraryError(err), more: more})
+		r.deliver(asyncResult{cb: cb, games: games, err: err, libraryQuery: true, homeFamily: q.HomeFamily,
+			cancelled: cancelled, queryEpoch: queryEpoch, transient: transientLibraryError(err), more: more})
 	}()
 	return 1
 }
@@ -163,7 +167,7 @@ func optStrings(t *lua.LTable, key string) []string {
 func (r *Instance) libraryPlatforms(L *lua.LState) int {
 	cb := L.CheckFunction(1)
 	if r.opts.Services == nil {
-		r.deliver(asyncResult{cb: cb, err: errNoServices})
+		r.deliver(asyncResult{api: "library.platforms", cb: cb, err: errNoServices})
 		return 0
 	}
 	go func() {
@@ -171,7 +175,7 @@ func (r *Instance) libraryPlatforms(L *lua.LState) int {
 		if platforms == nil && err == nil {
 			platforms = []hostclient.Platform{}
 		}
-		r.deliver(asyncResult{cb: cb, platforms: platforms, err: err})
+		r.deliver(asyncResult{api: "library.platforms", cb: cb, platforms: platforms, err: err})
 	}()
 	return 0
 }
@@ -179,7 +183,7 @@ func (r *Instance) libraryPlatforms(L *lua.LState) int {
 func (r *Instance) libraryCollections(L *lua.LState) int {
 	cb := L.CheckFunction(1)
 	if r.opts.Services == nil {
-		r.deliver(asyncResult{cb: cb, err: errNoServices})
+		r.deliver(asyncResult{api: "library.collections", cb: cb, err: errNoServices})
 		return 0
 	}
 	go func() {
@@ -187,7 +191,7 @@ func (r *Instance) libraryCollections(L *lua.LState) int {
 		if collections == nil && err == nil {
 			collections = []hostclient.Collection{}
 		}
-		r.deliver(asyncResult{cb: cb, collections: collections, err: err})
+		r.deliver(asyncResult{api: "library.collections", cb: cb, collections: collections, err: err})
 	}()
 	return 0
 }
@@ -201,20 +205,20 @@ func (r *Instance) libraryGame(L *lua.LState) int {
 	// A list row caches the representative. When variant_count says grouped
 	// editions exist and this cache has none, load the detail row.
 	if g, ok := r.games[id]; ok && (g.VariantCount <= 1 || len(g.Variants) > 0 || len(g.Editions) > 0) {
-		r.deliver(asyncResult{cb: cb, game: &g})
+		r.deliver(asyncResult{api: "library.game", cb: cb, game: &g})
 		return 0
 	}
 	if r.opts.Services == nil {
-		r.deliver(asyncResult{cb: cb, err: errNoServices})
+		r.deliver(asyncResult{api: "library.game", cb: cb, err: errNoServices})
 		return 0
 	}
 	go func() {
 		g, err := r.opts.Services.Game(r.ctx, id)
 		if err != nil {
-			r.deliver(asyncResult{cb: cb, err: err})
+			r.deliver(asyncResult{api: "library.game", cb: cb, err: err})
 			return
 		}
-		r.deliver(asyncResult{cb: cb, game: &g})
+		r.deliver(asyncResult{api: "library.game", cb: cb, game: &g})
 	}()
 	return 0
 }
@@ -222,7 +226,7 @@ func (r *Instance) libraryGame(L *lua.LState) int {
 func (r *Instance) gamesTable(games []hostclient.Game) *lua.LTable {
 	t := r.L.NewTable()
 	for _, g := range games {
-		r.games[g.ID] = g
+		r.cacheGame(g.ID, g)
 		t.Append(r.gameTable(g))
 	}
 	return t

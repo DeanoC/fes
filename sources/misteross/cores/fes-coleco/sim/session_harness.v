@@ -22,7 +22,6 @@ module coleco_session_harness (
         .clk(clk_sys), .gpo(gpo), .build_id(128'd0), .gpi(gpi), .exec_reset(exec_reset),
         .controller_buttons(controller_buttons), .controller_keypad(),
         .media_ready(), .media_size(), .media_addr(15'd0), .media_q(),
-        .firmware_write_addr(), .firmware_write_data(), .firmware_write_enable(),
         .display_request(request), .display_opcode(opcode), .display_index(index),
         .display_argument(argument), .display_response_valid(response_valid),
         .display_response_error(response_error), .display_response_data(response_data),

@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import stat
 import subprocess
 import sys
@@ -108,6 +109,13 @@ class ExportCorePackageTests(unittest.TestCase):
         with self.assertRaises(PackageExportError):
             export_package(self.manifest, self.rbf, self.store,
                            rom_map=map_path, rom_id="machine-rom", rom_role="firmware")
+
+
+
+
+
+
+
 
     def tearDown(self):
         self.tempdir.cleanup()

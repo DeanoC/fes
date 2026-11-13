@@ -1,0 +1,248 @@
+{
+  "producer_revision": "25bc6ef78e4147497800a0e2b491f51d26902107",
+  "roles": {
+    "menu": {
+      "package_id": "a5b65ea89789fca7e6416bb0a8099ad76799016a074f021f1cccf2d4b557c559",
+      "build_id": "c4b351bc217b3b36844cf4c9f08471ca",
+      "rbf_sha256": "3df0d23fcdc252d9edb8d27071e32d737c4a2b99c6e68eea3a45dbadfa938dd5",
+      "rbf_size": 1445888,
+      "independent_rbf_equal": true,
+      "archive_sha256": "991b73fe558d8444deeae4f0a05ae3e702a73e74aec74cf6bffa74d9cc29a042",
+      "build_record_sha256": "ccc4172c7970bec795cd3407c868fa833bf34d58b1171165d79249001595d503",
+      "build_summary_sha256": "923140b5036b91d4a7b46242e675bec42c50b25b082fb241a9376596eab8297c",
+      "source_input_count": 74,
+      "timing": {
+        "timing.json": {
+          "sha256": "f96c46cb30b2895e25b7442cba37d324ff7271f68ec31516c2f19c563d1aa4ed",
+          "signoff_rules": 85,
+          "raw_failed_rules": 3,
+          "unreviewed_failed_rules": 0,
+          "all_reported_timing_pass": true,
+          "video_path_count": 216,
+          "reset_path_count": 208,
+          "reset_load_count": 26,
+          "video_min_slack_ns": {
+            "setup": "7.528",
+            "hold": "0.494"
+          },
+          "reset_min_slack_ns": {
+            "recovery": "11.936",
+            "removal": "0.311"
+          },
+          "reviewed_findings": [
+            {
+              "basis": "de25-reviewed-terminal-hdmi-output-reset-v1",
+              "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+              "heads": [
+                "fes_video_inst|output_release[0]",
+                "soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]"
+              ],
+              "id": "RDC-50003",
+              "sources": [
+                "fes_video_inst|config_reset|sync_regs[1]",
+                "fes_video_inst|first_lock_seen",
+                "fes_video_inst|visible_allow"
+              ],
+              "violations": 1
+            },
+            {
+              "id": "TMC-20011",
+              "ports": [
+                "HDMI_I2C_SDA",
+                "HDMI_TX_INT"
+              ],
+              "violations": 2
+            },
+            {
+              "basis": "de25-terasic-hdmi-reference-v1",
+              "id": "TMC-20012",
+              "ports": [
+                "HDMI_I2C_SCL",
+                "HDMI_I2C_SDA",
+                "LED[7]"
+              ],
+              "violations": 3
+            }
+          ]
+        },
+        "repeat-timing.json": {
+          "sha256": "1a3a15d51c3be1f2cecd729b704b9c4980f6d2c23eb521c37b7f9c7b8e277244",
+          "signoff_rules": 85,
+          "raw_failed_rules": 3,
+          "unreviewed_failed_rules": 0,
+          "all_reported_timing_pass": true,
+          "video_path_count": 216,
+          "reset_path_count": 208,
+          "reset_load_count": 26,
+          "video_min_slack_ns": {
+            "setup": "7.528",
+            "hold": "0.494"
+          },
+          "reset_min_slack_ns": {
+            "recovery": "11.936",
+            "removal": "0.311"
+          },
+          "reviewed_findings": [
+            {
+              "basis": "de25-reviewed-terminal-hdmi-output-reset-v1",
+              "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+              "heads": [
+                "fes_video_inst|output_release[0]",
+                "soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]"
+              ],
+              "id": "RDC-50003",
+              "sources": [
+                "fes_video_inst|config_reset|sync_regs[1]",
+                "fes_video_inst|first_lock_seen",
+                "fes_video_inst|visible_allow"
+              ],
+              "violations": 1
+            },
+            {
+              "id": "TMC-20011",
+              "ports": [
+                "HDMI_I2C_SDA",
+                "HDMI_TX_INT"
+              ],
+              "violations": 2
+            },
+            {
+              "basis": "de25-terasic-hdmi-reference-v1",
+              "id": "TMC-20012",
+              "ports": [
+                "HDMI_I2C_SCL",
+                "HDMI_I2C_SDA",
+                "LED[7]"
+              ],
+              "violations": 3
+            }
+          ]
+        }
+      }
+    },
+    "zx81": {
+      "package_id": "e873bc2e20097c6c3250b087cf9c522581ee4a0e4140ba2dcf1d1220e45aad0b",
+      "build_id": "487f23fd2e61913779123b435dc24e82",
+      "rbf_sha256": "8d0a46badd12d81c7685c87024a02cde35f2fea2f59f2288e12bdca3366d8332",
+      "rbf_size": 1761280,
+      "independent_rbf_equal": true,
+      "archive_sha256": "a4c67c61703ef09fef8cab11087c16b769d408fea7fa23d00a44be12c9d2bb69",
+      "build_record_sha256": "aa3fbb8000ed88a656b51bb050e7afe05eb8288fdbb48fca233f9b1c51527ec8",
+      "build_summary_sha256": "392c7bbfe6e73f37f702a2378a07732af442a512e6c42e282029192ff0890f4f",
+      "source_input_count": 143,
+      "timing": {
+        "signoff-timing.json": {
+          "sha256": "73c4756ee4a94d27de506b25f140ee2a94d5f0d50b7116000a38a241ca7537d2",
+          "signoff_rules": 85,
+          "raw_failed_rules": 3,
+          "unreviewed_failed_rules": 0,
+          "all_reported_timing_pass": true,
+          "video_path_count": 216,
+          "reset_path_count": 208,
+          "reset_load_count": 26,
+          "video_min_slack_ns": {
+            "setup": "7.696",
+            "hold": "0.429"
+          },
+          "reset_min_slack_ns": {
+            "recovery": "12.215",
+            "removal": "0.261"
+          },
+          "reviewed_findings": [
+            {
+              "basis": "de25-reviewed-terminal-hdmi-output-reset-v1",
+              "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+              "heads": [
+                "fes_video_inst|output_release[0]",
+                "soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]"
+              ],
+              "id": "RDC-50003",
+              "sources": [
+                "fes_video_inst|config_reset|sync_regs[1]",
+                "fes_video_inst|first_lock_seen",
+                "fes_video_inst|visible_allow"
+              ],
+              "violations": 1
+            },
+            {
+              "id": "TMC-20011",
+              "ports": [
+                "HDMI_I2C_SDA",
+                "HDMI_TX_INT"
+              ],
+              "violations": 2
+            },
+            {
+              "basis": "de25-standard-stock-audio-clocks-v1",
+              "id": "TMC-20012",
+              "ports": [
+                "HDMI_I2C_SCL",
+                "HDMI_I2C_SDA",
+                "HDMI_LRCLK",
+                "HDMI_SCLK",
+                "LED[7]"
+              ],
+              "violations": 5
+            }
+          ]
+        },
+        "repeat-timing.json": {
+          "sha256": "60ccbb8935d2c4150aa8e3e1815165b0b740671a7054cd9f5c1ddfa309d16ce1",
+          "signoff_rules": 85,
+          "raw_failed_rules": 3,
+          "unreviewed_failed_rules": 0,
+          "all_reported_timing_pass": true,
+          "video_path_count": 216,
+          "reset_path_count": 208,
+          "reset_load_count": 26,
+          "video_min_slack_ns": {
+            "setup": "7.696",
+            "hold": "0.429"
+          },
+          "reset_min_slack_ns": {
+            "recovery": "12.215",
+            "removal": "0.261"
+          },
+          "reviewed_findings": [
+            {
+              "basis": "de25-reviewed-terminal-hdmi-output-reset-v1",
+              "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+              "heads": [
+                "fes_video_inst|output_release[0]",
+                "soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]"
+              ],
+              "id": "RDC-50003",
+              "sources": [
+                "fes_video_inst|config_reset|sync_regs[1]",
+                "fes_video_inst|first_lock_seen",
+                "fes_video_inst|visible_allow"
+              ],
+              "violations": 1
+            },
+            {
+              "id": "TMC-20011",
+              "ports": [
+                "HDMI_I2C_SDA",
+                "HDMI_TX_INT"
+              ],
+              "violations": 2
+            },
+            {
+              "basis": "de25-standard-stock-audio-clocks-v1",
+              "id": "TMC-20012",
+              "ports": [
+                "HDMI_I2C_SCL",
+                "HDMI_I2C_SDA",
+                "HDMI_LRCLK",
+                "HDMI_SCLK",
+                "LED[7]"
+              ],
+              "violations": 5
+            }
+          ]
+        }
+      }
+    }
+  },
+  "hardware": "not-run"
+}

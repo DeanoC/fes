@@ -141,8 +141,8 @@ busybox devmem 0x3FFFFFFC 32   # 0xC0000007
 When every scan has ended, the tester measures read latency on DDR ports
 0, 1 and 2 and on the SDRAM addon, one memory at a time. Each window is
 32768 single reads of one 32-byte line at pseudo-random line addresses in
-that memory's span. Only one read is in flight, and nothing else touches
-that memory or the other DDR ports during the window.
+that memory's span. The tester has only one read in flight and makes no other
+DDR-port requests during a window; HPS masters can still contend for DDR.
 
 | Memory | One line read |
 | --- | --- |
@@ -183,13 +183,18 @@ The `LAT` rows sit under the `MB/S` row:
     exact within 31 cycles of the base and never low.
   - The first window of each memory has a base of zero.
 - The minimum, median and p99 saturate at 999; the maximum at 9999.
-- Windows repeat, so the rows always show each memory's latest window.
+- Windows repeat, so the rows show each memory's latest successful window.
 - A button stop ends the windows and leaves the last results on screen.
 - A memory whose scan failed is not measured, and its row stays blank.
+- A latency read that fails its data check abandons that window; the prior
+  successful row, if any, remains while the memory's status shows FAIL.
 
 `make sim-fes-ramtest` checks the statistics against a reference model of
 the bins. Beside the core, the bench recounts every latency read from the
-memory handshakes and compares that count with what the core reports.
+memory handshakes and compares that count with what the core reports. It also
+injects scan and last-beat latency faults on each DDR port, checking that
+healthy ports continue and faulty windows are not published. It also stops
+each port during its last read, checking both clean and faulty completions.
 
 The [2026-10-25 latency record](../../../../docs/validation/2026-10-25-hps-ddr-latency.md)
 has the measured latencies at 100 MHz on Kits A and B, with Linux idle and

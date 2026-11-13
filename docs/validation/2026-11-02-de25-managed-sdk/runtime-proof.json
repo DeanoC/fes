@@ -1,0 +1,89 @@
+{
+  "archive_audit": "canonical29productionmembers passed",
+  "artifacts": {
+    "libmister-runtime.a": {
+      "sha256": "9d4718937aa52c64826d2be46c39ec219a3c74697ecc533e9bde6c9666fed21f",
+      "size": 3481934
+    },
+    "mister-runtime": {
+      "sha256": "05c25c74d9c53a073625d56c36e04ef63a407c71c823a25e4e50448c6325dffd",
+      "size": 1646344
+    }
+  },
+  "base_contract": {
+    "architecture": "aarch64",
+    "base_contract": "fes-kit-base-v1-4d08af30f26132bab500672c0bd227576cdaf11e108617966690620b22f494a9",
+    "board": "de25-nano",
+    "interfaces": {
+      "maintenance": "fes-kit-maintenance-v1",
+      "runtime-protocol": "2",
+      "software-admission": "fes-kit-software-v1"
+    }
+  },
+  "base_rootfs_sha256": "588421ad2ca56d9b4dae256772f46260068d680f0cdb5387faf3e1754206a9aa",
+  "classification": "normal runtime build and Cortex-A76 CPU models; no board acceptance",
+  "cpu_tests": [
+    {
+      "name": "de25_computer_test",
+      "result": "passed"
+    },
+    {
+      "name": "de25_fpga_manager_test",
+      "result": "passed"
+    },
+    {
+      "name": "de25_menu_test",
+      "result": "passed"
+    },
+    {
+      "name": "de25_pr_control_test",
+      "result": "passed"
+    },
+    {
+      "name": "production_hardware_test",
+      "result": "passed"
+    }
+  ],
+  "factory_bundle": "not-built; sealed MENU and factory metadata still required",
+  "hardware_access": "not-performed",
+  "menu_interfaces": {
+    "menu.fes.fabric.de25-scanout": "1.1",
+    "menu.fes.memory.hps-ddr": "1.0",
+    "menu.fes.video.fixed-720p60": "1.0",
+    "menu.fes.video.menu-blitter": "1.1",
+    "menu.fes.video.menu-display": "1.0"
+  },
+  "qemu_loader": "identity host namespace, direct authenticated SDK loader",
+  "sdk_selection": {
+    "archive_sha256": "5a7fa4bf99cfc660bd157d3ffc79b25807cf93eaa49dab894b579c7c52ea30e4",
+    "base_rootfs_sha256": "588421ad2ca56d9b4dae256772f46260068d680f0cdb5387faf3e1754206a9aa",
+    "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+    "image_receipt_sha256": "9eb0231578a501c4e0c49818346dcf0454562dc436069dec594db010d5d34dff",
+    "kernel_image_sha256": "28201c24220c9ed11ac5943aa2583f647904d2f694796407d66a7728c1c1456b",
+    "key": "managed-6e02fef9d46d975fb7b79eb3526feb7dece7901083037ccdcf23a9eb1d7f8d0d",
+    "producer_revision": "cad04bd65d82c98f0e375de927051d215dd63af1",
+    "profile": "managed-base"
+  },
+  "source_revision": "cad04bd65d82c98f0e375de927051d215dd63af1",
+  "toolchain": {
+    "archive_sha256": "5a7fa4bf99cfc660bd157d3ffc79b25807cf93eaa49dab894b579c7c52ea30e4",
+    "container_base": {
+      "digest": "sha256:b1a741487078b369e78119849663d7f1a5341ef2768798f7b7406c4240f86aef",
+      "image": "docker.io/library/debian:12.11-slim",
+      "platform": "linux/amd64"
+    },
+    "container_context_sha256": "018e124379f5bbe906e6f120e1e4c31565f0b99d1b5ae45a5fa7d4cd3bd90609",
+    "container_id": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+    "de25_image_sdk": {
+      "archive_sha256": "5a7fa4bf99cfc660bd157d3ffc79b25807cf93eaa49dab894b579c7c52ea30e4",
+      "base_rootfs_sha256": "588421ad2ca56d9b4dae256772f46260068d680f0cdb5387faf3e1754206a9aa",
+      "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+      "image_receipt_sha256": "9eb0231578a501c4e0c49818346dcf0454562dc436069dec594db010d5d34dff",
+      "kernel_image_sha256": "28201c24220c9ed11ac5943aa2583f647904d2f694796407d66a7728c1c1456b",
+      "key": "managed-6e02fef9d46d975fb7b79eb3526feb7dece7901083037ccdcf23a9eb1d7f8d0d",
+      "producer_revision": "cad04bd65d82c98f0e375de927051d215dd63af1",
+      "profile": "managed-base"
+    },
+    "key": "managed-6e02fef9d46d975fb7b79eb3526feb7dece7901083037ccdcf23a9eb1d7f8d0d"
+  }
+}

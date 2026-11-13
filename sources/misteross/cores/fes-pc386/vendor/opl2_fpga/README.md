@@ -68,6 +68,14 @@ form has a DeanoC/yosys issue linked from the
 - `control_operators.sv`: the operator alignment assertion is simulation-only
   (`` `ifndef SYNTHESIS ``); Yosys has no concurrent assertions.
 
+Verilator 5.054 reports power-on initialization alongside later clocked writes
+as `PROCASSINIT` or `MULTIDRIVEN`. The pc386 simulation uses vendor-scoped
+waivers in `sim/pc386_verilator_5054.vlt`; `pipeline_sr.sv` and
+`mem_simple_dual_port_async_read.sv` also have local waivers for diagnostics
+that the control file does not suppress. These are enabled only for Verilator
+5.054 or newer; they preserve the existing power-on values and do not alter
+synthesis behavior.
+
 ## Known differences from a YM3812
 
 These follow the reference, not the chip, and are recorded in the design.

@@ -51,7 +51,7 @@ MEDIA_FILES = frozenset({
     'scripts/inputs.py', 'scripts/native_dev.py', 'scripts/environment.py',
     'boot-media.lock.toml',
     'tests/test_media_image.py', 'tests/test_appliance.py',
-    'tests/test_appliance_media.py',
+    'tests/test_appliance_media.py', 'tests/test_de25_managed_media.py',
 })
 MEDIA_ROOTS = ('image', 'platform', 'containers', 'profiles',
                'sources/FogCast/appliance', 'sources/FogCast/cmd/target-image-lock',
@@ -96,6 +96,10 @@ def _documentation(path):
 def _classify(path):
     if path == '<new-branch>':
         return dict.fromkeys(TEST_MODE_KEYS, True)
+    # Managed DE25 card construction uses the shared real FAT/ext4 tools;
+    # unlike the standalone headless image, it belongs in the media partition.
+    if path == 'image/de25-nano/managed_media.py':
+        return {'video': False, 'media': True, 'full_race': False}
     # The standalone DE25 headless image has its own build/verification checks.
     # It consumes no DE10 image, core package, runtime or media assembly input.
     if _under(path, 'image/de25-nano') and '..' not in Path(path).parts:

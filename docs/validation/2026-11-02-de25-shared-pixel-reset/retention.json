@@ -1,0 +1,56 @@
+{
+  "compiled": {
+    "archive": "compiled.tar.gz",
+    "archive_sha256": "da89f6b341c06efa4fa5ba619d7164c2e0f7668ce675747c9dbaf5f54f392e2f",
+    "archive_size": 1062940241,
+    "files": 6862,
+    "manifest_sha256": "ed8aa045c3562241aa9a45f4be8e8b7a61fa5023f5d5664cc8f7df374bbea8a8"
+  },
+  "compiled_restore": {
+    "classification": "Independent archive/source restore plus actual public source, timing, topology, constraint, client and ELF readers; no hardware acceptance",
+    "client_cases": 34,
+    "clients": null,
+    "hardware_access": "not-performed",
+    "internal_source_files": 104,
+    "reset_paths": 24,
+    "seconds": 15.442,
+    "shared_reset_paths": 136,
+    "source_restore": {
+      "independent_git_objects": true,
+      "source_revision": "1937f9ac76b7c383ab3bc9e8f948a3ba67fdab3d",
+      "status": "passed"
+    },
+    "status": "passed",
+    "total_seconds": 36.347
+  },
+  "dependencies": "Unchanged SDK/builder image and private Verilator archive remain in the independently retained 6008eb094/658c97ac4 evidence. Current clients, QEMU, captured source and exact tool hashes are in these archives.",
+  "fixture_revision": "5e56245d4a7444f9352812e365085d093aed9f42",
+  "focused_software": {
+    "archive_sha256": "9b155303774aaacecd79cec6607c6f8e43034a91e267cbe8269f54f289d48b21",
+    "archive_size": 1038248,
+    "classification": "Independent local focused and complete software archive restoration; original failures retained",
+    "files": 124,
+    "hardware_access": "not-performed",
+    "manifest_sha256": "47f03bfb06280528b46a14edc2e313c81763e3c69c56818d497c6f0b54e28614",
+    "original_failure": "retain-final-job compared safely filtered modes with original group-writable modes; original archive, script, extraction and failure log are unchanged.",
+    "permissions": "Archive preserves original modes; restored modes must equal Python data_filter output, which removes group/other write permissions.",
+    "reader_sha256": "f07e0c5936df3b438796ed075a874373475aa023367dc7a89562ec69b936d7f9",
+    "seconds": 0.061,
+    "software_source_revision": "5e56245d4a7444f9352812e365085d093aed9f42",
+    "source_revision": "1937f9ac76b7c383ab3bc9e8f948a3ba67fdab3d",
+    "status": "passed"
+  },
+  "hardware_access": "not-performed",
+  "source_bundles": {
+    "fixture.bundle": {
+      "sha256": "cd2ff59c46e74f33b61fefa371ccf1cca9948eb77c9052d3bc140e3e24373c27",
+      "size": 1029
+    },
+    "source.bundle": {
+      "sha256": "6386a03b15f27b048082008327daa9e8d2e62b605c9c5885a2fd61a98de354a9",
+      "size": 2581
+    }
+  },
+  "source_revision": "1937f9ac76b7c383ab3bc9e8f948a3ba67fdab3d",
+  "status": "passed"
+}

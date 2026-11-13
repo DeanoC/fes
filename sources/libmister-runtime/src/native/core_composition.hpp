@@ -19,4 +19,17 @@ struct OpenedCoreComposition {
 Error OpenCoreComposition(const std::vector<std::string>& roots,
 	const OpenedCorePackage&, const CoreCompositionRequest&, OpenedCoreComposition*);
 Error RecheckCoreComposition(const OpenedCoreComposition&);
+
+// Structural admission only. This does not select a programming profile or
+// perform a transition. The base package must outlive this selection.
+struct OpenedCoreStaticComposition {
+	CoreStaticComposition info;
+	OpenedCoreExpansion expansion;
+	const Artifact& persona(const OpenedCorePackage& base) const {
+		return info.expansion_id.empty() ? base.persona : expansion.cart;
+	}
+};
+Error OpenCoreStaticComposition(const std::vector<std::string>& roots,
+	const OpenedCorePackage&, const CoreStaticCompositionRequest&, OpenedCoreStaticComposition*);
+Error RecheckCoreStaticComposition(const OpenedCorePackage&, const OpenedCoreStaticComposition&);
 } }

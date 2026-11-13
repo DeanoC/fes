@@ -1,0 +1,62 @@
+{
+  "producer": "90d4313c05caeb68597af75efbdfc57425a2436e",
+  "validator": "90d4313c05caeb68597af75efbdfc57425a2436e",
+  "compiled_model_match": true,
+  "source_files_matched": 175,
+  "qips_matched": 17,
+  "inputs_sha256": "c0636438abc6828ac24cd956b9b7b08e7155da876adde8a21c025436067aa527",
+  "generation_sha256": "175ad4abf6e686aa66099610d28aa73f5a98a591cda914d03f176abaa9216aee",
+  "build_id": "574ca1f9858748e6d4fedb8ffa16a9c3",
+  "artifacts": {
+    "linux-boot.core.rbf": {
+      "role": "Linux-fabric-configuration-candidate",
+      "sha256": "b90ba713537b573c441c17bbc41f01c15ca0c437f34a11e08438ec2211c1e738",
+      "size": 1740800
+    },
+    "linux-boot.hps.jic": {
+      "role": "HPS-first-QSPI-candidate-not-programmed",
+      "sha256": "e6c9ccac572219549bc7fb3ad53c249e3436bc0865e8e9b97d0e629f59f3701f",
+      "size": 16777449
+    },
+    "linux-complete.sof": {
+      "role": "volatile-JTAG-recovery-candidate",
+      "sha256": "4d196b5cc910661f186cc496be921a7528cdbcdaa99ced5a211760db8a734559",
+      "size": 1713321
+    }
+  },
+  "timing_report_sha256": "d7bcd042e0d5d3aea15f70623c8ed151c7146b95176882ec6cfcbb9e09fa6c34",
+  "timing_parser_sha256": "a8d0f4d5f4c690ee2123044aa33ea298e6da570d38632c9ed550d8bb9cc5c0c7",
+  "timing": {
+    "declared_failed_rules": 4,
+    "declared_total_rules": 85,
+    "nonzero_signoff_rules": [
+      {
+        "rule": "TMC-20012 - Missing Output Delay Constraint",
+        "count": 30,
+        "waived": 0,
+        "severity": "High"
+      },
+      {
+        "rule": "TMC-20011 - Missing Input Delay Constraint",
+        "count": 2,
+        "waived": 0,
+        "severity": "High"
+      },
+      {
+        "rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+        "count": 2,
+        "waived": 0,
+        "severity": "Medium"
+      },
+      {
+        "rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+        "count": 3,
+        "waived": 0,
+        "severity": "Low"
+      }
+    ]
+  },
+  "hardware_access": "not-performed",
+  "timing_acceptance": "not-qualified",
+  "analysis_scope": "artifact/model identity and all-family signoff inventory; failing rules retained without waiver"
+}

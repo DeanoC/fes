@@ -18,6 +18,25 @@ func TestBrowseActionsRetainTheMissingTitleRemedy(t *testing.T) {
 	}
 }
 
+func TestLibraryBackHintSurvivesReadyActions(t *testing.T) {
+	for _, kind := range []InputKind{InputGamepad, InputKeyboard, InputMouse} {
+		snap := Snapshot{
+			Affinity: kind, LibraryBackTo: "Home",
+			DetailPlay: rooms.Destination{Kind: rooms.KindGame, Availability: rooms.AvailReady},
+		}
+		for _, ready := range []bool{false, true} {
+			snap.BrowseActions = BrowseActionsSnapshot{Visible: ready, Primary: "Play"}
+			hint := snap.HeaderHint()
+			if !strings.Contains(hint, backWord(kind)+" back to Home") {
+				t.Fatalf("input %v, actions ready %v: Library lost its return destination: %q", kind, ready, hint)
+			}
+			if ready && (!strings.Contains(hint, "play") || !strings.Contains(hint, "details")) {
+				t.Fatalf("input %v: ready actions disappeared: %q", kind, hint)
+			}
+		}
+	}
+}
+
 func TestLibraryActionsReachDetailsAndReturnToTheSameTitle(t *testing.T) {
 	for _, size := range [][2]int{{1280, 720}, {1024, 600}} {
 		for _, mode := range []LayoutKind{LayoutGrid, LayoutList, LayoutShelf} {

@@ -165,11 +165,28 @@ def write_workspace(directory, platform_dir, appliance_dir):
     return workspace
 
 
-def platform_build_record(platform_sha256, appliance_module_sha256, fogcast_revision, go_version, go_sha256):
+def arm_build_environment(architecture='armv7'):
+    if architecture not in ('armv7', 'aarch64'):
+        raise ValueError('unsupported platform architecture')
+    selected = dict(BUILD_ENV)
+    if architecture == 'aarch64':
+        selected.pop('GOARM')
+        selected.update(GOARCH='arm64', GOARM64='v8.0')
+    return selected
+
+
+def arm_probe_environment(env):
+    probe = dict(env, GOWORK='off', GOPROXY='off')
+    for name in ('GOOS', 'GOARCH', 'GOARM', 'GOARM64'):
+        probe.pop(name, None)
+    return probe
+
+
+def platform_build_record(platform_sha256, appliance_module_sha256, fogcast_revision, go_version, go_sha256, *, architecture='armv7'):
     return {
         'appliance_module': APPLIANCE_MODULE,
         'appliance_module_sha256': appliance_module_sha256,
-        'build_env': dict(BUILD_ENV),
+        'build_env': arm_build_environment(architecture),
         'build_flags': list(BUILD_FLAGS),
         'fogcast_revision': fogcast_revision,
         'go_sha256': go_sha256,
@@ -193,12 +210,12 @@ def _reject_paths(value):
         raise ValueError('platform build record may not contain filesystem paths')
 
 
-def validate_platform_build(record):
+def validate_platform_build(record, *, architecture='armv7'):
     if not isinstance(record, dict) or set(record) != RECORD_FIELDS:
         raise ValueError('platform build record has missing or unknown fields')
     if record['platform_module'] != PLATFORM_MODULE or record['appliance_module'] != APPLIANCE_MODULE:
         raise ValueError('platform build record module path is unsupported')
-    if record['package'] != PACKAGE or record['build_flags'] != list(BUILD_FLAGS) or record['build_env'] != BUILD_ENV:
+    if record['package'] != PACKAGE or record['build_flags'] != list(BUILD_FLAGS) or record['build_env'] != arm_build_environment(architecture):
         raise ValueError('platform build flags or environment differ from the locked recipe')
     if not isinstance(record['go_version'], str) or not record['go_version'].startswith('go'):
         raise ValueError('invalid Go toolchain version')
@@ -211,8 +228,8 @@ def validate_platform_build(record):
     return record
 
 
-def verify_identities(fes_root, fogcast, record):
-    record = validate_platform_build(record)
+def verify_identities(fes_root, fogcast, record, *, architecture='armv7'):
+    record = validate_platform_build(record, architecture=architecture)
     platform_dir = Path(fes_root) / 'platform'
     if not (platform_dir / 'go.mod').is_file():
         raise ValueError('FES platform module is missing')
@@ -224,8 +241,8 @@ def verify_identities(fes_root, fogcast, record):
     return record
 
 
-def verify_retained(fes_root, fogcast, record, assembly_revision=None):
-    record = verify_identities(fes_root, fogcast, record)
+def verify_retained(fes_root, fogcast, record, assembly_revision=None, *, architecture='armv7'):
+    record = verify_identities(fes_root, fogcast, record, architecture=architecture)
     fogcast_root, _ = selected_appliance(fogcast)
     if git_revision(fogcast_root) != record['fogcast_revision']:
         raise ValueError('bootstrap FogCast revision differs from selected checkout')
@@ -272,12 +289,13 @@ def test_platform(root, fogcast, env):
         subprocess.run([str(go_bin), 'test', './...'], cwd=platform_dir, env=test_env, check=True)
 
 
-def build_static_arm(root, fogcast, output, env):
+def build_static_arm(root, fogcast, output, env, *, architecture='armv7'):
     """Compile static ARM fes-boot from FES platform plus the selected appliance module.
 
     A temporary Go workspace is created only for this invocation. Absolute
     checkout paths stay in that workspace and are not returned in the record.
     """
+    selected_env = arm_build_environment(architecture)
     root = Path(root)
     fogcast_root, appliance_dir = selected_appliance(fogcast)
     platform_dir = root / 'platform'
@@ -288,9 +306,7 @@ def build_static_arm(root, fogcast, output, env):
     revision = git_revision(fogcast_root)
     platform_sha = tree_identity(platform_dir)
     appliance_sha = tree_identity(appliance_dir)
-    probe_env = dict(env)
-    probe_env['GOPROXY'] = 'off'
-    probe_env['GOWORK'] = 'off'
+    probe_env = arm_probe_environment(env)
     with tempfile.TemporaryDirectory(prefix='fes-platform-work-') as temporary:
         workspace = write_workspace(temporary, platform_dir, appliance_dir)
         goroot = subprocess.check_output(['go', 'env', 'GOROOT'], cwd=platform_dir, env=probe_env, text=True).strip()
@@ -298,7 +314,9 @@ def build_static_arm(root, fogcast, output, env):
         go_version = subprocess.check_output([str(go_bin), 'env', 'GOVERSION'], cwd=platform_dir, env=probe_env, text=True).strip()
         go_sha = _digest(go_bin)
         build_env = dict(env)
-        build_env.update(BUILD_ENV)
+        build_env.pop('GOARM', None)
+        build_env.pop('GOARM64', None)
+        build_env.update(selected_env)
         build_env['GOWORK'] = str(workspace)
         command = [str(go_bin), 'build', *BUILD_FLAGS, '-o', str(output), PACKAGE]
         subprocess.run(command, cwd=platform_dir, env=build_env, check=True)
@@ -312,14 +330,17 @@ def build_static_arm(root, fogcast, output, env):
             raise ValueError('Go toolchain version changed during build')
         if _digest(go_bin) != go_sha:
             raise ValueError('Go toolchain changed during build')
-    binary_sha = _appliance_module().validate_static_arm(output)
+    binary_sha = _appliance_module().validate_static_arm(output, architecture)
     return binary_sha, validate_platform_build(
-        platform_build_record(platform_sha, appliance_sha, revision, go_version, go_sha)
+        platform_build_record(platform_sha, appliance_sha, revision, go_version, go_sha, architecture=architecture),
+        architecture=architecture,
     )
 
 
-def _arm_build(root, fogcast, env, output_name, package, workspace_prefix):
-    """Compile one static ARM platform command."""
+def _arm_build(root, fogcast, env, output_name, package, workspace_prefix, architecture='armv7'):
+    """Compile one static platform command for an explicit ARM target."""
+    if architecture not in ('armv7', 'aarch64'):
+        raise ValueError('unsupported platform architecture')
     root, fogcast = Path(root), Path(fogcast)
     _, appliance_dir = selected_appliance(fogcast)
     platform_dir = root / 'platform'
@@ -330,31 +351,34 @@ def _arm_build(root, fogcast, env, output_name, package, workspace_prefix):
     before = (tree_identity(platform_dir), tree_identity(appliance_dir))
     with tempfile.TemporaryDirectory(prefix=workspace_prefix) as temporary:
         workspace = write_workspace(temporary, platform_dir, appliance_dir)
-        probe_env = dict(env, GOWORK='off', GOPROXY='off')
+        probe_env = arm_probe_environment(env)
         goroot = subprocess.check_output(
             ['go', 'env', 'GOROOT'], cwd=platform_dir, env=probe_env, text=True).strip()
         go_bin = Path(goroot) / 'bin' / 'go'
-        build_env = dict(env, **BUILD_ENV, GOWORK=str(workspace))
+        build_env = dict(env, GOWORK=str(workspace))
+        build_env.pop('GOARM', None)
+        build_env.pop('GOARM64', None)
+        build_env.update(arm_build_environment(architecture))
         subprocess.run(
             [str(go_bin), 'build', *BUILD_FLAGS, '-o', str(output), package],
             cwd=platform_dir, env=build_env, check=True)
     if before != (tree_identity(platform_dir), tree_identity(appliance_dir)):
         output.unlink(missing_ok=True)
         raise ValueError('platform sources changed during build')
-    return _appliance_module().validate_static_arm(output)
+    return _appliance_module().validate_static_arm(output, architecture)
 
 
-def build_bluetooth(root, fogcast, env):
+def build_bluetooth(root, fogcast, env, architecture='armv7'):
     """Build the base-image Bluetooth controller agent."""
-    return _arm_build(root, fogcast, env, 'fes-bluetooth-linux-armv7',
-                      './cmd/fes-bluetooth', 'fes-bluetooth-')
+    return _arm_build(root, fogcast, env, 'fes-bluetooth-linux-' + architecture,
+                      './cmd/fes-bluetooth', 'fes-bluetooth-', architecture)
 
 
-def build_kit_software(root, fogcast, env):
+def build_kit_software(root, fogcast, env, architecture='armv7'):
     """Build the base-image software supervisor against selected appliance code."""
-    digest = _arm_build(root, fogcast, env, 'fes-kit-software-linux-armv7',
-                        './cmd/fes-kit-software', 'fes-kit-software-')
-    build_bluetooth(root, fogcast, env)
+    digest = _arm_build(root, fogcast, env, 'fes-kit-software-linux-' + architecture,
+                        './cmd/fes-kit-software', 'fes-kit-software-', architecture)
+    build_bluetooth(root, fogcast, env, architecture)
     return digest
 
 

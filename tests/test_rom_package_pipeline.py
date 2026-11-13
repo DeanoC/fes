@@ -38,10 +38,11 @@ class RomPackagePipelineTest(unittest.TestCase):
             newer, newer_selections = make_package_generation(root, 'new', ['c' * 64, 'd' * 64])
             add_map(newer[1], b'new map')
             verify = build.verify_package_outputs
-            def fail_after_publish(where, selected):
+            def fail_after_publish(where, selected, *, board='de10-nano'):
+                self.assertEqual(board, 'de10-nano')
                 if Path(where) == output and selected == newer:
                     raise ValueError('injected post-publication failure')
-                return verify(where, selected)
+                return verify(where, selected, board=board)
             with patch.object(build, 'verify_package_outputs', side_effect=fail_after_publish):
                 with self.assertRaisesRegex(ValueError, 'injected'):
                     build.publish_package_outputs(newer, newer_selections, output)

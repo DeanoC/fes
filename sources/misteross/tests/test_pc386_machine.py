@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest import mock
 
@@ -143,18 +144,31 @@ class FreedosImageTest(unittest.TestCase):
 
     def test_games_files_meet_strike_commander(self):
         # Strike Commander asks for FILES=25 (#1525).
-        for entry in (1, 2, 3):
+        for entry in (1, 2, 3, 4):
             files = [int(line.split('=')[1]) for line in self.games_entry(entry)
                      if line.startswith(('FILES=', 'FILESHIGH='))]
             self.assertEqual(len(files), 1, entry)
             self.assertGreaterEqual(files[0], 25, entry)
 
+    def test_games_share_is_on_the_windows_entry_only(self):
+        # WIN386's DOSMGR runs on FreeDOS only with SHARE loaded (#1725, #1729);
+        # entry 4 is entry 2 plus SHARE, and the games' entries go without it.
+        share = 'INSTALLHIGH=C:\\FDOS\\BIN\\SHARE.COM'
+        for entry in (1, 2, 3):
+            self.assertFalse(any('SHARE' in line for line in self.games_entry(entry)), entry)
+        self.assertEqual([line for line in self.games_entry(4) if line != share], self.games_entry(2))
+        self.assertIn(share, self.games_entry(4))
+        self.assertEqual(freedos.PROFILES['games']['bin']['SHARE.COM'], ('share', 'BIN/SHARE.COM'))
+
     def test_lock_pins_each_package_at_the_release_tag(self):
         lock = freedos.lock()
         self.assertEqual(lock['tag'], 'FreeDOS-v1.4')
-        self.assertEqual(set(lock['packages']), {'kernel', 'freecom', 'fdisk', 'himemx', 'jemm', 'ctmouse', 'mem'})
+        self.assertEqual(set(lock['packages']),
+                         {'kernel', 'freecom', 'fdisk', 'himemx', 'jemm', 'ctmouse', 'mem', 'share'})
         self.assertEqual(set(lock['packages']), {name for spec in freedos.PROFILES.values() for name in spec['packages']})
         for name, spec in lock['packages'].items():
+            if name == 'kernel':
+                continue
             self.assertRegex(spec['commit'], r'^[0-9a-f]{40}$')
             if name == 'jemm':
                 # Jemm has no LICENSE file: its Readme's section 9 makes UMBM public domain.
@@ -163,6 +177,61 @@ class FreedosImageTest(unittest.TestCase):
                 continue
             self.assertIn('GPL', spec['license'])
             self.assertIn('LICENSE', spec['files'])
+
+    def test_lock_pins_the_kernel_release_build_and_its_source(self):
+        # Kernel 2046's 386 FAT12/FAT16 build answers WIN386's INT 2Fh 1605h
+        # and 1607h/0015h callouts; FreeDOS 1.4's 2043 does not (#1725).
+        kernel = freedos.lock()['packages']['kernel']
+        self.assertEqual(kernel['release'], 'https://github.com/FDOS/kernel/releases/tag/ke2046')
+        self.assertEqual(set(kernel['archives']), {'ke2046_386f16.zip', 'ke2046s.zip'})
+        for archive, pin in kernel['archives'].items():
+            self.assertEqual(pin['url'], 'https://github.com/FDOS/kernel/releases/download/ke2046/' + archive)
+            self.assertRegex(pin['sha256'], r'^[0-9a-f]{64}$')
+        self.assertIn('GPL', kernel['license'])
+        for role in ('kernel_sys', 'boot_asm', 'license_file'):
+            self.assertIn(kernel[role], kernel['files'])
+        self.assertTrue(kernel['kernel_sys'].startswith('ke2046_386f16.zip/'))
+        for path in kernel['files']:
+            self.assertIn(path.partition('/')[0], kernel['archives'])
+
+    def test_release_package_unpacks_only_the_locked_members(self):
+        with tempfile.TemporaryDirectory() as directory:
+            build = Path(directory)
+            stored = build / 'source.zip'
+            with zipfile.ZipFile(stored, 'w') as archive:
+                archive.writestr('bin/kernel.sys', b'kernel')
+                archive.writestr('bin/other.sys', b'other')
+            digest = freedos.hashlib.sha256(stored.read_bytes()).hexdigest()
+            (build / 'archives').mkdir()
+            stored.rename(build / 'archives' / f'{digest}.zip')
+            spec = {'license': 'GPL', 'archives': {'k.zip': {'url': 'https://example.invalid/k.zip', 'sha256': digest}},
+                    'files': {'k.zip/bin/kernel.sys': freedos.hashlib.sha256(b'kernel').hexdigest()}}
+            with mock.patch.object(freedos, 'BUILD', build):
+                tree = freedos.package('kernel', spec, download=False)
+                self.assertEqual((tree / 'k.zip/bin/kernel.sys').read_bytes(), b'kernel')
+                self.assertFalse((tree / 'k.zip/bin/other.sys').exists())
+                spec['files']['k.zip/bin/kernel.sys'] = '0' * 64
+                with self.assertRaises(freedos.ImageError):
+                    freedos.package('kernel', spec, download=False)
+
+    def test_release_package_never_caches_an_archive_that_misses_the_lock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            build = Path(directory)
+            digest = freedos.hashlib.sha256(b'good').hexdigest()
+            spec = {'license': 'GPL', 'archives': {'k.zip': {'url': 'https://example.invalid/k.zip', 'sha256': digest}},
+                    'files': {}}
+            stored = build / 'archives' / f'{digest}.zip'
+            response = mock.MagicMock()
+            response.__enter__.return_value.read.return_value = b'bad'
+            with mock.patch.object(freedos, 'BUILD', build), \
+                    mock.patch.object(freedos.urllib.request, 'urlopen', return_value=response):
+                with self.assertRaises(freedos.ImageError):
+                    freedos.package('kernel', spec, download=True)
+                self.assertFalse(stored.exists())
+                stored.write_bytes(b'bad')
+                with self.assertRaises(freedos.ImageError):
+                    freedos.package('kernel', spec, download=False)
+                self.assertFalse(stored.exists())
 
     def test_profile_binary_files_are_pinned_in_the_lock(self):
         lock = freedos.lock()['packages']
@@ -570,6 +639,38 @@ class SpeakerTestTest(unittest.TestCase):
         self.assertTrue(failures[0].startswith('RTL oracle_steps=3'))
 
 
+class X87TestTest(unittest.TestCase):
+    def test_suite_checks_are_the_programs_names(self):
+        source = (sim.CORE / 'sim/x87_test.asm').read_text()
+        names = [line.split("'")[1].rstrip('$') for line in source.splitlines() if line.startswith('name_')]
+        self.assertEqual(names, list(sim.X87_CHECKS))
+
+    @staticmethod
+    def suite(lines):
+        def run_machine(testbench, name, arguments, images):
+            assert arguments[arguments.index('--cpu') + 1] == 'oracle'
+            assert arguments[arguments.index('--x87') + 1] == '1'
+            return {'debug': [{'port': '0e9', 'text': line} for line in lines], 'failures': []}
+        args = mock.Mock(cpu='oracle', download=False, jobs=1, limit_seconds=8)
+        with mock.patch.object(sim.firmware, 'images', return_value={}), \
+                mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
+                mock.patch.object(sim, 'run_machine', run_machine), mock.patch('builtins.print'):
+            return sim.run_x87(args, [])['failures']
+
+    PASSING = ['X87 equip 0002h ok', 'X87 bios 1 calls ok', 'X87 bios-sw 0084h ok', 'X87 raw 1 calls ok', 'X87 raw-ip 0150h ok',
+               'X87 raw-sw 0084h ok', 'X87 held 01A0h ok', 'X87 f1-cw 037Eh ok', 'X87 f1-sw 8081h ok', 'X87 DONE ok']
+
+    def test_every_check_must_print_ok(self):
+        self.assertEqual(self.suite(self.PASSING), [])
+        failing = self.PASSING[:6] + ['X87 held 0000h FAIL'] + self.PASSING[7:9] + ['X87 DONE FAIL']
+        self.assertEqual(self.suite(failing), ['X87 held 0000h FAIL', 'X87 DONE FAIL'])
+
+    def test_a_run_that_stops_early_fails(self):
+        failures = self.suite(self.PASSING[:2])
+        self.assertEqual(len(failures), 1)
+        self.assertIn("X87TEST.COM ran ['equip', 'bios']", failures[0])
+
+
 class BootReportTest(unittest.TestCase):
     def test_games_mem_requires_serpent_isle_and_frontier_memory(self):
         old_mem = ['Largest executable program size       573K (586,416 bytes)']
@@ -784,6 +885,47 @@ class Port2SynthesisHarnessTest(unittest.TestCase):
 
     def test_pair_ties_off_the_ems_board(self):
         self.assertIn(".ems_read(1'b0), .ems_write(1'b0)", synthesis.PAIR)
+
+    def test_pair_measures_the_floppy_client(self):
+        self.assertIn('input wire [7:0] fdc_burstcount', synthesis.PAIR)
+        self.assertIn('.fdc_readdatavalid(fdc_readdatavalid)', synthesis.PAIR)
+
+
+class FdcReplayTest(unittest.TestCase):
+    CASES = set(re.findall(r'list\.push_back\(\{"(\w+)"', (sim.CORE / 'sim/fdc_replay_tb.cpp').read_text()))
+
+    def test_every_listed_divergence_is_a_replay_case(self):
+        listed = sim.fdc_divergent_cases()
+        self.assertTrue(listed)
+        self.assertEqual(set(listed) - self.CASES, set())
+
+    def test_every_divergence_names_its_deciding_case(self):
+        entries = sim.tomllib.loads(sim.FDC_DIVERGENCES.read_text())['divergence']
+        self.assertEqual(len({entry['id'] for entry in entries}), len(entries))
+        for entry in entries:
+            for field in ('title', 'reference', 'rtl', 'deciding', 'follow'):
+                self.assertTrue(entry.get(field), f'{entry["id"]} has no {field}')
+            self.assertIn(entry['follow'], ('rtl', 'both'))
+            if 'checked' in entry:
+                self.assertIn(entry['checked'], self.CASES)
+
+    def test_parse_fails_on_checks_and_cases_the_replay_lacks(self):
+        output = ('CASE read_track MATCH\nCASE fm_read DIFFER LISTED\n'
+                  'CHECK FAIL timing: the first byte waits for spin-up\nSUMMARY matched=1 differed=1\n')
+        report = sim.parse_fdc(output, ['fm_read', 'no_such_case'])
+        self.assertEqual(report['cases'], {'read_track': 'MATCH', 'fm_read': 'DIFFER'})
+        self.assertEqual(report['failures'], [
+            'FAIL timing: the first byte waits for spin-up',
+            'fdc_divergences.toml lists no_such_case, which the replay has no case for'])
+
+    def test_a_replay_that_runs_nothing_fails(self):
+        self.assertEqual(sim.parse_fdc('SUMMARY matched=0\n', [])['failures'], ['the floppy replay ran no case'])
+
+    def test_fdc_is_in_every_rtl_list_the_seal_uses(self):
+        fdc = sim.CORE / 'rtl/pc386_fdc.sv'
+        self.assertIn(fdc, sim.AT_RTL)
+        self.assertIn(fdc, sim.SYSTEM_RTL)
+        self.assertIn('cores/fes-pc386/rtl/pc386_fdc.sv', producer.MACHINE_SOURCES)
 
 
 SYSTEM_OUTPUT = """WRITE-TEST 444436

@@ -1,0 +1,9 @@
+{
+  "classification": "Actual parent source materialization, registry selection and authenticated installed-tool canonical API; entire output record equals normal producer",
+  "elapsed_seconds": 63.307,
+  "hardware_access": "not-performed",
+  "record_sha256": "ab4c1edc2c09b051085b369ef59a8cd359ed5d7db43e7f86722e295f2fe2f343",
+  "source_inputs": 577,
+  "source_revision": "6008eb094e53c0275cbff6b850c7826d0d35b152",
+  "status": "pass"
+}

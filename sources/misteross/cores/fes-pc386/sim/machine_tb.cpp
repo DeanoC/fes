@@ -36,8 +36,8 @@
 //        [--mouse S:DX,DY,BUTTONS]...
 //        [--census F] [--profile F] [--profile-from S] [--profile-to S]
 //        [--cpu-profile F] [--cpu-profile-every S] [--rtl-from S] [--rtl-at-flip N] [--rtl-for S]
-//        [--ems-pages N] [--boot-key S:TEXT]
-//        [--rtl-at-prompt 1] [--keys-after-type 1] [--frame-every S] [--game-launch 1]
+//        [--ems-pages N] [--boot-key S:TEXT] [--x87 1]
+//        [--rtl-at-prompt 1] [--keys-after-type 1] [--frame-every S] [--game-launch 1] [--stop-file F]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
 // marker, runs the pixel clock for two 720p frames and compares the second
@@ -59,6 +59,9 @@
 // MMIO into the RTL board for either CPU, whose memory is port 2's model; the
 // machine itself sends 8237 cycles there to the board. It prints at the end:
 //   EMS pages=<n> reads=<n> writes=<n>   the CPU's frame accesses
+// --x87 1 is the i386dx+387 identity: the machine's x87_present input, so
+// CMOS 14h bit 1 (INT 11h's coprocessor bit) is set. The oracle's 387 is
+// fitted, as on an AT, either way (Oracle::set_at_coprocessor).
 // --preset, --frequency and --turbo are --cpu rtl's governor settings
 // (fes_i386_governor; fes.pc386.machine words 0, 1 and 3), max by default.
 //
@@ -116,6 +119,10 @@
 // released at the prompt instead of from reset, so a program's keys keep their
 // place whichever CPU booted DOS. --frame-every S (with --frames) writes the
 // captured frame every S simulated seconds as t<seconds>.ppm.
+// --stop-file F (with --frame-every) ends the run as END stop-file, a pass,
+// at the first --frame-every point at which F exists: a runner that judges the
+// written frames as they appear (sim_fes_pc386.py's wfw suite) creates F once
+// it has seen what it waits for, and the bench still prints every end line.
 // --rtl-for S ends the run S simulated seconds after the RTL begins (at
 // RTL-BEGIN, or at its first clock without a handover), as END rtl-window,
 // a pass.
@@ -235,7 +242,7 @@ pc386::PortSignals port2(Vpc386_machine &top) {
 class Machine final : public fes_i386::Bus {
 public:
     Machine(const std::vector<uint8_t> &bios, const std::vector<uint8_t> &vgabios, const std::string &disk,
-            unsigned ems_pages)
+            unsigned ems_pages, bool x87)
         : image(read_file(disk)), ems_pages(ems_pages) {
         if (ems_pages > 255) throw std::runtime_error("--ems-pages is 0 to 255");
         if (bios.size() != 0x10000) throw std::runtime_error("the BIOS must be 64 KiB");
@@ -258,6 +265,7 @@ public:
         top.above16m_64k = 0;
         top.sb_base_high = 0x22; top.sb_irq = 7; top.sb_dma = 1;
         top.ems_pages = uint8_t(ems_pages);
+        top.x87_present = x87;
         for (int n = 0; n < 4; ++n) clock();
         top.reset = 0;
         top.port2_reset = 0;
@@ -291,6 +299,7 @@ public:
     uint8_t heads = 0, spt = 0;
     uint64_t cycles = 0;
     bool cpu_reset_seen = false;
+    bool irq13 = false;  // the oracle's 387 ERROR#, after its last step
     std::map<std::tuple<std::string, unsigned, uint64_t>, uint64_t> io_times, io_waits;
     bool vga_write_open = false;  // the I/O access in flight is a VGA port write
     uint64_t vga_waits = 0;       // its clocks waiting for VGA FIFO space
@@ -392,6 +401,9 @@ public:
             pixel_edge_ps += PIXEL_HALF_PS;
         }
         link.carry(cycles);
+        // IRQ 13 from the 387's ERROR# (Oracle::x87_irq13), on the AT core's
+        // device IRQs beside the sound card's.
+        if (irq13) top.device_irq |= 1u << 13;
         // A VGA port write's byte waits while the VGA's front FIFO is full.
         if (vga_write_open && top.rootp->pc386_machine__DOT__vga__DOT__io_new &&
             top.rootp->pc386_machine__DOT__vga__DOT__fifo_full)
@@ -1244,7 +1256,7 @@ void write_wav(const std::string &path, const std::vector<int16_t> &samples) {
 }
 
 struct Options {
-    std::string bios, vgabios, disk, disk_out, prompt = "C:\\>", type, expect, trace, frames, until_debug;
+    std::string bios, vgabios, disk, disk_out, prompt = "C:\\>", type, expect, trace, frames, until_debug, stop_file;
     std::string wav, opl2_log, cpu = "oracle", census, profile, cpu_profile;
     double cpu_profile_every = 1.0, rtl_from = 0, rtl_for = -1;
     unsigned rtl_at_flip = 0;
@@ -1258,6 +1270,7 @@ struct Options {
     struct Mouse { double at; int dx, dy, buttons; };
     std::vector<Mouse> mouse;
     unsigned cycles_per_instruction = 4;
+    bool x87 = false;  // --x87: the i386dx+387 identity, CMOS 14h bit 1
 };
 
 template <typename Top, typename Clock>
@@ -1360,6 +1373,7 @@ Options parse(int argc, char **argv) {
         else if (flag == "--rtl-at-prompt") options.rtl_at_prompt = std::stoul(value) != 0;
         else if (flag == "--keys-after-type") options.keys_after_type = std::stoul(value) != 0;
         else if (flag == "--frame-every") options.frame_every = std::stod(value);
+        else if (flag == "--stop-file") options.stop_file = value;
         else if (flag == "--game-launch") options.game_launch = std::stoul(value) != 0;
         else if (flag == "--profile-from") options.profile_from = std::stod(value);
         else if (flag == "--profile-to") options.profile_to = std::stod(value);
@@ -1367,6 +1381,7 @@ Options parse(int argc, char **argv) {
         else if (flag == "--frequency") options.frequency = unsigned(std::stoul(value));
         else if (flag == "--turbo") options.turbo = unsigned(std::stoul(value));
         else if (flag == "--ems-pages") options.ems_pages = unsigned(std::stoul(value));
+        else if (flag == "--x87") options.x87 = std::stoul(value) != 0;
         else if (flag == "--boot-key") {
             size_t colon = value.find(':');
             if (colon == std::string::npos) throw std::runtime_error("--boot-key takes SECONDS:TEXT");
@@ -1397,6 +1412,8 @@ Options parse(int argc, char **argv) {
         throw std::runtime_error("--cpu-profile, --rtl-from, --rtl-at-flip, --rtl-at-prompt and --rtl-for need --cpu rtl");
     if (options.frame_every < 0) throw std::runtime_error("--frame-every takes a time of 0 (off) or above");
     if (options.frame_every > 0 && options.frames.empty()) throw std::runtime_error("--frame-every needs --frames");
+    if (!options.stop_file.empty() && options.frame_every <= 0)
+        throw std::runtime_error("--stop-file needs --frame-every");
     if (options.cpu_profile_every <= 0) throw std::runtime_error("--cpu-profile-every takes a time above 0");
     for (char &c : options.type) if (c == '|') c = '\n';
     for (auto &key : options.keys) for (char &c : key.second) if (c == '|') c = '\n';
@@ -1415,7 +1432,8 @@ int main(int argc, char **argv) {
             || RtlCpu::physical(0x00100000u, true) != 0u)
             throw std::runtime_error("pc386 RTL physical address translation self-check failed");
         Options options = parse(argc, argv);
-        Machine machine(read_file(options.bios), read_file(options.vgabios), options.disk, options.ems_pages);
+        Machine machine(read_file(options.bios), read_file(options.vgabios), options.disk, options.ems_pages,
+                        options.x87);
         if (!options.opl2_log.empty() && !(machine.opl2_log = std::fopen(options.opl2_log.c_str(), "w")))
             throw std::runtime_error("cannot write " + options.opl2_log);
         if (!options.trace.empty()) {
@@ -1424,6 +1442,9 @@ int main(int argc, char **argv) {
             std::fprintf(machine.trace, "# pc386 VGA trace: cycles from machine reset\n");
         }
         auto oracle = fes_i386::make_oracle(machine);
+        // Bochs's 387 is the oracle's coprocessor, wired as on an AT board:
+        // its ERROR# on IRQ 13, the BUSY# latch and ports F0h and F1h.
+        oracle->set_at_coprocessor(true);
         oracle->reset();
         // --cpu rtl: the RTL runs, and the oracle only between its stops and
         // their restarts (on_oracle).
@@ -1585,16 +1606,30 @@ int main(int argc, char **argv) {
                 if (profiling || !options.census.empty()) before = oracle->get_state();
                 // The census (census.h): the stem at CS:EIP before the step,
                 // what the step did after it.
-                if (!options.census.empty()) census.begin(before, site(before));
+                fes_i386::X87State x87_before;
+                if (!options.census.empty()) {
+                    census.begin(before, site(before));
+                    x87_before = oracle->x87_state();
+                }
                 fes_i386::StepResult result = oracle->step();
-                if (!options.census.empty()) census.end(before, oracle->get_state(), result);
+                if (!options.census.empty()) {
+                    const fes_i386::State after = oracle->get_state();
+                    census.end(before, after, result);
+                    census.x87(before, after, result, x87_before, oracle->x87_state());
+                }
+                machine.irq13 = oracle->x87_irq13();
                 ++steps;
                 for (unsigned n = 0; n < options.cycles_per_instruction; ++n) machine.clock();
                 if (machine.cycles >= pixel_from) machine.start_pixel_clock();
                 if (result.shutdown) machine.top.cpu_shutdown = 1;
-                if (result.halted) {
+                if (result.halted || result.x87_held) {
+                    // Halted, or held at an ESC or WAIT by the BUSY# latch:
+                    // either waits for an interrupt.
                     fes_i386::State state = oracle->get_state();
-                    if (!(state.eflags & 0x200)) { reason = "halt-with-interrupts-off"; break; }
+                    if (!(state.eflags & 0x200)) {
+                        reason = result.halted ? "halt-with-interrupts-off" : "x87-held-with-interrupts-off";
+                        break;
+                    }
                     while (!machine.top.intr && machine.cycles < limit && !machine.cpu_reset_seen &&
                            !(keys.size() && machine.cycles >= next_key) && !mouse_pending && !mouse_due())
                         machine.clock();
@@ -1604,6 +1639,7 @@ int main(int argc, char **argv) {
                     machine.top.cpu_shutdown = 0;
                     std::printf("CPU-RESET %llu\n", (unsigned long long)machine.cycles);
                     oracle->reset();
+                    machine.irq13 = oracle->x87_irq13();
                 }
                 if (profiling) profile.step(before, oracle->get_state(), result, machine.cycles - step_from, guest_byte);
                 if (bool(machine.top.intr) != intr) { intr = machine.top.intr; oracle->set_intr(intr); }
@@ -1646,6 +1682,8 @@ int main(int argc, char **argv) {
                     }
                 }
             } else {
+                // The RTL is a 386 with an empty socket: no ERROR#.
+                machine.irq13 = false;
                 RtlCpu::Event event = rtl->run(64);
                 if (machine.cycles >= pixel_from) machine.start_pixel_clock();
                 if (event == RtlCpu::Event::Shutdown) {
@@ -1724,6 +1762,10 @@ int main(int argc, char **argv) {
                     pc386::write_ppm(options.frames + name, machine.captured());
                 }
                 next_frame += frame_step;
+                if (!options.stop_file.empty() && std::ifstream(options.stop_file).good()) {
+                    reason = "stop-file";
+                    break;
+                }
             }
 
             if (boot_scheduled < options.boot_keys.size() && keys.empty() &&
@@ -1937,7 +1979,7 @@ int main(int argc, char **argv) {
             std::ofstream(options.disk_out, std::ios::binary)
                 .write(reinterpret_cast<const char *>(machine.image.data()), std::streamsize(machine.image.size()));
         std::string done(reason);
-        return done == "prompt" || done == "debug-marker" || done == "rtl-window" ? 0 : 1;
+        return done == "prompt" || done == "debug-marker" || done == "rtl-window" || done == "stop-file" ? 0 : 1;
     } catch (const std::exception &error) {
         std::fprintf(stderr, "machine_tb: %s\n", error.what());
         return 2;

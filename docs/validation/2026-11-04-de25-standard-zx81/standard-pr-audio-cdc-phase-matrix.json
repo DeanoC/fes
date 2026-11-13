@@ -1,0 +1,42 @@
+{
+  "source_revision": "413eba23868bb73b2e5b5f494274fa1231ce0d56",
+  "source_sha256": {
+    "sources/misteross/cores/fes-common/rtl/fes_audio_output.v": "e686a035484907d1690d7e0cd8e91d6ace86146b38bf4d85d4f500690ddfb0dd",
+    "sources/misteross/cores/fes-common/rtl/fes_audio_i2s.v": "14c24da8c166a623c41bc0ae57fc26c345ed6c419f825f2ba1f4f5057c4435f4"
+  },
+  "bench_sha256": "7679c6651853a43910a7f80103ed64a0f26d113be715321839ad739f5841a4ef",
+  "binary_sha256": "ae1950c5e79599427ee6b7547f9e8ba571142794b457a3164f1adce2362f3fdd",
+  "verilator_version": "Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)",
+  "cases": 36,
+  "lock_losses": 72,
+  "results": [
+    {
+      "case": "matrix",
+      "exit": 0,
+      "expected_exit": 0,
+      "observation": "PASS cases=36 decoded_frames=3024 active_frames=1980 held_frames=900 data_edges=34318 lock_losses=72"
+    },
+    {
+      "case": "zero-source",
+      "exit": 1,
+      "expected_exit": 1,
+      "observation": "FAIL case=0 t=22616 active payload remained silent"
+    },
+    {
+      "case": "invalid-pair",
+      "exit": 1,
+      "expected_exit": 1,
+      "observation": "FAIL case=0 t=16984 decoded stereo pair was incoherent"
+    }
+  ],
+  "classification": "Actual shared RTL digital serial-decoder stress with phase/clock/mute/lock variations, model evidence only",
+  "negative_controls": "Invalid input stimulus rejection checks validate the monitor; not injected physical CDC failures",
+  "metastability_or_board_timing_qualified": false,
+  "timing_exception_or_admission_change": false,
+  "hardware_acceptance": false,
+  "seconds": 5.777,
+  "initial_monitor_failure": {
+    "seconds": 2.421,
+    "cause": "Active-frame assertion preceded request/ACK and first full serialized frame. Corrected three-frame and per-lock warmup in monitor; RTL unchanged; failure retained."
+  }
+}

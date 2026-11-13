@@ -1,0 +1,61 @@
+{
+  "cases": [
+    "binding_stays_closed",
+    "rejects_bad_publish_before_effects",
+    "kernel_owns_descriptor_and_drain_lifetime",
+    "failed_start_is_held_until_drain",
+    "unreadable_epoch_retains_exposed_storage",
+    "acceptance_is_not_display_and_slots_alternate",
+    "ordered_descriptor_precedes_first_submit",
+    "stale_generation_and_reset_cannot_prove_drain",
+    "mismatched_completion_never_releases_slot",
+    "faults_never_release_pending_slot",
+    "snapshot_handshake_is_bounded_and_consistent",
+    "sequence_and_generation_never_wrap",
+    "poll_identity_rejects_before_register_effects",
+    "coherent_mapping_uapi_and_revoke",
+    "contiguous_aliases_are_revoked",
+    "rejects_invalid_mapping_shapes",
+    "refused_mapping_releases_new_mm_reference",
+    "revoke_catches_inflight_mmap_link"
+  ],
+  "classification": "AArch64 QEMU kernel DMA ownership tests",
+  "command": [
+    "/usr/bin/python3",
+    "/build/linux/tools/testing/kunit/kunit.py",
+    "run",
+    "--arch=arm64",
+    "--cross_compile=/build/sdk/bin/aarch64-buildroot-linux-gnu-",
+    "--build_dir=/build/kunit",
+    "--kunitconfig=/build/linux/drivers/misc/fes-de25-dma/.kunitconfig",
+    "--jobs=8",
+    "--timeout=180",
+    "--json=/export/kunit.json",
+    "fes-de25-dma*"
+  ],
+  "compiler": "aarch64-buildroot-linux-gnu-gcc.br_real (Buildroot 2021.02.4) 9.4.0",
+  "dma_admission": "not-qualified",
+  "fes_revision": "cb7b307ef4c3baad531adf8399f0fac101a7c2eb",
+  "files": {
+    "de25_dma.o": "cdafab3b45f2bddb6f611e37dd5e4602c538b73d57fb09a8d44356816423497c",
+    "de25_dma_test.o": "4cbcfac22fd03e24170ccbbd4d83e92af44a38d7d467980b98c216a197873493",
+    "inputs.json": "57c6d6947b8f6703ff2aefb8af296e6b73901b729a130f1c89d40fd686be0e82",
+    "kunit-Image": "75c1bea51203543d71d25a26abf742d03cc44243b9c6c45e5bd4a75fd42856b1",
+    "kunit-raw.log": "99b2123e32148a2c115435aee38da1a4f356fcf0671b3500318b8b845794d9a5",
+    "kunit-run.log": "ab7d7b1a1456e359669231ab865cd699c3a5a157c04a225b91bd475ecda878f7",
+    "kunit.config": "a0ea492994714343964f54f0ca354fe820d0079405baa11a7430d09b89f74e72",
+    "kunit.json": "3edec5fec368b626ebab949a0bfbf0faa7445d704f65b787c3324c1454756132",
+    "vendor.config": "3ec2812cffb3c37bf677941283c9b65c3f5620b519cb58a4ded5f230cadbcdf7"
+  },
+  "hardware_access": "not-performed",
+  "kernel_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+  "module_loadability_on_vendor_kernel": "not-tested",
+  "not_modeled": [
+    "DE25 HPS",
+    "FPGA",
+    "SMMU stream binding",
+    "firewall",
+    "physical DDR visibility"
+  ],
+  "qemu": "QEMU emulator version 7.2.22 (Debian 1:7.2+dfsg-7+deb12u18+b3)"
+}

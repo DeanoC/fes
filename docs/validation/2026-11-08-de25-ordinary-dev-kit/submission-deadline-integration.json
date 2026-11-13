@@ -1,0 +1,229 @@
+{
+  "source_head": "644ed8017513ebce2728d1fbe8bc9fa0318cc89a",
+  "make_check": {
+    "returncode": 0,
+    "source_head": "644ed8017513ebce2728d1fbe8bc9fa0318cc89a"
+  },
+  "interrupted_affected_run": {
+    "coordinator_terminal_exit": 143,
+    "coordinator_receipt_written": false,
+    "cause": "unestablished; SIGTERM termination",
+    "full_affected_suite_pass_claimed": false,
+    "functional_suite_reached_final_daemon_server_pass_line": true,
+    "tail_completion_required": true,
+    "original_log_preserved": "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/ordinary-upload-deadline-audit/test-changed.log"
+  },
+  "remaining_first_attempt": {
+    "results": [
+      {
+        "argv": [
+          "tests/incremental_build_test.sh",
+          "--check-only",
+          "/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime",
+          "build/tests/unit/de25_fpga_manager_test",
+          "build/tests/unit/production_hardware_test",
+          "build/tests/unit/menu_frame_transport_test",
+          "build/tests/unit/menu_window_test",
+          "build/tests/unit/de25_menu_test",
+          "build/tests/unit/menu_display_test",
+          "build/tests/unit/runtime_test",
+          "build/tests/unit/diagnostic_test",
+          "build/tests/unit/artifacts_test",
+          "build/tests/unit/core_package_test",
+          "build/tests/unit/core_composition_test",
+          "build/tests/unit/core_data_test",
+          "build/tests/unit/ata_disk_test",
+          "build/tests/unit/media_data_test",
+          "build/tests/unit/fes_gp_test",
+          "build/tests/unit/de25_computer_test",
+          "build/tests/unit/de25_pr_control_test",
+          "build/tests/unit/native_hardware_test",
+          "build/tests/unit/fpga_manager_test",
+          "build/tests/unit/mmio_test",
+          "build/tests/unit/window_driver_test",
+          "build/tests/unit/off_t_test",
+          "build/tests/unit/video_recipe_test",
+          "build/tests/unit/adv7513_test",
+          "build/tests/unit/i2c_test",
+          "build/tests/unit/input_test",
+          "build/tests/unit/video_test",
+          "build/tests/unit/protocol_test",
+          "build/tests/integration/daemon_server_test"
+        ],
+        "returncode": 1
+      }
+    ],
+    "completed": false,
+    "preserved_interrupted_full_run": true
+  },
+  "remaining_first_failure": "Interrupted exhaustive header-rebuild check left seven touched header timestamps; independent check-only path correctly refused a stale test binary. Original timestamps restored from that owned test snapshot before continuing.",
+  "header_timestamp_restoration": {
+    "owned_exhaustive_incremental_test_temp": "/tmp/libmister-incremental-build.vwHwC7",
+    "headers": [
+      {
+        "path": "include/libmister-runtime/runtime.h",
+        "interrupted_mtime_ns": 1794151049984847378,
+        "restore_mtime_ns": 1793906971273562819
+      },
+      {
+        "path": "src/native/artifacts.hpp",
+        "interrupted_mtime_ns": 1794151049984847378,
+        "restore_mtime_ns": 1793441183722898550
+      },
+      {
+        "path": "src/native/hardware.hpp",
+        "interrupted_mtime_ns": 1794151049988847548,
+        "restore_mtime_ns": 1793919115403164751
+      },
+      {
+        "path": "src/native/linux/mmio.hpp",
+        "interrupted_mtime_ns": 1794151049988847548,
+        "restore_mtime_ns": 1793914728032010849
+      },
+      {
+        "path": "src/daemon/protocol.hpp",
+        "interrupted_mtime_ns": 1794151049988847548,
+        "restore_mtime_ns": 1793535285151445096
+      },
+      {
+        "path": "src/linux/production_hardware.hpp",
+        "interrupted_mtime_ns": 1794151049992847719,
+        "restore_mtime_ns": 1793733449108129217
+      },
+      {
+        "path": "tests/support/fake_hardware.hpp",
+        "interrupted_mtime_ns": 1794151049996847889,
+        "restore_mtime_ns": 1793817325819568439
+      }
+    ],
+    "content_changed": false,
+    "reason": "Interrupted exhaustive dependency check left its seven touched headers. Restore exact recorded pre-test timestamps before independent remaining checks."
+  },
+  "final_daemon_terminal_check": {
+    "argv": [
+      "/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime/build/tests/integration/daemon_server_test"
+    ],
+    "returncode": 0,
+    "isolated_process_session": true,
+    "reason": "The interrupted coordinator recorded the final pass line but no terminal result; confirm only that final binary, without repeating earlier completed suites."
+  },
+  "whole_affected_run_pass": false,
+  "source_changed_to_silence_checks": false,
+  "hardware": "submission-deadline-native.json",
+  "evidence_root": "/data/fes-de25-main-integration-20261105/partial-start-investigation-20261108/ordinary-upload-deadline-audit",
+  "parent_python_suite_counts": [
+    [
+      "31",
+      "0.687s"
+    ],
+    [
+      "33",
+      "2.207s"
+    ],
+    [
+      "1",
+      "0.000s"
+    ],
+    [
+      "1",
+      "0.000s"
+    ],
+    [
+      "1423",
+      "384.852s"
+    ]
+  ],
+  "host_go_and_UI_reached_pass_report": true,
+  "compiler_routine_vs_exhaustive": "Component README/architecture guides conservatively selected the exhaustive target; interruption occurred during its header-rebuild dependency check, after functional results. No exhaustive recompile pass is claimed.",
+  "remaining_runtime_checks": {
+    "results": [
+      {
+        "argv": [
+          "tests/incremental_build_test.sh",
+          "--check-only",
+          "/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime",
+          "build/tests/unit/de25_fpga_manager_test",
+          "build/tests/unit/production_hardware_test",
+          "build/tests/unit/menu_frame_transport_test",
+          "build/tests/unit/menu_window_test",
+          "build/tests/unit/de25_menu_test",
+          "build/tests/unit/menu_display_test",
+          "build/tests/unit/runtime_test",
+          "build/tests/unit/diagnostic_test",
+          "build/tests/unit/artifacts_test",
+          "build/tests/unit/core_package_test",
+          "build/tests/unit/core_composition_test",
+          "build/tests/unit/core_data_test",
+          "build/tests/unit/ata_disk_test",
+          "build/tests/unit/media_data_test",
+          "build/tests/unit/fes_gp_test",
+          "build/tests/unit/de25_computer_test",
+          "build/tests/unit/de25_pr_control_test",
+          "build/tests/unit/native_hardware_test",
+          "build/tests/unit/fpga_manager_test",
+          "build/tests/unit/mmio_test",
+          "build/tests/unit/window_driver_test",
+          "build/tests/unit/off_t_test",
+          "build/tests/unit/video_recipe_test",
+          "build/tests/unit/adv7513_test",
+          "build/tests/unit/i2c_test",
+          "build/tests/unit/input_test",
+          "build/tests/unit/video_test",
+          "build/tests/unit/protocol_test",
+          "build/tests/integration/daemon_server_test"
+        ],
+        "returncode": 0
+      },
+      {
+        "argv": [
+          "tests/version_build_test.sh",
+          "/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime"
+        ],
+        "returncode": 0
+      },
+      {
+        "argv": [
+          "make",
+          "active-tree-test"
+        ],
+        "returncode": 0
+      },
+      {
+        "argv": [
+          "make",
+          "hardware-support-truth-test"
+        ],
+        "returncode": 0
+      }
+    ],
+    "completed": true,
+    "header_timestamps_restored_from_interrupted_owned_test": true,
+    "exhaustive_recompile_not_claimed": true
+  },
+  "public_binding_check": {
+    "passed": true,
+    "source_head": "644ed8017513ebce2728d1fbe8bc9fa0318cc89a",
+    "implementation_and_tests_match_committed_bytes": true,
+    "six_capture_hashes_match": true,
+    "candidate_and_original_native_controls_pass": true,
+    "normal61a4_gen7_restored": true,
+    "failed_upload_qualification_not_claimed": true
+  },
+  "parent_python_result": {
+    "tests": 1423,
+    "skipped": 1,
+    "result": "OK"
+  },
+  "host_checks": {
+    "host artifact functional suites": 0,
+    "host race suite excluding race-expensive packages": 0,
+    "host concurrency-focused race checks": 0,
+    "appliance race suite": 0,
+    "expansion functional suite": 0,
+    "expansion concurrency-focused race checks": 0,
+    "host UI tests": 0
+  },
+  "functional_binaries_in_completed_loop": 29,
+  "source_bound_software_checks": "submission-deadline-software.json",
+  "standalone_final_binary_exit_confirmed": true
+}

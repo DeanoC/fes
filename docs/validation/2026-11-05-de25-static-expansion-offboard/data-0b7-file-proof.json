@@ -1,0 +1,194 @@
+{
+  "status": "passed",
+  "classification": "off-board regular-file data setup and real ext4 tools",
+  "source_revision": "0b7d412da1151364b0b97ebca32f754874fb4f49",
+  "base_card_sha256": "4d30060bc2218f66a2aaef2f4d8566d2fe07c5db838667874ca487382520c077",
+  "bootstrap_identity": "ext4-mount-read-bookkeeping-v1",
+  "reference_bootstrap_sha256": "f5631a69a78831368c564612a5246ca06740bbe7898882279b5d67a6cb8c7336",
+  "booted_bootstrap_sha256": "b37ac62a79db9295b6b441dda2d833fee299ed9fb47d6bd7d0b5c241f6e8432b",
+  "normalization_sha256": "e35312d33dea50420f42c653598c2cea09a27be159e270e7c6981d5dd43510da",
+  "negative_bootstrap_offsets": [
+    1082,
+    9218,
+    9232,
+    31744
+  ],
+  "plan": {
+    "board": "de25-nano",
+    "layout_id": "de25-nano-appliance-2g-v1",
+    "card_bytes": 31267487744,
+    "start_sector": 4261888,
+    "sector_count": 56807424,
+    "type": 131,
+    "label": "FESDATA3"
+  },
+  "protected_sha256": {
+    "partition_1": "24925658fd6a72ff59db45e8cb7b0ebd16470576240e57d7dbdc4d1c578a1d31",
+    "partition_2": "b37ac62a79db9295b6b441dda2d833fee299ed9fb47d6bd7d0b5c241f6e8432b"
+  },
+  "mbr_before_sha256": "a692a172d9a0664a394f2b5464b7e9e88cb1a43fdfaec39616c4079d6dcdfe6e",
+  "mbr_after_sha256": "0f5417355dc39ed457641aeddcdaeb209c846969b69b908638767d0d22db9912",
+  "original_boot_and_partition_descriptors_unchanged": true,
+  "container_identity": "sha256:4ea53795a470bbe09b28475de79eb55212fb687fcd939ebe531064174ab557e4",
+  "filesystem": {
+    "type": "ext4",
+    "label": "FESDATA3",
+    "uuid": "7d69cb86f91240c6add01d19709635b3",
+    "block_size": 4096,
+    "block_count": 7100928,
+    "incompat_features": "0x2c2",
+    "superblock_sha256": "9a0ac036441309559950a88d863595f23367e00b29fb65e7b9b564aa65e39450"
+  },
+  "allocated_extent_bytes_copied_and_readback_verified": 4521984,
+  "extents": [
+    {
+      "start": 0,
+      "end": 4218880,
+      "sha256": "0cd69412a20b1ed66e7c8a248991b54d9789ee8f1bf4f7c4b85f5f191a198202"
+    },
+    {
+      "start": 4280320,
+      "end": 4284416,
+      "sha256": "b2c17400bb5241f27c5fdb2bb250d8c0885adbb3728bffcebbe4f7efebd89f4f"
+    },
+    {
+      "start": 4345856,
+      "end": 4349952,
+      "sha256": "bf3601598f800dbf26fcf8560e7ff944db70c8bdd7a5e9a06240b83330f9a3ec"
+    },
+    {
+      "start": 37900288,
+      "end": 37924864,
+      "sha256": "2bbb849532790c9048eb7b40666dc86446dee5eea90ff4a98529bfda1f4b5de2"
+    },
+    {
+      "start": 134217728,
+      "end": 134238208,
+      "sha256": "879d8213e63949b2d3a5e6c448d19b52834f3b8857bf3d5bcfb410df07320ac3"
+    },
+    {
+      "start": 402653184,
+      "end": 402673664,
+      "sha256": "e2953eb6f2fd37f7bf3afcdb864af343b95a19095c0cae6a27b37a27791e21f6"
+    },
+    {
+      "start": 671088640,
+      "end": 671109120,
+      "sha256": "cb1cfbd57b986324d29d92c7b869cff912ace37a247ecba231459e1e4367b391"
+    },
+    {
+      "start": 939524096,
+      "end": 939544576,
+      "sha256": "4f919f1d22db58aa10c49f7b30bd4d92d0812732a31c14c55b1c1f03e6f184df"
+    },
+    {
+      "start": 1207959552,
+      "end": 1207980032,
+      "sha256": "0712c214c7bbdb64456fd99adbde9224f1431543ca3944d6f8881ac1fdfbfdd5"
+    },
+    {
+      "start": 2147483648,
+      "end": 2147487744,
+      "sha256": "7b6559d21b8bcca2479270ba2a30b910d81b513e60829036dbcfcb8195021239"
+    },
+    {
+      "start": 3355443200,
+      "end": 3355463680,
+      "sha256": "f0efa341c2f071ae1b3c85c314481d4b3bddd3f0d0c7059f7ec1b7b6ecdd2525"
+    },
+    {
+      "start": 3623878656,
+      "end": 3623899136,
+      "sha256": "4da8272c4664d0204882009a1e78ad97d661d061ea5ba20e8c9c6747334378db"
+    },
+    {
+      "start": 4294967296,
+      "end": 4294971392,
+      "sha256": "7b6559d21b8bcca2479270ba2a30b910d81b513e60829036dbcfcb8195021239"
+    },
+    {
+      "start": 6442450944,
+      "end": 6442455040,
+      "sha256": "7b6559d21b8bcca2479270ba2a30b910d81b513e60829036dbcfcb8195021239"
+    },
+    {
+      "start": 6576668672,
+      "end": 6576689152,
+      "sha256": "33b37866803681352585d0f1b42add2eca4b529f6eeb5a04ebeb4ca913d1ddab"
+    },
+    {
+      "start": 8589934592,
+      "end": 8589938688,
+      "sha256": "7b6559d21b8bcca2479270ba2a30b910d81b513e60829036dbcfcb8195021239"
+    },
+    {
+      "start": 10737418240,
+      "end": 10737422336,
+      "sha256": "7b6559d21b8bcca2479270ba2a30b910d81b513e60829036dbcfcb8195021239"
+    },
+    {
+      "start": 10871635968,
+      "end": 10871656448,
+      "sha256": "3118e95f2ea59d32217d791b4e8a6968440aceaf6e5bafcbcfed76cfe1879e57"
+    },
+    {
+      "start": 12884901888,
+      "end": 12884910080,
+      "sha256": "75dccf34988d1bafbb46764044194cebc474ff2bda27a12db8f00ef8614a5937"
+    },
+    {
+      "start": 13019119616,
+      "end": 13019123712,
+      "sha256": "9f911b23b4de90cc73298b86e4f563b1230871d58b8701bc2424c5cf4bd3ec8d"
+    },
+    {
+      "start": 15032385536,
+      "end": 15032389632,
+      "sha256": "7b6559d21b8bcca2479270ba2a30b910d81b513e60829036dbcfcb8195021239"
+    },
+    {
+      "start": 16777216000,
+      "end": 16777236480,
+      "sha256": "780bdfc02ebac78d79393e54b1c590ab45c678be60003d3d465538290df114ac"
+    },
+    {
+      "start": 17179869184,
+      "end": 17179873280,
+      "sha256": "7b6559d21b8bcca2479270ba2a30b910d81b513e60829036dbcfcb8195021239"
+    },
+    {
+      "start": 19327352832,
+      "end": 19327356928,
+      "sha256": "7b6559d21b8bcca2479270ba2a30b910d81b513e60829036dbcfcb8195021239"
+    },
+    {
+      "start": 21474836480,
+      "end": 21474840576,
+      "sha256": "7b6559d21b8bcca2479270ba2a30b910d81b513e60829036dbcfcb8195021239"
+    },
+    {
+      "start": 23622320128,
+      "end": 23622324224,
+      "sha256": "7b6559d21b8bcca2479270ba2a30b910d81b513e60829036dbcfcb8195021239"
+    },
+    {
+      "start": 25769803776,
+      "end": 25769807872,
+      "sha256": "7b6559d21b8bcca2479270ba2a30b910d81b513e60829036dbcfcb8195021239"
+    },
+    {
+      "start": 27917287424,
+      "end": 27917291520,
+      "sha256": "b4c0c8e929919d673edcda1c339894674e8ba657126d25d0c636e31b48410bd1"
+    },
+    {
+      "start": 27917320192,
+      "end": 27917324288,
+      "sha256": "5feca2d675ad5db2631a5d68dc156afaa4455ec03da9b29eba7e7b3183447f5c"
+    }
+  ],
+  "filesystem_check": "e2fsck -fn passed",
+  "no_physical_devices_opened": true,
+  "physical_data_apply_acceptance": false,
+  "native_image_acceptance": false
+}

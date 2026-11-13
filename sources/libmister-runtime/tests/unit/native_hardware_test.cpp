@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "capture_log.hpp"
+#include "de25_menu_operations.hpp"
+#include "de25_computer_endpoint.hpp"
+#include "de25_standard_descriptor.hpp"
+#include "native/de25_core_driver.hpp"
 #include "daemon/protocol.hpp"
 #include "fake_input.hpp"
 #include "fake_mmio.hpp"
@@ -13,6 +17,7 @@
 #include "native/fes_gp.hpp"
 #include "native/generated/fes_gp.hpp"
 #include "native/generated/de10_nano.hpp"
+#include "native/generated/fes_de25_computer.hpp"
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/hardware.hpp"
@@ -43,6 +48,7 @@
 #include <condition_variable>
 #include <functional>
 #include <fstream>
+#include <cstdlib>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -258,7 +264,31 @@ public:
 		if (calls == fail_call) return failure;
 		return result;
 	}
+	bool SupportsStaticComposition() const override { return supports_static; }
+	mister::native::NativeResult ProgramStatic(const mister::native::Artifact& base,
+		const mister::native::Artifact& persona, const mister::CoreStaticComposition& selection,
+		std::uint64_t deadline) override {
+		events_.push_back("fpga.static");++static_calls;static_selection=selection;
+		std::string base_hash,persona_hash;
+		assert(mister::native::HashOpenedArtifact(base,&base_hash).ok());
+		assert(mister::native::HashOpenedArtifact(persona,&persona_hash).ok());
+		assert(base_hash==selection.base_sha256 && persona_hash==selection.persona_sha256);
+		assert(base.size()==selection.base_size && persona.size()==selection.persona_size);
+		return Program(base,mister::native::ProgrammingProfile::de25_linux_static_computer_v1,deadline);
+	}
+	bool supports_static=false;
+	unsigned static_calls=0;
+	mister::CoreStaticComposition static_selection;
 	bool BootHpsDdrLayout() override { return boot_hps_ddr_layout; }
+	mister::native::NativeResult ReleaseConfiguration(std::uint64_t) override
+	{
+		events_.push_back("fpga.release");++release_calls;
+		if (on_release) on_release();
+		return release_result;
+	}
+	int release_calls = 0;
+	std::function<void()> on_release;
+	mister::native::NativeResult release_result;
 	mister::Error ReleaseHpsDdrPorts(std::uint64_t deadline) override
 	{
 		events_.push_back("fpga.hps_ddr");
@@ -574,6 +604,10 @@ private:
 
 class RecordingDriver final : public mister::native::CoreDriver {
 public:
+ mister::Error WaitVideoReady(std::uint64_t) override {
+  events_.push_back("driver.video.ready");return {};
+ }
+
 	explicit RecordingDriver(std::vector<std::string>& events) : events_(events) {}
 	void BeginSession() override { events_.push_back("driver.begin"); }
 	mister::native::CoreDriverResult Quiesce(
@@ -646,6 +680,36 @@ public:
 		events_.push_back("driver.resume");
 		return resume_error;
 	}
+	mister::Error SetKeyboardHid(const mister::KeyboardHidRows& rows, std::uint64_t) override
+	{ keyboard = rows; ++keyboard_calls; return control_error; }
+	mister::Error LoadMedia(const std::vector<std::uint8_t>& bytes, std::uint64_t) override
+	{ media = bytes; ++media_calls; return control_error; }
+	mister::Error LoadMediaLive(const std::vector<std::uint8_t>& bytes, std::uint64_t) override
+	{ media = bytes; ++live_media_calls; return control_error; }
+	mister::Error ClearMedia(std::uint64_t) override
+	{ ++clear_calls; return control_error; }
+	const std::vector<mister::MediaUnitCapability>& media_units() const override { return units; }
+	mister::Error InsertMedia(std::uint8_t unit, const mister::native::ComputerMediaSnapshot& snapshot,
+		mister::native::Clock& clock, std::uint64_t deadline, std::uint32_t) override
+	{
+		assert(unit == 0); ++unit_insert_calls; media.resize(snapshot.size());
+		auto error = snapshot.Read(0, media.data(), media.size(), clock, deadline);
+		if (!error.ok()) return error;
+		if (control_error.ok()) units[0].state = mister::MediaUnitState::ready;
+		return control_error;
+	}
+	mister::Error EjectMedia(std::uint8_t unit, std::uint64_t) override
+	{
+		assert(unit == 0); ++unit_eject_calls;
+		if (control_error.ok()) units[0].state = mister::MediaUnitState::empty;
+		return control_error;
+	}
+	std::vector<mister::MediaUnitCapability> units;
+	unsigned unit_insert_calls = 0, unit_eject_calls = 0;
+	mister::KeyboardHidRows keyboard{};
+	std::vector<std::uint8_t> media;
+	unsigned keyboard_calls = 0, media_calls = 0, live_media_calls = 0, clear_calls = 0;
+	mister::Error control_error;
 	std::vector<std::uint16_t> live_data{1, 0};
 	std::vector<std::vector<std::uint16_t>> restored_data;
 	std::function<void()> on_capture;
@@ -722,7 +786,8 @@ public:
 
 struct Fixture {
 	explicit Fixture(mister::native::CoreDriver* gp_driver = nullptr,
-		mister::native::IdleRecipe idle_recipe = mister::native::SplashIdle())
+		mister::native::IdleRecipe idle_recipe = mister::native::SplashIdle(),
+        mister::native::MenuMemory* menu_memory = nullptr)
 		: temporary(), events(), idle(temporary.File("idle.rbf", "idle")),
 		  rbf(temporary.File("megadrive.rbf", "game")),
 		  media_two(temporary.File("two.bin", "22")),
@@ -735,7 +800,7 @@ struct Fixture {
 			0x0001}), sink(), disk_operations(), disk_window(disk_operations),
 			hardware(opener, fpga, idle_video, game_video, input,
 			input_identity, clock, log, idle, {30000, 10000, 10000},
-			gp_driver, {"/tmp"}, std::move(idle_recipe), nullptr, nullptr, &disk_window)
+			gp_driver, {"/tmp"}, std::move(idle_recipe), nullptr, menu_memory, &disk_window)
 	{
 		hardware.SetFaultSink(&sink);
 	}
@@ -1412,15 +1477,14 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 		"development-contained-v1", "fes-gp-v1"}));
 	assert(capabilities.abis.size() == 5);
 	assert(capabilities.abis[0].id == "fes.application");
-	assert(capabilities.abis[0].interfaces.size() == 10);
+	assert(capabilities.abis[0].interfaces.size() == 9);
 	assert(capabilities.abis[0].interfaces[1].id == "fes.expansion.coleco-bus");
 	assert(capabilities.abis[0].interfaces[1].major == 1);
 	assert(capabilities.abis[0].interfaces[1].minor == 0);
-	assert(capabilities.abis[0].interfaces[2].id == "fes.firmware.blob");
-	assert(capabilities.abis[0].interfaces[8].id == "fes.memory.hps-ddr");
-	assert(capabilities.abis[0].interfaces[8].major == 1);
-	assert(capabilities.abis[0].interfaces[8].minor == 0);
-	assert(capabilities.abis[0].interfaces[9].id == "fes.video.fixed-720p60");
+	assert(capabilities.abis[0].interfaces[7].id == "fes.memory.hps-ddr");
+	assert(capabilities.abis[0].interfaces[7].major == 1);
+	assert(capabilities.abis[0].interfaces[7].minor == 0);
+	assert(capabilities.abis[0].interfaces[8].id == "fes.video.fixed-720p60");
 	const auto& computer = capabilities.abis[1];
 	assert(computer.id == "fes.computer" && computer.major == 1 && computer.minor == 0);
 	std::vector<std::string> computer_interfaces;
@@ -1567,36 +1631,41 @@ void TestSimpleComputerAudioIsEnabledOnlyAfterIdentity()
 	assert(!has_phase("audio_setup") && !has_phase("audio_enable"));
 }
 
-void TestApplicationFirmwareStatusAdvertisesOptionalSlot()
+void TestComputerControlsDispatchThroughSelectedCoreDriver()
 {
-	std::vector<std::string> events;
-	RecordingDriver gp(events);
-	IntegratedFixture fixture(&gp);
-	fixture.Start();
-	const auto idle = fixture.native.hardware.capabilities();
-	assert(idle.abis[0].id == "fes.application");
-	bool advertised = false;
-	for (const auto& contract : idle.abis[0].interfaces)
-		if (contract.id == "fes.firmware.blob" && contract.major == 1 && contract.minor == 0)
-			advertised = true;
-	assert(advertised);
-	TempDirectory package;
-	std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
-	ReplaceAll(&manifest, "fes.simple-game", "fes.application");
-	manifest += "\n[[interfaces]]\nid = \"fes.media.blob\"\nmajor = 1\nminor = 0\nrequired = true\n";
-	manifest += "\n[[interfaces]]\nid = \"fes.firmware.blob\"\nmajor = 1\nminor = 0\nrequired = false\n";
-	package.File("manifest.toml", manifest);
-	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	std::vector<std::string> events; RecordingDriver driver(events); Fixture fixture(&driver);
+	mister::KeyboardHidRows rows{}; rows[0] = 32;
+	assert(!fixture.hardware.SetKeyboardHid(rows).ok() && driver.keyboard_calls == 0);
+	TempDirectory package; PopulateFesGpPackage(&package);
 	mister::native::OpenedCorePackage opened;
 	assert(mister::native::OpenCorePackage(package.path, "", &opened).ok());
-	assert(fixture.runtime.LoadCore(package.path, opened.package_id).ok());
-	const auto status = fixture.runtime.status();
-	bool active = false;
-	for (const auto& contract : status.capabilities.active_interfaces)
-		if (contract.id == "fes.firmware.blob" && contract.major == 1 && contract.minor == 0)
-			active = true;
-	assert(active);
-	assert(fixture.runtime.Stop().ok());
+	std::unique_ptr<mister::AdmittedCorePackage> admitted;
+	assert(fixture.hardware.AdmitCorePackage(package.path, opened.package_id, &admitted).ok());
+	assert(fixture.hardware.LoadCore(std::move(admitted), 1).error.ok());
+	assert(fixture.hardware.SetKeyboardHid(rows).ok());
+	assert(driver.keyboard_calls == 1 && driver.keyboard == rows);
+	assert(fixture.hardware.LoadComputerMedia(fixture.media_two).ok());
+	assert(driver.media_calls == 1 && driver.media == std::vector<std::uint8_t>({'2','2'}));
+	assert(fixture.hardware.LoadComputerMediaLive(fixture.media_zero).ok());
+	assert(driver.live_media_calls == 1 && driver.media == std::vector<std::uint8_t>({'0'}));
+	assert(fixture.hardware.ClearComputerMedia().ok() && driver.clear_calls == 1);
+	mister::MediaUnitCapability unit; unit.unit = 0;
+	unit.interface = {"fes.media.zx81-tape", 1, 0};
+	unit.min_bytes = 1; unit.max_bytes = 16384; unit.chunk_bytes = 512; unit.saveable = false;
+	driver.units.push_back(unit);
+	assert(fixture.hardware.capabilities().media_units.size() == 1);
+	assert(!fixture.hardware.InsertComputerMedia(1, fixture.media_two, 2).ok());
+	assert(!fixture.hardware.InsertComputerMedia(0, fixture.media_two, 1).ok());
+	assert(driver.unit_insert_calls == 0);
+	assert(fixture.hardware.InsertComputerMedia(0, fixture.media_two, 2).ok());
+	assert(driver.unit_insert_calls == 1 && driver.media == std::vector<std::uint8_t>({'2','2'}));
+	assert(fixture.hardware.capabilities().media_units[0].state == mister::MediaUnitState::ready);
+	assert(!fixture.hardware.capabilities().media_units[0].saveable);
+	assert(fixture.hardware.EjectComputerMedia(0).ok() && driver.unit_eject_calls == 1);
+	assert(fixture.hardware.capabilities().media_units[0].state == mister::MediaUnitState::empty);
+	driver.control_error = {mister::ErrorCode::io_failed, "injected selected-driver error"};
+	assert(fixture.hardware.SetKeyboardHid(rows).code == mister::ErrorCode::io_failed);
+	assert(fixture.hardware.ClearComputerMedia().code == mister::ErrorCode::io_failed);
 }
 
 void TestComputerSnapshotInterfacesBecomeActiveThroughRuntime()
@@ -1686,7 +1755,7 @@ void SetHpsDdrMirrors(mister_test::FakeMmio* mmio, bool matching)
 class MenuOperations final : public mister::native::MenuWindowOperations {
 public:
  std::vector<std::uint32_t> pixels=std::vector<std::uint32_t>(8388608/4,0xdeadbeef);
- bool driver=true;unsigned grants=0,revokes=0,cleans=0;
+ bool driver=true,fail_revoke=false;unsigned grants=0,revokes=0,cleans=0;
  struct Cleaned {std::uint64_t offset;std::uint32_t width,height,stride;};
  std::vector<Cleaned> cleaned;
  std::vector<std::uint64_t> granted;
@@ -1700,11 +1769,30 @@ public:
  mister::Error Clean(int,std::uint64_t offset,std::uint32_t width,std::uint32_t height,std::uint32_t stride) override {
   cleaned.push_back({offset,width,height,stride});++cleans;return {};
  }
- mister::Error Revoke(int) override {++revokes;return {};}
+ mister::Error Revoke(int) override {
+  ++revokes;return fail_revoke?mister::Error{mister::ErrorCode::io_failed,"menu revoke failed"}:mister::Error{};
+ }
  mister::Error Duplicate(int fd,int* copy) override {*copy=fd+1000;return {};}
  void Close(int) override {}
  bool Granted() const {return grants>revokes;}
 };
+void TestMenuRevocationFailureBlocksIdleAndReplacement()
+{
+ using namespace mister::native;
+ MenuOperations operations;MenuWindow memory(operations);
+ assert(memory.Activate(false,false).ok());
+ operations.fail_revoke=true;
+ Fixture fixture(nullptr,SplashIdle(),&memory);
+ const auto idle=fixture.hardware.LoadIdle();
+ assert(!idle.error.ok()&&idle.error.phase=="quiesce");
+ assert(fixture.fpga.calls==0&&fixture.opener.calls==0&&fixture.idle_video.calls==0);
+ // Even a later successful-looking device cannot erase a failed revoke.
+ operations.fail_revoke=false;
+ const auto replacement=fixture.hardware.LoadContainedDevelopmentRBF(fixture.rbf,17);
+ assert(!replacement.error.ok()&&replacement.error.phase=="quiesce");
+ assert(fixture.fpga.calls==0&&operations.revokes==1);
+ assert(!memory.Activate(true,false).ok()&&operations.grants==1);
+}
 // The client draws into the slot the hardware names, then commits it.
 mister::Error PresentBackSlot(mister::native::NativeHardware& hardware,mister::MenuDisplayInfo* info)
 {
@@ -1760,7 +1848,7 @@ struct MenuGpScript {
   Info(3,sequence+1,final_underflows);
  }
 };
-void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
+void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure(bool frame_mapping=false)
 {
  using namespace mister::native;using namespace mister::native::generated;
  TempDirectory package;
@@ -1773,12 +1861,26 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
  mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
  MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ // Exercise the lifecycle's explicit per-frame agreement independently of
+ // the board adapter's allocation/publication tests.
+ struct MappedMemory final : MenuMemory {
+  MenuMemory& underlying;
+  explicit MappedMemory(MenuMemory& m):underlying(m) {}
+  bool FrameMapping() const override {return true;}
+  bool FreshSlotsOnActivate() const override {return true;}
+  mister::Error Activate(bool c,bool b) override {return underlying.Activate(c,b);}
+  mister::Error Revoke() override {return underlying.Revoke();}
+  mister::Error Share(int* fd) const override {return underlying.Share(fd);}
+  mister::Error Clean(std::uint8_t slot,const std::vector<mister::MenuRect>& r) const override {return underlying.Clean(slot,r);}
+  mister::Error CleanBlit(std::uint32_t f,std::uint32_t n,const std::vector<mister::MenuSpan>& r) const override {return underlying.CleanBlit(f,n,r);}
+ } mapped(memory);
+ MenuMemory* selected_memory=frame_mapping?static_cast<MenuMemory*>(&mapped):&memory;
  RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
  FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
  TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
  const InputDeviceIdentity identity={"test",0,0,0,0};
  NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
-  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,selected_memory);
  std::unique_ptr<mister::AdmittedCorePackage> admitted;
  fpga.boot_hps_ddr_layout=false;
  assert(!hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
@@ -1805,6 +1907,7 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  assert(loaded.error.ok()&&fpga.calls==1&&fpga.hps_ddr_calls==1);
  assert(!hardware.menu_display().available&&hardware.menu_display().session&&hardware.menu_display().core_generation==17);
  assert(hardware.menu_display().package_id==opened.package_id);
+ assert(hardware.menu_display().frame_mapping==frame_mapping);
  const auto begin=mmio.writes.size();
  const auto open_plane=[&] {
   for(unsigned row=0;row<8;++row){script.Reply();}
@@ -1824,6 +1927,8 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  script.Reply();script.Info(3,1);
  assert(hardware.SetSessionDisplay(true,false).ok()&&hardware.menu_display().available);
  assert(!hardware.menu_display().launcher_focus);
+ std::uint8_t reopened_slot=0;assert(hardware.MenuBackSlot(&reopened_slot).ok());
+ assert(reopened_slot==(frame_mapping?1:0));
  auto keys=mmio.writes.size();for(unsigned row=0;row<8;++row){script.Reply();}
  assert(hardware.SetComputerKeyboard(0).ok()&&mmio.writes.size()>keys);
  // Taking focus on the shown plane neutralizes keys without touching the plane.
@@ -1840,6 +1945,11 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  script.Present(1,0,kMenuUnderflowPresentCap+1);script.Reply();script.Info(25,2,kMenuUnderflowPresentCap+1);
  assert(!PresentBackSlot(hardware,&info).ok());
  assert(!hardware.menu_display().available&&hardware.menu_display().error.message=="menu underflow exceeded the per-present cap");
+ bool original_failure_logged=false;
+ for(const auto& record:log.records())
+  if(record.operation=="session_display"&&record.phase=="present"&&
+   record.error.message=="menu underflow exceeded the per-present cap")original_failure_logged=true;
+ assert(original_failure_logged);
  assert(fpga.calls==1&&hardware.menu_display().core_generation==17&&!operations.Granted());
  for(std::size_t i=begin;i<mmio.writes.size();++i)
   if(mmio.writes[i].offset==kSpiGpoAddress)assert(((mmio.writes[i].value>>24)&127)!=FesSimpleComputerOpcodeExecution);
@@ -2121,9 +2231,8 @@ void TestSessionDisplayRejectsPlaneWithoutBlend()
 }
 
 // Kit software packing publishes these records so an image can refuse a
-// runtime that would reject its menu. Each listed interface is admitted by
-// CheckMenu together with the others, at its listed minor and every older
-// one, and the listed minor is the newest admitted.
+// runtime that would reject its menu. The union covers both explicit board
+// contracts. DE10 keeps its accepted older minors; DE25 requires scanout1.3.
 void TestMenuInterfaceRecordsMatchMenuAdmission()
 {
  using namespace mister::native;
@@ -2136,6 +2245,10 @@ void TestMenuInterfaceRecordsMatchMenuAdmission()
    static_cast<std::uint16_t>(std::stoul(text.substr(dot+1))),true});
  }
  assert(!listed.empty());
+ const auto all=listed;
+ listed.erase(std::remove_if(listed.begin(),listed.end(),[](const CoreInterface& i){
+  return i.id=="fes.fabric.de25-scanout";
+ }),listed.end());
  CoreDescriptor menu;
  menu.format=2;menu.core.id="fes.menu";
  menu.target.platform="de10_nano";menu.target.device="5CSEBA6U23I7";menu.target.programming_profile="fes-gp-v1";
@@ -2156,7 +2269,7 @@ void TestMenuInterfaceRecordsMatchMenuAdmission()
  for(const char* id:{generated::FesApplicationInterfaceGamepadID,generated::FesApplicationInterfaceVideoFixed720p60ID,
   generated::FesApplicationInterfaceMediaBlobID,generated::FesApplicationInterfaceMediaBlobStreamID,
   generated::FesApplicationInterfaceAudioPcmS16Stereo48kID,generated::FesApplicationInterfaceGamepadPortsID,
-  generated::FesApplicationInterfaceKeypadPortsID,generated::FesApplicationInterfaceFirmwareBlobID,
+  generated::FesApplicationInterfaceKeypadPortsID,
   generated::FesApplicationInterfaceMemoryHpsDdrID,generated::FesApplicationInterfaceVideoMenuDisplayID,
   generated::FesApplicationInterfaceVideoMenuBlitterID}){
   bool named=false;
@@ -2165,6 +2278,20 @@ void TestMenuInterfaceRecordsMatchMenuAdmission()
   auto extra=menu;extra.interfaces.push_back({id,1,0,true});
   assert(!CheckMenu(extra).ok());
  }
+ auto allocated=menu;
+ allocated.target.platform="de25_nano";allocated.target.device="A5EB013BB23BE4SCS";
+ allocated.target.programming_profile="de25-linux-menu-v1";
+ allocated.build.id="0123456789abcdeffedcba9876543210";allocated.interfaces.clear();
+ for(const auto& i:all)
+  if(i.id=="fes.video.fixed-720p60"||i.id=="fes.video.menu-display"||i.id=="fes.fabric.de25-scanout")
+   allocated.interfaces.push_back(i);
+ assert(allocated.interfaces.size()==3&&CheckMenu(allocated,NativePlatform::de25_nano).ok());
+ assert(!CheckMenu(allocated).ok());
+ for(std::size_t i=0;i<allocated.interfaces.size();++i) {
+  auto newer=allocated;++newer.interfaces[i].minor;
+  assert(!CheckMenu(newer,NativePlatform::de25_nano).ok());
+ }
+
 }
 
 void TestNativeMenuActivationAndCompletion()
@@ -5069,6 +5196,11 @@ void TestZx81ComputerDisplayPackageAdmittedWhenAdvertised()
 void TestLiveComputerStatusResponsesMatchRuntime()
 {
 	assert(live_computer_status_responses.size() == 3);
+	if (std::getenv("FES_EMIT_LIVE_COMPUTER_FIXTURES")) {
+		for (const auto& response : live_computer_status_responses)
+			puts(response.c_str());
+		return;
+	}
 	std::istringstream expected(ReadText("tests/fixtures/protocol-v2-live-computer-statuses.jsonl"));
 	std::string line;
 	for (const std::string& response : live_computer_status_responses) {
@@ -5078,12 +5210,415 @@ void TestLiveComputerStatusResponsesMatchRuntime()
 	assert(!std::getline(expected, line));
 }
 
-int main()
+class RecordingCoreVideo final : public mister::native::CoreVideoBringup {
+public:
+ explicit RecordingCoreVideo(std::vector<std::string>& events) : events_(events) {}
+ bool SupportsPlatform(mister::native::NativePlatform p) const override {
+  return p == mister::native::NativePlatform::de25_nano;
+ }
+ mister::native::VideoResult BringUpCustom(std::uint64_t, bool audio) override {
+  assert(!audio); events_.push_back("de25.video.ready");
+  mister::native::VideoResult result; result.error = failure; return result;
+ }
+ mister::native::VideoQuiesceResult Quiesce(std::uint64_t) override {
+  events_.push_back("de25.video.quiesce"); return {};
+ }
+ mister::Error failure;
+ std::vector<std::string>& events_;
+};
+
+void TestDe25SelectedPlatformLifecycle()
 {
+ using namespace mister;
+ using namespace mister::native;
+ Fixture base;
+ std::vector<std::string> events;
+ RecordingDriver selected(events), wrong_driver(events);
+ RecordingCoreVideo video(events);
+ TempDirectory package;
+ std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+ ReplaceAll(&manifest, "fes.pong", "zx81");
+ ReplaceAll(&manifest, "de10_nano", "de25_nano");
+ ReplaceAll(&manifest, "5CSEBA6U23I7", "A5EB013BB23BE4SCS");
+ ReplaceAll(&manifest, "fes-gp-v1", "de25-hps-first-v1");
+ ReplaceAll(&manifest, "fes.simple-game", "fes.computer");
+ ReplaceAll(&manifest, "fes.gamepad", "fes.keyboard.hid");
+ manifest += "\n[[interfaces]]\nid = \"fes.media.zx81-tape\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ package.File("manifest.toml", manifest);
+ package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+ OpenedCorePackage opened;
+ assert(OpenCorePackage(package.path, "", &opened).ok());
+ const auto make_hardware = [&](CoreVideoBringup& backend, CoreDriver* driver) {
+  return std::unique_ptr<NativeHardware>(new NativeHardware(base.opener, base.fpga,
+   base.idle_video, backend, base.input, base.input_identity, base.clock, base.log,
+   base.idle, {}, &wrong_driver, {"/tmp"}, SplashIdle(), nullptr, nullptr, nullptr,
+   NativePlatform::de25_nano, driver));
+ };
+ // Selecting DE25 cannot execute the DE10 transmitter recipe or its driver.
+ for (unsigned kind = 0; kind < 2; ++kind) {
+  auto refused = make_hardware(kind == 0 ? static_cast<CoreVideoBringup&>(base.game_video) : video,
+   kind == 0 ? &selected : nullptr);
+  std::unique_ptr<AdmittedCorePackage> admitted;
+  assert(!refused->AdmitCorePackage(package.path, opened.package_id, &admitted).ok());
+  assert(!admitted && base.fpga.calls == 0 && events.empty());
+  assert(refused->capabilities().programming_profiles.empty());
+ }
+ auto hardware = make_hardware(video, &selected);
+ assert(!hardware->LoadIdle().error.ok());
+ assert(base.fpga.calls == 0 && base.i2c.write_calls == 0 && events.empty());
+ const auto capabilities = hardware->capabilities();
+ assert(capabilities.rom_linking == 0 && capabilities.programming_profiles ==
+  std::vector<std::string>({"de25-hps-first-v1"}));
+ assert(capabilities.abis.size() == 1 && capabilities.abis[0].id == "fes.computer" &&
+  capabilities.abis[0].interfaces.size() == 3);
+ assert(capabilities.media_units.empty());
+ MediaUnitCapability tape;
+ tape.unit = 0; tape.interface = {"fes.media.zx81-tape",1,0};
+ tape.min_bytes = 1; tape.max_bytes = generated::FesDe25ComputerZx81TapeMaxBytes;
+ tape.chunk_bytes = 512; tape.state = MediaUnitState::empty; tape.saveable = false;
+ selected.units.push_back(tape);
+ for (unsigned generation = 1; generation <= 2; ++generation) {
+  std::unique_ptr<AdmittedCorePackage> admitted;
+  assert(hardware->AdmitCorePackage(package.path, opened.package_id, &admitted).ok());
+  events.clear();
+  auto loaded = hardware->LoadCore(std::move(admitted), generation);
+  assert(loaded.error.ok() && loaded.observed_core == "zx81");
+  assert(Find(events, "driver.identify") < Find(events, "de25.video.ready"));
+  assert(Find(events, "de25.video.ready") < Find(events, "driver.start"));
+  assert(base.fpga.profiles.back() == ProgrammingProfile::de25_hps_first_v1);
+  assert(base.fpga.hps_ddr_calls == 0 && base.input.open_calls == 0);
+  const auto live = hardware->capabilities();
+  assert(live.media_units.size() == 1 && live.media_units[0].unit == 0 &&
+   live.media_units[0].max_bytes == tape.max_bytes && !live.media_units[0].saveable);
+  selected.units[0].state = MediaUnitState::ready;
+  assert(hardware->capabilities().media_units[0].state == MediaUnitState::ready);
+  selected.units[0].state = MediaUnitState::empty;
+ }
+ video.failure = {ErrorCode::io_failed, "injected FPGA video not ready"};
+ std::unique_ptr<AdmittedCorePackage> admitted;
+ assert(hardware->AdmitCorePackage(package.path, opened.package_id, &admitted).ok());
+ events.clear();
+ assert(!hardware->LoadCore(std::move(admitted), 3).error.ok());
+ assert(Find(events, "driver.start") == events.size());
+ assert(wrong_driver.identify_generations.empty() && wrong_driver.start_generations.empty());
+ assert(base.i2c.write_calls == 0 && base.idle_video.quiesce_calls == 0);
+ // A foreign platform is refused before programming even with both drivers supplied.
+ TempDirectory foreign; PopulateFesGpPackage(&foreign);
+ OpenedCorePackage foreign_opened; assert(OpenCorePackage(foreign.path, "", &foreign_opened).ok());
+ const int programmed = base.fpga.calls;
+ assert(!hardware->AdmitCorePackage(foreign.path, foreign_opened.package_id, &admitted).ok());
+ assert(base.fpga.calls == programmed);
+}
+
+enum class StaticTrial { ordinary, empty, ram16k, missing_backend, changed_empty, changed_ram, program_failure };
+void TestDe25StandardComputerUsesSharedDriverAndAllocatedSession(StaticTrial trial=StaticTrial::ordinary,bool configuration_timeout=false,bool concurrent_retirement_fault=false) {
+ using namespace mister;using namespace mister::native;using namespace mister::native::generated;
+ namespace dm=mister_test::de25_menu;
+ Fixture base;dm::Operations operations;dm::SessionControl control(operations);
+ const bool static_load=trial!=StaticTrial::ordinary;
+ const bool selected=trial==StaticTrial::ram16k || trial==StaticTrial::changed_ram;
+ base.fpga.supports_static=trial!=StaticTrial::missing_backend;
+ auto d=mister_test::De25StandardDescriptor();
+ const auto capabilities=FesComputerCapabilityVideoFixed720p60|FesComputerCapabilityKeyboardHid|
+  FesComputerCapabilityGamepadPorts|FesComputerCapabilityAudioPcmS16Stereo48k|
+  FesComputerCapabilityMediaZx81Tape|FesComputerCapabilityMediaZx81TapeWrite|FesComputerCapabilityVideoSessionDisplay;
+ mister_test::AtomicComputerBridge bridge(capabilities,d.build.id);De25ComputerMmio registers(bridge);
+ FesGp gp(registers,operations.clock,FesGpTransport::de25_computer);FesGpCoreDriver driver(gp);
+ bridge.display=[&](unsigned op,unsigned index,unsigned argument){return control.Command(op,index,argument);};
+ MenuDisplayDriver display(gp,operations.clock);
+ LinuxDe25Menu presenter(operations.clock,operations,display,5);De25MenuCoreDriver menu_driver(presenter);
+ De25VideoBringup video;
+ NativeHardware hardware(base.opener,base.fpga,video,video,base.input,base.input_identity,
+  operations.clock,base.log,base.idle,{},&driver,{"/tmp"},SplashIdle(),&presenter,&presenter,nullptr,
+  NativePlatform::de25_nano,nullptr,&menu_driver);
+ TempDirectory menu,game,expansion;
+ auto manifest=ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+ ReplaceAll(&manifest,"de10_nano","de25_nano");ReplaceAll(&manifest,"5CSEBA6U23I7","A5EB013BB23BE4SCS");
+ ReplaceAll(&manifest,"0123456789abcdef0123456789abcdef",d.build.id);
+ auto menu_manifest=manifest;
+ ReplaceAll(&menu_manifest,"fes.pong","fes.menu");ReplaceAll(&menu_manifest,"fes-gp-v1","de25-linux-menu-v1");
+ ReplaceAll(&menu_manifest,"fes.simple-game","fes.application");ReplaceAll(&menu_manifest,"fes.gamepad","fes.video.menu-display");
+ menu_manifest+="\n[[interfaces]]\nid=\"fes.fabric.de25-scanout\"\nmajor=1\nminor=3\nrequired=true\n";
+ ReplaceAll(&manifest,"fes.pong","fes.zx81");ReplaceAll(&manifest,"fes-gp-v1","de25-linux-computer-v1");
+ ReplaceAll(&manifest,"fes.simple-game","fes.computer");
+ manifest.erase(manifest.find("[[interfaces]]"),manifest.find("[build]")-manifest.find("[[interfaces]]"));
+ for(const auto& interface:d.interfaces)
+  manifest+="\n[[interfaces]]\nid=\""+interface.id+"\"\nmajor=1\nminor="+std::to_string(interface.minor)+"\nrequired=true\n";
+ const auto payload=ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf");
+ menu.File("manifest.toml",menu_manifest);menu.File("core.rbf",payload);
+ if(static_load) {
+  ReplaceAll(&manifest,"format = 2","format = 5");
+  ReplaceAll(&manifest,"de25-linux-computer-v1","de25-linux-static-computer-v1");
+  manifest+="\n[[interfaces]]\nid=\"fes.expansion.zx81-bus\"\nmajor=2\nminor=0\nrequired=false\n";
+  auto v5=ReadText("tests/fixtures/core-bundle-v5/manifests/valid-basic.toml");
+  manifest+="\n"+v5.substr(v5.find("[static_expansion]"));
+  game.File("persona.rbf",ReadText("tests/fixtures/core-bundle-v5/payloads/persona.rbf"));
+ }
+ game.File("manifest.toml",manifest);game.File("core.rbf",payload);
+ OpenedCorePackage menu_package,game_package;
+ assert(OpenCorePackage(menu.path,"",&menu_package).ok()&&OpenCorePackage(game.path,"",&game_package).ok());
+ Runtime runtime(hardware,base.log);assert(runtime.Start(menu.path,menu_package.package_id).ok());
+ CoreCompositionRequest request;
+ if(static_load) {
+  const auto hash=[](const std::string& value){Sha256 h;h.Update(value.data(),value.size());return Sha256Hex(h.Final());};
+  request.has_static_selection=true;auto& c=request.static_selection.composition;
+  c.package_id=game_package.package_id;c.base_sha256=game_package.descriptor.payload.sha256;
+  c.base_size=game_package.payload.size();c.persona_sha256=game_package.descriptor.static_expansion.sha256;
+  c.persona_size=game_package.persona.size();c.control_build_id=game_package.descriptor.static_expansion.control_build_id;
+  c.hardware_id=game_package.descriptor.static_expansion.hardware_id;
+  if(selected) {
+   auto partial=ReadText("tests/fixtures/core-bundle-v5/expansions/ram16k/manifest.json");
+   ReplaceAll(&partial,"1ad97e43e69bdf5c70da5d3ec01dd8b86289fa6cfc920c3b83831638aacd7bb1",c.package_id);
+   ReplaceAll(&partial,"0123456789abcdef0123456789abcdef",game_package.descriptor.build.id);
+   ReplaceAll(&partial,"e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",c.base_sha256);
+   auto cart=ReadText("tests/fixtures/core-bundle-v5/expansions/ram16k/cart.rbf");
+   expansion.File("manifest.json",partial);expansion.File("cart.rbf",cart);
+   request.static_selection.expansion_path=expansion.path;
+   c.expansion_id=hash(std::string("fes-expansion-v2")+std::string(1,'\0')+partial);
+   c.hardware_id=0xc002b002u;c.persona_size=cart.size();c.persona_sha256=hash(cart);
+  }
+  std::string identity="fes-de25-static-composition-v1";
+  for(const auto& field:{c.package_id,c.expansion_id,c.base_sha256,std::to_string(c.base_size),
+   c.persona_sha256,std::to_string(c.persona_size),c.control_build_id,std::to_string(c.hardware_id)}) {
+   identity.push_back('\0');identity+=field;
+  }
+  c.id=hash(identity);
+  std::unique_ptr<AdmittedCorePackage> admitted;
+  const auto preflight=hardware.AdmitCoreComposition(game.path,game_package.package_id,request,&admitted);
+  const auto caps=hardware.capabilities();
+  bool socket=false;
+  for(const auto& abi:caps.abis)for(const auto& interface:abi.interfaces)
+   if(abi.id=="fes.computer"&&interface.id=="fes.expansion.zx81-bus") {
+    assert(interface.major==2&&interface.minor==0);socket=true;
+   }
+  if(!De25StaticEnabled() || !base.fpga.supports_static) {
+   assert(!socket);
+   assert(std::find(caps.programming_profiles.begin(),caps.programming_profiles.end(),"de25-linux-static-computer-v1")==caps.programming_profiles.end());
+   assert(!preflight.ok()&&base.fpga.calls==1&&base.fpga.static_calls==0);return;
+  }
+  if(!preflight.ok())fprintf(stderr,"static admission: %s\n",preflight.message.c_str());
+  assert(preflight.ok());
+  assert(!hardware.AttachProgrammedBitstream(admitted.get(),game.path+"/core.rbf",c.base_sha256).ok());
+  std::unique_ptr<AdmittedCorePackage> plain;
+  assert(!hardware.AdmitCorePackage(game.path,game_package.package_id,&plain).ok());
+  assert(socket);
+  assert(std::find(caps.programming_profiles.begin(),caps.programming_profiles.end(),"de25-linux-static-computer-v1")!=caps.programming_profiles.end());
+  if(trial==StaticTrial::changed_empty || trial==StaticTrial::changed_ram) {
+   const auto path=trial==StaticTrial::changed_ram?expansion.path+"/cart.rbf":game.path+"/persona.rbf";
+   const int fd=open(path.c_str(),O_WRONLY);assert(fd>=0);assert(pwrite(fd,"x",1,0)==1);assert(close(fd)==0);
+   const auto programs=base.fpga.calls;assert(!hardware.LoadCore(std::move(admitted),2).error.ok());
+   assert(base.fpga.calls==programs&&base.fpga.static_calls==0);return;
+  }
+  if(trial==StaticTrial::program_failure)base.fpga.fail_call=2;
+ }
+ const auto loaded=static_load?runtime.LoadComposedCore(game.path,game_package.package_id,request):runtime.LoadCore(game.path,game_package.package_id);
+ if(trial==StaticTrial::program_failure) {
+  assert(!loaded.ok()&&base.fpga.static_calls==1&&base.fpga.calls==3);
+  assert(runtime.status().state==State::idle&&!runtime.status().menu_display.session);return;
+ }
+ if(!loaded.ok())fprintf(stderr,"standard DE25 launch: %s (%s)\n",loaded.message.c_str(),loaded.phase.c_str());
+ assert(loaded.ok()&&!bridge.endpoint.held&&driver.OwnsAudio());
+ assert(base.fpga.profiles.back()==(static_load?ProgrammingProfile::de25_linux_static_computer_v1:ProgrammingProfile::de25_linux_computer_v1)&&base.fpga.hps_ddr_calls==0);
+ if(static_load) {
+  assert(base.fpga.static_calls==1&&base.fpga.static_selection.id==request.static_selection.composition.id);
+  assert(base.fpga.static_selection.hardware_id==(selected?0xc002b002u:0xc001a001u));
+  assert(!runtime.LoadComposedCore(game.path,game_package.package_id,request).ok()&&base.fpga.static_calls==1);
+ }
+ const auto state=runtime.status();const auto generation=state.generation;
+ if(static_load)assert(state.active_package.static_composition.id==request.static_selection.composition.id);
+ assert(state.menu_display.session&&state.menu_display.frame_mapping&&!state.menu_display.available);
+ assert(state.capabilities.media_units.size()==1&&state.capabilities.media_units[0].max_bytes==16384&&state.capabilities.media_units[0].saveable);
+ if(const char* path=std::getenv("FES_TEST_DE25_STANDARD_PROTOCOL_STATUS_RECORD")) {
+  std::ofstream output(path);output<<daemon::EncodeResponse(2,true,state,"de25-standard-producer-fixture")<<'\n';assert(output.good());
+ }
+ if(configuration_timeout) {
+  assert(runtime.SetSessionDisplay(game_package.package_id,generation,true,true).ok());
+  const auto opened=runtime.status().menu_display.generation;
+  std::unique_ptr<MenuFrame> frame;assert(runtime.BeginMenuFrame(opened,&frame).ok());
+  bool expired=false;
+  operations.on_poll=[&] {
+   if(!expired&&(operations.state.state&8)) {
+    expired=true;operations.ready=false;operations.never_complete=true;
+    operations.state.hardware_status&=~FesDe25ScanoutStatusDisplayReady;
+    // Actual production deadline is10000ms; advance the existing fake clock
+    // beyond it after accepted publication, without relaxing that deadline.
+    operations.clock.now+=10001;
+   }
+  };
+  if(concurrent_retirement_fault)operations.on_reap=[&]{operations.state.hardware_errors=0x8;operations.state.underflows=1;};
+  const auto programs=base.fpga.calls;
+  const auto publications=operations.published.size();const auto reaps=operations.reaps;
+  MenuDisplayInfo info;
+  const auto failure=runtime.PresentMenuFrame(opened,*frame,&info);
+  assert(expired&&!failure.ok());
+  const auto failed=runtime.status();
+  assert(failed.state==State::running_development&&failed.generation==generation&&
+   !failed.menu_display.available&&failed.menu_display.generation==0&&
+   !bridge.endpoint.held&&base.fpga.calls==programs);
+  assert(operations.published.size()==publications+1&&operations.reaps==reaps+1&&!operations.allocated&&!operations.grant_open);
+  const auto allocations=operations.allocations;
+  operations.ready=true;operations.never_complete=false;
+  operations.state.hardware_status|=FesDe25ScanoutStatusDisplayReady;
+  const auto shown=runtime.SetSessionDisplay(game_package.package_id,generation,true,true);
+  assert(!runtime.PresentMenuFrame(opened,*frame,&info).ok());
+  if(concurrent_retirement_fault) {
+   assert(!shown.ok()&&operations.allocations==allocations&&operations.published.size()==publications+1);
+   assert(operations.retirement_queries==1&&operations.retirement.hardware_errors==0x8&&operations.retirement.underflows==1);
+   puts("PASS concurrent draining fault retained in receipt; config-timeout reopen refused without programming/CPUhold");
+  } else {
+   assert(shown.ok()&&operations.allocations==allocations+1);
+   const auto fresh=runtime.status().menu_display.generation;
+   assert(fresh&&fresh!=opened&&runtime.status().menu_display.displayed_sequence==0);
+   assert(runtime.BeginMenuFrame(fresh,&frame).code==ErrorCode::invalid_request);frame.reset();
+   assert(runtime.BeginMenuFrame(fresh,&frame).ok()&&runtime.PresentMenuFrame(fresh,*frame,&info).ok());
+   assert(info.displayed_sequence==1&&operations.published.size()==publications+2);
+   assert(runtime.SetSessionDisplay(game_package.package_id,generation,false,false).ok());
+   puts("PASS config deadline cancellation: old frame not ACKed/replayed; fresh allocation/display generation reopens without programming/CPUhold");
+  }
+  bool original=false;
+  for(const auto& record:base.log.records())
+   if(record.operation=="session_display"&&record.phase=="present"&&record.error.message.find("deadline")!=std::string::npos)original=true;
+  assert(original&&base.fpga.calls==programs&&!bridge.endpoint.held&&runtime.status().generation==generation);
+  operations.on_poll=nullptr;operations.on_reap=nullptr;
+  return;
+ }
+ for(unsigned cycle=0;cycle<3;++cycle) {
+  assert(runtime.SetSessionDisplay(game_package.package_id,generation,true,true).ok());
+  std::uint8_t slot=0;assert(hardware.MenuBackSlot(&slot).ok()&&slot==1);
+  MenuDisplayInfo info;assert(PresentBackSlot(hardware,&info).ok()&&info.displayed_sequence==cycle+1);
+  assert(runtime.SetSessionDisplay(game_package.package_id,generation,false,false).ok());
+  assert(!bridge.endpoint.held&&base.fpga.calls==2);
+ }
+ const auto stopped=runtime.Stop();
+ if(!stopped.ok())fprintf(stderr,"standard DE25 Stop: %s (%s), programs=%d\n",stopped.message.c_str(),stopped.phase.c_str(),base.fpga.calls);
+ assert(stopped.ok()&&runtime.status().menu_display.available&&base.fpga.calls==3);
+ assert(base.input.open_calls==0&&base.i2c.write_calls==0&&base.fpga.hps_ddr_calls==0);
+ assert(control.submits==0&&control.quiesces>=3);
+}
+
+void TestDe25AllocatedMenuLaunchStopAndPinnedPeer(bool clean_shutdown = false)
+{
+ using namespace mister;using namespace mister::native;
+ namespace dm=mister_test::de25_menu;
+ Fixture base;dm::Operations operations;
+ LinuxDe25Menu presenter(operations.clock,operations,5);De25MenuCoreDriver menu_driver(presenter);
+ RecordingDriver computer(base.events);De25VideoBringup video;
+ NativeHardware hardware(base.opener,base.fpga,video,video,base.input,base.input_identity,
+  operations.clock,base.log,base.idle,{},nullptr,{"/tmp"},SplashIdle(),&presenter,&presenter,nullptr,
+  NativePlatform::de25_nano,&computer,&menu_driver);
+ TempDirectory menu,game;
+ auto manifest=ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+ ReplaceAll(&manifest,"de10_nano","de25_nano");ReplaceAll(&manifest,"5CSEBA6U23I7","A5EB013BB23BE4SCS");
+ auto menu_manifest=manifest;
+ ReplaceAll(&menu_manifest,"fes.pong","fes.menu");ReplaceAll(&menu_manifest,"fes-gp-v1","de25-linux-menu-v1");
+ ReplaceAll(&menu_manifest,"fes.simple-game","fes.application");ReplaceAll(&menu_manifest,"fes.gamepad","fes.video.menu-display");
+ ReplaceAll(&menu_manifest,"0123456789abcdef0123456789abcdef","0123456789abcdeffedcba9876543210");
+ menu_manifest+="\n[[interfaces]]\nid=\"fes.fabric.de25-scanout\"\nmajor=1\nminor=3\nrequired=true\n";
+ auto game_manifest=manifest;
+ ReplaceAll(&game_manifest,"fes.pong","zx81");ReplaceAll(&game_manifest,"fes-gp-v1","de25-hps-first-v1");
+ ReplaceAll(&game_manifest,"fes.simple-game","fes.computer");ReplaceAll(&game_manifest,"fes.gamepad","fes.keyboard.hid");
+ game_manifest+="\n[[interfaces]]\nid=\"fes.media.zx81-tape\"\nmajor=1\nminor=0\nrequired=true\n";
+ menu.File("manifest.toml",menu_manifest);game.File("manifest.toml",game_manifest);
+ const auto payload=ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf");
+ menu.File("core.rbf",payload);game.File("core.rbf",payload);
+ OpenedCorePackage menu_package,game_package;
+ assert(OpenCorePackage(menu.path,"",&menu_package).ok()&&OpenCorePackage(game.path,"",&game_package).ok());
+ const auto capabilities=hardware.capabilities();assert(capabilities.abis.size()==2&&capabilities.programming_profiles.size()==2);
+ Runtime runtime(hardware,base.log);
+ const auto started=runtime.Start(menu.path,menu_package.package_id);
+ if(!started.ok())fprintf(stderr,"DE25 allocated MENU startup: %s (%s)\n",started.message.c_str(),started.phase.c_str());
+ assert(started.ok());
+ // Export the real serialized production capabilities for the independent
+ // agent decoder regression; the regular test needs no output file.
+ if(!clean_shutdown) {
+  if(const char* path=std::getenv("FES_TEST_DE25_PROTOCOL_STATUS_RECORD")) {
+   std::ofstream output(path);
+   output<<daemon::EncodeResponse(2,true,runtime.status(),"de25-producer-fixture")<<'\n';
+   assert(output.good());
+  }
+ }
+ // The wire contract requires ABI identity order, regardless of which board
+ // driver was constructed first. The agent refuses an unordered capability set.
+ assert(capabilities.abis[0].id=="fes.application"&&capabilities.abis[1].id=="fes.computer");
+ assert(runtime.status().menu_display.available&&runtime.status().menu_display.frame_mapping);
+ const auto initial_generation=runtime.status().menu_display.generation;
+ for(unsigned turn=0;turn<2;++turn) {
+  assert(runtime.LoadCore(game.path,game_package.package_id).ok());
+  assert(runtime.status().state==State::running_development&&!operations.allocated);
+  assert(runtime.Stop().ok()&&runtime.status().menu_display.available);
+ }
+ assert(runtime.status().menu_display.generation>initial_generation);
+ assert(operations.allocations==3&&operations.reaps==2&&operations.published.size()==6);
+ assert(base.fpga.profiles==std::vector<ProgrammingProfile>({ProgrammingProfile::de25_linux_menu_v1,
+  ProgrammingProfile::de25_hps_first_v1,ProgrammingProfile::de25_linux_menu_v1,
+  ProgrammingProfile::de25_hps_first_v1,ProgrammingProfile::de25_linux_menu_v1}));
+ assert(base.fpga.hps_ddr_calls==0&&base.i2c.write_calls==0&&base.input.open_calls==0);
+ if(clean_shutdown) {
+  // No release while a computer owns the context. A normal Stop returns to
+  // MENU; the final shutdown must prove drain and OWNER_IDLE before release.
+  assert(runtime.LoadCore(game.path,game_package.package_id).ok());
+  assert(!hardware.Shutdown().ok()&&base.fpga.release_calls==0);
+  assert(runtime.Stop().ok());
+  const int reaps=operations.reaps;
+  base.fpga.on_release=[&] {
+   assert(operations.reaps==reaps+1&&!operations.allocated&&!operations.grant_open&&!operations.peers);
+  };
+  assert(hardware.Shutdown().ok()&&base.fpga.release_calls==1);
+  return;
+ }
+ int peer=-1;assert(presenter.Share(&peer).ok());const int programs=base.fpga.calls;
+ assert(!hardware.Shutdown().ok()&&base.fpga.release_calls==0&&operations.peers==1);
+ assert(!runtime.LoadCore(game.path,game_package.package_id).ok());
+ assert(base.fpga.calls==programs&&runtime.status().state==State::reboot_required&&operations.peers==1);
+ operations.Close(peer);assert(!runtime.Stop().ok()&&base.fpga.calls==programs);
+ assert(!hardware.Shutdown().ok()&&base.fpga.release_calls==0);
+}
+
+
+void TestStaticDispatch() {
+ for(auto trial:{StaticTrial::empty,StaticTrial::ram16k,StaticTrial::missing_backend,
+  StaticTrial::changed_empty,StaticTrial::changed_ram,StaticTrial::program_failure})
+  TestDe25StandardComputerUsesSharedDriverAndAllocatedSession(trial);
+}
+int main(int argc,char** argv)
+{
+ if(argc==2&&std::strcmp(argv[1],"--menu-interface-records")==0) {
+  TestMenuInterfaceRecordsMatchMenuAdmission();return 0;
+ }
+ if(argc==2&&std::strcmp(argv[1],"--configuration-timeout-fault")==0) {
+  TestDe25StandardComputerUsesSharedDriverAndAllocatedSession(StaticTrial::ordinary,true,true);return 0;
+ }
+ if(argc==2&&std::strcmp(argv[1],"--configuration-timeout")==0) {
+  TestDe25StandardComputerUsesSharedDriverAndAllocatedSession(StaticTrial::ordinary,true);return 0;
+ }
+ if(argc==2&&std::strcmp(argv[1],"--static-dispatch")==0) {
+  TestStaticDispatch();
+  puts(mister::native::De25StaticEnabled()?"static dispatch: enabled cases passed":"static dispatch: default refusal passed");return 0;
+ }
+ if(argc==2&&std::strcmp(argv[1],"--session-display")==0) {
+  TestDe25StandardComputerUsesSharedDriverAndAllocatedSession();
+  puts("native_hardware_test: allocated MENU lifecycle");fflush(stdout);
+  TestDe25AllocatedMenuLaunchStopAndPinnedPeer();
+  TestDe25AllocatedMenuLaunchStopAndPinnedPeer(true);
+  puts("native_hardware_test: retained session display");fflush(stdout);
+  TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure();
+  puts("native_hardware_test: fresh-slot session display");fflush(stdout);
+  TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure(true);
+  TestSessionDisplayRejectsPlaneWithoutBlend();
+  puts("native_hardware_test: session-display cases passed");return 0;
+ }
+ assert(argc==1);
+ TestStaticDispatch();
+ TestDe25StandardComputerUsesSharedDriverAndAllocatedSession();
+ TestDe25AllocatedMenuLaunchStopAndPinnedPeer();
+ TestDe25AllocatedMenuLaunchStopAndPinnedPeer(true);
+ {Fixture de10;assert(de10.hardware.Shutdown().ok()&&de10.fpga.release_calls==0);}
+ TestDe25SelectedPlatformLifecycle();
 	TestZx81ComputerDisplayPackageAdmittedWhenAdvertised();
 	TestLibraryPartsChecksCoreNamespaceBeforeProgramming();
 	TestLibraryPartsChecksCoreNamespaceBeforeProgramming(true);
  TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure();
+ TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure(true);
  TestSessionDisplayRejectsPlaneWithoutBlend();
  TestApplicationSessionDisplayReleasesControllers();
  TestApplicationSessionDisplayMutesSingleGamepad();
@@ -5110,7 +5645,7 @@ int main()
 	TestFormat3InspectionAndLoadGateBeforeMutation();
 	TestApplicationVideoOnlyLifecycleNeedsNoInput();
 	TestSimpleComputerAudioIsEnabledOnlyAfterIdentity();
-	TestApplicationFirmwareStatusAdvertisesOptionalSlot();
+	TestComputerControlsDispatchThroughSelectedCoreDriver();
 	TestComputerSnapshotInterfacesBecomeActiveThroughRuntime();
 	TestHpsDdrPortsReleaseAfterIdentityBeforeExecution();
 	TestHpsDdrReleaseFailureRecoversBeforeExecution();
@@ -5134,6 +5669,7 @@ int main()
 	TestMutatingProgramFailureForgetsOutgoingDriverBeforeRecovery();
 	TestDriverFaultCallbackRejectsOldPackageGeneration();
 	TestIdleRequiresVideo();
+	TestMenuRevocationFailureBlocksIdleAndReplacement();
 	TestSplashIdleProgramsWithoutProbeOrFramebuffer();
 	TestIdlePreflightFailureCallsNeitherFpgaNorVideo();
 	TestIdleFpgaFailureAfterQuiesceReportsHardwareMutation();
@@ -5143,6 +5679,6 @@ int main()
 	TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
 	TestLiveComputerStatusResponsesMatchRuntime();
-	puts("native_hardware_test: 35 passed");
+	puts("native_hardware_test: passed");
 	return 0;
 }

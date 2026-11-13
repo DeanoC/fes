@@ -1,0 +1,102 @@
+{
+  "FPGA_producer_revision": "7b2601cd3cb31447a0dc7ac9dec07d3f683e2142",
+  "approved_input_ports": [
+    "HDMI_I2C_SDA",
+    "HDMI_TX_INT"
+  ],
+  "canonical_archive": {
+    "archive_sha256": "c277671cbca385a897d6a5e08e1a2b73af8762537dc426e6c676d42357b304ab",
+    "archive_size": 1447482215,
+    "base": "/data/de25-shared-reset-7b2601cd3",
+    "classification": "Preserved off-board reset-sharing files including original failures; no hardware acceptance",
+    "elapsed_seconds": 31.997,
+    "excluded_root_directories": [
+      "source"
+    ],
+    "file_count": 9665,
+    "hardware_access": "not-performed"
+  },
+  "canonical_restore": {
+    "FIFO_consumer_rows": 82,
+    "archive_sha256": "c277671cbca385a897d6a5e08e1a2b73af8762537dc426e6c676d42357b304ab",
+    "board_cases": 32,
+    "build_id": "a6a023adf49a4c74198c391d47f7f315",
+    "classification": "Independent complete canonical archive restore; actual public timing/source/derivation readers and full finite model log rechecked",
+    "derived_files_verified": 11,
+    "elapsed_seconds": 13.041,
+    "files_verified": 9665,
+    "finite_six_chain_cases": 2048,
+    "global_reset_with_external_reads_cases": 1024,
+    "hardware_access": "not-performed",
+    "package_timing_admission": false,
+    "pipeline_rows": 410,
+    "rbf_sha256": "b30faa9be76f4fc14b77d38857f80f195d0f0a8d0fecbb4847a39a7670a1682c",
+    "rules": 85,
+    "source_inputs_verified": 375,
+    "source_revision": "7b2601cd3cb31447a0dc7ac9dec07d3f683e2142",
+    "startup_cases": 72,
+    "status": "pass",
+    "timing_checks": 69,
+    "transport_cases": 10
+  },
+  "classification": "Source-bound canonical shared-reset milestone; no package/hardware/normal-kit admission",
+  "hardware_access": "not-performed",
+  "package_timing_admission": false,
+  "private_restore": {
+    "FIFO_consumer_rows": 78,
+    "archive_sha256": "adb90667ea785518d62fb27879f9331f884d75617d5277235eefd2eee62bd896",
+    "attribute_only_distinct_chains_per_clock": 4,
+    "classification": "Independent private experiment archive restore and actual derived/fitted/model checks; no canonical or physical acceptance",
+    "elapsed_seconds": 0.508,
+    "exact_derived_source_files": 11,
+    "explicit_distinct_chains_per_clock": 1,
+    "files_verified": 4635,
+    "hardware_access": "not-performed",
+    "pipeline_rows": 390,
+    "startup_cases": 72,
+    "status": "pass",
+    "transport_cases": 10
+  },
+  "raw_open_findings": {
+    "RDC-50003": 2,
+    "TMC-20011": 2,
+    "TMC-20012": 30
+  },
+  "software_restore": {
+    "archive_bytes": 348711,
+    "archive_sha256": "040d33c7ec26dee3d6ec6eab427a1e4c483577b4e2a04d70da4e42b1137bce98",
+    "completed_FPGA_prefix": 723,
+    "completed_FPGA_prefix_skips": 8,
+    "elapsed_seconds": 0.011,
+    "files_verified": 30,
+    "hardware_access": "not-performed",
+    "make_check_seconds": 10.98,
+    "original_aggregate": "timed-out1800s; preserved",
+    "parent_cases": 1187,
+    "parent_skips": 7,
+    "remaining_FPGA_cases": 1048,
+    "remaining_FPGA_seconds": 688.711,
+    "remaining_FPGA_skips": 68,
+    "selected_FPGA_cases_accounted": 1771,
+    "selected_FPGA_skips": 76,
+    "source_revision": "7b2601cd3cb31447a0dc7ac9dec07d3f683e2142",
+    "status": "pass"
+  },
+  "source_retention": {
+    "build_id": "a6a023adf49a4c74198c391d47f7f315",
+    "build_record_sha256": "d8f67977c823c8420a3ce1d2b4ad17f1240e360cd6955e1a4243e5988507fa9d",
+    "bundle_prerequisite": "72716153eb7be7b62917ed685d5d7380347a2d7d",
+    "canonical_inputs_verified": 375,
+    "fifo_reset_sharing": "shared-fifo-reset-release-v1",
+    "hardware_access": "not-performed",
+    "restore_seconds": 2.385,
+    "source_bundle_sha256": "749cfbf5c381c232437785066a80a7145af3c367b879d47d7789c5d5432f60f2",
+    "source_bundle_size": 88712,
+    "source_revision": "7b2601cd3cb31447a0dc7ac9dec07d3f683e2142",
+    "source_seed_retention_sha256": "13beebb4d6d62ecf6b60e47d5745dca8fe107d27195e7a53a72df75825290ff0",
+    "source_seed_revision": "45037e109615ee45c3c0270110ce5cb61d0a7528",
+    "source_tree": "3388378c3890dc09d62ba712b6f889e8b403e317",
+    "status": "verified-canonical-source"
+  },
+  "waivers": 0
+}

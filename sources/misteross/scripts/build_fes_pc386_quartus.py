@@ -22,8 +22,10 @@ rates and the firmware. Memories with more than one write port and no
 ramstyle become registers there: Yosys writes their ports as separate always
 blocks, which Quartus rejects as multiple drivers, and Quartus infers no RAM
 from them either. Yosys's flattened names (\\a.b[3]) become plain
-identifiers, since the locked Quartus's synthesis stops with an internal
-error on them. Quartus reads that netlist and the shell's own files, top.sv with
+identifiers in the same run (rename -unescape), since the locked Quartus's
+synthesis stops with an internal error on them. scripts/yosys_netlist.py holds
+that program (its SEAL recipe), and the i386 lockstep reads the CPU through
+the same passes with the same Yosys. Quartus reads that netlist and the shell's own files, top.sv with
 QUARTUS defined among them, and does all synthesis, placement and routing.
 Every timing analysis must pass on every clock at the slow and fast corners,
 or the build publishes nothing. quartus.lock authenticates quartus_sh by
@@ -35,9 +37,20 @@ linked against a GPU runtime: --gpu-router HIP (the default) or CUDA selects
 that slot, so a CUDA host with no ROCm can seal. Nothing routes on a GPU here.
 The record names the selection, so HIP and CUDA builds have distinct BUILD_IDs.
 
+The seal needs a lockstep report (#1581 S5): scripts/test_fes_i386_lockstep.py
+--netlist, run on this tree with the same --cache-root and router. The build
+refuses to seal unless the report passed the default suite (default suite
+arguments over every in-scope file of a full corpus download) and names this
+build's Yosys program, CPU sources and Yosys (lock, lock digest, router and
+slot binary), its Verilator is the i386 lock's, and the CPU netlist this
+build's Yosys writes through the seal's passes has the report's digest. The
+report is copied into the output, and build-summary.json records it under
+"lockstep". Lockstep needs the pinned Bochs and corpus, so it runs on the
+sealing host.
+
   QUARTUS_ROOTDIR=/abs/<the Quartus install quartus.lock names>/quartus \\
     python3 scripts/build_fes_pc386_quartus.py --cache-root /abs/out/cache/misteross-toolchains \\
-    [--gpu-router CUDA]
+    --lockstep-report /abs/build/sim/fes-i386-lockstep/report.json [--gpu-router CUDA]
 """
 from __future__ import annotations
 
@@ -49,6 +62,7 @@ import math
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -58,7 +72,9 @@ if __package__ in (None, ""):
 
 from scripts import build_pc386_firmware as firmware
 from scripts import fes_build_common as board
+from scripts import lockfile
 from scripts import source_provenance
+from scripts import yosys_netlist
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package
 from scripts.quartus_tools import QuartusLock, RebuildError, load_quartus_lock, locate_quartus
@@ -67,8 +83,10 @@ ROOT = Path(__file__).resolve().parents[1]
 RECIPE = "scripts/build_fes_pc386_quartus.py"
 OUTPUT = Path("build/fes-pc386-quartus")
 LOCK = "cores/fes-pc386/toolchain.lock"
+# The lockstep's Verilator comes from the i386 lock (scripts/i386_verilator.py).
+I386_LOCK = "cores/fes-common/rtl/i386/toolchain.lock"
+LOCKSTEP_REPORT = "lockstep-report.json"
 QUARTUS_LOCK = "cores/fes-pc386/quartus.lock"
-TOOLCHAIN_ROOT = "build/toolchain/fes-pc386"
 QSF = "cores/fes-pc386/constraints-oss.qsf"
 SDC = "cores/fes-pc386/clocks.sdc"
 ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
@@ -86,9 +104,8 @@ INCLUDES = (
     "cores/fes-common/vendor/kf8253/KF8253_Definitions.svh",
     "cores/fes-common/vendor/kf8259/KF8259_Common_Package.svh",
 )
-INCLUDE_DIRS = ("cores/fes-common/generated", "cores/fes-common/vendor/kf8259", "cores/fes-common/vendor/kf8253")
+INCLUDE_DIRS = yosys_netlist.PC386_INCLUDES
 OPL2 = "cores/fes-pc386/vendor/opl2_fpga"
-I386 = "cores/fes-common/rtl/i386"
 # Quartus reads these directly: the shell, its PLLs and the hard-block users.
 SHELL_SOURCES = (
     "cores/fes-pc386/rtl/pc386_system_pll.v",
@@ -101,12 +118,7 @@ SHELL_SOURCES = (
 )
 # Yosys elaborates these into one netlist below the shell.
 MACHINE_SOURCES = (
-    *(f"{I386}/{name}.sv" for name in (
-        "fes_i386_pkg", "fes_i386_gov_pkg", "fes_i386_oplen", "fes_i386_lendec", "fes_i386_lstage", "fes_i386_btb",
-        "fes_i386_ras", "fes_i386_fetchbuf", "fes_i386_qalign", "fes_i386_frontend", "fes_i386_amode", "fes_i386_dfwd", "fes_i386_agu",
-        "fes_i386_ucode_pkg", "fes_i386_ucode_rom", "fes_i386_decode", "fes_i386_seq", "fes_i386_dops",
-        "fes_i386_shift", "fes_i386_shflags", "fes_i386_exctl", "fes_i386_muldiv", "fes_i386_ex",
-        "fes_i386_tlb", "fes_i386_l1i", "fes_i386_l1d", "fes_i386_biu", "fes_i386_gov_rom", "fes_i386_governor", "fes_i386_cpu")),
+    *yosys_netlist.CPU_SOURCES,
     *(f"cores/fes-common/vendor/kf8259/{name}.sv" for name in (
         "KF8259", "KF8259_Bus_Control_Logic", "KF8259_Control_Logic", "KF8259_In_Service",
         "KF8259_Interrupt_Request", "KF8259_Priority_Resolver")),
@@ -114,7 +126,7 @@ MACHINE_SOURCES = (
     "cores/fes-common/rtl/fes_dma8237.sv",
     *(f"cores/fes-pc386/rtl/{name}.sv" for name in (
         "pc386_rate", "pc386_io", "pc386_pic", "pc386_sysctl", "pc386_hid_keyboard", "pc386_kbc", "pc386_rtc",
-        "pc386_ata", "pc386_at_core", "pc386_ram", "pc386_vga", "pc386_vga_scanout", "pc386_presenter",
+        "pc386_ata", "pc386_fdc", "pc386_at_core", "pc386_ram", "pc386_vga", "pc386_vga_scanout", "pc386_presenter",
         "pc386_plane_bridge", "pc386_ems", "pc386_port2", "pc386_machine")),
     "cores/fes-common/rtl/fes_display_plane.v",
     "cores/fes-common/rtl/fes_display_cdc.v",
@@ -139,12 +151,13 @@ MACHINE_NETLIST = "pc386_system.v"
 ROM_HEX = firmware.ROM_HEX.relative_to(ROOT).as_posix()
 PINNED_INPUTS = (
     RECIPE, FIRMWARE_RECIPE, FIRMWARE_LOCK, "scripts/quartus_tools.py", "scripts/fes_build_common.py",
-    "scripts/source_provenance.py", ABI_DEFINITION, LOCK, QUARTUS_LOCK, QSF, SDC, *INCLUDES, *SHELL_SOURCES,
+    "scripts/source_provenance.py", "scripts/yosys_netlist.py", "scripts/lockfile.py", ABI_DEFINITION, LOCK,
+    I386_LOCK, QUARTUS_LOCK, QSF, SDC, *INCLUDES, *SHELL_SOURCES,
     *MACHINE_SOURCES,
 )
 BUILD_OUTPUTS = (
-    "core.rbf", "top.sta.rpt", "top.fit.rpt", "yosys.log", "quartus.log", "quartus-version.log",
-    "build-inputs.json", "build-summary.json", "manifest.toml",
+    "core.rbf", "top.sta.rpt", "top.fit.rpt", "machine.ys", "yosys.log", "quartus.log", "quartus-version.log",
+    "build-inputs.json", "build-summary.json", "manifest.toml", LOCKSTEP_REPORT,
 )
 TIMING_CATEGORIES = ("Setup", "Hold", "Recovery", "Removal", "Minimum Pulse Width")
 WORST_SLACK_RE = re.compile(r"; Worst-case Slack\s*((?:;\s*-?[0-9.]+\s*){5});")
@@ -167,13 +180,6 @@ RESOURCES = {
     "block_memory_bits": "Total block memory bits", "dsp_blocks": "Total DSP Blocks",
 }
 SEED_LIMIT = 0x7fffffff
-# Keywords a rewritten name could spell, since only "_" replaces characters.
-UNDERSCORE_KEYWORDS = frozenset({
-    "always_comb", "always_ff", "always_latch", "accept_on", "reject_on", "s_always", "s_eventually",
-    "s_nexttime", "s_until", "s_until_with", "sync_accept_on", "sync_reject_on", "until_with", "wait_order",
-    "pulsestyle_ondetect", "pulsestyle_onevent", "first_match", "ignore_bins", "illegal_bins", "join_any",
-    "join_none",
-})
 CORE = {"id": "fes.pc386", "name": "FES pc386", "version": "0.1.0",
         "description": "A 386 AT: fes_i386_cpu, the Bochs BIOS and LGPL VGABios, VGA at 720p, OPL2 and Sound "
                        "Blaster 2.0, a PS/2 keyboard and mouse, and a hard disk of up to 128 MiB with its saves. "
@@ -233,11 +239,18 @@ def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
 def _authenticate_tools(root: Path, *, cache_root: Path | None = None, gpu_router: str = "HIP") -> dict[str, str]:
     """The toolchain lock's Yosys and the quartus.lock install, each by digest. The
     lock's slot for gpu_router is authenticated whole; the build runs only its Yosys."""
-    _backend, architectures, configuration = gpu_choice(gpu_router)
-    yosys = board._authenticate_tools(root, lock_path=root / LOCK, toolchain_root=root / TOOLCHAIN_ROOT,
-                                      expected_configuration={"nextpnr": configuration},
-                                      gpu_router=gpu_router, hip_architectures=architectures,
-                                      cache_root=cache_root)["yosys"]
+    gpu_choice(gpu_router)
+    try:
+        yosys = yosys_netlist.authenticate(root, cache_root=cache_root, gpu_router=gpu_router, lock=LOCK)
+    except yosys_netlist.NetlistError as exc:
+        message = str(exc)
+        if "missing path component:" in message or "ready manifest is missing:" in message:
+            command = ["make", "toolchain-fes-pc386"]
+            if cache_root is not None:
+                command.append(f"CACHE_ROOT={cache_root}")
+            command.append(f"GPU_ROUTER={gpu_router}")
+            message += f"; provision the locked toolchain with `{shlex.join(command)}`"
+        raise board.BuildError(message) from exc
     lock = quartus_lock(root)
     try:
         quartus_root, quartus_sh, version = locate_quartus(os.environ.get("QUARTUS_ROOTDIR", ""), root, lock)
@@ -266,44 +279,11 @@ def _check_seed(seed: int) -> int:
 
 
 def machine_program(netlist: Path, sources: str | None = None) -> str:
-    """The Yosys script that elaborates the machine at the sealed guest rates. pc386_rom
+    """The Yosys program that elaborates the machine at the sealed guest rates. pc386_rom
     reads ROM_HEX while it is read in. sources stands in for MACHINE_SOURCES."""
-    rates = " ".join(f"-chparam {name} {value}" for name, value in guest_rates().items())
-    includes = " ".join(f"-I {path}" for path in INCLUDE_DIRS)
-    return (
-        f"read_verilog -sv {includes} {' '.join(MACHINE_SOURCES) if sources is None else sources}; "
-        f"hierarchy -top {MACHINE_TOP} {rates}; proc -norom; flatten; opt -purge; memory_collect; "
-        "memory_map t:$mem_v2 r:WR_PORTS>1 %i a:ramstyle %d; opt -purge; "
-        "attrmap -remove src; attrmap -remove hdlname; "
-        f"write_verilog {netlist.as_posix()}"
-    )
-
-
-def plain_identifiers(verilog: str) -> str:
-    """Rewrite escaped identifiers that hold hierarchy or index characters as
-    plain ones, unique within the netlist. A name escaped only because it is a
-    keyword (\\always_ff) and string literals (attribute values) stay."""
-    taken = (set(re.findall(r"(?<![\\\w$])[A-Za-z_][A-Za-z0-9_$]*", verilog))
-             | set(re.findall(r"\\([A-Za-z_][A-Za-z0-9_$]*)(?=\s)", verilog)) | UNDERSCORE_KEYWORDS)
-    names: dict[str, str] = {}
-
-    def plain(match: re.Match) -> str:
-        name = match.group(1)
-        if name is None or re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", name):
-            return match.group(0)
-        if name not in names:
-            base = re.sub(r"[^A-Za-z0-9_]", "_", name)
-            if not re.match(r"[A-Za-z_]", base):
-                base = "_" + base
-            candidate, suffix = base, 0
-            while candidate in taken:
-                suffix += 1
-                candidate = f"{base}_{suffix}"
-            taken.add(candidate)
-            names[name] = candidate
-        return names[name]
-
-    return re.sub(r'"(?:[^"\\\n]|\\.)*"|\\(\S+)', plain, verilog)
+    return yosys_netlist.program(yosys_netlist.SEAL, top=MACHINE_TOP,
+                                 sources=MACHINE_SOURCES if sources is None else (sources,),
+                                 includes=INCLUDE_DIRS, parameters=guest_rates(), netlist=netlist.as_posix())
 
 
 def firmware_digests(root: Path) -> dict[str, str]:
@@ -405,19 +385,16 @@ def firmware_rom(root: Path) -> Path:
 
 
 def elaborate_machine(root: Path, output: Path, project: Path, yosys: Path) -> None:
-    raw = output / "machine.yosys.v"
-    result = subprocess.run(
-        [str(yosys), "-q", "-l", str(output / "yosys.log"), "-p", machine_program(raw)],
-        cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False,
-    )
-    if result.returncode != 0:
-        raise board.BuildError(f"Yosys could not elaborate {MACHINE_TOP} (exit {result.returncode}); "
-                               f"log: {output / 'yosys.log'}")
-    netlist = plain_identifiers(raw.read_text(encoding="utf-8"))
-    if f"module {MACHINE_TOP}(" not in netlist:
+    """Yosys writes project/pc386_system.v, run from the repository root with
+    paths relative to it, so the program and argv name no checkout."""
+    netlist = project / MACHINE_NETLIST
+    try:
+        yosys_netlist.run(yosys, machine_program(netlist.relative_to(root)), cwd=root,
+                          program_file=output / "machine.ys", log=output / "yosys.log")
+    except yosys_netlist.NetlistError as exc:
+        raise board.BuildError(f"Yosys could not elaborate {MACHINE_TOP}: {exc}") from exc
+    if f"module {MACHINE_TOP}(" not in netlist.read_text(encoding="utf-8"):
         raise board.BuildError(f"elaborated netlist does not define {MACHINE_TOP}")
-    (project / MACHINE_NETLIST).write_text(netlist, encoding="utf-8")
-    raw.unlink()
 
 
 def run_quartus(quartus_sh: Path, quartus_root: Path, project: Path, log: Path) -> None:
@@ -526,9 +503,60 @@ def manifest(root: Path, record: bytes, evidence: dict, repository: str, revisio
     })
 
 
+def check_lockstep_report(root: Path, data: bytes, yosys: board.AuthenticatedTool, gpu_router: str,
+                          output: Path) -> dict:
+    """The lockstep gate (#1581 S5). data is the report's bytes. Returns the
+    seal summary's "lockstep" record, or raises if the report does not bind
+    to this build."""
+    try:
+        report = json.loads(data)
+    except ValueError as exc:
+        raise board.BuildError(f"lockstep report is not JSON: {exc}") from exc
+    run = report.get("run") if isinstance(report, dict) else None
+    if not isinstance(run, dict) or run.get("passed") is not True:
+        raise board.BuildError("lockstep report did not pass")
+    if run.get("complete_corpus") is not True:
+        raise board.BuildError("lockstep report does not prove a complete corpus; use the current lockstep runner")
+    if run.get("default_suite") is not True:
+        raise board.BuildError(f"lockstep report is not the default suite: {run.get('arguments')}")
+    netlist = report.get("netlist")
+    if not isinstance(netlist, dict):
+        raise board.BuildError("lockstep report is not a --netlist run")
+    expected = {"program_sha256": yosys_netlist.program_sha256(yosys_netlist.SEAL),
+                "cpu_source_sha256": yosys_netlist.cpu_source_sha256(root),
+                "yosys": yosys_netlist.lock_record(root, yosys, gpu_router, LOCK)}
+    for key, value in expected.items():
+        if netlist.get(key) != value:
+            raise board.BuildError(f"lockstep report's netlist {key} is {netlist.get(key)!r}, this build's is {value!r}")
+    verilator = report.get("verilator")
+    try:
+        pinned = lockfile.load_lock(root / I386_LOCK)["verilator"].commit
+    except (OSError, lockfile.LockfileError, KeyError, ValueError) as exc:
+        raise board.BuildError(f"cannot read {I386_LOCK}: {exc}") from exc
+    if not isinstance(verilator, dict) or verilator.get("lock") != I386_LOCK or verilator.get("commit") != pinned:
+        raise board.BuildError(f"lockstep report's Verilator is not {I386_LOCK}'s {pinned}: {verilator!r}")
+    try:
+        regenerated = yosys_netlist.seal_netlist(yosys.path, output / "lockstep", root)
+    except yosys_netlist.NetlistError as exc:
+        raise board.BuildError(f"cannot regenerate the CPU netlist: {exc}") from exc
+    digest = board._sha256(regenerated)
+    if digest != netlist.get("netlist_sha256"):
+        raise board.BuildError(f"lockstep report's CPU netlist {netlist.get('netlist_sha256')!r} is not the one "
+                               f"this build's Yosys writes ({digest})")
+    return {"report_sha256": hashlib.sha256(data).hexdigest(), "netlist_sha256": digest,
+            "netlist_program_sha256": expected["program_sha256"], "yosys_tool": yosys.identity,
+            "cpu_source_closure_sha256": expected["cpu_source_sha256"], "simulator": verilator}
+
+
 def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = None, seed: int = 1,
-          gpu_router: str = "HIP") -> Path:
+          gpu_router: str = "HIP", lockstep_report: Path | None = None) -> Path:
     _check_seed(seed)
+    if lockstep_report is None:
+        raise board.BuildError("fes.pc386 needs --lockstep-report (scripts/test_fes_i386_lockstep.py --netlist)")
+    try:
+        lockstep_data = Path(lockstep_report).read_bytes()
+    except OSError as exc:
+        raise board.BuildError(f"cannot read the lockstep report: {exc}") from exc
     backend = gpu_choice(gpu_router)[0]
     root = Path(root).resolve()
     package_store = root / "build/packages" if package_store is None else Path(package_store).resolve()
@@ -543,6 +571,8 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
         build_id = build_identity(record)
         output = board._prepare_output(root, relative=OUTPUT, build_outputs=BUILD_OUTPUTS)
         board._write_atomic(output / "build-inputs.json", record)
+        lockstep = check_lockstep_report(root, lockstep_data, tools["yosys"], gpu_router, output)
+        board._write_atomic(output / LOCKSTEP_REPORT, lockstep_data)
         project = write_project(root, output, build_id, seed)
         rom = firmware_rom(root)
         elaborate_machine(root, output, project, tools["yosys"].path)
@@ -553,7 +583,13 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
                          "gpu_backend": backend,
                          "firmware": {**firmware_digests(root), "rom_hex": board._sha256(rom)},
                          "inputs": {p: board._sha256(root / p) for p in sorted(PINNED_INPUTS)},
-                         "tools": identities, "toolchain": toolchain_label(root, identities)})
+                         "tools": identities, "toolchain": toolchain_label(root, identities),
+                         # What a lockstep report must match: the same Yosys, program and CPU (#1581 S4).
+                         "netlist": {"program_sha256": yosys_netlist.program_sha256(yosys_netlist.SEAL),
+                                     "cpu_source_sha256": yosys_netlist.cpu_source_sha256(root),
+                                     "machine_netlist_sha256": board._sha256(project / MACHINE_NETLIST),
+                                     "yosys": yosys_netlist.lock_record(root, tools["yosys"], gpu_router, LOCK)},
+                         "lockstep": lockstep})
         board._write_atomic(output / "build-summary.json",
                             (json.dumps(evidence, indent=2, sort_keys=True) + "\n").encode())
         encoded = manifest(root, record, evidence, repository, revision, identities)
@@ -579,10 +615,12 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=1, help="Quartus fitter seed; a timing miss fails")
     parser.add_argument("--gpu-router", choices=("HIP", "CUDA"), default="HIP",
                         help="the toolchain lock's slot to authenticate: HIP or CUDA (no GPU routing)")
+    parser.add_argument("--lockstep-report", type=Path, required=True,
+                        help="report.json of scripts/test_fes_i386_lockstep.py --netlist on this tree")
     args = parser.parse_args()
     try:
         print(build(args.root, args.package_output, cache_root=args.cache_root, seed=args.seed,
-                    gpu_router=args.gpu_router))
+                    gpu_router=args.gpu_router, lockstep_report=args.lockstep_report))
     except (board.BuildError, OSError, ValueError) as exc:
         print(f"FES pc386 (Quartus): {exc}", file=sys.stderr)
         return 1

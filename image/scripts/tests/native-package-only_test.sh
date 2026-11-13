@@ -175,6 +175,11 @@ for core_id in $package_words; do
 done
 
 target=$fixture/target
+mkdir -p "$target/usr/share/mister-runtime"
+# Shared build disks propagate setgid to newly installed package directories.
+# Installation must still produce the exact sealed mode checked below.
+chmod 2755 "$target/usr/share/mister-runtime"
+test "$(stat -c %a "$target/usr/share/mister-runtime")" = 2755
 mkdir -p "$target/usr/share/mister-runtime/core-packages" \
   "$target/usr/share/mister-runtime/selections"
 "$repo/scripts/native-extra-cores.sh" install "$cache" "$target"

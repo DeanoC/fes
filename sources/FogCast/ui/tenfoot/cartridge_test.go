@@ -66,11 +66,17 @@ func colecoBIOSKitSession() hostclient.SessionResult {
 func TestKitCartridgeMachineSwapsCartridgeOverPlay(t *testing.T) {
 	for name, session := range map[string]func() hostclient.SessionResult{
 		"cartridge": colecoKitSession, "bios-and-cartridge": colecoBIOSKitSession} {
-		t.Run(name, func(t *testing.T) { testCartridgeSwapOverPlay(t, session) })
+		for _, replyFirst := range []bool{false, true} {
+			order := "release-before-reply"
+			if replyFirst {
+				order = "release-after-reply"
+			}
+			t.Run(name+"/"+order, func(t *testing.T) { testCartridgeSwapOverPlay(t, session, replyFirst) })
+		}
 	}
 }
 
-func testCartridgeSwapOverPlay(t *testing.T, session func() hostclient.SessionResult) {
+func testCartridgeSwapOverPlay(t *testing.T, session func() hostclient.SessionResult, replyFirst bool) {
 	prior := session()
 	next := session()
 	next.CorePackage.Generation = prior.CorePackage.Generation + 1
@@ -86,6 +92,8 @@ func testCartridgeSwapOverPlay(t *testing.T, session func() hostclient.SessionRe
 	var visible []bool
 	var swap protocol.CartridgeRequest
 	swaps := 0
+	allowReply := make(chan struct{})
+	releaseReply := sync.OnceFunc(func() { close(allowReply) })
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, bound := protocol.DevelopmentMediaHeaders(r.Header)
 		switch r.URL.Path {
@@ -107,13 +115,15 @@ func testCartridgeSwapOverPlay(t *testing.T, session func() hostclient.SessionRe
 				r.Header.Get(protocol.HostSessionIDHeader) != prior.ID {
 				t.Error("cartridge swap lost the captured machine")
 			}
+			<-allowReply
 			writeKitDisplaySession(w, next)
 		default:
 			http.NotFound(w, r)
 		}
 	}))
 	t.Cleanup(server.Close)
-	app, _ := kitDisplayApp(t, server)
+	app, feed := kitDisplayApp(t, server)
+	t.Cleanup(releaseReply)
 	app.SetRooms(rooms.NewIndex([]rooms.Pack{
 		testRoomPack(t, hardwareRoomID, liveHardwareTestScript),
 		testRoomPack(t, colecoArcadeRoomID, `function load() end; function draw() gfx.clear("#101820") end`),
@@ -150,7 +160,37 @@ func testCartridgeSwapOverPlay(t *testing.T, session func() hostclient.SessionRe
 		}
 	}
 	selectTapeNamedRow(t, app, "game.col")
-	selectCartridgeFromPad(t, app)
+	if replyFirst {
+		releaseReply()
+	}
+	now := time.Now()
+	e := remoteinput.Event{Player: 1, Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton,
+		Code: remoteinput.ButtonSelect, Action: remoteinput.ActionPress}
+	if app.HandleLocalPad(e, now) {
+		t.Fatal("picker Select was consumed by the running keypad machine")
+	}
+	command := app.localPadCommand(e)
+	app.Press(command, now)
+	if replyFirst {
+		waitFor(t, app, "cartridge reply before Select release", func(s Snapshot) bool {
+			return !s.TapePicker.Open && s.Status == "Cartridge changed."
+		})
+	}
+	e.Action = remoteinput.ActionRelease
+	handled := app.HandleLocalPad(e, now)
+	// Before replacement the picker owns this release. After replacement,
+	// the new generation swallows the held confirmation button's release.
+	if handled != replyFirst {
+		t.Fatalf("Select release handled=%v, reply before release=%v", handled, replyFirst)
+	}
+	if !handled {
+		app.Release(command)
+	}
+	releaseReply()
+	if feed.count(remoteinput.ButtonSelect, remoteinput.ActionPress) != 0 ||
+		feed.count(remoteinput.ButtonSelect, remoteinput.ActionRelease) != 0 {
+		t.Fatal("picker confirmation reached the running keypad machine")
+	}
 	waitFor(t, app, "cartridge changed", func(s Snapshot) bool {
 		return !s.TapePicker.Open && !s.Session.ControlsOpen && s.GPUParked && s.Status == "Cartridge changed."
 	})
@@ -290,22 +330,6 @@ func TestColecoGuideFocusNotStartedLeavesPlayInputAvailable(t *testing.T) {
 			}
 		})
 	}
-}
-
-func selectCartridgeFromPad(t *testing.T, app *App) {
-	t.Helper()
-	now := time.Now()
-	e := remoteinput.Event{Player: 1, Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton,
-		Code: remoteinput.ButtonSelect, Action: remoteinput.ActionPress}
-	if app.HandleLocalPad(e, now) {
-		t.Fatal("picker Select was consumed by the running keypad machine")
-	}
-	app.Press(app.localPadCommand(e), now)
-	e.Action = remoteinput.ActionRelease
-	if app.HandleLocalPad(e, now) {
-		t.Fatal("picker Select release was consumed by the running keypad machine")
-	}
-	app.Release(app.localPadCommand(e))
 }
 
 // A keypad machine keeps Select: it is the Coleco's keypad * key. Home or

@@ -2,16 +2,15 @@
 --
 -- The families are systems.families: the four v1 families in a fixed order
 -- (ZX81, Spectrum, Atari ST, C64), then, when the launcher shows all cores,
--- every other registered family. A family's state comes from the library's
--- machine entries (platform "fpga" rows without media) for its models, and
--- its game count from that library's titles with media. When the library
--- has no row for a model, kit.cores says whether it is installed and needs
--- firmware.
+-- every other registered family. A family's state comes from the host's
+-- admitted hardware.computers projection for its models, and its game
+-- count from the library's titles with media. A selected cassette does not
+-- remove a machine from Home. kit.cores supplies the independent local shelf.
 --
--- families.load(on_change) starts the kit and library reads; on_change runs
--- after each answer. families.reload() reads the kit and library again. A room
--- that waits for more than this module sets families.waiting to a function that
--- returns true until its own data has answered; every family is Checking
+-- families.load(on_change) starts the kit, hardware and library reads;
+-- on_change runs after each answer. families.reload() refreshes all three.
+-- A room that waits for more than this module sets families.waiting to
+-- return true until its own data has answered; every family is Checking
 -- until then.
 
 local systems = require "systems"
@@ -90,7 +89,8 @@ M.list = list
 -- Data. A table per source; nil while it is still loading.
 local kit_rows = nil   -- core_id -> kit.cores row
 local kit_error = false
-local machines = nil   -- core_id -> library machine entry
+local machines = nil   -- core_id -> admitted host computer
+local hardware_loaded = false
 local titles = nil     -- family id -> number of titles
 local capped = {}      -- family id -> true when its query hit the row limit
 local known = {}       -- family id -> true when its library read succeeded
@@ -105,9 +105,8 @@ M.waiting = function() return false end
 local function model_state(core_id)
   local lib = machines and machines[core_id]
   if lib then
-    if lib.launchable then return "ready" end
-    if lib.firmware then return "firmware" end
-    return "blocked", lib.block
+    if lib.ready then return "ready" end
+    return "blocked", lib.unavailable_reason ~= "" and lib.unavailable_reason or nil
   end
   local kit_row = kit_rows and kit_rows[core_id]
   if kit_row then
@@ -122,10 +121,10 @@ end
 
 function M.count_known() return not kit_error and next(overfull) == nil end
 
--- Families wait for the library and the kit's list (it says which models
--- are installed when the library has no row for them).
+-- Host machine readiness, title counts and the independent kit shelf all
+-- settle before the opening focus is chosen.
 function M.settled()
-  return not M.waiting() and kit_rows ~= nil and (machines ~= nil or library_err ~= nil)
+  return not M.waiting() and kit_rows ~= nil and hardware_loaded and (titles ~= nil or library_err ~= nil)
 end
 
 -- A family's state ("checking", "ready", "firmware", "missing", "blocked"),
@@ -147,6 +146,11 @@ function M.state(f)
 end
 
 local LIBRARY_LIMIT = 2000
+-- A query may return 2,000 rows. Process a bounded number of rows or
+-- editions per frame so one answer cannot exhaust the room callback budget.
+-- A 256-row reduction exceeds 12ms of CPU on the Cortex-A9. Keep each
+-- update below that soft budget without changing the callback deadline.
+local FAMILY_BATCH = 64
 
 local function count_line(n, more)
   if n == 0 and more then return "1+ games" end
@@ -292,30 +296,47 @@ local function load_kit()
   end)
 end
 
--- What a machine entry's launch block means on a family tile. A missing ROM
--- or system firmware is the firmware state; the rest get a short reason.
-local BLOCKS = {
-  source_offline = "Its library is offline",
-  lease_held = "In use on another screen",
-  version_skew = "Needs a software update",
-}
-
--- A machine entry is a model's catalog row without media.
-local function add_machine(out, g)
-  if out[g.core_id] and out[g.core_id].launchable then return end
-  local block = g.launch_block or ""
-  out[g.core_id] = {
-    game_id = g.id,
-    launchable = block == "",
-    firmware = block == "missing_firmware" or block == "missing_rom",
-    block = BLOCKS[block],
-  }
+-- The host already verifies each computer's package, ABI, firmware, media
+-- and composition. Library titles never stand in for this admission result.
+local hardware_generation = 0
+local hardware_reading = false
+local hardware_refresh_pending = false
+local function read_hardware(gen)
+  hardware_reading = true
+  hardware.read(function(value, err)
+    hardware_reading = false
+    -- A resume can supersede an outstanding read. Wait for its callback
+    -- before requesting the newest snapshot: the bridge admits one read.
+    if hardware_refresh_pending then
+      hardware_refresh_pending = false
+      read_hardware(hardware_generation)
+      return
+    end
+    if gen ~= hardware_generation then return end
+    machines, hardware_loaded = {}, true
+    if not err then
+      for _, computer in ipairs(value.computers or {}) do
+        if computer.core_id and computer.core_id ~= "" then
+          machines[computer.core_id] = computer
+        end
+      end
+    end
+    on_change()
+  end)
 end
 
--- One query per family, so a large family's titles never push another
--- family's machine entries past the row limit. A title counts once; its
--- editions are siblings of the same title, so only machine entries are
--- looked for among them.
+local function load_hardware()
+  hardware_loaded = false
+  hardware_generation = hardware_generation + 1
+  if hardware_reading then
+    hardware_refresh_pending = true
+    return
+  end
+  read_hardware(hardware_generation)
+end
+
+-- One query per family keeps a large family's titles from consuming another
+-- family's row limit. A title counts once; its editions never add a count.
 local library_generation = 0
 local retry_enabled = false
 local requests = {}
@@ -330,29 +351,31 @@ local function schedule_next_retry()
 end
 
 -- Retain successful family reads while an unrelated family is unavailable.
--- A failed family uses the kit fallback, without claiming zero games.
+-- A failed title count stays unknown; hardware admission is independent.
 local function publish_library(gen)
   if gen ~= library_generation then return end
-  local m, counts, more, answered, oversized, failed = {}, {}, {}, {}, {}, nil
   for _, req in ipairs(requests) do
     if not req.answered then return end
+  end
+  local counts, more, answered, oversized, failed = {}, {}, {}, {}, nil
+  for _, req in ipairs(requests) do
     if req.err then
       failed = failed or req.err
       if req.overfull then oversized[req.family.id] = true end
     else
       answered[req.family.id] = true
-      for id, machine in pairs(req.machines or {}) do
-        if not m[id] or not m[id].launchable then m[id] = machine end
-      end
       counts[req.family.id] = req.count
       more[req.family.id] = req.more
     end
+    -- The published summaries are small; release the converted page so a
+    -- settled Home does not retain thousands of Lua rows.
+    req.data = nil
   end
   overfull = oversized
   if failed and not retry_enabled then
-    machines, titles, capped, known, library_err = nil, nil, {}, {}, failed
+    titles, capped, known, library_err = nil, {}, {}, failed
   else
-    machines, titles, capped, known, library_err = m, counts, more, answered, failed
+    titles, capped, known, library_err = counts, more, answered, failed
   end
   on_change()
 end
@@ -362,31 +385,43 @@ local function query_family(req, gen)
   req.cancel = library.query({ platform = "fpga", core_ids = req.ids, limit = LIBRARY_LIMIT, home_family = true }, function(games, err, transient, more)
     if gen ~= library_generation then return end
     req.cancel = nil
-    req.answered, req.err = true, err
+    req.err = err
     req.overfull = err and more or nil
     if err and transient and retry_enabled and req.retries < #RETRY_DELAYS then
+      req.answered = true
       req.retries = req.retries + 1
       req.due = room.time + RETRY_DELAYS[req.retries]
-    elseif not err then
-      local machines_for_family, n = {}, 0
-      local function machine(g)
-        if g.core_id and systems.family_by_core[g.core_id] and (g.media_id or "") == "" then add_machine(machines_for_family, g) end
-      end
-      for _, g in ipairs(games or {}) do
-        local family = systems.family_by_core[g.core_id or ""]
-        if g.core_entry_kind == "title" and family and family.id == req.family.id then
-          n = n + 1
-        elseif g.core_entry_kind == "machine" then
-          machine(g)
-          for _, v in ipairs(g.variants or {}) do machine(v) end
-        end
-      end
-      req.machines, req.count = machines_for_family, n
+    elseif err then
+      req.answered = true
+    else
+      req.answered = false
+      req.data, req.index = games or {}, 1
+      req.pending, req.count = req.data, 0
       req.more = more or nil
     end
     schedule_next_retry()
     publish_library(gen)
   end)
+end
+
+-- Count one family's titles across updates. Machine admission comes from
+-- hardware.computers, so neither machine rows nor their editions establish
+-- readiness here. Reload discards any unfinished answer.
+local function process_family(req)
+  for work = 1, FAMILY_BATCH do
+    local g = req.pending[req.index]
+    if not g then
+      req.pending = nil
+      req.answered = true
+      publish_library(library_generation)
+      return
+    end
+    local family = systems.family_by_core[g.core_id or ""]
+    if g.core_entry_kind == "title" and family and family.id == req.family.id then
+      req.count = req.count + 1
+    end
+    req.index = req.index + 1
+  end
 end
 
 function M.reload()
@@ -395,6 +430,7 @@ function M.reload()
   end
   machines, titles, capped, known, overfull, library_err = nil, nil, {}, {}, {}, nil
   load_kit()
+  load_hardware()
   on_change()
   library_generation = library_generation + 1
   local gen = library_generation
@@ -413,6 +449,12 @@ end
 -- Called only by Home while it is active; no timer or retry worker survives
 -- a closed or suspended room. A reload discards the previous schedule.
 function M.update()
+  for _, req in ipairs(requests) do
+    if req.pending then
+      process_family(req)
+      break
+    end
+  end
   if not next_retry or room.time < next_retry then return end
   for _, req in ipairs(requests) do
     if req.due and room.time >= req.due then
@@ -438,22 +480,83 @@ function M.outline(x, y, w, h, t, color)
   gfx.rect(x + w - t, y, t, h, color)
 end
 
-function M.keyboard(x, y, w, h, key, ground)
+-- gfx.measure, remembered: the same few labels are measured on every
+-- redraw. Results are kept by weight, then by the size as given, so sizes
+-- gfx.measure would round or clamp to one size are only separate entries.
+-- Dropped when it grows, so changing titles cannot fill it.
+local measured, measured_n = { [false] = {}, [true] = {} }, 0
+function M.measure(text, size, bold)
+  bold = bold and true or false
+  size = size or 18
+  local by_size = measured[bold][size]
+  local m = by_size and by_size[text]
+  if m then return m[1], m[2] end
+  if measured_n >= 256 then
+    measured, measured_n, by_size = { [false] = {}, [true] = {} }, 0, nil
+  end
+  local w, h = gfx.measure(text, size, bold)
+  if not by_size then
+    by_size = {}
+    measured[bold][size] = by_size
+  end
+  by_size[text] = { w, h }
+  measured_n = measured_n + 1
+  return w, h
+end
+
+-- gfx.text with one reused options table: gfx.text reads it during the call.
+local text_opts = {}
+function M.text(str, x, y, size, bold, color, max_w, align)
+  local o = text_opts
+  o.size, o.bold, o.color, o.max_w, o.align = size, bold, color, max_w, align
+  gfx.text(str, x, y, o)
+end
+
+-- A keyboard's keys as one gfx.rects list and its space bar, kept for each
+-- exact x, y, w and h a keyboard was drawn at: marks are redrawn in the same
+-- few places, so their keys are computed once per place. Each width keeps
+-- an array of places, so a new place allocates no hash table.
+local keyboards, keyboards_n = {}, 0   -- w -> { {x, y, h, keys, bar}, ... }
+local function keyboard_keys(x, y, w, h)
+  local placed = keyboards[w]
+  if placed then
+    for i = 1, #placed do
+      local e = placed[i]
+      if e[1] == x and e[2] == y and e[3] == h then return e[4], e[5] end
+    end
+  end
+  -- New places come with a new room size: past 128, start again.
+  if keyboards_n >= 128 then keyboards, keyboards_n, placed = {}, 0, nil end
+  if not placed then
+    placed = {}
+    keyboards[w] = placed
+  end
+  keyboards_n = keyboards_n + 1
+  local keys, n = {}, 0
   local rows, cols = 4, 10
   local gap = math.max(2, math.floor(w / 80))
   local kw = (w - gap * (cols + 1)) / cols
   local kh = (h - gap * (rows + 1)) / rows
-  gfx.rect(x, y, w, h, C.dark)
   for r = 0, rows - 1 do
     local inset = (r % 2) * kw / 3
     for c = 0, cols - 1 do
       local kx = x + gap + c * (kw + gap) + inset
       if kx + kw <= x + w - gap then
-        gfx.rect(kx, y + gap + r * (kh + gap), kw, kh, key)
+        keys[n + 1], keys[n + 2], keys[n + 3], keys[n + 4] = kx, y + gap + r * (kh + gap), kw, kh
+        n = n + 4
       end
     end
   end
-  gfx.rect(x + w * 0.25, y + h - gap - kh, w * 0.5, kh, ground)
+  local bar = { x + w * 0.25, y + h - gap - kh, w * 0.5, kh }
+  placed[#placed + 1] = { x, y, h, keys, bar }
+  return keys, bar
+end
+
+function M.keyboard(x, y, w, h, key, ground)
+  local keys, bar = keyboard_keys(x, y, w, h)
+  gfx.rect(x, y, w, h, C.dark)
+  gfx.rects(keys, key)
+  gfx.rect(bar[1], bar[2], bar[3], bar[4], ground)
 end
 
 -- A family's placeholder mark: its ground, its short mark and a keyboard.
@@ -462,9 +565,9 @@ function M.mark(f, x, y, w, h)
   local art = f.art
   gfx.rect(x, y, w, h, art.ground)
   local size = math.max(14, math.min(math.floor(h * 0.30), math.floor(w / (#art.mark * 0.62 + 0.5))))
-  local tw, th = gfx.measure(art.mark, size, true)
+  local tw, th = M.measure(art.mark, size, true)
   local ty = y + h * 0.06
-  gfx.text(art.mark, x + (w - tw) / 2, ty, { size = size, bold = true, color = C.on_accent })
+  M.text(art.mark, x + (w - tw) / 2, ty, size, true, C.on_accent)
   local ky = ty + th + h * 0.06
   local kh = math.min(h * 0.32, y + h - ky - h * 0.08)
   if kh < 8 then return end
@@ -475,19 +578,19 @@ end
 -- The shared state chip: Ready filled, Unavailable a raised plate with a
 -- leading bar, Checking outlined.
 function M.chip(label, x, y, size)
-  local tw, th = gfx.measure(label, size, true)
+  local tw, th = M.measure(label, size, true)
   local pad = math.floor(size * 0.55)
   local h = th + math.floor(size * 0.5)
   if label == "Ready" then
     gfx.rect(x, y, tw + pad * 2, h, C.accent)
-    gfx.text(label, x + pad, y + (h - th) / 2, { size = size, bold = true, color = C.on_accent })
+    M.text(label, x + pad, y + (h - th) / 2, size, true, C.on_accent)
   elseif label == "Unavailable" then
     gfx.rect(x, y, tw + pad * 2 + 5, h, C.raised)
     gfx.rect(x, y, 5, h, C.dark)
-    gfx.text(label, x + 5 + pad, y + (h - th) / 2, { size = size, bold = true, color = C.text })
+    M.text(label, x + 5 + pad, y + (h - th) / 2, size, true, C.text)
   else
     M.outline(x, y, tw + pad * 2, h, 2, C.secondary)
-    gfx.text(label, x + pad, y + (h - th) / 2, { size = size, bold = true, color = C.text })
+    M.text(label, x + pad, y + (h - th) / 2, size, true, C.text)
   end
 end
 
@@ -500,12 +603,12 @@ function M.header(m, hh, title)
   gfx.rect(m, my, bar * 3, bar, C.accent)
   gfx.rect(m, my + bar * 1.5, bar * 3, bar, C.accent)
   gfx.rect(m, my + bar * 3, bar * 1.6, bar, C.accent)
-  local fw, th = gfx.measure("FES", 28, true)
-  gfx.text("FES", m + bar * 3 + 12, (hh - th) / 2, { size = 28, bold = true, color = C.text })
+  local fw, th = M.measure("FES", 28, true)
+  M.text("FES", m + bar * 3 + 12, (hh - th) / 2, 28, true, C.text)
   local fx = m + bar * 3 + 12 + fw + 18
   gfx.rect(fx, hh * 0.3, 2, hh * 0.4, C.divider)
-  local _, rh = gfx.measure(title, 22)
-  gfx.text(title, fx + 18, (hh - rh) / 2, { size = 22, color = C.text })
+  local _, rh = M.measure(title, 22)
+  M.text(title, fx + 18, (hh - rh) / 2, 22, nil, C.text)
 end
 
 return M
