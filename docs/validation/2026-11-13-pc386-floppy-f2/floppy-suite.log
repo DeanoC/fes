@@ -1,0 +1,39 @@
+Running FLOPTEST.COM with A: and B: fitted on the oracle CPU
+FLOPPY equip ok
+FLOPPY type-a ok
+FLOPPY type-b ok
+FLOPPY label-a ok
+FLOPPY label-b ok
+FLOPPY nochange-a ok
+FLOPPY change-a ok
+FLOPPY reread-a ok
+FLOPPY cleared-a ok
+FLOPPY wp-a ok
+FLOPPY verify-a ok
+FLOPPY dma-boundary ok
+FLOPPY dos-a1 ok
+FLOPPY dos-a2 ok
+FLOPPY write-a ok
+FLOPPY format-a ok
+FLOPPY label-b360 ok
+FLOPPY write-b360 ok
+FLOPPY format-b360 ok
+FLOPPY back-b ok
+FLOPPY verify-b ok
+FLOPPY format-b ok
+FLOPPY write-b ok
+FLOPPY DONE ok
+B: image: the pattern is in sector 2399
+disk A 1.44M /home/deano/fes/.claude/worktrees/silly-mcnulty-a4e35c/sources/misteross/build/sim/fes-pc386/floppy-a.img
+disk B 1.2M /home/deano/fes/.claude/worktrees/silly-mcnulty-a4e35c/sources/misteross/build/sim/fes-pc386/floppy-b.img
+swap 4.261 A
+disk A 1.44M /home/deano/fes/.claude/worktrees/silly-mcnulty-a4e35c/sources/misteross/build/sim/fes-pc386/floppy-a2.img read-only
+swap 4.794 A
+disk A 1.44M /home/deano/fes/.claude/worktrees/silly-mcnulty-a4e35c/sources/misteross/build/sim/fes-pc386/floppy-a.img
+swap 4.929 B
+disk B 360K /home/deano/fes/.claude/worktrees/silly-mcnulty-a4e35c/sources/misteross/build/sim/fes-pc386/floppy-b360.img
+swap 5.401 B
+disk B 1.2M /home/deano/fes/.claude/worktrees/silly-mcnulty-a4e35c/sources/misteross/build/sim/fes-pc386/floppy-b.img
+out B /home/deano/fes/.claude/worktrees/silly-mcnulty-a4e35c/sources/misteross/build/sim/fes-pc386/floppy/floppy-b-out.img 1228800
+PASS floppy
+exit=0

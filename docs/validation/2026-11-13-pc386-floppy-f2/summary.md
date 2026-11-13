@@ -77,11 +77,77 @@ that now names the floppy and the CD behind the disk instead of stopping at
 
 ## Suites
 
-(filled in from the runs)
+Every suite ran on this branch; the ROM column is the `pc386-bios.bin` digest
+the run used, since the BIOS changed once during the slice.
+
+| Suite | Result |
+| --- | --- |
+| `floppy` (new) | PASS at `f79bc8f56`: 24 checks, all ok, and the pattern FLOPTEST.COM wrote to B: is in sector 2399 of the image the bench wrote back ([log](floppy-suite.log)) |
+| `floppy-boot` (new) | PASS at `f79bc8f56`: FreeDOS boots from the 1.44M floppy in A: with CMOS 2Dh, 38h and 3Dh set to an A: launch, reaches the `A:\>` prompt in 7.25 simulated s and DIR shows the boot floppy's label FDBOOT |
+| `fdc` | PASS: 36 cases, 19 matching Bochs, 14 listed divergences (the new `dor_mismatch` among them), 3 RTL-only |
+| `devices` | PASS, with three new CMOS cases: no drive, two drives with an A: launch, one 360K drive with a CD launch |
+| `boot` (oracle) | PASS, with the VGA replay clean (84,949 events, no mismatch) |
+| `a20` | PASS on the boot and games images |
+| `system` | PASS at the earlier ROM `b5beb4cd`: FreeDOS to the prompt on `pc386_system`, the record round trip, holds cutting port 2 bursts in 4 of 186 trials, 2,783 status records |
+| `tests.test_pc386_machine`, `tests.test_pc386_rtl_stops`, `tests.test_build_fes_pc386_quartus` | PASS, 124 tests |
+
+**The RTL CPU.** `floppy --cpu rtl` and `floppy-boot --cpu rtl` run the same
+scripts with `fes_i386_cpu`, so the INT 13h transfers, DMA channel 2 and
+IRQ 6 are its. (Results below once the runs finish.)
+
+**The kit** (Kit B, run `f1`, 13 November 2026). The sealed package
+`0445da315c50211f` launched as a library game with the repository's FreeDOS
+fixture image: the new ROM posts ("Bochs 3.1 BIOS - build: 11/03/26"), the
+machine boots from the hard disk under the new boot-order bytes, and DIR at
+the `C:\>` prompt reports 33,292,288 bytes free ([grab](kitB-f1-dir.png)).
+The kit fits no floppy drive, so this checks the ROM and the CMOS bytes, not
+the drives. The baseline was unchanged throughout (software `7ddb0bfb` on
+image `179affbb`, the same snapshot keys before and after, agent idle and
+lease free), and the run's four FogCast paths were removed afterwards.
 
 ## Seal
 
-(filled in from the build summaries)
+Quartus 17.0.2, seed 1, the CUDA slot on `chip-30x0-ai-dev`, from a clean
+checkout of `92ef982d6`, with the lockstep `--netlist` report (#1782) in
+front of it. Every analysis passes.
+
+| Build | ALMs | RAM blocks | DSP | Registers | Setup | Hold |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| main `8ab34380e` ([summary](main-build-summary.json)) | 36,333 | 274 | 40 | 32,915 | +0.822 | +0.092 |
+| F2 seal `92ef982d6` ([summary](seal-build-summary.json)) | 36,399 | 274 | 40 | 32,869 | +0.694 | +0.068 |
+| An earlier F2 head `18ccf4884` ([summary](earlier-seal-build-summary.json)) | 36,471 | 274 | 40 | 32,965 | +0.330 | +0.076 |
+| The doc's F2 estimate | +150 | 0 | 0 | | | |
+
+- **+66 ALMs, no M10K and no DSP** against main sealed the same way, at 86.9%
+  of the device. The earlier head measured +138; the two differ only in the
+  ROM contents and the fit, and the area audit puts fit noise at about ±200
+  ALMs, so the figure is "at or under the estimate", not a measurement of the
+  logic.
+- **It is a floor.** `pc386_system` still ties the drive types to none and the
+  boot device to the hard disk, so Quartus prunes the CMOS arithmetic and the
+  drive-select paths that only a fitted drive reaches. F3 pays the rest when
+  its endpoint drives those inputs, as slice F1's record says of the
+  controller itself.
+- **The sealed commit is not the branch head.** Everything after `92ef982d6`
+  is `floppy_test.asm`, `sim_fes_pc386.py`, this record and the core README;
+  all 119 of the seal's recorded input digests match the head's files.
+- Timing at the seal: setup +0.694 ns, hold +0.068 ns, minimum pulse width
+  +1.122 ns, recovery +7.092 ns, removal +0.428 ns, on the 61.44 MHz system
+  clock with the 74.25 MHz pixel and 12.29 MHz audio clocks.
+
+## Reproduce
+
+```bash
+python3 scripts/sim_fes_pc386.py --suite floppy --download
+python3 scripts/sim_fes_pc386.py --suite floppy-boot --download
+python3 scripts/sim_fes_pc386.py --suite floppy --cpu rtl
+python3 scripts/test_fes_i386_lockstep.py --download --netlist --gpu-router CUDA
+python3 scripts/build_fes_pc386_quartus.py --root "$PWD" --seed 1 --gpu-router CUDA \
+    --lockstep-report "$PWD/build/sim/fes-i386-lockstep/report.json"
+```
+
+Run them from `sources/misteross`; the seal needs the pc386 lock's CUDA
+toolchain slot.
 
 ## Not covered
 
