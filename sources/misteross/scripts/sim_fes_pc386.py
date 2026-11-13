@@ -42,7 +42,8 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            oracle runs until paging is off. The RTL run must stop on each,
            record the two protected-mode stretches, and write what the
            oracle run writes. It also checks the initial full-AX SMSW result
-           and the LAHF flags byte, and SMSW after a CR0 write; only CR0 bits 5--7 remain unmeasured on a physical 386
+           and the LAHF flags byte, and SMSW after a CR0 write; the models'
+           post-BIOS CR0 reserved-bit values remain unmeasured on a physical 386
            (#1748).
   a20      runs cores/fes-pc386/sim/a20_test.asm (A20TEST.COM) at the FreeDOS
            prompt (#1386). On the boot image, which has no XMS driver, A20
@@ -802,8 +803,8 @@ def vga_test_disk(args) -> Path:
 RTL_STOPS = (('0F07', '0000', '0f07'), ('EA', '0008', 'ea00001800'), ('EA', '0020', 'ea00002800'))
 RTL_STOP_LINES = ['C fff0', 'U', 'G', 'P', 'DONE']
 RTL_STOP_STRETCHES = (1, 10)
-SMSW_IGNORED_MASK = 0x00e0
-SMSW_COMPARE_MASK = 0xffff ^ SMSW_IGNORED_MASK
+# Software baselines after this BIOS, not physical 386 conformance claims.
+SMSW_POST_BIOS = {'oracle': 0x0010, 'rtl': 0xfff0}
 
 
 def rtl_stop_failures(lines: dict, rtl: dict) -> list[str]:
@@ -817,18 +818,20 @@ def rtl_stop_failures(lines: dict, rtl: dict) -> list[str]:
         if output[1:] != RTL_STOP_LINES:
             failures.append(f'the {cpu} run wrote {output}, expected an initial SMSW then {RTL_STOP_LINES}')
 
-    # The first SMSW occurs after the BIOS. Only bits 5--7 lack a physical
-    # 386 measurement (#1748); compare all other bits of the complete AX and
-    # the LAHF flags byte, and keep both raw results in the report.
+    # The first SMSW occurs after the BIOS. Compare each complete AX against
+    # its observed software baseline, without asserting which model is right
+    # for reserved bits 15--5 (#1748). Compare the LAHF flags byte as well.
     pattern = r'R ([0-9a-f]{4}) ([0-9a-f]{2})'
     first_oracle = re.fullmatch(pattern, oracle[0]) if oracle else None
     first_actual = re.fullmatch(pattern, actual[0]) if actual else None
     if not first_oracle or not first_actual:
         failures.append(f'missing initial SMSW result: oracle {oracle}, RTL {actual}')
-    elif (((int(first_oracle[1], 16) ^ int(first_actual[1], 16)) & SMSW_COMPARE_MASK) or
-          first_oracle[2] != first_actual[2]):
-        failures.append(f'initial SMSW differs outside ignored mask 0x{SMSW_IGNORED_MASK:04x}: '
-                        f'oracle {oracle[0]}, RTL {actual[0]}')
+    else:
+        for cpu, result in (('oracle', first_oracle), ('rtl', first_actual)):
+            if int(result[1], 16) != SMSW_POST_BIOS[cpu]:
+                failures.append(f'{cpu} initial SMSW differs from its post-BIOS software baseline: {result[0]}')
+        if first_oracle[2] != first_actual[2]:
+            failures.append(f'initial LAHF flags differ: oracle {oracle[0]}, RTL {actual[0]}')
     if oracle[1:] != actual[1:]:
         failures.append(f'the RTL run wrote {actual[1:]}, the oracle run {oracle[1:]}')
 

@@ -9,7 +9,7 @@ from scripts import sim_fes_pc386 as sim
 class RtlStopsReportTest(unittest.TestCase):
     def setUp(self):
         tail = list(sim.RTL_STOP_LINES)
-        self.lines = {'oracle': ['R 0010 46', *tail], 'rtl': ['R 00f0 46', *tail]}
+        self.lines = {'oracle': ['R 0010 46', *tail], 'rtl': ['R fff0 46', *tail]}
         stops = [
             ('0F07', '0000:00007c10', '0f07'),
             ('EA', '0008:00007c20', 'ea00001800'),
@@ -24,12 +24,24 @@ class RtlStopsReportTest(unittest.TestCase):
             'pmode': [{'steps': 1}, {'steps': 10}],
         }
 
-    def test_only_unmeasured_cr0_reserved_bits_may_differ(self):
+    def test_post_bios_snapshots_and_lahf_flags(self):
         self.assertEqual(sim.rtl_stop_failures(self.lines, self.rtl), [])
-        for replacement in ('R 01f0 46', 'R 00f1 46', 'R 00f0 02', 'bad result'):
-            with self.subTest(replacement=replacement):
+        # No bit of either full-AX software baseline may silently change.
+        for cpu, baseline in sim.SMSW_POST_BIOS.items():
+            for bit in range(16):
+                with self.subTest(cpu=cpu, bit=bit):
+                    lines = copy.deepcopy(self.lines)
+                    lines[cpu][0] = f'R {baseline ^ (1 << bit):04x} 46'
+                    self.assertTrue(sim.rtl_stop_failures(lines, self.rtl))
+        for cpu in ('oracle', 'rtl'):
+            for replacement in ('R 0000 02', 'bad result'):
+                with self.subTest(cpu=cpu, replacement=replacement):
+                    lines = copy.deepcopy(self.lines)
+                    lines[cpu][0] = replacement
+                    self.assertTrue(sim.rtl_stop_failures(lines, self.rtl))
+            with self.subTest(cpu=cpu, check='flags'):
                 lines = copy.deepcopy(self.lines)
-                lines['rtl'][0] = replacement
+                lines[cpu][0] = lines[cpu][0][:-2] + '02'
                 self.assertTrue(sim.rtl_stop_failures(lines, self.rtl))
 
     def test_missing_restart_or_stretch_fails(self):
@@ -48,6 +60,11 @@ class RtlStopsReportTest(unittest.TestCase):
             with self.subTest(marker=marker):
                 lines = copy.deepcopy(self.lines)
                 lines['rtl'].remove(marker)
+                self.assertTrue(sim.rtl_stop_failures(lines, self.rtl))
+        for cpu in ('oracle', 'rtl'):
+            with self.subTest(cpu=cpu, check='post-write SMSW'):
+                lines = copy.deepcopy(self.lines)
+                lines[cpu][1] = 'C fff1'
                 self.assertTrue(sim.rtl_stop_failures(lines, self.rtl))
 
 

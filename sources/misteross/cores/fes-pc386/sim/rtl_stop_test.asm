@@ -17,7 +17,8 @@
 ;   RTL does not restart in, and the RTL restarts in protected mode.
 ;
 ; Initial SMSW reports full AX and the LAHF flags byte, and SMSW is checked after a CR0
-; write. Initial CR0 bits 5--7 remain unmeasured on a physical 386 (#1748).
+; write. The models' post-BIOS CR0 reserved bits 15--5 differ; their physical
+; 386 behavior remains unmeasured (#1748).
 ; Each part writes a line: "U" from the #UD handler, "G" and "P" at the two
 ; gates' targets; "DONE" back in real mode ends the run. If the RTL comes to
 ; build LOADALL or far JMP through a call gate, this sector needs another
