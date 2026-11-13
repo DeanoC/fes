@@ -247,10 +247,11 @@ at nextpnr `bec82e36`, which includes #296 and #299 and retains #276's exact
 F0/F1 `$ROUTETHRU` map; its lock also pins Yosys `5391eeb1`. The Coleco
 development shell still uses nextpnr `9128800f`, whose exact route-through
 map is C/D. The validators select the map from each producer's lock; they do
-not broaden the reserved-boundary guard. The other four locks are byte copies
-of the repository lock (nextpnr `9128800f`), so a shared `CACHE_ROOT` reuses
-its cached slot for them. The factory recipe stays HIP. The October kit notes do
-not accept a shared-pin seal. See [Cores](docs/cores.md).
+not broaden the reserved-boundary guard. RAM Tester now pins nextpnr
+`bec82e36` in its per-core lock and uses its own HIP cache slot. Only SMS and
+SG-1000 retain byte-copy locks for repository nextpnr `9128800f`, so a shared
+`CACHE_ROOT` reuses that cached slot for those cores. The factory recipe stays
+HIP. The October kit notes do not accept a shared-pin seal. See [Cores](docs/cores.md).
 
 ## Freeze-scaffold cartridges
 

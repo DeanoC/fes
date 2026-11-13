@@ -336,17 +336,18 @@ nextpnr `1eecf877` (ZX81 fes#936; Menu moved when its blitter took DSP
 multipliers), Pong's lock pins `552ba246` (fes#887), RISC-V's `8f453ebc`
 (fes#945), and Coleco's pins Yosys `5391eeb1` with nextpnr `bec82e36`
 (current main includes #296 and #299, retaining #289, #290, #292); each
-of those nextpnr pins is its own install. Apple II, Atari ST (fes#910) and C64 pin nextpnr
+of those nextpnr pins is its own install. RAM Tester also has its own slot at
+nextpnr `bec82e36`. Apple II, Atari ST (fes#910) and C64 pin nextpnr
 `5fe55f3d` for nextpnr #276's F0/F1 boundary `$ROUTETHRU` map. Spectrum pins
 nextpnr main `bd7a1c0d`, which contains #276 as merged and keeps that map, in
 its own slot. Coleco keeps the F0/F1 map on `bec82e36`. The Apple II and C64
-locks are byte copies of each other and share one slot; the other seven
+locks are byte copies of each other and share one slot; the other eight
 per-core locks that differ from `toolchain.lock` each have their own. The
 Atari ST video-part producer
 authenticates the ST lock and validates the same map. The Coleco development
-shell remains on `9128800f` and validates its C/D map. The other three
-per-core locks remain byte copies of `toolchain.lock` on nextpnr `9128800f`,
-so those cores share that slot.
+shell remains on `9128800f` and validates its C/D map. The SMS and SG-1000
+locks remain byte copies of `toolchain.lock` on nextpnr `9128800f`, so those
+cores share that slot.
 Placement seeds and weights, clock checks, routing mode, GPU binding,
 timeouts, thread count, timing-failure policy, option defaults and the
 controlled environment are recorded with that core's recipe. Registered
