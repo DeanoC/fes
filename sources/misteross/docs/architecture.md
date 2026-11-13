@@ -705,9 +705,9 @@ install lives at `<cache>/tools/<tool>/<key>`. Its key reads:
 
 - the tool's pin (repo and commit only, through `scripts/lockfile.py`; the
   lock's rationale text and its bytes are not part of it);
-- the tool's `build_<tool>` function in `scripts/bootstrap.sh`, so a flag
-  change rebuilds that tool alone and other edits to the scripts rebuild
-  nothing;
+- the complete `scripts/bootstrap.sh`, so shared checkout, environment and
+  build orchestration changes cannot reuse an install made under older build
+  behavior. Any bootstrap edit conservatively changes every tool key;
 - the normalized host and compiler probes, without the kernel release or the
   accelerator compiler.
 

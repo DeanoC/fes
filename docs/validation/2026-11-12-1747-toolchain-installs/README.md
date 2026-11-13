@@ -67,16 +67,26 @@ fes.riscv's closure includes `scripts/doctor.py`, which `1e9d4ad83` edits, so it
 | `fes.riscv` | `bb19551b` | `b52dd2ee1dbf` | `490b78a3` | 1 | pass | pixel 78.493 (74.250) |
 | `fes.atari-st` | `c4e94b20` | `9b8090fe7371` | `14a4878c` | 5 | pass | audio 164.908 (12.288) / pixel 87.002 (74.250) / system 56.980 (52.225) |
 
-## fes.ramtest misses timing
+## fes.ramtest remains a merge gate
 
-**fes.ramtest does not close (stop and report; no check relaxed).**
+This head has no timing-closing replacement artifact or exact-artifact HIL for
+`fes.ramtest`. D12 does not apply because the candidate does not pass its normal
+timing and seal gates. The main package remains the existing artifact; neither
+attempt below supplies a qualified replacement. Do not treat this record as
+clearing the RAM Tester hardware gate.
 
 - **main code, new BUILD_ID:** no placement met timing (best seed 8, worst ratio 0.9714).
 - **PR, own BUILD_ID:** no placement met timing (best seed 7, worst ratio 0.9987).
 
-Both tried every seed in its recipe. Main's sealed package closed only with its own BUILD_ID. A BUILD_ID change alone is enough to break it, and this PR moves every BUILD_ID. So ramtest cannot be resealed until its timing is fixed.
+Both builds tried every seed in the recipe. Main's sealed package closed only
+with its own BUILD_ID. A BUILD_ID change alone is enough to break it, and this
+PR moves every BUILD_ID. Timing repair, a sealed replacement and exact-artifact
+HIL are required before the RAM Tester artifact is qualified on this head.
 
 ## Not covered here
 
-- `fes.pcxt` and `fes.pcxt-dos` seal on Quartus. This PR changes only the Yosys binary path that their producer reads.
+- `fes.pcxt` and `fes.pcxt-dos` seal on Quartus. Their lock retains the main
+  Yosys digest (`d45b5d6e…`); the relocated per-tool Yosys binary is not
+  qualified by this record. Using a different digest needs fresh Quartus timing
+  and seal checks plus exact-artifact HIL.
 - pc386 is still in progress; its next sealing PR covers the tree.

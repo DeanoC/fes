@@ -100,7 +100,8 @@ def authenticate_tools(root, *, cache_root=None, core_id='fes.pcxt'):
         # it during the build.
         try:
             request = toolchain_cache.request_from_environment(
-                root, root / TOOLCHAIN_LOCK, cache_root=Path(cache_root), gpu_router='OFF')
+                root, root / TOOLCHAIN_LOCK, cache_root=Path(cache_root),
+                gpu_router='OFF', tool='yosys')
             candidates = [toolchain_cache.resolve_install(request, 'yosys').binary]
         except toolchain_cache.CacheError as error:
             raise BuildError(f'the PC/XT Yosys install is not ready: {error}; provision it with '

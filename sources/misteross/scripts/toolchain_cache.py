@@ -4,10 +4,11 @@
 The cache holds one install per tool, commit and build configuration under
 ``<cache>/tools/<tool>/<key>``. A lock does not own a slot: it resolves to the
 installs of the five tools it pins, so locks that pin the same Yosys share one
-Yosys install. The key reads only each pin's repo and commit, the tool's
-``build_<tool>`` function in bootstrap.sh, the host and the compiler
-inventory; only nextpnr adds the GPU lane and the Mistral pin it compiles
-against.
+Yosys install. The key reads each pin's repo and commit, the complete shared
+bootstrap script, the host and the compiler inventory; only nextpnr adds the
+GPU lane and the Mistral pin it compiles against. The whole bootstrap script
+is keyed because its shared checkout and build-environment helpers affect
+every tool.
 
 This module does not build tools; bootstrap owns that. It owns the stable
 paths, the ready.json contract consumed by bootstrap and the authenticated
@@ -42,6 +43,23 @@ TOOLS = ("yosys", "mistral", "nextpnr", "verilator", "openfpgaloader")
 TOOL_SOURCE_DEPENDENCIES = {"nextpnr": ("mistral",)}
 # Only these tools take the GPU lane and the accelerator compiler.
 GPU_TOOLS = frozenset({"nextpnr"})
+GPU_ENVIRONMENT_NAMES = frozenset(
+    {
+        "ROCM_PATH",
+        "HIPCC",
+        "CUDA_HOME",
+        "CUDACXX",
+        "CUDA_PATH",
+        "CMAKE_HIP_COMPILER",
+        "CMAKE_CUDA_COMPILER",
+        "CMAKE_HIP_ARCHITECTURES",
+        "CMAKE_CUDA_ARCHITECTURES",
+        "CMAKE_HIP_FLAGS",
+        "CMAKE_CUDA_FLAGS",
+        "HIPARCHS",
+        "CUDAARCHS",
+    }
+)
 ACCELERATOR_COMMANDS = frozenset({"hipcc", "nvcc"})
 # The Mistral install carries the database source files producers pin
 # (rom_map.DATABASE_FILES), since src/ is deleted after publication.
@@ -323,7 +341,11 @@ def _recipe_digest(request: ToolchainRequest, tool: str) -> str:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc:
         raise CacheError(f"cannot read bootstrap recipe {path}: {exc}") from exc
-    return _sha256_bytes(tool_recipe(text, tool).encode("utf-8"))
+    # Validate the selected entry point, then key the complete driver. Shared
+    # checkout, environment preparation, and build orchestration helpers are
+    # part of every install's output identity too.
+    tool_recipe(text, tool)
+    return _sha256_bytes(text.encode("utf-8"))
 
 
 def _base_compiler(compiler: Mapping[str, Any]) -> dict[str, Any]:
@@ -368,10 +390,10 @@ def _build_identity(
 def build_identity(request: ToolchainRequest, tool: str) -> dict[str, Any]:
     """Return everything that selects *tool*'s install for *request*.
 
-    That is the tool's pin, its ``build_<tool>`` recipe, the host and the
-    compiler inventory. Only nextpnr adds the GPU lane, the accelerator
-    compiler and backend environment, and the Mistral pin it compiles
-    against. The lock's other text never enters it.
+    That is the tool's pin, the complete shared bootstrap script, the host
+    and the compiler inventory. Only nextpnr adds the GPU lane, the
+    accelerator compiler and backend environment, and the Mistral pin it
+    compiles against. The lock's other text never enters it.
     """
 
     _check_tool(tool)
@@ -1161,11 +1183,14 @@ def validate_shared_environment(
     gpu_router: str | None = None,
     hip_architectures: str | None = None,
     cuda_architectures: str | None = None,
+    tool: str | None = None,
     allow_resolved_paths: bool = False,
 ) -> None:
-    """Reject build-affecting overrides outside the v1 shared contract."""
+    """Reject overrides that can affect the requested shared build."""
 
     values = dict(os.environ if values is None else values)
+    if tool is not None:
+        _check_tool(tool)
     router = str(gpu_router or values.get("FES_TOOLCHAIN_GPU_ROUTER", DEFAULT_GPU_ROUTER)).upper()
     architectures = str(
         hip_architectures
@@ -1177,6 +1202,10 @@ def validate_shared_environment(
     )
     for name, value in values.items():
         if not value or name in _RUNTIME_ENVIRONMENT:
+            continue
+        if tool is not None and tool not in GPU_TOOLS and name in GPU_ENVIRONMENT_NAMES:
+            # Lane-independent installs do not consume accelerator compilers
+            # or GPU build selectors.
             continue
         if name.startswith("LC_"):
             continue
@@ -1226,14 +1255,19 @@ def validate_shared_environment(
         # variables remain harmless plumbing.
 
 
-def _request_environment(values: Mapping[str, str]) -> dict[str, str]:
+def _request_environment(
+    values: Mapping[str, str], *, tool: str | None = None
+) -> dict[str, str]:
     # Lane selectors are represented canonically by ToolchainRequest's
     # ``gpu_router``/``hip_architectures``/``cuda_architectures`` fields and therefore must not also
-    # be keyed as raw environment presence.  Keeping them here would make an
+    # be keyed as raw environment presence. Keeping them here would make an
     # omitted default (OFF or the default HIP list) differ from the explicit
-    # spelling used by bootstrap's command line.  Backend roots and compiler
-    # selectors remain environment identity because they can change the
-    # actual accelerator toolchain behind an otherwise identical lane.
+    # spelling used by bootstrap's command line. Backend roots and compiler
+    # selectors remain identity for full or nextpnr requests because they can
+    # change the actual accelerator toolchain behind an otherwise identical
+    # lane. Lane-independent single-tool requests omit them.
+    if tool is not None and tool not in GPU_TOOLS:
+        return {}
     return {
         name: values[name]
         for name in sorted(values)
@@ -1666,13 +1700,15 @@ def request_from_environment(
     gpu_router: str | None = None,
     hip_architectures: str | None = None,
     cuda_architectures: str | None = None,
+    tool: str | None = None,
 ) -> ToolchainRequest:
     """Build a request from the opt-in environment after host probing.
 
     ``gpu_router``, ``hip_architectures`` and ``cuda_architectures`` may be supplied by a consumer
     explicitly (Coleco's HIP lane does this) so selecting a lane does not
-    require mutating the process environment.  Unspecified values retain the
-    existing environment/default precedence.
+    require mutating the process environment. ``tool`` scopes environment
+    validation when a consumer resolves only one install. Unspecified values
+    retain the existing environment/default precedence.
     """
 
     root = Path(root).resolve()
@@ -1707,9 +1743,10 @@ def request_from_environment(
         gpu_router=router,
         hip_architectures=architectures,
         cuda_architectures=cuda_selected,
+        tool=tool,
         allow_resolved_paths=False,
     )
-    environment = _request_environment(os.environ)
+    environment = _request_environment(os.environ, tool=tool)
     host = host_identity()
     compiler = compiler_inventory(router, environment=os.environ)
     return ToolchainRequest(

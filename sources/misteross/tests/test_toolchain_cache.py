@@ -136,7 +136,7 @@ class ToolchainCacheContractTests(unittest.TestCase):
                 toolchain_cache.locked_pins(hip)["mistral"],
             )
 
-    def test_each_install_follows_only_its_own_build_recipe(self):
+    def test_complete_bootstrap_script_keys_each_install(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             request = self._request(base / "checkout", base / "cache")
@@ -145,14 +145,19 @@ class ToolchainCacheContractTests(unittest.TestCase):
             text = bootstrap.read_text(encoding="utf-8")
             for tool in toolchain_cache.TOOLS:
                 self.assertIn(f"build_{tool}() {{", toolchain_cache.tool_recipe(text, tool))
-            # Bootstrap plumbing outside the build functions keys nothing.
-            bootstrap.write_text(text.replace("usage() {", "# plumbing\nusage() {", 1), encoding="utf-8")
-            self.assertEqual(keys, toolchain_cache.tool_keys(request))
-            recipe = toolchain_cache.tool_recipe(text, "verilator")
-            bootstrap.write_text(text.replace(recipe, recipe.replace("--disable-tcmalloc", "--disable-tcmalloc --x")))
-            moved = toolchain_cache.tool_keys(request)
-            self.assertNotEqual(moved.pop("verilator"), keys["verilator"])
-            self.assertEqual(moved, {tool: key for tool, key in keys.items() if tool != "verilator"})
+            for helper in ("checkout_pin", "prepare_shared_build_environment"):
+                changed, count = re.subn(
+                    rf"(?m)^({re.escape(helper)}\(\) \{{\n)",
+                    lambda match: match.group(1) + "    # changes the shared build identity\n",
+                    text,
+                    count=1,
+                )
+                self.assertEqual(count, 1, helper)
+                bootstrap.write_text(changed, encoding="utf-8")
+                moved = toolchain_cache.tool_keys(request)
+                self.assertTrue(
+                    all(moved[tool] != keys[tool] for tool in toolchain_cache.TOOLS), helper
+                )
             bootstrap.write_text(text.replace("build_yosys() {", "build_yosys_gone() {"), encoding="utf-8")
             with self.assertRaisesRegex(toolchain_cache.CacheError, "build_yosys"):
                 toolchain_cache.tool_keys(request)
@@ -313,6 +318,33 @@ class ToolchainCacheContractTests(unittest.TestCase):
             gpu_router="HIP",
             hip_architectures="gfx1100;gfx1201",
         )
+
+    def test_single_lane_independent_tool_ignores_inherited_gpu_compiler_environment(self):
+        inherited = {
+            "PATH": os.environ.get("PATH", ""),
+            "HIPCC": "/opt/rocm/bin/hipcc",
+            "ROCM_PATH": "/opt/rocm",
+            "CUDA_HOME": "/opt/cuda",
+            "CUDACXX": "/opt/cuda/bin/nvcc",
+            "CUDA_PATH": "/opt/cuda",
+            "CMAKE_HIP_COMPILER": "/opt/rocm/bin/hipcc",
+            "CMAKE_CUDA_COMPILER": "/opt/cuda/bin/nvcc",
+            "CMAKE_HIP_FLAGS": "-O2",
+            "CMAKE_CUDA_FLAGS": "-O2",
+            "HIPARCHS": "gfx1100;gfx1201",
+            "CUDAARCHS": "86",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory) / "cache"
+            with mock.patch.object(toolchain_cache, "host_identity", return_value=HOST), mock.patch.object(
+                toolchain_cache, "compiler_inventory", return_value=COMPILER
+            ), mock.patch.dict(os.environ, inherited, clear=True):
+                request = toolchain_cache.request_from_environment(
+                    SOURCE, cache_root=cache, gpu_router="OFF", tool="yosys"
+                )
+                self.assertEqual(request.environment, {})
+                with self.assertRaisesRegex(toolchain_cache.CacheError, "ROCM_PATH|HIPCC"):
+                    toolchain_cache.request_from_environment(SOURCE, cache_root=cache, gpu_router="OFF")
 
     def test_hip_and_off_identities_are_unchanged_by_cuda_architectures(self):
         with tempfile.TemporaryDirectory() as directory:

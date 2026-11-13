@@ -175,7 +175,8 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                 tools = producer.authenticate_tools(producer.ROOT, cache_root=Path(directory) / 'cache')
                 self.assertEqual(tools['yosys'].path, yosys.resolve())
                 request.assert_called_once_with(producer.ROOT, producer.ROOT / producer.TOOLCHAIN_LOCK,
-                                                cache_root=Path(directory) / 'cache', gpu_router='OFF')
+                                                cache_root=Path(directory) / 'cache', gpu_router='OFF',
+                                                tool='yosys')
                 resolve.assert_called_once_with('request', 'yosys')
                 resolve.side_effect = toolchain_cache.CacheError('yosys install is not ready')
                 with self.assertRaisesRegex(producer.BuildError, 'PC/XT Yosys install is not ready'):
@@ -187,6 +188,8 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                          ('17.0.2', '17.0', '17.0.2 Lite Edition', 'quartus-17.0.2', 'Quartus Prime Lite 17.0.2'))
         self.assertEqual(lock.version, 'Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition')
         self.assertEqual(lock.yosys_commit, '3a5accbd78c526ab7bae32640044a2e062a3cfc9')
+        self.assertEqual(lock.yosys_sha256,
+                         'd45b5d6ec2bf8311211015d5aee40e3fcf5af117a48ed0c473dce548dec0e271')
         with tempfile.TemporaryDirectory() as directory:
             tools, quartus_sh, yosys = self.authenticate_with_fakes(directory)
         self.assertEqual(tools['quartus'], producer.Tool(
