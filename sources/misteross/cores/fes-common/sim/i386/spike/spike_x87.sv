@@ -526,7 +526,9 @@ module x87s_unit #(
             sr <= recip[ub[66:59]];
             sq <= rsqrt[{ub[68], ub[66:60]}];
         end
-        assign seed_q = {1'b0, 15'(BIAS - 17'd1), 1'b1, e[24] ? sq : sr, 53'd0};
+        // Op 14 words select the table with bit 0 (the branch field, unused
+        // by the seed step); bit 24 is inside the op field and always 1 here.
+        assign seed_q = {1'b0, 15'(BIAS - 17'd1), 1'b1, e[0] ? sq : sr, 53'd0};
     end else begin : g_noseed
         assign seed_q = 80'd0;
     end
