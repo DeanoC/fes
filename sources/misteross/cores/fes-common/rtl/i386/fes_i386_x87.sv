@@ -162,7 +162,11 @@ module fes_i386_x87 (
     output logic [15:0] sw_o,
     output logic [15:0] tw_o,
     output logic [10:0] opcode_o,
-    output logic        busy_o
+    output logic        busy_o,
+    // The eight physical registers, which the bench reads through the CPU's
+    // arch_* outputs to build the oracle's X87State; nothing in the machine
+    // uses them, so the seal's fit trims the wires.
+    output logic [639:0] regs_o
 );
     import fes_i386_pkg::*;
 
@@ -212,25 +216,22 @@ module fes_i386_x87 (
     // rounds a constant under RC, so round down and round to zero give the
     // significand one less).
     function automatic logic [79:0] constant_of(input logic [2:0] i, input logic [1:0] rc);
-        // The exact 64-bit significands, rounded to nearest, and whether
-        // the true value is above the rounded one (so round-down and
-        // round-to-zero take one less).
         logic [63:0] sig;
         logic [14:0] exp;
-        logic        up;  // the nearest significand is above the true value
+        logic        near_up;   // rounding to nearest takes the significand above
+        logic        inexact;
         case (i)
-            3'd0: begin sig = 64'h8000000000000000; exp = 15'h3fff; up = 1'b0; end  // 1.0
-            3'd1: begin sig = 64'hd49a784bcd1b8afe; exp = 15'h4000; up = 1'b1; end  // log2(10)
-            3'd2: begin sig = 64'hb8aa3b295c17f0bc; exp = 15'h3fff; up = 1'b1; end  // log2(e)
-            3'd3: begin sig = 64'hc90fdaa22168c235; exp = 15'h4000; up = 1'b1; end  // pi
-            3'd4: begin sig = 64'h9a209a84fbcff799; exp = 15'h3ffd; up = 1'b1; end  // log10(2)
-            3'd5: begin sig = 64'hb17217f7d1cf79ac; exp = 15'h3ffe; up = 1'b1; end  // ln(2)
-            default: begin sig = 64'd0; exp = 15'd0; up = 1'b0; end                 // +0.0
+            3'd0: begin sig = 64'h8000000000000000; exp = 15'h3fff; near_up = 1'b0; inexact = 1'b0; end  // 1.0
+            3'd1: begin sig = 64'hd49a784bcd1b8afe; exp = 15'h4000; near_up = 1'b0; inexact = 1'b1; end  // log2(10)
+            3'd2: begin sig = 64'hb8aa3b295c17f0bb; exp = 15'h3fff; near_up = 1'b1; inexact = 1'b1; end  // log2(e)
+            3'd3: begin sig = 64'hc90fdaa22168c234; exp = 15'h4000; near_up = 1'b1; inexact = 1'b1; end  // pi
+            3'd4: begin sig = 64'h9a209a84fbcff798; exp = 15'h3ffd; near_up = 1'b1; inexact = 1'b1; end  // log10(2)
+            3'd5: begin sig = 64'hb17217f7d1cf79ab; exp = 15'h3ffe; near_up = 1'b1; inexact = 1'b1; end  // ln(2)
+            default: begin sig = 64'd0; exp = 15'd0; near_up = 1'b0; inexact = 1'b0; end                 // +0.0
         endcase
-        // Round down and round to zero give the next significand toward
-        // zero when the rounded one is above the true value; the constants
-        // are positive, so both modes behave alike.
-        if (up && (rc == 2'd1 || rc == 2'd3)) sig = sig - 64'd1;
+        // Every constant is positive, so round down and round to zero keep
+        // the truncated significand and round up takes the next one.
+        if (inexact && (rc == 2'd0 && near_up || rc == 2'd2)) sig = sig + 64'd1;
         constant_of = {1'b0, exp, sig};
     endfunction
 
@@ -380,6 +381,7 @@ module fes_i386_x87 (
         end
     end
     always_comb for (int n = 0; n < 8; n++) rf_q[n] = rf_a[n];
+    always_comb for (int n = 0; n < 8; n++) regs_o[80*n +: 80] = rf_a[n];
 
     // ---- Shifts, on the multiplier. ----
     // A left shift by n is a multiply by 2^n and the product's low half; a
@@ -486,8 +488,9 @@ module fes_i386_x87 (
     // for the unit, and one the unit has taken waits for its own value.
     // FNINIT and FNCLEX wait for neither (HRM section 5.1).
     assign hold = present && iss && !iss_nowait && !unimpl
-               && (!started ? (latched || busy)
-                            : val_form && seq != S_RDY || iss_save_rd && seq != S_SAVE_RD);
+               && (iss_first && !started && (latched || busy)
+                   || val_form && seq != S_RDY
+                   || iss_save_rd && seq != S_SAVE_RD);
     assign take = present && iss && iss_first && !started && !busy && !latched
                && !iss_wait && iss_dec != OP_UNIMPL;
     // The control forms, which leave the x87 pointers and the opcode as they
@@ -669,7 +672,6 @@ module fes_i386_x87 (
                             st_k = (18'sd1 - st_te) > 18'sd64 ? 7'd64 : 7'((18'sd1 - st_te));
                             st_shift = st_k != 7'd0;
                         end
-                        if (st_cls == C_DEN) st_fl = 6'b000010;  // a denormal operand
                     end
                 endcase
             end
@@ -679,6 +681,7 @@ module fes_i386_x87 (
                     C_EMPTY, C_QNAN, C_SNAN, C_INF, C_UNSUP: begin
                         st_big = 1'b1;
                         st_fl = 6'b000001;
+                        st_v = {16'd0, 64'd1 << (i_w - 7'd1)};
                     end
                     default: begin
                         st_direct = 1'b0;
@@ -686,6 +689,7 @@ module fes_i386_x87 (
                             st_big = 1'b1;
                             st_direct = 1'b1;
                             st_fl = 6'b000001;
+                            st_v = {16'd0, 64'd1 << (i_w - 7'd1)};
                         end else if (st_e == 18'sd63) begin
                             st_p = 7'd0;
                         end else begin
@@ -693,7 +697,6 @@ module fes_i386_x87 (
                             st_k = (18'sd62 - st_e) > 18'sd64 ? 7'd64 : 7'((18'sd62 - st_e));
                             st_shift = st_k != 7'd0;
                         end
-                        if (st_cls == C_DEN) st_fl = 6'b000010;
                     end
                 endcase
             end
@@ -717,19 +720,22 @@ module fes_i386_x87 (
     assign rnd_inex = round_inexact({1'b0, shm}, st_p, shs);
     assign rnd_up = rnd_inex && rnd != 65'((65'd0 + shm) >> st_p);
 
-    // The real result, packed: a normal target adds the exponent field
-    // below the rounded significand's leading one, which carries into the
-    // exponent by itself; a denormal target's rounded value is the pattern.
+    // The real result, packed. A normal target's exponent field goes below
+    // the rounded significand's leading one; the rounding's carry into that
+    // one raises the exponent by itself. A denormal target's rounded value
+    // is the pattern already, and a carry into its leading one makes it the
+    // smallest normal, which is the next pattern up.
     logic [63:0] real_bits;
-    logic [11:0] real_exp;
-    logic        real_ovf, real_unf;
+    logic signed [17:0] real_te;
+    logic        real_ovf, real_unf, real_carry;
     always_comb begin
-        logic [64:0] base;
-        base = st_te > 18'sd0 ? 65'((65'(18'(st_te) - 18'sd1)) << (f_nbits - 7'd1)) : 65'd0;
-        real_bits = 64'(base + rnd);
-        real_exp = 12'(real_bits >> (f_nbits - 7'd1));
-        real_ovf = st_te > 18'sd0 && real_exp > 12'({1'b0, f_emax});
+        real_carry = rnd[f_nbits];
+        real_te = st_te + 18'(real_carry);
+        real_ovf = st_te > 18'sd0 && real_te > $signed({7'b0, f_emax});
         real_unf = st_te <= 18'sd0 && rnd_inex;
+        real_bits = st_te > 18'sd0
+            ? (64'(18'(real_te)) << (f_nbits - 7'd1)) | 64'(rnd & ((65'd1 << (f_nbits - 7'd1)) - 65'd1))
+            : rnd[63:0];
     end
     // The integer result and its range check: a signed value of i_w bits
     // takes -2^(i_w-1) to 2^(i_w-1)-1.
@@ -775,7 +781,7 @@ module fes_i386_x87 (
     logic [79:0] rimg;         // a save image's register, gathered by its chunks
     assign push_i = top - 3'd1;
     assign pop_i = top;
-    assign busy = seq != S_IDLE;
+    assign busy = seq != S_IDLE || rw_en;
 
     // The exceptions this operation raises that are not masked, which set ES
     // and the board's latch instead of a result.
@@ -867,28 +873,13 @@ module fes_i386_x87 (
                 // instruction's commit: a load has its whole operand only
                 // then, and a register form has nothing to wait for.
                 S_IDLE: if (started && wb && wb_last && !flush) begin
-                    case (cur)
-                        OP_LD_ST, OP_ST_ST, OP_STP_ST, OP_XCH, OP_CHS, OP_ABS, OP_TST, OP_XAM: begin
-                            ra_idx <= top;
-                            rb_idx <= top + cur_i;
-                            mul_store <= 1'b0;
-                            seq <= S_ARG;
-                        end
-                        OP_LD_M: begin
-                            mul_store <= 1'b0;
-                            if (ld_shift) begin
-                                sh_in <= ld_mag;
-                                sh_k <= 7'd0;
-                                ua_mul <= ld_mag;
-                                ub_mul <= 64'd1 << clz64(ld_mag);
-                                sh_exp <= 15'(ld_expb - 17'(clz64(ld_mag)));
-                                mul_start <= 1'b1;
-                                seq <= S_MUL;
-                            end else
-                                seq <= S_APPLY;
-                        end
-                        default: seq <= S_APPLY;
-                    endcase
+                    // S_ARG gives the last operand part a cycle to land in
+                    // mval and the register reads a cycle to arrive, so
+                    // S_PRE sees the whole instruction.
+                    ra_idx <= top;
+                    rb_idx <= top + cur_i;
+                    mul_store <= 1'b0;
+                    seq <= S_ARG;
                 end else if (take) begin
                     cur <= iss_dec;
                     cur_fmt <= iss_fmt;
@@ -913,7 +904,19 @@ module fes_i386_x87 (
                 // shift (a multiply) when the result is a denormal of the
                 // target or an integer, then the rounding.
                 S_ARG: seq <= S_PRE;
-                S_PRE: if (cur != OP_ST_M && cur != OP_STP_M) seq <= S_APPLY;
+                S_PRE: if (cur == OP_LD_M) begin
+                    // A load's normalising left shift, a multiply by 2^lz.
+                    if (ld_shift) begin
+                        sh_in <= ld_mag;
+                        sh_k <= 7'd0;
+                        ua_mul <= ld_mag;
+                        ub_mul <= 64'd1 << clz64(ld_mag);
+                        sh_exp <= 15'(ld_expb - 17'(clz64(ld_mag)));
+                        mul_start <= 1'b1;
+                        seq <= S_MUL;
+                    end else
+                        seq <= S_APPLY;
+                end else if (cur != OP_ST_M && cur != OP_STP_M) seq <= S_APPLY;
                        else begin
                     sh_in <= st_sig;
                     sh_k <= st_shift ? st_k : 7'd0;
@@ -955,9 +958,10 @@ module fes_i386_x87 (
                             f[3] = 1'b1;
                             f[5] = 1'b1;
                             sres <= cur_fmt == FMT_F32
-                                ? {48'd0, st_sign, 8'hff, inf ? 23'd0 : 23'h7fffff}
-                                : {16'd0, st_sign, 11'h7ff, inf ? 52'd0 : 52'hfffffffffffff};
-                            if (!inf) sres[cur_fmt == FMT_F32 ? 30 : 62] <= 1'b0;
+                                ? (inf ? {48'd0, st_sign, 8'hff, 23'd0}
+                                       : {48'd0, st_sign, 8'hfe, 23'h7fffff})
+                                : (inf ? {16'd0, st_sign, 11'h7ff, 52'd0}
+                                       : {16'd0, st_sign, 11'h7fe, 52'hfffffffffffff});
                         end else begin
                             if (real_unf) f[4] = 1'b1;
                             if (rnd_inex) f[5] = 1'b1;
@@ -1081,7 +1085,10 @@ module fes_i386_x87 (
                                     f[0] = 1'b1;
                                 end
                                 C_ZERO: nc = {1'b1, 1'b0, 1'b0, 1'b0};
-                                default: nc = {1'b0, 1'b0, 1'b0, ra_val[79]};
+                                default: begin
+                                    nc = {1'b0, 1'b0, 1'b0, ra_val[79]};
+                                    if (c0cls == C_DEN) f[1] = 1'b1;
+                                end
                             endcase
                         end
                         OP_XAM: begin
