@@ -4,7 +4,8 @@ The [format-10 physical trace](../2026-11-13-de25-command-observe/README.md)
 reaches consumer 12 on the first poll, then times out in its first final
 snapshot. That diagnostic is consumed. Exact original-FIT rollback/readback
 passes, but its baseline final Quit/Park panics with USB ownership uncertainty;
-physical reset and new restoration-only verification remain pending.
+the subsequent confirmed reset and restoration-only verification now pass
+(see below).
 
 Format 11 makes the command-window endpoint explicit. The original 100 ms
 origin and bound still cover initial snapshots, stores, publication, progress,
@@ -53,6 +54,52 @@ injected models, not calibrated latency or new physical acceptance.
 
 Six [portable AArch64 units](portable-arm64.json), including both setup profiles,
 compile with the pinned compiler and strict firmware flags. The largest
-individual frame remains 384 bytes; this is not a whole EL3 stack or complete
-matched-chain proof. New matching firmware, fresh admissions and a new bounded
-trial remain necessary. The board has not been accessed during these edits.
+individual frame remains 384 bytes; this is not a whole EL3 stack proof.
+
+Production source `494ffcf5136123ab5abf0b804faa39a7afd95761` passes the complete
+[affected campaign](checks.json): 2,665 parent tests (15 skips), native runtime,
+firmware and producer integration, 2,181 FPGA software tests (88 skips), and
+consistency for 69 generated consumers/45 fixture copies. Documentation links
+pass. The [complete matched chain](matched-chain.json) also passes: selected
+SDK, compressed entry, BL31, SPL/U-Boot, locked FPGA composition and full fresh
+native file admission. The complete BL31's selected finish frame is 928 bytes;
+that is still not a whole EL3 stack bound. No FPGA synthesis, fitting, timing
+constraint or seal change is involved.
+
+Chain `fc340ff0efd7803dc970ef7dcc3566fcffe94c43cb65afb7c6c125599f539c47`,
+boot ID `d5a984131fbd2286`, FIT
+`b080302e115f00cc5316b5bf033e2dc2886bed93e2842437b213e48ea4c926db`
+(8,514,256 bytes within 16 MiB). The 1,373-file
+[matched retention](matched-retention.json) independently reads back the new
+archive. Both complete unchanged sealed project trees remain in the referenced
+archive `9587828cdddfd72ab618154a1bb73bb1ccaaa7b3bbcfff8ebfb369991f4247eb`;
+both archives are required. Compiled/model evidence remains bound to source
+`494ffcf5136123ab5abf0b804faa39a7afd95761`; later evidence publication changes
+only documentation. The [post-publication file check](publication-files.json)
+confirms current native file/tree membership and all referenced archive hashes.
+This candidate has not been programmed or booted on the kit.
+
+After the actual human confirmation “TRWU8CBL power-cycled; test card stays in”,
+new original-baseline-only procedure
+`4e8810501870b37bca3245751bd5baa275340b3f0d2ca5f1361e6abb77f62e11`
+is consumed once. It selects the unchanged original baseline from source
+`d580a60d93ad5dad87f0c311b762d0df2bd2beb5`, not format 11. The
+[physical restoration](baseline-restoration.json) independently verifies the
+sealed-SPL original-FIT boot, all 51 scripted exchanges, ZX81/ZX80 launch/return
+and final Park at generation 5. The saved final trace includes shared USB STOP
+at generation 3. Saved-wire/program-witness replay passes; all recorded owned
+workers stop, UART is closed/free, JTAG auto/15 MHz and exact USB
+identity/inode/permissions are restored. No SD refresh occurs; this boot proof
+does not claim fresh file readbacks.
+
+The [restoration archive](baseline-restoration-retention.json) retains and
+reads back exact bytes, hashes and modes, with explicit prepared-procedure and
+failed-trial dependencies. Current verified kit state is the original native
+baseline at final Park, test card installed, host handles closed, top claim
+held. QSPI, factory card and bottom kit are untouched. The format-10 failure
+remains consumed and failed. A cold-reset restoration does not establish a USB
+root-cause repair or general warm recovery. No new mapping retirement,
+interconnect drain, memory reuse or ordinary activation is qualified. The next
+integration step is a fresh source-bound one-attempt format-11 trial under the
+standing authorization; it must stop on a failed gate and restore the original
+baseline.

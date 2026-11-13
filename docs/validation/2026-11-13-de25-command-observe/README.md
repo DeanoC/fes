@@ -148,7 +148,7 @@ readback, SHA-256
 `33aad38f38771f032baa5b2bcad5d7233bc9963bd8d483e292b1331ffafce19c`,
 with explicit prepared-archive dependencies.
 
-Current recorded board state: exact original FIT restored on the spare test
+At trial termination, the recorded board state was: exact original FIT restored on the spare test
 card, native baseline failed, reboot required, resources retained, all owned
 host handles closed, top claim held. The operator has been asked for a top-only
 physical power cycle with the test card left installed before new
@@ -160,3 +160,18 @@ The next firmware proposal is an explicit private policy that keeps the original
 mandatory final snapshots under the unchanged enclosing one-second retirement
 bound. Arm/fault profiles would retain their existing full-operation bound.
 No such policy change has been implemented or qualified in this record.
+
+
+After a fresh actual human-confirmed physical power cycle, original-baseline-only
+procedure `4e8810501870b37bca3245751bd5baa275340b3f0d2ca5f1361e6abb77f62e11`
+passes sealed-SPL boot verification, the full 51-command ZX81/ZX80 cycle and
+final Park at generation 5. Independent saved-wire/program replay, owned-worker
+cleanup, UART-free, JTAG auto/15 MHz and USB identity/inode/permissions checks
+pass. No SD refresh or diagnostic retry occurs. The
+[restoration record](../2026-11-13-de25-command-completion/baseline-restoration.json)
+and [archive proof](../2026-11-13-de25-command-completion/baseline-restoration-retention.json)
+retain the exact evidence. Current verified state is original baseline final
+Park, test card installed, host handles closed, top claim held. The earlier USB
+panic remains unresolved; a successful cold reset does not qualify warm
+recovery. The [format-11 policy](../2026-11-13-de25-command-completion/README.md)
+is now implemented and matched-built off-board, without physical qualification.
