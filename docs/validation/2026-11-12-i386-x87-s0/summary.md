@@ -94,6 +94,9 @@ Links are in the [plan's sources](../2026-11-12-i386-x87-plan/summary.md#sources
   Python runner does not set it, and the no387 mode refuses it.
 - **The census keys** (`census.h`) are the plan's scratch patch,
   `x87_words()` replaced by the accessor, plus `x87held` for held steps.
+  After review, `x87cw`'s classes count DA's register forms (FUCOMPP) as
+  `other`, not `add`, and FPREM, FPREM1 and FSCALE as `other`, not `trans`.
+  The census reruns below ran before that change, with the plan's classes.
   They are documented in
   [`pc386-game-drives.md`](../../../sources/misteross/docs/pc386-game-drives.md#instruction-census).
 - **`divergences.toml`** gains five `[[x87]]` entries:

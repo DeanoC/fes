@@ -330,14 +330,20 @@ public:
         count("x87op:" + form + mode);
         // The control word by class: precision control sets an iterative
         // divider's and square root's latency.
-        const bool arith = op == 0xd8 || op == 0xda || op == 0xdc || op == 0xde;
+        // The arithmetic forms: D8 and DC both ways, DE's register forms and
+        // the integer memory forms DA and DE. DA's register forms (FUCOMPP;
+        // the P6's FCMOVcc) and DE D9 (FCOMPP) are not. The plan record's
+        // scratch patch counted DA's register forms as arithmetic and FPREM,
+        // FPREM1 and FSCALE as transcendental.
+        const bool memory = (modrm >> 6) != 3;
+        const bool arith = op == 0xd8 || op == 0xdc || op == 0xde || (op == 0xda && memory);
         std::string cls = "other";
-        if ((modrm >> 6) != 3 ? arith && reg >= 6 : (op == 0xd8 || op == 0xdc || op == 0xde) && reg >= 6) cls = "div";
+        if (arith && reg >= 6) cls = "div";
         else if (arith && reg == 1) cls = "mul";
         else if (arith && (reg == 0 || reg == 4 || reg == 5)) cls = "add";
         else if (op == 0xd9 && modrm == 0xfa) cls = "sqrt";
-        else if (op == 0xd9 && modrm >= 0xf0 && modrm != 0xf4 && modrm != 0xf6 && modrm != 0xf7 && modrm != 0xfa &&
-                 modrm != 0xfc)
+        else if (op == 0xd9 && (modrm == 0xf0 || modrm == 0xf1 || modrm == 0xf2 || modrm == 0xf3 || modrm == 0xf9 ||
+                                modrm == 0xfb || modrm == 0xfe || modrm == 0xff))
             cls = "trans";
         count("x87cw:" + cls + ':' + hex(cw0 & 0x1f3f, 4));
         const unsigned raised = sw1 & ~sw0 & 0x7f;
