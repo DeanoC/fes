@@ -1,6 +1,7 @@
 package catalog_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/DeanoC/FogCast/catalog"
@@ -33,6 +34,31 @@ func TestNormalizeRelativePath(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Fatalf("NormalizeRelativePath(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGameIDTruncationPreservesValidSeparators(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, title, slug string
+	}{
+		{"hyphen at limit", strings.Repeat("a", 47) + "-z", strings.Repeat("a", 47)},
+		{"hyphen before limit", strings.Repeat("a", 46) + "-z-more", strings.Repeat("a", 46) + "-z"},
+		{"plain truncation", strings.Repeat("a", 49), strings.Repeat("a", 48)},
+		{"empty slug fallback", "!!!", "game"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			id := catalog.GameID(protocol.SystemSNES, "library", "game.sfc", tc.title)
+			if err := protocol.ValidateGameID(id); err != nil {
+				t.Fatalf("GameID(%q) = %q: %v", tc.title, id, err)
+			}
+			if !strings.HasPrefix(id, "snes-"+tc.slug+"-") || len(id) != len("snes-")+len(tc.slug)+1+12 {
+				t.Fatalf("GameID(%q) = %q, want slug %q and 12-digit digest", tc.title, id, tc.slug)
+			}
+			if again := catalog.GameID(protocol.SystemSNES, "library", "game.sfc", tc.title); again != id {
+				t.Fatalf("GameID() is not stable: %q != %q", again, id)
 			}
 		})
 	}

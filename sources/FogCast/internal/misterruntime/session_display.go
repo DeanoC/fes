@@ -66,7 +66,7 @@ func sessionDisplayFocusReported(response Protocol2Response, b protocol.Developm
 }
 
 func (r *Runtime) SetSessionDisplay(ctx context.Context, display protocol.SessionDisplay, b protocol.DevelopmentMediaBinding) *protocol.APIError {
-	if !b.Valid() || b.Stream || b.Role == protocol.FirmwareRole || !display.Valid() {
+	if !b.Valid() || b.Stream || !display.Valid() {
 		return protocol.SessionDisplayRequestError()
 	}
 	control, ok := r.control.(protocol2SessionDisplayControl)

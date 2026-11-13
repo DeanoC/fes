@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Application endpoint plus the console's bounded cartridge staging store.
 module coleco_application_gp #(
-    parameter bit ENABLE_FIRMWARE = 0,
     // The native shell's fes.video.session-display plane, through HPS DDR.
     parameter bit ENABLE_SESSION_DISPLAY = 0
 ) (
@@ -16,9 +15,6 @@ module coleco_application_gp #(
     output wire [15:0] media_size,
     input wire [14:0] media_addr,
     output wire [7:0] media_q,
-    output wire [12:0] firmware_write_addr,
-    output wire [15:0] firmware_write_data,
-    output wire [1:0] firmware_write_enable,
     output wire display_request,
     output wire [6:0] display_opcode,
     output wire [7:0] display_index,
@@ -38,7 +34,7 @@ module coleco_application_gp #(
 `endif
     fes_application_gp #(.ENABLE_CONTROLLER_PORTS(1), .ENABLE_KEYPAD_PORTS(1),
                           .ENABLE_MEDIA(ENABLE_MEDIA_ENDPOINT), .ENABLE_MEDIA_STREAM(ENABLE_MEDIA_ENDPOINT),
-                          .ENABLE_AUDIO(1), .ENABLE_FIRMWARE(ENABLE_FIRMWARE),
+                          .ENABLE_AUDIO(1),
                           .ENABLE_HPS_DDR(ENABLE_SESSION_DISPLAY), .ENABLE_SESSION_DISPLAY(ENABLE_SESSION_DISPLAY)) endpoint (
         .clk(clk), .gpo(gpo), .build_id(build_id), .menu_request(display_request), .menu_opcode(display_opcode),
         .menu_index(display_index), .menu_argument(display_argument),
@@ -50,9 +46,7 @@ module coleco_application_gp #(
         .media_ready(media_ready), .media_size(media_size),
         .media_byte0(), .media_byte1(), .media_byte2(),
         .media_write_addr(write_addr), .media_write_data(write_data),
-        .media_write_enable(write_enable),
-        .firmware_write_addr(firmware_write_addr), .firmware_write_data(firmware_write_data),
-        .firmware_write_enable(firmware_write_enable), .firmware_ready()
+        .media_write_enable(write_enable)
     );
 `ifdef FES_COLECO_MEGACART_LINK
     assign media_q = 8'hff;

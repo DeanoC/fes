@@ -106,7 +106,6 @@ public:
 	// wait does not fit in the deadline, the mailbox is left unchanged and
 	// the result is busy. Execution stays released: reset would restart BASIC.
 	Error ClearMedia(std::uint64_t deadline) override;
-	Error LoadFirmware(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
 	Error StreamInfo(MediaStreamInfo*) const;
 	Error LoadMediaStream(const ComputerMediaSnapshot&, Clock&, std::uint64_t deadline);
 	Error AbortMediaStream(std::uint64_t deadline);
@@ -209,7 +208,6 @@ private:
 	bool freeze_attempted_ = false;
 	bool computer_ = false;
 	bool media_ = false;
-	bool firmware_ = false;
 	bool application_ = false;
 	bool gamepad_ = false;
 	bool controller_ports_ = false;

@@ -801,8 +801,6 @@ func TestCartridgeROMRejectsMediaStartupContractBeforeLoad(t *testing.T) {
 		{"application optional blob", "fes.application", "fes.media.blob", false},
 		{"stream", "fes.simple-computer", "fes.media.blob-stream", true},
 		{"optional stream", "fes.simple-computer", "fes.media.blob-stream", false},
-		{"firmware blob", "fes.simple-computer", "fes.firmware.blob", true},
-		{"optional firmware blob", "fes.simple-game", "fes.firmware.blob", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -827,12 +825,7 @@ func TestCartridgeROMRejectsMediaStartupContractBeforeLoad(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var entry catalog.CoreEntry
-			if tc.endpoint == "fes.firmware.blob" {
-				entry, err = store.CreateFirmwareRequiredEntry(ctx, "Cartridge", installed.Descriptor.Core.ID, installed.PackageID, "", "")
-			} else {
-				entry, err = store.CreateCoreEntry(ctx, "Cartridge", installed.Descriptor.Core.ID, installed.PackageID)
-			}
+			entry, err := store.CreateCoreEntry(ctx, "Cartridge", installed.Descriptor.Core.ID, installed.PackageID)
 			if err != nil {
 				t.Fatal(err)
 			}

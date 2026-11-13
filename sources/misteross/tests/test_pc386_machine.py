@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest import mock
 
@@ -143,18 +144,31 @@ class FreedosImageTest(unittest.TestCase):
 
     def test_games_files_meet_strike_commander(self):
         # Strike Commander asks for FILES=25 (#1525).
-        for entry in (1, 2, 3):
+        for entry in (1, 2, 3, 4):
             files = [int(line.split('=')[1]) for line in self.games_entry(entry)
                      if line.startswith(('FILES=', 'FILESHIGH='))]
             self.assertEqual(len(files), 1, entry)
             self.assertGreaterEqual(files[0], 25, entry)
 
+    def test_games_share_is_on_the_windows_entry_only(self):
+        # WIN386's DOSMGR runs on FreeDOS only with SHARE loaded (#1725, #1729);
+        # entry 4 is entry 2 plus SHARE, and the games' entries go without it.
+        share = 'INSTALLHIGH=C:\\FDOS\\BIN\\SHARE.COM'
+        for entry in (1, 2, 3):
+            self.assertFalse(any('SHARE' in line for line in self.games_entry(entry)), entry)
+        self.assertEqual([line for line in self.games_entry(4) if line != share], self.games_entry(2))
+        self.assertIn(share, self.games_entry(4))
+        self.assertEqual(freedos.PROFILES['games']['bin']['SHARE.COM'], ('share', 'BIN/SHARE.COM'))
+
     def test_lock_pins_each_package_at_the_release_tag(self):
         lock = freedos.lock()
         self.assertEqual(lock['tag'], 'FreeDOS-v1.4')
-        self.assertEqual(set(lock['packages']), {'kernel', 'freecom', 'fdisk', 'himemx', 'jemm', 'ctmouse', 'mem'})
+        self.assertEqual(set(lock['packages']),
+                         {'kernel', 'freecom', 'fdisk', 'himemx', 'jemm', 'ctmouse', 'mem', 'share'})
         self.assertEqual(set(lock['packages']), {name for spec in freedos.PROFILES.values() for name in spec['packages']})
         for name, spec in lock['packages'].items():
+            if name == 'kernel':
+                continue
             self.assertRegex(spec['commit'], r'^[0-9a-f]{40}$')
             if name == 'jemm':
                 # Jemm has no LICENSE file: its Readme's section 9 makes UMBM public domain.
@@ -163,6 +177,61 @@ class FreedosImageTest(unittest.TestCase):
                 continue
             self.assertIn('GPL', spec['license'])
             self.assertIn('LICENSE', spec['files'])
+
+    def test_lock_pins_the_kernel_release_build_and_its_source(self):
+        # Kernel 2046's 386 FAT12/FAT16 build answers WIN386's INT 2Fh 1605h
+        # and 1607h/0015h callouts; FreeDOS 1.4's 2043 does not (#1725).
+        kernel = freedos.lock()['packages']['kernel']
+        self.assertEqual(kernel['release'], 'https://github.com/FDOS/kernel/releases/tag/ke2046')
+        self.assertEqual(set(kernel['archives']), {'ke2046_386f16.zip', 'ke2046s.zip'})
+        for archive, pin in kernel['archives'].items():
+            self.assertEqual(pin['url'], 'https://github.com/FDOS/kernel/releases/download/ke2046/' + archive)
+            self.assertRegex(pin['sha256'], r'^[0-9a-f]{64}$')
+        self.assertIn('GPL', kernel['license'])
+        for role in ('kernel_sys', 'boot_asm', 'license_file'):
+            self.assertIn(kernel[role], kernel['files'])
+        self.assertTrue(kernel['kernel_sys'].startswith('ke2046_386f16.zip/'))
+        for path in kernel['files']:
+            self.assertIn(path.partition('/')[0], kernel['archives'])
+
+    def test_release_package_unpacks_only_the_locked_members(self):
+        with tempfile.TemporaryDirectory() as directory:
+            build = Path(directory)
+            stored = build / 'source.zip'
+            with zipfile.ZipFile(stored, 'w') as archive:
+                archive.writestr('bin/kernel.sys', b'kernel')
+                archive.writestr('bin/other.sys', b'other')
+            digest = freedos.hashlib.sha256(stored.read_bytes()).hexdigest()
+            (build / 'archives').mkdir()
+            stored.rename(build / 'archives' / f'{digest}.zip')
+            spec = {'license': 'GPL', 'archives': {'k.zip': {'url': 'https://example.invalid/k.zip', 'sha256': digest}},
+                    'files': {'k.zip/bin/kernel.sys': freedos.hashlib.sha256(b'kernel').hexdigest()}}
+            with mock.patch.object(freedos, 'BUILD', build):
+                tree = freedos.package('kernel', spec, download=False)
+                self.assertEqual((tree / 'k.zip/bin/kernel.sys').read_bytes(), b'kernel')
+                self.assertFalse((tree / 'k.zip/bin/other.sys').exists())
+                spec['files']['k.zip/bin/kernel.sys'] = '0' * 64
+                with self.assertRaises(freedos.ImageError):
+                    freedos.package('kernel', spec, download=False)
+
+    def test_release_package_never_caches_an_archive_that_misses_the_lock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            build = Path(directory)
+            digest = freedos.hashlib.sha256(b'good').hexdigest()
+            spec = {'license': 'GPL', 'archives': {'k.zip': {'url': 'https://example.invalid/k.zip', 'sha256': digest}},
+                    'files': {}}
+            stored = build / 'archives' / f'{digest}.zip'
+            response = mock.MagicMock()
+            response.__enter__.return_value.read.return_value = b'bad'
+            with mock.patch.object(freedos, 'BUILD', build), \
+                    mock.patch.object(freedos.urllib.request, 'urlopen', return_value=response):
+                with self.assertRaises(freedos.ImageError):
+                    freedos.package('kernel', spec, download=True)
+                self.assertFalse(stored.exists())
+                stored.write_bytes(b'bad')
+                with self.assertRaises(freedos.ImageError):
+                    freedos.package('kernel', spec, download=False)
+                self.assertFalse(stored.exists())
 
     def test_profile_binary_files_are_pinned_in_the_lock(self):
         lock = freedos.lock()['packages']

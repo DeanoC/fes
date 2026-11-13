@@ -41,9 +41,6 @@ module top #(
     wire [15:0] media_size;
     wire [14:0] media_addr;
     wire [7:0] media_data;
-    wire [12:0] firmware_write_addr;
-    wire [15:0] firmware_write_data;
-    wire [1:0] firmware_write_enable;
     wire [7:0] logical_x;
     wire [7:0] logical_y;
     wire [3:0] logical_pixel;
@@ -154,9 +151,6 @@ module top #(
         .media_size(media_size),
         .media_addr(media_addr),
         .media_q(media_data),
-        .firmware_write_addr(firmware_write_addr),
-        .firmware_write_data(firmware_write_data),
-        .firmware_write_enable(firmware_write_enable),
         .display_request(display_request), .display_opcode(display_opcode),
         .display_index(display_index), .display_argument(display_argument),
         .display_response_valid(display_response_valid), .display_response_error(display_response_error),
@@ -185,10 +179,6 @@ module top #(
         .cpu_addr_debug(),
         .cpu_halt_n(),
         .audio_sample(audio_sample),
-        .firmware_we_a(firmware_write_enable[0]),
-        .firmware_we_b(firmware_write_enable[1]),
-        .firmware_addr(firmware_write_addr),
-        .firmware_data(firmware_write_data),
         .bus_request(bus_request), .bus_response(bus_response)
     );
     /* verilator lint_on PINCONNECTEMPTY */

@@ -35,7 +35,6 @@ class ColecoMegaCartBuildTest(unittest.TestCase):
                                            "a"*32, {"yosys": Path("/tool/yosys"),
                                                     "nextpnr-mistral": Path("/tool/nextpnr")})
         self.assertIn("-DFES_COLECO_MEGACART_LINK=1", commands[0][2])
-        self.assertNotIn("ENABLE_FIRMWARE 1", commands[0][2])
         self.assertIn("--router", commands[1])
         self.assertEqual(rtl.count(".CFG_ASYNC_READ(0)"), 136)
         self.assertNotIn("CFG_ASYNC_READ(1)", rtl)

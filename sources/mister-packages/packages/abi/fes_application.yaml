@@ -170,18 +170,7 @@ constants:
     value: 255
   - name: FesApplicationControllerKeypadMask
     value: 4095
-  - name: FesApplicationOpcodeFirmwareBegin
-    value: 15
-  - name: FesApplicationOpcodeFirmwareData
-    value: 16
-  - name: FesApplicationOpcodeFirmwareCommit
-    value: 17
-  - name: FesApplicationFirmwareBytes
-    value: 8192
-  - name: FesApplicationFirmwareDataPairIndex
-    value: 0
-  - name: FesApplicationFirmwareDataTailIndex
-    value: 1
+  # Opcodes 15–17 are retired and must not be reassigned.
   # fes.memory.hps-ddr 1.0. The core owns these HPS DDR3 bytes, the MiSTer
   # core DDRAM window. Linux boots with mem=511M memmap=513M$511M and never
   # allocates them; the kernel framebuffer below 0x30000000 is not included.
@@ -366,10 +355,7 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 6
-  - id: fes.firmware.blob
-    major: 1
-    minor: 0
-    capability_bit: 7
+  # Capability bit 7 is retired and must not be reassigned.
   - id: fes.memory.hps-ddr
     major: 1
     minor: 0
