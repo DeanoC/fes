@@ -77,23 +77,36 @@ that now names the floppy and the CD behind the disk instead of stopping at
 
 ## Suites
 
-Every suite ran on this branch; the ROM column is the `pc386-bios.bin` digest
-the run used, since the BIOS changed once during the slice.
+Every suite ran on this branch, on the ROM the branch ends with
+(`pc386-bios.bin` `23b9df91`).
 
 | Suite | Result |
 | --- | --- |
-| `floppy` (new) | PASS at `f79bc8f56`: 24 checks, all ok, and the pattern FLOPTEST.COM wrote to B: is in sector 2399 of the image the bench wrote back ([log](floppy-suite.log)) |
-| `floppy-boot` (new) | PASS at `f79bc8f56`: FreeDOS boots from the 1.44M floppy in A: with CMOS 2Dh, 38h and 3Dh set to an A: launch, reaches the `A:\>` prompt in 7.25 simulated s and DIR shows the boot floppy's label FDBOOT |
-| `fdc` | PASS: 36 cases, 19 matching Bochs, 14 listed divergences (the new `dor_mismatch` among them), 3 RTL-only |
+| `floppy` (new) | PASS: 24 checks, all ok, and the pattern FLOPTEST.COM wrote to B: is in sector 2399 of the image the bench wrote back ([log](floppy-suite.log)) |
+| `floppy-boot` (new) | PASS: FreeDOS boots from the 1.44M floppy in A: with CMOS 2Dh, 38h and 3Dh set to an A: launch, reaches the `A:\>` prompt 5.90 simulated s in, and DIR shows the boot floppy's label FDBOOT |
+| `fdc` | PASS: 36 cases, 20 matching Bochs, 13 listed divergences (the new `dor_mismatch` among them), 3 RTL-only |
 | `devices` | PASS, with three new CMOS cases: no drive, two drives with an A: launch, one 360K drive with a CD launch |
 | `boot` (oracle) | PASS, with the VGA replay clean (84,949 events, no mismatch) |
 | `a20` | PASS on the boot and games images |
-| `system` | PASS at the earlier ROM `b5beb4cd`: FreeDOS to the prompt on `pc386_system`, the record round trip, holds cutting port 2 bursts in 4 of 186 trials, 2,783 status records |
+| `system` | PASS: FreeDOS to the prompt on `pc386_system`, the record round trip, holds cutting port 2 bursts, and the status ring |
 | `tests.test_pc386_machine`, `tests.test_pc386_rtl_stops`, `tests.test_build_fes_pc386_quartus` | PASS, 124 tests |
 
-**The RTL CPU.** `floppy --cpu rtl` and `floppy-boot --cpu rtl` run the same
-scripts with `fes_i386_cpu`, so the INT 13h transfers, DMA channel 2 and
-IRQ 6 are its. (Results below once the runs finish.)
+**The RTL CPU**, which is the slice's lockstep check: the same scripts with
+`fes_i386_cpu` in the oracle's place, so the DMA-terminated INT 13h reads,
+DMA channel 2 and IRQ 6 are its.
+
+- **`floppy --cpu rtl`: PASS** ([log](floppy-rtl-suite.log)). The oracle boots
+  and the RTL takes over at the prompt, as the `ems` suite does. All 24
+  checks pass on it, the pattern reaches B:'s image, and the CPU retired
+  233,238,660 instructions with **no oracle step, no stop and no
+  protected-mode stretch**; the run ended at the prompt at 5.95 simulated s.
+  So the RTL CPU drove four disk swaps, a format and a write-back through the
+  controller without the oracle taking an instruction.
+- **`floppy-boot --cpu rtl`: PASS** ([log](floppy-boot-rtl-suite.log)). Here
+  the RTL CPU runs from reset, so POST, the BIOS's floppy boot and DOS are
+  all its: it retired 396,740,311 instructions with **no oracle step, no stop
+  and no protected-mode stretch**, reached the `A:\>` prompt at 5.20
+  simulated s and ended there at 6.5 s, with DIR showing the floppy's label.
 
 **The kit** (Kit B, run `f1`, 13 November 2026). The sealed package
 `0445da315c50211f` launched as a library game with the repository's FreeDOS
