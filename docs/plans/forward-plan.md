@@ -266,7 +266,11 @@ contract with a conformance test.
 ### The matrix is data
 
 Each cell (core, board, lane) has a state: *none*, *builds*, *sealed*,
-*kit-accepted*, *released*. Generate the support matrix from the recipe
+*kit-accepted*, *released*. State is recorded per exact package identity, so
+the key includes the front end as well as the place-and-route lane: a cell
+whose front end changes starts again at *builds* and does not inherit the
+previous artifact's acceptance. "Lane" in this plan means that front end and
+place-and-route pair. Generate the support matrix from the recipe
 registry, the published package store and acceptance receipts. Remove the
 policy cells that show "Quartus" for DE25 cores nobody has built. Remove
 activity-based tiers (Current/Aging/Stale): recency of RTL edits says nothing
@@ -350,7 +354,8 @@ A shell change invalidates every cell on that board. Treat the shell like an
 ABI: version it, change it rarely, and land changes as a **shell release**
 with one planned farm run that reseals every cell, instead of a trickle of
 PRs that each trigger a full rebuild. Between shell releases, a core PR
-rebuilds one cell.
+rebuilds only that core's cells: one per board that hosts it, and per product
+lane where a cell ships two. It never rebuilds another core's cells.
 
 On Agilex 5 the long-term form of this is a static shell with the machine as a
 partial-reconfiguration persona: the shell is compiled once and a core build
@@ -434,13 +439,12 @@ is right. Do not widen it. What stands between the tree and a release:
     `zx8x.mif`, `zx81machine/machine.rom`). The earliest dates from
     10 September, and 792 of 850 branches contain them. No Spectrum,
     Commodore, Atari, IBM or other system ROM was found.
-  - [#1799](https://github.com/DeanoC/fes/pull/1799) removes the four
+  - [#1799](https://github.com/DeanoC/fes/pull/1799) removes those four
     archives from the tip, so the snapshot that seeds the new repository is
     clean.
-  - The scan cannot see a ROM built into a bitstream. The DE25 ZX81 `.sof`
-    and `.rbf` files in
-    `docs/validation/2026-10-29-de25-zx81-pr-computer/compiler-reports.tar.gz`
-    need a decision before the snapshot is taken.
+  - The scan cannot see a ROM built into a bitstream. The one archive of
+    DE25 ZX81 `.sof` and `.rbf` files built with the ROMs is removed by
+    #1799 as well.
   - The move needs its own short plan: what history the new repository
     starts with, how issues, PRs, CI and labels carry over, and how
     worktrees, kit scripts and agents are repointed. Evidence payloads
@@ -523,11 +527,11 @@ architecture, B ships nothing to users.
 | --- | --- | --- |
 | 0. Decide | Accept or amend this plan. Licence, signing approach, tier definitions. Write the five contracts as short specs. Freeze new per-core board code. | Specs merged; roadmap milestones exist; licence file in the repo |
 | A1. Ship v1 | v1 milestone, legal cleanup, zero-copy menu frames, release-candidate acceptance | Tagged, signed public DE10 release of four families that passes the offline journey |
-| B1. Prove the split | Board descriptor and generator. Core port v1. DE10 and DE25 shells. MENU and ZX81 from identical source on both boards. Runtime backends with no shared-file branches. | Forked `shared-rtl` deleted; board-conditional count in shared files near zero; both cells kit-accepted |
+| B1. Prove the split | Board descriptor and generator. Core port v1. DE10 and DE25 shells. MENU and ZX81 from identical source on both boards. Runtime backends with no shared-file branches. | Forked `shared-rtl` deleted; board-conditional count in shared files near zero; all four cells (MENU and ZX81, each on DE10 and DE25) sealed and kit-accepted |
 | B2. Build farm | Remote cache, package store, farm queue, `core.toml` generation, synthesis-only PR check, nightly bumps, generated matrix | A core PR rebuilds only its cells; an image build compiles no cores; matrix page is generated |
 | 3. Convert and widen | Move every tier 1 machine onto the port at its next reseal. One image builder. Online catalog and in-play layer. PC/XT enters release scope; pc386 reaches tier 1. | All tier 1 machines build for both boards from one source; v1.x release with catalog |
 | 4. DE25 to tier 1 | Update and recovery on DE25 hardware, full tier 1 set accepted there | A DE25 release from the same tag as DE10 |
-| 5. Prove additivity | Add a third board, or the custom OS on an existing board, as the test | New board = one board package, no machine changes; measured in days of work, not weeks |
+| 5. Prove additivity | Add a third board, or the custom OS on an existing board, as the test | Third board: one board package, no machine changes, measured in days of work, not weeks. Custom OS: it passes the OS contract conformance test and runs the unchanged agent, runtime, tenfoot and sealed packages on an existing board, with no board package or machine changes. Either path closes the phase |
 
 Phase 5 is the real acceptance test for the whole plan. If a third board needs
 edits inside a machine, the port is wrong and gets fixed there.
