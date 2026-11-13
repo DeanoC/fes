@@ -230,8 +230,9 @@ public:
     //     except FNINIT and FNCLEX, and WAIT, holds before it runs
     //     (StepResult::x87_held) unless it raises #NM first;
     //   - a byte written to port F0h clears the latch, and one to F1h resets
-    //     the 387 (control word 037Eh, status word 0081h with ERROR# active,
-    //     every register empty) without setting it. Both still reach the bus.
+    //     the 387 (control word 037Eh, status word 8081h with B mirroring ES
+    //     and ERROR# active, every register empty) without setting it. Both
+    //     still reach the bus.
     // reset() clears the latch. The sources are in the oracle README.
     virtual void set_at_coprocessor(bool fitted) = 0;
     // IRQ 13's level from the 387's ERROR#: false unless set_at_coprocessor.

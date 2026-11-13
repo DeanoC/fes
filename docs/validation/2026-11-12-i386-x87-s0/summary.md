@@ -86,9 +86,9 @@ Links are in the [plan's sources](../2026-11-12-i386-x87-plan/summary.md#sources
     past the ESC, so after waking the instruction would have been skipped.
     The adapter holds before the instruction's handler instead.
   - An OUT whose bytes cover F0h clears the latch. F1h resets the 387 to
-    control word 037Eh and status word 0081h, every tag empty and ERROR#
-    active, and leaves the latch alone. Both still reach the machine, which
-    decodes neither.
+    control word 037Eh and status word 8081h, with B mirroring ES and every
+    tag empty and ERROR# active, and leaves the latch alone. Both still reach
+    the machine, which decodes neither.
 - **`x87_state()`** returns `X87State`: control, status with TOP, the tag
   word FNSTENV computes, the opcode, the pointers and the eight physical
   registers. `x87_differences()` names the fields two states differ in.

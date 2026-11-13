@@ -101,8 +101,9 @@ implements it and supplies the platform objects the Bochs CPU links against.
   The step retires nothing and sets `StepResult::x87_held`, and an NMI or
   INTR taken while held returns to that instruction. A byte written to
   port F0h clears the latch; one to F1h resets the 387 to control word 037Eh
-  and status word 0081h, with every tag empty. Off by default: the lockstep
-  without `FES_I386_X87=387` and the corpus runners run as before.
+  and status word 8081h, with B mirroring ES and every tag empty. Off by
+  default: the lockstep without `FES_I386_X87=387` and the corpus runners run
+  as before.
   [`x87_tb.cpp`](x87_tb.cpp) checks it on the oracle alone (if1, held-nmi,
   no-wait, fnstsw, nm-first, wait-mp0, wait-mp1, f1-reset, accessor, off, fresh),
   from `tests/test_fes_i386_oracle.py`.

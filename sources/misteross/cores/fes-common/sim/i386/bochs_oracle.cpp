@@ -265,7 +265,8 @@ void bx_devices_c::outp(Bit16u port, Bit32u value, unsigned len) {
             const i387_t kept = x87;
             x87.init();
             x87.cwd = 0x037e;
-            x87.swd = 0x0081;
+            // B mirrors ES on the 80387's hardware-reset status word.
+            x87.swd = 0x8081;
             x87.fip = kept.fip;
             x87.fdp = kept.fdp;
             x87.fcs = kept.fcs;

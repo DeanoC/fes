@@ -22,7 +22,7 @@
 //               holds.
 //   wait-mp0    WAIT with TS set and MP clear holds; with MP and TS set
 //   wait-mp1    it raises #NM first.
-//   f1-reset    OUT F1h resets the 387: control 037Eh, status 0081h, every
+//   f1-reset    OUT F1h resets the 387: control 037Eh, status 8081h, every
 //               tag empty, IRQ 13 high, the latch unchanged.
 //   accessor    x87_state() after FLD1, FLDPI, FLDZ and a denormal FLD m80
 //               has the tags 00, 01, 10 and 11, FLD m80's pointers and
@@ -293,7 +293,7 @@ void cases(Bench &b) {
         c.op({0xf4});
         b.run(c);
         const fes_i386::X87State s = b.oracle->x87_state();
-        b.check(s.control == 0x037e && s.status == 0x0081 && s.tag == 0xffff,
+        b.check(s.control == 0x037e && s.status == 0x8081 && s.tag == 0xffff,
                 "after F1h: " + std::to_string(s.control) + " " + std::to_string(s.status) + " " + std::to_string(s.tag));
         b.check(b.oracle->x87_irq13() && !b.oracle->x87_busy_latched(), "IRQ 13 low or latch set after F1h");
         b.done("f1-reset");
