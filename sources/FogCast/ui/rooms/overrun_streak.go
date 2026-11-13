@@ -97,8 +97,10 @@ func (s *overrunStreak) summary(r *Instance) string {
 		}
 		parts = append(parts, part)
 	}
-	return fmt.Sprintf("elapsed %s; %d process-wide GC cycles; up to %d images loading",
-		strings.Join(parts, ", "), s.cycles()-s.gcAtStart, s.imagesLoading)
+	// The short streak context leads: the room error panel wraps a bounded
+	// number of lines, and the per-overrun list is what it cuts.
+	return fmt.Sprintf("%d process-wide GC cycles; up to %d images loading; elapsed %s",
+		s.cycles()-s.gcAtStart, s.imagesLoading, strings.Join(parts, ", "))
 }
 
 // imagesLoading counts images the launcher has already been asked to fetch
