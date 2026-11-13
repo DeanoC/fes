@@ -1,0 +1,10 @@
+{
+  "status": "passed-current-native-file-tree-and-archive-identities",
+  "compiled_source": "09904343a78ff42b93a6d0bc6d34e3c47f224dd0",
+  "checkout_head": "09904343a78ff42b93a6d0bc6d34e3c47f224dd0",
+  "native_file_and_tree_membership_unchanged": true,
+  "matched_archive_sha256": "0a37615675a98961ec79039584d69504f105e8e346d62f02d2963872e8c113f9",
+  "sealed_projects_archive_sha256": "9587828cdddfd72ab618154a1bb73bb1ccaaa7b3bbcfff8ebfb369991f4247eb",
+  "hardware_actions": false,
+  "native_continuation_hardware_accepted": false
+}

@@ -4,7 +4,8 @@ The preceding [format-11 hardware trial](../2026-11-13-de25-command-completion-p
 qualifies retained-source retirement for its selected artifact. It deliberately
 parks before native configuration completion. Format 12 connects a successful
 retirement to the existing native return path; this is a new software prototype,
-without matched-image or hardware acceptance yet.
+with a complete matched build and full fresh file admission, but without
+physical continuation acceptance.
 
 `nano_source_continue` consumes one attempt on the private retired engine and
 checks its actual source binding, trusted callback table, completed command
@@ -54,8 +55,27 @@ retry probe. The corrected accounting keeps the full final table scan and
 compares unchanged earlier phases; no firmware check is removed for a test.
 
 The [source manifest](source-manifest.json) binds these implementation bytes.
-Full affected testing and a fresh matched SDK/entry/BL31/SPL/U-Boot/composition
-build are next. Physical continuation must separately establish normal native
+Full affected testing passes: 2,670 parent tests (15 skips), native integration
+and 2,181 FPGA software tests (88 skips). The [complete matched build](matched-chain.json)
+and full fresh native file admission pass at production source
+`09904343a78ff42b93a6d0bc6d34e3c47f224dd0`. Retained-arena selection is true in
+SDK, entry and cold profile. Chain
+`081d55a8cdded8739bc2b9913f01eff45836b07cf207e055b3d0ce60987cf87b`,
+boot `95d1b9c9b79ed255`, FIT
+`1f248739ef1154f49fbd68fd02ccd40b3195073d53a8a4edec649c7e236b9cb9`
+(8,518,352 bytes within 16 MiB). Complete BL31 selected continuation/guard frames
+are 112/80 bytes; finish remains 928 bytes. These do not establish a whole EL3
+stack bound. No FPGA synthesis, fitting, timing or seal change is made.
+
+The 1,152-file [matched archive](matched-retention.json) is independently read
+back, SHA-256 `0a37615675a98961ec79039584d69504f105e8e346d62f02d2963872e8c113f9`.
+Both unchanged complete sealed projects remain in the
+[referenced archive](sealed-projects.json)
+`9587828cdddfd72ab618154a1bb73bb1ccaaa7b3bbcfff8ebfb369991f4247eb`;
+both archives are required. A [current file check](publication-files.json) verifies
+unchanged native source/artifact membership and both archive hashes after
+documentation edits. Later evidence publication changes documentation
+only. Physical continuation must separately establish normal native
 completion and the selected menu/endpoint before it can count as a hardware
 pass. The latest verified kit state remains the original baseline at final
 Park from the format-11 trial; this work makes no board/device/card changes.

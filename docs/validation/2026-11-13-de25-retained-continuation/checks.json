@@ -101,5 +101,62 @@
     "timed_out": false,
     "elapsed": 0.200703171081841,
     "log_sha256": "2be6ca532feeb937f9b146f52793aa66462e68101fdf17b736386aac31b9847d"
+  },
+  "retained-continue-affected": {
+    "argv": [
+      "make",
+      "test-changed",
+      "TEST_CHANGED_ARGS=--base a5fbab10a018f755dc842dc9e3423d3f187b0b89 --jobs 2"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1499.2210184410214,
+    "log_sha256": "0fe4dacb7f592dd9de65a6772f8e3f2aa3ca8a7a7e08acf2a081a414ab6b66e2"
+  },
+  "retained-continuation-matched-build": {
+    "argv": [
+      "python3",
+      "out/retained-continuation-boot/build-all.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 463.3451428778935,
+    "log_sha256": "5c4e09e8b6226bffc711908dd8b6d9a5c2f058edd779d9341840e5631daff6f9"
+  },
+  "retained-continue-software-bind": {
+    "argv": [
+      "python3",
+      "out/retained-continuation-boot/bind-software.py",
+      "retained-continue-software-bind"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 0.2007915899157524,
+    "log_sha256": "9c95650a29310acbbed19f6618500583494da856f5f4256a5eac18bd34e6f2f9"
+  },
+  "retained-continue-matched-retain": {
+    "argv": [
+      "python3",
+      "out/retained-continuation-boot/retain.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 4.2028137180022895,
+    "log_sha256": "79ec28dec2f02be5e0019510db106eaf3dea68e5563869b4a392d4996b0b0664"
+  },
+  "retained-continuation-current-files": {
+    "argv": [
+      "python3",
+      "out/publication/check-retained-continuation-files.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1.001095003914088,
+    "log_sha256": "b3268ef66589e19d3f5bd6a28391682979d41c823c6df7336818e2353ac95013"
   }
 }
