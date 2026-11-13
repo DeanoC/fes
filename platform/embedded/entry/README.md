@@ -36,7 +36,9 @@ It decodes into the final 32 MiB of owned Go RAM below the protected 128 KiB
 initial stack. Every destination segment must exclude that entire temporary
 workspace and the live loader; all checks finish before segment copying. The
 workspace is no longer live when Go starts. Go's complete runtime metadata
-remains in the decoded ELF. The Nano FIT load limit stays 8 MiB.
+remains in the decoded ELF. The matched Nano boot FIT uses the explicit 16 MiB
+contract in `nano/fit_layout.py`, with a disjoint verified source copy and two
+recovery buffers. The FPGA configuration-package bound remains separate.
 
 The allocation-free [puff inflater](vendor/puff/README.md) uses pinned, unmodified
 zlib-contributed source with a private GCC jump shim. It links no C runtime.
