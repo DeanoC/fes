@@ -52,8 +52,10 @@ package fes_i386_ucode_pkg;
     localparam logic [8:0] UC_PARPLM = 9'd367;
     localparam logic [8:0] UC_FNSTENV = 9'd369;
     localparam logic [8:0] UC_FNSAVE = 9'd375;
-    localparam logic [8:0] UC_FLDENV = 9'd401;
-    localparam logic [8:0] UC_FRSTOR = 9'd407;
-    localparam logic [8:0] UC_FRD8 = 9'd433;
-    localparam logic [8:0] UC_FRD10 = 9'd434;
+    localparam logic [8:0] UC_FLDENV = 9'd405;
+    localparam logic [8:0] UC_FRSTOR = 9'd411;
+    localparam logic [8:0] UC_FST8 = 9'd441;
+    localparam logic [8:0] UC_FST10 = 9'd442;
+    localparam logic [8:0] UC_FRD8 = 9'd444;
+    localparam logic [8:0] UC_FRD10 = 9'd445;
 endpackage

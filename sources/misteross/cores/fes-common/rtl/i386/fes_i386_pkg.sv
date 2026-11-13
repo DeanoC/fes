@@ -768,6 +768,20 @@ package fes_i386_pkg;
         logic        tm1;
         logic        ts0;
         logic        ts1;
+        // The x87 unit's side of the instruction (fes_i386_x87): it goes to
+        // the unit (an ESC, or WAIT, with a 387 fitted), it is WAIT, which
+        // only waits for BUSY#, and a memory form's operand format. They are
+        // the first uop's and stay for a microcode routine's, since dc0
+        // keeps them.
+        logic        x87;
+        logic        x87_wait;
+        logic [2:0]  x87_fmt;
+        logic [10:0] x87_op;
+        // The part of the operand, environment or save image this uop
+        // moves, as fes_i386_x87's iss_part and wb_part want it: an
+        // environment field, or {1, register, chunk} for a save image's
+        // chunk, or an operand's chunk (0, 4 and 8 bytes on).
+        logic [5:0]  x87_part;
     } decoded_t;
 
     // Which of ESI, EDI and ECX (bits 0-2) a uop reads: src1, src2, a CL
@@ -1159,6 +1173,11 @@ package fes_i386_pkg;
         // ice0: D, the uop is ICEBP's first, which clears DR7.GD as it
         // reaches WB (fes_i386_cpu, "ICEBP").
         logic           ice0;
+        // The x87 unit's side of the uop: it belongs to an instruction the
+        // unit handles, and which part of the operand, environment field or
+        // save-image chunk it moves (fes_i386_x87's iss_part and wb_part).
+        logic           x87;
+        logic [5:0]     x87_part;
     } pipe_t;
 
     // ---- The x87 operand formats and forms (fes_i386_x87, #1768). ----
@@ -1172,6 +1191,25 @@ package fes_i386_pkg;
     parameter logic [2:0] X87F_I32  = 3'd5;
     parameter logic [2:0] X87F_I64  = 3'd6;
     parameter logic [2:0] X87F_ENV  = 3'd7;  // an environment or save image's field
+
+    // The format an ESC memory form's operand has, by the ESC's low three
+    // bits and the ModRM byte's reg field. The forms whose operand this
+    // slice does not convert read as X87F_NONE, which x87_decode turns into
+    // X87_UNIMPL; the arithmetic forms join this table in slice 3. FLDCW,
+    // FNSTCW and FNSTSW m16 move a 16-bit word, so they take X87F_I16.
+    function automatic logic [2:0] x87_format(input logic [2:0] esc, input logic [2:0] rf);
+        case ({esc, rf})
+            {3'b001, 3'd0}, {3'b001, 3'd2}, {3'b001, 3'd3}: x87_format = X87F_F32;
+            {3'b101, 3'd0}, {3'b101, 3'd2}, {3'b101, 3'd3}: x87_format = X87F_F64;
+            {3'b011, 3'd5}, {3'b011, 3'd7}: x87_format = X87F_F80;
+            {3'b011, 3'd0}, {3'b011, 3'd2}, {3'b011, 3'd3}: x87_format = X87F_I32;
+            {3'b111, 3'd5}, {3'b111, 3'd7}: x87_format = X87F_I64;
+            {3'b111, 3'd0}, {3'b111, 3'd2}, {3'b111, 3'd3},
+            {3'b001, 3'd5}, {3'b001, 3'd7}, {3'b101, 3'd7}: x87_format = X87F_I16;
+            {3'b001, 3'd4}, {3'b001, 3'd6}, {3'b101, 3'd4}, {3'b101, 3'd6}: x87_format = X87F_ENV;
+            default: x87_format = X87F_NONE;
+        endcase
+    endfunction
 
     // The operations the x87 unit builds. A form a later slice builds
     // decodes as X87_UNIMPL, which stops the instruction as not built.
