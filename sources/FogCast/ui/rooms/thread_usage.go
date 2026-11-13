@@ -20,7 +20,8 @@ type threadUsage struct {
 	involuntary int64
 	// majorFaults, minorFaults and blocksRead are the thread's ru_majflt,
 	// ru_minflt and ru_inblock. A major fault or block read waited for
-	// storage.
+	// storage. blocksRead is in 512-byte units, whatever the device's block
+	// size; String prints it as KiB.
 	majorFaults int64
 	minorFaults int64
 	blocksRead  int64
@@ -150,7 +151,8 @@ func (u threadUsage) String() string {
 		fmt.Fprintf(&b, ", %d major/%d minor faults", u.majorFaults, u.minorFaults)
 	}
 	if u.blocksRead != 0 {
-		fmt.Fprintf(&b, ", %d blocks read", u.blocksRead)
+		// ru_inblock counts 512-byte units; a partial KiB rounds up.
+		fmt.Fprintf(&b, ", %d KiB read", (u.blocksRead+1)/2)
 	}
 	if u.gcCycles != 0 || u.gcPause != 0 {
 		fmt.Fprintf(&b, ", %d GC cycles, GC stop-the-world %s", u.gcCycles, u.gcPause.Round(10*time.Microsecond))

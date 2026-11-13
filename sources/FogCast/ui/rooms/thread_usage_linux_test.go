@@ -43,7 +43,7 @@ func TestCallTimingSeparatesWaitFromThreadCPU(t *testing.T) {
 
 // A callback that maps a file and touches every page reports page faults. The
 // file's cache is dropped first, so on a disk-backed filesystem the touches
-// can be major faults and the reread can count blocks read; tmpfs, or a cache
+// can be major faults and the reread can count KiB read; tmpfs, or a cache
 // the kernel keeps, leaves those at zero, so they are logged, not required.
 func TestCallTimingReportsFaultsAndBlockReads(t *testing.T) {
 	r := newRoom(t, memPack(t, "faults", "function draw() end", nil), Options{Budget: Budget{Load: time.Second, Frame: time.Second, Input: time.Second}})

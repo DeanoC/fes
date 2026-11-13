@@ -23,7 +23,7 @@ func TestThreadUsageSinceAndString(t *testing.T) {
 	if d != want {
 		t.Fatalf("since = %+v, want %+v", d, want)
 	}
-	if got, w := d.String(), "thread cpu 3.11ms, 15 voluntary/2 involuntary switches, runnable 1.5ms, 12 major/340 minor faults, 96 blocks read, 1 GC cycles, GC stop-the-world 2.1ms"; got != w {
+	if got, w := d.String(), "thread cpu 3.11ms, 15 voluntary/2 involuntary switches, runnable 1.5ms, 12 major/340 minor faults, 48 KiB read, 1 GC cycles, GC stop-the-world 2.1ms"; got != w {
 		t.Fatalf("String = %q, want %q", got, w)
 	}
 	quiet := threadUsage{cpu: 2 * time.Millisecond, voluntary: 1, involuntary: 9}
@@ -67,7 +67,7 @@ func TestOverrunMessageNamesCauses(t *testing.T) {
 	if err == nil {
 		t.Fatal("callback past its budget did not fail")
 	}
-	want := ": thread cpu 1ms, 5 voluntary/1 involuntary switches, runnable 40ms, 3 major/20 minor faults, 24 blocks read, 1 GC cycles, GC stop-the-world 350µs)"
+	want := ": thread cpu 1ms, 5 voluntary/1 involuntary switches, runnable 40ms, 3 major/20 minor faults, 12 KiB read, 1 GC cycles, GC stop-the-world 350µs)"
 	if msg := err.Error(); !strings.HasPrefix(msg, "script exceeded 1ms budget (elapsed ") || !strings.HasSuffix(msg, want) {
 		t.Fatalf("overrun %q lacks %q", msg, want)
 	}
