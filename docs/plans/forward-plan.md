@@ -1,8 +1,8 @@
 # FES forward plan: boards, cores, builds and a release-ready product
 
 **Status:** proposal for Deano, written 13 November 2026 against `ff603ec64`.
-Only the v1-first ordering is decided (see the last section); nothing is
-implemented. It describes where FES should go from
+Deano's decisions of 13 November 2026 are recorded in the last section; the
+rest is proposal and nothing is implemented. It describes where FES should go from
 the tree as it stands, not how the tree got here. Where it disagrees with an
 older plan, this page is meant to replace that plan once accepted.
 
@@ -126,6 +126,9 @@ This is the change that makes N boards affordable.
   example 64 MiB media window, two clocks, 16-bit SDRAM). A shell declares what
   it provides. A cell is buildable when provides ⊇ needs. That is what replaces
   "does this core support DE25".
+- **Variation is allowed, forks are not.** A machine may differ a great deal
+  between boards, but from one source. See
+  [When a core differs by board](#when-a-core-differs-by-board).
 - **Machines keep their own clocking intent, not their own PLL.** The machine
   asks for named clocks; the shell realises them. This is the main source of
   the current DE25 forks.
@@ -137,6 +140,74 @@ Proof before rollout: MENU and ZX81 built for both boards from identical
 machine source, sealed, and accepted on kits. Then convert the rest in tier
 order. Each conversion is a reseal, so batch it with a change the core already
 owes (see "Shell releases").
+
+### When a core differs by board
+
+Boards will not be equal. A larger or faster FPGA can host a faster CPU, more
+memory, an extra chip or an expansion that the smaller one cannot. Some
+machines will not fit a board at all. Achieved clock rates will differ. The
+port must allow all of that without a second copy of the core.
+
+**One source, three ways to vary, in this order of preference.**
+
+1. **Parameters from the board's capability profile.** The board descriptor
+   generates a package of constants (memory sizes, DSP and block-RAM budget,
+   available clocks, bridge widths). A machine uses `generate` blocks on those
+   capabilities. It never tests a board name, so a third board with the same
+   capability gets the same hardware for free.
+2. **Family primitives.** RAMs, multipliers, PLLs and I/O cells come from the
+   primitives library, with one implementation per FPGA family behind one
+   interface.
+3. **Optional modules inside the core.** When the difference is structural (a
+   different memory controller, a 387, a wider data path), the module lives in
+   that core's directory and is switched on by a declared feature. It is still
+   one core with one history, and CI synthesises every cell so neither side
+   rots.
+
+**The manifest says what each cell is.** `core.toml` separates:
+
+- `needs`: hard requirements. If a shell cannot provide them the cell is *not
+  offered* on that board, with a recorded reason (does not fit, no suitable
+  memory, misses timing). The generated matrix shows it and the catalog never
+  lists it for that board.
+- `features`: optional parts, each with the capability that enables it.
+- `[board.<name>]`: per-board choices that are judgement, not capability:
+  clock targets, which features to enable, the place-and-route recipe.
+
+The build resolves these into a **cell profile**, sealed into the package
+manifest: the features present and the performance achieved. Everything
+downstream reads the profile, not the board.
+
+**Baseline and extras.** Two kinds of difference must not be confused.
+
+- The *baseline* machine is the same machine everywhere: same clocks as the
+  original hardware, same behaviour, same conformance golden frames, same
+  saves. If a board cannot reach the baseline, the cell is not offered. A
+  tier 1 cell always means the full baseline.
+- *Extras* are where boards differ: turbo speeds, maximum CPU rate for pc386,
+  memory size, additional sound or expansion hardware. Each is a named
+  capability with a value or range (for example `cpu.max_mhz`), measured from
+  the sealed build, not promised in advance.
+
+Fmax therefore lands in two places. For baseline clocks it is a pass or fail
+per cell with a slack figure. For extras it sets the advertised range of that
+capability on that board.
+
+**The product follows the profile.**
+
+- Settings and workbench options appear only when the installed package has
+  the capability, with the range that cell supports.
+- A game or setup may declare what it requires (EMS, a 387, a CPU speed). On
+  a board whose cell lacks it, the title shows as unavailable with the reason
+  instead of failing at launch.
+- Saves and per-game settings are portable across boards for the baseline. A
+  setting that names an absent extra falls back to the nearest supported value
+  and says so.
+
+**Testing follows it too.** Baseline conformance runs on every cell.
+Capability tests run wherever the capability exists. The tier ladder already
+applies per cell, so a core can be tier 1 on one board and tier 2, or not
+offered, on another without any special case.
 
 ### Contract 3: the core package
 
@@ -178,9 +249,9 @@ contract with a conformance test.
   package, with board-specific steps living in the board package.
 - The **experimental custom OS** becomes a third implementation, behind the
   same conformance test. It can then be developed and swapped in per board
-  without the product caring. I found no trace of it in this tree, so its
-  plan here is deliberately limited to that interface. It should not be on the
-  v1 path.
+  without the product caring. It will arrive as an opt-in experiment and is a
+  long way from product use, so this plan treats it only as a future option
+  behind that interface. It is not on the v1 path.
 
 ## Managing cores and compile time
 
@@ -258,7 +329,8 @@ On Agilex 5 the long-term form of this is a static shell with the machine as a
 partial-reconfiguration persona: the shell is compiled once and a core build
 only fits its region. That is worth having, but the persona load hang (#1568)
 is open, so the plan does not depend on it. Full-chip builds through the shell
-are the baseline on every board.
+are the baseline on every board. Partial reconfiguration is a DE25 goal only
+after the tier 1 machines run there.
 
 ### Timing health is a number
 
@@ -288,7 +360,7 @@ Tiers apply to a **(core, board) cell**, and to boards.
 Board tiers: DE10-Nano is tier 1. DE25-Nano is tier 2 until its shell hosts
 every tier 1 machine and its image passes update and recovery on hardware.
 
-Proposed tier 1 set on DE10: ZX81 family, Spectrum family, C64, Atari ST,
+Tier 1 set on DE10 (decided): ZX81 family, Spectrum family, C64, Atari ST,
 PC/XT. pc386 joins when #1368 and #1494 close. Coleco, SMS, SG-1000 and Apple
 II are tier 2 once they meet the port; Pong, RAM Tester and RISC-V are
 utilities and demos, outside the ladder.
@@ -409,17 +481,33 @@ edits inside a machine, the port is wrong and gets fixed there.
 - Committing evidence payloads.
 - Starting new plan documents beside this one.
 
-## Decisions needed from Deano
+## Decisions
 
-1. **Tier 1 definition and set** as proposed above, including tiers per
-   (core, board) cell.
-2. ~~v1 first, or restructure first.~~ **Decided by Deano, 13 November 2026:
-   v1 ships first on DE10-Nano, with the restructuring beside it.** Track A
-   changes no architecture; Track B ships nothing to users until v1 is out.
-3. **Licence** for the repository and for released packages.
-4. **Where the custom OS lives** and whether Phase 5 should use it or a third
-   board as the additivity test.
-5. **Partial reconfiguration on DE25:** a goal after tier 1, or dropped in
-   favour of full-chip builds only.
-6. **A package store and remote cache host:** self-hosted on Powerboat's
-   network, or an object store.
+Decided by Deano on 13 November 2026.
+
+1. **Tiers.** The tier ladder and the tier 1 set are as written above, applied
+   per (core, board) cell.
+2. **Order.** v1 ships first on DE10-Nano, with the restructuring beside it.
+   Track A changes no architecture; Track B ships nothing to users until v1
+   is out.
+3. **Licence.** Any open-source licence that fits everything FES distributes.
+   GPL is the expected answer because FES ships modified GPL firmware and DOS.
+   The working choice is **GPL-3.0-or-later** for first-party source: the
+   Atari ST core links FX68K, which is GPL-3, and that rules out a
+   GPL-2.0-only project licence. The notice audit (#387) confirms this
+   against every shipped component before the licence file lands. Bundled
+   firmware (EmuTOS, FreeDOS, BIOS images) keeps its own licence as a
+   separate work shipped alongside.
+4. **Custom OS.** A future, opt-in experiment behind the OS contract. No
+   phase depends on it. Phase 5's additivity test is a third board unless the
+   OS is ready first.
+5. **DE25 order.** After v1, the first DE25 goal is running the tier 1
+   machines through the shell with full-chip builds. Partial reconfiguration
+   comes after that.
+6. **Package store and remote cache.** Self-hosted on the existing build
+   network for now. A properly networked store is a later improvement, so the
+   store sits behind one fetch/publish interface that does not assume where
+   it lives.
+
+Still open: which licence file text and headers to apply once #387 reports,
+and the signing approach for v1.
