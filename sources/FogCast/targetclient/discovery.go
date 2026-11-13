@@ -65,6 +65,7 @@ func (c *Client) AdoptEndpoint(ctx context.Context, base *url.URL, reboot bool) 
 			l.requestID = ""
 			// A reconciled endpoint permits a new explicit claim, never automatic takeover.
 			l.lost = false
+			l.noteLocalOwnershipLocked(ownership)
 		}
 		ownership.Owned = owned
 		l.client.setEndpoint(base)
