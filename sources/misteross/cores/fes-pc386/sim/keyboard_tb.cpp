@@ -509,6 +509,38 @@ void in_flight(Bench &b) {
           makes == std::vector<uint8_t>{0x1c, 0x32, 0x21} && retried == std::vector<uint8_t>{0x32, 0x21} &&
               breaks == std::vector<uint8_t>{0xf0, 0x1c, 0xf0, 0x32, 0xf0, 0x21},
           hex(makes) + " / " + hex(retried) + " / " + hex(breaks));
+
+    // Pause's make waits in the FIFO while Pause is released (a release with
+    // no bytes, reported at once); then the make reaches the 8042, then F5.
+    // The make's completion is the last report, so the clear leaves Pause
+    // reported down. Pressed again while scanning is disabled, it is already
+    // down when scanning resumes, so nothing is sent until a release.
+    b.hold = true;
+    b.key(PAUSE, true);
+    std::vector<uint8_t> pause_make = b.collect(1200);
+    b.key(PAUSE, false);
+    b.collect(1200);
+    b.deliver_all();
+    b.hold = false;
+    b.scanning = false;
+    b.cancel = true;
+    b.top.typematic_clear = 1;
+    b.clock();
+    b.top.typematic_clear = 0;
+    b.key(PAUSE, true);
+    b.collect(1200);
+    b.scanning = true;
+    std::vector<uint8_t> swallowed = b.collect(1200);
+    b.key(PAUSE, false);
+    b.collect(1200);
+    b.key(PAUSE, true);
+    std::vector<uint8_t> again = b.collect(1200);
+    b.key(PAUSE, false);
+    b.collect(1200);
+    const std::vector<uint8_t> pause_bytes{0xe1, 0x14, 0x77, 0xe1, 0xf0, 0x14, 0xf0, 0x77};
+    check("a clear restores Pause's last report: its make's completion after its silent release",
+          pause_make == pause_bytes && swallowed.empty() && again == pause_bytes,
+          hex(pause_make) + " / " + hex(swallowed) + " / " + hex(again));
 }
 
 }  // namespace

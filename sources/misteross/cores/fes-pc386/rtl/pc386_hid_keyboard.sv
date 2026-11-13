@@ -24,7 +24,9 @@
 // diff: changed (the rows changed since the last snapshot) and resync (the
 // snapshot may differ from the projected state, after a clear or a diff
 // position passed while scanning was disabled). The transitions in the FIFO
-// are listed in a third table, for the clear's roll-back.
+// are listed in a third table, for the clear's roll-back. Pause's reported
+// state, which a silent release and a later completion can both write, is
+// kept in a flip-flop and restored last.
 //
 // Typematic: the most recently pressed key other than a modifier or Pause
 // repeats its make sequence after the delay and then at the rate of the
@@ -57,6 +59,7 @@ module pc386_hid_keyboard (
     localparam [1:0] NONE = 2'd0, PLAIN = 2'd1, EXTENDED = 2'd2, SPECIAL = 2'd3;
     localparam [7:0] PRINT_SCREEN = 8'h7c, PAUSE = 8'h77;   // SPECIAL's codes
     localparam [9:0] STABLE_US = 10'd1000;
+    localparam [7:0] PAUSE_BIT = 8'h48;
 
     // Usages 00h-7Fh, then the modifiers E0h-E7h at 80h-87h: {kind, code}.
     // Microsoft's USB HID to PS/2 scan code translation table; Print Screen
@@ -239,13 +242,21 @@ module pc386_hid_keyboard (
     reg [4:0] flight_count, rollback_left;
     reg rollback_valid;
     reg [8:0] rollback_entry;
+    // Pause is the one key whose make has bytes and whose release has none,
+    // so its reported state can be written by a silent release and then by
+    // the make's later completion. A clear restores the reported state, so
+    // Pause's is kept here and written last by every roll-back.
+    reg pause_sent;
+    wire pause_restore = rolling && rollback_left == 0 && !rollback_valid;
 
     // Table writes
     wire stable_write = copying;
-    wire queued_write = init || rollback_valid || projected || (silent && key_scanning && !key_cancel);
-    wire [7:0] queued_at = init ? index : rollback_valid ? rollback_entry[7:0] :
+    wire queued_write = init || rollback_valid || pause_restore || projected ||
+                        (silent && key_scanning && !key_cancel);
+    wire [7:0] queued_at = init ? index : rollback_valid ? rollback_entry[7:0] : pause_restore ? PAUSE_BIT :
                            projected ? sending_bit : bit_index;
-    wire queued_value = init ? 1'b0 : rollback_valid ? !rollback_entry[8] : projected ? make : want_press;
+    wire queued_value = init ? 1'b0 : rollback_valid ? !rollback_entry[8] : pause_restore ? pause_sent :
+                        projected ? make : want_press;
     always @(posedge clk) begin
         if (stable_write) stable_table[index] <= observed[0];
         if (queued_write) queued_table[queued_at] <= queued_value;
@@ -262,7 +273,10 @@ module pc386_hid_keyboard (
             diffing <= 0; fetched <= 0; pass <= 0; position <= 0;
             key_valid <= 0; kind <= NONE; code <= 0; make <= 0; repeat_send <= 0; sending_bit <= 0; step <= 0;
             flight_write <= 0; flight_count <= 0; rollback_at <= 0; rollback_left <= 0; rollback_valid <= 0;
+            pause_sent <= 0;
         end else begin
+            if (committed && complete_bit == PAUSE_BIT) pause_sent <= complete_make;
+            if (silent && key_scanning && !key_cancel && bit_index == PAUSE_BIT) pause_sent <= want_press;
             // Serial passes, which a clear does not stop: observed must come
             // back whole from its rotation.
             if (init) begin
@@ -374,7 +388,7 @@ module pc386_hid_keyboard (
     wire repeat_cancel = (repeating || pressed) && !repeat_key_held;
     wire repeat_start = key_scanning && repeat_stable && repeat_queued && !pressed && !key_valid && !diffing &&
                         !busy && !take && repeat_due;
-    wire press_candidate = committed && complete_make && !complete_bit[7] && complete_bit != 8'h48;
+    wire press_candidate = committed && complete_make && !complete_bit[7] && complete_bit != PAUSE_BIT;
     wire released = committed && !complete_make && complete_bit == repeat_bit_now;
     wire stop = typematic_clear || released || repeat_cancel;
     wire [21:0] limit = waiting_delay ? delay_thirds(typematic[6:5]) : period_thirds(typematic[4:0]);
