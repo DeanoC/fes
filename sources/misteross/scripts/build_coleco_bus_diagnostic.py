@@ -98,6 +98,16 @@ def prepare_scaffold(source: Path, destination: Path) -> bytes:
                      "outclk[1]": [0, "C7"], "refclk": [0, "refclk"], "rst": [0, "rst"]}
     if mapping != {"count": 5, "pins": expected_pins}:
         raise ValueError("Coleco PLL frozen pin map changed")
+    input_port = top.get("ports", {}).get("FPGA_CLK1_50", {})
+    input_net = top["netnames"].get("FPGA_CLK1_50", {}).get("bits")
+    input_buffer = top["cells"].get("system_clock.refclk_MISTRAL_IB_O", {})
+    if input_port.get("direction") != "input" or not isinstance(input_net, list) or len(input_net) != 1 or \
+            input_port.get("bits") != input_net or input_buffer.get("type") != "MISTRAL_IB" or \
+            input_buffer.get("connections", {}).get("PAD") != input_net or \
+            input_buffer.get("connections", {}).get("O") != cell["connections"]["refclk"] or \
+            input_buffer.get("attributes", {}).get("NEXTPNR_BEL") != "MISTRAL_IO.32.0.0" or \
+            input_buffer.get("attributes", {}).get("LOC") != "PIN_V11":
+        raise ValueError("Coleco frozen reference clock input changed")
     for port, net, output in (
         ("outclk", "system_clock.pll_outclk", "system_clock.clocks[0]"),
         ("outclk[1]", "system_clock.pll_outclk_1", "system_clock.clocks[1]"),
@@ -125,7 +135,14 @@ def prepare_scaffold(source: Path, destination: Path) -> bytes:
 def cart_clock_constraints(root: Path) -> bytes:
     # --no-pack restores the routed nets but does not derive PLL constraints.
     # These are the declared shell frequencies, never its achieved Fmax.
-    text = (root / factory.SDC).read_text() + "\n# Frozen Coleco PLL output clocks.\n"
+    # Routed-scaffold loading keeps the physical input net but does not expose
+    # a top-level port to SDC. Target that same validated net at 50 MHz.
+    text = (root / factory.SDC).read_text()
+    port_target = "[get_ports {FPGA_CLK1_50}]"
+    if text.count(port_target) != 1:
+        raise ValueError("Coleco reference clock SDC target changed")
+    text = text.replace(port_target, "[get_nets {FPGA_CLK1_50}]")
+    text += "\n# Frozen Coleco PLL output clocks.\n"
     for name, frequency in REQUIRED_CLOCKS_MHZ.items():
         text += f"create_clock -name {{{name}}} -period {1000 / frequency:.12f} [get_nets {{{name}}}]\n"
     return text.encode()

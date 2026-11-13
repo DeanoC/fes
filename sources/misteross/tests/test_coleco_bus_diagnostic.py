@@ -37,6 +37,19 @@ class ColecoBusDiagnosticTest(unittest.TestCase):
         encoded = diagnostic.cart_clock_constraints(diagnostic.ROOT).decode()
         self.assertIn("-name {system_clock.clocks[0]}", encoded)
         self.assertIn("[get_nets {system_clock.clocks[1]}]", encoded)
+        self.assertIn("-period 20.000 [get_nets {FPGA_CLK1_50}]", encoded)
+        self.assertNotIn("[get_ports {FPGA_CLK1_50}]", encoded)
+        with tempfile.TemporaryDirectory() as temporary, patch.object(diagnostic.factory, "SDC", "test.sdc"):
+            root = Path(temporary)
+            original = 'create_clock -name FPGA_CLK1_50 -period 20.000 [get_ports {FPGA_CLK1_50}]\n'
+            other = 'create_clock -name EXTRA -period 10.000 [get_ports {EXTRA}]\n'
+            (root / "test.sdc").write_text(original + other)
+            result = diagnostic.cart_clock_constraints(root).decode()
+            self.assertIn(other, result)
+            for changed in ("", original + original):
+                (root / "test.sdc").write_text(changed)
+                with self.assertRaises(ValueError):
+                    diagnostic.cart_clock_constraints(root)
 
     def test_scaffold_validates_both_frozen_pll_clocks_and_pin_map(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -49,15 +62,19 @@ class ColecoBusDiagnosticTest(unittest.TestCase):
                                         "refclk": "input", "locked": "output"},
                     "attributes": {"FES_PINMAP_V1": json.dumps({"count": 5, "pins": pins}).encode().hex()}}
             cells = {"system_clock.pll": cell,
+                     "system_clock.refclk_MISTRAL_IB_O":
+                     {"type": "MISTRAL_IB", "connections": {"PAD": [1], "O": [2]},
+                      "attributes": {"NEXTPNR_BEL": "MISTRAL_IO.32.0.0", "LOC": "PIN_V11"}},
                      "system_clock.clocks_MISTRAL_CLKBUF_Q_1":
                      {"type": "MISTRAL_CLKBUF", "connections": {"A": [4], "Q": [7]}},
                      "system_clock.clocks_MISTRAL_CLKBUF_Q":
                      {"type": "MISTRAL_CLKBUF", "connections": {"A": [5], "Q": [8]}}}
             for name, bel in coleco_expansion.socket_bels().items():
                 cells[name] = {"type": "MISTRAL_FF", "attributes": {"NEXTPNR_BEL": bel}}
-            nets = {"system_clock.pll_outclk": {"bits": [4]}, "system_clock.pll_outclk_1": {"bits": [5]},
+            nets = {"FPGA_CLK1_50": {"bits": [1]}, "system_clock.pll_outclk": {"bits": [4]}, "system_clock.pll_outclk_1": {"bits": [5]},
                     "system_clock.clocks[0]": {"bits": [7]}, "system_clock.clocks[1]": {"bits": [8]}}
-            design = {"modules": {"top": {"cells": cells, "netnames": nets}}}
+            design = {"modules": {"top": {"cells": cells, "netnames": nets,
+                      "ports": {"FPGA_CLK1_50": {"direction": "input", "bits": [1]}}}}}
             original = json.dumps(design)
             source.write_text(original)
             diagnostic.prepare_scaffold(source, dest)
@@ -71,7 +88,7 @@ class ColecoBusDiagnosticTest(unittest.TestCase):
             diagnostic.prepare_scaffold(source, dest)
             self.assertEqual(json.loads(dest.read_text()), swapped)
 
-            for case in ("wrong-pin", "wrong-connection", "wrong-direction", "wrong-buffer", "wrong-output", "wrong-boundary"):
+            for case in ("wrong-pin", "wrong-connection", "wrong-direction", "wrong-buffer", "wrong-output", "wrong-boundary", "wrong-input-net", "wrong-input-pin"):
                 with self.subTest(case=case):
                     bad = json.loads(original)
                     top = bad["modules"]["top"]
@@ -88,6 +105,10 @@ class ColecoBusDiagnosticTest(unittest.TestCase):
                         top["cells"]["system_clock.clocks_MISTRAL_CLKBUF_Q"]["connections"]["A"] = [4]
                     elif case == "wrong-output":
                         top["netnames"]["system_clock.clocks[1]"]["bits"] = [7]
+                    elif case == "wrong-input-net":
+                        top["cells"]["system_clock.refclk_MISTRAL_IB_O"]["connections"]["O"] = [4]
+                    elif case == "wrong-input-pin":
+                        top["cells"]["system_clock.refclk_MISTRAL_IB_O"]["attributes"]["LOC"] = "wrong"
                     else:
                         name = next(iter(coleco_expansion.socket_bels()))
                         top["cells"][name]["attributes"]["NEXTPNR_BEL"] = "wrong"
