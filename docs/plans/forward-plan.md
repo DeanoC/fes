@@ -534,14 +534,27 @@ much they reuse (MSX, Amstrad CPC, BBC Micro, Amiga and Mega Drive on the
 ## Sequence
 
 Phases have exit criteria rather than dates. Track A and Track B run in
-parallel after Phase 0 and are independent by construction: A changes no
-architecture, B ships nothing to users.
+parallel after Phase 0. A changes no architecture. B merges to `main` while
+A is in flight, so the rule that keeps them apart is about what v1 builds
+from:
+
+- Until v1 is tagged, B changes nothing that v1 ships. The DE10 MENU and
+  ZX81 cells, the runtime and the image build stay on their current paths
+  by default.
+- B's new DE10 shell, ported machines and runtime backends land behind a
+  build flag that is off by default. That is the AGENTS.md rule for
+  unfinished new work. DE25 cells are not in v1, so they may move to the
+  new path as soon as they pass.
+- The cutover comes after the v1 tag: the flag's default flips, the old
+  paths and the forked `shared-rtl` are deleted, and the flag is removed.
+  B1's exit criteria are met only then, so B1 can start before v1 but
+  cannot finish before it.
 
 | Phase | Work | Exit criteria |
 | --- | --- | --- |
 | 0. Decide | Accept or amend this plan. Licence, signing approach, tier definitions. Write the five contracts as short specs. Freeze new per-core board code. | Specs merged; roadmap milestones exist; licence file in the repo |
 | A1. Ship v1 | v1 milestone, legal cleanup, zero-copy menu frames, release-candidate acceptance | Tagged, signed public DE10 release of four families that passes the offline journey |
-| B1. Prove the split | Board descriptor and generator. Core port v1. DE10 and DE25 shells. MENU and ZX81 from identical source on both boards. Runtime backends with no shared-file branches. | Forked `shared-rtl` deleted; board-conditional count in shared files near zero; all four cells (MENU and ZX81, each on DE10 and DE25) sealed and kit-accepted |
+| B1. Prove the split | Board descriptor and generator. Core port v1. DE10 and DE25 shells. MENU and ZX81 from identical source on both boards. Runtime backends with no shared-file branches. | After the v1 tag: flag removed and old paths gone; forked `shared-rtl` deleted; board-conditional count in shared files near zero; all four cells (MENU and ZX81, each on DE10 and DE25) sealed and kit-accepted |
 | B2. Build farm | Remote cache, package store, farm queue, `core.toml` generation, synthesis-only PR check, nightly bumps, generated matrix | A core PR rebuilds only its cells; an image build compiles no cores; matrix page is generated |
 | 3. Convert and widen | Move every tier 1 machine onto the port at its next reseal. One image builder. Online catalog and in-play layer. PC/XT enters release scope; pc386 reaches tier 1. | All tier 1 machines build for both boards from one source; v1.x release with catalog |
 | 4. DE25 to tier 1 | Update and recovery on DE25 hardware, full tier 1 set accepted there | A DE25 release from the same tag as DE10 |
@@ -567,8 +580,9 @@ Decided by Deano on 13 November 2026.
 1. **Tiers.** The tier ladder and the tier 1 set are as written above, applied
    per (core, board) cell.
 2. **Order.** v1 ships first on DE10-Nano, with the restructuring beside it.
-   Track A changes no architecture; Track B ships nothing to users until v1
-   is out.
+   Track A changes no architecture. Track B changes nothing v1 ships until
+   v1 is tagged: its DE10 and runtime work stays behind a default-off flag
+   and cuts over afterwards.
 3. **Licence.** Any open-source licence that fits everything FES distributes.
    GPL is the expected answer because FES ships modified GPL firmware and DOS.
    The working choice is **GPL-3.0-or-later** for first-party source: the
