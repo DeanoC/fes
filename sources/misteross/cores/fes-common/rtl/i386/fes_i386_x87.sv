@@ -503,6 +503,7 @@ module fes_i386_x87 (
         ld_expb = 17'd0;
         ld_sign = 1'b0;
         ld_fl = 6'd0;
+        iv = 64'd0;
         f32 = mval[22:0];
         e32 = mval[30:23];
         f64 = mval[51:0];
