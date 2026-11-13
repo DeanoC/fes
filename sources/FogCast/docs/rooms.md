@@ -651,9 +651,12 @@ and keeps only the process-wide fields. For example
 storage, GC at the Go runtime, runnable time at a CPU that was busy
 elsewhere, and Go sched wait at goroutines waiting for a Go scheduler slot.
 
-`Go sched wait` is process-wide, its value is the lower bound of a histogram
-bucket, and the runtime records only about one goroutine wakeup in eight, so
-its absence does not rule out a Go scheduler wait by the script itself.
+GC stop-the-world time is a close estimate, the runtime's GC pause CPU time
+divided by GOMAXPROCS. The runtime does not scale the stopping phase of a
+pause by GOMAXPROCS, so the estimate can be a little low and `unaccounted` a
+little high. `Go sched wait` is process-wide, its value is the lower bound of
+a histogram bucket, and the runtime records only about one goroutine wakeup
+in eight, so its absence does not rule out a Go scheduler wait by the script itself.
 Unaccounted time with voluntary switches and no faults, KiB read or GC beside
 it means the thread slept for a reason this data cannot name: a Go
 locked-thread handoff, a GC mark assist whose cycle ended outside the window,

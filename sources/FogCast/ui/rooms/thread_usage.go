@@ -82,9 +82,12 @@ type usagePoint struct {
 	// the kernel does not provide it.
 	runDelay     time.Duration
 	haveRunDelay bool
-	// gcCycles and gcPause are process-wide: completed Go GC cycles and GC
-	// stop-the-world wall time (the runtime's GC pause CPU-seconds, which it
-	// counts as each pause times GOMAXPROCS, divided by GOMAXPROCS).
+	// gcCycles and gcPause are process-wide: completed Go GC cycles and a
+	// close estimate of GC stop-the-world wall time (the runtime's GC pause
+	// CPU-seconds divided by GOMAXPROCS). The runtime scales the stopped
+	// part of each pause by GOMAXPROCS but adds the stopping phase unscaled,
+	// so the division understates that phase and gcPause can come out a
+	// little low.
 	gcCycles uint64
 	gcPause  time.Duration
 	// goSchedWait is set on an after point only: the longest time a Go
@@ -243,8 +246,10 @@ const goSchedWaitShown = time.Millisecond
 // unaccounted is the window's wall time not explained by the same thread's
 // CPU time and run-queue wait or by GC stop-the-world over that same window,
 // floored at zero: time the thread slept for another reason, such as
-// storage, a lock, a Go mark assist or a locked-thread handoff. It is known
-// only where one thread was read at both ends and run-queue wait is.
+// storage, a lock, a Go mark assist or a locked-thread handoff. The
+// stop-the-world estimate can read a little low (see runtimeUsage), so
+// unaccounted can read a little high. It is known only where one thread was
+// read at both ends and run-queue wait is.
 func (w sinceBaseline) unaccounted() (time.Duration, bool) {
 	if !w.haveRunDelay {
 		return 0, false
@@ -265,10 +270,12 @@ const (
 // with the baseline's own instead of a copy. metrics.Read does not stop the
 // world.
 //
-// GC stop-the-world time comes from the scalar GC pause CPU-seconds rather
-// than the /sched/pauses/total/gc histogram: the scalar is exact where a
-// histogram sum is a bucket estimate, and it saves reading a second
-// 160-bucket histogram. The scheduler latency histogram stays because it is
+// GC stop-the-world time comes from the scalar GC pause CPU-seconds divided
+// by GOMAXPROCS rather than the /sched/pauses/total/gc histogram. It is a
+// close estimate, not exact: the runtime adds each pause's stopping phase
+// unscaled by GOMAXPROCS, so dividing understates that phase. It avoids the
+// histogram's bucket-midpoint sum and saves reading a second 160-bucket
+// histogram. The scheduler latency histogram stays because it is
 // the only source for goroutines waiting on the Go scheduler, which faults
 // (storage) and run-queue wait (CPU) do not show.
 type runtimeUsage struct {
