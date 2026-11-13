@@ -243,10 +243,15 @@ def release_package(name: str, spec: dict, download: bool) -> Path:
                 stored.parent.mkdir(parents=True, exist_ok=True)
                 fetched = stored.with_name(stored.name + '.partial')
                 with urllib.request.urlopen(pin['url'], timeout=120) as response:
-                    fetched.write_bytes(response.read())
+                    data = response.read()
+                if hashlib.sha256(data).hexdigest() != pin['sha256']:
+                    raise ImageError(f'FreeDOS {name} archive {pin["url"]} does not match freedos.lock')
+                fetched.write_bytes(data)
                 fetched.rename(stored)
             if hashlib.sha256(stored.read_bytes()).hexdigest() != pin['sha256']:
-                raise ImageError(f'FreeDOS {name} archive {stored} does not match freedos.lock')
+                stored.unlink()
+                raise ImageError(f'FreeDOS {name} archive {stored} did not match freedos.lock and was removed; '
+                                 'pass --download to fetch it again')
             with zipfile.ZipFile(stored) as members:
                 for path in spec['files']:
                     prefix, _, member = path.partition('/')

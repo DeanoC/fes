@@ -214,6 +214,25 @@ class FreedosImageTest(unittest.TestCase):
                 with self.assertRaises(freedos.ImageError):
                     freedos.package('kernel', spec, download=False)
 
+    def test_release_package_never_caches_an_archive_that_misses_the_lock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            build = Path(directory)
+            digest = freedos.hashlib.sha256(b'good').hexdigest()
+            spec = {'license': 'GPL', 'archives': {'k.zip': {'url': 'https://example.invalid/k.zip', 'sha256': digest}},
+                    'files': {}}
+            stored = build / 'archives' / f'{digest}.zip'
+            response = mock.MagicMock()
+            response.__enter__.return_value.read.return_value = b'bad'
+            with mock.patch.object(freedos, 'BUILD', build), \
+                    mock.patch.object(freedos.urllib.request, 'urlopen', return_value=response):
+                with self.assertRaises(freedos.ImageError):
+                    freedos.package('kernel', spec, download=True)
+                self.assertFalse(stored.exists())
+                stored.write_bytes(b'bad')
+                with self.assertRaises(freedos.ImageError):
+                    freedos.package('kernel', spec, download=False)
+                self.assertFalse(stored.exists())
+
     def test_profile_binary_files_are_pinned_in_the_lock(self):
         lock = freedos.lock()['packages']
         for profile, spec in freedos.PROFILES.items():
