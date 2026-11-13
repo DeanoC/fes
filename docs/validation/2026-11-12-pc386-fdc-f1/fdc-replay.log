@@ -19,6 +19,11 @@ CASE media_dmf MATCH
 CASE media_288 MATCH
 CASE no_media MATCH
 CASE dsr_reset MATCH
+CASE dor_select DIFFER LISTED
+DIFF dor_select 12 rtl=[IN 3f2 3c] bochs=[IN 3f2 3d]
+DIFF dor_select 13 rtl=[IN 3f7 ff] bochs=[IN 3f7 7f]
+DIFF dor_select 18 rtl=[IN 3f2 3c] bochs=[IN 3f2 3d]
+DIFF dor_select 19 rtl=[IN 3f7 ff] bochs=[IN 3f7 7f]
 CASE status_registers DIFFER LISTED
 DIFF status_registers 0 rtl=[IN 3f0 ff] bochs=[IN 3f0 00]
 DIFF status_registers 1 rtl=[IN 3f1 ff] bochs=[IN 3f1 00]
@@ -64,4 +69,4 @@ DIFF dma_gate 9 rtl=[INT low] bochs=[INT high]
 CASE pio_read_write RTL-ONLY
 CASE fence_and_swap RTL-ONLY
 CASE timing RTL-ONLY
-SUMMARY matched=20 differed=11 rtl_only=3 failures=0
+SUMMARY matched=20 differed=12 rtl_only=3 failures=0
