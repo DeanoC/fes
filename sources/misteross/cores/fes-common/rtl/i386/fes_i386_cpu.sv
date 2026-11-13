@@ -3061,8 +3061,19 @@ module fes_i386_cpu #(
         else if (rp_go && wb_s.ibp_en && !wb_frp && !wb_smc) ibp_skip <= 1'b1;
         else if (!freeze && !wb_flush && ag_s.valid && ag_s.fchk) ibp_skip <= 1'b0;
 
-    assign int_next = at_boundary && (dbg_fire || !int_shadow && (nmi_ok || intr && int_if)) || in_hlt && (nmi_ok || intr && int_if);
-    assign int_cnmi_n = nmi_ok && (in_hlt || !int_shadow);
+    // The board's BUSY# latch holds an ESC instruction or WAIT in D and
+    // nothing retires behind it, so an interrupt is taken as it is in HLT:
+    // the delivery pushes D's EIP, which is the held instruction's, and the
+    // handler's write to port F0h clears the latch, after which the held
+    // instruction runs (387 PRM Appendix F.2; slice 0's if1 and held-nmi
+    // cases). Only the latch can hold for ever -- the unit's own work is a
+    // few cycles -- so the wait is on the latch with the pipeline drained.
+    logic x87_stalled;
+    assign x87_stalled = x87_hold && trace_x87_latched && !int_take
+                      && !ag_s.valid && !m1_s.valid && !m2_s.valid && !ex_s.valid && !wb_s.valid;
+    assign int_next = at_boundary && (dbg_fire || !int_shadow && (nmi_ok || intr && int_if))
+                   || (in_hlt || x87_stalled) && (nmi_ok || intr && int_if);
+    assign int_cnmi_n = nmi_ok && (in_hlt || x87_stalled || !int_shadow);
     assign inta_req = int_wait;
     always_ff @(posedge clk) begin
         nmi_q <= nmi;
