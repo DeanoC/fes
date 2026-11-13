@@ -141,12 +141,25 @@ static int cmd_owns(void *context,const struct nano_cmdq_binding *b)
 {
  struct nano_retire *s=context;
  if(s->phase!=RET_INVALIDATE || b->owner!=s->binding.owner || b->epoch!=s->binding.epoch ||
-    b->generation!=s->binding.generation || b->queue!=0x94008000 || b->baseline!=6 || guard(s))return 0;
+    b->generation!=s->binding.generation || b->queue!=0x94008000 || b->baseline!=6)return 0;
  const uint32_t tail[][2]={{GBPA,ABORT},{0x20,8},{0x24,8}};
+ /* fixed_view already checks fresh retirement ownership/time on both sides
+  * of this exact read-only batch. No device access precedes its first guard. */
  return !fixed_view(s,tail,sizeof(tail)/sizeof(tail[0]));
 }
 static int cmd_time(void *context,uint64_t *out)
-{struct nano_retire *s=context;if(guard(s))return -1;*out=s->last;return 0;}
+{
+ struct nano_retire *s=context;uint64_t now=0;
+ if(!s || !out || s->failed || !s->timed || s->phase!=RET_INVALIDATE)return -1;
+ struct nano_retire_io io=s->io;
+ /* The queue asks for a counter, then calls cmd_owns before any I/O. Keep
+  * that clock origin; do not nest a third whole-platform observation here.
+  * Reject a changed supplier before the queue can invoke its ownership view. */
+ if(!io.time_us || io.time_us(io.context,&now))return fail(s,-2);
+ if(s->failed || s->phase!=RET_INVALIDATE || !io_same(&io,&s->io))return fail(s,-13);
+ if(now<s->last || now-s->start>=NANO_RETIRE_US)return fail(s,-110);
+ *out=now;return 0;
+}
 static int cmd_read(void *context,uint32_t offset,uint32_t *value)
 {return read32(context,offset,value);}
 static int cmd_write(void *context,uint32_t offset,uint32_t value)

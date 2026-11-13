@@ -1,0 +1,437 @@
+{
+  "status": "passed-portable-aarch64-compile",
+  "classification": "five portable units only; not a linked BL31, whole EL3 stack proof or matched boot image",
+  "compiler_sha256": "ea55f8b35f29e94d8bbf6cb6f4a2ed39f8e204e2a2080cf06ba7c1733da11d95",
+  "compiler_tools": {
+    "gcc": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-gcc",
+      "sha256": "ea55f8b35f29e94d8bbf6cb6f4a2ed39f8e204e2a2080cf06ba7c1733da11d95"
+    },
+    "cc1": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/libexec/gcc-cross/aarch64-linux-gnu/14/cc1",
+      "sha256": "2161f3a2c38a7e7153796895aa2d17d47975f9da3fccad8507808f1773430a4e"
+    },
+    "as": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/bin/aarch64-linux-gnu-as",
+      "sha256": "4e623869baaf4e0e165573b095f0aedaf47fe26f000ea8f3288e1c1a582cc644"
+    }
+  },
+  "source_sha256": {
+    "platform/embedded/firmware/command_queue.c": "301d3879ff999c96528358ca79a1ffb89fe32720a4d9b904968ece87f26bd458",
+    "platform/embedded/firmware/source_retire.c": "87640886bc66447aa5f9f5f65a567083b581a614fa0c9f8263ab48220a962cc9",
+    "platform/embedded/firmware/input_tables.c": "b842dc2ea784ec5c2aef846c7da22b971b2e9fa1f688f29e24bc14299fbec58f",
+    "platform/embedded/firmware/input_transfer.c": "4ae4a5e625ee4d0e8bbd3014dfb7cc00fa2ce6b8e3fd3b97865f789bb42b2a5d",
+    "platform/embedded/firmware/sdm_input_probe_setup.c": "6478e078aa0936a2059673b82f494a6c0baeb08ae07023c62b95d861b5f9f5ad",
+    "platform/embedded/firmware/nano_usb_board.h": "9887841dc4326d21da1de895fbd0a77303edc9fd04d99c32dc13b10ef0a30bb3",
+    "platform/embedded/firmware/nano_hps_io.h": "f474b92888ad54f9f44034fe194185471bf06da09e8019dfa96084e10567a42d",
+    "platform/embedded/firmware/nano_tape_service.h": "e8adbb19b159acf7092ea0e211808be74e3c4f3b75e4db62eff58dfe2a5e9d17",
+    "platform/embedded/firmware/fault64_service.h": "89007e46a8c4abdcacfebe479d34c97e222aca0c7063aeb63b3f43e630c55c94",
+    "platform/embedded/firmware/nano_rom.h": "a83f20cf6994490260726859b2d6f0919d33aaaf6e8f4942187300ad3859c270",
+    "platform/embedded/firmware/nano_cpu_mode.h": "d57cc52824c7337c068663906aed5e962bce8faa95f76231bcfd827f6e278fe6",
+    "platform/embedded/firmware/event_capture.h": "85cd3d6501d1b0f1fc9988f0690ff44e7e0dd5c5d67beff9e247423df1f59b1f",
+    "platform/embedded/firmware/nano_mailbox_observe.h": "9a94ca09a822c1305905fe8d403f8d41f4d8e905c939ec64920bdf5d87873194",
+    "platform/embedded/firmware/nano_capability.h": "dcf6df30da9f7dcbaa494d97e07044fbef84dff60c79c9cdfcac371559c1e5ac",
+    "platform/embedded/firmware/input_tables.h": "9711d6c53eb890609ee8fd34e481a1029b2e67f5fcf58ed8f154c8b72feb1040",
+    "platform/embedded/firmware/fault64.h": "6b5765ce6500620fd065d416b88a720e4a6de62c5ffc25c3efa39dc02d0130ea",
+    "platform/embedded/firmware/nano_bridges.h": "e5b12062fc89cf2129dc6fc523a4dbef625300488fb6e63293eba9e44c5dd5a5",
+    "platform/embedded/firmware/nano_ddr_read.h": "51f462f6ec9a562b174bcc25ada73242a2c5106b53ad8dba24e283984d62a514",
+    "platform/embedded/firmware/nano_secure_mmio.h": "e0e69645a7aa432560f0c079ec8ed576649f706c7d5c46484332d670efcaa680",
+    "platform/embedded/firmware/sdm_input_mailbox.h": "61e67de3f3524dc2938bda5e42297e3df43b30f55efe6e65db3df4e775696513",
+    "platform/embedded/firmware/nano_mmu.h": "f631b9189a22f050d4c739ed08e31ffc8498dc15ae4b7a89917efbdf38200a83",
+    "platform/embedded/firmware/nano_probe_stop.h": "9a100abf22ef6805d0693d1a7c86ec376339a623ca461e426becdb32879cae97",
+    "platform/embedded/firmware/nano_smmu.h": "df4acce05089fda2ffcffcb4708d639c80c9a33cd4107158d5cbaed34e9c65e2",
+    "platform/embedded/firmware/event_wire.h": "2790ae492ea72769cf4bc4eacb0a10bc94f9a638d6d0b220a1a508cd4517ff92",
+    "platform/embedded/firmware/nano_fabric_stop.h": "37d321da4266347477372450460280cf3b7f0d1e866c8379478a69b824f50519",
+    "platform/embedded/firmware/nano_usb_composition.h": "85df40f207f4445e505a91a5656bbabf7aca450d95ff2940e0ea98736e075ccb",
+    "platform/embedded/firmware/nano_bridge_diag.h": "b80c4442198cbbdff4781d66ace85ab4a930804114176e5927e8984d1e78e904",
+    "platform/embedded/firmware/nano_sd.h": "3091c8e63f298eb7b0d6e25c057dfe809b58926454d39813e60eb49b73e250f9",
+    "platform/embedded/firmware/sdm_input_probe_setup.h": "568c62656cbc598df3268ce29caff1547fdf41dfb42e7d25fa7e69f7d2b21109",
+    "platform/embedded/firmware/source_retire.h": "017f4b5210165183a303c7daa61166ff71b656846c9c03b8118695ce2dc0436e",
+    "platform/embedded/firmware/nano_identity.h": "7ab82fb21248fe56dc98728499c12b1391c57da14b98b49b250184750d787601",
+    "platform/embedded/firmware/nano_usb_platform.h": "8d3cfe40b04cc097ca8759c524011e1d349177b70e0e946db57fc9f1e35086de",
+    "platform/embedded/firmware/nano_firmware_ram.h": "ce118906e1b400e005b467bdb9b034aa07e733ba8f5ae400c4563eba24f201ff",
+    "platform/embedded/firmware/event_wait.h": "37630532a23f7add4e489f7e38ab744f5ca6a9ced278a117a46494c8d3b55bbb",
+    "platform/embedded/firmware/nano_mac.h": "bca05dec2ad209db0fbba426629c7f4c719b0da753b43786ae4398c0e75ee125",
+    "platform/embedded/firmware/nano_mmu_memory.h": "3d141fd03d014671fc1f070f993fb7b5c8eacd06f1fb91a0813747d7e6f70a95",
+    "platform/embedded/firmware/probe_setup.h": "01611f66967d90573602cc32b4f8001a745c252f28a861a922c88278ce7b9278",
+    "platform/embedded/firmware/nano_usb_service.h": "d4e627ccb7e359c67175c433a84d2bdf850eea0bf65cf22ba5bbc4238f200c1c",
+    "platform/embedded/firmware/nano_boot.h": "466582d06c121b5756872e6143de075d1ca596c977c11d0f1d4495510aa2c7ee",
+    "platform/embedded/firmware/nano_bridge_sip.h": "1ec1d37e5b1203002ca8b29cb0a7fcdce20b6ead878ce26baf0a2d6d150d842e",
+    "platform/embedded/firmware/input_transfer.h": "a27071356549965af5b315b8bc497b5e617d4397475a7076f1ea5fe0639cc327",
+    "platform/embedded/firmware/nano_cold.h": "1c70c9d6759cd05d380ce60792ffe82df2f1ec96f9d860618059f33c18091db3",
+    "platform/embedded/firmware/input_transfer_service.h": "142f29ac1621188769dff4121719e6edb649062712c18e61aaebce1523345752",
+    "platform/embedded/firmware/nano_bridge_platform.h": "cc92cdced68b12fcd1604d32a4890b9aa3b15ce572825ac9f6d4df6379a0c308",
+    "platform/embedded/firmware/nano_ddr_firewall.h": "1a54e6bbacbb308cc38df5b7d4df1e592d4d1d840a748a343b0d5bb6d182e016",
+    "platform/embedded/firmware/nano_sdm_probe.h": "2b31cff82e65e2ea238cd1a01045636572bc00f1dd9a59d8e248ea80c6457e37",
+    "platform/embedded/firmware/nano_program.h": "4ea7f80839a17d3983d53d3722fc33af675d5a720edf7734a795ad64d6d5e9ab",
+    "platform/embedded/firmware/nano_mmu_platform.h": "79d5ff7d776bdea94729aae61a91bd1f90c00003926d6f7fe33f66aa60e451a0",
+    "platform/embedded/firmware/nano_sd_platform.h": "5eb74049b5f6a3a222ee7b26f7d310e1714b92183538bed4c0f8decfaf8af4c0",
+    "platform/embedded/firmware/nano_mmu_transition.h": "a55596fe449d07b3c43624ef5d45947dcefd324774c7e379c57b3cedb15165b8",
+    "platform/embedded/firmware/nano_tape.h": "a9e4e2face6bb857291509e6e9bbab7115d8fd5a69785be68ff61ea7b153563b",
+    "platform/embedded/firmware/nano_configuration.h": "bfd1d77134ab4c4352c2e86d7857da9e7de4324bfa2811c77c481f1132428d43",
+    "platform/embedded/firmware/command_queue.h": "c7777382f48742501c86b5d31fb2018243940a5abd162f205d9a2693cc2ed1bf"
+  },
+  "commands": [
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-gcc",
+      "-c",
+      "-std=c11",
+      "-ffreestanding",
+      "-fno-builtin",
+      "-fno-stack-protector",
+      "-mgeneral-regs-only",
+      "-mstrict-align",
+      "-O2",
+      "-fstack-usage",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-Wno-misleading-indentation",
+      "-DFES_NANO_RETIRE_BATCHED_OBSERVE=1",
+      "-I/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64",
+      "-I/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware",
+      "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/command_queue.c",
+      "-o",
+      "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/command_queue.o"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-gcc",
+      "-c",
+      "-std=c11",
+      "-ffreestanding",
+      "-fno-builtin",
+      "-fno-stack-protector",
+      "-mgeneral-regs-only",
+      "-mstrict-align",
+      "-O2",
+      "-fstack-usage",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-Wno-misleading-indentation",
+      "-DFES_NANO_RETIRE_BATCHED_OBSERVE=1",
+      "-I/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64",
+      "-I/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware",
+      "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/source_retire.c",
+      "-o",
+      "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/source_retire.o"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-gcc",
+      "-c",
+      "-std=c11",
+      "-ffreestanding",
+      "-fno-builtin",
+      "-fno-stack-protector",
+      "-mgeneral-regs-only",
+      "-mstrict-align",
+      "-O2",
+      "-fstack-usage",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-Wno-misleading-indentation",
+      "-DFES_NANO_RETIRE_BATCHED_OBSERVE=1",
+      "-I/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64",
+      "-I/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware",
+      "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/input_tables.c",
+      "-o",
+      "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/input_tables.o"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-gcc",
+      "-c",
+      "-std=c11",
+      "-ffreestanding",
+      "-fno-builtin",
+      "-fno-stack-protector",
+      "-mgeneral-regs-only",
+      "-mstrict-align",
+      "-O2",
+      "-fstack-usage",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-Wno-misleading-indentation",
+      "-DFES_NANO_RETIRE_BATCHED_OBSERVE=1",
+      "-I/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64",
+      "-I/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware",
+      "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/input_transfer.c",
+      "-o",
+      "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/input_transfer.o"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-gcc",
+      "-c",
+      "-std=c11",
+      "-ffreestanding",
+      "-fno-builtin",
+      "-fno-stack-protector",
+      "-mgeneral-regs-only",
+      "-mstrict-align",
+      "-O2",
+      "-fstack-usage",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-Wno-misleading-indentation",
+      "-DFES_NANO_RETIRE_BATCHED_OBSERVE=1",
+      "-I/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64",
+      "-I/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware",
+      "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c",
+      "-o",
+      "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/sdm_input_probe_setup.o"
+    ]
+  ],
+  "objects": {
+    "source_retire.o": "a7f4e00713814abc0d46799f0833247a52dbe45dedee19f23285e0199b0173e7",
+    "input_transfer.o": "e6fbd9e9e0ef1e6e25df3d2040a6866eb7e24548579258c0e1aad5e879e29f6f",
+    "sdm_input_probe_setup.o": "b494286db020d4aeb25239c6356319f1b196efef12772629b41a93484563984c",
+    "command_queue.o": "cac255ca584b956a15d777e0cfa6548b720ffca070ab847ea05de30fa6970a81",
+    "input_tables.o": "6a8f3613c9fb56f7dadf00df2ac33a784e00c5021551ec7051893bafd5631902"
+  },
+  "frames": [
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/command_queue.c:17:12:io_same",
+      "bytes": 0
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/command_queue.c:23:12:guard",
+      "bytes": 144
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/command_queue.c:38:12:read32",
+      "bytes": 48
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/command_queue.c:48:12:checked",
+      "bytes": 48
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/command_queue.c:53:12:snapshot",
+      "bytes": 128
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/command_queue.c:69:5:nano_cmdq_encode",
+      "bytes": 48
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/command_queue.c:82:5:nano_cmdq_init",
+      "bytes": 64
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/command_queue.c:95:5:nano_cmdq_submit",
+      "bytes": 112
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/source_retire.c:14:12:guard",
+      "bytes": 48
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/source_retire.c:32:12:read32",
+      "bytes": 48
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/source_retire.c:54:12:source",
+      "bytes": 32
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/source_retire.c:65:12:io_same",
+      "bytes": 0
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/source_retire.c:150:12:cmd_time",
+      "bytes": 128
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/source_retire.c:163:12:cmd_read",
+      "bytes": 0
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/source_retire.c:167:12:cmd_store",
+      "bytes": 48
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/source_retire.c:174:13:cmd_barrier",
+      "bytes": 0
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/source_retire.c:69:12:observe.constprop",
+      "bytes": 208
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/source_retire.c:140:12:cmd_owns",
+      "bytes": 48
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/source_retire.c:46:12:write32",
+      "bytes": 96
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/source_retire.c:165:12:cmd_write",
+      "bytes": 0
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/source_retire.c:176:12:cmd_snapshot",
+      "bytes": 64
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/source_retire.c:128:12:initial_transition",
+      "bytes": 112
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/source_retire.c:186:5:nano_source_retire",
+      "bytes": 368
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:176:12:cmd_context",
+      "bytes": 0
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:181:12:cmd_read",
+      "bytes": 48
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:190:12:cmd_write",
+      "bytes": 32
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:198:13:cmd_barrier",
+      "bytes": 0
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:218:12:initialize",
+      "bytes": 80
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:9:12:guard",
+      "bytes": 64
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:154:12:cmd_owns",
+      "bytes": 32
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:164:12:cmd_time",
+      "bytes": 32
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:199:12:cmd_store",
+      "bytes": 128
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:46:12:clear",
+      "bytes": 48
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:37:12:wr",
+      "bytes": 48
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:23:12:rd.part.0",
+      "bytes": 48
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:32:12:equal",
+      "bytes": 64
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:60:12:identity",
+      "bytes": 32
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:54:12:controls",
+      "bytes": 32
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:79:12:configured",
+      "bytes": 32
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:96:17:table_word",
+      "bytes": 48
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:108:12:memory_block",
+      "bytes": 336
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:67:12:control",
+      "bytes": 80
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:235:5:nano_probe_init",
+      "bytes": 160
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:237:5:nano_probe_init_input",
+      "bytes": 176
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:247:5:nano_probe_prepare",
+      "bytes": 288
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/publication/command-guard-arm64/probe_setup.c:279:5:nano_probe_arm",
+      "bytes": 48
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/input_transfer.c:16:12:guard.part.0",
+      "bytes": 64
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/input_transfer.c:42:5:nano_sdm_transfer_init",
+      "bytes": 80
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/input_transfer.c:57:5:nano_sdm_transfer_before",
+      "bytes": 64
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/input_transfer.c:73:5:nano_sdm_transfer_posted",
+      "bytes": 48
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/input_transfer.c:85:5:nano_sdm_transfer_header",
+      "bytes": 48
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/input_transfer.c:106:5:nano_sdm_transfer_expected",
+      "bytes": 48
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/input_transfer.c:117:5:nano_sdm_transfer_response",
+      "bytes": 64
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/input_transfer.c:136:5:nano_sdm_transfer_buffer",
+      "bytes": 48
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/input_transfer.c:148:5:nano_sdm_transfer_status_begin",
+      "bytes": 32
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/input_transfer.c:157:5:nano_sdm_transfer_status_result",
+      "bytes": 48
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/input_tables.c:9:5:nano_sdm_input_validate",
+      "bytes": 0
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/input_tables.c:20:5:nano_sdm_input_same",
+      "bytes": 16
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/input_tables.c:28:5:nano_sdm_input_table_range",
+      "bytes": 0
+    },
+    {
+      "function": "/home/deano/fes/out/dev/de25-embedded-opt-in/platform/embedded/firmware/input_tables.c:69:5:nano_sdm_input_words",
+      "bytes": 16
+    }
+  ],
+  "max_individual_frame_bytes": 368,
+  "hardware_actions": false
+}

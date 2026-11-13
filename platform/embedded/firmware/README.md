@@ -15,6 +15,17 @@ individual register reads. The command, retirement and source deadlines remain
 100 ms, one second and 20 seconds. Cost injection and mutation tests are host
 models; they do not qualify SMMU retirement or warm fabric drain on the board.
 
+The format-8 input profile removes two duplicate whole-platform observations
+from each retirement command guard. The command counter callback now reads the
+existing source clock, rejects callback-table changes and checks monotonicity
+against the current retirement clock and its original one-second origin. The
+queue still starts its unchanged 100 ms bound before the ownership view. That
+view retains fresh ownership/time checks immediately before and after its
+fixed register batch. Slot stores, control/publication writes, all five complete
+table scans and the final source checks keep their existing guards. A previous
+format-7 build cannot supply this contract. The changed profile requires a new
+matched chain and physical test before any retirement or reuse qualification.
+
 `nano_mac` supplies a portable fixed MAC/window lease engine with an independent
 peripheral generation. Trusted scope, grant, confirmation and independent drain
 callbacks are mandatory. Failed mutations retain the reservation and retire;

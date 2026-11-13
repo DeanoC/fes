@@ -81,6 +81,7 @@ class SourceRetirementTests(unittest.TestCase):
 
     def test_command_snapshot_cost_and_unchanged_deadlines(self):
         baseline = json.loads((ROOT / "tests/fixtures/nano-sdm-input/retirement-cost-v6.json").read_text())
+        snapshot_baseline = json.loads((ROOT / "tests/fixtures/nano-sdm-input/retirement-cost-v7.json").read_text())
         rows = {}
         for cost in (0, 1, 2, 4, 8, 16, 32, 64, 72, 80, 96, 112, 128, 256, 1000):
             rows[cost] = self.run_model("retire_cost_test", joined=True, arguments=(cost, 0))
@@ -89,6 +90,10 @@ class SourceRetirementTests(unittest.TestCase):
         self.assertEqual(zero["writes"], 5)
         self.assertEqual(sum(r[2] for r in zero["phase_counts"]), 25600)
         self.assertLess(zero["phase_counts"][4][0], baseline["phase_counts"][4][0])
+        self.assertLess(zero["phase_counts"][4][0], snapshot_baseline["phase_counts"][4][0])
+        self.assertLess(zero["phase_counts"][4][5], snapshot_baseline["phase_counts"][4][5])
+        for phase in (0, 1, 2, 3, 5, 6):
+            self.assertEqual(zero["phase_counts"][phase], snapshot_baseline["phase_counts"][phase])
         self.assertFalse(baseline["eight_us_read_cost_retired"])
         self.assertTrue(rows[8]["retired"])
         self.assertFalse(rows[1000]["retired"])

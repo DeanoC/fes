@@ -1,0 +1,98 @@
+{
+  "status": "passed-focused-checks-with-expected-red-regression",
+  "checks": {
+    "command-clock-edge-red": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "tests.test_nano_source_retirement.SourceRetirementTests.test_portable_failures",
+        "-q"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 1,
+      "timed_out": false,
+      "elapsed": 1.201312089106068,
+      "log_sha256": "ece06a90b720c349e86e35f70d2d1b5be54d12e31402b9cd1166e49c59980bcf"
+    },
+    "command-clock-edge-green": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "tests.test_nano_source_retirement.SourceRetirementTests.test_portable_failures",
+        "-q"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.826253928942606,
+      "log_sha256": "861d1a12ba2692969b462f4ac8e1bb6c80deade73fe491ea68aa687dabc405f3"
+    },
+    "command-guard-retirement-suite": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "tests.test_nano_source_retirement",
+        "-q"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 35.03418422001414,
+      "log_sha256": "de5703e319bd584337de94811199f80be93345f2de19b5d4cefa25704b36cb87"
+    },
+    "command-guard-profile-checks": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "tests.test_nano_sdm_input_profile",
+        "tests.test_nano_sdm_input_observation",
+        "-q"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20101905497722328,
+      "log_sha256": "01c033e568bb2ef0a84fe6c9924f2216a8c3ab64af08ae8ccefcc075481cbcb0"
+    },
+    "command-guard-cost-proof": {
+      "argv": [
+        "python3",
+        "out/publication/collect-command-guard-costs.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.402159323915839,
+      "log_sha256": "e3fa440bab3bfe6d7eec31a33c536b8c3173ad52cba44067315b86eac0858fd1"
+    },
+    "command-guard-portable-aarch64": {
+      "argv": [
+        "python3",
+        "out/publication/cross-command-guard.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.8008176449220628,
+      "log_sha256": "f6b503d0ac26c160bc6b8fda541b126d2502365c5829140c3c815c7414314a53"
+    },
+    "command-guard-project-prepare": {
+      "argv": [
+        "python3",
+        "out/command-guard-boot/prepare.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.202337267808616,
+      "log_sha256": "cad4487701bbc0b18ef259fc4d014d80c2a56042c5fc327b895ec758832338cf"
+    }
+  },
+  "affected_check_pending": true,
+  "affected_check_label": "command-guard-affected",
+  "hardware_actions": false
+}

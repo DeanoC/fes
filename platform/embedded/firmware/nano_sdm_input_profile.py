@@ -4,7 +4,7 @@ from pathlib import Path
 HERE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('fes_input_arena',HERE/'nano_sdm_probe_profile.py');arena=importlib.util.module_from_spec(spec);spec.loader.exec_module(arena)
 fit_spec=importlib.util.spec_from_file_location('fes_input_fit',HERE.parent/'nano/fit_layout.py');fit=importlib.util.module_from_spec(fit_spec);fit_spec.loader.exec_module(fit)
-CONTRACT=dict(format=7,scope='nano-SID10-full-input-command-snapshot-v7-retained-scope',mode='input-transfer-retire-command-snapshot-park',attempts=1,
+CONTRACT=dict(format=8,scope='nano-SID10-full-input-command-guard-v8-retained-scope',mode='input-transfer-retire-command-guard-park',attempts=1,
  source_base=0x94800000,wire_base=0x14800000,payload_max=0x7ff000,page_bytes=4096,metadata_page=0x94fff000,
  arena_base=0x94000000,arena_bytes=0x10000,root_offset=0x4000,command_offset=0x8000,event_offset=0x9000,
  prepared_control=12,armed_control=13,source_stream=10,source_access='read-only-XN',other_streams='abort',
@@ -15,6 +15,8 @@ CONTRACT=dict(format=7,scope='nano-SID10-full-input-command-snapshot-v7-retained
  status='IDLE-NSTATUS-CONF_DONE-INIT_DONE',terminal_before_activation=True,
  buffers='retained-on-every-outcome',mapping_retirement='abort-invalidate-disable-retained',automatic_reset=False,replay=False,
  physical_qualification=False,ordinary_runtime_activation=False,build_tag='cold-chain-prefix-16-hex',boot_fit=dict(fit.CONTRACT),compiler_stack_records='selected-units',final_counter_owner_scope='fresh-after-read',pretransfer_mailbox='vendor-parser-until-preparation-attempt',retirement_bound_us=1000000,retirement_controls=[13,12,8,0],retirement_queue_pointers=[6,12],retirement_abort=0x100000,retirement_allow_bypass=False,retirement_memory_reuse=False,retirement_timing='existing-guard-samples-v1',retirement_timing_phases=7,retirement_timing_added_clock_reads=0,retirement_register_batch_rows=24,retirement_table_guard_bytes=4096,retirement_fresh_prewrite_registers=24,retirement_command_snapshot='owned-fixed-24-register-superset',retirement_command_snapshot_rows=24)
+CONTRACT.update(retirement_command_clock='fresh-counter-monotonic-source-and-retirement-bounds',
+                retirement_command_ownership='fresh-before-and-after-fixed-register-view')
 FILES=('nano_sdm_input_profile.py','sdm_input_vendor_service.c','sdm_input_vendor_mailbox.c','sdm_input_mailbox.h',
  'nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','input_tables.c','input_tables.h','input_transfer.c','input_transfer.h',
  'input_transfer_service.c','input_transfer_service.h','sdm_input_probe_setup.c','sdm_input_probe_setup.h','command_queue.c','command_queue.h','source_retire.c','source_retire.h','nano_sdm_retire_platform.inc')
