@@ -100,6 +100,19 @@ class SourceRetirementTests(unittest.TestCase):
     def test_actual_finish_queue_wire_record(self):
         self.run_model("queue_wire_test", joined=True)
 
+    def test_command_completion_and_final_validation_policies(self):
+        self.run_model("command_validation_test")
+
+    def test_callback_substitution_stops_before_next_operation(self):
+        self.run_model("command_callback_test")
+
+    def test_retirement_keeps_its_original_enclosing_deadline(self):
+        for delay in (0, 105704, 1000001):
+            result = self.run_model("retire_validation_delay_test", arguments=(delay,))
+            self.assertEqual(bool(result["retired"]), delay < 1000000)
+            self.assertEqual(result["writes"], 5 if delay < 1000000 else 4)
+            self.assertEqual(result["first_error"], 0 if delay < 1000000 else -110)
+
     def test_command_snapshot_cost_and_unchanged_deadlines(self):
         baseline = json.loads((ROOT / "tests/fixtures/nano-sdm-input/retirement-cost-v6.json").read_text())
         snapshot_baseline = json.loads((ROOT / "tests/fixtures/nano-sdm-input/retirement-cost-v7.json").read_text())

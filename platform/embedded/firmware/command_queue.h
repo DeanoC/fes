@@ -8,6 +8,13 @@
 #define NANO_CMDQ_BYTES 128U
 #define NANO_CMDQ_POLLS 128U
 #define NANO_CMDQ_BOUND_US 100000U
+#define NANO_CMDQ_FINAL_BOUND_US 1000000U
+enum nano_cmdq_validation_policy {
+    CMDQ_FULL_OPERATION_BOUND,
+    /* Only after owned progress/pointer/postguard accept the target. The
+     * retained caller must also enforce its enclosing retirement deadline. */
+    CMDQ_RETAINED_FINAL_VALIDATION
+};
 struct nano_cmdq_binding {
     uint64_t owner,epoch,generation,queue;
     uint32_t baseline; /* known empty producer/consumer including wrap */
@@ -57,6 +64,8 @@ struct nano_cmdq {
      * These are observations only; last remains the accepted clock value. */
     uint64_t observed;
     unsigned clock_samples,stage;
+    uint64_t completion_us;
+    unsigned completion_seen,validation_policy;
 };
 /* Owns no allocator/reset/queue-enable/table/SMMU-enable/error-ack interface.
  * A throwing or failed publish retains the reservation and forbids retry.
@@ -66,6 +75,6 @@ struct nano_cmdq {
  * supplier. Secure invalidations and device drain are separate operations.
  */
 int nano_cmdq_init(struct nano_cmdq *,struct nano_cmdq_binding,struct nano_cmdq_io);
-int nano_cmdq_submit(struct nano_cmdq *,struct nano_cmdq_receipt *);
+int nano_cmdq_submit(struct nano_cmdq *,struct nano_cmdq_receipt *,enum nano_cmdq_validation_policy);
 int nano_cmdq_encode(unsigned index,uint8_t bytes[16]);
 #endif

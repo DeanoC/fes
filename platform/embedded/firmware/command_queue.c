@@ -20,7 +20,7 @@ static int io_same(const struct nano_cmdq_io *a,const struct nano_cmdq_io *b)
         a->read32==b->read32 && a->write32==b->write32 && a->store==b->store &&
         a->barrier==b->barrier && a->snapshot==b->snapshot && a->progress==b->progress;
 }
-static int guard(struct nano_cmdq *s)
+static int guard_bound(struct nano_cmdq *s,uint64_t bound)
 {
     uint64_t now=0;
     if (s->failed) return -1;
@@ -32,40 +32,50 @@ static int guard(struct nano_cmdq *s)
     if (io.owns(io.context,&s->binding)!=1) return fail(s,-1);
     if (!io_same(&io,&s->io)) return fail(s,-13);
     if (!s->timed) {s->start=s->last=now;s->timed=1;}
-    if (now<s->last || now-s->start>NANO_CMDQ_BOUND_US) return fail(s,-3);
+    if (now<s->last || now-s->start>bound) return fail(s,-3);
     s->last=now;
     return 0;
 }
-static int read32(struct nano_cmdq *s,uint32_t offset,uint32_t *value)
+static int guard(struct nano_cmdq *s)
+{return guard_bound(s,NANO_CMDQ_BOUND_US);}
+static int read_bound(struct nano_cmdq *s,uint32_t offset,uint32_t *value,uint64_t bound)
 {
-    if (guard(s)) return -1;
-    s->io.barrier(s->io.context);
+    struct nano_cmdq_io io=s->io;
+    if (guard_bound(s,bound) || !io_same(&io,&s->io)) return fail(s,-13);
+    io.barrier(io.context);
+    if (!io_same(&io,&s->io)) return fail(s,-13);
     s->reads++;
-    int error=s->io.read32(s->io.context,offset,value);
-    s->io.barrier(s->io.context);
+    int error=io.read32(io.context,offset,value);
+    if (!io_same(&io,&s->io)) return fail(s,-13);
+    io.barrier(io.context);
+    if (!io_same(&io,&s->io)) return fail(s,-13);
     if (error) return fail(s,error);
-    return guard(s);
+    return guard_bound(s,bound);
 }
-static int checked(struct nano_cmdq *s,uint32_t offset,uint32_t want)
+static int read32(struct nano_cmdq *s,uint32_t offset,uint32_t *value)
+{return read_bound(s,offset,value,NANO_CMDQ_BOUND_US);}
+static int checked_bound(struct nano_cmdq *s,uint32_t offset,uint32_t want,uint64_t bound)
 {
     uint32_t got=0;
-    return read32(s,offset,&got) || (got!=want ? fail(s,-4) : 0);
+    return read_bound(s,offset,&got,bound) || (got!=want ? fail(s,-4) : 0);
 }
-static int snapshot(struct nano_cmdq *s,uint32_t pointer)
+static int checked(struct nano_cmdq *s,uint32_t offset,uint32_t want)
+{return checked_bound(s,offset,want,NANO_CMDQ_BOUND_US);}
+static int snapshot(struct nano_cmdq *s,uint32_t pointer,uint64_t bound)
 {
     if (s->io.snapshot) {
         struct nano_cmdq_io io=s->io;
-        if (guard(s) || !io_same(&io,&s->io)) return fail(s,-13);
+        if (guard_bound(s,bound) || !io_same(&io,&s->io)) return fail(s,-13);
         int error=io.snapshot(io.context,pointer);
         if (error) return fail(s,error);
         if (!io_same(&io,&s->io)) return fail(s,-13);
-        return guard(s);
+        return guard_bound(s,bound);
     }
-    return checked(s,CR0,8) || checked(s,CR0ACK,8) ||
-        checked(s,BASE,(uint32_t)s->binding.queue|3U) ||
-        checked(s,BASEHI,(uint32_t)(s->binding.queue>>32)) ||
-        checked(s,GERROR,0) || checked(s,GERRORN,0) ||
-        checked(s,PROD,pointer) || checked(s,CONS,pointer);
+    return checked_bound(s,CR0,8,bound) || checked_bound(s,CR0ACK,8,bound) ||
+        checked_bound(s,BASE,(uint32_t)s->binding.queue|3U,bound) ||
+        checked_bound(s,BASEHI,(uint32_t)(s->binding.queue>>32),bound) ||
+        checked_bound(s,GERROR,0,bound) || checked_bound(s,GERRORN,0,bound) ||
+        checked_bound(s,PROD,pointer,bound) || checked_bound(s,CONS,pointer,bound);
 }
 static int progress(struct nano_cmdq *s,uint32_t target,uint32_t *consumer)
 {
@@ -109,35 +119,44 @@ int nano_cmdq_init(struct nano_cmdq *s,struct nano_cmdq_binding binding,struct n
     s->initialized=1;
     return 0;
 }
-int nano_cmdq_submit(struct nano_cmdq *s,struct nano_cmdq_receipt *out)
+int nano_cmdq_submit(struct nano_cmdq *s,struct nano_cmdq_receipt *out,enum nano_cmdq_validation_policy policy)
 {
     if (!s || !s->initialized || s->submitted || s->failed) return -1;
     s->submitted=1; /* consume before any callback */
-    if (!out) return fail(s,-22);
+    if (!out || (policy!=CMDQ_FULL_OPERATION_BOUND && policy!=CMDQ_RETAINED_FINAL_VALIDATION)) return fail(s,-22);
+    s->validation_policy=(unsigned)policy; /* observation; decisions use local policy */
     uintptr_t a=(uintptr_t)s,b=(uintptr_t)out;
     if (a>UINTPTR_MAX-sizeof(*s) || b>UINTPTR_MAX-sizeof(*out) ||
         (a<b+sizeof(*out) && b<a+sizeof(*s))) return fail(s,-22);
     s->stage=CMDQ_INITIAL_FIRST;
-    if (snapshot(s,s->binding.baseline)) return -1;
+    if (snapshot(s,s->binding.baseline,NANO_CMDQ_BOUND_US)) return -1;
     s->stage=CMDQ_INITIAL_SECOND;
-    if (snapshot(s,s->binding.baseline)) return -1;
+    if (snapshot(s,s->binding.baseline,NANO_CMDQ_BOUND_US)) return -1;
     s->stage=CMDQ_STORE;
     for (unsigned n=0;n<NANO_CMDQ_COMMANDS;n++) {
         uint8_t bytes[16];
         if (nano_cmdq_encode(n,bytes) || guard(s)) return -1;
+        struct nano_cmdq_io io=s->io;
         s->slots_attempted++;
-        int error=s->io.store(s->io.context,(s->binding.baseline+n)&7U,bytes);
-        s->io.barrier(s->io.context);
+        int error=io.store(io.context,(s->binding.baseline+n)&7U,bytes);
+        if (!io_same(&io,&s->io)) return fail(s,-13);
+        io.barrier(io.context);
+        if (!io_same(&io,&s->io)) return fail(s,-13);
         if (error) return fail(s,error);
         if (guard(s)) return -1;
     }
     s->stage=CMDQ_PREPUBLICATION;
-    if (snapshot(s,s->binding.baseline) || guard(s)) return -1;
+    if (snapshot(s,s->binding.baseline,NANO_CMDQ_BOUND_US) || guard(s)) return -1;
     uint32_t target=(s->binding.baseline+NANO_CMDQ_COMMANDS)&15U;
     s->stage=CMDQ_PUBLICATION;
-    s->io.barrier(s->io.context);s->publish_attempted=1;
-    int error=s->io.write32(s->io.context,PROD,target);
-    s->io.barrier(s->io.context);
+    struct nano_cmdq_io io=s->io;
+    io.barrier(io.context);
+    if (!io_same(&io,&s->io)) return fail(s,-13);
+    s->publish_attempted=1;
+    int error=io.write32(io.context,PROD,target);
+    if (!io_same(&io,&s->io)) return fail(s,-13);
+    io.barrier(io.context);
+    if (!io_same(&io,&s->io)) return fail(s,-13);
     if (error) return fail(s,error);
     if (guard(s)) return -1;
     unsigned previous=0;
@@ -149,12 +168,18 @@ int nano_cmdq_submit(struct nano_cmdq *s,struct nano_cmdq_receipt *out)
         if ((cons&~15U) || count>NANO_CMDQ_COMMANDS || count<previous) return fail(s,-5);
         previous=count;
         if (cons==target) {
+            /* Completion was observed under the original 100 ms origin and
+             * bound. Do not rebase that clock or relax the progress path.
+             * Only the retained retirement caller can select the enclosing
+             * finite bound for the still-mandatory final observations. */
+            s->completion_us=s->last;s->completion_seen=1;
+            const uint64_t final_bound=policy==CMDQ_RETAINED_FINAL_VALIDATION ? NANO_CMDQ_FINAL_BOUND_US:NANO_CMDQ_BOUND_US;
             s->stage=CMDQ_FINAL_FIRST;
-            if (snapshot(s,target)) return -1;
+            if (snapshot(s,target,final_bound)) return -1;
             s->stage=CMDQ_FINAL_SECOND;
-            if (snapshot(s,target)) return -1;
+            if (snapshot(s,target,final_bound)) return -1;
             s->stage=CMDQ_FINAL_GUARD;
-            if (guard(s)) return -1;
+            if (guard_bound(s,final_bound)) return -1;
             struct nano_cmdq_receipt receipt={
                 .owner=s->binding.owner,.epoch=s->binding.epoch,.generation=s->binding.generation,
                 .baseline=s->binding.baseline,.producer=target,.consumer=cons,.polls=s->polls,

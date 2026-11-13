@@ -67,7 +67,7 @@ int main(void)
   struct nano_cmdq_binding b={17,7,4,0x94008000,6};
   struct nano_cmdq_io io={&m,owns,clock_us,read32,write32,store,barrier,snapshot,0};
   assert(!nano_cmdq_init(&m.queue,b,io));
-  struct nano_cmdq_receipt r={0};int e=nano_cmdq_submit(&m.queue,&r);
+  struct nano_cmdq_receipt r={0};int e=nano_cmdq_submit(&m.queue,&r,CMDQ_FULL_OPERATION_BOUND);
   if(!mode){assert(!e && m.snapshots==5 && m.stores==6 && m.writes==1 && r.commands_completed);}
   else{
    assert(e && m.queue.failed && !r.commands_completed && m.snapshots==at);
@@ -77,7 +77,7 @@ int main(void)
   }
   assert(!r.interconnect_drained && !r.DMA_access_granted);
   unsigned writes=m.writes,stores=m.stores;
-  assert(nano_cmdq_submit(&m.queue,&r) && m.writes==writes && m.stores==stores);
+  assert(nano_cmdq_submit(&m.queue,&r,CMDQ_FULL_OPERATION_BOUND) && m.writes==writes && m.stores==stores);
   cases++;
  }
  printf("{\"status\":\"passed\",\"cases\":%u,\"hardware_actions\":false}\n",cases);

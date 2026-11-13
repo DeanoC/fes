@@ -66,7 +66,8 @@ class InputProfileTests(unittest.TestCase):
     def test_previous_contracts_cannot_admit_queue_observation_candidate(self):
         for version, name in ((7, "2026-11-13-de25-matched-command-snapshot/matched-with-cause-result.json"),
                               (8, "2026-11-13-de25-command-guard/matched-result.json"),
-                              (9, "2026-11-13-de25-command-progress/matched-result.json")):
+                              (9, "2026-11-13-de25-command-progress/matched-result.json"),
+                              (10, "2026-11-13-de25-command-observe/matched-result.json")):
             record = json.loads((ROOT / "docs/validation" / name).read_text())
             previous = record["sdm_input_contract"]
             self.assertEqual(previous["format"], version)

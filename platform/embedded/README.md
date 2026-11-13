@@ -51,7 +51,11 @@ matched chain/native admission pass. Its physical trace reaches consumer 12 on
 the first poll, then fails the first final snapshot at the command deadline.
 Original-FIT rollback/readback passes, but the baseline final Quit/Park panics
 with USB ownership uncertainty; a physical reset and fresh restoration-only
-verification remain pending. The failed diagnostic is consumed.
+verification remain pending. The failed diagnostic is consumed. The
+[format-11 completion-scope prototype](../../docs/validation/2026-11-13-de25-command-completion/README.md)
+keeps the 100 ms check through validated command consumption and retains all
+final snapshots under the enclosing one-second retirement limit. Its focused
+models and portable compilation pass; it has no new hardware qualification.
 
 This directory develops the Linux-free DE25-Nano base. QEMU supplies combined
 launcher integration, while bounded Nano CPU/SD/package diagnostics now run on

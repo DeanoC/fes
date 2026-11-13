@@ -4,7 +4,7 @@ from pathlib import Path
 HERE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('fes_input_arena',HERE/'nano_sdm_probe_profile.py');arena=importlib.util.module_from_spec(spec);spec.loader.exec_module(arena)
 fit_spec=importlib.util.spec_from_file_location('fes_input_fit',HERE.parent/'nano/fit_layout.py');fit=importlib.util.module_from_spec(fit_spec);fit_spec.loader.exec_module(fit)
-CONTRACT=dict(format=10,scope='nano-SID10-full-input-command-observe-v10-retained-scope',mode='input-transfer-retire-command-observe-park',attempts=1,
+CONTRACT=dict(format=11,scope='nano-SID10-full-input-command-completion-v11-retained-scope',mode='input-transfer-retire-command-completion-park',attempts=1,
  source_base=0x94800000,wire_base=0x14800000,payload_max=0x7ff000,page_bytes=4096,metadata_page=0x94fff000,
  arena_base=0x94000000,arena_bytes=0x10000,root_offset=0x4000,command_offset=0x8000,event_offset=0x9000,
  prepared_control=12,armed_control=13,source_stream=10,source_access='read-only-XN',other_streams='abort',
@@ -19,9 +19,13 @@ CONTRACT.update(retirement_command_clock='fresh-counter-monotonic-source-and-ret
                 retirement_command_ownership='fresh-before-and-after-fixed-register-view-and-binding',
                 retirement_command_progress='owned-fixed-register-view-then-fresh-consumer',
                 retirement_command_progress_rows=24,
-                retirement_command_observation='existing-counter-and-successful-raw-read-samples-v1',
+                retirement_command_observation='existing-counter-and-successful-raw-read-samples-v2-completion',
                 retirement_command_observation_added_reads=0,
-                retirement_command_observation_stages=11)
+                retirement_command_observation_stages=11,
+                retirement_command_bound_scope='original-origin-through-owned-valid-consumption',
+                retirement_final_validation_bound_us=1000000,
+                retirement_final_validation_origin='unchanged-command-and-enclosing-retirement',
+                retirement_final_validation_policy='retained-final-snapshots-only')
 FILES=('nano_sdm_input_profile.py','sdm_input_vendor_service.c','sdm_input_vendor_mailbox.c','sdm_input_mailbox.h',
  'nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','input_tables.c','input_tables.h','input_transfer.c','input_transfer.h',
  'input_transfer_service.c','input_transfer_service.h','sdm_input_probe_setup.c','sdm_input_probe_setup.h','command_queue.c','command_queue.h','source_retire.c','source_retire.h','nano_sdm_retire_platform.inc')

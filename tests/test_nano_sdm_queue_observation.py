@@ -14,7 +14,7 @@ from input_observation import PARK
 
 def row(**edits):
     result = dict(build=BUILD, owner=17, epoch=7, generation=4, bytes=CONFIG["core_size"], sha384=CONFIG["core_sha384"],
-                  phase=6, stage=10, attempted=1, initialized=1, submitted=1, failed=0, error=0,
+                  phase=6, stage=10, policy=1, completion_seen=1, completion_us=6000, attempted=1, initialized=1, submitted=1, failed=0, error=0,
                   timed=1, start_us=5000, last_us=8000, observed_us=8000, samples=40, slots=6,
                   published=1, polls=1, reads=0, read_samples=100, last_offset=0x9C, last_value=12,
                   consumer_samples=10, consumer=12, consumer_read=100, consumer_phase=6,
@@ -54,7 +54,7 @@ class QueueObservationTests(unittest.TestCase):
 
     def test_raw_consumers_and_late_clocks_never_promote_failed_retirement(self):
         for consumer in (6, 7, 9, 11, 12, 16, 0xDEADBEEF):
-            q = row(phase=4, stage=6, failed=1, error=-3, last_us=6000, observed_us=120000,
+            q = row(phase=4, stage=6, completion_seen=0, completion_us=0, failed=1, error=-3, last_us=6000, observed_us=120000,
                     read_samples=90, consumer=consumer, consumer_read=89, consumer_phase=4, consumer_stage=6)
             result = self.decode(failed_wire(q))
             self.assertTrue(result["source_flow_verified"] and result["queue_observation_validated"], result["errors"])
@@ -63,7 +63,7 @@ class QueueObservationTests(unittest.TestCase):
 
     def test_identity_authority_bounds_and_success_relations(self):
         changes = dict(build="0" * 16, owner=18, epoch=8, generation=5, bytes=64, sha384="0" * 96,
-                       phase=5, stage=9, attempted=0, initialized=0, submitted=0, failed=1, error=-3,
+                       phase=5, stage=9, policy=0, completion_seen=0, completion_us=8001, attempted=0, initialized=0, submitted=0, failed=1, error=-3,
                        timed=0, start_us=9000, last_us=9000, observed_us=9000, samples=0, slots=5,
                        published=0, polls=0, read_samples=101, last_offset=3, consumer_samples=101,
                        consumer=6, consumer_read=101, consumer_phase=5, consumer_stage=9,
@@ -103,6 +103,29 @@ class QueueObservationTests(unittest.TestCase):
         self.assertEqual(parse_queue(q), parse_queue(b"NOTICE:  " + q))
         with self.assertRaises(ValueError):
             self.decode(q + PARK)
+
+    def test_late_final_validation_keeps_bounded_consumption_and_retirement(self):
+        retired = dict(ROW, elapsed_us=160000)
+        record = ("FES_NANO_RETIRE_RESULT " + " ".join(k + "=" + str(retired[k]) for k in RETIRE_FIELDS) + "\n").encode()
+        timing = timing_row(last_us=161000, observed_us=161000,
+                            first_us=[1000, 2000, 3000, 4000, 5000, 130000, 150000],
+                            latest_us=[1900, 2900, 3900, 4900, 120000, 139000, 161000])
+        q = row(last_us=120000, observed_us=120000)
+        raw = RETIRED.replace(RETIRE, record + timing_line(timing) + line(q))
+        result = self.decode(raw)
+        self.assertTrue(result["passed"] and result["queue_observation_validated"], result["errors"])
+        self.assertFalse(result["buffer_reuse_authority"] or result["ordinary_runtime_activation"])
+        for edits in (dict(completion_seen=0, completion_us=0), dict(completion_us=105001),
+                      dict(last_us=1005001, observed_us=1005001), dict(policy=0),
+                      dict(completion_us=120001)):
+            with self.subTest(edits=edits):
+                self.assertFalse(self.decode(raw.replace(line(q), line(dict(q, **edits))))["passed"])
+
+    def test_old_record_cannot_supply_new_completion_policy(self):
+        good = line(row())
+        old = b" ".join(t for t in good.rstrip().split() if not t.startswith((b"policy=", b"completion_seen=", b"completion_us="))) + b"\n"
+        with self.assertRaises(ValueError):
+            self.decode(wire(row()).replace(good, old))
 
 
 if __name__ == "__main__":

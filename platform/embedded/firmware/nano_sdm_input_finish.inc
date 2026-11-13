@@ -62,10 +62,10 @@ __attribute__((noreturn)) void fes_nano_sdm_source_finish(uint32_t status,uint32
   /* Raw observations may precede a failed ownership/time/pointer check. They
    * are intentionally separate from the success-only retirement receipt. */
   struct nano_cmdq *q=&source_retirement.commands;
-  NOTICE("FES_NANO_RETIRE_QUEUE build=%s owner=%llx epoch=%llx generation=%llu bytes=%u sha384=%s phase=%u stage=%u attempted=%u initialized=%u submitted=%u failed=%u error=%d timed=%u start_us=%llu last_us=%llu observed_us=%llu samples=%u slots=%u published=%u polls=%u reads=%u read_samples=%u last_offset=%x last_value=%x consumer_samples=%u consumer=%x consumer_read=%u consumer_phase=%u consumer_stage=%u consumer_poll=%u retained=1 reuse=0 activated=0\n",
+  NOTICE("FES_NANO_RETIRE_QUEUE build=%s owner=%llx epoch=%llx generation=%llu bytes=%u sha384=%s phase=%u stage=%u policy=%u completion_seen=%u completion_us=%llu attempted=%u initialized=%u submitted=%u failed=%u error=%d timed=%u start_us=%llu last_us=%llu observed_us=%llu samples=%u slots=%u published=%u polls=%u reads=%u read_samples=%u last_offset=%x last_value=%x consumer_samples=%u consumer=%x consumer_read=%u consumer_phase=%u consumer_stage=%u consumer_poll=%u retained=1 reuse=0 activated=0\n",
    FES_NANO_INPUT_BUILD,(unsigned long long)r.binding.owner,(unsigned long long)r.binding.epoch,
    (unsigned long long)r.binding.generation,r.binding.bytes,digest,source_retirement.phase,
-   q->stage,q->attempted,q->initialized,q->submitted,q->failed,q->first_error,q->timed,
+   q->stage,q->validation_policy,q->completion_seen,(unsigned long long)q->completion_us,q->attempted,q->initialized,q->submitted,q->failed,q->first_error,q->timed,
    (unsigned long long)q->start,(unsigned long long)q->last,(unsigned long long)q->observed,
    q->clock_samples,q->slots_attempted,q->publish_attempted,q->polls,q->reads,
    source_retirement.observed_reads,source_retirement.observed_offset,source_retirement.observed_value,

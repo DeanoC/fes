@@ -6,6 +6,7 @@
 #if !defined(FES_NANO_RETIRE_BATCHED_OBSERVE) || FES_NANO_RETIRE_BATCHED_OBSERVE != 1
 #error Explicit_bounded_read_batch_profile_required
 #endif
+_Static_assert(NANO_CMDQ_FINAL_BOUND_US==NANO_RETIRE_US,"same enclosing retirement bound required");
 #define GBPA 0x44U
 #define ABORT 0x100000U
 #define UPDATE 0x80000000U
@@ -243,7 +244,7 @@ int nano_source_retire(struct nano_retire *s,struct nano_sdm_input_binding bindi
  s->phase=RET_INVALIDATE;
  struct nano_cmdq_binding cb={binding.owner,binding.epoch,binding.generation,0x94008000,6};
  struct nano_cmdq_io ci={s,cmd_owns,cmd_time,cmd_read,cmd_write,cmd_store,cmd_barrier,cmd_snapshot,cmd_progress};
- if(nano_cmdq_init(&s->commands,cb,ci) || nano_cmdq_submit(&s->commands,&s->command_receipt))return fail(s,s->commands.first_error);
+ if(nano_cmdq_init(&s->commands,cb,ci) || nano_cmdq_submit(&s->commands,&s->command_receipt,CMDQ_RETAINED_FINAL_VALIDATION))return fail(s,s->commands.first_error);
  struct nano_cmdq_receipt *r=&s->command_receipt;
  if(r->owner!=binding.owner || r->epoch!=binding.epoch || r->generation!=binding.generation ||
     r->baseline!=6 || r->producer!=12 || r->consumer!=12 || r->commands_completed!=1 ||
