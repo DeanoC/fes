@@ -253,7 +253,7 @@ chains of small rects (see `widgets.nodemap`).
 goroutine. `image.cover(game_id) -> img` asks the launcher for the catalog
 cover. Handles expose `ready`, `w`, `h`, `err`. Draw nothing until `ready`.
 While a room is open the launcher does not prefetch covers for the hidden
-library grid, so cover decoding during a room is only what the room asked for.
+library grid; grid cover decodes already started when the room opened finish.
 
 ### `library` (asynchronous; callbacks run on a later tick)
 

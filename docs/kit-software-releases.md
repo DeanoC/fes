@@ -242,36 +242,6 @@ Home's last selected package is `package_id` in
 `FogCast/rooms/example.fes-cores.state.json`. A state directory that cannot
 be written is logged once; the launcher keeps running.
 
-The host and the agent run at nice 10 with `GOMAXPROCS=1`; the runtime and
-the launcher keep the supervisor's priority and Go's default. On a two-core
-DE10-Nano the launcher's room callbacks run against a wall-clock budget, so
-background services must not take both CPUs from them while the group starts.
-The services apply this policy to themselves (`internal/kitpriority` in
-FogCast), first thing in `mister-agent` and `fogcast-kit host`, and only when
-`FES_SOFTWARE_MANAGED=1` shows the kit software supervisor started them; the
-shared host and dev hosts keep their priority. It lives in the bundle because
-the supervisor, `/usr/sbin/fes-kit-software`, ships in the base image, which a
-bundle install does not change. Linux keeps nice per thread and a new thread
-copies the nice of the thread that created it, so the service lowers every
-thread in `/proc/self/task` and repeats until a pass finds none left to lower.
-Linux copies nice into a new thread before the thread shows in
-`/proc/self/task`, so a thread being cloned during a pass can be missed; the
-service therefore waits 10 ms and requires one more pass to find nothing before
-it stops. Threads the Go runtime starts after that pass inherit nice 10. A
-clone stalled in the kernel for longer than the wait can still escape, so this
-is best effort, not a guarantee. It only lowers, never
-raises, and needs no privilege. A failure is logged once and the service keeps
-its priority.
-
-The policy lasts for each process's whole life, not just startup. During play
-the agent forwards kit-local pad and keyboard frames from tenfoot's
-`/run/fogcast/local-input.sock` to the core, still at nice 10 with one P. When
-both A9 cores are busy, a woken nice-10 task waits longer to preempt a nice-0
-task, so that forwarding can be delayed. Kit validation of this policy measures
-pad-event-to-core latency with the runtime and launcher busy, alongside the
-launcher's involuntary context switches during group start. If that latency
-shows up, narrowing the policy to the host is a separate change.
-
 An accepted launcher that exits is restarted
 without stopping the runtime or agent, so a menu crash does not leave a frozen
 frame or drop an execution lease. An accepted agent or runtime exit restarts
