@@ -1898,8 +1898,9 @@ def main() -> int:
                         help="game: write the oracle's instruction census (machine_tb --census) to census.txt")
     parser.add_argument('--game-keys', action='append', default=[], metavar='SECONDS:TEXT',
                         help="game: keys after the launch in place of the drive record's ('|' is Enter); repeat")
-    parser.add_argument('--boot-entry', type=int, default=1, choices=(1, 2, 3),
-                        help="game: the games image's boot menu entry (3: with the EMS board's driver)")
+    parser.add_argument('--boot-entry', type=int, default=1, choices=(1, 2, 3, 4),
+                        help="game: the games image's boot menu entry (3: with the EMS board's driver; "
+                             '4: DOS=HIGH with SHARE, for Windows 3.x)')
     parser.add_argument('--oracle-profile', action='store_true',
                         help="game --cpu oracle: write machine_tb's profile (each real-mode INT by AH, such as "
                              'int67.4f for EMS) to profile.txt')
