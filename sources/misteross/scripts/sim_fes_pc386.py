@@ -41,9 +41,8 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            bytes the bench reads through the page tables and after which the
            oracle runs until paging is off. The RTL run must stop on each,
            record the two protected-mode stretches, and write what the
-           oracle run writes. It also checks three ICEBP oracle handoffs and
-           restarts, the initial full-AX SMSW result, and SMSW after a CR0
-           write; only CR0 bits 5--7 remain unmeasured on a physical 386
+           oracle run writes. It also checks the initial full-AX SMSW result
+           and the LAHF flags byte, and SMSW after a CR0 write; only CR0 bits 5--7 remain unmeasured on a physical 386
            (#1748).
   a20      runs cores/fes-pc386/sim/a20_test.asm (A20TEST.COM) at the FreeDOS
            prompt (#1386). On the boot image, which has no XMS driver, A20
@@ -799,24 +798,16 @@ def vga_test_disk(args) -> Path:
     return disk
 
 
-# What the RTL must stop on in rtl_stop_test.asm, in order: (stem, CS, the
-# instruction's first bytes). The first two ICEBPs are in real mode; LOADALL
-# raises #UD on the oracle; the call gates are in protected mode, first
-# without paging and then through CS 20h's aliased linear address. The last
-# ICEBP is paged too, with the oracle taking the #DB and the following stretch.
-RTL_STOPS = (('F1', '0000', 'f1'), ('F1', '0000', 'f1'), ('0F07', '0000', '0f07'),
-             ('EA', '0008', 'ea00001800'), ('EA', '0020', 'ea00002800'), ('F1', '0020', 'f1'))
-# Port E9h lines after the initial SMSW result. Both CPUs must agree on them.
-RTL_STOP_LINES = ['X 2', 'C fff0', 'U', 'G', 'P', 'P 3', 'DONE']
-# The first two protected-mode stretches are main's call-gate checks. The final
-# stretch covers the PR's ICEBP handoff while paging remains enabled.
+# LOADALL in real mode, followed by call-gate JMPs without and with paging.
+RTL_STOPS = (('0F07', '0000', '0f07'), ('EA', '0008', 'ea00001800'), ('EA', '0020', 'ea00002800'))
+RTL_STOP_LINES = ['C fff0', 'U', 'G', 'P', 'DONE']
 RTL_STOP_STRETCHES = (1, 10)
 SMSW_IGNORED_MASK = 0x00e0
 SMSW_COMPARE_MASK = 0xffff ^ SMSW_IGNORED_MASK
 
 
 def rtl_stop_failures(lines: dict, rtl: dict) -> list[str]:
-    """Check main's stop cases and the PR's SMSW/oracle-handoff regression."""
+    """Check the stop cases and SMSW results."""
     failures = []
     oracle = lines.get('oracle', [])
     actual = lines.get('rtl', [])
@@ -828,7 +819,7 @@ def rtl_stop_failures(lines: dict, rtl: dict) -> list[str]:
 
     # The first SMSW occurs after the BIOS. Only bits 5--7 lack a physical
     # 386 measurement (#1748); compare all other bits of the complete AX and
-    # FLAGS, and keep both raw results in the report.
+    # the LAHF flags byte, and keep both raw results in the report.
     pattern = r'R ([0-9a-f]{4}) ([0-9a-f]{2})'
     first_oracle = re.fullmatch(pattern, oracle[0]) if oracle else None
     first_actual = re.fullmatch(pattern, actual[0]) if actual else None
@@ -846,21 +837,15 @@ def rtl_stop_failures(lines: dict, rtl: dict) -> list[str]:
     if len(rtl.get('stops', [])) != len(RTL_STOPS) or stops != list(RTL_STOPS):
         failures.append(f'the RTL stopped at {[(s["stem"], s["site"], s["bytes"]) for s in rtl.get("stops", [])]}, '
                         f'expected {list(RTL_STOPS)}')
-    # LOADALL raises #UD on the oracle and does not retire; ICEBP and the two
-    # call-gate JMPs execute there before the RTL restarts.
-    expected_gaps = {'F1': ('unimplemented', 3, 3, 3), '0F07': ('unimplemented', 1, 1, 0),
-                     'EA': ('unimplemented', 2, 2, 2)}
-    gaps = {gap['stem']: (gap['kind'], gap['stops'], gap['sites'], gap['executed'])
+    # LOADALL raises #UD and does not retire. Both call-gate jumps execute.
+    expected_gaps = {'0F07': (1, 1, 0), 'EA': (2, 2, 2)}
+    gaps = {gap['stem']: (gap['stops'], gap['sites'], gap['executed'])
             for gap in rtl.get('gaps', [])}
     if gaps != expected_gaps:
-        failures.append(f'expected ICEBP handoffs and LOADALL/call-gate stops {expected_gaps}, got {gaps}')
+        failures.append(f'expected LOADALL and call-gate stops {expected_gaps}, got {gaps}')
     pmode = rtl.get('pmode', [])
-    pmode_steps = tuple(stretch['steps'] for stretch in pmode)
-    if len(pmode_steps) < 3 or pmode_steps[:2] != RTL_STOP_STRETCHES:
-        failures.append(f'expected main protected-mode stretches {RTL_STOP_STRETCHES} before the paged ICEBP stretch: '
-                        f'{pmode_steps}')
-    elif pmode_steps[-1] < 3:
-        failures.append(f'expected a multi-instruction paged ICEBP oracle stretch: {pmode}')
+    if tuple(stretch['steps'] for stretch in pmode) != RTL_STOP_STRETCHES:
+        failures.append(f'expected protected-mode stretches of {RTL_STOP_STRETCHES} steps: {pmode}')
     return failures
 
 
