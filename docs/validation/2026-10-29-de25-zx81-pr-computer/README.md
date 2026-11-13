@@ -154,3 +154,16 @@ required. Board bring-up starts with the separate headless image's
 serial/DHCP/SSH/reboot checks, followed by bounded physical MMIO/reset/SDM work
 before this combined artifact can receive empty/16 KiB BASIC, tape and HDMI
 acceptance. Existing DE10 acceptance does not transfer to DE25.
+
+## Removed archive
+
+`compiler-reports.tar.gz` was removed from the repository on 13 November
+2026. Besides the compiler reports it held six bitstreams
+(`base`, `persona_a` and `persona_b`, each as `.sof` and `.slot0.rbf`).
+[The compiler inputs](compiler-inputs.json) list `zx8x.hex` and `zx8x.mif`,
+so those bitstreams were built with the ZX81 and ZX80 ROM images, which FES
+has no verified permission to redistribute (see the
+[v1 firmware licensing record](../../plans/v1-firmware-licensing.md#evidence),
+Z0). The removed file was 7272268 bytes with SHA-256
+`bebd9221e21e3dfb7f8ed2ae074348ba85da071174a1b2cfbec1c9812ccbed11`. Nothing
+else in this record changed.

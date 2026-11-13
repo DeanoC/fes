@@ -81,6 +81,7 @@ class V1FirmwareLicensingDocTests(unittest.TestCase):
             validation + "2026-10-22-pcxt-pad-pipeline/rom-same-edge/host.tar.gz",
             validation + "2026-10-29-de25-zx81-ram-pr/failed/diagnostic-phase/sources.tar.gz",
             validation + "2026-10-29-de25-zx81-ram-pr/failed/late-read-response/sources.tar.gz",
+            "docs/validation/2026-10-29-de25-zx81-pr-computer/compiler-reports.tar.gz",
         )
         for path in removed:
             self.assertFalse((ROOT / path).exists(), path)
