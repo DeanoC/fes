@@ -2021,6 +2021,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
    // taken now would call a healthy bring-up lost and spend the bounded
    // reactivation budget at exactly the moment a kit needs it.
    menu_health_checked_=true;menu_health_checked_at_=clock_.NowMs();
+   menu_health_sampled_=false;
    menu_health_sequence_mismatch_=false;menu_health_settling_.clear();
    menu_status_.geometry=info.geometry;menu_status_.blitter=blitter;menu_status_.frame_mapping=menu_window_->FrameMapping();menu_slot_=0;
    menu_status_.blitter_minor=blitter?MenuBlitterMinor(admitted->opened_.descriptor):0;
@@ -2303,12 +2304,15 @@ Error NativeHardware::CheckIdleDisplayHealth()
  // only a health transition, or the verdict that it no longer matches the
  // committed frame, is a change worth a line.
  const bool mismatch=lost=="menu scanout no longer shows the committed frame";
- const bool changed=live.read!=menu_status_.live.read||live.link!=menu_status_.live.link||
+ // The first sample after programming is always worth a line: the reset
+ // baseline is all-zero, so an unreadable first read matches it exactly and
+ // would otherwise be logged neither now nor on any identical later tick.
+ const bool changed=!menu_health_sampled_||live.read!=menu_status_.live.read||live.link!=menu_status_.live.link||
   live.enabled!=menu_status_.live.enabled||live.faulted!=menu_status_.live.faulted||
   live.quiesced!=menu_status_.live.quiesced||live.rx_sense!=menu_status_.live.rx_sense||
   live.hot_plug!=menu_status_.live.hot_plug||live.pll_lock!=menu_status_.live.pll_lock||
   live.vic!=menu_status_.live.vic||mismatch!=menu_health_sequence_mismatch_;
- menu_status_.live=live;menu_health_sequence_mismatch_=mismatch;
+ menu_status_.live=live;menu_health_sequence_mismatch_=mismatch;menu_health_sampled_=true;
  if(changed)LogIdleDisplayLive(live);
  // A register that could not be read is not evidence of a lost scanout.
  // Reprogramming the menu because a bus call failed would be its own fault

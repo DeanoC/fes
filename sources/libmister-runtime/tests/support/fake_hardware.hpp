@@ -34,6 +34,9 @@ public:
  // exactly as the native hardware's bounded failure path does.
  mister::Error CheckIdleDisplayHealth() override {
   ++check_idle_display_calls;
+  // A test hook for the work this call stands for: GP and I2C reads, and,
+  // on a loss, a whole reprogram. Nothing may wait on it.
+  if(on_check_idle_display)on_check_idle_display();
   if(check_idle_display_result.ok()){menu_status.live.read=true;menu_status.live.enabled=true;return {};}
   menu_status.available=false;menu_status.error=check_idle_display_result;
   return check_idle_display_result;
@@ -45,6 +48,7 @@ public:
  }
  bool idle_display_health_due=true;
  unsigned check_idle_display_calls=0;
+ std::function<void()> on_check_idle_display;
  mister::Error check_idle_display_result;
  // The grant is ordinary memory here: both 4 MiB slots, plus the lists and
  // heap with a blitter, mappable by clients.

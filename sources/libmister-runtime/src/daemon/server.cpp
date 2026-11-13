@@ -266,7 +266,7 @@ void Server::HandleConnection(int descriptor)
 {
  ConnectionGuard guard(*this,descriptor);
  ReceivedFrame incoming;Error error=ReceiveFrame(descriptor,Deadline(),&incoming);
- std::string response;
+ std::string response;Controller::Deferred deferred=Controller::Deferred::none;
  if(!error.ok())response=controller_.InvalidRequest(error.message);
  else if(!incoming.fds.empty())response=controller_.InvalidRequest("unexpected request descriptors");
  else if(ExtraBytes(descriptor))response=controller_.InvalidRequest("unexpected bytes after request newline");
@@ -298,9 +298,13 @@ void Server::HandleConnection(int descriptor)
     }
     (void)SendFrame(descriptor,response,-1,Deadline());return;
    }
-  } else response=controller_.Handle(incoming.line);
+  } else response=controller_.Handle(incoming.line,&deferred);
  }
- (void)SendFrame(descriptor,response,-1,Deadline());
+ // Deferred work runs only after the reply is on the socket, and only when
+ // it got there: a send that failed means nobody is waiting for a status,
+ // and the idle display's re-read can wait for the next request.
+ if(!SendFrame(descriptor,response,-1,Deadline()).ok())return;
+ controller_.RunDeferred(deferred);
 }
 
 void Server::ConnectionFinished()

@@ -14,8 +14,17 @@ struct Request;
 struct MenuFrameReply;
 class Controller {
 public:
+	// Work a request leaves for the server to run once the reply has
+	// actually reached the socket. The idle display's liveness re-read costs
+	// GP and I2C reads, and a loss costs a whole reprogram; neither may be
+	// on a status caller's round trip.
+	enum class Deferred { none, idle_display_health };
+
 	Controller(Runtime& runtime, std::string version);
-	std::string Handle(const std::string& line);
+	// Any deferred work is reported in *deferred and belongs to the caller:
+	// run it with RunDeferred only after the response has been sent.
+	std::string Handle(const std::string& line, Deferred* deferred = nullptr);
+	void RunDeferred(Deferred deferred);
  // The response, and in *fd a window descriptor the caller sends and closes.
  std::string GrantMenuWindow(const Request&,int* fd);
  std::string BeginMenuFrame(const Request&,std::unique_ptr<MenuFrame>*);

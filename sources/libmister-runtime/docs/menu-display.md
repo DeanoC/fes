@@ -193,7 +193,9 @@ display registers and, where the runtime owns the transmitter, three
 read-only ADV7513 registers: `0x42` (hot plug and Rx sense), `0x9e` (bit 4,
 pixel PLL lock) and `0x3e` (the detected VIC in bits 7:2; 720p60 is 4). The
 re-read happens at most once a second, never on the present path, and writes
-nothing.
+nothing. It also runs after that status reply has been sent, never before:
+the caller waits on neither the reads nor the recovery a lost picture takes,
+and the next status carries the result.
 
 Status then carries `menu_display.live` with `enabled`, `faulted`,
 `quiesced`, `displayed_sequence` and `underflows_total`, plus a nested
@@ -223,7 +225,9 @@ A loss takes the same bounded reactivation as a failed present: at most two
 menu reprograms in ten minutes. Once that budget is spent the loss is logged
 once and the display is left exactly as it is; nothing retries in a loop, and
 nothing is reprogrammed while a core session owns the display. A register
-that could not be read is not evidence of a loss and only logs.
+that could not be read is not evidence of a loss and only logs; a display
+that cannot be read at all is logged on the first such sample and again when
+it becomes readable, not on every tick in between.
 
 That budget window slides, so a condition a reprogram cannot clear would
 otherwise interrupt the idle Home twice every ten minutes forever. A

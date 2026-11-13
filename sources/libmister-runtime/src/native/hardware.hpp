@@ -184,6 +184,11 @@ private:
  // is one interval later and never catches it settling.
  std::uint64_t menu_health_checked_at_=0;
  bool menu_health_checked_=false;
+ // Whether a live sample has been recorded since this image was programmed.
+ // Without it the first sample that cannot be read is indistinguishable from
+ // the freshly reset baseline, and an unreadable display would never be
+ // logged at all.
+ bool menu_health_sampled_=false;
  bool menu_health_budget_logged_=false;
  // The previous tick's sequence-mismatch verdict, so the health line is
  // logged on a transition rather than on every present.

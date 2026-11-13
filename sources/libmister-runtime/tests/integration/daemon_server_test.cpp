@@ -1500,9 +1500,66 @@ void TestCleanShutdownSignals()
  assert(sigismember(&before,SIGINT)==sigismember(&after,SIGINT));
 }
 
+
+// The once-a-second idle health re-read costs GP and I2C reads, and a lost
+// scanout costs a whole reprogram of the FPGA and the video path. The agent
+// polls status about every 25 ms, so neither may be on a status caller's
+// round trip: the reply leaves the socket first, and the check runs only
+// afterwards. Composing the reply is not sending it, so this test holds the
+// health call open and insists the reply has already arrived.
+void TestStatusReplyIsSentBeforeIdleDisplayHealth()
+{
+ using namespace mister::daemon;
+ TempDirectory temporary;Fixture fixture;fixture.Start();
+ assert(fixture.runtime.ConfigureMenuPackage("/menu",kPackageId).ok());
+ std::mutex mutex;std::condition_variable condition;
+ unsigned entered=0,released=0;
+ // A health call that does not return until this test lets it: a reply that
+ // waits for the check never arrives at all, which is the latency fenced off
+ // here in its clearest form.
+ // The second check fails, which is the expensive case: it reprograms idle
+ // through the bounded menu failure path. Arming it from inside the call
+ // keeps every hardware field on the connection threads that own it.
+ fixture.hardware.on_check_idle_display=[&]() {
+  std::unique_lock<std::mutex> lock(mutex);
+  const unsigned mine=++entered;
+  if(mine==1)fixture.hardware.check_idle_display_result=
+   {mister::ErrorCode::io_failed,"menu scanout is disabled","menu"};
+  condition.notify_all();
+  condition.wait(lock,[&]() {return released>=mine;});
+ };
+ const auto path=temporary.Entry("runtime.sock");RunningServer server(fixture.runtime,path);
+ const auto exchange=[&](unsigned expected_call) {
+  const int socket=Connect(path);
+  const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
+  assert(SendFrame(socket,kStatus,-1,deadline).ok());
+  ReceivedFrame reply;const auto sent=std::chrono::steady_clock::now();
+  // On a build that runs the check before the send, nothing arrives here:
+  // the blocked check holds the reply until this deadline expires.
+  assert(ReceiveFrame(socket,deadline,&reply).ok());
+  assert(std::chrono::steady_clock::now()-sent<std::chrono::seconds(1));
+  {
+   std::unique_lock<std::mutex> lock(mutex);
+   assert(condition.wait_for(lock,std::chrono::seconds(2),
+    [&]() {return entered>=expected_call;}));
+   assert(entered==expected_call);
+   released=expected_call;
+  }
+  condition.notify_all();
+  assert(close(socket)==0);
+  return reply.line;
+ };
+ Contains(exchange(1),"\"ok\":true");
+ // The status that paced the failing check was answered before any of the
+ // reprogram it costs, exactly as the healthy one was.
+ Contains(exchange(2),"\"ok\":true");
+ assert(fixture.log.WaitFor("menu_display_health","failure"));
+}
+
 int main()
 {
  TestCleanShutdownSignals();
+ TestStatusReplyIsSentBeforeIdleDisplayHealth();
  TestSessionDescriptorExchangeDoesNotFollowReopenedPlane();
  TestMenuPatternClientAgainstDaemon();
  TestMenuMultipleAndTruncatedDescriptorsClose();
@@ -1541,6 +1598,6 @@ int main()
 	TestOversizedHardwareErrorUsesBoundedValidFallback();
 	TestDevelopmentInventsNoIdentityAndStderrEscapesFields();
 	TestComputerOperationsDispatchThroughController();
-	puts("daemon_server_test: 37 passed");
+	puts("daemon_server_test: 38 passed");
 	return 0;
 }

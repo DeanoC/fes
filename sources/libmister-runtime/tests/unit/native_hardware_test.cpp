@@ -2668,6 +2668,71 @@ void TestIdleDisplayHealthDetectsLostScanoutWithinBudget()
  i2c.vic_status=0x10;
 }
 
+// An unreadable display is never recovered from -- a failed bus call is no
+// evidence of a lost scanout -- but the policy says it is logged. A reset
+// baseline is all-zero, so the first unreadable sample matched it exactly and
+// was logged neither then nor on any identical tick after it.
+void TestIdleDisplayHealthLogsTheFirstUnreadableSample()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;OpenedCorePackage opened;PopulateHpsDdrApplication(&package,true,&opened);
+ std::string manifest=ReadText(package.path+"/manifest.toml");ReplaceAll(&manifest,"fes.pong","fes.menu");
+ manifest+="\n[[interfaces]]\nid = \"fes.video.menu-display\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ {std::ofstream output(package.path+"/manifest.toml",std::ios::trunc);output<<manifest;assert(output.good());}
+ assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ MenuGpScript script{&mmio};script.BringUp();
+ assert(hardware.ConfigureMenuPackage(package.path,opened.package_id).error.ok());
+ mister::MenuDisplayInfo displayed;
+ script.Present(0,0,0);
+ assert(PresentBackSlot(hardware,&displayed).ok()&&hardware.menu_display().displayed_sequence==1);
+ const auto scanouts=[&]{
+  std::vector<std::string> lines;
+  for(const auto& record:log.records())
+   if(record.operation=="menu_display_health"&&record.phase=="scanout")
+    lines.push_back(record.error.message);
+  return lines;
+ };
+ assert(scanouts().empty());
+
+ // The display rejects the read. Nothing is reprogrammed -- a failed bus
+ // call is no evidence of a lost scanout -- and the sample is named once.
+ const auto reject=[&]{script.toggle=!script.toggle;PushFesGpResponse(&mmio,script.toggle,0,true);};
+ clock.now_+=kMenuHealthIntervalMs;
+ const auto programs=fpga.calls;
+ reject();
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(fpga.calls==programs&&hardware.menu_display().available&&operations.Granted());
+ assert(!hardware.menu_display().live.read);
+ assert(scanouts().size()==1u&&scanouts().back().find("read=0")!=std::string::npos);
+
+ // Every later unreadable tick says exactly what the first one said, and
+ // repeating it once a second is the noise this policy avoids.
+ clock.now_+=kMenuHealthIntervalMs;
+ reject();
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(scanouts().size()==1u&&fpga.calls==programs);
+
+ // Reading again is a transition, and transitions are what the log records.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,1);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.read&&hardware.menu_display().available);
+ assert(scanouts().size()==2u&&scanouts().back().find("read=1")!=std::string::npos);
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,1);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(scanouts().size()==2u);
+}
+
 void TestMenuUnderflowPolicyReactivatesThenSplashes()
 {
  using namespace mister::native;using namespace mister::native::generated;
@@ -5831,6 +5896,7 @@ int main(int argc,char** argv)
  TestNativeMenuBlitterPresent(1);
  TestMenuUnderflowPolicyReactivatesThenSplashes();
  TestIdleDisplayHealthDetectsLostScanoutWithinBudget();
+ TestIdleDisplayHealthLogsTheFirstUnreadableSample();
 	TestComputerLiveMediaLifecycleThroughRuntime();
 	TestPcxtFloppyLifecycleThroughRuntime();
 	TestPcxtDosPackageInspectionAcceptsRuntimeFloppyContract();
