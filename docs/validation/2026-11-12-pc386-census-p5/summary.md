@@ -90,10 +90,15 @@ overloaded host. So:
      free space, and verifies the baseline image, software and Kit B's
      `usb-storage` quirk.
 2. **The oracle: one run per title.** Each ran `machine_tb --cpu oracle
-   --instruction-census` on Bochs with a 387 fitted, for 20 simulated
-   seconds or until the title exits. The census gives instruction and x87
-   counts per title. Those counts measure use when a 387 is present, not
-   need.
+   --instruction-census` on Bochs with a 387 fitted, for the title's
+   manifest limit or until the title exits. Most limits are 20 simulated
+   seconds. The exceptions are Ultima VI at 16 s, Wolfenstein 3D at 24 s,
+   and 3DBench, PCPBench, TopBench and Quake's timedemo at 25 s.
+   - Each row's `oracle.limit_s` and `oracle.seconds` give the run's
+     length.
+   - The census gives instruction and x87 counts per run. Those counts are
+     not normalised to a common length, and they measure use when a 387 is
+     present, not need.
 3. **The RTL in simulation**, only for the titles that stopped on the kit
    for a CPU reason, to compare with the oracle.
 
@@ -110,20 +115,31 @@ The census JSONL holds the evidence, one row per title:
 - the status-ring snapshot;
 - the result and its cause;
 - the change since #1533;
-- the oracle's end, steps and x87 counts;
+- the oracle's limit, end, simulated seconds, steps and x87 counts, and
+  `oracle.drive` when it ran on a variant drive;
 - an `x87` class.
 
-The JSONL also has a meta row and the JEMM386 rows. It holds no game bytes
-and no frames.
+The JSONL also has these rows. It holds no game bytes and no frames.
+
+- **A meta row.** Its `variants` map gives each variant drive's SHA-256,
+  base drive and change.
+- **The JEMM386 kit rows** (`"record": "jemm386"`).
+- **The 16 JEMM386 oracle rows** (`"record": "jemm386-oracle"`), each with
+  its run, boot entry, drive, limit, end, seconds and steps.
 
 ### Drives
 
 The `real`, `xms`, `pmode`, `dpmi`, `fpu` and `bench` drives are the
 manifest builds in `~/fes-drives/pc386`
 ([pc386-game-drives.md](../../../sources/misteross/docs/pc386-game-drives.md)).
-Four variants were built beside them by SHA-256 for this census. Each
-record's `variant` field names its base drive and what changed. They are not
-manifest builds.
+Four variants were built beside them by SHA-256 for this census. They are
+not manifest builds.
+
+- Each drive's own JSON record beside it, `<sha256>.json`, has a `variant`
+  field naming its base drive and what changed. The census JSONL's meta row
+  copies that field as `variants`.
+- A row names the variant it used in `drive`, or in `oracle.drive`. Quake's
+  oracle run used `bench-q`, while its kit run used `bench`.
 
 | Variant | SHA-256 | Change |
 | --- | --- | --- |
@@ -219,8 +235,10 @@ page frame E000). These titles ran under it, on the JEMM drives:
 | Frontier: Elite 2 | `k14`, entry 2 | landed at Merlin |
 | Master of Orion | `k7` | the same setup exit as without JEMM386 |
 
-On the oracle, 12 JEMM runs reached their 20 s limit, including Falcon 3.0,
-Tunnels and Trolls and X-Wing. Four ended early:
+On the oracle, 16 runs on the JEMM drives are in the JSONL as
+`jemm386-oracle` rows. Twelve reached their manifest limit: 20 s, and 24 s
+for Wolfenstein 3D. Those twelve include Falcon 3.0, Tunnels and Trolls and
+X-Wing. Four ended early, at 7.4 to 7.75 simulated seconds:
 
 - Darklands and Frontier stopped on entry 1, for lack of memory.
 - Master of Orion took its setup exit.
@@ -229,7 +247,7 @@ Tunnels and Trolls and X-Wing. Four ended early:
 ### x87
 
 The oracle has a 387, so its counts show what each title does with one
-fitted. The kit, with the socket empty, shows which titles need one.
+fitted, over that title's run length ([Method](#method)). The kit, with the socket empty, shows which titles need one.
 
 | Class | Titles (oracle x87 instructions in the run) |
 | --- | --- |
