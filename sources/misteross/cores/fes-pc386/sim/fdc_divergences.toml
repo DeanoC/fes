@@ -26,18 +26,19 @@ id = "dor-select"
 title = "DOR's drive select after a command"
 cases = ["dor_select"]
 reference = "Recalibrate, Seek, Relative Seek, Read ID, Format Track and the reads and writes set DOR's select bits to the drive they name (DOR &= ~FDC_DRV_MASK; DOR |= drive), so 3F2h then reads back that drive and DIR reports its disk change. QEMU does the same."
-rtl = "A command runs on the drive it names; DOR keeps the select the guest wrote, so 3F2h reads back the guest's value and DIR reports the disk change of the drive DOR selects."
+rtl = "No command writes DOR: 3F2h reads back the guest's value and DIR reports the disk change of the drive DOR selects."
 deciding = "82077AA datasheet (290166-007): the DS0-3 pins \"are decoded from the select bits in the Digital Output Register\" (pin description, 2.1.3); on the PC/AT \"drive selects on the 8272A are not utilized. This places drive selection and motor speed-up control responsibility with the software\" (9.1.1); \"a write to the DOR will need to precede the RECALIBRATE or SEEK command\" (8.3). No command writes DOR."
 follow = "rtl"
 
 [[divergence]]
 id = "dor-mismatch"
 title = "A command naming a drive DOR does not select"
-cases = []
-reference = "Runs the command on the drive it names."
-rtl = "The same: the command's media, cylinder, ready and status are the named drive's."
-deciding = "On the 82077AA the drive's cable signals (STEP, DIR, RDDATA, WP, TRK0, INDEX) belong to the drive DOR selects, so such a command acts on that drive while the controller keeps its cylinder and status under the named one (datasheet 290166-007, 2.1.3, 6.4, 9.1.1). Both models deviate. Software selects the drive in DOR first (8.3), so the replay does not compare it."
+cases = ["dor_mismatch"]
+reference = "Runs the whole command on the drive it names: its medium, geometry, cylinder, ready and status. QEMU does the same (fdctrl->cur_drv from the command byte)."
+rtl = "The command acts on the drive DOR selects: its medium and geometry, ready and spin-up, write protect, TRK0, the disk-change line and the step that clears it, and the image a sector is read from or stored to. ST3, which reports pin states, answers for that drive. The controller's own registers stay under the drive the command names: the PCN (Sense Interrupt Status's cylinder and Dumpreg's PCN bytes), the head, sector and EOT it works through, and ST0's drive select bits."
+deciding = "The DS0-3 pins \"are decoded from the select bits in the Digital Output Register\" (82077AA datasheet 290166-007, pin description and 2.1.3; the same words are in the 82077SL's 290410-001, which is the 82077AA's superset, 8.0). Of the drive select bits inside a command byte, the note under that datasheet's command set table says \"these bits are used internally only. They are not reflected in the Drive Select pins. It is the users responsibility to maintain correspondence between these bits and the Drive Select pins (DOR)\" (290410-001 page 26). ST3's bits report the WP, TRK0, HDSEL and DS1,0 pins (290410-001, 7.4). Software writes DOR first (8.3), so no known guest depends on it. [#1796](https://github.com/DeanoC/fes/issues/1796)."
 follow = "rtl"
+note = "The model keeps no head position apart from the PCN registers, so under this mismatch ST3's TRK0 is the PCN of the selected drive rather than where its head stands."
 
 [[divergence]]
 id = "status-registers"

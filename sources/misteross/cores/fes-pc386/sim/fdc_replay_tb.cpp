@@ -620,16 +620,52 @@ std::vector<Case> cases() {
         start(g);
         g.out(0x3f2, 0x3c);                                  // both motors, drive 0 selected
         g.f.eject(0); g.tick();                              // drive 0's change is set
+        g.check(g.show(0x3f7) == 0xff, "DIR: drive 0's change under DOR's drive 0");
         g.command({0x04, 0x01}); g.results();                // Sense Drive Status names drive 1
-        g.show(0x3f2);
+        g.check(g.show(0x3f2) == 0x3c, "DOR after Sense Drive Status");
+        seek(g, 1, 0, 2);                                    // a seek names drive 1
+        g.check(g.show(0x3f2) == 0x3c, "DOR after a seek that names the other drive");
+        // The step went to DOR's drive 0, which is empty, so its change
+        // line stands; Bochs moved DOR's select to drive 1, whose disk
+        // never left, so its DIR is clear.
         g.show(0x3f7);
-        seek(g, 1, 0, 2);                                    // a step clears drive 1's change
+        g.command({0x0e}); g.results();                      // Dumpreg: PCN per unit
         g.show(0x3f2);
-        g.show(0x3f7);
-        g.out(0x3f2, 0x3c);                                  // drive 0 again in Bochs
-        read_back(g, 1, 2, 0, 1, 1, 15, Guest::original(B12, 2, 0, 1, 1), "drive 1's read under DOR's drive 0");
-        g.show(0x3f2);
-        g.show(0x3f7);
+    }});
+    // Commands that name a drive DOR does not select. Both disks are in and
+    // both motors run, so Bochs completes each command on the drive it
+    // names while the RTL runs it on DOR's drive 0.
+    list.push_back({"dor_mismatch", 4, 2, false, [](Guest &g) {
+        { const Disk a = A144, b = B12; g.boot(&a, &b); }
+        start(g);
+        g.out(0x3f2, 0x3c);                                  // both motors, drive 0 selected
+        // Sense Drive Status names drive 1 (write-protected in Bochs's
+        // sense only if its disk is); ST3 reports the pins, so the RTL
+        // answers for drive 0.
+        g.command({0x04, 0x01});
+        auto st3 = g.results();
+        g.check(st3.size() == 1 && (st3[0] & 0x03) == 0x00, "ST3 drive select is DOR's drive");
+        g.check(st3.size() == 1 && (st3[0] & 0x10) != 0, "ST3 TRK0 of DOR's drive after recalibrate");
+        // A seek naming drive 1 steps DOR's drive 0; the unit's PCN is
+        // drive 1's, and Dumpreg shows both.
+        seek(g, 1, 0, 3);
+        g.command({0x0e});
+        auto dump = g.results();
+        g.check(dump.size() == 10 && dump[0] == 0x00 && dump[1] == 0x03,
+                "Dumpreg: PCN 0 for unit 0, 3 for the unit the seek named");
+        // A read naming drive 1 reads DOR's drive 0: the 1.44M disk's
+        // cylinder 3, not the 1.2M disk's.
+        g.command(rw(0xe6, 1, 3, 0, 1, 18));
+        auto bytes = g.dma_in(512, 511);
+        g.results();
+        g.check(bytes == Guest::original(A144, 3, 0, 1), "a read naming drive 1 reads DOR's drive 0");
+        g.check(bytes != Guest::original(B12, 3, 0, 1), "it is not the named drive's disk");
+        // With DOR moved to drive 1, the same command reads drive 1.
+        g.out(0x3f2, 0x3d);
+        g.command(rw(0xe6, 1, 3, 0, 1, 15));
+        auto other = g.dma_in(512, 511);
+        g.results();
+        g.check(other == Guest::original(B12, 3, 0, 1), "the same read under DOR's drive 1");
     }});
     list.push_back({"status_registers", 4, 2, false, [](Guest &g) {
         g.check(g.show(0x3f0) == 0xff, "3F0h reads FFh");

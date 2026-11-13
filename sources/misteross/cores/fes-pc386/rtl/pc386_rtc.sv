@@ -51,6 +51,12 @@ module pc386_rtc #(
     input wire [7:0] disk_heads, disk_spt,
     input wire [7:0] sb_base_high, sb_irq, sb_dma,
     input wire [7:0] ems_pages,
+    // The floppy drives (docs/design/pc386-removable-media.md, "Machine
+    // configuration"): each drive's CMOS 10h type code (0 none, 1 360K,
+    // 2 1.2M, 3 720K, 4 1.44M, 5 2.88M) and the device the launch boots
+    // from (0 hard disk, 1 A:, 2 CD).
+    input wire [1:0][2:0] floppy_type,
+    input wire [1:0] boot_device,
     // The i386dx+387 identity: a 387 is fitted (CMOS 14h bit 1, which INT 11h
     // reports in AX bit 1; IBM PC AT Technical Reference, CMOS equipment byte).
     input wire x87_present,
@@ -141,14 +147,23 @@ module pc386_rtc #(
     assign busy = setup != READY;
     assign record_load = !reset && setup == LOAD && step <= 7'd63;
     assign record_pair = step[5:0];
+    // The drive count, for CMOS 14h.
+    wire floppy_any = floppy_type[0] != 3'd0 || floppy_type[1] != 3'd0;
+    wire [1:0] floppy_count = {1'b0, floppy_type[0] != 3'd0} + {1'b0, floppy_type[1] != 3'd0};
+
     reg [7:0] config_address, config_value;
     always @* begin
         config_address = 8'hff;
         config_value = 8'h00;
         case (step)
-            7'd0: begin config_address = 8'h10; config_value = 8'h00; end          // no floppy drives
+            7'd0: begin config_address = 8'h10; config_value = {1'b0, floppy_type[0], 1'b0, floppy_type[1]}; end
             7'd1: begin config_address = 8'h12; config_value = disk_present ? 8'hf0 : 8'h00; end
-            7'd2: begin config_address = 8'h14; config_value = {6'b000001, x87_present, 1'b0}; end  // VGA, PS/2 port, x87 as fitted, no floppy
+            // 14h: VGA (bits 5-4 00), the PS/2 port (bit 2), the 387 as
+            // fitted (bit 1), and the floppy fields: bit 0 set when a drive
+            // exists and bits 7-6 the drive count less one. Two drives give
+            // 45h.
+            7'd2: begin config_address = 8'h14;
+                      config_value = {floppy_count - 2'd1 & {2{floppy_any}}, 4'b0001, x87_present, floppy_any}; end
             7'd3: begin config_address = 8'h15; config_value = base_kib[7:0]; end
             7'd4: begin config_address = 8'h16; config_value = base_kib[15:8]; end
             7'd5: begin config_address = 8'h17; config_value = extended_kib[7:0]; end
@@ -164,15 +179,21 @@ module pc386_rtc #(
             7'd15: begin config_address = 8'h21; config_value = disk_present ? disk_cylinders[7:0] : 8'h00; end  // landing zone
             7'd16: begin config_address = 8'h22; config_value = disk_present ? disk_cylinders[15:8] : 8'h00; end
             7'd17: begin config_address = 8'h23; config_value = disk_present ? disk_spt : 8'h00; end
-            7'd18: begin config_address = 8'h2d; config_value = 8'h00; end          // boot C: before A:
+            // 2Dh bit 5: boot A: before C:, the AT's setup flag.
+            7'd18: begin config_address = 8'h2d; config_value = {2'b00, boot_device == 2'd1, 5'b00000}; end
             7'd19: begin config_address = 8'h30; config_value = extended_kib[7:0]; end
             7'd20: begin config_address = 8'h31; config_value = extended_kib[15:8]; end
             7'd21: begin config_address = 8'h34; config_value = above16m_64k[7:0]; end
             7'd22: begin config_address = 8'h35; config_value = above16m_64k[15:8]; end
-            7'd23: begin config_address = 8'h38; config_value = 8'h00; end          // no third boot device
+            // 38h and 3Dh: the three boot devices, 1 floppy, 2 hard disk,
+            // 3 CD. 3Dh's low nibble is the first and its high nibble the
+            // second; 38h's high nibble is the third (rombios.c:8549-8550).
+            // Every nibble is set, so a failed device falls back.
+            7'd23: begin config_address = 8'h38; config_value = {boot_device == 2'd2 ? 4'h1 : 4'h3, 4'h0}; end
             7'd24: begin config_address = 8'h39; config_value = 8'h00; end          // ATA translation: none
             7'd25: begin config_address = 8'h3a; config_value = 8'h00; end
-            7'd26: begin config_address = 8'h3d; config_value = 8'h02; end          // boot from the hard disk only
+            7'd26: begin config_address = 8'h3d;
+                      config_value = boot_device == 2'd1 ? 8'h21 : boot_device == 2'd2 ? 8'h23 : 8'h12; end
             7'd27: begin config_address = 8'h3f; config_value = 8'h01; end          // no boot menu
             7'd28: begin config_address = 8'h60; config_value = sb_base_high; end
             7'd29: begin config_address = 8'h61; config_value = sb_irq; end
