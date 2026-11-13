@@ -63,7 +63,10 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            bytes the bench reads through the page tables and after which the
            oracle runs until paging is off. The RTL run must stop on each,
            record the two protected-mode stretches, and write what the
-           oracle run writes.
+           oracle run writes. It also checks the initial full-AX SMSW result
+           and the LAHF flags byte, and SMSW after a CR0 write; the models'
+           post-BIOS CR0 reserved-bit values remain unmeasured on a physical 386
+           (#1748).
   a20      runs cores/fes-pc386/sim/a20_test.asm (A20TEST.COM) at the FreeDOS
            prompt (#1386). On the boot image, which has no XMS driver, A20
            must be off at the prompt, INT 15h AH=24h and 87h must turn it on,
@@ -832,21 +835,61 @@ def vga_test_disk(args) -> Path:
     return disk
 
 
-# What the RTL must stop on in rtl_stop_test.asm, in order: (stem, CS, the
-# instruction's first bytes). LOADALL in real mode, which the oracle runs as
-# #UD (Bochs at CPU level 3); far JMP through call gate 18h at CPL 0; through
-# gate 28h under paging, from CS 20h, whose base maps to the sector through
-# a second page table.
+# LOADALL in real mode, followed by call-gate JMPs without and with paging.
 RTL_STOPS = (('0F07', '0000', '0f07'), ('EA', '0008', 'ea00001800'), ('EA', '0020', 'ea00002800'))
-# The lines both runs write to port E9h.
-RTL_STOP_LINES = ['U', 'G', 'P', 'DONE']
-# The stretches the oracle runs with PE set: the JMP through gate 18h alone,
-# then from the JMP through gate 28h until paging is off.
+RTL_STOP_LINES = ['C fff0', 'U', 'G', 'P', 'DONE']
 RTL_STOP_STRETCHES = (1, 10)
+# Software baselines after this BIOS, not physical 386 conformance claims.
+SMSW_POST_BIOS = {'oracle': 0x0010, 'rtl': 0xfff0}
+
+
+def rtl_stop_failures(lines: dict, rtl: dict) -> list[str]:
+    """Check the stop cases and SMSW results."""
+    failures = []
+    oracle = lines.get('oracle', [])
+    actual = lines.get('rtl', [])
+    if not oracle or oracle[-1] != 'DONE':
+        failures.append(f'the oracle run did not finish: {oracle}')
+    for cpu, output in (('oracle', oracle), ('RTL', actual)):
+        if output[1:] != RTL_STOP_LINES:
+            failures.append(f'the {cpu} run wrote {output}, expected an initial SMSW then {RTL_STOP_LINES}')
+
+    # The first SMSW occurs after the BIOS. Compare each complete AX against
+    # its observed software baseline, without asserting which model is right
+    # for reserved bits 15--5 (#1748). Compare the LAHF flags byte as well.
+    pattern = r'R ([0-9a-f]{4}) ([0-9a-f]{2})'
+    first_oracle = re.fullmatch(pattern, oracle[0]) if oracle else None
+    first_actual = re.fullmatch(pattern, actual[0]) if actual else None
+    if not first_oracle or not first_actual:
+        failures.append(f'missing initial SMSW result: oracle {oracle}, RTL {actual}')
+    else:
+        for cpu, result in (('oracle', first_oracle), ('rtl', first_actual)):
+            if int(result[1], 16) != SMSW_POST_BIOS[cpu]:
+                failures.append(f'{cpu} initial SMSW differs from its post-BIOS software baseline: {result[0]}')
+        if first_oracle[2] != first_actual[2]:
+            failures.append(f'initial LAHF flags differ: oracle {oracle[0]}, RTL {actual[0]}')
+    if oracle[1:] != actual[1:]:
+        failures.append(f'the RTL run wrote {actual[1:]}, the oracle run {oracle[1:]}')
+
+    stops = [(stop['stem'], stop['site'].partition(':')[0], (stop['bytes'] or '')[:len(want)])
+             for stop, (_, _, want) in zip(rtl.get('stops', []), RTL_STOPS)]
+    if len(rtl.get('stops', [])) != len(RTL_STOPS) or stops != list(RTL_STOPS):
+        failures.append(f'the RTL stopped at {[(s["stem"], s["site"], s["bytes"]) for s in rtl.get("stops", [])]}, '
+                        f'expected {list(RTL_STOPS)}')
+    # LOADALL raises #UD and does not retire. Both call-gate jumps execute.
+    expected_gaps = {'0F07': (1, 1, 0), 'EA': (2, 2, 2)}
+    gaps = {gap['stem']: (gap['stops'], gap['sites'], gap['executed'])
+            for gap in rtl.get('gaps', [])}
+    if gaps != expected_gaps:
+        failures.append(f'expected LOADALL and call-gate stops {expected_gaps}, got {gaps}')
+    pmode = rtl.get('pmode', [])
+    if tuple(stretch['steps'] for stretch in pmode) != RTL_STOP_STRETCHES:
+        failures.append(f'expected protected-mode stretches of {RTL_STOP_STRETCHES} steps: {pmode}')
+    return failures
 
 
 def run_rtl_stops(args, linked: list[Path]) -> dict:
-    """The stop path of --cpu rtl, on a boot sector of what the RTL still does not build."""
+    """Boot current RTL stops and check SMSW, oracle handoff and restart."""
     nasm = test386.nasm(args.download, args.jobs)
     directory = OUTPUT / 'rtl-stops'
     directory.mkdir(parents=True, exist_ok=True)
@@ -867,22 +910,8 @@ def run_rtl_stops(args, linked: list[Path]) -> dict:
                                                                 '--cpu', cpu], images)
     lines = {cpu: [entry['text'] for entry in run['debug'] if entry['port'] == '0e9'] for cpu, run in runs.items()}
     failures = [f'{cpu}: {failure}' for cpu, run in runs.items() for failure in run['failures']]
-    for cpu in runs:
-        if lines[cpu] != RTL_STOP_LINES:
-            failures.append(f'the {cpu} run wrote {lines[cpu]}, expected {RTL_STOP_LINES}')
     rtl = runs['rtl'].get('rtl') or {'stops': [], 'gaps': [], 'pmode': []}
-    stops = [(stop['stem'], stop['site'].partition(':')[0], (stop['bytes'] or '')[:len(want)])
-             for stop, (_, _, want) in zip(rtl['stops'], RTL_STOPS)]
-    if len(rtl['stops']) != len(RTL_STOPS) or stops != list(RTL_STOPS):
-        failures.append(f'the RTL stopped at {[(s["stem"], s["site"], s["bytes"]) for s in rtl["stops"]]}, '
-                        f'expected {list(RTL_STOPS)}')
-    # Each stop's instruction runs on the oracle; LOADALL raises #UD there,
-    # so it does not retire.
-    gaps = {gap['stem']: (gap['stops'], gap['sites'], gap['executed']) for gap in rtl['gaps']}
-    if gaps != {'0F07': (1, 1, 0), 'EA': (2, 2, 2)}:
-        failures.append(f'expected LOADALL once (not retired on the oracle) and EA twice, each at its own site: {gaps}')
-    if tuple(stretch['steps'] for stretch in rtl['pmode']) != RTL_STOP_STRETCHES:
-        failures.append(f'expected protected-mode stretches of {RTL_STOP_STRETCHES} steps: {rtl["pmode"]}')
+    failures += rtl_stop_failures(lines, rtl)
     return {'lines': lines, 'runs': runs, 'failures': failures,
             'checks': [f'{cpu}: {" | ".join(lines[cpu])}' for cpu in runs] + [f'RTL {gap}' for gap in rtl['gaps']]}
 

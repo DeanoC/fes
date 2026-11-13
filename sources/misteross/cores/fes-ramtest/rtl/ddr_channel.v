@@ -21,7 +21,8 @@
 // 128-bit port, 4 on a 64-bit one) at a pseudo-random line of the span.
 // lat_sample then carries the cycles from the edge the read is taken to
 // the edges its first and last beats arrive. The beats are checked against
-// the ADDR pattern still in memory, like a scan read.
+// the ADDR pattern still in memory, like a scan read. The sample is delivered
+// after that check drains, so a failed last beat cannot publish a window.
 module ddr_channel #(
     parameter integer DATA_W = 64,
     parameter integer ADDR_W = 29,
@@ -59,6 +60,7 @@ module ddr_channel #(
     // Latency reads, one per lat_start while lat_ready.
     input  wire              lat_start,
     output wire              lat_ready,
+    output wire              lat_drained,
     output reg               lat_sample,
     output reg  [13:0]       lat_first,
     output reg  [13:0]       lat_last
@@ -95,6 +97,7 @@ module ddr_channel #(
     localparam [3:0] ST_STOP = 4'd6;
     localparam [3:0] ST_NACK = 4'd7;
     localparam [3:0] ST_LAT = 4'd8;
+    localparam [3:0] ST_LAT_DRAIN = 4'd9;
 
     function [7:0] burst_of;
         input [2:0] which;
@@ -183,7 +186,8 @@ module ddr_channel #(
     reg [13:0] lat_count;
     // Spans are aligned to their size, so the line ORs into the base.
     wire [31:0] lat_line = BASE | {{(27 - LINE_BITS){1'b0}}, lat_lfsr[LINE_BITS-1:0], 5'd0};
-    assign lat_ready = state == ST_DONE && !stopped && !stop;
+    assign lat_drained = state == ST_DONE;
+    assign lat_ready = lat_drained && !stopped && !stop;
 
     // Compare pipeline: difference, grouped OR, then count.
     reg              diff_valid = 1'b0;
@@ -416,10 +420,17 @@ module ddr_channel #(
                                 lat_first <= lat_count;
                             if (lat_beats == 3'd1) begin
                                 lat_last <= lat_count;
-                                lat_sample <= 1'b1;
-                                state <= ST_DONE;
+                                state <= ST_LAT_DRAIN;
                             end
                         end
+                    end
+                end
+                ST_LAT_DRAIN: begin
+                    // The diff and group reductions trail the last beat.
+                    // Publish only once errors includes the entire line.
+                    if (!diff_valid && !group_valid) begin
+                        lat_sample <= 1'b1;
+                        state <= ST_DONE;
                     end
                 end
                 default: begin
