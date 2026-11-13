@@ -69,7 +69,9 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            the RTL must run it without an oracle step or a stop; writes
            speaker-rtl/.
   x87      runs cores/fes-pc386/sim/x87_test.asm (X87TEST.COM) at the FreeDOS
-           prompt on the oracle, whose 387 is wired as on an AT (#1768): an
+           prompt on the oracle, whose 387 is wired as on an AT, with the
+           i386dx+387 identity on (machine_tb --x87 1; #1768): INT 11h must
+           report the 387, an
            unmasked divide by zero must reach the BIOS's INT 75h and INT 02h,
            this program's own INT 75h with a frame that returns to the next
            ESC, and, with IRQ 13 masked, hold that ESC until the timer's
@@ -1026,7 +1028,7 @@ def run_speaker(args, linked: list[Path]) -> dict:
 
 
 # X87TEST.COM's checks, in the order it runs them.
-X87_CHECKS = ('bios', 'bios-sw', 'raw', 'raw-ip', 'raw-sw', 'held', 'f1-cw', 'f1-sw', 'DONE')
+X87_CHECKS = ('equip', 'bios', 'bios-sw', 'raw', 'raw-ip', 'raw-sw', 'held', 'f1-cw', 'f1-sw', 'DONE')
 
 
 def run_x87(args, linked: list[Path]) -> dict:
@@ -1036,7 +1038,8 @@ def run_x87(args, linked: list[Path]) -> dict:
     disk = fixture_with(args, 'x87', 'x87_test.asm', 'X87TEST.COM')
     print('Running X87TEST.COM on the oracle CPU', flush=True)
     run = run_machine(testbench, 'x87', ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
-                                        '--type', 'x87test|', '--expect', 'X87 DONE ok', '--cpu', 'oracle'],
+                                        '--type', 'x87test|', '--expect', 'X87 DONE ok', '--cpu', 'oracle',
+                                        '--x87', '1'],
                       images)
     lines = [entry['text'] for entry in run['debug'] if entry['port'] == '0e9']
     run['lines'] = lines

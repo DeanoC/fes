@@ -580,6 +580,7 @@ class X87TestTest(unittest.TestCase):
     def suite(lines):
         def run_machine(testbench, name, arguments, images):
             assert arguments[arguments.index('--cpu') + 1] == 'oracle'
+            assert arguments[arguments.index('--x87') + 1] == '1'
             return {'debug': [{'port': '0e9', 'text': line} for line in lines], 'failures': []}
         args = mock.Mock(cpu='oracle', download=False, jobs=1, limit_seconds=8)
         with mock.patch.object(sim.firmware, 'images', return_value={}), \
@@ -587,18 +588,18 @@ class X87TestTest(unittest.TestCase):
                 mock.patch.object(sim, 'run_machine', run_machine), mock.patch('builtins.print'):
             return sim.run_x87(args, [])['failures']
 
-    PASSING = ['X87 bios 1 calls ok', 'X87 bios-sw 0084h ok', 'X87 raw 1 calls ok', 'X87 raw-ip 0150h ok',
+    PASSING = ['X87 equip 0002h ok', 'X87 bios 1 calls ok', 'X87 bios-sw 0084h ok', 'X87 raw 1 calls ok', 'X87 raw-ip 0150h ok',
                'X87 raw-sw 0084h ok', 'X87 held 01A0h ok', 'X87 f1-cw 037Eh ok', 'X87 f1-sw 0081h ok', 'X87 DONE ok']
 
     def test_every_check_must_print_ok(self):
         self.assertEqual(self.suite(self.PASSING), [])
-        failing = self.PASSING[:5] + ['X87 held 0000h FAIL'] + self.PASSING[6:8] + ['X87 DONE FAIL']
+        failing = self.PASSING[:6] + ['X87 held 0000h FAIL'] + self.PASSING[7:9] + ['X87 DONE FAIL']
         self.assertEqual(self.suite(failing), ['X87 held 0000h FAIL', 'X87 DONE FAIL'])
 
     def test_a_run_that_stops_early_fails(self):
         failures = self.suite(self.PASSING[:2])
         self.assertEqual(len(failures), 1)
-        self.assertIn("X87TEST.COM ran ['bios', 'bios-sw']", failures[0])
+        self.assertIn("X87TEST.COM ran ['equip', 'bios']", failures[0])
 
 
 class BootReportTest(unittest.TestCase):

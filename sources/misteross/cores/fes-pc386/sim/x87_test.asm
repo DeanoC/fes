@@ -13,6 +13,9 @@
 ; Technical Reference 6183355, "NMI and Coprocessor Controls" and Section 2).
 ; Every check divides 1 by 0 with divide-by-zero unmasked (control word
 ; 037Bh), which sets the status word's ES and ZE:
+;   equip   INT 11h's coprocessor bit (AX bit 1, from CMOS 14h bit 1) is
+;           set: the suite runs machine_tb with --x87 1, the i386dx+387
+;           identity.
 ;   bios    the BIOS's INT 75h handler writes F0h, sends EOI and runs INT 02h,
 ;           which this program hooks: it must run once and see ES and ZE.
 ;   raw     with this program's INT 75h handler, which writes F0h and sends
@@ -55,6 +58,15 @@ start:  mov ax, 0x3502                  ; keep INT 02h, 08h and 75h
         int 0x21
         mov [old75], bx
         mov [old75 + 2], es
+
+        ; ---- equip: INT 11h reports the 387 ----
+        int 0x11
+        and eax, 2
+        mov si, name_equip
+        mov ecx, 2
+        mov edx, 2
+        mov di, unit_hex
+        call check
 
         ; ---- bios: the BIOS's INT 75h, then INT 02h ----
         mov ax, 0x2502
@@ -342,6 +354,7 @@ msg_newline:   db 13, 10, '$'
 unit_hex:      db 'h$'
 unit_calls:    db ' calls$'
 unit_none:     db '$'
+name_equip:    db 'equip$'
 name_bios:     db 'bios$'
 name_bios_sw:  db 'bios-sw$'
 name_raw:      db 'raw$'

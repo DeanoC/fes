@@ -36,7 +36,7 @@
 //        [--mouse S:DX,DY,BUTTONS]...
 //        [--census F] [--profile F] [--profile-from S] [--profile-to S]
 //        [--cpu-profile F] [--cpu-profile-every S] [--rtl-from S] [--rtl-at-flip N] [--rtl-for S]
-//        [--ems-pages N] [--boot-key S:TEXT]
+//        [--ems-pages N] [--boot-key S:TEXT] [--x87 1]
 //        [--rtl-at-prompt 1] [--keys-after-type 1] [--frame-every S] [--game-launch 1] [--stop-file F]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
@@ -59,6 +59,9 @@
 // MMIO into the RTL board for either CPU, whose memory is port 2's model; the
 // machine itself sends 8237 cycles there to the board. It prints at the end:
 //   EMS pages=<n> reads=<n> writes=<n>   the CPU's frame accesses
+// --x87 1 is the i386dx+387 identity: the machine's x87_present input, so
+// CMOS 14h bit 1 (INT 11h's coprocessor bit) is set. The oracle's 387 is
+// fitted, as on an AT, either way (Oracle::set_at_coprocessor).
 // --preset, --frequency and --turbo are --cpu rtl's governor settings
 // (fes_i386_governor; fes.pc386.machine words 0, 1 and 3), max by default.
 //
@@ -239,7 +242,7 @@ pc386::PortSignals port2(Vpc386_machine &top) {
 class Machine final : public fes_i386::Bus {
 public:
     Machine(const std::vector<uint8_t> &bios, const std::vector<uint8_t> &vgabios, const std::string &disk,
-            unsigned ems_pages)
+            unsigned ems_pages, bool x87)
         : image(read_file(disk)), ems_pages(ems_pages) {
         if (ems_pages > 255) throw std::runtime_error("--ems-pages is 0 to 255");
         if (bios.size() != 0x10000) throw std::runtime_error("the BIOS must be 64 KiB");
@@ -262,6 +265,7 @@ public:
         top.above16m_64k = 0;
         top.sb_base_high = 0x22; top.sb_irq = 7; top.sb_dma = 1;
         top.ems_pages = uint8_t(ems_pages);
+        top.x87_present = x87;
         for (int n = 0; n < 4; ++n) clock();
         top.reset = 0;
         top.port2_reset = 0;
@@ -1266,6 +1270,7 @@ struct Options {
     struct Mouse { double at; int dx, dy, buttons; };
     std::vector<Mouse> mouse;
     unsigned cycles_per_instruction = 4;
+    bool x87 = false;  // --x87: the i386dx+387 identity, CMOS 14h bit 1
 };
 
 template <typename Top, typename Clock>
@@ -1376,6 +1381,7 @@ Options parse(int argc, char **argv) {
         else if (flag == "--frequency") options.frequency = unsigned(std::stoul(value));
         else if (flag == "--turbo") options.turbo = unsigned(std::stoul(value));
         else if (flag == "--ems-pages") options.ems_pages = unsigned(std::stoul(value));
+        else if (flag == "--x87") options.x87 = std::stoul(value) != 0;
         else if (flag == "--boot-key") {
             size_t colon = value.find(':');
             if (colon == std::string::npos) throw std::runtime_error("--boot-key takes SECONDS:TEXT");
@@ -1426,7 +1432,8 @@ int main(int argc, char **argv) {
             || RtlCpu::physical(0x00100000u, true) != 0u)
             throw std::runtime_error("pc386 RTL physical address translation self-check failed");
         Options options = parse(argc, argv);
-        Machine machine(read_file(options.bios), read_file(options.vgabios), options.disk, options.ems_pages);
+        Machine machine(read_file(options.bios), read_file(options.vgabios), options.disk, options.ems_pages,
+                        options.x87);
         if (!options.opl2_log.empty() && !(machine.opl2_log = std::fopen(options.opl2_log.c_str(), "w")))
             throw std::runtime_error("cannot write " + options.opl2_log);
         if (!options.trace.empty()) {
