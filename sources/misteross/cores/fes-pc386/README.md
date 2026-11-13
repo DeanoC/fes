@@ -286,7 +286,7 @@ as wires would; the machine top level will instantiate both.
   which would wait three seconds for a key). The floppy drive types (10h and
   14h) and the launch's boot device (2Dh, 38h and 3Dh) are inputs of
   `pc386_system`, no drives and a hard-disk launch until slice F3 of
-  [removable media](../../../docs/design/pc386-removable-media.md) reads them
+  [removable media](../../../../docs/design/pc386-removable-media.md) reads them
   from the `fes.pc386.machine` record.
 - **ATA writes complete into the buffer.** The Bochs BIOS reads status right
   after its `outsw` and requires DRDY with BSY clear, so a sector is reported

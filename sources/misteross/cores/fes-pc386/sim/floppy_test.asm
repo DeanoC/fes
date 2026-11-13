@@ -38,7 +38,8 @@
 ;   write-a    a sector written to A:'s last track reads back, on the 1.44M
 ;              disk that is writable again.
 ;   format-a   INT 13h AH=05h formats A:'s last track, which then reads back
-;              as one fill byte.
+;              as the BIOS's fill byte F6h, so the format's store is checked
+;              and not just a uniform sector.
 ;   label-b360 SWAP 3 puts a 360K disk in the 1.2M drive: its volume label is
 ;              DISK360, so the drive reads the smaller medium.
 ;   write-b360 a sector written to the 360K disk's last track reads back,
@@ -256,7 +257,7 @@ start:  cld
         int 0x13
         mov al, 0
         jc .format_done
-        call judge_filled               ; AL = 1 when all 512 bytes are equal
+        call judge_filled               ; AL = 1 when all 512 bytes are F6h
 .format_done:
         mov si, name_format_a
         call check
@@ -508,16 +509,16 @@ fill_ids:
         popa
         ret
 
-; AL = 1 when every byte of `sector` is the same, as a freshly formatted
-; sector reads.
+; AL = 1 when every byte of `sector` is the BIOS's format fill byte. INT 13h
+; AH=05h sends F6h as the Format command's fill (rombios.c), so a sector the
+; controller never wrote fails this, however uniform it was before.
+FILL_BYTE equ 0xf6
 judge_filled:
         pusha
         mov si, sector
-        lodsb
-        mov ah, al
-        mov cx, 511
+        mov cx, 512
 .next:  lodsb
-        cmp al, ah
+        cmp al, FILL_BYTE
         jne .bad
         loop .next
         popa
