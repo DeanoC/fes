@@ -97,13 +97,17 @@ class Model(PairedModel):
             self.keys.append(key)
             raw = b''
             if key == b'o':
-                self.panels['settings'] = dict(open=True,index=0,rows=['layout','systems'],busy=False,status='')
+                self.panels['settings'] = dict(open=True,index=0,rows=['section-display','section-updates'],busy=False,status='')
             elif key == b'\x1b[B':
                 p = self.panels['systems'] if self.panels['systems']['open'] else self.panels['settings']
                 p['index'] = (p['index']+1)%len(p['rows'])
             elif self.panels['settings']['open']:
-                self.panels['settings'] = closed_panel()
-                self.panels['systems'] = dict(open=True,index=0,rows=['refresh','system'],busy=False,status='')
+                p = self.panels['settings']
+                if p['rows'][p['index']] == 'section-updates':
+                    p.update(index=0,rows=['systems'])
+                else:
+                    self.panels['settings'] = closed_panel()
+                    self.panels['systems'] = dict(open=True,index=0,rows=['refresh','system'],busy=False,status='')
             else:
                 p = self.panels['systems'];kind = p['rows'][p['index']]
                 if kind == 'system':

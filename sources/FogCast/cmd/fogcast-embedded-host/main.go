@@ -18,6 +18,9 @@ import (
 )
 
 func run() error {
+	if os.Getenv("FES_EXPERIMENTAL_DE25_EMBEDDED") != "1" {
+		return fmt.Errorf("embedded catalog fixture requires FES_EXPERIMENTAL_DE25_EMBEDDED=1")
+	}
 	config := flag.String("config", "", "private catalog configuration")
 	readyFile := flag.String("ready-file", "", "write listener address as JSON when ready")
 	flag.Parse()

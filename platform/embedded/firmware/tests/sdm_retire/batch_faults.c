@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2019-2023, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2019-2023, Intel Corporation. All rights reserved.
+ * Copyright (c) 2024, Altera Corporation. All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
 int mailbox_hps_stage_notify(unsigned int);
 /* Actual BSD vendor functions; only MMIO, locks and delay/log primitives injected. */
 #include <stdint.h>

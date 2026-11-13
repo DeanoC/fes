@@ -54,10 +54,13 @@ func (p *stagedInstallAppPlatform) Next(ctx context.Context) (tenfoot.PlatformIn
 		}
 	case 1:
 		if s.Settings.Open && !s.Settings.Loading && !s.Settings.Busy {
-			if s.Settings.Rows[s.Settings.Index].ID == "systems" {
+			switch s.Settings.Rows[s.Settings.Index].ID {
+			case "section-updates":
+				command(tenfoot.CmdSelect)
+			case "systems":
 				command(tenfoot.CmdSelect)
 				p.stage++
-			} else {
+			default:
 				command(tenfoot.CmdDown)
 			}
 		}

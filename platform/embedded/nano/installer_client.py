@@ -173,6 +173,9 @@ class InstallerClient(paired.PairedTenfootClient):
         require(self.navigation is not None and not self.navigation['settings']['open'] and
                 not self.navigation['systems']['open'], 'source navigation needs closed presented controls')
         self._navigation_key(b'o',lambda v: v['settings']['open'] and not v['settings']['busy'] and not v['systems']['open'])
+        self._focus_row('settings','section-updates')
+        self._navigation_key(b'\r',lambda v: v['settings']['open'] and not v['settings']['busy'] and
+                             v['settings']['rows'] == ['systems'] and not v['systems']['open'])
         self._focus_row('settings','systems')
         self._navigation_key(b'\r',lambda v: v['systems']['open'] and not v['systems']['busy'] and
                              v['systems']['rows'] == ['refresh']+['system']*len(self.programs))
