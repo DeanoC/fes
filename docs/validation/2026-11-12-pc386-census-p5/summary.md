@@ -327,7 +327,7 @@ before it, at 0180:00222BDE, is a `ROR r/m32, CL` (`D3 /1`).
     separate them. The cause is open, as in
     [#1494](https://github.com/DeanoC/fes/issues/1494): the core's ADV7513
     path, or Kit B's 4KPRO grabber.
-  - Both occurrences belong on #1494.
+  - Both occurrences are reported on [#1494](https://github.com/DeanoC/fes/issues/1494#issuecomment-6845665998).
 - **Two cleanup verifications failed in the runner, not on the kits.** In
   each case I verified the kit by hand and logged the result in the kit's
   status file before release:
