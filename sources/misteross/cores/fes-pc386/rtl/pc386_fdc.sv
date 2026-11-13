@@ -698,6 +698,7 @@ module pc386_fdc #(
                         if (id_byte == 2'd0 && taken_byte >= tracks) fail(R_FORMAT, head[d], 8'h04);
                         else if (id_byte == 2'd3 && (format_bad || taken_byte != 8'd2)) fail(R_FORMAT, head[d], 8'h04);
                         else if (id_byte == 2'd3) ex <= X_STORE;
+                        else if (taken_tc && disk_left) not_ready();
                         else if (taken_tc) begin
                             st0 <= {5'd0, head[d], 1'b0, d};
                             enter_result(R_FORMAT);
@@ -726,7 +727,10 @@ module pc386_fdc #(
                         end
                         index <= index + 9'd1;
                         if (index == 9'd511 || taken_tc) begin
+                            // A write's store checks for a departed disk;
+                            // a read that ends here checks now.
                             if (writing) ex <= X_STORE;
+                            else if ((taken_tc || end_of_track) && disk_left) not_ready();
                             else if (taken_tc || end_of_track) finish_transfer(end_of_track && !taken_tc);
                             else begin
                                 step_sector();

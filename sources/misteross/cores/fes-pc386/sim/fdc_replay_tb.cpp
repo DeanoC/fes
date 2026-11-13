@@ -843,6 +843,24 @@ std::vector<Case> cases() {
             g.check(done || (r.size() == 7 && r[0] == 0x48),
                     strf("a disk that left %llu clocks before Read ID's IRQ ends it: NR", (unsigned long long)back - 1));
         }
+        // A disk that leaves while a read's last byte waits for its DACK, and
+        // one that leaves before a format's TC: both end not ready.
+        g.command(rw(0x66, 0, 8, 0, 1, 1));                  // no MT: sector 1 is the last
+        g.dma_in(511);
+        g.wait([&] { return g.f.drq(); }, 100000, "last byte offered");
+        g.f.eject(0); g.tick();
+        g.insert(0, Disk{G144, 17});
+        g.dma_in(1);
+        r = g.results(1000000);
+        g.check(r.size() == 7 && r[0] == 0x48, "a disk that left before the read's last DACK ends it: NR");
+        g.command({0x4d, 0x00, 0x02, 18, 0x54, 0xf6});
+        g.dma_out({8, 0});
+        g.wait([&] { return g.f.drq(); }, 100000, "format's third ID byte offered");
+        g.f.eject(0); g.tick();
+        g.insert(0, Disk{G144, 18});
+        g.dma_out({1}, 0);
+        r = g.results(1000000);
+        g.check(r.size() == 7 && r[0] == 0x48, "a disk that left before a format's TC ends it: NR");
     }});
     list.push_back({"timing", 4, 2, true, [](Guest &g) {
         g.boot(&A144);
