@@ -98,18 +98,20 @@ def prepare_scaffold(source: Path, destination: Path) -> bytes:
                      "outclk[1]": [0, "C7"], "refclk": [0, "refclk"], "rst": [0, "rst"]}
     if mapping != {"count": 5, "pins": expected_pins}:
         raise ValueError("Coleco PLL frozen pin map changed")
-    for port, net, buffer, output in (
-        ("outclk", "system_clock.pll_outclk", "system_clock.clocks_MISTRAL_CLKBUF_Q_1", "system_clock.clocks[0]"),
-        ("outclk[1]", "system_clock.pll_outclk_1", "system_clock.clocks_MISTRAL_CLKBUF_Q", "system_clock.clocks[1]"),
+    for port, net, output in (
+        ("outclk", "system_clock.pll_outclk", "system_clock.clocks[0]"),
+        ("outclk[1]", "system_clock.pll_outclk_1", "system_clock.clocks[1]"),
     ):
         pll_net = top["netnames"].get(net, {}).get("bits")
         clock_net = top["netnames"].get(output, {}).get("bits")
-        clock = top["cells"].get(buffer, {})
+        clocks = [clock for name, clock in top["cells"].items()
+                  if name.startswith(coleco_expansion.SOCKET_CLOCK) and
+                  clock.get("type") == "MISTRAL_CLKBUF" and
+                  clock.get("connections", {}).get("A") == pll_net and
+                  clock.get("connections", {}).get("Q") == clock_net]
         if not isinstance(pll_net, list) or len(pll_net) != 1 or \
                 not isinstance(clock_net, list) or len(clock_net) != 1 or \
-                cell["connections"][port] != pll_net or clock.get("type") != "MISTRAL_CLKBUF" or \
-                clock.get("connections", {}).get("A") != pll_net or \
-                clock.get("connections", {}).get("Q") != clock_net:
+                cell["connections"][port] != pll_net or len(clocks) != 1:
             raise ValueError("Coleco frozen PLL clock net changed")
     for name, bel in coleco_expansion.socket_bels().items():
         boundary = design["modules"]["top"]["cells"].get(name)

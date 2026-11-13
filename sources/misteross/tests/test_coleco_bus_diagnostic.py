@@ -63,6 +63,13 @@ class ColecoBusDiagnosticTest(unittest.TestCase):
             diagnostic.prepare_scaffold(source, dest)
             self.assertEqual(json.loads(dest.read_text()), design)
             self.assertEqual(source.read_text(), original)
+            swapped = json.loads(original)
+            changed = swapped["modules"]["top"]["cells"]
+            first, second = "system_clock.clocks_MISTRAL_CLKBUF_Q", "system_clock.clocks_MISTRAL_CLKBUF_Q_1"
+            changed[first], changed[second] = changed[second], changed[first]
+            source.write_text(json.dumps(swapped))
+            diagnostic.prepare_scaffold(source, dest)
+            self.assertEqual(json.loads(dest.read_text()), swapped)
 
             for case in ("wrong-pin", "wrong-connection", "wrong-direction", "wrong-buffer", "wrong-output", "wrong-boundary"):
                 with self.subTest(case=case):
