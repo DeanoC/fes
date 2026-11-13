@@ -24,6 +24,10 @@ overrides it). It is private to the account: the directory is mode 0700.
 | `sources/dosbench/` | the DOS Benchmark Pack v1.5, fetched from the NAS share (`FES_PC386_DOSBENCH`) |
 | `sidecars/<sha256>` | config files a game's own setup wrote, which a title can put over its copy |
 
+`wfw-msdos`, the Windows corpus's drive, is an image drive: MS-DOS 6.22 and
+Windows for Workgroups 3.11 as installed, pinned by its SHA-256 and imported
+with `--import`, not built ([Windows corpus](pc386-windows-corpus.md)).
+
 eXoDOS zips are read in place from
 `/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS`
 (`FES_PC386_GAMES` overrides it). The builder checks each zip and folder
@@ -89,6 +93,11 @@ python3 scripts/build_pc386_game_drive.py --download real xms   # some drives
 python3 scripts/build_pc386_game_drive.py --list                # drives, title counts, latest builds
 python3 scripts/build_pc386_game_drive.py --resolve real        # a drive's image path and record
 ```
+
+An image drive (`kind = "image"` in the manifest) is checked and recorded
+instead: `--import IMAGE DRIVE` copies a user-supplied image into the store
+after checking its SHA-256 and size, and a run without the image in the store
+skips it.
 
 `--download` fetches the pinned FreeDOS packages and NASM the first time. The
 build is reproducible, so a rebuild from the same manifest, sources and

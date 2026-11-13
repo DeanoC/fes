@@ -37,7 +37,7 @@
 //        [--census F] [--profile F] [--profile-from S] [--profile-to S]
 //        [--cpu-profile F] [--cpu-profile-every S] [--rtl-from S] [--rtl-at-flip N] [--rtl-for S]
 //        [--ems-pages N] [--boot-key S:TEXT]
-//        [--rtl-at-prompt 1] [--keys-after-type 1] [--frame-every S] [--game-launch 1]
+//        [--rtl-at-prompt 1] [--keys-after-type 1] [--frame-every S] [--game-launch 1] [--stop-file F]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
 // marker, runs the pixel clock for two 720p frames and compares the second
@@ -116,6 +116,10 @@
 // released at the prompt instead of from reset, so a program's keys keep their
 // place whichever CPU booted DOS. --frame-every S (with --frames) writes the
 // captured frame every S simulated seconds as t<seconds>.ppm.
+// --stop-file F (with --frame-every) ends the run as END stop-file, a pass,
+// at the first --frame-every point at which F exists: a runner that judges the
+// written frames as they appear (sim_fes_pc386.py's wfw suite) creates F once
+// it has seen what it waits for, and the bench still prints every end line.
 // --rtl-for S ends the run S simulated seconds after the RTL begins (at
 // RTL-BEGIN, or at its first clock without a handover), as END rtl-window,
 // a pass.
@@ -1248,7 +1252,7 @@ void write_wav(const std::string &path, const std::vector<int16_t> &samples) {
 }
 
 struct Options {
-    std::string bios, vgabios, disk, disk_out, prompt = "C:\\>", type, expect, trace, frames, until_debug;
+    std::string bios, vgabios, disk, disk_out, prompt = "C:\\>", type, expect, trace, frames, until_debug, stop_file;
     std::string wav, opl2_log, cpu = "oracle", census, profile, cpu_profile;
     double cpu_profile_every = 1.0, rtl_from = 0, rtl_for = -1;
     unsigned rtl_at_flip = 0;
@@ -1364,6 +1368,7 @@ Options parse(int argc, char **argv) {
         else if (flag == "--rtl-at-prompt") options.rtl_at_prompt = std::stoul(value) != 0;
         else if (flag == "--keys-after-type") options.keys_after_type = std::stoul(value) != 0;
         else if (flag == "--frame-every") options.frame_every = std::stod(value);
+        else if (flag == "--stop-file") options.stop_file = value;
         else if (flag == "--game-launch") options.game_launch = std::stoul(value) != 0;
         else if (flag == "--profile-from") options.profile_from = std::stod(value);
         else if (flag == "--profile-to") options.profile_to = std::stod(value);
@@ -1401,6 +1406,8 @@ Options parse(int argc, char **argv) {
         throw std::runtime_error("--cpu-profile, --rtl-from, --rtl-at-flip, --rtl-at-prompt and --rtl-for need --cpu rtl");
     if (options.frame_every < 0) throw std::runtime_error("--frame-every takes a time of 0 (off) or above");
     if (options.frame_every > 0 && options.frames.empty()) throw std::runtime_error("--frame-every needs --frames");
+    if (!options.stop_file.empty() && options.frame_every <= 0)
+        throw std::runtime_error("--stop-file needs --frame-every");
     if (options.cpu_profile_every <= 0) throw std::runtime_error("--cpu-profile-every takes a time above 0");
     for (char &c : options.type) if (c == '|') c = '\n';
     for (auto &key : options.keys) for (char &c : key.second) if (c == '|') c = '\n';
@@ -1748,6 +1755,10 @@ int main(int argc, char **argv) {
                     pc386::write_ppm(options.frames + name, machine.captured());
                 }
                 next_frame += frame_step;
+                if (!options.stop_file.empty() && std::ifstream(options.stop_file).good()) {
+                    reason = "stop-file";
+                    break;
+                }
             }
 
             if (boot_scheduled < options.boot_keys.size() && keys.empty() &&
@@ -1961,7 +1972,7 @@ int main(int argc, char **argv) {
             std::ofstream(options.disk_out, std::ios::binary)
                 .write(reinterpret_cast<const char *>(machine.image.data()), std::streamsize(machine.image.size()));
         std::string done(reason);
-        return done == "prompt" || done == "debug-marker" || done == "rtl-window" ? 0 : 1;
+        return done == "prompt" || done == "debug-marker" || done == "rtl-window" || done == "stop-file" ? 0 : 1;
     } catch (const std::exception &error) {
         std::fprintf(stderr, "machine_tb: %s\n", error.what());
         return 2;

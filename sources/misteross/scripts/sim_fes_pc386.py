@@ -107,6 +107,19 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            and hands over at the prompt. Writes game-<name>[-rtl]/. Runs share
            machine/'s build, so start a second run only once the first has
            built it.
+  wfw      Windows for Workgroups 3.11 to Program Manager on the RTL
+           (docs/pc386-windows-corpus.md): boots the user-supplied wfw-msdos
+           drive (build_pc386_game_drive.py; MS-DOS 6.22, WfW 3.11, 32-bit
+           disk access and a permanent swap file) on the oracle, hands over to
+           fes_i386_cpu at the DOS prompt and types `win`. It writes a frame
+           every --frame-every seconds (0.25 by default), reads each with
+           scripts/pc386_wfw.py and ends the run (machine_tb --stop-file) once
+           two frames in a row show Program Manager with its group window. It
+           passes only then, with the RTL retiring all of Windows itself: no
+           stop and no oracle step after the handover. --cpu oracle runs it all
+           on Bochs. Without the drive in the store it prints SKIP and passes,
+           as CI does. One to two hours of wall time: a periodic check, not a
+           per-PR gate. Writes wfw[-rtl]/.
   system   boots FreeDOS on pc386_system (everything below top.sv) at the
            sealed clock, with a host that does the runtime's launch and Stop
            through the mailbox and runs INPUT.COM to test keyboard and mouse.
@@ -154,6 +167,7 @@ Examples:
   python3 scripts/sim_fes_pc386.py --suite sound --download
   python3 scripts/sim_fes_pc386.py --suite game --game ultima6
   python3 scripts/sim_fes_pc386.py --suite game --game wolf3d --cpu rtl
+  python3 scripts/sim_fes_pc386.py --suite wfw --cpu rtl
   python3 scripts/sim_fes_pc386.py --suite vga
   python3 scripts/sim_fes_pc386.py --suite governor
   python3 scripts/sim_fes_pc386.py --suite system --preset 1
@@ -180,6 +194,7 @@ from scripts import build_pc386_firmware as firmware
 from scripts import build_pc386_freedos_image as freedos
 from scripts import build_pc386_game_drive as drives
 from scripts import fes_i386_oracle as oracle
+from scripts import pc386_wfw as wfw
 from scripts import test_fes_i386_lockstep as lockstep
 from scripts import test_fes_i386_test386 as test386
 
@@ -521,11 +536,32 @@ def verilate_with_audio(args, name: str, testbench: Path, linked: list[Path],
                     [*linked, audio, NUKED / 'opl3.c'], args.jobs, parameters, (audio.parent, *include))
 
 
-def run_machine(testbench: Path, suite: str, arguments: list[str], images: dict) -> dict:
+def run_machine(testbench: Path, suite: str, arguments: list[str], images: dict, watch=None) -> dict:
+    """Run machine_tb; watch, if given, is called every few seconds while it runs."""
     directory = OUTPUT / suite
     directory.mkdir(parents=True, exist_ok=True)
     command = [str(testbench), '--bios', str(images['bios']), '--vgabios', str(images['vgabios']), *arguments]
-    result = subprocess.run(command, cwd=directory, capture_output=True, text=True)
+    if watch is None:
+        result = subprocess.run(command, cwd=directory, capture_output=True, text=True)
+    else:
+        out, err = directory / 'machine.stdout', directory / 'machine.stderr'
+        with out.open('w') as stdout, err.open('w') as stderr:
+            process = subprocess.Popen(command, cwd=directory, stdout=stdout, stderr=stderr, text=True)
+            try:
+                while process.poll() is None:
+                    watch()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        pass
+                watch()
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait()
+        result = subprocess.CompletedProcess(command, process.returncode, out.read_text(), err.read_text())
+        out.unlink()
+        err.unlink()
     (directory / 'machine.log').write_text(result.stdout + result.stderr)
     report = parse_boot(result.stdout)
     report['command'] = [str(Path(arg).relative_to(ROOT)) if arg.startswith(str(ROOT)) else arg for arg in command]
@@ -1738,11 +1774,139 @@ def game_suite(args) -> str:
     return f'game-{args.game}' + ('-rtl' if args.cpu == 'rtl' else '') + suffix(args)
 
 
+WFW_DRIVE, WFW_TITLE = 'wfw-msdos', 'wfw'
+WFW_FRAMES_IN_A_ROW = 2
+
+
+def wfw_suite(args) -> str:
+    return 'wfw' + ('-rtl' if args.cpu == 'rtl' else '') + suffix(args)
+
+
+def wfw_drive(args) -> tuple[Path, dict, dict] | str:
+    """The WfW drive and its title, or why the suite skips: the drive is
+    user-supplied, so a host without it (CI) skips rather than fails."""
+    if not args.drive and not (drives.configured_store() / 'by-name' / f'{WFW_DRIVE}.img').exists():
+        return f'no WfW drive: {WFW_DRIVE} is not in {drives.STORE}/by-name (docs/pc386-windows-corpus.md)'
+    # A present drive that fails its checks, or a named one that does not resolve, fails.
+    try:
+        image, record = drives.resolve(args.drive or WFW_DRIVE)
+    except drives.DriveError as error:
+        raise SimError(str(error)) from None
+    try:
+        return image, record, drives.title_of(record, WFW_TITLE)
+    except drives.DriveError as error:
+        raise SimError(str(error)) from None
+
+
+class ProgramManagerWatch:
+    """Reads machine_tb's frames as they are written and creates the stop
+    file once WFW_FRAMES_IN_A_ROW frames in a row show Program Manager;
+    found is the first frame of that streak."""
+
+    def __init__(self, frames: Path, stop: Path):
+        self.frames, self.stop = frames, stop
+        self.seen: set[str] = set()
+        self.results: list[dict] = []
+        self.streak: list[dict] = []
+        self.found = None
+
+    def __call__(self):
+        if self.found:
+            return
+        for path in sorted(self.frames.glob('t*.ppm')):
+            if path.name in self.seen:
+                continue
+            try:
+                frame = wfw.parse_ppm(path.read_bytes())
+            except (OSError, wfw.FrameError):
+                return  # still being written: read it next time
+            self.seen.add(path.name)
+            seconds = float(path.stem[1:])
+            found = wfw.program_manager(frame)
+            self.results.append({'frame': path.name, 'seconds': seconds, 'program_manager': found['found'],
+                                 'reason': found['reason']})
+            if not found['found']:
+                self.streak = []
+                continue
+            self.streak.append({'frame': path.name, 'seconds': seconds, 'caption': found['caption'],
+                                'group': found['group']})
+            if len(self.streak) >= WFW_FRAMES_IN_A_ROW:
+                self.found = self.streak[0]
+                self.stop.touch()
+                return
+
+
+def run_wfw(args, linked: list[Path], disk: Path, record: dict, title: dict) -> dict:
+    """WfW 3.11 from the DOS prompt to Program Manager (docs/pc386-windows-corpus.md)."""
+    suite = wfw_suite(args)
+    work = OUTPUT / suite
+    work.mkdir(parents=True, exist_ok=True)
+    args.limit_seconds = args.limit_seconds_given or title.get('limit', 12.0)
+    args.type, args.expect = title['launch'], ''
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    frames, stop = work / 'frames', work / 'stop'
+    shutil.rmtree(frames, ignore_errors=True)
+    frames.mkdir(parents=True)
+    stop.unlink(missing_ok=True)
+    every = args.frame_every or 0.25
+    extra = ['--rtl-at-prompt', '1'] if args.cpu == 'rtl' else []
+    watch = ProgramManagerWatch(frames, stop)
+    print(f'Running WfW 3.11 on drive {record.get("drive")} ({record["sha256"][:16]}) to Program Manager on the '
+          f'{args.cpu} CPU; frames every {every} s, limit {args.limit_seconds} s', flush=True)
+    report = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                            '--type', args.type, '--keys-after-type', '1',
+                                            '--frames', str(frames), '--frame-every', str(every),
+                                            '--stop-file', str(stop), *extra, '--cpu', args.cpu,
+                                            '--game-launch', '1', *governor_arguments(args)], images, watch)
+    stop.unlink(missing_ok=True)
+    launch = (report.get('game_launch') or {}).get('seconds')
+    report['wfw'] = {'drive': record.get('drive'), 'drive_sha256': record['sha256'], 'title': title['title'],
+                     'launch_seconds': launch, 'program_manager': watch.found, 'frames': watch.results}
+    if watch.found and launch is not None:
+        report['wfw']['program_manager_after_win'] = round(watch.found['seconds'] - launch, 3)
+    report['work'] = str(work)
+    report['failures'] = wfw_failures(report, args.cpu)
+    report['checks'] = wfw_checks(report)
+    return report
+
+
+def wfw_failures(report: dict, cpu: str) -> list[str]:
+    """Program Manager seen, the run ended for it, and on the RTL no stop or oracle step."""
+    failures = [failure for failure in report['failures'] if not failure.startswith('OPL2 against')]
+    end = (report.get('end') or {}).get('reason')
+    if not report.get('game_launch'):
+        failures.append('`win` made no visible progress at the DOS prompt')
+    if not report['wfw'].get('program_manager'):
+        seen = report['wfw']['frames'][-1] if report['wfw']['frames'] else None
+        failures.append(f'Program Manager did not appear by {(report.get("end") or {}).get("seconds")} simulated '
+                        f'seconds (last frame: {seen})')
+    elif end != 'stop-file':
+        failures.append(f'the run ended as {end}, not at Program Manager')
+    if cpu == 'rtl':
+        failures += rtl_failures(report, 'wfw')
+    return failures
+
+
+def wfw_checks(report: dict) -> list[str]:
+    found = report['wfw'].get('program_manager')
+    checks = [f'WIN typed at {report["wfw"]["launch_seconds"]} s']
+    if found:
+        checks.append(f'Program Manager at {found["seconds"]} s ({report["wfw"].get("program_manager_after_win")} s '
+                      f'after win), frame {found["frame"]}')
+    rtl = (report.get('rtl') or {}).get('counters')
+    if rtl:
+        checks.append(f'RTL retired {rtl.get("retired")} ({rtl.get("pe_retired")} with PE set), '
+                      f'oracle steps {rtl.get("oracle_steps")}')
+    checks.append(f'END {report.get("end")}')
+    return checks
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--suite', choices=('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
                                             'a20', 'c2xx', 'ems', 'wait', 'speaker', 'x87', 'scroll', 'cpu-profile',
-                                            'sound', 'game', 'vga', 'system', 'governor', 'all'),
+                                            'sound', 'game', 'wfw', 'vga', 'system', 'governor', 'all'),
                         default='all',
                         help='simulation suite to run')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
@@ -1752,10 +1916,11 @@ def main() -> int:
     parser.add_argument('--limit-seconds', type=float, default=None, help='simulated seconds before giving up')
     parser.add_argument('--game', default='wolf3d', help="game: the title to start, by its id in the drive's record")
     parser.add_argument('--drive', default=None,
-                        help='game: the prebuilt drive (build_pc386_game_drive.py) by path, SHA-256 or name; '
-                             'default: the drive in the store that holds --game')
+                        help='game and wfw: the prebuilt drive (build_pc386_game_drive.py) by path, SHA-256 or '
+                             'name; default: the drive in the store that holds --game, or wfw-msdos')
     parser.add_argument('--frame-every', type=float, default=0,
-                        help='game: write the captured frame every this many simulated seconds')
+                        help='game and wfw: write the captured frame every this many simulated seconds '
+                             '(wfw: 0.25 by default)')
     parser.add_argument('--rtl-at-prompt', action='store_true',
                         help='game --cpu rtl: boot on the oracle and hand over to the RTL at the prompt')
     parser.add_argument('--instruction-census', action='store_true',
@@ -1782,8 +1947,9 @@ def main() -> int:
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
-    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20', 'c2xx', 'ems', 'wait', 'speaker', 'scroll'):
-        parser.error('--cpu rtl runs the boot, game, a20, c2xx, ems, wait, speaker and scroll suites only')
+    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'wfw', 'a20', 'c2xx', 'ems', 'wait', 'speaker',
+                                                'scroll'):
+        parser.error('--cpu rtl runs the boot, game, wfw, a20, c2xx, ems, wait, speaker and scroll suites only')
     if args.oracle_profile and not (args.suite == 'game' and args.cpu == 'oracle'):
         parser.error('--oracle-profile is for the game suite with --cpu oracle')
     if args.rtl_at_prompt and not (args.suite == 'game' and args.cpu == 'rtl'):
@@ -1791,8 +1957,8 @@ def main() -> int:
     if args.image != 'boot' and args.suite != 'boot':
         parser.error('--image is supported by the boot suite only')
     if (args.preset or args.frequency or args.turbo) and not (
-            args.suite in ('system', 'governor') or args.suite in ('boot', 'game') and args.cpu == 'rtl'):
-        parser.error('the governor runs on the RTL CPU: system, governor, or boot and game with --cpu rtl')
+            args.suite in ('system', 'governor') or args.suite in ('boot', 'game', 'wfw') and args.cpu == 'rtl'):
+        parser.error('the governor runs on the RTL CPU: system, governor, or boot, game and wfw with --cpu rtl')
     if (args.frequency or args.turbo) and not args.preset:
         parser.error('--frequency and --turbo set a preset: give --preset too')
     if args.frequency and not 10 <= args.frequency <= 1000:
@@ -1828,6 +1994,12 @@ def main() -> int:
                 report = run_sound(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'game':
                 report = run_game(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'wfw':
+                found = wfw_drive(args)
+                if isinstance(found, str):
+                    print(f'SKIP wfw: {found}', flush=True)
+                    continue
+                report = run_wfw(args, oracle.link_inputs(args.jobs, args.download), *found)
             elif suite == 'rtl-stops':
                 report = run_rtl_stops(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'a20':
@@ -1849,7 +2021,7 @@ def main() -> int:
             else:
                 run = run_boot if suite == 'boot' else run_vga
                 report = run(args, oracle.link_inputs(args.jobs, args.download))
-            name = (game_suite(args) if suite == 'game' else
+            name = (game_suite(args) if suite == 'game' else wfw_suite(args) if suite == 'wfw' else
                     boot_suite(args) if suite == 'boot' else suite + ('-rtl' if args.cpu == 'rtl' else '') + suffix(args))
             (OUTPUT / name).mkdir(parents=True, exist_ok=True)
             (OUTPUT / name / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
