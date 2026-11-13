@@ -1,0 +1,44 @@
+{
+  "progress-trial-execute": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/command-progress-trial/run_trial.py",
+      "--procedure-sha256",
+      "d5d57f29d941185977324394646b07e15a099ce069b29e6a78233fad23c026b4",
+      "--execute"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 1,
+    "timed_out": false,
+    "elapsed": 904.4295911360532,
+    "log_sha256": "bc16797d9a068498b891bf25eea818e7a36ebd738a5d1abae70bb73fff99d23c"
+  },
+  "progress-physical-replay": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/command-progress-physical/collect-four-role.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 2.8021416349802166,
+    "log_sha256": "e32d18f81ffc7fb37275d002532d5cfad9bf9fa76a75eff0bd0c5b05cea7f25d"
+  },
+  "progress-physical-retain": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/command-progress-physical/retain.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 0.6013942579738796,
+    "log_sha256": "8deceea92c025ce332aaf64b7436285b934c33e29a38395783c1f247d9dd33a6"
+  }
+}
