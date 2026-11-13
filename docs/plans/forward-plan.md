@@ -343,7 +343,12 @@ core's timing miss blocks only that core's cell.
   image is assembled from published packages only.
 - **Farm scheduler.** One queue for cell builds across all GPU and Quartus
   hosts, on top of the existing `gpu-run` leases. Seals stop being something an
-  agent runs by hand on a particular box.
+  agent runs by hand on a particular box. The queue matches jobs to what a
+  worker may produce. Seal and production builds go only to workers with an
+  authenticated live HIP or CUDA backend, as the producer validators require.
+  Metal workers take timing and route replays, whose results are valid on
+  every backend, until the validators accept Metal for seals. CPU workers
+  take experiments only.
 - **Nightly per-core toolchain bump.** Finish cores-as-apps steps 3–7. A core
   moves its lock when the newer toolchain closes it; the lock is its last
   known good, not a pin to defend.
@@ -439,8 +444,9 @@ is right. Do not widen it. What stands between the tree and a release:
     `zx8x.mif`, `zx81machine/machine.rom`). The earliest dates from
     10 September, and 792 of 850 branches contain them. No Spectrum,
     Commodore, Atari, IBM or other system ROM was found.
-  - [#1799](https://github.com/DeanoC/fes/pull/1799) removes those four
-    archives from the tip. That alone does not make the tip clean.
+  - [#1799](https://github.com/DeanoC/fes/pull/1799), merged 13 November,
+    removed those four archives from the tip. That alone does not make the
+    tip clean.
   - The tip still holds 512 bytes of the ZX81 character set, copied from
     the ROM, in `sources/misteross/cores/fes-zx81/expansions/qs_chrs.hex`
     and `qs_chrs_init.vh`. Their GPL label has no verified basis
@@ -451,7 +457,7 @@ is right. Do not widen it. What stands between the tree and a release:
     is clean on that exact tree, with the glyph bytes added to its
     signatures, and the #387 audit has no open ROM finding.
   - The scan cannot see a ROM built into a bitstream. The one archive of
-    DE25 ZX81 `.sof` and `.rbf` files built with the ROMs is removed by
+    DE25 ZX81 `.sof` and `.rbf` files built with the ROMs was removed by
     #1799 as well.
   - The move needs its own short plan: what history the new repository
     starts with, how issues, PRs, CI and labels carry over, and how
