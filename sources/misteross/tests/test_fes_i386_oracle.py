@@ -343,7 +343,7 @@ class OracleSmokeTest(unittest.TestCase):
         testbench = oracle.build_testbench('i386-x87', oracle.SIM / 'x87_tb.cpp')
         result = subprocess.run([str(testbench)], capture_output=True, text=True, timeout=120)
         self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertEqual(result.stdout.splitlines()[-1], 'SUMMARY 10 0')
+        self.assertEqual(result.stdout.splitlines()[-1], 'SUMMARY 11 0')
 
 
 class OracleFetchTest(unittest.TestCase):

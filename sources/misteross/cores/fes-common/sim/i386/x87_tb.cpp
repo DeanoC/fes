@@ -29,6 +29,8 @@
 //               opcode, and no x87_differences from the FNSAVE image that
 //               follows.
 //   off         without the coupling, IRQ 13 stays low and nothing latches.
+//   fresh       an oracle made after one with the coupling on starts without
+//               it, as set_at_coprocessor documents.
 // Output: one "PASS <case>" or "FAIL <case> <what>" line per case, then
 // "SUMMARY <passed> <failed>". Exit status 1 on any failure.
 // scripts/fes_i386_oracle.py builds it (tests/test_fes_i386_oracle.py).
@@ -123,7 +125,9 @@ public:
 
     // Load the program and the handlers, reset, and run to HLT. hook runs
     // after every step with its index and result.
-    Run run(const Code &code, bool coupled = true,
+    // coupled: set_at_coprocessor's argument, or -1 to leave the coupling as
+    // the oracle has it.
+    Run run(const Code &code, int coupled = 1,
             const std::function<void(unsigned, const StepResult &)> &hook = {}) {
         std::memset(bus.ram.data(), 0, bus.ram.size());
         bus.pending = false;
@@ -146,7 +150,7 @@ public:
         // A denormal for FLD m80 at 0520h: significand 1, exponent 0.
         bus.put(0x520, {1, 0, 0, 0, 0, 0, 0, 0, 0, 0});
         for (size_t n = 0; n < code.bytes.size(); ++n) bus.ram[CODE + n] = code.bytes[n];
-        oracle->set_at_coprocessor(coupled);
+        if (coupled >= 0) oracle->set_at_coprocessor(coupled != 0);
         oracle->reset();
         oracle->invalidate(0, uint32_t(bus.ram.size()));
         State s = oracle->get_state();
@@ -343,7 +347,7 @@ void cases(Bench &b) {
         c.op({0xfb});
         c.prologue();
         c.op({0xf4});
-        Run r = b.run(c, false);
+        Run r = b.run(c, 0);
         b.check(!b.oracle->x87_irq13() && !b.oracle->x87_busy_latched() && r.held == 0 && b.bus.word(0x600) == 0,
                 "IRQ 13 or the latch without the coupling");
         b.done("off");
@@ -353,8 +357,30 @@ void cases(Bench &b) {
 }  // namespace
 
 int main() {
-    Bench b;
-    cases(b);
-    std::printf("SUMMARY %u %u\n", b.passed, b.failed);
-    return b.failed ? 1 : 0;
+    unsigned passed = 0, failed = 0;
+    {
+        Bench b;
+        cases(b);
+        // Leave this oracle with the coupling on for the fresh case.
+        b.oracle->set_at_coprocessor(true);
+        passed = b.passed;
+        failed = b.failed;
+    }
+    {
+        // fresh: a new oracle starts without the coupling, though the last
+        // one in this process had it on (the coupling's state is global).
+        Bench b;
+        Code c;
+        c.op({0xfb});
+        c.prologue();
+        c.op({0xf4});
+        Run r = b.run(c, -1);
+        b.check(!b.oracle->x87_irq13() && !b.oracle->x87_busy_latched() && r.held == 0 && b.bus.word(0x600) == 0,
+                "the coupling is on in a new oracle");
+        b.done("fresh");
+        passed += b.passed;
+        failed += b.failed;
+    }
+    std::printf("SUMMARY %u %u\n", passed, failed);
+    return failed ? 1 : 0;
 }

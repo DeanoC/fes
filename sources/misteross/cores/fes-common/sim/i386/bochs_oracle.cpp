@@ -381,10 +381,16 @@ public:
         if (bus) throw std::logic_error("only one Bochs oracle may exist per process");
         bus = &target;
         log_enabled = std::getenv("FES_I386_ORACLE_LOG") != nullptr;
+        // The AT coupling is off for every new oracle (at387 is global).
+        at387 = AtCoprocessor{};
         bx_cpu.initialize();
         reset();
     }
-    ~BochsOracle() override { bus = nullptr; }
+    ~BochsOracle() override {
+        at387 = AtCoprocessor{};
+        bx_pc_system.IGNNE = false;
+        bus = nullptr;
+    }
 
     std::string name() const override { return "bochs-level3"; }
 

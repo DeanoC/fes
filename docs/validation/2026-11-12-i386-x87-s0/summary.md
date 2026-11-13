@@ -22,7 +22,7 @@ It does five things:
   `fpu_exception: no`, which means IRQ 13, not exception 16, and
   `/proc/interrupts` counts one "math error" on IRQ 13. Main's oracle
   stopped 0.19 s into this kernel.
-- **The error path follows the AT.** Ten directed cases on the oracle alone
+- **The error path follows the AT.** Eleven directed cases on the oracle alone
   (`x87_tb.cpp`) pass, and fail under two mutations of the adapter. X87TEST.COM
   takes the path at the FreeDOS prompt: IRQ 13 through the BIOS's INT 75h to
   INT 02h, a raw IRQ 13 frame, an ESC held until a write to F0h, and the F1h
@@ -165,7 +165,7 @@ The checks ran on this branch's commits as they landed:
 
 | Check | Where | Result |
 | --- | --- | --- |
-| `x87_tb.cpp`: if1, held-nmi, no-wait, fnstsw, nm-first, wait-mp0, wait-mp1, f1-reset, accessor, off | Powerboat, `tests/test_fes_i386_oracle.py` | 10 of 10 |
+| `x87_tb.cpp`: if1, held-nmi, no-wait, fnstsw, nm-first, wait-mp0, wait-mp1, f1-reset, accessor, off; fresh (after review) | Powerboat, `tests/test_fes_i386_oracle.py` | 11 of 11 |
 | The same with OUT F0h made a no-op | Powerboat | 7 fail (no HLT: the latch never clears) |
 | The same with the hold removed | Powerboat | hangs inside `step()`: main's bug |
 | `sim_fes_pc386.py --suite boot` (FreeDOS on the oracle, coupling on) | chip | PASS, prompt at 3.75 s |
@@ -202,6 +202,9 @@ The x87_tb cases:
 - **accessor:** `x87_state()` equals the FNSAVE image that follows it, the
   pointers and opcode included, with tags 00, 01, 10 and 11.
 - **off:** without the coupling, no IRQ 13 and no latch.
+- **fresh:** an oracle made after one with the coupling on starts without
+  it. The coupling's state is process-global, and before review a new
+  oracle kept it; without the constructor's reset this case fails.
 
 ### Linux 2.0.0 with its 387
 
