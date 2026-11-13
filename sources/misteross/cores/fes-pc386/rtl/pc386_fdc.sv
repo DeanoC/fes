@@ -46,11 +46,11 @@
 // at 500 kbit/s, 8 us at 1 Mbit/s (36). A byte waits for its DACK, or with
 // Specify's ND set for its 3F5h access, so there is no overrun. A write
 // collects the sector in the buffer, then stores it in 64 single beats, the
-// bytes after a TC as 00h, so a torn sector never reaches the image. A store
-// runs to its end whatever the controller does meanwhile, a software reset
-// included; busy covers it, every read beat still owed, a DACK in flight and
-// a sector the guest has finished but the store has not begun, and the shell
-// resets the machine only while busy is low.
+// bytes after a TC as 00h, so a torn sector never reaches the image. The
+// store of a sector the guest has finished is queued in that clock and runs
+// to its end whatever the controller does meanwhile, a software reset
+// included; busy covers it, every read beat still owed and a DACK in flight,
+// and the shell resets the machine only while busy is low.
 //
 // The fence (fes.media.ata-disk's, for the floppy units of slice F3): frozen
 // holds back the next sector a write would start, and the next ID of a
@@ -123,8 +123,8 @@ module pc386_fdc #(
     localparam [2:0] R_ST0 = 3'd0, R_ST3 = 3'd1, R_SENSE = 3'd2, R_RW = 3'd3, R_FORMAT = 3'd4, R_DUMP = 3'd5,
                      R_VERSION = 3'd6, R_LOCK = 3'd7;
     localparam [3:0] X_DISPATCH = 4'd0, X_STEP = 4'd1, X_SETTLE = 4'd2, X_READY = 4'd3, X_READ_ID = 4'd4,
-                     X_FETCH = 4'd5, X_FETCH_WAIT = 4'd6, X_BYTE_WAIT = 4'd7, X_BYTE = 4'd8, X_STORE = 4'd9,
-                     X_STORE_GO = 4'd10, X_STORE_WAIT = 4'd11;
+                     X_FETCH = 4'd5, X_FETCH_WAIT = 4'd6, X_BYTE_WAIT = 4'd7, X_BYTE = 4'd8,
+                     X_STORE_WAIT = 4'd9;
     reg [7:0] dor, msr;
     reg [1:0] rate;                                // DSR/CCR: 500, 300, 250, 1000 kbit/s
     reg nd, lock;
@@ -215,12 +215,13 @@ module pc386_fdc #(
     // ---- Image port ---------------------------------------------------------
     // A fetch is one 64-beat read; every beat still owed is counted so that
     // a burst cut short by a software reset drains before the next. The
-    // store engine writes one sector, from the buffer or a fill byte, and
-    // runs to its end.
+    // store engine writes one sector, from the buffer or a fill byte; a store
+    // is queued (store_due) when the guest finishes its sector, starts on the
+    // next clock, and runs to its end. Neither depends on the phase.
     reg [12:0] target_lba;
     reg target_drive;
     wire [28:0] sector_word = IMAGE0_WORD + (target_drive ? DRIVE_WORDS : 29'd0) + {10'd0, target_lba, 6'd0};
-    reg fetching, storing, store_loaded, store_fill;
+    reg fetching, storing, store_due, store_loaded, store_fill;
     reg [6:0] fetch_beats;
     reg [7:0] owed;
     reg [5:0] store_word;
@@ -239,17 +240,14 @@ module pc386_fdc #(
     assign aux_write = storing && store_loaded;
     assign aux_writedata = store_data;
     assign aux_byteenable = 8'hff;
-    // busy: port 2 traffic in flight, a DACK in flight (it may give a
-    // write's last byte), or a sector that will be stored without the guest
-    // (its drive is ready). The shell resets the machine only while it is low.
-    assign busy = fetching || storing || owed != 8'd0 || dack_valid ||
-                  phase == P_EXEC && (ex == X_STORE && ready || ex == X_STORE_GO);
+    // busy: port 2 traffic queued or in flight, or a DACK in flight (it may
+    // give a write's last byte). The shell resets the machine only while it
+    // is low.
+    assign busy = fetching || storing || store_due || owed != 8'd0 || dack_valid;
     // A write the controller holds: a byte offered (its DACK may already be
-    // on its way, so the offer stands), a sector or ID started, or one
-    // waiting for its store.
+    // on its way, so the offer stands), or a sector or ID started.
     wire holding = phase == P_EXEC && writing &&
-                   (ex == X_BYTE || ex == X_STORE || ex == X_STORE_GO ||
-                    (formatting ? id_byte != 2'd0 : index != 9'd0));
+                   (ex == X_BYTE || (formatting ? id_byte != 2'd0 : index != 9'd0));
     assign fenced = frozen && !busy && !holding;
     // A write's next sector, or a format's next ID, waits at the fence.
     wire fence_closed = frozen && writing && (formatting ? id_byte == 2'd0 : index == 9'd0);
@@ -382,6 +380,16 @@ module pc386_fdc #(
         end
     endtask
 
+    // The guest has finished a write's sector (bytes 0 to index) or a
+    // format's ID: queue its store, which no reset can stop.
+    task automatic queue_store(input fill);
+        begin
+            store_due <= 1; target_lba <= lba; target_drive <= d;
+            store_fill <= fill; store_bytes <= {1'b0, index} + 10'd1;
+            ex <= X_STORE_WAIT;
+        end
+    endtask
+
     task automatic fail(input [2:0] kind, input h, input [7:0] status1);
         begin
             st0 <= {5'b01000, h, 1'b0, d}; st1 <= status1; st2 <= 0;
@@ -435,7 +443,7 @@ module pc386_fdc #(
             steps <= 0; format_cyl <= 0; format_left <= 0; id_byte <= 0; format_cyl_set <= 0; format_bad <= 0;
             index <= 0; dack_rdata <= 8'hff;
             target_lba <= 0; target_drive <= 0;
-            fetching <= 0; storing <= 0; store_loaded <= 0; store_fill <= 0;
+            fetching <= 0; storing <= 0; store_due <= 0; store_loaded <= 0; store_fill <= 0;
             fetch_beats <= 0; owed <= 0; store_word <= 0; store_bytes <= 0; fill_byte <= 0;
             buffer_waddress <= 0; buffer_wdata <= 0; gathered <= 0;
         end else begin
@@ -450,6 +458,8 @@ module pc386_fdc #(
                     store_word <= store_word + 6'd1;
                     if (store_word == 6'd63) storing <= 0;
                 end
+            end else if (store_due) begin
+                storing <= 1; store_due <= 0; store_loaded <= 0; store_word <= 0;
             end
             if (fetching && !aux_waitrequest) begin
                 fetching <= 0;
@@ -661,7 +671,7 @@ module pc386_fdc #(
                 else if (waited) enter_result(R_RW);
                 // A read's next sector from the image.
                 X_FETCH: if (disk_left) not_ready();
-                else if (ready && owed == 8'd0 && !storing) begin
+                else if (ready && owed == 8'd0 && !storing && !store_due) begin
                     if (cyl[d] >= tracks || sector[d] > sectors_per_track || head[d] && !two_sided[d])
                         fail(R_RW, head[d], 8'h04);
                     else begin
@@ -697,7 +707,8 @@ module pc386_fdc #(
                         id_byte <= id_byte + 2'd1;
                         if (id_byte == 2'd0 && taken_byte >= tracks) fail(R_FORMAT, head[d], 8'h04);
                         else if (id_byte == 2'd3 && (format_bad || taken_byte != 8'd2)) fail(R_FORMAT, head[d], 8'h04);
-                        else if (id_byte == 2'd3) ex <= X_STORE;
+                        else if (id_byte == 2'd3 && disk_left) not_ready();
+                        else if (id_byte == 2'd3) queue_store(1'b1);
                         else if (taken_tc && disk_left) not_ready();
                         else if (taken_tc) begin
                             st0 <= {5'd0, head[d], 1'b0, d};
@@ -729,7 +740,8 @@ module pc386_fdc #(
                         if (index == 9'd511 || taken_tc) begin
                             // A write's store checks for a departed disk;
                             // a read that ends here checks now.
-                            if (writing) ex <= X_STORE;
+                            if (writing && disk_left) not_ready();
+                            else if (writing) queue_store(1'b0);
                             else if ((taken_tc || end_of_track) && disk_left) not_ready();
                             else if (taken_tc || end_of_track) finish_transfer(end_of_track && !taken_tc);
                             else begin
@@ -742,19 +754,9 @@ module pc386_fdc #(
                         end
                     end
                 end
-                // Write and format: store the sector the guest has given.
-                X_STORE: if (disk_left) not_ready();
-                else if (!storing && ready) begin
-                    target_lba <= lba; target_drive <= d;
-                    ex <= X_STORE_GO;
-                end
-                X_STORE_GO: begin
-                    storing <= 1; store_loaded <= 0; store_word <= 0;
-                    store_fill <= formatting;
-                    store_bytes <= index == 9'd0 ? 10'd512 : {1'b0, index};
-                    ex <= X_STORE_WAIT;
-                end
-                X_STORE_WAIT: if (!storing) begin
+                // Write and format: the sector's store, queued with its last
+                // byte, has landed.
+                X_STORE_WAIT: if (!storing && !store_due) begin
                     if (formatting) begin
                         id_byte <= 0;
                         if (format_left <= 8'd1 || tc_seen) begin

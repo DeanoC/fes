@@ -141,6 +141,15 @@ public:
     bool fenced() const { return top->fenced; }
     void set_frozen(bool frozen) { top->frozen = frozen; cycle(); }
     void step(uint64_t n) { for (uint64_t i = 0; i < n; ++i) cycle(); }
+    // A write's byte by DACK, then a port write `after` clocks after the
+    // DACK completes.
+    void dack_then_out(uint8_t value, unsigned after, uint16_t port, uint8_t data) {
+        top->dack_valid = 1; top->dack_tc = 0; top->dack_wdata = value;
+        for (int i = 0; i < 64; ++i) { cycle(); if (top->dack_done) break; }
+        top->dack_valid = 0;
+        for (unsigned i = 0; i < after; ++i) cycle();
+        out(port, data);
+    }
     int eject_with_write = -1;            // a drive whose disk leaves with the next port write
 
 private:
@@ -861,6 +870,21 @@ std::vector<Case> cases() {
         g.dma_out({1}, 0);
         r = g.results(1000000);
         g.check(r.size() == 7 && r[0] == 0x48, "a disk that left before a format's TC ends it: NR");
+        // A controller reset in each of the first clocks after a write's last
+        // DACK: the sector the guest finished is stored all the same.
+        for (unsigned after = 0; after < 4; ++after) {
+            std::vector<uint8_t> sector(512);
+            for (size_t i = 0; i < sector.size(); ++i) sector[i] = uint8_t(i * 5 + after * 17 + 1);
+            g.command(rw(0x45, 0, 8, 0, 1, 1));
+            g.dma_out(std::vector<uint8_t>(sector.begin(), sector.end() - 1));
+            g.wait([&] { return g.f.drq(); }, 100000, "write's last byte offered");
+            rtl.dack_then_out(sector.back(), after, 0x3f2, 0x18);
+            g.out(0x3f2, 0x1c);
+            g.irq();
+            for (int i = 0; i < 4; ++i) g.sense();
+            read_back(g, 0, 8, 0, 1, 1, 1, sector,
+                      strf("a sector finished %u clocks before a controller reset", after).c_str());
+        }
     }});
     list.push_back({"timing", 4, 2, true, [](Guest &g) {
         g.boot(&A144);
