@@ -11,8 +11,8 @@ It runs the producer's own command line unchanged except for two things:
 
 - build_identity returns main's BUILD_ID in place of the one the PR's build
   record gives;
-- the final package export is skipped, because it rightly refuses a manifest
-  whose build.id differs from the record.
+- the final package export (and Pong's check of that export) is skipped,
+  because it rightly refuses a manifest whose build.id differs from the record.
 
 The producer still authenticates its tools from the PR's per-tool installs and
 runs its own synthesis, placement search, route, timing and source and
@@ -32,6 +32,8 @@ producer = importlib.import_module(module_name)
 main_id = json.loads(Path(summary).read_text())["build_id"]
 producer.build_identity = lambda record: main_id
 producer.export_package = lambda encoded, rbf, *args, **kwargs: rbf
+if hasattr(producer, "validate_exported_package"):
+    producer.validate_exported_package = lambda directory, *args: directory
 print("forced build_id", main_id, flush=True)
 sys.argv = [producer.__file__, *arguments]
 result = producer.main()
