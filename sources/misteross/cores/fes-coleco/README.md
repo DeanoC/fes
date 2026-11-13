@@ -76,8 +76,8 @@ frozen cells at their original BELs. It declares optional `fes.expansion.coleco-
 1.0 and left the former factory Coleco producer unchanged. The diagnostic module
 recipe `scripts/build_coleco_bus_diagnostic.py` routes against that frozen
 shell and checks its CRAM diff before publishing an expansion archive. The
-builder reconstructs the system PLL's second output from the exact frozen net
-metadata. Request bit 23 uses the vacant third-row boundary FF so the cart can
+builder verifies both PLL outputs, their physical pin map and frozen clock
+buffers before routing. Request bit 23 uses the vacant third-row boundary FF so the cart can
 route. The full-response diagnostic route completes and passes all three clock
 gates. The final integrated shell/cart changes no bits outside the declared
 region. An earlier route against the same RTL changed two bits outside at
