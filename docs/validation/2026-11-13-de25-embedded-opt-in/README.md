@@ -49,6 +49,26 @@ Separate baseline restoration archive SHA-256:
 These archives remain in the retained evidence store; generated images are
 not shipped as source fixtures.
 
+## Integrated source validation
+
+At source `89c621377b73a4ed56da8ae36d9753dfceda7d31`, the Nano suite passes
+810 tests with 13 toolchain/hardware-dependent skips. The board ROM/CPU/return
+RTL model passes with synthetic externally streamed ROM data. Generated-file,
+source and inventory checks pass. The private catalog host uses the current
+HTTP API and passes its race test; installer catalog navigation follows the
+current Settings sections.
+
+The [Tenfoot cross-build](tenfoot-cross-build.json) uses the pinned TamaGo
+compiler for ARM64 and binds all 438 selected source files. It uses the basic
+probe profile and does not produce a matched selected-program core-loader boot
+chain. Compilation exercises the merged launcher dependencies without running
+them on a device.
+
+The [retirement snapshot model](../2026-11-13-de25-command-snapshot/README.md)
+reduces command-phase supplier reads while preserving all deadlines and
+pre-publication checks. Portable AArch64 compilation also passes. Physical
+retirement and warm fabric-drain acceptance remain open.
+
 ## Remaining work
 
 Resolve source retirement and the post-diagnostic fabric drain failure before

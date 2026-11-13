@@ -43,6 +43,11 @@ skips. The actual board ROM/CPU/return RTL model also passes after its stale
 dependency on a removed bundled ROM file is removed; that model streams only
 its synthetic program through the external-ROM transport.
 
+The [AArch64 compilation record](portable-arm64.json) binds the five portable
+firmware units and headers to the pinned compiler tools and resulting AArch64
+objects. The largest individual static frame is 368 bytes. This is neither a
+linked BL31 nor a whole EL3 stack bound.
+
 A new matched AArch64 firmware/boot build, physical retirement evidence and
 the separate warm fabric-drain investigation remain required before ordinary
 native core-load acceptance. No board was programmed or rebooted for this
