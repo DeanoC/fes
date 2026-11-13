@@ -37,9 +37,11 @@ matched chain and native file admission pass. Its bounded hardware trial
 completes input transfer and reaches queue publication, then stops at the command
 deadline; recovery programming reports a broken JTAG chain. After a physical
 reset, exact original-FIT rollback and the full 51-command baseline cycle/Park
-are independently verified. The format-9 successor adds one guarded read-only
-queue-progress batch per poll, preserving all write gates and deadlines. It has
-no matched-chain or hardware acceptance yet.
+are independently verified. The [format-9 successor](../../docs/validation/2026-11-13-de25-command-progress/README.md)
+adds one guarded read-only queue-progress batch per poll, preserving all write
+gates and deadlines. Its full matched chain and native file admission pass.
+A new frozen bounded trial is still required; it has no hardware retirement,
+ordinary activation or source-memory reuse acceptance.
 
 This directory develops the Linux-free DE25-Nano base. QEMU supplies combined
 launcher integration, while bounded Nano CPU/SD/package diagnostics now run on

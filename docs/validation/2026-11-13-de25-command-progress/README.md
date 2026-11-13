@@ -43,9 +43,9 @@ The prior [format-8 physical trial and restoration](../2026-11-13-de25-command-g
 remain separate: full source transfer passes, command retirement fails after
 publication and recovery programming reports a broken JTAG chain. A later
 physical reset permits exact original-FIT rollback and an independently verified
-51-command baseline cycle/final Park. Format 9 has not touched the board. A new
-complete matched chain and frozen one-use procedure are required before testing
-it physically; no ordinary activation or source-memory reuse is enabled.
+51-command baseline cycle/final Park. Format 9 has not touched the board. Its complete matched chain is described
+below; a new frozen one-use procedure is required before testing it physically.
+No ordinary activation or source-memory reuse is enabled.
 
 The [affected checks](checks.json) pass the full selected software campaign:
 2,651 parent tests (15 reported skips), the native runtime/firmware and producer
@@ -53,3 +53,35 @@ integration checks, and 2,181 FPGA software tests (88 reported skips). Generated
 consistency verifies all 69 consumers and 45 fixture copies; documentation links
 also pass. These remain software and model checks, not a physical retirement
 qualification.
+
+## Complete matched candidate
+
+The [matched result](matched-result.json) binds production source
+`f5142047077851c98465886f79a386debffa62cf`. The selected-program native SDK,
+compressed CPU entry, complete BL31, SPL/U-Boot and FPGA composition all build
+and pass the full fresh native file admission. The [commands](matched-checks.json)
+retain their terminal results. Composition holds the shared Quartus Pro lock;
+it performs no synthesis, fitting, card write or device access and preserves
+the exact sealed FPGA payloads.
+
+The new chain is
+`b1c328df40d1a1497b61bd8c780c611a5bbf3121069c72fd72096d8b95b6794e`,
+boot ID `8cf056aa789ab65f`, FIT SHA-256
+`4e6a484f2a7c5da3666190380dbbfc7d61492409a339e25a854cb5e8e4c66a53`.
+The FIT is 8,514,256 bytes within the unchanged 16 MiB contract. The new
+[archive](retention-result.json) retains 1,139 files with independent readback,
+SHA-256 `55e45c804dcbbaf58c3a6cd254ef4f666e01acd0f28e29bf38c69263611d0b95`,
+including the software proof sources, cross-build objects, raw checks, prior
+failed prototype logs and source ROM. The two complete unchanged sealed FPGA
+project trees remain in the [separately verified archive](reused-project-archive.json)
+`9587828cdddfd72ab618154a1bb73bb1ccaaa7b3bbcfff8ebfb369991f4247eb`;
+complete membership and hashes match. Both archives are required.
+
+This is a matched off-board candidate, not physical retirement acceptance,
+independent interconnect drain or source-memory reuse. TRWU8CBL remains at its
+separately verified original native baseline Park. No additional kit operation
+has been performed during these source changes or builds.
+
+The complete current native file/tree snapshot still matches after the final
+documentation updates and archive retention. Later publication commits change
+documentation only; the built production source remains `f5142047077851c98465886f79a386debffa62cf`.
