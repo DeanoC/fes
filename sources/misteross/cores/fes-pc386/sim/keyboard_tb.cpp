@@ -10,6 +10,7 @@
 //
 // Prints PASS <name> or FAIL <name>: <detail> per check; exits 1 on a failure.
 #include "Vpc386_hid_keyboard.h"
+#include "Vpc386_hid_keyboard___024root.h"
 #include "hid_set2_reference.h"
 #include "verilated.h"
 
@@ -69,6 +70,7 @@ struct Bench {
     // deliver() hands it over.
     bool hold = false;
     std::deque<Completion> held;
+    bool deliver_on_pause_release = false, delivered_on_pause_release = false;
 
     Bench() {
         top.reset = 1;
@@ -86,6 +88,19 @@ struct Bench {
         top.complete_make = complete_make;
         top.complete_repeat = complete_repeat;
         top.eval();
+        // Align a held FIFO completion with the silent-release clock; the
+        // assertions still check only the resulting external byte stream.
+        if (deliver_on_pause_release && !held.empty() && top.rootp->pc386_hid_keyboard__DOT__pause_release) {
+            const Completion next = held.front();
+            held.pop_front();
+            top.key_complete = 1;
+            top.complete_bit = next.bit;
+            top.complete_make = next.make;
+            top.complete_repeat = next.repeat;
+            top.eval();
+            deliver_on_pause_release = false;
+            delivered_on_pause_release = true;
+        }
         const bool completes = top.key_valid && top.key_ready && scanning && top.key_last;
         const uint8_t report_bit = top.key_report_bit;
         const uint8_t report_make = top.key_report_make;
@@ -586,6 +601,50 @@ void in_flight(Bench &b) {
     const auto next_pause = delivered.collect(1200);
     check("a newer delivered Pause remains down across a clear",
           duplicate.empty() && next_pause == pause_bytes, hex(duplicate) + " / " + hex(next_pause));
+
+    // The last byte of a make can be taken in the same clock that the diff
+    // notices its release. The release must win even over that completion.
+    Bench coincident;
+    coincident.hold = true;
+    coincident.key(PAUSE, true);
+    coincident.collect(1200);
+    coincident.deliver_on_pause_release = true;
+    coincident.key(PAUSE, false);
+    coincident.collect(1200);
+    coincident.scanning = false;
+    coincident.cancel = true;
+    coincident.clock();
+    coincident.key(PAUSE, true);
+    coincident.collect(1200);
+    coincident.hold = false;
+    coincident.scanning = true;
+    const auto after_coincident = coincident.collect(1200);
+    check("a simultaneous Pause release and completion retains the release",
+          coincident.delivered_on_pause_release && after_coincident == pause_bytes, hex(after_coincident));
+
+    // A FIFO clear may coincide with a completion. A stale completion must
+    // not restore the released press; a current one must remain delivered.
+    for (bool release_first : {false, true}) {
+        Bench during_clear;
+        during_clear.hold = true;
+        during_clear.key(PAUSE, true);
+        during_clear.collect(1200);
+        if (release_first) {
+            during_clear.key(PAUSE, false);
+            during_clear.collect(1200);
+        }
+        during_clear.scanning = false;
+        during_clear.cancel = true;
+        during_clear.deliver();
+        if (release_first) during_clear.key(PAUSE, true);
+        during_clear.collect(1200);
+        during_clear.hold = false;
+        during_clear.scanning = true;
+        const auto after_clear = during_clear.collect(1200);
+        check(release_first ? "clear plus stale Pause completion retries the later press" :
+                              "clear plus current Pause completion does not duplicate a held press",
+              release_first ? after_clear == pause_bytes : after_clear.empty(), hex(after_clear));
+    }
 }
 
 }  // namespace
