@@ -144,9 +144,9 @@ func checkContract(d corepackage.Descriptor) error {
 	}
 	if d.Format == 4 || d.Format == 3 && d.ROM.Role == "cartridge" {
 		for _, i := range d.Interfaces {
-			if current(i) && (i.ID == g.FesApplicationInterfaceMediaBlobStreamID || i.ID == g.FesApplicationInterfaceFirmwareBlobID ||
+			if current(i) && (i.ID == g.FesApplicationInterfaceMediaBlobStreamID ||
 				d.ABI.ID == g.FesApplicationABIID && d.ABI.Major == 1 && i.ID == g.FesApplicationInterfaceMediaBlobID) {
-				return incompatible("linked cartridge cannot declare a reset-held media or firmware mailbox")
+				return incompatible("linked cartridge cannot declare a reset-held media mailbox")
 			}
 		}
 	}
@@ -186,7 +186,6 @@ func applicationContract(d corepackage.Descriptor) error {
 			continue
 		}
 		bus = bus || i.ID == colecoBus && i.Major == 2 && i.Minor == 0 && !i.Required
-		firmware := i.ID == g.FesApplicationInterfaceFirmwareBlobID
 		known := false
 		switch i.ID {
 		case g.FesApplicationInterfaceGamepadID, g.FesApplicationInterfaceGamepadPortsID,
@@ -194,7 +193,7 @@ func applicationContract(d corepackage.Descriptor) error {
 			g.FesApplicationInterfaceMediaBlobID, g.FesApplicationInterfaceMediaBlobStreamID,
 			g.FesApplicationInterfaceAudioPcmS16Stereo48kID, g.FesApplicationInterfaceMemoryHpsDdrID,
 			g.FesApplicationInterfaceVideoMenuDisplayID, g.FesApplicationInterfaceVideoMenuBlitterID,
-			g.FesApplicationInterfaceVideoSessionDisplayID, g.FesApplicationInterfaceFirmwareBlobID:
+			g.FesApplicationInterfaceVideoSessionDisplayID:
 			known = true
 		}
 		supported := known && i.Major == 1 && (i.Minor == 0 ||
@@ -205,7 +204,7 @@ func applicationContract(d corepackage.Descriptor) error {
 			}
 			continue
 		}
-		if !i.Required && !firmware {
+		if !i.Required {
 			return incompatible("application operational interfaces must be required")
 		}
 		switch i.ID {

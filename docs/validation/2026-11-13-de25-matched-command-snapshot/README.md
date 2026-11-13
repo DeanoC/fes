@@ -76,7 +76,11 @@ membership and hashes are rechecked, and that archive's bytes are hashed again.
 Both archives are required to recover this build context. External Quartus
 binaries remain digest-only dependencies.
 
-This rebuilt candidate has no physical acceptance. Prepare a fresh one-use
-bounded procedure with current transport/card admission before using it on
-TRWU8CBL. Retirement still retains all source memory and stops before ordinary
-activation; the separate native warm-stop failure still needs fresh evidence.
+The [subsequent physical trial](../2026-11-13-de25-command-snapshot-physical/README.md)
+boots this rebuilt candidate and completes full input transfer. Retirement
+again fails closed in phase 4 before queue publication, retaining all source
+memory without activation/reuse. The original FIT is restored exactly; the
+warm baseline then fails with a USB packet error and no final Park. The
+candidate has no physical retirement acceptance. Its consumed procedure must
+not be reused. Later main integration changes require fresh source admission
+and an affected rebuild before another candidate trial.

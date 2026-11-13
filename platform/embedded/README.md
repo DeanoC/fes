@@ -17,13 +17,14 @@ status register. Shared archive inspection grants no hardware activation.
 
 The [publication record](../../docs/validation/2026-11-13-de25-embedded-opt-in/README.md)
 separates historical hardware results from validation of the merged sources.
-The latest SDM full-input diagnostic completes transfer on the board, but its
-SMMU retirement fails closed. Post-diagnostic warm menu stop also failed after
-firmware reported a completed reader drain and bridge closure; its native
-failure cause remains unproven. After a physical reset the original two-core
-baseline passed. Those failures
-remain open, and the diagnostic cannot authorize normal activation or memory
-reuse. Feature parity with the Linux appliance remains a development goal.
+The latest [command-snapshot hardware diagnostic](../../docs/validation/2026-11-13-de25-command-snapshot-physical/README.md)
+completes full input transfer, but SMMU retirement still fails closed before
+queue publication. Its exact original FIT is restored; warm baseline startup
+then fails with a USB packet error and requires a physical reset. Independent
+firmware reader drain and bridge closure succeed. The earlier physical-reset
+two-core baseline pass remains separate evidence. These failures remain open,
+and the diagnostic cannot authorize normal activation or memory reuse. Feature
+parity with the Linux appliance remains a development goal.
 
 The [matched command-snapshot candidate](../../docs/validation/2026-11-13-de25-matched-command-snapshot/README.md)
 now builds the selected-program native SDK, entry, complete BL31, U-Boot/SPL

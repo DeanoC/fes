@@ -89,12 +89,6 @@ const (
 	FesApplicationControllerPortCount                uint32 = 0x2
 	FesApplicationControllerButtonMask               uint32 = 0xff
 	FesApplicationControllerKeypadMask               uint32 = 0xfff
-	FesApplicationOpcodeFirmwareBegin                uint32 = 0xf
-	FesApplicationOpcodeFirmwareData                 uint32 = 0x10
-	FesApplicationOpcodeFirmwareCommit               uint32 = 0x11
-	FesApplicationFirmwareBytes                      uint32 = 0x2000
-	FesApplicationFirmwareDataPairIndex              uint32 = 0x0
-	FesApplicationFirmwareDataTailIndex              uint32 = 0x1
 	FesApplicationHpsDdrWindowBase                   uint32 = 0x30000000
 	FesApplicationHpsDdrWindowBytes                  uint32 = 0x10000000
 	FesApplicationHpsDdrCfgPortWidth                 uint32 = 0x16
@@ -195,10 +189,6 @@ const (
 	FesApplicationInterfaceKeypadPortsMajor          uint16 = 1
 	FesApplicationInterfaceKeypadPortsMinor          uint16 = 0
 	FesApplicationCapabilityKeypadPorts              uint32 = 0x40
-	FesApplicationInterfaceFirmwareBlobID                   = "fes.firmware.blob"
-	FesApplicationInterfaceFirmwareBlobMajor         uint16 = 1
-	FesApplicationInterfaceFirmwareBlobMinor         uint16 = 0
-	FesApplicationCapabilityFirmwareBlob             uint32 = 0x80
 	FesApplicationInterfaceMemoryHpsDdrID                   = "fes.memory.hps-ddr"
 	FesApplicationInterfaceMemoryHpsDdrMajor         uint16 = 1
 	FesApplicationInterfaceMemoryHpsDdrMinor         uint16 = 0

@@ -25,7 +25,7 @@ visible launcher return, SD installation/reboot discovery and Ethernet-to-SD
 readback. They are evidence for those artifacts, not physical acceptance of
 this main-merged tree or general Linux feature parity.
 
-The latest source-retirement diagnostic used chain
+The earlier source-retirement diagnostic used chain
 `b8f89ef622f07cce3b5091f22d516f3f8e9a1c3de71b0ff7851e10373b74d647`
 and FIT SHA-256
 `2ba50ae7fd42f25c07990ab5b56943f8610e343522069ef6bae590e212faf5d0`.
@@ -76,20 +76,57 @@ pre-publication checks. Portable AArch64 compilation also passes. Physical
 retirement and warm menu-stop acceptance remain open. A subsequent
 [complete matched candidate](../2026-11-13-de25-matched-command-snapshot/README.md)
 now passes native SDK, entry, BL31, U-Boot/SPL, FPGA composition and fresh
-native file admission. Its retained archive readback passes. It has no board
-acceptance; the generic warm-return panic still needs its original error cause
-preserved before the next diagnostic.
+native file admission. Its retained archive readback passes. The cached native
+failure cause is preserved by a separate source repair and regression test.
+The [subsequent physical command-snapshot trial](../2026-11-13-de25-command-snapshot-physical/README.md)
+completes full input transfer but again fails retirement in phase 4. The exact
+original FIT is restored and read back. Warm baseline startup then fails with a
+DWC2 USB packet error before any App command; its complete cause is truncated
+by the collector. Independent firmware reader drain and bridge closure succeed.
+There is no final Park or accepted baseline restoration for this attempt.
+
+## Integration refresh
+
+Main at `daac138c7c9eb5d40009314fd8dbd797dffd2c3f` is merged to repair the
+actual merge-build failure caused by main's removal of the obsolete application
+firmware mailbox. The experimental application consumer is regenerated from
+the current shared definition; the removed mailbox is not reintroduced.
+The parent software CI runner now installs mtools and Verilator so the real
+FAT/PIO and RTL integration tests run instead of failing on missing tools.
+This source refresh does not inherit the preceding candidate's native image
+or hardware acceptance. The dated physical report keeps its original source
+and artifact identity.
+
+The [refresh checks](integration-refresh.json) pass: full native Go module race
+suite (229.1 seconds, valid cached package results reused), focused Tenfoot,
+rooms and private-host race suites, nine real FAT/PIO/RTL regression tests,
+156 affected-policy/workflow checks and generated-source consistency.
+The [current paired C++/Go corpus](compatibility-current-main.json) passes all
+691 cases after removal of the mailbox vectors. The
+[current AArch64 Tenfoot cross-build](tenfoot-current-main.json) passes with
+its complete selected source map. These source maps include the tested patch
+on merge head `bbd4a6d0ecc9764c6dbccad8a75ca04cf1c63d63` and are checked
+against the final files. This remains a basic-probe cross-build, not a newly
+matched boot chain or hardware acceptance.
+
+CI run 43409688178 failed before this refresh: consistency and host build on
+the stale generated consumer, parent software on missing mtools/Verilator, and
+one producer process-cleanup test while reading a newly created empty PID file.
+All nine tests in that producer module pass locally without modifying it.
+The previous CI failure remains recorded; a fresh CI result is required.
 
 ## Remaining work
 
-Resolve source retirement and the post-diagnostic warm menu-stop failure before
-attempting ordinary package activation through this experimental path. Preserve
-the native failure cause, rebuild the affected matched chain and qualify its
+Resolve source retirement and the post-diagnostic warm USB failure before
+attempting ordinary package activation through this experimental path. Capture
+the complete native error, rebuild the affected matched chain and qualify its
 launch/return and recovery on TRWU8CBL. Broader core/device support, controller
 and Bluetooth support, durable updates, multicore startup, signed secure boot
 and appliance-level failure recovery remain incomplete. Neither passing host
 tests nor source-bound receipts establish those properties.
 
-The publication does not program or reboot a board. The original native
-baseline remains parked on TRWU8CBL, with its test card installed. Factory
-media, QSPI and the bottom kit are outside this change.
+Publication itself does not program or reboot a board. Following the separately
+authorized physical trial, the original FIT is restored but the native baseline
+is stopped after panic and requires a physical reset. All owned host handles
+are closed. The test card remains installed. Factory media, QSPI and the bottom
+kit are outside this change.

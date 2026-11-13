@@ -8,12 +8,13 @@ It accepts no per-package compatibility decisions or policy JSON.
 
 The checks cover required and optional interface versions, mandatory gamepad,
 keyboard and video contracts, persistence transport/layout pairing, reset-held
-ROM/mailbox conflicts, firmware-only computer linking, menu/session display
+ROM/media-mailbox conflicts, firmware-only computer linking, menu/session display
 and DDR dependencies, shared-plane pairing, controller ports/keypad dependencies,
 Coleco video sockets, computer unit-0 media and expansion-bus uniqueness, and
-writable media dependencies. Computer ABI 1.1 remains rejected because the
-implemented C++ driver supports the 1.0 identity; newer shared definitions do
-not supply the missing driver.
+writable media dependencies. The obsolete application firmware mailbox follows
+the shared runtime's removal: a required declaration is unsupported, and an
+unknown optional declaration grants no firmware transport. Semantic computer
+ABI 1.1 recognition does not supply a matching native driver.
 
 ABI constants and the DE10 profile registry are generated from mister-packages.
 `NewDE10Compatibility` supplies that registry to compare the native port with
