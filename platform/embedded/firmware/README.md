@@ -56,9 +56,11 @@ The joined sanitizer model compiles the production readiness caller, mailbox,
 reader gate, bank observer and retained-source hooks. It exercises successful
 control/query/reader preparation and release, plus ownership, namespace,
 register, table and late-change failures. These are injected software checks.
-The route is not hardware-qualified yet, and memory remains retained on every
-outcome. Initial MENU on this source, independent interconnect drain, source
-reuse and repeatable core loading still need their separately matched proofs.
+The [bounded matched hardware diagnostic](../../../docs/validation/2026-11-14-de25-retained-secure-reader-physical/README.md)
+now passes first MENU handoff, drain and Ready Quit/Park, followed by exact
+original-FIT restoration and the full baseline cycle. Memory remains retained
+on every outcome. Independent interconnect drain, source reuse and repeatable
+retirement-path core loading remain open.
 
 The selected full-input retirement profile uses a bounded, read-only command
 snapshot callback. Each queue snapshot checks the same 24-register superset as

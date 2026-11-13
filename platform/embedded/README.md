@@ -74,9 +74,10 @@ empty-mailbox checks and an exact bounded reply. Format 14 adds a separately
 bound reader handoff for the sealed Secure stream 1 route, requiring fresh
 Secure-bank bypass controls while keeping the retired Non-secure source
 aborted. It changes no SMMU register and retains all source storage. Injected
-reader and serial-audit tests pass; the new route still needs a matched native
-hardware trial. These changes do not qualify memory reuse or general core-load
-acceptance.
+reader and serial-audit tests pass. The [bounded format-14 hardware trial](../../docs/validation/2026-11-14-de25-retained-secure-reader-physical/README.md)
+now passes first MENU handoff, drain and Quit/Park, followed by exact original-FIT
+restoration and the full baseline cycle. Memory reuse and general core-load
+acceptance remain open.
 
 This directory develops the Linux-free DE25-Nano base. QEMU supplies combined
 launcher integration, while bounded Nano CPU/SD/package diagnostics now run on

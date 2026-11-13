@@ -3,8 +3,10 @@
 Firmware source `ab9e10c00594a60cb8930323aa45e7e51202d568` adds an explicit
 format-14 handoff for the first MENU reader after programming-source retirement.
 Host auditor source `539df63a3` connects that handoff to the actual paired
-Tenfoot/installer session checker. Both changes are experimental. Neither has
-been deployed or physically qualified.
+Tenfoot/installer session checker. Both changes are experimental. At this software checkpoint neither had
+been deployed or physically qualified. The subsequent [bounded hardware trial](../2026-11-14-de25-retained-secure-reader-physical/README.md)
+passes the first MENU handoff and original-baseline restoration; general core
+loading and memory reuse remain open.
 
 The installed Quartus Pro 26.3 `parameters_data.tcl` maps AxUSER[8] to
 AxMMUSECSID and AxUSER[24:9] to AxMMUSID. Complete, hash-bound HPS IP and generated

@@ -7,7 +7,9 @@ both fresh reader proofs with the original source still aborted. Another core
 configuration rejects before any input is sent. This prepares a bounded initial
 MENU handback; it does not qualify memory reuse or repeatable core loading.
 The separately selected capability/remapper observers retain raw diagnostic
-values, reject repeated startup records, and grant no DMA or device authority.
+values, reject repeated startup records, and grant no DMA or device authority. The
+[bounded first-menu hardware diagnostic](../../../docs/validation/2026-11-14-de25-retained-secure-reader-physical/README.md)
+passes on its matched artifact, including exact original-baseline restoration.
 
 The host-only [boot-flash trial preparation](../../../docs/validation/2026-11-11-de25-bootflash-trial-preparation/README.md)
 adds explicit plan/role authorization and a one-use `flash_trial.FlashTrial`
