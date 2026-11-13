@@ -622,29 +622,42 @@ including the op cap, are not. The launcher reopens a root Home room that
 failed with `ErrBudget` after a backoff, a bounded number of times, and never
 reopens one that failed with a script error (see `docs/ARCHITECTURE.md`).
 
-A time failure says where the time went. On Linux the message gives the
-script run's wall time and, over that run, the callback thread's CPU time and
-voluntary/involuntary switches, its run-queue wait (`runnable`, when the
-kernel has `/proc/thread-self/schedstat`), its major/minor page faults and
-the KiB it read from storage (`ru_inblock`, counted by the kernel in 512-byte
-units; only when non-zero), the Go GC cycles and GC stop-the-world time
+A time failure says where the time went, in two labelled parts that cover
+different windows. On Linux, `script run` is the script run's wall time and,
+over that run, the callback thread's CPU time, voluntary/involuntary switches,
+major/minor page faults and the KiB it read from storage (`ru_inblock`,
+counted by the kernel in 512-byte units). Faults and KiB read appear only when
+non-zero. These come from one `clock_gettime` and one `getrusage` before and
+after the script, the only usage reads inside the callback's elapsed time, so
+the budget pays for nothing more than it did before.
+
+The second part, `since step start` (or `since callback start` for a callback
+outside a frame, such as `on_input`), runs from a baseline read before the
+callback's elapsed time starts to just after it ends. A frame takes one
+baseline that its callbacks share; the second read is taken only for a
+callback whose timing is reported, after its elapsed time is measured, so
+neither counts against a budget. Over that window it gives the thread's CPU
+time and run-queue wait (`runnable`, when the kernel has
+`/proc/thread-self/schedstat`), the Go GC cycles and GC stop-the-world time
 across the process (only when non-zero), the longest Go scheduler wait of any
-goroutine that ended in the run (`Go sched wait`, from 1ms up), and the
-`unaccounted` rest of the run: wall time minus thread CPU, runnable and GC
-stop-the-world (shown with `runnable`). For example
+goroutine that ended in it (`Go sched wait`, from 1ms up), and the
+`unaccounted` rest of the window: its wall time minus that thread CPU,
+runnable and GC stop-the-world (shown with `runnable`). If the callback ran on
+another OS thread than the baseline read, the window says `thread changed`
+and keeps only the process-wide fields. For example
 `script run 235.61ms: thread cpu 3.11ms, 15 voluntary/2 involuntary switches,
-runnable 1.2ms, 41 major/380 minor faults, 480 KiB read, unaccounted 231.3ms`.
-Faults and KiB read point at storage, GC at the Go runtime, runnable time at a
-CPU that was busy elsewhere, and Go sched wait at goroutines waiting for a Go
-scheduler slot.
+41 major/380 minor faults, 480 KiB read; since step start 241.2ms: thread cpu
+5.4ms, runnable 1.2ms, unaccounted 234.6ms`. Faults and KiB read point at
+storage, GC at the Go runtime, runnable time at a CPU that was busy
+elsewhere, and Go sched wait at goroutines waiting for a Go scheduler slot.
 
 `Go sched wait` is process-wide, its value is the lower bound of a histogram
 bucket, and the runtime records only about one goroutine wakeup in eight, so
 its absence does not rule out a Go scheduler wait by the script itself.
 Unaccounted time with voluntary switches and no faults, KiB read or GC beside
 it means the thread slept for a reason this data cannot name: a Go
-locked-thread handoff, a GC mark assist whose cycle ended outside the run, or
-a lock.
+locked-thread handoff, a GC mark assist whose cycle ended outside the window,
+or a lock.
 
 ## Testing rooms without a display
 

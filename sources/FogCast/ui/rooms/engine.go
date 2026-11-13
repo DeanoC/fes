@@ -184,15 +184,16 @@ type Instance struct {
 	inputOverruns int
 	// lastStep is the Lua time of the most recent Step, for frame traces.
 	lastStep StepTiming
-	// threadSample, when set, replaces the read of the callback thread's
-	// usage and the GC counters (readUsage). Tests use it. Production leaves
-	// it nil.
+	// threadSample, when set, replaces the in-window read of the callback
+	// thread's CPU time, switches and faults (readThreadUsage). Tests use it.
+	// Production leaves it nil.
 	threadSample func() (threadUsage, bool)
-	// runtimeUsage holds the GC metric samples reused by every readUsage.
-	runtimeUsage runtimeUsage
-	// schedstat keeps the callback thread's schedstat file open between
-	// samples. Close closes it.
-	schedstat schedstatReader
+	// windowSample, when set, replaces the out-of-window usage point read
+	// (readWindow). Tests use it. Production leaves it nil.
+	windowSample func(base bool) usagePoint
+	// usage holds the baseline usage point and its readers. Close closes its
+	// schedstat file.
+	usage usageWindow
 	// frameStreak and inputStreak describe the current run of consecutive
 	// soft overruns, reported when that run retires the room.
 	frameStreak     overrunStreak
@@ -323,7 +324,7 @@ func (r *Instance) Close() {
 	r.store.flush()
 	r.L.Close()
 	r.L = nil
-	r.schedstat.close()
+	r.usage.schedstat.close()
 }
 
 func (r *Instance) installSandbox() {
@@ -393,6 +394,10 @@ func (r *Instance) Step(now time.Time) Frame {
 	}
 	r.last = now
 	r.elapsed += dt
+	// One baseline usage read per Step, outside every callback's elapsed
+	// window; an overrunning callback in this Step compares with it.
+	r.beginStep()
+	defer r.endStep()
 	r.roomTable.RawSetString("time", lua.LNumber(r.elapsed))
 	r.lastStep = StepTiming{}
 	asyncStart := time.Now()
@@ -606,7 +611,7 @@ func (r *Instance) callRetSoft(fn *lua.LFunction, budget time.Duration, args ...
 	top := r.L.GetTop()
 	defer r.L.SetTop(top)
 	hardBudget := budget * callbackHardLimitFactor
-	timing, err := r.call(fn, hardBudget, 1, args...)
+	timing, err := r.callBudgets(fn, budget, hardBudget, 1, args...)
 	if err != nil {
 		return lua.LNil, err
 	}
@@ -622,7 +627,7 @@ func (r *Instance) callRetSoft(fn *lua.LFunction, budget time.Duration, args ...
 }
 
 func (r *Instance) callSoft(fn *lua.LFunction, budget time.Duration, nret int, args ...lua.LValue) error {
-	timing, err := r.call(fn, budget*callbackHardLimitFactor, nret, args...)
+	timing, err := r.callBudgets(fn, budget, budget*callbackHardLimitFactor, nret, args...)
 	if err != nil {
 		return err
 	}
@@ -892,62 +897,91 @@ func (r *Instance) callRet(fn *lua.LFunction, budget time.Duration, args ...lua.
 	return v, nil
 }
 
-// callTiming is one callback's timing over two nested windows, so a kit
-// overrun shows whether the script ran slowly or waited for a CPU.
+// callTiming is one callback's timing, so a kit overrun shows whether the
+// script ran slowly or waited, and for what.
 //
 // elapsed is the wall time of the whole call: pinning the OS thread, both
 // thread samples, the script and the deferred cleanup. The callback deadline
 // starts with it and the soft and hard checks compare it, so a stall
-// anywhere in the call counts against the room.
+// anywhere in the call counts against the room. The only usage reads inside
+// it are the two thread samples (one clock_gettime and one getrusage each).
 //
 // Where the OS reports it (measured), thread covers the script run alone,
 // between samples taken just before and just after the script: the script
-// thread's own CPU time, context switches, page faults, block reads and
-// run-queue wait, with the process-wide Go GC cycles and GC stop-the-world
-// pause time. script is the wall time of that run, from before the first
-// sample to after the second, so thread cpu <= script <= elapsed and elapsed
-// minus script was spent outside the script run. Voluntary switches are the
-// thread parking (Go descheduling, GC, a blocking call); involuntary switches
-// are the kernel giving its core to other work. Major faults and blocks read
-// are waits for storage. GC cycles and pause time are Go stopping the world or
-// collecting alongside the script. Run-queue wait is a woken thread waiting
-// for a core, which involuntary switches do not count. Go sched wait is the
-// longest sampled wait of any goroutine for a Go scheduler slot. Unaccounted
-// is script minus thread CPU, run-queue wait and GC stop-the-world.
+// thread's own CPU time, context switches, page faults and block reads.
+// script is the wall time of that run, from before the first sample to after
+// the second, so thread cpu <= script <= elapsed and elapsed minus script was
+// spent outside the script run. Voluntary switches are the thread parking (Go
+// descheduling, GC, a blocking call); involuntary switches are the kernel
+// giving its core to other work. Major faults and blocks read are waits for
+// storage.
+//
+// window (haveWindow) is read only for a callback whose timing is reported:
+// one past its soft budget or its deadline. It runs from the baseline taken
+// before the callback's elapsed window (at step start, or at callback start
+// outside a Step) to after elapsed was taken, and gives that window's
+// run-queue wait, process-wide GC and Go scheduler wait, with the same
+// thread's CPU time over it and what those do not explain.
 type callTiming struct {
-	elapsed  time.Duration
-	script   time.Duration
-	thread   threadUsage
-	measured bool
+	elapsed    time.Duration
+	script     time.Duration
+	thread     threadUsage
+	measured   bool
+	window     sinceBaseline
+	haveWindow bool
 }
 
 func (t callTiming) String() string {
 	s := "elapsed " + t.elapsed.Round(10*time.Microsecond).String()
+	if d := t.detail(); d != "" {
+		s += "; " + d
+	}
+	return s
+}
+
+// detail is the script run's usage and the window since the baseline, each
+// labelled with what it covers, or "" when neither was read.
+func (t callTiming) detail() string {
+	var parts []string
 	if t.measured {
-		s += "; " + t.scriptRun()
+		parts = append(parts, t.scriptRun())
 	}
-	return s
+	if t.haveWindow {
+		parts = append(parts, t.window.String())
+	}
+	return strings.Join(parts, "; ")
 }
 
-// scriptRun labels the thread usage with the run it covers and ends with
-// the part of the run it does not explain.
+// scriptRun labels the thread usage with the run it covers.
 func (t callTiming) scriptRun() string {
-	s := "script run " + t.script.Round(10*time.Microsecond).String() + ": " + t.thread.String()
-	if left, ok := t.thread.unaccounted(t.script); ok {
-		s += ", unaccounted " + left.Round(10*time.Microsecond).String()
-	}
-	return s
+	return "script run " + t.script.Round(10*time.Microsecond).String() + ": " + t.thread.String()
 }
 
-// call runs fn under a deadline budget after the call starts. elapsed is
-// read after runPinned's deferred cleanup has finished.
+// call runs fn under a deadline budget after the call starts. Its timing is
+// reported only when the deadline expires.
 func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args ...lua.LValue) (callTiming, error) {
+	return r.callBudgets(fn, budget, budget, nret, args...)
+}
+
+// callBudgets runs fn with its deadline at hard after the call starts.
+// elapsed is read after runPinned's deferred cleanup has finished. A callback
+// outside a Step takes its usage baseline before elapsed starts; one that
+// expires or runs past soft, so that its timing will be reported, reads the
+// usage after point once elapsed is taken. The OS thread stays locked across
+// all three, so both usage points read the thread that ran the script.
+func (r *Instance) callBudgets(fn *lua.LFunction, soft, hard time.Duration, nret int, args ...lua.LValue) (callTiming, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	r.noteCallbackBaseline()
 	start := time.Now()
-	timing, expired, err := r.runPinned(fn, start.Add(budget), nret, args...)
+	timing, expired, err := r.runPinned(fn, start.Add(hard), nret, args...)
 	timing.elapsed = time.Since(start)
+	if expired || timing.elapsed > soft {
+		r.noteOverrunWindow(&timing)
+	}
 	if err != nil {
 		if expired {
-			return timing, budgetErrorf("script exceeded %s budget (%s)", budget, timing)
+			return timing, budgetErrorf("script exceeded %s budget (%s)", hard, timing)
 		}
 		return timing, errors.New(strings.TrimSpace(err.Error()))
 	}
@@ -971,9 +1005,9 @@ func (r *Instance) runPinned(fn *lua.LFunction, deadline time.Time, nret int, ar
 		L.Push(a)
 	}
 	scriptStart := time.Now()
-	before, measured := r.sampleThread(true)
+	before, measured := r.sampleThread()
 	err = L.PCall(len(args), nret, nil)
-	after, ok := r.sampleThread(false)
+	after, ok := r.sampleThread()
 	timing.script = time.Since(scriptStart)
 	if ok && measured {
 		timing.thread, timing.measured = after.since(before), true

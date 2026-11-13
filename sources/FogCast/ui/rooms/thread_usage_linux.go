@@ -10,24 +10,39 @@ import (
 )
 
 // readThreadUsage reads the calling OS thread's CPU time, switches, faults
-// and block reads into u. The caller keeps its goroutine locked to that
-// thread between samples.
-func readThreadUsage(u *threadUsage) bool {
+// and block reads: one clock_gettime and one getrusage, the whole cost of a
+// sample inside a callback's elapsed window. The caller keeps its goroutine
+// locked to that thread between samples.
+func readThreadUsage() (threadUsage, bool) {
 	var ts unix.Timespec
 	if unix.ClockGettime(unix.CLOCK_THREAD_CPUTIME_ID, &ts) != nil {
-		return false
+		return threadUsage{}, false
 	}
 	var ru unix.Rusage
 	if unix.Getrusage(unix.RUSAGE_THREAD, &ru) != nil {
-		return false
+		return threadUsage{}, false
 	}
-	u.cpu = time.Duration(ts.Nano())
-	u.voluntary = int64(ru.Nvcsw)
-	u.involuntary = int64(ru.Nivcsw)
-	u.majorFaults = int64(ru.Majflt)
-	u.minorFaults = int64(ru.Minflt)
-	u.blocksRead = int64(ru.Inblock)
-	return true
+	return threadUsage{
+		cpu:         time.Duration(ts.Nano()),
+		voluntary:   int64(ru.Nvcsw),
+		involuntary: int64(ru.Nivcsw),
+		majorFaults: int64(ru.Majflt),
+		minorFaults: int64(ru.Minflt),
+		blocksRead:  int64(ru.Inblock),
+	}, true
+}
+
+// threadCPUSupported says currentThread reads a thread's CPU time here.
+const threadCPUSupported = true
+
+// currentThread is the calling OS thread's id and CPU time, for the ends of
+// a usage window.
+func currentThread() (tid int, cpu time.Duration, ok bool) {
+	var ts unix.Timespec
+	if unix.ClockGettime(unix.CLOCK_THREAD_CPUTIME_ID, &ts) != nil {
+		return 0, 0, false
+	}
+	return unix.Gettid(), time.Duration(ts.Nano()), true
 }
 
 // schedstatReader reads the calling thread's run-queue wait from

@@ -10,54 +10,93 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-// since subtracts every counter, and the text names each cause that occurred
-// while a run with none of them keeps the short form.
+// since subtracts every in-window counter, and the text names faults and
+// reads only when they occurred.
 func TestThreadUsageSinceAndString(t *testing.T) {
-	before := threadUsage{cpu: time.Millisecond, voluntary: 2, involuntary: 1, majorFaults: 1, minorFaults: 10, blocksRead: 8,
-		runDelay: time.Millisecond, haveRunDelay: true, gcCycles: 40, gcPause: 3 * time.Millisecond}
-	after := threadUsage{cpu: 4110 * time.Microsecond, voluntary: 17, involuntary: 3, majorFaults: 13, minorFaults: 350, blocksRead: 104,
-		runDelay: 2500 * time.Microsecond, haveRunDelay: true, gcCycles: 41, gcPause: 5100 * time.Microsecond, goSchedWait: 2 * time.Millisecond}
+	before := threadUsage{cpu: time.Millisecond, voluntary: 2, involuntary: 1, majorFaults: 1, minorFaults: 10, blocksRead: 8}
+	after := threadUsage{cpu: 4110 * time.Microsecond, voluntary: 17, involuntary: 3, majorFaults: 13, minorFaults: 350, blocksRead: 104}
 	d := after.since(before)
-	want := threadUsage{cpu: 3110 * time.Microsecond, voluntary: 15, involuntary: 2, majorFaults: 12, minorFaults: 340, blocksRead: 96,
-		runDelay: 1500 * time.Microsecond, haveRunDelay: true, gcCycles: 1, gcPause: 2100 * time.Microsecond, goSchedWait: 2 * time.Millisecond}
+	want := threadUsage{cpu: 3110 * time.Microsecond, voluntary: 15, involuntary: 2, majorFaults: 12, minorFaults: 340, blocksRead: 96}
 	if d != want {
 		t.Fatalf("since = %+v, want %+v", d, want)
 	}
-	if got, w := d.String(), "thread cpu 3.11ms, 15 voluntary/2 involuntary switches, runnable 1.5ms, 12 major/340 minor faults, 48 KiB read, 1 GC cycles, GC stop-the-world 2.1ms, Go sched wait >=2ms"; got != w {
+	if got, w := d.String(), "thread cpu 3.11ms, 15 voluntary/2 involuntary switches, 12 major/340 minor faults, 48 KiB read"; got != w {
 		t.Fatalf("String = %q, want %q", got, w)
 	}
-	quiet := threadUsage{cpu: 2 * time.Millisecond, voluntary: 1, involuntary: 9, goSchedWait: goSchedWaitShown - 1}
+	quiet := threadUsage{cpu: 2 * time.Millisecond, voluntary: 1, involuntary: 9}
 	if got, w := quiet.String(), "thread cpu 2ms, 1 voluntary/9 involuntary switches"; got != w {
 		t.Fatalf("quiet String = %q, want %q", got, w)
 	}
-	// Run delay is reported, even as zero, only when both samples had it.
+}
+
+// The window since the baseline is labelled with its baseline and span, and
+// its unaccounted rest uses only quantities over that same span.
+func TestSinceBaselineString(t *testing.T) {
+	t0 := time.Unix(100, 0)
+	base := usagePoint{wall: t0, tid: 7, cpu: time.Millisecond, haveCPU: true, runDelay: time.Millisecond, haveRunDelay: true,
+		gcCycles: 40, gcPause: 3 * time.Millisecond}
+	after := usagePoint{wall: t0.Add(20 * time.Millisecond), tid: 7, cpu: 5 * time.Millisecond, haveCPU: true,
+		runDelay: 3500 * time.Microsecond, haveRunDelay: true, gcCycles: 41, gcPause: 3500 * time.Microsecond, goSchedWait: 2 * time.Millisecond}
+	w := after.since(base, baseStepStart)
+	// 20ms - 4ms cpu - 2.5ms runnable - 0.5ms GC stop-the-world.
+	if got, want := w.String(), "since step start 20ms: thread cpu 4ms, runnable 2.5ms, 1 GC cycles, GC stop-the-world 500µs, Go sched wait >=2ms, unaccounted 13ms"; got != want {
+		t.Fatalf("String = %q, want %q", got, want)
+	}
+	// Over-explained windows floor at zero.
+	over := after
+	over.runDelay = 30 * time.Millisecond
+	if got := over.since(base, baseStepStart).String(); !strings.HasSuffix(got, ", unaccounted 0s") {
+		t.Fatalf("over-explained window: %q", got)
+	}
+	// Another thread at the after point: no thread CPU, runnable or
+	// unaccounted, only the process-wide fields.
+	moved := after
+	moved.tid = 8
+	got := moved.since(base, baseCallbackStart).String()
+	wantMoved := "since callback start 20ms: 1 GC cycles, GC stop-the-world 500µs, Go sched wait >=2ms"
+	if threadCPUSupported {
+		wantMoved = "since callback start 20ms: thread changed, 1 GC cycles, GC stop-the-world 500µs, Go sched wait >=2ms"
+	}
+	if got != wantMoved {
+		t.Fatalf("moved thread = %q, want %q", got, wantMoved)
+	}
+	// No run-queue source: thread CPU but no unaccounted.
 	noDelay := after
 	noDelay.haveRunDelay = false
-	if d := noDelay.since(before); d.haveRunDelay || strings.Contains(d.String(), "runnable") {
-		t.Fatalf("run delay without a kernel source: %s", d)
+	if got := noDelay.since(base, baseStepStart).String(); strings.Contains(got, "runnable") || strings.Contains(got, "unaccounted") {
+		t.Fatalf("window without run-queue wait: %q", got)
 	}
-	zero := threadUsage{haveRunDelay: true}
-	if got := zero.String(); !strings.Contains(got, ", runnable 0s") || strings.Contains(got, "faults") || strings.Contains(got, "GC") {
-		t.Fatalf("zero run delay text: %q", got)
+	// A quiet window keeps the short form; short Go waits are not named.
+	quiet := usagePoint{wall: t0.Add(time.Millisecond), tid: 7, cpu: time.Millisecond, haveCPU: true, goSchedWait: goSchedWaitShown - 1}
+	if got, want := quiet.since(usagePoint{wall: t0, tid: 7, haveCPU: true}, baseStepStart).String(), "since step start 1ms: thread cpu 1ms"; got != want {
+		t.Fatalf("quiet window = %q, want %q", got, want)
 	}
 }
 
-// An overrun message carries the injected samples' difference, so its causes
-// read the same on any host.
+// An overrun message carries the injected samples' differences, so its
+// causes read the same on any host: the script run's own usage, then the
+// window from the baseline to the end of the callback.
 func TestOverrunMessageNamesCauses(t *testing.T) {
 	r := newRoom(t, memPack(t, "causes", "function spin() while true do end end", nil), Options{Budget: Budget{Load: time.Second, Frame: time.Second, Input: time.Second}})
 	if err := r.Load(); err != nil {
 		t.Fatal(err)
 	}
 	samples := []threadUsage{
-		{cpu: time.Millisecond, voluntary: 4, minorFaults: 100, runDelay: time.Millisecond, haveRunDelay: true, gcCycles: 7},
-		{cpu: 2 * time.Millisecond, voluntary: 9, involuntary: 1, majorFaults: 3, minorFaults: 120, blocksRead: 24,
-			runDelay: 41 * time.Millisecond, haveRunDelay: true, gcCycles: 8, gcPause: 350 * time.Microsecond, goSchedWait: 1500 * time.Microsecond},
+		{cpu: time.Millisecond, voluntary: 4, minorFaults: 100},
+		{cpu: 2 * time.Millisecond, voluntary: 9, involuntary: 1, majorFaults: 3, minorFaults: 120, blocksRead: 24},
 	}
 	r.threadSample = func() (threadUsage, bool) {
 		u := samples[0]
 		samples = samples[1:]
 		return u, true
+	}
+	t0 := time.Unix(100, 0)
+	r.windowSample = func(base bool) usagePoint {
+		if base {
+			return usagePoint{wall: t0, tid: 3, cpu: time.Millisecond, haveCPU: true, runDelay: time.Millisecond, haveRunDelay: true, gcCycles: 7}
+		}
+		return usagePoint{wall: t0.Add(50 * time.Millisecond), tid: 3, cpu: 3 * time.Millisecond, haveCPU: true,
+			runDelay: 41 * time.Millisecond, haveRunDelay: true, gcCycles: 8, gcPause: 350 * time.Microsecond, goSchedWait: 1500 * time.Microsecond}
 	}
 	spin, ok := r.L.GetGlobal("spin").(*lua.LFunction)
 	if !ok {
@@ -67,19 +106,130 @@ func TestOverrunMessageNamesCauses(t *testing.T) {
 	if err == nil {
 		t.Fatal("callback past its budget did not fail")
 	}
-	want := ": thread cpu 1ms, 5 voluntary/1 involuntary switches, runnable 40ms, 3 major/20 minor faults, 12 KiB read, 1 GC cycles, GC stop-the-world 350µs, Go sched wait >=1.5ms, unaccounted 0s)"
+	want := ": thread cpu 1ms, 5 voluntary/1 involuntary switches, 3 major/20 minor faults, 12 KiB read; " +
+		"since callback start 50ms: thread cpu 2ms, runnable 40ms, 1 GC cycles, GC stop-the-world 350µs, Go sched wait >=1.5ms, unaccounted 7.65ms)"
 	if msg := err.Error(); !strings.HasPrefix(msg, "script exceeded 1ms budget (elapsed ") || !strings.HasSuffix(msg, want) {
 		t.Fatalf("overrun %q lacks %q", msg, want)
 	}
 }
 
-// The GC metrics exist in the toolchain with the kinds runtimeUsage reads.
+// windowCounter wraps the real usage-point reader, counting baselines and
+// after points and failing if one runs between a callback's two in-window
+// thread samples.
+type windowCounter struct {
+	base, after int
+	inScript    bool
+}
+
+func countWindows(t *testing.T, r *Instance) *windowCounter {
+	t.Helper()
+	c := &windowCounter{}
+	r.threadSample = func() (threadUsage, bool) {
+		c.inScript = !c.inScript
+		return readThreadUsage()
+	}
+	r.windowSample = func(base bool) usagePoint {
+		if c.inScript {
+			t.Error("usage point read inside the script run")
+		}
+		if base {
+			c.base++
+		} else {
+			c.after++
+		}
+		hook := r.windowSample
+		r.windowSample = nil
+		defer func() { r.windowSample = hook }()
+		return r.readWindow(base)
+	}
+	return c
+}
+
+// A Step reads one baseline that its callbacks share, and a callback within
+// budget reads no after point. Only an overrun reads one. A callback outside
+// a Step reads its own baseline.
+func TestUsageWindowReadsOncePerStepAndAfterOnlyOnOverrun(t *testing.T) {
+	const budget = 20 * time.Millisecond
+	r := newRoom(t, memPack(t, "window-count", "function update() end\nfunction draw() end\nfunction on_input() return true end", nil),
+		Options{Budget: Budget{Load: time.Second, Frame: budget, Input: budget}})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	c := countWindows(t, r)
+	r.Step(time.Now())
+	if err := r.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if c.base != 1 || c.after != 0 {
+		t.Fatalf("quiet Step read %d baselines and %d after points, want 1 and 0", c.base, c.after)
+	}
+	r.Input("confirm")
+	if c.base != 2 || c.after != 0 {
+		t.Fatalf("quiet Input read %d baselines and %d after points in all, want 2 and 0", c.base, c.after)
+	}
+	r.L.SetGlobal("draw", r.L.NewFunction(func(*lua.LState) int { time.Sleep(budget + 10*time.Millisecond); return 0 }))
+	r.Step(time.Now())
+	if r.frameOverruns != 1 {
+		t.Fatalf("slow draw was not a soft overrun: %d overruns, %v", r.frameOverruns, r.Err())
+	}
+	if c.base != 3 || c.after != 1 {
+		t.Fatalf("overrunning Step read %d baselines and %d after points in all, want 3 and 1", c.base, c.after)
+	}
+	got := r.frameStreak.timings[0]
+	if !got.haveWindow || got.window.label != baseStepStart || got.window.span < got.elapsed {
+		t.Fatalf("overrun window: %+v", got)
+	}
+	if s := got.String(); !strings.Contains(s, "; since step start ") {
+		t.Fatalf("overrun text lacks its window: %s", s)
+	}
+}
+
+// The baseline and after-point reads sit outside the elapsed window, so a
+// stall in either does not count against the callback's budget.
+func TestUsageWindowStallDoesNotCountTowardBudget(t *testing.T) {
+	const budget, stall = 40 * time.Millisecond, 60 * time.Millisecond
+	r := newRoom(t, memPack(t, "window-stall", "function draw() end", nil), Options{Budget: Budget{Load: time.Second, Frame: budget, Input: budget}})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	r.windowSample = func(bool) usagePoint {
+		time.Sleep(stall)
+		return usagePoint{wall: time.Now()}
+	}
+	r.Step(time.Now())
+	if err := r.Err(); err != nil || r.frameOverruns != 0 {
+		t.Fatalf("baseline stall counted against draw: %d overruns, %v", r.frameOverruns, err)
+	}
+	// An overrun's after point stalls past the hard limit; the recorded
+	// elapsed time stays a soft overrun.
+	r.L.SetGlobal("draw", r.L.NewFunction(func(*lua.LState) int { time.Sleep(budget + 5*time.Millisecond); return 0 }))
+	r.windowSample = func(base bool) usagePoint {
+		if !base {
+			time.Sleep(budget * callbackHardLimitFactor)
+		}
+		return usagePoint{wall: time.Now()}
+	}
+	r.Step(time.Now())
+	if err := r.Err(); err != nil || r.frameOverruns != 1 {
+		t.Fatalf("after-point stall turned a soft overrun into %d overruns, %v", r.frameOverruns, err)
+	}
+	if got := r.frameStreak.timings[0]; got.elapsed >= budget*callbackHardLimitFactor || got.window.span < budget*callbackHardLimitFactor {
+		t.Fatalf("elapsed %s, window %s", got.elapsed, got.window.span)
+	}
+}
+
+// The runtime metrics exist in the toolchain with the kinds runtimeUsage
+// reads.
 func TestRuntimeUsageMetricsExist(t *testing.T) {
-	kinds := map[string]metrics.ValueKind{gcCyclesMetric: metrics.KindUint64, gcPauseMetric: metrics.KindFloat64Histogram,
-		goSchedMetric: metrics.KindFloat64Histogram}
+	type want struct {
+		kind       metrics.ValueKind
+		cumulative bool
+	}
+	kinds := map[string]want{gcCyclesMetric: {metrics.KindUint64, true}, gcPauseCPUMetric: {metrics.KindFloat64, true},
+		gomaxprocsMetric: {metrics.KindUint64, false}, goSchedMetric: {metrics.KindFloat64Histogram, true}}
 	for _, d := range metrics.All() {
 		if k, ok := kinds[d.Name]; ok {
-			if d.Kind != k || !d.Cumulative {
+			if d.Kind != k.kind || d.Cumulative != k.cumulative {
 				t.Fatalf("%s: kind %v cumulative %v", d.Name, d.Kind, d.Cumulative)
 			}
 			delete(kinds, d.Name)
@@ -87,17 +237,6 @@ func TestRuntimeUsageMetricsExist(t *testing.T) {
 	}
 	if len(kinds) != 0 {
 		t.Fatalf("missing runtime metrics: %v", kinds)
-	}
-}
-
-func TestHistogramSum(t *testing.T) {
-	h := &metrics.Float64Histogram{
-		Counts:  []uint64{1, 2, 0, 1},
-		Buckets: []float64{math.Inf(-1), 0.001, 0.003, 0.004, math.Inf(1)},
-	}
-	// 1*0.001 + 2*0.002 + 1*0.004
-	if got, want := histogramSum(h), 9*time.Millisecond; got != want {
-		t.Fatalf("histogramSum = %s, want %s", got, want)
 	}
 }
 
@@ -131,37 +270,27 @@ func TestLongestNewWait(t *testing.T) {
 	}
 }
 
-// Unaccounted time is the script run less thread CPU, run-queue wait and GC
-// stop-the-world, floored at zero, and shown only with run-queue wait.
-func TestScriptRunUnaccounted(t *testing.T) {
-	timing := callTiming{script: 10 * time.Millisecond, measured: true,
-		thread: threadUsage{cpu: 3 * time.Millisecond, voluntary: 4, runDelay: time.Millisecond, haveRunDelay: true,
-			gcCycles: 1, gcPause: 500 * time.Microsecond}}
-	want := "script run 10ms: thread cpu 3ms, 4 voluntary/0 involuntary switches, runnable 1ms, 1 GC cycles, GC stop-the-world 500µs, unaccounted 5.5ms"
-	if got := timing.scriptRun(); got != want {
-		t.Fatalf("scriptRun = %q, want %q", got, want)
-	}
-	timing.thread.runDelay = 20 * time.Millisecond
-	if got := timing.scriptRun(); !strings.HasSuffix(got, ", unaccounted 0s") {
-		t.Fatalf("over-explained run: %q", got)
-	}
-	timing.thread.haveRunDelay = false
-	if got := timing.scriptRun(); strings.Contains(got, "unaccounted") {
-		t.Fatalf("unaccounted without run-queue wait: %q", got)
+// BenchmarkRuntimeUsageBase is the Go runtime part of a baseline read, once
+// per Step. It allocates nothing after the first read.
+func BenchmarkRuntimeUsageBase(b *testing.B) {
+	var g runtimeUsage
+	var p usagePoint
+	g.read(&p, true)
+	b.ReportAllocs()
+	for b.Loop() {
+		g.read(&p, true)
 	}
 }
 
-// The runtime read allocates nothing after its first pair. A callback makes
-// one before-script and one after-script read.
-func BenchmarkRuntimeUsageRead(b *testing.B) {
+// BenchmarkRuntimeUsageAfter is the Go runtime part of an after-point read,
+// taken only for a reported overrun.
+func BenchmarkRuntimeUsageAfter(b *testing.B) {
 	var g runtimeUsage
-	var u threadUsage
-	g.read(&u, true)
-	g.read(&u, false)
+	var p usagePoint
+	g.read(&p, true)
+	g.read(&p, false)
 	b.ReportAllocs()
-	before := true
 	for b.Loop() {
-		g.read(&u, before)
-		before = !before
+		g.read(&p, false)
 	}
 }

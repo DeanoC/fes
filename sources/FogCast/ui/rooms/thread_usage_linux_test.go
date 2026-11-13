@@ -97,25 +97,46 @@ func TestCallTimingReportsFaultsAndBlockReads(t *testing.T) {
 	t.Logf("mapped-file callback: %s", timing)
 }
 
-// A callback that runs a GC reports at least that cycle and its pause.
+// An overrun that runs a GC reports at least that cycle and its pause in its
+// window, and the window read the callback's own thread at both ends.
 func TestCallTimingReportsGC(t *testing.T) {
 	r := newRoom(t, memPack(t, "gc", "function draw() end", nil), Options{Budget: Budget{Load: time.Second, Frame: time.Second, Input: time.Second}})
 	if err := r.Load(); err != nil {
 		t.Fatal(err)
 	}
 	gc := r.L.NewFunction(func(*lua.LState) int { runtime.GC(); return 0 })
-	timing, err := r.call(gc, time.Second, 0)
+	timing, err := r.callBudgets(gc, time.Nanosecond, time.Second, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !timing.measured || timing.thread.gcCycles < 1 {
-		t.Fatalf("runtime.GC in a callback reported no GC cycle: %s", timing)
+	w := timing.window
+	if !timing.haveWindow || w.label != baseCallbackStart || w.gcCycles < 1 {
+		t.Fatalf("runtime.GC in an overrun reported no GC cycle: %s", timing)
 	}
-	if timing.thread.gcPause <= 0 {
-		t.Fatalf("runtime.GC in a callback reported no stop-the-world pause: %s", timing)
+	if w.gcPause <= 0 {
+		t.Fatalf("runtime.GC in an overrun reported no stop-the-world pause: %s", timing)
+	}
+	if !w.sameThread || w.cpu < timing.thread.cpu || w.span < timing.elapsed {
+		t.Fatalf("window does not cover the callback on its thread: %s", timing)
 	}
 	if !strings.Contains(timing.String(), " GC cycles, GC stop-the-world ") {
 		t.Fatalf("timing text omits GC: %s", timing)
+	}
+}
+
+// A callback within its budget reads no after point, so its timing has no
+// window.
+func TestCallTimingWithinBudgetHasNoWindow(t *testing.T) {
+	r := newRoom(t, memPack(t, "quiet", "function draw() end", nil), Options{Budget: Budget{Load: time.Second, Frame: time.Second, Input: time.Second}})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	timing, err := r.callBudgets(r.L.NewFunction(func(*lua.LState) int { return 0 }), time.Second, time.Second, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if timing.haveWindow || !timing.measured {
+		t.Fatalf("quiet callback: %+v", timing)
 	}
 }
 
@@ -154,21 +175,48 @@ func TestReadRunDelay(t *testing.T) {
 	}
 }
 
-// BenchmarkReadUsage is the whole per-sample cost; a callback takes two.
-func BenchmarkReadUsage(b *testing.B) {
+// BenchmarkThreadSample is one in-window sample (clock_gettime plus
+// getrusage), the only usage read a callback's budget pays for; a callback
+// takes two.
+func BenchmarkThreadSample(b *testing.B) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	var r Instance
-	defer r.schedstat.close()
 	b.ReportAllocs()
-	before := true
 	for b.Loop() {
-		r.readUsage(before)
-		before = !before
+		readThreadUsage()
 	}
 }
 
-// BenchmarkReadRunDelay is the schedstat part of readUsage.
+// BenchmarkUsageBaseline is one baseline usage point, read once per Step
+// (and before a callback outside a Step), outside every elapsed window.
+func BenchmarkUsageBaseline(b *testing.B) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var r Instance
+	defer r.usage.schedstat.close()
+	r.readWindow(true)
+	b.ReportAllocs()
+	for b.Loop() {
+		r.readWindow(true)
+	}
+}
+
+// BenchmarkUsageAfter is one after point, read only for a callback whose
+// overrun is reported, after its elapsed time is taken.
+func BenchmarkUsageAfter(b *testing.B) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var r Instance
+	defer r.usage.schedstat.close()
+	r.readWindow(true)
+	r.readWindow(false)
+	b.ReportAllocs()
+	for b.Loop() {
+		r.readWindow(false)
+	}
+}
+
+// BenchmarkReadRunDelay is the schedstat part of a usage point.
 func BenchmarkReadRunDelay(b *testing.B) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
