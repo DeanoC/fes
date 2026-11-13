@@ -1,0 +1,101 @@
+{
+  "status": "prepared",
+  "hardware_actions": false,
+  "attempt_limit": 1,
+  "serial": "TRWU8CBL",
+  "usb_shared": true,
+  "transport_clock": "15M",
+  "clock_write": false,
+  "configuration_cycles": 3,
+  "ordinary_admission": false,
+  "core_load_acceptance": false,
+  "helpers": {
+    "common.py": "5662cb27d1fc069c615601e61bcdeb2ae5f6de62d41fc8b48b8274025db545f8",
+    "experiment.py": "6551f02fb9c8529d05d30cc8a73b80605df3b55c6c8d68ad7b90872a235a3c2b",
+    "native.py": "4eae887c879e8f4cb3307a2ec658eae42acfd9553c24129f00e2607798ac76b0",
+    "private_jtag.py": "e9979de505d409a7b723bc47aa962384e4b8b664f37c6011059f056e2471f23d",
+    "recovery.py": "d619f075a3bfefc7669552513c23ecdd866e87d71f2992cdcdb4fcc8740a91a8",
+    "service_checks.py": "f59c17bc8cdd92b503208faeb94c8ff905f4faf76c6c87274ad370ad6c51998f",
+    "trial_inputs.py": "fe6c2e81d78dc5773711a502d29719d103903d50c38ff819cadf91c98db009a5",
+    "upload_both.py": "dc654b63034d1eb00c70d61dbb9b4d89c2351b40cebe3cb3b0fbeb684ce580c2",
+    "upload_checks.py": "01e9caeb4adf1f70dbecb0c7415f056eb6bbcd2fe1f80c1331fad370cfb4011d"
+  },
+  "checks": {
+    "candidate-check": {
+      "argv": [
+        "python3",
+        "out/nano-computer-guard-trial-20261105/candidate_check.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 64.83632152504288,
+      "log_sha256": "1837a6ef137314484e2effb4a0baefea69c16a09971a7ee8312813aa59c38dd7"
+    },
+    "operator-fixtures-policy-fixed": {
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-guard-trial-20261105/operator_fixtures.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20072738488670439,
+      "log_sha256": "bbf095277b04e1d2b27df73fa9a20967f0a67af4b5bb1fb44c58d5485db55aaf"
+    },
+    "transport-fixtures": {
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-guard-trial-20261105/transport_fixtures.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20097871392499655,
+      "log_sha256": "c89c8d5460114d54fca7ce48aa33d4a12fbd4dcb2e1dd57a23b96eed02b58e06"
+    },
+    "tail-fixtures": {
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-guard-trial-20261105/tail_fixtures.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20060495589859784,
+      "log_sha256": "e1aceb71e53365a7e3b9d734075592fc643b087264c2cc1a9872dce5d525b240"
+    },
+    "uploader-fixtures": {
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-guard-trial-20261105/upload_both_fixtures.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.604287373018451,
+      "log_sha256": "2530281436dc9bf3b5761c1727b6e222124091b49d50776b49c2380e31473d73"
+    },
+    "upload-receipt-fixtures": {
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-guard-trial-20261105/upload_checks_fixtures.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.8010994100477546,
+      "log_sha256": "54a7f0b830fecef8147eed5249a460e78bea55f2825cef7d92936eea848b5a06"
+    }
+  },
+  "bounds": {
+    "prompt_seconds": 50,
+    "startup_seconds": 100,
+    "launch_seconds": 100,
+    "configuration_seconds": 20,
+    "control_seconds": 5,
+    "native_seconds": 450,
+    "native_process_seconds": 480,
+    "outer_seconds": 800
+  }
+}

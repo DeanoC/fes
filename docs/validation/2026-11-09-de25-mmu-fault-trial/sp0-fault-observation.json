@@ -1,0 +1,23 @@
+{
+  "status": "observed-architectural-stack-bank-difference",
+  "fixture_interrupted_sp": 2147737584,
+  "reported_sp_is_handler_sp_el3": true,
+  "interrupted_sp_el0_not_captured": true,
+  "original_esr_elr_far_correct": true,
+  "observed": {
+    "esr": 2516582479,
+    "elr": 2147483760,
+    "far": 2147737568,
+    "spsr": 972,
+    "sp": 0,
+    "sctlr": 13441085,
+    "tcr": 2155885856,
+    "root": 2147733504,
+    "mair": 4456703,
+    "scr": 568,
+    "vbar": 2147493888
+  },
+  "experiment": "Initial hypothesis that MOV SP in the EL3 exception handler reads interrupted SP_EL0 was rejected; this field snapshots current handler SP_EL3. All faults remain terminal and no SP field grants authority.",
+  "raw_log_sha256": "a987db6a9723dfdab94a9fe0df1fbc2f0f8aa2262d7e86f08ede7041d7ae4f54",
+  "hardware_actions": false
+}

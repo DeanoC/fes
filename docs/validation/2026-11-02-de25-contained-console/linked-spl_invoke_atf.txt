@@ -1,0 +1,58 @@
+
+/home/deano/fes/out/dev/de25-embedded-os/out/nano-contained-console-20261102/native-uboot/build/spl/u-boot-spl:     file format elf64-littleaarch64
+
+
+Disassembly of section .text:
+
+0000000000003ad0 <spl_invoke_atf>:
+    3ad0:	a9bc7bfd 	stp	x29, x30, [sp, #-64]!
+    3ad4:	52800341 	mov	w1, #0x1a                  	// #26
+    3ad8:	910003fd 	mov	x29, sp
+    3adc:	a90153f3 	stp	x19, x20, [sp, #16]
+    3ae0:	a9025bf5 	stp	x21, x22, [sp, #32]
+    3ae4:	aa0003f5 	mov	x21, x0
+    3ae8:	f9001bf7 	str	x23, [sp, #48]
+    3aec:	f9401014 	ldr	x20, [x0, #32]
+    3af0:	aa1403e0 	mov	x0, x20
+    3af4:	97ffff80 	bl	38f4 <spl_fit_images_find>
+    3af8:	37f804a0 	tbnz	w0, #31, 3b8c <spl_invoke_atf+0xbc>
+    3afc:	2a0003e1 	mov	w1, w0
+    3b00:	aa1403e0 	mov	x0, x20
+    3b04:	97ffffe3 	bl	3a90 <spl_fit_images_get_entry>
+    3b08:	aa0003f3 	mov	x19, x0
+    3b0c:	52800221 	mov	w1, #0x11                  	// #17
+    3b10:	aa1403e0 	mov	x0, x20
+    3b14:	97ffff78 	bl	38f4 <spl_fit_images_find>
+    3b18:	2a0003e1 	mov	w1, w0
+    3b1c:	37f803c0 	tbnz	w0, #31, 3b94 <spl_invoke_atf+0xc4>
+    3b20:	aa1403e0 	mov	x0, x20
+    3b24:	97ffffdb 	bl	3a90 <spl_fit_images_get_entry>
+    3b28:	aa0003f4 	mov	x20, x0
+    3b2c:	f9400eb7 	ldr	x23, [x21, #24]
+    3b30:	aa1403e1 	mov	x1, x20
+    3b34:	aa1303e0 	mov	x0, x19
+    3b38:	d2800002 	mov	x2, #0x0                   	// #0
+    3b3c:	97ffffd4 	bl	3a8c <bl2_plat_get_bl31_params>
+    3b40:	aa0003f5 	mov	x21, x0
+    3b44:	52807800 	mov	w0, #0x3c0                 	// #960
+    3b48:	d51b4220 	msr	daif, x0
+    3b4c:	97fff835 	bl	1c20 <fes_nano_spl_handoff>
+    3b50:	aa0003f6 	mov	x22, x0
+    3b54:	aa0003e5 	mov	x5, x0
+    3b58:	aa1403e2 	mov	x2, x20
+    3b5c:	aa1303e1 	mov	x1, x19
+    3b60:	aa1703e0 	mov	x0, x23
+    3b64:	d2800003 	mov	x3, #0x0                   	// #0
+    3b68:	aa1503e4 	mov	x4, x21
+    3b6c:	97fff737 	bl	1848 <fes_nano_spl_atf_trace>
+    3b70:	d2800043 	mov	x3, #0x2                   	// #2
+    3b74:	aa1603e2 	mov	x2, x22
+    3b78:	f2c86643 	movk	x3, #0x4332, lsl #32
+    3b7c:	aa1503e0 	mov	x0, x21
+    3b80:	f2e8c9c3 	movk	x3, #0x464e, lsl #48
+    3b84:	d2800001 	mov	x1, #0x0                   	// #0
+    3b88:	d63f02e0 	blr	x23
+    3b8c:	d2800013 	mov	x19, #0x0                   	// #0
+    3b90:	17ffffdf 	b	3b0c <spl_invoke_atf+0x3c>
+    3b94:	d2b00414 	mov	x20, #0x80200000            	// #2149580800
+    3b98:	17ffffe5 	b	3b2c <spl_invoke_atf+0x5c>

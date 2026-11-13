@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "python3",
+    "out/nano-ddr-reader-handoff-20261102/source_delta.py"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.20080604893155396,
+  "log_sha256": "4acdc54fe3ca19b0af1a3d79813b66ad2efdda56da3d06909f21895501cc85e0"
+}

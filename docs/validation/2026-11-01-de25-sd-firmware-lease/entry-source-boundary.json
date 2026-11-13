@@ -1,0 +1,20 @@
+{
+  "status": "observed-frozen-entry-admission",
+  "classification": "Read-only serial entry source-boundary check; no build, deployment or hardware access",
+  "entry": "out/nano-handoff-entry-v1",
+  "entry_image_sha256": "1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950",
+  "checked_source_count": 7,
+  "checked_sources": [
+    "platform/embedded/entry/build.py",
+    "platform/embedded/entry/elf_plan.c",
+    "platform/embedded/entry/elf_plan.h",
+    "platform/embedded/entry/entry.S",
+    "platform/embedded/entry/entry.c",
+    "platform/embedded/entry/entry.ld",
+    "platform/embedded/tamago/build.py"
+  ],
+  "upstream_sdk_sources_rechecked_by_cold_entry": false,
+  "initial_expectation": "Expected SDK edits to reject the frozen entry; that assumption was incorrect",
+  "meaning": "cold_profile.entry checks the wrapper sources, image hash, layout and fixed serial profile, not all upstream SDK source files. A frozen old serial payload remains identifiable and admissible; it supplies no evidence that this new SD session code is running.",
+  "next_gate": "Build a new native payload and entry under an explicit controlled-SD profile; independently verify the selected SDK source receipt and exact payload/hash/profile through the matched boot chain."
+}

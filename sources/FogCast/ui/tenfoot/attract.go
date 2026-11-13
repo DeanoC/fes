@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"context"
+	"fmt"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/shared"
 	"image"
@@ -94,14 +95,24 @@ func (a *App) cycleLayoutLocked() {
 
 func (a *App) persistPrefsLocked(field string) {
 	path := a.prefsPath
-	if path == "" {
+	if path == "" && a.preferenceStore == nil {
 		path = defaultPrefsPath()
 	}
-	if path == "" {
+	if path == "" && a.preferenceStore == nil {
 		return
 	}
-	existing, err := loadTenfootPrefs(path)
+	var existing tenfootPrefs
+	var err error
+	if a.preferenceStore != nil {
+		existing, err = a.readPreferencesLocked()
+	} else {
+		existing, err = loadTenfootPrefs(path)
+	}
 	if err != nil {
+		if a.preferenceStore != nil {
+			a.warnPreferenceWriteLocked(fmt.Errorf("read existing settings: %w", err))
+			return
+		}
 		existing = tenfootPrefs{
 			SafeAreaPct: DefaultSafeAreaPct,
 			Layout:      LayoutGrid.String(),
@@ -133,7 +144,13 @@ func (a *App) persistPrefsLocked(field string) {
 	default:
 		return
 	}
-	if err := saveTenfootPrefs(path, existing); err != nil {
+	if a.preferenceStore != nil {
+		data, err := encodeTenfootPrefs(existing)
+		if err == nil {
+			err = a.preferenceStore.WritePreferences(data)
+		}
+		a.warnPreferenceWriteLocked(err)
+	} else if err := saveTenfootPrefs(path, existing); err != nil {
 		warnPrefsWrite(path, err)
 	}
 }

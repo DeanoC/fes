@@ -1,0 +1,30 @@
+{
+  "base": "c8fec7acf677b9080cef1c17d0acf335524f8848",
+  "evidence_class": "host software and QEMU bare metal; no physical acceptance",
+  "commands": [
+    {
+      "command": "FES_ADMISSION_FIXTURES=<final run>/package-fixtures GOWORK=off go -C platform/embedded/tamago test -race -count=1 -v ./runtimeadmission ./admissioncheck ./fabricmodel",
+      "exit_code": 0
+    },
+    {
+      "command": "GOWORK=off go -C platform/embedded/tamago vet ./runtimeadmission ./admissioncheck ./fabricmodel",
+      "exit_code": 0
+    },
+    {
+      "command": "make deadcode",
+      "exit_code": 0
+    },
+    {
+      "command": "make test-changed TEST_CHANGED_ARGS=--base=c8fec7acf677b9080cef1c17d0acf335524f8848",
+      "exit_code": 0
+    }
+  ],
+  "unittest_summaries": [
+    "Ran 21 tests in 0.155s",
+    "Ran 31 tests in 1.243s",
+    "Ran 2 tests in 3.023s",
+    "Ran 3 tests in 16.193s",
+    "Ran 33 tests in 70.405s",
+    "Ran 1065 tests in 348.902s"
+  ]
+}

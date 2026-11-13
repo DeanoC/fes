@@ -1,0 +1,93 @@
+{
+  "scope": "actual native helper fragment with explicit host fixtures; no devices",
+  "passed": true,
+  "cases": [
+    {
+      "case": 0,
+      "accepted": true,
+      "commands": 1
+    },
+    {
+      "case": 1,
+      "accepted": false,
+      "commands": 0
+    },
+    {
+      "case": 2,
+      "accepted": false,
+      "commands": 0
+    },
+    {
+      "case": 3,
+      "accepted": false,
+      "commands": 0
+    },
+    {
+      "case": 4,
+      "accepted": false,
+      "commands": 1
+    },
+    {
+      "case": 5,
+      "accepted": false,
+      "commands": 1
+    },
+    {
+      "case": 6,
+      "accepted": false,
+      "commands": 1
+    },
+    {
+      "case": 7,
+      "accepted": false,
+      "commands": 0
+    },
+    {
+      "case": 8,
+      "accepted": false,
+      "commands": 0
+    },
+    {
+      "case": 9,
+      "accepted": false,
+      "commands": 1
+    },
+    {
+      "case": 10,
+      "accepted": false,
+      "commands": 1
+    },
+    {
+      "case": 11,
+      "accepted": false,
+      "commands": 1
+    },
+    {
+      "case": 12,
+      "accepted": false,
+      "commands": 1
+    },
+    {
+      "case": 13,
+      "accepted": false,
+      "commands": 1
+    },
+    {
+      "case": 14,
+      "accepted": false,
+      "commands": 1
+    },
+    {
+      "case": 15,
+      "accepted": false,
+      "commands": 1
+    },
+    {
+      "case": 16,
+      "accepted": false,
+      "commands": 1
+    }
+  ],
+  "helper_sha256": "c5ed1c7a97678df7d00926f201a474dd58a337325920b8350010ad3cd85ffd43",
+  "decoder_sha256": "665863c9be6ba0668a3a0f5cb90e3abf2023e2a038a4077468c0133262bea4c0"
+}

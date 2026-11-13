@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/nano-keyboard-return-20261109/negative.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 1.8017814077902585,
+  "log_sha256": "c98c47e9a81a582fc65a42a4ea28aae3d5fc9b59f9957a74f12681b5568cc85c"
+}

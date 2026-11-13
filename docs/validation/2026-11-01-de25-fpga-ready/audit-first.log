@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-embedded-os/out/nano-fpga-ready-20261101/postcheck.py", line 61, in <module>
+    assert rows[stage]['flags'] == 0xdf and rows[stage]['owner'] == owner
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

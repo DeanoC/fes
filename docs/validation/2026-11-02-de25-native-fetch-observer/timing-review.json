@@ -1,0 +1,368 @@
+{
+  "status": "passed-reported-timing-with-explicit-hdmi-coverage-limit",
+  "classification": "bounded diagnostic review, not whole-board timing acceptance",
+  "reported_checks": [
+    {
+      "Type": "Setup 'pll_inst|iopll_0_outclk0'",
+      "Slack": 1.75,
+      "TNS": "0.000",
+      "Corner": "Slow fix4a 0C Model"
+    },
+    {
+      "Type": "Setup 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      "Slack": 3.174,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 0C Model"
+    },
+    {
+      "Type": "Setup 'altera_reserved_tck'",
+      "Slack": 12.809,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 100C Model"
+    },
+    {
+      "Type": "Setup 'adv7513_config'",
+      "Slack": 16.616,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 0C Model"
+    },
+    {
+      "Type": "Setup 'fes_video_inst|video_clock|iopll_0_refclk'",
+      "Slack": 18.269,
+      "TNS": "0.000",
+      "Corner": "Slow fix4a 0C Model"
+    },
+    {
+      "Type": "Hold 'pll_inst|iopll_0_outclk0'",
+      "Slack": 0.0,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 100C Model"
+    },
+    {
+      "Type": "Hold 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      "Slack": 0.002,
+      "TNS": "0.000",
+      "Corner": "Fast fix4 0C Model"
+    },
+    {
+      "Type": "Hold 'altera_reserved_tck'",
+      "Slack": 0.098,
+      "TNS": "0.000",
+      "Corner": "Fast fix4 0C Model"
+    },
+    {
+      "Type": "Hold 'adv7513_config'",
+      "Slack": 0.103,
+      "TNS": "0.000",
+      "Corner": "Fast fix4 0C Model"
+    },
+    {
+      "Type": "Hold 'fes_video_inst|video_clock|iopll_0_refclk'",
+      "Slack": 0.108,
+      "TNS": "0.000",
+      "Corner": "Fast fix4 0C Model"
+    },
+    {
+      "Type": "Hold 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'",
+      "Slack": 0.376,
+      "TNS": "0.000",
+      "Corner": "Fast fix4 0C Model"
+    },
+    {
+      "Type": "Recovery 'pll_inst|iopll_0_outclk0'",
+      "Slack": 7.506,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 0C Model"
+    },
+    {
+      "Type": "Recovery 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      "Slack": 12.299,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 0C Model"
+    },
+    {
+      "Type": "Recovery 'adv7513_config'",
+      "Slack": 18.237,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 0C Model"
+    },
+    {
+      "Type": "Recovery 'fes_video_inst|video_clock|iopll_0_refclk'",
+      "Slack": 18.814,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 0C Model"
+    },
+    {
+      "Type": "Recovery 'altera_reserved_tck'",
+      "Slack": 61.343,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 0C Model"
+    },
+    {
+      "Type": "Removal 'adv7513_config'",
+      "Slack": 0.019,
+      "TNS": "0.000",
+      "Corner": "Fast fix4 0C Model"
+    },
+    {
+      "Type": "Removal 'pll_inst|iopll_0_outclk0'",
+      "Slack": 0.19,
+      "TNS": "0.000",
+      "Corner": "Fast fix4 0C Model"
+    },
+    {
+      "Type": "Removal 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      "Slack": 0.191,
+      "TNS": "0.000",
+      "Corner": "Fast fix4 0C Model"
+    },
+    {
+      "Type": "Removal 'fes_video_inst|video_clock|iopll_0_refclk'",
+      "Slack": 0.191,
+      "TNS": "0.000",
+      "Corner": "Fast fix4 0C Model"
+    },
+    {
+      "Type": "Removal 'altera_reserved_tck'",
+      "Slack": 0.226,
+      "TNS": "0.000",
+      "Corner": "Fast fix4 0C Model"
+    },
+    {
+      "Type": "Setup Data Delay 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      "Slack": 5.516,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 0C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0'",
+      "Slack": 0.22,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 100C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0'",
+      "Slack": 0.272,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 0C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'",
+      "Slack": 0.419,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 0C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'EMIF_REF_CLOCK'",
+      "Slack": 2.22,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 100C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'pll_inst|iopll_0_outclk0'",
+      "Slack": 4.407,
+      "TNS": "0.000",
+      "Corner": "Slow fix4a 0C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated'",
+      "Slack": 4.905,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 0C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated'",
+      "Slack": 4.905,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 0C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated'",
+      "Slack": 4.905,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 0C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated'",
+      "Slack": 4.905,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 0C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated'",
+      "Slack": 4.905,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 0C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated'",
+      "Slack": 4.905,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 0C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      "Slack": 5.861,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 0C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0'",
+      "Slack": 8.313,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 100C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0'",
+      "Slack": 8.583,
+      "TNS": "0.000",
+      "Corner": "Slow fix4a 0C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'pll_inst|iopll_0_refclk'",
+      "Slack": 9.231,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 100C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0_refclk'",
+      "Slack": 9.591,
+      "TNS": "0.000",
+      "Corner": "Slow fix4a 0C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'altera_reserved_tck'",
+      "Slack": 28.581,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 100C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0_n_cnt_clk'",
+      "Slack": 49.563,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 100C Model"
+    },
+    {
+      "Type": "Minimum Pulse Width 'adv7513_config'",
+      "Slack": 50018.86,
+      "TNS": "0.000",
+      "Corner": "Slow fix4 0C Model"
+    },
+    {
+      "Type": "Slow fix4 100C Model Max Skew 'set_max_skew'",
+      "Slack": 8.528
+    },
+    {
+      "Type": "Slow fix4 0C Model Max Skew 'set_max_skew'",
+      "Slack": 8.174
+    },
+    {
+      "Type": "Slow fix4a 0C Model Max Skew 'set_max_skew'",
+      "Slack": 8.172
+    },
+    {
+      "Type": "Fast fix4 0C Model Max Skew 'set_max_skew'",
+      "Slack": 8.887
+    },
+    {
+      "Type": "Net Delay 'set_net_delay'",
+      "Slack": 5.516
+    }
+  ],
+  "unconstrained_before": {
+    "Illegal Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Input Ports": [
+      2,
+      2
+    ],
+    "Paths from Unconstrained Input Ports (Pairs-Only)": [
+      9,
+      9
+    ],
+    "Unconstrained Output Ports": [
+      30,
+      30
+    ],
+    "Paths to Unconstrained Output Ports (Pairs-Only)": [
+      2446,
+      2446
+    ]
+  },
+  "unconstrained_after": {
+    "Illegal Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Input Ports": [
+      2,
+      2
+    ],
+    "Paths from Unconstrained Input Ports (Pairs-Only)": [
+      9,
+      9
+    ],
+    "Unconstrained Output Ports": [
+      30,
+      30
+    ],
+    "Paths to Unconstrained Output Ports (Pairs-Only)": [
+      2519,
+      2519
+    ]
+  },
+  "unconstrained_ports": {
+    "Input": [
+      "HDMI_I2C_SDA",
+      "HDMI_TX_INT"
+    ],
+    "Output": [
+      "HDMI_TX_CLK",
+      "HDMI_TX_HS",
+      "HDMI_TX_VS",
+      "HDMI_TX_D[0]",
+      "HDMI_TX_D[1]",
+      "HDMI_TX_D[2]",
+      "HDMI_TX_D[3]",
+      "HDMI_TX_D[4]",
+      "HDMI_TX_D[5]",
+      "HDMI_TX_D[6]",
+      "HDMI_TX_D[7]",
+      "HDMI_TX_D[8]",
+      "HDMI_TX_D[9]",
+      "HDMI_TX_D[10]",
+      "HDMI_TX_D[11]",
+      "HDMI_TX_D[12]",
+      "HDMI_TX_D[13]",
+      "HDMI_TX_D[14]",
+      "HDMI_TX_D[15]",
+      "HDMI_TX_D[16]",
+      "HDMI_TX_D[17]",
+      "HDMI_TX_D[18]",
+      "HDMI_TX_D[19]",
+      "HDMI_TX_D[20]",
+      "HDMI_TX_D[21]",
+      "HDMI_TX_D[22]",
+      "HDMI_TX_D[23]",
+      "HDMI_TX_DE",
+      "HDMI_I2C_SCL",
+      "HDMI_I2C_SDA"
+    ]
+  },
+  "remaining_limit": "HDMI IO is unconstrained; output pairs increase from2446 to2519. No display or whole-board timing signoff claimed.",
+  "inputs": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-ddr-matched-20261102/sealed-project/board/hps/project/output_files/golden_top.sta.rpt": "b911f43fec6858eb9658e7055bb29559bdbb03007bf2ac43a4f56b45fb2ea6de",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-activity-20261102/sealed-project/board/hps/project/output_files/golden_top.sta.rpt": "a263c8cdeedae69d86ab87e0e2f4538404ba3c604a5ba40ed73d46ec97ce6f6f",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-activity-20261102/sealed-project/board/hps/project/output_files/golden_top.sta.summary": "450fb835cd9aee613d2a12414afadcdd49bf03f1db456435f43a49cd06093459"
+  }
+}

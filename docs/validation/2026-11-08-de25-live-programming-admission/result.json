@@ -1,0 +1,138 @@
+{
+  "status": "passed",
+  "scope": "host-only admission policy and staged operator functions; two separate non-programming physical diagnostics",
+  "physical_diagnostic_source": "360098d8dfddb6cf1b6659a2cab58a92e2d93f8f",
+  "policy_tests": 8,
+  "operator_tests": 4,
+  "trace_wrapper_cases": 10,
+  "vendor_probe_cases": 17,
+  "hardware_operator_preflight_complete": false,
+  "new_hardware_attempted": false,
+  "prior_image_programming_attempts": 2,
+  "programming_allowance_remaining": 0,
+  "programming_failure_explained": false,
+  "core_load_acceptance": false,
+  "host_policy_sha256": "d5ee2fedb99a29c3471b84db828f9a48540fc24ac397cb35bf338bae09cb3a59",
+  "operator_inputs": {
+    "out/nano-live-admission-board-20261108/trial/bounded_log.py": "e1d72926fed47296b2f0c65f4dc3dc81b7a9ad7b2b5e0ae1f0c0982cef8dda4c",
+    "out/nano-live-admission-board-20261108/trial/clock_policy.py": "082ea1a2646bf9dbfecf0b378274801576600265282827cce48bbbaea8a6c4f5",
+    "out/nano-live-admission-board-20261108/trial/common.py": "fc52b341cce73331e6ba403f4dec68de8dac3e405456a8c148614f4527ebe9e5",
+    "out/nano-live-admission-board-20261108/trial/experiment.py": "d183ef3594617176c3169897da9adf52266381e9fd61353a4386a5ba8bea0443",
+    "out/nano-live-admission-board-20261108/trial/native.py": "26e3694fb28e28e67d87e672c2501275a41f2998d4318a03bc039dca812dc385",
+    "out/nano-live-admission-board-20261108/trial/paired_checks.py": "0a6554eddd0c06690da45a81bab7334f95de5feb254c50144bec6a89260ec950",
+    "out/nano-live-admission-board-20261108/trial/pending_checks.py": "1030361c75038371b394e4a000a0a351cbbd696e40bf5e1e4d3f77a6ea37bb0a",
+    "out/nano-live-admission-board-20261108/trial/private_jtag.py": "c9b36356faf133d4a734d46743bf586eb0c74006c535a869e6a1fb36856e4023",
+    "out/nano-live-admission-board-20261108/trial/program_gate.py": "ea7595ae00cf13ecc695d9859ea052e0761f42343896b22bbabf4bd40e11bccf",
+    "out/nano-live-admission-board-20261108/trial/recovery.py": "5eae052f66d3a39f987641b43aac5737a05632e9abc5776a62ac7c4a5e121312",
+    "out/nano-live-admission-board-20261108/trial/transport_guards.py": "021900ce7d4e0f024adabf1033867ca8e148ec77408fceca7a503ec2240fcc2d",
+    "out/nano-live-admission-board-20261108/trial/trial_inputs.py": "62377b79b84071fd34e961867b51f06dadf9db2baa458faba5d8d7d1ed21af41",
+    "out/nano-live-admission-board-20261108/trial/upload_both.py": "0ae11922d6d24dab93b1928707097e84e1b62186a135f4cc5e3c92ac75d3f355",
+    "out/nano-live-admission-board-20261108/trial/upload_checks.py": "ff7d6ad2c5355b7add0906edc99779fa1055d2b98f5d5bf6df6da878d2849f2a",
+    "out/nano-live-admission-board-20261108/operator_programming_tests.py": "a2a6ab5429affc9eb6781c4b4d07e0691fe19ccea92bd470fbbccc3b5feb6b7e"
+  },
+  "compiled_input_check": {
+    "scope": "selected SDK/entry/BL31/composition source maps and U-Boot producer unchanged; not a rebuild or fresh native proof",
+    "parts": {
+      "native-sdk": {
+        "selected_inputs_checked": 2105,
+        "host_programming_policy_selected": false
+      },
+      "native-entry": {
+        "selected_inputs_checked": 2149,
+        "host_programming_policy_selected": false
+      },
+      "native-bl31": {
+        "selected_inputs_checked": 98,
+        "host_programming_policy_selected": false
+      },
+      "native-composition": {
+        "selected_inputs_checked": 26,
+        "host_programming_policy_selected": false
+      },
+      "native-uboot": {
+        "producer_sha256_unchanged": true,
+        "host_programming_policy_selected": false
+      }
+    }
+  },
+  "physical_audit": {
+    "status": "passed",
+    "classification": "traced read-only programmer query plus separate forced scan bound to vendor dcrt client",
+    "records": [
+      {
+        "stage": "out/nano-programmer-startup-trace-20261108",
+        "source_commit": "360098d8dfddb6cf1b6659a2cab58a92e2d93f8f",
+        "cleanup_verified": true,
+        "evidence_sha256": {
+          "out/nano-programmer-startup-trace-20261108/source.json": "6365946e14dbf8fa7e99baf6eaff2e7c7cd7b83c584a1be9c335dd9faa272d55",
+          "out/nano-programmer-startup-trace-20261108/result.json": "35eda696e60f6e4b3aae5723cab08020b2ac8fc663dbde7019a8fd16fa285c5a",
+          "out/nano-programmer-startup-trace-20261108/trial/transport.json": "7fb9891431d373ac9682e4584cccac1ec6a6209a6870f77cea49b2b9c401bb7e",
+          "out/nano-programmer-startup-trace-20261108/trial/clock-restored-readback.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18"
+        }
+      },
+      {
+        "stage": "out/nano-vendor-client-scan-20261108",
+        "source_commit": "360098d8dfddb6cf1b6659a2cab58a92e2d93f8f",
+        "cleanup_verified": true,
+        "evidence_sha256": {
+          "out/nano-vendor-client-scan-20261108/source.json": "cef544af4e7fcfb18838c0452b32fad236e707c537a48bfdb7fb08c8390c03d5",
+          "out/nano-vendor-client-scan-20261108/result.json": "4b390adea10981531d6d37c2c0c1107c8c4ae9421978af7fd038a936aafbdc30",
+          "out/nano-vendor-client-scan-20261108/trial/transport.json": "51886a20902534e0b38ced7d61657c1ae869719b898f0e4450acb517096376be",
+          "out/nano-vendor-client-scan-20261108/trial/clock-restored-readback.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18"
+        }
+      }
+    ],
+    "programmer": {
+      "pid": 806077,
+      "path": "/data/altera_pro/26.3/quartus/linux64/quartus_pgm",
+      "argv": [
+        "quartus_pgm",
+        "-c",
+        "DE25-Nano on localhost:33293 [3-11.1-iface0]",
+        "-a"
+      ]
+    },
+    "delegated_device_listing": {
+      "pid": 806109,
+      "path": "/data/altera_pro/26.3/quartus/linux64/jtagconfig",
+      "argv": [
+        "jtagconfig",
+        "--cable",
+        "DE25-Nano on localhost:33293 [3-11.1-iface0]"
+      ]
+    },
+    "mapped_jtag_libraries": {
+      "/data/altera_pro/26.3/quartus/linux64/libjtag_client.so": "83894ac5bb2e3e18809372e32940ccaf834a4de790e0c240b4068cab0de42fd9",
+      "/data/altera_pro/26.3/quartus/linux64/libjtag_client_dcrt.so": "03c1733b7fa5e87c64e0d83ff7796d67deed0b303b1eb9649a9de98a182505d5"
+    },
+    "private_endpoint_connections": 2,
+    "query_clock_after": "6M",
+    "forced_vendor_scan_completed": true,
+    "forced_scan_symbol_library": "/data/altera_pro/26.3/quartus/linux64/libjtag_client_dcrt.so",
+    "trace_bytes": 316520,
+    "trace_sha256": "92fc80b7bd3f75d61500b63f84191b79134ee0106cdee6551e2accae77dab893",
+    "vendor_capture_sha256": "b6aeb62a894c67923bf2588a4d6f07f08a1fd0be9e490cb01364932fcc75ace9",
+    "trace_wrapper_cases": 10,
+    "vendor_probe_cases": 17,
+    "private_servers_gone": true,
+    "usb_permissions_exact": true,
+    "uart_owners": [],
+    "audit_device_operations": false,
+    "image_programming_attempts_total": 2,
+    "programming_allowance_remaining": 0,
+    "programming_failure_explained": false,
+    "core_load_acceptance": false
+  },
+  "evidence_sha256": {
+    "out/nano-programmer-startup-trace-20261108/audit-proof.json": "f5f98f7b1363c02007ef2ea6a759cee00906ea27077eb6aeca43a891a1b498e5",
+    "out/nano-programmer-startup-trace-20261108/admission-tests-final-result.json": "f4cbdcec87043c170a3d7548ea030c144efe5c1816626019a3d5801aa3f72b78",
+    "out/nano-programmer-startup-trace-20261108/admission-tests-final.log": "33dc7ef294ab796c9ede93c388ef8faad8c79eee15b275f334c24b95ca3da518",
+    "out/nano-live-admission-board-20261108/operator-programming-final-result.json": "a816382f8610f40d923c87182d6f90439836d415ffb8eee921a587b4fcf2e6c4",
+    "out/nano-live-admission-board-20261108/operator-programming-final.log": "43a12182d5ced64ffc224dbf3691c8b07e649bbcd9aa5f054e14890c2b3bac09",
+    "out/nano-live-admission-board-20261108/unchanged-native-inputs.json": "608dee62f68f76a5c96f4138cd79b7f91daf5df2153dc70d44a29379b724a739"
+  },
+  "tracked_operator_sources": {
+    "operator_programming_tests.py": "a2a6ab5429affc9eb6781c4b4d07e0691fe19ccea92bd470fbbccc3b5feb6b7e",
+    "program_gate.py": "ea7595ae00cf13ecc695d9859ea052e0761f42343896b22bbabf4bd40e11bccf"
+  }
+}

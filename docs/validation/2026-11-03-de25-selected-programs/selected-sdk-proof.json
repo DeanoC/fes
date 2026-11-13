@@ -1,0 +1,23 @@
+{
+  "status": "passed",
+  "source_commit": "068495f0cf1d6011c31447a63bde4b70e7056702",
+  "classification": "actual linked native selection and policy; generated SD choice example; no hardware acceptance",
+  "actual_linked_go_variables": {
+    "expectedSelectedPrograms": "1",
+    "expectedComputerReload": "1",
+    "expectedComputerStorageReturn": "1",
+    "expectedProgramPlatform_sha256": "4e2a2baa9ac0a6d8db8df7b4e2a8438904c237303cb4803d9875554f341ec761"
+  },
+  "selection_files_absent_from_elf": true,
+  "program_platform_matches_sealed_export": true,
+  "requests": 2,
+  "current_program_profile": "de25-embedded-hps-first-ddr-diagnostic-v1",
+  "ordinary_runtime_admission": false,
+  "inputs": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-program-20261103/native-sdk/fpgaload.elf": "32227ad2dcc7db1ab5951fbdd559a2e8a3583f4918b99b2013c2df79500f9bae",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-program-20261103/native-sdk/result.json": "e6a3fde3c1dcad3be977bd1f62f82a1cd4cd4b6b7ef269b52da9542ef79d6746",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-program-20261103/native-sdk/program-platform.json": "f1024bcb72c5a3fc763627568f98ce8cabaf6a476ad56839bcf79e782b5a38c9",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-program-20261103/native-sdk/PROGRAM.JSN": "6fea347ab1db35f9b75e01fd9b0a394506d97a668774109791327f0c877f5ebc",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-program-20261103/native-sdk/CORESEL.JSN": "fb8b76dd6b802e9a06c6834a59547b6c07e8708a3f070d4bc303da3f05c9285c"
+  }
+}

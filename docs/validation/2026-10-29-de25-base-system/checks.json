@@ -1,0 +1,150 @@
+{
+  "status": "completed-with-recorded-broad-run-failures",
+  "base": "fc8d74a11846d80c3a82ce61b5d271f10b119527",
+  "parent_regressions": {
+    "tests": 1065,
+    "skipped": 40,
+    "initial_failures": 1,
+    "failure": "new nested module missing from deadcode module inventory",
+    "repair": "registered module and constrained bare-metal source to tamago target",
+    "focused_recheck": "6 tests passed"
+  },
+  "deadcode": "passed, host and ARM lanes",
+  "broad_host_race": "failed four room-script wall-clock budget cases; no data race reported",
+  "paired_race_reruns": {
+    "current": "passed, count=2",
+    "base_fc8d74a118": "passed, count=2",
+    "claim": "no regression reproduced; original broad run remains failed"
+  },
+  "remaining_host_checks": [
+    {
+      "label": "host concurrency-focused race checks",
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-short",
+        "-timeout",
+        "30m",
+        "-run",
+        "(Concurrent|Concurrency|Race|Cancel|Cancellation|Barrier|Lifecycle|Session|Stop|Target|Lock|Queued|Queue|Drain|Lease|Discovery|Watch|Input|Mesh)",
+        "./fogcast",
+        "./corepackage"
+      ],
+      "cwd": "sources/FogCast",
+      "exit_code": 0,
+      "seconds": 103.88552048202837,
+      "log": "host-remaining-2.log"
+    },
+    {
+      "label": "appliance race suite",
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-short",
+        "-timeout",
+        "30m",
+        "./..."
+      ],
+      "cwd": "sources/FogCast/appliance",
+      "exit_code": 0,
+      "seconds": 6.8364915029960684,
+      "log": "host-remaining-3.log"
+    },
+    {
+      "label": "expansion functional suite",
+      "argv": [
+        "go",
+        "test",
+        "-short",
+        "-timeout",
+        "30m",
+        "./..."
+      ],
+      "cwd": "sources/misteross/expansion",
+      "exit_code": 0,
+      "seconds": 80.45026155601954,
+      "log": "host-remaining-4.log"
+    },
+    {
+      "label": "expansion concurrency-focused race checks",
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-short",
+        "-timeout",
+        "30m",
+        "-run",
+        "(Concurrent|Concurrency|Race|Cancel|Cancellation|Barrier|Lifecycle|Session|Stop|Target|Lock|Queued|Queue|Drain|Lease|Discovery|Watch|Input|Mesh)",
+        "./..."
+      ],
+      "cwd": "sources/misteross/expansion",
+      "exit_code": 0,
+      "seconds": 8.533233101014048,
+      "log": "host-remaining-5.log"
+    },
+    {
+      "label": "host UI tests",
+      "argv": [
+        "make",
+        "test-ui"
+      ],
+      "cwd": "sources/FogCast",
+      "exit_code": 0,
+      "seconds": 33.95604776398977,
+      "log": "host-remaining-6.log"
+    }
+  ],
+  "logs": {
+    "test-changed.log": {
+      "path": "out/de25-base-audit/test-changed.log",
+      "sha256": "0d27c95d9ec60e405e55f017300cb3813a002567e47b37aca665aafd944a6987"
+    },
+    "affected-host.log": {
+      "path": "out/de25-base-audit/affected-host.log",
+      "sha256": "84bba4ef0fbd962ce8e8c0d435129b544f9ae4a41a2addae4adb0388caa85941"
+    },
+    "consumer-consistency.log": {
+      "path": "out/de25-base-audit/consumer-consistency.log",
+      "sha256": "cfc1085f4b3bb360f78bc6eebc6bb3064c6ab6160c7e382f232ef27772b78084"
+    },
+    "deadcode.log": {
+      "path": "out/de25-base-audit/deadcode.log",
+      "sha256": "dc3fad4360e3c9bd3eee93b08d776c5f85d7d60401dc37837a319f986f7e696a"
+    },
+    "deadcode-selection-tests.log": {
+      "path": "out/de25-base-audit/deadcode-selection-tests.log",
+      "sha256": "8ec74a3cdc13b922312929b970ea8b664a4880de3b5e6256adf8996f129f1ae5"
+    },
+    "race-current.log": {
+      "path": "out/de25-base-audit/race-current.log",
+      "sha256": "80f12fa2285c05abf967e6e4ba83b188c4ad17f241efa14709395dc8ab5df7f2"
+    },
+    "race-baseline.log": {
+      "path": "out/de25-base-audit/race-baseline.log",
+      "sha256": "8850f18e4994d3a2d2f3536ee9be7c6507351204a78ef31e0222de011dec109c"
+    },
+    "host-remaining-2.log": {
+      "path": "out/de25-base-audit/host-remaining-2.log",
+      "sha256": "81c2f7394197ef8ce6e15b69b0c976a7ac0b0e6a52085a25ecf53ecc8f1b12d2"
+    },
+    "host-remaining-3.log": {
+      "path": "out/de25-base-audit/host-remaining-3.log",
+      "sha256": "b671d58753869a9dd72ce1cf0586c896d2705ad0efe326deb18a150e42e2a2f0"
+    },
+    "host-remaining-4.log": {
+      "path": "out/de25-base-audit/host-remaining-4.log",
+      "sha256": "35b08c4cab1ee361bab368b4ce33ae9e9d19d98a0d9607c059caf381fd499656"
+    },
+    "host-remaining-5.log": {
+      "path": "out/de25-base-audit/host-remaining-5.log",
+      "sha256": "b9688ba80e684d49661509cd9f37661f0cceb6a3cff493700d6459916231226d"
+    },
+    "host-remaining-6.log": {
+      "path": "out/de25-base-audit/host-remaining-6.log",
+      "sha256": "826fc46d7fc9f049c5b0eaab52539929783d9bcfdbaf855695774660bef3cef3"
+    }
+  }
+}

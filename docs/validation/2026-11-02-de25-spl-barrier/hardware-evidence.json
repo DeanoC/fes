@@ -1,0 +1,124 @@
+{
+  "verification_status": "passed",
+  "hardware_result": "stopped-at-spl_handoff",
+  "classification": "failed bounded native diagnostic; observed progress retained; no runtime/core acceptance",
+  "source_commit": "eb52a604b37ba571bdfe0db18ca645653cb73f29",
+  "native_build_source_commit": "eb52a604b37ba571bdfe0db18ca645653cb73f29",
+  "experiment_passed": false,
+  "serial": "TRWU8CBL",
+  "fresh_package_receipt_sha256": "f81fa7fd9fcec9f1425fc108074f761ae26a3e11f878a61f589aee7b54c4b474",
+  "package_sd_writes": false,
+  "firmware_upload_only": true,
+  "raw_console_sha256": "307ae7aa5fab536a24a355483c91915399367426e9cc40de1cdc5b07db42cebf",
+  "raw_bytes": 1602,
+  "decoded": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "e13cbe9178827ba1"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 5480318469774104801,
+          "epoch": 5333553401,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      }
+    ],
+    "errors": [],
+    "loader_ready": false,
+    "complete": false,
+    "last_checkpoint": "spl_handoff",
+    "core_load_acceptance": false,
+    "configuration_transfer": {
+      "complete": false,
+      "completed_bytes": 0,
+      "core_sha256": "170a3929afc316bcaa51b25e69ce60a7f44c53542126ce6e82d90a99767998d0",
+      "arena_base": 2491416576,
+      "arena_size": 8388608
+    },
+    "ddr_read": {
+      "complete": false,
+      "errors": [],
+      "records": [],
+      "reads": 0,
+      "writes": 0,
+      "polls": 0,
+      "data_remained_contained": false,
+      "runtime_admission": false,
+      "core_load_acceptance": false
+    },
+    "classification": "serial-observed fixed DDR read, master stop and bridge drain; no runtime admission"
+  },
+  "uploads": {
+    "boot": {
+      "payload_sha256": "3c357390529286af6ec82e25e24692f259fbd1bc1462d218955cf85428ba5ca5",
+      "payload_bytes": 6499492,
+      "sd_readback_verified": true,
+      "boot_files_unchanged": true,
+      "recovery_manifest_unchanged": true
+    },
+    "package": {
+      "payload_sha256": "b281cd7c8b185472f1c53b97c1e62be01ed7544900c39ba3808339591f2c2e72",
+      "payload_bytes": 1645568,
+      "sd_readback_verified": true,
+      "boot_files_unchanged": true,
+      "recovery_manifest_unchanged": true
+    }
+  },
+  "fesboot_sent": false,
+  "ddr_read_complete": false,
+  "native_sd_writes": false,
+  "core_load_acceptance": false,
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "uart_free": true,
+  "private_server_stopped": true,
+  "claim_retained": true,
+  "factory_restore_requested": false,
+  "native_error": "stage timeout: matched native prompt",
+  "experiment_error": "phase stopped: native",
+  "clock_evidence": "15M independently read back during owned private service cleanup before stopping that service"
+}

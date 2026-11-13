@@ -1,0 +1,105 @@
+{
+  "status": "passed-installed-record-reader-host-checkpoint",
+  "base": "26d07c469de0cea7b099ea2ed4e2d0f49eaaa7a0",
+  "checks": {
+    "upload-final": {
+      "returncode": 0,
+      "log_sha256": "35aa012a4d4a90a72856b0a268980626a668ed95502e27e5b72dd0ba2ea48d87",
+      "elapsed": 16.410673083970323,
+      "test_counts": [
+        47
+      ]
+    },
+    "installer-regressions": {
+      "returncode": 0,
+      "log_sha256": "1dcd45543a247a94a7efd99f886d43dd247d8c3dfb9e0067b76ff8a7bccb4182",
+      "elapsed": 3.0044337171129882,
+      "test_counts": [
+        45
+      ]
+    },
+    "expected-record-refreshed": {
+      "returncode": 0,
+      "log_sha256": "3103136ea065a1f62ab81a5aa9481427748525094b2b65aa083caf05271e81b4",
+      "elapsed": 0.4008113609161228,
+      "test_counts": []
+    },
+    "recovery-refresh": {
+      "returncode": 0,
+      "log_sha256": "9f2eea9883887ab017ee924b13e5bc86994b8ffa6984e750ce42b7534a2999b9",
+      "elapsed": 0.8012378460261971,
+      "test_counts": []
+    },
+    "upload-plan": {
+      "returncode": 0,
+      "log_sha256": "f9e71ff9ecf7af30b18fdf06c26a85d3a7fd3c703e67b6534e2feb94298ac803",
+      "elapsed": 0.4015458459034562,
+      "test_counts": []
+    },
+    "affected-regressions": {
+      "returncode": 0,
+      "log_sha256": "9fb03add9a033650dcdb60e8a048fed89f6b9a1309d8a0d53014ea972e11e048",
+      "elapsed": 400.0254926159978,
+      "test_counts": [
+        34,
+        41,
+        1,
+        1950
+      ]
+    }
+  },
+  "changed_source_sha256": {
+    "platform/embedded/nano/upload.py": "7726821b6578d51377d9d3219bd3dcb3f214bd852e7188dbb02f8fe829f956ad",
+    "platform/embedded/nano/README.md": "740d4092f37d3ad4b2da0d530f5ed7284abaa43fba75325cb1bb54b9522a61c0",
+    "tests/test_nano_upload.py": "0fc49e89b8ba16c359acf98cc10156514ce5332cfb4241a99721bc75c8a098ac"
+  },
+  "model": {
+    "scope": "expected-prior-record-model-read-v1",
+    "hardware_actions": false,
+    "current_card_readback_verified": false,
+    "expected_path": "FES/INSTALLED/6581aab8a5b415a8dceac77198cbb104d76108f9ae38a34ba45f164a630c891d.JSN",
+    "bytes": 754,
+    "sha256": "6581aab8a5b415a8dceac77198cbb104d76108f9ae38a34ba45f164a630c891d",
+    "read_only": true,
+    "sd_write_attempted": false,
+    "activation": false,
+    "cid_verified": false,
+    "protected_recovery_kit_verified": true,
+    "session_closed": true,
+    "commands": 24,
+    "upload_source_sha256": "7726821b6578d51377d9d3219bd3dcb3f214bd852e7188dbb02f8fe829f956ad"
+  },
+  "recovery_refresh": {
+    "status": "verified-fresh-source-bindings-identical-protected-artifacts",
+    "old": "out/nano-installer-hardware-prefix-20261111/recovery-kit",
+    "new": "out/nano-installed-record-read-20261111/recovery-kit",
+    "artifact_sha256": {
+      "u-boot.itb": "3722e24c551a794dd970e665cc4932b96cb62aefa353f39079285458d67d48e5",
+      "u-boot-spl-dtb.hex": "83e1f29015c8f07a95d439f9e6e8f93be6f76a918121e2fd658462e7deca3e23",
+      "network-recovery.sof": "ce143f50e05c9895381047f921be4a0c38d9a7eacfa75b3c0709be4ff7eafe75",
+      "RECOVERY.JSON": "95aca2b3116755247a122a9a4357c1efbcfb106adb4dfa5fe94e489cc1889664"
+    },
+    "prefix_sha256": "80e36789a8de046c8e47899bbb6567d5afa58e3325c10d3944c7151a210d595c",
+    "hardware_actions": false,
+    "new_hardware_acceptance": false
+  },
+  "current_inputs": {
+    "sdk_selected_hashes_verified": 2131,
+    "composition_selected_hashes_verified": 26,
+    "recovery_selected_hashes_verified": 28,
+    "target_native_boot_id": "fc2cec132701a0d8",
+    "hardware_actions": false
+  },
+  "private_evidence": "out/nano-installed-record-read-20261111",
+  "retention": "/home/deano/fes-retained/de25-installed-record-read-20261111-r1",
+  "upload_plan_sha256": "0b4156a0a01c4aced468510fd603c1d43d4b65df71663dd09cd0d7650400a6b4",
+  "upload_file_count": 14,
+  "preserved_initial_harness_failures": [
+    "wrong recovery package type",
+    "old uploader source binding"
+  ],
+  "hardware_actions": false,
+  "fresh_prior_record_readback_verified": false,
+  "two_core_hardware_acceptance": false,
+  "operator_live_admission": false
+}

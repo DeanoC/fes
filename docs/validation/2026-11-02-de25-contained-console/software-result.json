@@ -1,0 +1,125 @@
+{
+  "status": "passed",
+  "head": "6dd356157dac111852b0f943ca4c0c799adb5de1",
+  "base": "10398247dfc3e842961557e37eea6ea19142468d",
+  "plan_sha256": "6c4f38cc25aa8920f5a7254201d2a49a90aea1e12e3bca87d4bf7470b537c798",
+  "results": [
+    {
+      "index": 0,
+      "label": "test_affected.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "log": "software-0.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4331745479721576,
+      "log_sha256": "bbde1ab196881c61de154a5ba89b83d5bbb363639c4a7766e823cf19251035ac",
+      "child_receipt_sha256": "68a2ce44800100c42a01f2c2f77da764244c9ef518753aab9376d186cac1c621"
+    },
+    {
+      "index": 1,
+      "label": "test_test_changed.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "log": "software-1.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.2016005329787731,
+      "log_sha256": "f340888b36ed064bc5abc8a3e75846f60e25cc6ce37f87b393769889fb4812ca",
+      "child_receipt_sha256": "e9093c84be6e62b1d5b7a3d0246ab06999cbd17bc369ef964cf3e8adfcca211c"
+    },
+    {
+      "index": 2,
+      "label": "committed whitespace",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "10398247dfc3e842961557e37eea6ea19142468d",
+        "--head",
+        "6dd356157dac111852b0f943ca4c0c799adb5de1"
+      ],
+      "log": "software-2.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20064812200143933,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "9e7718b4899a87cf0d61462f1ef7427c7b37106ab7bd6c5aaad9f67e49906834"
+    },
+    {
+      "index": 3,
+      "label": "working whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "log": "software-3.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20061262499075383,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "b3bbb2134eec046dc3ae7a352320a91b4f696cd66f279039b9c50887f2a52255"
+    },
+    {
+      "index": 4,
+      "label": "parent Python regressions",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-contained-console-20261102/parent_partitions.py"
+      ],
+      "log": "software-4.log",
+      "planned_argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/nano/README.md\", \"platform/embedded/nano/cold_profile.py\", \"platform/embedded/nano/prepare_uboot.py\", \"platform/embedded/nano/spl_cold.c\", \"platform/embedded/nano/spl_console.inc\", \"tests/test_nano_cold.py\"]"
+      ],
+      "verification_mode": "same-selected-suite-partitioned-by-module",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 335.70190414600074,
+      "log_sha256": "7d3500a87e71618fddc317535b346fadd73192b2f2b37b811055d1319b868921",
+      "child_receipt_sha256": "e93173329f819f62ba3c41e18045dd585e686f7b5c1709c23686d90f24eb44c2"
+    },
+    {
+      "index": 5,
+      "label": "working-tree generated consumer consistency",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "log": "software-5.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 10.04468262498267,
+      "log_sha256": "a27a95cb58aa34d9c8e98e59f0255fc7fe461ff37727a511ae8796a8303622c9",
+      "child_receipt_sha256": "434f797a24e50832d7aefc81ead9a642a3fdeb27bb96730ab2816499752c90e0"
+    }
+  ]
+}

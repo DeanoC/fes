@@ -1,0 +1,67 @@
+test_mapped_netlist_has_no_async_m10k (test_build_fes_apple2.Apple2YosysM10kTests.test_mapped_netlist_has_no_async_m10k) ... FAIL
+test_mapped_netlist_has_no_async_m10k (test_build_fes_c64.C64YosysM10kTests.test_mapped_netlist_has_no_async_m10k) ... FAIL
+test_mapped_netlist_has_no_async_m10k (test_build_fes_sg1000.Sg1000YosysM10kTests.test_mapped_netlist_has_no_async_m10k) ... FAIL
+test_mapped_netlist_has_no_async_m10k (test_build_fes_sms.SmsYosysM10kTests.test_mapped_netlist_has_no_async_m10k) ... FAIL
+test_mapped_netlist_has_no_async_m10k (test_coleco_megacart_build.ColecoMegacartYosysM10kTests.test_mapped_netlist_has_no_async_m10k) ... FAIL
+test_full_synth_has_live_memory_clocks (test_build_fes_c64.C64YosysM10kTests.test_full_synth_has_live_memory_clocks)
+The native drive synthesizes without repairing disconnected memory clocks. ... FAIL
+
+======================================================================
+FAIL: test_mapped_netlist_has_no_async_m10k (test_build_fes_apple2.Apple2YosysM10kTests.test_mapped_netlist_has_no_async_m10k)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/data/projects/de25-embedded-os-20261109/sources/misteross/tests/test_build_fes_apple2.py", line 275, in test_mapped_netlist_has_no_async_m10k
+    self.assertEqual(result.returncode, 0, (result.stderr or log)[-4000:])
+AssertionError: 1 != 0 : ERROR: Module `\cyclonev_hps_interface_peripheral_i2c' referenced in module `\top' in cell `\hdmi_i2c' is not part of the design.
+
+
+======================================================================
+FAIL: test_mapped_netlist_has_no_async_m10k (test_build_fes_c64.C64YosysM10kTests.test_mapped_netlist_has_no_async_m10k)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/data/projects/de25-embedded-os-20261109/sources/misteross/tests/test_build_fes_c64.py", line 393, in test_mapped_netlist_has_no_async_m10k
+    self.assertEqual(result.returncode, 0, (result.stderr or log)[-4000:])
+AssertionError: 1 != 0 : cores/fes-c64/rtl/c64_sid_envelope.sv:47: ERROR: Failed to resolve identifier \write_registers$func$cores/fes-c64/rtl/c64_sid_envelope for width detection!
+
+
+======================================================================
+FAIL: test_mapped_netlist_has_no_async_m10k (test_build_fes_sg1000.Sg1000YosysM10kTests.test_mapped_netlist_has_no_async_m10k)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/data/projects/de25-embedded-os-20261109/sources/misteross/tests/test_build_fes_sg1000.py", line 554, in test_mapped_netlist_has_no_async_m10k
+    self.assertEqual(result.returncode, 0, (result.stderr or log)[-4000:])
+AssertionError: 1 != 0 : ERROR: Module `\cyclonev_hps_interface_peripheral_i2c' referenced in module `\top' in cell `\hdmi_i2c' is not part of the design.
+
+
+======================================================================
+FAIL: test_mapped_netlist_has_no_async_m10k (test_build_fes_sms.SmsYosysM10kTests.test_mapped_netlist_has_no_async_m10k)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/data/projects/de25-embedded-os-20261109/sources/misteross/tests/test_build_fes_sms.py", line 621, in test_mapped_netlist_has_no_async_m10k
+    self.assertEqual(result.returncode, 0, (result.stderr or log)[-4000:])
+AssertionError: 1 != 0 : ERROR: Module `\cyclonev_hps_interface_peripheral_i2c' referenced in module `\top' in cell `\hdmi_i2c' is not part of the design.
+
+
+======================================================================
+FAIL: test_mapped_netlist_has_no_async_m10k (test_coleco_megacart_build.ColecoMegacartYosysM10kTests.test_mapped_netlist_has_no_async_m10k)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/data/projects/de25-embedded-os-20261109/sources/misteross/tests/test_coleco_megacart_build.py", line 84, in test_mapped_netlist_has_no_async_m10k
+    self.assertEqual(result.returncode, 0, (result.stderr or log)[-4000:])
+AssertionError: 1 != 0 : ERROR: Module `\cyclonev_hps_interface_peripheral_i2c' referenced in module `\top' in cell `\hdmi_i2c' is not part of the design.
+
+
+======================================================================
+FAIL: test_full_synth_has_live_memory_clocks (test_build_fes_c64.C64YosysM10kTests.test_full_synth_has_live_memory_clocks)
+The native drive synthesizes without repairing disconnected memory clocks.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/data/projects/de25-embedded-os-20261109/sources/misteross/tests/test_build_fes_c64.py", line 441, in test_full_synth_has_live_memory_clocks
+    self.assertEqual(result.returncode, 0, (result.stderr or log)[-4000:])
+AssertionError: 1 != 0 : cores/fes-c64/rtl/c64_sid_envelope.sv:47: ERROR: Failed to resolve identifier \write_registers$func$cores/fes-c64/rtl/c64_sid_envelope for width detection!
+
+
+----------------------------------------------------------------------
+Ran 6 tests in 14.587s
+
+FAILED (failures=6)

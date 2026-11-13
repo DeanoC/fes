@@ -1,0 +1,26 @@
+{
+  "status": "passed-incomplete-capture-rejected",
+  "classification": "independent replay agrees with the failed observer; no complete hardware acceptance",
+  "capture_sha256": "ff3240b3940e394210a805ba6b5e63d21ab054de1502803809caae30eab7ffe3",
+  "complete": false,
+  "errors": [],
+  "last_checkpoint": "ddr_firewall_end",
+  "observed_frames": [
+    {
+      "index": 1,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 11623422015686095009,
+      "source_generation": 4,
+      "reader_generation": 2,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 4148337422,
+      "read_crc32": 4148337422,
+      "frame_sha256": "a58b682bcf4749139141601be2b1f655c1019c627befc941a511c27b388a856d",
+      "drain_generation": 2,
+      "drain_cookie": 2
+    }
+  ],
+  "final_bridge_state": "unknown"
+}

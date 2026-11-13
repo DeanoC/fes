@@ -1,0 +1,1314 @@
+{
+  "serial": "TRWU8CBL",
+  "source_commit": "12a0d0caf487f3984b49b5af6aed629868a41572",
+  "phase": "native",
+  "native_build_source_commit": "12a0d0caf487f3984b49b5af6aed629868a41572",
+  "sof_sha256": "6a55a31333af4b1b7ef6ef4366dd93c8c88f8d07fdcc62fcf795a9653150f9f2",
+  "initial_card_image_sha256": "42ac2e14fcb224fb8f39c38b0f26e7999b31c800180bd22489619fdc39f4bacf",
+  "card_reference_scope": "historical preparation only; live file verification is in the new upload receipt",
+  "fit_sha256": "f581004f78f98773467452dfa596d89ba7d1c500c75d9cb35bd1e79be84a5b7a",
+  "started_utc": "2026-11-02T01:55:42.948716+00:00",
+  "stage": "PASS native",
+  "programming_attempted": true,
+  "fesboot_sent": true,
+  "pass": true,
+  "sd_write_commands_sent": false,
+  "qualified_recovery_receipt_sha256": "6af7d8c0f8174710abc0cdaa8eca50323a09c1160dab9aba58b6d753dba8bf86",
+  "live_card_receipt_sha256": "589d4ed7376c1afd619e949603ff5846ec8810ed41ecba983c3f15851f6ef1bd",
+  "prior_stop_receipt_sha256": "6aeffbbbe0a15554f187db0e6c920b18950fd6f46cd975f4ec8ca98dd6b34f45",
+  "runner_sha256": "c5904e8fd4b46e0e819cc6fa9dbbd93474d8f2e0ebb74e18ee27f4cb20aa9d62",
+  "clock_checks": [
+    {
+      "clock": "6M",
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    },
+    {
+      "clock": "6M",
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    }
+  ],
+  "jtag_id": "4362C0DD",
+  "boot_trace": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "3cd79bb0c7e60ae1"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 4776277716880644083,
+          "epoch": 5303850261,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 41,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "sd_platform",
+        "line": 42,
+        "values": {
+          "setup": 1,
+          "ready": 1
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 45,
+        "values": {
+          "id": "3cd79bb0c7e60ae1"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 49,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 61,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 62,
+        "values": {
+          "id": "3cd79bb0c7e60ae1"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 63,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216373888,
+          "malloc_start": 3216408576,
+          "malloc_end": 3220611072,
+          "reloc": 3220611072,
+          "fdt": 3216383136
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 70,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 4776277716880644083,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 79,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 4776277716880644083,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 80,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 81,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 82,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 83,
+        "values": {}
+      },
+      {
+        "stage": "configuration_package",
+        "line": 84,
+        "values": {
+          "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+          "owner": 4776277716880644083,
+          "sd_generation": 4
+        }
+      },
+      {
+        "stage": "hps_context",
+        "line": 85,
+        "values": {
+          "sha256": "94da3557f175eae05144d70937c3afceda20c6c9f9ca9d25155535da3e0814fc",
+          "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+          "build_id": "e25bb65a1d14a2bbbddf4c770ea033e5",
+          "owner": 4776277716880644083,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "configuration_arm",
+        "line": 86,
+        "values": {
+          "phase": "arm",
+          "owner": 4776277716880644083,
+          "generation": 4,
+          "completed": 0,
+          "pending": 0,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 36064515403,
+          "hash_ticks": 460854519
+        }
+      },
+      {
+        "stage": "configuration_start",
+        "line": 87,
+        "values": {
+          "phase": "start",
+          "owner": 4776277716880644083,
+          "generation": 4,
+          "completed": 0,
+          "pending": 0,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 36756265784,
+          "hash_ticks": 923994104
+        }
+      },
+      {
+        "stage": "configuration_engine",
+        "line": 88,
+        "values": {
+          "credits": 4,
+          "block_bytes": 1048560,
+          "next_job": 0,
+          "owner": 4776277716880644083,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 89,
+        "values": {
+          "phase": 1,
+          "owner": 4776277716880644083,
+          "generation": 4,
+          "completed": 0,
+          "pending": 0,
+          "job": 0,
+          "cin": 5,
+          "cout": 5,
+          "rin": 6,
+          "rout": 6,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 90,
+        "values": {
+          "phase": "write",
+          "owner": 4776277716880644083,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1048512,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 37604518277,
+          "hash_ticks": 1626688419
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 91,
+        "values": {
+          "phase": 2,
+          "owner": 4776277716880644083,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1048512,
+          "job": 0,
+          "cin": 5,
+          "cout": 5,
+          "rin": 6,
+          "rout": 6,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 92,
+        "values": {
+          "phase": "write",
+          "owner": 4776277716880644083,
+          "generation": 4,
+          "completed": 0,
+          "pending": 2027520,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 38659105412,
+          "hash_ticks": 2329405437
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 93,
+        "values": {
+          "phase": 2,
+          "owner": 4776277716880644083,
+          "generation": 4,
+          "completed": 0,
+          "pending": 2027520,
+          "job": 1,
+          "cin": 9,
+          "cout": 9,
+          "rin": 7,
+          "rout": 6,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 94,
+        "values": {
+          "phase": "poll",
+          "owner": 4776277716880644083,
+          "generation": 4,
+          "completed": 0,
+          "pending": 2027520,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 40044720692,
+          "hash_ticks": 3255793407
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 95,
+        "values": {
+          "phase": 3,
+          "owner": 4776277716880644083,
+          "generation": 4,
+          "completed": 1048512,
+          "pending": 979008,
+          "job": 2,
+          "cin": 13,
+          "cout": 13,
+          "rin": 8,
+          "rout": 7,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 96,
+        "values": {
+          "phase": "poll",
+          "owner": 4776277716880644083,
+          "generation": 4,
+          "completed": 1048512,
+          "pending": 979008,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 41076138622,
+          "hash_ticks": 3942725503
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 97,
+        "values": {
+          "phase": 3,
+          "owner": 4776277716880644083,
+          "generation": 4,
+          "completed": 2027520,
+          "pending": 0,
+          "job": 2,
+          "cin": 13,
+          "cout": 13,
+          "rin": 8,
+          "rout": 8,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_status",
+        "line": 98,
+        "values": {
+          "phase": "status",
+          "owner": 4776277716880644083,
+          "generation": 4,
+          "completed": 2027520,
+          "pending": 0,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 42107121814,
+          "hash_ticks": 4629583374
+        }
+      },
+      {
+        "stage": "configuration_complete",
+        "line": 99,
+        "values": {
+          "phase": "complete",
+          "owner": 4776277716880644083,
+          "generation": 4,
+          "completed": 2027520,
+          "pending": 0,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 42581673698,
+          "hash_ticks": 5092777790
+        }
+      },
+      {
+        "stage": "configuration_programmed",
+        "line": 100,
+        "values": {
+          "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+          "core_sha256": "415cc2d68955755d2de406b233e34fa2cd6cce755089ba842f10f62e6945320c",
+          "bytes": 2027520,
+          "owner": 4776277716880644083,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "fpga_query",
+        "line": 101,
+        "values": {}
+      },
+      {
+        "stage": "fpga_status",
+        "line": 102,
+        "values": {
+          "status": 0,
+          "words": 6,
+          "state": 0,
+          "version": 1704704,
+          "pins": 3221225609,
+          "soft": 3,
+          "error_location": 0,
+          "error_details": 15,
+          "ready": 1
+        }
+      },
+      {
+        "stage": "identity_open",
+        "line": 103,
+        "values": {
+          "phase": "open",
+          "owner": 4776277716880644083,
+          "generation": 4,
+          "reset": 15,
+          "base": 536937472
+        }
+      },
+      {
+        "stage": "identity_read",
+        "line": 104,
+        "values": {
+          "phase": "read",
+          "owner": 4776277716880644083,
+          "generation": 5,
+          "reset": 13,
+          "base": 536937472
+        }
+      },
+      {
+        "stage": "identity_access_1_before",
+        "line": 105,
+        "values": {
+          "phase": "before",
+          "ordinal": 1,
+          "offset": 0,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_1_after",
+        "line": 106,
+        "values": {
+          "phase": "after",
+          "ordinal": 1,
+          "offset": 0,
+          "value": 1178948421
+        }
+      },
+      {
+        "stage": "identity_access_2_before",
+        "line": 107,
+        "values": {
+          "phase": "before",
+          "ordinal": 2,
+          "offset": 4,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_2_after",
+        "line": 108,
+        "values": {
+          "phase": "after",
+          "ordinal": 2,
+          "offset": 4,
+          "value": 65536
+        }
+      },
+      {
+        "stage": "identity_access_3_before",
+        "line": 109,
+        "values": {
+          "phase": "before",
+          "ordinal": 3,
+          "offset": 8,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_3_after",
+        "line": 110,
+        "values": {
+          "phase": "after",
+          "ordinal": 3,
+          "offset": 8,
+          "value": 270544960
+        }
+      },
+      {
+        "stage": "identity_access_4_before",
+        "line": 111,
+        "values": {
+          "phase": "before",
+          "ordinal": 4,
+          "offset": 12,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_4_after",
+        "line": 112,
+        "values": {
+          "phase": "after",
+          "ordinal": 4,
+          "offset": 12,
+          "value": 245380069
+        }
+      },
+      {
+        "stage": "identity_access_5_before",
+        "line": 113,
+        "values": {
+          "phase": "before",
+          "ordinal": 5,
+          "offset": 16,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_5_after",
+        "line": 114,
+        "values": {
+          "phase": "after",
+          "ordinal": 5,
+          "offset": 16,
+          "value": 3185527927
+        }
+      },
+      {
+        "stage": "identity_access_6_before",
+        "line": 115,
+        "values": {
+          "phase": "before",
+          "ordinal": 6,
+          "offset": 20,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_6_after",
+        "line": 116,
+        "values": {
+          "phase": "after",
+          "ordinal": 6,
+          "offset": 20,
+          "value": 487891643
+        }
+      },
+      {
+        "stage": "identity_access_7_before",
+        "line": 117,
+        "values": {
+          "phase": "before",
+          "ordinal": 7,
+          "offset": 24,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_7_after",
+        "line": 118,
+        "values": {
+          "phase": "after",
+          "ordinal": 7,
+          "offset": 24,
+          "value": 3797661274
+        }
+      },
+      {
+        "stage": "identity_access_8_before",
+        "line": 119,
+        "values": {
+          "phase": "before",
+          "ordinal": 8,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_8_after",
+        "line": 120,
+        "values": {
+          "phase": "after",
+          "ordinal": 8,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_9_before",
+        "line": 121,
+        "values": {
+          "phase": "before",
+          "ordinal": 9,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_9_after",
+        "line": 122,
+        "values": {
+          "phase": "after",
+          "ordinal": 9,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_10_before",
+        "line": 123,
+        "values": {
+          "phase": "before",
+          "ordinal": 10,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_10_after",
+        "line": 124,
+        "values": {
+          "phase": "after",
+          "ordinal": 10,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_11_before",
+        "line": 125,
+        "values": {
+          "phase": "before",
+          "ordinal": 11,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_11_after",
+        "line": 126,
+        "values": {
+          "phase": "after",
+          "ordinal": 11,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_12_before",
+        "line": 127,
+        "values": {
+          "phase": "before",
+          "ordinal": 12,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_12_after",
+        "line": 128,
+        "values": {
+          "phase": "after",
+          "ordinal": 12,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_13_before",
+        "line": 129,
+        "values": {
+          "phase": "before",
+          "ordinal": 13,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_13_after",
+        "line": 130,
+        "values": {
+          "phase": "after",
+          "ordinal": 13,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_14_before",
+        "line": 131,
+        "values": {
+          "phase": "before",
+          "ordinal": 14,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_14_after",
+        "line": 132,
+        "values": {
+          "phase": "after",
+          "ordinal": 14,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_15_before",
+        "line": 133,
+        "values": {
+          "phase": "before",
+          "ordinal": 15,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_15_after",
+        "line": 134,
+        "values": {
+          "phase": "after",
+          "ordinal": 15,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_16_before",
+        "line": 135,
+        "values": {
+          "phase": "before",
+          "ordinal": 16,
+          "offset": 0,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_16_after",
+        "line": 136,
+        "values": {
+          "phase": "after",
+          "ordinal": 16,
+          "offset": 0,
+          "value": 1178948421
+        }
+      },
+      {
+        "stage": "identity_access_17_before",
+        "line": 137,
+        "values": {
+          "phase": "before",
+          "ordinal": 17,
+          "offset": 4,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_17_after",
+        "line": 138,
+        "values": {
+          "phase": "after",
+          "ordinal": 17,
+          "offset": 4,
+          "value": 65536
+        }
+      },
+      {
+        "stage": "identity_access_18_before",
+        "line": 139,
+        "values": {
+          "phase": "before",
+          "ordinal": 18,
+          "offset": 8,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_18_after",
+        "line": 140,
+        "values": {
+          "phase": "after",
+          "ordinal": 18,
+          "offset": 8,
+          "value": 270544960
+        }
+      },
+      {
+        "stage": "identity_access_19_before",
+        "line": 141,
+        "values": {
+          "phase": "before",
+          "ordinal": 19,
+          "offset": 12,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_19_after",
+        "line": 142,
+        "values": {
+          "phase": "after",
+          "ordinal": 19,
+          "offset": 12,
+          "value": 245380069
+        }
+      },
+      {
+        "stage": "identity_access_20_before",
+        "line": 143,
+        "values": {
+          "phase": "before",
+          "ordinal": 20,
+          "offset": 16,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_20_after",
+        "line": 144,
+        "values": {
+          "phase": "after",
+          "ordinal": 20,
+          "offset": 16,
+          "value": 3185527927
+        }
+      },
+      {
+        "stage": "identity_access_21_before",
+        "line": 145,
+        "values": {
+          "phase": "before",
+          "ordinal": 21,
+          "offset": 20,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_21_after",
+        "line": 146,
+        "values": {
+          "phase": "after",
+          "ordinal": 21,
+          "offset": 20,
+          "value": 487891643
+        }
+      },
+      {
+        "stage": "identity_access_22_before",
+        "line": 147,
+        "values": {
+          "phase": "before",
+          "ordinal": 22,
+          "offset": 24,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_22_after",
+        "line": 148,
+        "values": {
+          "phase": "after",
+          "ordinal": 22,
+          "offset": 24,
+          "value": 3797661274
+        }
+      },
+      {
+        "stage": "identity_access_23_before",
+        "line": 149,
+        "values": {
+          "phase": "before",
+          "ordinal": 23,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_23_after",
+        "line": 150,
+        "values": {
+          "phase": "after",
+          "ordinal": 23,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_24_before",
+        "line": 151,
+        "values": {
+          "phase": "before",
+          "ordinal": 24,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_24_after",
+        "line": 152,
+        "values": {
+          "phase": "after",
+          "ordinal": 24,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_25_before",
+        "line": 153,
+        "values": {
+          "phase": "before",
+          "ordinal": 25,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_25_after",
+        "line": 154,
+        "values": {
+          "phase": "after",
+          "ordinal": 25,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_26_before",
+        "line": 155,
+        "values": {
+          "phase": "before",
+          "ordinal": 26,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_26_after",
+        "line": 156,
+        "values": {
+          "phase": "after",
+          "ordinal": 26,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_27_before",
+        "line": 157,
+        "values": {
+          "phase": "before",
+          "ordinal": 27,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_27_after",
+        "line": 158,
+        "values": {
+          "phase": "after",
+          "ordinal": 27,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_28_before",
+        "line": 159,
+        "values": {
+          "phase": "before",
+          "ordinal": 28,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_28_after",
+        "line": 160,
+        "values": {
+          "phase": "after",
+          "ordinal": 28,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_29_before",
+        "line": 161,
+        "values": {
+          "phase": "before",
+          "ordinal": 29,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_29_after",
+        "line": 162,
+        "values": {
+          "phase": "after",
+          "ordinal": 29,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_30_before",
+        "line": 163,
+        "values": {
+          "phase": "before",
+          "ordinal": 30,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_30_after",
+        "line": 164,
+        "values": {
+          "phase": "after",
+          "ordinal": 30,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_close",
+        "line": 165,
+        "values": {
+          "phase": "close",
+          "owner": 4776277716880644083,
+          "generation": 5,
+          "reset": 13,
+          "base": 536937472
+        }
+      },
+      {
+        "stage": "identity_closed",
+        "line": 166,
+        "values": {
+          "phase": "closed",
+          "owner": 4776277716880644083,
+          "generation": 6,
+          "reset": 15,
+          "base": 536937472
+        }
+      },
+      {
+        "stage": "fpga_identity",
+        "line": 167,
+        "values": {
+          "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+          "build_id": "e25bb65a1d14a2bbbddf4c770ea033e5",
+          "abi": 270544960,
+          "base": 536937472,
+          "map_sha256": "bc13d4774a2f80683d42d70e8440d487c20b232da4281d5a1706c337ba176796",
+          "owner": 4776277716880644083,
+          "generation": 6
+        }
+      }
+    ],
+    "errors": [],
+    "loader_ready": true,
+    "complete": true,
+    "last_checkpoint": "fpga_identity",
+    "core_load_acceptance": false,
+    "configuration_transfer": {
+      "complete": true,
+      "completed_bytes": 2027520,
+      "core_sha256": "415cc2d68955755d2de406b233e34fa2cd6cce755089ba842f10f62e6945320c",
+      "arena_base": 2491416576,
+      "arena_size": 8388608
+    },
+    "configuration_timing": {
+      "counter_frequency": 400000000,
+      "first_counter": 36064515403,
+      "last_counter": 42581673698,
+      "hash_ticks": 5092777790,
+      "interval_ticks": 6517158295,
+      "interval_hash_ticks": 4631923271
+    }
+  },
+  "programming_complete": true,
+  "build_id": "3cd79bb0c7e60ae1",
+  "secure_cold_boot_verified": true,
+  "storage_observation_seconds": 72.94023542199284,
+  "storage_observation_bound": 100,
+  "native_fpga_identity_expected": {
+    "sha256": "94da3557f175eae05144d70937c3afceda20c6c9f9ca9d25155535da3e0814fc",
+    "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+    "build_id": "e25bb65a1d14a2bbbddf4c770ea033e5",
+    "control_abi": 270544960,
+    "cpu_base": 536937472,
+    "map_sha256": "bc13d4774a2f80683d42d70e8440d487c20b232da4281d5a1706c337ba176796"
+  },
+  "configuration_sha256": "a263e96ca0117b722c2c4aa1e9f73fed784ac004a9088ec8a082576e17c4d976",
+  "physical_activation": false,
+  "endpoint_access_requested": true,
+  "configuration_engine": {
+    "credits": 4,
+    "block_bytes": 1048560,
+    "next_job": 0,
+    "owner": 4776277716880644083,
+    "generation": 4
+  },
+  "mailbox_queue_observed": true,
+  "configuration_window_observed": true,
+  "ownership_snapshots": [
+    [
+      "before-entry",
+      "46424f31000000df",
+      "4248bf471748d7f3",
+      "1"
+    ],
+    [
+      "after-remove",
+      "46424f31000000df",
+      "4248bf471748d7f3",
+      "1"
+    ]
+  ],
+  "observed_markers": [
+    "spl",
+    "initial",
+    "scope",
+    "mmc",
+    "fit",
+    "spl_handoff",
+    "provider",
+    "sd_platform",
+    "uboot",
+    "dram",
+    "prompt",
+    "boot",
+    "memory",
+    "before-entry",
+    "after-remove",
+    "live",
+    "handoff",
+    "el2",
+    "el1",
+    "configuration_package",
+    "hps_context",
+    "configuration_arm",
+    "configuration_start",
+    "configuration_engine",
+    "configuration_mailbox",
+    "configuration_write",
+    "configuration_mailbox",
+    "configuration_write",
+    "configuration_mailbox",
+    "configuration_poll",
+    "configuration_mailbox",
+    "configuration_poll",
+    "configuration_mailbox",
+    "configuration_status",
+    "configuration_complete",
+    "configuration_programmed",
+    "fpga_query",
+    "fpga_status",
+    "identity_open",
+    "identity_read",
+    "identity_access_1_before",
+    "identity_access_1_after",
+    "identity_access_2_before",
+    "identity_access_2_after",
+    "identity_access_3_before",
+    "identity_access_3_after",
+    "identity_access_4_before",
+    "identity_access_4_after",
+    "identity_access_5_before",
+    "identity_access_5_after",
+    "identity_access_6_before",
+    "identity_access_6_after",
+    "identity_access_7_before",
+    "identity_access_7_after",
+    "identity_access_8_before",
+    "identity_access_8_after",
+    "identity_access_9_before",
+    "identity_access_9_after",
+    "identity_access_10_before",
+    "identity_access_10_after",
+    "identity_access_11_before",
+    "identity_access_11_after",
+    "identity_access_12_before",
+    "identity_access_12_after",
+    "identity_access_13_before",
+    "identity_access_13_after",
+    "identity_access_14_before",
+    "identity_access_14_after",
+    "identity_access_15_before",
+    "identity_access_15_after",
+    "identity_access_16_before",
+    "identity_access_16_after",
+    "identity_access_17_before",
+    "identity_access_17_after",
+    "identity_access_18_before",
+    "identity_access_18_after",
+    "identity_access_19_before",
+    "identity_access_19_after",
+    "identity_access_20_before",
+    "identity_access_20_after",
+    "identity_access_21_before",
+    "identity_access_21_after",
+    "identity_access_22_before",
+    "identity_access_22_after",
+    "identity_access_23_before",
+    "identity_access_23_after",
+    "identity_access_24_before",
+    "identity_access_24_after",
+    "identity_access_25_before",
+    "identity_access_25_after",
+    "identity_access_26_before",
+    "identity_access_26_after",
+    "identity_access_27_before",
+    "identity_access_27_after",
+    "identity_access_28_before",
+    "identity_access_28_after",
+    "identity_access_29_before",
+    "identity_access_29_after",
+    "identity_access_30_before",
+    "identity_access_30_after",
+    "identity_close",
+    "identity_closed",
+    "fpga_identity"
+  ],
+  "usb_permissions_restored": true,
+  "console_sha256": "705d0557d0941d08590666556f2dad8d430151d124facafd7d539695004a4a52",
+  "finished_utc": "2026-11-02T01:57:39.406674+00:00",
+  "decoder_sha256": "2649d6dfed6cba8ef10d5786e79bfbc97cce50aa9a0a92e635dc06904e5d9c7b"
+}

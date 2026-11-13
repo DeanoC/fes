@@ -1,0 +1,48 @@
+{
+  "status": "software-passed-hardware-not-run",
+  "classification": "persistent fixed-package native window service with Tenfoot renderer; full App/backend and ordinary admission incomplete",
+  "native_source_commit": "dc2cf47604ce003744ce2b1cf0e1e53beb1e4738",
+  "base_commit": "cdd07c3ff27f1f32b25e6209fb9bf5e5e1207e41",
+  "fpga_source_commit": "df234b524d0e1340b343df411c841bd1dc553817",
+  "affected_commands": 8,
+  "service_test_methods": 12,
+  "tests": "race-enabled retained archive/transfer/window service and console; real Tenfoot Presenter; modeled secure calls/CSRs; separate existing C/RTL integration",
+  "persistent_window_service_selected": true,
+  "bounded_window_reload_selected": false,
+  "modeled_expected_bridge_closures": [
+    7,
+    13,
+    19
+  ],
+  "modeled_expected_service_running_generations": [
+    1,
+    3,
+    5
+  ],
+  "raw_elf_bytes": 14991535,
+  "entry_bytes": 7327744,
+  "fit_bytes": 7876600,
+  "native_elf_sha256": "5f6de9c90a2cd73a2325e202023762e1ca51dbf196ca8330cd5db8aa5c7e462a",
+  "fit_sha256": "7eae8904cbea029c363dad6a21fb52dabe2a6bb532246e696baaacf9fc3664d6",
+  "archive": "/home/deano/fes-retained/de25-window-service-prepared-20261104/software-and-firmware.tar.gz",
+  "archive_sha256": "5b8cb968d2e0d00557cc60c793141d066d0918688152c30d2a2ce91f79283f27",
+  "archive_bytes": 259451474,
+  "verified_members": 45188,
+  "new_physical_attempts": 0,
+  "hardware_actions": false,
+  "hardware_acceptance": false,
+  "full_tenfoot_app_backend": false,
+  "ordinary_runtime_admission": false,
+  "hdmi_qualified": false,
+  "usb_hub_input_qualified": false,
+  "native_network_qualified": false,
+  "global_data_inspected": false,
+  "global_data_limitation": "native ELF strips global symbol table; selection tied to exact source and checked compiler link command",
+  "files": {
+    "software-validation.json": "a80270bc232cc449015617e7f54449263eafad13b137dca0dc37ffe094f6c89f",
+    "retention.json": "593643b8fd0b373401ab56359cd984e36ffdb329d28a8e655a16d83482543b2a",
+    "binary-proof.json": "b4a35bb4b8334702557acd706b015918ad10292a45c03932afb90696074ed9e5",
+    "selected-inputs.json": "2deff2f78bd032917ffbd29e7460d58984c0c3ce3ba19ecfa2c3ec1b0aafcdee"
+  },
+  "next_step": "Add a strict command/reply and firmware observer, qualify one bounded three-session run on TRWU8CBL, then connect the full native Tenfoot App/backend and normal package admission."
+}

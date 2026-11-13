@@ -1,0 +1,231 @@
+{
+  "status": "accepted-profile-branch-selection-unchanged",
+  "cases": [
+    {
+      "linked": false,
+      "expected": "",
+      "programs": "",
+      "old_reject": false,
+      "new_reject": false
+    },
+    {
+      "linked": false,
+      "expected": "",
+      "programs": "1",
+      "old_reject": false,
+      "new_reject": false
+    },
+    {
+      "linked": false,
+      "expected": "",
+      "programs": "0",
+      "old_reject": false,
+      "new_reject": false
+    },
+    {
+      "linked": false,
+      "expected": "",
+      "programs": "foreign",
+      "old_reject": false,
+      "new_reject": false
+    },
+    {
+      "linked": false,
+      "expected": "1",
+      "programs": "",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": false,
+      "expected": "1",
+      "programs": "1",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": false,
+      "expected": "1",
+      "programs": "0",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": false,
+      "expected": "1",
+      "programs": "foreign",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": false,
+      "expected": "0",
+      "programs": "",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": false,
+      "expected": "0",
+      "programs": "1",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": false,
+      "expected": "0",
+      "programs": "0",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": false,
+      "expected": "0",
+      "programs": "foreign",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": false,
+      "expected": "foreign",
+      "programs": "",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": false,
+      "expected": "foreign",
+      "programs": "1",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": false,
+      "expected": "foreign",
+      "programs": "0",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": false,
+      "expected": "foreign",
+      "programs": "foreign",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": true,
+      "expected": "",
+      "programs": "",
+      "old_reject": false,
+      "new_reject": true
+    },
+    {
+      "linked": true,
+      "expected": "",
+      "programs": "1",
+      "old_reject": false,
+      "new_reject": true
+    },
+    {
+      "linked": true,
+      "expected": "",
+      "programs": "0",
+      "old_reject": false,
+      "new_reject": true
+    },
+    {
+      "linked": true,
+      "expected": "",
+      "programs": "foreign",
+      "old_reject": false,
+      "new_reject": true
+    },
+    {
+      "linked": true,
+      "expected": "1",
+      "programs": "",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": true,
+      "expected": "1",
+      "programs": "1",
+      "old_reject": false,
+      "new_reject": false
+    },
+    {
+      "linked": true,
+      "expected": "1",
+      "programs": "0",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": true,
+      "expected": "1",
+      "programs": "foreign",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": true,
+      "expected": "0",
+      "programs": "",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": true,
+      "expected": "0",
+      "programs": "1",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": true,
+      "expected": "0",
+      "programs": "0",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": true,
+      "expected": "0",
+      "programs": "foreign",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": true,
+      "expected": "foreign",
+      "programs": "",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": true,
+      "expected": "foreign",
+      "programs": "1",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": true,
+      "expected": "foreign",
+      "programs": "0",
+      "old_reject": true,
+      "new_reject": true
+    },
+    {
+      "linked": true,
+      "expected": "foreign",
+      "programs": "foreign",
+      "old_reject": true,
+      "new_reject": true
+    }
+  ],
+  "compiled_image_proof_pending": true,
+  "hardware_actions": false
+}

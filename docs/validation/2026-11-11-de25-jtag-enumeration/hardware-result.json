@@ -1,0 +1,56 @@
+{
+  "source_commit": "b9827a806327b1239edcd680b59b52ce6abfea98",
+  "scope": "single-programmer-shaped-enumeration-v1",
+  "programming_attempted": false,
+  "cpu_reset_attempted": false,
+  "sd_write_attempted": false,
+  "uart_opened": false,
+  "attempt_limit": 1,
+  "pass": true,
+  "output_sha256": "f3cc2785a0ed02918f729f2fd91a3fcd1b90c44ddc19cc566b4423a160e57e5e",
+  "clock_cleanup": {
+    "original": {
+      "auto_adjust": 1,
+      "clock": "15M"
+    },
+    "write_attempted": true,
+    "active": false,
+    "restore_consumed": true,
+    "restored": true,
+    "readback": {
+      "auto_adjust": 1,
+      "clock": "15M"
+    },
+    "errors": []
+  },
+  "private_server_stopped": true,
+  "usb_permissions_restored": true,
+  "finished_utc": "2026-11-10T23:04:17.886663+00:00",
+  "status": "passed-single-automatic-enumeration-diagnostic",
+  "fpga_id": "4362C0DD",
+  "count_query_status": 47,
+  "device_count": 1,
+  "clock_hz": 3000000,
+  "automatic_adjustment": 0,
+  "programming_grant": false,
+  "transport_fix_established": false,
+  "native_boot_verified": false,
+  "core_load_acceptance": false,
+  "cleanup_inspection": {
+    "status": "passed-host-inspection",
+    "scope": "private server gone; current USB permissions match preceding independently verified baseline; diagnostic reports exact restoration",
+    "private_server_gone": true,
+    "usb_permissions_match_preceding_baseline": true,
+    "clock_cleanup_readback": {
+      "auto_adjust": 1,
+      "clock": "15M"
+    },
+    "hardware_actions": false
+  },
+  "evidence_sha256": {
+    "out/nano-jtag-enumeration-20261111/result.json": "d9f4d2cabfbcbc0dfffe7cc0fad714b81b802cb963995b2cb0d90e5952ce5b78",
+    "out/nano-jtag-enumeration-20261111/trial/enumeration.log": "f3cc2785a0ed02918f729f2fd91a3fcd1b90c44ddc19cc566b4423a160e57e5e",
+    "out/nano-jtag-enumeration-20261111/trial/transport.json": "2d067deae818c62239f2b6e20ae3e99c52cdbbcf537032557b3a14de39d1341e",
+    "out/nano-jtag-enumeration-20261111/cleanup-proof.json": "781f76271f0568c7df1e1421e054c0485fc466d6fea1e833ae7f09b5acae7c24"
+  }
+}

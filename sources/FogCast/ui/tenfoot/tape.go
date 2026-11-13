@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DeanoC/FogCast/appliance/blockprobe"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/storage"
@@ -60,7 +59,7 @@ func tapePickerHint(kind InputKind) string {
 
 func appendTapePickerFilesystemRoot(rows []TapePickerRow, name, path string) []TapePickerRow {
 	path = filepath.Clean(strings.TrimSpace(path))
-	if path == "" || path == "." || blockprobe.Skips(path) {
+	if path == "" || path == "." || pickerSkipsPath(path) {
 		return rows
 	}
 	for _, row := range rows {
@@ -104,7 +103,7 @@ func listTapePickerDir(p *hostclient.SessionCorePackage, path string) ([]TapePic
 			continue
 		}
 		full := filepath.Join(path, name)
-		if blockprobe.Skips(full) {
+		if pickerSkipsPath(full) {
 			continue
 		}
 		info, err := entry.Info()

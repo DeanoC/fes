@@ -1,0 +1,293 @@
+{
+  "source": "19a59c4f0a9877669e9cfcd0336d23c84c2a3211",
+  "classification": "matched cross-build and software tests only",
+  "hardware_actions": false,
+  "selection": {
+    "status": "passed",
+    "source": "19a59c4f0a9877669e9cfcd0336d23c84c2a3211",
+    "native_sources_match_commit": true,
+    "actual_ELF_hub_split_health_paths": true,
+    "matched_USB_only_selection": true,
+    "usb_input": "gamepad",
+    "ELF_gamepad_paths_present": true,
+    "chain_sha256": "586ca73ab290ad7afa0b4f053d11ad20143977e23211c301e448e74d4abfaa0d",
+    "fit_bytes": 2695056,
+    "hardware_execution": false
+  },
+  "software": {
+    "gamepad-selection-tests": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_usb*.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.6013658050214872,
+      "log_sha256": "373f5ea91b2f33bf8c36a7b4eebd4bac63880b21d9f85bcb6b039ab20387c9bc"
+    },
+    "selected-cold-tests": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_hps*.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.204332691966556,
+      "log_sha256": "2f458c58c53249cee46f505311bda8488ee34449101124e134b32c674cb76054"
+    },
+    "selected-entry-tests": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*entry*.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.001156287966296,
+      "log_sha256": "0c8ca1af40e6a3451a1bf07711266ea84e2a6e6e8f6033c09b0eac26739b2abd"
+    },
+    "selected-cold-firmware-tests": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_cold.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 26.22022293799091,
+      "log_sha256": "01c1a1fb2b856d12ee5e77d90c462cafdcc78802e193d4c77a0023a289a522d6"
+    },
+    "selected-gamepad-go": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=90s",
+        "./dwc2",
+        "./usbcontrol",
+        "./input",
+        "./usb"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.0014752940041944,
+      "log_sha256": "b8f160c9f2ee2380e0af2a2b6ce027a8cfe31618c516d25e57070d854d92d7c9"
+    },
+    "sdk-gamepad-diagnostic": {
+      "argv": [
+        "python3",
+        "platform/embedded/tamago/run.py",
+        "usbcheck",
+        "--usb-input",
+        "gamepad",
+        "--compiler",
+        "out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+        "--board",
+        "de25-nano",
+        "--profile",
+        "platform/embedded/nano/probe-profile.json",
+        "--hps-first-project",
+        "out/nano-tenfoot-serial-20261104/core-zx81/sealed-project",
+        "--output",
+        "out/nano-gamepad-parser-20261104/native-sdk-gamepad"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.4020407389616594,
+      "log_sha256": "47ab98b3ab499fad5a368c566843e11d5fec257a82d9c97b455825603e4e168b"
+    },
+    "selected-consistency": {
+      "argv": [
+        "make",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.003657956025563,
+      "log_sha256": "273915f27c798cb3223bae157afc4edf45e1d7cab1a6e05b5172f999f2f30d90"
+    }
+  },
+  "build": {
+    "sdk-final": {
+      "argv": [
+        "python3",
+        "platform/embedded/tamago/run.py",
+        "usbcheck",
+        "--usb-input",
+        "gamepad",
+        "--compiler",
+        "out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+        "--board",
+        "de25-nano",
+        "--profile",
+        "platform/embedded/nano/probe-profile.json",
+        "--hps-first-project",
+        "out/nano-tenfoot-serial-20261104/core-zx81/sealed-project",
+        "--output",
+        "out/nano-gamepad-selected-20261104/native-sdk-final"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.4020939570618793,
+      "log_sha256": "a4fe43f5be38cc68aaac3019ba8a29b4ec20fc92e075721ff4dc9c895775b9a7"
+    },
+    "native-entry-final": {
+      "argv": [
+        "python3",
+        "platform/embedded/entry/build.py",
+        "--target",
+        "de25-nano",
+        "--payload",
+        "out/nano-gamepad-selected-20261104/native-sdk-final/usbcheck.elf",
+        "--nano-build",
+        "out/nano-gamepad-selected-20261104/native-sdk-final",
+        "--profile",
+        "platform/embedded/nano/probe-profile.json",
+        "--image-address",
+        "0x96080000",
+        "--cross-prefix",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+        "--output",
+        "out/nano-gamepad-selected-20261104/native-entry-final"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.2022593669826165,
+      "log_sha256": "1eb82fc4e77241308ef3f815153c8f6377941b5e47ac4beedf73947e7fd767a5"
+    },
+    "bl31-final": {
+      "argv": [
+        "python3",
+        "platform/embedded/firmware/build_terasic.py",
+        "--reference-repo",
+        "out/terasic-git-restore-tfa",
+        "--cross-prefix",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+        "--output",
+        "out/nano-gamepad-selected-20261104/native-bl31-final",
+        "--jobs",
+        "2",
+        "--nano-owned-bridges",
+        "--nano-cold-serial-entry",
+        "out/nano-gamepad-selected-20261104/native-entry-final"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 12.407879427075386,
+      "log_sha256": "6eab3d1143c9dd30688d575edeff7fea5f6095c60249cf0875132b8800d484d4"
+    },
+    "uboot-final": {
+      "argv": [
+        "python3",
+        "platform/embedded/firmware/build_terasic_uboot.py",
+        "--reference-repo",
+        "out/terasic-git-restore-uboot",
+        "--bl31-build",
+        "out/nano-gamepad-selected-20261104/native-bl31-final",
+        "--cross-prefix",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+        "--output",
+        "out/nano-gamepad-selected-20261104/native-uboot-final",
+        "--jobs",
+        "2",
+        "--native-entry-build",
+        "out/nano-gamepad-selected-20261104/native-entry-final"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 40.62180496100336,
+      "log_sha256": "96b813cb27c4c08df8adee8e42d73d536315de3d34225a782583ad5970a95d4f"
+    },
+    "composition-final": {
+      "argv": [
+        "python3",
+        "platform/embedded/nano/hps_boot.py",
+        "--project",
+        "out/nano-tenfoot-serial-20261104/core-zx81/sealed-project",
+        "--uboot-build",
+        "out/nano-gamepad-selected-20261104/native-uboot-final",
+        "--entry-build",
+        "out/nano-gamepad-selected-20261104/native-entry-final",
+        "--quartus-pfg",
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "--output",
+        "out/nano-gamepad-selected-20261104/native-composition-final"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 15.410409661009908,
+      "log_sha256": "d75dd08af9f3fbb0439cfb622bc09e50d9846eee68367a20cab8acdd4dc58a14"
+    },
+    "selection-audit": {
+      "argv": [
+        "python3",
+        "out/nano-gamepad-selected-20261104/audit.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.4017201650422066,
+      "log_sha256": "15f87d992a27f14577822b3f6162f351a574eb4fcfb6663e5266ee1f0fb9af17"
+    }
+  },
+  "artifacts": {
+    "out/nano-gamepad-selected-20261104/native-sdk-final/result.json": "0cf55facddcb6d7bef85c4ae73d23b99c2430fcfbe7a3514eef4a3f0344b013a",
+    "out/nano-gamepad-selected-20261104/native-sdk-final/usbcheck.elf": "913c20f2993f329af1d20a13b53bb04aa8cc9ff1dfd1ca149e2fa8d43cc4d329",
+    "out/nano-gamepad-selected-20261104/native-entry-final/result.json": "3e7f33880028d7876c087d11e595ea697c2ac638f7fb4466bf89b104ea464c4e",
+    "out/nano-gamepad-selected-20261104/native-entry-final/entry.img": "2849556e4cc7d7b77ecc47ad9a5792275f273064009bfa901f16a402c040ddcf",
+    "out/nano-gamepad-selected-20261104/native-bl31-final/result.json": "6afe7965263417d91ba9a3325aa596174143801f887d8cb452b88644287e2a0a",
+    "out/nano-gamepad-selected-20261104/native-uboot-final/result.json": "da1e0dd31ff1b93291ecbd42d9306c4099be1534a8daac7dbc7bfe68e808e0bc",
+    "out/nano-gamepad-selected-20261104/native-composition-final/result.json": "dce85468e996d73ca24943556e26cc804531240a80ed3e704acc7e98f2ae4b57",
+    "out/nano-gamepad-selected-20261104/native-composition-final/u-boot.itb": "6fe0390c6315a84da978186f6cef0d3b018e3f4fd8b50a2610368da9983c7c64",
+    "out/nano-gamepad-selected-20261104/native-composition-final/native-hps-first.sof": "4879da674b5c9182954a35c94099797444dfbaeb7ed49093c3f14ee1e141ff7e",
+    "out/nano-gamepad-selected-20261104/build-plan.json": "3f14161a91dd88f089b7783265f5e6bf89d338b86bc98ab86b0951bb050af011",
+    "out/nano-gamepad-selected-20261104/run.py": "8dea93a99adab57fd4721de0379fa6fbbcd75877d64f4d7e8ed80a041df6ed3c",
+    "out/nano-gamepad-selected-20261104/audit.py": "90f42b35d86dfec772f11ded6fd995e8ac9fd62bfa2451a4345446dd3c6ec608"
+  }
+}

@@ -1,0 +1,914 @@
+{
+  "status": "complete-selected-coverage-with-recorded-aggregate-timeouts",
+  "base": "0d7b9b9916ea6b7a0d1cc700a14c83e09ddcd597",
+  "implementation": "76dbb98c8",
+  "validated_source": "7eeba32472f0d6429a83c76b4ecd83ec83ce981c",
+  "fixture_fix": "7eeba32472f0d6429a83c76b4ecd83ec83ce981c",
+  "selected_commands": 37,
+  "direct_passed_commands": 34,
+  "aggregate_timeouts": [
+    4,
+    19,
+    20
+  ],
+  "checks": {
+    "0": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20075870992150158,
+      "log_sha256": "b1a8286b10b97c4408b12c4b2a9703fa00d475cee41be1816585bb87dafc1768"
+    },
+    "1": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.000894944067113,
+      "log_sha256": "a0bad5c378d4243fb25a8fb4f7845aed7a31f152db3e76bca2f8c139a1fe860f"
+    },
+    "2": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "0d7b9b9916ea6b7a0d1cc700a14c83e09ddcd597",
+        "--head",
+        "7eeba32472f0d6429a83c76b4ecd83ec83ce981c"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2005694309482351,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "3": {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20062258595135063,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "4": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "true",
+        "--media",
+        "true",
+        "--paths-json",
+        "[\"platform/embedded/tamago/packagestore/README.md\", \"platform/embedded/tamago/packagestore/nano_rom_test.go\", \"sources/FogCast/corepackage/nano_rom.go\", \"sources/FogCast/corepackage/nano_rom_test.go\", \"sources/FogCast/corepackage/nano_test.go\", \"sources/FogCast/corepackage/package.go\", \"sources/FogCast/corepackage/retained_rom.go\", \"sources/FogCast/corepackage/rom_input.go\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/cases.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-nano-address.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-nano-base.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-nano-blocks.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-nano-device.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-nano-duplicate.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-nano-encoding.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-nano-format.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-nano-missing.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-nano-null.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-nano-oversized.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-nano-size.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-nano-source-float.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-map-nano-trailing.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-nano-missing-interface.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-nano-optional-interface.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-nano-role.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/invalid-nano-size.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/valid-nano-4096.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/manifests/valid-nano-8192.toml\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-nano-address.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-nano-base.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-nano-blocks.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-nano-device.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-nano-duplicate.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-nano-encoding.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-nano-format.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-nano-missing.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-nano-null.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-nano-oversized.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-nano-size.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-nano-source-float.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-map-nano-trailing.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-nano-missing-interface.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-nano-optional-interface.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-nano-role.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/invalid-nano-size.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/valid-nano-4096.json\", \"sources/FogCast/corepackage/testdata/core-bundle-v3/maps/valid-nano-8192.json\", \"sources/FogCast/docs/ARCHITECTURE.md\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/cases.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-address.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-base.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-blocks.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-device.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-duplicate.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-encoding.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-format.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-missing.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-null.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-oversized.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-size.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-source-float.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-trailing.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/invalid-nano-missing-interface.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/invalid-nano-optional-interface.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/invalid-nano-role.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/invalid-nano-size.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/valid-nano-4096.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/manifests/valid-nano-8192.toml\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-address.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-base.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-blocks.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-device.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-duplicate.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-encoding.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-format.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-missing.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-null.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-oversized.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-size.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-source-float.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-trailing.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/invalid-nano-missing-interface.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/invalid-nano-optional-interface.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/invalid-nano-role.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/invalid-nano-size.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/valid-nano-4096.json\", \"sources/libmister-runtime/tests/fixtures/core-bundle-v3/maps/valid-nano-8192.json\", \"sources/libmister-runtime/tests/unit/core_package_test.cpp\", \"sources/mister-packages/docs/schema.md\", \"sources/mister-packages/schema/core-bundle-v3.json\", \"sources/mister-packages/schema/rom-map-v1.json\", \"sources/mister-packages/scripts/core_bundle_v3_fixtures.py\", \"sources/mister-packages/testdata/core-bundle-v3/cases.json\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/invalid-map-nano-address.toml\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/invalid-map-nano-base.toml\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/invalid-map-nano-blocks.toml\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/invalid-map-nano-device.toml\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/invalid-map-nano-duplicate.toml\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/invalid-map-nano-encoding.toml\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/invalid-map-nano-format.toml\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/invalid-map-nano-missing.toml\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/invalid-map-nano-null.toml\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/invalid-map-nano-oversized.toml\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/invalid-map-nano-size.toml\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/invalid-map-nano-source-float.toml\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/invalid-map-nano-trailing.toml\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/invalid-nano-missing-interface.toml\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/invalid-nano-optional-interface.toml\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/invalid-nano-role.toml\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/invalid-nano-size.toml\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/valid-nano-4096.toml\", \"sources/mister-packages/testdata/core-bundle-v3/manifests/valid-nano-8192.toml\", \"sources/mister-packages/testdata/core-bundle-v3/maps/invalid-map-nano-address.json\", \"sources/mister-packages/testdata/core-bundle-v3/maps/invalid-map-nano-base.json\", \"sources/mister-packages/testdata/core-bundle-v3/maps/invalid-map-nano-blocks.json\", \"sources/mister-packages/testdata/core-bundle-v3/maps/invalid-map-nano-device.json\", \"sources/mister-packages/testdata/core-bundle-v3/maps/invalid-map-nano-duplicate.json\", \"sources/mister-packages/testdata/core-bundle-v3/maps/invalid-map-nano-encoding.json\", \"sources/mister-packages/testdata/core-bundle-v3/maps/invalid-map-nano-format.json\", \"sources/mister-packages/testdata/core-bundle-v3/maps/invalid-map-nano-missing.json\", \"sources/mister-packages/testdata/core-bundle-v3/maps/invalid-map-nano-null.json\", \"sources/mister-packages/testdata/core-bundle-v3/maps/invalid-map-nano-oversized.json\", \"sources/mister-packages/testdata/core-bundle-v3/maps/invalid-map-nano-size.json\", \"sources/mister-packages/testdata/core-bundle-v3/maps/invalid-map-nano-source-float.json\", \"sources/mister-packages/testdata/core-bundle-v3/maps/invalid-map-nano-trailing.json\", \"sources/mister-packages/testdata/core-bundle-v3/maps/invalid-nano-missing-interface.json\", \"sources/mister-packages/testdata/core-bundle-v3/maps/invalid-nano-optional-interface.json\", \"sources/mister-packages/testdata/core-bundle-v3/maps/invalid-nano-role.json\", \"sources/mister-packages/testdata/core-bundle-v3/maps/invalid-nano-size.json\", \"sources/mister-packages/testdata/core-bundle-v3/maps/valid-nano-4096.json\", \"sources/mister-packages/testdata/core-bundle-v3/maps/valid-nano-8192.json\", \"sources/mister-packages/tests/test_core_bundle_v3_fixtures.py\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/scripts/core_package.py\", \"sources/misteross/tests/fixtures/core-bundle-v3/cases.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-address.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-base.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-blocks.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-device.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-duplicate.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-encoding.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-format.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-missing.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-null.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-oversized.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-size.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-source-float.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/invalid-map-nano-trailing.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/invalid-nano-missing-interface.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/invalid-nano-optional-interface.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/invalid-nano-role.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/invalid-nano-size.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/valid-nano-4096.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/manifests/valid-nano-8192.toml\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-address.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-base.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-blocks.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-device.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-duplicate.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-encoding.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-format.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-missing.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-null.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-oversized.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-size.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-source-float.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/invalid-map-nano-trailing.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/invalid-nano-missing-interface.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/invalid-nano-optional-interface.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/invalid-nano-role.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/invalid-nano-size.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/valid-nano-4096.json\", \"sources/misteross/tests/fixtures/core-bundle-v3/maps/valid-nano-8192.json\", \"sources/misteross/tests/test_core_package.py\"]"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": -15,
+      "timed_out": true,
+      "elapsed": 900.1862094100798,
+      "log_sha256": "27d06f5525196798e6c4bc4ed857014e9b25d92b341a25ee7fb9e9de449807c4"
+    },
+    "5": {
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.201738460920751,
+      "log_sha256": "fb2406c721df08d5af4a6daf4dd6d92e6398456a181f782ade1b0cb36cd6c671"
+    },
+    "6": {
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "90s",
+        "./sdcontrol",
+        "./sdhci",
+        "./fat",
+        "./packagestore"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/tamago",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 7.205468770000152,
+      "log_sha256": "c4dc98218f86665f02dc285e3ddd4dd27381baf0e835fdb2d7b28a722183719f"
+    },
+    "7": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/runtime/verify_compatibility.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 21.814039433025755,
+      "log_sha256": "dd9d86c10d26629220463879df26595831ab568930e6a09aa25610ec68769973"
+    },
+    "8": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 35.02260538097471,
+      "log_sha256": "f5c6d3b305af53bb0fc4af5b1e2eb7512ddef2d1d9e133a2d35ef536da3252c4"
+    },
+    "9": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/host_tests.py",
+        "--ui-if-needed",
+        "--full"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 505.53420012490824,
+      "log_sha256": "dd3749868e1ade187dbff3ba53ca3629c4e14f2e23d02efffd4233eddc7547da"
+    },
+    "10": {
+      "argv": [
+        "make",
+        "-j2",
+        "test"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 271.62507275596727,
+      "log_sha256": "3afcfdc9f7813acd5dc05771991837a8108ea75fbc07ac3a8aa293c94986f244"
+    },
+    "11": {
+      "argv": [
+        "make",
+        "test",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/mister-packages",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 8.210235602105968,
+      "log_sha256": "0d1aef266692ae6d0df581daf804874ada6f56c1f55fda6732c900df85164476"
+    },
+    "12": {
+      "argv": [
+        "make",
+        "sim-fes-native-video",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 12.40882828598842,
+      "log_sha256": "0625532eae11abd8a64a39af45f9936eac928893a1f41b4a868b608b00bc7dae"
+    },
+    "13": {
+      "argv": [
+        "make",
+        "sim-fes-coleco-native",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.4022171680117026,
+      "log_sha256": "462e30f12b6f07b21178b573275675de602f15e24c4428832e49d17cffead86b"
+    },
+    "14": {
+      "argv": [
+        "make",
+        "sim-fes-native-socket",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.6008163799997419,
+      "log_sha256": "d9ce7fe03140d64da01f97d0e8772dff83556907913e8d02c2d255538e6e3e0e"
+    },
+    "15": {
+      "argv": [
+        "make",
+        "sim-fes-coleco-session",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.004097766941413,
+      "log_sha256": "0bf77b613551e6a0fbdbf5c19f28128b25441439cab1b9d180bb67f8fb1fad26"
+    },
+    "16": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 350.4240926869679,
+      "log_sha256": "851b5f55e6c005ac41a3b8126fcde2d4f287f8736891d1d3e0314743f9ee4e15"
+    },
+    "17": {
+      "argv": [
+        "make",
+        "sim-fes-apple2",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 89.65915039100219,
+      "log_sha256": "958b2dc05d001b24e46129dcce6ca61572591118d0d7429c7d50e3a679f963be"
+    },
+    "18": {
+      "argv": [
+        "make",
+        "sim-fes-atari-st",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 290.7821416159859,
+      "log_sha256": "2bae76ba10301bd51cd68aca7ae00af35d097bb859488fe91db281cae6d690c7"
+    },
+    "19": {
+      "argv": [
+        "make",
+        "sim-fes-c64",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": -15,
+      "timed_out": true,
+      "elapsed": 900.0105082079535,
+      "log_sha256": "aad15c7a6c9b7d4e72068fc164e8893103293804d30a24d9e5fa98c85c50745c"
+    },
+    "20": {
+      "argv": [
+        "make",
+        "sim-fes-coleco",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": -15,
+      "timed_out": true,
+      "elapsed": 900.0182182940189,
+      "log_sha256": "21340c142e15935bd2ec6284461fe2cc8df423e88edb3d00584065051434916a"
+    },
+    "21": {
+      "argv": [
+        "make",
+        "sim-fes-demo",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 19.213644442963414,
+      "log_sha256": "668d42845572524e014dbdbe67ce422bbf53a28380820e365065c58b5ac9303a"
+    },
+    "22": {
+      "argv": [
+        "make",
+        "sim-fes-menu",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 26.216330535011366,
+      "log_sha256": "09a0331d5c1de4c6b8135960f2a814fa071367ce361d7a75ea8243e55bf28191"
+    },
+    "23": {
+      "argv": [
+        "make",
+        "sim-fes-pc386",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 149.09392874804325,
+      "log_sha256": "1975f1f4b85b1208d2483dd3117b4abc07667eecc444d9d1b675eb9ce5c494a3"
+    },
+    "24": {
+      "argv": [
+        "make",
+        "sim-fes-pcxt",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 289.9847466769861,
+      "log_sha256": "5fbaf889146f9a52e79544c47892183f7d1b94c1453767068a8fdd24a75c1fc6"
+    },
+    "25": {
+      "argv": [
+        "make",
+        "sim-fes-pong",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.4027422469807789,
+      "log_sha256": "d02c8805343b4edc41c3b47c88c2d10380d62023d5feda8bbe8d0fee50d52f44"
+    },
+    "26": {
+      "argv": [
+        "make",
+        "sim-fes-ramtest",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 16.00844343297649,
+      "log_sha256": "94f40f2ef1fb9cc31afeacf8368e933354cf5dad00d4262c3d2f7135cc60e2d9"
+    },
+    "27": {
+      "argv": [
+        "make",
+        "sim-fes-riscv",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 128.47339953493793,
+      "log_sha256": "e96a1101ed134c4f58f41635c0aa2907305376255eac1609ec76c6158721c944"
+    },
+    "28": {
+      "argv": [
+        "make",
+        "sim-fes-sg1000",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 14.409527405980043,
+      "log_sha256": "282dce9c249a681fb59e23fac8bebd7911683e15c34a3736dd5ceb9d3a57e72c"
+    },
+    "29": {
+      "argv": [
+        "make",
+        "sim-fes-sg1000-oss",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 16.41348981508054,
+      "log_sha256": "66fd2b8c2a129ce6083e6a41808b00f62411ed6d0122d3a432b5d1723246ce58"
+    },
+    "30": {
+      "argv": [
+        "make",
+        "sim-fes-sg1000-rom-link",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 11.20737861096859,
+      "log_sha256": "65a311fd4175f749ec76a4960381adb0c7bba6ae66d46c61400238510ba88ffc"
+    },
+    "31": {
+      "argv": [
+        "make",
+        "sim-fes-sg1000-gp-audio",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.8037434830330312,
+      "log_sha256": "90ca26ce3711abba190fb9a51e37847200d41865704591a7bab25d115de60e15"
+    },
+    "32": {
+      "argv": [
+        "make",
+        "sim-fes-sms",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 27.423469867091626,
+      "log_sha256": "6f20cf1050bae31be9a3e885a1ab5ba91907045cd59f7060cf1e460062f1aa35"
+    },
+    "33": {
+      "argv": [
+        "make",
+        "sim-fes-sms-oss",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 28.018036180990748,
+      "log_sha256": "1ff13f2033d3ff729b3c1481533796e83ae41910bbb39eace63efc70d10ad4c0"
+    },
+    "34": {
+      "argv": [
+        "make",
+        "sim-fes-spectrum",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 564.1529276840156,
+      "log_sha256": "cc10c96942478fc321c9e9aa80ee7b11747c54ef107b0f316fedc1ba5a019ee0"
+    },
+    "35": {
+      "argv": [
+        "make",
+        "sim-fes-z80",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 65.44417698890902,
+      "log_sha256": "e618be54a731ae94d1359744f36f7c88c84d03eb37ce312019a3427f20151bff"
+    },
+    "36": {
+      "argv": [
+        "make",
+        "sim-fes-zx81",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 228.55483394500334,
+      "log_sha256": "73399cab5e04514d39f5e260774d6de1308f252b242fe418cfe8cb10d70f312a"
+    }
+  },
+  "parent": {
+    "selected": 1565,
+    "counts": {
+      "passed": 1523,
+      "skipped": 42
+    },
+    "aggregate_passed": false,
+    "bounded_remaining_batches": 7
+  },
+  "phase_coverage": {
+    "c64": {
+      "status": "passed-phase-coverage-with-recorded-aggregate-timeout",
+      "source": "7eeba32472f0d6429a83c76b4ecd83ec83ce981c",
+      "plan": "c64-remaining-plan.json",
+      "phase_results": {
+        "0": {
+          "argv": [
+            "make",
+            "-C",
+            "sources/misteross",
+            "-o",
+            "c64-diagnostic",
+            "sim-fes-c64-clock",
+            "PYTHON=/usr/bin/python3"
+          ],
+          "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 103.05442425899673,
+          "log_sha256": "12d2f13f045067c7fa3858b230f4f30bf6050ab00cdeca37b2dd481191476532"
+        },
+        "1": {
+          "argv": [
+            "make",
+            "-C",
+            "sources/misteross",
+            "-o",
+            "c64-diagnostic",
+            "sim-fes-c64-cadence",
+            "PYTHON=/usr/bin/python3"
+          ],
+          "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 221.7247477939818,
+          "log_sha256": "3b5732301c004b49de2f8d0bc7d76e6b84d5f239dcf7a4ed19cf5c1ffc15f0af"
+        },
+        "2": {
+          "argv": [
+            "make",
+            "-C",
+            "sources/misteross",
+            "-o",
+            "c64-diagnostic",
+            "sim-fes-c64-sprite",
+            "PYTHON=/usr/bin/python3"
+          ],
+          "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 3.803004112909548,
+          "log_sha256": "4df7612516477de446fc3bb94f7d09fe417f29df9fdeef3222bb5051845c196b"
+        },
+        "3": {
+          "argv": [
+            "make",
+            "-C",
+            "sources/misteross",
+            "-o",
+            "c64-diagnostic",
+            "sim-fes-c64-video",
+            "PYTHON=/usr/bin/python3"
+          ],
+          "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 78.05007917201146,
+          "log_sha256": "90abf82c90db0f1ab8ce91a36d1aae4d74c4c1018a9e14555de45498aea764b5"
+        },
+        "4": {
+          "argv": [
+            "make",
+            "-C",
+            "sources/misteross",
+            "-o",
+            "c64-diagnostic",
+            "sim-fes-c64-rom",
+            "PYTHON=/usr/bin/python3"
+          ],
+          "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 7.0053465239470825,
+          "log_sha256": "1cbe695c21dac25fc2ed7a1f322fc283f1c444de474cce5d2ed4fcf6d7da236a"
+        },
+        "5": {
+          "argv": [
+            "make",
+            "-C",
+            "sources/misteross",
+            "-o",
+            "c64-diagnostic",
+            "sim-fes-c64-fetch",
+            "PYTHON=/usr/bin/python3"
+          ],
+          "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 6.6048376460094005,
+          "log_sha256": "71e97bb02c666900c38fba8e4e02b96bddb6d71e07322d2bd6c1e4064223c840"
+        },
+        "6": {
+          "argv": [
+            "make",
+            "-C",
+            "sources/misteross",
+            "-o",
+            "c64-diagnostic",
+            "sim-fes-c64-frame",
+            "PYTHON=/usr/bin/python3"
+          ],
+          "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 3.60208976699505,
+          "log_sha256": "ea6601a608c39fb549c08824fd302b84326ee8f08c9b4147d0c2be1e7bd10d65"
+        },
+        "7": {
+          "argv": [
+            "make",
+            "-C",
+            "sources/misteross",
+            "-o",
+            "sim-fes-c64-session",
+            "-o",
+            "sim-fes-c64-d021",
+            "-o",
+            "sim-fes-c64-ba-timing",
+            "-o",
+            "sim-fes-c64-vic-timing",
+            "-o",
+            "sim-fes-c64-medium",
+            "-o",
+            "sim-fes-c64-medium-mailbox",
+            "-o",
+            "sim-fes-c64-sprite-pal",
+            "-o",
+            "sim-fes-c64-sid",
+            "-o",
+            "sim-fes-c64-open-graphics",
+            "-o",
+            "sim-fes-c64-graphics",
+            "-o",
+            "sim-fes-c64-border-position",
+            "-o",
+            "sim-fes-c64-scroll",
+            "-o",
+            "sim-fes-c64-graphics-modes",
+            "-o",
+            "sim-fes-c64-collision-cpu",
+            "-o",
+            "sim-fes-c64-collisions",
+            "-o",
+            "sim-fes-c64-sprite-video",
+            "-o",
+            "sim-fes-c64-border",
+            "-o",
+            "sim-fes-c64-readback",
+            "-o",
+            "c64-diagnostic",
+            "-o",
+            "sim-fes-c64-cia",
+            "-o",
+            "sim-fes-c64-cia-reference",
+            "-o",
+            "sim-fes-c64-color-ram",
+            "-o",
+            "sim-fes-c64-keyboard",
+            "-o",
+            "sim-fes-c64-vic",
+            "-o",
+            "sim-fes-c64-drive",
+            "-o",
+            "sim-fes-c64-gcr",
+            "-o",
+            "sim-fes-c64-checkpoint",
+            "-o",
+            "sim-fes-c64-rmw",
+            "-o",
+            "sim-fes-c64-sax",
+            "-o",
+            "sim-fes-c64-axs",
+            "-o",
+            "sim-fes-c64-axs-oracle",
+            "-o",
+            "sim-fes-c64-jsr",
+            "-o",
+            "sim-fes-c64-push",
+            "-o",
+            "sim-fes-c64-irq",
+            "-o",
+            "sim-fes-c64-nmi",
+            "-o",
+            "sim-fes-c64-ready",
+            "-o",
+            "sim-fes-c64-clock",
+            "-o",
+            "sim-fes-c64-cadence",
+            "-o",
+            "sim-fes-c64-sprite",
+            "-o",
+            "sim-fes-c64-video",
+            "-o",
+            "sim-fes-c64-rom",
+            "-o",
+            "sim-fes-c64-fetch",
+            "-o",
+            "sim-fes-c64-frame",
+            "sim-fes-c64",
+            "PYTHON=/usr/bin/python3"
+          ],
+          "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 80.0732930819504,
+          "log_sha256": "1285d97e5f186620cb58efc2557e0ebb176df942d1b716128573eae9aef80544"
+        }
+      },
+      "aggregate_passed": false,
+      "aggregate_timed_out": true
+    },
+    "coleco": {
+      "status": "passed-phase-coverage-with-recorded-aggregate-timeout",
+      "source": "7eeba32472f0d6429a83c76b4ecd83ec83ce981c",
+      "plan": "coleco-remaining-plan.json",
+      "phase_results": {
+        "0": {
+          "argv": [
+            "make",
+            "-C",
+            "sources/misteross",
+            "sim-fes-coleco-board-sprites-oss",
+            "PYTHON=/usr/bin/python3"
+          ],
+          "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 35.041455012978986,
+          "log_sha256": "cafcef1dc7b3eec08f59273d5d7c6eb6a555d461fa1342c0bf79102920a2f206"
+        },
+        "1": {
+          "argv": [
+            "make",
+            "-C",
+            "sources/misteross",
+            "sim-fes-coleco-expansion",
+            "PYTHON=/usr/bin/python3"
+          ],
+          "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 7.804717432009056,
+          "log_sha256": "9c79daf05fea06c62e806f70039327b17a5be9eb0638bf60ac0e63ef5b11b47e"
+        },
+        "2": {
+          "argv": [
+            "make",
+            "-C",
+            "sources/misteross",
+            "sim-fes-coleco-diagnostic",
+            "PYTHON=/usr/bin/python3"
+          ],
+          "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 10.408081319998018,
+          "log_sha256": "c61adf2acc436eddbfd51b8378af664a6c4e0a51adf1727b08cdb219364104cc"
+        },
+        "3": {
+          "argv": [
+            "make",
+            "-C",
+            "sources/misteross",
+            "sim-fes-coleco-sgm-socket",
+            "PYTHON=/usr/bin/python3"
+          ],
+          "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 3.402717465069145,
+          "log_sha256": "ca838b31943996b1e0e3d225a67b4937ebc4bf09ef5b8b6a6f2a10f34178b6c1"
+        },
+        "4": {
+          "argv": [
+            "make",
+            "-C",
+            "sources/misteross",
+            "sim-fes-coleco-sgm-shell-ram",
+            "PYTHON=/usr/bin/python3"
+          ],
+          "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 7.804538998985663,
+          "log_sha256": "0d7d8f3402af3ee74bb89177138ae93ce8e6ff3b6394b00ff8c41d9ca8d0ba49"
+        },
+        "5": {
+          "argv": [
+            "make",
+            "-C",
+            "sources/misteross",
+            "sim-fes-coleco-sgm-ay",
+            "PYTHON=/usr/bin/python3"
+          ],
+          "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 3.803289414034225,
+          "log_sha256": "40db6c31e177f7a3163ac08c2be226cd668b0ee118d1d5e5f9158f9eb67d514b"
+        },
+        "6": {
+          "argv": [
+            "make",
+            "-C",
+            "sources/misteross",
+            "sim-fes-coleco-sgm-module",
+            "PYTHON=/usr/bin/python3"
+          ],
+          "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 3.4019499550340697,
+          "log_sha256": "92b0ca800cba3de14719b5c103f82639c7bb987d6cc7e9caeb60311368d86be0"
+        },
+        "7": {
+          "argv": [
+            "make",
+            "-C",
+            "sources/misteross",
+            "sim-fes-coleco-sgm-audio",
+            "PYTHON=/usr/bin/python3"
+          ],
+          "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 3.4026107899844646,
+          "log_sha256": "bbeb7f3a1cfc209ae1223657b9d2d750c69c7613989bdaa99827cf3a5e554750"
+        },
+        "8": {
+          "argv": [
+            "make",
+            "-C",
+            "sources/misteross",
+            "sim-fes-coleco-sgm-probe",
+            "PYTHON=/usr/bin/python3"
+          ],
+          "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 8.806121587054804,
+          "log_sha256": "cfc851a74c3b0e40f2a5294449665c907588e0fe21f2419f30dd25235c2c8dbf"
+        }
+      },
+      "aggregate_passed": false,
+      "aggregate_timed_out": true
+    }
+  },
+  "fixture_nonregression": {
+    "status": "passed",
+    "base": "0d7b9b9916ea6b7a0d1cc700a14c83e09ddcd597",
+    "previous_cases": 46,
+    "current_cases": 65,
+    "all_previous_case_records_identical": true
+  },
+  "fpga_python": {
+    "selected": 1580,
+    "skipped": 75
+  },
+  "source_restore": {
+    "status": "passed",
+    "commit": "7eeba32472f0d6429a83c76b4ecd83ec83ce981c",
+    "strict_restore_fsck": true,
+    "inputs": [
+      {
+        "path": "/home/deano/fes-retained/de25-rom-board-20261105-r1/source.bundle",
+        "sha256": "ec4ed36d98886482a61d9127f899d5e8c49cd862ca1cc70ea02f49c6779660f6",
+        "ref": "HEAD:refs/heads/producer"
+      },
+      {
+        "path": "/home/deano/fes-retained/de25-rom-board-20261105-r1/board-source.bundle",
+        "sha256": "4684f807822fdd263e5285a3db0698ffbad9934988a848889ab163adbc0e117c",
+        "ref": "refs/codex/de25-rom-board/79d616e85e19d65f0d645b67a85ffe7e142dcdfc:refs/heads/board"
+      },
+      {
+        "path": "/home/deano/fes-retained/de25-rom-board-20261105-r1/publication.bundle",
+        "sha256": "cd741feb960cb71ad5d9624e5e2e6496c9fad17f4e9faff864570d7c56753a45",
+        "ref": "HEAD:refs/heads/producer-publication"
+      },
+      {
+        "path": "/home/deano/fes-retained/de25-rom-resources-20261105-r1/source-update.bundle",
+        "sha256": "7c9077de4ef88cb3a2e3b0f89038481629e1cd70d63dafd3464541a1cf45589e",
+        "ref": "HEAD:refs/heads/rom-resources"
+      },
+      {
+        "path": "/home/deano/fes-retained/de25-rom-resources-20261105-r1/publication.bundle",
+        "sha256": "9320c636e081270e771b58c302098783fbe3a19d45d89cffc8f17b118f71aafb",
+        "ref": "HEAD:refs/heads/resources-publication"
+      },
+      {
+        "path": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-rom-retention-20261105/source-update.bundle",
+        "sha256": "3c6f4e05b1a430dbfe3801bfa61944501b1201d0caa704656b408fc1ac627228",
+        "ref": "HEAD:refs/heads/rom-retention"
+      }
+    ]
+  },
+  "hardware_actions": false,
+  "ordinary_runtime_admission": false,
+  "tracked_native_rom_publication": false,
+  "matched_rom_boot_image": false,
+  "retained": "/home/deano/fes-retained/de25-rom-retention-20261105-r1/"
+}

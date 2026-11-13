@@ -54,11 +54,21 @@ programming or MMIO admission. Its Go consumer gives FogCast the same exact
 16,375-byte BRAM tape limit; the agent binds that report to the DE25 target
 instead of applying another computer's 16,384-byte window.
 
-The fabric-only `emit-c` command supplies standalone constant headers for C
-consumers such as the DE25 kernel diagnostic. From this module:
+The experimental [embedded computer contract](docs/embedded-computer.md) is separate from the Linux transport.
+
+The experimental [`fes.fabric.embedded-rom`](packages/fabric/fes_fabric_embedded_rom.yaml)
+definition supplies matching C and Verilog constants for the relative ROM FIFO
+endpoint. It describes identity, held state, exact byte counts and CRC; it names
+no physical address, SMC operation or accepted programming profile.
+
+The `emit-c` command supplies standalone numeric constant headers for fabric
+and ABI consumers such as the DE25 firmware diagnostics. ABI output contains
+only declared constants; it does not expand identity/interface metadata into
+additional macros. From this module:
 
 ```sh
 go run ./cmd/mister-packages emit-c packages/fabric/fes_fabric_de25_ddr_probe.yaml
+go run ./cmd/mister-packages emit-c packages/abi/fes_computer.yaml
 ```
 
 The guarded header contains unsigned 32-bit `#define` constants with the same
@@ -95,6 +105,44 @@ owner ABI3. C++ profile row types include their platform prefix.
 The runtime owns physical programming and compatibility admission; FogCast
 owns library/session context; misteross owns source builds and RBF provenance.
 Shared persistence layouts and wire contracts remain here.
+The experimental native Go compatibility checker consumes the same generated
+ABI constants and DE10 programming registry. The separate
+[`de25_nano` registry](packages/programming/de25_nano.yaml) describes the native
+computer package pairing and generates a board-specific Go consumer. It is a
+compatibility definition, with no electrical setup, boot ownership or physical
+programming capability. The native runtime separately requires implemented
+drivers, held-ROM delivery and trusted firmware integration.
+The experimental [embedded identity/drain contract](docs/embedded-control.md)
+generates constants for a standalone FPGA endpoint and FES firmware adapter.
+It registers no production ABI or Nano programming profile.
+The separate [owned firmware bridge channel](docs/embedded-bridges.md) generates
+C/Go constants for an opt-in Nano SiP experiment. It supplies no boot proof or
+physical admission and does not change FPGA endpoint build inputs.
+Version 1.10 adds two read-only digest operations for a fixed, source-bound
+HPS pinmux observation. They take only the existing owner/generation and
+grant no boot or programming authority.
+The [firmware-owned SD lease](docs/embedded-sd.md) supplies a separate C/Go
+channel sharing that owner and generation. It remains unready without trusted
+platform initialization and permits only closed-bridge PIO.
+The [firmware-owned USB lease](docs/embedded-usb.md) uses an independent
+generation, prepared and confirmed phases, and a checked stop. It permits USB
+PIO in the existing ClosedOnly mode or an explicitly bound SharedPio mode.
+The shared mode requires trusted cold/master composition; the default provider
+is unbound and no composed boot profile is selected. See the lease contract
+for dynamic data-containment flags and retained-failure behavior.
+
+The [fixed firmware MAC lease](docs/embedded-mac.md) uses a private generation,
+separate grant/confirmation and an independent drain callback for a permanently
+pinned DMA window. Its portable engine/native client do not supply a physical
+Nano dispatcher binding, trusted boot provider or enabled Ethernet profile.
+
+The experimental [initial tape handoff](docs/embedded-tape.md) generates C/Go
+constants for a fixed-window descriptor and private secure call. Its service
+and publication lease have portable joined tests. An explicit firmware build
+flag connects the Nano dispatcher and strong supplier. Explicit native SDK
+selection now binds the entry/cold profile and CPU hook together; defaults
+leave it unselected. It grants no new ABI,
+programming profile or hardware authority.
 
 Run `make test` with Go and the Python dependencies from
 `requirements-test.txt` installed.

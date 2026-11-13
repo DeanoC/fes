@@ -1,0 +1,74 @@
+{
+  "status": "native-write-passed-independent-readback-parser-failed",
+  "source_commit": "9b495a4d04ccad6ca1e1168ba11e5505cef1e549",
+  "compiled_source": "aa0d94a11f10d914c9fabd8df1a98f8342ee52a5",
+  "production_repair": "a5d6027e9e8697b58f2c06be452995648fa5eb75",
+  "native_build": "e4487fd3d4c10b80",
+  "native_write_verified": true,
+  "native_trace_complete": true,
+  "native_final_sd_contained": true,
+  "native_final_sd_generation": 7,
+  "write_observation": {
+    "expected_plan": {
+      "format": 1,
+      "scope": "nano-sd-scratch-write-v1",
+      "cid": "275048534430344730da25e394012b",
+      "sectors": 7774208,
+      "mbr_sha256": "13f4a84a267e67f06b1d09fdfa130a7625a0aab9b363163e711aa9854d7c944c",
+      "original_sha256": "e81b5f7145bdf34e823674a03897f858a1f71be2b18b0a139a4261e1dad908d4"
+    },
+    "pattern_sha256": "7815723063731c0a7e82ce5b44a08b3677ae11464c7424f8c5846b4e7bfc47e5",
+    "writes_possible_after_verified": true,
+    "written_record_present": true,
+    "final_sd_contained": true,
+    "complete": true,
+    "independent_recovery_readback": false,
+    "filesystem_write_qualification": false,
+    "ordinary_admission": false
+  },
+  "native_write_outcome_unknown": false,
+  "recovery_reboot_passed": true,
+  "independent_recovery_readback_complete": false,
+  "readback_failure": "Host parser expected blocks-read status at line start; qualified U-Boot prints it after command summary on the same line.",
+  "actual_readback_command": {
+    "command": "mmc read 83000000 0 8000",
+    "status": "returned",
+    "output": "mmc read 83000000 0 8000; echo FES_UPLOAD_2a9ed0cb5b6e=$?\r\nMMC read: dev # 0, block # 0, count 32768 ... 32768 blocks read: OK\r\nFES_UPLOAD_2a9ed0cb5b6e=0\r\nSOCFPGA_AGILEX5 # "
+  },
+  "readback_tail_not_reached": true,
+  "last_observed_board_state": "Qualified recovery prompt after read-only prefix read; no native SD lease claimed across this reboot.",
+  "cpu_park_observed": false,
+  "new_programming_failures": 0,
+  "all_created_grants_terminal": true,
+  "cleanup": {
+    "status": "passed",
+    "clock_readback_logs": [
+      {
+        "parameter": "JtagClock",
+        "value": "15M",
+        "log_sha256": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18"
+      },
+      {
+        "parameter": "JtagClockAutoAdjust",
+        "value": 1,
+        "log_sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      }
+    ],
+    "owned_private_server_gone": true,
+    "usb_permissions_exact": true,
+    "usb_node_unchanged": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "experiment_result_sha256": "10f461b6af9917a826d0df6ca701e3da4e4b57fc756a33809d276ccbf42287d2"
+  },
+  "raw_sha256": {
+    "out/nano-sd-fixed-write-trial-20261110/trial/native-result.json": "7727bfcc3dd725ed49efe8b32d02286227057c31d4de7d1d894b803129ad45f1",
+    "out/nano-sd-fixed-write-trial-20261110/trial/native-console.log": "4f2561ed4450a5c07e9f37e5ba55521383de35ac98a2a9e79a5a7ed0b1a1e90e",
+    "out/nano-sd-fixed-write-trial-20261110/trial/readback-result.json": "c6e17c8175e7ece6255926b9083666f3e32e54f24cff8af0539eaed2743d6685",
+    "out/nano-sd-fixed-write-trial-20261110/trial/readback-console.log": "bf552d0f5eec2b837461ca437655709718b338e084bc0f2142b49ec738cc94e4",
+    "out/nano-sd-fixed-write-trial-20261110/trial/experiment-result.json": "10f461b6af9917a826d0df6ca701e3da4e4b57fc756a33809d276ccbf42287d2"
+  },
+  "ordinary_admission": false,
+  "full_appliance_acceptance": false,
+  "scope": "Native bounded 8-sector write/read/contain/resume/read/finalcontain passes; whole attempt fails at separate read-only host parser. No writer replay."
+}

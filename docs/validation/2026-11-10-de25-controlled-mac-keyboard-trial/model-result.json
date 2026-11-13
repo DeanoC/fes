@@ -1,0 +1,72 @@
+{
+  "status": "refreshed-offline-model-checks-passed",
+  "checkout_before_documentation": "65c5193f1",
+  "compiled_code": "db5fc2d66b1426e79e63a77577499d1139eda33e",
+  "native_boot_id": "a02d808ea11eb54f",
+  "python_model_tests": 45,
+  "go_real_package_race_tests": 1,
+  "hardware_actions": false,
+  "live_authority": false,
+  "operator_available": false,
+  "checks": {
+    "programming-model": {
+      "result": "out/nano-controlled-mac-keyboard-trial-20261110/programming-model-result.json",
+      "sha256": "5b477a262dc220e5ac51b1a15d5da9ad87470e7d809f2245828ddd6627ecd87f",
+      "log_sha256": "b88247b8542b015adef103f7d55c0f05ec61e4a50731356cb0eb1f8b17365c40"
+    },
+    "serial-model": {
+      "result": "out/nano-controlled-mac-keyboard-trial-20261110/serial-model-result.json",
+      "sha256": "5878f8667bfb3ee65744c783b1b2548460893c280a90020ea4536b39af7d5443",
+      "log_sha256": "f442f04af8c8c754849b028f572bac3f35e0ed6f6ce542e10bbf8965bca5f4d1"
+    },
+    "receipt-model": {
+      "result": "out/nano-controlled-mac-keyboard-trial-20261110/receipt-model-result.json",
+      "sha256": "44aa6e7cd630a69e45297c7983ed53b7eec8d44bff0c9fcac84826e7e4f6f692",
+      "log_sha256": "b8988fbaec03dacea0d83344a0ca5ecbbfca7ac497fc838b77f4efbf70f60da7"
+    },
+    "startup-model": {
+      "result": "out/nano-controlled-mac-keyboard-trial-20261110/startup-model-result.json",
+      "sha256": "ef5e5d5a74b8ec80fd84e6cb2707b6ef471cd3e26d96b9d8374e8941fe0fbbf6",
+      "log_sha256": "d1aaab86fa02d87997171aeb3220b40f5e28046ec4d1674848f9ec5f589f297c"
+    },
+    "mmu-model": {
+      "result": "out/nano-controlled-mac-keyboard-trial-20261110/mmu-model-result.json",
+      "sha256": "d5e899056cef20ce507478a75a038ffd771851353b5129840d834b07052e65ed",
+      "log_sha256": "a41e08b8782ccff561fc04da1c4aa92b79d00989913c15ae6639e0c2e9b7e03c"
+    },
+    "failure-decoder": {
+      "result": "out/nano-controlled-mac-keyboard-trial-20261110/failure-decoder-result.json",
+      "sha256": "2079866d9cc45c1e8a24ccd24f213833dbb747a39a7827852f8a214066dcbc9e",
+      "log_sha256": "62cfbeb2911bb226088bfb0918eb4b05008ea70b20bce854ee2ca8a564bd37a5"
+    },
+    "steps-model": {
+      "result": "out/nano-controlled-mac-keyboard-trial-20261110/steps-model-result.json",
+      "sha256": "9cfac198c476c8f55ce2f5eb1cc3eddcd6d7aea9a56d867168a3ea7dc8b21608",
+      "log_sha256": "31055ef1c2482bdc2939a660465c82a4f2de728fd39a0c22b7cb76b3c115baae"
+    },
+    "clock-model": {
+      "result": "out/nano-controlled-mac-keyboard-trial-20261110/clock-model-result.json",
+      "sha256": "2f5d9a850d8fd995b56d7f0eb31ad75486507cd4e840ba51204392b9c73e4d51",
+      "log_sha256": "f165ca3af9e162928344667698dab40c859c3e0e84487021290cba1984d96d8d"
+    },
+    "package-tape": {
+      "result": "out/nano-controlled-mac-keyboard-trial-20261110/package-tape-result.json",
+      "sha256": "4c334a01c50f9a10cba97fca3036b4f4150edc925a8f49798a70d814b74c3f0e",
+      "log_sha256": "21b70ab1349c28b806a675e9ccd345cd711a2a99abd8c2a5690c5d9cbfa4038f"
+    },
+    "offline-boundary-final": {
+      "result": "out/nano-controlled-mac-keyboard-trial-20261110/offline-boundary-final-result.json",
+      "sha256": "6afc6b4884c3bbb1231554a43e37dddb9bac6ff6b0546e0ec0f75defe2708dea",
+      "log_sha256": "f5d8db2ad0fa8a7ad7be885e1595824f968eb638b32d13be55933c129ace9c4e"
+    }
+  },
+  "upload_plan_sha256": "8057e44247ee16bf41dce32e50db210118b0cb93deb3d627986a95370e22960f",
+  "copy_provenance_sha256": "49e33f71d9d75a9c98d4d0317434a47d6d366a23077a8e38c41202a5d0038b23",
+  "post_documentation_file_validation": {
+    "required": true,
+    "receipt": "out/nano-controlled-mac-keyboard-trial-20261110/admission-proof-final.json",
+    "inventory": "out/nano-controlled-mac-keyboard-trial-20261110/offline-preparation.json",
+    "scope": "file-only; no live authority",
+    "creates_live_preflight": false
+  }
+}

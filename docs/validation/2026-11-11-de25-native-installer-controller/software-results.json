@@ -1,0 +1,47 @@
+{
+  "status": "passed-six-selected-host-software-gates",
+  "implementation_source": "8fdd4949e476c3a6a1d9daf3c782ebeea9db599f",
+  "base_source": "7f772f52e",
+  "parent_test_cases": 1908,
+  "parent_skipped_cases": 3,
+  "checks": {
+    "software-0": {
+      "path": "out/nano-installer-controller-20261111/software-0-result.json",
+      "sha256": "63278afde40956a05bb3934d356cf6933aeffd530517ac33f10a4174b75a24bb",
+      "log_sha256": "6e8e1b326a6a10256b061df6ca751240c4b77a1ff3e0f0d55967062565c348bf",
+      "elapsed_seconds": 0.4013786828145385
+    },
+    "software-1": {
+      "path": "out/nano-installer-controller-20261111/software-1-result.json",
+      "sha256": "2f67ca703ad3af3f8f254911447839af4839fbe3f4d508753454d78fad0477b9",
+      "log_sha256": "219b6361c500ba5a9f0f4d6899ef00c860424ab0a9e4be4a5298f43e658610e8",
+      "elapsed_seconds": 1.2014535018242896
+    },
+    "software-2": {
+      "path": "out/nano-installer-controller-20261111/software-2-result.json",
+      "sha256": "890f41adddc8bc61e0ad524b370677570e8b936ee94bb020ea3c50bc9cf3fbef",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed_seconds": 0.20166373392567039
+    },
+    "software-3": {
+      "path": "out/nano-installer-controller-20261111/software-3-result.json",
+      "sha256": "7a48b690be032186344ed4e967ccb98f98af8a8bfaf7135773c2738016e75cba",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed_seconds": 0.2010750318877399
+    },
+    "software-4": {
+      "path": "out/nano-installer-controller-20261111/software-4-result.json",
+      "sha256": "5aa3c2ce8d4eefba5d8819a05fea4dc13d1ae5de4379261f503ff87c70397c90",
+      "log_sha256": "6bfadfd9ba0e092a3fcc1e58fdeb9b81e4625d27848b9ed25ce1ac80c765e6d5",
+      "elapsed_seconds": 373.2571456141304
+    },
+    "software-5": {
+      "path": "out/nano-installer-controller-20261111/software-5-result.json",
+      "sha256": "7e94ee849df003362e91fd238a6de0062f6f2cb700d4934546396de0088321ab",
+      "log_sha256": "0d3b9149ecd3c2180968462d0aaef1844c3af5a5185fce2b0ed1c02ec490ea89",
+      "elapsed_seconds": 7.0053505229298025
+    }
+  },
+  "hardware_actions": false,
+  "hardware_acceptance": false
+}

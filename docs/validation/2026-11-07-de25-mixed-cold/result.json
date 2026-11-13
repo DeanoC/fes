@@ -1,0 +1,100 @@
+{
+  "format": 1,
+  "status": "mixed-strong-cold-provider-software-passed",
+  "implementation_source": "a0b014017ba5afa4d2dedf1f1c39f877e59e2832",
+  "base_source": "958f4ad6beeb748cd373fa9f5efce6770c056049",
+  "source_sha256": {
+    "platform/embedded/firmware/README.md": "1a73817dea2e551da6615c863c79362144caf7cde4578f7c91ed355b542ffd75",
+    "platform/embedded/firmware/nano_cold_platform.c": "1de69b4896411958f6078025e424ad7ea7630cca82f4459a4ff43ca88a6d98db",
+    "platform/embedded/firmware/nano_rom_platform.inc": "a81f14862cb7d4ac74796283a393d3bd0b356bbc7e6a03ef6cf767280334818c",
+    "platform/embedded/firmware/tests/nano_cold_platform_test.c": "710c595b06702fb6e7203d4c373b45e63bf71c94b4bd12c7e44daf5b96a23c95",
+    "platform/embedded/firmware/tests/nano_mixed_cold_test.inc": "0744c040c9045177b8df22bedb124916146963efe79ad5919079f0ace009b928",
+    "tests/test_nano_mixed_cold.py": "86d17f18677de9367301ed5b74d6c6738e2132cc50a99c97b7349fd0416939fe"
+  },
+  "validation_complete": true,
+  "selected_checks": 11,
+  "receipts": {
+    "focused-complete": {
+      "receipt_sha256": "1f9df31ee509ee11a1fe52d360d96ec788c8cab2e1b7d2c3999f338cc7c3542f",
+      "log_sha256": "4475077eb43a5f044d66fd3c4d94e16b27ccaa431cd11e01d53c18090ef28442",
+      "elapsed": 2.001475031953305
+    },
+    "software-0": {
+      "receipt_sha256": "d39a3c165b60eaa3cb980f88a11df462ef079121d905f4c58fd6974cd47fb0ea",
+      "log_sha256": "f401c5bb8618146f5fcf4837098c74f5aabca67bf6177f7b67fb510076858515",
+      "elapsed": 0.20088260108605027
+    },
+    "software-1": {
+      "receipt_sha256": "1d74f5ac5b6331a09bf9fbcdc2c48d34d99a00ff4cd2d8616576b3064e2e565e",
+      "log_sha256": "5c6dcb1e555a1b5360c4e5aff52faac2017505e6219934fa9babe01fe8329ef9",
+      "elapsed": 1.2008083041291684
+    },
+    "software-2": {
+      "receipt_sha256": "8286ca9105d9d287f3be14b82b9d1f671b55048e39a7858b8be6556a45e5a10c",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 0.20078487391583622
+    },
+    "software-3": {
+      "receipt_sha256": "20517d0cda485bec37a00cfcaf35b348afbbb692b7c9c08df2cdf38cefc8f83c",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 0.2008450860157609
+    },
+    "software-4": {
+      "receipt_sha256": "e9063c1410568ca4c29124bb5238b1c470ffdd00eb45db56d84a919af9f90e0b",
+      "log_sha256": "635b7e06e1250d3ccdb5762c3f64136853851b9edebabd4e67ac26d0176fd1c7",
+      "elapsed": 281.5788336209953
+    },
+    "software-5": {
+      "receipt_sha256": "044a5e59904b4887558c108a830d438ab55bf241d69e2a7b628448fb1cf10cf3",
+      "log_sha256": "32fa862c66e279643aaedec99c30c9fcbe50fca9e6ffb849cd844c6a8d59a5a1",
+      "elapsed": 5.003341657109559
+    },
+    "software-6": {
+      "receipt_sha256": "129c1a4211c65da98ea52ac511e2e3946c0f02f46776130365bbefde3f671102",
+      "log_sha256": "d3a22fa21c3402553fa0efbd40a5c07c123973d50d0f27d0f446d67f2dfb0673",
+      "elapsed": 116.27313937293366
+    },
+    "software-7": {
+      "receipt_sha256": "f9826a8fb1aee1157934ff5a33305e0329e316404db40354d40b12296ba33256",
+      "log_sha256": "fb12aec13b8fd8d6b1f762b63c1310984ec3e815a06e22455b71ce2b1fdbec07",
+      "elapsed": 26.016128269024193
+    },
+    "software-8": {
+      "receipt_sha256": "d6d5d48a6a0aaa17ebb6311f7bc23e01c9af57c8ba8d468a58e5e210a9d9dbf3",
+      "log_sha256": "17242ffbfde71e21716dd1aacdb2f73ba1c0597d7ef1aedd6edb460e36403e55",
+      "elapsed": 52.833722522016615
+    },
+    "software-9": {
+      "receipt_sha256": "5237473e97acd3239b4f9a02878cb932c0e553e0888c3a4cb1995e4c9cb18cae",
+      "log_sha256": "5f44e005093b7476aa162f2101ebde362fc4a9c45e180f420f5f4231f6be62ea",
+      "elapsed": 5.202753499848768
+    },
+    "software-10": {
+      "receipt_sha256": "92efe4eefcc5073f32ce69df68d061980b0ea6ebb4bcb740df1b1ffea0b20f22",
+      "log_sha256": "2f2204a6ad4cdc1022ff2649234bccd45b431e4b524207c00bb3801e0ea38e04",
+      "elapsed": 320.79462248599157
+    }
+  },
+  "parent_tests": 1642,
+  "parent_skips": 3,
+  "misteross_tests": 1595,
+  "misteross_skips": 79,
+  "strong_provider_scenarios": 13,
+  "successful_five_load_sequences": 4,
+  "late_and_early_failures": 9,
+  "short_union_arena_rejected_at_compile": true,
+  "pinned_vendor_SHA384": true,
+  "ROM_bytes_checked_per_computer": 4096,
+  "actual_cold_boot_acceptance_SiP_configuration_SD_ROM_master_stop": true,
+  "previous_role_preserved_until_complete": true,
+  "selected_role_identity_and_resources": true,
+  "cold_provider_calls_activation": true,
+  "cold_platform_mixed_roles_enabled": "only explicit firmware compile selection; no board build enables it",
+  "MMIO_and_mailbox_responses": "injected; no FPGA RTL run within new strong fixture",
+  "shared_USB_tested_in_mixed_provider": false,
+  "native_command_mixed_roles_enabled": false,
+  "matched_combined_boot_chain": false,
+  "hardware_actions": false,
+  "goal_complete": false,
+  "next": "Select both source-derived role inventories and all six shared fingerprints in the native builder/entry/SPL/firmware chain, reserve the complete union8MiB mapping, then connect ProgramService/Tenfoot display ownership and qualify a bounded physical menu/core/menu cycle."
+}

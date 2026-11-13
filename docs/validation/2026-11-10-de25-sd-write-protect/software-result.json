@@ -1,0 +1,31 @@
+{
+  "status": "passed-software-repair-not-deployed",
+  "base_commit": "47ee485cb9df131af8bd289bcabc4ef6f39bdb25",
+  "all_eight_selected_checks_passed": true,
+  "software_checks_sha256": "1d493590dddb53efd12a7a325acd6fb33ff393bc51294d432b7ee02ca2afc240",
+  "parent_runner_summaries": [
+    "Ran 1 test in 0.000s",
+    "OK",
+    "Ran 1869 tests in 560.661s",
+    "OK (skipped=3)"
+  ],
+  "parent_selected": 1870,
+  "parent_existing_skips": 3,
+  "native_integration_result": "out/native-fabric-hooks-7cb28d7aad8547529d2ae8a487e74e31/result.json",
+  "native_integration_result_sha256": "3613c78bed93a900bad4142599efcdea7d2e42f0ac2a570ddce227e24cf2d004",
+  "native_integration_commands": 42,
+  "changed_source_sha256": {
+    "platform/embedded/tamago/board/de25nano/storage.go": "683f4a601cbe0d818366a55114a3651004465360158ff12c35a0d2b962b964e8",
+    "platform/embedded/tamago/sdcontrol/session.go": "590e659e70fc52337f4cbba3ce1dcaaf396ed72c1073a0b033b9641bf59017f6",
+    "platform/embedded/tamago/sdcontrol/write_test.go": "47c298d270e233209eb796f8495ae5993e336cd7fe3f9f08411e8f363e949e3e",
+    "platform/embedded/tamago/sdhci/sdhci.go": "13111028b8054874d03dbc5fd14709a6f1cfbc91569c62e519ccc50d57a4c30b",
+    "platform/embedded/tamago/sdhci/sdhci_test.go": "00715a3b7dce89ea92b57f166c6fa000616f9e3a800124121e731a17222ee182",
+    "platform/embedded/tamago/sdhci/write_test.go": "ef0264591c5283187f167931f72f1f5505fab4000262c4ce1c68d1d84548a0bf"
+  },
+  "primary_evidence_sha256": "34b4b3c042b786befadbd925e458c1fdf49029eef4f62fd1a419dd72386d692a",
+  "original_failed_run_preserved": true,
+  "hardware_fix_tested": false,
+  "new_hardware_action": false,
+  "ordinary_admission": false,
+  "full_appliance_acceptance": false
+}

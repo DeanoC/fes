@@ -1,0 +1,14 @@
+{
+  "native_boot_id": "a2bcd5ee46759986",
+  "status": "consumed-passing-diagnostic-retired",
+  "replay_allowed": false,
+  "hardware_pass": true,
+  "final_service_state": "parked",
+  "final_bridge_generation": 40,
+  "final_bridge_reset_mask": 15,
+  "masters_contained": true,
+  "cpu_park_observed": false,
+  "firmware_return_observed": false,
+  "factory_restore_waived": true,
+  "ordinary_core_load_acceptance": false
+}

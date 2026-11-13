@@ -1,0 +1,77 @@
+{
+  "pass": true,
+  "classification": "generated HPS DDR wiring and external-AXI/native-Go models; no hardware qualification",
+  "source_commit": "17fb4b05cdc4998f4bd71a26358936c56444689f",
+  "base_commit": "180eac38dac236f92792ddbc93975bdd39c5a925",
+  "software_baseline_head": "0775d3fcfaa1c9469e4cdfa8bb58e64944bc0b59",
+  "software_groups_passed": 8,
+  "software_tests": {
+    "parent": 1265,
+    "fpga": 1576
+  },
+  "software_groups_rerun_on_final_head": false,
+  "final_observer_delta": [
+    {
+      "path": "sources/misteross/prototypes/de25_board_control/build.py",
+      "changed_functions": [
+        "verify_control"
+      ],
+      "before_sha256": "eebfe7bba1786a233256e05b9616e0643505b8fb81a64b10de1c7aa6d334353d",
+      "after_sha256": "bb019e2841c3a1762ad4cc133ae64e109ff30d5ebb1b68220b206d389687a6c3"
+    },
+    {
+      "path": "sources/misteross/prototypes/de25_board_control/test_handoff.py",
+      "changed_functions": [
+        "main"
+      ],
+      "before_sha256": "f8a70001f638481a3373693a20e5e482fd17e02bc246d22ac2fd16ee86fa83c9",
+      "after_sha256": "18afbcbf50c5caf6aa67636fe4c261680c00c66945fe7548304efe8626b1f5e6"
+    }
+  ],
+  "ddr_model_cases": 23,
+  "ddr_identity_and_window_rejections": 3,
+  "altered_handoff_rejections": 15,
+  "generated_variants": [
+    "onchip",
+    "hps-ddr"
+  ],
+  "ddr_bus_window": {
+    "base": 4096,
+    "bytes": 8192,
+    "fixture_only": true
+  },
+  "ddr_control_abi": 270544961,
+  "onchip_control_abi": 270544960,
+  "source_sha256": {
+    "platform/embedded/nano/hps_context.py": "0058bf7655280400f3bb9feea9aec2fc34a8945575e6db1a0fd17443b60d0bfa",
+    "sources/misteross/docs/architecture.md": "ca76461d2996eb0833bd4f86ee91569c3759fea8aa059a8bf2b8c26abcd0f20c",
+    "sources/misteross/prototypes/de25_board_control/README.md": "c514f6ca253df4492152b1ceff707ee2d99060ef6fb4a2d4660c736442f1b824",
+    "sources/misteross/prototypes/de25_board_control/build.py": "bb019e2841c3a1762ad4cc133ae64e109ff30d5ebb1b68220b206d389687a6c3",
+    "sources/misteross/prototypes/de25_board_control/ddr_probe.cpp": "d2457a17b05204e54c27fe6c5e32e3d95482b56328eacede30542722d6d2700e",
+    "sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv": "1b7f40731fab096b75f7ed67877ee9e83680398c2d0df45be37bb29b9942d298",
+    "sources/misteross/prototypes/de25_board_control/fes_de25_embedded_hw.tcl": "998fdadfb868b489d526cf475693d48acde5f878e980fdc48e842c785d5c8402",
+    "sources/misteross/prototypes/de25_board_control/integrate.tcl": "44bddc83333333e90fb976d48268fced186069a1dd9aaa44eb36a15acf3c5f17",
+    "sources/misteross/prototypes/de25_board_control/probe.cpp": "f70be3f53cf9e5a4725f76ecf91ec64f90158c1c4bfd9104c6b20dc06fca4584",
+    "sources/misteross/prototypes/de25_board_control/reader_memory.py": "08741ac7cfa64fd67edd4016fd8e107bc0569de1337e8259ae52271a498bb46b",
+    "sources/misteross/prototypes/de25_board_control/seal.py": "b09779bed6c94e369ea978026107a1400fd180b5f83a4904306898f259e6cf0f",
+    "sources/misteross/prototypes/de25_board_control/test_handoff.py": "18afbcbf50c5caf6aa67636fe4c261680c00c66945fe7548304efe8626b1f5e6",
+    "sources/misteross/prototypes/de25_board_control/verify.py": "f94712522e8c9a67b505b61c99e849c189a5843b65c08bce41f904b13d8233a5",
+    "sources/misteross/prototypes/de25_board_control/verify_ddr.py": "9fdc4230b98beb48b93c6a8602c60bc1e6ec48b087dac4abe377e7cc1f111ff9",
+    "sources/misteross/tests/test_de25_sealed_identity.py": "3577d60cb14663944a4c9a5c1821f6521bde1b5eefbb0306830e5bacae913abf"
+  },
+  "generated_ddr_build_id": "cc6442e019fd2628f336797b8c359869",
+  "generated_onchip_build_id": "bbd1f3f2ef57ba3daf137036665a9fe2",
+  "new_sof_compiled": false,
+  "new_rbf_produced": false,
+  "sealed_package_produced": false,
+  "hardware_access": false,
+  "bridge_release": false,
+  "physical_ddr": false,
+  "other_master_stop_qualified": false,
+  "runtime_admission": false,
+  "repeated_launch_return_qualified": false,
+  "full_de10_equivalence": false,
+  "prior_physical_onchip_evidence": "../2026-11-02-de25-reader-native-cycle/README.md",
+  "development_and_generated_failures_retained": true,
+  "ownership_lane": "lane:deano"
+}

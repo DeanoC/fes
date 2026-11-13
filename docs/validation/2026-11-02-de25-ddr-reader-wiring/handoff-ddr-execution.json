@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "python3",
+    "sources/misteross/prototypes/de25_board_control/test_handoff.py",
+    "--project",
+    "out/nano-ddr-reader-handoff-20261102/project-hps-ddr",
+    "--output",
+    "out/nano-ddr-reader-handoff-20261102/handoff-ddr"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.8006505229277536,
+  "log_sha256": "92e3f453a4feccebc0fe4c9f7819929ae08b3e7db9cff6dd7839953b5f43d8cd"
+}

@@ -1,0 +1,101 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "case": "positive",
+      "accepted": true,
+      "commands": [
+        "fatload mmc 0:1 83000000 FES/UPLOAD.BIN",
+        "hash sha256 83000000 12"
+      ]
+    },
+    {
+      "case": "prior-hash",
+      "accepted": false,
+      "commands": []
+    },
+    {
+      "case": "prior-size",
+      "accepted": false,
+      "commands": []
+    },
+    {
+      "case": "prior-purpose",
+      "accepted": false,
+      "commands": []
+    },
+    {
+      "case": "prior-status",
+      "accepted": false,
+      "commands": []
+    },
+    {
+      "case": "prior-readback",
+      "accepted": false,
+      "commands": []
+    },
+    {
+      "case": "package-status",
+      "accepted": false,
+      "commands": []
+    },
+    {
+      "case": "package-phy",
+      "accepted": false,
+      "commands": []
+    },
+    {
+      "case": "package-protection",
+      "accepted": false,
+      "commands": []
+    },
+    {
+      "case": "short-load",
+      "accepted": false,
+      "commands": [
+        "fatload mmc 0:1 83000000 FES/UPLOAD.BIN"
+      ]
+    },
+    {
+      "case": "wrong-hash",
+      "accepted": false,
+      "commands": [
+        "fatload mmc 0:1 83000000 FES/UPLOAD.BIN",
+        "hash sha256 83000000 12"
+      ]
+    },
+    {
+      "case": "claim-before",
+      "accepted": false,
+      "commands": []
+    },
+    {
+      "case": "claim-after",
+      "accepted": false,
+      "commands": [
+        "fatload mmc 0:1 83000000 FES/UPLOAD.BIN"
+      ]
+    },
+    {
+      "case": "command-failure",
+      "accepted": false,
+      "commands": [
+        "fatload mmc 0:1 83000000 FES/UPLOAD.BIN"
+      ]
+    },
+    {
+      "case": "final-prompt-missing",
+      "accepted": false,
+      "commands": [
+        "fatload mmc 0:1 83000000 FES/UPLOAD.BIN",
+        "hash sha256 83000000 12"
+      ]
+    },
+    {
+      "case": "initial-prompt-missing",
+      "accepted": false,
+      "commands": []
+    }
+  ],
+  "helper_sha256": "7757d0972512e09abb255ceb5245f5e9280bcd20c10224e9351713ea36af205d"
+}

@@ -1,0 +1,17 @@
+{
+  "native_boot_id": "ff0e7da217a21406",
+  "status": "consumed-diagnostic-capture-retired",
+  "replay_allowed": false,
+  "hardware_pass": false,
+  "last_observed_service_state": "running",
+  "last_observed_generation": 1,
+  "normal_return_verified": false,
+  "final_park_verified": false,
+  "host_detached": true,
+  "cleanup_passed": true,
+  "physical_stop_not_observed": true,
+  "keyboard_failure_proven": false,
+  "operator_unavailable_reported": true,
+  "physical_check_deferred": true,
+  "ordinary_core_load_acceptance": false
+}

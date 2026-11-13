@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/nano-ddr-reader-handoff-20261102/generate.py",
+    "hps-ddr"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 100.49241678998806,
+  "log_sha256": "1a07bd65b2de4d0b00aa74069c9cdd0fda992cb2ad0f88c8f51c9ed62d590618"
+}

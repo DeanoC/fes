@@ -1,0 +1,30 @@
+{
+  "status": "passed",
+  "classification": "offline validation of completed read-only enumeration and independent host cleanup; original diagnostic helper remains failed",
+  "source_commit": "777feea0d66c55f04b167a6081fb3390b09af6b9",
+  "original_helper_passed": false,
+  "original_helper_error": "jtag_cable() takes 0 positional arguments but 1 was given",
+  "all_query_commands_returned_zero": true,
+  "fresh_private_enumeration_completed": true,
+  "jtag_id": "4362C0DD",
+  "clock_observed": "15M",
+  "private_server_gone": true,
+  "usb_permissions_exact": true,
+  "uart_owners": [],
+  "programming_attempted": false,
+  "hps_reset_attempted": false,
+  "card_write_attempted": false,
+  "audit_device_operations": false,
+  "programming_admission": false,
+  "programming_failure_explained": false,
+  "core_load_acceptance": false,
+  "evidence_sha256": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-jtag-scan-diag-20261108/result.json": "e396e50b42546a83e095b7f5f991d69cd7787757c25379a531c9cd72997d14b5",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-jtag-scan-diag-20261108/trial/transport.json": "ebb604bade1a419182c83472ddb13a912c7f60bb8bd5c3bbd68a68e115bf894b",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-jtag-scan-diag-20261108/trial/fresh-chain-query.log": "c3f683813492a7cdfa3d0d913710f5c9d13e344562b401117230ed781940f832",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-jtag-scan-diag-20261108/trial/clock-read.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18"
+  },
+  "stage": "out/nano-jtag-scan-diag-20261108",
+  "image_programming_attempts_remain": 2,
+  "note": "Fresh private-server enumeration at15M is available; no diagnosis or qualification of the failed programming path."
+}

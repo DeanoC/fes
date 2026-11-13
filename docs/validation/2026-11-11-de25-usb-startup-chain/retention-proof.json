@@ -1,0 +1,14 @@
+{
+  "status": "passed-prepared-usb-startup-chain-retention",
+  "path": "/home/deano/fes-retained/de25-usb-startup-chain-prepared-20261111-r1",
+  "source_head": "da33a94cc56ca7a975eb275ce04d1d3cf30c0890",
+  "compiled_source": "da33a94cc56ca7a975eb275ce04d1d3cf30c0890",
+  "files": 2420,
+  "selected_source_files": 2274,
+  "manifest_sha256": "5603f9b3fd957a036481994ebf6c76f030bc500297664a51778f375e01f5c225",
+  "archive_sha256": "7939b4800636b238dad7e52728f762f8589329c01445ad75f8915e815302916d",
+  "source_restore_fsck_pack_verified": true,
+  "archive_readback_modes_verified": true,
+  "hardware_actions": false,
+  "live_authority": false
+}

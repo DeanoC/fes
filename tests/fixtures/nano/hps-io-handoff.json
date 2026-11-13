@@ -1,0 +1,8 @@
+{
+  "format": 1,
+  "source": "sealed DE25 computer-activity project, compiled hps_bootloader_handoff.bin",
+  "producer_commit": "c272cb2b320740220fc2b7bb1c8dfd92a0ffe6f6",
+  "handoff_sha256": "a17de6f2dbf5f4e93643b50b4c8291a33f930064f9a43bad3ece24e9c3dda04a",
+  "size": 1629,
+  "classification": "compiler handoff parsing fixture; no physical I/O acceptance"
+}

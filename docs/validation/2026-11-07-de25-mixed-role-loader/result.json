@@ -1,0 +1,111 @@
+{
+  "status": "selected-menu-computer-menu-driver-cycle-software-passed",
+  "validation_complete": true,
+  "implementation_source": "b3f16716dd6198dd4c4c5c2381eee32125beb74f",
+  "initial_loader_source": "eb3225d7e08fbd3d983856c628524fe62472518e",
+  "planned_steps": 7,
+  "receipts": {
+    "software-0": {
+      "receipt_sha256": "8d5e47e5b79092f43aa9676641e0e12e05a186f2ae30431fdf72cf62f74c01bc",
+      "log_sha256": "a78daf7224ae9c312f5367a8633d690c0fa61a429e8c45d0ad3cd72c61436416",
+      "elapsed": 0.20073034800589085
+    },
+    "software-1": {
+      "receipt_sha256": "44940a63cbf040d50bb7828adf266935a9a62acd610d5d02a46c3e32e34a672b",
+      "log_sha256": "47ee72ade28c0bdb468c49d2f9f48987db1e313432fb9b5e98852b8bdc751871",
+      "elapsed": 1.201100907055661
+    },
+    "software-2": {
+      "receipt_sha256": "79111dd46f0ffaaddbc544ca9bacae3e194ff90c55d47fea7fd47ea4bbff210d",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 0.20036974688991904
+    },
+    "software-3": {
+      "receipt_sha256": "66c1555d187fd2f46b86b00a3d1ae76ff60d688d11ad7272e42b24fdb86d04f2",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 0.20052485493943095
+    },
+    "software-4": {
+      "receipt_sha256": "c9541bb3dafff41d6921b5ed78c80b7c94e7afa9654aa3abffc83d95f633a17a",
+      "log_sha256": "b0661bc86381287df9be22dd52fb4606df72d0ad1ab7267013fbaf89edf8e6a2",
+      "elapsed": 275.5854267058894
+    },
+    "software-5": {
+      "receipt_sha256": "1ae23bd3309608cf56a7237aca83e743aec5386428fc85674f4ee15d32d85284",
+      "log_sha256": "32fa862c66e279643aaedec99c30c9fcbe50fca9e6ffb849cd844c6a8d59a5a1",
+      "elapsed": 5.003244013059884
+    },
+    "software-6": {
+      "receipt_sha256": "599a61372bb5c38f875bf313cfecb89672297f07fd61df89ffff160de4023858",
+      "log_sha256": "1e5fd0348d6fc6533a3661ad380de0994c530309391105ec13e83c49ffc77276",
+      "elapsed": 114.4784799029585
+    },
+    "native-sdk": {
+      "receipt_sha256": "02edf9fd5bafd1a09c8c815a3d5f1aebcc2ec3151eb81bf944ab54cd1afc7cd6",
+      "log_sha256": "ce1b9df29f3811fd1fa98e36192da8648396a4f4369e2b7896d6045f08ae4eea",
+      "elapsed": 19.410060283960775
+    },
+    "focused/prepare-actual-inputs": {
+      "receipt_sha256": "b6fab57c8e78237a0d3e7536d4600895c4cc27c23da3b3c297b9e1e6683a30d5",
+      "log_sha256": "8c693f0e53f422f4403e6cbf57f8133e9de5fa91d5418f656d126dae8ede2ebe",
+      "elapsed": 18.411124099977314
+    },
+    "focused/built-mixed-preflight": {
+      "receipt_sha256": "d4090c8c034621eccf67c61a5cf756c597cd0ba447f4136f8c4e76c502353c06",
+      "log_sha256": "8ab385060fca1663f57edd3dfa2ffafd16a169c66d3b31a8ae70b07eb187d2e6",
+      "elapsed": 4.003185011213645
+    },
+    "focused/joined-failures": {
+      "receipt_sha256": "c1e045c1fc51d902b25f23448dce443835e011b7fcae739b5030d8d92d2b6a88",
+      "log_sha256": "52e20c47bfac182025ca93f1b47d4d04b0ab8685c33ac0ba103e12fbd8df09a0",
+      "elapsed": 8.207478116033599
+    },
+    "focused/producer-metadata-r2": {
+      "receipt_sha256": "646d181bfb7aec3d5ac0c79ec60d4864b198f2bd04f715be311380e5402543c5",
+      "log_sha256": "966350e7b3b8cb7a7b1868a35fb865d52abf2fa96a63214c0b97262e60269937",
+      "elapsed": 0.20061833481304348
+    },
+    "focused/service-role-guard": {
+      "receipt_sha256": "f3054f27b08158f313d9d79852fca38636dc439b681c4484ce3363f9fcfdf063",
+      "log_sha256": "15f740d933f87463538f7b46afb3718ac2a81dafbd7e5537f646b43584f4709d",
+      "elapsed": 8.60690242704004
+    }
+  },
+  "parent_checks": 1640,
+  "parent_skips": 3,
+  "native_sdk_sha256": "aaab51d46bef1b72628fc5890720bd336dc027007c606e8577fb33cdf30c9ebc",
+  "native_integration_sha256": "daa197582c3fe862fc6a454f06bd42a447d6e6f1512813a97545094b5bcf04af",
+  "actual_inputs_sha256": "9ed4e6c5057cabbff6471ea6df397ab6c8ffebc73f480ba9a8272c5d9be60e67",
+  "sdk_selected_source_count": 2101,
+  "new_top_level_go_cases": [
+    "TestSelectedMenuAndComputerKeepOneImmutableBootAnchor",
+    "TestSelectedMenuCannotEnterThePlayableServiceOrContainSD",
+    "TestSelectedMenuRejectsChangedBoardAndResourcesBeforeContainment",
+    "TestCompiledMenuRejectsChangedSharedFingerprintsWithoutIO",
+    "TestSelectedMenuComputerMenuCycleKeepsBootAndPinnedArena",
+    "TestSelectedMenuComputerMenuFailuresRetainOwnershipWithoutReplay",
+    "TestSelectedRolesPublishThroughRealPreparationAndSecureDecoder",
+    "TestBuiltMenuAndDistinctComputersShareOneLoaderWithoutFirmwareIO"
+  ],
+  "scope": "One original computer boot verifier, separately compiled menu resources, actual retained store/loader/arena/transfer/menu/computer drivers and real C descriptor decoder. Positive menu/frame/return -> computer/Run/return -> menu/frame/return, plus five late faults. Secure calls, SD ownership and CSR responses are injected; no joined cold-provider role policy, physical endpoint or real Tenfoot App menu/core/menu proof.",
+  "real_packages": [
+    "fes.zx81",
+    "fes.zx80",
+    "fes.de25-embedded-diagnostic menu"
+  ],
+  "real_package_preflight_firmware_calls": 0,
+  "real_package_preflight_SD_containment": false,
+  "early_menu_service_rejection": true,
+  "immutable_boot_anchor": true,
+  "frame_arena_released": false,
+  "hardware_actions": false,
+  "cold_platform_mixed_roles_enabled": false,
+  "native_command_mixed_roles_enabled": false,
+  "ProgramService_menu_display_connected": false,
+  "native_Tenfoot_menu_core_menu": false,
+  "physical_HDMI_qualified": false,
+  "timing_signoff": false,
+  "menu_profile": "explicit prototype; normal computer ABI admission unchanged",
+  "goal_complete": false,
+  "next": "Select both source-derived role inventories and the 8 MiB union exclusion in the native builder/entry/cold chain. Keep captured target role separate from active role until successful configuration; wire role-specific identity, ROM and independent master-stop/SD-return callbacks. Then let ProgramService own menu presentation and actual Tenfoot launch/return, followed by a bounded combined hardware test."
+}

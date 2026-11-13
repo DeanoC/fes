@@ -1,0 +1,112 @@
+{
+  "source_commit": "6e75ec57f3447cbe3e805ba6f6d9b1884046c00b",
+  "scope": "two read-only standard PHY register inventories; no dhcp, reset, SD write or native boot",
+  "started_utc": "2026-11-03T00:36:29.354612+00:00",
+  "registers": [
+    {
+      "sample": 0,
+      "register": 0,
+      "value": 4416
+    },
+    {
+      "sample": 0,
+      "register": 1,
+      "value": 31085
+    },
+    {
+      "sample": 0,
+      "register": 2,
+      "value": 34
+    },
+    {
+      "sample": 0,
+      "register": 3,
+      "value": 5666
+    },
+    {
+      "sample": 0,
+      "register": 4,
+      "value": 481
+    },
+    {
+      "sample": 0,
+      "register": 5,
+      "value": 52705
+    },
+    {
+      "sample": 0,
+      "register": 6,
+      "value": 15
+    },
+    {
+      "sample": 0,
+      "register": 9,
+      "value": 768
+    },
+    {
+      "sample": 0,
+      "register": 10,
+      "value": 15360
+    },
+    {
+      "sample": 0,
+      "register": 15,
+      "value": 12288
+    },
+    {
+      "sample": 1,
+      "register": 0,
+      "value": 4416
+    },
+    {
+      "sample": 1,
+      "register": 1,
+      "value": 31085
+    },
+    {
+      "sample": 1,
+      "register": 2,
+      "value": 34
+    },
+    {
+      "sample": 1,
+      "register": 3,
+      "value": 5666
+    },
+    {
+      "sample": 1,
+      "register": 4,
+      "value": 481
+    },
+    {
+      "sample": 1,
+      "register": 5,
+      "value": 52705
+    },
+    {
+      "sample": 1,
+      "register": 6,
+      "value": 13
+    },
+    {
+      "sample": 1,
+      "register": 9,
+      "value": 768
+    },
+    {
+      "sample": 1,
+      "register": 10,
+      "value": 15360
+    },
+    {
+      "sample": 1,
+      "register": 15,
+      "value": 12288
+    }
+  ],
+  "pass": true,
+  "prompt_parked": true,
+  "console_closed": true,
+  "finished_utc": "2026-11-03T00:36:29.735404+00:00",
+  "raw_sha256": "0e2d7e078cee1bf0c58682ae0bd424834b56ad3377034109646dec38128ceb19"
+}

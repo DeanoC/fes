@@ -1,0 +1,31 @@
+{
+  "status": "passed",
+  "source_commit": "134c80eb427e23f735a5d96f7e86daef61d2b351",
+  "classification": "cross-built existing one-window native image and new selected strong secure rearm gate; no repeated-launch hardware acceptance",
+  "native_relaunch_frontend_selected": false,
+  "native_relaunch_execution": "host Go tests only; native package cross-compiles, repeat caller is not wired yet",
+  "new_strong_gate_selected": true,
+  "entry_bytes": 7311360,
+  "raw_elf_bytes": 14934191,
+  "wire_protocol_changed": false,
+  "fpga_changed": false,
+  "hardware_actions": false,
+  "files": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-relaunch-20261104/native-bl31/source/plat/intel/soc/common/nano_cold_platform.c": "9828080db1bc70e6657aa37718ec279ebd4e6760457770014ced550de17556bf",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-relaunch-20261104/native-bl31/source/plat/intel/soc/common/nano_identity.c": "5d5ef7e331503135b7c380fde9f3a628dc5a1157591bb72fe09438438a3657a7",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-relaunch-20261104/native-bl31/source/plat/intel/soc/common/include/nano_identity.h": "7ab82fb21248fe56dc98728499c12b1391c57da14b98b49b250184750d787601",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-relaunch-20261104/native-bl31/source/plat/intel/soc/common/include/nano_window_control.inc": "ca0985827d11afe957490940c02817c795665c1e5e0629c138571a6f37872551",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-relaunch-20261104/native-bl31/source/plat/intel/soc/common/nano_sd.c": "46dfb6c3dc6785ce5060d9bea62fcac5cc28fb7cda4e94df16ffbee07005da9b",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-relaunch-20261104/native-bl31/source/plat/intel/soc/common/include/nano_sd.h": "3091c8e63f298eb7b0d6e25c057dfe809b58926454d39813e60eb49b73e250f9",
+    "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/nano_owned_sip.inc": "bbb809f5c400389a6130a726ce03531cc5ad870c6847581af2305b6e011f312a",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-relaunch-20261104/native-bl31/source/plat/intel/soc/common/socfpga_sip_svc.c": "a023621d6fe898fd7b2f1604ee9baa638c89fad0ce429df8f65633d4137e1019",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-relaunch-20261104/source.json": "8ce49bbfb9548c591eeb532b30f685f8c3746a8f9dd60cb6035d5cb8316b33ac",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-relaunch-20261104/native-sdk/result.json": "e820bef5e514aceaa98ecaa850b1da810e09246ba07460cbd5e6ad90d04cde05",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-relaunch-20261104/native-sdk/fpgaload.elf": "834d8242d2f19061eb41ba1b79a1814fcc1ff5e5e10baceb0af8ad50d3854b44",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-relaunch-20261104/native-entry/result.json": "8b71a3544e75c2da45995a6401702acf19459dde66540cab1aaa55130b54afdf",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-relaunch-20261104/native-bl31/result.json": "8288d0818c3b1c893386c18bd53068381809bd1e07810a9e9244ed6e3a7428aa",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-relaunch-20261104/strong-rearm-disassembly.log": "7fa393a234e2240f0749c17f2e9049d0f78f6a1577cdf1e9649d0f4935cb132d",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-relaunch-20261104/native-bl31/source/build/agilex5/release/bl31/bl31.elf": "9a340e3826d191726295576564ba58698d978eff35d0ba1218670de131d2bdf7",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-relaunch-20261104/native-bl31/source/plat/intel/soc/common/include/fes_nano_cold_profile.h": "995316c41ee39d362a3ccaed7e00392748c41d7be77aa0f5f74212bde0f7a06d"
+  }
+}

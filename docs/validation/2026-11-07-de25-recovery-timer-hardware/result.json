@@ -1,0 +1,58 @@
+{
+  "status": "physical-UART1-to-100ms-recovery-repair-and-boot-passed",
+  "operator_source": "499d67ea28f0a6d6350b632535d73de2da35bce6",
+  "host_control_source": "0f870243530414e9f0ca246d929a61167924f83d",
+  "compiled_trace_source": "6d3a8be82ce66f35b820627b0e56ebbfddbd9e1e",
+  "attempts": 1,
+  "attempt_consumed": true,
+  "replay_allowed": false,
+  "total_host_seconds": 113.08932672417723,
+  "fresh_old_recovery_boot_passed": true,
+  "live_spare_prefix_protected_files_and_both_rollback_pairs_verified_before_writes": true,
+  "UART_repair_verified": true,
+  "original_R1107A_preserved": true,
+  "consumed_UART0_R1107B_preserved": true,
+  "new_UART1_R1107C_verified": true,
+  "preservation_stages": {
+    "original": [
+      "before-write",
+      "after-write"
+    ],
+    "prior": [
+      "before-write",
+      "after-write"
+    ]
+  },
+  "installed_fit_sha256": "3722e24c551a794dd970e665cc4932b96cb62aefa353f39079285458d67d48e5",
+  "installed_manifest_sha256": "95aca2b3116755247a122a9a4357c1efbcfb106adb4dfa5fe94e489cc1889664",
+  "installed_prefix_sha256": "80e36789a8de046c8e47899bbb6567d5afa58e3325c10d3944c7151a210d595c",
+  "corrected_recovery_boot_passed": true,
+  "network_tested": false,
+  "timeout_correction_Ethernet_qualified": false,
+  "XGMAC_idle_DMA_proven": false,
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "board_prompt_parked": true,
+  "board_state": "corrected 100ms recovery at fresh verified prompt; A/B preserved, C backup exact; no new network/native test",
+  "claim_retained": true,
+  "original_factory_card_touched": false,
+  "bottom_kit_touched": false,
+  "hardware_actions": true,
+  "native_activation": false,
+  "core_load_acceptance": false,
+  "timing_signoff": false,
+  "next": "freeze a fresh full-eight-upload/native launch-return operator using corrected recovery and unchanged native compiled inputs",
+  "verified_UART_transfer_count": 3,
+  "verified_repair_write_count": 5,
+  "raw_evidence": "out/nano-recovery-timer-board-20261107",
+  "physical_result_sha256": "d608fe0d63a755a70277d22ca1f1f6c4335fd61f662a0f178b614ba023fb73c6",
+  "retention_target": "/home/deano/fes-retained/de25-recovery-timer-hardware-20261107-r1"
+}

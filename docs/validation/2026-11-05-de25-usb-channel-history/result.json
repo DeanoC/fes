@@ -1,0 +1,46 @@
+{
+  "status": "host-model-passed",
+  "base": "4cfa98363d33474f484c3286304cad4dae7e758c",
+  "diagnostic_only": true,
+  "hardware_actions": false,
+  "usb_failure_cause_proved": false,
+  "core_load_acceptance": false,
+  "new_register_reads": 0,
+  "new_channel_writes": 0,
+  "channel_history_entries": 8,
+  "focused_packages": [
+    "dwc2",
+    "usbcontrol",
+    "input",
+    "usb",
+    "nativefabric"
+  ],
+  "focused_job": {
+    "argv": [
+      "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+      "-C",
+      "platform/embedded/tamago",
+      "test",
+      "-count=1",
+      "./dwc2",
+      "./usbcontrol",
+      "./input",
+      "./usb",
+      "./nativefabric"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 10.207604152034037,
+    "log_sha256": "2d23d768fe2a23de97a18faa5efc9cbfd3ee7ceb93e7b5361da8ebcce0208732"
+  },
+  "tests_source_sha256": "d363cf442c002b49e8063b1677fde99bca545ec2d07ddb092cba8b84103b1fef",
+  "source_sha256": {
+    "platform/embedded/tamago/dwc2/channel_trace.go": "664736ba00ca6cb0fe15257ab7ca1fcb3132156cc5ba9500d34a232876de0cbc",
+    "platform/embedded/tamago/dwc2/channel_trace_test.go": "d363cf442c002b49e8063b1677fde99bca545ec2d07ddb092cba8b84103b1fef",
+    "platform/embedded/tamago/dwc2/continuation.go": "000d0457e28381db68b447082d93301e542f731a609334b2001bbc2651dc492d",
+    "platform/embedded/tamago/dwc2/host.go": "a64dbabe15bfae7efc294bb3f7617485715d4e3ffd9da2324ed376c5fa0a5400",
+    "platform/embedded/tamago/dwc2/rx_fault.go": "a6497aaae4a8f7edf7bb11b0940e9a20df26ecf734c0ccfb8070e0e44ac7d67e",
+    "platform/embedded/tamago/dwc2/split.go": "0341f859476a0feb236036fc49e51329b9f382079964c45785894515aaa5ea2a"
+  }
+}

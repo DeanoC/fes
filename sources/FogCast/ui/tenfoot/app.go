@@ -581,6 +581,8 @@ type App struct {
 
 	safeAreaPct        float64
 	prefsPath          string
+	preferenceStore    PreferenceStore
+	prefsWriteWarned   bool
 	attractDisabled    bool
 	attractIdle        time.Duration
 	attractCycle       time.Duration
@@ -672,17 +674,16 @@ func (a *App) SetTheme(th theme.Theme) {
 // edit applies when the pad is next plugged in.
 func (a *App) padRemap(guid string) (*inputmap.Remapper, error) {
 	a.mu.Lock()
-	path := a.prefsPath
-	a.mu.Unlock()
-	if path == "" {
+	defer a.mu.Unlock()
+	if a.preferenceStore == nil && a.prefsPath == "" {
 		return nil, nil
 	}
-	prefs, err := loadTenfootPrefs(path)
+	prefs, err := a.readPreferencesLocked()
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
+		return nil, fmt.Errorf("%s: %w", a.preferenceSourceLocked(), err)
 	}
 	profile, ok := prefs.Controllers[guid]
 	if !ok {

@@ -205,6 +205,7 @@ module top #(
         .clk_sys(clk_sys),
         .reset(exec_reset),
         .keyboard(keyboard),
+        .rom_address(), .external_rom_data(8'd0),
         .tape_ready(tape_ready),
         .tape_size(tape_size),
         .tape_data(tape_data),

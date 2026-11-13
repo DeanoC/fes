@@ -1,0 +1,16 @@
+{
+  "status": "factory-restored",
+  "serial": "TRWU8CBL",
+  "factory_boot_id": "34322962-bd96-4fed-a4d5-424327fffebf",
+  "kernel": "6.12.11-gd7d192a9ddd9",
+  "root": "/dev/mmcblk0p2 ext3",
+  "new_boot_ids_distinct": true,
+  "factory_reference_linked_before_and_after": true,
+  "factory_sld_hash": "7BD008B4D4BF4BC62777",
+  "diagnostic_sld_hash": "CFFCD2EA56CC0143CF65",
+  "diagnostic_metadata_rejected_after_restore": true,
+  "target_usb_node": "root:root 0664",
+  "owned_uart_ssh_jtag_sessions_closed": true,
+  "factory_media_reimaged_or_boot_configuration_changed": false,
+  "normal_factory_linux_login_and_shutdown": true
+}

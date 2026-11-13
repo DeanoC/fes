@@ -1,0 +1,13 @@
+{
+  "source_commit": "fa27960da8e52b6ef754bfc830b20544d1058826",
+  "source_sha256": {
+    "platform/embedded/nano/upload.py": "38bc67f8563876fe182e0f7e7385f45d9ec30ef332e2fefc1733f4c24f9c4d76",
+    "platform/embedded/nano/upload_memory.py": "29792e36f55d9a27a456cf5a16e0d94d6951960c3ee8bc6f1371d0d07b02d1f9",
+    "platform/embedded/nano/README.md": "d7f2a4458223e19fc2fcddf33f217f94d8be282277d137f4cd4ce77bf0fd65fc",
+    "tests/test_nano_upload.py": "025c0cd92fdc8f7332ba486501a1d33834a2da0f9e4c1bd4677b3c7dc63e1183",
+    "tests/fixtures/nano_upload_lmb.json": "5f6d6e84bb824ec5644d38a500c1df013d421529ff5cef7256b7ae38a6cc5d43"
+  },
+  "fpga_and_native_artifacts_changed": false,
+  "native_source_commit": "726a16f4e2d979e68fb67e85e97c916e3e94ee4f",
+  "fpga_source_commit": "c272cb2b320740220fc2b7bb1c8dfd92a0ffe6f6"
+}

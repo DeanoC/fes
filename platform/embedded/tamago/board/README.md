@@ -1,0 +1,180 @@
+# Selectable native boards
+
+`run.py --board qemu` is the default and executes the existing QEMU `virt`
+backend. Its VirtIO block/network, xHCI and RAMFB drivers talk to emulated
+hardware; they are not dummy Go functions. The FPGA lifecycle remains an
+explicit software model. `--board de25-nano --profile FILE` instead cross-builds
+with `-tags de25nano`; it never boots that image on QEMU or opens a device.
+The selection happens before linking and runtime startup, not in `BOOT.JSON`.
+All native applications now obtain peripherals through `board`.
+
+| Resource | QEMU | Nano prototype |
+| --- | --- | --- |
+| Boot/runtime | Fixed virt RAM and PL011 | Profile-owned RAM, EL1, firmware-configured selected UART, architectural counter |
+| SD/FAT32 | VirtIO block | Cadence SDHCI host/card initialization, CSD capacity discovery and bounded single-sector PIO reads |
+| Serial input | PL011 | selected 16550-compatible UART registers, error-byte discard |
+| USB input | xHCI plus shared HID decoder | DWC2 PIO for one direct low/full-speed boot keyboard; firmware ULPI/VBUS readiness required |
+| Network | VirtIO and existing Go IP/TCP stack | XGMAC 2.10, firmware-qualified PHY/RGMII and pinned DMA; static IPv4/1000-full only |
+| Display | RAMFB and tenfoot software renderer | Optional boot-firmware XRGB8888 window; pinned until reboot, no drain/reconfiguration |
+| FPGA | Software lifecycle model | Optional read-only TF-A SDM probe; unconfigured CPU/SMC transport, with physical configuration and containment unavailable |
+
+Nano builds exclude VirtIO, xHCI, RAMFB and QEMU's DMA/page-table setup.
+The shared USB descriptor/report decoder remains usable in both builds.
+The sealed FPGA diagnostic's excluded configuration arena remains pinned until
+reboot. Its native lease allocator now permits reuse only after checked transfer
+completion; outstanding or uncertain memory cannot be overwritten, and stale
+completion callbacks cannot release a later lease. The native computer hook
+also requires that exact completed transfer and a successful preceding return
+before reopening. The hardware caller selects one initial configuration by
+default. Its opt-in `--computer-reload` mode selects two configurations; a
+[bounded hardware observation](../../../../docs/validation/2026-11-02-de25-native-two-loads/README.md)
+records execution and return for its exact older native artifact.
+The shared [ARM64 mapper](arm64map/README.md) now requires live EL1 CPU state,
+exact descriptors and hardware read/write translations. It guards native
+configuration copies, configuration SMCs and FPGA MMIO. A changed native image
+requires a new matched boot observation. The
+[CPU mapping and two-load observation](../../../../docs/validation/2026-11-03-de25-cpu-mapping/README.md)
+passes on TRWU8CBL for its exact guarded native artifact. The mapping contract
+supplies no general boot or activation grant.
+A successful cross-build does **not** mean tenfoot can display or launch on
+hardware: display is disabled unless an explicit compatible firmware handoff is supplied.
+`probe`, `storage`, `keyboard`, `network` and `display` are the
+first bring-up programs; `keyboard` reports keys over serial, while `storage` mounts the same FAT32 implementation, reads
+`FES/BOOT.JSON` on QEMU. Nano instead reads the protected `FES/RECOVERY.JSON`,
+contains and resumes the same card, reads it again, and ends contained. Both are read-only.
+Its optional `--sd-scratch-inspect` selection also prints candidate card/MBR/tail
+hashes without enabling writes. The separately built `sdwrite --sd-write-plan
+FILE` diagnostic writes only eight checked sectors outside every MBR partition,
+reads back across contain/resume and ends contained. It needs the independently
+identified disposable spare and a new matched boot chain; see the
+[owned SD diagnostic](../sdcontrol/README.md). It does not enable normal SD writes.
+
+## Firmware handoff
+
+No default active-device Nano resource profile is shipped. The
+[contained serial profile](../../../../docs/validation/2026-11-01-de25-native-go-boot/README.md)
+has booted Go on TRWU8CBL with native SD, USB, network and display disabled.
+The source-controlled `nano/sd-profile.json` selects the closed-bridge SD
+diagnostic with trusted reset/clock/ComboPHY callbacks; physical qualification
+remains separate. The build runner requires an exact schema-8 JSON object:
+
+- `firmware`: identifying string for the firmware producing this handoff.
+- `ram_start`, `ram_size`, `entry`: integer physical addresses/length; owned RAM
+  must fit HPS DDR and align to 2 MiB. The link address `entry` must be
+  `ram_start + 0x20000`; all ELF load segments must leave the first 64 KiB
+  free for runtime tables and vectors, including the ELF header page. Load
+  segments must also leave the final 128 KiB clear for the initial Go stack.
+- `reserved`: nonempty array of `{start, size, owner}` firmware reservations;
+  none may overlap Go RAM. Record **all** firmware, secure and DMA reservations.
+- `sd_input_clock_hz`: `200000000` with the controlled SD service, or `0`
+  with `sd_control=null` to disable SD before MMIO. The driver divides the
+  verified input to at most 400 kHz for one-bit identification and PIO reads.
+- `sd_control`: `null`, or the exact service `fes-owned-sd-pio-v1` with
+  `exclusive`, `closed_bridges` and `synchronous_bounded_return` all true.
+  This diagnostic excludes active USB/network/display/FPGA providers.
+- `usb_phy_clock_hz`: `60000000` for admitted ULPI USB, or `0` to disable USB
+  explicitly. Disabling USB allows SD/serial bring-up before PHY/VBUS work.
+- `schema`: integer `8`. Superseded schemas and capacity/RCA fields reject.
+- `uart_index`: integer `0` or `1`, identifying the UART configured and
+  released by firmware for both console output and serial input.
+- `network` and `handoff.ethernet_platform_ready`: explicit XGMAC/DMA profile
+  or disabled `null`/false; see the [network contract](../xgmac/README.md).
+- `display` and `handoff.display_platform_ready`: a separate boot-pinned
+  framebuffer or disabled `null`/false; see the [scanout contract](../scanout/README.md).
+- `fpga_probe`: disabled `null`, or an explicit reserved 2 MiB service arena,
+  exclusive mailbox ownership and synchronous bounded-return TF-A v1 service;
+  see the [read-only SDM contract](../sdm/README.md). It admits no programming.
+- `handoff`: object with `el1`, `single_cpu`, `counter_access`,
+  `exclusive_devices`, `uart_configured`, and
+  `mmu_off_caches_clean`, all explicitly `true`. `sd_platform_ready` must be
+  false: SD is contained at entry and granted through firmware later.
+  `usb_platform_ready` must be a
+  boolean matching the USB clock declaration: true for 60 MHz, false for 0.
+
+These are firmware obligations, not facts the cross-builder can verify.
+Firmware must park other CPUs, release the UART/SD controller and interrupt
+ownership, configure DDR/clocks/reset/pinmux/ComboPHY for SD identification at 3.3V with
+no outstanding DMA, and enter at EL1 with clean
+caches/MMU disabled and physical counter access. TamaGo installs its own vectors
+and MMU mappings; no GIC/interrupt driver is claimed. UART0 is at `0x10c02000`
+and UART1 is at `0x10c02100`, both with four-byte register spacing; firmware
+retains the baud divisor/clock. A previous TRWU8CBL vendor-firmware/Linux
+diagnostic identified its console as UART1, but this does not qualify a native
+boot handoff, pinmux, clock or access permissions.
+The SD controller is at `0x10808000`, with SDHCI SRS registers at `+0x200`.
+The SD driver now resets the host, requests bus power off/on, sends CMD0/CMD8,
+loops CMD55/ACMD41 with a deadline, obtains CID/RCA/CSD and selects the card.
+It accepts only block-addressed SDHC/SDXC with CSD v2. Board wiring must confirm
+whether host bus-power control actually switches VDD; the protocol model cannot
+establish a physical power cycle. One-bit operation stays at <=400 kHz; no PHY
+tuning, high-speed or voltage switching is attempted.
+
+PIO needs no DMA arena or cache-coherency claim. All SD writes are refused.
+Read errors attempt bounded command/data reset and permanently retire that
+Device. There is no automatic replay into an existing filesystem after possible
+removal. A fresh cold Open and FAT mount is required; the board wrapper requires
+a reboot before another attempt. Reinsertion, eMMC, SDSC and SDUC are unsupported.
+
+The [SD driver lifecycle](../sdhci/README.md) now fences queued reads, drains
+PIO and stops the card clock through `Quiesce`. After the platform's ownership
+and PHY preparation, `Resume` reinitializes and checks CID/capacity before the
+same Device can serve its retained FAT volume again. Failures retire it. The
+board wrapper now uses `sdcontrol.Session` with the actual CPU/SMC transport.
+It retains a failed lease until reboot, with no direct-MMIO fallback. The
+serial profile keeps SD disabled and its original all-masters owner stays strict.
+
+If USB is admitted, firmware must also configure the 60 MHz ULPI PHY and the
+board's VBUS supply/Type-C host role with DMA off and all channels released.
+See the [DWC2 contract](../dwc2/README.md) for its supported subset and limits.
+Runtime random bytes currently seed diagnostic hashes only; qualified entropy
+and security-sensitive networking are still outside this board prototype.
+
+`build.py` creates an immutable-per-build profile overlay, validates ELF load
+segments against owned RAM and records compiler, selected source, generated
+profile and ELF hashes. The original source tree is not modified. Direct
+`go build -tags de25nano` intentionally fails without the generated profile.
+The profile unit-test fixture is synthetic and is **not** a deployable recipe.
+
+With the pinned compiler already installed, cross-build using an independently
+verified firmware handoff file:
+
+```sh
+python3 platform/embedded/tamago/run.py storage --board de25-nano \
+  --profile out/verified-firmware-handoff.json \
+  --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
+  --output out/nano-storage-build
+```
+
+For the QEMU storage control, use `--board qemu --qemu PATH --disk IMAGE`
+with an existing regular FAT32 image under `out/` that contains `FES/BOOT.JSON`.
+The normal `play` and `tenfoot` QEMU tests still build and exercise their actual
+application loops, including failure recovery and preference persistence.
+
+## Source identities and next hardware gate
+
+SD/UART register definitions were checked against Altera's MIT-0 bare-metal driver
+snapshot [66bdcc347564c5698a8997169bce83a31647d618](https://github.com/altera-fpga/baremetal-drivers/tree/66bdcc347564c5698a8997169bce83a31647d618),
+particularly `drivers/sdmmc/socfpga_sdmmc_reg.h` (Copyright 2026 Altera),
+`drivers/uart/socfpga_uart_reg.h` and `platform/agilex5/include/platform_def.h`.
+The Go transport is an exploratory implementation, not an imported vendor BSP.
+The vendor source remains outside the delivered Go module.
+
+Agilex 5's published [SoC device tree](https://raw.githubusercontent.com/torvalds/linux/master/arch/arm64/boot/dts/intel/socfpga_agilex5.dtsi)
+identifies USB0 as **DWC2** at `0x10b00000`; earlier DWC3 references were wrong.
+Current plans are corrected; dated validation receipts retain their original
+bytes. Neither this controller fact nor the vendor development-kit examples
+qualify Nano pinmux, PHY sequencing or a boot recipe.
+
+The serial `probe` and the separate
+[controlled read-only SD cycle](../../../../docs/validation/2026-11-01-de25-sd-platform/README.md)
+now pass on TRWU8CBL for their exact matched candidates. The SD diagnostic
+read the protected FAT32 recovery manifest twice across firmware stop/resume,
+with matching hashes and final containment. Next connect verified package
+admission to this real read-only filesystem. Boot `keyboard` next
+to validate ULPI/VBUS, enumeration and actual key reports independently of display.
+Validate the network firmware contract and `network` HTTP probe next. Writable
+SD persistence and physical FPGA activation follow separately. A compatible Nano
+boot scanout artifact must be supplied and qualified before the optional display
+provider can produce physical HDMI; the copied firmware hash is not live proof.
+Retain QEMU as the integration control; cross-builds and register models establish
+no physical Nano acceptance.

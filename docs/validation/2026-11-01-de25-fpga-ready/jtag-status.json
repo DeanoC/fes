@@ -1,0 +1,22 @@
+{
+  "scope": "one documented JTAG CONFIG_STATUS read; no programming, reset, endpoint or SD access",
+  "pass": true,
+  "serial": "TRWU8CBL",
+  "usb_node": "/dev/bus/usb/003/061",
+  "source_commit": "e8d3b97a4aef01440c97fbcf4aa80b0ee3576aa8",
+  "native_status_receipt_sha256": "824dbb34a086d44126071a596d3df9a09160cfe8f5be5e8c129b1a4db3e37ce7",
+  "native_status_console_sha256": "66872b6504bf919ec1aa4170e617c82f49eea9e6b7af13550562a1ad32c60397",
+  "runner_sha256": "a55e4d01cbfa305c24a016cb1749537792e00da5f99e53e012fbb25a55a6b0cc",
+  "started_utc": "2026-11-01T21:04:22.192530+00:00",
+  "clock_before": "15M",
+  "soft_status_word": 1,
+  "conf_done": 1,
+  "init_done": 0,
+  "cvp_done": 0,
+  "seu_error": 0,
+  "status_log_sha256": "85e3e12d026ff05e792a1b5ea9ea93337bb2eabebfbb71aa291cde37b3f93b84",
+  "clock_after": "15M",
+  "usb_permissions_restored": true,
+  "uart_free": true,
+  "finished_utc": "2026-11-01T21:04:23.366671+00:00"
+}

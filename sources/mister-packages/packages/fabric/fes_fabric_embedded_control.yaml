@@ -1,0 +1,43 @@
+schema: mister-packages.v1
+kind: fabric
+id: fes.fabric.embedded.control
+major: 1
+minor: 0
+description: >-
+  Experimental Linux-free identity and single-ID AXI read-drain endpoint.
+  CSR offsets are relative to a board-assigned control aperture, not a physical
+  address or a GP capability. Identity is compile-time build/ABI metadata;
+  package identity remains external to avoid a self-referential payload hash.
+constants:
+  - {name: FesEmbeddedFirmwareQuery, value: 0xc2000300}
+  - {name: FesEmbeddedFirmwareMagic, value: 0x46455343}
+  - {name: FesEmbeddedFirmwareVersion, value: 65536}
+  - {name: FesEmbeddedFirmwareFeatures, value: 15}
+  - {name: FesEmbeddedMagic, value: 1178948421}
+  - {name: FesEmbeddedVersion, value: 65536}
+  - {name: FesEmbeddedRegMagic, value: 0}
+  - {name: FesEmbeddedRegVersion, value: 4}
+  - {name: FesEmbeddedRegAbi, value: 8}
+  - {name: FesEmbeddedRegBuild0, value: 12}
+  - {name: FesEmbeddedRegBuild1, value: 16}
+  - {name: FesEmbeddedRegBuild2, value: 20}
+  - {name: FesEmbeddedRegBuild3, value: 24}
+  - {name: FesEmbeddedRegGenerationLo, value: 28}
+  - {name: FesEmbeddedRegGenerationHi, value: 32}
+  - {name: FesEmbeddedRegRequestGenerationLo, value: 36}
+  - {name: FesEmbeddedRegRequestGenerationHi, value: 40}
+  - {name: FesEmbeddedRegRequestCookieLo, value: 44}
+  - {name: FesEmbeddedRegRequestCookieHi, value: 48}
+  - {name: FesEmbeddedRegCommand, value: 52}
+  - {name: FesEmbeddedRegStatus, value: 56}
+  - {name: FesEmbeddedRegPending, value: 60}
+  - {name: FesEmbeddedRegAckGenerationLo, value: 64}
+  - {name: FesEmbeddedRegAckGenerationHi, value: 68}
+  - {name: FesEmbeddedRegAckCookieLo, value: 72}
+  - {name: FesEmbeddedRegAckCookieHi, value: 76}
+  - {name: FesEmbeddedCommandEnable, value: 1}
+  - {name: FesEmbeddedCommandDisable, value: 2}
+  - {name: FesEmbeddedStatusEnabled, value: 1}
+  - {name: FesEmbeddedStatusDraining, value: 2}
+  - {name: FesEmbeddedStatusDrained, value: 4}
+  - {name: FesEmbeddedStatusFault, value: 8}

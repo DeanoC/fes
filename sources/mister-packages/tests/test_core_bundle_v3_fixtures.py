@@ -54,17 +54,22 @@ class CoreBundleV3Fixtures(unittest.TestCase):
                             errors.append('map format integer')
                         if value['base_sha256'] != hashlib.sha256(payload).hexdigest() or value['source_size'] != rom.get('source_size'):
                             errors.append('map payload/source binding')
-                        blocks=value['blocks']
-                        if len(blocks)*1024 != value['source_size']:
-                            errors.append('block count')
-                        if sorted(b['source_offset'] for b in blocks) != list(range(0,value['source_size'],1024)):
-                            errors.append('source coverage')
-                        bels=[b['bel'] for b in blocks]
-                        if len(set(bels)) != len(bels) or any(len(b.encode())>64 for b in bels):
-                            errors.append('BEL bound or duplicate')
-                        bits=[bit for b in blocks for word in b['word_bits'] for bit in word]
-                        if len(set(bits)) != len(bits) or any(type(b) is not int for b in bits):
-                            errors.append('destination duplicate or type')
+                        if value['device'] != parsed['target']['device']:
+                            errors.append('map target binding')
+                        if value['device']=='A5EB013BB23BE4SCS':
+                            if len(mapping)>1024:errors.append('held ROM map bound')
+                        else:
+                            blocks=value['blocks']
+                            if len(blocks)*1024 != value['source_size']:
+                                errors.append('block count')
+                            if sorted(b['source_offset'] for b in blocks) != list(range(0,value['source_size'],1024)):
+                                errors.append('source coverage')
+                            bels=[b['bel'] for b in blocks]
+                            if len(set(bels)) != len(bels) or any(len(b.encode())>64 for b in bels):
+                                errors.append('BEL bound or duplicate')
+                            bits=[bit for b in blocks for word in b['word_bits'] for bit in word]
+                            if len(set(bits)) != len(bits) or any(type(b) is not int for b in bits):
+                                errors.append('destination duplicate or type')
                 except (ValueError,UnicodeDecodeError) as exc:
                     errors.append(str(exc))
                 self.assertEqual(case['valid'],not errors, errors)

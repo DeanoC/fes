@@ -1,0 +1,14 @@
+=== RUN   TestRetainedPartsMatchIndependentStagingAndOwnInputs
+--- PASS: TestRetainedPartsMatchIndependentStagingAndOwnInputs (12.66s)
+=== RUN   TestRetainedPartsRejectBeforePublishing
+--- PASS: TestRetainedPartsRejectBeforePublishing (4.35s)
+=== RUN   TestRetainedROMLinksMatchStaging
+=== RUN   TestRetainedROMLinksMatchStaging/3
+=== RUN   TestRetainedROMLinksMatchStaging/4
+--- PASS: TestRetainedROMLinksMatchStaging (5.33s)
+    --- PASS: TestRetainedROMLinksMatchStaging/3 (2.57s)
+    --- PASS: TestRetainedROMLinksMatchStaging/4 (2.76s)
+=== RUN   TestRetainedROMRejectsBeforePublishing
+--- PASS: TestRetainedROMRejectsBeforePublishing (0.22s)
+PASS
+ok  	github.com/DeanoC/FogCast/corepackage	23.601s

@@ -1,0 +1,53 @@
+{
+  "status": "passed",
+  "compiled_source": "5131d8bc650864d4ca6d0126ac1ab7802662324d",
+  "native_boot_id": "7abe602398c4db44",
+  "controller_source": "c60cdd1cec494a2e9e1ad5346bf3ce4e1db8ac61",
+  "artifacts": {
+    "sdk": {
+      "path": "out/nano-guarded-derivation-runtime-20261108/native-sdk/fpgaload.elf",
+      "bytes": 15745199,
+      "sha256": "20bc32963129160d977fa818ae4387120c6869093a55cc9385a922a7de344113"
+    },
+    "entry": {
+      "path": "out/nano-guarded-derivation-runtime-20261108/native-entry/entry.img",
+      "bytes": 7614464,
+      "sha256": "edeb06b1c75e2549f432a8152d4ee6f72c883e72c25c524f462d3f540764e76f"
+    },
+    "BL31": {
+      "path": "out/nano-ownership-parts-runtime-20261108/native-bl31/source/build/agilex5/release/bl31.bin",
+      "bytes": 237893,
+      "sha256": "377705e5898f81dd7fa81ee3bddd4e61710c79eebdf85d7c8a14c96e81c70c58"
+    },
+    "FIT": {
+      "path": "out/nano-ownership-parts-runtime-20261108/native-uboot/build/u-boot.itb",
+      "bytes": 8309296,
+      "sha256": "1c56aa178589becdb61e794eceba05629aaffa6a3947bf463d4a15a3692a70de"
+    },
+    "SPL": {
+      "path": "out/nano-ownership-parts-runtime-20261108/native-uboot/build/spl/u-boot-spl-dtb.hex",
+      "bytes": 461189,
+      "sha256": "5f23528428eddc19ecbe9433931635957862c4a92eba7ad122f84695248c088e"
+    },
+    "SOF": {
+      "path": "out/nano-ownership-parts-runtime-20261108/native-composition/native-hps-first.sof",
+      "bytes": 1578891,
+      "sha256": "cfa2fcf72dac5b6569c4a8cb58e4b73ba21f89f62e3bc8a61db1581d4dd9d00b"
+    }
+  },
+  "native_rebuilt": true,
+  "prior_compiled_image_attempts": 0,
+  "max_compiled_image_attempts": 1,
+  "preceding_compiled_image_attempts": 1,
+  "prior_allowance_exhausted": true,
+  "new_procedure_attempts_allowed": 1,
+  "prior_trial_result_sha256": "eb49720701e28aaae6302a3ba9f50ebe8efe56a78f498863282de6eb66a83455",
+  "native_runtime_payload_unchanged": true,
+  "ownership_subprofile": true,
+  "startup_neutral_input_fence": true,
+  "keyboard_idle_milliseconds": 100,
+  "runtime_compiled_source": "e8fe4c9a6ea7b09494449ccd4801e77732fcb67a",
+  "changed_firmware_and_cold_chain": true,
+  "hardware_actions": false,
+  "ordinary_admission": false
+}

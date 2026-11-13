@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_nano_identity.py",
+    "-v"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 2.602754532941617,
+  "log_sha256": "805fabb040333c7176b9db3be9f60c9f02849fcd6191606f290a0a6446dc42c2"
+}

@@ -1,0 +1,161 @@
+{
+  "status": "exact-menu-comparison-and-matched-chain-passed",
+  "scope": "matched exact menu comparison SDK/entry/firmware/SPL/composition with actual ELF and linked guard audit",
+  "input_hash_counts": {
+    "SDK": 2098,
+    "entry": 44,
+    "entry-native": 2098,
+    "BL31": 97,
+    "SPL": 97,
+    "composition": 26
+  },
+  "chain_sha256": "f468699d9d24995c4acbf4024ae0d38eed9f73f8c44ff305e13a8a5fb6ec5205",
+  "package_id": "c69484491de11e1ee6d1c955b7d54e02e3fe513a0ad39d5376e23e539ba75444",
+  "build_id": "40bf9e4b00c1d25192fd06df5d97c5bd",
+  "native_boot_id": "103063fceba0f855",
+  "fit_sha256": "98d0d6068d323e1cc38e61dd267a9779039fe9c1dd99d1273a0d90665ec8ffe2",
+  "fit_bytes": 8051232,
+  "entry_sha256": "23f47b3873275409479be2dd89209da036c1b30a5961815e2ff5b9778e9ec760",
+  "bl31_sha256": "5ea83330aac1bcc60c21e16559eac4010b757c95f9203603b07f0a76fdd9801b",
+  "core_sha256": "a9baf204120486cf49ad6c0bd235893c111a49a829cfe7701996cd0ba063ab26",
+  "core_payload_unchanged": true,
+  "firmware_ram": {
+    "base": 327680,
+    "bss_base": 360448,
+    "bss_limit": 393216,
+    "cache_policy": "owned-cold-all-setway-before-nobits-v1",
+    "cookie": 5066077071256584193,
+    "exit_cache_policy": "owned-cold-dccsw-before-exit-v1",
+    "format": 5,
+    "limit": 393216,
+    "percpu_affinity_bytes": 4,
+    "percpu_affinity_offset": 24,
+    "percpu_alignment": 64,
+    "percpu_bytes": 256,
+    "percpu_count": 4,
+    "percpu_policy": "sealed-file-backed-ddr-percpu-v1",
+    "percpu_stride": 64,
+    "scope": "matched-spl-el3-ocram-nobits-v5",
+    "stack_end": 360448
+  },
+  "actual_bss_end": "0x5afc0",
+  "spl_final_guard_after_trace_before_atf": true,
+  "spl_guard_rejection_branch": true,
+  "private_ram_cookie_preserved": true,
+  "hardware_actions": false,
+  "core_load_acceptance": false,
+  "goal_complete": false,
+  "implementation_source": "49619ceb02e3e2c537ebb07a589aacbfb6a2e63d",
+  "fpga_source": "0a91a980ab76459b9f5fa0ef672c98291051f5b9",
+  "native_sdk_entry_source": "49619ceb02e3e2c537ebb07a589aacbfb6a2e63d",
+  "firmware_spl_source": "49619ceb02e3e2c537ebb07a589aacbfb6a2e63d",
+  "checks": [
+    {
+      "label": "focused-menu",
+      "receipt": "out/nano-menu-exact-compare-20261107/focused-menu-result.json",
+      "sha256": "b3cc5808e558fbec86eb25905783ba5b07fdc48fed9f6f71f98a8b9b15edaedf",
+      "elapsed": 12.007841882063076
+    },
+    {
+      "label": "software-0",
+      "receipt": "out/nano-menu-exact-compare-20261107/software-0-result.json",
+      "sha256": "d79e42201c6c823251d5f98e0c37c1359135561c9348a39fa2cf36088e5d767d",
+      "elapsed": 0.20078428997658193
+    },
+    {
+      "label": "software-1",
+      "receipt": "out/nano-menu-exact-compare-20261107/software-1-result.json",
+      "sha256": "2730a25cec7af9a319c47107c94e2a8df83f70b593e2af5a7bbe1974bde36cae",
+      "elapsed": 1.201006372924894
+    },
+    {
+      "label": "software-2",
+      "receipt": "out/nano-menu-exact-compare-20261107/software-2-result.json",
+      "sha256": "16fb4da508819dcafbce1cc56cb25e8c31a7e0647f1db164b995b2deafc0f288",
+      "elapsed": 0.20069684810005128
+    },
+    {
+      "label": "software-3",
+      "receipt": "out/nano-menu-exact-compare-20261107/software-3-result.json",
+      "sha256": "5dc3ae972d368074c9244610db570f8d44219e183c86720f06c11665795eb8f2",
+      "elapsed": 0.2009695079177618
+    },
+    {
+      "label": "software-4",
+      "receipt": "out/nano-menu-exact-compare-20261107/software-4-result.json",
+      "sha256": "298f96f12a5e53582b0246bfd85d5548cc0026b1c31c71f63a9d90f48778e924",
+      "elapsed": 286.9697205768898
+    },
+    {
+      "label": "software-5",
+      "receipt": "out/nano-menu-exact-compare-20261107/software-5-result.json",
+      "sha256": "45671857f0f2efd6e7a85daddb29ac17fc5cafc3b9de237afe9c65b5010f1a6d",
+      "elapsed": 5.603045895928517
+    },
+    {
+      "label": "software-6",
+      "receipt": "out/nano-menu-exact-compare-20261107/software-6-result.json",
+      "sha256": "f78a577b7f65c0dc0e77a346e562fa65f5f489fe8b2ab6a34655e66e0301e495",
+      "elapsed": 144.4942979409825
+    },
+    {
+      "label": "native-sdk-publication",
+      "receipt": "out/nano-menu-exact-compare-20261107/native-sdk-publication-result.json",
+      "sha256": "ea17759a42824dbaec1c9442d8479566170d14305fe49a22445f3b72ce33b67e",
+      "elapsed": 18.81003772909753
+    },
+    {
+      "label": "native-entry-publication",
+      "receipt": "out/nano-menu-exact-compare-20261107/native-entry-publication-result.json",
+      "sha256": "e3ad3da368cee6e39e76359a6c1ba7658cde960e4eccb5f4cbd5f3510de278ec",
+      "elapsed": 28.417481305077672
+    },
+    {
+      "label": "bl31-publication",
+      "receipt": "out/nano-menu-exact-compare-20261107/bl31-publication-result.json",
+      "sha256": "b9b3ade66a35c6c7288b9c5f04d39483151c39b6495f73658a6c935f279c796e",
+      "elapsed": 100.05480995797552
+    },
+    {
+      "label": "uboot-publication",
+      "receipt": "out/nano-menu-exact-compare-20261107/uboot-publication-result.json",
+      "sha256": "aae02de7a3121263cb7d506ee7464289b72d58e7b245421edc56f3d8e1d0c384",
+      "elapsed": 156.0811245420482
+    },
+    {
+      "label": "compose-publication",
+      "receipt": "out/nano-menu-exact-compare-20261107/compose-publication-result.json",
+      "sha256": "8f2720e46486ca68a63617e733a2db55d0b09d920ffce998c88488ed826dbb14",
+      "elapsed": 40.02006198791787
+    },
+    {
+      "label": "audit-chain",
+      "receipt": "out/nano-menu-exact-compare-20261107/audit-chain-result.json",
+      "sha256": "db5725ef6a143f060434c7bb2437bd5bcd5ce4e34ee2a87a1fce8be227e4515a",
+      "elapsed": 0.20051626092754304
+    }
+  ],
+  "arena_comparison": "exact equality of complete actual and private expected images, both slots and padding; no change to cryptographic source/package/map digests",
+  "new_corruption_cases": 50,
+  "parent_tests": 1638,
+  "parent_skips": 3,
+  "cpu_model_reuse": {
+    "status": "unchanged-selected-input-evidence-reused",
+    "receipt": "out/nano-cpu-feature-build-20261107/qemu-crypto/result.json",
+    "receipt_sha256": "d76f03a4175fa43df105b9ab3bddba8af955c117e76a79828a74684228d2d521",
+    "model_source_files": 6,
+    "selected_source_hashes": 1315,
+    "scope": "unchanged optional CPU feature discovery and crypto dispatch; updated menu equality covered separately by current native tests",
+    "hardware_actions": false
+  },
+  "integration_reference": "same pinned local TF-A reference, checked by unchanged source identity validator; actual argv retained",
+  "publication_timeout_seconds": 4,
+  "hardware_timeout_seconds": 1,
+  "max_polls": 64,
+  "outer_native_probe_seconds": 45,
+  "hardware_acceptance": "not-run",
+  "physical_performance_qualified": false,
+  "native_menu_core_menu": false,
+  "physical_HDMI_qualified": false,
+  "timing_signoff": false
+}

@@ -1,0 +1,255 @@
+{
+  "status": "passed",
+  "classification": "bounded native two-load window/SD return diagnostic; ordinary core loading incomplete",
+  "native_source_commit": "5665860d60787910d3d651acdb34446714cb1898",
+  "fpga_source_commit": "df234b524d0e1340b343df411c841bd1dc553817",
+  "initial_storage_seconds": 57.37792164704297,
+  "first_frame_return_seconds": 44.260782886995,
+  "fresh_storage_seconds": 55.700923242024146,
+  "second_configuration_return_seconds": 22.571097148931585,
+  "observation": {
+    "first": {
+      "frames": 12,
+      "read_bytes": 3686400,
+      "total_frame_read_bytes": 44236800,
+      "arena_bytes": 4194304,
+      "reader_generation": 13,
+      "cookie": 1,
+      "final_drain_cookie": 13,
+      "crc32": "4156c52d",
+      "frame_sha256": "1a5494e29641f42e61d7e25ed40099a07a7abce5968f1ebe26fef1881a02922c",
+      "owner": 10650113560991715973,
+      "closed_generation": 7,
+      "bridge_reset": 15,
+      "hardware_drained": 8,
+      "configuration_seconds": 12.8219534725,
+      "window_storage_return": {
+        "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+        "owner": 10650113560991715973,
+        "closed_generation": 7,
+        "resumed_generation": 9,
+        "contained_generation": 10
+      },
+      "fresh_selection": true,
+      "sd_contained": true,
+      "memory_released": false,
+      "runtime_admission": false,
+      "hdmi_qualified": false
+    },
+    "second": {
+      "frames": 2,
+      "source_generation": 10,
+      "closed_generation": 13,
+      "reader_generation": 3,
+      "drain_cookie": 3,
+      "frame_sha256": "e99aa33ec6300751647d36d21cda9bc84786a501dee69c97e9dc46aa3f3b8837",
+      "crc32": "52d0ee8e",
+      "configuration_seconds": 12.823989525
+    },
+    "cycles": 2,
+    "owner": 10650113560991715973,
+    "sd_contained": true,
+    "memory_released": false,
+    "runtime_admission": false,
+    "hdmi_qualified": false
+  },
+  "bounds": {
+    "prompt_seconds": 50,
+    "storage_seconds": 100,
+    "configuration_seconds": 20,
+    "probe_seconds": 45,
+    "window_storage_seconds": 100,
+    "reload_seconds": 45,
+    "native_seconds": 240,
+    "native_process_seconds": 400,
+    "outer_seconds": 800
+  },
+  "startup": {
+    "records": [
+      {
+        "line": 91,
+        "phase": "loader_begin",
+        "ticks": 6902739932,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818219056
+      },
+      {
+        "line": 92,
+        "phase": "decode_begin",
+        "ticks": 6930439265,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 93,
+        "phase": "inflate_end",
+        "ticks": 7393776300,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 94,
+        "phase": "checksum_end",
+        "ticks": 7401166721,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 95,
+        "phase": "decode_end",
+        "ticks": 7404695273,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 96,
+        "phase": "copy_end",
+        "ticks": 7410977127,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 97,
+        "phase": "handoff",
+        "ticks": 7428781740,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818219056
+      },
+      {
+        "line": 99,
+        "phase": "go_hwinit",
+        "ticks": 7438113338,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 100,
+        "phase": "go_vectors",
+        "ticks": 7441540854,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 101,
+        "phase": "go_main",
+        "ticks": 7448648477,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 102,
+        "phase": "verifier_ready",
+        "ticks": 7452990111,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 103,
+        "phase": "sd_open_begin",
+        "ticks": 7456588010,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 104,
+        "phase": "sd_open_end",
+        "ticks": 7472720112,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 105,
+        "phase": "fat_mount_end",
+        "ticks": 7485284862,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 106,
+        "phase": "retain_begin",
+        "ticks": 7488850055,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 107,
+        "phase": "retain_end",
+        "ticks": 29625838725,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      }
+    ],
+    "errors": [],
+    "complete": true,
+    "rejected": false,
+    "last_checkpoint": "retain_end",
+    "timings_us": {
+      "loader_begin": 0,
+      "decode_begin": 69248,
+      "inflate_end": 1227590,
+      "checksum_end": 1246066,
+      "decode_end": 1254888,
+      "copy_end": 1270592,
+      "handoff": 1315104,
+      "go_hwinit": 1338433,
+      "go_vectors": 1347002,
+      "go_main": 1364771,
+      "verifier_ready": 1375625,
+      "sd_open_begin": 1384620,
+      "sd_open_end": 1424950,
+      "fat_mount_end": 1456362,
+      "retain_begin": 1465275,
+      "retain_end": 56807746
+    },
+    "core_load_acceptance": false
+  },
+  "new_procedure_attempts": 1,
+  "retries": 0,
+  "prior_failed_procedures": 7,
+  "host_cleanup_passed": true,
+  "archive": "/home/deano/fes-retained/de25-window-two-load-20261104/matched-native-chain.tar.gz",
+  "archive_sha256": "6e2883788efb11c478d31349ab81b1dfb2c7c218cf6fec1103c15d43642f1a3f",
+  "verified_members": 45652,
+  "ordinary_runtime_admission": false,
+  "hdmi_qualified": false,
+  "usb_hub_input_qualified": false,
+  "native_network_qualified": false,
+  "factory_restore_performed": false,
+  "exclusive_claim_retained": true,
+  "spare_card_retained": true,
+  "memory_lifetime": "until-reboot",
+  "files": {
+    "native-console.log": "d3c664589708d0a91c297210b074b67b6a29e2b77ad95881eb9b4b41763d279c",
+    "hardware-evidence.json": "1c73a1cdcf201156b874e1ee6e01ac2876127ba24d9fa66f10faa8c0a4078341",
+    "hardware-replay.json": "688764dc5b79a2505892fc62b04ad58e76bb714a34edb09c9d382f816d41fea2",
+    "retention.json": "28f7813ec04e8ce226e796788d07e1f025d40f0ea071ee813948df6531f51b15",
+    "experiment-result.json": "63ab3a4b2118a5a47b116a6181abf713c91066e66f6f4d7e5d006c1a2c4708b4",
+    "software-validation.json": "450201da7921d8b2accc0654af75ee1f8e76683aeec49421d2e260569865e4c7",
+    "postfix-replay.json": "4d99363c5f2646f31976f23b55bb02bb9aa46c2ba8f0ca94adad9a1cb0357985",
+    "checker-validation.json": "263df286c4f278960994f2102d51ae0a84821376abefef586c39b25fb2f2d5f0"
+  },
+  "next_step": "Connect repeated-window ownership to a persistent native service/frontend, then integrate ordinary package/ROM/parts/media admission and physical HDMI/input.",
+  "host_checker_repair": {
+    "scope": "two-load trace decoder requires both activation records",
+    "native_bytes_changed": false,
+    "fpga_bytes_changed": false,
+    "hardware_retry": false,
+    "decoder_sha256": "d90de5685d03634f433041c2b10e9975885742eae57f71584de9bd85d4395acc"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "status": "passed",
+  "scope": "host fixtures only; no file admitted for hardware and no device action",
+  "private_decoder_positive": true,
+  "private_decoder_malformed_and_missing_final_pass_reject": true,
+  "single_upload_positive": true,
+  "negative_receipts": [
+    "foreign-boot-bytes",
+    "wrong-recovery",
+    "different-live-session",
+    "fresh-wrote-card",
+    "fresh-not-readonly",
+    "protection-failed",
+    "wrong-destination",
+    "not-closed",
+    "missing-admit-boundary"
+  ],
+  "source_sha256": {
+    "out/nano-fat-file-trial-20261110/trial/upload_checks.py": "9c81863cec82045a4d03a63bea1c9987c7b6c10409b63a6f7825dc70ad2d3c3f",
+    "out/nano-fat-file-trial-20261110/trial/native.py": "96c08704bb5d0ba437787be95f599e019385564181682f11cbd15b6b7b48a1db",
+    "out/nano-fat-file-trial-20261110/operator_models.py": "8533c678a82c99a6f2f73a91b2d489f7bde0ceab81da4191992549563a926cca"
+  },
+  "live_authority": false
+}

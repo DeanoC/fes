@@ -1,0 +1,145 @@
+{
+  "all_online": {
+    "cpu_hotplug": false,
+    "factory_baseline_verified": true,
+    "finished_utc": "2026-11-01T09:39:43.377560+00:00",
+    "logged_out": true,
+    "online_after": "0-3",
+    "online_before": "0-3",
+    "read_addresses": [
+      "0x10d11000",
+      "0x10d11090",
+      "0x10d11094",
+      "0x10d1401c",
+      "0x10d14024",
+      "0x10d1402c",
+      "0x10d14034",
+      "0x10d14050",
+      "0x10d14054",
+      "0x10d14058"
+    ],
+    "read_only_comparison_complete": true,
+    "read_returncode": 0,
+    "reader": "Fixed AArch64 mapped reader, O_RDONLY, PROT_READ, one checked LDR W per register",
+    "reader_elf_sha256": "59ba9ac393ce12eec40a114856a6ac41983af1b4fa0e5f39ecd82f1f674e725e",
+    "reads": {
+      "10d11000": "0x00000004",
+      "10d11090": "0x00000001",
+      "10d11094": "0x00000000",
+      "10d1401c": "0x90000021",
+      "10d14024": "0x90000021",
+      "10d1402c": "0x90000021",
+      "10d14034": "0x90000021",
+      "10d14050": "0x0000003f",
+      "10d14054": "0x0000003f",
+      "10d14058": "0x0070021e"
+    },
+    "register_writes": false,
+    "serial": "TRWU8CBL",
+    "stage": "read-only-cpu-comparison-complete",
+    "temporary_tool_removed": true
+  },
+  "classification": "factory reference diagnostics; native admission unchanged and unqualified",
+  "cpu1_experiment": {
+    "cpu_hotplug": true,
+    "cpu_restore_guard_verified": false,
+    "cpu_under_test": 1,
+    "experiment_complete": false,
+    "factory_baseline_verified": true,
+    "finished_utc": "2026-11-01T09:50:30.636933+00:00",
+    "logged_out": true,
+    "online_after": null,
+    "online_before": "0-3",
+    "phases": {
+      "offline": {
+        "online": "0,2-3",
+        "reads": {
+          "10d11000": "0x00000004",
+          "10d11090": "0x00000001",
+          "10d11094": "0x00000000",
+          "10d1401c": "0x90000021",
+          "10d14024": "0x80000021",
+          "10d1402c": "0x90000021",
+          "10d14034": "0x90000021",
+          "10d14050": "0x0000003f",
+          "10d14054": "0x0000003f",
+          "10d14058": "0x0070021e"
+        }
+      }
+    },
+    "read_returncode": 1,
+    "reader": "Fixed AArch64 mapped reader, O_RDONLY, PROT_READ, one checked LDR W per register",
+    "reader_elf_sha256": "59ba9ac393ce12eec40a114856a6ac41983af1b4fa0e5f39ecd82f1f674e725e",
+    "register_writes": false,
+    "serial": "TRWU8CBL",
+    "stage": "cpu1-hotplug-observation-stopped",
+    "temporary_tool_removed": false
+  },
+  "limitations": [
+    "CPUINRESET is not a complete live CPU-running/reset inventory",
+    "CPU1 off/on restoration failed in vendor factory firmware",
+    "factory BL31 bytes not matched to inspected TF-A source pin",
+    "no DDR/native handoff/core loading acceptance",
+    "generic pread failure cause unproven; explicit mapped 32-bit reader succeeded"
+  ],
+  "raw_verification": {
+    "all_four_cpus_online": true,
+    "boot_uuid": "731d69ef-d5f2-42f1-badf-c4af22457564",
+    "console_sha256": "bc1321578842d900243bab34503c14b5ef2783759da1fa262928595a963d269e",
+    "cpuinreset": "0x00000001",
+    "exact_reader_hash_checked": true,
+    "inference": "primary reset bit is not a reliable running-primary test on this vendor boot path; no native admission change",
+    "nonce": "935fe4a76d62",
+    "read_order_verified": true,
+    "temporary_tool_removal_line_verified": true
+  },
+  "reader": {
+    "argv": [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-gcc",
+      "-static",
+      "-nostdlib",
+      "-ffreestanding",
+      "-fno-builtin",
+      "-fno-stack-protector",
+      "-fno-pie",
+      "-no-pie",
+      "-Os",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-Wl,--build-id=none,-e,_start",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cpu-factory-compare-20261101/readonly32.c",
+      "-o",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cpu-factory-compare-20261101/readonly32"
+    ],
+    "elf_bytes": 2632,
+    "elf_sha256": "59ba9ac393ce12eec40a114856a6ac41983af1b4fa0e5f39ecd82f1f674e725e",
+    "load32_disassembly": "\n  4000f4:\td50333bf \tdmb\tosh\n  4000f8:\tb9400000 \tldr\tw0, [x0]\n  4000fc:\td50331bf \tdmb\toshld\n  400100:\td65f03c0 \tret\n",
+    "mapping_protection": 1,
+    "no_interpreter": true,
+    "open_flags": 0,
+    "register_writes": false,
+    "source_sha256": "8a38be2e6de987f0ec81dc999d56ea39b31921482c9bcffc0c0156d31dd8ae98"
+  },
+  "receipts": {
+    "out/nano-cpu-factory-compare-20261101/cpu-compare-mapped32-console.log": "bc1321578842d900243bab34503c14b5ef2783759da1fa262928595a963d269e",
+    "out/nano-cpu-factory-compare-20261101/cpu-compare-mapped32-result.json": "cfd0d00e04cc64c12346fd70c4b0034f6bdaa335e4e068f1bb283a4be0af224b",
+    "out/nano-cpu-factory-compare-20261101/hotplug-cpu1-console.log": "baca468e12caaf6c4c0099523ac3ffbb4534cd19ceeeaaa3a58bf5d7910aaabd",
+    "out/nano-cpu-factory-compare-20261101/hotplug-cpu1-result.json": "9288873c731b7cbb1d5323820515ca9e87f3a145b67fdb453684f8d4d3482bbc",
+    "out/nano-cpu-factory-compare-20261101/shutdown.json": "dd4ab9415e6d6ae3f6166bf65da9e9421ca8d243318a90fd768fd75594dd3b2a",
+    "out/nano-cpu-factory-compare-20261101/tmpfs-cleanup-result.json": "df7093de8f3cdcc2ab4cfecfb742ca1314f76b091ce1afe4ff2b877fdb480e5a",
+    "out/nano-cpu-factory-recovery-20261101/baseline.json": "ecb1b48f7609212c47462db0d408d623561477633f6c66642fbb04a7d17b4f09",
+    "out/nano-cpu-factory-recovery-20261101/reference-result.json": "bc922e3d39aa21667a6baf46d05958ed5fcf238a12c63fb55f37aadedffd894a"
+  },
+  "recovery": {
+    "boot_uuid": "0eb2188f-ddb1-4f0f-a1ad-b91ad1ed25e6",
+    "cpu_inventory_restored": true,
+    "factory_baseline_verified": true,
+    "kernel": "6.12.11-gd7d192a9ddd9",
+    "logged_out": true,
+    "online": "0-3",
+    "root": "/dev/mmcblk0p2 ext3"
+  },
+  "retention": "/home/deano/fes-retained/de25-nano-cpu-inventory-reference-20261101/",
+  "source_context": "138c97166c43e8cdeb902b2a8c869e960636239d"
+}

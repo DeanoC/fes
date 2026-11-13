@@ -1,0 +1,118 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "case": "ready",
+      "accepted": true
+    },
+    {
+      "case": "configuring",
+      "accepted": true
+    },
+    {
+      "case": "configuration-error",
+      "accepted": true
+    },
+    {
+      "case": "timeout",
+      "accepted": true
+    },
+    {
+      "case": "error2",
+      "accepted": true
+    },
+    {
+      "case": "owner",
+      "accepted": false
+    },
+    {
+      "case": "generation",
+      "accepted": false
+    },
+    {
+      "case": "positive-status",
+      "accepted": false
+    },
+    {
+      "case": "header-client",
+      "accepted": false
+    },
+    {
+      "case": "header-job",
+      "accepted": false
+    },
+    {
+      "case": "header-length",
+      "accepted": false
+    },
+    {
+      "case": "received",
+      "accepted": false
+    },
+    {
+      "case": "poll-limit",
+      "accepted": false
+    },
+    {
+      "case": "word-limit",
+      "accepted": false
+    },
+    {
+      "case": "skips",
+      "accepted": false
+    },
+    {
+      "case": "missing-sent",
+      "accepted": false
+    },
+    {
+      "case": "oversized-data",
+      "accepted": false
+    },
+    {
+      "case": "no-retirement",
+      "accepted": false
+    },
+    {
+      "case": "status-before-retire",
+      "accepted": false
+    },
+    {
+      "case": "duplicate",
+      "accepted": false
+    },
+    {
+      "case": "no-ack",
+      "accepted": false
+    },
+    {
+      "case": "wrong-ack",
+      "accepted": false
+    },
+    {
+      "case": "wrong-retained",
+      "accepted": false
+    },
+    {
+      "case": "resume",
+      "accepted": false
+    },
+    {
+      "case": "identity",
+      "accepted": false
+    },
+    {
+      "case": "no-original-failure",
+      "accepted": false
+    },
+    {
+      "case": "partial-status-duplicate",
+      "accepted": false
+    },
+    {
+      "case": "partial-ack-duplicate",
+      "accepted": false
+    }
+  ],
+  "decoder_sha256": "e28ec49b751504b67b64ab940793b4f8e2ca6ac12ed146689b5b5b15594a9a4b"
+}

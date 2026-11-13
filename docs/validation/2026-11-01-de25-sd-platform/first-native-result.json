@@ -1,0 +1,106 @@
+{
+  "serial": "TRWU8CBL",
+  "source_commit": "1d0f8c044b57db10757544695beec1d986f9d1be",
+  "phase": "native",
+  "sof_sha256": "07c378becf955fb81a2b3d6c06a3c5de95abe3d7b60fda77384bec4b1a2a57fa",
+  "initial_card_image_sha256": "f7c4a2c77e44de5c6679b8e2c274100dd9ebb4961c900e7a6de10f727a34850c",
+  "prepared_full_image_sha256_not_written": "e110f7d234f54c1cfccdf30c7c8d7406875293d7e8183629aa1b69f1c83b60e3",
+  "fit_sha256": "92b85f06253e1b18a403f7a8e0db90b42e5d603a1876c5249695365c29ac7f01",
+  "started_utc": "2026-11-01T16:10:58.873667+00:00",
+  "stage": "matched native prompt",
+  "programming_attempted": true,
+  "fesboot_sent": false,
+  "pass": false,
+  "sd_write_commands_sent": false,
+  "qualified_recovery_receipt_sha256": "6e21c6650499685eb611f47b2af18d232f4c78686f77ad9b99470399867cae02",
+  "live_card_receipt_sha256": "4615fdc2801b147fa74621ded3948837ff83666d06d32cd0b66b35afdde488f4",
+  "prior_stop_receipt_sha256": "4bb3cfa07de859c72e6dcbf234dccb0933444ff0be28811040136593ce15f37f",
+  "runner_sha256": "dbef815d901cfb0f3f1f9af2c1c0ad008043206598694c950803a73e214e86af",
+  "clock_checks": [
+    {
+      "clock": "6M",
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    }
+  ],
+  "jtag_id": "4362C0DD",
+  "boot_trace": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "19410f6a83a571e2"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 2872818406225998991,
+          "epoch": 3793396397,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      }
+    ],
+    "errors": [
+      "malformed or unexpected probe marker at line 41",
+      "malformed or unexpected probe marker at line 42",
+      "malformed or unexpected probe marker at line 43",
+      "malformed or unexpected probe marker at line 44",
+      "malformed or unexpected probe marker at line 45",
+      "malformed or unexpected probe marker at line 46",
+      "malformed or unexpected probe marker at line 47",
+      "malformed or unexpected probe marker at line 48",
+      "malformed or unexpected probe marker at line 49",
+      "malformed or unexpected probe marker at line 50",
+      "malformed or unexpected probe marker at line 51"
+    ],
+    "loader_ready": false,
+    "complete": false,
+    "last_checkpoint": "spl_handoff",
+    "core_load_acceptance": false
+  },
+  "programming_complete": true,
+  "error": "native boot trace rejected: ['malformed or unexpected probe marker at line 41', 'malformed or unexpected probe marker at line 42', 'malformed or unexpected probe marker at line 43', 'malformed or unexpected probe marker at line 44', 'malformed or unexpected probe marker at line 45', 'malformed or unexpected probe marker at line 46', 'malformed or unexpected probe marker at line 47', 'malformed or unexpected probe marker at line 48', 'malformed or unexpected probe marker at line 49', 'malformed or unexpected probe marker at line 50', 'malformed or unexpected probe marker at line 51']",
+  "usb_permissions_restored": true,
+  "console_sha256": "fdb8e691d103c65d1d52ab5ada31dc94071e01672458d90d748e77814eac35f7",
+  "finished_utc": "2026-11-01T16:11:16.037924+00:00",
+  "decoder_sha256": "5aabc1ae470a8020ccc3c135f0d2ae2940b984b4757202bfd29c32c37e737b3b"
+}

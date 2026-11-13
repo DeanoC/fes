@@ -1,0 +1,65 @@
+{
+  "classification": "source-bound host firmware/actual Avalon RTL and native adapter checks; no new hardware acceptance",
+  "source_commit": "f36ec1dd911a7f3257a0654c5608ad10c72d1bfb",
+  "base_commit": "207e8d619f2cab5bb2f34a7fc90f5c50cea3ca82",
+  "software_groups": 12,
+  "software_passed": true,
+  "secure_reader_rtl_cases": 169,
+  "strong_provider_sd_configuration_reader_rtl_cases": 8,
+  "successful_probe_reads": 113,
+  "successful_probe_writes": 12,
+  "native_success_generations": [
+    1,
+    4
+  ],
+  "reader_generation": 1,
+  "reader_cookie": 7,
+  "bridge_generations": [
+    [
+      1,
+      3
+    ],
+    [
+      4,
+      6
+    ]
+  ],
+  "wire_version": "1.7",
+  "operation": 10,
+  "reply_tag": "46524431",
+  "fpga_rtl_changed": false,
+  "generic_bridge_mutations_enabled": false,
+  "native_loader_selects_reader": false,
+  "physical_board_access_this_step": false,
+  "matched_boot_chain_built": false,
+  "physical_reader_acceptance": false,
+  "runtime_admission": false,
+  "data_release": false,
+  "repeated_physical_launch_return_acceptance": false,
+  "last_physical_native_source": "12a0d0caf487f3984b49b5af6aed629868a41572",
+  "last_physical_evidence_commit": "207e8d619f2cab5bb2f34a7fc90f5c50cea3ca82",
+  "input_sha256": {
+    "platform/embedded/firmware/README.md": "f6fe495da25a2031ed684eed2f04db4825913b748c5646475c153183723ccd76",
+    "platform/embedded/firmware/generated/fes_embedded_bridges.h": "cbf79db849bde82629731f6d19a5a96f06cafd4e6b98c300a8b56de7d89477f2",
+    "platform/embedded/firmware/nano_cold_platform.c": "20fab4a58f392d075cb0c8778396a0518f476c92990aa1d2432a633621408465",
+    "platform/embedded/firmware/nano_identity.c": "5b2f8dc58162cfa1ab6c836caa83b18e600876a3fb233e6abb756e8e6eafe099",
+    "platform/embedded/firmware/nano_identity.h": "01ec88fb6cf1d9fa9593c52362f1a29c2a68d333f5089d49c93f5cc7b11590f4",
+    "platform/embedded/firmware/nano_owned_sip.inc": "412b0cb3e7c00cad00758358c588df37bf789918e31fe260e338a382a9f28849",
+    "platform/embedded/firmware/tests/nano_cold_platform_test.c": "abda380fbcec6d2d0ef5b2d02c7ecb51592407de13cd3a24561f862a68cf437b",
+    "platform/embedded/firmware/tests/nano_reader_rtl_test.cpp": "f56bf48292731448d1b4bfd682ca1f4b7b333b6709bd335da29d1ae68cab24e5",
+    "platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_bridges.go": "5bb071f8def2e0650a6f2d61b78291eed9b94099d9c7d8f7c0a708e69f70cc50",
+    "platform/embedded/tamago/nativefabric/README.md": "5af9ad1e4a5277ae4f42f768a5df3d7277c5011ded3d91a0de8d3ee5194746be",
+    "platform/embedded/tamago/nativefabric/controlprobe.go": "d482a3806d3729d6f88d46e0ce3d1ba52698614e05342e4d368a4edd50c8d512",
+    "platform/embedded/tamago/nativefabric/controlprobe_test.go": "14a709f0a75235ffe815270118e692d4f7faf69767833f6f202110e88a5c16b9",
+    "platform/embedded/tamago/nativefabric/readerprobe_test.go": "ce499f690d456baa9d96477db68bdda0212bbe18c3bae9510bd710130b6c76aa",
+    "sources/mister-packages/docs/embedded-bridges.md": "d5ef7ecc7b1910fa5a47bf65eb7ac0fd7aca1fe8394d7a458dfee0115c91ca21",
+    "sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml": "15380b1fe61a7e44eb60ef24adec00009539f717efb86d0f0876fbd0070cab58",
+    "sources/mister-packages/testdata/oracles/fes-embedded-bridges.json": "c80629d6340449165827037c0c8190ec3f2d1626a2f26d1121e5abb0d2124015",
+    "tests/test_nano_configuration.py": "002170700fe400c49ee301d9ab68e15e5b91626940e10be0ad22215dc617fe29",
+    "tests/test_nano_identity.py": "8e5412ed002e0a67ee4190435f9dc71ab09560cc109ee17029d9cab54f802b0f",
+    "tests/test_parent_affected.py": "7d5154f1a5c63ec6c36648ffee2e7292a2ec3dc5fe2edeaa25bbcae74532829b"
+  },
+  "reader_implementation_commit": "fff77d0ce6d70a753ad3350e0ee53be03203d818",
+  "initial_parent_failure": "test-only floor division of an odd total; fixed by direct ratio comparison",
+  "fpga_software_reused_from_implementation_commit": true
+}

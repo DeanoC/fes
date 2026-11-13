@@ -324,6 +324,9 @@ func InspectListing(ctx context.Context, path string) (Inspection, error) {
 			}
 		}
 		if _, err := streamMemberDigest(ctx, root, "rom-map.json", declared, sum, identity, func(r io.Reader) error {
+			if nanoROM(descriptor) {
+				return validateNanoROMMap(ctx, r, declared, descriptor)
+			}
 			if err := expansion.ValidateROMMapStream(ctx, r, declared, descriptor.Payload.SHA256, int(sourceSize)); err != nil {
 				return fmt.Errorf("ROM map: %w", err)
 			}
@@ -1172,6 +1175,12 @@ func decodeROMMapContext(ctx context.Context, retain bool, manifest, payload []b
 		if int64(len(mapping)) != size || hex.EncodeToString(hash[:]) != sha {
 			return Descriptor{}, nil, errors.New("ROM map size or digest mismatch")
 		}
+		if nanoROM(descriptor) {
+			if err := validateNanoROMMap(ctx, bytes.NewReader(mapping), size, descriptor); err != nil {
+				return Descriptor{}, nil, err
+			}
+			return descriptor, nil, nil
+		}
 		if !retain {
 			if err := expansion.ValidateROMMapStream(ctx, bytes.NewReader(mapping), size, descriptor.Payload.SHA256, int(sourceSize)); err != nil {
 				return Descriptor{}, nil, fmt.Errorf("ROM map: %w", err)
@@ -1370,9 +1379,22 @@ func ValidateDescriptor(d Descriptor) error {
 		return err
 	}
 	knownTarget := d.Target.Platform == "de10_nano" && d.Target.Device == "5CSEBA6U23I7" ||
-		d.Target.Platform == "de25_nano" && d.Target.Device == "A5EB013BB23BE4SCS"
+		(d.Format == 2 || d.Format == 5 || nanoROM(d)) &&
+			d.Target.Platform == "de25_nano" && d.Target.Device == "A5EB013BB23BE4SCS"
 	if !knownTarget {
 		return errors.New("core package: unsupported target")
+	}
+	if nanoROM(d) {
+		if d.ROM.Role != "firmware" || (d.ROM.SourceSize != 4096 && d.ROM.SourceSize != 8192) || d.ROM.Size > maxNanoROMMapBytes {
+			return errors.New("core package: Nano requires a bounded 4/8 KiB held firmware ROM")
+		}
+		found := false
+		for _, i := range d.Interfaces {
+			found = found || i.ID == "fes.embedded.rom" && i.Major == 1 && i.Minor == 0 && i.Required
+		}
+		if !found {
+			return errors.New("core package: Nano ROM requires its held transport interface")
+		}
 	}
 	if d.Payload.File != "core.rbf" {
 		return errors.New("core package: payload.file must be core.rbf")

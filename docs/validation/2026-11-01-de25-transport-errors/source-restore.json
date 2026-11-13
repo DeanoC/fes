@@ -1,0 +1,20 @@
+{
+  "source_commit": "d72926137ef5a66ea3c42b81b4c619c870a4616c",
+  "tree": "76530e5fb2ded2d075a491d90f663b9142aa7dc9",
+  "bundle_sha256": "2ed7244ad294127e631fb083a88b6ae50b8865633235ed25a9dc517b9168fcd8",
+  "prerequisite_commit": "8cea0ff0c689886727deefbe6c712ed1e1fd643e",
+  "previous_object_store": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-digest-native-20261101/source-restore.git",
+  "alternate_object_stores": [
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-physical-core-20261101/source-restore/.git/objects",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-context-20261101/source-restore.git/objects",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cpu-fpga-20261101/source-restore.git/objects",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-fpga-ready-20261101/source-restore.git/objects",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-phase2-20261101/source-restore.git/objects",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-phase2-timing-20261101/source-restore.git/objects",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-digest-native-20261101/source-restore.git/objects"
+  ],
+  "restored_tree_verified": true,
+  "verified_reachable_objects": 8316,
+  "missing_objects": 0,
+  "scope": "incremental bundle; requires the documented prior source-retention chain"
+}

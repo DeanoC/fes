@@ -1,0 +1,130 @@
+{
+  "source_commit": "12a0d0caf487f3984b49b5af6aed629868a41572",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 5649,
+      "sha256": "4942583183f9aa9bde150da6afe35497561aad8d80322ee7b73c21c9f0ac76a3"
+    },
+    {
+      "path": "bl31.json",
+      "bytes": 22630,
+      "sha256": "1f1ab5eddc9c6026c6cb1fb28909b0d1d8451bc57bdc00de399b7b97f20caa47"
+    },
+    {
+      "path": "boot-fixtures.json",
+      "bytes": 3503,
+      "sha256": "cc1a709b307a4ad3010b8cad77af025b4e05defbd836f9d894f2354065acc7b6"
+    },
+    {
+      "path": "build-retention.json",
+      "bytes": 1626,
+      "sha256": "f544262a799c1074c49509fb3d020cd02bafc26be61588be6a77d623a2250743"
+    },
+    {
+      "path": "cleanup-fixtures.json",
+      "bytes": 6052,
+      "sha256": "da6dbfa73205f2b523dd1d032d680288b607e38b6611f26267b1ed470eea99b3"
+    },
+    {
+      "path": "cleanup.json",
+      "bytes": 1014,
+      "sha256": "f99c32efa2ba7a75dcb14b513b9c08172120dcd83ce00694dd1cbeb141faf72d"
+    },
+    {
+      "path": "composition.json",
+      "bytes": 9311,
+      "sha256": "3ab80a8ec1123bc57c4a0628f7fced09cd6b86e606a1a0381ba2a3657e5d52cf"
+    },
+    {
+      "path": "entry.json",
+      "bytes": 239170,
+      "sha256": "b02a89eb9f0b12146a08e562402d730b335daa8cf3120781cab71e3cfc64618e"
+    },
+    {
+      "path": "evidence.json",
+      "bytes": 898,
+      "sha256": "b0819a52edb1a236c65f756dd0ff2775c93a9356b3ab9788cb1f1fc3a9770e52"
+    },
+    {
+      "path": "experiment.json",
+      "bytes": 1499,
+      "sha256": "6aeffbbbe0a15554f187db0e6c920b18950fd6f46cd975f4ec8ca98dd6b34f45"
+    },
+    {
+      "path": "linked-firmware.json",
+      "bytes": 3268,
+      "sha256": "4ced02f2d858691f900c79456d9e380f2648db5bd272ea9d36b474a87931b631"
+    },
+    {
+      "path": "package-artifact.json",
+      "bytes": 398,
+      "sha256": "9ae1cf228bd0304a4434044b2a4dfa420aed352d6c7d90515b85e577d77ce26b"
+    },
+    {
+      "path": "preflight.json",
+      "bytes": 3681,
+      "sha256": "5b99b146ccf1002176b47713121acc33ecd7befcdcc45ee83e0b19ac3f8c1e82"
+    },
+    {
+      "path": "recovery-console.log",
+      "bytes": 2135,
+      "sha256": "d7dd3ad888c404a08521c97d711a715b0129656f1ca7017b3b73bdc350c4a803"
+    },
+    {
+      "path": "recovery.json",
+      "bytes": 1521,
+      "sha256": "9c5ddbd1307b273c8c58bf7bfddcb5e7e0b47c28a0609e6da35d8032ac6d34a8"
+    },
+    {
+      "path": "retirement-fixtures.json",
+      "bytes": 5128,
+      "sha256": "f225fdbfef48c7c53e8608a1e407e9c49e0329638c63d88d382e3b3cb5a9a5a5"
+    },
+    {
+      "path": "sdk.json",
+      "bytes": 241770,
+      "sha256": "9220b05c5200247b879fe9167ab2284ab9bdb20965c249d883abecf03d7fddbb"
+    },
+    {
+      "path": "sealed-model.json",
+      "bytes": 106547,
+      "sha256": "029882cd4d01b4f2f8f91fa21fd7d3e0af6cdedfacc303d01825b18064335597"
+    },
+    {
+      "path": "selected-source.json",
+      "bytes": 4527,
+      "sha256": "cb4be4271ef167afc7196e2e402777da98df49303850a7d5852656d7af8d17c9"
+    },
+    {
+      "path": "software-plan.json",
+      "bytes": 13940,
+      "sha256": "29e342e50f6462166e138e20e254c47e5dc807c3c13a2064ee3025a535730a2b"
+    },
+    {
+      "path": "software.json",
+      "bytes": 10432,
+      "sha256": "fd848acfb9f5f826b7465388432454876985095b3191f58505fa60c27739c667"
+    },
+    {
+      "path": "source-restore.json",
+      "bytes": 1164,
+      "sha256": "64bdb3c9eb52e9921953d8dccbbef2293e5083542610e2a4a346e7ab11b2714e"
+    },
+    {
+      "path": "uboot.json",
+      "bytes": 46965,
+      "sha256": "8451927dfa51394b78a840682f0024790890d7a281477101b0a2ba3128fa2b84"
+    },
+    {
+      "path": "upload-boot.json",
+      "bytes": 13222,
+      "sha256": "96bc56f8860bb9caf9cffe2c372fe0702e70ada44e275d79d76a9a2a48dee3f4"
+    },
+    {
+      "path": "upload-package.json",
+      "bytes": 2599,
+      "sha256": "b9cff240eddecf058dc307d64ccb9cd4acc3d6280b1f1582657284dcf4748aad"
+    }
+  ]
+}

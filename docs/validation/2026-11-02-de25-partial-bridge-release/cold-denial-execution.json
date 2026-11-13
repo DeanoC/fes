@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_nano_cold.py",
+    "-v"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 2.8019885750254616,
+  "log_sha256": "baf4c74a2865da4cb928a47fd1f69c0f145f101a96a0f1e1a5bed9776824f6e5"
+}

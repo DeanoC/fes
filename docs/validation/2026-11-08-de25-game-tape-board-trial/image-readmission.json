@@ -1,0 +1,58 @@
+{
+  "status": "passed",
+  "classification": "new matched native image includes retained initial game tape; no hardware result",
+  "controller_source": "ba2f1ef5e08cbfb42d94f5fcf42c3e807b3534bc",
+  "compiled_source": "ba2f1ef5e08cbfb42d94f5fcf42c3e807b3534bc",
+  "native_boot_id": "71ae1d6bc14ee11d",
+  "producer_proof_sha256": "d8bdb062b0dbaa6c6a1243b53f6aed12cb75f85718824de3e3452b0b8de3388d",
+  "receipt_sha256": {
+    "out/nano-game-tape-20261108/native-sdk/result.json": "1bd66095edc17e5cb6776b48b1f94549c40cbe0e0c4d4cf4446d883aed8ce45a",
+    "out/nano-game-tape-20261108/native-entry/result.json": "370af902184ea48a99ec3f6dd390d2227b546dca66ed3ed3265d65b84240a56c",
+    "out/nano-game-tape-20261108/native-bl31/result.json": "d796c5ddf415eec2629008c3c581f51671adbbd1e888ba9b5d48b237c9ede373",
+    "out/nano-game-tape-20261108/native-uboot/result.json": "550bb86f638ab465e01f1abbc8b2f049babe9ada691441e9b7d9017ecf6d30cb",
+    "out/nano-game-tape-20261108/native-composition/result.json": "4be2a4593930a9f64164252a9658d85107f901c2835974bad7d1785a5f5c329a"
+  },
+  "artifacts": {
+    "sdk": {
+      "path": "out/nano-game-tape-20261108/native-sdk/fpgaload.elf",
+      "bytes": 15712431,
+      "sha256": "94a533dc501214e7e21e1fe50fe801db8a4a16dd7326d189d5d316b385129734"
+    },
+    "entry": {
+      "path": "out/nano-game-tape-20261108/native-entry/entry.img",
+      "bytes": 7602176,
+      "sha256": "75b941d253be942268b9bac9c5370ba46253ef81ce64679acbb7ab4ecaea4dc3"
+    },
+    "BL31": {
+      "path": "out/nano-game-tape-20261108/native-bl31/source/build/agilex5/release/bl31.bin",
+      "bytes": 229701,
+      "sha256": "d0a8af52ef7f6d1bcda784fa0925de04d4a4df9bb85ad784dd00706e4af1db6e"
+    },
+    "FIT": {
+      "path": "out/nano-game-tape-20261108/native-uboot/build/u-boot.itb",
+      "bytes": 8288800,
+      "sha256": "1e614c1634413dcb8a24ef8dff7192f90ac9377ae941f6c12a3a978c8f4bffdf"
+    },
+    "SPL": {
+      "path": "out/nano-game-tape-20261108/native-uboot/build/spl/u-boot-spl-dtb.hex",
+      "bytes": 461189,
+      "sha256": "f94e255934d5b75f051576bc5a202092134846ae4e322c90e67cbbefc59203f0"
+    },
+    "SOF": {
+      "path": "out/nano-game-tape-20261108/native-composition/native-hps-first.sof",
+      "bytes": 1578893,
+      "sha256": "5c296f1107980a3758634ed577c4fde37260b145f2d60a0ffcb07b7df04218bf"
+    }
+  },
+  "all_selected_inputs_unchanged": true,
+  "native_rebuilt": true,
+  "prior_compiled_image_attempts": 0,
+  "max_compiled_image_attempts": 1,
+  "preceding_compiled_image_attempts": 4,
+  "prior_allowance_exhausted": false,
+  "new_procedure_attempts_allowed": 1,
+  "prior_trial_result_sha256": "78e8ec413152306a773abcaced1cfd5e89159aaa47c120022eba86d953b5bdc9",
+  "hardware_actions": false,
+  "full_cycle_verified": false,
+  "ordinary_admission": false
+}

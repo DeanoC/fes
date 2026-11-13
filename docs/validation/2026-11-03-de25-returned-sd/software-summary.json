@@ -1,0 +1,248 @@
+{
+  "status": "passed",
+  "source_commit": "6e75ec57f3447cbe3e805ba6f6d9b1884046c00b",
+  "base_commit": "0e5769420976670e2e252f6a606df3f7cac02e81",
+  "affected_scopes": 11,
+  "results": [
+    {
+      "index": 0,
+      "label": "test_affected.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "log": "software-0.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.40090122097171843,
+      "log_sha256": "09f7109d0851db794b069072597b4b20d563792c2272c3b42c8a274151671aef",
+      "child_receipt_sha256": "4730f33802db8e1405c2392fc87653a3d90c75768c817a094b764e46fffbf782"
+    },
+    {
+      "index": 1,
+      "label": "test_test_changed.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "log": "software-1.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.2011118419468403,
+      "log_sha256": "da34ff81cf6a180d770ea5798c0309efc178fb9fe6d4f7370adf72dcc72dca3a",
+      "child_receipt_sha256": "bc6914b5418f2781a35248176f365d07919eec3eb11a48b4893f0d3dcd9f323b"
+    },
+    {
+      "index": 2,
+      "label": "committed whitespace",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "0e5769420976670e2e252f6a606df3f7cac02e81",
+        "--head",
+        "6e75ec57f3447cbe3e805ba6f6d9b1884046c00b"
+      ],
+      "log": "software-2.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20080211199820042,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "a0d3a9a8d778b8f56e0f2e8160ca48dc23f2266a7d5a7a9f112635e7187a8444"
+    },
+    {
+      "index": 3,
+      "label": "working whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "log": "software-3.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20071593904867768,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "8c2497f96ad9494bcc2f663a47136c56b2f33be42ad91562406aa586e70a85de"
+    },
+    {
+      "index": 4,
+      "label": "parent Python regressions",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-return-sd-checks-20261103/parent_partitions.py"
+      ],
+      "log": "software-4.log",
+      "planned_argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/entry/build.py\", \"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/nano_bridges.c\", \"platform/embedded/firmware/nano_bridges.h\", \"platform/embedded/firmware/nano_cold_platform.c\", \"platform/embedded/firmware/nano_computer_control.inc\", \"platform/embedded/firmware/nano_configuration.c\", \"platform/embedded/firmware/nano_sd.c\", \"platform/embedded/firmware/nano_sd.h\", \"platform/embedded/firmware/tests/nano_cold_platform_test.c\", \"platform/embedded/firmware/tests/nano_configuration_test.c\", \"platform/embedded/firmware/tests/nano_sd_return_test.c\", \"platform/embedded/firmware/tests/nano_sd_rpc.c\", \"platform/embedded/nano/README.md\", \"platform/embedded/nano/cold_profile.py\", \"platform/embedded/nano/hps_context.py\", \"platform/embedded/nano/native_trace.py\", \"platform/embedded/tamago/README.md\", \"platform/embedded/tamago/build.py\", \"platform/embedded/tamago/cmd/fpgaload/main.go\", \"platform/embedded/tamago/nativefabric/README.md\", \"platform/embedded/tamago/nativefabric/computer.go\", \"platform/embedded/tamago/nativefabric/hpscontext.go\", \"platform/embedded/tamago/nativefabric/storage_return_test.go\", \"platform/embedded/tamago/nativefabric/stored_configuration.go\", \"platform/embedded/tamago/packagestore/README.md\", \"platform/embedded/tamago/packagestore/return_test.go\", \"platform/embedded/tamago/packagestore/store.go\", \"platform/embedded/tamago/run.py\", \"platform/embedded/tamago/sdcontrol/README.md\", \"platform/embedded/tamago/sdcontrol/control.go\", \"platform/embedded/tamago/sdcontrol/control_test.go\", \"platform/embedded/tamago/sdcontrol/session.go\", \"platform/embedded/tamago/sdcontrol/session_test.go\", \"tests/test_nano_computer.py\", \"tests/test_nano_configuration.py\", \"tests/test_nano_cpu_mapping.py\", \"tests/test_nano_sd.py\"]"
+      ],
+      "verification_mode": "same-selected-suite-partitioned-by-module",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 221.14676415198483,
+      "log_sha256": "fa7509098b9d0fd0bb3b58e8236b74cea6f82b9cb2cc849c00d82e1833d07146",
+      "child_receipt_sha256": "c287c8924546987b3f86548afadc81853a1d3d36a4da56c02567961095109bd6"
+    },
+    {
+      "index": 5,
+      "label": "working-tree generated consumer consistency",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "log": "software-5.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.4026078609749675,
+      "log_sha256": "0abb26569563f932801c46ce2685573dd4f24c3301287f939963f0e6407a41cd",
+      "child_receipt_sha256": "f265a27d6bebde622a09d7ab46c0a2b5c30ff953240d2a5884394cd95d29296d"
+    },
+    {
+      "index": 6,
+      "label": "native SD firmware lease and PIO lifecycle",
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "90s",
+        "./sdcontrol",
+        "./sdhci",
+        "./fat",
+        "./packagestore"
+      ],
+      "log": "software-6.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.204133599996567,
+      "log_sha256": "bc4d08533ee4e0e0c231b628abf9777bdabe55c4e3672eb7d9fced0729d62a70",
+      "child_receipt_sha256": "ae96c5fae0170c5d6299b2938927381b1bd0b44810fb730d44ef8d1976d6a9b2"
+    },
+    {
+      "index": 7,
+      "label": "native runtime firmware and FPGA launch integration",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "log": "software-7.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 57.63486946793273,
+      "log_sha256": "78bed369182fd89cbf87a99ee7d01a45f3df0bd5a7a90d976e6273441e116265",
+      "child_receipt_sha256": "0c47599fa7c8de86232e9da66b7d3e72e099ffc839e9b7d94538d0d384db9d37"
+    },
+    {
+      "index": 8,
+      "label": "embedded producer identity and native control integration",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "log": "software-8.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 10.408241996075958,
+      "log_sha256": "07bf061beead7cd6bbb4b1ae33d0cf57a5253821d69eff779f92e2c00818f3cf",
+      "child_receipt_sha256": "7efae09ff4f0d2a29b8d92183254a90085580d2d2dee7beb1bac217a7f2b6a41"
+    },
+    {
+      "index": 9,
+      "label": "embedded firmware and identity/drain RTL integration",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/firmware/verify.py"
+      ],
+      "log": "software-9.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.405313864001073,
+      "log_sha256": "4ff8c4dadd4ac0f246b3edd239da0f92cae2b958c3363cd21c0aa252a665d81e",
+      "child_receipt_sha256": "a9154214c823ab3b3f0dd88c676c5147861f5190a6c108a6eaa7634ceb6444ff"
+    },
+    {
+      "index": 10,
+      "label": "test_*.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "log": "software-10.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 326.22642749000806,
+      "log_sha256": "176487c6920db0369054eeae7b25860f29b41485037c9502563e2ea3ac655018",
+      "child_receipt_sha256": "8c0ccca5c06cedbe216e60e8906a40e5c62eb90a9e88baefe0b367c642b16e9a"
+    }
+  ],
+  "parent_selected": 1326,
+  "parent_partition_bound_seconds": 300,
+  "parent_partitions": [
+    {
+      "index": 0,
+      "tests": 442,
+      "elapsed_seconds": 102.26932024897542,
+      "returncode": 0
+    },
+    {
+      "index": 1,
+      "tests": 442,
+      "elapsed_seconds": 80.45330401498359,
+      "returncode": 0
+    },
+    {
+      "index": 2,
+      "tests": 442,
+      "elapsed_seconds": 38.02640807395801,
+      "returncode": 0
+    }
+  ],
+  "parent_skips": [
+    [
+      "test_gpu_lease.GpuLeaseTests.test_macos_statfs_reports_the_lease_filesystem",
+      "statfs(2) layout is the macOS one"
+    ],
+    [
+      "test_media_inputs.UbootDerivationTest.test_locked_upstream_derives_locked_uboot",
+      "locked upstream uboot.img cache is absent"
+    ]
+  ],
+  "fpga_software_tests": 1577,
+  "controller_cases": 132,
+  "upload_session_cases": 18,
+  "transport_phase_tests": 11,
+  "sdk_entry_flag_rejections": 4,
+  "hardware_result": "stopped in recovery PHY autonegotiation before SD writes or native boot; warm return not tested"
+}

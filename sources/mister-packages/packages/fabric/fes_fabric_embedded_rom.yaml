@@ -1,0 +1,36 @@
+schema: mister-packages.v1
+kind: fabric
+id: fes.fabric.embedded-rom
+major: 1
+minor: 0
+description: >-
+  Experimental relative CSR interface for a CPU-fed 4/8 KiB ROM sink.
+  Build identity, exact length, whole-image CRC and held execution are checked
+  before completion. No physical address, SMC binding or package admission.
+constants:
+  - {name: FesEmbeddedRomMagic, value: 0x314d4f52}
+  - {name: FesEmbeddedRomVersion, value: 0x10000}
+  - {name: FesEmbeddedRomIdOffset, value: 0x0}
+  - {name: FesEmbeddedRomVersionOffset, value: 0x4}
+  - {name: FesEmbeddedRomBytesOffset, value: 0x8}
+  - {name: FesEmbeddedRomStatusOffset, value: 0xc}
+  - {name: FesEmbeddedRomExpectedCrcOffset, value: 0x10}
+  - {name: FesEmbeddedRomObservedCrcOffset, value: 0x14}
+  - {name: FesEmbeddedRomReceivedOffset, value: 0x18}
+  - {name: FesEmbeddedRomWrittenOffset, value: 0x1c}
+  - {name: FesEmbeddedRomCommandOffset, value: 0x20}
+  - {name: FesEmbeddedRomDataOffset, value: 0x30}
+  - {name: FesEmbeddedRomBuildOffset, value: 0x40}
+  - {name: FesEmbeddedRomSpan, value: 0x80}
+  - {name: FesEmbeddedRomStart, value: 0x1}
+  - {name: FesEmbeddedRomAbort, value: 0x2}
+  - {name: FesEmbeddedRomHeld, value: 0x1}
+  - {name: FesEmbeddedRomReady, value: 0x2}
+  - {name: FesEmbeddedRomLoaded, value: 0x4}
+  - {name: FesEmbeddedRomFailed, value: 0x8}
+  - {name: FesEmbeddedRomActive, value: 0x10}
+  - {name: FesEmbeddedRomStatusMask, value: 0x1f}
+  - {name: FesEmbeddedRomMaxBytes, value: 0x2000}
+  - {name: FesEmbeddedRomMaxPolls, value: 0x40}
+  - {name: FesEmbeddedRomTickHz, value: 0x17d78400}
+  - {name: FesEmbeddedRomMaxTicks, value: 0x17d78400}

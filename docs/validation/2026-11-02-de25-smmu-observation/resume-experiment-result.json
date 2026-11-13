@@ -1,0 +1,75 @@
+{
+  "scope": "one qualified recovery boot and fixed FIT upload/readback; one native SMMU/CPU serial observation; restore15M",
+  "source_commit": "64157280e2e7b06d08c1e43fb7ceff6c0214e3ed",
+  "native_sof_sha256": "a6cea2259714cadfab111cea8c4c7eb89dac5f00b0122ff26dd09a692ba8127f",
+  "target_clock": "6M",
+  "clock_change_attempted": true,
+  "pass": true,
+  "sd_write_commands_sent": false,
+  "attempt_number_on_source": 2,
+  "stop_after_this_failure": true,
+  "carried_forward_upload": "58ba6d151675b7a57f9486844efdd211ed216e1a1c973435744b864f56bc1162",
+  "ddr_traffic_requested": false,
+  "core_load_acceptance": false,
+  "started_utc": "2026-11-02T05:29:59.528741+00:00",
+  "stages": [
+    {
+      "clock_operation": "clock-before",
+      "returncode": 0,
+      "output": "15M"
+    },
+    {
+      "clock_operation": "clock-set-6M",
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "clock_operation": "clock-confirm-6M",
+      "returncode": 0,
+      "output": "6M"
+    },
+    {
+      "phase": "native",
+      "returncode": 0
+    },
+    {
+      "clock_operation": "clock-restore",
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "clock_operation": "clock-restored-readback",
+      "returncode": 0,
+      "output": "15M"
+    }
+  ],
+  "original_clock": "15M",
+  "stage": "native",
+  "native_phase_passed": true,
+  "smmu_observation": {
+    "status": 0,
+    "reads": 26,
+    "idr0": 135233087,
+    "idr1": 242457880,
+    "aidr": 1,
+    "s_idr1": 2147483672,
+    "cr0": 0,
+    "ack": 0,
+    "gbpa": 0,
+    "agbpa": 0,
+    "s_cr0": 0,
+    "s_ack": 0,
+    "s_init": 0,
+    "s_gbpa": 0,
+    "s_agbpa": 0,
+    "identified": 1,
+    "settled": 1,
+    "bypass_controls_clear": 1,
+    "secure_implemented": true,
+    "access_qualified": false
+  },
+  "restored_clock": "15M",
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "finished_utc": "2026-11-02T05:30:22.236844+00:00"
+}

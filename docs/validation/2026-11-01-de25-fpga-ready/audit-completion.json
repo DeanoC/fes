@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "python3",
+    "out/nano-fpga-ready-20261101/postcheck.py"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.20127590198535472,
+  "log_sha256": "ad1111e1e104461bc592a37d1553508af6ed6faca65537862b670f3bf5f66f4b"
+}

@@ -1,0 +1,20 @@
+{
+  "archive": "/home/deano/fes-retained/de25-phase2-timing-20261101/builds.tar.gz",
+  "size": 148021617,
+  "sha256": "2fda8fcc333959103213b645228b7687102e6a67a27c95a258a33797fdc9c351",
+  "members": 43680,
+  "every_member_verified": true,
+  "source": {
+    "source_commit": "9ce1af2a6e65426a759d7240722845a425d820b3",
+    "tree": "a589905b1a3262b2bc115c1cad9f7ba4d259f526",
+    "bundle_sha256": "9900af73f16c476b14ee16064101ba3bbba804f2980297bd7710610adf0cd275",
+    "prerequisite_commit": "a0e2bee4e1522f4aff490a562c819c79f07efd3c",
+    "previous_object_store": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-phase2-20261101/source-restore.git",
+    "restored_tree_verified": true,
+    "verified_reachable_objects": 8221,
+    "missing_objects": 0,
+    "scope": "incremental bundle; requires the documented prior source-retention chain"
+  },
+  "manifest_sha256": "43a8e08934d74f9ecb0422def79517d0831c401e2a24a6df48b683efddfda710",
+  "prior_retention": "/home/deano/fes-retained/de25-phase2-20261101"
+}

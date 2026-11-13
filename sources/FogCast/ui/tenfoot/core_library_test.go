@@ -389,6 +389,30 @@ func TestCoreLibraryNavigationOwnsInputAndPointer(t *testing.T) {
 	}
 }
 
+func TestConfiguredCoreLibraryLinkRequiresEntriesAndAnIdleSession(t *testing.T) {
+	a := NewApp(nil, 1280, 720, 10)
+	setup := &hostclient.CoreSetup{}
+	a.coreLibrary = coreLibraryState{Open: true, Online: true, Ref: &hostclient.CoreReference{}, Setup: setup}
+	a.mu.Lock()
+	for _, row := range a.coreLibraryRowsLocked() {
+		if row.Kind == "library" {
+			t.Fatal("unconfigured package offered an existing library entry")
+		}
+	}
+	setup.Entries = []hostclient.CoreEntry{{GameID: "configured", Title: "Configured"}}
+	rows := a.coreLibraryRowsLocked()
+	if rows[0].Kind != "library" || rows[0].Name != "Open library" {
+		t.Fatal("configured setup has no library route", rows)
+	}
+	a.session.State = "active"
+	a.handleCoreLibraryLocked(CmdSelect)
+	open, status := a.coreLibrary.Open, a.coreLibrary.Status
+	a.mu.Unlock()
+	if !open || status != runningMachineLibraryBlockedStatus {
+		t.Fatal("library navigation escaped a running machine", open, status)
+	}
+}
+
 func TestCoreLibraryPendingRequestAllowsCancel(t *testing.T) {
 	entered := make(chan struct{})
 	cancelled := make(chan struct{})

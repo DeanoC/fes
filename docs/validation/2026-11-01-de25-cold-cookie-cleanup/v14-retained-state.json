@@ -1,0 +1,17 @@
+{
+  "utc": "2026-11-01T13:33:31.594414+00:00",
+  "claim_held": true,
+  "uart_owner_absent": true,
+  "usb_permissions_restored": true,
+  "jtag_id": "4362C0DD",
+  "clock": "15M",
+  "native_programming_complete": true,
+  "spl_sd_handoff_reported": true,
+  "secure_provider_rejected": true,
+  "fesboot_sent": false,
+  "sd_write_commands_sent": false,
+  "native_admission": false,
+  "native_result_sha256": "8982dc34c2f4aa3a257072ea5203afbbf15e8f76c10b5243415382874de28747",
+  "outer_result_sha256": "8f7759f677060bb234bcc5d70035f14bf0b385cb9f107f776184587eda869b33",
+  "helper_sha256": "c72144e886fc7af7265b7232146d46540ad5c5abe208b3d7f22453544dac30f2"
+}

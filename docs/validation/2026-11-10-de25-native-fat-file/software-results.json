@@ -1,0 +1,738 @@
+{
+  "complete": true,
+  "passed": true,
+  "source_commit": "e984200f1d86f8a772f116b17ebde5759c97dcc7",
+  "plan": {
+    "format": 1,
+    "root": "/home/deano/fes/out/dev/de25-embedded-os",
+    "base": "a0aa06ba8e16edf92592fad3d16ecc5074529713",
+    "head": "e984200f1d86f8a772f116b17ebde5759c97dcc7",
+    "checkout_head": "e984200f1d86f8a772f116b17ebde5759c97dcc7",
+    "merge_base": "a0aa06ba8e16edf92592fad3d16ecc5074529713",
+    "local_paths": [],
+    "impact": {
+      "lanes": {
+        "parent": true,
+        "host": true,
+        "runtime": true,
+        "contracts": true,
+        "fpga": true
+      },
+      "skipped": [],
+      "cores": [],
+      "test_modes": {
+        "video": false,
+        "media": false,
+        "full_race": false
+      },
+      "paths": [
+        "platform/embedded/nano/fat_file_trace.py",
+        "platform/embedded/nano/native_trace.py",
+        "platform/embedded/tamago/build.py",
+        "platform/embedded/tamago/cmd/sdfile/main.go",
+        "platform/embedded/tamago/fatcheck/README.md",
+        "platform/embedded/tamago/fatcheck/check.go",
+        "platform/embedded/tamago/fatcheck/check_test.go",
+        "platform/embedded/tamago/run.py",
+        "platform/embedded/tamago/sdcontrol/README.md",
+        "platform/embedded/tamago/sdcontrol/fatfile_test.go",
+        "scripts/affected.py",
+        "scripts/test_changed.py",
+        "tests/test_embedded_board_profile.py",
+        "tests/test_nano_native_trace.py",
+        "tests/test_test_changed.py"
+      ],
+      "reasons": [
+        "platform/embedded/nano/fat_file_trace.py: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/nano/native_trace.py: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/build.py: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/cmd/sdfile/main.go: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/fatcheck/check.go: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/fatcheck/check_test.go: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/run.py: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/sdcontrol/fatfile_test.go: parent orchestration/tests/assembly; component sources unchanged",
+        "scripts/affected.py: parent orchestration/tests/assembly; component sources unchanged",
+        "scripts/test_changed.py: software CI infrastructure; RTL unchanged",
+        "tests/test_embedded_board_profile.py: parent orchestration/tests/assembly; component sources unchanged",
+        "tests/test_nano_native_trace.py: parent orchestration/tests/assembly; component sources unchanged",
+        "tests/test_test_changed.py: parent orchestration/tests/assembly; component sources unchanged"
+      ],
+      "always": [
+        "planner tests",
+        "diff whitespace checks"
+      ],
+      "not_run": [
+        "FPGA synthesis/place-and-route",
+        "cold image builds",
+        "hardware acceptance"
+      ]
+    },
+    "commands": [
+      {
+        "lane": "always",
+        "label": "test_affected.py",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_affected.py",
+          "-v"
+        ],
+        "tools": [
+          "/usr/bin/python3"
+        ],
+        "files": [
+          "tests/test_affected.py"
+        ]
+      },
+      {
+        "lane": "always",
+        "label": "test_test_changed.py",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_test_changed.py",
+          "-v"
+        ],
+        "tools": [
+          "/usr/bin/python3"
+        ],
+        "files": [
+          "tests/test_test_changed.py"
+        ]
+      },
+      {
+        "lane": "always",
+        "label": "committed whitespace",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/check_diff.py",
+          "--base",
+          "a0aa06ba8e16edf92592fad3d16ecc5074529713",
+          "--head",
+          "e984200f1d86f8a772f116b17ebde5759c97dcc7"
+        ],
+        "tools": [
+          "/usr/bin/python3"
+        ],
+        "files": []
+      },
+      {
+        "lane": "always",
+        "label": "working whitespace",
+        "cwd": ".",
+        "argv": [
+          "git",
+          "diff",
+          "--check",
+          "HEAD",
+          "--"
+        ],
+        "tools": [
+          "git"
+        ],
+        "files": []
+      },
+      {
+        "lane": "parent",
+        "label": "parent Python regressions",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/parent_tests.py",
+          "--video",
+          "false",
+          "--media",
+          "false",
+          "--paths-json",
+          "[\"platform/embedded/nano/fat_file_trace.py\", \"platform/embedded/nano/native_trace.py\", \"platform/embedded/tamago/build.py\", \"platform/embedded/tamago/cmd/sdfile/main.go\", \"platform/embedded/tamago/fatcheck/README.md\", \"platform/embedded/tamago/fatcheck/check.go\", \"platform/embedded/tamago/fatcheck/check_test.go\", \"platform/embedded/tamago/run.py\", \"platform/embedded/tamago/sdcontrol/README.md\", \"platform/embedded/tamago/sdcontrol/fatfile_test.go\", \"scripts/affected.py\", \"scripts/test_changed.py\", \"tests/test_embedded_board_profile.py\", \"tests/test_nano_native_trace.py\", \"tests/test_test_changed.py\"]"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "sh"
+        ],
+        "files": [
+          "scripts/parent_tests.py",
+          "tests"
+        ]
+      },
+      {
+        "lane": "parent",
+        "label": "working-tree generated consumer consistency",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "-c",
+          "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "go"
+        ],
+        "files": [
+          "scripts/consistency.py"
+        ]
+      },
+      {
+        "lane": "parent",
+        "label": "native SD firmware lease and PIO lifecycle",
+        "cwd": "platform/embedded/tamago",
+        "argv": [
+          "go",
+          "test",
+          "-race",
+          "-count=1",
+          "-timeout",
+          "90s",
+          "./sdcontrol",
+          "./sdhci",
+          "./fat",
+          "./packagestore",
+          "./fatcheck"
+        ],
+        "tools": [
+          "cc",
+          "go",
+          "mcopy",
+          "mformat",
+          "mmd",
+          "mtype"
+        ],
+        "files": [
+          "sdcontrol/session_test.go",
+          "sdhci/sdhci.go",
+          "packagestore/store_test.go"
+        ]
+      },
+      {
+        "lane": "host",
+        "label": "host Go and UI tests",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/host_tests.py",
+          "--ui-if-needed",
+          "--paths-json",
+          "[\"platform/embedded/nano/fat_file_trace.py\", \"platform/embedded/nano/native_trace.py\", \"platform/embedded/tamago/build.py\", \"platform/embedded/tamago/cmd/sdfile/main.go\", \"platform/embedded/tamago/fatcheck/README.md\", \"platform/embedded/tamago/fatcheck/check.go\", \"platform/embedded/tamago/fatcheck/check_test.go\", \"platform/embedded/tamago/run.py\", \"platform/embedded/tamago/sdcontrol/README.md\", \"platform/embedded/tamago/sdcontrol/fatfile_test.go\", \"scripts/affected.py\", \"scripts/test_changed.py\", \"tests/test_embedded_board_profile.py\", \"tests/test_nano_native_trace.py\", \"tests/test_test_changed.py\"]"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "cc",
+          "go",
+          "make",
+          "node",
+          "rg",
+          "sh"
+        ],
+        "files": [
+          "scripts/host_tests.py",
+          "sources/FogCast/Makefile",
+          "sources/FogCast/go.mod",
+          "sources/FogCast/appliance/go.mod",
+          "sources/misteross/expansion/go.mod"
+        ],
+        "host_ui": {
+          "required": true,
+          "scheduled": true,
+          "boundary_scheduled": false,
+          "command_scheduled": true,
+          "target": "test-ui",
+          "reason": "UI/API, production/full or uncertain inputs"
+        }
+      },
+      {
+        "lane": "runtime",
+        "label": "runtime software tests",
+        "cwd": "sources/libmister-runtime",
+        "argv": [
+          "make",
+          "-j2",
+          "test"
+        ],
+        "tools": [
+          "ar",
+          "c++",
+          "c++filt",
+          "make",
+          "nm",
+          "rg",
+          "sh"
+        ],
+        "files": [
+          "Makefile"
+        ]
+      },
+      {
+        "lane": "contracts",
+        "label": "contract schemas and generated fixtures",
+        "cwd": "sources/mister-packages",
+        "argv": [
+          "make",
+          "test",
+          "PYTHON=/usr/bin/python3"
+        ],
+        "tools": [
+          "go",
+          "make"
+        ],
+        "files": [
+          "Makefile"
+        ]
+      },
+      {
+        "lane": "fpga",
+        "label": "test_*.py",
+        "cwd": "sources/misteross",
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "strace"
+        ],
+        "files": [
+          "tests/test_*.py"
+        ]
+      }
+    ],
+    "limits": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance",
+      "platform/image packaging suite",
+      "required browser integration suite",
+      "committed-source/release validation (make check remains separate)"
+    ],
+    "status": "planned"
+  },
+  "commands": [
+    {
+      "index": 0,
+      "label": "test_affected.py",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_affected.py",
+          "-v"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 0.4011092069558799,
+        "log_sha256": "7f79a2da605938aaaa79a6a0548048745a1f6ec847045a38077619a03c680392"
+      },
+      "result_sha256": "fc041a96f73670bba50a27e0baa554a07e04a8ef1d08b3ea0984e4bf4025fb73"
+    },
+    {
+      "index": 1,
+      "label": "test_test_changed.py",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_test_changed.py",
+          "-v"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 1.2012133658863604,
+        "log_sha256": "3d4b5711a3eaff2add23c6756d4e2203695fa7526056f15d4257d515052a2a1c"
+      },
+      "result_sha256": "7e141fe5d24a76e8bb07c4fa1a601ffbc192f0e7031789288cfde47e5733421c"
+    },
+    {
+      "index": 2,
+      "label": "committed whitespace",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/check_diff.py",
+          "--base",
+          "a0aa06ba8e16edf92592fad3d16ecc5074529713",
+          "--head",
+          "e984200f1d86f8a772f116b17ebde5759c97dcc7"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 0.20084913889877498,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "result_sha256": "5fcb5b2529d7de49b72d5a5aab5f047c17dfb2d9436cb915b44a1f902e972bd1"
+    },
+    {
+      "index": 3,
+      "label": "working whitespace",
+      "result": {
+        "argv": [
+          "git",
+          "diff",
+          "--check",
+          "HEAD",
+          "--"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 0.2009129871148616,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "result_sha256": "fea09ee7e0e8cfac0d80ee0bac5ac9f0ced9a8f4b51f07262545d751dfaf6c07"
+    },
+    {
+      "index": 4,
+      "label": "parent Python regressions",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/parent_tests.py",
+          "--video",
+          "false",
+          "--media",
+          "false",
+          "--paths-json",
+          "[\"platform/embedded/nano/fat_file_trace.py\", \"platform/embedded/nano/native_trace.py\", \"platform/embedded/tamago/build.py\", \"platform/embedded/tamago/cmd/sdfile/main.go\", \"platform/embedded/tamago/fatcheck/README.md\", \"platform/embedded/tamago/fatcheck/check.go\", \"platform/embedded/tamago/fatcheck/check_test.go\", \"platform/embedded/tamago/run.py\", \"platform/embedded/tamago/sdcontrol/README.md\", \"platform/embedded/tamago/sdcontrol/fatfile_test.go\", \"scripts/affected.py\", \"scripts/test_changed.py\", \"tests/test_embedded_board_profile.py\", \"tests/test_nano_native_trace.py\", \"tests/test_test_changed.py\"]"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 411.46606988087296,
+        "log_sha256": "2c807dcb1c62f85fa229db46a644c3b45015948c7daaa88179518921c02e0aaf"
+      },
+      "result_sha256": "9548c6a33c54f8f1874ef561f3a23b3014cefd9802dcdcc621aaa5c43c374817"
+    },
+    {
+      "index": 5,
+      "label": "working-tree generated consumer consistency",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "-c",
+          "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 7.20644574589096,
+        "log_sha256": "0d3b9149ecd3c2180968462d0aaef1844c3af5a5185fce2b0ed1c02ec490ea89"
+      },
+      "result_sha256": "9c630634022121caf4b9a4921db08222aa6fe688ec912c98511ba88a7eb42632"
+    },
+    {
+      "index": 6,
+      "label": "native SD firmware lease and PIO lifecycle",
+      "result": {
+        "argv": [
+          "go",
+          "test",
+          "-race",
+          "-count=1",
+          "-timeout",
+          "90s",
+          "./sdcontrol",
+          "./sdhci",
+          "./fat",
+          "./packagestore",
+          "./fatcheck"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/tamago",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 8.405135125853121,
+        "log_sha256": "921afd4067850bd2da7a0f65c9b1b6848b6336e7381dc913c2eba128ab8a7f5a"
+      },
+      "result_sha256": "ea16566a6cf042a9ded8c428c6919b0331479e560f83986b62c707f5ecedcd64"
+    },
+    {
+      "index": 7,
+      "label": "host Go and UI tests",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/host_tests.py",
+          "--ui-if-needed",
+          "--paths-json",
+          "[\"platform/embedded/nano/fat_file_trace.py\", \"platform/embedded/nano/native_trace.py\", \"platform/embedded/tamago/build.py\", \"platform/embedded/tamago/cmd/sdfile/main.go\", \"platform/embedded/tamago/fatcheck/README.md\", \"platform/embedded/tamago/fatcheck/check.go\", \"platform/embedded/tamago/fatcheck/check_test.go\", \"platform/embedded/tamago/run.py\", \"platform/embedded/tamago/sdcontrol/README.md\", \"platform/embedded/tamago/sdcontrol/fatfile_test.go\", \"scripts/affected.py\", \"scripts/test_changed.py\", \"tests/test_embedded_board_profile.py\", \"tests/test_nano_native_trace.py\", \"tests/test_test_changed.py\"]"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 32.01705943979323,
+        "log_sha256": "07791949b19501895419c38d115a148d96269b9d8f32d1a3c2e9149fb68223f0"
+      },
+      "result_sha256": "bc3184091ab37d7828d3e5884db43b162f9dcbe6dc43d06770bc5b01bbd9219f"
+    },
+    {
+      "index": 8,
+      "label": "runtime software tests",
+      "result": {
+        "argv": [
+          "make",
+          "-j2",
+          "test"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 286.8171874890104,
+        "log_sha256": "7d6ec52b10a37a45ed6e14bc5eed67b0ed1bde3b76440d3fd6b0a27e949d4a32"
+      },
+      "result_sha256": "b391ee9bf2270e032385153891a5a1f611097b729584f7bf3bb2a008920e7a35"
+    },
+    {
+      "index": 9,
+      "label": "contract schemas and generated fixtures",
+      "result": {
+        "argv": [
+          "make",
+          "test",
+          "PYTHON=/usr/bin/python3"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/mister-packages",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 5.403043685015291,
+        "log_sha256": "b0ab924c08762c76ed169977c0fc25f94bb5b3ebf3cceb7801c6f861fbc91748"
+      },
+      "result_sha256": "2c1cb3e8391332f75abf88cde1c8d6e5e6683ffc25941b35788189c55e4a046b"
+    },
+    {
+      "index": 10,
+      "label": "test_*.py",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 435.70415186998434,
+        "log_sha256": "83d274b80cc9296d2fe199b3e596ff05ed298d5965dbc8f7fb465edaa71c3e12"
+      },
+      "result_sha256": "673ede038c31590110a4c9c1cb1ab822811d604b74916c692bee48b5b44a8291"
+    }
+  ],
+  "supplemental": {
+    "trace-fixed": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "test_nano_native_trace.NativeFATFileTraceTests",
+        "test_embedded_board_profile",
+        "test_test_changed",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.6028171479701996,
+      "log_sha256": "d677285545622180a8b777ae77ffdfea685cf25bfde7edb758e63af752d803d4"
+    },
+    "fat-failure": {
+      "argv": [
+        "/bin/sh",
+        "-c",
+        "cd platform/embedded/tamago && go test -race -count=1 -timeout 90s -run TestFATFile -v ./sdcontrol"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.203682256862521,
+      "log_sha256": "d5e6d17e2551dc5bbb240d8c0bf837300de30d7a846294d5261c59fdbf97801f"
+    },
+    "plan-parser-final": {
+      "argv": [
+        "/bin/sh",
+        "-c",
+        "cd platform/embedded/tamago && go test -race -count=1 -timeout 90s ./fatcheck"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.4020215820055455,
+      "log_sha256": "9ffd80facba096db9f4bd6aa360f52bfe267689d104e3075a186149f4de61ad1"
+    },
+    "native-sdk": {
+      "argv": [
+        "python3",
+        "platform/embedded/tamago/run.py",
+        "sdfile",
+        "--board",
+        "de25-nano",
+        "--profile",
+        "platform/embedded/nano/sd-profile.json",
+        "--sd-write-plan",
+        "out/nano-fat-file-20261110/real-spare-fat-file-plan.json",
+        "--compiler",
+        "out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+        "--output",
+        "out/nano-fat-file-20261110/native-sdk"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.4021141161210835,
+      "log_sha256": "6ac3f7e0209265b190c4b4defcad6c5763a29c882b337911d568425dcfbe7fd1"
+    },
+    "native-entry": {
+      "argv": [
+        "python3",
+        "platform/embedded/entry/build.py",
+        "--target",
+        "de25-nano",
+        "--payload",
+        "out/nano-fat-file-20261110/native-sdk/sdfile.elf",
+        "--nano-build",
+        "out/nano-fat-file-20261110/native-sdk",
+        "--profile",
+        "platform/embedded/nano/sd-profile.json",
+        "--image-address",
+        "0x96080000",
+        "--cross-prefix",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+        "--output",
+        "out/nano-fat-file-20261110/native-entry"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.601686866953969,
+      "log_sha256": "2f85c3d686f7b5fd9dc9a31320fab27c6ac172fdfc1d7f3c21f1baa118cd3e74"
+    },
+    "bl31": {
+      "argv": [
+        "python3",
+        "platform/embedded/firmware/build_terasic.py",
+        "--reference-repo",
+        "out/terasic-git-restore-tfa",
+        "--cross-prefix",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+        "--nano-owned-bridges",
+        "--nano-cold-serial-entry",
+        "out/nano-fat-file-20261110/native-entry",
+        "--jobs",
+        "2",
+        "--output",
+        "out/nano-fat-file-20261110/native-bl31"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.004636263940483,
+      "log_sha256": "fcd1129f8b7a06bb71beefc4e6bffcf87c2a2e48df245a07e3730c902ce0b93d"
+    },
+    "uboot": {
+      "argv": [
+        "python3",
+        "platform/embedded/firmware/build_terasic_uboot.py",
+        "--reference-repo",
+        "out/terasic-git-restore-uboot",
+        "--bl31-build",
+        "out/nano-fat-file-20261110/native-bl31",
+        "--cross-prefix",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+        "--native-entry-build",
+        "out/nano-fat-file-20261110/native-entry",
+        "--jobs",
+        "2",
+        "--output",
+        "out/nano-fat-file-20261110/native-uboot"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 37.81984324497171,
+      "log_sha256": "a2fa25a5ae138031c061e768984848b6000f6c776c7991a0f3419a8c8409fb19"
+    },
+    "package": {
+      "argv": [
+        "flock",
+        "-w",
+        "60",
+        "-E",
+        "75",
+        "/tmp/lander-quartus-3090.lock",
+        "python3",
+        "platform/embedded/nano/package.py",
+        "--uboot-build",
+        "out/nano-fat-file-20261110/native-uboot",
+        "--entry-build",
+        "out/nano-fat-file-20261110/native-entry",
+        "--recovery-kit",
+        "out/nano-mmu-logging-recovery-20261109/base-kit",
+        "--vendor-sof",
+        "/home/deano/fes-retained/de25-top-recovery-inventory-20261031/golden_top_hps.sof",
+        "--quartus-pfg",
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "--output",
+        "out/nano-fat-file-20261110/native-kit"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.003145124996081,
+      "log_sha256": "2e4f7995a2404bd0a3ee36eb45f4b30fdf4adcfb8ee7d9d2d5f0d5f1013a78fa"
+    },
+    "selection-fixed": {
+      "argv": [
+        "python3",
+        "out/nano-fat-file-20261110/check_prepared.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.40112895192578435,
+      "log_sha256": "f27b77e54b97c619e67c00f8e2c6ba31851cd4a6eb6501520e3d60d6837d8f97"
+    }
+  },
+  "final_parser_test_change": "Only the Go test was strengthened after selection; plan-parser-final checks duplicate/unknown fields on otherwise valid input. Production source and SDK source hashes are unchanged.",
+  "final_parser_test_sha256": "7d87f9dcb1bf645e49b99fd174491c5a7946b8fb7d760826ca64284ad4cfa608",
+  "retained_initial_offline_failures": [
+    "trace-focused: new path field was incorrectly treated as numeric by the observer; fixed before source commit",
+    "selection: preparation script used sources instead of the existing source_sha256 receipt key; script fixed, SDK unchanged"
+  ],
+  "hardware_actions": false,
+  "physical_fat_acceptance": false,
+  "ordinary_admission": false
+}

@@ -1,0 +1,22 @@
+{
+  "package_id": "07b2d01003dc92e4993ba7f72761444ae801a1a005f87e0a1b65f9aad9dfeb7d",
+  "build_id": "d2435ab5d8221892162a1044d81dfb76",
+  "hps_io_hash": "df9589f2122209af6d453bee8ba0dd18f3192fa556b0b6e245cd3cb1a8fe4b1f",
+  "native_boot_id": "4c6f36ad1151b1e9",
+  "fit_sha256": "9ccc7ff2f00cecc7cf744e0722e48fa40d0d25bd25b2db920f8d388448b448ec",
+  "spl_sha256": "d08bfff203132b2932fa54a27dcb9f30902c24bd8ed69856c9d49f8e7226720f",
+  "entry_sha256": "5a8f8026bef9ec7157ef019999a7a2de3e5ba89edc3f3cbd01531e17948e52f5",
+  "bl31_sha256": "a9f96ef8a210f6f56403d5ead2944fc304e821ff673b383f7c0702732b232240",
+  "sof_sha256": "c51278415a6778af219ec6e863254aeb44021b142a98e2b171abb9fac3306722",
+  "phase1_sha256": "4ec444a0e8fa45ca37882c882b3bfcd6f7663f132fe80c1c900eb03fef9f2257",
+  "core_sha256": "170a3929afc316bcaa51b25e69ce60a7f44c53542126ce6e82d90a99767998d0",
+  "core_size": 1642496,
+  "core_payload_unchanged": true,
+  "hps_context_sha256": "3d8809ff23eacc5cb108b05fd79333157f77643b3542e666f9403b2027acdb43",
+  "hps_control_sha256": "63d62c64401f4c68fdcccf8e3f3b11a710eae52b5c3a7c479eb4f5babac2b634",
+  "source_commit": "b05c00f0a6f26df0acfc03e762e85e71e86d6d81",
+  "board_revision": "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+  "classification": "sealed DDR diagnostic and matched native chain; contained hardware observation only",
+  "raw_sof_sha256": "c269b5d0fe963607101e1e7f7ecacb503735a1c73faace79d311c0d4d719e38b",
+  "raw_trace_sha256": "1fdbbf109327341099598cbefc5a9ac87cdedc391959c131d11972097cdfc084"
+}

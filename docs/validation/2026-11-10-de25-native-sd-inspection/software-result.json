@@ -1,0 +1,75 @@
+{
+  "status": "passed-software-and-procedure-preparation",
+  "base_commit": "8e07258b8f129d668a5f371ce94907b7c5dbfb41",
+  "compiled_source": "8e07258b8f129d668a5f371ce94907b7c5dbfb41",
+  "native_boot_id": "4d1d7cc52d07940d",
+  "decoder_sha256": "ab49bad8587d2f2a2ef0b5aba43fda38ae9ea1229f49ee7b0104e6695f869fd7",
+  "focused_trace_tests": 59,
+  "parent_tests": 1857,
+  "existing_parent_skips": 3,
+  "all_six_selected_checks_passed": true,
+  "software_checks_sha256": "0acc10f80390074b9952cf5e904db2c634dbeeff2b3a002d561c0e5ff7f18d98",
+  "operator_model_sha256": "b0f99f54e2f9124a3dba802cb54cc2d5b2972b027d569e558c4852f0f62edcb1",
+  "frozen_source_sha256": "004769bad59cd67dd6cc5f9b2bac94d0cde469bbfc197bb538b2ca94e8f7ba57",
+  "cleanup_of_previous_menu": {
+    "status": "passed-fresh-owned-menu-quit-and-independent-drain-observation",
+    "owner": "bccd55323262a6e3",
+    "source_bridge_generation": 17,
+    "closed_bridge_generation": 18,
+    "reset_mask": 15,
+    "masters_contained": true,
+    "app_exit": "parked generation=3",
+    "cpu_park_observed": false,
+    "serial_bytes_sent": 1,
+    "fpga_programming": false,
+    "sd_writes": false,
+    "scope": "Preparation cleanup of previous active menu; original failed timed display test remains failed",
+    "console_sha256": "4aafe8926ed9e1ddf7f80b4053f9db7ac39bdad01ae7d581d977572d4a743ceb",
+    "firmware_observations": {
+      "scope": {
+        "phase": "close",
+        "owner": "bccd55323262a6e3",
+        "generation": "17",
+        "reset": "5"
+      },
+      "master": {
+        "status": "0",
+        "owner": "bccd55323262a6e3",
+        "generation": "17",
+        "reset": "5",
+        "reader_reads": "88",
+        "reader_polls": "1",
+        "disable": "0",
+        "probe_polls": "2",
+        "cancel": "0",
+        "complete": "1"
+      },
+      "reader_drain": {
+        "owner": "bccd55323262a6e3",
+        "generation": "17",
+        "reset": "5",
+        "reader_generation": "1",
+        "request_generation": "1",
+        "cookie": "1",
+        "ack_generation": "1",
+        "ack_cookie": "1",
+        "status": "4",
+        "pending": "0"
+      },
+      "closure": {
+        "owner": "bccd55323262a6e3",
+        "generation": "18",
+        "reset": "f",
+        "hardware_drained": "8",
+        "data_remained_contained": "0",
+        "producers_quiescent": "1",
+        "fabric_acknowledged": "0"
+      }
+    }
+  },
+  "native_sd_write_tested": false,
+  "inspection_hardware_attempt_started": false,
+  "new_programming_grant_created": false,
+  "ordinary_admission": false,
+  "full_appliance_acceptance": false
+}

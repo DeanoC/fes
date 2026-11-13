@@ -1,0 +1,8 @@
+test_spikes_and_their_rtl_lint (test_fes_i386_frontend.RtlTest.test_spikes_and_their_rtl_lint) ... ok
+test_directed_device_checks (test_pc386_machine.DeviceBenchTest.test_directed_device_checks) ... ok
+test_opl2_against_nuked_opl3 (test_pc386_machine.DeviceBenchTest.test_opl2_against_nuked_opl3) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 55.531s
+
+OK

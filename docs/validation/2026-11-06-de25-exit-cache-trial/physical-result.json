@@ -1,0 +1,833 @@
+{
+  "format": 1,
+  "status": "stopped-before-native-application",
+  "classification": "one bounded physical diagnostic: both private exit-clean receipts and full31 runtime progression reach U-Boot; application startup times out after memory report",
+  "firmware_source": "66812745d1e460b9df15ce899bc05b5c80f41edd",
+  "native_source": "31d716957759c3dede3330877dac2ce7bcd2d643",
+  "operator_source": "4c7dca87bf314962d8f5617d9b2402dff50d53ca",
+  "attempts": 1,
+  "failures_on_compiled_input": 1,
+  "stop_first_failure": true,
+  "replayed": false,
+  "recovery_qualified": true,
+  "post_power_interruption_recovery_verified": true,
+  "verified_uploads": 8,
+  "fresh_sd_readbacks": 8,
+  "sd_writes": true,
+  "native_programming_complete": true,
+  "fit_verified_before_parsing": true,
+  "atf_trace_bl31_sha256": "486c4dd73ad4b6da97dd11030d4560e6b5c79e5f4e73f1ee2926d7394b6c31b0",
+  "secure_entry_crossing_proven": true,
+  "physical_ram_guard_passed": true,
+  "physical_initial_cache_return_observed": true,
+  "physical_exit_cache_return_observed": true,
+  "physical_cache_geometry_coverage_verified": false,
+  "decode_logging_restored": true,
+  "all_vendor_checkpoints_observed": true,
+  "reported_exceptions": [],
+  "runtime_startup": {
+    "records": [
+      {
+        "phase": "main-before",
+        "line": 73
+      },
+      {
+        "phase": "platform-before",
+        "line": 76
+      },
+      {
+        "phase": "owned-before",
+        "line": 77
+      },
+      {
+        "phase": "owned-after",
+        "line": 81
+      },
+      {
+        "phase": "gic-driver-before",
+        "line": 82
+      },
+      {
+        "phase": "gic-driver-after",
+        "line": 83
+      },
+      {
+        "phase": "gic-distributor-before",
+        "line": 84
+      },
+      {
+        "phase": "gic-distributor-after",
+        "line": 85
+      },
+      {
+        "phase": "gic-redistributor-before",
+        "line": 86
+      },
+      {
+        "phase": "gic-redistributor-after",
+        "line": 87
+      },
+      {
+        "phase": "gic-cpu-before",
+        "line": 88
+      },
+      {
+        "phase": "gic-cpu-after",
+        "line": 89
+      },
+      {
+        "phase": "mailbox-before",
+        "line": 90
+      },
+      {
+        "phase": "mailbox-after",
+        "line": 91
+      },
+      {
+        "phase": "platform-after",
+        "line": 92
+      },
+      {
+        "phase": "libraries-before",
+        "line": 93
+      },
+      {
+        "phase": "libraries-after",
+        "line": 94
+      },
+      {
+        "phase": "services-before",
+        "line": 95
+      },
+      {
+        "phase": "services-after",
+        "line": 96
+      },
+      {
+        "phase": "next-image-before",
+        "line": 97
+      },
+      {
+        "phase": "next-image-after",
+        "line": 98
+      },
+      {
+        "phase": "runtime-before",
+        "line": 99
+      },
+      {
+        "phase": "runtime-after",
+        "line": 100
+      },
+      {
+        "phase": "console-before",
+        "line": 101
+      },
+      {
+        "phase": "console-after",
+        "line": 102
+      },
+      {
+        "phase": "main-after",
+        "line": 103
+      },
+      {
+        "phase": "data-clean-before",
+        "line": 104
+      },
+      {
+        "phase": "data-clean-after",
+        "line": 105
+      },
+      {
+        "phase": "bss-clean-before",
+        "line": 106
+      },
+      {
+        "phase": "bss-clean-after",
+        "line": 109
+      },
+      {
+        "phase": "exit-before",
+        "line": 110
+      }
+    ],
+    "valid": true,
+    "complete": true
+  },
+  "exit_cache": {
+    "records": [
+      {
+        "phase": "clean-before",
+        "line": 107
+      },
+      {
+        "phase": "clean-after",
+        "line": 108
+      }
+    ],
+    "valid": true,
+    "complete": true,
+    "maintenance_may_have_started": true
+  },
+  "cold_main_return_observed": true,
+  "data_clean_return_observed": true,
+  "bss_clean_return_observed": true,
+  "exit_before_marker_observed": true,
+  "matched_uboot_prompt_observed": true,
+  "native_command_sent_once": true,
+  "native_entry_marker_observed": false,
+  "native_application_ready": false,
+  "rom_completion": false,
+  "cpu_run": false,
+  "core_return": false,
+  "last_checkpoint": "memory",
+  "last_console_line": " reserved[1]\t[0xbeb5fff0-0xbfffffff], 0x14a0010 bytes, flags: no-overwrite",
+  "diagnostic_guard_trace": {
+    "records": [
+      {
+        "kind": "entry",
+        "line": 42,
+        "phase": null
+      },
+      {
+        "kind": "pass",
+        "line": 43,
+        "phase": null
+      }
+    ],
+    "complete": true,
+    "valid": true,
+    "vendor_records": [
+      {
+        "phase": "enter",
+        "line": 45
+      },
+      {
+        "phase": "reset-before",
+        "line": 46
+      },
+      {
+        "phase": "reset-after",
+        "line": 47
+      },
+      {
+        "phase": "cpu-data-before",
+        "line": 48
+      },
+      {
+        "phase": "cpu-data-after",
+        "line": 49
+      },
+      {
+        "phase": "rw-cache-before",
+        "line": 50
+      },
+      {
+        "phase": "rw-cache-after",
+        "line": 51
+      },
+      {
+        "phase": "nobits-cache-before",
+        "line": 56
+      },
+      {
+        "phase": "nobits-cache-after",
+        "line": 61
+      },
+      {
+        "phase": "bss-before",
+        "line": 62
+      },
+      {
+        "phase": "bss-after",
+        "line": 63
+      },
+      {
+        "phase": "stack-before",
+        "line": 64
+      },
+      {
+        "phase": "stack-after",
+        "line": 65
+      },
+      {
+        "phase": "setup-before",
+        "line": 66
+      },
+      {
+        "phase": "setup-after",
+        "line": 72
+      }
+    ],
+    "vendor_complete": true,
+    "exceptions": [],
+    "status_probe": {
+      "records": [],
+      "pending": null,
+      "complete": false,
+      "valid": true
+    },
+    "ras_probe": {
+      "records": [],
+      "pending": null,
+      "complete": false,
+      "valid": true,
+      "outcome": null,
+      "original_selector": null,
+      "selector_may_have_changed": false,
+      "selector_restored": false,
+      "record_complete": false
+    },
+    "decode_log": {
+      "records": [
+        {
+          "phase": "idle",
+          "line": 44
+        },
+        {
+          "phase": "setup-before",
+          "line": 52
+        },
+        {
+          "phase": "baseline-zero",
+          "line": 53
+        },
+        {
+          "phase": "enable-before",
+          "line": 54
+        },
+        {
+          "phase": "enabled",
+          "line": 55
+        },
+        {
+          "phase": "restore-before",
+          "line": 59
+        },
+        {
+          "phase": "restored",
+          "line": 60
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "write_attempted": true,
+      "restore_attempted": true,
+      "restored": true,
+      "failed": false
+    },
+    "cache_maintenance": {
+      "records": [
+        {
+          "phase": "setway-before",
+          "line": 57
+        },
+        {
+          "phase": "setway-after",
+          "line": 58
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "maintenance_may_have_started": true
+    },
+    "runtime_startup": {
+      "records": [
+        {
+          "phase": "main-before",
+          "line": 73
+        },
+        {
+          "phase": "platform-before",
+          "line": 76
+        },
+        {
+          "phase": "owned-before",
+          "line": 77
+        },
+        {
+          "phase": "owned-after",
+          "line": 81
+        },
+        {
+          "phase": "gic-driver-before",
+          "line": 82
+        },
+        {
+          "phase": "gic-driver-after",
+          "line": 83
+        },
+        {
+          "phase": "gic-distributor-before",
+          "line": 84
+        },
+        {
+          "phase": "gic-distributor-after",
+          "line": 85
+        },
+        {
+          "phase": "gic-redistributor-before",
+          "line": 86
+        },
+        {
+          "phase": "gic-redistributor-after",
+          "line": 87
+        },
+        {
+          "phase": "gic-cpu-before",
+          "line": 88
+        },
+        {
+          "phase": "gic-cpu-after",
+          "line": 89
+        },
+        {
+          "phase": "mailbox-before",
+          "line": 90
+        },
+        {
+          "phase": "mailbox-after",
+          "line": 91
+        },
+        {
+          "phase": "platform-after",
+          "line": 92
+        },
+        {
+          "phase": "libraries-before",
+          "line": 93
+        },
+        {
+          "phase": "libraries-after",
+          "line": 94
+        },
+        {
+          "phase": "services-before",
+          "line": 95
+        },
+        {
+          "phase": "services-after",
+          "line": 96
+        },
+        {
+          "phase": "next-image-before",
+          "line": 97
+        },
+        {
+          "phase": "next-image-after",
+          "line": 98
+        },
+        {
+          "phase": "runtime-before",
+          "line": 99
+        },
+        {
+          "phase": "runtime-after",
+          "line": 100
+        },
+        {
+          "phase": "console-before",
+          "line": 101
+        },
+        {
+          "phase": "console-after",
+          "line": 102
+        },
+        {
+          "phase": "main-after",
+          "line": 103
+        },
+        {
+          "phase": "data-clean-before",
+          "line": 104
+        },
+        {
+          "phase": "data-clean-after",
+          "line": 105
+        },
+        {
+          "phase": "bss-clean-before",
+          "line": 106
+        },
+        {
+          "phase": "bss-clean-after",
+          "line": 109
+        },
+        {
+          "phase": "exit-before",
+          "line": 110
+        }
+      ],
+      "valid": true,
+      "complete": true
+    },
+    "exit_cache": {
+      "records": [
+        {
+          "phase": "clean-before",
+          "line": 107
+        },
+        {
+          "phase": "clean-after",
+          "line": 108
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "maintenance_may_have_started": true
+    }
+  },
+  "passive_cleanup_tail": {
+    "bound_seconds": 2,
+    "complete": true,
+    "restoration": "restored",
+    "exit_cache": {
+      "records": [
+        {
+          "phase": "clean-before",
+          "line": 107
+        },
+        {
+          "phase": "clean-after",
+          "line": 108
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "maintenance_may_have_started": true
+    },
+    "runtime_startup": {
+      "records": [
+        {
+          "phase": "main-before",
+          "line": 73
+        },
+        {
+          "phase": "platform-before",
+          "line": 76
+        },
+        {
+          "phase": "owned-before",
+          "line": 77
+        },
+        {
+          "phase": "owned-after",
+          "line": 81
+        },
+        {
+          "phase": "gic-driver-before",
+          "line": 82
+        },
+        {
+          "phase": "gic-driver-after",
+          "line": 83
+        },
+        {
+          "phase": "gic-distributor-before",
+          "line": 84
+        },
+        {
+          "phase": "gic-distributor-after",
+          "line": 85
+        },
+        {
+          "phase": "gic-redistributor-before",
+          "line": 86
+        },
+        {
+          "phase": "gic-redistributor-after",
+          "line": 87
+        },
+        {
+          "phase": "gic-cpu-before",
+          "line": 88
+        },
+        {
+          "phase": "gic-cpu-after",
+          "line": 89
+        },
+        {
+          "phase": "mailbox-before",
+          "line": 90
+        },
+        {
+          "phase": "mailbox-after",
+          "line": 91
+        },
+        {
+          "phase": "platform-after",
+          "line": 92
+        },
+        {
+          "phase": "libraries-before",
+          "line": 93
+        },
+        {
+          "phase": "libraries-after",
+          "line": 94
+        },
+        {
+          "phase": "services-before",
+          "line": 95
+        },
+        {
+          "phase": "services-after",
+          "line": 96
+        },
+        {
+          "phase": "next-image-before",
+          "line": 97
+        },
+        {
+          "phase": "next-image-after",
+          "line": 98
+        },
+        {
+          "phase": "runtime-before",
+          "line": 99
+        },
+        {
+          "phase": "runtime-after",
+          "line": 100
+        },
+        {
+          "phase": "console-before",
+          "line": 101
+        },
+        {
+          "phase": "console-after",
+          "line": 102
+        },
+        {
+          "phase": "main-after",
+          "line": 103
+        },
+        {
+          "phase": "data-clean-before",
+          "line": 104
+        },
+        {
+          "phase": "data-clean-after",
+          "line": 105
+        },
+        {
+          "phase": "bss-clean-before",
+          "line": 106
+        },
+        {
+          "phase": "bss-clean-after",
+          "line": 109
+        },
+        {
+          "phase": "exit-before",
+          "line": 110
+        }
+      ],
+      "valid": true,
+      "complete": true
+    },
+    "cache_maintenance": {
+      "records": [
+        {
+          "phase": "setway-before",
+          "line": 57
+        },
+        {
+          "phase": "setway-after",
+          "line": 58
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "maintenance_may_have_started": true
+    },
+    "decode_log": {
+      "records": [
+        {
+          "phase": "idle",
+          "line": 44
+        },
+        {
+          "phase": "setup-before",
+          "line": 52
+        },
+        {
+          "phase": "baseline-zero",
+          "line": 53
+        },
+        {
+          "phase": "enable-before",
+          "line": 54
+        },
+        {
+          "phase": "enabled",
+          "line": 55
+        },
+        {
+          "phase": "restore-before",
+          "line": 59
+        },
+        {
+          "phase": "restored",
+          "line": 60
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "write_attempted": true,
+      "restore_attempted": true,
+      "restored": true,
+      "failed": false
+    },
+    "inventory_complete": false,
+    "ras_complete": false
+  },
+  "error": "initial native App100s bound",
+  "startup_bound_seconds": 100,
+  "prompt_bound_seconds": 50,
+  "raw_console_bytes": 6113,
+  "raw_console_sha256": "a8e21c5b2f0be575efdba87702cdae71008f82b24fed67bee952f5a246d9ac87",
+  "independent_replay_matched": true,
+  "diagnosis": "First exit-clean receipt, helper return/final checks, second receipt, BSS-clean return, exit marker and U-Boot are observed. One fesboot command emits boot and memory-layout/LMB report, then no further owned proof, entry marker or App Ready before unchanged100s. Exact stopped/faulting PC is unobserved; memory validation return, CPU snapshot/SMCs and later loader checks are not individually instrumented.",
+  "absence_of_later_fault_proven": false,
+  "prior_procedure_stops": 18,
+  "procedure_stops_including_this_attempt": 19,
+  "prior_pre_loader_stops": 11,
+  "this_stop_before_loader": false,
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "evidence_sha256": {
+    "docs/validation/2026-11-06-de25-exit-cache-trial/operator-source.json": "878ae942457b5d467bce91ac0f606e958a26d533ffc7dcef1d7a9a3dcf262a31",
+    "out/nano-exit-cache-board-20261106/candidate-check-v4-result.json": "cdac6200b692dd35e8e29059e951a8d93eaa05a82b9217720b895933771dfded",
+    "out/nano-exit-cache-board-20261106/candidate-check-v4.log": "1837a6ef137314484e2effb4a0baefea69c16a09971a7ee8312813aa59c38dd7",
+    "out/nano-exit-cache-board-20261106/candidate-check.json": "b5974273e309e40c3807e81d916314641a23e5058647efaeba47c8b0bd6cb24e",
+    "out/nano-exit-cache-board-20261106/candidate-proof-result.json": "50d0562e9cf1d059a4703b07daeb9aeb498bad6dde76a7f5d0111af5b51e466d",
+    "out/nano-exit-cache-board-20261106/candidate-proof.json": "cca658c414d706a9911f63e2196e8f022741a2118294d8b088d7728d6b92e984",
+    "out/nano-exit-cache-board-20261106/candidate-proof.log": "7305558b1c01fb41a2afcfcc445d4eda0deed572b345e77ee8389249bddb97ab",
+    "out/nano-exit-cache-board-20261106/catalogue-result.json": "711c29de850f3b70165bc157f54cac96060432d290708b45f878a3ea8dfba61c",
+    "out/nano-exit-cache-board-20261106/catalogue.log": "dd1dc58bbb77890f3d53b4aa2db475bcc37693f0a10c5658621889f7ef824f0e",
+    "out/nano-exit-cache-board-20261106/cleanup-audit-result.json": "95477fc0e8ae3b55d9d2dad08af3a9c583e80f43b5c964778fae96b5732cb52d",
+    "out/nano-exit-cache-board-20261106/cleanup-audit.log": "697f7641a68cae4a45acb61f8cffbb0fc7f26e06df604a89a911f458810ac9e5",
+    "out/nano-exit-cache-board-20261106/cleanup-evidence.json": "7fecd92dbf5fcf639e54b7c9e3b602b1171d67c1e9529f2bf67e1ce82aedfe8c",
+    "out/nano-exit-cache-board-20261106/decode-tail-fixtures-v4-result.json": "cc35e1e0dd4360847bdd74bc7555f9ec89559234ac604d886c8260bccd73b24d",
+    "out/nano-exit-cache-board-20261106/decode-tail-fixtures-v4.log": "b9eed1fe6adb088666c8685cc6efb2572e17303dc4adb238ce3dc07cad0f1f06",
+    "out/nano-exit-cache-board-20261106/device-admission-fixtures-result.json": "2375fadc50b5fa93218b6da7c7a766084b33f13c2308fbd51bca8e3748963ab6",
+    "out/nano-exit-cache-board-20261106/device-admission-fixtures.log": "da2829d484c80476081917e89711e8e2206fd1320900acc37b4c6185b2453745",
+    "out/nano-exit-cache-board-20261106/exit-tail-fixtures-result.json": "655b85f4cb02adb5e2f6f83242a004aa0978c0c4fbfaaea12861aa02e40ad063",
+    "out/nano-exit-cache-board-20261106/exit-tail-fixtures.log": "9f0a8dbaeec6ed9c8254b8b1b78f98618a3a3262fc2a7978be1a80df116fa439",
+    "out/nano-exit-cache-board-20261106/fixtures-result.json": "473d2ac4e189a11e0a7fcb21b051a2dfd4b40463767b8daf8e34dd671f1f9a10",
+    "out/nano-exit-cache-board-20261106/fixtures.log": "eb4a7c4d21e2792c984e2d450b4bddd6f319848ccc6d43581bc090a2eb7bc57a",
+    "out/nano-exit-cache-board-20261106/freeze-result.json": "7cde991387f5576ca7c35da8942f59400b1034a646e697c25123e1a04aff0fa2",
+    "out/nano-exit-cache-board-20261106/freeze.log": "1b058e85f6c3e7e69f86cdee9613531a1210e0f79545b09dc1474c19be4a9b7e",
+    "out/nano-exit-cache-board-20261106/hardware-result.json": "278380a917565a2409c4332bdbe04dce4cebb3156c9fcd271039c2f809a06f67",
+    "out/nano-exit-cache-board-20261106/hardware.log": "d76276bce60454d6e599445e6732c0b13b1654387df34993c1262f2e36a56d93",
+    "out/nano-exit-cache-board-20261106/history.json": "3bd46da19fc178a6db235954f3583a4c8221053ead31f1ad37358774a668410a",
+    "out/nano-exit-cache-board-20261106/independent-boot-replay.json": "411a700a344914de5cc13f01dff87f0f43cf0713ec8957c96aea0530f878dc20",
+    "out/nano-exit-cache-board-20261106/operator-fixtures-cache-result.json": "3baf2f933743fa0a3cb92d542cac3251ea7f3984db5ec8b4099d845708c615df",
+    "out/nano-exit-cache-board-20261106/operator-fixtures-cache.log": "f77b666685fe97b6380f9bce155b8a993415580b7e1522cee76a5bdce56d72e1",
+    "out/nano-exit-cache-board-20261106/preflight-result.json": "228509bb77c5efc627cf72751f67a4b6bcc690ab7b711aa8cc199f951719e642",
+    "out/nano-exit-cache-board-20261106/preflight.log": "65dd11f5d733a3bce43e3284dc2d375509710c25311c03d9535b741bb3f65720",
+    "out/nano-exit-cache-board-20261106/record_result.py": "d81285d060ded03bf89f135f41af80c8c4355338395645d179bc93e957bcbb7f",
+    "out/nano-exit-cache-board-20261106/recovery-source-pin.json": "3af590f4e06f1094ca5193cb70c714a94f16e4c62258447b2e87e40427438800",
+    "out/nano-exit-cache-board-20261106/runtime-tail-fixtures-result.json": "acc72698ebdd5179c51b789b1242468717dd496d14feb92bfc8de18bb6c1ef8a",
+    "out/nano-exit-cache-board-20261106/runtime-tail-fixtures.log": "66527f97842dcd14c535a5893ccea63ff9cc4e49eafbdb2d59359a271e7eaf0e",
+    "out/nano-exit-cache-board-20261106/source-fixtures-v3-result.json": "8bad4ff00aec6a4c4be68bf188aa44256f679a14678b8844e7c23e412997c0aa",
+    "out/nano-exit-cache-board-20261106/source-fixtures-v3.log": "14069a0367f6622b52c45f8e5f9c5bd39d7d514b0167183c2dd6b31e47500193",
+    "out/nano-exit-cache-board-20261106/source.json": "ed1c543a9bbed291abb11a9f241281f27c61035fb7142b6b50a8d1c609e2e47e",
+    "out/nano-exit-cache-board-20261106/tail-fixtures-cache-result.json": "2e777ec511f52f7e68f81a7c15ad428e1e8ab0e21a834b75db7d7ba7eee4e270",
+    "out/nano-exit-cache-board-20261106/tail-fixtures-cache.log": "e1aceb71e53365a7e3b9d734075592fc643b087264c2cc1a9872dce5d525b240",
+    "out/nano-exit-cache-board-20261106/transport-fixtures-v4-result.json": "7c8220c7ca1a585e35ef4dec9b5d674ca0715d1a40faa807b752f6fd2d36179f",
+    "out/nano-exit-cache-board-20261106/transport-fixtures-v4.log": "644872a3c36aa1d8dfbae8dbade7188af1c42345506f46c13b1092ce4d82b0d1",
+    "out/nano-exit-cache-board-20261106/trial/clock-before-native.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-exit-cache-board-20261106/trial/clock-before.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "out/nano-exit-cache-board-20261106/trial/clock-confirm-6m.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-exit-cache-board-20261106/trial/clock-restore-15m.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-exit-cache-board-20261106/trial/clock-restored-readback.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "out/nano-exit-cache-board-20261106/trial/clock-set-6m.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-exit-cache-board-20261106/trial/clock_policy.py": "082ea1a2646bf9dbfecf0b378274801576600265282827cce48bbbaea8a6c4f5",
+    "out/nano-exit-cache-board-20261106/trial/common.py": "b19e586533e76584b2e466428dd90ede6c27b348b660feff656efd9328485a2a",
+    "out/nano-exit-cache-board-20261106/trial/experiment-progress.json": "8aeeab93ba17060597860f2fa037927d67b43d966c2b06866bc24e409e16e586",
+    "out/nano-exit-cache-board-20261106/trial/experiment-result.json": "16f23f3f0a76e1526a1c2d2b17809e7f767045928069fac57ea7e937ffd3488e",
+    "out/nano-exit-cache-board-20261106/trial/experiment.py": "6fc944f97bfb16a92f4a05be7c5aae08c20e913c954cb55d859afedc56895b0a",
+    "out/nano-exit-cache-board-20261106/trial/live-firmware-alt.json": "fb45f2ec083d82b74fae912b82523e48cf3fce980604ed8c2f0cbedc217bbb07",
+    "out/nano-exit-cache-board-20261106/trial/live-firmware.json": "41466254c6124708f8aca23b1f5b33e30d3eaa7c978544be20b19e8b50c13a4b",
+    "out/nano-exit-cache-board-20261106/trial/live-fit.json": "54df2ca1239dc083ec7a57b3495b5b7582c6529026bd29b8f8caae8bae6a8e0a",
+    "out/nano-exit-cache-board-20261106/trial/live-metadata-alt.json": "007949346e00da020dd5665df865d86b651d3cbf3e311232a8df01870cb63568",
+    "out/nano-exit-cache-board-20261106/trial/live-metadata.json": "82d0c11eaa89e8683591eaf6425ae4a53925f0eb2a6fcd822c92fe1497166c88",
+    "out/nano-exit-cache-board-20261106/trial/live-package.json": "8ce44b1463bafc012b25a73d84945a41d563386fa364d133c0c0eab38013c9f7",
+    "out/nano-exit-cache-board-20261106/trial/live-selection.json": "fef9f935ffae6d5923679c66de71575d608761ef2d82d8932717e1cf966308ec",
+    "out/nano-exit-cache-board-20261106/trial/live-ui-catalog.json": "de0cc021f8d9f23b1cda9783436a471a743b58971bd97b1f4c7029cbf0f883b8",
+    "out/nano-exit-cache-board-20261106/trial/native-clock-before.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-exit-cache-board-20261106/trial/native-console.log": "a8e21c5b2f0be575efdba87702cdae71008f82b24fed67bee952f5a246d9ac87",
+    "out/nano-exit-cache-board-20261106/trial/native-jtag-query.log": "116c6ef4c5e3d8c5d96df44eef2e99748af0f8ed243fe06136ede45af1cf82d7",
+    "out/nano-exit-cache-board-20261106/trial/native-program.log": "e385abf63838ba42ecb44a5645c18bcb8c84b716657b236d0160d4da17692aeb",
+    "out/nano-exit-cache-board-20261106/trial/native-progress.json": "f144a5ad526878674aa3ab234939fb46ee0ea1957981ddef6fd4afcffa4e98e0",
+    "out/nano-exit-cache-board-20261106/trial/native-result.json": "b655096832ec952258f1571f9a07d7b764c4413181bc3a1949b9745077e14768",
+    "out/nano-exit-cache-board-20261106/trial/native.py": "122d448f525b777f34e9ad23258a3e9ade538f15d488eda7b5c69f3d2b03306e",
+    "out/nano-exit-cache-board-20261106/trial/preflight.json": "89306c0eacb6df017ccbe39633ea2a5c99574682583c6d88bd7d73d02211c3e3",
+    "out/nano-exit-cache-board-20261106/trial/private-client-setup.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-exit-cache-board-20261106/trial/private-device-admission.log": "c2ef23cfd3750e9dacdab8c02f997d4286a6a7c3904f416f0da2a962504dd1e0",
+    "out/nano-exit-cache-board-20261106/trial/private-device-clock.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-exit-cache-board-20261106/trial/private-server.log": "313024a2d27e45e1bf2ec046cf5695d802a800aa42e049777e9747e2299aa6ba",
+    "out/nano-exit-cache-board-20261106/trial/private-top-enumeration.log": "c2ef23cfd3750e9dacdab8c02f997d4286a6a7c3904f416f0da2a962504dd1e0",
+    "out/nano-exit-cache-board-20261106/trial/private_jtag.py": "c9b36356faf133d4a734d46743bf586eb0c74006c535a869e6a1fb36856e4023",
+    "out/nano-exit-cache-board-20261106/trial/recovery-boot-clock-after.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-exit-cache-board-20261106/trial/recovery-boot-clock-before.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-exit-cache-board-20261106/trial/recovery-boot-console.log": "aa8f098ed97ec965f67da81edc4ffb00eb2a6efe5f34d06a8913c973b6c8ca13",
+    "out/nano-exit-cache-board-20261106/trial/recovery-boot-jtag-query.log": "a7e24347321d16e6a9879eadee6dc010d36ff85131a5a7d2ca77492faa6e87cb",
+    "out/nano-exit-cache-board-20261106/trial/recovery-boot-program.log": "25e720e36d6bae26362667d471bc02b041543b69446232b07f34fad487b25fe5",
+    "out/nano-exit-cache-board-20261106/trial/recovery-boot-progress.json": "f6e17f8f332b5834c9fb5882f08c2b8877403513abba7f556ea621a3bf72495f",
+    "out/nano-exit-cache-board-20261106/trial/recovery-boot-result.json": "e93fa65473c1026af29dc081047671e5f49fcc2806bbd7fc617a23288512a04b",
+    "out/nano-exit-cache-board-20261106/trial/recovery.py": "90ed378a120d8eb4add927abf28b81f2b1d502453bb11a3e18b1936eda67b9c1",
+    "out/nano-exit-cache-board-20261106/trial/recovery_pin.py": "20e169fe043d7d0d9d1073112577a7a95f1b077c8c4fd6af32ef20289b807f88",
+    "out/nano-exit-cache-board-20261106/trial/service_checks.py": "e5fe693b12f8cdc661f56a16173950d1c7f36a2717e120d470a949230351676e",
+    "out/nano-exit-cache-board-20261106/trial/transport.json": "0bcd2afa5b138cec04a8d75e47be42643b583c5fae6c153bdd5e835ff6829e63",
+    "out/nano-exit-cache-board-20261106/trial/trial_inputs.py": "392dade6e3c5afcff0b7dbe2599228fe5c555bb478fa88f278934ff0c45923ff",
+    "out/nano-exit-cache-board-20261106/trial/upload-boot/progress.json": "520f8a0762cc7d4eb915cc9bdba606137c4d72c9178922ca2d59061a4fd1db77",
+    "out/nano-exit-cache-board-20261106/trial/upload-boot/result.json": "bea6bddb43093662fb58ad31505a2deea78d7ab34edda5c145579558138ef89b",
+    "out/nano-exit-cache-board-20261106/trial/upload-firmware/progress.json": "55b7368165dd628ea6d1f69d37ed2abbe40e3db63bbb80930831abf5d45bc654",
+    "out/nano-exit-cache-board-20261106/trial/upload-firmware/result.json": "bd1fc2e253b062e58bc9969307f0509960906fa6983293353b5fd65db494dcc4",
+    "out/nano-exit-cache-board-20261106/trial/upload-firmware-alt/progress.json": "a147e3d48b166427fc8c53743a26ab0216bc119f7b4e09a329b3761be2c8cca9",
+    "out/nano-exit-cache-board-20261106/trial/upload-firmware-alt/result.json": "591fa708fa5a8e8e150bdc694115ff4387d72e70dfb6565a966ebf58bd5f2b0d",
+    "out/nano-exit-cache-board-20261106/trial/upload-metadata/progress.json": "458103346181b0172b982d29fd0975a0e9aef5fad2c818958b95f15c57f81e7f",
+    "out/nano-exit-cache-board-20261106/trial/upload-metadata/result.json": "929463e1c4151c4e44bdd5997abd44c85321f17f0e2abbcc547a6bd0b58fd7b9",
+    "out/nano-exit-cache-board-20261106/trial/upload-metadata-alt/progress.json": "d208c7be9ae749fc0609c29985b216ec6a2fb1f3b0909cf0951633f2a1113b05",
+    "out/nano-exit-cache-board-20261106/trial/upload-metadata-alt/result.json": "35218c816fd2393002e9cb79d399ee981a42910839e0597bcf2e56d8058cfc7e",
+    "out/nano-exit-cache-board-20261106/trial/upload-package/progress.json": "6ed8eee7c41c5d124218778806da8c508303d63dc26fba81352333d8642a1ff5",
+    "out/nano-exit-cache-board-20261106/trial/upload-package/result.json": "201b615eabef64fddcccb7b1be1eac255acbe5724deebfa5d1fdc57981c0bc1b",
+    "out/nano-exit-cache-board-20261106/trial/upload-selection/progress.json": "07402ec2bdf906a5bb0e534b4dddb8208ab4fd87b31073796c215ad759fe5749",
+    "out/nano-exit-cache-board-20261106/trial/upload-selection/result.json": "e148875432ee202c3839e997e085c8efd6cdc99fec14aa5ae564793820138a7d",
+    "out/nano-exit-cache-board-20261106/trial/upload-ui-catalog/progress.json": "bad1522c8d4ef60d30615d28584e4b9cfa1b3ef2b2672b2bfc4eecbbc7984057",
+    "out/nano-exit-cache-board-20261106/trial/upload-ui-catalog/result.json": "8d8c9f233d2a047945e8eaa0c1954856ba277828240a16d14b760d50235498cb",
+    "out/nano-exit-cache-board-20261106/trial/upload_both.py": "efa98f82de6ca3607926b1badf38c97d2f203cb5b17963cc55cbcb0a5745f212",
+    "out/nano-exit-cache-board-20261106/trial/upload_checks.py": "497636cad5390e8f6820d11d18c698efd7d8af3883a714b6dd112a6014e61fa3",
+    "out/nano-exit-cache-board-20261106/trial/uploads/console.log": "8ad414c5f886450bedb374172836abe070ce65dd7b2f5ca737121395a11d6385",
+    "out/nano-exit-cache-board-20261106/trial/uploads/progress.json": "89085a2393fe20f2e5d6b5efccb7bc02aa6257b027193e274898033bf60b9e4b",
+    "out/nano-exit-cache-board-20261106/trial/uploads/result.json": "93ebf8bc40f956e44bef44618e980d7a5eb61c381cccd81aa303b141659f7377",
+    "out/nano-exit-cache-board-20261106/upload-receipt-fixtures-final-result.json": "d02b8e079b5069de3ac154d8e0ac90f81372515fffc1f1f7eb87ebb5f4a8e9c0",
+    "out/nano-exit-cache-board-20261106/upload-receipt-fixtures-final.log": "13ab09d7d9e1965905765f34084820f0a7df11c67f9c6f2fa55bd12df5c94903",
+    "out/nano-exit-cache-board-20261106/uploader-fixtures-final-result.json": "e437fe435eec9772f176bdf3af9cef19eda35b341ed8d0767362cf0ee4e60b9a",
+    "out/nano-exit-cache-board-20261106/uploader-fixtures-final.log": "e65011cf9e6f3fb6cbe13b2de21593d65214c208e2f05e716d8073f9c2dfd814",
+    "out/nano-exit-cache-board-20261106/interval-audit.json": "7a035a16a63f0550f78133df7b57c1cf005ff800b0ec3b706f0df383877b7b93",
+    "out/nano-exit-cache-board-20261106/interval-audit-v3-result.json": "7f84a22d283c8fa8a3dbe4acb656acef89be314f811da4892988ec2a30c83852",
+    "out/nano-exit-cache-board-20261106/interval-audit-v3.log": "69704fc3151bc5aab3634a75e7e6d73bfdd33144957b2882a582522d501ec767"
+  },
+  "hardware_actions": true,
+  "ordinary_admission": false,
+  "core_load_acceptance": false,
+  "physical_ram_reservation_verified": false,
+  "physical_cpu_halt_proven": false,
+  "claim_retained": true,
+  "factory_card_touched": false,
+  "other_kit_touched": false,
+  "loader_interval_audit_sha256": "7a035a16a63f0550f78133df7b57c1cf005ff800b0ec3b706f0df383877b7b93"
+}

@@ -1,0 +1,149 @@
+{
+  "status": "passed",
+  "checks": {
+    "programming-fixed": {
+      "receipt_sha256": "bad0f6e197f0d0e8794b07f65381ec608604547a52b0ef92241e6b7d2754cac8",
+      "argv": [
+        "python3",
+        "out/nano-keyboard-return-trial-20261109/operator_programming_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.40099046099931,
+      "log_sha256": "e1f43d9b8b0860ad98c9153f1e60f1c2c6fc14dc162472abdb0effc26ead70e7"
+    },
+    "serial-fixed": {
+      "receipt_sha256": "7ec28b8328a2533d8df96caac7bcafda70f8a748c4a5a7997eb50496057229fc",
+      "argv": [
+        "python3",
+        "out/nano-keyboard-return-trial-20261109/operator_transport_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.6009181221015751,
+      "log_sha256": "0f8a31272372a139eab7b01bf722c63ac3f4889dada0af5a534a90a259ccab1f"
+    },
+    "paired-receipts-r2": {
+      "receipt_sha256": "a8ca5ec0a5dad68ead9ad6a8b59aaa98d502d746bf2d41ed4d4edab5eebf6180",
+      "argv": [
+        "python3",
+        "out/nano-keyboard-return-trial-20261109/paired_receipt_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4006042100954801,
+      "log_sha256": "c2055b687cdfcf4bbb0fdfa100d14e779b5730c5b89e0a078e639f4d7a44e391"
+    },
+    "startup-input": {
+      "receipt_sha256": "38458cabf331819c0b4610c67b9750dbc10f3f2c98a45f460a7154e53f81fe6d",
+      "argv": [
+        "python3",
+        "out/nano-keyboard-return-trial-20261109/startup_input_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20076532405801117,
+      "log_sha256": "a2e97b7515932007aa3d038fcfa41fdd107cb2467ff84d182512ff3c7e24f045"
+    },
+    "mmu-consumers-current": {
+      "receipt_sha256": "31d1d2763db4c30734c66eb56c863ca9a7fd4e47b744dc059d3dc0718ef45325",
+      "argv": [
+        "python3",
+        "out/nano-keyboard-return-trial-20261109/mmu_operator_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20093456003814936,
+      "log_sha256": "46df4f0edcf4a6f9a32504da3478dd3a1a7db82b7890d0c616cbb1a0a9b16b2a"
+    },
+    "failure-decoder": {
+      "receipt_sha256": "01e17d19fb17bdcba0ab8ddfb4b93345717cde4c79f9570ea0c6dfe85960424b",
+      "argv": [
+        "python3",
+        "out/nano-keyboard-return-trial-20261109/profile_decode_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20079803094267845,
+      "log_sha256": "065c7d15facfd20f14fb9182747be315f3349fa1d5e1a0e966047509f4bfa9b1"
+    },
+    "stepped-receipts-r2": {
+      "receipt_sha256": "b9d9c62da33b6497ae079070073d008f4245961fc46653599dd70441de884715",
+      "argv": [
+        "python3",
+        "out/nano-keyboard-return-trial-20261109/stepped_receipt_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4006730781402439,
+      "log_sha256": "941c86f4db6c40a9a1587d1e31ca728fdf67be40414e06aa2d26fefc4682ef19"
+    },
+    "real-tape-package": {
+      "receipt_sha256": "ce3f348ff3b18ddbaeb45e0ae197badddbf10ff7b9b01afbf7be19beb3196309",
+      "argv": [
+        "env",
+        "FES_NANO_DISTINCT_COMPUTER_BUILD=/home/deano/fes/out/dev/de25-embedded-os/out/nano-keyboard-return-native-20261109/native-sdk",
+        "FES_NANO_DISTINCT_ROM_CATALOG=/home/deano/fes/out/dev/de25-embedded-os/out/nano-keyboard-return-trial-20261109/assets",
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-count=1",
+        "-overlay=/home/deano/fes/out/dev/de25-embedded-os/out/nano-keyboard-return-trial-20261109/test-overlay.json",
+        "./nativefabric",
+        "-run",
+        "^TestOperatorRealPackageTapePreflight$",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.6111439869273454,
+      "log_sha256": "843c6f8856d48bb2ae0eb709fa1754ed909129cfb53ce5f8260a069e6fa99b43"
+    },
+    "clock-glue": {
+      "receipt_sha256": "a7d3e50d9c3134384f6e078cb300f32e965e45bab1b369c244ea2721c89e7e9d",
+      "argv": [
+        "python3",
+        "out/nano-keyboard-return-trial-20261109/clock_glue_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2009712199214846,
+      "log_sha256": "7bb8b473d8eec8968b10b0acd1d4f8cc6e5d5e06875b93a8592992bd83bb63c8"
+    },
+    "file-admission-final": {
+      "receipt_sha256": "5f2c8879a2154cbfca66ff7bab0af6574c44154cc7e04401440e0aaaf9805966",
+      "argv": [
+        "python3",
+        "out/nano-keyboard-return-trial-20261109/prepare_final_admission.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 63.43154199514538,
+      "log_sha256": "67d08df5d2bfbe8030d14eab42e392139c40316c4943c3c603d0e9593529c9a5"
+    },
+    "usb-stability": {
+      "receipt_sha256": "ecef20767244c3267f0211d9c22b94cd1df37046be25e4c13d75bfaa9296cb9d",
+      "argv": [
+        "python3",
+        "out/nano-keyboard-return-trial-20261109/usb_stability.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 60.23299354594201,
+      "log_sha256": "3370512c3830b423386bc87e3a864d938d551f9c25a9e2ed79ab2ce51ca6f102"
+    }
+  },
+  "hardware_actions": false
+}

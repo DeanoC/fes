@@ -1,0 +1,765 @@
+{
+  "bl31_bridge_mode": "owned-cold-serial",
+  "bl31_load_segments": [
+    [
+      2147483648,
+      2147571584
+    ]
+  ],
+  "bl31_receipt_sha256": "24cd5e1ec4d5b54234d78fc7d726bc7f1dbc3c89174b7baadd29201d1c062b83",
+  "bl31_sha256": "b7ad0869da2864229d665337ef9c396bcf8cbfd08b9299219251d1efe34ed707",
+  "classification": "off-board serial-only Nano U-Boot/SPL with executable handoff gate; hardware not run",
+  "commands": [
+    [
+      "/usr/bin/make",
+      "-C",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source",
+      "O=/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build",
+      "CROSS_COMPILE=/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+      "socfpga_agilex5_de25_nano_defconfig"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "NET"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "NETDEVICES"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "USB"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "ENV_IS_IN_FAT"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "ENV_IS_IN_UBI"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "ENV_IS_IN_SPI_FLASH"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "FAT_WRITE"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "MMC_WRITE"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "CMD_SAVEENV"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "MMC_SDHCI_SDMA"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "MMC_SDHCI_ADMA"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "SPL_MMC_SDHCI_SDMA"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "SPL_MMC_SDHCI_ADMA"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "MMC_SDHCI_ADMA_64BIT"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "CMD_MMC"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "CMD_FAT"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "CMD_FS_GENERIC"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "MTD"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "MTD_RAW_NAND"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "SPI"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "SPI_FLASH"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "CADENCE_QSPI"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "DMA"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "SPL_DMA"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "SPL_OS_BOOT"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "SPL_OPENSBI"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "DISTRO_DEFAULTS"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "BOOTSTD"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "EFI_LOADER"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "CMD_EXT2"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "CMD_EXT4"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "CMD_BOOTFLOW"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "CMD_SYSBOOT"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "SPL_SPI"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "SPL_SPI_FLASH_SUPPORT"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "SPL_SPI_LOAD"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "SPL_NAND_SUPPORT"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "SPL_MTD"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "SPL_DM_SPI_FLASH"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "SPL_DM_SPI"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "CMD_FPGA"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "CMD_UBI"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "CMD_UBIFS"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "MTD_UBI"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "SPL_RAM_DEVICE"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-d",
+      "SPL_FS_FAT_DMA_ALIGN"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-e",
+      "NO_NET"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-e",
+      "ENV_IS_NOWHERE"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-e",
+      "CMD_BOOTI"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-e",
+      "SHA256"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-e",
+      "LMB"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-e",
+      "CMD_BDI"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "-e",
+      "CMD_WDT"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "--set-str",
+      "BOOTCOMMAND",
+      "fesboot"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "--set-val",
+      "BOOTDELAY",
+      "-1"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "--set-str",
+      "LOCALVERSION",
+      "-fes-nano-7d7770adbe1314e8"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source/scripts/config",
+      "--file",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/.config",
+      "--set-str",
+      "SPL_FS_LOAD_PAYLOAD_NAME",
+      "FES/UPLOAD.BIN"
+    ],
+    [
+      "/usr/bin/make",
+      "-C",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source",
+      "O=/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build",
+      "CROSS_COMPILE=/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+      "olddefconfig"
+    ],
+    [
+      "/usr/bin/make",
+      "-C",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source",
+      "O=/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build",
+      "CROSS_COMPILE=/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+      "-j",
+      "4"
+    ],
+    [
+      "/usr/bin/make",
+      "-C",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/source",
+      "O=/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build",
+      "CROSS_COMPILE=/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+      "-j",
+      "4",
+      "spl/u-boot-spl-dtb.hex"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/tools/dumpimage",
+      "-l",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/u-boot.itb"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/tools/dumpimage",
+      "-T",
+      "flat_dt",
+      "-p",
+      "0",
+      "-o",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/extracted-uboot.bin",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/u-boot.itb"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/tools/dumpimage",
+      "-T",
+      "flat_dt",
+      "-p",
+      "1",
+      "-o",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/extracted-bl31.bin",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/u-boot.itb"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/tools/dumpimage",
+      "-T",
+      "flat_dt",
+      "-p",
+      "2",
+      "-o",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/extracted-fdt-0.bin",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/u-boot.itb"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/tools/dumpimage",
+      "-T",
+      "flat_dt",
+      "-p",
+      "3",
+      "-o",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/extracted-fes-entry.bin",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-smmu-observe-20261102/serial-uboot/build/u-boot.itb"
+    ]
+  ],
+  "compiler_version": "Using built-in specs.\nCOLLECT_GCC=/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/bin/aarch64-linux-gnu-gcc-14\nCOLLECT_LTO_WRAPPER=/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/lib/gcc-cross/../../libexec/gcc-cross/aarch64-linux-gnu/14/lto-wrapper\nTarget: aarch64-linux-gnu\nConfigured with: ../src/configure -v --with-pkgversion='Debian 14.2.0-19' --with-bugurl=file:///usr/share/doc/gcc-14/README.Bugs --enable-languages=c,ada,c++,go,d,fortran,objc,obj-c++,m2 --prefix=/usr --with-gcc-major-version-only --program-suffix=-14 --enable-shared --enable-linker-build-id --libexecdir=/usr/libexec --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --with-sysroot=/ --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-libstdcxx-backtrace --enable-gnu-unique-object --disable-libquadmath --disable-libquadmath-support --enable-plugin --enable-default-pie --with-system-zlib --enable-libphobos-checking=release --without-target-system-zlib --enable-multiarch --enable-fix-cortex-a53-843419 --disable-werror --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=aarch64-linux-gnu --program-prefix=aarch64-linux-gnu- --includedir=/usr/aarch64-linux-gnu/include --with-build-config=bootstrap-lto-lean --enable-link-serialization=3\nThread model: posix\nSupported LTO compression algorithms: zlib zstd\ngcc version 14.2.0 (Debian 14.2.0-19) \n",
+  "config_sha256": "ef0221227972d1d1f75d0ea8c9b963d5453e9946824d8734c89298efed463ca4",
+  "cross_tools": {
+    "ar": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/bin/aarch64-linux-gnu-ar",
+      "sha256": "16b0d0f1dab8223859aa4b16ca3fc63b962d9c3494f6bc7f240ab168440eecdf"
+    },
+    "as": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/bin/aarch64-linux-gnu-as",
+      "sha256": "4e623869baaf4e0e165573b095f0aedaf47fe26f000ea8f3288e1c1a582cc644"
+    },
+    "cc1": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/libexec/gcc-cross/aarch64-linux-gnu/14/cc1",
+      "sha256": "2161f3a2c38a7e7153796895aa2d17d47975f9da3fccad8507808f1773430a4e"
+    },
+    "gcc": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-gcc",
+      "sha256": "ea55f8b35f29e94d8bbf6cb6f4a2ed39f8e204e2a2080cf06ba7c1733da11d95"
+    },
+    "gcc_binary": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/bin/aarch64-linux-gnu-gcc-14",
+      "sha256": "fb743ca27a77466c91da66047eec879a615993feaabd860aaf3750e7b222b131"
+    },
+    "host_bison": {
+      "path": "/usr/bin/bison",
+      "sha256": "39fc36c38e29481dc3be2d08652e0564b9ea9aa297e38ed21ff0da0ff36967e8"
+    },
+    "host_dtc": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/bin/dtc",
+      "sha256": "7d4c6ae093ff4a7615d716fcaef4158762b2f909e88d06d88fa728114209d492"
+    },
+    "host_fdtget": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/bin/fdtget",
+      "sha256": "e35762888837cc0bab37d373dd69c1cb8b5b271dcab8e0a290dfebb7ae24f7cc"
+    },
+    "host_flex": {
+      "path": "/usr/bin/flex",
+      "sha256": "2f756d9099e5e926d938e916b342b36f11e209a413e2bbedee059fa4a87560bf"
+    },
+    "host_gcc": {
+      "path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+      "sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f"
+    },
+    "host_python3": {
+      "path": "/usr/bin/python3.13",
+      "sha256": "17b78e0a93175e86f9ac03141924fd7a7f0c0c52e66b34bfa0de20ffef989df1"
+    },
+    "host_swig": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/bin/swig",
+      "sha256": "7cf4fee5106219d92f2d0da554346b705e97932f0e1ef499e482c7be24591dd3"
+    },
+    "ld": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/bin/aarch64-linux-gnu-ld.bfd",
+      "sha256": "bdb57a3334f460af5921b65de134f128642325a2087ff716dafd0adbfcc0778a"
+    },
+    "libgcc": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/lib/gcc-cross/aarch64-linux-gnu/14/libgcc.a",
+      "sha256": "60dbf748e1c310aa50300a33f30bf4ee070061071aee74a52cf115a7b8765e50"
+    },
+    "make": {
+      "path": "/usr/bin/make",
+      "sha256": "8a229baf64671988cfb5af43ba3070c6ce7214cf32bcf96155115559d1466fa7"
+    },
+    "nm": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/bin/aarch64-linux-gnu-nm",
+      "sha256": "507950b76ed983334636dee2c9eba697d159e47918fdd0068a21c1b87f8f7116"
+    },
+    "objcopy": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/bin/aarch64-linux-gnu-objcopy",
+      "sha256": "80f9027f7aa9c6b85515a049a25d99845cad74d13f18d4b4da8ca9523891c157"
+    },
+    "objdump": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/bin/aarch64-linux-gnu-objdump",
+      "sha256": "b9ae08c9c02c91ced02b80a140c937ba119fe073872fff701f67477bf597a5eb"
+    },
+    "readelf": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/bin/aarch64-linux-gnu-readelf",
+      "sha256": "24f2c9ff1291d14f86cdd07bf15a0e48c0275cb3776421d0ca1760cceda20be3"
+    }
+  },
+  "device_tree_model": "SoCFPGA Agilex5 Terasic DE25-Nano",
+  "environment": {
+    "LC_ALL": "C",
+    "LD_LIBRARY_PATH": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/lib/x86_64-linux-gnu",
+    "PATH": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/bin:/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin:/home/deano/.local/bin:/home/deano/.cargo/bin:/home/deano/.local/bin:/home/deano/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games",
+    "PYTHONPATH": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/python",
+    "SOURCE_DATE_EPOCH": "1750988435",
+    "SWIG_LIB": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/share/swig/4.3.0"
+  },
+  "fit_atf_index": 1,
+  "fit_atf_verified": true,
+  "fit_components": {
+    "atf": {
+      "crc32": "7171a253",
+      "sha256": "b7ad0869da2864229d665337ef9c396bcf8cbfd08b9299219251d1efe34ed707",
+      "size": 45117
+    },
+    "fdt-0": {
+      "crc32": "52c5e37b",
+      "sha256": "44bcf9e6bfecdeb067aef2cd7b78e8f803b5c2c8dc02e34a2a286c76efc81a71",
+      "size": 22960
+    },
+    "fes-entry": {
+      "crc32": "2ec02b3a",
+      "sha256": "cbea67ca1cfe52df32dea1b59254f7701423c3f320a927708839cddc58039c21",
+      "size": 4333265
+    },
+    "uboot": {
+      "crc32": "18886130",
+      "sha256": "b0cb7d7e2564ccf5cabaed36e0eefac03bb787c11138aabeef290f5c643d6cf6",
+      "size": 430048
+    }
+  },
+  "fit_sha256": "76dc261e8e5fa6655d9e478496f6ebe10fffbf8abd1fe0c743faa7d6eb567fce",
+  "fit_size": 4832860,
+  "limitations": [
+    "live memory/CPU/peripheral gate has not been executed on a Nano",
+    "requires this exact SPL paired to FPGA SOF and this exact FIT on test media",
+    "source-derived serial probe only; no native SD, USB, network, display or programming"
+  ],
+  "native_handoff": {
+    "bl31_sha256": "b7ad0869da2864229d665337ef9c396bcf8cbfd08b9299219251d1efe34ed707",
+    "build_id": "7d7770adbe1314e8",
+    "classification": "source-derived serial-only Nano handoff; physical gate not executed",
+    "cold_boot_profile": {
+      "chain_sha256": "3cbb2eefea591559dee7fc1c8566689d489629fdada31d90a04b642f3d7db8d0",
+      "entry_image_sha256": "cbea67ca1cfe52df32dea1b59254f7701423c3f320a927708839cddc58039c21",
+      "entry_image_size": 4333265,
+      "entry_receipt_sha256": "780fb4fbee6b089100db361b6638ac339f975bdfea8257c876f613a903b076da",
+      "experimental_fit_path": "FES/UPLOAD.BIN",
+      "firmware_profile_sha256": "2adce0615ff9709930c6cab853049bb24cb72de5b244cbaece2a9fc4970e4c8d",
+      "format": 1,
+      "hps_configuration": null,
+      "hps_configuration_sha256": null,
+      "hps_context": null,
+      "hps_context_sha256": null,
+      "hps_control": null,
+      "hps_control_sha256": null,
+      "hps_reader_memory": null,
+      "hps_reader_memory_sha256": null,
+      "native_sources_sha256": "fdc8bf6f78741c56cf4dde5e3cf3afc6080a2c8262621e2a460772448f522dff",
+      "owner_seed": 4376143070884336985,
+      "producer_sources": {
+        "platform/embedded/firmware/build_terasic.py": "d4045b8247dcf2cfefe91a123786c4c8fbc493a13b1b61d1c4efc0d35cd019a5",
+        "platform/embedded/firmware/build_terasic_uboot.py": "f25f832a02ff9b15747cac11a01fac3c4e0356db8a22b51e3644e762db926b95",
+        "platform/embedded/firmware/generated/fes_embedded_bridges.h": "3afc6ab711a884de3cfb35afd628e65f31ebcf346436d994177836057ac31d63",
+        "platform/embedded/firmware/generated/fes_embedded_control.h": "d46bacf0089d208b605aa3b3264957172ce7d88bb5ab41f7c7730f467eb51113",
+        "platform/embedded/firmware/generated/fes_embedded_control.hpp": "8856d106e50c7b3a8394c8e1442568446087195dfd3e6f3099ad63931dd41df1",
+        "platform/embedded/firmware/generated/fes_embedded_sd.h": "9c07181bd49fb2eead331e8f8783f4d707e1b175f41dcc971821b08a944153ad",
+        "platform/embedded/firmware/nano_boot.c": "3d09269591bdc90733da41462109f7c3c335f7f18c92f1fa38a6287243db6040",
+        "platform/embedded/firmware/nano_boot.h": "e95dfbb06fd03f0cb11bc33c7260a3828722962231efaa8a397fc81af4e97b4b",
+        "platform/embedded/firmware/nano_bridge_diag.h": "b80c4442198cbbdff4781d66ace85ab4a930804114176e5927e8984d1e78e904",
+        "platform/embedded/firmware/nano_bridge_diag.inc": "4d6a679e495b06dbda6d40db269492faf6ffa20aa2024262d57c6d648fd7c946",
+        "platform/embedded/firmware/nano_bridge_platform.h": "0ec692c78fb1a41e78e995da94147def63d4834f69f47f9179927d5ecded428f",
+        "platform/embedded/firmware/nano_bridge_platform.inc": "84d89b555c01875c9ea45168a3e2ee7c52a142818958f4ba7c5136924ee8e93d",
+        "platform/embedded/firmware/nano_bridge_sip.c": "dc8ce7185e59edbab44e359ea96bb732b415ea1da19c29b57b18a503a366ba26",
+        "platform/embedded/firmware/nano_bridge_sip.h": "ccf907661d2a189ca0e4423e4fe7aabe5166aae62c458bbe44207814c25701ed",
+        "platform/embedded/firmware/nano_bridges.c": "2d967b0be4a3b331c4466b6cd2cacd7cab22a10f89e515d84598c3ff53fe6181",
+        "platform/embedded/firmware/nano_bridges.h": "5e044987cd648e247141995b0a82285bec8b468d6064856c9d9439336e2e8301",
+        "platform/embedded/firmware/nano_cold.c": "d81c7cfc7bc3dc4eb88e31403160ad84b10c1fda2c285ad8ab47200c2433614a",
+        "platform/embedded/firmware/nano_cold.h": "a86c1d31122b32da76d13cac801b6fedf7877c84bef1e7c36533363f91dfdebb",
+        "platform/embedded/firmware/nano_cold_mmio.inc": "faa5bac24cca2344a98c15433efb17966dd59e54457bd6df82592f528267cb92",
+        "platform/embedded/firmware/nano_cold_platform.c": "12545ba4808c3004341b4a74a32a4f3c40372b98be0b7ca87522455effcd3563",
+        "platform/embedded/firmware/nano_configuration.c": "7a589e287e04920344de745eedd984e926e474e25a9f004919cf9968747e5852",
+        "platform/embedded/firmware/nano_configuration.h": "5f11e8fe67877db4acd57a8ebb2f6f8ca22894e5c6d65463193d89a5214698e2",
+        "platform/embedded/firmware/nano_digest.py": "61d401edb5ac7a8b3a7fe95a7bc6b23e149b66e57c6266817fc51787ea10880e",
+        "platform/embedded/firmware/nano_identity.c": "44ed798dc500745ed935f6eb9cd2c5ab33857aed35da1d670026b3baf55aefe3",
+        "platform/embedded/firmware/nano_identity.h": "3f1aa5720824ca5e2f7577fe949cceadfbeeb67594b09436a548ea7145fd089a",
+        "platform/embedded/firmware/nano_mailbox.py": "3f4272f1bf1224e8216974f304532c0ecadd54642c15fc2d94271b868d43c7ef",
+        "platform/embedded/firmware/nano_mailbox_observe.h": "9a94ca09a822c1305905fe8d403f8d41f4d8e905c939ec64920bdf5d87873194",
+        "platform/embedded/firmware/nano_mailbox_observe.inc": "2e6a44c50a77995425b268ed3e8cf7a36ccb1bfb91bf4f2b7bfff541f0a47afb",
+        "platform/embedded/firmware/nano_mailbox_status.inc": "185225e3d31d1135d7c06bec70dd433c3071742bd11e8d72c118b8c454715c8a",
+        "platform/embedded/firmware/nano_owned_sip.inc": "412b0cb3e7c00cad00758358c588df37bf789918e31fe260e338a382a9f28849",
+        "platform/embedded/firmware/nano_sd.c": "465028e1b0a8e13c6273a0e275cd93480fcaa04af1149131b37fefc966a537bf",
+        "platform/embedded/firmware/nano_sd.h": "fce29511b08b48144a348f15c8465a34500f0617c2763194d1facd49f0a84cae",
+        "platform/embedded/firmware/nano_sd_platform.c": "c0c910038637e59bb8a77ef4821478dccca2d485b19f1f25f6518b5cfa315dbb",
+        "platform/embedded/firmware/nano_sd_platform.h": "5eb74049b5f6a3a222ee7b26f7d310e1714b92183538bed4c0f8decfaf8af4c0",
+        "platform/embedded/firmware/nano_smmu.c": "701c4b63917facb09a2ca5577d331a80600a5fde3884aa6b03f0c7853c7074c9",
+        "platform/embedded/firmware/nano_smmu.h": "df4acce05089fda2ffcffcb4708d639c80c9a33cd4107158d5cbaed34e9c65e2",
+        "platform/embedded/firmware/prepare_nano_owned.py": "df8f005d4da8f6326cf766d3a6f56b1e282ddbfc27a54d5f6b45cf8429a58811",
+        "platform/embedded/firmware/prepare_tfa.py": "511db177f046c0ac4e2d8987cb1f26707e362e0175fdd254f39a7ef081295329",
+        "platform/embedded/firmware/verify.py": "c31a902bebb6b48808e58063c6623931fb19693c297d4bc3679623125f1c51bf",
+        "platform/embedded/nano/cold_profile.py": "f55600fb9b699addc66745609df112258feac7c23e512bf5373b908915589290",
+        "platform/embedded/nano/handoff.c": "c36cea379adeaf22a28761e29ccd955d55fe57229138b343094068c545588742",
+        "platform/embedded/nano/handoff.h": "571eed4dabe493cacaf25a509a19099e4b1b67df244e7912cfb95b73c5e7d1ed",
+        "platform/embedded/nano/hps_context.py": "5dcb88ce5330f6f897218216ef9ca37697d6d97ad46187349129586b063db431",
+        "platform/embedded/nano/prepare_uboot.py": "8da0b7d80a7c707959397f70ee7b6f840ef80893ec865d44d053370d3bfdeb01",
+        "platform/embedded/nano/probe-profile.json": "b9b44ca396b049c9fdb985cc95439574f47d86d0c618b876c2508aa482249d15",
+        "platform/embedded/nano/sd-profile.json": "0d5976d94ac6cf8cb2963fc3fa836bb195ac3d6fb88a550ad25049eea3ad69ef",
+        "platform/embedded/nano/smmu-profile.json": "2adce0615ff9709930c6cab853049bb24cb72de5b244cbaece2a9fc4970e4c8d",
+        "platform/embedded/nano/spl_cold.c": "ed3df3c7316530edd860b4e7aa97a6e25b24a0fd9ec5a6563ef740a79bec2c85",
+        "platform/embedded/nano/uboot.c": "cf4269382bbd0136868f69669a4d6693944a65b83f9eb242bd5564ea1a80cf15"
+      },
+      "profile": "cold-smmu-preloaded",
+      "reference_sof_sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+      "sd_pio": false,
+      "smmu_observe": true,
+      "tfa_pin": "580dcb5c4e10aa7daff2bf69d493c076a6d3e665",
+      "uboot_pin": "d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413"
+    },
+    "entry_image_sha256": "cbea67ca1cfe52df32dea1b59254f7701423c3f320a927708839cddc58039c21",
+    "entry_receipt_sha256": "780fb4fbee6b089100db361b6638ac339f975bdfea8257c876f613a903b076da",
+    "experimental_fit_path": "FES/UPLOAD.BIN",
+    "preloaded_entry": true,
+    "producer_sources": {
+      "platform/embedded/firmware/build_terasic.py": "d4045b8247dcf2cfefe91a123786c4c8fbc493a13b1b61d1c4efc0d35cd019a5",
+      "platform/embedded/firmware/build_terasic_uboot.py": "f25f832a02ff9b15747cac11a01fac3c4e0356db8a22b51e3644e762db926b95",
+      "platform/embedded/firmware/generated/fes_embedded_bridges.h": "3afc6ab711a884de3cfb35afd628e65f31ebcf346436d994177836057ac31d63",
+      "platform/embedded/firmware/generated/fes_embedded_control.h": "d46bacf0089d208b605aa3b3264957172ce7d88bb5ab41f7c7730f467eb51113",
+      "platform/embedded/firmware/generated/fes_embedded_control.hpp": "8856d106e50c7b3a8394c8e1442568446087195dfd3e6f3099ad63931dd41df1",
+      "platform/embedded/firmware/generated/fes_embedded_sd.h": "9c07181bd49fb2eead331e8f8783f4d707e1b175f41dcc971821b08a944153ad",
+      "platform/embedded/firmware/nano_boot.c": "3d09269591bdc90733da41462109f7c3c335f7f18c92f1fa38a6287243db6040",
+      "platform/embedded/firmware/nano_boot.h": "e95dfbb06fd03f0cb11bc33c7260a3828722962231efaa8a397fc81af4e97b4b",
+      "platform/embedded/firmware/nano_bridge_diag.h": "b80c4442198cbbdff4781d66ace85ab4a930804114176e5927e8984d1e78e904",
+      "platform/embedded/firmware/nano_bridge_diag.inc": "4d6a679e495b06dbda6d40db269492faf6ffa20aa2024262d57c6d648fd7c946",
+      "platform/embedded/firmware/nano_bridge_platform.h": "0ec692c78fb1a41e78e995da94147def63d4834f69f47f9179927d5ecded428f",
+      "platform/embedded/firmware/nano_bridge_platform.inc": "84d89b555c01875c9ea45168a3e2ee7c52a142818958f4ba7c5136924ee8e93d",
+      "platform/embedded/firmware/nano_bridge_sip.c": "dc8ce7185e59edbab44e359ea96bb732b415ea1da19c29b57b18a503a366ba26",
+      "platform/embedded/firmware/nano_bridge_sip.h": "ccf907661d2a189ca0e4423e4fe7aabe5166aae62c458bbe44207814c25701ed",
+      "platform/embedded/firmware/nano_bridges.c": "2d967b0be4a3b331c4466b6cd2cacd7cab22a10f89e515d84598c3ff53fe6181",
+      "platform/embedded/firmware/nano_bridges.h": "5e044987cd648e247141995b0a82285bec8b468d6064856c9d9439336e2e8301",
+      "platform/embedded/firmware/nano_cold.c": "d81c7cfc7bc3dc4eb88e31403160ad84b10c1fda2c285ad8ab47200c2433614a",
+      "platform/embedded/firmware/nano_cold.h": "a86c1d31122b32da76d13cac801b6fedf7877c84bef1e7c36533363f91dfdebb",
+      "platform/embedded/firmware/nano_cold_mmio.inc": "faa5bac24cca2344a98c15433efb17966dd59e54457bd6df82592f528267cb92",
+      "platform/embedded/firmware/nano_cold_platform.c": "12545ba4808c3004341b4a74a32a4f3c40372b98be0b7ca87522455effcd3563",
+      "platform/embedded/firmware/nano_configuration.c": "7a589e287e04920344de745eedd984e926e474e25a9f004919cf9968747e5852",
+      "platform/embedded/firmware/nano_configuration.h": "5f11e8fe67877db4acd57a8ebb2f6f8ca22894e5c6d65463193d89a5214698e2",
+      "platform/embedded/firmware/nano_digest.py": "61d401edb5ac7a8b3a7fe95a7bc6b23e149b66e57c6266817fc51787ea10880e",
+      "platform/embedded/firmware/nano_identity.c": "44ed798dc500745ed935f6eb9cd2c5ab33857aed35da1d670026b3baf55aefe3",
+      "platform/embedded/firmware/nano_identity.h": "3f1aa5720824ca5e2f7577fe949cceadfbeeb67594b09436a548ea7145fd089a",
+      "platform/embedded/firmware/nano_mailbox.py": "3f4272f1bf1224e8216974f304532c0ecadd54642c15fc2d94271b868d43c7ef",
+      "platform/embedded/firmware/nano_mailbox_observe.h": "9a94ca09a822c1305905fe8d403f8d41f4d8e905c939ec64920bdf5d87873194",
+      "platform/embedded/firmware/nano_mailbox_observe.inc": "2e6a44c50a77995425b268ed3e8cf7a36ccb1bfb91bf4f2b7bfff541f0a47afb",
+      "platform/embedded/firmware/nano_mailbox_status.inc": "185225e3d31d1135d7c06bec70dd433c3071742bd11e8d72c118b8c454715c8a",
+      "platform/embedded/firmware/nano_owned_sip.inc": "412b0cb3e7c00cad00758358c588df37bf789918e31fe260e338a382a9f28849",
+      "platform/embedded/firmware/nano_sd.c": "465028e1b0a8e13c6273a0e275cd93480fcaa04af1149131b37fefc966a537bf",
+      "platform/embedded/firmware/nano_sd.h": "fce29511b08b48144a348f15c8465a34500f0617c2763194d1facd49f0a84cae",
+      "platform/embedded/firmware/nano_sd_platform.c": "c0c910038637e59bb8a77ef4821478dccca2d485b19f1f25f6518b5cfa315dbb",
+      "platform/embedded/firmware/nano_sd_platform.h": "5eb74049b5f6a3a222ee7b26f7d310e1714b92183538bed4c0f8decfaf8af4c0",
+      "platform/embedded/firmware/nano_smmu.c": "701c4b63917facb09a2ca5577d331a80600a5fde3884aa6b03f0c7853c7074c9",
+      "platform/embedded/firmware/nano_smmu.h": "df4acce05089fda2ffcffcb4708d639c80c9a33cd4107158d5cbaed34e9c65e2",
+      "platform/embedded/firmware/prepare_nano_owned.py": "df8f005d4da8f6326cf766d3a6f56b1e282ddbfc27a54d5f6b45cf8429a58811",
+      "platform/embedded/firmware/prepare_tfa.py": "511db177f046c0ac4e2d8987cb1f26707e362e0175fdd254f39a7ef081295329",
+      "platform/embedded/firmware/verify.py": "c31a902bebb6b48808e58063c6623931fb19693c297d4bc3679623125f1c51bf",
+      "platform/embedded/nano/cold_profile.py": "f55600fb9b699addc66745609df112258feac7c23e512bf5373b908915589290",
+      "platform/embedded/nano/handoff.c": "c36cea379adeaf22a28761e29ccd955d55fe57229138b343094068c545588742",
+      "platform/embedded/nano/handoff.h": "571eed4dabe493cacaf25a509a19099e4b1b67df244e7912cfb95b73c5e7d1ed",
+      "platform/embedded/nano/hps_context.py": "5dcb88ce5330f6f897218216ef9ca37697d6d97ad46187349129586b063db431",
+      "platform/embedded/nano/prepare_uboot.py": "8da0b7d80a7c707959397f70ee7b6f840ef80893ec865d44d053370d3bfdeb01",
+      "platform/embedded/nano/probe-profile.json": "b9b44ca396b049c9fdb985cc95439574f47d86d0c618b876c2508aa482249d15",
+      "platform/embedded/nano/sd-profile.json": "0d5976d94ac6cf8cb2963fc3fa836bb195ac3d6fb88a550ad25049eea3ad69ef",
+      "platform/embedded/nano/smmu-profile.json": "2adce0615ff9709930c6cab853049bb24cb72de5b244cbaece2a9fc4970e4c8d",
+      "platform/embedded/nano/spl_cold.c": "ed3df3c7316530edd860b4e7aa97a6e25b24a0fd9ec5a6563ef740a79bec2c85",
+      "platform/embedded/nano/uboot.c": "cf4269382bbd0136868f69669a4d6693944a65b83f9eb242bd5564ea1a80cf15"
+    },
+    "profile_sha256": "2adce0615ff9709930c6cab853049bb24cb72de5b244cbaece2a9fc4970e4c8d",
+    "sealed_fit_sha256": "76dc261e8e5fa6655d9e478496f6ebe10fffbf8abd1fe0c743faa7d6eb567fce",
+    "sealed_fit_size": 4832860,
+    "spl_record_address": 137064,
+    "spl_record_size": 224
+  },
+  "producer_sha256": "f25f832a02ff9b15747cac11a01fac3c4e0356db8a22b51e3644e762db926b95",
+  "spl_sha256": "86b3271de4aac12e058dcca2ca65089c7a2dcbcf87f523fd28c5f1a708c7054f",
+  "spl_size": 452835,
+  "status": "built",
+  "uboot_initial_load_nonoverlap": true,
+  "uboot_revision": "d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413",
+  "uboot_tree": "023535ef4e026656d5c9171e16971e7720c93cfe"
+}

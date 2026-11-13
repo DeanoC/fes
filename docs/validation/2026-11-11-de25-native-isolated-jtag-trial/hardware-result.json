@@ -1,0 +1,186 @@
+{
+  "status": "matched-programming-and-firmware-boot-stopped-at-usb-connection",
+  "source_head": "a65a2a1307afde651935e9333ba713d183eb13a4",
+  "compiled_source": "49752d8b21cd1625ab0ee22892a20e628af36b87",
+  "native_boot_id": "c491ac67743d3526",
+  "whole_attempt_passed": false,
+  "recovery_programming_and_boot_passed": true,
+  "native_programming_complete": true,
+  "native_firmware_cold_boot_verified": true,
+  "native_firmware_trace_complete": true,
+  "native_app_ready": false,
+  "uploads_verified": 10,
+  "fresh_sd_readbacks_verified": 10,
+  "sd_write_attempted": true,
+  "native_sd_open_reached": false,
+  "native_install_attempted": false,
+  "core_launch_verified": false,
+  "persistence_verified": false,
+  "ordinary_admission": false,
+  "hardware_acceptance": false,
+  "error": "native failure marker; no further command",
+  "usb_observation": {
+    "register": "HPRT",
+    "offset": "0x440",
+    "value": "0x1000",
+    "power_bit_set": true,
+    "connection_bit_clear": true,
+    "wait_ms": 500.000768,
+    "timeout_extended": false,
+    "physical_cause_established": false
+  },
+  "runtime_retired_and_resources_retained": true,
+  "final_native_park_verified": false,
+  "transport_epochs": {
+    "recovery": {
+      "status": "closed",
+      "started_complete": true,
+      "pid": 1506734,
+      "start_ticks": "138481480",
+      "cable": "DE25-Nano on localhost:37249 [3-11.1-iface0]",
+      "clock_policy": {
+        "original": {
+          "auto_adjust": 1,
+          "clock": "15M"
+        },
+        "write_attempted": true,
+        "active": false,
+        "restore_consumed": true,
+        "restored": true,
+        "readback": {
+          "auto_adjust": 1,
+          "clock": "15M"
+        },
+        "errors": []
+      },
+      "owned_server_stopped": true,
+      "usb_permissions_restored": true,
+      "files": {
+        "transport.json": "fda956fc5bb1d033fb4688a393fb115af750349c423cdeae4e3c5e0bf0f9cc0a",
+        "private-client.conf": "8e4edbd8d37e539ba811ddb8e6b963c016e0a910fce468db84008f9bf684562a",
+        "private-port": "8bda747a2cab41eb8acd31dc282c4aff5fc7f65d7d6435846eabf5bbe252c0f7",
+        "private-pid": "b8d7f5cbdbbff174de17af306a569e7f2d2c79b7c2b117c5c479047df243866c",
+        "private-server.log": "313024a2d27e45e1bf2ec046cf5695d802a800aa42e049777e9747e2299aa6ba",
+        "private-client-setup.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "private-top-enumeration.log": "471415197a82022fb844eea1e2f7cb952f2f43410f7c9fd04b06f67cbcfa347d"
+      },
+      "errors": [],
+      "operation_completed": true
+    },
+    "native": {
+      "status": "closed",
+      "started_complete": true,
+      "pid": 1521234,
+      "start_ticks": "138491387",
+      "cable": "DE25-Nano on localhost:34241 [3-11.1-iface0]",
+      "clock_policy": {
+        "original": {
+          "auto_adjust": 1,
+          "clock": "15M"
+        },
+        "write_attempted": true,
+        "active": false,
+        "restore_consumed": true,
+        "restored": true,
+        "readback": {
+          "auto_adjust": 1,
+          "clock": "15M"
+        },
+        "errors": []
+      },
+      "owned_server_stopped": true,
+      "usb_permissions_restored": true,
+      "files": {
+        "transport.json": "ad7b9782cbb2cb4f82e56b319fd1cbc8933162013590e99e1b5eaa68169f317d",
+        "private-client.conf": "1ef010f4b26799cd3d0020905037afcc5c74baa56934b45922ffc15cfd458495",
+        "private-port": "b9102699a8f34283adb9a8b747ee43d26aedaae2d9b1db3f11c39d0082d63532",
+        "private-pid": "88d2ea8082a6d33567f7c98dff37e081f0fa13c25a50d487d7c292821e0aaeb7",
+        "private-server.log": "313024a2d27e45e1bf2ec046cf5695d802a800aa42e049777e9747e2299aa6ba",
+        "private-client-setup.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "private-top-enumeration.log": "84c53b8964ebe01601456f481e4743031b5acf8f65d3f809cc0faefa9255df9d"
+      },
+      "errors": [],
+      "operation_completed": false
+    }
+  },
+  "successful_image_programming_operations": 2,
+  "new_programming_failures": 0,
+  "total_transport_programming_failures": 3,
+  "cleanup": {
+    "status": "passed-independent-two-lifetime-host-cleanup",
+    "checked_utc": "2026-11-10T23:35:13.774149+00:00",
+    "epochs": {
+      "recovery": {
+        "owned_server_gone": true,
+        "archive_hashes_verified": true,
+        "clock_restored": {
+          "auto_adjust": 1,
+          "clock": "15M"
+        },
+        "pid": 1506734,
+        "start_ticks": "138481480"
+      },
+      "native": {
+        "owned_server_gone": true,
+        "archive_hashes_verified": true,
+        "clock_restored": {
+          "auto_adjust": 1,
+          "clock": "15M"
+        },
+        "pid": 1521234,
+        "start_ticks": "138491387"
+      }
+    },
+    "uart_owners": [],
+    "processes_inventoried": 530,
+    "usb_permissions_exact": true,
+    "usb_node_unchanged": true,
+    "hardware_actions": false,
+    "current_observation": "native startup panic before SD-open/initial menu; USB resources retained, no final Park/containment claimed"
+  },
+  "boot_boundary": {
+    "status": "passed-complete-firmware-boot-trace-with-app-usb-stop",
+    "firmware_ram_and_mmu_trace_validated": true,
+    "affinity_and_loader_sequences_validated": true,
+    "go_source_matches_compiled_input": true,
+    "application_startup_complete": false,
+    "native_sd_open_reached": false,
+    "installer_reached": false,
+    "hardware_actions": false
+  },
+  "retention": {
+    "status": "retained-matched-programming-and-firmware-boot-stopped-at-usb",
+    "source_head": "a65a2a1307afde651935e9333ba713d183eb13a4",
+    "files": 183,
+    "archive_sha256": "af3cc583d41e86a9a8f26b4bbd2497b8950342f7659ef72be73180f7e906431e",
+    "source_bundle_sha256": "b0a45c4f1d1bf10af6a509868e143ac71d22f7f8af313ebd452674645aa0bcd6",
+    "base_bundle": "/home/deano/fes-retained/de25-menu-return-observation-20261110-r1/source.bundle",
+    "base_bundle_sha256": "d7166cde75bd88ea7f9d14ac4a5706b55c74cd215cc4f375abd1a5d6661a17d0",
+    "archive_readback_modes_verified": true,
+    "independent_source_restore_verified": true,
+    "strict_fsck_pack_verified": true,
+    "candidate_dependency": {
+      "path": "/home/deano/fes-retained/de25-native-installer-ui-prepared-20261110-r1",
+      "manifest_sha256": "0ccdfa5b0444be22540eb9e6231bb39f24b6f87b1adb925f141a00710b9dfb1d",
+      "retained_archive_sha256": "da7a6b070f39c8d54018a218f882d17f710720cd016e605c5d43b7e1266a956e"
+    },
+    "recovery_and_native_programming_complete": true,
+    "native_firmware_cold_boot_verified": true,
+    "native_app_ready": false,
+    "installer_attempted": false,
+    "core_load_acceptance": false
+  },
+  "retention_directory": "/home/deano/fes-retained/de25-native-isolated-jtag-usb-stop-20261111-r1",
+  "current_observation": "native USB startup panic before SD-open/initial menu; partial USB resources retained; no final Park or containment claimed",
+  "evidence_sha256": {
+    "out/nano-installer-isolated-jtag-20261111/trial/recovery-boot-result.json": "0509ef929eaa372052ef27194da16159fdfdea6bda6fc47d9a62a01dd7445e06",
+    "out/nano-installer-isolated-jtag-20261111/trial/uploads/result.json": "0cba86078a58696833396cbfab16a7b6c35234ec15427b6af7cacb67c2b38382",
+    "out/nano-installer-isolated-jtag-20261111/trial/native-result.json": "03a13fa90ef735018d3e06669da2287ac93c7812bd08b192e16d998d04a7ec81",
+    "out/nano-installer-isolated-jtag-20261111/trial/native-console.log": "527376fe3099653eaa652c1f145b1666a9c04dd69617b704c6c8da3506f5f7e1",
+    "out/nano-installer-isolated-jtag-20261111/trial/experiment-result.json": "e037ea4c1f71e24c0b502e745d9862a0e6bf3975f1e73c2e227f06f7e3e20107",
+    "out/nano-installer-isolated-jtag-20261111/trial/recovery-vendor-list.log": "49e88a2bb40bb175b2bc192da1c533de7fb11f9aa2ae8b76de5b7665a812d332",
+    "out/nano-installer-isolated-jtag-20261111/trial/native-vendor-list.log": "2b4f30dc19041fda0307885d8b00004e97d84a4c2b24ce59bb0ac2bc960ec5b4",
+    "out/nano-installer-isolated-jtag-20261111/cleanup-proof.json": "c11ce27a7d87f074b9c2a01f1401a28d77b82e7f9911e4d41966b00d2e6bc3f8",
+    "out/nano-installer-isolated-jtag-20261111/boot-boundary-proof.json": "8f4f2258c0f0c34e3f11d15058eb031812315f47b88cd01dd3708c6a8a9748de"
+  }
+}

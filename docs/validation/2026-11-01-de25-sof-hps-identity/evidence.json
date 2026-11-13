@@ -1,0 +1,160 @@
+{
+  "format": 1,
+  "base_commit": "887f833ab3f42b0fb90dece5756e5b0105eeab41",
+  "actual_artifacts": {
+    "scope": "independent full SPL extraction from four real artifacts; newly inspected package preserves target bytes; file-only",
+    "passed": true,
+    "controls": {
+      "native-v12": {
+        "format": "nano-sof-gzip-hps-literals",
+        "spl_bytes": 160063,
+        "spl_binary_sha256": "3b2a8f1b56fcf9d3277ea18c94005c32c7d20f48d6bcebf4deb996e11b7107cc",
+        "spl_hex_sha256": "1dd40829b0ba52f4c15ec4ad34e9de43805f96d594aa49b1119493efc5b66e52",
+        "chunks": [
+          {
+            "address": 0,
+            "size": 65536
+          },
+          {
+            "address": 65536,
+            "size": 65536
+          },
+          {
+            "address": 131072,
+            "size": 28991
+          }
+        ],
+        "preserved_sections": 11,
+        "security_hash_and_configuration_crc_verified": false,
+        "hardware_programming_or_boot_acceptance": false
+      },
+      "native-v13": {
+        "format": "nano-sof-gzip-hps-literals",
+        "spl_bytes": 161055,
+        "spl_binary_sha256": "d42ca9deabeb9e26b4d94231e5d8bed1a5e3040a2abc3c8af24a820c86ff43e8",
+        "spl_hex_sha256": "324e5a12ddd3b1aeff48435f27a8dd90e8f6551ac9a2b7302091bf9a8b0ed890",
+        "chunks": [
+          {
+            "address": 0,
+            "size": 65536
+          },
+          {
+            "address": 65536,
+            "size": 65536
+          },
+          {
+            "address": 131072,
+            "size": 29983
+          }
+        ],
+        "preserved_sections": 11,
+        "security_hash_and_configuration_crc_verified": false,
+        "hardware_programming_or_boot_acceptance": false
+      },
+      "native-v14": {
+        "format": "nano-sof-gzip-hps-literals",
+        "spl_bytes": 161047,
+        "spl_binary_sha256": "ca01dfb7f832c7d2efa949f4b69a6a3f7c9dd8bbd39bf93c4fe05b2988f20065",
+        "spl_hex_sha256": "c043f0a03a85ba754c58206422b582a5687e09797cc0a74a376f8c4c9297c14d",
+        "chunks": [
+          {
+            "address": 0,
+            "size": 65536
+          },
+          {
+            "address": 65536,
+            "size": 65536
+          },
+          {
+            "address": 131072,
+            "size": 29975
+          }
+        ],
+        "preserved_sections": 11,
+        "security_hash_and_configuration_crc_verified": false,
+        "hardware_programming_or_boot_acceptance": false
+      },
+      "known-recovery": {
+        "format": "nano-sof-gzip-hps-literals",
+        "spl_bytes": 254819,
+        "spl_binary_sha256": "4a0a9c3bd2bfab0b2dbbc16fa4f71f19259776769c2e8b8a7f7faa3625c2ae3f",
+        "spl_hex_sha256": "c8a381931513024d1e95ddbfdecdb269c244c21cc347e59b7dbac28329cc38d4",
+        "chunks": [
+          {
+            "address": 0,
+            "size": 65536
+          },
+          {
+            "address": 65536,
+            "size": 65536
+          },
+          {
+            "address": 131072,
+            "size": 65536
+          },
+          {
+            "address": 196608,
+            "size": 58211
+          }
+        ],
+        "preserved_sections": 11,
+        "security_hash_and_configuration_crc_verified": false,
+        "hardware_programming_or_boot_acceptance": false
+      }
+    },
+    "new_package_sha256": "295c8b9a9096b54bf0b7ef0c2758f8c941ad9afd16ee5a18e9d21d5903ef855a",
+    "native_sof_sha256": "b360202ec970fe3c0bc254590805eb631bbcba11c11681ef200655a2f4e0612e",
+    "target_fit_sha256": "b1bb52b2d540fb001f071a64b4c8a021ed5d60d6a467fef1ede9ce6d1f139968",
+    "target_bytes_unchanged": true,
+    "hardware_attempted": false,
+    "source_sha256": {
+      "platform/embedded/nano/sof_hps.py": "11c9c21d46f28219accfd5a08d9a27486df84845ef4fee3573b2a0f6e72df70d",
+      "platform/embedded/nano/package.py": "f3b3f4afd48caab9a8d051e5bde39075c076b161654daa9a9daf0748478a68ed",
+      "tests/test_nano_sof_hps.py": "967147589e859cb0d9e77b44aa54e79deb494584556422f865e26d6fe6bd0630"
+    }
+  },
+  "focused_tests": 7,
+  "focused_passed": true,
+  "affected_checks_status": "passed",
+  "limits": [
+    "observed gzip SOF/counted literal HPS format only",
+    "no independent SDM command/security-hash/configuration-CRC verification",
+    "v14 programming failures remain open; no new hardware execution"
+  ],
+  "tested_commit": "6b27795bbb74a4d76715547febec1f5c55ba1eec",
+  "affected_results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    }
+  ],
+  "parent_tests": 1234,
+  "parent_skipped": 40,
+  "affected_log_sha256": "e140ba6a4a75476bba279f1ec24b3ac78091fab007c1b839b8818816dfc083a9"
+}

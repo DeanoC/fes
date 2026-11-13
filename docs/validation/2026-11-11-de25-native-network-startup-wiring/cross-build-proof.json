@@ -1,0 +1,12 @@
+{
+  "status": "passed-native-sdk-cross-build",
+  "source_head": "ed3cfbb17f9374c6070b84e7ceb7fe307349090f",
+  "elf_sha256": "0714047e12e059d4c1ac950c9620ade72d530b06197dda53049b4def122454ab",
+  "all_selected_source_hashes_match": true,
+  "network_profile_enabled": false,
+  "startup_and_lifetime_contexts_separate": true,
+  "hardware_actions": false,
+  "deployed": false,
+  "matched_boot_chain_built": false,
+  "physical_mac_qualified": false
+}

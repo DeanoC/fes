@@ -1,0 +1,63 @@
+{
+  "base_commit": "d563b7cd2d60a5efdd51f24f9d680d8e6d1b143f",
+  "initial_command": "make test-changed TEST_CHANGED_ARGS=\"--base d563b7cd2d60a5efdd51f24f9d680d8e6d1b143f\"",
+  "initial_results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "host Go and UI tests",
+      "lane": "host",
+      "returncode": 1
+    }
+  ],
+  "initial_log": "out/native-packages-checks/test-changed.log",
+  "initial_log_sha256": "5a4c61094233908db3471d21316aec3780ae9ef065fba35930733f46cd568d22",
+  "parent_tests": 1106,
+  "host_lane_retry": {
+    "argv": [
+      "/usr/bin/python3",
+      "scripts/host_tests.py",
+      "--ui-if-needed",
+      "--paths-json",
+      "[\"platform/embedded/tamago/cmd/packages/main.go\", \"platform/embedded/tamago/host_support.py\", \"platform/embedded/tamago/package_fixtures.py\", \"platform/embedded/tamago/run.py\", \"sources/FogCast/corepackage/archive.go\", \"sources/FogCast/corepackage/archive_test.go\", \"sources/FogCast/corepackage/package.go\"]"
+    ],
+    "returncode": 0
+  },
+  "host_retry_log": "out/native-packages-checks/host-retry.log",
+  "host_retry_log_sha256": "9f194bb5cb8dcd6b7fcbaacb5cd5390fa517e288ab234d4cbfacfaad5f6fd589",
+  "isolated_room_budget_test": {
+    "current": "passed twice with race detector",
+    "base_source_overlay": "passed twice with race detector",
+    "budget_unchanged_ms": 48
+  },
+  "deadcode": "passed linux/amd64 and linux/arm",
+  "final_status": "all selected lanes passed, host lane on retry"
+}

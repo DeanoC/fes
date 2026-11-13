@@ -1,0 +1,28 @@
+{
+  "status": "stopped-and-cleanup-verified",
+  "source_commit": "668b1c733155025e10a235dab8f6a82b5767017a",
+  "boot_id": "cd19cf6e053fe413",
+  "error": "native handoff/probe trace rejected: ['out-of-order or duplicate cpu_mapping at line 94', 'out-of-order or duplicate hps_context at line 95']",
+  "console_bytes": 5622,
+  "console_sha256": "6118383c4dd0ee8b707179b70c4256f6e4e3623ef8bfd13cd9cd8ba7f1569c6a",
+  "clock_restored": "15M",
+  "exact_usb_permissions": true,
+  "uart_free": true,
+  "private_server_stopped": true,
+  "claim_retained": true,
+  "spare_retained": true,
+  "new_hardware_attempts": 1,
+  "hardware_failures_this_implementation": 1,
+  "hardware_replayed": false,
+  "native_boot_and_package_retention_observed": true,
+  "configuration_completion_unknown": true,
+  "ddr_outcome_unknown": true,
+  "normal_runtime_admission": false,
+  "board_state": "last capture is configuration arm; autonomous fixed diagnostic may have continued after observer stopped",
+  "input_sha256": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-ddr-20261103/trial/experiment-result.json": "dd5d8a7e90cf79c1cfc68cf975f75d2eaafd577e319dd139d318d9b24715e96f",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-ddr-20261103/trial/native-result.json": "a758cd0d989e5369d7aa7c1be9b1e28ccd20565dba1ab278430ecbce7c1c6715",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-ddr-20261103/trial/native-console.log": "6118383c4dd0ee8b707179b70c4256f6e4e3623ef8bfd13cd9cd8ba7f1569c6a",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-ddr-20261103/trial/preflight.json": "1c96a97a2ea3841d47889680e1ad0b252b8abfa399c8878a1c08826f5a8323d5"
+  }
+}

@@ -1,0 +1,156 @@
+{
+  "status": "passed",
+  "checkout_commit": "9ac28336594ce2eda780e7c77c372ce5dd196fdf",
+  "implementation_commit": "4aedf7230dd1fddec12bd5b6fdb7df6801278327",
+  "scopes": [
+    {
+      "index": 0,
+      "label": "test_affected.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "log": "software-0.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20036984607577324,
+      "log_sha256": "66f17db99437fef44def6f51ad547e7d75897b3c9a03e3cc4d726085df274267",
+      "child_receipt_sha256": "a672bbe0eb9d16e9b41ae815541f501817ad262ca00e704bf46b5d6c1d1e2cf0"
+    },
+    {
+      "index": 1,
+      "label": "test_test_changed.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "log": "software-1.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.8008145759813488,
+      "log_sha256": "715b03494cbe19c97ea620972faff957c29a8dc40d7911096b687da90dac2a3b",
+      "child_receipt_sha256": "2a7b3f2fc939e3448d56c9f6c07e4b791283991f5bdad015e1383a0fa7d3d5d7"
+    },
+    {
+      "index": 2,
+      "label": "committed whitespace",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "7d93bacb1fc228777c3f6d50befdb8fc785c8dd0",
+        "--head",
+        "9ac28336594ce2eda780e7c77c372ce5dd196fdf"
+      ],
+      "log": "software-2.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20065143797546625,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "42fe10c927d26b2b48dab3906d9dc5799e3e7a7abbd40a208c794b798d36fa6a"
+    },
+    {
+      "index": 3,
+      "label": "working whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "log": "software-3.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2006041599670425,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "16f15f2c7d2884329e5b6aa275b455612eb297721df0e885272dbc808e4e3baf"
+    },
+    {
+      "index": 4,
+      "label": "parent Python regressions",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-drain-checks-final-20261103/parent_partitions.py"
+      ],
+      "log": "software-4.log",
+      "planned_argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/nano/README.md\", \"platform/embedded/nano/uart_transfer.py\", \"tests/fixtures/nano-kermit-exit/README.md\", \"tests/fixtures/nano-kermit-exit/observation.json\", \"tests/fixtures/nano-kermit-exit/sender-stdout.hex\", \"tests/fixtures/nano-kermit-exit/target-packets.hex\", \"tests/test_nano_uart_transfer.py\"]"
+      ],
+      "verification_mode": "same-selected-suite-partitioned-by-module",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 226.56281870999373,
+      "log_sha256": "71311ec8cf17d7bb502d0c870a9c0bddda44b6e4e54d1c768697cbf8e6aca3c5",
+      "child_receipt_sha256": "6a083776bb66e0ac26f38024628eb88752e7b901489b6f33edf67a08d3049033"
+    },
+    {
+      "index": 5,
+      "label": "working-tree generated consumer consistency",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "log": "software-5.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.604519020067528,
+      "log_sha256": "0abb26569563f932801c46ce2685573dd4f24c3301287f939963f0e6407a41cd",
+      "child_receipt_sha256": "416480e5f31720a6878a77d2fb5f637511a188ba39a69d6cac51f1744c38ed62"
+    }
+  ],
+  "parent_ids": 1338,
+  "parent_partition_cap_seconds": 300,
+  "skipped": [
+    [
+      "test_media_inputs.UbootDerivationTest.test_locked_upstream_derives_locked_uboot",
+      "locked upstream uboot.img cache is absent"
+    ],
+    [
+      "test_gpu_lease.GpuLeaseTests.test_macos_statfs_reports_the_lease_filesystem",
+      "statfs(2) layout is the macOS one"
+    ]
+  ],
+  "captured_relay_regressions": 7,
+  "actual_1mib_sender_receiver_cases": {
+    "normal_privileges": 6,
+    "elevated_privileges": 6
+  },
+  "outer_controller_cases": 248,
+  "real_upload_session_cases": 18,
+  "upgrade_card_cases_retained_for_unchanged_logic": 18,
+  "ram_qualification_gate_cases": 24,
+  "helper_transport_cases": 11,
+  "unchanged_native_flag_cases": 4,
+  "make_check_passed": true,
+  "fpga_compile": false,
+  "prior_software_scope_references": [
+    "out/nano-phy-prepare-checks-20261103",
+    "out/nano-phy-prepare-checks-final-20261103",
+    "out/nano-version-suffix-checks-20261103"
+  ],
+  "failed_initial_whitespace_check": "out/nano-uart-drain-checks-20261103/software-2.log",
+  "fix": "packet fixture bytes preserved as UTF-8 hex; transfer implementation unchanged"
+}

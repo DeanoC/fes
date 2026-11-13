@@ -1,0 +1,34 @@
+{
+  "source": {
+    "repository": "DeanoC/fes",
+    "commit": "4f559cc68d387dfb807bb7ab351ac6fe331bf89b",
+    "file": "platform/embedded/firmware/generated/fes_embedded_sd.h",
+    "note": "Base runtime/FES revision. New private C/Go SD lease channel; platform hooks remain uninitialized by default, with no physical SD or core-load acceptance."
+  },
+  "fabric": {
+    "id": "fes.fabric.embedded.sd",
+    "major": 1,
+    "minor": 0
+  },
+  "constants": {
+    "FesEmbeddedSdCall": 3254780674,
+    "FesEmbeddedSdCookie": 1178948435,
+    "FesEmbeddedSdTag": 1179862065,
+    "FesEmbeddedSdQuery": 0,
+    "FesEmbeddedSdResume": 1,
+    "FesEmbeddedSdPrepare": 2,
+    "FesEmbeddedSdStop": 3,
+    "FesEmbeddedSdOK": 0,
+    "FesEmbeddedSdBusy": 1,
+    "FesEmbeddedSdRejected": 2,
+    "FesEmbeddedSdError": 4,
+    "FesEmbeddedSdNotReady": 5,
+    "FesEmbeddedSdSupported": 1,
+    "FesEmbeddedSdActive": 2,
+    "FesEmbeddedSdPrepared": 4,
+    "FesEmbeddedSdContained": 8,
+    "FesEmbeddedSdDataHeld": 16,
+    "FesEmbeddedSdClosedOnly": 32,
+    "FesEmbeddedSdFlags": 63
+  }
+}

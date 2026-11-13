@@ -1,0 +1,173 @@
+{
+  "status": "repaired-menu-chain-native-checks-passed-source-suite-timeout-rerun-passed",
+  "fpga_source": "0a91a980ab76459b9f5fa0ef672c98291051f5b9",
+  "native_sdk_entry_source": "6de7cb777af5a422825abb3b61e35ad5364de44b",
+  "firmware_spl_source": "ec65d9f44456cbcbaea64adc02a4a3148a5048a0",
+  "regression_fixture_source": "26871f61b8695672a5a736d93d634370851cca45",
+  "package_id": "c69484491de11e1ee6d1c955b7d54e02e3fe513a0ad39d5376e23e539ba75444",
+  "build_id": "40bf9e4b00c1d25192fd06df5d97c5bd",
+  "native_boot_id": "f94ef3f9abc5f1aa",
+  "fit_sha256": "d68231094b79b20916faabfd6e9e3b8e256ec5c8fb81f2701e44f81002e63e2e",
+  "bl31_sha256": "f3821bd45eb62621e9543ac0c272f4daeedbdd4681ebe88b18e7f8525a43a3a7",
+  "sof_sha256": "cfbacd8644845a440ef95a2e0f276ca3f7763c2911ee404c2eec9e9d38a7dc12",
+  "fit_bytes": 8051232,
+  "chain_sha256": "6d964e77a6aedefdbb3d1f6d12798dbeec7b894404fd9bd2ef9520fbe469304c",
+  "entry_sha256": "b3f4cc332964513e5741533508e86a656cb63337c9ddfaaecf651cd74748eda0",
+  "core_sha256": "a9baf204120486cf49ad6c0bd235893c111a49a829cfe7701996cd0ba063ab26",
+  "core_payload_unchanged": true,
+  "source_and_artifact_hashes_verified": 4454,
+  "actual_BSS_end": "0x5afc0",
+  "cpu_reader_bytes": 8388608,
+  "firmware_bounds_unchanged": true,
+  "firewall_cases": 1868,
+  "joined_menu_dispatcher_cases": 23,
+  "focused_trace_tests": 91,
+  "parent_tests": 1633,
+  "parent_skips": 3,
+  "checks": [
+    {
+      "label": "firewall-all-extents",
+      "receipt": "out/nano-menu-firewall-fix-20261107/firewall-all-extents-result.json",
+      "sha256": "f7fc00979ddd17edb83900d7c9a11c48b3994ba8ea27ca3afd4f982ea514f8ba",
+      "log_sha256": "49ff48170aafe845243d4679fbb9ed765f092e3ed53c75b635a3a277dcbff665"
+    },
+    {
+      "label": "fixed-menu-traces",
+      "receipt": "out/nano-menu-firewall-fix-20261107/fixed-menu-traces-result.json",
+      "sha256": "16625c203ce128a397f2a37ce4cdbec6ee2bab6433cd5ad3954b08a2673b7912",
+      "log_sha256": "02fd6597783cbc677a6ca40ffa966c19b6bdb8ae7c723e225894703c51cf5527"
+    },
+    {
+      "label": "joined-menu-partial-coverage",
+      "receipt": "out/nano-menu-firewall-fix-20261107/joined-menu-partial-coverage-result.json",
+      "sha256": "661621921b9e3320bbb8077ffe8883a28f2d58e80c8662b9636f2912bb2786aa",
+      "log_sha256": "1fb1da9460302f2813dc925a5530edf2b0e299b57bc29d719c2238924cb7d4e9"
+    },
+    {
+      "label": "actual-capture-replay",
+      "receipt": "out/nano-menu-firewall-fix-20261107/actual-capture-replay-result.json",
+      "sha256": "c1002322af2ec7f8f4f4648da4414a5f1f13a9a697052abff53fdba25ad80de8",
+      "log_sha256": "1367db5a2e76c97dbaf832b18f52d4472976f73058221f729b5eb3b3898eb6c1"
+    },
+    {
+      "label": "matched-chain-audit",
+      "receipt": "out/nano-menu-firewall-fix-20261107/matched-chain-audit-result.json",
+      "sha256": "e325d17f7c715e4a550b9ffa46493ae0d688cacc1e4c3d7d71dffb058399093b",
+      "log_sha256": "95e0511f79a275f50477b6b340e75c62b313699fe398e4467f8b20bdc6a5f706"
+    },
+    {
+      "label": "bl31-menu-extent",
+      "receipt": "out/nano-menu-firewall-fix-20261107/bl31-menu-extent-result.json",
+      "sha256": "77a2bc52f9544d752b965be392aa0d6db9dd0c7be5a604a47e8aa423038b6008",
+      "log_sha256": "fd687e85681c986901ccdd31e38ba5f74125d45bcfbbb84f0839db1dd2749397"
+    },
+    {
+      "label": "uboot-menu-extent",
+      "receipt": "out/nano-menu-firewall-fix-20261107/uboot-menu-extent-result.json",
+      "sha256": "f50aaf7f69559c74552f9a2b8767840c832fa0850fdd98972400de02ba157bec",
+      "log_sha256": "c8009a917f28613f368a57eb8553c29d1f63425d794ae618b2923d0d1b56474a"
+    },
+    {
+      "label": "compose-menu-extent",
+      "receipt": "out/nano-menu-firewall-fix-20261107/compose-menu-extent-result.json",
+      "sha256": "44d36457f17f2433f618e98477973cd1a94cc059266ffdd324529a756cd5932b",
+      "log_sha256": "9e1401e7ff27ea535ede2d6ca8f0f8f9ac9758600801bf0d4ff2ff3bb76704fe"
+    },
+    {
+      "label": "software-0",
+      "receipt": "out/nano-menu-firewall-fix-20261107/software-0-result.json",
+      "sha256": "c6b340f52e18625b84d9beb2d46dbbe584bb88c9edfbd69970b00eedcfa9c5fa",
+      "log_sha256": "88359c012955f2b94863e52bc278e627b3bbe403f4945bd0b86534cfd157a292"
+    },
+    {
+      "label": "software-1",
+      "receipt": "out/nano-menu-firewall-fix-20261107/software-1-result.json",
+      "sha256": "37b2b8dc1e7ed65b6f31ca1621663b157d679dfa5bd1d7609b601bb8e3322013",
+      "log_sha256": "d8bc69ef0514d1fcb5e543f66e00d7b77f3a6d6d0540c3f505049a6cbf33db21"
+    },
+    {
+      "label": "software-2",
+      "receipt": "out/nano-menu-firewall-fix-20261107/software-2-result.json",
+      "sha256": "679c93e36051f7b9f01ceeee109a3c74dc76b7d35a43f8cdc8aa1a60b42d59a3",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "software-3",
+      "receipt": "out/nano-menu-firewall-fix-20261107/software-3-result.json",
+      "sha256": "8be7fad17c9c5e4acee4a51f396ebd8bb147fc3db0cc15818190200f3deffdf0",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "software-4",
+      "receipt": "out/nano-menu-firewall-fix-20261107/software-4-result.json",
+      "sha256": "4293c5038425f20de3f11818146d5fbf67873b6b3ba653ac877207e893dcc12a",
+      "log_sha256": "cb4e47c3694ab15cdd3d79d84b79f2dfeffe5ae20a3a8abd6721fda8947a552f"
+    },
+    {
+      "label": "software-5",
+      "receipt": "out/nano-menu-firewall-fix-20261107/software-5-result.json",
+      "sha256": "e5251acec36c52cee774e8606c93c6039720324379fd9acd366359d94b83c1bd",
+      "log_sha256": "32fa862c66e279643aaedec99c30c9fcbe50fca9e6ffb849cd844c6a8d59a5a1"
+    },
+    {
+      "label": "software-6",
+      "receipt": "out/nano-menu-firewall-fix-20261107/software-6-result.json",
+      "sha256": "0f284d5378b2307c7a8928f394fa9d817d16b810b4442dd250a6e858cccbe005",
+      "log_sha256": "1586fd165f2602b70072d5e34c70311ebc228350131dc864b5c144969e957da2"
+    },
+    {
+      "label": "software-7",
+      "receipt": "out/nano-menu-firewall-fix-20261107/software-7-result.json",
+      "sha256": "de9af7ea3bd5573ee096ab977bfb335ee2373bb0d1f58227b092cb6e6540ae0c",
+      "log_sha256": "e8cf17594db5df61d2a548f9b6a4256e8fc59aa12417f9f12d19ea0e107dce55"
+    },
+    {
+      "label": "software-8",
+      "receipt": "out/nano-menu-firewall-fix-20261107/software-8-result.json",
+      "sha256": "60adbb791566c01bf7f96b37813d13b57cd9c629d0fc4b4c797052c7276b298a",
+      "log_sha256": "c791fef88906ab064ca8c7c0dc0bc73d96ef31c1c1df36a5468414a69dbc317e"
+    },
+    {
+      "label": "software-9",
+      "receipt": "out/nano-menu-firewall-fix-20261107/software-9-result.json",
+      "sha256": "0f3cf82a37b2aa87d217ce4514a85033833c6e8355d3e206e5f73dfb8007a3f6",
+      "log_sha256": "ca4e225f70ea9dab4d0637cb708852c283357f3dfffd1afc52117d8c8e3b7a30",
+      "outcome": "failed one scheduling-sensitive GPU timeout test; preserved"
+    },
+    {
+      "label": "isolated-gpu-timeout",
+      "tests": 17,
+      "receipt": "out/nano-menu-firewall-fix-20261107/isolated-gpu-timeout-result.json",
+      "sha256": "586cf5cfd55fc436d440350a439ab7c95dfa35434c33e859c3ef85d686081764",
+      "log_sha256": "15695ba6fcbe59103c26639b044f42c85979235ff2747bf476c296d25391caa6"
+    },
+    {
+      "label": "clean-main-timeout",
+      "tests": 1,
+      "receipt": "out/nano-menu-firewall-fix-20261107/clean-main-timeout-result.json",
+      "sha256": "3e0473fa532f72e879000bdd8a4ac8a3ab6887e7aa499245cdd60e4791df26ca",
+      "log_sha256": "85efa2823a3df1f9cd706b2249d3ad664b0f892cf9d82867770c052a666ecb44"
+    }
+  ],
+  "source_suite": {
+    "tests": 1595,
+    "skips": 79,
+    "failures": 1,
+    "original_command_passed": false,
+    "failed_case": "test_gpu_lease_runner.PerInvocationGpuLeaseTests.test_audited_timeout_covers_lease_wait_and_cancels_route_children",
+    "diagnosis_path": "out/nano-menu-firewall-fix-20261107/gpu-timeout-diagnosis.json",
+    "diagnosis_sha256": "6e42c837acc558e7d16fcd7db19f09d75615babbc8ee89d9c15f81254c50e909",
+    "isolated_module_tests": 17,
+    "isolated_module_passed": true,
+    "clean_main_control_passed": true,
+    "deadlines_changed": false
+  },
+  "hardware_actions": false,
+  "hardware_acceptance": "not-run for repaired chain",
+  "retained_failed_attempt": "/home/deano/fes-retained/de25-native-menu-hardware-20261107-r2",
+  "retention_target": "/home/deano/fes-retained/de25-menu-firewall-chain-20261107-r1",
+  "timing_signoff": false,
+  "core_load_acceptance": false,
+  "goal_complete": false,
+  "next": "retain exact repaired chain and explicit source-suite outcomes, freeze and preflight fresh bounded menu procedure; previous860 procedure remains consumed"
+}

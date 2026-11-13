@@ -1,0 +1,47 @@
+{
+  "status": "passed",
+  "checkout_source_commit": "b790cdd1300b441d0f8717e7c64ddf8d5588e0e6",
+  "native_build_source_commit": "b6249ef3daa89f6ab2fa6e6b8b9be9074ac7bc8a",
+  "test_only_difference": [
+    "tests/test_nano_computer.py"
+  ],
+  "selected_git_blobs": 115,
+  "selected_module_sdk_files": 1298,
+  "pinned_source_receipts": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-activation-20261102/native-sdk/result.json": "af1a3db2cbb54c4e24f6c6043c492ee350ed2a74c25d7c1c5be15518ee10c2e8",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-sdk/result.json": "626d244165c5e6569b9fe686e73a5ebf8b2736e98145ae59f20d9095a9681a21",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-activity-20261102/native-sdk/result.json": "1b40b511145173ce3df3880ec52e2117a595dcc7f98491cd519dfe1326588011"
+  },
+  "native_elf_sha256": "d617dfa5068930e471e91364ac00a575bc0e260fcddf688abe26a68316ee4794",
+  "cpu_mapping": {
+    "format": 1,
+    "scope": "pinned-tamago-el1-resources-v1",
+    "ram_base": 2214592512,
+    "ram_bytes": 268435456,
+    "control_base": 536937472,
+    "control_bytes": 256,
+    "dma_base": 2491416576,
+    "dma_bytes": 8388608,
+    "reader_base": 2499805184,
+    "reader_bytes": 2097152
+  },
+  "cpu_mapping_sha256": "d4fe0201d08baf6902d7f786b21592f151a07c6f689e808f8067c09452b69c37",
+  "actual_native_mapping_assembly": {
+    "translateRead": {
+      "symbol": "github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map.translateRead.abi0",
+      "disassembly_sha256": "7810631a298b8c6a89e1612273ba7534eacb59adbd1a7b42c190422fbd7d617f",
+      "opcode": "d5087800"
+    },
+    "translateWrite": {
+      "symbol": "github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map.translateWrite.abi0",
+      "disassembly_sha256": "a092720e2e5e817c4ba816594aa160a3d2c3b992a63023e789ec52d56f6f6179",
+      "opcode": "d5087820"
+    },
+    "cpuState": {
+      "symbol": "github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map.cpuState.abi0",
+      "disassembly_sha256": "843977f57f10ffeeb4bbe0230f00fe7bbb01683bf092685115c27666a75c9b41",
+      "opcode": null
+    }
+  },
+  "hardware_acceptance": false
+}

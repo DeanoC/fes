@@ -1,0 +1,10 @@
+{
+  "classification": "verified artifact retention; no new hardware operation",
+  "archive": "/home/deano/fes-retained/de25-nano-sd-platform-20261101/artifacts.tar.gz",
+  "archive_sha256": "1cb0605f6aec9dd2520b605324610eedd4e85d001c7656deebf68b9817609772",
+  "members_verified": 1854,
+  "firmware_source_commit": "0b55ff3826e85e0da3ee2d7ddf9c79d54861cf5e",
+  "source_bundle_prerequisite": "67b023808b24dfaeb4f60a453b6d40dbee026a94",
+  "claim_tokens_archived": false,
+  "factory_credentials_archived": false
+}

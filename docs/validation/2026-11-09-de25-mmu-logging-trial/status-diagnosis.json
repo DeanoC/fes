@@ -1,0 +1,405 @@
+{
+  "status": "passed-offline-field-extraction",
+  "native_boot_id": "2ed0757748552e49",
+  "raw_replay_matches": true,
+  "ccu": {
+    "valid": true,
+    "error_type": 7,
+    "info": 8259,
+    "decode_subtype": 3,
+    "transaction_id": 129,
+    "baseline_status_zero": true,
+    "decode_detection_active": true,
+    "interrupts_disabled": true,
+    "status_stable": true,
+    "location0": "0x51e40",
+    "location1": "0x0"
+  },
+  "phases": {
+    "before": {
+      "dsu_detect": {
+        "address": "0x1c000100",
+        "register": "reg-DSU-CAIUUEDR-0x1C000100",
+        "raw": "0x0",
+        "fields": {
+          "TimeoutErrDetEn": 0,
+          "DecErrDetEn": 0,
+          "MemErrDetEn": 0,
+          "TransErrDetEn": 0,
+          "ProtErrDetEn": 0
+        }
+      },
+      "dsu_interrupt": {
+        "address": "0x1c000104",
+        "register": "reg-DSU-CAIUUEIR-0x1C000104",
+        "raw": "0x0",
+        "fields": {
+          "TimeOutErrIntEn": 0,
+          "DecErrIntEn": 0,
+          "MemErrIntEn": 0,
+          "TransErrIntEn": 0,
+          "ProtErrIntEn": 0
+        }
+      },
+      "dsu_status_before": {
+        "address": "0x1c000108",
+        "register": "reg-DSU-CAIUUESR-0x1C000108",
+        "raw": "0x0",
+        "fields": {
+          "ErrInfo": 0,
+          "ErrType": 0,
+          "ErrVld": 0
+        }
+      },
+      "dsu_location0": {
+        "address": "0x1c00010c",
+        "register": "reg-DSU-CAIUUELR0-0x1C00010C",
+        "raw": "0x0",
+        "fields": {
+          "ErrWord": 0,
+          "ErrWay": 0,
+          "ErrEntry": 0
+        }
+      },
+      "dsu_location1": {
+        "address": "0x1c000110",
+        "register": "reg-DSU-CAIUUELR1-0x1C000110",
+        "raw": "0x0",
+        "fields": {
+          "ErrAddr": 0
+        }
+      },
+      "dsu_status_after": {
+        "address": "0x1c000108",
+        "register": "reg-DSU-CAIUUESR-0x1C000108",
+        "raw": "0x0",
+        "fields": {
+          "ErrInfo": 0,
+          "ErrType": 0,
+          "ErrVld": 0
+        }
+      },
+      "ocram_detect": {
+        "address": "0x1c00c118",
+        "register": "reg-OCRAM-DIIUUEDR-0x1C00C118",
+        "raw": "0x0",
+        "fields": {
+          "TransErrDetEn": 0,
+          "ProtErrDetEn": 0
+        }
+      },
+      "ocram_interrupt": {
+        "address": "0x1c00c11c",
+        "register": "reg-OCRAM-DIIUUEIR-0x1C00C11C",
+        "raw": "0x0",
+        "fields": {
+          "TransErrIntEn": 0,
+          "ProtErrIntEn": 0
+        }
+      },
+      "ocram_status_before": {
+        "address": "0x1c00c120",
+        "register": "reg-OCRAM-DIIUUESR-0x1C00C120",
+        "raw": "0x0",
+        "fields": {
+          "ErrInfo": 0,
+          "ErrType": 0,
+          "ErrVld": 0
+        }
+      },
+      "ocram_location0": {
+        "address": "0x1c00c124",
+        "register": "reg-OCRAM-DIIUUELR0-0x1C00C124",
+        "raw": "0x0",
+        "fields": {
+          "ErrWord": 0,
+          "ErrWay": 0,
+          "ErrEntry": 0
+        }
+      },
+      "ocram_location1": {
+        "address": "0x1c00c128",
+        "register": "reg-OCRAM-DIIUUELR1-0x1C00C128",
+        "raw": "0x0",
+        "fields": {
+          "ErrAddr": 0
+        }
+      },
+      "ocram_status_after": {
+        "address": "0x1c00c120",
+        "register": "reg-OCRAM-DIIUUESR-0x1C00C120",
+        "raw": "0x0",
+        "fields": {
+          "ErrInfo": 0,
+          "ErrType": 0,
+          "ErrVld": 0
+        }
+      },
+      "ecc_config": {
+        "address": "0x108cc004",
+        "register": "reg-OCRAM_ecc-IP_REV_ID2-0x108CC004",
+        "raw": "0x83090",
+        "fields": {
+          "LUT_TBL_DEP": 8,
+          "RAM_TYPE": 1,
+          "ECC_SIZE": 4,
+          "DAT": 4,
+          "ADDR": 16
+        }
+      },
+      "ecc_initialized": {
+        "address": "0x108cc00c",
+        "register": "reg-OCRAM_ecc-INITSTAT-0x108CC00C",
+        "raw": "0x1",
+        "fields": {
+          "INITCOMPLETEB": 0,
+          "INITCOMPLETEA": 1
+        }
+      },
+      "ecc_pending": {
+        "address": "0x108cc020",
+        "register": "reg-OCRAM_ecc-INTSTAT-0x108CC020",
+        "raw": "0x0",
+        "fields": {
+          "DERRPENB": 0,
+          "SERRPENB": 0,
+          "DERRPENA": 0,
+          "SERRPENA": 0
+        }
+      },
+      "ecc_decoder": {
+        "address": "0x108cc084",
+        "register": "reg-OCRAM_ecc-ECC_DECODERSTAT-0x108CC084",
+        "raw": "0x0",
+        "fields": {
+          "DEC7DERRFLG": 0,
+          "DEC6DERRFLG": 0,
+          "DEC5DERRFLG": 0,
+          "DEC4DERRFLG": 0,
+          "DEC3DERRFLG": 0,
+          "DEC2DERRFLG": 0,
+          "DEC1DERRFLG": 0,
+          "DEC0DERRFLG": 0,
+          "DEC7SERRFLG": 0,
+          "DEC6SERRFLG": 0,
+          "DEC5SERRFLG": 0,
+          "DEC4SERRFLG": 0,
+          "DEC3SERRFLG": 0,
+          "DEC2SERRFLG": 0,
+          "DEC1SERRFLG": 0,
+          "DEC0SERRFLG": 0
+        }
+      }
+    },
+    "fault": {
+      "dsu_detect": {
+        "address": "0x1c000100",
+        "register": "reg-DSU-CAIUUEDR-0x1C000100",
+        "raw": "0x8",
+        "fields": {
+          "TimeoutErrDetEn": 0,
+          "DecErrDetEn": 1,
+          "MemErrDetEn": 0,
+          "TransErrDetEn": 0,
+          "ProtErrDetEn": 0
+        }
+      },
+      "dsu_interrupt": {
+        "address": "0x1c000104",
+        "register": "reg-DSU-CAIUUEIR-0x1C000104",
+        "raw": "0x0",
+        "fields": {
+          "TimeOutErrIntEn": 0,
+          "DecErrIntEn": 0,
+          "MemErrIntEn": 0,
+          "TransErrIntEn": 0,
+          "ProtErrIntEn": 0
+        }
+      },
+      "dsu_status_before": {
+        "address": "0x1c000108",
+        "register": "reg-DSU-CAIUUESR-0x1C000108",
+        "raw": "0x20430071",
+        "fields": {
+          "ErrInfo": 8259,
+          "ErrType": 7,
+          "ErrVld": 1
+        }
+      },
+      "dsu_location0": {
+        "address": "0x1c00010c",
+        "register": "reg-DSU-CAIUUELR0-0x1C00010C",
+        "raw": "0x51e40",
+        "fields": {
+          "ErrWord": 0,
+          "ErrWay": 0,
+          "ErrEntry": 335424
+        }
+      },
+      "dsu_location1": {
+        "address": "0x1c000110",
+        "register": "reg-DSU-CAIUUELR1-0x1C000110",
+        "raw": "0x0",
+        "fields": {
+          "ErrAddr": 0
+        }
+      },
+      "dsu_status_after": {
+        "address": "0x1c000108",
+        "register": "reg-DSU-CAIUUESR-0x1C000108",
+        "raw": "0x20430071",
+        "fields": {
+          "ErrInfo": 8259,
+          "ErrType": 7,
+          "ErrVld": 1
+        }
+      },
+      "ocram_detect": {
+        "address": "0x1c00c118",
+        "register": "reg-OCRAM-DIIUUEDR-0x1C00C118",
+        "raw": "0x0",
+        "fields": {
+          "TransErrDetEn": 0,
+          "ProtErrDetEn": 0
+        }
+      },
+      "ocram_interrupt": {
+        "address": "0x1c00c11c",
+        "register": "reg-OCRAM-DIIUUEIR-0x1C00C11C",
+        "raw": "0x0",
+        "fields": {
+          "TransErrIntEn": 0,
+          "ProtErrIntEn": 0
+        }
+      },
+      "ocram_status_before": {
+        "address": "0x1c00c120",
+        "register": "reg-OCRAM-DIIUUESR-0x1C00C120",
+        "raw": "0x0",
+        "fields": {
+          "ErrInfo": 0,
+          "ErrType": 0,
+          "ErrVld": 0
+        }
+      },
+      "ocram_location0": {
+        "address": "0x1c00c124",
+        "register": "reg-OCRAM-DIIUUELR0-0x1C00C124",
+        "raw": "0x0",
+        "fields": {
+          "ErrWord": 0,
+          "ErrWay": 0,
+          "ErrEntry": 0
+        }
+      },
+      "ocram_location1": {
+        "address": "0x1c00c128",
+        "register": "reg-OCRAM-DIIUUELR1-0x1C00C128",
+        "raw": "0x0",
+        "fields": {
+          "ErrAddr": 0
+        }
+      },
+      "ocram_status_after": {
+        "address": "0x1c00c120",
+        "register": "reg-OCRAM-DIIUUESR-0x1C00C120",
+        "raw": "0x0",
+        "fields": {
+          "ErrInfo": 0,
+          "ErrType": 0,
+          "ErrVld": 0
+        }
+      },
+      "ecc_config": {
+        "address": "0x108cc004",
+        "register": "reg-OCRAM_ecc-IP_REV_ID2-0x108CC004",
+        "raw": "0x83090",
+        "fields": {
+          "LUT_TBL_DEP": 8,
+          "RAM_TYPE": 1,
+          "ECC_SIZE": 4,
+          "DAT": 4,
+          "ADDR": 16
+        }
+      },
+      "ecc_initialized": {
+        "address": "0x108cc00c",
+        "register": "reg-OCRAM_ecc-INITSTAT-0x108CC00C",
+        "raw": "0x1",
+        "fields": {
+          "INITCOMPLETEB": 0,
+          "INITCOMPLETEA": 1
+        }
+      },
+      "ecc_pending": {
+        "address": "0x108cc020",
+        "register": "reg-OCRAM_ecc-INTSTAT-0x108CC020",
+        "raw": "0x0",
+        "fields": {
+          "DERRPENB": 0,
+          "SERRPENB": 0,
+          "DERRPENA": 0,
+          "SERRPENA": 0
+        }
+      },
+      "ecc_decoder": {
+        "address": "0x108cc084",
+        "register": "reg-OCRAM_ecc-ECC_DECODERSTAT-0x108CC084",
+        "raw": "0x0",
+        "fields": {
+          "DEC7DERRFLG": 0,
+          "DEC6DERRFLG": 0,
+          "DEC5DERRFLG": 0,
+          "DEC4DERRFLG": 0,
+          "DEC3DERRFLG": 0,
+          "DEC2DERRFLG": 0,
+          "DEC1DERRFLG": 0,
+          "DEC0DERRFLG": 0,
+          "DEC7SERRFLG": 0,
+          "DEC6SERRFLG": 0,
+          "DEC5SERRFLG": 0,
+          "DEC4SERRFLG": 0,
+          "DEC3SERRFLG": 0,
+          "DEC2SERRFLG": 0,
+          "DEC1SERRFLG": 0,
+          "DEC0SERRFLG": 0
+        }
+      }
+    }
+  },
+  "logging": {
+    "records": [
+      {
+        "phase": "arm-before",
+        "line": 155
+      },
+      {
+        "phase": "armed",
+        "line": 156
+      },
+      {
+        "phase": "restore-before",
+        "line": 188
+      },
+      {
+        "phase": "restored",
+        "line": 189
+      }
+    ],
+    "valid": true,
+    "complete": false,
+    "write_attempted": true,
+    "armed": true,
+    "restore_attempted": true,
+    "restored": true,
+    "failed": false,
+    "failure": null,
+    "hardware_authority": false
+  },
+  "causing_instruction_proven": false,
+  "status_acknowledged": false,
+  "hardware_actions": false,
+  "core_load_acceptance": false,
+  "primary_map_sha256": "c4720c039263d5423662994fc41cd1c9a324f9fcf3bc1187a3a742f532537925",
+  "primary_map": "https://docs.altera.com/v/u/resources/864455/agilex-5-cs-and-r1-suffix-opn-hps-register-map"
+}

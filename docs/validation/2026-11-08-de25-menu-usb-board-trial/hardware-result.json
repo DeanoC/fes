@@ -1,0 +1,100 @@
+{
+  "format": 1,
+  "status": "stopped-host-observer-ordering-rejection",
+  "classification": "bounded physical diagnostic with partial launch evidence; full cycle failed",
+  "operator_source": "03c947d15173efb65befcccd74bef71fba0c8010",
+  "compiled_source": "f8653867fea0dfab330a54358ddfd0ef97aadb42",
+  "native_boot_id": "aa11ddf99761b275",
+  "stage": "out/nano-menu-usb-board-20261108",
+  "hardware_elapsed_seconds": 343.2502483020071,
+  "attempts_on_procedure": 1,
+  "procedure_consumed": true,
+  "original_attempt_passed": false,
+  "recovery_and_twelve_uploads_verified": true,
+  "twelve_fresh_final_reads_verified": true,
+  "native_cold_boot_verified": true,
+  "initial_complete_launcher_verified": true,
+  "menu_frames": 4,
+  "menu_underflows": 0,
+  "menu_return_bridge_generation": 7,
+  "menu_return_reset_mask": 15,
+  "selected_core": "ZX81",
+  "selected_identity": {
+    "PackageID": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+    "CoreID": "fes.zx81",
+    "ABI": "fes.computer",
+    "BuildID": "0792e51a2e51512bfb8fe44e93a69ddd",
+    "Platform": "de25_nano",
+    "Device": "A5EB013BB23BE4SCS",
+    "ProgrammingProfile": "de25-native-computer-v1",
+    "ActivationReceiptSHA256": "5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c",
+    "ProgrammedSHA256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+    "Major": 1,
+    "Minor": 0
+  },
+  "last_logical_generation": 1,
+  "last_native_state": "running",
+  "fetch": {
+    "scope": "nano-computer-fetch-v1",
+    "owner": 9351217957329896337,
+    "generation": 1,
+    "package_id": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+    "build_id": "0792e51a2e51512bfb8fe44e93a69ddd",
+    "before": {
+      "Cycles": 0,
+      "Address": 0
+    },
+    "held": {
+      "Cycles": 0,
+      "Address": 0
+    },
+    "running": {
+      "Cycles": 16680,
+      "Address": 977
+    },
+    "delta": 16680,
+    "polls": 1,
+    "elapsed_ns": 106895715,
+    "limit_ns": 1000000000
+  },
+  "uart_commands_sent": [
+    "0d"
+  ],
+  "original_checker_error": "shared USB pause/resume crossed paired firmware ownership",
+  "actual_ordering_lines": {
+    "first_mutation_line": 3,
+    "last_firmware_line": 36,
+    "usb_pause_line": 2,
+    "usb_resume_line": 37,
+    "fetch_observation_line": 38
+  },
+  "independent_component_checks_passed": true,
+  "return_or_quit_tested": false,
+  "native_park_verified": false,
+  "last_observed_board_state": "native ZX81 running; no verified shutdown or later board observation",
+  "continuing_claim_retained": true,
+  "factory_restored": false,
+  "independent_host_cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "evidence_sha256": {
+    "out/nano-menu-usb-board-20261108/trial/native-console.log": "ccda8f0416aaa05989c228fccc6d74bae9fd8cf00af85c915f60798e83983eb6",
+    "out/nano-menu-usb-board-20261108/trial/native-result.json": "3a3352e8dc403d69acf81faac0cf2625fd446eea7e7355214342dde1f51c41eb",
+    "out/nano-menu-usb-board-20261108/trial/experiment-result.json": "637ca90bdb6f944099e40c7dced6b9c613b2fbae4231404875f1beb0c7069f8c",
+    "out/nano-menu-usb-board-20261108/hardware-result.json": "4a7104845802d6cfa8f0f5740c69c0bfd11d744576bcf04c15706e0ade5b3ee1",
+    "out/nano-menu-usb-board-20261108/cleanup-evidence.json": "7fecd92dbf5fcf639e54b7c9e3b602b1171d67c1e9529f2bf67e1ce82aedfe8c",
+    "out/nano-menu-usb-board-20261108/boundary-analysis.json": "a3adec054c79f14f616074d615fed0d8c26ef161d4c133fd78af7a99b54c68a0"
+  },
+  "physical_display_verified": false,
+  "physical_input_controls_verified": false,
+  "ordinary_admission": false,
+  "core_load_acceptance": false,
+  "goal_complete": false
+}

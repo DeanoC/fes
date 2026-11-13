@@ -1,0 +1,241 @@
+{
+  "base_commit": "e4c21bcd54226a1962ba180c8a9ec90053827eb5",
+  "classification": "QEMU and off-board diagnostic; no Nano hardware acceptance",
+  "files": {
+    "pfg_info": {
+      "sha256": "9ee21d1b8da9a21f1a8254edf5c9897b9705c72de3633f55f8e87766e36e277b",
+      "size": 4450,
+      "worktree_path": "out/de25-entry-vendor-sof-spike-v1/pfg-info.log"
+    },
+    "pfg_log": {
+      "sha256": "83c00f1bcd4cf174b61b3978ab78e1c9eee548cf569eba58205c02293d0dfe14",
+      "size": 1806,
+      "worktree_path": "out/de25-entry-vendor-sof-spike-v1/pfg.log"
+    },
+    "pfg_missing_spl": {
+      "sha256": "4ee92224bae22ec7005edc48253711096066a8a5b09ca0ca075f0b5bc116e7d9",
+      "size": 2229,
+      "worktree_path": "out/de25-entry-vendor-sof-spike-v1/missing-spl.log"
+    },
+    "pfg_sof": {
+      "sha256": "9ee2bf8b81449712751ec87755b0c95715698af16ac92d77f8271cde968f63b2",
+      "size": 1480759,
+      "worktree_path": "out/de25-entry-vendor-sof-spike-v1/candidate.sof"
+    },
+    "qemu_bad_elf_console": {
+      "sha256": "4c8db9a496db66baaabf72aecbe390c7e5afac7dd1d2bcf4bda136d010cb7de6",
+      "size": 778,
+      "worktree_path": "out/de25-entry-verify-v7/bad-magic.log"
+    },
+    "qemu_entry": {
+      "sha256": "01a5fa7be4cb42aeda6b51731038402881e09186908a92e16f92769a18b517d3",
+      "size": 4217121,
+      "worktree_path": "out/de25-entry-real-v6/entry.img"
+    },
+    "qemu_entry_build_receipt": {
+      "sha256": "6499090258d19ebc06a22e1de343c3b17162ecdc1e406784088ce75e50f5548f",
+      "size": 8532,
+      "worktree_path": "out/de25-entry-real-v6/result.json"
+    },
+    "qemu_overlap_console": {
+      "sha256": "4c8db9a496db66baaabf72aecbe390c7e5afac7dd1d2bcf4bda136d010cb7de6",
+      "size": 778,
+      "worktree_path": "out/de25-entry-verify-v7/staging-overlap.log"
+    },
+    "qemu_pass_console": {
+      "sha256": "a7f4fa0d883e2f3537d3fefb017d12d84451bedcfbc93e13c51b96506f2e6893",
+      "size": 972,
+      "worktree_path": "out/de25-entry-verify-v7/native-probe.log"
+    },
+    "qemu_probe": {
+      "sha256": "9a64d29f0712f0e65914045e9dd19e0c89a906b37b78523869f3382bb2be514b",
+      "size": 4194774,
+      "worktree_path": "out/de25-entry-native-layout-v2/probe.elf"
+    },
+    "qemu_verification": {
+      "sha256": "27500edf971b477c5864b698c83ce358571c43d7e88713fb9ca3338e4f0c0cb4",
+      "size": 4793,
+      "worktree_path": "out/de25-entry-verify-v7/result.json"
+    },
+    "qemu_wrong_el_console": {
+      "sha256": "ce1bc092c723b744c3db3ae0c7306d9cd621a5ee5747906c9944c98f27b8ab2f",
+      "size": 756,
+      "worktree_path": "out/de25-entry-verify-v7/wrong-exception-level.log"
+    },
+    "synthetic_nano_entry": {
+      "sha256": "99e18fc1e903a7e642374c6b9018737e390056a94ac63c448f84ba5b13e03615",
+      "size": 4216593,
+      "worktree_path": "out/de25-entry-synthetic-nano-image-v4/entry.img"
+    },
+    "synthetic_nano_entry_receipt": {
+      "sha256": "655d1d9f807b460452e7d92d174882e5ff618206502c21b0e5979b98e423843d",
+      "size": 8908,
+      "worktree_path": "out/de25-entry-synthetic-nano-image-v4/result.json"
+    },
+    "synthetic_nano_negative_checks": {
+      "sha256": "b30a1613ad2bc48f278adc3ad0d6d3c56def30f119f0ea48a002aeb6771e89ee",
+      "size": 2180,
+      "worktree_path": "out/de25-entry-nano-negative-v3.json"
+    },
+    "synthetic_nano_probe": {
+      "sha256": "54b8460aba78c97f242176ec0ae2c6f90361d52b085241297242ffcadd79fc4c",
+      "size": 4194236,
+      "worktree_path": "out/de25-entry-synthetic-nano-v7b/probe.elf"
+    },
+    "synthetic_nano_profile": {
+      "sha256": "3f84fd90a427398825f0b853e7ec18930cdd39e5c7996707f4e8d32a5416202d",
+      "size": 730,
+      "worktree_path": "out/de25-entry-synthetic-profile-v7.json"
+    },
+    "tenfoot_direct": {
+      "sha256": "3ff0e82dabceddc0fa128cedbb97282d37d8be6738fcfaea01ad43d1f0ba109d",
+      "size": 441000,
+      "worktree_path": "out/de25-entry-play-layout-v2/result.json"
+    },
+    "tenfoot_entry_image": {
+      "sha256": "6832996b7ba077a7e9d648ebe08c3c1b3a7338ec5daa1821ef1de1c77ded8154",
+      "size": 20865617,
+      "worktree_path": "out/de25-entry-play-image-v1/entry.img"
+    },
+    "tenfoot_entry_receipt": {
+      "sha256": "615d087be5d8974036ed21703eb8df4adaf0d3f5bd53f3f2ea75a80eed6b4546",
+      "size": 8617,
+      "worktree_path": "out/de25-entry-play-image-v1/result.json"
+    },
+    "tenfoot_original_failure_console": {
+      "sha256": "90fcebb0509b1a99cf9acd8db812ccf27b4f79682b7a8f6022f4b48536303454",
+      "size": 1097,
+      "worktree_path": "out/de25-entry-uboot-play-v1/boot-1/console.log"
+    },
+    "tenfoot_prompt_false_failure_console": {
+      "sha256": "00408e08b3eb6ede963d429746c0fc01877af691fe30b33706b10012a486ea2d",
+      "size": 707,
+      "worktree_path": "out/de25-entry-uboot-play-v2/boot-1/console.log"
+    },
+    "tenfoot_uboot": {
+      "sha256": "2c1bd0554f393fc01f11e5e840184f381e36db2f785d22332accf3adc65d79f3",
+      "size": 20371,
+      "worktree_path": "out/de25-entry-uboot-play-v4/result.json"
+    },
+    "tenfoot_uboot_console": {
+      "sha256": "6b4b7e786e744f2cb4ce1525df70a20b975bdc2a87dc926af49a69fad7093adb",
+      "size": 92755,
+      "worktree_path": "out/de25-entry-uboot-play-v4/boot-1/console.log"
+    },
+    "uboot_config": {
+      "sha256": "7d623cd63e26a3e0b1f2ae272ed219f3069ab371b7f4f877014dc2797c5444a8",
+      "size": 45402,
+      "worktree_path": "out/de25-entry-qemu-uboot-repro-v1/build/.config"
+    },
+    "uboot_qemu": {
+      "sha256": "077eacc4aadf65c69a6e966f80bf4b4eda4fbaf79a0d516ced62cf3557f405c7",
+      "size": 1098616,
+      "worktree_path": "out/de25-entry-qemu-uboot-repro-v1/build/u-boot.bin"
+    }
+  },
+  "pfg": {
+    "device_tested": false,
+    "embedded_spl_independently_decoded": false,
+    "selected_fit_sha256": "88b172c9132ee867888c744049fd4a4c3db747fcee7776c7756ed3cce6321451",
+    "selected_spl_sha256": "f4289f8ba8548834f5e16f5411b50322b10aa6d7e23ce08330e9ad0a64909ffd",
+    "vendor_reference_sof_sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09"
+  },
+  "qemu_cases": [
+    {
+      "console_sha256": "a7f4fa0d883e2f3537d3fefb017d12d84451bedcfbc93e13c51b96506f2e6893",
+      "image_sha256": "01a5fa7be4cb42aeda6b51731038402881e09186908a92e16f92769a18b517d3",
+      "name": "native-probe",
+      "status": "passed"
+    },
+    {
+      "console_sha256": "4c8db9a496db66baaabf72aecbe390c7e5afac7dd1d2bcf4bda136d010cb7de6",
+      "image_sha256": "96a2179767239cc1a5ceaf56f92a944e488a18bc8e636d8fd791c5635242b09a",
+      "name": "bad-magic",
+      "status": "passed"
+    },
+    {
+      "console_sha256": "4c8db9a496db66baaabf72aecbe390c7e5afac7dd1d2bcf4bda136d010cb7de6",
+      "image_sha256": "f425f382550a44128e59c0d47bfbef0d7006f3763d69484d56119f41c67cddd6",
+      "name": "staging-overlap",
+      "status": "passed"
+    },
+    {
+      "console_sha256": "ce1bc092c723b744c3db3ae0c7306d9cd621a5ee5747906c9944c98f27b8ab2f",
+      "image_sha256": "01a5fa7be4cb42aeda6b51731038402881e09186908a92e16f92769a18b517d3",
+      "name": "wrong-exception-level",
+      "status": "passed"
+    }
+  ],
+  "qemu_sha256": "2e7fe3008a900980493a85e606036793fd162153edac0228477579988c53e1f5",
+  "synthetic_nano": {
+    "go_ram": [
+      2181038080,
+      2449473536
+    ],
+    "not_board_profile": true,
+    "staging": [
+      2466775040,
+      2470991633
+    ],
+    "uart_base": 281026560
+  },
+  "tenfoot_cases": [
+    {
+      "check": "return",
+      "id": "model-normal",
+      "outcome": "returned"
+    },
+    {
+      "check": "preserve",
+      "id": "model-wrong-rom",
+      "outcome": "rejected"
+    },
+    {
+      "check": "preserve",
+      "id": "model-wrong-receipt",
+      "outcome": "rejected"
+    },
+    {
+      "check": "preserve",
+      "id": "model-interrupted",
+      "outcome": "rejected"
+    },
+    {
+      "check": "recover",
+      "id": "model-identity",
+      "outcome": "rejected"
+    },
+    {
+      "check": "recover",
+      "id": "model-program",
+      "outcome": "rejected"
+    },
+    {
+      "check": "retry",
+      "id": "model-save",
+      "outcome": "returned"
+    },
+    {
+      "check": "return",
+      "id": "model-composed",
+      "outcome": "returned"
+    },
+    {
+      "check": "preserve",
+      "id": "model-part-changed",
+      "outcome": "rejected"
+    },
+    {
+      "check": "preserve",
+      "id": "model-part-missing",
+      "outcome": "rejected"
+    },
+    {
+      "check": "preserve",
+      "id": "model-part-incompatible",
+      "outcome": "rejected"
+    }
+  ],
+  "tenfoot_usb_handoff": "verified emulated PCI identity; usb stop; disabled and read back PCI command",
+  "vendor_uboot_source_commit": "d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413"
+}

@@ -1,0 +1,217 @@
+{
+  "status": "passed-with-recorded-aggregate-timeout-and-corrected-test-expectation",
+  "base": "76809a4f660e7775f697a9f204265ab510865886",
+  "implementation": "9bb3350d31d3ccfd2ad14de39e31fd7b8cd36f86",
+  "expectation_correction": "08b41a294fe56de1df2c78ec583c775cb301a575",
+  "model": {
+    "source": "9bb3350d31d3ccfd2ad14de39e31fd7b8cd36f86",
+    "status": "passed",
+    "input_count": 20,
+    "model_result_sha256": "e1cfec8d1ca6b9cc4d69a0808a7f2b89c7d6ed8a634414507a19749e90661b26",
+    "committed_inputs_match": true,
+    "hardware_actions": false
+  },
+  "parent_selected": 1558,
+  "parent_counts": {
+    "passed": 1516,
+    "skipped": 42
+  },
+  "parent_aggregate_passed": false,
+  "all_selected_parent_cases_completed": true,
+  "checks": {
+    "0": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4008342430461198,
+      "log_sha256": "9360fe7647c2c50cba8ad16f81d6fb4254ee5749edd185b1ef24b2322a69621c"
+    },
+    "1": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.000895263045095,
+      "log_sha256": "a65ef03729445802ba10303c65a2ff4cc519db2b3de598cca7371f1a5ab57718"
+    },
+    "2": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "76809a4f660e7775f697a9f204265ab510865886",
+        "--head",
+        "76809a4f660e7775f697a9f204265ab510865886"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20065110793802887,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "3": {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20072989794425666,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "4": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "true",
+        "--media",
+        "true",
+        "--paths-json",
+        "[\"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/generated/fes_embedded_rom.h\", \"platform/embedded/firmware/nano_rom.c\", \"platform/embedded/firmware/nano_rom.h\", \"scripts/affected.py\", \"scripts/consistency.py\", \"sources/mister-packages/README.md\", \"sources/mister-packages/packages/fabric/fes_fabric_embedded_rom.yaml\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/prototypes/de25_board_control/README.md\", \"sources/misteross/prototypes/de25_board_control/fes_embedded_rom_csr.sv\", \"sources/misteross/prototypes/de25_board_control/generated/fes_embedded_rom.vh\", \"sources/misteross/prototypes/de25_board_control/rom_csr_probe.cpp\", \"sources/misteross/prototypes/de25_board_control/rom_machine.sv\", \"sources/misteross/prototypes/de25_board_control/verify_rom.py\", \"tests/test_affected.py\"]"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": -15,
+      "timed_out": true,
+      "elapsed": 900.1041887629544,
+      "log_sha256": "6dc494fac6bf45d899397794f16089e1ba5214db658583685312bc38dc49749d"
+    },
+    "5": {
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.004248415934853,
+      "log_sha256": "fb2406c721df08d5af4a6daf4dd6d92e6398456a181f782ade1b0cb36cd6c671"
+    },
+    "6": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 111.85924966400489,
+      "log_sha256": "e100013db970bc871923da8e88698f790ba610e65ef67d1bac50c9f119a5a3e3"
+    },
+    "7": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify_producer.py",
+        "--allow-dirty"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 30.41858674795367,
+      "log_sha256": "febd4e289fc019801bf2bc3077f123c4684bdb6e7b37471a1a9fb7280c9e7516"
+    },
+    "8": {
+      "argv": [
+        "/usr/bin/python3",
+        "sources/misteross/prototypes/de25_board_control/verify.py",
+        "--standalone"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 35.222303645918146,
+      "log_sha256": "f8bad7c4288a743bbf2b15c0473853a441db55c74a773fb623bf01c3cb1d5955"
+    },
+    "9": {
+      "argv": [
+        "make",
+        "test",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/mister-packages",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.203021797002293,
+      "log_sha256": "fb67d48967017fb6f27d5f1b2b333ab7ce4ccac6dacbe37443597f0f72fcb3c6"
+    },
+    "10": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/firmware/verify.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 8.605715575045906,
+      "log_sha256": "e6e59a305a8948cc7e3d9ca62995402ed8a84c4de0b626e50504d4e999b02eb2"
+    },
+    "11": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 419.03523771604523,
+      "log_sha256": "5cbb0338418c1b8733145801a2d1682548601a752d555f09c440d3598350a497"
+    }
+  },
+  "cross_compile": {
+    "argv": [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-gcc",
+      "-std=c11",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-ffreestanding",
+      "-fno-builtin",
+      "-c",
+      "platform/embedded/firmware/nano_rom.c",
+      "-o",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-rom-csr-20261105/nano_rom-aarch64.o"
+    ],
+    "returncode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "hardware_actions": false,
+  "ordinary_admission": false,
+  "physical_producer": false,
+  "secure_firmware_binding": false,
+  "board_state": "parked after prior controller/core-cycle test",
+  "retained": "/home/deano/fes-retained/de25-rom-csr-20261105-r1"
+}

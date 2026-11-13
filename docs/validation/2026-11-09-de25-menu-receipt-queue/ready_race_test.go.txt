@@ -1,0 +1,66 @@
+package scanout
+
+import (
+ "context"
+ "errors"
+ "testing"
+ "time"
+)
+
+// This oracle advances the actual RTL after readiness was sampled. A direct
+// MMIO-style caller receives no CSR write response in this injected transport.
+// That response-handling assumption is explicit; this is not a board root-cause
+// claim. Neither RTL internals nor the presenter's expected receipt are changed.
+type lateMenuStore struct {
+ *menuProbe
+ t *testing.T
+ lastStatus uint32
+ attempted int
+ rejected bool
+}
+func (p *lateMenuStore) Read32(offset uint32) (uint32,error) {
+ v,err:=p.menuProbe.Read32(offset)
+ if err==nil && offset==menuStatus { p.lastStatus=v }
+ return v,err
+}
+func (p *lateMenuStore) waitReady(want bool) {
+ p.t.Helper()
+ for n:=0;n<96;n++ {
+  values,err:=p.call("read %x",menuStatus)
+  if err!=nil || len(values)!=1 { p.t.Fatal("status observation",values,err) }
+  flags:=uint32(values[0])
+  if flags&menuRunning==0 || flags&(menuFault|menuDisabled|menuStopped)!=0 { p.t.Fatal("lost active RTL owner",flags) }
+  if (flags&menuSubmitReady!=0)==want { return }
+  p.must(p.t,"tick 10000")
+  p.now=p.now.Add(time.Duration(uint64(65536)*uint64(time.Second)/74250000))
+ }
+ p.t.Fatal("RTL readiness phase not reached")
+}
+func (p *lateMenuStore) Write32(offset,value uint32) error {
+ if offset!=menuCommand || value!=2 { return p.menuProbe.Write32(offset,value) }
+ p.attempted++;p.commands[2]++
+ if p.attempted!=1 || p.lastStatus!=menuRunning|menuSubmitReady { p.t.Fatal("not one previously ready submission",p.attempted,p.lastStatus) }
+ p.waitReady(false)
+ _,err:=p.call("write %x %x",offset,value)
+ if err==nil { p.t.Fatal("unready command unexpectedly accepted") }
+ p.rejected=true
+ // Restore the later sampled ready phase, retaining the real old receipt.
+ p.waitReady(true)
+ return nil
+}
+func TestMenuReadyWriteRaceActualRTL(t *testing.T) {
+ p:=newMenuProbe(t);m:=p.open(t)
+ first,err:=m.PresentFrame(context.Background(),p.frames[0])
+ if err!=nil { t.Fatal(first,err) }
+ race:=&lateMenuStore{menuProbe:p,t:t};m.hooks.IO=race
+ result,err:=m.PresentFrame(context.Background(),p.frames[1])
+ var failure *MenuFailure
+ if !errors.As(err,&failure) || !errors.Is(err,ErrReaderProtocol) || result!=(MenuFrame{}) || !race.rejected || race.attempted!=1 {
+  t.Fatal("lost ready/write rejection or accepted an unacknowledged frame",result,err,race)
+ }
+ if failure.Operation!="menu-frame" || failure.Stage!="snapshot" || failure.Flags!=6 || failure.Last!=first || !failure.CommandAttempted || failure.CopiedBytes!=3686400 {
+  t.Fatal("failed to reproduce captured receipt shape",failure)
+ }
+ p.retired(t,m)
+ t.Logf("actual RTL rejects submit after readiness closes; direct-store response assumption reproduces flags=%x last=%+v attempted=%t copied=%d polls=%d with one command and permanent retirement",failure.Flags,failure.Last,failure.CommandAttempted,failure.CopiedBytes,failure.Polls)
+}

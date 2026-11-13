@@ -1,0 +1,120 @@
+{
+  "status": "mixed-role-publication-and-secure-capture-software-passed",
+  "implementation_source": "7417085d08bf1ae85c14c04da399ce2ff440f069",
+  "validation_complete": true,
+  "planned_steps": 11,
+  "receipts": {
+    "software-0": {
+      "receipt_sha256": "723c4ddcf7ec1f6a53d0d0a7fa824964771b89fb9cb069e8e5f3876db03efe54",
+      "log_sha256": "73363a063cd192f506d387931bd6ead2a868ab9fabe7d82ec48ee0d7407aca69",
+      "elapsed": 0.2007278399541974
+    },
+    "software-1": {
+      "receipt_sha256": "3518c44e7a43679e027a1f8f2ed93b114fafa02acdd40c5e1ec9799eb319dde9",
+      "log_sha256": "3626f4bce1f09943dca2743219992fd26524f290019faa656dea30d2b08b5ea5",
+      "elapsed": 1.0008787498809397
+    },
+    "software-2": {
+      "receipt_sha256": "a1874e1dbf36708644ab28be435efd4601d3942addb2366962f98a956a7954be",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 0.2004941941704601
+    },
+    "software-3": {
+      "receipt_sha256": "b307ccbf30f77e9aa51d09d0e118f4aa9b7977840c32608b68d30648a577225a",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 0.20080598816275597
+    },
+    "software-4": {
+      "receipt_sha256": "542025e563d9ff71e609d5bddf3da3f52e0addb5e53d6d47c2a0e3643fb1df8e",
+      "log_sha256": "924a8d0c28be6aadaf410597f4302fd90d10333f5b1f8afbe23705691bf9335b",
+      "elapsed": 334.78555282601155
+    },
+    "software-5": {
+      "receipt_sha256": "04080a2056b1b8286a033406b45d7fee0d495787f3a9aa17df42915d47d8f0d9",
+      "log_sha256": "32fa862c66e279643aaedec99c30c9fcbe50fca9e6ffb849cd844c6a8d59a5a1",
+      "elapsed": 6.003591174026951
+    },
+    "software-6": {
+      "receipt_sha256": "b66783f2fc818b3e6c0ef4166cd481694376d09b8c803d9aeda8b2f841c5bbbf",
+      "log_sha256": "25f5206442e41c1014f2e6f86a275f54bc06469b8f5102518a39556f31083764",
+      "elapsed": 191.93675486394204
+    },
+    "software-7": {
+      "receipt_sha256": "903a39725649ccdadae691b4dd91f01fe24b5042b1640f788cad488d0fce57f8",
+      "log_sha256": "c0a971817418290a3e157c28f41549eb8bd4e8e0af2c3e11620e65599a0c653e",
+      "elapsed": 57.77610145113431
+    },
+    "software-8": {
+      "receipt_sha256": "3acafedd73b68e77f2f94c929ab811f377f7b6627fe71cd20bc1608f7ea35634",
+      "log_sha256": "9609afdc08e4aba1b4de9a26e3e3f5d6b4b6d4a3f83bd3e5568d95f8471f4bdb",
+      "elapsed": 109.52493092510849
+    },
+    "software-9": {
+      "receipt_sha256": "ec779d7f840fc22877c795c96b6d06634210688378bbb46b744fac4c6d0095fc",
+      "log_sha256": "e8ad7d59c37dbc224197cdddda5773f10449084ae7364b2548ee7407bcb7ac5e",
+      "elapsed": 10.010619398904964
+    },
+    "software-10": {
+      "receipt_sha256": "6cfeec0d7450689ed91ded5960f4b80c8bc2b5f6cf32891e018c24d716c64d85",
+      "log_sha256": "6f28d6f70de4e990ac976fcbce0f64e455f60f0a963bf5daea25d5d5fe245308",
+      "elapsed": 530.4294525762089
+    },
+    "role-c-final": {
+      "receipt_sha256": "55613707561cb5ed3e33f31e4732ee77e00ea1d2769c7a754f9ddabc68e089d2",
+      "log_sha256": "8e4549c724dbf79a38c5a2cb6a355ebbc532b287091af9d46d4cc9a58ddf226c",
+      "elapsed": 0.40047992509789765
+    },
+    "bl31-role-object": {
+      "receipt_sha256": "bf8ba79381df88e05edb2f1a98fe18b1c63f8f155bc982f4c61b1c939c95d7c8",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 0.20037327706813812
+    },
+    "native-sdk": {
+      "receipt_sha256": "ebc1500a94eeb1b951fdf3d8385964ad768d5e02ec5c154507edcd5d4252ec16",
+      "log_sha256": "a3a6ee911cf0f4814898840b64158cabf1317965f41c9079a186595b1ca7ea7c",
+      "elapsed": 19.81470067007467
+    },
+    "prepare-role-inputs": {
+      "receipt_sha256": "108954dc363ef29d4b9ad5ffe3c82768734fd38041f500103805e7cff7fb068e",
+      "log_sha256": "e2d428cede24a8a6589c476b6a358dc51cd3678c5f10cfe52dc649fb34bc2bd1",
+      "elapsed": 15.207162549020723
+    }
+  },
+  "parent_checks": 1638,
+  "parent_skips": 3,
+  "full_python_checks": 1595,
+  "additional_check_outputs": {
+    "7": {
+      "output": "out/de25-producer-check-c7bf7527dc944d13b20166531e3dfb2d",
+      "result_sha256": "a87005f5c486f6e6f6cf693cb01962daca4c81c05891e3828304c272b9d50f68"
+    },
+    "8": {
+      "output": "out/de25-board-control-check-417bf64b33614750a919f30173e7ec53",
+      "result_sha256": "31f822d14cdd75d76fb0ce5a164b5e4c3d7b308480300d105e58207064da4803"
+    },
+    "9": {
+      "output": "out/embedded-control-ade65540af304ba394752f9383f3c3ea",
+      "result_sha256": "df42e2282a4c120076093b6f02756ca4ae2bbbe924541756432e843aacc61a14"
+    }
+  },
+  "native_result_sha256": "f5cd45914fd0660f00479670e11bc0b33088fddcc38548f2e245ddd220147eab",
+  "sdk_result_sha256": "9923e7874c5871d863df8d43cbb58491e6d0b181ae396c8f9f25d5537262d94d",
+  "native_elf_sha256": "f5be77c338f6a4a838b9710a206b51e083346b41f7d828df7b61c47d8ee42d59",
+  "aarch64_program_object_sha256": "11772c4eee8837bd5752873545860f43030c9148b4a2e96790bc4f4cdf2d2e5b",
+  "role_inputs_sha256": "85711a6290a82e035da2b727bdd3473d07fb0b6193ecde5745d4771e6837db34",
+  "sdk_selected_source_count": 2100,
+  "mixed_role_c_configuration_cycles": 5,
+  "role_retirement_cases": 20,
+  "all_nine_chunk_slots_checked": true,
+  "scope": "Go private arena publications paired with actual C descriptor decoder; actual C descriptor/configuration/held-bridge engines with injected register/ownership/digest responses. Broader existing C/RTL/Go/Tenfoot checks passed. No mixed-role reader/ROM-FIFO execution, selected cold platform or hardware acceptance.",
+  "board_compatibility": "Existing source-checked menu and computer artifacts match six platform/HPS/DDR fingerprints; master inventories remain different and separately pinned.",
+  "cold_platform_mixed_roles_enabled": false,
+  "native_loader_mixed_roles_enabled": false,
+  "hardware_actions": false,
+  "native_menu_core_menu": false,
+  "physical_HDMI_qualified": false,
+  "timing_signoff": false,
+  "goal_complete": false,
+  "next": "Compile both source-checked role resource sets into the existing loader/cold platform, bind active identity and master-stop/ROM policy to captured role, and join menu SD return to the real ProgramService/Tenfoot launch/return path. Then prepare a combined bounded board test.",
+  "full_python_skips": 79
+}

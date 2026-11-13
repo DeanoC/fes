@@ -1,0 +1,16 @@
+{
+  "classification": "host-only cross-build; not boot or hardware acceptance",
+  "status": "cross-built",
+  "board": "de25-nano",
+  "program": "storage",
+  "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
+  "elf_sha256": "1683752ec1a93d361d5a7853536559795adec1b6865449dc8a1f59f288f3ce9c",
+  "firmware_profile_sha256": "807c42338d5d7f2814d3c1b74e984d6c5765b9adfc393eb8cbd52ea0c408924e",
+  "generated_profile_sha256": "3e361a9eb520c847ad35bb2e961295a3e1cfb382e49281d77a542c135af4cdfb",
+  "selected_sd_sources": {
+    "platform/embedded/tamago/sdhci/sdhci.go": "30cb6e1e8ead357649e126f9ae637f74ea238b964964044aabb7eaaefcfcd4ff"
+  },
+  "all_source_files_verified": 1319,
+  "full_build_receipt_sha256": "93d748b7440ee62eec7fb7e02682ff4802e23a0083751f701b6b97c24a1c4729",
+  "firmware_profile": "UNQUALIFIED compile-only; no matching hardware grant or deployment authority"
+}

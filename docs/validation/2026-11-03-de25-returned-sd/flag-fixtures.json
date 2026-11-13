@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "cases": [
+    {
+      "case": "receipt-off",
+      "accepted": false,
+      "reason": "computer storage-return selection differs from the native link command"
+    },
+    {
+      "case": "command-off",
+      "accepted": false,
+      "reason": "computer storage-return selection differs from the native link command"
+    },
+    {
+      "case": "invalid-type",
+      "accepted": false,
+      "reason": "computer storage return requires the explicit two-load computer selection"
+    },
+    {
+      "case": "reload-off",
+      "accepted": false,
+      "reason": "computer storage return requires the explicit two-load computer selection"
+    }
+  ],
+  "input_receipt_sha256": "8b7bde056f43a7145ffae6fd650a8d9198d6ae62061b859aaf15053a548901a1"
+}

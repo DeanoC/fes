@@ -1,0 +1,39 @@
+{
+  "scope": "actual native Go App/model producer to strict Python framing consumer; no boot or firmware proof",
+  "success": {
+    "path": "out/nano-package-install-trial-20261110/app-capture-committed/app-false.log",
+    "sha256": "de6ebd4a8c9304ca32e3d649d097af29643043ea10239782642d41cea617a5cb",
+    "lines": 53,
+    "install_requested": true,
+    "install_completed": true,
+    "fetches": 1,
+    "ready_generations": [
+      0,
+      1,
+      3
+    ],
+    "retirement_rejected": false
+  },
+  "failure": {
+    "path": "out/nano-package-install-trial-20261110/app-capture-committed/app-true.log",
+    "sha256": "9419fab5ba3decedb619baf6d2734c494e96c54ed3eca988e74a5b3108392c87",
+    "lines": 30,
+    "install_requested": true,
+    "install_completed": false,
+    "fetches": 0,
+    "ready_generations": [
+      0
+    ],
+    "retirement_rejected": true
+  },
+  "hardware_actions": false,
+  "physical_installation_qualified": false,
+  "live_authority": false,
+  "source_sha256": {
+    "platform/embedded/tamago/nativefabric/program_install_app_test.go": "a24878a2f486bef59729d14c4cc2b781ff2aed8a3e4124e41522f8539c1a29d5",
+    "platform/embedded/tamago/nativefabric/program_serial.go": "a0b9fac1fa3c09c442cdde980f101e0c2ac0a917910e2ad45c55b38a476cfe57",
+    "platform/embedded/nano/installer_trace.py": "f757ce9b44d075260dcc5f3978bc9ed8f1a1d106f444a9ce40140bd6aa51150c",
+    "platform/embedded/nano/tenfoot_trace.py": "d564f5f31622d5efbaf7c0f2716ae7cf93968026bf1ab170de846f5e1f972162",
+    "sources/FogCast/ui/tenfoot/core_library.go": "23eb21b9c00c1ce240eb18021aa63532b717e94ad22642fbcba2a22a8dc2052e"
+  }
+}

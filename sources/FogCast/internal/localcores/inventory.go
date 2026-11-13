@@ -264,7 +264,7 @@ func readUnavailableCores(selectionDir string) []Core {
 	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Size() < 1 || info.Size() > maxUnavailableBytes {
 		return nil
 	}
-	file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	file, err := openInventoryReadOnly(path)
 	if err != nil {
 		return nil
 	}
@@ -524,7 +524,7 @@ func readLimited(path string, max int64) ([]byte, error) {
 	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Size() < 1 || info.Size() > max {
 		return nil, errors.New("invalid selection file")
 	}
-	file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	file, err := openInventoryReadOnly(path)
 	if err != nil {
 		return nil, err
 	}

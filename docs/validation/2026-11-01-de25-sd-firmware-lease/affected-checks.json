@@ -1,0 +1,372 @@
+{
+  "affected_checks": [
+    {
+      "evidence": "ordered executor advanced to runtime after success",
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "evidence": "ordered executor advanced to runtime after success",
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "evidence": "ordered executor advanced to runtime after success",
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "evidence": "ordered executor advanced to runtime after success",
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "evidence": "ordered executor advanced to runtime after success",
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "evidence": "ordered executor advanced to runtime after success",
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "evidence": "ordered executor advanced to runtime after success",
+      "label": "native SD firmware lease and PIO lifecycle",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "evidence": "ordered executor advanced to runtime after success",
+      "label": "native runtime firmware and FPGA launch integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "evidence": "ordered executor advanced to runtime after success",
+      "label": "embedded producer identity and native control integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "evidence": "ordered executor advanced to runtime after success",
+      "label": "host Go and UI tests",
+      "lane": "host",
+      "returncode": 0
+    },
+    {
+      "evidence": "direct resumed-stage result",
+      "label": "runtime software tests",
+      "lane": "runtime",
+      "returncode": 0
+    },
+    {
+      "evidence": "direct resumed-stage result",
+      "label": "contract schemas and generated fixtures",
+      "lane": "contracts",
+      "returncode": 0
+    },
+    {
+      "evidence": "direct resumed-stage result",
+      "label": "embedded firmware and identity/drain RTL integration",
+      "lane": "fpga",
+      "returncode": 0
+    },
+    {
+      "evidence": "direct resumed-stage result",
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "all_selected_commands_complete": true,
+  "base_commit": "4f559cc68d387dfb807bb7ab351ac6fe331bf89b",
+  "committed_consistency_check": {
+    "argv": [
+      "make",
+      "check"
+    ],
+    "elapsed": 4.802445675013587,
+    "log_sha256": "6902dd9fa181ad390effba37e77c007fa4d2437fe1aa9bf638fabb99aacddd2c",
+    "returncode": 0,
+    "timed_out": false
+  },
+  "core_load_acceptance": false,
+  "hardware_operations_this_step": false,
+  "implementation_commit": "ed7a8f29db9fce0a1033950a47b0fb70a813fd27",
+  "native_sd_acceptance": false,
+  "parent_cases_omitted": 82,
+  "parent_cases_selected": 1202,
+  "parent_mode": {
+    "media": false,
+    "video": false
+  },
+  "prefix_proof": {
+    "command_count": 10,
+    "commands": [
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_affected.py",
+          "-v"
+        ],
+        "cwd": ".",
+        "files": [
+          "tests/test_affected.py"
+        ],
+        "label": "test_affected.py",
+        "lane": "always",
+        "tools": [
+          "/usr/bin/python3"
+        ]
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_test_changed.py",
+          "-v"
+        ],
+        "cwd": ".",
+        "files": [
+          "tests/test_test_changed.py"
+        ],
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "tools": [
+          "/usr/bin/python3"
+        ]
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/check_diff.py",
+          "--base",
+          "4f559cc68d387dfb807bb7ab351ac6fe331bf89b",
+          "--head",
+          "9910f1325e285c3e9c6508e43c070d54563ad461"
+        ],
+        "cwd": ".",
+        "files": [],
+        "label": "committed whitespace",
+        "lane": "always",
+        "tools": [
+          "/usr/bin/python3"
+        ]
+      },
+      {
+        "argv": [
+          "git",
+          "diff",
+          "--check",
+          "HEAD",
+          "--"
+        ],
+        "cwd": ".",
+        "files": [],
+        "label": "working whitespace",
+        "lane": "always",
+        "tools": [
+          "git"
+        ]
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/parent_tests.py",
+          "--video",
+          "false",
+          "--media",
+          "false",
+          "--paths-json",
+          "[\"docs/validation/2026-11-01-de25-sd-firmware-lease/README.md\", \"docs/validation/2026-11-01-de25-sd-firmware-lease/affected-broad-cancellation.json\", \"docs/validation/2026-11-01-de25-sd-firmware-lease/consumer-policy.log\", \"docs/validation/2026-11-01-de25-sd-firmware-lease/entry-source-boundary.json\", \"docs/validation/2026-11-01-de25-sd-firmware-lease/inventory-fixture.log\", \"docs/validation/2026-11-01-de25-sd-firmware-lease/nano-parent-tests.log\", \"docs/validation/2026-11-01-de25-sd-firmware-lease/planner-tests.log\", \"docs/validation/2026-11-01-de25-sd-firmware-lease/result.json\", \"docs/validation/2026-11-01-de25-sd-firmware-lease/sd-go-race.log\", \"docs/validation/2026-11-01-de25-sd-firmware-lease/selection-tests.log\", \"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/generated/fes_embedded_sd.h\", \"platform/embedded/firmware/nano_bridge_platform.h\", \"platform/embedded/firmware/nano_bridge_platform.inc\", \"platform/embedded/firmware/nano_bridges.c\", \"platform/embedded/firmware/nano_bridges.h\", \"platform/embedded/firmware/nano_owned_sip.inc\", \"platform/embedded/firmware/nano_sd.c\", \"platform/embedded/firmware/nano_sd.h\", \"platform/embedded/firmware/prepare_nano_owned.py\", \"platform/embedded/firmware/tests/nano_cold_platform_test.c\", \"platform/embedded/firmware/tests/nano_sd_rpc.c\", \"platform/embedded/firmware/tests/nano_sd_test.c\", \"platform/embedded/firmware/verify_owned_sip.py\", \"platform/embedded/nano/cold_profile.py\", \"platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_sd.go\", \"platform/embedded/tamago/sdcontrol/README.md\", \"platform/embedded/tamago/sdcontrol/card_test.go\", \"platform/embedded/tamago/sdcontrol/control.go\", \"platform/embedded/tamago/sdcontrol/control_test.go\", \"platform/embedded/tamago/sdcontrol/session.go\", \"platform/embedded/tamago/sdcontrol/session_test.go\", \"platform/embedded/tamago/sdhci/README.md\", \"platform/embedded/tamago/sdhci/sdhci.go\", \"platform/embedded/tamago/sdhci/sdhci_test.go\", \"scripts/affected.py\", \"scripts/consistency.py\", \"scripts/test_changed.py\", \"scripts/test_policy.py\", \"sources/mister-packages/README.md\", \"sources/mister-packages/docs/embedded-sd.md\", \"sources/mister-packages/packages/fabric/fes_fabric_embedded_sd.yaml\", \"sources/mister-packages/testdata/oracles/fes-embedded-sd.json\", \"tests/test_affected.py\", \"tests/test_consistency.py\", \"tests/test_nano_cold.py\", \"tests/test_nano_sd.py\", \"tests/test_test_changed.py\", \"tests/test_test_policy.py\"]"
+        ],
+        "cwd": ".",
+        "files": [
+          "scripts/parent_tests.py",
+          "tests"
+        ],
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "tools": [
+          "/usr/bin/python3",
+          "sh"
+        ]
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "-c",
+          "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+        ],
+        "cwd": ".",
+        "files": [
+          "scripts/consistency.py"
+        ],
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "tools": [
+          "/usr/bin/python3",
+          "go"
+        ]
+      },
+      {
+        "argv": [
+          "go",
+          "test",
+          "-race",
+          "-count=1",
+          "-timeout",
+          "90s",
+          "./sdcontrol",
+          "./sdhci",
+          "./fat"
+        ],
+        "cwd": "platform/embedded/tamago",
+        "files": [
+          "sdcontrol/session_test.go",
+          "sdhci/sdhci.go"
+        ],
+        "label": "native SD firmware lease and PIO lifecycle",
+        "lane": "parent",
+        "tools": [
+          "cc",
+          "go"
+        ]
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "platform/embedded/tamago/nativefabric/verify.py"
+        ],
+        "cwd": ".",
+        "files": [
+          "platform/embedded/tamago/nativefabric/verify.py",
+          "platform/embedded/firmware/tests/native_rpc.cpp"
+        ],
+        "label": "native runtime firmware and FPGA launch integration",
+        "lane": "parent",
+        "tools": [
+          "/usr/bin/python3",
+          "c++",
+          "cc",
+          "go",
+          "verilator"
+        ]
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "platform/embedded/tamago/nativefabric/verify_producer.py"
+        ],
+        "cwd": ".",
+        "files": [
+          "sources/misteross/prototypes/embedded_control/producer.py",
+          "platform/embedded/tamago/nativefabric/verify_producer.py"
+        ],
+        "label": "embedded producer identity and native control integration",
+        "lane": "parent",
+        "tools": [
+          "/usr/bin/python3",
+          "c++",
+          "cc",
+          "g++",
+          "git",
+          "go",
+          "make",
+          "verilator",
+          "verilator_bin"
+        ]
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/host_tests.py",
+          "--ui-if-needed",
+          "--paths-json",
+          "[\"docs/validation/2026-11-01-de25-sd-firmware-lease/README.md\", \"docs/validation/2026-11-01-de25-sd-firmware-lease/affected-broad-cancellation.json\", \"docs/validation/2026-11-01-de25-sd-firmware-lease/consumer-policy.log\", \"docs/validation/2026-11-01-de25-sd-firmware-lease/entry-source-boundary.json\", \"docs/validation/2026-11-01-de25-sd-firmware-lease/inventory-fixture.log\", \"docs/validation/2026-11-01-de25-sd-firmware-lease/nano-parent-tests.log\", \"docs/validation/2026-11-01-de25-sd-firmware-lease/planner-tests.log\", \"docs/validation/2026-11-01-de25-sd-firmware-lease/result.json\", \"docs/validation/2026-11-01-de25-sd-firmware-lease/sd-go-race.log\", \"docs/validation/2026-11-01-de25-sd-firmware-lease/selection-tests.log\", \"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/generated/fes_embedded_sd.h\", \"platform/embedded/firmware/nano_bridge_platform.h\", \"platform/embedded/firmware/nano_bridge_platform.inc\", \"platform/embedded/firmware/nano_bridges.c\", \"platform/embedded/firmware/nano_bridges.h\", \"platform/embedded/firmware/nano_owned_sip.inc\", \"platform/embedded/firmware/nano_sd.c\", \"platform/embedded/firmware/nano_sd.h\", \"platform/embedded/firmware/prepare_nano_owned.py\", \"platform/embedded/firmware/tests/nano_cold_platform_test.c\", \"platform/embedded/firmware/tests/nano_sd_rpc.c\", \"platform/embedded/firmware/tests/nano_sd_test.c\", \"platform/embedded/firmware/verify_owned_sip.py\", \"platform/embedded/nano/cold_profile.py\", \"platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_sd.go\", \"platform/embedded/tamago/sdcontrol/README.md\", \"platform/embedded/tamago/sdcontrol/card_test.go\", \"platform/embedded/tamago/sdcontrol/control.go\", \"platform/embedded/tamago/sdcontrol/control_test.go\", \"platform/embedded/tamago/sdcontrol/session.go\", \"platform/embedded/tamago/sdcontrol/session_test.go\", \"platform/embedded/tamago/sdhci/README.md\", \"platform/embedded/tamago/sdhci/sdhci.go\", \"platform/embedded/tamago/sdhci/sdhci_test.go\", \"scripts/affected.py\", \"scripts/consistency.py\", \"scripts/test_changed.py\", \"scripts/test_policy.py\", \"sources/mister-packages/README.md\", \"sources/mister-packages/docs/embedded-sd.md\", \"sources/mister-packages/packages/fabric/fes_fabric_embedded_sd.yaml\", \"sources/mister-packages/testdata/oracles/fes-embedded-sd.json\", \"tests/test_affected.py\", \"tests/test_consistency.py\", \"tests/test_nano_cold.py\", \"tests/test_nano_sd.py\", \"tests/test_test_changed.py\", \"tests/test_test_policy.py\"]"
+        ],
+        "cwd": ".",
+        "files": [
+          "scripts/host_tests.py",
+          "sources/FogCast/Makefile",
+          "sources/FogCast/go.mod",
+          "sources/FogCast/appliance/go.mod",
+          "sources/misteross/expansion/go.mod"
+        ],
+        "host_ui": {
+          "boundary_scheduled": false,
+          "command_scheduled": true,
+          "reason": "UI/API, production/full or uncertain inputs",
+          "required": true,
+          "scheduled": true,
+          "target": "test-ui"
+        },
+        "label": "host Go and UI tests",
+        "lane": "host",
+        "tools": [
+          "/usr/bin/python3",
+          "cc",
+          "go",
+          "make",
+          "node",
+          "rg",
+          "sh"
+        ]
+      }
+    ],
+    "evidence": "The checked ordered executor starts runtime only after these ten commands return zero; it stops immediately on a nonzero status. The interrupted log contains the runtime version/incremental-build assertions.",
+    "executor_source_sha256": "5eea054430e4366f32443fda6e3ad09eccff8636b9416211c6a82b234418706d",
+    "head": "9910f1325e285c3e9c6508e43c070d54563ad461",
+    "interrupted_log_sha256": "3628663d3c78820302091f58fa166d52fb4e42a3c7eb9601e153c8433eb48115",
+    "interrupted_result": {
+      "argv": [
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "4f559cc68d387dfb807bb7ab351ac6fe331bf89b"
+      ],
+      "elapsed": 900.0726852170192,
+      "log_sha256": "3628663d3c78820302091f58fa166d52fb4e42a3c7eb9601e153c8433eb48115",
+      "returncode": -15,
+      "timed_out": true
+    }
+  },
+  "shared_generated_consumers": 33,
+  "single_full_workflow_pass": false,
+  "status": "completed-across-runs",
+  "tail_report_sha256": "f5f450f7be7a922798dac3ce08a74432e854ad382eb46ce0f9f670580cd70f7c",
+  "tail_result": {
+    "argv": [
+      "python3",
+      "out/nano-sd-lease-20261101/finish_checks.py"
+    ],
+    "elapsed": 548.8423535759794,
+    "log_sha256": "8fdd223ebb902391502544f34bb08f6cf313ea5ca37e27e6328326e3b0dd887d",
+    "returncode": 0,
+    "timed_out": false
+  },
+  "test_modes": {
+    "full_race": false,
+    "media": false,
+    "video": false
+  },
+  "tested_commit": "9910f1325e285c3e9c6508e43c070d54563ad461"
+}

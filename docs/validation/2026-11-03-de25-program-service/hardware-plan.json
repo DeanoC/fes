@@ -1,0 +1,35 @@
+{
+  "source_commit": "af37a76aed47e049b0a70909026dd55cce567b1a",
+  "status": "prepared-not-run",
+  "board": "TRWU8CBL",
+  "recovery": "out/nano-version-suffix-20261103/recovery-kit",
+  "upload_purposes": [
+    "boot",
+    "package",
+    "metadata",
+    "selection"
+  ],
+  "read_back_all_four_after_last_write": true,
+  "request_scope": "nano-contained-program-service-v1",
+  "steps": [
+    "matched native boot and initial Ready owner/generation0",
+    "reject malformed, foreign owner, stale generation and invalid index without side effects",
+    "launch catalogue0 generation0; verify live requested identity and fetch activity; hold/run/keyboard commands",
+    "return session1; verify Ready generation2 and old-session rejection",
+    "launch catalogue1 generation2; verify identity/activity; return session3 to Ready generation4",
+    "launch catalogue0 generation4; verify identity/activity; park session5 to Parked generation6; refuse later mutations"
+  ],
+  "configuration_cycles": 3,
+  "same_physical_package": true,
+  "different_physical_package_acceptance": false,
+  "request_launch_bound_seconds": 100,
+  "configuration_bound_seconds": 20,
+  "control_bound_seconds": 5,
+  "native_phase_bound_seconds": 450,
+  "outer_bound_seconds": 800,
+  "stop_first_failure_no_replay": true,
+  "verify_restored_15mhz_before_owned_server_stop": true,
+  "restore_exact_usb_permissions_and_check_free_uart": true,
+  "board_hardware_actions_performed": false,
+  "ordinary_runtime_admission": false
+}

@@ -1,0 +1,14 @@
+test_canonical_descriptor_matches_both_consumers (test_nano_hps_context.HPSContextTests.test_canonical_descriptor_matches_both_consumers) ... ok
+test_cli_rejects_wrong_board_program_and_missing_project_before_output (test_nano_hps_context.HPSContextTests.test_cli_rejects_wrong_board_program_and_missing_project_before_output) ... ok
+test_configuration_mapping_binds_actual_core_bytes_and_separate_memory (test_nano_hps_context.HPSContextTests.test_configuration_mapping_binds_actual_core_bytes_and_separate_memory) ... ok
+test_configuration_receipt_requires_its_dedicated_source_and_map (test_nano_hps_context.HPSContextTests.test_configuration_receipt_requires_its_dedicated_source_and_map) ... ok
+test_control_map_cannot_be_added_omitted_or_changed_outside_dedicated_image (test_nano_hps_context.HPSContextTests.test_control_map_cannot_be_added_omitted_or_changed_outside_dedicated_image) ... ok
+test_control_route_decoder_requires_compiler_hashes_exact_route_and_no_overlap (test_nano_hps_context.HPSContextTests.test_control_route_decoder_requires_compiler_hashes_exact_route_and_no_overlap) ... ok
+test_invalid_project_cannot_change_a_callers_firmware_imports (test_nano_hps_context.HPSContextTests.test_invalid_project_cannot_change_a_callers_firmware_imports) ... ok
+test_native_receipt_key_and_source_or_digest_changes_reject (test_nano_hps_context.HPSContextTests.test_native_receipt_key_and_source_or_digest_changes_reject) ... ok
+test_partial_or_omitted_context_cannot_claim_bootcontext (test_nano_hps_context.HPSContextTests.test_partial_or_omitted_context_cannot_claim_bootcontext) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.550s
+
+OK

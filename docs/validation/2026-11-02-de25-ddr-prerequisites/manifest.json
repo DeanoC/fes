@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "source_commit": "b05c00f0a6f26df0acfc03e762e85e71e86d6d81",
+  "base": "f7d6aa434a734494cf63c709b207e980bb2f2cc7",
+  "scope": "read-only DDR prerequisite observation plus idle master stop; all data held",
+  "core_load_acceptance": false,
+  "physical_ddr_access_qualified": false,
+  "active_drain_qualified": false,
+  "working_artifacts": "out/nano-ddr-matched-20261102",
+  "retained_session": "/home/deano/fes-retained/de25-ddr-prerequisites-20261102",
+  "sha256": {
+    "out/nano-ddr-matched-20261102/software-result.json": "59ff915dfa97448bc8d3ceb14649299a55ac785b3c7495d2081b0db0cdd84934",
+    "out/nano-ddr-matched-20261102/make-check-result.json": "01e8961a69b9fa7e3cf614c9b58b9adc15a336422039ad76173ecb68bcc85fe1",
+    "out/nano-ddr-matched-20261102/remote-build-result.json": "492a69e07c78de288a7ba970de9d1b5b314e587c852be1592c2f5f28fa67fb81",
+    "out/nano-ddr-matched-20261102/remote-collection-result.json": "b6f10ca402bdc00b57b9332801ebc384aa0537c800450a569cedafeef62e6dad",
+    "out/nano-ddr-matched-20261102/native-composition/result.json": "55aee9df5344ff882d6f46fd66c729b270edcbfec9dd90578fbc2a237f90686e",
+    "out/nano-ddr-matched-20261102/sealed-ddr-rtl/result.json": "d2070697260579558d8ced378fb101ff885b4a5308ec7a4c997cd86663f4b2da",
+    "out/nano-ddr-matched-20261102/sealed-handoff-negative/result.json": "360fe093543f7b016e4ebf5f2720a7853772f206cbffc1547546e48e2ea21168",
+    "out/nano-ddr-matched-20261102/hardware-postcheck.json": "7d7a99ea6df8eade89a39e2dd8fadd33299869daa61929095478bee15ccbfc89",
+    "out/nano-ddr-matched-20261102/trial/experiment-result.json": "2041b0c96f5bd94986f863f65aa912745cafb968d50acb765566ad69bb2f4b2a",
+    "out/nano-ddr-matched-20261102/trial-resume/experiment-result.json": "fcb4e0c9ffb6b95d589857f4d7172c4d71aeeaa48a4e313ee11911e48c8f45fb",
+    "out/nano-ddr-matched-20261102/trial-resume/native-result.json": "b3531fadaa713dab6f74b3e3e32bd049a2116cc8dec2c350b744671a49b2f808",
+    "out/nano-ddr-matched-20261102/trial-resume/native-console.log": "1fdbbf109327341099598cbefc5a9ac87cdedc391959c131d11972097cdfc084",
+    "out/nano-ddr-matched-20261102/trial/upload-boot/result.json": "b5d4cabd2a7e063553bb26f1eafeea9cfa5a887e18436310b3cb2c6727fd6595",
+    "out/nano-ddr-matched-20261102/trial/upload-package/result.json": "3bd4b9bfd712b32530188a68928f94c1ea022be6cfa33c408574ee3101a6ab6e"
+  }
+}

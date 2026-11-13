@@ -1,0 +1,105 @@
+{
+  "serial": "TRWU8CBL",
+  "source_commit": "53c5945edf3af8db3c92313fe4f1d884d44f00c7",
+  "phase": "native",
+  "sof_sha256": "b360202ec970fe3c0bc254590805eb631bbcba11c11681ef200655a2f4e0612e",
+  "initial_card_image_sha256": "f7c4a2c77e44de5c6679b8e2c274100dd9ebb4961c900e7a6de10f727a34850c",
+  "prepared_full_image_sha256_not_written": "a6455874158f7063996bdf3ad12c501dd4b91e88a574b67735adec18e653654f",
+  "fit_sha256": "b1bb52b2d540fb001f071a64b4c8a021ed5d60d6a467fef1ede9ce6d1f139968",
+  "started_utc": "2026-11-01T13:29:42.872299+00:00",
+  "stage": "matched native prompt",
+  "programming_attempted": true,
+  "fesboot_sent": false,
+  "pass": false,
+  "sd_write_commands_sent": false,
+  "qualified_recovery_receipt_sha256": "cf2b5638ab2c5fcbf0cab577e89dc7280be687d70c351d86d437e4e964656abc",
+  "live_card_receipt_sha256": "74a6f0cd2895aa0ee91011c329567563486394b8b77a965234495742731bb60b",
+  "prior_stop_receipt_sha256": "1e0b1bc33ebe64170f85ec5f039e064ccc864c124b4a1ae8a3924e76b9772287",
+  "runner_sha256": "7f3d16384f8ca10b30f4b32e7d29dd6c9a50ea32ed8d0bbd1dae392d8bdb5c28",
+  "clock_checks": [
+    {
+      "clock": "6M",
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    }
+  ],
+  "jtag_id": "4362C0DD",
+  "boot_trace": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "043d91df5b22234a"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 6890768083533175775,
+          "epoch": 3677441339,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 41,
+        "values": {
+          "provider": -1,
+          "result": -1,
+          "bridge": 15
+        }
+      }
+    ],
+    "errors": [
+      "secure provider proof rejected"
+    ],
+    "loader_ready": false,
+    "complete": false,
+    "last_checkpoint": "provider",
+    "core_load_acceptance": false
+  },
+  "programming_complete": true,
+  "error": "native boot trace rejected: ['secure provider proof rejected']",
+  "usb_permissions_restored": true,
+  "console_sha256": "fc2805f6b8476f07404951e3fa9a307ad574cc079e3b79ebdfebd0420cf4de84",
+  "finished_utc": "2026-11-01T13:29:59.652253+00:00",
+  "decoder_sha256": "4c9dab5fde6356c14e610eb2028956251594ad80bd02e4e23b0435d0fcebdeea"
+}

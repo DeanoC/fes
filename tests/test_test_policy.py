@@ -201,6 +201,83 @@ class SelectTestModesTests(unittest.TestCase):
                 test_policy.validate_test_modes(modes, lanes)
 
 
+    def test_private_tape_contract_keeps_routine_consumer_checks(self):
+        path = 'sources/mister-packages/packages/fabric/fes_fabric_embedded_tape.yaml'
+        self.assertEqual(test_policy.select_test_modes([path]), ALL_FALSE)
+        for neighbor in ('sources/mister-packages/packages/fabric/fes_fabric_embedded_tape_other.yaml',
+                         'sources/mister-packages/packages/abi/fes_computer.yaml', 'unknown/new.bin'):
+            self.assertEqual(test_policy.select_test_modes([path, neighbor]), ALL_TRUE)
+        self.assertEqual(test_policy.select_test_modes([path, 'scripts/factory_video_parts.py']),
+                         {'video': True, 'media': False, 'full_race': False})
+        self.assertEqual(test_policy.select_test_modes([path, 'image/Makefile']),
+                         {'video': False, 'media': True, 'full_race': False})
+
+
+    def test_native_computer_contract_selects_only_its_actual_consumers(self):
+        paths = sorted(test_policy.NATIVE_COMPUTER_CONTRACT_INPUTS)
+        self.assertEqual(test_policy.select_test_modes(paths), ALL_FALSE)
+        for neighbor in ('sources/mister-packages/packages/fabric/fes_fabric_de25_computer_other.yaml',
+                         'sources/mister-packages/packages/abi/fes_computer.yaml', 'unknown/new.bin'):
+            self.assertEqual(test_policy.select_test_modes([*paths, neighbor]), ALL_TRUE)
+
+
+    def test_embedded_producer_simulation_does_not_select_extended_builds(self):
+        for path in ('sources/misteross/prototypes/embedded_control/producer.py',
+                     'sources/misteross/prototypes/embedded_control/embedded_producer_top.sv',
+                     'sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv',
+                     'sources/misteross/prototypes/de25_board_control/verify.py',
+                     'platform/embedded/tamago/nativefabric/producer_integration_test.go',
+                     'platform/embedded/tamago/nativefabric/verify_producer.py'):
+            with self.subTest(path=path):
+                self.assertEqual(test_policy.select_test_modes([path]), ALL_FALSE)
+        self.assertTrue(test_policy.select_test_modes(['sources/misteross/cores/fes-common/rtl/unknown.sv'])['video'])
+
+
+    def test_embedded_sd_consumers_stay_routine_and_mixed_inputs_keep_extended_checks(self):
+        paths = ['sources/mister-packages/packages/fabric/fes_fabric_embedded_mac.yaml',
+                 'sources/mister-packages/testdata/oracles/fes-embedded-mac.json',
+                 'sources/mister-packages/packages/fabric/fes_fabric_embedded_sd.yaml',
+                 'sources/mister-packages/testdata/oracles/fes-embedded-sd.json',
+                 'platform/embedded/firmware/nano_sd.c',
+                 'platform/embedded/tamago/sdcontrol/session.go',
+                 'platform/embedded/tamago/sdhci/sdhci.go',
+                 'platform/embedded/nano/cold_profile.py',
+                 'platform/embedded/entry/build.py']
+        self.assertEqual(test_policy.select_test_modes(paths), ALL_FALSE)
+        for path in ('sources/mister-packages/packages/fabric/fes_fabric_embedded_sd_other.yaml',
+                     'sources/mister-packages/packages/abi/fes_application.yaml',
+                     'unknown/new.bin'):
+            self.assertEqual(test_policy.select_test_modes([*paths, path]), ALL_TRUE)
+        for path in ('platform/internal/applianceboot/boot.go',
+                     'platform/embedded-other/boot.go',
+                     'platform/embedded/../internal/applianceboot/boot.go',
+                     'image/Makefile'):
+            self.assertEqual(test_policy.select_test_modes([*paths, path]),
+                             {'video': False, 'media': True, 'full_race': False})
+        self.assertEqual(test_policy.select_test_modes([*paths, 'scripts/factory_video_parts.py']),
+                         {'video': True, 'media': False, 'full_race': False})
+
+
+    def test_private_bridge_wire_keeps_its_native_and_firmware_checks(self):
+        import affected
+        paths = ['sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml',
+                 'sources/mister-packages/testdata/oracles/fes-embedded-bridges.json']
+        self.assertEqual(test_policy.select_test_modes(paths), ALL_FALSE)
+        plan = affected.plan(paths)
+        self.assertTrue(plan['lanes']['parent'])
+        self.assertTrue(plan['lanes']['contracts'])
+        self.assertTrue(plan['lanes']['fpga'])
+        for path in paths:
+            self.assertTrue(affected.native_fabric_input(path))
+            self.assertTrue(affected.embedded_control_input(path))
+        for path in ('sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges_other.yaml',
+                     'sources/mister-packages/packages/fabric/fes_fabric_embedded_control.yaml'):
+            self.assertEqual(test_policy.select_test_modes([*paths, path]), ALL_TRUE)
+        self.assertTrue(test_policy.select_test_modes([*paths, 'scripts/factory_video_parts.py'])['video'])
+        self.assertTrue(test_policy.select_test_modes([*paths, 'image/Makefile'])['media'])
+
+
+
 class HostCommandTests(unittest.TestCase):
     PACKAGES = ('github.com/DeanoC/FogCast/catalog', 'github.com/DeanoC/FogCast/fogcast',
                 'github.com/DeanoC/FogCast/corepackage', 'github.com/DeanoC/FogCast/internal/x')

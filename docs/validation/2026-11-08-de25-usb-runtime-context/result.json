@@ -1,0 +1,73 @@
+{
+  "base": "72ff94b07560426ebea28357f14a0a29b5498bf0",
+  "board_touched": false,
+  "boot_chain": {
+    "artifacts": {
+      "bl31": {
+        "bytes": 65597,
+        "path": "out/nano-usb-runtime-context-20261108/native-bl31/source/build/agilex5/release/bl31.bin",
+        "sha256": "8f8a27520cee7a9c35ffb192f0df293e0b1767cad17d76bf8cfc3b6d26ca4136"
+      },
+      "entry": {
+        "bytes": 2203648,
+        "path": "out/nano-usb-runtime-context-20261108/native-entry/entry.img",
+        "sha256": "ac017d76eee761b79cff52a5a8719bd05843eee6072c71ca48a2b50295201174"
+      },
+      "fit": {
+        "bytes": 2725688,
+        "path": "out/nano-usb-runtime-context-20261108/native-uboot/build/u-boot.itb",
+        "sha256": "06f2212adaad32ecd90183cec0bda26a117ff9a9d8464d1f1125b05c61328d43"
+      },
+      "sdk": {
+        "bytes": 5378223,
+        "path": "out/nano-usb-runtime-context-20261108/native-sdk/usbcheck.elf",
+        "sha256": "d15c20104777761ebd1708f923cdc0530616dcb17c2385283332c397c182b235"
+      },
+      "sof": {
+        "bytes": 1578277,
+        "path": "out/nano-usb-runtime-context-20261108/native-composition/native-hps-first.sof",
+        "sha256": "5a3d9f7f524976601c920227b93e945622e2aaed09de418ee9f1bcc3915e01e5"
+      },
+      "spl": {
+        "bytes": 458219,
+        "path": "out/nano-usb-runtime-context-20261108/native-uboot/build/spl/u-boot-spl-dtb.hex",
+        "sha256": "dc319a4d1c514277bd4dbbc90bbd4f6530550089154588db0de54b3d158e9c72"
+      }
+    },
+    "chain_sha256": "dae6e0e5989c6d6ea4a46b3748c213bfc92d7c776f204607542587102d36c43e",
+    "core_payload_unchanged": true,
+    "file_digests": 2249,
+    "integrity_sha256": "091032d0f5ce7b578e776b17c9226c5776e7fff772ac6d0c1be9b948931cbdce",
+    "native_boot_id": "0d772a49dead9616"
+  },
+  "changes": [
+    "New distinct USBHPSContextVerifier exposes only Identity, Verify and ProbeHPSIO; its underlying control/ROM/program verifier stays private.",
+    "Explicit USB inspection accepts supported native/held-ROM source ABI while preserving canonical/digest/ABI/type checks and generic constructor restrictions.",
+    "Actual usbcheck caller selects and explicitly types the narrow verifier; it cannot silently revert to the generic return type."
+  ],
+  "checks": {
+    "affected_commands": 7,
+    "focused_go_top_level_tests": 2,
+    "lost_reply_positions": 4,
+    "make_check": "52 generated consumers/37 fixture copies passed",
+    "native_runtime_firmware_FPGA_integration": "passed",
+    "parent_existing_skips": 3,
+    "parent_tests": 1719,
+    "race_detector": true,
+    "source_profiles": 4
+  },
+  "classification": "restricted runtime USB source verifier and rebuilt matched chain; software only",
+  "evidence_boundaries": [
+    "Prior5cbd398052060507 image consumed1/max1 after cold-loader and nine startup checkpoints; Go source context rejection occurred before USB acquisition or driver open.",
+    "This source repair is host-tested and cross-built; it has no physical USB acceptance.",
+    "SDK bytes were built before committing their source; selected file hashes match committed source. Embedded Go VCS metadata is not used to claim clean-HEAD provenance."
+  ],
+  "goal_complete": false,
+  "remaining": [
+    "Re-admit/re-freeze changed image with its rebuilt identity and zero prior attempts.",
+    "Bounded top-board USB Ready/Stop test using existing live scan/source/clock/cleanup gates.",
+    "Physical tape timing/ROM consumption, full core-load cycles, display/input and native networking acceptance remain open."
+  ],
+  "source_commit": "fd74604df1382bf48dc184e7b27d53e82960305e",
+  "status": "passed"
+}

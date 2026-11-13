@@ -11,9 +11,9 @@ except ImportError:
     from hil_plan import GO_SOURCE_SUFFIXES
 
 try:
-    from scripts.test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION, DE25_PR_CONTROL_DEFINITION, select_test_modes, validate_test_modes
+    from scripts.test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION, DE25_PR_CONTROL_DEFINITION, NATIVE_COMPUTER_CONTRACT_INPUTS, select_test_modes, validate_test_modes
 except ImportError:
-    from test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION, DE25_PR_CONTROL_DEFINITION, select_test_modes, validate_test_modes
+    from test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION, DE25_PR_CONTROL_DEFINITION, NATIVE_COMPUTER_CONTRACT_INPUTS, select_test_modes, validate_test_modes
 
 # Logical module names survive the monorepo move; update only these roots.
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
@@ -24,6 +24,165 @@ CORES = ('application', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c6
          'pc386')
 SIMULATION_ONLY_CORES = frozenset({'application', 'z80', 'pc386'})
 EXPANSION_ROOT = 'sources/misteross/expansion'
+EMBEDDED_CONTROL_INPUTS = frozenset({
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_control.yaml',
+    'sources/mister-packages/testdata/oracles/fes-embedded-control.json',
+    'sources/misteross/cores/fes-common/generated/fes_embedded_control.vh',
+    'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',
+})
+EMBEDDED_BRIDGE_INPUTS = frozenset({
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_mac.yaml',
+    'sources/mister-packages/testdata/oracles/fes-embedded-mac.json',
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml',
+    'sources/mister-packages/testdata/oracles/fes-embedded-bridges.json',
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_sd.yaml',
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_usb.yaml',
+    'sources/mister-packages/testdata/oracles/fes-embedded-usb.json',
+    'sources/mister-packages/testdata/oracles/fes-embedded-sd.json',
+})
+EMBEDDED_ROM_INPUTS = frozenset({
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_rom.yaml',
+    'platform/embedded/firmware/generated/fes_embedded_rom.h',
+    'platform/embedded/firmware/nano_rom.c',
+    'platform/embedded/firmware/nano_rom.h',
+    'platform/embedded/firmware/nano_rom_platform.inc',
+    'platform/embedded/firmware/nano_program.c',
+    'platform/embedded/firmware/nano_program.h',
+    'platform/embedded/firmware/nano_cold_platform.c',
+    'platform/embedded/firmware/nano_computer_control.inc',
+    'platform/embedded/firmware/nano_bridge_platform.h',
+    'platform/embedded/firmware/prepare_nano_owned.py',
+})
+EMBEDDED_TAPE_INPUTS = frozenset({
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_tape.yaml',
+    'platform/embedded/firmware/generated/fes_embedded_tape.h',
+    'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_tape.go',
+})
+
+
+def embedded_control_input(path):
+    return (path in EMBEDDED_CONTROL_INPUTS or path in EMBEDDED_BRIDGE_INPUTS or
+            path in EMBEDDED_ROM_INPUTS or path in EMBEDDED_TAPE_INPUTS or
+            path.startswith('platform/embedded/firmware/'))
+
+
+def native_computer_input(path):
+    return (path.startswith('platform/embedded/tamago/computer/') or path in NATIVE_COMPUTER_CONTRACT_INPUTS)
+
+
+def native_sd_input(path):
+    return (path in EMBEDDED_BRIDGE_INPUTS or
+            path.startswith(('platform/embedded/tamago/sdcontrol/',
+                             'platform/embedded/tamago/packagestore/',
+                             'platform/embedded/tamago/cmd/sdpackages/',
+                             'platform/embedded/tamago/cmd/sdwrite/',
+                             'platform/embedded/tamago/cmd/sdfile/',
+                             'platform/embedded/tamago/fatcheck/',
+                             'platform/embedded/tamago/storagepolicy/',
+                             'platform/embedded/tamago/fat/',
+                             'platform/embedded/tamago/sdhci/')) or
+            path in ('platform/embedded/firmware/nano_sd.h',
+                     'platform/embedded/firmware/nano_sd.c',
+                     'platform/embedded/firmware/nano_owned_sip.inc',
+                     'platform/embedded/firmware/nano_bridges.c',
+                     'platform/embedded/firmware/nano_bridges.h',
+                     'platform/embedded/firmware/tests/nano_sd_rpc.c',
+                     'platform/embedded/firmware/tests/nano_sd_test.c',
+                     'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_sd.go'))
+
+
+def embedded_producer_input(path):
+    return path.startswith('sources/misteross/prototypes/embedded_control/')
+
+
+def embedded_board_control_input(path):
+    return path.startswith('sources/misteross/prototypes/de25_board_control/')
+
+
+def embedded_board_control_check_input(path):
+    return (embedded_board_control_input(path) or path in EMBEDDED_CONTROL_INPUTS or
+            path in EMBEDDED_ROM_INPUTS or
+            path in ('platform/embedded/tamago/nativefabric/producer_integration_test.go',
+                     'platform/embedded/tamago/embeddedcontrol/control.go',
+                     'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_control.go'))
+
+
+def embedded_menu_input(path):
+    return (path.startswith('platform/embedded/tamago/scanout/menu') and path.endswith('.go')) or path in EMBEDDED_CONTROL_INPUTS or path in (
+        'sources/misteross/prototypes/embedded_control/fes_embedded_menu_scanout.sv',
+        'sources/misteross/prototypes/embedded_control/fes_embedded_menu_control.sv',
+        'sources/misteross/prototypes/embedded_control/menu_bench.hpp',
+        'sources/misteross/prototypes/embedded_control/menu_rpc.cpp',
+        'sources/misteross/prototypes/embedded_control/embedded_menu_top.sv',
+        'sources/misteross/prototypes/embedded_control/menu_probe.cpp',
+        'sources/misteross/prototypes/embedded_control/verify_menu.py',
+        'sources/misteross/prototypes/embedded_control/verify_window.py',
+        'sources/misteross/prototypes/embedded_control/producer.py',
+        'sources/misteross/prototypes/de25_board_control/fes_de25_read_width.sv',
+        'sources/misteross/cores/fes-menu/rtl/fes_menu_video.v',
+        'sources/misteross/cores/fes-menu/rtl/fes_menu_reader.v',
+        'platform/embedded/tamago/scanout/surface.go',
+        'platform/embedded/tamago/scanout/testdata/frame/main.go')
+
+
+def embedded_producer_check_input(path):
+    return (embedded_control_input(path) or embedded_producer_input(path) or
+            path in ('platform/embedded/tamago/nativefabric/binding.go',
+                     'platform/embedded/tamago/scanout/surface.go',
+                     'platform/embedded/tamago/scanout/testdata/frame/main.go',
+                     'platform/embedded/tamago/nativefabric/binding_test.go',
+                     'platform/embedded/tamago/nativefabric/endpoint.go',
+                     'platform/embedded/tamago/nativefabric/endpoint_test.go',
+                     'platform/embedded/tamago/nativefabric/producer_integration_test.go',
+                     'platform/embedded/tamago/nativefabric/verify_producer.py',
+                     'platform/embedded/tamago/fabricmodel/model.go',
+                     'platform/embedded/tamago/embeddedcontrol/control.go',
+                     'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_control.go',
+                     'sources/misteross/scripts/export_core_package.py',
+                     'sources/misteross/scripts/core_package.py',
+                     'sources/misteross/scripts/compiler_read_audit.py',
+                     'sources/misteross/scripts/source_repository.py',
+                     'sources/misteross/scripts/rfc3986_validator.py'))
+
+
+def native_fabric_input(path):
+    return (embedded_control_input(path) or
+            path.startswith(('platform/embedded/tamago/embeddedcontrol/',
+                             'platform/embedded/tamago/board/arm64map/',
+                             'platform/embedded/tamago/board/de25nano/',
+                             'platform/embedded/tamago/nativefabric/',
+                             'platform/embedded/tamago/storagepolicy/',
+                             'platform/embedded/tamago/packagestore/',
+                             'platform/embedded/tamago/usbcontrol/',
+                             'platform/embedded/tamago/nativefabriccheck/',
+                             'platform/embedded/tamago/fabricmodel/',
+                             'platform/embedded/tamago/framefixture/',
+                             'platform/embedded/tamago/modelbackend/',
+                             'platform/embedded/tamago/runtimeadmission/',
+                             'sources/mister-packages/internal/emitgo/')) or
+            path in ('sources/mister-packages/cmd/mister-packages/main.go',
+                     'platform/embedded/tamago/cmd/fabric/main.go'))
+
+
+def native_compatibility_input(path):
+    if path.startswith(('platform/embedded/tamago/runtimeadmission/',
+                        'platform/embedded/tamago/admissioncheck/',
+                        'sources/FogCast/corepackage/')):
+        return path.endswith('.go')
+    return path in (
+        'platform/embedded/runtime/verify_compatibility.py',
+        'platform/embedded/runtime/admission_oracle.cpp',
+        'platform/embedded/tamago/admission_fixtures.py',
+        'platform/embedded/tamago/cmd/admission/main.go',
+        'platform/embedded/tamago/computer/generated/fes_computer.go',
+        'sources/libmister-runtime/src/native/core_package.cpp',
+        'sources/libmister-runtime/src/native/core_package.hpp',
+        'sources/mister-packages/packages/programming/de10_nano.yaml',
+        'sources/mister-packages/packages/programming/de25_embedded.yaml',
+        'platform/embedded/tamago/board/de25nano/generated/programming.go',
+        *('sources/mister-packages/packages/abi/fes_' + name + '.yaml'
+          for name in ('simple_game', 'simple_computer', 'application', 'computer')),
+    )
 # Parent-owned orchestration, test and assembly roots contain no component
 # sources, so their changes select only the parent lane. Matching is the exact
 # directory or directory + '/', keeping siblings like scripts-other unknown.
@@ -129,6 +288,8 @@ def fpga_cores(path):
     """
     relative = Path(path).relative_to(MODULE_ROOTS['fpga'])
     parts = relative.parts
+    if path in EMBEDDED_CONTROL_INPUTS or embedded_producer_input(path) or embedded_board_control_input(path):
+        return (), 'standalone embedded-control endpoint; no shipped core consumer'
     if len(parts) >= 3 and parts[:2] == ('boards', 'de25nano') and '..' not in parts:
         if len(parts) >= 4 and parts[2] == 'producers':
             name = parts[3]
@@ -374,6 +535,24 @@ def plan(paths):
         if path == EXPANSION_ROOT or path.startswith(EXPANSION_ROOT + '/'):
             selected.update(('parent', 'host'))
             reasons.append(f'{path}: shared Go expansion linker and host/target consumers; RTL unchanged')
+            continue
+        if native_compatibility_input(path):
+            selected.add('parent')
+        if native_computer_input(path):
+            selected.add('parent')
+            if path.startswith(MODULE_ROOTS['contracts'] + '/'):
+                selected.add('contracts')
+            reasons.append(f'{path}: native computer adapter; no shipped core or Linux runtime consumer')
+            continue
+        if embedded_control_input(path):
+            selected.update(('parent', 'fpga'))
+            if path.startswith(MODULE_ROOTS['contracts'] + '/'):
+                selected.add('contracts')
+            reasons.append(f'{path}: embedded firmware/RTL integration; no shipped core consumer')
+            continue
+        if embedded_producer_input(path) or embedded_board_control_input(path):
+            selected.update(('parent', 'fpga'))
+            reasons.append(f'{path}: standalone embedded producer simulation; no shipped core consumer')
             continue
         owner = next((module for module, prefix in MODULE_ROOTS.items()
                       if path == prefix or path.startswith(prefix + '/')), None)

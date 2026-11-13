@@ -1,0 +1,180 @@
+{
+  "status": "passed-retained-record-and-staged-source-reader",
+  "base": "39c83e79a",
+  "checks": {
+    "installer-regressions": {
+      "returncode": 0,
+      "tests": [
+        51
+      ],
+      "log_sha256": "0e2c0d19f9cdffa8694f1b8006e0ba7cddcd971bba05e2e56266e3184cc50188"
+    },
+    "affected-regressions": {
+      "returncode": 0,
+      "tests": [
+        34,
+        41,
+        1,
+        1956
+      ],
+      "log_sha256": "b79a47121473f91d210e7f28883b839f8849a6e80977f3c9135bf1d07c2c1ef9"
+    },
+    "real-input-models": {
+      "returncode": 0,
+      "tests": [],
+      "log_sha256": "0ad8fabda5f1c6a885837a0dcb9ba280eefd53a126f7aec503663ce3b955b400"
+    },
+    "operator-models": {
+      "returncode": 0,
+      "tests": [
+        6
+      ],
+      "log_sha256": "326ec1006fe0860424d6c3dd6d4f2871650ccd52eebfa260203b375b11336066"
+    },
+    "read-flow-models": {
+      "returncode": 0,
+      "tests": [
+        3
+      ],
+      "log_sha256": "f0986ae0f72a91dbc1525c2bd95bfa7cd15f355b34f42645783ec2088b085a6a"
+    },
+    "operator-transport": {
+      "returncode": 0,
+      "tests": [
+        6
+      ],
+      "log_sha256": "8955089a492734baaef1ef02d90c4c0133aca48932c8ecb6ba7174983dbd2818"
+    },
+    "receipt-models": {
+      "returncode": 0,
+      "tests": [
+        4
+      ],
+      "log_sha256": "baf3313aa57ff949f1f33110573d3496c8c0b798ade10a6d058f7da49b7d2ecc"
+    },
+    "operator-structure-r3": {
+      "returncode": 0,
+      "tests": [],
+      "log_sha256": "b1f86c504f381d28a28e1a660605e8e12f5d7557a5d21b5a9946651e9b2bd677"
+    }
+  },
+  "changed_source_sha256": {
+    "platform/embedded/nano/installer_recovery.py": "9f52a6dbd2ff8faf629b085cdf3553dc97d9232df0b64a51c32ef797f722da28",
+    "platform/embedded/nano/README.md": "a6f9723adec052febd8e64f83257ea21ee9413229cd99271185c3c97745af1a9",
+    "tests/test_nano_installer_recovery.py": "3735a1c1f8c1340172faf8a30f3b1d72adc67a4b288112c1092968d368989023"
+  },
+  "real_inputs": {
+    "status": "passed-real-input-read-only-models",
+    "cases": [
+      {
+        "name": "prior-only-before-first-install",
+        "status": "verified",
+        "expected_record_count": 1,
+        "verified_staged_files": 14,
+        "sd_writes": 0,
+        "session_closed": true,
+        "hardware_actions": false,
+        "live_authority": false,
+        "persistence_verified": false
+      },
+      {
+        "name": "future-records-absent-on-prior-only-model",
+        "status": "failed",
+        "expected_record_count": 3,
+        "verified_staged_files": 0,
+        "sd_writes": 0,
+        "session_closed": true,
+        "hardware_actions": false,
+        "live_authority": false,
+        "persistence_verified": false
+      },
+      {
+        "name": "hypothetical-post-install-discovery",
+        "status": "verified",
+        "expected_record_count": 3,
+        "verified_staged_files": 14,
+        "sd_writes": 0,
+        "session_closed": true,
+        "hardware_actions": false,
+        "live_authority": false,
+        "persistence_verified": false
+      }
+    ],
+    "predicted_records": [
+      {
+        "id": "zx81-rom",
+        "path": "FES/INSTALLED/3667b4b5af2f1540e4f8bd53e577e17b99d22255569c2b8f83b1e0f2092fef8f.JSN",
+        "bytes": 940,
+        "sha256": "3667b4b5af2f1540e4f8bd53e577e17b99d22255569c2b8f83b1e0f2092fef8f",
+        "present_on_current_card_verified": false
+      },
+      {
+        "id": "zx80-rom",
+        "path": "FES/INSTALLED/ed7a3e61d7fc989187b4932f239ed59fec64d527ebe396365cc0739e7aa75a85.JSN",
+        "bytes": 754,
+        "sha256": "ed7a3e61d7fc989187b4932f239ed59fec64d527ebe396365cc0739e7aa75a85",
+        "present_on_current_card_verified": false
+      }
+    ],
+    "source_sha256": {
+      "platform/embedded/nano/installer_recovery.py": "9f52a6dbd2ff8faf629b085cdf3553dc97d9232df0b64a51c32ef797f722da28",
+      "platform/embedded/nano/upload.py": "7726821b6578d51377d9d3219bd3dcb3f214bd852e7188dbb02f8fe829f956ad"
+    },
+    "native_boot_id": "fc2cec132701a0d8",
+    "hardware_actions": false,
+    "current_card_readback_verified": false,
+    "live_admission": false
+  },
+  "current_inputs": {
+    "sdk_selected_hashes_verified": 2131,
+    "composition_selected_hashes_verified": 26,
+    "recovery_selected_hashes_verified": 28,
+    "native_boot_id": "fc2cec132701a0d8",
+    "hardware_actions": false
+  },
+  "operator_structure": {
+    "status": "passed-read-only-operator-imports-and-order",
+    "helpers": [
+      "boot_checks.py",
+      "bounded_log.py",
+      "common.py",
+      "experiment.py",
+      "installer_checks.py",
+      "installer_exercise.py",
+      "native.py",
+      "operator_models.py",
+      "operator_transport_tests.py",
+      "pending_checks.py",
+      "private_jtag.py",
+      "program_gate.py",
+      "read_sources.py",
+      "receipt_models.py",
+      "recovery.py",
+      "saved_wire.py",
+      "source_read_checks.py",
+      "transport_guards.py",
+      "trial_inputs.py"
+    ],
+    "phases": [
+      "recovery-boot",
+      "source-readback",
+      "native"
+    ],
+    "hardware_actions": false,
+    "live_admission": false
+  },
+  "private_reader_evidence": "out/nano-retained-staged-read-20261111",
+  "private_operator": "out/nano-existing-staging-install-20261111",
+  "operator_live_admission": false,
+  "hardware_actions": false,
+  "current_card_readback_verified": false,
+  "two_core_installs_verified": false,
+  "persistence_verified": false,
+  "previous_native_usb_failure_preserved": true,
+  "usb_connection_check_pending": true,
+  "initial_structure_harness_failures_preserved": [
+    "selected initial file-fsync try instead of attempt block",
+    "looked for a quoted field instead of dict keyword"
+  ],
+  "retention": "/home/deano/fes-retained/de25-retained-staged-read-20261111-r1"
+}

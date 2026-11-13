@@ -1,0 +1,253 @@
+{
+  "classification": "exact-artifact read-only native SD hardware diagnostic, verified from retained complete trace with corrected observer",
+  "pass": true,
+  "firmware_source_commit": "0b55ff3826e85e0da3ee2d7ddf9c79d54861cf5e",
+  "build_id": "db7c01de309270e7",
+  "original_automatic_trial_pass": false,
+  "original_runner_rejection": "observer required 16 CID bytes; actual SDHCI R2 identity is 15 bytes",
+  "hardware_reexecuted_for_observer": false,
+  "saved_trace": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "db7c01de309270e7"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 3642898361060568697,
+          "epoch": 3803875243,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 41,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "sd_platform",
+        "line": 42,
+        "values": {
+          "setup": 1,
+          "ready": 1
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 45,
+        "values": {
+          "id": "db7c01de309270e7"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 49,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 61,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 62,
+        "values": {
+          "id": "db7c01de309270e7"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 63,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216373888,
+          "malloc_start": 3216408576,
+          "malloc_end": 3220611072,
+          "reloc": 3220611072,
+          "fdt": 3216383136
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 70,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 3642898361060568697,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 79,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 3642898361060568697,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 80,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 81,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 82,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 83,
+        "values": {}
+      },
+      {
+        "stage": "storage",
+        "line": 84,
+        "values": {}
+      },
+      {
+        "stage": "read",
+        "line": 85,
+        "values": {
+          "bytes": 1098,
+          "sha256": "1a345ddfefc37e1fcfc5cebd17c2cb33dea8b2b70c921b32aac36aec9fe93035",
+          "cid": "275048534430344730da25e394012b",
+          "sectors": 7774208,
+          "owner": 3642898361060568697,
+          "sd_generation": 3
+        }
+      },
+      {
+        "stage": "contained",
+        "line": 86,
+        "values": {
+          "owner": 3642898361060568697,
+          "sd_generation": 4
+        }
+      },
+      {
+        "stage": "resumed",
+        "line": 87,
+        "values": {
+          "bytes": 1098,
+          "sha256": "1a345ddfefc37e1fcfc5cebd17c2cb33dea8b2b70c921b32aac36aec9fe93035",
+          "owner": 3642898361060568697,
+          "sd_generation": 6
+        }
+      },
+      {
+        "stage": "sd_pass",
+        "line": 88,
+        "values": {
+          "owner": 3642898361060568697,
+          "sd_generation": 7
+        }
+      }
+    ],
+    "errors": [],
+    "loader_ready": true,
+    "complete": true,
+    "last_checkpoint": "sd_pass",
+    "core_load_acceptance": false
+  },
+  "native_sd_capacity_verified": true,
+  "expected_file": {
+    "bytes": 1098,
+    "sha256": "1a345ddfefc37e1fcfc5cebd17c2cb33dea8b2b70c921b32aac36aec9fe93035"
+  },
+  "card_sectors": 7774208,
+  "card_cid": "275048534430344730da25e394012b",
+  "sof_sha256": "448a6bc8d79540641a5fd5205d4b33cdd095f7be2341098f32511f1ff24f90e6",
+  "fit_sha256": "00e7198b8fc6daa74b754e15437f80a2488110dc89f57fb14dc1f8fcf026bcd6",
+  "native_console_sha256": "eaf04da7fa540be1bc57ab2fc7dd0e7a67488eebae7eacf626e4f4d9afd84b95",
+  "decoder_sha256": "d4428d6ae9ee29adb6c1bd289a92066656d869cb67077a0f2fadc70837e54fa3",
+  "decoder_tests_sha256": "f079c91d7f6042cf8297d3f36b021bad738769e22bb9ff35b6503bcbe0139e00",
+  "upload_readback_verified": true,
+  "protected_boot_files_unchanged": true,
+  "native_sd_writes": false,
+  "post_state": {
+    "serial": "TRWU8CBL",
+    "scope": "read-only post-test chain/clock check; no programming or SD operations",
+    "jtag_id": "4362C0DD",
+    "clock": "15M",
+    "usb_permissions_restored": true
+  },
+  "uart_owner_absent": true,
+  "claim_held": true,
+  "factory_restored": false,
+  "core_load_acceptance": false,
+  "other_devices_accepted": false,
+  "evidence": {
+    "out/nano-sd-platform-v2b-trial-20261101/native-result.json": "eacbd5bda082aa52e845a7778ff975bd09905ce1cf0b0040be03e4e7d624f6a1",
+    "out/nano-sd-platform-v2b-trial-20261101/experiment-result.json": "960a58a40236ed0f2e135670929228d82910015205030697ae202840acbabad8",
+    "out/nano-sd-platform-v2b-trial-20261101/upload/result.json": "a6db2b6f3c5d44b830c0207938abb588819baac81d0ad0b4605eb43d5c783cf2",
+    "out/nano-sd-platform-v2-20261101/retained-jtag-query.log": "5b8b0f9ec05174b05e0b7afaa5e3fd1e0b981534b408768355500c7e1c6547ac",
+    "out/nano-sd-platform-v2-20261101/retained-clock.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18"
+  },
+  "utc": "2026-11-01T16:22:44.974709+00:00"
+}

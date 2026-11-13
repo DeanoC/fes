@@ -1,0 +1,14 @@
+{
+  "classification": "retained actual native package trace; diagnostic observation only",
+  "source_commit": "551a52903c7b580cb639563a40673ec44b78c282",
+  "console_path": "docs/validation/2026-11-01-de25-ksz9031-packages/native-console.log",
+  "console_sha256": "39ea3e7828908269db00c5590cfab7f4e97dbfa2c8df2dcbe9db86a5600cf1f1",
+  "build_id": "b1f79112ba1db5bc",
+  "owner_seed": 2778021010347747669,
+  "package": {
+    "package_id": "164c9e356d32eed24bb5ec59528323c0a325a23a93e2a04c25b78985df22f873",
+    "payload_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+    "payload_bytes": 12,
+    "build_id": "0123456789abcdef0123456789abcdef"
+  }
+}

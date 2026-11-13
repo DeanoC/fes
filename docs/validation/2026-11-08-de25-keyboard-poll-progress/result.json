@@ -1,0 +1,106 @@
+{
+  "status": "keyboard-poll-runtime-and-file-admission-passed-live-operator-pending",
+  "compiled_source": "d250310a1de67d1a975c585d4e37da9e13f11da4",
+  "validated_head": "f4e3fb8058f6ddcb608505052434d2fa83c9b851",
+  "runtime_source_unchanged_by_test_repair": true,
+  "changes": [
+    "Count successful raw USB polling calls separately from reports; failed calls advance neither.",
+    "Require fresh polls before transitions and unchanged polls/reports while paused. Explicit keyboard may have zero reports; gamepad report-progress requirement remains.",
+    "Require matched new poll-bearing transition/Stop output; original historical UART bytes remain unchanged and reject as current evidence."
+  ],
+  "checks": {
+    "affected_commands": 6,
+    "parent_tests": 1724,
+    "parent_existing_skips": 3,
+    "focused_observer_tests": 42,
+    "current_format_capture_tests": 4,
+    "initial_full_run_errors": 2,
+    "repaired_full_parent_suite": "passed",
+    "synthetic_idle_keyboard_cycles": 3,
+    "synthetic_menu_sessions": 4,
+    "synthetic_polls": 49,
+    "synthetic_reports": 0,
+    "actual_package_ROM_tape_admission": "passed",
+    "actual_master_lifecycle_fault_cases": 16,
+    "prefix_rejections": 6
+  },
+  "matched_boot_chain": {
+    "native_boot_id": "76cd915c046abe45",
+    "chain_sha256": "0fdd6174279fc8f0d167ec14fdd1a9c1bedc3cfe088604ecc8ed1e2a1350267c",
+    "artifacts_sha256": {
+      "sdk": {
+        "path": "out/nano-keyboard-poll-runtime-20261108/native-sdk/fpgaload.elf",
+        "bytes": 15737007,
+        "sha256": "f5751d9eb578ad94fc60c7d6e6a72bc4fbfb5eb03fae6cd507de2b0dd7684c28"
+      },
+      "entry": {
+        "path": "out/nano-keyboard-poll-runtime-20261108/native-entry/entry.img",
+        "bytes": 7614464,
+        "sha256": "e9005efc15367a3204f07e4a9b79d98938f62dcdf409bf4c86539d7982c2a7f0"
+      },
+      "BL31": {
+        "path": "out/nano-keyboard-poll-runtime-20261108/native-bl31/source/build/agilex5/release/bl31.bin",
+        "bytes": 237893,
+        "sha256": "bcb094f3a141c8dde4336aeb13bf7be707dee87854d1270118801caae0ce4d7a"
+      },
+      "FIT": {
+        "path": "out/nano-keyboard-poll-runtime-20261108/native-uboot/build/u-boot.itb",
+        "bytes": 8309296,
+        "sha256": "7d20181742e567a99ca4affa08d6d2c796b5071f9b502abec0dff47b6e63b6a6"
+      },
+      "SPL": {
+        "path": "out/nano-keyboard-poll-runtime-20261108/native-uboot/build/spl/u-boot-spl-dtb.hex",
+        "bytes": 461189,
+        "sha256": "c3e70a357c1d5046e9db531128f6b75ca562bc0c59ade062746db045066ba349"
+      },
+      "SOF": {
+        "path": "out/nano-keyboard-poll-runtime-20261108/native-composition/native-hps-first.sof",
+        "bytes": 1578894,
+        "sha256": "bc336563b4ee272445d1a48144f97b1dbf39b12c7b99bdfa1ef0cb1f8b491496"
+      }
+    },
+    "file_digests": 2260,
+    "initial_tape": true,
+    "shared_USB_input": "boot-keyboard",
+    "core_payload_unchanged": true,
+    "firmware_ocram_end": 385536,
+    "firmware_ocram_limit": 393216,
+    "firmware_ocram_remaining": 7680
+  },
+  "file_only_admission": {
+    "scope": "nano-checked-native-files-v1",
+    "files": 5525,
+    "trees": 8,
+    "live_authority": false,
+    "full_validation_seconds": 71.7705155799631,
+    "fresh_reload_seconds": 0.8534406221006066
+  },
+  "prior_transport_programming_failures": 1,
+  "max_transport_failures_before_fix": 2,
+  "previous_standalone_image_consumed": "f86477977fa75f72",
+  "current_chain_scan": "single-forced-scan-passed-after-programming-failure",
+  "hardware_programming_or_card_writes_in_this_milestone": false,
+  "core_load_acceptance": false,
+  "goal_complete": false,
+  "remaining": [
+    "Finish frozen physical operator/preflight with prior programming failure accounting and current poll protocol.",
+    "Fresh matched keyboard/tape/core launch-return test; stop on first failure and second transport programming failure.",
+    "Full input/display/network and ordinary DE10-style appliance/package acceptance remain open."
+  ],
+  "evidence_sha256": {
+    "out/nano-keyboard-poll-progress-20261108/checks-summary-final.json": "c995f9c2fa5412e10e8f1fe40354eee71848087145db7b306ba66a4e95e59df0",
+    "out/nano-keyboard-poll-progress-20261108/checks-summary.json": "6899bbeb2618b6e5c498258ceb28dbdcae7fbfb88f7dd525e86ccccffe92e50d",
+    "out/nano-keyboard-poll-progress-20261108/observer-tests-result.json": "d47228f218001cbfaab0cbd0141eb9d271895095febd6ac56eebaf35ebadc162",
+    "out/nano-keyboard-poll-progress-20261108/captured-format-repair-result.json": "086f76ab749ae39acf6747d94bdfe08313078919a27d0fa4d08883ce50791265",
+    "out/nano-keyboard-poll-progress-20261108/repair-4-result.json": "683a5523cb199dc1c49abb7f00a0f463080510e7ab0bf9f39eee076544a94831",
+    "out/nano-keyboard-poll-runtime-20261108/chain-file-integrity.json": "1f9d8a75e0977b3fd3c127f1f914026b288586f627f5e4351551cd2228387f50",
+    "out/nano-keyboard-poll-runtime-20261108/firmware-file-proof.json": "f2fe28d2b8fa557bfab0ca0fa4d25f34da37696d17c1952fce8238799da11c11",
+    "out/nano-keyboard-poll-trial-20261108/admission-proof.json": "912b140ce09fe44580ca4f66f65ee08c0ce159bb5e6506725ae4d982e4d7a9de",
+    "out/nano-keyboard-poll-trial-20261108/chain-proof.json": "84b4c6cf896ed7c251fc972be75a4ccb7b36cdc19ba5b9a6b558d4953bacc525",
+    "out/nano-keyboard-poll-trial-20261108/upload-plan.json": "94626b102839f2417b97d45e0a9f240627ee65462336e2777656af9df0fa8a7a",
+    "out/nano-keyboard-poll-trial-20261108/reused-prefix-proof.json": "54b28f9fbb7688cac8bbcd3d519dfa6f2f954381facec25eaf91d97ee77b4d14",
+    "out/nano-keyboard-poll-trial-20261108/prefix-rejections-proof.json": "1a920cd1f8327b712d3450446610e5c03edf56db8e5ce0af31998785e86afe8a",
+    "out/nano-keyboard-poll-trial-20261108/actual-artifacts-result.json": "14948b3b0f0a5e31924c8494e20553f1211ec061fc588354c299ccd10f7ead9a",
+    "out/nano-keyboard-poll-trial-20261108/lifecycle-fixtures.json": "9f44e76f84dd4ee807f9cfb0a74138215fcfd63be7a43a3c238be82a01a0b030"
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "status": "passed",
+  "observed": {
+    "instance": "subsys_periph.fes_embedded",
+    "clock_hz": 100000000,
+    "maps": {
+      "lw": {
+        "name": "subsys_periph.fes_embedded.avs",
+        "base": 66560,
+        "span": 256
+      },
+      "jtag": {
+        "name": "subsys_periph.fes_embedded.avs",
+        "base": 1115136,
+        "span": 256
+      }
+    },
+    "cpu_physical_address": "not-established",
+    "reader_memory": {
+      "backend": "hps-ddr",
+      "bus_base": 2499805184,
+      "bytes": 8192
+    },
+    "physical_ddr": "wired-unqualified",
+    "maintenance_masters": "held-reset-from-configuration",
+    "other_ddr_master": "fes_ddr_probe; independent cancel/drain required"
+  },
+  "negative_cases": [
+    {
+      "case": "wrong-base",
+      "rejected": true,
+      "reason": "generated embedded peripheral base differs"
+    },
+    {
+      "case": "missing-jtag",
+      "rejected": true,
+      "reason": "('avalon', 'subsys_debug_fpga_m.master', 'subsys_periph_pb_cpu_0.s0')"
+    },
+    {
+      "case": "wrong-span",
+      "rejected": true,
+      "reason": "generated embedded lw map differs"
+    },
+    {
+      "case": "changed-generated-source",
+      "rejected": true,
+      "reason": "generated embedded source differs: fes_embedded_control.sv"
+    },
+    {
+      "case": "missing-ddr",
+      "rejected": true,
+      "reason": "generated embedded DDR route differs"
+    },
+    {
+      "case": "duplicate-ddr",
+      "rejected": true,
+      "reason": "generated embedded DDR route differs"
+    },
+    {
+      "case": "wrong-ddr-target",
+      "rejected": true,
+      "reason": "generated embedded DDR route differs"
+    },
+    {
+      "case": "ddr-port-width",
+      "rejected": true,
+      "reason": "generated embedded DDR AXI interface differs"
+    },
+    {
+      "case": "wrong-forwarded-window",
+      "rejected": true,
+      "reason": "generated embedded memory parameters differ or override build identity"
+    },
+    {
+      "case": "parent-override",
+      "rejected": true,
+      "reason": "generated embedded memory parameters differ or override build identity"
+    },
+    {
+      "case": "untied-write",
+      "rejected": true,
+      "reason": "generated embedded source differs: fes_de25_embedded.sv"
+    },
+    {
+      "case": "untied-maintenance",
+      "rejected": true,
+      "reason": "generated embedded source differs: fes_de25_embedded.sv"
+    },
+    {
+      "case": "missing-maintenance-hold",
+      "rejected": true,
+      "reason": "generated maintenance master reset hold route differs: subsys_debug_jtag_rst_in.in_reset"
+    },
+    {
+      "case": "live-maintenance-reset",
+      "rejected": true,
+      "reason": "generated maintenance master reset hold route differs: subsys_debug_jtag_rst_in.in_reset"
+    },
+    {
+      "case": "duplicate-maintenance-reset",
+      "rejected": true,
+      "reason": "generated maintenance master reset hold route differs: subsys_debug_jtag_rst_in.in_reset"
+    },
+    {
+      "case": "live-coherent-master",
+      "rejected": true,
+      "reason": "generated maintenance master reset hold route differs: subsys_debug_hps_m.clk_reset"
+    },
+    {
+      "case": "extra-ddr-master",
+      "rejected": true,
+      "reason": "generated DDR master inventory differs"
+    }
+  ]
+}

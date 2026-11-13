@@ -1,0 +1,13 @@
+/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-nm: error while loading shared libraries: libbfd-2.44-arm64.so: cannot open shared object file: No such file or directory
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-activity-20261102/check_selection-relocations.py", line 22, in <module>
+    raw=subprocess.check_output([str(nm),'--defined-only',str(elf)],text=True)
+  File "/usr/lib/python3.13/subprocess.py", line 472, in check_output
+    return run(*popenargs, stdout=PIPE, timeout=timeout, check=True,
+           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+               **kwargs).stdout
+               ^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-nm', '--defined-only', '/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-activity-20261102/native-bl31/source/build/agilex5/release/bl31/bl31.elf']' returned non-zero exit status 127.

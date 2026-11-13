@@ -1,0 +1,182 @@
+{
+  "format": 1,
+  "status": "passed",
+  "classification": "host software/model validation; no repaired-artifact hardware acceptance",
+  "base": "b6554238af42d0d4ca344d9149c34f6f5726eef2",
+  "stage": "out/nano-menu-usb-service-20261108",
+  "native_top_level_passes": {
+    "native-tests": 307,
+    "window-native-tests": 32,
+    "menu-native-tests": 27,
+    "tenfoot-tests": 8,
+    "tenfoot-endpoint-tests": 5
+  },
+  "parent_selected": 1668,
+  "parent_skipped": [
+    "test_gpu_lease.GpuLeaseTests.test_macos_statfs_reports_the_lease_filesystem",
+    "test_media_inputs.UbootDerivationTest.test_locked_upstream_derives_locked_uboot",
+    "test_nano_rom_build.ROMBuildTests.test_real_linker_binds_snapshots_and_rejects_foreign_package_and_size"
+  ],
+  "parent_coverage_sha256": "6d8bf1a27cabad41ce57e4c6df279993497825ef135f1b287bd45e6f49495401",
+  "parent_initial_invocation_timed_out": true,
+  "parent_continuation_loader_error_retained": true,
+  "selected_coverage_complete": true,
+  "checks": {
+    "combined-regressions": {
+      "argv": [
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-count=1",
+        "-timeout=90s",
+        "./nativefabric",
+        "./dwc2",
+        "-run",
+        "Test(MenuArena|MenuProgramFull|ProgramMenu|MenuService|MenuRegular)",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 8.80545094399713,
+      "log_sha256": "c459d3d484d1e3352b87b1fa4a21672fdfb025c790ef719dbb0406ce23c087a1"
+    },
+    "focused-race": {
+      "argv": [
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=120s",
+        "./nativefabric",
+        "./dwc2",
+        "-run",
+        "Test(MenuArena|MenuProgramFull|ProgramMenu|MenuService|MenuRegular|ProgramPolling)"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 20.813605669187382,
+      "log_sha256": "415eaa6f151371a5090d61b0cfe1308a9fcc5bd6684044fbfc21e5e80760fdbc"
+    },
+    "native-integration": {
+      "argv": [
+        "python3",
+        "platform/embedded/tamago/nativefabric/verify.py",
+        "--reference",
+        "out/nano-mixed-usb-20261107/native-integration/firmware/reference.c",
+        "--output",
+        "out/nano-menu-usb-service-20261108/native-integration"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 175.33072727103718,
+      "log_sha256": "6c02c642b93a0557f32a4c1eda661d14b2bc4702e619d7f13b4cda41e8ee8ba4"
+    },
+    "software-0": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.40097415796481073,
+      "log_sha256": "c4778f2ab18e0e131e3f6f18d702de6a8957280d64eed0eb7839a7925db050b2"
+    },
+    "software-1": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.401344622951001,
+      "log_sha256": "2772f6859dd4e1c81dc32e20b51c0d7b034b67c7ec47dc639121e51373989539"
+    },
+    "software-2": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "b6554238af42d0d4ca344d9149c34f6f5726eef2",
+        "--head",
+        "b6554238af42d0d4ca344d9149c34f6f5726eef2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2007063189521432,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-3": {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20167575008235872,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-5": {
+      "argv": [
+        "python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 8.006674158852547,
+      "log_sha256": "32fa862c66e279643aaedec99c30c9fcbe50fca9e6ffb849cd844c6a8d59a5a1"
+    },
+    "parent-coverage": {
+      "argv": [
+        "python3",
+        "out/nano-menu-usb-service-20261108/parent-coverage.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4009403570089489,
+      "log_sha256": "4021197509be5bc5eaa2c694bb8170d44ecffa02d87b7a14f2d17f29c3570f40"
+    }
+  },
+  "native_result_sha256": "80b10af56136656d13553a56c49023abf5027eaf079ee090211151f733102d9a",
+  "changed_native_source_sha256": {
+    "platform/embedded/tamago/nativefabric/arenacompare.go": "e292349b2fdb5836d07ed9d9d320e7aa7e60a1aeb850c8247a39a076222226f7",
+    "platform/embedded/tamago/nativefabric/arenacompare_test.go": "1af56403b6d1677e349b6915763aa07b58682d0725ee93f9c84169f34afeba2f",
+    "platform/embedded/tamago/nativefabric/menusession.go": "d725ba4675445e2009e47a92477b487d4f38ff08c33179bb7ceb46c474c0fd59",
+    "platform/embedded/tamago/nativefabric/program_input.go": "68b424c497f1dff1630bdee60895832958ec856ca22fab1b9897112b655bf61d",
+    "platform/embedded/tamago/nativefabric/program_menu.go": "3e0019f62b48d95effbff7cdce63f822fdaafcae07d3f91ff0e0d18d7570f68b",
+    "platform/embedded/tamago/nativefabric/program_menu_input_test.go": "efb81bb3041829804ee6ac99ee01d0c8da129d52233172f66bf2266c56c9aca9",
+    "platform/embedded/tamago/nativefabric/program_menu_platform.go": "ef96398a64fa9a6364e4f61f05b55b4f608fc222cf337ac83e9d52f005dd7220",
+    "platform/embedded/tamago/nativefabric/program_menu_platform_test.go": "bbd9f56fbe9f7905daa908c18976127ff4b28a33fdd98e131fc8e76bbff93e72"
+  },
+  "hardware_acceptance": false,
+  "matched_chain_rebuild_required": true
+}

@@ -1,0 +1,250 @@
+{
+  "verification_status": "passed",
+  "source_commit": "d9ddb6ce43d8e2b514f6bdec0624ef2fedcc7c7c",
+  "implementation_source_commit": "d9ddb6ce43d8e2b514f6bdec0624ef2fedcc7c7c",
+  "native_build_source_commit": "d9ddb6ce43d8e2b514f6bdec0624ef2fedcc7c7c",
+  "hardware_result": "native-preflight-owned-upload-warm-sd-two-load-returns-passed",
+  "experiment_passed": true,
+  "serial_recovery_upgrade": false,
+  "recovery_phy_prepared_before_link": true,
+  "native_boot_id": "e3a3b7d0063c37ce",
+  "raw_console_sha256": "9a173f6404a328c01db2c5fefc5dd387093f00a3c9fe1d2209a935b894822385",
+  "raw_bytes": 16996,
+  "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+  "fpga_build_id": "dda236646bb868e63c72bd0e777f3dd6",
+  "cpu_mapping": {
+    "el": 1,
+    "sctlr": 818944005,
+    "tcr": 8589948185,
+    "root": 2214608896,
+    "mair": 4521728,
+    "mmfr0": 1052962,
+    "mpidr": 2164260864,
+    "ram_base": 2214592512,
+    "ram_bytes": 268435456,
+    "control_base": 536937472,
+    "control_bytes": 256,
+    "dma_base": 2491416576,
+    "dma_bytes": 8388608,
+    "reader_base": 2499805184,
+    "reader_bytes": 2097152,
+    "reads": 3604,
+    "translations": 5176,
+    "bytes": 278921472,
+    "descriptor_sha256": "3a0896c004889d8ba8877ee5da1bc198584b882162c5297d41841155ab674368",
+    "owner": 13897126133763041605,
+    "generation": 4,
+    "scope": "EL1-identity-mapping-only",
+    "runtime_admission": false
+  },
+  "configuration_intervals_seconds": [
+    13.344233715,
+    13.3466641725
+  ],
+  "storage_seconds": 59.050275028916076,
+  "source_mapping_sha256": "d4fe0201d08baf6902d7f786b21592f151a07c6f689e808f8067c09452b69c37",
+  "storage_return_observation": {
+    "complete": true,
+    "records": [
+      {
+        "stage": "storage_return_begin",
+        "line": 137,
+        "values": {
+          "owner": 13897126133763041605,
+          "generation": 6,
+          "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37"
+        }
+      },
+      {
+        "stage": "storage_return_active",
+        "line": 138,
+        "values": {
+          "owner": 13897126133763041605,
+          "generation": 8,
+          "return_generation": 6
+        }
+      },
+      {
+        "stage": "storage_return_contained",
+        "line": 139,
+        "values": {
+          "owner": 13897126133763041605,
+          "generation": 9,
+          "return_generation": 6,
+          "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37"
+        }
+      }
+    ],
+    "runtime_admission": false
+  },
+  "observer_phases": [
+    {
+      "phase": "first_core",
+      "bound_seconds": 45,
+      "elapsed_seconds": 18.419856123044156
+    },
+    {
+      "phase": "returned_storage",
+      "bound_seconds": 100,
+      "elapsed_seconds": 54.93755281495396
+    },
+    {
+      "phase": "second_core",
+      "bound_seconds": 45,
+      "elapsed_seconds": 18.291826531058177
+    }
+  ],
+  "saved_capture_rejections": [
+    {
+      "case": "missing-cpu",
+      "accepted": false
+    },
+    {
+      "case": "duplicate-cpu",
+      "accepted": false
+    },
+    {
+      "case": "late-panic",
+      "accepted": false
+    },
+    {
+      "case": "cpu-el",
+      "accepted": false
+    },
+    {
+      "case": "cpu-root",
+      "accepted": false
+    },
+    {
+      "case": "cpu-mair",
+      "accepted": false
+    },
+    {
+      "case": "cpu-mpidr",
+      "accepted": false
+    },
+    {
+      "case": "cpu-reads",
+      "accepted": false
+    },
+    {
+      "case": "cpu-translations",
+      "accepted": false
+    },
+    {
+      "case": "cpu-ram_base",
+      "accepted": false
+    },
+    {
+      "case": "cpu-dma_bytes",
+      "accepted": false
+    },
+    {
+      "case": "cpu-descriptor_sha256",
+      "accepted": false
+    },
+    {
+      "case": "cpu-owner",
+      "accepted": false
+    },
+    {
+      "case": "cpu-generation",
+      "accepted": false
+    },
+    {
+      "case": "cpu-data_held",
+      "accepted": false
+    },
+    {
+      "case": "cpu-runtime_admission",
+      "accepted": false
+    },
+    {
+      "case": "109-activation-complete",
+      "accepted": false
+    },
+    {
+      "case": "109-activation-data_held",
+      "accepted": false
+    },
+    {
+      "case": "154-activation-complete",
+      "accepted": false
+    },
+    {
+      "case": "154-activation-data_held",
+      "accepted": false
+    },
+    {
+      "case": "missing-BEGIN",
+      "accepted": false
+    },
+    {
+      "case": "duplicate-BEGIN",
+      "accepted": false
+    },
+    {
+      "case": "storage-BEGIN-owner",
+      "accepted": false
+    },
+    {
+      "case": "storage-BEGIN-generation",
+      "accepted": false
+    },
+    {
+      "case": "missing-ACTIVE",
+      "accepted": false
+    },
+    {
+      "case": "duplicate-ACTIVE",
+      "accepted": false
+    },
+    {
+      "case": "storage-ACTIVE-owner",
+      "accepted": false
+    },
+    {
+      "case": "storage-ACTIVE-generation",
+      "accepted": false
+    },
+    {
+      "case": "missing-CONTAINED",
+      "accepted": false
+    },
+    {
+      "case": "duplicate-CONTAINED",
+      "accepted": false
+    },
+    {
+      "case": "storage-CONTAINED-owner",
+      "accepted": false
+    },
+    {
+      "case": "storage-CONTAINED-generation",
+      "accepted": false
+    }
+  ],
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "private_server_stopped": true,
+  "uart_free": true,
+  "claim_retained": true,
+  "spare_retained": true,
+  "factory_restored": false,
+  "full_ram_clock_qualification": false,
+  "trusted_boot_handoff": false,
+  "runtime_admission": false,
+  "core_load_acceptance": false,
+  "input_sha256": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-binding-20261103/trial/native-console.log": "9a173f6404a328c01db2c5fefc5dd387093f00a3c9fe1d2209a935b894822385",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-binding-20261103/trial/native-result.json": "3ee42117008b3b2c04d82d2ed42070d28ea0fe90e01e7a2d5fb21b0dfcf8c065",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-binding-20261103/trial/experiment-result.json": "29a075d3e71f1b200935cab52ff06f037e84709bb1a89d0ac6a8d2c68b90121f",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-binding-20261103/trial/preflight.json": "f556119a52a180e09bb2bc5a3bc446a96eab2dc47ba234f09a67e65473da941b",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-binding-20261103/trial/transport.json": "bc3a34f1d05e8a81c761be4237053e3475261b0870bd92aaaa1fda001740e979",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-binding-20261103/trial/recovery-boot-result.json": "d0e93c1bdbc9c31c06a161b1319099394b3ff25feb7bda9bdce8ee514b67bd28",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-binding-20261103/trial/recovery-boot-console.log": "aa8f098ed97ec965f67da81edc4ffb00eb2a6efe5f34d06a8913c973b6c8ca13",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-binding-20261103/hardware-result.json": "44153ad39ae62497ce354abb75924f52511ad9c62e27827d283d5c071d54e6aa",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-binding-20261103/native-uboot/result.json": "e394ce2dd192b435e57d2c72d39fe0458b8155856fc3a761f7cd11ac414ca87b",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-binding-20261103/native-composition/result.json": "2b6f06e5754d18e3b8fcfc16e289c01d7a0943f0ec5162714cb0e84a96377186"
+  }
+}

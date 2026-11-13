@@ -1,0 +1,209 @@
+{
+  "pass": false,
+  "classification": "stopped physical CPU identity diagnostic; no accepted endpoint read or reclose",
+  "source_commit": "1f886dce4efcc2ebd411ba581ef8a93a6288636b",
+  "native_build_source_commit": "fe58a6dc9a2348f9df4b65bd0cc185874136c213",
+  "upload_verified": true,
+  "cold_native_handoff_verified": true,
+  "last_checkpoint": "identity_read",
+  "control_reclosed_proven": false,
+  "physical_programming_admission": false,
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "uart_free": true,
+  "claim_retained": true,
+  "usb_node": "/dev/bus/usb/003/061",
+  "trace": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "e50bd4671ed2c929"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 7905699563077391293,
+          "epoch": 4413783705,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 41,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 45,
+        "values": {
+          "id": "e50bd4671ed2c929"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 49,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 61,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 62,
+        "values": {
+          "id": "e50bd4671ed2c929"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 63,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216373888,
+          "malloc_start": 3216408576,
+          "malloc_end": 3220611072,
+          "reloc": 3220611072,
+          "fdt": 3216383136
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 70,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 7905699563077391293,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 79,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 7905699563077391293,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 80,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 81,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 82,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 83,
+        "values": {}
+      },
+      {
+        "stage": "hps_context",
+        "line": 84,
+        "values": {
+          "sha256": "94da3557f175eae05144d70937c3afceda20c6c9f9ca9d25155535da3e0814fc",
+          "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+          "build_id": "e25bb65a1d14a2bbbddf4c770ea033e5",
+          "owner": 7905699563077391293,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "identity_open",
+        "line": 85,
+        "values": {
+          "phase": "open",
+          "owner": 7905699563077391293,
+          "generation": 1,
+          "reset": 15,
+          "base": 536937472
+        }
+      },
+      {
+        "stage": "identity_read",
+        "line": 86,
+        "values": {
+          "phase": "read",
+          "owner": 7905699563077391293,
+          "generation": 2,
+          "reset": 13,
+          "base": 536937472
+        }
+      }
+    ],
+    "errors": [],
+    "loader_ready": true,
+    "complete": false,
+    "last_checkpoint": "identity_read",
+    "core_load_acceptance": false
+  },
+  "console_sha256": "4f789b00d063a20b8c1d0f5de3829efe861f1ca6a36daa58a72d1fcc6785f03c",
+  "finished_utc": "2026-11-01T20:12:01.410999+00:00"
+}

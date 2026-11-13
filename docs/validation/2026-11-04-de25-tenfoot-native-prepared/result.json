@@ -1,0 +1,186 @@
+{
+  "status": "passed",
+  "classification": "complete matched native serial App boot candidate, source and artifact qualification only",
+  "native_source": "e225ea89b002fcc53a90c743f66c592d1f8d35ff",
+  "fpga_source": "7808f74c2fda87cc56a0fe92e5a17454fd31746a",
+  "fit_bytes": 7958520,
+  "entry_bytes": 7413760,
+  "selected_committed_native_files": 366,
+  "pinned_external_files": 1681,
+  "checks": {
+    "remote-zx81-r2": {
+      "argv": [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "fes-build-3090",
+        "flock",
+        "--wait",
+        "30",
+        "/tmp/lander-quartus-3090.lock",
+        "python3",
+        "/home/deano/builds/de25-tenfoot-cores-20261104-7808f74c2/zx81-r2/build.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 611.0464383780491,
+      "log_sha256": "30d84df8cf5ce8dd977498a7b01a02ab48a69ed0e125666f3cec217eb3bed2fd"
+    },
+    "remote-zx80": {
+      "argv": [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "fes-build-3090",
+        "flock",
+        "--wait",
+        "30",
+        "/tmp/lander-quartus-3090.lock",
+        "python3",
+        "/home/deano/builds/de25-tenfoot-cores-20261104-7808f74c2/zx80/build.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 574.1967859759461,
+      "log_sha256": "86295a67f918aa6798eb24260de67fc544724f9b67265ce5fafb1fe85691926c"
+    },
+    "pull-zx81": {
+      "argv": [
+        "python3",
+        "out/nano-tenfoot-serial-20261104/core-zx81/pull.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 16.212228558957577,
+      "log_sha256": "42bd7d1b6aef13b30bf5b81fbb0d5af92231b3b7d13c7a7f9c387251a175e35c"
+    },
+    "pull-zx80": {
+      "argv": [
+        "python3",
+        "out/nano-tenfoot-serial-20261104/core-zx80/pull.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 15.611983250943013,
+      "log_sha256": "8f09e8494064b107a38f8f39344696d1653126fc15cf364461e09b0715f7fed4"
+    },
+    "selection-app-proof": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "python3",
+        "out/nano-tenfoot-serial-20261104/prove_app.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.0019569660071284,
+      "log_sha256": "d25bf3cadbfbf701e6a56de1037cb39fbacafa12cc08fb3ba3e89abcb4471dd5"
+    },
+    "selection-chain-proof": {
+      "argv": [
+        "python3",
+        "out/nano-tenfoot-serial-20261104/prove_chain.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.40106117096729577,
+      "log_sha256": "45a413d045ec0c1698a7f5e2469c0a0ba62566dc97f7311aee7bfeb5014c1861"
+    },
+    "actual-catalog-preflight": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "FES_NANO_SELECTED_CATALOGUE=/home/deano/fes/out/dev/de25-embedded-os/out/nano-tenfoot-serial-20261104/catalogue",
+        "FES_NANO_SELECTED_ANCHOR=/home/deano/fes/out/dev/de25-embedded-os/out/nano-tenfoot-serial-20261104/native-sdk",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "./nativefabric",
+        "-run",
+        "^TestSelectedCatalogueUsesDistinctSealedPackagesWithOneBootAnchor$",
+        "-v",
+        "-count=1",
+        "-timeout=90s"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.8026629999512807,
+      "log_sha256": "91db1d9c4f120ffcc36307a7275d77def94472c759a4a6296415580a4dfdb6d0"
+    },
+    "actual-ui-catalog": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "run",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-tenfoot-serial-20261104/read_catalog.go",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-tenfoot-serial-20261104/catalogue"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.601069597993046,
+      "log_sha256": "072ed762dc775bd91e48c76ff9f040f36b17199b9db082daa9f17733e8dad4ff"
+    },
+    "retain-r3": {
+      "argv": [
+        "python3",
+        "out/nano-tenfoot-serial-20261104/retain.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 30.622003055992536,
+      "log_sha256": "377362b9f85328fa019f6127e5b29a7f12286a817df18e0dd80a9c434ae13593"
+    }
+  },
+  "retention": {
+    "status": "passed",
+    "classification": "retained off-board native Tenfoot serial boot candidate; no hardware acceptance",
+    "native_source_commit": "e225ea89b002fcc53a90c743f66c592d1f8d35ff",
+    "fpga_source_commit": "7808f74c2fda87cc56a0fe92e5a17454fd31746a",
+    "archive": "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/matched-candidate.tar.gz",
+    "archive_bytes": 911625620,
+    "archive_sha256": "1479d5fa439c77457a3c19959a97b810b8ce5a6aa0672bb4567519f2d7229d17",
+    "source_bundle": "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/source.bundle",
+    "source_bundle_sha256": "daeee37ba8c039ffc165c2c92d7a639af01c441099fe1359ae207846fa75216f",
+    "standalone_source_restore_and_strict_fsck": true,
+    "regular_members_independently_read_back": 43651,
+    "symlinks": 59,
+    "internal_build_links_normalized_to_relative_targets": true,
+    "hardware_actions": false,
+    "ordinary_admission": false,
+    "display": "serial-state-only"
+  },
+  "ordinary_admission": false,
+  "physical_hdmi": false,
+  "core_keyboard_forwarding": false,
+  "usb_hub_input": false,
+  "native_ethernet": false,
+  "hardware_actions": false,
+  "hardware_acceptance": false
+}

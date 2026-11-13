@@ -1,0 +1,24 @@
+{
+  "verification_status": "passed",
+  "hardware_result": "stopped-before-second-recovery-programming",
+  "source_commit": "82c410cc8a5af4fa2c77d535b3bd22eb7a19fa19",
+  "native_build_source_commit": "05006009e5a27deedd804e8711aa9bdecd3546b9",
+  "native_attempted": false,
+  "package_upload_attempted": false,
+  "boot_upload": {
+    "payload_sha256": "d3c12590eb79340d783dcddf06edd694848fac23f6612ccdfc975f3ba7c345ee",
+    "payload_bytes": 6499492,
+    "sd_readback_verified": true,
+    "boot_files_unchanged": true,
+    "recovery_manifest_unchanged": true
+  },
+  "clock_restored": true,
+  "usb_permissions_restored": true,
+  "uart_free": true,
+  "private_server_stopped": true,
+  "claim_retained": true,
+  "failed_query_sha256": "6ef7ab9602d69326ed48afee928be9fd2fdfb7ccd577e0950f9405aeeed3c10d",
+  "native_sd_writes": false,
+  "ddr_traffic_observed": false,
+  "core_load_acceptance": false
+}

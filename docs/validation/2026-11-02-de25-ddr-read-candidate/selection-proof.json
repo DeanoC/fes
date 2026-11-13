@@ -1,0 +1,21 @@
+{
+  "status": "passed",
+  "source_commit": "97b52e38d8ee7bf09fcc343e162a70171f66162f",
+  "classification": "selected AArch64 diagnostic firmware and native image; no hardware acceptance",
+  "hps_ddr_read_sha256": "9833c691813343e66a212cd7044e09e95cc722bc443a5a693f98fe87574eaa22",
+  "package_id": "07b2d01003dc92e4993ba7f72761444ae801a1a005f87e0a1b65f9aad9dfeb7d",
+  "build_id": "d2435ab5d8221892162a1044d81dfb76",
+  "strong_symbols": {
+    "fes_nano_ddr_read": "T",
+    "fes_nano_platform_ddr_target": "T",
+    "fes_nano_platform_identity_setup": "T"
+  },
+  "inputs": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-ddr-cycle-20261102/native-bl31/source/plat/intel/soc/common/include/fes_nano_cold_profile.h": "838af5bc12b54e5fc6e36b9b9babdff9199c84afb188f8da19004d68120be6ec",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-ddr-cycle-20261102/native-bl31/source/build/agilex5/release/bl31/bl31.elf": "e68e65b90c168c0d0e440ac5dd901d7381af31e8c1347f9968f7939a2ebdf72a",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-ddr-cycle-20261102/native-sdk/fpgaload.elf": "b9070adc02bdab271f2b1688689392a19463cb56d20be2f939886f41c971db93",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-ddr-cycle-20261102/native-composition/native-hps-first.sof": "8d2cc7a0a09095941de6a3a68c374fee49ecb7a27f018ea490c257ded569aede",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-ddr-cycle-20261102/native-composition/u-boot.itb": "3c1ef54f277efe16001ec55a3792f041c4683993b1734cc23dd61219a22580ed"
+  },
+  "runtime_admission": false
+}

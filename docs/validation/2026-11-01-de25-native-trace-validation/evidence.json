@@ -1,0 +1,65 @@
+{
+  "format": 1,
+  "scope": "host serial-probe decoder and one-attempt runner hardening; no new board execution",
+  "base_commit": "63cc4cc9cbb51f10549956ecddc7ab4f04852511",
+  "source_sha256": {
+    "platform/embedded/nano/native_trace.py": "2dc27fb7eb70a95584ddc4af2f13d36d9aedb763cc6ff38a8d175053f35215fa",
+    "tests/test_nano_native_trace.py": "8f3c5f943785507a7572492158f65e14ebc62ec40dc7a1cd2a8339bd1cb7a514"
+  },
+  "software": {
+    "focused_decoder_tests": 9,
+    "focused_passed": true,
+    "affected_checks": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      }
+    ],
+    "actual_runner_fixture_cases": 9,
+    "actual_runner_fuse_cases": 6,
+    "runner_sha256": "a45f9cb40ccfa05c0821f03cfc784aa3c6a35186cb90bd70dfaa8c5ed337bdc6",
+    "affected_log_sha256": "56beaa42cf0c92e5911066888194f957f7a3c3a8701f3584ea561cb8f8d8d8b2"
+  },
+  "prepared_native_artifacts": {
+    "passed": true,
+    "scope": "prepared native target and cold-chain producers unchanged by host-only trace decoder",
+    "sof_sha256": "d2500b04c2362df268e9100cf9d5bf7b1e724772b9f7693d8fac9a0e0296f11f",
+    "sd_image_sha256": "f7c4a2c77e44de5c6679b8e2c274100dd9ebb4961c900e7a6de10f727a34850c",
+    "fit_sha256": "feed856b8dcefc565c780ca90ad679b0afb78666a000ea890865b463358222bf",
+    "native_inputs_verified": 46,
+    "chain_sha256": "952d3dca45390ad58f218ae01de9503e760ffab61e852d3de9ad2eadb71648ea"
+  },
+  "physical_native_attempted": false,
+  "pending_step": "user confirms the verified spare card is inserted into TRWU8CBL; preserve original factory card and leave power unchanged",
+  "previous_initial_parking_evidence": "../2026-11-01-de25-initial-parking-v2/evidence.json",
+  "limits": [
+    "serial completion is not signed attestation, independent memory qualification or playable-core acceptance",
+    "the prepared native boot and hardware device/core launch paths still require physical execution"
+  ]
+}

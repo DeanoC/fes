@@ -1,0 +1,128 @@
+{
+  "records": [
+    {
+      "line": 91,
+      "phase": "loader_begin",
+      "ticks": 6861636599,
+      "hz": 400000000,
+      "el": 2,
+      "sctlr": 818219056
+    },
+    {
+      "line": 92,
+      "phase": "decode_begin",
+      "ticks": 6865232519,
+      "hz": 400000000,
+      "el": 2,
+      "sctlr": 818223152
+    },
+    {
+      "line": 93,
+      "phase": "decode_end",
+      "ticks": 38163120762,
+      "hz": 400000000,
+      "el": 2,
+      "sctlr": 818223152
+    },
+    {
+      "line": 94,
+      "phase": "copy_end",
+      "ticks": 43423077755,
+      "hz": 400000000,
+      "el": 2,
+      "sctlr": 818223152
+    },
+    {
+      "line": 95,
+      "phase": "handoff",
+      "ticks": 43426469903,
+      "hz": 400000000,
+      "el": 2,
+      "sctlr": 818219056
+    },
+    {
+      "line": 97,
+      "phase": "go_hwinit",
+      "ticks": 43435853916,
+      "hz": 400000000,
+      "el": 1,
+      "sctlr": 818944005
+    },
+    {
+      "line": 98,
+      "phase": "go_vectors",
+      "ticks": 43439281061,
+      "hz": 400000000,
+      "el": 1,
+      "sctlr": 818944005
+    },
+    {
+      "line": 99,
+      "phase": "go_main",
+      "ticks": 43446340662,
+      "hz": 400000000,
+      "el": 1,
+      "sctlr": 818944005
+    },
+    {
+      "line": 100,
+      "phase": "verifier_ready",
+      "ticks": 43450675266,
+      "hz": 400000000,
+      "el": 1,
+      "sctlr": 818944005
+    },
+    {
+      "line": 101,
+      "phase": "sd_open_begin",
+      "ticks": 43454273201,
+      "hz": 400000000,
+      "el": 1,
+      "sctlr": 818944005
+    },
+    {
+      "line": 102,
+      "phase": "sd_open_end",
+      "ticks": 43470353258,
+      "hz": 400000000,
+      "el": 1,
+      "sctlr": 818944005
+    },
+    {
+      "line": 103,
+      "phase": "fat_mount_end",
+      "ticks": 43482918090,
+      "hz": 400000000,
+      "el": 1,
+      "sctlr": 818944005
+    },
+    {
+      "line": 104,
+      "phase": "retain_begin",
+      "ticks": 43486483757,
+      "hz": 400000000,
+      "el": 1,
+      "sctlr": 818944005
+    }
+  ],
+  "errors": [],
+  "complete": false,
+  "rejected": false,
+  "last_checkpoint": "retain_begin",
+  "timings_us": {
+    "loader_begin": 0,
+    "decode_begin": 8989,
+    "decode_end": 78253710,
+    "copy_end": 91403602,
+    "handoff": 91412083,
+    "go_hwinit": 91435543,
+    "go_vectors": 91444111,
+    "go_main": 91461760,
+    "verifier_ready": 91472596,
+    "sd_open_begin": 91481591,
+    "sd_open_end": 91521791,
+    "fat_mount_end": 91553203,
+    "retain_begin": 91562117
+  },
+  "core_load_acceptance": false
+}

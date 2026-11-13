@@ -1,0 +1,11 @@
+test_default_and_selected_runs_keep_both_architectures_and_findings (test_check_deadcode.CheckDeadcodeTests.test_default_and_selected_runs_keep_both_architectures_and_findings) ... ok
+test_every_tracked_go_module_is_checked (test_check_deadcode.CheckDeadcodeTests.test_every_tracked_go_module_is_checked) ... ok
+test_go_modules_checker_and_unknown_inputs_run (test_check_deadcode.CheckDeadcodeTests.test_go_modules_checker_and_unknown_inputs_run) ... ok
+test_invalid_paths_fail_before_analysis (test_check_deadcode.CheckDeadcodeTests.test_invalid_paths_fail_before_analysis) ... ok
+test_non_go_parent_inputs_skip_before_tools_or_graph_loading (test_check_deadcode.CheckDeadcodeTests.test_non_go_parent_inputs_skip_before_tools_or_graph_loading) ... ok
+test_u1000_line_parse (test_check_deadcode.CheckDeadcodeTests.test_u1000_line_parse) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.012s
+
+OK

@@ -1,0 +1,124 @@
+{
+  "status": "physical-attempt-stopped-at-obsolete-ROM-loop-observer",
+  "operator_source": "c438808d05bda8b09b7e69d91f6987e1c5216382",
+  "native_source": "d07593783a9ebd18436856e5f83898a979209dd2",
+  "firmware_source": "c9d797a1aaa516def6e99b19fde7be9cfaa2207c",
+  "host_seconds": 260.57341558206826,
+  "attempts": 1,
+  "attempt_consumed": true,
+  "replay_allowed": false,
+  "error": "JP ROM fetch address differs; no next command",
+  "nine_uploads_and_fresh_SD_reads_verified": true,
+  "return_markers": 306,
+  "native_cold_boot_verified": true,
+  "verified_launch_observations": [
+    {
+      "selection": 0,
+      "identity": {
+        "PackageID": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+        "CoreID": "fes.zx81",
+        "ABI": "fes.computer",
+        "BuildID": "0792e51a2e51512bfb8fe44e93a69ddd",
+        "Platform": "de25_nano",
+        "Device": "A5EB013BB23BE4SCS",
+        "ProgrammingProfile": "de25-native-computer-v1",
+        "ActivationReceiptSHA256": "5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c",
+        "ProgrammedSHA256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+        "Major": 1,
+        "Minor": 0
+      },
+      "generation": 1,
+      "launch_seconds": 54.87837257795036,
+      "fetch": {
+        "scope": "nano-computer-fetch-v1",
+        "owner": 3693833428530294665,
+        "generation": 1,
+        "package_id": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+        "build_id": "0792e51a2e51512bfb8fe44e93a69ddd",
+        "before": {
+          "Cycles": 0,
+          "Address": 0
+        },
+        "held": {
+          "Cycles": 0,
+          "Address": 0
+        },
+        "running": {
+          "Cycles": 19132,
+          "Address": 979
+        },
+        "delta": 19132,
+        "polls": 1,
+        "elapsed_ns": 121916640,
+        "limit_ns": 1000000000
+      }
+    },
+    {
+      "selection": 1,
+      "identity": {
+        "PackageID": "b32ce70af93f2ae4ff665490246e5c52fbb4d76eadb5445949e5c2b4434fba86",
+        "CoreID": "fes.zx80",
+        "ABI": "fes.computer",
+        "BuildID": "ea02ee8a9026deb05317a3e7d024adde",
+        "Platform": "de25_nano",
+        "Device": "A5EB013BB23BE4SCS",
+        "ProgrammingProfile": "de25-native-computer-v1",
+        "ActivationReceiptSHA256": "ac0cfb45e61b3ee1b6dd65868943539845b7ea8a142191dedb38888e1373bb30",
+        "ProgrammedSHA256": "826aaac1cd524136079e0b10d20a34ad75af631e5fef04f4b153849cde092e1a",
+        "Major": 1,
+        "Minor": 0
+      },
+      "generation": 3,
+      "launch_seconds": 54.385081393877044,
+      "fetch": {
+        "scope": "nano-computer-fetch-v1",
+        "owner": 3693833428530294665,
+        "generation": 3,
+        "package_id": "b32ce70af93f2ae4ff665490246e5c52fbb4d76eadb5445949e5c2b4434fba86",
+        "build_id": "ea02ee8a9026deb05317a3e7d024adde",
+        "before": {
+          "Cycles": 0,
+          "Address": 0
+        },
+        "held": {
+          "Cycles": 0,
+          "Address": 0
+        },
+        "running": {
+          "Cycles": 19124,
+          "Address": 612
+        },
+        "delta": 19124,
+        "polls": 1,
+        "elapsed_ns": 127270500,
+        "limit_ns": 1000000000
+      }
+    }
+  ],
+  "completed_returns": 1,
+  "planned_three_cycle_sequence_passed": false,
+  "second_return_observed": false,
+  "third_launch_observed": false,
+  "owned_Quit_verified": false,
+  "board_state": "last observed native ZX80 running at application generation3 with USB polling; no park, return, recovery prompt or factory restore proved",
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "claim_retained": true,
+  "original_factory_card_touched": false,
+  "bottom_kit_touched": false,
+  "hardware_actions": true,
+  "core_load_acceptance": false,
+  "general_ordinary_admission": false,
+  "timing_signoff": false,
+  "next": "fix package-specific fetch expectation, replay saved capture off-board, prepare a new single-use procedure; do not continue or replay this attempt",
+  "raw_evidence": "out/nano-distinct-launch-board-20261107",
+  "hardware_stop_sha256": "c9a857a46566f74cc6228844813e199eb04dd0bb47db8c8a084c170e5d8c839b"
+}

@@ -1,0 +1,156 @@
+{
+  "format": 1,
+  "base": "74627be46f3c8be2d93756cfb80707f5a0768fa7",
+  "source_head": "26212a2703b948d40cefcd686a15444d4e12967c",
+  "classification": "software/model and cross-build evidence; no hardware access or DDR grant",
+  "files": {
+    "README.md": {
+      "size": 6046,
+      "sha256": "9fd4708c65341e148d6e6fa10919880deb3fe5b9db1203cfb2f688b145cb3767"
+    },
+    "bl31-cross-result.json": {
+      "size": 723,
+      "sha256": "5571654399515831a55dc754f928f7b63adcccdd66eace5cf021fddf7f43ded7"
+    },
+    "boot-cross-result.json": {
+      "size": 477,
+      "sha256": "7b52e40053dfa844ee933e75e687d1d14509da54f3bbc413d550d7c7e896ac30"
+    },
+    "cross-fixture-result.json": {
+      "size": 464762,
+      "sha256": "2f6e89b70e60c2ce11be9ad54d04acd83a3194c2e0f6185effb4108102276cd7"
+    },
+    "firmware-integration.json": {
+      "size": 4436,
+      "sha256": "0e011e36d5b96e2bfdd55e2f0d8c0274bf0dd06beca3c2d684225e6b7b17c0f3"
+    },
+    "focused-go-v2-result.json": {
+      "size": 470,
+      "sha256": "88dd95eb5697f5dcb2e42c83490f2dc911009c4e47187f7ce023cfbd481c26a1"
+    },
+    "focused-go-v2.log": {
+      "size": 13607,
+      "sha256": "0cc7d2298208155c492c0fbb2aa0350202f25c8e99dc12741448a4d37a088554"
+    },
+    "focused-handoff-result.json": {
+      "size": 314,
+      "sha256": "1ae5fa014de29036b3315a296b3c72beb0000ebc85752f697d94566188d89e54"
+    },
+    "focused-handoff.log": {
+      "size": 2271,
+      "sha256": "1da20bfc9b92c57b9fcb416957b5a3648135448a5742a1e3676f8608ea8f7dde"
+    },
+    "initial-assembler.log": {
+      "size": 265,
+      "sha256": "298ffb7240af25037bf137a5b8fc772411c231a3cddfe3b8457b13231623a18f"
+    },
+    "initial-entry-cross-result.json": {
+      "size": 840,
+      "sha256": "e3a688293209cde50b1b1fe0f083debdc59aedf135cec6218e410b8d33caed19"
+    },
+    "initial-entry-cross.log": {
+      "size": 667,
+      "sha256": "60d2d9b82e0fe40cbe679e7d4739771ec5191ec8fff24bf37bf31d91f2cb79e1"
+    },
+    "initial-focused-go-result.json": {
+      "size": 462,
+      "sha256": "e6bc8cfdef7faec5852733c674c80eec6d8b94ed71bc58fcbe9cf398babb4eba"
+    },
+    "initial-focused-go.log": {
+      "size": 562,
+      "sha256": "92c0d21fc744a42666f7828d6a310886e3e618e4818e271655cd40600e84d049"
+    },
+    "make-check-result.json": {
+      "size": 201,
+      "sha256": "8bf2e5996db6207a029ab1883a891e2e87ce9f3363682fd93a2d4fe6224a3890"
+    },
+    "make-check.log": {
+      "size": 137,
+      "sha256": "e9d8989316f5311365a429c5c6221f9e058490da8f0fb7a5a1e219c90aee6aaa"
+    },
+    "native-integration.json": {
+      "size": 76003,
+      "sha256": "7beb7d85922337324ea5d0c2d4b5b9c40255ea04197087fd7340d7914a3be1ea"
+    },
+    "producer-integration.json": {
+      "size": 18608,
+      "sha256": "83c33333752d987b90d4432415d5e469a608b8e2ebb3940b478e9b41e66b4d71"
+    },
+    "python-final-result.json": {
+      "size": 309,
+      "sha256": "233ca3882235622a333aa367d6058f47d5a537f3d7e075de78047891a6c5911c"
+    },
+    "python-final.log": {
+      "size": 1701,
+      "sha256": "db043ecb405b8512c41718ed7109b4a2c2b5752b880072c2a1075542d95e0172"
+    },
+    "reuse-source-proof.json": {
+      "size": 648,
+      "sha256": "c38609cc7183190c8fdb47286c365e028bb75ce2c04fcaa3d369bcf9b1212ba5"
+    },
+    "secure-reader-guard-result.json": {
+      "size": 305,
+      "sha256": "57b158cd3e6d2bac62c4ec8d4ef6bb386bf6d7e48a3255ca3f92ed33f2169905"
+    },
+    "secure-reader-guard.log": {
+      "size": 513,
+      "sha256": "805fabb040333c7176b9db3be9f60c9f02849fcd6191606f290a0a6446dc42c2"
+    },
+    "software-00.log": {
+      "size": 4605,
+      "sha256": "6fa752e1b2c8cbd0b776d49057f5c1b7dcdcae9f1280676feb16c618221edd88"
+    },
+    "software-01.log": {
+      "size": 5823,
+      "sha256": "4465ac37da1a9c37739543d2d5d107d6cd9be04137e3537e981b96322d3ff2c1"
+    },
+    "software-02.log": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-03.log": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-04.log": {
+      "size": 346845,
+      "sha256": "ce31ca249592b101b91680a2d94515476ec2387150d7ab7c75b38d99755f60cd"
+    },
+    "software-05.log": {
+      "size": 70,
+      "sha256": "a27a95cb58aa34d9c8e98e59f0255fc7fe461ff37727a511ae8796a8303622c9"
+    },
+    "software-06.log": {
+      "size": 104,
+      "sha256": "5753619fafa8a7d39399489dc56ef252f2246be8dc6e6192c8dcc4b8af73df8c"
+    },
+    "software-07.log": {
+      "size": 104,
+      "sha256": "06b5bb6f68cc572719fc37b0118173263eb3125e02127961802245f27b160c3b"
+    },
+    "software-08.log": {
+      "size": 101,
+      "sha256": "214497d7913e970d550cdc3d41d0e465c3c77e5e37ee02f4de6b122aa806e5ed"
+    },
+    "software-09.log": {
+      "size": 241658,
+      "sha256": "6f047908b4052ca0f159b4ddee576df780eeca35b452dd060a43c66b83ce7673"
+    },
+    "software-plan.json": {
+      "size": 11358,
+      "sha256": "28364ee2e0ff8865e09e7338e37d5105a6fb502a13ca46416eece495784007bd"
+    },
+    "software-result.json": {
+      "size": 8471,
+      "sha256": "a2a6ffbd36655c43887a453c95e05a988a853fbaa0c45de69fd8f5809b872a56"
+    },
+    "software-run-result.json": {
+      "size": 258,
+      "sha256": "26e84372151af377c80bd418625572c741eeb0110b1dfd1934c1b4864097f45d"
+    },
+    "uboot-cross-result.json": {
+      "size": 818,
+      "sha256": "efb6440e54a21b5e786a79a4c28a2492e317d7c90cbf82a456284008eb647166"
+    }
+  }
+}

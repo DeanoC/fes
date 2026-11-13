@@ -1,0 +1,894 @@
+{
+  "status": "hdmi-irq-busy-qualified-board-contract-open",
+  "compiled_source": "6c6dd62b503f143448a65e17ba346e410187e960",
+  "package_id": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+  "build_id": "0792e51a2e51512bfb8fe44e93a69ddd",
+  "payload_bytes": 1654784,
+  "payload_sha256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+  "source_inputs_checked": 203,
+  "generated_SDCS_checked": 4,
+  "multicorner_before": {
+    "slacks": [
+      1.635,
+      0.0,
+      5.806,
+      0.037,
+      0.22
+    ],
+    "tns": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "clocks": {
+      "EMIF_REF_CLOCK": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "2.220"
+      ],
+      "adv7513_config": [
+        "16.395",
+        "0.104",
+        "18.187",
+        "0.037",
+        "50018.597"
+      ],
+      "adv7513_video": [
+        "3.472",
+        "0.006",
+        "N/A",
+        "N/A",
+        "5.857"
+      ],
+      "altera_reserved_tck": [
+        "12.809",
+        "0.095",
+        "61.376",
+        "0.187",
+        "28.581"
+      ],
+      "fes_video_inst|video_clock|iopll_0_n_cnt_clk": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "49.563"
+      ],
+      "fes_video_inst|video_clock|iopll_0_outclk0": [
+        "3.413",
+        "0.017",
+        "12.099",
+        "0.222",
+        "5.857"
+      ],
+      "fes_video_inst|video_clock|iopll_0_refclk": [
+        "16.844",
+        "0.111",
+        "17.883",
+        "0.229",
+        "9.590"
+      ],
+      "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "8.583"
+      ],
+      "pll_inst|iopll_0_outclk0": [
+        "1.635",
+        "0.000",
+        "5.806",
+        "0.200",
+        "4.407"
+      ],
+      "pll_inst|iopll_0_refclk": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "9.231"
+      ],
+      "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "8.313"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0": [
+        "N/A",
+        "0.376",
+        "N/A",
+        "N/A",
+        "0.419"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "0.272"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "0.220"
+      ]
+    }
+  },
+  "multicorner_after": {
+    "slacks": [
+      1.803,
+      0.0,
+      6.773,
+      0.174,
+      0.22
+    ],
+    "tns": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "clocks": {
+      "EMIF_REF_CLOCK": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "2.220"
+      ],
+      "adv7513_config": [
+        "16.114",
+        "0.023",
+        "17.955",
+        "0.207",
+        "50018.514"
+      ],
+      "adv7513_video": [
+        "3.374",
+        "0.013",
+        "N/A",
+        "N/A",
+        "5.857"
+      ],
+      "altera_reserved_tck": [
+        "12.809",
+        "0.097",
+        "61.355",
+        "0.174",
+        "28.581"
+      ],
+      "fes_video_inst|video_clock|iopll_0_n_cnt_clk": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "49.563"
+      ],
+      "fes_video_inst|video_clock|iopll_0_outclk0": [
+        "3.051",
+        "0.008",
+        "12.158",
+        "0.268",
+        "5.857"
+      ],
+      "fes_video_inst|video_clock|iopll_0_refclk": [
+        "16.143",
+        "0.110",
+        "17.933",
+        "0.216",
+        "9.591"
+      ],
+      "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "8.583"
+      ],
+      "pll_inst|iopll_0_outclk0": [
+        "1.803",
+        "0.000",
+        "6.773",
+        "0.200",
+        "4.407"
+      ],
+      "pll_inst|iopll_0_refclk": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "9.231"
+      ],
+      "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "8.313"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0": [
+        "N/A",
+        "0.376",
+        "N/A",
+        "N/A",
+        "0.419"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "0.272"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "0.220"
+      ]
+    }
+  },
+  "clock_inventory_unchanged": true,
+  "reset_chains_before": {
+    "pll_inst|iopll_0_outclk0": {
+      "count": 4,
+      "registers": [
+        "fes_top_reset_inst|sync_regs[0]",
+        "soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1",
+        "soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1"
+      ],
+      "sources": "pll_inst|iopll_0|tennm_ph2_iopll~pll_ctrl_reg   auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg   fes_top_reset_inst|sync_regs[1]   soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n   soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n"
+    },
+    "fes_video_inst|video_clock|iopll_0_outclk0": {
+      "count": 2,
+      "registers": [
+        "fes_video_inst|pixel_reset|sync_regs[0]",
+        "soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_reset_release[0]"
+      ],
+      "sources": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~pll_ctrl_reg   auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg   soc_inst|rst_controller|r_sync_rst   soc_inst|rst_controller|r_early_rst"
+    }
+  },
+  "reset_chains_after": {
+    "pll_inst|iopll_0_outclk0": {
+      "count": 4,
+      "registers": [
+        "fes_top_reset_inst|sync_regs[0]",
+        "soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1",
+        "soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1"
+      ],
+      "sources": "pll_inst|iopll_0|tennm_ph2_iopll~pll_ctrl_reg   auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg   fes_top_reset_inst|sync_regs[1]   soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n   soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n"
+    },
+    "fes_video_inst|video_clock|iopll_0_outclk0": {
+      "count": 2,
+      "registers": [
+        "fes_video_inst|pixel_reset|sync_regs[0]",
+        "soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_reset_release[0]"
+      ],
+      "sources": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~pll_ctrl_reg   auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg   soc_inst|rst_controller|r_sync_rst   soc_inst|rst_controller|r_early_rst~_Duplicate_3"
+    }
+  },
+  "remaining_signoff_failures": [
+    {
+      "rule": "TMC-20012 - Missing Output Delay Constraint",
+      "severity": "High",
+      "violations": 3,
+      "waived": "0"
+    },
+    {
+      "rule": "TMC-20011 - Missing Input Delay Constraint",
+      "severity": "High",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+      "severity": "Medium",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+      "severity": "Low",
+      "violations": 1,
+      "waived": "0"
+    }
+  ],
+  "unconstrained": {
+    "Illegal Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Input Ports": [
+      1,
+      1
+    ],
+    "Paths from Unconstrained Input Ports (Pairs-Only)": [
+      3,
+      3
+    ],
+    "Unconstrained Output Ports": [
+      2,
+      2
+    ],
+    "Paths to Unconstrained Output Ports (Pairs-Only)": [
+      10,
+      10
+    ]
+  },
+  "timing_signoff": false,
+  "hardware_actions": false,
+  "core_load_acceptance": false,
+  "native_chain_for_new_package_built": false,
+  "Quartus_elapsed": 555.5109473710181,
+  "phase_limit_seconds": 120,
+  "worker_count": 8,
+  "artifacts": {
+    "out/nano-hdmi-control-20261107/sealed-project/board/hps/project/output_files/golden_top.sta.rpt": "a88cd2c1248f4e75a5ce57569a410e6857aa539a953d58c131d3a6310c32771c",
+    "out/nano-hdmi-control-20261107/sealed-project/board/hps/build.json": "f2e3654024acfd36daa2a961a41b5f4936318c0350daa83626324f34aab60be0",
+    "out/nano-hdmi-control-20261107/sealed-project/board/hps/seal-result.json": "04027e6b70fc6403ea09902f3bb3d7b4465e699c1cf597478962d4dc0fd5b553",
+    "out/nano-hdmi-control-20261107/sealed-project/board/hps/build-inputs.json": "28110085e834fcba01ec68a77b8e127d5e1a49ce1232c567867adb91211ed84b",
+    "out/nano-hdmi-control-20261107/sealed-project/board/hps/inputs.json": "6a97163d7fa818769db5d37fcab432ca06d61df478b057fd17c83041366fe7a2",
+    "out/nano-hdmi-control-20261107/sealed-project/board/hps/generation.json": "fce6cae536dc6dcb0c3066e68bc72708163e5e38771a5757a7925c059f89d85e",
+    "out/nano-hdmi-control-20261107/sealed-project/board/hps/packages/03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a.fcore": "191f63a663d2ce12a83bc499e2a6f89332732a260b2bb3e0c8daf2ff71ecd5b7"
+  },
+  "software_aggregate_green": true,
+  "parent_tests": {
+    "total": 1582,
+    "skipped": 3
+  },
+  "FPGA_tests": {
+    "total": 1590,
+    "skipped": 75
+  },
+  "constraint_inventory_scenarios": 14,
+  "exact_compiled_commit_checked": true,
+  "actual_native_package_preflight": true,
+  "actual_preflight_firmware_calls": 0,
+  "HDMI_control_model": {
+    "status": "passed",
+    "classification": "Model sources bound to the exact compiled wrapper/initializer/controller/reset and committed verifier/probe; no Quartus circuit equivalence or hardware proof",
+    "model": "out/de25-hdmi-control-471aa7546a194068ba45762048e32b67",
+    "model_receipt_sha256": "693e3b8df67a2972bbc5240743bcbf3707bdfc456882595e7e45bbdfc3020ab9",
+    "compiled_source": "6c6dd62b503f143448a65e17ba346e410187e960",
+    "bindings": {
+      "sources/misteross/prototypes/de25_board_control/hdmi_control.py": "d73962cc61964d0ec8150117a1ef47c3c5963c59c9bdf6189b6f4ab0267f3b0c",
+      "sources/misteross/prototypes/de25_board_control/verify_hdmi.py": "b6c86224b5c639b049c39f3460cbf8679ee7d7bdd8f494cb71d14175124f190d",
+      "sources/misteross/prototypes/de25_board_control/hdmi_probe.cpp": "cf0ffdb8b0bd69e057d570812354980a33cdb05c8482865eafc457e80639fed3",
+      "out/nano-hdmi-control-20261107/sealed-project/board/hps/project/fes_mailbox/board.v": "536d7a286df111cfe9f55dfdea23e61327c10c26a98e1398c1832c7436730f7d",
+      "out/nano-hdmi-control-20261107/sealed-project/board/hps/project/fes_mailbox/I2C_HDMI_Config.v": "c51f4e78bc99dc0d46814464a5bdce2b33fccf7651bb9a001eca3f6b53ce4c0e",
+      "out/nano-hdmi-control-20261107/sealed-project/board/hps/project/fes_mailbox/I2C_HDMI_Config.v.original": "b9b7c477173fee9b6cb5e3d6a6ba1122c7a0b539f205d807b1d61b22048fd391",
+      "out/nano-hdmi-control-20261107/sealed-project/board/hps/project/fes_mailbox/I2C_Controller.v": "4ac2feae20095dc7287dedec70bdeb8949b086ea6ce3c3a33583063e978003ab",
+      "out/nano-hdmi-control-20261107/sealed-project/board/hps/project/fes_mailbox/fes_de25_top_reset.v": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a"
+    },
+    "recorded_model_sources_checked": 8,
+    "prior_writer_ROM_hash_checks": 73,
+    "original_register_table_sha256": "fdc6b0a471736886661baaa7192a11e39d3cf516e7bfd59ced2d51cecdc59ee6",
+    "vendor_byte_controller_unchanged": true,
+    "QSF_only_build_identity_changed": true,
+    "remaining_endpoints": {
+      "missing_output_delay_ports": [
+        "LED[7]",
+        "HDMI_I2C_SDA",
+        "HDMI_I2C_SCL"
+      ],
+      "missing_input_delay_ports": [
+        "HDMI_I2C_SDA",
+        "HDMI_TX_INT"
+      ]
+    },
+    "hardware_actions": false
+  },
+  "HDMI_diagnostics": {
+    "status": "sealed-receiver-minima-pass-board-contract-open",
+    "compiled_source": "6c6dd62b503f143448a65e17ba346e410187e960",
+    "pixel_only_launches_proved": true,
+    "clock_corner_rows_checked": 168,
+    "clocks_per_corner": 42,
+    "pads": 27,
+    "corners": [
+      "Slow fix4 100C Model",
+      "Slow fix4 0C Model",
+      "Slow fix4a 0C Model",
+      "Fast fix4 0C Model"
+    ],
+    "foreign_launch_witnesses": 0,
+    "IRQ_timed_path_corner_checks": 16,
+    "IRQ_minimum_slacks_ns": {
+      "stages_setup": 19.565,
+      "stages_hold": 0.11,
+      "consumer_setup": 18.262,
+      "consumer_hold": 0.023
+    },
+    "receiver_setup_ns": 1.8,
+    "receiver_hold_ns": 1.3,
+    "symbolic_PCB_delta_reference_ns": 0.0,
+    "worst": {
+      "setup": {
+        "corner": "Slow fix4 0C Model",
+        "port": "HDMI_TX_D[15]",
+        "setup_ns": "3.374",
+        "hold_ns": "1.373",
+        "path": {
+          "From Node": "soc_inst|subsys_periph|fes_computer|fes_computer|video|fb_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a23~reg1",
+          "To Node": "HDMI_TX_D[15]",
+          "Launch Clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+          "Latch Clock": "adv7513_video",
+          "Slack": "3.374"
+        },
+        "report_sha256": "aba1d724f60a46e2b57b8ca2bbc3eb30fbfe794f11aaf3b440348285669fcc86",
+        "report": "out/nano-hdmi-control-20261107/hdmi-window/setup-1.rpt"
+      },
+      "hold": {
+        "corner": "Fast fix4 0C Model",
+        "port": "HDMI_TX_HS",
+        "setup_ns": "8.300",
+        "hold_ns": "0.013",
+        "path": {
+          "From Node": "fes_video_inst|pixel_reset|sync_regs[1]",
+          "To Node": "HDMI_TX_HS",
+          "Launch Clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+          "Latch Clock": "adv7513_video",
+          "Slack": "0.013"
+        },
+        "report_sha256": "05ba0e4081c8efa42382e4fdd66fe47a2154e0c22f81214c3c8a06378ef84349",
+        "report": "out/nano-hdmi-control-20261107/hdmi-window/hold-3.rpt"
+      }
+    },
+    "reference_hold_check_passed": true,
+    "reference_hold_margin_ns": 0.013,
+    "previous_all_source_setup_ns": 3.472,
+    "previous_all_source_hold_ns": 0.006,
+    "new_timing_cuts": 1,
+    "new_timing_cut_scope": "raw HDMI interrupt to first synchronizer D only",
+    "sealed_SDC_unchanged_by_query": true,
+    "query_additional_constraints": false,
+    "board_skew_and_output_load_qualified": false,
+    "original_artifacts_unchanged": true,
+    "HDMI_timing_signoff": false,
+    "hardware_actions": false,
+    "source_sha256": {
+      "irq-stages-setup-0.rpt": "58a38fc44f55ccd4c726e6f6f6131acfbac1a97aa4321f8d7fa844eabbace361",
+      "hdmi-window.tcl": "27f6e7bce9accebe4fe071cba2d4b2f898ce7f0b254a54b2fa52474cc35b2b0c",
+      "irq-stages-hold-2.rpt": "8f3dfede09f115ead9e9023a44befe7d54a5b2564ea888a66ea3380747bf2809",
+      "irq-consumer-setup-0.rpt": "c5d7f7ac67f87ea78fd405f1351bb2200503378c41dba628405c73b121a79acf",
+      "setup-2.rpt": "140a46f14b4bc01b29dab0c12c8ed1e839312c39436d24afd50beaeabf19747c",
+      "running.json": "20039378905ddafb4172666c2c18327db1ae9889c085c09ac287db31e61cdc52",
+      "irq-stages-hold-1.rpt": "d05e5d41fb6725de5ddeb16f018744acd44acdc938510c9c817971f3b6009fdf",
+      "irq-consumer-hold-1.rpt": "545035707fee402d34071fac14790d29e845e43843b5a4808ca0359c793ef9ff",
+      "hdmi_query.py": "487002584e9f0de6e3c63b834adc1b953c2fa21f9fb6afd79f410dcbb38fa2fc",
+      "irq-consumer-setup-2.rpt": "3f81ffa587e0395f6efc05f29b04273669db649476938629a157f81f6b1aabbf",
+      "irq-stages-setup-1.rpt": "f72dbfe3d992130d4a04d39ab994b960f03f8f1d5091f11c393c8efd30d60010",
+      "hold-1.rpt": "9ef1038fc1157448e4f30f9d8bb239667ac99d805019772bd74961b34ae2b339",
+      "diagnostic-clocks.rpt": "ed8efbe9079e75539af9479d241c39249f90a06a41d243c213bc6433fb8af5c1",
+      "hold-3.rpt": "05ba0e4081c8efa42382e4fdd66fe47a2154e0c22f81214c3c8a06378ef84349",
+      "irq-consumer-hold-0.rpt": "e0ad0bbb6f31e08a3f44288b9d337b7c749861cb11d7f6a4653ed31f43b1a69e",
+      "irq-stages-setup-2.rpt": "c0a5fea920c7cc1d8bee2b3772d5a64b9ef2d69ed52242914a7f9174589fbedd",
+      "irq-stages-hold-0.rpt": "6e32c9f94a3e2c165eece95f842955193d7e666b5379d479c41a8839b82a377b",
+      "setup-1.rpt": "aba1d724f60a46e2b57b8ca2bbc3eb30fbfe794f11aaf3b440348285669fcc86",
+      "pad-window.tsv": "95eb46c22ec6c2c62852fcd8d882bb306728cfa8e98dd6eabdbf1c61367876d5",
+      "irq-consumer-hold-2.rpt": "055281a2ff7ae141c9f8b5777cb7f8e9e4b15034c6f7f3ca0d5e803a304d89f2",
+      "irq-consumer-setup-1.rpt": "e89bee90ee7f8f6e18ba9393da224b6aad2068eb9ed2817dc502c1c764c7246e",
+      "hold-0.rpt": "61bb642645501d4a5ea2b04e02414e6564b1c484df9bda14774bdc56ff237d62",
+      "launch-clock-paths.tsv": "4e56a70c598819fd762149bedda0131d8eb8340f4228699ae6d956c0243ba7d8",
+      "irq-window.tsv": "251bacf230b793ff3b5e26804d051373f4b5200c16a955b3d2d340b35805efb3",
+      "irq-stages-setup-3.rpt": "521423adff1441d61da86f044f22fd067f0f5b01d5fbeb105b704c251007933f",
+      "query.log": "7ebd2ebf163e4127b420da9608aa609190ab31d6563346ee2172652142c1309b",
+      "setup-0.rpt": "a6746ea41af8269db13f4d44fa293212a885e84ef27ef93c0894989eac25a7d2",
+      "hold-2.rpt": "fc4708682cdb96c08fef8799ea36db713bf9ecf582488202eed7a6bba5b13fac",
+      "irq-consumer-hold-3.rpt": "85c5a0a2bda317da89104c2c2efb9c6d427f84f1656420a27825dbd76cad7b05",
+      "input-identity.json": "92f94fbb5204acb0ed4e459b72c5ab1a7024c7f04e8a4f815cdb08ffc3c757d5",
+      "result.json": "e793084e3979972f3c55cfb9251a4c2dcc76f61111c2cb52ad403fe03580983a",
+      "irq-stages-hold-3.rpt": "c875b14c75bd7050ec267b8096624267dc2a0c9c7c53fdbb9d9684458b64ea73",
+      "setup-3.rpt": "2ca2aa95235faf71002c582736993a5b34b17bfcab0ca541cedfa43318bf20c5",
+      "irq-consumer-setup-3.rpt": "3e4f1555725d38a23f1ae9ef066e7878fe29085c9aae726a8a65688fcdadcc6b"
+    },
+    "next_work": "resolve board clock electrical path and skew/load contract; complete I2C/IRQ timing and reset ownership before hardware acceptance"
+  },
+  "HDMI_electrical_reference": {
+    "status": "pin-locations-match-clock-standard-unresolved",
+    "scope": "31 pin locations cross-checked against manual; inherited HDMI clock I/O-standard discrepancy remains unresolved",
+    "manual_pdf_sha256": "22d74c3d0fa1e969636ea6b90983871505141616e97e9878cd878c1c22328bb6",
+    "manual_pages": [
+      28,
+      29
+    ],
+    "pins": [
+      {
+        "signal": "HDMI_TX_D[0]",
+        "pin": "PIN_AV19",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D0"
+      },
+      {
+        "signal": "HDMI_TX_D[1]",
+        "pin": "PIN_AT11",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D1"
+      },
+      {
+        "signal": "HDMI_TX_D[2]",
+        "pin": "PIN_BE11",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D2"
+      },
+      {
+        "signal": "HDMI_TX_D[3]",
+        "pin": "PIN_AV14",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D3"
+      },
+      {
+        "signal": "HDMI_TX_D[4]",
+        "pin": "PIN_AT19",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D4"
+      },
+      {
+        "signal": "HDMI_TX_D[5]",
+        "pin": "PIN_AT14",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D5"
+      },
+      {
+        "signal": "HDMI_TX_D[6]",
+        "pin": "PIN_AV16",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D6"
+      },
+      {
+        "signal": "HDMI_TX_D[7]",
+        "pin": "PIN_AV11",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D7"
+      },
+      {
+        "signal": "HDMI_TX_D[8]",
+        "pin": "PIN_BH11",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D8"
+      },
+      {
+        "signal": "HDMI_TX_D[9]",
+        "pin": "PIN_BE14",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D9"
+      },
+      {
+        "signal": "HDMI_TX_D[10]",
+        "pin": "PIN_BE19",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D10"
+      },
+      {
+        "signal": "HDMI_TX_D[11]",
+        "pin": "PIN_BH14",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D11"
+      },
+      {
+        "signal": "HDMI_TX_D[12]",
+        "pin": "PIN_BV6",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D12"
+      },
+      {
+        "signal": "HDMI_TX_D[13]",
+        "pin": "PIN_BJ23",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D13"
+      },
+      {
+        "signal": "HDMI_TX_D[14]",
+        "pin": "PIN_BV4",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D14"
+      },
+      {
+        "signal": "HDMI_TX_D[15]",
+        "pin": "PIN_BU23",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D15"
+      },
+      {
+        "signal": "HDMI_TX_D[16]",
+        "pin": "PIN_BH16",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D16"
+      },
+      {
+        "signal": "HDMI_TX_D[17]",
+        "pin": "PIN_DA1",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D17"
+      },
+      {
+        "signal": "HDMI_TX_D[18]",
+        "pin": "PIN_BH19",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D18"
+      },
+      {
+        "signal": "HDMI_TX_D[19]",
+        "pin": "PIN_CP2",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D19"
+      },
+      {
+        "signal": "HDMI_TX_D[20]",
+        "pin": "PIN_CM1",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D20"
+      },
+      {
+        "signal": "HDMI_TX_D[21]",
+        "pin": "PIN_DA2",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D21"
+      },
+      {
+        "signal": "HDMI_TX_D[22]",
+        "pin": "PIN_CP1",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D22"
+      },
+      {
+        "signal": "HDMI_TX_D[23]",
+        "pin": "PIN_CU2",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_D23"
+      },
+      {
+        "signal": "HDMI_TX_CLK",
+        "pin": "PIN_DJ24",
+        "compiled_IO_STANDARD": "1.1-V",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_CLK"
+      },
+      {
+        "signal": "HDMI_TX_DE",
+        "pin": "PIN_CJ2",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_DE"
+      },
+      {
+        "signal": "HDMI_TX_HS",
+        "pin": "PIN_BR11",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_HS"
+      },
+      {
+        "signal": "HDMI_TX_VS",
+        "pin": "PIN_BR14",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_VS"
+      },
+      {
+        "signal": "HDMI_TX_INT",
+        "pin": "PIN_CF2",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_INT"
+      },
+      {
+        "signal": "HDMI_I2C_SCL",
+        "pin": "PIN_BT1",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "FPGA_I2C_SCL"
+      },
+      {
+        "signal": "HDMI_I2C_SDA",
+        "pin": "PIN_BW2",
+        "compiled_IO_STANDARD": "3.3-V LVCMOS",
+        "manual_voltage": "3.3V",
+        "manual_signal": "FPGA_I2C_SDA"
+      }
+    ],
+    "source_qsf": "out/nano-hdmi-control-20261107/sealed-project/board/hps/project/golden_top.qsf",
+    "source_qsf_sha256": "6ae0cd58b108e870965388b32d2e9e4d82cfa38c83692e2da4fc4a8562e6d1d3",
+    "HDMI_figure_sha256": "acbf0e0874d6b24eaab4a6547e2671dd656ab1fa76504b7d48d9dc059fb8fd77",
+    "board_skew_budget_established": false,
+    "output_load_budget_established": false,
+    "hardware_actions": false,
+    "vendor_archive": "out/nano-timing-audit-20261106/vendor.zip",
+    "vendor_archive_sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66",
+    "vendor_reference_member": "Demonstration/FPGA/HDMI_ASx4/golden_top.qsf",
+    "vendor_reference_sha256": "73dac113e3914d4b34fb1642525bbf8467e4e339cedcd1e4fcec2b5eed0eda45",
+    "pin_locations_checked": 31,
+    "io_standard_discrepancies": [
+      {
+        "signal": "HDMI_TX_CLK",
+        "pin": "PIN_DJ24",
+        "compiled_IO_STANDARD": "1.1-V",
+        "manual_voltage": "3.3V",
+        "manual_signal": "HDMI_TX_CLK"
+      }
+    ],
+    "fitter_report_sha256": "b7be6bc06416adcabaa41adf7cd3bbe466c97a787ae3bd28d838bcb69c87c32f",
+    "fitter_clock_row": "; HDMI_TX_CLK         ; DJ24  ; 2A_T     ; 62           ; 0            ; 158          ; no              ; no                     ; 1         ; no         ; no            ; no       ; Off          ; 1.1-V                    ; 9mA              ; Series 40 Ohm without Calibration ; --                        ; 0                          ; 2                           ; User                 ; 0 pF ; -                    ; -                   ;",
+    "clock_bank": "2A_T",
+    "fitter_reported_clock_load_pF": 0.0,
+    "clock_electrical_path_verified": false,
+    "clock_IO_STANDARD_changed": false,
+    "board_timing_qualified": false
+  },
+  "board_state": "No board action; CPU/FPGA state still requires requalification after user power interruption.",
+  "evidence_sha256": {
+    "out/nano-hdmi-control-20261107/candidate-analysis.json": "579485ef10b4c41e9b83c0922b8391f5e2eb3669d87922cdcc6ec83660f0473a",
+    "out/nano-hdmi-control-20261107/hdmi-analysis.json": "ca1b781dd47dca799fc974b8cf3adeeac5ac2eadb7e6d1f701b793beeb17f2cc",
+    "out/nano-hdmi-control-20261107/manual-pin-check.json": "21b6711071c31169231ae0fd474626616204af0848803c8e3befe25818957ac3",
+    "out/nano-hdmi-control-20261107/electrical-research.json": "e5b925c8b77179523a8bf8d56b91988ed6a4bc520bcf558d183fe9ac4ab0c113",
+    "out/nano-hdmi-control-20261107/recovery-pin-check.json": "f0d22be5bbbbee528d61ea7ccceab63784e6cb7377b752e7b137139376f01db0",
+    "out/nano-hdmi-control-20261107/compiled-model-binding.json": "fcb73d65613dd6fa395324cf52a1513983d78be24864cfe5f549cd69583adbf5",
+    "out/nano-hdmi-control-20261107/remote-result.json": "f9876a4ef48ae8888e24a1c2902bcc1606b7b33ebe05278f2313c9d10eb79b70",
+    "out/nano-hdmi-control-20261107/transfer-result.json": "f5b0e7fc9947f0251948773e8d0e1872d3d6987ca9fa295129448ae09390fbbc",
+    "out/nano-hdmi-control-20261107/check_board_reference.py": "f8911247e1c6bfffe95356d41b9647a63ddbc6501218bbb2bab71daf7a5427cb",
+    "out/nano-hdmi-control-20261107/bind_model.py": "30c44b42396d5ba741254b6e29650cd3d4aedc9e1c04913e7ab3fc0f7d0d10ed",
+    "out/nano-hdmi-control-20261107/affected-result.json": "8f437d566334f51bb875ff2ee201bf53542248bb05a9a0ab88d160e0059ba08c",
+    "out/nano-hdmi-control-20261107/affected.log": "e72bf227b32658ff5f4051d8c9bc0d51cff9d9c32d1fcdeab4217dbc7fb3b250",
+    "out/nano-hdmi-control-20261107/fetch-candidate-result.json": "5d2a0dc5a7cb007fda6f92ee601c20772a0f06f40f8e91f13dad00c4e7b41f9a",
+    "out/nano-hdmi-control-20261107/fetch-candidate.log": "c509d74c7643f6ccb31bc682f2212184ae4ab5b28cd291e8889795c7005dba23",
+    "out/nano-hdmi-control-20261107/candidate-analysis-result.json": "aaee36562913b11e8fe2201efceec497e3a3e70a7ce183156663e183569ea697",
+    "out/nano-hdmi-control-20261107/candidate-analysis.log": "a5db0549ed9b423832c37bc3d2b3371ea0c0f7454901479fa68853627c7ae74d",
+    "out/nano-hdmi-control-20261107/routed-query-result.json": "d6328d6870f118275bb20eb064f615777249ca2fe5d731434b6bdca515772cee",
+    "out/nano-hdmi-control-20261107/routed-query.log": "3ec478bc2b5a4e4b07ab0d048b28ccfe83ecc5ad83daf5f8c18b3c5da520f07f",
+    "out/nano-hdmi-control-20261107/hdmi-analysis-result.json": "75b264423d9c47fb8f7f68ab3c1eeac37ef1c02f531a4053d73cd3c209635153",
+    "out/nano-hdmi-control-20261107/hdmi-analysis.log": "4a58bfd15623dd95bb50150058883f34166b725b7c9ca13b51dde2bfc3ce6e47",
+    "out/nano-hdmi-control-20261107/export-actual-fixture-result.json": "f3f41ed33d1ede9cd8cf5ed1742ccbc18c851b1c82231a09a179c237c3958437",
+    "out/nano-hdmi-control-20261107/export-actual-fixture.log": "65e95f527b0aaebe5b8a2d6ac6e2a8d8e6e36050b5b65a09e2a68c736bb6f782",
+    "out/nano-hdmi-control-20261107/actual-native-preflight-result.json": "2b8446ff7673087ebe50c12ffdd2320ebed139c0db376a3118a8947f073c02b6",
+    "out/nano-hdmi-control-20261107/actual-native-preflight.log": "75157a64166931fc99bf806710ecb21dc209ef7c5e9e5782f70e915748dd298a"
+  },
+  "integration_evidence_directories": [
+    "out/de25-board-control-check-323839f396cc4db3a63e674abf634d9e",
+    "out/de25-hdmi-control-471aa7546a194068ba45762048e32b67",
+    "out/de25-video-equivalence-4f2df473ecd74776924bbeb44d90b5ff",
+    "out/nano-fabric-stop-3af84fa2e60045a8a2339f447faf4f28"
+  ],
+  "historical_model_directories": [
+    "out/nano-hdmi-control-model-20261107",
+    "out/nano-hdmi-control-model-v2-20261107",
+    "out/nano-hdmi-control-model-v3-20261107",
+    "out/nano-hdmi-control-model-v4-20261107",
+    "out/nano-hdmi-control-model-v5-20261107",
+    "out/nano-hdmi-control-model-v6-20261107",
+    "out/nano-hdmi-control-model-v7-20261107",
+    "out/nano-hdmi-control-model-v8-20261107",
+    "out/nano-hdmi-control-model-v9-20261107"
+  ],
+  "outstanding": [
+    "Complete external SDA/SCL timing/loading and LED classification; no invented input clock/delay for the asynchronous IRQ",
+    "Resolve remaining reset ownership and vendor intra-clock finding",
+    "Resolve actual HDMI clock electrical path and board skew/load contract; receiver-reference timing is conditional",
+    "Prepare a matched native chain/operator and requalify TRWU8CBL before a bounded core/ROM/input/return trial",
+    "Physical menu/core transitions, media and native networking toward full DE10-style behavior"
+  ]
+}

@@ -1,0 +1,59 @@
+START 00 test_affected.py (cap 300s)
+START 11 test_*.py (cap 840s)
+PASS 00 test_affected.py
+START 01 test_test_changed.py (cap 300s)
+PASS 01 test_test_changed.py
+START 02 committed whitespace (cap 300s)
+PASS 02 committed whitespace
+START 03 working whitespace (cap 300s)
+PASS 03 working whitespace
+START 04 parent Python regressions (cap 300s)
+RUN 11 test_*.py 12s
+RUN 04 parent Python regressions 12s
+RUN 11 test_*.py 24s
+RUN 04 parent Python regressions 24s
+RUN 11 test_*.py 36s
+RUN 04 parent Python regressions 36s
+RUN 11 test_*.py 48s
+RUN 04 parent Python regressions 48s
+RUN 11 test_*.py 60s
+RUN 04 parent Python regressions 60s
+RUN 11 test_*.py 72s
+RUN 04 parent Python regressions 72s
+RUN 11 test_*.py 84s
+RUN 04 parent Python regressions 84s
+RUN 11 test_*.py 96s
+RUN 04 parent Python regressions 96s
+RUN 11 test_*.py 108s
+RUN 04 parent Python regressions 108s
+RUN 11 test_*.py 120s
+RUN 04 parent Python regressions 120s
+RUN 11 test_*.py 132s
+RUN 04 parent Python regressions 132s
+RUN 11 test_*.py 144s
+RUN 04 parent Python regressions 144s
+RUN 11 test_*.py 156s
+RUN 04 parent Python regressions 156s
+RUN 11 test_*.py 168s
+RUN 04 parent Python regressions 168s
+RUN 11 test_*.py 180s
+RUN 04 parent Python regressions 180s
+RUN 11 test_*.py 192s
+RUN 04 parent Python regressions 192s
+RUN 11 test_*.py 204s
+RUN 04 parent Python regressions 204s
+FAIL 04 parent Python regressions
+RUN 11 test_*.py 216s
+RUN 11 test_*.py 228s
+RUN 11 test_*.py 240s
+RUN 11 test_*.py 252s
+RUN 11 test_*.py 264s
+RUN 11 test_*.py 276s
+RUN 11 test_*.py 288s
+RUN 11 test_*.py 300s
+RUN 11 test_*.py 312s
+RUN 11 test_*.py 324s
+RUN 11 test_*.py 336s
+RUN 11 test_*.py 348s
+PASS 11 test_*.py
+Software plan failed; 6 exact commands completed

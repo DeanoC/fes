@@ -1,0 +1,88 @@
+{
+  "status": "physical-cold-menu-and-secure-return-passed",
+  "operator_source": "da816d6a50569924bc10e4043f87b1a1ce774e57",
+  "attempts": 1,
+  "attempt_consumed": true,
+  "replay_allowed": false,
+  "first_failure_terminal": true,
+  "experiment_sha256": "6d3475023e3b8b81d31d59f65e2fb4563f9aca4fc6b577ca4ea8260a48c8f7be",
+  "native_result_sha256": "7ab2a8a9b40151cb17c08273c380bdd4fcd4b66ca1adde1cc8ed347e3b1b07cc",
+  "last_stage": "native",
+  "error": null,
+  "native_error": null,
+  "sd_write_commands_sent": true,
+  "sd_write_outcome_unknown": false,
+  "upload_group_status": "verified",
+  "verified_uploads": 2,
+  "fresh_readbacks": 2,
+  "native_fesboot_sent": true,
+  "native_programming_attempted": true,
+  "last_native_checkpoint": "menu_present_closed",
+  "menu_observation": {
+    "frames": 3,
+    "slots": [
+      0,
+      1,
+      0
+    ],
+    "closed_generation": 7,
+    "owner": 4395707518827506617,
+    "hardware_drained": 8,
+    "configuration_seconds": 10.4303964125,
+    "memory_released": false,
+    "hdmi_qualified": false,
+    "runtime_admission": false,
+    "menu_core_menu_qualified": false
+  },
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "hardware_actions": true,
+  "core_load_acceptance": false,
+  "native_menu_core_menu": false,
+  "physical_HDMI_qualified": false,
+  "physical_DDR_drain_qualified": false,
+  "timing_signoff": false,
+  "original_factory_card_touched": false,
+  "bottom_kit_touched": false,
+  "factory_restoration_requested": false,
+  "claim_retained": true,
+  "goal_complete": false,
+  "next": "Integrate the live Tenfoot App with menu/core/menu display ownership through the existing native ProgramService; retain strict frame and failure semantics; remove remaining publication overhead without reducing checks",
+  "implementation_source": "d7e3ee198e7eb33ce607b1f8908faea6ab0bed46",
+  "frame_present_microseconds": [
+    1250953,
+    1325775,
+    1325714
+  ],
+  "frame_render_microseconds": [
+    19493,
+    52820,
+    48075
+  ],
+  "menu_open_to_closed_microseconds": 5571470,
+  "comparison": {
+    "baseline_source": "fe5c4472f957cfff2432f53ee76a16e4a08bda2c",
+    "baseline_operator": "0c9923946f98ef74a2922c16159fd0940a8fe380",
+    "baseline_frame_present_microseconds": [
+      3760483,
+      3842556,
+      3838491
+    ],
+    "mean_speedup": 2.931889826934007,
+    "baseline_menu_open_to_closed_microseconds": 14811114,
+    "unchanged_fpga": true,
+    "unchanged_frame_geometry": true,
+    "unchanged_integrity_and_ownership_checks": true,
+    "unchanged_time_and_poll_limits": true,
+    "scope": "bounded serial comparison; not a general performance or physical HDMI qualification"
+  },
+  "last_board_state": "returned native diagnostic; frames1/2/3 slots0/1/0 underflows0, independent closuregen7/resetf; arena retained until reboot; host cleanup independently passed"
+}

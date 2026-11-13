@@ -1,0 +1,124 @@
+{
+  "verification_status": "passed",
+  "hardware_result": "stopped-at-spl_handoff",
+  "classification": "failed bounded native diagnostic; observed progress retained; no runtime/core acceptance",
+  "source_commit": "82c410cc8a5af4fa2c77d535b3bd22eb7a19fa19",
+  "native_build_source_commit": "05006009e5a27deedd804e8711aa9bdecd3546b9",
+  "experiment_passed": false,
+  "serial": "TRWU8CBL",
+  "continuation_directory": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-atf-handoff-v2-20261102/trial-resume",
+  "original_stopped_trial_evidence_sha256": "795e63653ce3e23d33dfee8d10efcf8c67e39e0023b815eac14ffea981e0c139",
+  "fresh_fit_readback_receipt_sha256": "b1e2f1e6a0d65e9be282c27c6653ea41ea781cfef0bd50fdaa8b37014abfdeab",
+  "raw_console_sha256": "0bcfc14ffaed9fb556bcef7eea9925dad9f521324680d85993d05ee7fe964dab",
+  "raw_bytes": 1602,
+  "decoded": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "48e13760760a4451"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 10843171902720890063,
+          "epoch": 5356149719,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      }
+    ],
+    "errors": [],
+    "loader_ready": false,
+    "complete": false,
+    "last_checkpoint": "spl_handoff",
+    "core_load_acceptance": false,
+    "configuration_transfer": {
+      "complete": false,
+      "completed_bytes": 0,
+      "core_sha256": "170a3929afc316bcaa51b25e69ce60a7f44c53542126ce6e82d90a99767998d0",
+      "arena_base": 2491416576,
+      "arena_size": 8388608
+    },
+    "ddr_read": {
+      "complete": false,
+      "errors": [],
+      "records": [],
+      "reads": 0,
+      "writes": 0,
+      "polls": 0,
+      "data_remained_contained": false,
+      "runtime_admission": false,
+      "core_load_acceptance": false
+    },
+    "classification": "serial-observed fixed DDR read, master stop and bridge drain; no runtime admission"
+  },
+  "uploads": {
+    "boot": {
+      "payload_sha256": "d3c12590eb79340d783dcddf06edd694848fac23f6612ccdfc975f3ba7c345ee",
+      "payload_bytes": 6499492,
+      "sd_readback_verified": true,
+      "boot_files_unchanged": true,
+      "recovery_manifest_unchanged": true
+    },
+    "package": {
+      "payload_sha256": "b281cd7c8b185472f1c53b97c1e62be01ed7544900c39ba3808339591f2c2e72",
+      "payload_bytes": 1645568,
+      "sd_readback_verified": true,
+      "boot_files_unchanged": true,
+      "recovery_manifest_unchanged": true
+    }
+  },
+  "fesboot_sent": false,
+  "ddr_read_complete": false,
+  "native_sd_writes": false,
+  "core_load_acceptance": false,
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "uart_free": true,
+  "private_server_stopped": true,
+  "claim_retained": true,
+  "factory_restore_requested": false,
+  "native_error": "stage timeout: matched native prompt",
+  "experiment_error": "phase stopped: native",
+  "clock_evidence": "15M independently read back during owned private service cleanup before stopping that service"
+}

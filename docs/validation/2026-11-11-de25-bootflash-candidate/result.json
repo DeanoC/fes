@@ -1,0 +1,139 @@
+{
+  "status": "prepared-file-only-hps-first-bootflash-candidate",
+  "source_head": "902c9b190fdb2302e38ae8e7610e55a92e322acf",
+  "native_boot_id": "548caa50395f3d94",
+  "input_sof_sha256": "449b809b64ed73bc04a6150c5924ca729f14abab54981c4e0500c4d08010e7a7",
+  "input_spl_sha256": "fd948a5e61d8ab48c9cd1c5e112c612823974e315076251e102d0bf9d936cc92",
+  "native_fit_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+  "hardware_trial_record_sha256": "04f482641c3b2f6f9545c6133abbc95fab77877201b5d5fb93b2c4a5a468ff80",
+  "vendor_recipe_sha256": "b8eba45744a8c193524f78a1bfbbbc1516df4b4ff71d8e6c9e03a0f139b00f3d",
+  "flash_device_selection": "MT25QU128",
+  "flash_loader": "A5EB013BB23B",
+  "mode": "ASX4",
+  "hps_first": true,
+  "bitswap": true,
+  "phase2_core_unchanged": true,
+  "intermediate_sof_embedded_spl": {
+    "format": "nano-sof-gzip-hps-literals",
+    "spl_bytes": 164001,
+    "spl_binary_sha256": "e8cc2069824447dbb2fc3d2bbaa8c8c1c3ee64f5313101990d3203e40b4d173e",
+    "spl_hex_sha256": "fd948a5e61d8ab48c9cd1c5e112c612823974e315076251e102d0bf9d936cc92",
+    "chunks": [
+      {
+        "address": 0,
+        "size": 65536
+      },
+      {
+        "address": 65536,
+        "size": 65536
+      },
+      {
+        "address": 131072,
+        "size": 32929
+      }
+    ],
+    "preserved_sections": 11,
+    "security_hash_and_configuration_crc_verified": false,
+    "hardware_programming_or_boot_acceptance": false
+  },
+  "all_hardware_trial_input_hashes_unchanged": true,
+  "conversion_used_private_input_copies": true,
+  "flash_part_independently_identified": false,
+  "factory_flash_backed_up": false,
+  "phase1_only_boot_qualified": false,
+  "power_on_boot_qualified": false,
+  "flash_programming_authorized": false,
+  "board_commands": 0,
+  "hardware_actions": false,
+  "producer": {
+    "path": "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+    "sha256": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+    "binary_sha256": "ed0026052cadd2ee56ae4e850c20a733ce0d0106bbd39687e15f045637404869"
+  },
+  "commands": [
+    [
+      "flock",
+      "-w60",
+      "-E75",
+      "/tmp/lander-quartus-3090.lock",
+      "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+      "-c",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-bootflash-candidate-20261111/files-r4/input.sof",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-bootflash-candidate-20261111/files-r4/native-hps-first.jic",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-bootflash-candidate-20261111/files-r4/native-hps-first.rpd",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-bootflash-candidate-20261111/files-r4/native-hps-first.map",
+      "-o",
+      "hps_path=/home/deano/fes/out/dev/de25-embedded-os/out/nano-bootflash-candidate-20261111/files-r4/input-spl.hex",
+      "-o",
+      "device=MT25QU128",
+      "-o",
+      "flash_loader=A5EB013BB23B",
+      "-o",
+      "mode=ASX4",
+      "-o",
+      "hps=on",
+      "-o",
+      "bitswap=on"
+    ],
+    [
+      "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+      "-i",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-bootflash-candidate-20261111/files-r4/native-hps-first.hps.jic"
+    ],
+    [
+      "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+      "-i",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-bootflash-candidate-20261111/files-r4/native-hps-first.core.rbf"
+    ]
+  ],
+  "outputs": {
+    "input-spl.hex": {
+      "bytes": 461312,
+      "sha256": "fd948a5e61d8ab48c9cd1c5e112c612823974e315076251e102d0bf9d936cc92"
+    },
+    "input.sof": {
+      "bytes": 1484116,
+      "sha256": "449b809b64ed73bc04a6150c5924ca729f14abab54981c4e0500c4d08010e7a7"
+    },
+    "input_hps_auto.sof": {
+      "bytes": 1578908,
+      "sha256": "a7f6b63f93c674215411e54528e319050bc1977fe1cf09dc0677af43f90e66be"
+    },
+    "native-hps-first.core.rbf": {
+      "bytes": 1654784,
+      "sha256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949"
+    },
+    "native-hps-first.hps.jic": {
+      "bytes": 16777447,
+      "sha256": "6199057b205bd5f9bd81ebec2318c36c70af1ec24d649b0f699e1dc9cfaa334f"
+    },
+    "native-hps-first.map": {
+      "bytes": 365,
+      "sha256": "1602ce25485225209e519b9e0ca256721d3f3ba90c7848fa5a2c6386d634a992"
+    },
+    "native-hps-first.rpd": {
+      "bytes": 2494464,
+      "sha256": "c7f0349a59c43573b4e3f2b79b9fc5245892fed92abbbc3e903df0b7c4c0736a"
+    },
+    "pfg-core-info.log": {
+      "bytes": 5667,
+      "sha256": "6ad1b7a8bf8bac3ae52ce857b9fdccd1c96f4d1e53878284f9bde404955f4625"
+    },
+    "pfg-generate.log": {
+      "bytes": 3524,
+      "sha256": "99e37a8a8f5244aa1a37f14434e3de6ac8402040586e47b76a9e6bfd5803e7ea"
+    },
+    "pfg-jic-info.log": {
+      "bytes": 6305,
+      "sha256": "dab94093414db483a6a1febd08e86e4d2ac5d7af87bdfc6d427cd2ed4963201c"
+    }
+  },
+  "sources": {
+    "altera_cli": "https://docs.altera.com/r/docs/813762/26.1/hard-processor-system-booting-user-guide-agilex-3-and-agilex-5-socs/creating-configuration-files-from-command-line?contentId=gbhfadnQxkJIRLtwfFinKw",
+    "altera_flow": "https://docs.altera.com/r/docs/813762/26.1/hard-processor-system-booting-user-guide-agilex-3-and-agilex-5-socs/hps-boot-first?contentId=HMcwH9e3qZ21n1VAWN2tGA"
+  },
+  "jic_metadata_verified": true,
+  "phase1_and_phase2_hps_io_hash": "df9589f2122209af6d453bee8ba0dd18f3192fa556b0b6e245cd3cb1a8fe4b1f",
+  "flash_programming": false,
+  "full_appliance_acceptance": false
+}

@@ -1,0 +1,27 @@
+{
+  "format": "nano-sof-gzip-hps-literals",
+  "spl_bytes": 254835,
+  "spl_binary_sha256": "5c465de86a741bd5b0ac435bd92c7e801b20dd78e4e17259ffa0f1cafa9a3652",
+  "spl_hex_sha256": "83e1f29015c8f07a95d439f9e6e8f93be6f76a918121e2fd658462e7deca3e23",
+  "chunks": [
+    {
+      "address": 0,
+      "size": 65536
+    },
+    {
+      "address": 65536,
+      "size": 65536
+    },
+    {
+      "address": 131072,
+      "size": 65536
+    },
+    {
+      "address": 196608,
+      "size": 58227
+    }
+  ],
+  "preserved_sections": 11,
+  "security_hash_and_configuration_crc_verified": false,
+  "hardware_programming_or_boot_acceptance": false
+}

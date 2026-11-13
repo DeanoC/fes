@@ -1,0 +1,136 @@
+{
+  "scope": "one qualified phy-prepare recovery, owned fixed uploads, twelve-frame return and fresh SD selection/containment; restore15M",
+  "ddr_traffic_requested": true,
+  "data_release_requested": true,
+  "core_load_acceptance": false,
+  "computer_reload": false,
+  "previous_transport_stop_evidence_sha256": "8034d1f240b29c97d09dbd61c2d58bd1a079e6cdb9426ed53ce12467bac9d768",
+  "recovery_strategy": "owned-session-two-verified-writes-and-two-fresh-readbacks; no retry or fallback",
+  "prior_window_procedure_failures": 7,
+  "failures_on_head_before_attempt": 0,
+  "head_failure_limit": 2,
+  "attempt_limit": 1,
+  "source_commit": "f7e4a5bc3f041f83479c64ef9e585629bc6df53e",
+  "native_build_source_commit": "dc2cf47604ce003744ce2b1cf0e1e53beb1e4738",
+  "native_sof_sha256": "e6f587bb8ef399329156ad54befcbe6ff1e593a6fda8790115e766329931f2f5",
+  "prior_failure_evidence_sha256": "ff07b0d0bd93c604afd36309a692012862e6d18fb5e730233817cfede87d37b6",
+  "fpga_source_commit": "df234b524d0e1340b343df411c841bd1dc553817",
+  "target_clock": "6M",
+  "clock_change_attempted": true,
+  "pass": true,
+  "sd_write_commands_sent": true,
+  "started_utc": "2026-11-04T10:50:56.863090+00:00",
+  "stages": [
+    {
+      "clock_operation": "clock-before",
+      "returncode": 0,
+      "output": "15M"
+    },
+    {
+      "clock_operation": "clock-set-6M",
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "clock_operation": "clock-confirm-6M",
+      "returncode": 0,
+      "output": "6M"
+    },
+    {
+      "phase": "recovery-boot",
+      "returncode": 0
+    },
+    {
+      "phase": "uploads",
+      "returncode": 0
+    },
+    {
+      "clock_operation": "clock-before-native",
+      "returncode": 0,
+      "output": "6M"
+    },
+    {
+      "phase": "native",
+      "returncode": 0
+    },
+    {
+      "clock_operation": "clock-restore",
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "clock_operation": "clock-restored-readback",
+      "returncode": 0,
+      "output": "15M"
+    }
+  ],
+  "original_clock": "15M",
+  "stage": "native",
+  "upload_purposes": [
+    "boot",
+    "package"
+  ],
+  "selected_programs": false,
+  "upload_receipts_sha256": {
+    "boot": "987c18aa527ae952c2d9a2fe2b6fc1e78e80b374744946222cdbad8c8fea88ee",
+    "package": "e26a8bb1ec7cd244b05fb0cdb403d2c840268d07683aa19b60f88f91f6fd20f5"
+  },
+  "fresh_receipts_sha256": {
+    "boot": "d203dd8870a07f911559ab0f3d219d29911b222581881a436780759e9bba544d",
+    "package": "db83e2f44b4ef8403980e85d7d6dbbc09a5c41be1484500997fe7d3f7c78c619"
+  },
+  "native_phase_passed": true,
+  "configuration_cycles": 3,
+  "window_observation": {
+    "cycles": 3,
+    "commands": 19,
+    "owner": "bfd8436271e81aaf",
+    "closures": [
+      7,
+      13,
+      19
+    ],
+    "final": {
+      "scope": "nano-contained-window-service-v1",
+      "op": "park",
+      "ok": true,
+      "state": "parked",
+      "owner": "bfd8436271e81aaf",
+      "generation": 6,
+      "frames": 2,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "last_frame": {
+        "source_generation": 16,
+        "reader_generation": 3,
+        "cookie": 1,
+        "bytes": 3686400,
+        "published_crc32": 1202889335,
+        "read_crc32": 1202889335,
+        "frame_sha256": "ca61e5504ffb7b1af1a3f28eafb8dde5315d57c57db4632982be52896b3c5ca1",
+        "drain_generation": 3,
+        "drain_cookie": 3
+      },
+      "last_return": {
+        "source_generation": 16,
+        "closed_generation": 19,
+        "frames": 2,
+        "reset": 15,
+        "masters_contained": true
+      },
+      "storage": {
+        "generation": 16,
+        "active": false,
+        "prepared": false
+      }
+    },
+    "expected_rejections": 6,
+    "memory_released": false,
+    "ordinary_admission": false,
+    "hdmi_qualified": false
+  },
+  "restored_clock": "15M",
+  "original_clock_restored": true,
+  "private_server_stopped": true,
+  "usb_permissions_restored": true,
+  "finished_utc": "2026-11-04T10:58:55.515289+00:00"
+}

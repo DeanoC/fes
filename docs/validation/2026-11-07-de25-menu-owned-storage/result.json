@@ -1,0 +1,72 @@
+{
+  "status": "software-menu-owned-storage-return-and-rearm-passed",
+  "implementation_source": "870dff7ec9cf07097a3051817258fa0ebec8aa1e",
+  "receipts": {
+    "software-0": {
+      "receipt_sha256": "7917f0ff73de3499af739c460febbb660a0e248665d42cd6c75743ae29f0dace",
+      "log_sha256": "10cca896c37e5e0cea6b438e9979644c9cdc127b4499b70a016a6dbfe8785e78",
+      "elapsed": 0.20083895605057478
+    },
+    "software-1": {
+      "receipt_sha256": "9b6ab06be2c98c9eb24c8ee3062a4739fede24cac4252dd016752ac055047ee2",
+      "log_sha256": "c6711827a0f29d49cafffb92c0cccedd8269de7cd7e6ebf27f393c0a1ea46835",
+      "elapsed": 1.2008777691517025
+    },
+    "software-2": {
+      "receipt_sha256": "5aa6e0d6d386ffa725b346e7a280223bb21931075c5d55db614ff7da02890b10",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 0.20046337600797415
+    },
+    "software-3": {
+      "receipt_sha256": "2f268a93f33822446d00fdc9ada764de9a4675d77e4fcbd7d44a3b1e4f7527f4",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 0.20067464606836438
+    },
+    "software-4": {
+      "receipt_sha256": "f9b335074c2efa1b262fcf0ddc88b5f47bd99b10e8a316c680466d9fb98278f5",
+      "log_sha256": "458a31253cd0c03b05a4124533626453bb8fe4b35df1b418de8524a1160325da",
+      "elapsed": 368.0921504199505
+    },
+    "software-5": {
+      "receipt_sha256": "613cddba1e0af27d157441a0e915fa71518507c3f6b2e64a2bd160a7546b304e",
+      "log_sha256": "32fa862c66e279643aaedec99c30c9fcbe50fca9e6ffb849cd844c6a8d59a5a1",
+      "elapsed": 6.20358280884102
+    },
+    "software-6": {
+      "receipt_sha256": "dec04d868a29227d4941be8f4cc66dba84a6cec5e4ce7d44d0c27de14242985b",
+      "log_sha256": "33b7e26b8b16593bdaa0dbe8d8cff596936a5cb27d07c2ffffb2e74ee7b6d3b1",
+      "elapsed": 194.9075304949656
+    },
+    "native-sdk": {
+      "receipt_sha256": "8cf78c8c78704dafead4c2783d8f65ffa7220be23c2b51230570b366af4129b6",
+      "log_sha256": "3521478144510e0fc4cc789c5999512d74e0509236a239fa69e1373f535e3678",
+      "elapsed": 28.455315484898165
+    }
+  },
+  "sdk_selected_source_count": 2100,
+  "sdk_result_sha256": "5748f82b1fcd25840f9147c925844ec5f122adf9adfa90c0b152f0fa13c48678",
+  "native_elf_sha256": "235db09dfaf8996483e891b8562e84baaaae02e4858fb18d6171e5f9b9999e53",
+  "integration_result_sha256": "389dcd6150d47b6bb81b1cbd6ee9fe87f7c0c61baf1fef30be1eff5a77d0420f",
+  "integration_source_count": 332,
+  "parent_checks": 1638,
+  "parent_skips": 3,
+  "menu_storage_top_level_cases": [
+    "TestMenuReturnReopensOnlyOriginalStoreAndFreshlyRetains",
+    "TestMenuStorageReturnRejectsCopiedAndBusyHandlesWithoutIO",
+    "TestMenuStoredRelaunchRejectsForeignStoreWithMatchingReceipts",
+    "TestMenuStorageReturnFailuresConsumeGrantWithoutReplay",
+    "TestMenuStoredRelaunchThreeFreshCycles",
+    "TestMenuStoredRelaunchFailuresConsumeGrantAndPinMemory",
+    "TestMenuStoredRelaunchCannotBorrowAnOpenCopiedOrUnresumedSession"
+  ],
+  "completed": "MenuSession owns its original transfer/store handoff; successful closure resumes that store once; fresh retention/containment enters the existing reconfiguration plan and reopens a menu on the same pinned arena. Three modeled cycles and ownership/corruption/uncertainty failures passed.",
+  "scope": "Real retained archives/store/transfer/menu driver with injected firmware, SD and CSR responses for the new menu cycle. Broader suite executes patched TF-A C and FPGA RTL separately; this does not establish joined menu/secure-provider SD-return execution.",
+  "hardware_actions": false,
+  "firmware_menu_sd_selection": false,
+  "sdk_selection": "existing cold menu, no storage-return flag",
+  "native_menu_core_menu": false,
+  "physical_HDMI_qualified": false,
+  "timing_signoff": false,
+  "goal_complete": false,
+  "next": "Connect menu/computer role ownership to the existing ProgramLoader/ProgramService and matched firmware, including explicit SD return; then test actual Tenfoot launch/return/failures and prepare the bounded combined board test. Do not substitute more fixed-menu repeats for this lifecycle."
+}

@@ -1,0 +1,94 @@
+{
+  "status": "physical procedure failed; startup-only evidence passed offline",
+  "native_source": "e225ea89b002fcc53a90c743f66c592d1f8d35ff",
+  "fpga_source": "7808f74c2fda87cc56a0fe92e5a17454fd31746a",
+  "executed_observer_source": "98fd021ad7a42c6fb22230e1bd66a6e1a2365f6e",
+  "failure": "operator supplied CPU mapping as startup decoder final-checkpoint name",
+  "core_loads": 0,
+  "launch_keys_sent": 0,
+  "hardware_retries": 0,
+  "recovery_and_seven_uploads_fresh_readbacks_passed": true,
+  "native_full_App_ready": true,
+  "required_CPU_checkpoints": 14,
+  "all_required_checkpoints_verified_and_deletion_tested": true,
+  "physical_launch_return_acceptance": false,
+  "ordinary_admission": false,
+  "physical_HDMI": false,
+  "checks": {
+    "startup-gate-regression2": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_tenfoot_trace.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20089535100851208,
+      "log_sha256": "9f6dd8838e2ba136e9f39736cc55de4c6e797e17ce3ba459b8066a7b27d34167"
+    },
+    "poststop-affected": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "PATH=/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "98fd021ad",
+        "--jobs",
+        "2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 261.1936830560444,
+      "log_sha256": "2fd8700d4f0f47187ca1f77f8d25b8627c65a4532a16805d92d77475ccc325bc"
+    },
+    "audit-stop": {
+      "argv": [
+        "python3",
+        "out/nano-tenfoot-trial-20261104/audit_stop.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20071766304317862,
+      "log_sha256": "dfdd563facb071310ea0dd99bb525aad68ed46edcc197aa2ff842843f448fb11"
+    },
+    "cleanup-audit": {
+      "argv": [
+        "sudo",
+        "-n",
+        "python3",
+        "out/nano-tenfoot-trial-20261104/audit_cleanup.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2006613709963858,
+      "log_sha256": "549581c8a83f23c52982ff2898af2aa1e1175e425e2eb6b34561ec0f6a55ff75"
+    },
+    "retain-stop": {
+      "argv": [
+        "python3",
+        "out/nano-tenfoot-trial-20261104/retain_stop.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.205161644029431,
+      "log_sha256": "113ea5207d26c66363e86fcc1ef8ffcd707e5ebc4e8218b31877dbdfdd0881b3"
+    }
+  },
+  "correction_class": "host-only mode-specific startup gate; native image unchanged"
+}

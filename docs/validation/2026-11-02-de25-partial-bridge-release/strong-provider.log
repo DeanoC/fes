@@ -1,0 +1,9 @@
+test_digest_specialization_rejects_unreviewed_inputs_and_is_explicit (test_nano_configuration.NanoConfigurationTests.test_digest_specialization_rejects_unreviewed_inputs_and_is_explicit) ... ok
+test_sequential_transfer_and_ownership_failure_paths (test_nano_configuration.NanoConfigurationTests.test_sequential_transfer_and_ownership_failure_paths) ... ok
+test_strong_cold_provider_with_pinned_sha_and_real_dispatch (test_nano_configuration.NanoConfigurationTests.test_strong_cold_provider_with_pinned_sha_and_real_dispatch) ... PASS 8 strong-provider/SD/configuration/actual-reader-RTL success and failure cases
+ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 5.789s
+
+OK

@@ -1,0 +1,27 @@
+{
+  "classification": "read-only inventory of the previously generated DDR prototype; no physical stop/drain qualification",
+  "source_path": "out/nano-ddr-reader-handoff-20261102/project-hps-ddr/board/hps/project/qsys_top.qsys",
+  "source_sha256": "8acf4da3e07abeeb65374adf741a1eabdb236204c56f893dd516febf62a88311",
+  "ddr_sink": "subsys_hps.f2sdram_adapter_axi4_sub",
+  "incoming_connections": [
+    {
+      "kind": "avalon",
+      "version": "26.3",
+      "start": "ext_hps_f2sdram_master.expanded_master",
+      "end": "subsys_hps.f2sdram_adapter_axi4_sub"
+    },
+    {
+      "kind": "avalon",
+      "version": "26.3",
+      "start": "subsys_periph.fes_embedded_mem",
+      "end": "subsys_hps.f2sdram_adapter_axi4_sub"
+    },
+    {
+      "kind": "avalon",
+      "version": "26.3",
+      "start": "subsys_periph.fes_probe_mem",
+      "end": "subsys_hps.f2sdram_adapter_axi4_sub"
+    }
+  ],
+  "required_next": "qualify stop/drain for all three incoming managers, plus all relevant HPS producers; reserve and qualify CPU/FPGA address mapping before enabling DDR"
+}

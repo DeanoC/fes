@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "make",
+    "generate"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 3.8023386610439047,
+  "log_sha256": "7fe8ea0157eb9a780540a4ecdad6697e423ed27a8e59885874cd36faf75d456c"
+}

@@ -1,0 +1,166 @@
+{
+  "source_commit": "82c410cc8a5af4fa2c77d535b3bd22eb7a19fa19",
+  "classification": "copied verified evidence; native experiment remains failed",
+  "files": {
+    "atf-pipeline-verification.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/atf-pipeline-verification.json",
+      "sha256": "d959649e3c12bd160eba4e28d8024fdc82db8d759c5d650182acc8f23264372d",
+      "bytes": 857
+    },
+    "boot-upload-result.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/trial/upload-boot/result.json",
+      "sha256": "dbdb79aac73b1ae8744cb7e0da48947e97f00c09d02a6741ec42a2014259b353",
+      "bytes": 12685
+    },
+    "broken-chain-query.log": {
+      "source": "out/nano-atf-handoff-v2-20261102/trial/recovery-package-jtag-query.log",
+      "sha256": "6ef7ab9602d69326ed48afee928be9fd2fdfb7ccd577e0950f9405aeeed3c10d",
+      "bytes": 1919
+    },
+    "clock-restored-readback.log": {
+      "source": "out/nano-atf-handoff-v2-20261102/trial-resume/clock-restored-readback.log",
+      "sha256": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+      "bytes": 4
+    },
+    "experiment-fixtures.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/trial-resume/experiment-fixtures.json",
+      "sha256": "44bce0f49b1b2f127042d0e0a1d3dd187116374ef7ca7d2953483f0151675b27",
+      "bytes": 8255
+    },
+    "experiment-result.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/trial-resume/experiment-result.json",
+      "sha256": "11d72311f05b3d553e21b6d5fcfb5258c68927a52ba4516794f9b6d421a7c3c4",
+      "bytes": 1731
+    },
+    "handoff-interval-evidence.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/handoff-interval-evidence.json",
+      "sha256": "146f7c8289f57f52bfd88c50f8a440cfff566d79d96f05c44879c6932ba563d6",
+      "bytes": 1535
+    },
+    "hardware-evidence.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/hardware-evidence.json",
+      "sha256": "76c4cb71bf0a8d14399e65be19d6bcddda59efcf483b514fb83e33cc178822c3",
+      "bytes": 3730
+    },
+    "helper-verification.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/helper-verification.json",
+      "sha256": "674e5df18e3197272ed43830f63a66a2d71a50eece8e04a2fe8bfb8413c207a3",
+      "bytes": 799
+    },
+    "jtag-chain-0.log": {
+      "source": "out/nano-atf-handoff-v2-20261102/jtag-observation/chain-0.log",
+      "sha256": "8b049ffb73debbec7975415c7a067f0b64ee2791f207becb5e98dff8ef381029",
+      "bytes": 1923
+    },
+    "jtag-chain-1.log": {
+      "source": "out/nano-atf-handoff-v2-20261102/jtag-observation/chain-1.log",
+      "sha256": "eb14e5b97470ca8942c14a6728aad3bd2e67c2810e381a67219153904dd82803",
+      "bytes": 1923
+    },
+    "jtag-observation.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/jtag-observation/result.json",
+      "sha256": "cab9730477d49e18558f2965ffbf0509067479ce6d8fe6eef95785fb11c05869",
+      "bytes": 610
+    },
+    "jtag-transport.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/trial-resume/transport.json",
+      "sha256": "2a2bf14143fe685060cc88210c59c0ef2ad17af60b6d556af1e8dec3dde88f7e",
+      "bytes": 1419
+    },
+    "linked-fes_nano_spl_atf_trace.txt": {
+      "source": "out/nano-atf-handoff-v2-20261102/linked-fes_nano_spl_atf_trace.txt",
+      "sha256": "a3f3be7cb2c572d797e97bf6a5fb71ca0d84f78be3bc27233acbe478591275dc",
+      "bytes": 7033
+    },
+    "linked-fes_nano_spl_handoff.txt": {
+      "source": "out/nano-atf-handoff-v2-20261102/linked-fes_nano_spl_handoff.txt",
+      "sha256": "ac40968484971c95d1fea864986a0430bc68739b73ed37db0baad6c41b2d686e",
+      "bytes": 5337
+    },
+    "linked-spl_invoke_atf.txt": {
+      "source": "out/nano-atf-handoff-v2-20261102/linked-spl_invoke_atf.txt",
+      "sha256": "f97a170cbbbeaa7d827053124b21006170e4f01680a33695c42fc45be9168158",
+      "bytes": 2370
+    },
+    "live-fit.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/trial-resume/live-fit.json",
+      "sha256": "b1e2f1e6a0d65e9be282c27c6653ea41ea781cfef0bd50fdaa8b37014abfdeab",
+      "bytes": 1511
+    },
+    "make-check.log": {
+      "source": "out/nano-atf-handoff-v2-20261102/make-check.log",
+      "sha256": "e9d8989316f5311365a429c5c6221f9e058490da8f0fb7a5a1e219c90aee6aaa",
+      "bytes": 137
+    },
+    "native-build-result.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/native-build-result.json",
+      "sha256": "ba4458c67da767a09934e7680d33495e8820d0084efc023ec5fdf0529f3ca619",
+      "bytes": 1269
+    },
+    "native-build-reuse.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/native-build-reuse.json",
+      "sha256": "1c2fe5638d6ec3e84b8970c942fc78c09d085c6f3723386b0d768a3f7a3f36b6",
+      "bytes": 15067
+    },
+    "native-console.log": {
+      "source": "out/nano-atf-handoff-v2-20261102/trial-resume/native-console.log",
+      "sha256": "0bcfc14ffaed9fb556bcef7eea9925dad9f521324680d85993d05ee7fe964dab",
+      "bytes": 1602
+    },
+    "native-result.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/trial-resume/native-result.json",
+      "sha256": "8c915747f7663e54f44e5b4d0c2b47b35032a007a7c8481719efdff1f9da9c08",
+      "bytes": 3497
+    },
+    "original-experiment-result.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/trial/experiment-result.json",
+      "sha256": "8620358ffcf8fba20a1856b6825d512deae72dbbcc8c0b948286a90f670923b2",
+      "bytes": 1639
+    },
+    "package-upload-result.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/trial-resume/upload-package/result.json",
+      "sha256": "802b398752ef061e4dc8bf21671f3eebb19fd8161daf9cb480d2c146e34cece6",
+      "bytes": 12290
+    },
+    "parent-coverage.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/parent-coverage.json",
+      "sha256": "ebe0d30caf656a4641a5384be308711d9c61826b46340392df3b3da5e2fd642e",
+      "bytes": 271036
+    },
+    "readback-fixtures.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/trial-resume/readback-fixtures.json",
+      "sha256": "e1b0f4e6b714349eb7102f25695fc212ee9d181b94a7f1e35bd07ed8457a8d61",
+      "bytes": 2013
+    },
+    "resume-helper-verification.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/resume-helper-verification.json",
+      "sha256": "e1c5c89ada5e3e3c83189ca8af35f91b236d149a68344b8d2d706d688854d102",
+      "bytes": 888
+    },
+    "selection-proof.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/selection-proof.json",
+      "sha256": "430c3543e0ff6a4b4cfc2ef59e0432ae2d66b83a7f1c369f87e33159aff27608",
+      "bytes": 16494
+    },
+    "software-plan.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/software-plan.json",
+      "sha256": "ad496fc487fcc99220e6c1183ec3ea29abdfaf99adf3ea17541fcf7ccc8756a4",
+      "bytes": 7663
+    },
+    "software-result.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/software-result.json",
+      "sha256": "67758dcb9d79a669d4a8d900d58ad0904294b1dcf3e0afea3316c23a96a009b3",
+      "bytes": 8635
+    },
+    "source.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/source.json",
+      "sha256": "c657256b66bbd5e665e7150154170e680ccfdce3e73b1d232663b127d569d16f",
+      "bytes": 283
+    },
+    "transport-stop-evidence.json": {
+      "source": "out/nano-atf-handoff-v2-20261102/transport-stop-evidence.json",
+      "sha256": "795e63653ce3e23d33dfee8d10efcf8c67e39e0023b815eac14ffea981e0c139",
+      "bytes": 893
+    }
+  }
+}

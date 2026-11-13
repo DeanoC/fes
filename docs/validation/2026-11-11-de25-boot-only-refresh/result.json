@@ -1,0 +1,146 @@
+{
+  "scope": "host-recovery-boot-only-refresh-prototype",
+  "base": "1b7769aad620899fed9945d5d4729153f4ea11cd",
+  "changed_source_sha256": {
+    "platform/embedded/nano/README.md": "eb784f5e0866c2792d80da5139ff8f682c4a74c0dda47a303d51228a3b035f23",
+    "platform/embedded/nano/installer_recovery.py": "b10b2135fee83d5d70e88be246a86553c818becd6bbfbe9cd778dbb810320b24",
+    "platform/embedded/nano/installer_boot_refresh.py": "901650cf15596d22931627a24244da4726d5c879b6204fa324ae701d5ebe2451",
+    "tests/test_nano_installer_boot_refresh.py": "c8dbbe4ab06586b366d49be01bfe94d47a5969c1b8d6c3f9612eb2b0e4006f89"
+  },
+  "checks": {
+    "focused": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_installer*re*.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20098367799073458,
+      "log_sha256": "62f7e5b6cab5582186d619448e74217a2f90f3b3a40ab5bfc2845b32be83c2bd"
+    },
+    "freeze-plan": {
+      "argv": [
+        "python3",
+        "out/nano-boot-only-refresh-20261111/freeze_plan.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2007638718932867,
+      "log_sha256": "7ff134895e0c98a7d92742cd297e469f0d4a62ac536e881724fcfc6093054276"
+    },
+    "artifact-model": {
+      "argv": [
+        "python3",
+        "out/nano-boot-only-refresh-20261111/model_plan.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20088655222207308,
+      "log_sha256": "303d4f58e3263cb9721c9344e282d36978fc84c069cbfbdb8d37685e2fd87aec"
+    },
+    "native-inputs": {
+      "argv": [
+        "python3",
+        "out/nano-boot-only-refresh-20261111/verify_image_inputs.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2008913909085095,
+      "log_sha256": "2766aee53eb9dc2d695c435c991175f8102f084ba842e2293f3e865287008d62"
+    },
+    "affected": {
+      "argv": [
+        "make",
+        "test-changed",
+        "TEST_CHANGED_ARGS=--base 1b7769aad620899fed9945d5d4729153f4ea11cd --jobs 2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 348.4399721289519,
+      "log_sha256": "99fed8716db734ada083227c982d9bf23f45e9fcf1372f02d6af8b09cde0a7c3"
+    }
+  },
+  "model": {
+    "status": "passed-controlled-actual-artifact-plan",
+    "native_boot_id": "6f54fe7c04d34128",
+    "plan_sha256": "b64c19fc75df487f33ec79b10b189a40d4cad26a9662ba129b2bbbcfad26f9cb",
+    "cases": [
+      {
+        "case": "success",
+        "status": "verified",
+        "write_commands": 1,
+        "files_before": 15,
+        "files_after": 15,
+        "session_closed": true,
+        "error": null
+      },
+      {
+        "case": "old-fit-corrupt",
+        "status": "failed",
+        "write_commands": 0,
+        "files_before": 15,
+        "files_after": 0,
+        "session_closed": true,
+        "error": "existing file SD read length differs"
+      },
+      {
+        "case": "alternate-source-corrupt",
+        "status": "failed",
+        "write_commands": 0,
+        "files_before": 6,
+        "files_after": 0,
+        "session_closed": true,
+        "error": "existing file SD read length differs"
+      },
+      {
+        "case": "preserved-record-changed-after-write",
+        "status": "failed",
+        "write_commands": 1,
+        "files_before": 15,
+        "files_after": 1,
+        "session_closed": true,
+        "error": "existing file SD read length differs"
+      }
+    ],
+    "hardware_actions": false,
+    "physical_write_qualified": false,
+    "native_boot_verified": false,
+    "persistence_verified": false
+  },
+  "native_image_inputs": {
+    "status": "passed-current-matched-native-inputs-unchanged",
+    "native_boot_id": "6f54fe7c04d34128",
+    "input_groups": {
+      "out/nano-http-staged-catalog-20261111/native-sdk/result.json:source_sha256": 2131,
+      "out/nano-http-catalog-chain-20261111/native-entry/result.json:sources": 45,
+      "out/nano-http-catalog-chain-20261111/native-entry/result.json:native_build_sources": 2131,
+      "out/nano-http-catalog-chain-20261111/native-bl31/result.json:producer_sources": 128,
+      "out/nano-http-catalog-chain-20261111/native-composition/result.json:inputs": 26,
+      "native-uboot-native-handoff-producer-sources": 128
+    },
+    "sdk_sha256": "c607dc9d9f9e3dcc6ab57269614217cb0ec32916814c79076d30441f48e53893",
+    "fit_sha256": "4ffb2723c97535ab39ada25fbf9c70c01869706333d3dbe530b56c664065b2a5",
+    "sof_sha256": "4abb1a1a87d28d23d3bbf2bc54c91b10a94c72a838278eba44fe5a2f50d9ed72",
+    "native_rebuild_required_by_this_change": false,
+    "hardware_actions": false,
+    "new_operator_admission_required": true
+  },
+  "hardware_actions": false,
+  "live_operator_admission": false,
+  "usb_failure_resolved": false,
+  "physical_boot_refresh_qualified": false,
+  "persistence_verified": false,
+  "ordinary_core_load_acceptance": false
+}

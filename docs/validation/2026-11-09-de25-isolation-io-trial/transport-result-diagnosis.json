@@ -1,0 +1,114 @@
+{
+  "status": "source-bound-isolation-response-doorbell-timeout",
+  "native_boot_id": "459acd8b2a920a67",
+  "start_observation": {
+    "records": [
+      {
+        "phase": 0,
+        "status": 0,
+        "line": 640
+      },
+      {
+        "phase": 1,
+        "status": 0,
+        "line": 641
+      },
+      {
+        "phase": 2,
+        "status": 0,
+        "line": 642
+      },
+      {
+        "phase": 3,
+        "status": 0,
+        "line": 643
+      },
+      {
+        "phase": 4,
+        "status": -1,
+        "line": 646
+      },
+      {
+        "phase": 9,
+        "status": 4,
+        "line": 647
+      },
+      {
+        "phase": 10,
+        "status": 4,
+        "line": 648
+      },
+      {
+        "phase": 11,
+        "status": 4,
+        "line": 650
+      }
+    ],
+    "complete": false,
+    "isolation": {
+      "status": -2047,
+      "line": 645
+    },
+    "isolation_io": {
+      "fill": 0,
+      "branch": 1,
+      "cin": 0,
+      "cout": 0,
+      "bell": 0,
+      "polls": 40,
+      "header": 0,
+      "line": 644
+    },
+    "hardware_authority": false
+  },
+  "original_fifo_fill_return": 0,
+  "response_doorbell_reads": 40,
+  "last_doorbell_value": 0,
+  "response_parser_reached": false,
+  "descriptor_allocation_reached": false,
+  "returned_SDM_error": false,
+  "existing_fill_failure_restart_reached": false,
+  "command_consumption_proven": false,
+  "mailbox_write_acceptance_proven": false,
+  "public_START_return": [
+    4,
+    0,
+    0,
+    0
+  ],
+  "raw_mailbox_return": -2047,
+  "exact_return_branch_proven": true,
+  "bitstream_write_called": false,
+  "cancel_called": false,
+  "reconfigure_called": false,
+  "mailbox_mapping": {
+    "virtual_address": "0x10a30000",
+    "physical_address": "0x10a30000",
+    "level": 2,
+    "device": true,
+    "nonsecure": true,
+    "execute_never": true
+  },
+  "security_mapping_hypothesis": "The selected late MMU maps the mailbox as NS Device. The vendor lists the same unused mapping but its Agilex5 BL31 MMU-enable hook is a TODO. These source facts do not prove the physical mailbox accepts or rejects NS accesses. Next compare bounded read-only mailbox views before/after MMU under the existing closed-master ownership; do not widen a whole peripheral mapping or skip errors.",
+  "mailbox_source_sha256": "bbfe0bff74a71977e204b36731557707c073e93d1a6f3b8b3dfbaef0b3c5ba1b",
+  "vendor_setup_sha256": "dfcb6f6c66e809e38bfe10508d08467ae6daa7704b39dd1f063baabf475099de",
+  "raw_console_sha256": "9614c52480aa7f2146865dfda67a1011b21f32962fc72171553342e26a142031",
+  "collector_errors": [
+    "failed or unknown configuration phase"
+  ],
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "auto_adjust_readback": 1,
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "historical_programming_failures": 2,
+  "new_programming_failures": 0,
+  "hardware_actions": false,
+  "ordinary_core_load_acceptance": false
+}

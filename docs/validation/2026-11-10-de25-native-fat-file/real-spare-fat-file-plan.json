@@ -1,0 +1,12 @@
+{
+  "format": 1,
+  "cid": "275048534430344730da25e394012b",
+  "sectors": 7774208,
+  "mbr_sha256": "13f4a84a267e67f06b1d09fdfa130a7625a0aab9b363163e711aa9854d7c944c",
+  "scope": "nano-sd-fat-file-v1",
+  "path": "FES/SDP-2e64ec5f751c12bc.JSN",
+  "recovery_bytes": 1470,
+  "recovery_sha256": "95aca2b3116755247a122a9a4357c1efbcfb106adb4dfa5fe94e489cc1889664",
+  "fit_bytes": 954248,
+  "fit_sha256": "3722e24c551a794dd970e665cc4932b96cb62aefa353f39079285458d67d48e5"
+}

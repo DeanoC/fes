@@ -1,0 +1,231 @@
+{
+  "status": "passed-with-explicit-unchanged-fpga-reuse",
+  "source_head": "479bc3756f5f0297391f778f10075d2275536f70",
+  "native_boot_id": "38c6b2fe551dcd88",
+  "required_current_checks_passed": true,
+  "current_checks": {
+    "0": {
+      "receipt": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-0-result.json",
+      "receipt_sha256": "6264066d420dbfd0e4b2adc637acc1ede6618a79c89784c4aae1314a635e621a",
+      "log": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-0.log",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-scalar-scope-20261109/run_check.py",
+        "0"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.40058532101102173,
+      "log_sha256": "d1baf619135e3645648d22531d9c7cde5bb678b9daec44c870a6d81ade586468"
+    },
+    "1": {
+      "receipt": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-1-result.json",
+      "receipt_sha256": "cb3c370a25fe72010bb4096af0cbe62835082a0f320c7a86e573c332a542ace2",
+      "log": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-1.log",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-scalar-scope-20261109/run_check.py",
+        "1"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.6010498700197786,
+      "log_sha256": "08c00854f706c55384dd41e1e7435974d9ca2d97343fa5f62ee0c209a5637788"
+    },
+    "2": {
+      "receipt": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-2-result.json",
+      "receipt_sha256": "ebe0b3fd014a75701c384e90deea642de198923ac8e2fd0f76195df6918e4f45",
+      "log": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-2.log",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-scalar-scope-20261109/run_check.py",
+        "2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20079905190505087,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "3": {
+      "receipt": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-3-result.json",
+      "receipt_sha256": "44be36ccb59fc04e766b8da6a5600d05b398c6a202f4013f4ff1a2c8f18243a4",
+      "log": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-3.log",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-scalar-scope-20261109/run_check.py",
+        "3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20056205615401268,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "4": {
+      "receipt": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-4-result.json",
+      "receipt_sha256": "67ff0239c87e52592faa75444d8f5ce9afd8d986dc9a02c97a99304f2d0c9b57",
+      "log": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-4.log",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-scalar-scope-20261109/run_check.py",
+        "4"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 364.21753412182443,
+      "log_sha256": "6933ebaef894ad0742cadf342791972733414606080a56560562648b40f56e19"
+    },
+    "5": {
+      "receipt": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-5-result.json",
+      "receipt_sha256": "99acbafeebe53e57ee09f00c98e1e43229a499f0cde3eca84aef740849bd1aaa",
+      "log": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-5.log",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-scalar-scope-20261109/run_check.py",
+        "5"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 7.005220875144005,
+      "log_sha256": "dbe036bed3ef167b1b67bf32995b1f1c6272d7c810828a9ec3c98318c9007fb8"
+    },
+    "6": {
+      "receipt": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-6-result.json",
+      "receipt_sha256": "3cbc4730d61d25ed583c2665e9d0ff654eedfaab2a792a38d070fc3bf0ddb404",
+      "log": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-6.log",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-scalar-scope-20261109/run_check.py",
+        "6"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 165.291524970904,
+      "log_sha256": "0e96aa9b5c374abee837b996ccb4a76a2bdd2fe6de5dd6f454461dfca52a09ce"
+    },
+    "7": {
+      "receipt": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-7-origin-result.json",
+      "receipt_sha256": "d7effc717ecbbe3c03274f6b1b8836b7df5afe6accbc755af3106751211e0424",
+      "log": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-7-origin.log",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-scalar-scope-20261109/run_check.py",
+        "7"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 25.81364367599599,
+      "log_sha256": "4ccf27bd8b1f3890c910006261d63ee8c42a5798f226cfeabf660f886fbc77b8"
+    },
+    "8": {
+      "receipt": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-8-result.json",
+      "receipt_sha256": "818e3dbc2883386026f7e0350d5ca757482eb9a1a19a9e1262cf9e28fc5a55bc",
+      "log": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-8.log",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-scalar-scope-20261109/run_check.py",
+        "8"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.4032697370275855,
+      "log_sha256": "74a276273ab08047304447e009c7092cb71bafca18f96fddbc1742a9660d5bb1"
+    }
+  },
+  "affected_plan_sha256": "1081d41a390729e46939d1f1a3964ba057ce1726a39ec013bf155f7faaf19b4e",
+  "unchanged_fpga_reuse_passed": true,
+  "unchanged_fpga_proof_sha256": "8edf7050391799f51ca8464a2b95c0d8ec4befec37faa9ec851065e336c1a74c",
+  "extra_remote_fpga_campaign_passed": false,
+  "extra_remote_fpga_campaign": {
+    "receipt": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-9-result.json",
+    "receipt_sha256": "3790547620f8af1b20fe6264687396e8fd75c89dedadc982fbe2aa31df0f902e",
+    "log": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-check-9.log",
+    "argv": [
+      "/usr/bin/python3",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-scalar-scope-20261109/run_check.py",
+      "9"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+    "returncode": -15,
+    "timed_out": true,
+    "elapsed": 300.15059153409675,
+    "log_sha256": "d56a5b96f23654999bbe7908c2ff21dffb9502fe1a6a3d49b79463d777be6ec1"
+  },
+  "remote_failure_controls": {
+    "scalar-fpga-host-controls-r2": {
+      "receipt": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-fpga-host-controls-r2-result.json",
+      "receipt_sha256": "4493e5c8c8840015de7aefa68f672ea8a38c1a8ab01c49d3e4234c1cdb0eb403",
+      "log": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-fpga-host-controls-r2.log",
+      "argv": [
+        "python3",
+        "out/nano-mmu-scalar-scope-20261109/host_controls.py"
+      ],
+      "cwd": "/data/projects/de25-embedded-os-20261109",
+      "returncode": 1,
+      "timed_out": false,
+      "elapsed": 6.203306522918865,
+      "log_sha256": "a0c4bff0d24c37b138cac2e5e80b415c7f8a5e889802586bf1fdd9397d07807d"
+    },
+    "scalar-yosys-controls": {
+      "receipt": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-yosys-controls-result.json",
+      "receipt_sha256": "e4f08b8ab2ac2ed5ec2a5b670f00f50ca87474e4af32cd2f423e6c730d500a5f",
+      "log": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-yosys-controls.log",
+      "argv": [
+        "python3",
+        "out/nano-mmu-scalar-scope-20261109/yosys_controls.py"
+      ],
+      "cwd": "/data/projects/de25-embedded-os-20261109",
+      "returncode": 1,
+      "timed_out": false,
+      "elapsed": 15.007259875070304,
+      "log_sha256": "33e61b9f853362255b54c1d0f11008aa4bbe3c1cbefbbd184aca01d886c6c72d"
+    }
+  },
+  "remote_tool_versions": {
+    "yosys": "0.33 (2584903a060)",
+    "verilator": "5.020"
+  },
+  "powerboat_tool_versions": {
+    "yosys": "not on PATH; prior FPGA suite skips optional Yosys tests",
+    "verilator": "5.032"
+  },
+  "powerboat_verilator_controls": {
+    "receipt": "out/nano-mmu-scalar-scope-20261109/powerboat-verilator-controls-result.json",
+    "receipt_sha256": "dc64e66bbced2c492b9fb2a49c284f070c3554310c416932bde98d64d02d380f",
+    "log": "out/nano-mmu-scalar-scope-20261109/powerboat-verilator-controls.log",
+    "argv": [
+      "python3",
+      "out/nano-mmu-scalar-scope-20261109/powerboat_verilator_controls.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 55.70506167807616,
+    "log_sha256": "21cc7db84c2bbe2db9ad9f5361be3acc9c11d092efca917339d367ffd6ee7160"
+  },
+  "classification": "No tracked FPGA/shared-definition source changed. Seven optional Yosys tests reject pre-existing constructs or missing HPS atoms with stock Yosys0.33. Three Verilator5.020 tests stop on warnings; all three pass unchanged on Powerboat5.032. The extra full remote campaign timed out300s with those failures and is not green. Required current native/FW/producer/RTL checks0..8 pass; unchanged FPGA-only campaign evidence is reused with exact2553-file membership/hash and214-module catalog proofs. No all-core netlist qualification is claimed.",
+  "composition": {
+    "receipt": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-composition-result.json",
+    "receipt_sha256": "46d65b1dba3392c3c92048dde40567f7ffddcd4614b58243b96b7ef4344f8ce5",
+    "log": "out/nano-mmu-scalar-scope-20261109/remote-validation/scalar-composition.log",
+    "argv": [
+      "python3",
+      "out/nano-mmu-scalar-scope-20261109/compose.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 45.41926253493875,
+    "log_sha256": "d9f55e04ee07af0785fe80466460908538c424315db3aa756877bfaaf445046a"
+  },
+  "hardware_actions": false,
+  "ordinary_core_load_acceptance": false
+}

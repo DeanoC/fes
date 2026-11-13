@@ -1,0 +1,31 @@
+{
+  "command": "planned host Go and UI tests",
+  "log_path": "out/de25-base-audit/affected-host.log",
+  "log_sha256": "84bba4ef0fbd962ce8e8c0d435129b544f9ae4a41a2addae4adb0388caa85941",
+  "status": "failed",
+  "results": [
+    {
+      "label": "host artifact functional suites",
+      "returncode": 0
+    },
+    {
+      "label": "host race suite excluding race-expensive packages",
+      "returncode": 1
+    }
+  ],
+  "not_started": [
+    "host concurrency-focused race checks",
+    "appliance race suite",
+    "expansion functional suite",
+    "expansion concurrency-focused race checks",
+    "host UI tests"
+  ],
+  "observed_failure": "four room/render cases exceeded 48ms wall-clock script budget; no data race reported",
+  "narrow_rerun": {
+    "current": "passed",
+    "base_fc8d74a118": "passed",
+    "count": 2,
+    "race": true,
+    "conclusion": "broad failure not reproduced in isolated matched runs; original broad run remains failed"
+  }
+}

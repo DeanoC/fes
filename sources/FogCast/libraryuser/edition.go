@@ -25,44 +25,6 @@ type EditionPreference struct {
 	ChosenAt int64
 }
 
-// CanonicalEditionQuery lowercases, strips punctuation, and collapses spaces
-// so "Super Mario Bros." and "super mario bros" share a preference key.
-func CanonicalEditionQuery(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	if s == "" {
-		return ""
-	}
-	b := make([]rune, 0, len(s))
-	lastSpace := false
-	for _, r := range s {
-		switch {
-		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
-			b = append(b, r)
-			lastSpace = false
-		case r == ' ' || r == '\t':
-			if !lastSpace && len(b) > 0 {
-				b = append(b, ' ')
-				lastSpace = true
-			}
-		}
-	}
-	return strings.TrimSpace(string(b))
-}
-
-// CanonicalEditionPlatform lowercases a room destination platform id.
-func CanonicalEditionPlatform(s string) string {
-	return strings.ToLower(strings.TrimSpace(s))
-}
-
-// EditionKey is the durable household key for one query+platform match set.
-func EditionKey(query, platform string) string {
-	q := CanonicalEditionQuery(query)
-	if q == "" {
-		return ""
-	}
-	return q + "|" + CanonicalEditionPlatform(platform)
-}
-
 func (s *Store) SetEditionPreference(ctx context.Context, query, platform, gameID string) (EditionPreference, error) {
 	return setEditionPreference(ctx, s.db, query, platform, gameID)
 }
@@ -76,7 +38,7 @@ func setEditionPreference(ctx context.Context, db gameExecer, query, platform, g
 	if err != nil {
 		return EditionPreference{}, err
 	}
-	key := EditionKey(pref.Query, pref.Platform)
+	key := protocol.EditionKey(pref.Query, pref.Platform)
 	now := time.Now().UnixNano()
 	_, err = db.ExecContext(ctx, `
 		INSERT INTO edition_preference(match_key, query, platform, game_id, chosen_at)
@@ -96,7 +58,7 @@ func setEditionPreference(ctx context.Context, db gameExecer, query, platform, g
 }
 
 func (s *Store) EditionPreference(ctx context.Context, query, platform string) (EditionPreference, error) {
-	key := EditionKey(query, platform)
+	key := protocol.EditionKey(query, platform)
 	if key == "" {
 		return EditionPreference{}, fmt.Errorf("%w: edition query is required", ErrInvalid)
 	}
@@ -142,11 +104,11 @@ func validateEditionPreference(query, platform, gameID string) (EditionPreferenc
 	if utf8.RuneCountInString(rawQuery) > maxEditionQueryLen {
 		return EditionPreference{}, fmt.Errorf("%w: edition query is too long", ErrInvalid)
 	}
-	canonicalQuery := CanonicalEditionQuery(rawQuery)
+	canonicalQuery := protocol.CanonicalEditionQuery(rawQuery)
 	if canonicalQuery == "" {
 		return EditionPreference{}, fmt.Errorf("%w: edition query is required", ErrInvalid)
 	}
-	canonicalPlatform := CanonicalEditionPlatform(platform)
+	canonicalPlatform := protocol.CanonicalEditionPlatform(platform)
 	if utf8.RuneCountInString(canonicalPlatform) > maxEditionPlatformLen {
 		return EditionPreference{}, fmt.Errorf("%w: edition platform is too long", ErrInvalid)
 	}

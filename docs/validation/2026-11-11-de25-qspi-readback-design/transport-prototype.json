@@ -1,0 +1,31 @@
+{
+  "scope": "off-board-one-CONFIG_STATUS-Tcl-transport-prototype",
+  "status": "passed-injected-Tcl-tests-not-live-qualified",
+  "hardware_actions": false,
+  "live_admission": false,
+  "command_code": 4,
+  "flash_commands_available": false,
+  "array_reads_available": false,
+  "programming_available": false,
+  "retired_after_one_call": true,
+  "prototype_sha256": {
+    "out/nano-sdm-persistent-probe-20261111/query-models-process.json": "ce8e235da576c090936bb9feeb04e3012769480fd5b6f1876b7fa145a946e72a",
+    "out/nano-sdm-persistent-probe-20261111/query_once.tcl": "00da19b91d3ff14d96615afabc4012ae2d135e9bf852dae9ac1723bdd71a593d",
+    "out/nano-sdm-persistent-probe-20261111/query-models-result.json": "5e5f2f655edc8bd4f51d61b3bc35d81fdcfba61405e38b9999abff4917bda896",
+    "out/nano-sdm-persistent-probe-20261111/query-models.log": "fca2f32a6a5580915e0c0ad41d00a5afbd81164f99abd521407873cb5ce3cd0b",
+    "out/nano-sdm-persistent-probe-20261111/config_query.tcl": "6460e0766dc7262d83afd9d1f9784ad1953fc162f2bb91ee706c227d33b1d9a4",
+    "out/nano-sdm-persistent-probe-20261111/run.py": "10e64dd990d75e256c8498a018dad8c33d5cbb0a84f08cc53cd86ac394a399e7",
+    "out/nano-sdm-persistent-probe-20261111/query_models.tcl": "587266a8e3a14179a74498b44424a00ae40067e9ea679b2d24e1d78e11008854"
+  },
+  "package_init_sha256": "f6fdff89c56a04105cac7cdf2a81cb8a8c243015a6f1add061759a37b40cd0d5",
+  "package_metadata": "",
+  "library_sha256": "9872bb66f18e04bbcc8893d5d6c3ee06a24958920e85a2b3af1fae40a84ab17e",
+  "purpose": "Evaluate a faster pinned exploratory transport before enabling bounded array reads; no assumption that the internal package is a supported public API.",
+  "next_live_constraints": [
+    "new committed source/claim/source-tool closure/parent-top USB/UART/private-service/clock/vendor-first/forced-scan admission",
+    "one CONFIG_STATUS call only; no QSPI_OPEN, read, write, reset or programming",
+    "retain both stdout and returned Tcl value; actual output shape must be verified",
+    "stop first failure and independently audit host cleanup",
+    "complete read-only flash session and throughput require separate implementation/models/live admission"
+  ]
+}

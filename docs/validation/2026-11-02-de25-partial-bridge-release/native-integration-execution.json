@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "python3",
+    "platform/embedded/tamago/nativefabric/verify.py",
+    "--reference",
+    "out/terasic-git-restore-tfa/plat/intel/soc/common/socfpga_sip_svc.c",
+    "--reset-reference",
+    "out/terasic-git-restore-tfa/plat/intel/soc/common/soc/socfpga_reset_manager.c",
+    "--nano-bridge-service",
+    "--output",
+    "out/nano-ddr-bridge-hooks-20261102/native-integration-fixed"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 31.022411955986172,
+  "log_sha256": "429c73764a91d01448fa9376ca98ca28481fa159361344bf1e5eca54020636ce"
+}
