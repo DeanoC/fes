@@ -140,6 +140,15 @@ renewal failure retries within the last confirmed local expiry; it never extends
 that expiry without a valid response. A denial or a changed token or generation
 invalidates the grant. Remote hosts retain their ordinary lease behavior and
 cannot resume the local grant.
+The host tries the resume before each target observation until the agent
+answers 403 `KIT_LEASE_REQUIRED`, which means it holds no local grant to
+recover. The host then stops sending resume requests and records the lease
+generation it observes next. It resumes again, once, only when ownership shows
+a grant held by `fogcast@kit` under a different generation, or after the host
+drops a grant it held. A host restart starts with resume enabled. Any other 403,
+such as the plain-text loopback refusal, does not stop the attempts. A 503
+`BUSY` from the software activation fence stays retryable. Neither refusal
+blocks status observation.
 A locally expired or lost kit lease remains `KIT_LEASE_DENIED` through host
 service normalization, session reads, input reconciliation, Launch and Stop.
 The host API returns HTTP 403 for this ownership refusal. An ordinary claim
@@ -1360,10 +1369,23 @@ An asynchronous result, pointer or direction focus change, resize, or
 unpresented frame forces a redraw. Initial and data-changed hero pictures are
 assembled over several draws: the header and hero, shelf heading and recents,
 then pairs of family tiles. Each completed part is presented; a data, focus or
-geometry change restarts the partial picture. Warm focus and geometry changes
-redraw the whole picture. Completed parts use `gfx.paint` or `gfx.extend`, so
-a soft overrun can still present them. State-save debounce continues in `update`
-during reused frames.
+geometry change restarts the partial picture. Completed parts use `gfx.paint`
+or `gfx.extend`, so a soft overrun can still present them. The header, hero,
+shelf labels and each tile are `gfx.segment` runs keyed by the focus and data
+generation they show, so a warm focus change draws the header, the hero and
+the tiles whose focus changed and copies the rest from the frame on screen
+(#1770). A resize drops every run and redraws the whole picture. Marks keep
+their keyboard keys, and recent titles their moon and hills, per exact place
+as `gfx.rects` lists, and text metrics are remembered. State-save debounce
+continues in `update` during reused frames. `TestHomeCallbackWorkCeiling`
+holds each Home callback kind under ceilings of Lua instructions and recorded
+draw ops, counted by the engine's test-only work meter (a context whose
+`Done` gopher-lua checks once per instruction), so the guard does not depend
+on the machine. Draw, input and lifecycle counts are exact; `update` counts
+vary within a bound with the order the family answers arrive in, because
+`update` processes whichever family answer became pending first.
+`TestHomeTourFramesMatchRecorded` holds every tour picture to hashes
+recorded from the Home script before #1770.
 
 Lua room callbacks run on the launcher thread under per-callback soft budgets.
 A slow update, or a slow draw that did not finish a `gfx.paint`, keeps the

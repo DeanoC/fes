@@ -59,11 +59,11 @@ The scope is the CPU design's list and nothing more:
 
 | Area | In | Deferred until a title needs it |
 | --- | --- | --- |
-| AT core | Two 8259 PICs, an 8254 PIT, two 8237 DMA controllers, an 8042 with A20, reset and a PS/2 aux port, port 92h, an MC146818 RTC with CMOS | Floppy controller, serial and parallel ports, game port |
+| AT core | Two 8259 PICs, an 8254 PIT, two 8237 DMA controllers, an 8042 with A20, reset and a PS/2 aux port, port 92h, an MC146818 RTC with CMOS, an 82077AA-subset floppy controller ([removable media](../../../docs/design/pc386-removable-media.md), slice F1) | Serial and parallel ports, game port |
 | Video | Register-level VGA: text modes, mode 13h, unchained 256-colour | SVGA, VESA BIOS extensions |
 | Audio | PC speaker (PIT channel 2 and direct port 61h), OPL2, Sound Blaster 2.0-class DSP with 8-bit PCM and ADPCM DMA | OPL3 and Sound Blaster Pro, MT-32, CMS, Sound Source |
 | Input | HID keyboard through the 8042, PS/2 mouse from `fes.mouse.relative` | Joystick, wheel mouse |
-| Storage | One ATA hard-disk image in HPS DDR | Second disk, CD-ROM, floppy |
+| Storage | One ATA hard-disk image in HPS DDR | Second disk, CD-ROM, floppy drives ([removable media](../../../docs/design/pc386-removable-media.md) slices F2–F4 and C1–C5) |
 
 ## Block diagram
 
@@ -196,7 +196,7 @@ Unclaimed ports read FFh and drop writes, like a floating ISA bus.
 
 | Ports | Device | Notes |
 | --- | --- | --- |
-| 000–00F | DMA controller 1 | 8-bit channels 0–3; channel 1 is the Sound Blaster |
+| 000–00F | DMA controller 1 | 8-bit channels 0–3; channel 1 is the Sound Blaster, channel 2 the floppy controller |
 | 020–021 | PIC 1 | |
 | 040–043 | PIT | |
 | 060, 064 | 8042 | |
@@ -209,6 +209,7 @@ Unclaimed ports read FFh and drop writes, like a floating ISA bus.
 | 0C0–0DF | DMA controller 2 | 16-bit channels; channel 4 is the cascade |
 | 0F0–0FF | x87 | Reads FFh until the x87 milestone |
 | 1F0–1F7, 3F6 | ATA primary channel | IRQ14 |
+| 3F2, 3F4, 3F5, 3F7 | [Floppy controller](../../../docs/design/pc386-removable-media.md#controller) (`pc386_fdc`) | IRQ6, DMA channel 2. 3F0h, 3F1h and 3F3h read FFh. No drive is fitted until slice F3 commits disks |
 | 220–22F by default, or 240–24F | Sound Blaster, base set by the [setting](#sound-blaster-setting) | Base+6 reset, base+8–9 OPL2, base+A read, base+C write and status, base+E read status and IRQ acknowledge |
 | 260–263 | [EMS board](#ems-board) page registers | Write-only; read FFh |
 | 388–389 | OPL2 (AdLib) | Same chip as base+8–9 |
@@ -236,10 +237,11 @@ count 18, so bit 4 changes every 15.09 µs
 | 3 | Sound Blaster if set to 3, else free (no serial) | 12 | 8042 aux mouse |
 | 4 | Free (no serial) | 13 | x87, later |
 | 5 | Sound Blaster if set to 5, else free | 14 | ATA |
-| 6 | Free (no floppy) | 15 | Free |
+| 6 | Floppy controller | 15 | Free |
 | 7 | Sound Blaster by default | | |
 
-DMA channel 1 is the Sound Blaster's. No other device uses DMA in this scope.
+DMA channel 1 is the Sound Blaster's and channel 2 the floppy controller's
+([removable media](../../../docs/design/pc386-removable-media.md)). No other device uses DMA.
 
 ### Sound Blaster setting
 
@@ -297,7 +299,9 @@ it; for SB 2.0 it accepts only 1.
 | `0x01000000` | 20 KiB | Status ring: the head, then 256 records of 64 bytes | 2 |
 | `0x01005000` | 4 MiB − 20 KiB | Unused | — |
 | `0x01400000` | 4 MiB | [EMS board](#ems-board) memory (2 MiB used by default) | 2 |
-| `0x01800000` | 40 MiB | Unused | — |
+| `0x01800000` | 4 MiB | Floppy A: image (`pc386_fdc`; [removable media](../../../docs/design/pc386-removable-media.md#window-layout)) | 2 |
+| `0x01C00000` | 4 MiB | Floppy B: image | 2 |
+| `0x02000000` | 32 MiB | Unused (the CD's regions in the removable-media design) | — |
 | `0x04000000` | 64 MiB | Guest RAM (16 MiB used by default) | 0 |
 | `0x08000000` | 128 MiB | ATA disk image | 2 |
 
@@ -487,11 +491,23 @@ inside the 8042 ahead of its PS/2 keyboard):
   codes, and Microsoft's are taken. Usages with no set 2 code (the HID error
   codes, and Execute to Find at 74h–7Eh) are ignored.
 - The 1 ms is 1000 ticks of the 8042's microsecond enable. A change is
-  diffed one bit a clock, each group in usage order. The model tracks projected
-  and reported key state separately: a transition is projected when its final
-  byte enters the keyboard FIFO and committed when that byte reaches the 8042
-  output buffer. If F5, F6 or FF clears queued bytes, pending projections are
-  discarded and the complete transitions are reconciled again.
+  copied into a snapshot one bit a clock, then diffed against the projected
+  guest state one bit a clock, each group in usage order. A transition is
+  projected when its final byte enters the keyboard FIFO and committed when
+  that byte reaches the 8042 output buffer. If F5, F6 or FF clears queued
+  bytes, the projections still in the FIFO are rolled back, newest first, and
+  the complete transitions are reconciled again.
+- The snapshot and the projected state are 136-entry M10K tables, and the
+  transitions in the keyboard FIFO a 16-entry one; only the rows' last value is
+  in flip-flops (#1768: the four 136-bit flip-flop vectors cost 1,399 ALMs
+  alone, the tables' model 618). Pause's reported state is a flip-flop too:
+  its release has no bytes, so a silent release and its make's later
+  completion can both report it, and a clear restores the last of them. Two flags stand in for whole-vector compares
+  and err only towards a diff that finds nothing: the rows changed since the
+  snapshot, and the snapshot may differ from the projected state (after a
+  clear, or a diff position passed while scanning was disabled). A typematic
+  press takes effect the clock after its completion, once the tables are read
+  at its bit; a stop in the completion's own clock still wins over it.
 - While scanning is disabled, host bytes are discarded and do not change the
   guest-visible key state. Stable HID rows are reconciled against that state
   when scanning resumes: a release of a key the guest saw is delivered, while
@@ -1503,9 +1519,9 @@ INT 16h AH=03h; the PCI BIOS, APM and PnP options off (the legacy build leaves
 `BX_PCIBIOS` on, and its probe of CF8h/CFCh would only find FFh), which also
 needs the PAM-register call in POST built only with the PCI BIOS. The boot
 order and disk-only boot need no patch: the machine writes CMOS 2Dh, 38h, 3Dh
-and 3Fh. The floppy probe is already harmless with no controller fitted (CMOS
-10h says none and the ports read FFh), and no POST step needed a Bochs
-emulator port.
+and 3Fh. The floppy probe is harmless: CMOS 10h says no drives, so POST and INT 13h
+never touch the floppy controller, and no POST step needed a Bochs emulator
+port.
 Bochs's debug ports (400h–403h) and VGABIOS's (500h) stay as the machine's
 debug sink.
 
