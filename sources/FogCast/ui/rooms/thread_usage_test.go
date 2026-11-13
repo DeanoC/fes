@@ -1,6 +1,7 @@
 package rooms
 
 import (
+	"errors"
 	"math"
 	"runtime/metrics"
 	"strings"
@@ -292,5 +293,55 @@ func BenchmarkRuntimeUsageAfter(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		g.read(&p, false)
+	}
+}
+
+// The after point is read only when the timing will be printed. call()
+// reports only an expired deadline, and a script error before its deadline
+// reports the error text alone, so neither reads one even past its budget.
+func TestUsageWindowAfterOnlyWhenTimingIsReported(t *testing.T) {
+	const budget = 10 * time.Millisecond
+	r := newRoom(t, memPack(t, "window-report", "function ok() end\nfunction boom() error('boom') end", nil),
+		Options{Budget: Budget{Load: time.Second, Frame: budget, Input: budget}})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	c := countWindows(t, r)
+	// The sample after the script stalls past the budget, so elapsed
+	// overruns while the script itself returned before its deadline.
+	counted := r.threadSample
+	r.threadSample = func() (threadUsage, bool) {
+		u, ok := counted()
+		if !c.inScript {
+			time.Sleep(2 * budget)
+		}
+		return u, ok
+	}
+	fn := func(name string) *lua.LFunction {
+		f, ok := r.L.GetGlobal(name).(*lua.LFunction)
+		if !ok {
+			t.Fatalf("%s is not a function", name)
+		}
+		return f
+	}
+	timing, err := r.call(fn("ok"), budget, 0)
+	if err != nil || timing.elapsed <= budget {
+		t.Fatalf("call: elapsed %s, %v", timing.elapsed, err)
+	}
+	if c.after != 0 || timing.haveWindow {
+		t.Fatalf("call past its unreported budget read %d after points", c.after)
+	}
+	if err := r.callSoft(fn("boom"), budget, 0); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("script error: %v", err)
+	}
+	if c.after != 0 {
+		t.Fatalf("script error past soft read %d after points", c.after)
+	}
+	var over softOverrun
+	if err := r.callSoft(fn("ok"), budget, 0); !errors.As(err, &over) {
+		t.Fatalf("soft overrun: %v", err)
+	}
+	if c.after != 1 || !over.timing.haveWindow {
+		t.Fatalf("reported soft overrun read %d after points, window %v", c.after, over.timing.haveWindow)
 	}
 }

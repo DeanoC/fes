@@ -917,7 +917,8 @@ func (r *Instance) callRet(fn *lua.LFunction, budget time.Duration, args ...lua.
 // storage.
 //
 // window (haveWindow) is read only for a callback whose timing is reported:
-// one past its soft budget or its deadline. It runs from the baseline taken
+// one whose deadline expired, or one that returned without error past a soft
+// budget its caller reports (callBudgets). It runs from the baseline taken
 // before the callback's elapsed window (at step start, or at callback start
 // outside a Step) to after elapsed was taken, and gives that window's
 // run-queue wait, process-wide GC and Go scheduler wait, with the same
@@ -958,17 +959,22 @@ func (t callTiming) scriptRun() string {
 }
 
 // call runs fn under a deadline budget after the call starts. Its timing is
-// reported only when the deadline expires.
+// reported only when the deadline expires, so it passes no soft budget.
 func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args ...lua.LValue) (callTiming, error) {
-	return r.callBudgets(fn, budget, budget, nret, args...)
+	return r.callBudgets(fn, 0, budget, nret, args...)
 }
 
 // callBudgets runs fn with its deadline at hard after the call starts.
-// elapsed is read after runPinned's deferred cleanup has finished. A callback
-// outside a Step takes its usage baseline before elapsed starts; one that
-// expires or runs past soft, so that its timing will be reported, reads the
-// usage after point once elapsed is taken. The OS thread stays locked across
-// all three, so both usage points read the thread that ran the script.
+// elapsed is read after runPinned's deferred cleanup has finished. soft is
+// the elapsed time past which the caller reports a call that returned
+// without error, or 0 when the caller reports timing only for an expired
+// deadline. A callback outside a Step takes its usage baseline before
+// elapsed starts. The usage after point is read once elapsed is taken, and
+// only when the timing will be reported: the deadline expired, or the script
+// returned without error past a non-zero soft. A script error before the
+// deadline reports the error text alone and reads no after point. The OS
+// thread stays locked across all three, so both usage points read the thread
+// that ran the script.
 func (r *Instance) callBudgets(fn *lua.LFunction, soft, hard time.Duration, nret int, args ...lua.LValue) (callTiming, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -976,7 +982,7 @@ func (r *Instance) callBudgets(fn *lua.LFunction, soft, hard time.Duration, nret
 	start := time.Now()
 	timing, expired, err := r.runPinned(fn, start.Add(hard), nret, args...)
 	timing.elapsed = time.Since(start)
-	if expired || timing.elapsed > soft {
+	if expired || (err == nil && soft > 0 && timing.elapsed > soft) {
 		r.noteOverrunWindow(&timing)
 	}
 	if err != nil {
