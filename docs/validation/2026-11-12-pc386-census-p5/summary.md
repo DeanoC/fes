@@ -92,7 +92,7 @@ overloaded host. So:
 2. **The oracle: one run per title.** Each ran `machine_tb --cpu oracle
    --instruction-census` on Bochs with a 387 fitted, for the title's
    manifest limit or until the title exits. Most limits are 20 simulated
-   seconds. The exceptions are Ultima VI at 16 s, Wolfenstein 3D at 24 s,
+   seconds. The exceptions are CHKCPU at 12 s, Ultima VI at 16 s, Wolfenstein 3D at 24 s,
    and 3DBench, PCPBench, TopBench and Quake's timedemo at 25 s.
    - Each row's `oracle.limit_s` and `oracle.seconds` give the run's
      length.
