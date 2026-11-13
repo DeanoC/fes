@@ -140,6 +140,15 @@ renewal failure retries within the last confirmed local expiry; it never extends
 that expiry without a valid response. A denial or a changed token or generation
 invalidates the grant. Remote hosts retain their ordinary lease behavior and
 cannot resume the local grant.
+The host tries the resume before each target observation until the agent
+answers 403 `KIT_LEASE_REQUIRED`, which means it holds no local grant to
+recover. The host then stops sending resume requests and records the lease
+generation it observes next. It resumes again, once, only when ownership shows
+a grant held by `fogcast@kit` under a different generation, or after the host
+drops a grant it held. A host restart starts with resume enabled. Any other 403,
+such as the plain-text loopback refusal, does not stop the attempts. A 503
+`BUSY` from the software activation fence stays retryable. Neither refusal
+blocks status observation.
 A locally expired or lost kit lease remains `KIT_LEASE_DENIED` through host
 service normalization, session reads, input reconciliation, Launch and Stop.
 The host API returns HTTP 403 for this ownership refusal. An ordinary claim
