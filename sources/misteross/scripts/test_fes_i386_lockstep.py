@@ -93,6 +93,11 @@ DDR_MODEL = ROOT / 'cores/fes-pc386/sim'  # pc386_ddr_model.h: HPS DDR port 0
 OUTPUT = ROOT / 'build/sim/fes-i386-lockstep'
 CPU_RTL = tuple(Path(path).name for path in yosys_netlist.CPU_SOURCES)
 TOP = yosys_netlist.CPU_TOP
+# The arguments that choose what the suite covers. A run with each at its
+# default is the default suite, the one the pc386 sealer accepts (#1581 S5).
+SUITE_ARGUMENTS = ('opcode', 'limit_per_file', 'random_programs', 'random_seeds', 'seed',
+                   'pm_programs', 'task_programs', 'debug_programs', 'undefined_programs', 'no_latency', 'preset',
+                   'same_as')
 
 # What the CPU executes, by MOO stem without 66h/67h prefixes: every form of
 # each, memory forms included. Each later slice adds its stems here.
@@ -738,6 +743,10 @@ def main() -> int:
         if args.opcode and len(paths) != len(set(args.opcode)):
             raise LockstepError('requested opcode files are absent or outside the scope')
         vectors.verify(corpus, paths + [corpus / 'revocation_list.txt'])
+        # Whether this run read every in-scope file of a full, verified download.
+        full = vectors.full_corpus(corpus)
+        complete_corpus = full is not None and {path.name for path in paths} == {
+            name for name in full if name.endswith('.MOO.gz') and in_scope(name[:-len('.MOO.gz')])}
         revoked = frozenset(vectors.revoked_hashes((corpus / 'revocation_list.txt').read_text()))
         with ProcessPoolExecutor(max_workers=args.jobs) as executor:
             files = [executor.submit(run_file, str(path), testbench, env, revoked, entries, args.limit_per_file)
@@ -896,6 +905,14 @@ def main() -> int:
         report['same_as'] = {'report': str(args.same_as), 'differences': differences[:200]}
         if differences:
             exit_code = 1
+    # Whether this run passed and covered the default suite (default suite
+    # arguments over every in-scope file of the full corpus), so a consumer
+    # (the pc386 sealer's --lockstep-report) need not trust an exit status.
+    report['run'] = {'passed': exit_code == 0,
+                     'default_suite': complete_corpus and all(getattr(args, name) == parser.get_default(name)
+                                                              for name in SUITE_ARGUMENTS),
+                     'complete_corpus': complete_corpus,
+                     'arguments': {name: str(getattr(args, name)) for name in SUITE_ARGUMENTS}}
     (OUTPUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(f"corpus: {len(corpus_results)} files, {len(by_opcode)} opcodes, {totals['tests']} tests: "
           f"{totals['passed']} pass ({totals['retired_to_hlt']} to HLT, {totals['interrupts']} of them in an "
