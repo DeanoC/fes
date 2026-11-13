@@ -133,8 +133,8 @@ a modified library:
     change it clears the drive's recalibration bit in 40:3E and the "media
     type established" bit of its media state at 40:90, so the next access
     senses the medium and rereads the disk, then returns AH=06h with CF.
-    Types 0 and 1 keep the answer this BIOS gave before, change line not
-    supported.
+    A 360K drive (type 1) always reports a change, and an absent drive a
+    timeout (AH=80h), as the AT BIOS's DISK_CHANGE does.
   - **`floppy_drive_recal`** steps the head in one cylinder, with a Seek to
     cylinder 1, before the Recalibrate when the change line is active. A
     drive resets that line only when it sees a step pulse with a disk in it,
@@ -145,10 +145,15 @@ a modified library:
     with its own Sense Interrupt Status, as it does for the Recalibrate.
 
   Upstream always reported no change line, so DOS treated the drives as
-  XT-style and assumed a change after two idle seconds. The IBM PC/AT BIOS
-  diskette listing could not be consulted (no readable copy was reachable),
-  so the drive's own behaviour and the controller datasheet settled where the
-  step goes; `--suite floppy` checks the whole sequence across four swaps.
+  XT-style and assumed a change after two idle seconds. The IBM PC/AT BIOS's
+  own diskette listing (5170 BIOS source, `DSKETTE.ASM`) settles each answer:
+  `DISK_TYPE` returns CHGLN for an 80-track drive and NOCHGLN for a 40-track
+  one; `DISK_CHANGE` reads 3F7h through `READ_DSKCHNG`, which turns the motor
+  on first, and reports a timeout when there is no drive; and `MED_CHANGE`
+  resets the change signal with "THIS SEQUENCE OF SEEKS", a seek to cylinder 1
+  and back to cylinder 0, after clearing the drive's media state. This BIOS
+  puts that seek in `floppy_drive_recal`, which the media sense calls on the
+  next access. `--suite floppy` checks the whole sequence across four swaps.
 
 The boot order and the boot device need no patch: the machine writes CMOS
 2Dh, 38h, 3Dh and 3Fh from the launch's boot device. The floppy POST and INT

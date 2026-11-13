@@ -8136,18 +8136,34 @@ BX_DEBUG_INT13_FL("floppy f16\n");
       }
 
       // FES 2026-11-13: a drive with a change line (CMOS type 2-5) answers
-      // from the controller's DIR, as an AT BIOS does. The drive has to be
+      // from the controller's DIR, as the IBM PC/AT BIOS's DISK_CHANGE does
+      // (5170 BIOS source, DSKETTE.ASM): an 80-track drive calls
+      // READ_DSKCHNG, which turns the motor on and reads 3F7h; a drive
+      // without 80-track capability always reports a change, and an absent
+      // drive reports a timeout. Where the AT BIOS also calls MED_CHANGE at
+      // the start of every read, write and format, and fails that operation
+      // with 06h once, this BIOS leaves the change to AH=16h and lets the
+      // next access read the new disk, which is what the removable-media
+      // design asks for: the media state cleared here makes that access
+      // sense the medium again. The drive has to be
       // selected for its DSKCHG to reach DIR, so this writes the DOR the way
       // floppy_prepare_controller does and lets INT 08h stop the motor
       // again. A change also clears this drive's recalibration bit and the
       // "media type established" bit of its media state, so the next access
-      // senses the medium and rereads the disk. Types 0 and 1 keep the
-      // answer this BIOS gave before: change line not supported.
+      // senses the medium and rereads the disk. A 360K drive (type 1)
+      // always reports a change and an absent drive a timeout, as
+      // DISK_CHANGE does.
       drive_type = inb_cmos(0x10);
       if (drive == 0)
         drive_type >>= 4;
       else
         drive_type &= 0x0f;
+      if (drive_type == 0) {
+        SET_AH(0x80); // no drive: a timeout, as DISK_CHANGE's DC_NON sets
+        set_diskette_ret_status(0x80);
+        SET_CF();
+        return;
+      }
       if (drive_type >= 2) {
         if (drive)
           dor = 0x20;
