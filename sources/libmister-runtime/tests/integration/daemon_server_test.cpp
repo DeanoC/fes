@@ -506,7 +506,7 @@ void TestMutationRequestsEmitFifoConsumeAndOptionalDump()
 	fixture.Start();
 	mister::daemon::Controller controller(fixture.runtime, "test-version");
 	Contains(HandleRequest(controller, kDevelopment), "\"state\":\"running_development\"");
-	Contains(HandleRequest(controller, 
+	Contains(HandleRequest(controller,
 		std::string("{\"protocol\":2,\"operation\":\"load_core\",\"package_path\":\"/packages/custom\",\"package_id\":\"") +
 		kPackageId + "\"}"),
 		"\"ok\":true");
@@ -639,7 +639,7 @@ void TestProtocol2InspectionActivationDiagnosticAndBothStops()
 	response = HandleRequest(controller, "{\"protocol\":2,\"operation\":\"stop\"}");
 	Contains(response, "\"state\":\"idle\"");
 	Contains(response, "\"generation\":null");
-	response = HandleRequest(controller, 
+	response = HandleRequest(controller,
 		"{\"protocol\":2,\"operation\":\"load_development_rbf\","
 		"\"rbf\":\"/tmp/fogcast-development/core.rbf\","
 		"\"programming_profile\":\"development-contained-v1\"}");
@@ -699,7 +699,7 @@ void TestProtocol1RequestsAreRejectedWithoutMutation()
 	mister::daemon::Controller controller(fixture.runtime, "test-version");
 	Contains(HandleRequest(controller, kLoad), "\"generation\":1");
 	for (const std::string operation : {"status", "stop", "launch", "load_development_rbf"}) {
-		const std::string response = HandleRequest(controller, 
+		const std::string response = HandleRequest(controller,
 			"{\"protocol\":1,\"operation\":\"" + operation + "\"}");
 		Contains(response, "\"protocol\":2");
 		Contains(response, "\"code\":\"unsupported_protocol\"");
@@ -716,7 +716,7 @@ void TestInvalidProtocol2RequestKeepsTheNegotiatedEnvelope()
 	Fixture fixture;
 	fixture.Start();
 	mister::daemon::Controller controller(fixture.runtime, "test-version");
-	const std::string response = HandleRequest(controller, 
+	const std::string response = HandleRequest(controller,
 		"{\"protocol\":2,\"operation\":\"load_core\","
 		"\"package_path\":\"relative\",\"package_id\":\"bad\"}");
 	Contains(response, "\"protocol\":2");
@@ -838,7 +838,7 @@ void TestProtocol2PublishesRuntimeRecoveryPhase()
 	Contains(response, "\"phase\":\"recovery\"");
 	Contains(response, "\"expected\":\"MENU\"");
 	Contains(response, "\"observed\":\"OTHER\"");
-	const std::string stopped = HandleRequest(controller, 
+	const std::string stopped = HandleRequest(controller,
 		"{\"protocol\":2,\"operation\":\"stop\"}");
 	Contains(stopped, "\"code\":\"idle_failed\"");
 	Contains(stopped, "\"phase\":\"recovery\"");
