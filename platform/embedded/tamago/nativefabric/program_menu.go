@@ -197,7 +197,7 @@ func (s *ProgramService) presentMenu(ctx context.Context, frame *stdimage.RGBA, 
 	defer p.operation.Unlock()
 	view := s.Status()
 	if view.State == ProgramRebootRequired || view.State == ProgramParked {
-		return ErrProgramRetired
+		return view.retiredError()
 	}
 	if p.menu == nil {
 		return ErrProgramSession
@@ -280,8 +280,8 @@ func (s *ProgramService) Retire(cause error) error {
 	p := s.state
 	p.operation.Lock()
 	defer p.operation.Unlock()
-	if s.Status().State == ProgramRebootRequired {
-		return errors.Join(ErrProgramRetired, cause)
+	if view := s.Status(); view.State == ProgramRebootRequired {
+		return errors.Join(view.retiredError(), cause)
 	}
 	return p.fail(cause)
 }

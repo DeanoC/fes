@@ -8,12 +8,54 @@ import (
 	"errors"
 	stdimage "image"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
+
+func TestMenuStopCauseSurvivesFrontendRetirement(t *testing.T) {
+	f := newProgramMenuFixture(t, "")
+	ctx := context.Background()
+	serial, err := NewProgramSerialPlatform(f.s, func() (byte, bool) { return 0, false },
+		func(context.Context, []byte) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	platform, err := NewProgramMenuPlatform(f.s, serial, func() *stdimage.RGBA { return menuFrame(0) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.menu.cpu.fault = "local-stop"
+	if err := f.s.ParkMenu(ctx); err == nil || !strings.Contains(err.Error(), "menu-stop at command") {
+		t.Fatal("local stop failure was not exercised", err)
+	}
+	view := f.s.Status()
+	if view.State != ProgramRebootRequired || !strings.Contains(view.Error, "menu-stop at command") ||
+		f.menu.cpu.state.ResetMask != 15 || f.menu.cpu.independentStops != 1 || f.menu.cpu.releases != 0 {
+		t.Fatal("local failure lost its independent closure or retained resources", view)
+	}
+	accesses := 0
+	f.menu.cpu.after = func(string) { accesses++ }
+	for _, check := range []struct {
+		name string
+		call func() error
+	}{
+		{"present", func() error { return platform.Present(ctx, tenfoot.Snapshot{}) }},
+		{"park", func() error { return f.s.ParkMenu(ctx) }},
+		{"frontend", func() error { return f.s.Retire(errors.New("frontend failed after stop")) }},
+	} {
+		err := check.call()
+		if !errors.Is(err, ErrProgramRetired) || !strings.Contains(err.Error(), view.Error) {
+			t.Fatalf("%s replaced the original failure: %v", check.name, err)
+		}
+	}
+	if accesses != 0 || f.menu.cpu.independentStops != 1 || f.menu.cpu.releases != 0 || f.r.f.lease.r.Active {
+		t.Fatal("reporting a retired error performed more device work", accesses)
+	}
+}
 
 func TestMenuProgramFullTenfootDisplayCoreReturnAndFailures(t *testing.T) {
 	for _, fault := range []string{"", "launch", "return", "restore", "present", "serial", "input"} {

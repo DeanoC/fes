@@ -48,6 +48,15 @@ type ProgramServiceStatus struct {
 	Error            string
 }
 
+// A later frontend call must not replace the cached failure with the generic
+// retired sentinel. This formats observations only; it never queries hardware.
+func (v ProgramServiceStatus) retiredError() error {
+	if v.State == ProgramRebootRequired && v.Error != "" {
+		return fmt.Errorf("%w: %s", ErrProgramRetired, v.Error)
+	}
+	return ErrProgramRetired
+}
+
 // ProgramSession can only be minted by Launch. Copies refer to the same private
 // service; a returned, foreign or fabricated handle cannot perform control I/O.
 type ProgramSession struct {
@@ -147,7 +156,7 @@ func (s *ProgramService) begin(ctx context.Context) (*programService, ProgramSer
 	view := s.Status()
 	if view.State == ProgramRebootRequired || view.State == ProgramParked {
 		p.operation.Unlock()
-		return nil, view, ErrProgramRetired
+		return nil, view, view.retiredError()
 	}
 	return p, view, nil
 }

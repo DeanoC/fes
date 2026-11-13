@@ -305,6 +305,13 @@ separate from the displayed session's lifetime; opening and individual frames
 still honor their request contexts and existing driver limits. `ParkMenu` is a
 terminal independent close with SD left contained.
 
+After a terminal failure, later presentation, service requests and frontend
+retirement include the cached original error alongside the retired sentinel.
+Reporting it performs no device work and preserves `errors.Is` recognition of
+`ErrProgramRetired`. A local stop failure remains a failure even when the
+independent firmware closure succeeds; that closure cannot replace its error
+or authorize storage return or allocation release.
+
 When the inner platform is `ProgramInputPlatform`, presentation also advances
 its existing USB polling owner between four-row copies, ownership checks and
 32 KiB reads of the complete uncached arena. Decoded menu edges are queued for
