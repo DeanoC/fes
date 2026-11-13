@@ -114,7 +114,8 @@ python3 scripts/sim_fes_pc386.py --suite wfw --cpu rtl    # WfW 3.11 from the DO
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
 python3 scripts/sim_fes_pc386.py --suite system         # M5: FreeDOS to the prompt on pc386_system, about an hour
 make toolchain-fes-pc386 CACHE_ROOT=/abs/out/cache/misteross-toolchains GPU_ROUTER=HIP  # once per lock
-make build-fes-pc386-quartus CACHE_ROOT=/abs/out/cache/misteross-toolchains GPU_ROUTER=HIP  # seal fes.pc386 with Quartus 17.0.2 (SEED=)
+FES_TOOLCHAIN_CACHE_ROOT=/abs/out/cache/misteross-toolchains python3 scripts/test_fes_i386_lockstep.py --netlist  # the seal's lockstep report
+make build-fes-pc386-quartus CACHE_ROOT=/abs/out/cache/misteross-toolchains GPU_ROUTER=HIP LOCKSTEP_REPORT=$PWD/build/sim/fes-i386-lockstep/report.json  # seal fes.pc386 with Quartus 17.0.2 (SEED=)
 ```
 
 The boot suite runs the locked BIOS and VGA BIOS on `pc386_machine`, boots the
@@ -463,6 +464,17 @@ builds of pc386 are parked with [#1235](https://github.com/DeanoC/fes/issues/123
   `GPU_ROUTER` is unset or empty. Nothing routes on a GPU. The record's
   `gpu_backend` and `toolchain_configuration` name the slot, so HIP and CUDA
   seals of one commit have distinct BUILD_IDs.
+- The seal needs a lockstep report of this tree's CPU
+  (`LOCKSTEP_REPORT=`, `--lockstep-report`): `scripts/test_fes_i386_lockstep.py
+  --netlist`, the default suite over every in-scope file of a full corpus
+  download, with the same cache root and router. The
+  build refuses to seal unless the report passed and its Yosys program, CPU
+  source digest and Yosys (lock, lock digest, router, slot binary) are this
+  build's, its Verilator is the i386 lock's, and the CPU netlist this build's
+  Yosys writes through the seal's passes has the report's digest. The report
+  is copied into the output, and `build-summary.json` records it under
+  `lockstep` (#1581 S5). Lockstep needs the pinned Bochs and corpus, so it
+  runs on the sealing host.
 
 **M4.** The diagnostic package `fes.pc386-diag`, the machine with a bus master
 running commands from a DDR ring in the CPU's place, passed every program on

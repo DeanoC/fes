@@ -14,6 +14,7 @@ from unittest import mock
 
 from scripts import build_fes_pc386_quartus as quartus
 from scripts import fes_build_common as board
+from scripts import lockfile
 from scripts import yosys_netlist
 from scripts.export_core_package import build_identity
 
@@ -317,8 +318,13 @@ class GpuRouterTest(unittest.TestCase):
                 mock.patch.object(quartus, "firmware_digests", return_value={}), \
                 mock.patch.object(quartus.board, "_sha256", return_value="0" * 64), \
                 mock.patch.object(quartus, "manifest", return_value=b""), \
-                mock.patch.object(quartus, "export_package", return_value=Path("package")):
-            self.assertEqual(quartus.build(ROOT, cache_root=Path("/cache"), gpu_router="CUDA"), Path("package"))
+                mock.patch.object(quartus, "export_package", return_value=Path("package")), \
+                mock.patch.object(quartus, "check_lockstep_report", return_value={"report_sha256": "r"}) as gate:
+            report = Path(temporary) / "report.json"
+            report.write_text("{}")
+            self.assertEqual(quartus.build(ROOT, cache_root=Path("/cache"), gpu_router="CUDA", lockstep_report=report),
+                             Path("package"))
+        self.assertEqual(gate.call_args.args[1:4], (b"{}", tools["yosys"], "CUDA"))
         self.assertEqual([call.kwargs for call in authenticate.call_args_list],
                          [{"cache_root": Path("/cache"), "gpu_router": "CUDA"}] * 2)
         self.assertEqual([call.args[-1] for call in record.call_args_list], ["CUDA", "CUDA"])
@@ -329,17 +335,116 @@ class GpuRouterTest(unittest.TestCase):
         self.assertEqual(summary["netlist"]["cpu_source_sha256"], yosys_netlist.cpu_source_sha256(ROOT))
         self.assertEqual(summary["netlist"]["yosys"]["tool"], IDENTITIES["yosys"])
         self.assertEqual(summary["netlist"]["yosys"]["gpu_router"], "CUDA")
+        self.assertEqual(summary["lockstep"], {"report_sha256": "r"})
+        self.assertEqual([call.args[1] for call in write.call_args_list
+                          if call.args[0].name == quartus.LOCKSTEP_REPORT], [b"{}"])
 
     def test_the_command_line_passes_the_router(self):
         for argv, router in (([], "HIP"), (["--gpu-router", "CUDA"], "CUDA")):
             with mock.patch.object(quartus, "build", return_value=Path("package")) as build, \
-                    mock.patch("sys.argv", ["build_fes_pc386_quartus.py", *argv]), \
+                    mock.patch("sys.argv", ["build_fes_pc386_quartus.py", "--lockstep-report", "r.json", *argv]), \
                     mock.patch("builtins.print"):
                 self.assertEqual(quartus.main(), 0)
             self.assertEqual(build.call_args.kwargs["gpu_router"], router)
+            self.assertEqual(build.call_args.kwargs["lockstep_report"], Path("r.json"))
+        with mock.patch("sys.argv", ["build_fes_pc386_quartus.py"]), mock.patch("sys.stderr"), \
+                self.assertRaises(SystemExit):
+            quartus.main()
         with mock.patch("sys.argv", ["build_fes_pc386_quartus.py", "--gpu-router", "Metal"]), \
                 mock.patch("sys.stderr"), self.assertRaises(SystemExit):
             quartus.main()
+
+
+class LockstepGateTest(unittest.TestCase):
+    """The sealer's --lockstep-report gate (#1581 S5)."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.output = Path(self.temporary.name)
+        self.yosys = mock.Mock(path=Path("yosys"), identity=IDENTITIES["yosys"])
+        self.netlist = b"module fes_i386_cpu(); endmodule\n"
+        verilator = lockfile.load_lock(ROOT / quartus.I386_LOCK)["verilator"].commit
+        self.report = {
+            "run": {"passed": True, "default_suite": True, "complete_corpus": True, "arguments": {}},
+            "verilator": {"lock": quartus.I386_LOCK, "commit": verilator, "sha256": "v", "version": "V",
+                          "slot": "s"},
+            "netlist": {"program_sha256": yosys_netlist.program_sha256(yosys_netlist.SEAL),
+                        "cpu_source_sha256": yosys_netlist.cpu_source_sha256(ROOT),
+                        "netlist_sha256": hashlib.sha256(self.netlist).hexdigest(),
+                        "yosys": yosys_netlist.lock_record(ROOT, self.yosys, "HIP", quartus.LOCK)},
+        }
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def check(self, report, netlist=None):
+        def regenerate(yosys, output, root, **_):
+            output.mkdir(parents=True, exist_ok=True)
+            (output / "fes_i386_cpu.netlist.v").write_bytes(self.netlist if netlist is None else netlist)
+            return output / "fes_i386_cpu.netlist.v"
+        data = json.dumps(report).encode()
+        with mock.patch.object(quartus.yosys_netlist, "seal_netlist", side_effect=regenerate) as seal:
+            result = quartus.check_lockstep_report(ROOT, data, self.yosys, "HIP", self.output)
+        self.assertEqual(seal.call_args.args, (Path("yosys"), self.output / "lockstep", ROOT))
+        return data, result
+
+    def refused(self, report, pattern, netlist=None):
+        with self.assertRaisesRegex(board.BuildError, pattern):
+            self.check(report, netlist)
+
+    def test_a_matching_report_seals_and_is_recorded(self):
+        data, result = self.check(self.report)
+        self.assertEqual(result, {
+            "report_sha256": hashlib.sha256(data).hexdigest(),
+            "netlist_sha256": self.report["netlist"]["netlist_sha256"],
+            "netlist_program_sha256": self.report["netlist"]["program_sha256"],
+            "yosys_tool": IDENTITIES["yosys"],
+            "cpu_source_closure_sha256": self.report["netlist"]["cpu_source_sha256"],
+            "simulator": self.report["verilator"]})
+
+    def test_a_missing_report_is_refused(self):
+        with self.assertRaisesRegex(board.BuildError, "needs --lockstep-report"):
+            quartus.build(ROOT, cache_root=Path("/cache"))
+        with self.assertRaisesRegex(board.BuildError, "cannot read the lockstep report"):
+            quartus.build(ROOT, cache_root=Path("/cache"), lockstep_report=self.output / "absent.json")
+
+    def test_a_failed_or_partial_run_is_refused(self):
+        with self.assertRaisesRegex(board.BuildError, "not JSON"):
+            quartus.check_lockstep_report(ROOT, b"{", self.yosys, "HIP", self.output)
+        self.refused({**self.report, "run": {"passed": False, "default_suite": True}}, "did not pass")
+        self.refused({key: value for key, value in self.report.items() if key != "run"}, "did not pass")
+        self.refused({**self.report, "run": {"passed": True, "default_suite": False, "complete_corpus": True,
+                                             "arguments": {"opcode": "x"}}},
+                     "not the default suite")
+        self.refused({key: value for key, value in self.report.items() if key != "netlist"}, "not a --netlist run")
+
+    def test_a_default_suite_report_must_prove_a_complete_corpus(self):
+        legacy = {**self.report["run"]}
+        del legacy["complete_corpus"]
+        self.refused({**self.report, "run": legacy}, "does not prove a complete corpus")
+        self.refused({**self.report, "run": {**self.report["run"], "complete_corpus": False}},
+                     "does not prove a complete corpus")
+
+    def test_each_input_identity_must_match(self):
+        for key, value in (("program_sha256", "0" * 64), ("cpu_source_sha256", "0" * 64),
+                           ("yosys", {**self.report["netlist"]["yosys"], "tool": "commit=x; sha256=y"}),
+                           ("yosys", {**self.report["netlist"]["yosys"], "gpu_router": "CUDA"}),
+                           ("yosys", {**self.report["netlist"]["yosys"], "lock_sha256": "0" * 64})):
+            with self.subTest(key=key, value=value):
+                self.refused({**self.report, "netlist": {**self.report["netlist"], key: value}},
+                             f"netlist {key} is")
+
+    def test_the_verilator_must_be_the_i386_locks(self):
+        self.refused({**self.report, "verilator": {**self.report["verilator"], "commit": "0" * 40}}, "Verilator")
+        self.refused({**self.report, "verilator": {**self.report["verilator"], "lock": quartus.LOCK}}, "Verilator")
+
+    def test_the_regenerated_cpu_netlist_must_match(self):
+        self.refused(self.report, "CPU netlist", netlist=b"module other(); endmodule\n")
+
+    def test_the_gate_reads_pinned_inputs(self):
+        for path in (quartus.I386_LOCK, "scripts/lockfile.py", "scripts/yosys_netlist.py"):
+            self.assertIn(path, quartus.PINNED_INPUTS)
+        self.assertIn(quartus.LOCKSTEP_REPORT, quartus.BUILD_OUTPUTS)
 
 
 class QuartusLockGoldenTest(unittest.TestCase):

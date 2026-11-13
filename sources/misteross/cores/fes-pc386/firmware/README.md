@@ -123,7 +123,8 @@ a modified library:
 
 The boot order and disk-only boot need no patch: the machine writes CMOS 2Dh,
 38h, 3Dh and 3Fh. The floppy POST and INT 13h floppy paths stay; CMOS 10h says
-no drives and the unclaimed controller ports read FFh. The Bochs debug ports
+no drives, so they never reach the floppy controller (`pc386_fdc`) that slice F1
+of [removable media](../../../../../docs/design/pc386-removable-media.md) fitted. The Bochs debug ports
 400h-403h and VGABios's 500h are the machine's debug sink.
 
 ## Licence obligations

@@ -886,6 +886,47 @@ class Port2SynthesisHarnessTest(unittest.TestCase):
     def test_pair_ties_off_the_ems_board(self):
         self.assertIn(".ems_read(1'b0), .ems_write(1'b0)", synthesis.PAIR)
 
+    def test_pair_measures_the_floppy_client(self):
+        self.assertIn('input wire [7:0] fdc_burstcount', synthesis.PAIR)
+        self.assertIn('.fdc_readdatavalid(fdc_readdatavalid)', synthesis.PAIR)
+
+
+class FdcReplayTest(unittest.TestCase):
+    CASES = set(re.findall(r'list\.push_back\(\{"(\w+)"', (sim.CORE / 'sim/fdc_replay_tb.cpp').read_text()))
+
+    def test_every_listed_divergence_is_a_replay_case(self):
+        listed = sim.fdc_divergent_cases()
+        self.assertTrue(listed)
+        self.assertEqual(set(listed) - self.CASES, set())
+
+    def test_every_divergence_names_its_deciding_case(self):
+        entries = sim.tomllib.loads(sim.FDC_DIVERGENCES.read_text())['divergence']
+        self.assertEqual(len({entry['id'] for entry in entries}), len(entries))
+        for entry in entries:
+            for field in ('title', 'reference', 'rtl', 'deciding', 'follow'):
+                self.assertTrue(entry.get(field), f'{entry["id"]} has no {field}')
+            self.assertIn(entry['follow'], ('rtl', 'both'))
+            if 'checked' in entry:
+                self.assertIn(entry['checked'], self.CASES)
+
+    def test_parse_fails_on_checks_and_cases_the_replay_lacks(self):
+        output = ('CASE read_track MATCH\nCASE fm_read DIFFER LISTED\n'
+                  'CHECK FAIL timing: the first byte waits for spin-up\nSUMMARY matched=1 differed=1\n')
+        report = sim.parse_fdc(output, ['fm_read', 'no_such_case'])
+        self.assertEqual(report['cases'], {'read_track': 'MATCH', 'fm_read': 'DIFFER'})
+        self.assertEqual(report['failures'], [
+            'FAIL timing: the first byte waits for spin-up',
+            'fdc_divergences.toml lists no_such_case, which the replay has no case for'])
+
+    def test_a_replay_that_runs_nothing_fails(self):
+        self.assertEqual(sim.parse_fdc('SUMMARY matched=0\n', [])['failures'], ['the floppy replay ran no case'])
+
+    def test_fdc_is_in_every_rtl_list_the_seal_uses(self):
+        fdc = sim.CORE / 'rtl/pc386_fdc.sv'
+        self.assertIn(fdc, sim.AT_RTL)
+        self.assertIn(fdc, sim.SYSTEM_RTL)
+        self.assertIn('cores/fes-pc386/rtl/pc386_fdc.sv', producer.MACHINE_SOURCES)
+
 
 SYSTEM_OUTPUT = """WRITE-TEST 444436
 IDENTITY 17734 12627 1 0 4 1 1 12297 26437 291 52617 1158 61715 2469 13863 3702 15

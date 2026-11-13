@@ -5,6 +5,7 @@ access. The run needs the i386 lock's Verilator slot (FES_TOOLCHAIN_CACHE_ROOT
 names its cache), the pinned Bochs checkout and the pinned
 SingleStepTests corpus already in build/; the netlist run also needs the pc386
 lock's slot in the same cache (its Yosys writes the netlist)."""
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -52,6 +53,49 @@ CORPUS = (vectors.OUTPUT / 'corpus' / vectors.REVISION / '00.MOO.gz').is_file()
 
 def moo_test(instruction: bytes, index: int = 0) -> vectors.MooTest:
     return vectors.MooTest(index, 'test', instruction, [0] * len(vectors.REGISTERS), [], 0, {}, [], None, '0' * 40)
+
+
+class RunRecordTest(unittest.TestCase):
+    def test_every_suite_argument_is_an_option(self):
+        # report["run"]["default_suite"] compares these with the parser's defaults (#1581 S5).
+        text = Path(lockstep.__file__).read_text()
+        for name in lockstep.SUITE_ARGUMENTS:
+            self.assertIn(f"parser.add_argument('--{name.replace('_', '-')}'", text)
+        self.assertNotIn('jobs', lockstep.SUITE_ARGUMENTS)
+        self.assertNotIn('netlist', lockstep.SUITE_ARGUMENTS)
+
+
+class FullCorpusTest(unittest.TestCase):
+    """report["run"]["default_suite"] needs a full download of the pinned
+    corpus (#1581 S5): a receipt from an --opcode download is not one."""
+
+    def write(self, directory, files, revision=None):
+        receipt = {'revision': revision or vectors.REVISION, 'files': files}
+        (Path(directory) / 'fes-i386-corpus.json').write_text(json.dumps(receipt))
+
+    def test_only_the_pinned_full_receipt_counts(self):
+        files = {'00.MOO.gz': 'a' * 40, 'README.md': 'b' * 40}
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertIsNone(vectors.full_corpus(Path(directory)))
+            self.write(directory, files)
+            self.assertIsNone(vectors.full_corpus(Path(directory)))
+            original = vectors.FULL_CORPUS_SHA256
+            try:
+                vectors.FULL_CORPUS_SHA256 = vectors.receipt_digest(files)
+                self.assertEqual(vectors.full_corpus(Path(directory)), files)
+                self.write(directory, files, revision='0' * 40)
+                self.assertIsNone(vectors.full_corpus(Path(directory)))
+            finally:
+                vectors.FULL_CORPUS_SHA256 = original
+
+    def test_pinned_digest_covers_every_in_scope_file(self):
+        # The pinned revision's full receipt holds 941 MOO files and the metadata.
+        corpus = vectors.OUTPUT / 'corpus' / vectors.REVISION
+        files = vectors.full_corpus(corpus) if corpus.is_dir() else None
+        if files is None:
+            self.skipTest('no full download of the pinned corpus in build/')
+        self.assertEqual(sorted(name for name in files if not name.endswith('.MOO.gz')), sorted(vectors.METADATA))
+        self.assertEqual(sum(name.endswith('.MOO.gz') for name in files), 941)
 
 
 class ScopeTest(unittest.TestCase):
