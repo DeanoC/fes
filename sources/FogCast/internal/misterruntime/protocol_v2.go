@@ -44,12 +44,21 @@ type Protocol2MenuDisplayLive struct {
 	Faulted           bool   `json:"faulted"`
 	Quiesced          bool   `json:"quiesced"`
 	DisplayedSequence uint64 `json:"displayed_sequence"`
-	Underflows        uint64 `json:"underflows"`
-	// Transmitter reads, present only when the runtime owns the ADV7513.
-	HotPlug bool   `json:"hot_plug,omitempty"`
-	RxSense bool   `json:"rx_sense,omitempty"`
-	PLLLock bool   `json:"pll_lock,omitempty"`
-	VIC     uint64 `json:"vic,omitempty"`
+	// UnderflowsTotal is the absolute hardware counter since the display was
+	// programmed, not the per-present delta the sibling Underflows carries.
+	UnderflowsTotal uint64 `json:"underflows_total"`
+	// Transmitter is the ADV7513 reads, present only when the runtime owns
+	// the transmitter. The four arrive together or not at all, which a
+	// pointer keeps true on encode as well as on decode.
+	Transmitter *Protocol2MenuDisplayTransmitter `json:"transmitter,omitempty"`
+}
+
+// Protocol2MenuDisplayTransmitter is one all-or-nothing set of ADV7513 reads.
+type Protocol2MenuDisplayTransmitter struct {
+	HotPlug bool   `json:"hot_plug"`
+	RxSense bool   `json:"rx_sense"`
+	PLLLock bool   `json:"pll_lock"`
+	VIC     uint64 `json:"vic"`
 }
 
 type Protocol2MenuDisplay struct {
@@ -735,29 +744,27 @@ func validateMenuDisplayShape(raw json.RawMessage) error {
 		}
 	}
 	if raw, present := menu["live"]; present {
-		live, err := exactRawObject(raw, []string{"enabled", "faulted", "quiesced", "displayed_sequence", "underflows"}, []string{"hot_plug", "rx_sense", "pll_lock", "vic"})
+		live, err := exactRawObject(raw, []string{"enabled", "faulted", "quiesced", "displayed_sequence", "underflows_total"}, []string{"transmitter"})
 		if err != nil {
 			return err
 		}
 		if err := requireRawKinds(live, map[string]rawKind{
 			"enabled": rawBoolean, "faulted": rawBoolean, "quiesced": rawBoolean,
-			"displayed_sequence": rawUnsigned, "underflows": rawUnsigned,
+			"displayed_sequence": rawUnsigned, "underflows_total": rawUnsigned,
 		}); err != nil {
 			return err
 		}
-		// The transmitter reads arrive together or not at all.
-		transmitter := map[string]rawKind{"hot_plug": rawBoolean, "rx_sense": rawBoolean, "pll_lock": rawBoolean, "vic": rawUnsigned}
-		reads := 0
-		for name := range transmitter {
-			if _, ok := live[name]; ok {
-				reads++
+		// The transmitter reads arrive together or not at all, so they are
+		// their own object rather than four optional members that a re-encode
+		// could split.
+		if raw, present := live["transmitter"]; present {
+			reads, err := exactRawObject(raw, []string{"hot_plug", "rx_sense", "pll_lock", "vic"}, nil)
+			if err != nil {
+				return err
 			}
-		}
-		if reads != 0 {
-			if reads != len(transmitter) {
-				return errInvalidRuntimeResponse
-			}
-			if err := requireRawKinds(live, transmitter); err != nil {
+			if err := requireRawKinds(reads, map[string]rawKind{
+				"hot_plug": rawBoolean, "rx_sense": rawBoolean, "pll_lock": rawBoolean, "vic": rawUnsigned,
+			}); err != nil {
 				return err
 			}
 		}

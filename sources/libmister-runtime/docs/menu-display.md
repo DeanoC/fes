@@ -196,25 +196,48 @@ re-read happens at most once a second, never on the present path, and writes
 nothing.
 
 Status then carries `menu_display.live` with `enabled`, `faulted`,
-`quiesced`, `displayed_sequence` and `underflows`, plus `hot_plug`,
-`rx_sense`, `pll_lock` and `vic` when the transmitter was read. The member is
+`quiesced`, `displayed_sequence` and `underflows_total`, plus a nested
+`transmitter` object with `hot_plug`, `rx_sense`, `pll_lock` and `vic` when
+the transmitter was read. Those four reads succeed or fail together, so they
+are one object rather than four optional members. `live.underflows_total` is
+the hardware's absolute counter since the display was programmed, not the
+per-present delta the sibling `menu_display.underflows` carries: the
+one-scanline per-present cap does not apply to it. The whole `live` member is
 absent until a check has measured something: absent is "not measured", not
-"healthy". A change in any of these values is logged once, under operation
-`menu_display_health`.
+"healthy". A health transition is logged once, under operation
+`menu_display_health`. The displayed sequence advances with every present and
+is logged but is not itself a transition; the verdict that it no longer
+matches the committed frame is.
 
-A scanout that is disabled, faulted, unexpectedly quiesced, showing a
-sequence other than the committed frame, or behind an unlocked PLL, a lost
-Rx sense or a mode that is not 720p60, is a lost picture. It takes the same
-bounded reactivation as a failed present: at most two menu reprograms in ten
-minutes. Once that budget is spent the loss is logged once and the display is
-left exactly as it is; nothing retries in a loop, and nothing is reprogrammed
-while a core session owns the display. A register that could not be read is
-not evidence of a loss and only logs.
+The read is paced at most once a second, and a successful menu program starts
+that interval, so the first read of a freshly programmed display is one whole
+interval later. The pixel PLL and the sink's detected mode need frames to
+settle after bring-up, and a reading taken at the activation moment would
+call a healthy display lost.
+
+A scanout that is disabled, faulted, unexpectedly quiesced or showing a
+sequence other than the committed frame is a lost picture at once. An
+unlocked PLL, a lost Rx sense or a mode that is not 720p60 is a lost picture
+on two consecutive readings, because those three settle over several frames.
+A loss takes the same bounded reactivation as a failed present: at most two
+menu reprograms in ten minutes. Once that budget is spent the loss is logged
+once and the display is left exactly as it is; nothing retries in a loop, and
+nothing is reprogrammed while a core session owns the display. A register
+that could not be read is not evidence of a loss and only logs.
+
+That budget window slides, so a condition a reprogram cannot clear would
+otherwise interrupt the idle Home twice every ten minutes forever. A
+reactivation records the reason it was spent on; if the next check reports
+the same reason, it is latched, logged once under phase `latched`, and spends
+no further budget until a healthy read clears it.
 
 FogCast's probe of an unchanged frame requires `live.enabled`, no
-`live.faulted` or `live.quiesced`, and `displayed_sequence` equal to the
-sequence its own last present returned. Anything else sends a complete frame
-instead of acknowledging one.
+`live.faulted` or `live.quiesced`, and `live.displayed_sequence` equal to the
+sequence its own last present returned. The runtime sets the cached
+`menu_display.displayed_sequence` from the same value it returned to that
+present, so only the live read can disagree; an older runtime reports no
+`live` at all, and the probe falls back to the cached field there. Anything
+else sends a complete frame instead of acknowledging one.
 
 ### Lifecycle
 

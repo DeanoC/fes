@@ -398,9 +398,9 @@ func TestProtocol2StatusAcceptsMenuDisplayEvidenceForIdle(t *testing.T) {
 		}
 	}
 	// The idle display's live re-read: optional, and with the transmitter
-	// reads present together or not at all.
-	display := `,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows":0}`
-	link := `,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows":0,"hot_plug":true,"rx_sense":true,"pll_lock":true,"vic":4}`
+	// reads carried as their own all-or-nothing object.
+	display := `,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":7}`
+	link := `,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":7,"transmitter":{"hot_plug":true,"rx_sense":true,"pll_lock":true,"vic":4}}`
 	for _, live := range []string{display, link} {
 		carried := strings.Replace(withMenu, `"underflows":0,"error"`, `"underflows":0`+live+`,"error"`, 1)
 		decoded, err := decodeProtocol2Response([]byte(carried))
@@ -408,15 +408,34 @@ func TestProtocol2StatusAcceptsMenuDisplayEvidenceForIdle(t *testing.T) {
 			!decoded.MenuDisplay.Live.Enabled || decoded.MenuDisplay.Live.DisplayedSequence != 4 {
 			t.Fatalf("live display evidence lost: %#v, %v", decoded.MenuDisplay, err)
 		}
-		if (decoded.MenuDisplay.Live.PLLLock || decoded.MenuDisplay.Live.VIC != 0) != (live == link) {
+		// The absolute counter is its own member: the per-present delta's
+		// one-scanline cap says nothing about it.
+		if decoded.MenuDisplay.Live.UnderflowsTotal != 7 || decoded.MenuDisplay.Underflows != 0 {
+			t.Fatalf("live counter confused with the present delta: %#v", decoded.MenuDisplay)
+		}
+		if (decoded.MenuDisplay.Live.Transmitter != nil) != (live == link) {
 			t.Fatalf("transmitter reads mismatched their presence: %#v", decoded.MenuDisplay.Live)
+		}
+		if live == link && (!decoded.MenuDisplay.Live.Transmitter.PLLLock ||
+			decoded.MenuDisplay.Live.Transmitter.VIC != 4) {
+			t.Fatalf("transmitter reads lost: %#v", decoded.MenuDisplay.Live.Transmitter)
+		}
+		// Re-encoding a decoded response reproduces a response this same
+		// decoder accepts: presence is all-or-nothing on both sides.
+		encoded, err := json.Marshal(decoded)
+		if err != nil {
+			t.Fatalf("live display evidence does not re-encode: %v", err)
+		}
+		if _, err := decodeProtocol2Response(encoded); err != nil {
+			t.Fatalf("re-encoded live display evidence rejected: %s, %v", encoded, err)
 		}
 	}
 	for _, live := range []string{
 		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4}`,
-		`,"live":{"enabled":1,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows":0}`,
-		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows":0,"pll_lock":true}`,
-		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows":0,"surprise":true}`,
+		`,"live":{"enabled":1,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":0}`,
+		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":0,"pll_lock":true}`,
+		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":0,"transmitter":{"hot_plug":true,"rx_sense":true,"pll_lock":true}}`,
+		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":0,"surprise":true}`,
 	} {
 		carried := strings.Replace(withMenu, `"underflows":0,"error"`, `"underflows":0`+live+`,"error"`, 1)
 		if _, err := decodeProtocol2Response([]byte(carried)); !errors.Is(err, errInvalidRuntimeResponse) {

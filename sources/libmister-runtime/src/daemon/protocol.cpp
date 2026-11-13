@@ -817,12 +817,17 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
    output.Append(",\"faulted\":");output.Append(live.faulted?"true":"false");
    output.Append(",\"quiesced\":");output.Append(live.quiesced?"true":"false");
    output.Append(",\"displayed_sequence\":");output.Append(std::to_string(live.displayed_sequence));
-   output.Append(",\"underflows\":");output.Append(std::to_string(live.underflows));
+   // The absolute hardware counter, not the per-present delta that the
+   // sibling "underflows" carries, so it takes its own name.
+   output.Append(",\"underflows_total\":");output.Append(std::to_string(live.underflows_total));
+   // The transmitter reads succeed or fail together, so they are one
+   // object: a client cannot see two of the four and guess at the rest.
    if(live.link) {
-    output.Append(",\"hot_plug\":");output.Append(live.hot_plug?"true":"false");
+    output.Append(",\"transmitter\":{\"hot_plug\":");output.Append(live.hot_plug?"true":"false");
     output.Append(",\"rx_sense\":");output.Append(live.rx_sense?"true":"false");
     output.Append(",\"pll_lock\":");output.Append(live.pll_lock?"true":"false");
     output.Append(",\"vic\":");output.Append(std::to_string(live.vic));
+    output.Append("}");
    }
    output.Append("}");
   }

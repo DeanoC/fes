@@ -167,8 +167,8 @@ func TestMenuDisplayProbeForcesPresentWhenScanoutIsLost(t *testing.T) {
 	}
 }
 
-// The runtime showing another sequence than this client's last present is
-// the same loss, and is the only form of it an older runtime reports.
+// The cached sequence is the only form of this loss an older runtime can
+// report: it has no live reads at all.
 func TestMenuDisplayProbeForcesPresentOnStaleDisplayedSequence(t *testing.T) {
 	d, client := newChangeDrivenMenu(t, 3, true)
 	clock := newMenuClock()
@@ -185,6 +185,49 @@ func TestMenuDisplayProbeForcesPresentOnStaleDisplayedSequence(t *testing.T) {
 	waitMenuIdle(t, d, client, 2)
 	if calls, _, n, _ := client.snapshot(); calls != 2 || n != menudisplay.FrameBytes {
 		t.Fatalf("stale sequence was acknowledged, calls=%d bytes=%d", calls, n)
+	}
+}
+
+// A new runtime sets status.DisplayedSequence from the same value it
+// returned to this client's present, so the two can never disagree. The live
+// register read is the one that can, and the probe must prefer it: scanout
+// showing some other frame is a loss however healthy the cached field looks.
+func TestMenuDisplayProbeForcesPresentOnStaleLiveSequence(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+	client.mu.Lock()
+	// Healthy in every other respect, and the cached sequence still matches.
+	client.live = &menudisplay.Live{Enabled: true, DisplayedSequence: client.displayed + 4}
+	client.mu.Unlock()
+
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	waitMenuIdle(t, d, client, 2)
+	if calls, _, n, _ := client.snapshot(); calls != 2 || n != menudisplay.FrameBytes {
+		t.Fatalf("stale live sequence was acknowledged, calls=%d bytes=%d", calls, n)
+	}
+}
+
+// An old runtime measures nothing. Absent live reads mean "not measured",
+// never "healthy", so the probe keeps working from the cached sequence
+// instead of acknowledging anything it cannot see.
+func TestMenuDisplayProbeAcceptsAbsentLiveStateFromAnOlderRuntime(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	waitMenuIdle(t, d, client, 1)
+	if calls, _, _, _ := client.snapshot(); calls != 1 {
+		t.Fatalf("an older runtime's status forced a present, calls=%d", calls)
 	}
 }
 

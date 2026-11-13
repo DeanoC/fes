@@ -92,8 +92,16 @@ type Live struct {
 	Faulted           bool   `json:"faulted"`
 	Quiesced          bool   `json:"quiesced"`
 	DisplayedSequence uint64 `json:"displayed_sequence"`
-	Underflows        uint64 `json:"underflows"`
-	// Transmitter reads, present only when the runtime owns the ADV7513.
+	// UnderflowsTotal is the absolute hardware counter since the display was
+	// programmed. The per-present one-scanline cap does not apply to it.
+	UnderflowsTotal uint64 `json:"underflows_total"`
+	// Transmitter is present only when the runtime owns the ADV7513, and
+	// carries all four reads or none.
+	Transmitter *Transmitter `json:"transmitter"`
+}
+
+// Transmitter is one set of ADV7513 reads taken by the same health check.
+type Transmitter struct {
 	HotPlug bool `json:"hot_plug"`
 	RxSense bool `json:"rx_sense"`
 	PLLLock bool `json:"pll_lock"`

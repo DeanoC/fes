@@ -25,6 +25,7 @@ std::string Controller::Handle(const std::string& line)
 	CoreData data;
 	const CoreData* core_data = nullptr;
 	const CorePackageInspection* inspected = nullptr;
+	bool idle_display_health = false;
 	switch (request.operation) {
  case Operation::configure_menu:
   result=runtime_.ConfigureMenuPackage(request.package_path,request.package_id);break;
@@ -35,10 +36,10 @@ std::string Controller::Handle(const std::string& line)
  case Operation::menu_frame_commit:
   result={ErrorCode::invalid_request,"menu frame requires its own connection exchange","request"};break;
 	case Operation::status:
-		// Every status request paces the idle display's liveness re-read, so
-		// the reply already describes what scanout is doing now. Menu frames
-		// run on their own connection exchange and never reach this.
-		runtime_.CheckIdleDisplayHealth();
+		// Every status request paces the idle display's liveness re-read.
+		// It runs after this reply is composed, below, so a client never
+		// waits on the reads and the next status carries their result.
+		idle_display_health = true;
 		break;
 	case Operation::inspect_core:
 		result = runtime_.InspectCore(request.package_path,
@@ -190,7 +191,11 @@ std::string Controller::Handle(const std::string& line)
 		EmitFifoConsume("recover_idle", result.ok());
 		break;
 	}
-	return Respond(request.protocol, result, inspected, core_data);
+	std::string response = Respond(request.protocol, result, inspected, core_data);
+	// After the reply: the reads cost this connection nothing, and a menu
+	// frame can only be fenced out by a read that is actually due.
+	if (idle_display_health) runtime_.CheckIdleDisplayHealth();
+	return response;
 }
 
 std::string Controller::GrantMenuWindow(const Request& request,int* fd)

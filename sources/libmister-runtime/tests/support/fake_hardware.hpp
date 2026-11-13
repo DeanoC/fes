@@ -38,6 +38,12 @@ public:
   menu_status.available=false;menu_status.error=check_idle_display_result;
   return check_idle_display_result;
  }
+ // Native hardware answers this from its own 1 s pacing; here a test says
+ // when a read is due, so the runtime's fencing can be exercised directly.
+ bool IdleDisplayHealthDue() const override {
+  return idle_display_health_due&&menu_status.available&&!menu_status.session;
+ }
+ bool idle_display_health_due=true;
  unsigned check_idle_display_calls=0;
  mister::Error check_idle_display_result;
  // The grant is ordinary memory here: both 4 MiB slots, plus the lists and

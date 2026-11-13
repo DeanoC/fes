@@ -1345,6 +1345,39 @@ void TestIdleDisplayHealthReprogramsLostMenuScanout()
  assert(f.runtime.Stop().ok());
  assert(f.runtime.CheckIdleDisplayHealth().ok());
  assert(f.hardware.check_idle_display_calls==asked+1);
+
+ // A client is drawing into the granted window between begin and commit.
+ // Every other path that can reprogram drains that preparation first; this
+ // one is a status request and must not wait, so it skips the tick
+ // entirely rather than revoking a window mid-frame.
+ const auto generation=f.runtime.status().menu_display.generation;
+ std::unique_ptr<mister::MenuFrame> frame;
+ assert(f.runtime.BeginMenuFrame(generation,&frame).ok());
+ const auto drawing=f.hardware.check_idle_display_calls;
+ const auto idle_programs=f.hardware.idle_calls;
+ f.hardware.check_idle_display_result={ErrorCode::io_failed,"menu scanout is disabled","menu"};
+ const auto skipped=std::chrono::steady_clock::now();
+ assert(f.runtime.CheckIdleDisplayHealth().ok());
+ assert(std::chrono::steady_clock::now()-skipped<std::chrono::milliseconds(500));
+ assert(f.hardware.check_idle_display_calls==drawing&&f.hardware.idle_calls==idle_programs);
+ assert(f.runtime.status().menu_display.available&&
+  f.runtime.status().menu_display.generation==generation);
+ mister::MenuDisplayInfo info;
+ assert(f.runtime.PresentMenuFrame(generation,*frame,&info).ok());
+ frame.reset();
+
+ // Pacing is the hardware's answer, and the runtime asks it before claiming
+ // the mutation fence: a tick that would read nothing must not reach the
+ // hardware or refuse a menu frame for the duration of a status request.
+ f.hardware.check_idle_display_result={};
+ f.hardware.idle_display_health_due=false;
+ assert(f.runtime.CheckIdleDisplayHealth().ok());
+ assert(f.hardware.check_idle_display_calls==drawing);
+ assert(f.runtime.BeginMenuFrame(generation,&frame).ok());
+ frame.reset();
+ f.hardware.idle_display_health_due=true;
+ assert(f.runtime.CheckIdleDisplayHealth().ok());
+ assert(f.hardware.check_idle_display_calls==drawing+1);
 }
 
 void TestMenuGenerationAndPreparationFencing()

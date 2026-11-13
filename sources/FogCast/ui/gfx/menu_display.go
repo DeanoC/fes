@@ -749,9 +749,17 @@ func (d *MenuDisplay) run() {
 // present and, before the idle health check, never looked again. Status
 // without live fields is an older runtime, where only the sequence is known.
 func (d *MenuDisplay) scanoutLostLocked(status menudisplay.Status) bool {
-	if live := status.Live; live != nil && (!live.Enabled || live.Faulted || live.Quiesced) {
-		return true
+	if live := status.Live; live != nil {
+		if !live.Enabled || live.Faulted || live.Quiesced {
+			return true
+		}
+		// The runtime sets status.DisplayedSequence from the same value it
+		// returned to this client's present, so those two can never disagree.
+		// Only the live register read can, and it is the one that says what
+		// scanout is doing now.
+		return d.presentedDisplayedKnown && live.DisplayedSequence != d.presentedDisplayed
 	}
+	// An older runtime measures nothing, leaving only the cached sequence.
 	return d.presentedDisplayedKnown && status.DisplayedSequence != d.presentedDisplayed
 }
 

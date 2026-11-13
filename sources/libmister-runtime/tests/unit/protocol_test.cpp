@@ -1399,17 +1399,18 @@ void TestMenuProtocolRequestsAndStatus()
  assert(listed.find("\"live\"")==std::string::npos);
  mister::Status live_status=status;
  live_status.menu_display.live.read=true;live_status.menu_display.live.enabled=true;
- live_status.menu_display.live.displayed_sequence=9;live_status.menu_display.live.underflows=3;
+ live_status.menu_display.live.displayed_sequence=9;live_status.menu_display.live.underflows_total=3;
  const auto display_only=mister::daemon::EncodeResponse(2,true,live_status,"test",nullptr,nullptr,nullptr);
  assert(display_only.find("\"live\":{\"enabled\":true,\"faulted\":false,\"quiesced\":false,"
-  "\"displayed_sequence\":9,\"underflows\":3}")!=std::string::npos);
+  "\"displayed_sequence\":9,\"underflows_total\":3}")!=std::string::npos);
  live_status.menu_display.live.link=true;live_status.menu_display.live.hot_plug=true;
  live_status.menu_display.live.rx_sense=true;live_status.menu_display.live.pll_lock=true;
  live_status.menu_display.live.vic=4;
  const auto with_link=mister::daemon::EncodeResponse(2,true,live_status,"test",nullptr,nullptr,nullptr);
  assert(with_link.find("\"live\":{\"enabled\":true,\"faulted\":false,\"quiesced\":false,"
-  "\"displayed_sequence\":9,\"underflows\":3,\"hot_plug\":true,\"rx_sense\":true,"
-  "\"pll_lock\":true,\"vic\":4}")!=std::string::npos);
+  "\"displayed_sequence\":9,\"underflows_total\":3,"
+  "\"transmitter\":{\"hot_plug\":true,\"rx_sense\":true,"
+  "\"pll_lock\":true,\"vic\":4}}")!=std::string::npos);
 
  status.menu_display.frame_mapping=true;granted.frame_mapping=true;granted.blitter=false;
  const auto frame_mapping=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&granted);

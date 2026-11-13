@@ -2519,7 +2519,16 @@ void TestIdleDisplayHealthDetectsLostScanoutWithinBudget()
  assert(links()==present_links&&hardware.menu_display().displayed_sequence==2);
  assert(!hardware.menu_display().live.read);
 
+ // Programming the menu starts the settle window: the pixel PLL and the
+ // sink's detected mode need frames to come back, so no read happens at the
+ // activation moment however many status requests arrive.
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(!hardware.IdleDisplayHealthDue()&&!hardware.menu_display().live.read);
+ assert(links()==present_links);
+
  // A healthy re-read records what the display and the ADV7513 report.
+ clock.now_+=kMenuHealthIntervalMs;
+ assert(hardware.IdleDisplayHealthDue());
  script.Info(3,2);
  assert(hardware.CheckIdleDisplayHealth().ok());
  const auto healthy=hardware.menu_display().live;
@@ -2599,9 +2608,17 @@ void TestIdleDisplayHealthDetectsLostScanoutWithinBudget()
  i2c.detail_read_error={};
 
  // A sink that stopped reporting Rx sense, or a mode that is no longer
- // 720p60, is the same lost picture.
+ // 720p60, is the same lost picture. These three signals settle over
+ // several frames, so one reading is not enough: a second, consecutive
+ // reading of the same loss is what reprograms.
  clock.now_+=kMenuHealthIntervalMs;
  i2c.pll_status=0x02;
+ script.Info(3,0);
+ const auto settling=fpga.calls;
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(fpga.calls==settling&&hardware.menu_display().available);
+ assert(!hardware.menu_display().live.pll_lock);
+ clock.now_+=kMenuHealthIntervalMs;
  script.Info(3,0);
  const auto unlocked=hardware.CheckIdleDisplayHealth();
  assert(!unlocked.ok()&&unlocked.message=="menu pixel PLL is unlocked");
@@ -2611,8 +2628,43 @@ void TestIdleDisplayHealthDetectsLostScanoutWithinBudget()
  clock.now_+=kMenuReactivationWindowMs;
  i2c.vic_status=0x04;
  script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,0);
  const auto mode=hardware.CheckIdleDisplayHealth();
  assert(!mode.ok()&&mode.message=="menu HDMI mode is not 720p60");
+ // That reactivation cannot clear a sink that reports this mode for this
+ // picture. Reporting the same reason again latches it: the idle Home is
+ // not reprogrammed twice every ten minutes for the rest of the uptime.
+ reactivate();
+ const auto latched=fpga.calls;
+ clock.now_+=kMenuHealthIntervalMs;script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ clock.now_+=kMenuHealthIntervalMs;script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(fpga.calls==latched&&hardware.menu_display().available);
+ std::size_t latch_records=0;
+ for(const auto& record:log.records())
+  if(record.operation=="menu_display_health"&&record.phase=="latched")++latch_records;
+ assert(latch_records==1);
+ // Even a whole new budget window does not reopen a latched reason.
+ clock.now_+=kMenuReactivationWindowMs;script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ clock.now_+=kMenuHealthIntervalMs;script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(fpga.calls==latched);
+ // A healthy read clears the latch, so a loss that genuinely returns later
+ // is treated as new evidence again.
+ i2c.vic_status=0x10;
+ clock.now_+=kMenuHealthIntervalMs;script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ i2c.vic_status=0x04;
+ clock.now_+=kMenuHealthIntervalMs;script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ clock.now_+=kMenuHealthIntervalMs;script.Info(3,0);
+ const auto again=hardware.CheckIdleDisplayHealth();
+ assert(!again.ok()&&again.message=="menu HDMI mode is not 720p60");
+ assert(!hardware.menu_display().available&&!operations.Granted());
  i2c.vic_status=0x10;
 }
 

@@ -101,6 +101,7 @@ public:
 	HardwareResult LoadIdle() override;
  HardwareResult ConfigureMenuPackage(const std::string&,const std::string&) override;
  Error CheckIdleDisplayHealth() override;
+ bool IdleDisplayHealthDue() const override;
  MenuDisplayStatus menu_display() const override {
   MenuDisplayStatus status=menu_status_;status.launcher_focus=session_display_focused_;return status;
  }
@@ -178,10 +179,21 @@ private:
  unsigned menu_reactivations_=0;
  std::uint64_t menu_reactivation_window_start_=0;
  // The last idle health check, and whether one has run since this image was
- // programmed. The check is paced from here, never from a present.
+ // programmed. The check is paced from here, never from a present. A
+ // successful menu program sets both, so the first read of a fresh display
+ // is one interval later and never catches it settling.
  std::uint64_t menu_health_checked_at_=0;
  bool menu_health_checked_=false;
  bool menu_health_budget_logged_=false;
+ // The previous tick's sequence-mismatch verdict, so the health line is
+ // logged on a transition rather than on every present.
+ bool menu_health_sequence_mismatch_=false;
+ // A transmitter-only loss seen once and awaiting a second reading, the
+ // reason the last reactivation was spent on, and a reason that reactivation
+ // failed to clear. A healthy read clears all three.
+ std::string menu_health_settling_;
+ std::string menu_health_reactivated_for_;
+ std::string menu_health_unrecoverable_;
  Error PrepareCoreDataInternal(AdmittedCorePackage*, const std::string&, const std::string&, CoreData*, bool);
 	Error StopInput(std::uint64_t absolute_deadline_ms);
 	HardwareResult QuiesceForReplacement(const char* operation,

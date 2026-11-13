@@ -384,7 +384,10 @@ struct MenuDisplayLive {
  // means nothing was measured, not that the display is healthy.
  bool read=false,link=false;
  bool enabled=false,faulted=false,quiesced=false;
- std::uint32_t displayed_sequence=0,underflows=0;
+ // underflows_total is the hardware's absolute counter since this image was
+ // programmed, not the per-present delta that MenuDisplayStatus::underflows
+ // carries. The one-scanline per-present cap does not apply to it.
+ std::uint32_t displayed_sequence=0,underflows_total=0;
  // ADV7513 0x42 (HPD and Rx sense), 0x9e bit 4 (pixel PLL lock) and the
  // detected VIC from 0x3e>>2. A 720p60 link reports VIC 4.
  bool hot_plug=false,rx_sense=false,pll_lock=false;
@@ -537,6 +540,11 @@ public:
  // implementation spends the bounded reactivation budget before reporting
  // one, so an exhausted budget reports ok and leaves the display alone.
  virtual Error CheckIdleDisplayHealth() {return {};}
+ // Whether CheckIdleDisplayHealth would read anything if called now. It
+ // takes no bus and no deadline, so the runtime can test it before claiming
+ // the mutation fence and refusing a menu frame for a read it would skip.
+ // Hardware that measures nothing answers false and is never fenced.
+ virtual bool IdleDisplayHealthDue() const {return false;}
  virtual Error SetSessionDisplay(bool,bool) {
   return {ErrorCode::unsupported_interface,"session display unavailable","menu"};
  }

@@ -246,9 +246,19 @@ public:
  {
   {
    std::lock_guard<std::mutex> lock(mutex_);
-   if(busy_||menu_frame_busy_||!started_||stopping_||pending_fault_generation_!=0||
+   // A preparation the client is still drawing into counts as an
+   // outstanding frame: every other path that can reprogram drains it
+   // first. This one does not wait at all, because a status request must
+   // not be held for seconds; the next request a second later retries.
+   if(busy_||MenuFrameOutstanding()||!started_||stopping_||pending_fault_generation_!=0||
     status_.state!=State::idle||!status_.menu_display.available||status_.menu_display.session)
     return {};
+   // Nothing is due yet. Claiming the mutation fence for a read the pacing
+   // would discard would refuse begin and commit on the frame connection
+   // for every status request, which the agent sends every 25 ms. Hardware
+   // answers this from a timestamp and touches no bus, and no concurrent
+   // write to it is possible while busy_ is clear.
+   if(!hardware_.IdleDisplayHealthDue())return {};
    // A health read owns the display registers exactly as a frame does, so
    // no present, grant or mutation can interleave with it.
    busy_=true;menu_frame_busy_=true;
