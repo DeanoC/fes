@@ -2,14 +2,18 @@
 
 Slice 0 of the [x87 plan](../2026-11-12-i386-x87-plan/summary.md#slices)
 ([#1768](https://github.com/DeanoC/fes/issues/1768)) lands in the
-simulation and the oracle only. It changes no CPU RTL.
+simulation and the oracle, with two machine-side changes: an input for the
+`i386dx+387` identity, tied off in the package, and a BIOS fix. It changes
+no CPU RTL.
 
-It does four things:
+It does five things:
 
 - It lands the plan's census keys in `machine_tb --census`.
 - It gives the Bochs oracle the error path a 387 has on an AT board.
 - It adds an x87 state accessor and the lockstep's 387 identity.
 - It runs Linux 2.0.0 with its 387, which used to hang the oracle.
+- It adds the identity as a machine input for CMOS 14h bit 1, off in the
+  package.
 
 **Result.**
 - **The hang is gone.** Linux 2.0.0, booted on the oracle without `no387`,
@@ -25,15 +29,17 @@ It does four things:
   reset.
 - **It found a BIOS bug.** pc386's INT 75h handler clobbered AX, and with
   FreeDOS's interrupt stacks that corrupted DOS's memory chain
-  ([below](#the-bios-int-75h-handler)). The fix is its own PR,
-  [#1785](https://github.com/DeanoC/fes/pull/1785)
-  ([#1784](https://github.com/DeanoC/fes/issues/1784)).
+  ([below](#the-bios-int-75h-handler)). The fix is in this PR as its own
+  commit ([#1784](https://github.com/DeanoC/fes/issues/1784)).
 - **With the identity off, nothing changes.** The lockstep matches main on
   every architectural result, max and preset 3, and test386 reaches POST FFh.
   The census reruns of the plan's titles give the plan's files key for key.
-- **The identity setting is waiting on a decision.** The CMOS 14h bit 1
-  setting needs a machine-side RTL input. Per the task this slice stopped and
-  asked; see [Open](#open).
+- **The identity is a machine input, tied off.** `pc386_machine` takes
+  `x87_present`, which sets CMOS 14h bit 1, and `pc386_system` ties it to 0
+  ([below](#the-identity-input)). Tied off, the sealed machine's netlist is
+  the same logic: `pc386_rtc` is proven equivalent, and the elaborated
+  `pc386_system` has identical statistics. The `fes.pc386.machine` record word and
+  the FogCast setting move to slice 2.
 
 ## Sources
 
@@ -107,6 +113,41 @@ Links are in the [plan's sources](../2026-11-12-i386-x87-plan/summary.md#sources
     387 at CW 0040h with every tag valid. Whether an AT's CPU-only resets
     reach the 387 is not settled by these sources.
 
+## The identity input
+
+Deano chose option A (a machine input) over a new record word. The record's
+setting words 0–7 are all taken.
+
+- **RTL.** `pc386_rtc` writes CMOS 14h as `{6'b000001, x87_present, 1'b0}`:
+  04h as before, 06h with a 387, bit 1 being the AT's "math coprocessor
+  installed" bit (IBM PC AT Technical Reference 6183355, CMOS equipment
+  byte, 1-63 to 1-64). `x87_present` runs from `pc386_machine` through
+  `pc386_at_core`. `pc386_system` ties it to 0 until the x87 lands; the
+  record word and FogCast setting come with slice 2.
+- **Bench.** `machine_tb --x87 1` sets the input before the machine leaves
+  reset. X87TEST.COM checks INT 11h's coprocessor bit with it (`equip`).
+- **The tie-off changes nothing.** `pc386_system` was elaborated through the
+  seal's own Yosys program (`build_fes_pc386_quartus.machine_program`, the
+  pc386 lock's Yosys, CUDA slot `0eae907f`) at `f5d07827b` (before) and at
+  `b0a517071` (the input, same BIOS).
+  - The text differs: source line numbers in `src` attributes and Yosys's
+    auto-numbered wire names.
+  - Yosys's `stat` of the two is identical: 53,321 cells by type, 48,991
+    wires, 40,426 public wires.
+  - Yosys's equivalence flow (`equiv_make`, `equiv_struct`, `equiv_simple
+    -seq 2`) proves 214,894 of the whole machine's 216,150 `$equiv` cells.
+    The 1,256 it leaves are registers a two-cycle bound can't reach: VGA,
+    record and auto-named state, and 88 in the RTC. Full induction stops on
+    the machine's memories, for which Yosys's SAT has no model.
+  - So the module that changed was proven on its own: `pc386_rtc` at
+    `f5d07827b` against `pc386_rtc` at `b0a517071` with `x87_present` tied
+    to 0. With `memory`, `async2sync`, `equiv_simple -seq 5`, `equiv_induct
+    -seq 5` and `equiv_status -assert`, all 429 cells are proven. Tied to 1
+    instead, one cell stays unproven and the assert fails, so the check
+    tells the two apart. Outside `pc386_rtc` the change is port wiring
+    through `pc386_at_core` and `pc386_machine`, with the constant from
+    `pc386_system`.
+
 ## Checks
 
 The checks ran on this branch's commits as they landed:
@@ -115,11 +156,12 @@ The checks ran on this branch's commits as they landed:
   suite, the Linux run and the census reruns, from its machine_tb build;
 - `9c62ab2e1` (with the lockstep identity and X87TEST.COM): the lockstep,
   test386 and the X87TEST.COM runs;
-- `c2dcd299a` (`9c62ab2e1` with #1785's BIOS, a local tree): the X87TEST.COM
-  pass;
-- the head after merging main (`48944e175`): the runs listed last.
+- `c2dcd299a` (`9c62ab2e1` with the BIOS fix, a local tree): the first
+  X87TEST.COM pass;
+- the head after merging main (`48944e175`): the runs listed next;
   `ffd030220` after it changes only the census classes, documentation and
-  this record.
+  this record;
+- `2d889b671` (the identity input and the BIOS fix): the last rows.
 
 | Check | Where | Result |
 | --- | --- | --- |
@@ -127,7 +169,7 @@ The checks ran on this branch's commits as they landed:
 | The same with OUT F0h made a no-op | Powerboat | 7 fail (no HLT: the latch never clears) |
 | The same with the hold removed | Powerboat | hangs inside `step()`: main's bug |
 | `sim_fes_pc386.py --suite boot` (FreeDOS on the oracle, coupling on) | chip | PASS, prompt at 3.75 s |
-| `sim_fes_pc386.py --suite x87` (X87TEST.COM) | chip | every check ok, then FreeDOS halts ("MCB chain corrupted"); with #1785's BIOS, PASS (below) |
+| `sim_fes_pc386.py --suite x87` (X87TEST.COM) | chip | every check ok, then FreeDOS halts ("MCB chain corrupted"); with the BIOS fix, PASS (below) |
 | Linux 2.0.0 with its 387 on the oracle, 40 s | chip | logs in at 24 s; see below |
 | Lockstep, main `e27d6af8f` and this branch, same arguments (corpus 40 per file, 8 × 200 random, 8 × 100 protected-mode, 50 task, debug and undefined programs), `--same-as` main | chip | "every architectural result" |
 | The same at governor preset 3, `--same-as` this branch's max | chip | "every architectural result" |
@@ -136,9 +178,13 @@ The checks ran on this branch's commits as they landed:
 | `tests.test_pc386_machine` (72 tests), `tests.test_fes_i386_oracle` | Powerboat | OK |
 | Head `48944e175`, after merging main: `--suite boot` | chip | PASS |
 | Head `48944e175`: `--suite boot --cpu rtl` | chip | PASS |
-| Head `48944e175`: `--suite x87` | chip | every check ok, then the FreeDOS panic #1785 fixes |
+| Head `48944e175`: `--suite x87` | chip | every check ok, then the FreeDOS panic the BIOS fix removes |
 | Head `48944e175`: lockstep as above, `--same-as` main | chip | "every architectural result" |
 | Head `48944e175`: the no387 mode with `FES_I386_X87=387` | chip | refused |
+| `2d889b671`: `--suite boot` | chip | PASS |
+| `2d889b671`: `--suite x87` (with `--x87 1`) | chip | PASS: `equip 0002h`, every check ok, prompt again |
+| `2d889b671`: `--suite a20`, `--suite wait` (BIOS-dependent suites) | chip | PASS, PASS |
+| `2d889b671`: `--suite boot --cpu rtl` | chip | PASS |
 
 The x87_tb cases:
 
@@ -228,11 +274,14 @@ int 2; iret`, and `eoi_both_pics` loads 20h into AL. IBM's `INT_287` saves
 and restores AX around the same steps. The fix makes the handler keep AX
 and write 00h, as IBM's does (`firmware/README.md`, `firmware.lock`).
 
-**Scope.** This changes `pc386-bios.bin`, which is in the sealed ROM, so it
-is its own PR, [#1785](https://github.com/DeanoC/fes/pull/1785). On a kit it
-matters only once IRQ 13 can rise, which is slice 2. With it, X87TEST.COM
-passes to the prompt (this branch at `c2dcd299a`, a local tree with the fix,
-on chip). Without it, the suite fails here until #1785 merges.
+**Scope.** Deano chose to keep the fix in this PR as its own commit
+(`2d889b671`). It changes `pc386-bios.bin`, whose digest `firmware.lock`
+pins and every pc386 seal summary records (`bios`: `37a1b6ba…` before,
+`d11a805e…` now). So the current seal's firmware identity no longer matches
+the tree; nothing is resealed here, and the next sealing PR covers it. On a
+kit the change matters only once IRQ 13 can rise, which is slice 2. With it,
+X87TEST.COM passes to the prompt. The same commit was first opened alone as
+[#1785](https://github.com/DeanoC/fes/pull/1785), now superseded.
 
 **A second BIOS difference.** rombios's default INT 02h prints "NMI Handler
 called" and halts on any NMI, its own comment says it should return when
@@ -243,14 +292,8 @@ That is a follow-up for the firmware, not this slice.
 
 ## Open
 
-- **The `i386dx+387` identity setting (CMOS 14h bit 1).** CMOS 14h is a
-  constant 04h in `pc386_rtc.sv`, and the `fes.pc386.machine` record's
-  setting words 0–7 are all taken (7 is reserved for the EMS board's size).
-  So the setting needs a machine-side RTL input. The task said to stop and
-  ask before any machine-side RTL. The options put to Deano:
-  - **A.** A `pc386_machine` input that sets bit 1, tied 0 in
-    `pc386_system`, with a machine_tb flag.
-  - **B.** A new record word now.
+- **The identity's record word and FogCast setting** move to slice 2, with
+  the x87 the package can then report.
 - **The 387's state after a CPU reset**, and **FNSTCW's ERROR# behaviour**,
   stay for real hardware or a later slice (the plan's open questions).
 - **The ESC forms Bochs's level 3 rejects as #UD** (the P6 forms in D8–DF)
