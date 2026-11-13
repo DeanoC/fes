@@ -10319,18 +10319,24 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             image.emplace_back(v * 4 + 2, 0); image.emplace_back(v * 4 + 3, 0);
         }
         image.emplace_back(HANDLER, 0xf4);
-        // The operands: a 32-bit real 1.5, a 64-bit real -2.25, an 80-bit
-        // real 3.0, the integers 1234h, 12345678h and a 64-bit one, and a
-        // control word with every exception masked and round to nearest.
-        const uint8_t data[] = {
-            0x00, 0x00, 0xc0, 0x3f, 0x00, 0x00, 0x80, 0xbf,                           // 100h: 1.5, -1.0
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xc0, 0, 0,                      // 108h: -2.25
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x40, 0, 0, 0, 0, 0, 0,  // 110h: 3.0
-            0x34, 0x12, 0, 0, 0x78, 0x56, 0x34, 0x12,                                  // 120h, 124h
-            0x21, 0x43, 0x65, 0x87, 0x09, 0x00, 0x00, 0x00,                            // 128h
-            0x7f, 0x03,                                                                 // 130h: the control word
+        // The operands, each at the offset its form reads, so a drifting
+        // table cannot hand FLDCW a control word with an exception unmasked
+        // (which would set ES, latch BUSY# and hold the run for ever: this
+        // bench drives no IRQ 13).
+        struct Operand { uint16_t at; std::vector<uint8_t> bytes; };
+        const Operand operands[] = {
+            {0x100, {0x00, 0x00, 0xc0, 0x3f}},                                    // f32 1.5
+            {0x104, {0x00, 0x00, 0x80, 0xbf}},                                    // f32 -1.0
+            {0x108, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xc0}},            // f64 -2.25
+            {0x110, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x40}},  // f80 3.0
+            {0x120, {0x34, 0x12}},                                                // i16 1234h
+            {0x124, {0x78, 0x56, 0x34, 0x12}},                                    // i32 12345678h
+            {0x128, {0x21, 0x43, 0x65, 0x87, 0x09, 0x00, 0x00, 0x00}},            // i64
+            {0x130, {0x7f, 0x03}},                                                // the control word, all masked
         };
-        for (unsigned i = 0; i < sizeof data; ++i) image.emplace_back(DS + 0x100 + i, data[i]);
+        for (const Operand &o : operands)
+            for (unsigned i = 0; i < o.bytes.size(); ++i)
+                image.emplace_back(DS + o.at + i, o.bytes[i]);
         for (uint32_t i = 0x300; i < 0x460; ++i) image.emplace_back(DS + i, 0xcc);
         for (auto [address, value] : image) {
             bus.ram[address] = rtl.poke(address, value);
