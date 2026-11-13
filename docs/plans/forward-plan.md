@@ -253,9 +253,13 @@ contract with a conformance test.
   package, with board-specific steps living in the board package.
 - The **experimental custom OS** becomes a third implementation, behind the
   same conformance test. It can then be developed and swapped in per board
-  without the product caring. It will arrive as an opt-in experiment and is a
-  long way from product use, so this plan treats it only as a future option
-  behind that interface. It is not on the v1 path.
+  without the product caring. Its first form is the Linux-free DE25 base in
+  [#1791](https://github.com/DeanoC/fes/pull/1791), behind
+  `FES_EXPERIMENTAL_DE25_EMBEDDED=1`. It is a long way from product use, so
+  this plan treats it only as a future option behind that interface, and it
+  is not on the v1 path. One consequence to plan for: it carries its own FPGA
+  register constants and programming profiles, separate from the Linux DE25
+  ones. Both should come to be generated from the one board descriptor.
 
 ## Managing cores and compile time
 
@@ -379,15 +383,19 @@ Tiers apply to a **(core, board) cell**, and to boards.
 
 | Tier | Meaning | Bar |
 | --- | --- | --- |
-| 1 | Released and supported | Sealed on the product lane; conformance passes in simulation and on a kit; a precommitted game corpus passes against a reference emulator; persistence as declared; listed in the release; regressions block a release |
+| 1 | Release quality and supported | Sealed on the product lane; conformance passes in simulation and on a kit; a precommitted game corpus passes against a reference emulator; persistence as declared; regressions block any release that includes it |
 | 2 | Supported preview | Sealed; conformance passes on a kit; known gaps listed; shown behind "Show all cores"; regressions get an issue, not a block |
 | 3 | Experimental | Builds; no promise |
 
 Board tiers: DE10-Nano is tier 1. DE25-Nano is tier 2 until its shell hosts
 every tier 1 machine and its image passes update and recovery on hardware.
 
+A tier is a quality bar. Release scope is a separate choice: a release lists
+a named subset of the tier 1 cells, and nothing below tier 1.
+
 Tier 1 set on DE10 (decided): ZX81 family, Spectrum family, C64, Atari ST,
-PC/XT. pc386 joins when #1368 and #1494 close. Coleco, SMS, SG-1000 and Apple
+PC/XT. v1 ships the first four, as its plan says; PC/XT is tier 1 by quality
+and is scoped to the release after v1. pc386 joins when #1368 and #1494 close. Coleco, SMS, SG-1000 and Apple
 II are tier 2 once they meet the port; Pong, RAM Tester and RISC-V are
 utilities and demos, outside the ladder.
 
@@ -412,8 +420,14 @@ is right. Do not widen it. What stands between the tree and a release:
   (#1352–#1354), release-candidate acceptance (#1355), quickstart (#1356),
   volume (#1415), trial-boot hang (#727), image retention (#917).
 - **Legal blockers, which are cheap and must come first:** choose and add a
-  licence; finish the notice audit (#387); remove the committed ZX81/ZX80 ROM
-  bytes from the capture archive; settle the EmuTOS licence label.
+  licence; finish the notice audit (#387); settle the EmuTOS licence label;
+  and deal with the ZX81/ZX80 ROM bytes inside a committed capture archive.
+  Deleting that file at the tip is not enough, because the bytes stay in
+  history that any clone of the public repository can fetch, and rewriting
+  `main` is forbidden. This needs Deano's explicit choice of one route:
+  confirmed redistribution permission, a one-off approved history clean with
+  its own procedure, or publishing the release from a fresh repository whose
+  history never held them.
 - **Signing** for images, bundles and packages, with the key kept off the
   build hosts.
 - **Menu frame time.** Budget overruns on DE10 are a product defect, and the
@@ -493,7 +507,7 @@ architecture, B ships nothing to users.
 | A1. Ship v1 | v1 milestone, legal cleanup, zero-copy menu frames, release-candidate acceptance | Tagged, signed public DE10 release of four families that passes the offline journey |
 | B1. Prove the split | Board descriptor and generator. Core port v1. DE10 and DE25 shells. MENU and ZX81 from identical source on both boards. Runtime backends with no shared-file branches. | Forked `shared-rtl` deleted; board-conditional count in shared files near zero; both cells kit-accepted |
 | B2. Build farm | Remote cache, package store, farm queue, `core.toml` generation, synthesis-only PR check, nightly bumps, generated matrix | A core PR rebuilds only its cells; an image build compiles no cores; matrix page is generated |
-| 3. Convert and widen | Move every tier 1 machine onto the port at its next reseal. One image builder. Online catalog and in-play layer. PC/XT and pc386 to tier 1. | All tier 1 machines build for both boards from one source; v1.x release with catalog |
+| 3. Convert and widen | Move every tier 1 machine onto the port at its next reseal. One image builder. Online catalog and in-play layer. PC/XT enters release scope; pc386 reaches tier 1. | All tier 1 machines build for both boards from one source; v1.x release with catalog |
 | 4. DE25 to tier 1 | Update and recovery on DE25 hardware, full tier 1 set accepted there | A DE25 release from the same tag as DE10 |
 | 5. Prove additivity | Add a third board, or the custom OS on an existing board, as the test | New board = one board package, no machine changes; measured in days of work, not weeks |
 
@@ -539,4 +553,5 @@ Decided by Deano on 13 November 2026.
    it lives.
 
 Still open: which licence file text and headers to apply once #387 reports,
-and the signing approach for v1.
+the signing approach for v1, and the route for the committed ROM bytes
+described under v1.
