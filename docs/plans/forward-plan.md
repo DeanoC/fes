@@ -171,8 +171,10 @@ port must allow all of that without a second copy of the core.
   memory, misses timing). The generated matrix shows it and the catalog never
   lists it for that board.
 - `features`: optional parts, each with the capability that enables it.
-- `[board.<name>]`: per-board choices that are judgement, not capability:
-  clock targets, which features to enable, the place-and-route recipe.
+- Per-cell choices that are judgement, not capability (clock targets, which
+  features to enable, place-and-route tuning) do not live in `core.toml`.
+  They go in the board package's override file for that cell, so adding a
+  board never edits a core.
 
 The build resolves these into a **cell profile**, sealed into the package
 manifest: the features present and the performance achieved. Everything
@@ -214,9 +216,11 @@ offered, on another without any special case.
 - **Identity is (core, board, lane, front end)** plus content. The lane design
   in [RTL front-end lanes](../design/rtl-frontend-lanes.md) already adds the
   front-end axis; add the board axis the same way and stop there.
-- **One current package format.** Formats 2, 3 and 4 are all still read.
-  Converge producers on one, convert the sealed archives once, and delete the
-  older readers.
+- **One current package format.** Readers accept formats 2 to 5 today;
+  format 5 carries the DE25 sealed base and default persona. Converge
+  producers on one schema that covers all four, including the format 5
+  base/persona content, convert the sealed archives once, and only then
+  delete the older readers.
 - **Manifest carries needs.** Port version, capabilities, required firmware,
   media kinds, input kinds. The kit admits a package by comparing these with
   its shell, not by a hard-coded device list.
@@ -266,9 +270,14 @@ about whether a core is good.
 
 ### One manifest per core
 
-`cores/<core>/core.toml` declares the machine, its needs, its recipes per
-board, its simulation targets by tier (smoke, full, soak), its conformance
-inputs and its game corpus. From those manifests generate: the Make targets,
+`cores/<core>/core.toml` declares the machine, its needs and features, its
+board-independent recipe defaults, its simulation targets by tier (smoke,
+full, soak), its conformance inputs and its game corpus. It names no board.
+The board package supplies the lane and default recipe for that board, and
+the cell list is generated: every core whose needs a shell meets. Adding a
+board therefore edits no core manifest. A cell that needs hand tuning gets an
+override file in the board package (`boards/<board>/cells/<core>.toml`); most
+cells should not need one. From those manifests generate: the Make targets,
 `ci_simulations.py`, the `affected.py` path→core map, the recipe table and the
 catalog entry. Adding a core becomes adding a directory. The single argv
 builder from [cores as apps](../cores-as-apps-plan.md) step 2 is the same idea
@@ -279,8 +288,17 @@ for place-and-route and stays.
 Every machine passes the same lifecycle in simulation and on a kit: reset,
 reach a known screen (golden frame), accept input, mount each declared media
 kind, produce audio, save if it declares persistence, stop, relaunch. The
-simulation side runs the machine against a **shell model**, so the same test
-covers every board's shell without a per-board testbench. Per-core scripts
+simulation side runs the machine against a **shell model**, so one testbench
+serves every machine.
+
+The model is only as good as its match to the real shells, so each board
+shell has its own **shell conformance test**: the real shell RTL, with vendor
+primitive models, is simulated around a small reference machine that
+exercises every port service (clocks and reset ordering, bridge and mailbox,
+media windows, display plane, audio, input). The shell model must pass the
+same suite. That is N shell tests plus M machine tests, not N × M, and it
+means a wiring or reset defect in a shell is found in simulation before a
+kit. Per-core scripts
 (`pcxt_*`, `atari_st_*`) shrink to the data that is really specific: the
 inputs, the expected frames and the game list.
 
@@ -289,8 +307,8 @@ inputs, the expected frames and the game list.
 | Loop | Runs | Target time | Proves |
 | --- | --- | --- | --- |
 | Edit | Lint and smoke simulation of the changed machine | under 2 min local | Logic still works |
-| PR | Affected simulations, plus **synthesis-only for every board the core declares** | under 15 min | Portable RTL, no vendor leakage, area within budget |
-| Merge | Place-and-route and seal for affected cells only, on the farm | minutes to an hour, asynchronous | Timing on real fabric |
+| PR | Affected simulations, plus **synthesis-only for every board that can host the core** | under 15 min | Portable RTL, no vendor leakage, area within budget |
+| Seal | Place-and-route and seal on the farm, for each cell whose build closure the PR changes, before that PR merges | minutes to an hour, asynchronous | Timing on real fabric |
 | Release | Kit acceptance of the exact published packages | scheduled | The artifact works |
 
 Synthesis-only in PR CI is the cheap check that is missing today. It catches
@@ -298,8 +316,13 @@ most cross-board breakage in a few minutes and needs no GPU. It does mean
 solving Quartus in CI: containerise Lite (no licence needed) for hosted
 runners, and run Pro on the self-hosted builders.
 
-Place-and-route must not block a PR that did not change RTL, and an unrelated
-core's timing miss must not block anything but that core's cell.
+The seal loop is keyed on each cell's **build closure**, not on RTL alone:
+machine and shell RTL, constraints, recipe and overrides, producer, toolchain
+lock and generated shell inputs. Any change inside a cell's closure gets the
+normal reseal and kit bar before merge, and the existing no-RTL reseal
+exception in [AGENTS.md](../../AGENTS.md#hard-rules) applies unchanged. A PR
+that changes no cell's closure does not wait for place-and-route, and one
+core's timing miss blocks only that core's cell.
 
 ### Build farm and published packages
 
@@ -340,12 +363,15 @@ issue against that core. The fix is then chosen deliberately: a newer
 toolchain if it closes, otherwise pipelining. A 1-in-9 seed lottery is a defect,
 not a recipe. Timing and seal checks are never relaxed.
 
-### One product lane per cell
+### Product lanes per cell
 
-Keep the current policy and make it mechanical: nextpnr is the product lane on
-Cyclone V except where a core is recorded as Quartus-primary (x86 today);
-Quartus Pro on Agilex 5. A second lane on the same cell is an oracle and is
-never packaged. That halves the matrix that has to be sealed.
+Keep the accepted policy in [Quartus-built cores](../design/quartus-cores.md)
+and make it mechanical. Each cell has one primary lane: nextpnr on Cyclone V
+except where a core is recorded as Quartus-primary (x86 today), and Quartus
+Pro on Agilex 5. A second lane on the same cell ships as a labelled variant
+only when it meets that policy's 15% rule; the farm evaluates the rule from
+the two sealed builds and records the result. Otherwise the second lane is
+an oracle and is not packaged. Most cells therefore seal once.
 
 ## Tiers
 
@@ -440,9 +466,12 @@ much they reuse (MSX, Amstrad CPC, BBC Micro, Amiga and Mega Drive on the
   certification* (exact artifacts, reproducibility, kit acceptance). Keep
   every safety property that protects a kit or user data. Drop duplicated
   evidence requests on ordinary PRs.
-- **Evidence out of Git.** Move `docs/validation/` payloads (142 MB) to the
-  artifact store, keep a generated index and the receipts' hashes in the
-  repository. New records are published, not committed.
+- **Bulk evidence out of Git.** Move large `docs/validation/` payloads
+  (captures, logs, archives; 142 MB today) to the artifact store, referenced
+  by hash from the record that stays. Records a merge rule requires in the PR
+  stay in Git as they are, including a timing campaign's `runs.jsonl` and
+  summary table. Changing any such rule is a separate, explicit change to
+  AGENTS.md, not a side effect of this move.
 - **Retire legacy as a tracked list**, since #871 is closed with nothing
   ticked: `internal/localcores`, the `fes.simple-computer` ABI, the firmware
   blob slot, `host_only` RetroArch, `mister_v1`, legacy `make media`, the
@@ -478,7 +507,7 @@ edits inside a machine, the port is wrong and gets fixed there.
 - Hand-editing the support matrix, or deriving tiers from commit recency.
 - Building cores as part of building an image.
 - Writing a new acceptance script per core where a corpus file would do.
-- Committing evidence payloads.
+- Committing bulk evidence payloads.
 - Starting new plan documents beside this one.
 
 ## Decisions
