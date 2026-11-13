@@ -149,9 +149,10 @@ module pc386_fdc #(
     reg format_cyl_set, format_bad;
     // Per drive: a disk left it since the current command's first byte.
     // Any eject sets it, the next command's first byte clears it, and an
-    // eject in that same clock wins.
+    // eject in that same clock wins. disk_left also sees an eject in the
+    // clock it happens, before the latch has it.
     reg [1:0] left;
-    wire disk_left = left[d];
+    wire disk_left = left[d] || present_q[d] && !present[d];
     reg [8:0] index;                               // byte within the sector
 
     wire d = dor[0];                               // the selected drive

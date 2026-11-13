@@ -140,6 +140,7 @@ public:
     bool busy() const { return top->busy; }
     bool fenced() const { return top->fenced; }
     void set_frozen(bool frozen) { top->frozen = frozen; cycle(); }
+    void step(uint64_t n) { for (uint64_t i = 0; i < n; ++i) cycle(); }
     int eject_with_write = -1;            // a drive whose disk leaves with the next port write
 
 private:
@@ -821,6 +822,27 @@ std::vector<Case> cases() {
         g.insert(0, Disk{G144, 12});
         r = g.results(1000000);
         g.check(r.size() == 7 && r[0] == 0x48, "a disk that left during Read ID ends it: NR");
+        // ...and one leaving in each of the last clocks of that wait, the
+        // clock it ends included: either the ID came first or the command
+        // ends not ready. Each run starts on the same phase of the
+        // microsecond strobe, so the wait ends on the same clock.
+        rtl.step(US_CLOCKS - rtl.clocks % US_CLOCKS);
+        g.command({0x4a, 0x00});
+        uint64_t took = 0;
+        while (!g.f.irq() && took < 100000) { rtl.step(1); ++took; }
+        g.check(g.f.irq(), "Read ID finishes");
+        g.results();
+        for (uint64_t back = 1; back <= 4; ++back) {
+            rtl.step(US_CLOCKS - rtl.clocks % US_CLOCKS);
+            g.command({0x4a, 0x00});
+            rtl.step(took - back);
+            const bool done = g.f.irq();
+            g.f.eject(0);
+            g.insert(0, Disk{G144, unsigned(12 + back)});
+            r = g.results(1000000);
+            g.check(done || (r.size() == 7 && r[0] == 0x48),
+                    strf("a disk that left %llu clocks before Read ID's IRQ ends it: NR", (unsigned long long)back - 1));
+        }
     }});
     list.push_back({"timing", 4, 2, true, [](Guest &g) {
         g.boot(&A144);
