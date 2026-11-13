@@ -547,6 +547,28 @@ void kbc(Bench &b) {
               reenabled == std::vector<uint8_t>{0xfa, 0xe1, 0x1d, 0x45, 0xe1, 0x9d, 0xc5},
           hex_bytes(old_pause) + " / " + hex_bytes(disabled_ack) + " / " + hex_bytes(reenabled));
 
+    for (uint8_t command : {uint8_t(0xf6), uint8_t(0xff)}) {
+        b.key(0x48, true);
+        b.run(200000);
+        b.key(0x48, false);
+        b.run(200000);
+        const auto previous = b.drain();
+        b.out(0x60, command);
+        // FF has a delayed BAT byte; F6 only acknowledges.
+        const auto response = b.drain(command == 0xff ? 1000000 : 300000);
+        b.key(0x48, true);
+        const auto next = b.drain();
+        b.key(0x48, false);
+        b.drain();
+        const std::vector<uint8_t> expected{0xe1, 0x1d, 0x45, 0xe1, 0x9d, 0xc5};
+        const std::vector<uint8_t> expected_response = command == 0xff ? std::vector<uint8_t>{0xfa, 0xaa} :
+                                                                         std::vector<uint8_t>{0xfa};
+        check(command == 0xff ? "Pause remains usable after FF resets a stale completion" :
+                                "Pause remains usable after F6 clears a stale completion",
+              previous == expected && response == expected_response && next == expected,
+              hex_bytes(previous) + " / " + hex_bytes(response) + " / " + hex_bytes(next));
+    }
+
     b.key(0xe1, true);
     b.key(0x1e, true);
     std::vector<uint8_t> shifted = b.drain();
