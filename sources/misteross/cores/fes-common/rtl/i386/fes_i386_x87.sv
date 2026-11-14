@@ -135,8 +135,10 @@ module fes_i386_x87 (
     output logic [10:0] opcode_o,
     output logic        busy_o,
     // FINIT clears the x87 pointers as well as the words (387 PRM, FINIT),
-    // and the CPU keeps them, so the unit says when: a pulse at the commit
-    // of FNINIT, or of FNSAVE, which leaves the unit as FINIT does.
+    // and the CPU keeps them, so the unit says when: in the cycle FNINIT
+    // commits, or FNSAVE, which leaves the unit as FINIT does. It is in
+    // that cycle and not the one after, because the CPU keeps the pointers
+    // in its commit block.
     output logic        clr_pointers,
     // The eight physical registers, which the bench reads through the CPU's
     // arch_* outputs to build the oracle's X87State; nothing in the machine
@@ -686,6 +688,10 @@ module fes_i386_x87 (
     assign pop_i = top;
     assign busy = seq != S_IDLE || rw_en;
     assign env_load = started && (cur == X87_LDENV || cur == X87_RSTOR);
+    // The cycle FNINIT or FNSAVE commits, which is when the CPU clears the
+    // x87 pointers it keeps.
+    assign clr_pointers = present && wb && wb_last
+                       && (nw == 2'd1 || started && (cur == X87_INIT || cur == X87_SAVE));
 
     // The exceptions this operation raises that are not masked, which set ES
     // and the board's latch instead of a result.
@@ -695,9 +701,6 @@ module fes_i386_x87 (
 
     always_ff @(posedge clk) begin
         mul_start <= 1'b0;
-        // A one-cycle pulse: the CPU acts on it at one commit, not at every
-        // commit after the first FINIT.
-        clr_pointers <= 1'b0;
         if (reset) begin
             cw <= 16'h037f;
             fl <= 6'd0;
@@ -1085,7 +1088,6 @@ module fes_i386_x87 (
                             c1 = 1'b0;
                         end
                         X87_INIT, X87_SAVE: begin
-                            clr_pointers <= 1'b1;
                             // FNINIT, and FNSAVE once its image is stored,
                             // leave the unit as FINIT does (387 PRM section
                             // 4.8.1): control 037Fh, no flags, every tag
@@ -1184,7 +1186,6 @@ module fes_i386_x87 (
             if (wb && wb_last && nw != 2'd0) begin
                 nw <= 2'd0;
                 if (nw == 2'd1) begin
-                    clr_pointers <= 1'b1;
                     cw <= 16'h037f;
                     fl <= 6'd0;
                     sf <= 1'b0;

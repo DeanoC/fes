@@ -3455,9 +3455,10 @@ module fes_i386_cpu #(
                                  end
                     endcase
                 end
-                // FINIT clears the pointers with the words (387 PRM, FINIT),
-                // and FNSAVE leaves the unit as FINIT does: the unit pulses
-                // this at their commit.
+                // FINIT clears the x87 pointers with the words (387 PRM,
+                // FINIT), and FNSAVE leaves the unit as FINIT does: the
+                // unit says so in the cycle they commit, so the write below
+                // for the next ESC, which is later, still wins.
                 if (x87_clr_pointers) begin
                     fpu_ip <= 32'd0;
                     fpu_cs <= 16'd0;
