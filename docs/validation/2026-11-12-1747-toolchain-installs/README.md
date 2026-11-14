@@ -364,6 +364,19 @@ The third is in CI rather than a local sweep, and it is latent on main.
   reads as that PR's regression. This PR touches no `boards/de25nano` or
   `libmister-runtime` file.
 
+  The fixture half is fixed by #1843 against main, which regenerates it by
+  re-running the proof rather than editing the five hashes. Verified here before
+  relying on it: top-level key sets identical, three fields changed —
+  `source_revision` `40c23ed3b` to `ed410a1cb`, the five hashes, and
+  `binaries_sha256` for `Vfes_de25_combined_sim` alone while both clients stay
+  unchanged — and the `tools` block untouched, so the environment really was the
+  same. That last pair is the positive evidence: only the simulator recompiles
+  against those headers, and a hand-edited fixture could not have produced it.
+  With that fixture in place this branch passes `build_test.RecipeTests`, 22
+  tests; restored to main's, it fails again. So the red check here clears when
+  #1843 lands, with no change to this PR. The structural half of #1842 stays
+  open, and is the half worth more.
+
 **The sweep is green once the first two are accounted for.** All 37 commands in
 `test_changed.py --plan-only` pass: commands 0–11 at `19443449b`, where the
 `test_*.py` lane reports `OK (skipped=86)` over 2202 tests, and the 25 RTL
