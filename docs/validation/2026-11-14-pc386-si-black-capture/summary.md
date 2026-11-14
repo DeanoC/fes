@@ -199,7 +199,7 @@ same runs are lit, so they are not classified here either way.)
 different ADV7513 boards, in the FES menu and Home path with no pc386 core
 present.**
 
-## An episode delivers black frames; a bring-up delivers none
+## A bring-up outage and an episode do not look alike
 
 Three recordings now separate the two states, all reduced per frame here:
 
@@ -209,13 +209,16 @@ Three recordings now separate the two states, all reduced per frame here:
 | `k1831-hil/runs/kitB-20261114-102055/restore0-home.mkv` | #1831's 14 November episode, Kit B | 359 in 6.0 s at 60 fps | the same |
 | `b1`'s luma log, launch `p0n000` | a normal pc386 core load, Kit B | 2,179 in 42 s | **no frames at all** from ~11.5 s to ~17 s, then the picture; 4 black frames at 22.1 s, which are the `cls` the run types |
 
-So a bring-up's own outage shows up in the capture as missing frames, while an
-episode shows up as a full-rate stream of black frames. That is a usable
-signature, and it is the opposite of what a stalled capture would be expected to
-produce — but it does not settle #1833 either way: Powerboat reads both grabbers
-through one long-lived `ffmpeg` fan-out into `v4l2loopback`, and a reader of a
-loopback whose writer has stalled is served the last frame again, which at full
-rate looks exactly like an episode if that last frame was black.
+So a bring-up's own outage shows up in the capture as **missing frames**, and an
+episode as a **full-rate stream of delivered black frames**. That separates "a
+bring-up outage" from everything else, which is worth having — but it does not
+separate the two sides of #1833. Powerboat reads both grabbers through one
+long-lived `ffmpeg` fan-out into `v4l2loopback`; a reader of a loopback whose
+writer has stalled is served the last frame again, and if that frame was black
+the result is identical to a locked link carrying black pixels. Both hypotheses
+predict exactly 359 identical black frames with no gap and no drop warning, and
+#1831's run confirms its own `capture.log` is empty. So an episode's recording
+classifies it as "not a bring-up outage", and no further.
 
 ## What this says about #1494
 
