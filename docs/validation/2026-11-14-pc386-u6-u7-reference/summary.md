@@ -29,7 +29,7 @@ kit was measured. The reference machines are in
 | Check | Result |
 | --- | --- |
 | **Ultima VI, PC speaker pitch at the 286-12 preset** | **Fail**, on three kit captures and five reference ones. The kit's notes are 12.7–12.9% below the reference's, 2.35 and 2.38 semitones flat. The band is ±5.9%, one semitone. Scaling the reference from its 12.5 MHz to the preset's nominal 12.0 leaves 9.0–9.3% and about 1.7 semitones, if the game keeps the same delay unit across that step. |
-| **Ultima VI, walking speed at the 286-12 preset** | **Not decided**, and the method is the problem, not the kit: on the reference the turn rate follows how fast the keys are sent (56% higher at seventeen keys a second than at ten), and the step rate spreads 23% at one key rate where the band is ±10%. So no kit window was run with it. The figures are below for whoever measures it next. |
+| **Ultima VI, walking speed at the 286-12 preset** | **Not decided, one kit run short.** The method now works: keyed at two over-rates a factor of two apart, the reference walks at 2.07 steps a second with the two rates agreeing to 0.53%, so the figure is the machine's and not the rig's. The kit run that would have matched it measured nothing — it never reached the game — and left Kit B needing Deano's recovery. |
 | **Ultima VII: The Black Gate, NPC pace at 386DX-25** | **Not done.** A reference board must be settled first, by the rule that validated the 286 one. The game stops at its own memory check on the reference, and the reference board for a 386DX-25 is not settled; see below. |
 
 So **#1368's last box is not ticked and the issue stays open**, and pc386 does
@@ -311,12 +311,48 @@ is missing. (The four windows keyed at 25/s did hold 100% for all 240 frames
 and pass the speed gate; the four at 48.8/s ran at 71-101% under other work on
 the shared host and would have failed it.)
 
-**So the walk still has no figure on either side**, but it now has a method that
-says what it measures and what makes a window void, and a tool that tells a rig
-fault from a game one. What is left is not mechanical: the step counter has to be
-replaced by a displacement measure and shown to agree with the old one on a
-slow window first. `method.md`'s correction to the sixth amendment records
-that, and restates the first gate in terms that can be checked.
+### The reference now has a figure; the kit does not
+
+Two things had to change before a saturated walk could be read, and both are in
+`method.md`'s seventh amendment. The route went back to the one-tile square the
+earlier windows used, because a saturated walk crosses a room in seconds and a
+straight leg runs out of floor. And the step counter was replaced:
+[`scroll_events.py`](scroll_events.py) tests the whole map view's mean absolute
+difference against 2 levels, where `walk_rate.py` asks that a fifth of its
+pixels each move more than 40 — too strict for a view that is mostly dark
+stone. In these captures a quiet frame reads 0.0 and a redraw 3 to 51, so the
+threshold is not a tuning knob.
+
+Run `sq1` on the reference, six windows of ten seconds, all out of combat and
+all at 100% emulation speed:
+
+| keys a second | steps a second, from the median gap | mean |
+| --- | --- | --- |
+| 25.0 | 2.143, 2.308, 1.765 | 2.072 |
+| 12.3 | 1.818, 2.143, 2.222 | 2.061 |
+
+**Reference: 2.07 steps a second, standard error 4.4%.** The two over-rates
+differ by a factor of two and their means by **0.53%**, which is exactly what
+the saturation design was for: the rate being measured is the machine's, not
+the rig's. That settles the objection that sank every earlier walk window.
+
+**The matching kit run, `g4`, measured nothing.** It inserted `KEYPACE.COM`
+before the game, but the kit image boots to a menu rather than a DOS prompt, so
+that typing went into the menu and everything after it desynchronised; the
+grabs show COMMAND.COM answering "Bad command or filename" to the mangled
+lines, and all six windows are a static DOS prompt. The run also left Kit B
+with its lease blocked and the core still loaded — the command file was missing
+its final `quit`, and the run's post-run tail was then run by hand too early,
+removing the run's data trees while the core was loaded, so the agent's own
+cleanup failed. That is logged as an incident in `~/kit-status/kitB-STATUS.md`;
+the agent reports "operator recovery required", so it is Deano's to clear and
+nothing was attempted. No install, image, boot-config change or reboot was
+made, and the kit's data is as it was before the run.
+
+**So the walk has a reference figure and a method that demonstrably measures
+the machine, and needs one more kit run to reach a verdict.** That run is the
+same command file with the `KEYPACE.COM` block removed (or moved after the boot
+menu) and a `quit` at the end.
 
 Even then, the figure would have to be read against
 [#1840](https://github.com/DeanoC/fes/issues/1840): the 286-12 preset the walk
