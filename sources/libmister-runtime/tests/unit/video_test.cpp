@@ -10,6 +10,7 @@
 using namespace mister::native;
 const std::uint64_t kDeadline = 100;
 std::size_t scenarios = 0;
+const std::size_t kExpectedScenarios = 239;
 class ClockFake final : public Clock {
 public: mutable std::uint64_t now = 0;
  std::uint64_t NowMs() const override { return now++; }
@@ -95,6 +96,28 @@ void TestLinkRequiresPllLockAndRecordsVic()
 			return splash ? idle.BringUp(SplashIdle(), kDeadline)
 				: fixed.BringUpCustom(kDeadline);
 		};
+		// The sample is read 0x42 then 0x9e then 0x3e, and the whole tail is
+		// pinned. Tests below script a failure by index across both detail
+		// registers, so they depend on that order; and without a whole-tail
+		// assertion a reordered or duplicated field would pass everywhere.
+		{
+			using Type = mister_test::FakeI2c::CallType;
+			Fixture healthy;
+			const auto result = bring_up(healthy);
+			assert(result.error.ok());
+			const auto& calls = healthy.i2c.calls;
+			assert(calls[calls.size()-3].type == Type::read &&
+				calls[calls.size()-3].address == 0x42);
+			assert(calls[calls.size()-2].type == Type::read &&
+				calls[calls.size()-2].address == 0x9e);
+			assert(calls.back().type == Type::read && calls.back().address == 0x3e);
+			const std::string tail = " link_status=0x60 pll_lock=1 rx_sense=1 vic=4";
+			assert(result.error.message.size() >= tail.size() &&
+				result.error.message.compare(
+					result.error.message.size() - tail.size(),
+					tail.size(), tail) == 0);
+			++scenarios;
+		}
 		// An unlocked PLL through the deadline fails hdmi_verify, and the
 		// message names the register and carries the sample it refused on.
 		{
@@ -156,6 +179,15 @@ void TestLinkRequiresPllLockAndRecordsVic()
 			assert(!result.error.ok() && result.phase == "hdmi_verify");
 			assert(Mentions(result.error.message, "deadline exceeded"));
 			assert(Mentions(result.error.message, "link_status=0x60"));
+			// The point of the arithmetic: the budget must run out AFTER the
+			// link read and while reading the detail, not before the loop.
+			// Without this the test could pass by never entering the poll.
+			bool read_link = false, tried_pll = false;
+			for (const auto& call : spent.i2c.calls) {
+				if (call.address == 0x42) read_link = true;
+				if (call.address == 0x9e) tried_pll = true;
+			}
+			assert(read_link && tried_pll);
 			++scenarios;
 		}
 		// A PLL once read as unlocked stays refused. The second sample's
@@ -226,6 +258,18 @@ void TestLinkRequiresPllLockAndRecordsVic()
 			assert(Mentions(result.error.message, "vic=?"));
 			++scenarios;
 		}
+		// 0x9e unreadable while 0x3e answers: the requirement is unenforced
+		// because nothing ever measured the PLL, and the line says exactly
+		// which of the two it knows.
+		{
+			Fixture no_pll;
+			no_pll.i2c.pll_read_error =
+				{mister::ErrorCode::io_failed, "pll unreadable"};
+			const auto result = bring_up(no_pll);
+			assert(result.error.ok() && result.phase == "hdmi_verify");
+			assert(Mentions(result.error.message, "pll_lock=? rx_sense=1 vic=4"));
+			++scenarios;
+		}
 		// A link that never goes ready still reports the link, and reports no
 		// PLL sample because none was ever taken behind a ready link.
 		{
@@ -280,5 +324,8 @@ int main() {
    ++scenarios;
   }
  }
+ // Pinned so a scenario that stops running is noticed rather than quietly
+ // lowering a number nobody reads.
+ assert(scenarios == kExpectedScenarios);
  std::printf("video_test: %zu scenarios passed\n", scenarios);
 }
