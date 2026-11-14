@@ -100,3 +100,37 @@ func TestNamedROMSelectionsAreIndependent(t *testing.T) {
 		t.Fatalf("BIOS was not cleared: %+v %v", got, err)
 	}
 }
+
+func TestCreateCoreROMEntryIsAtomic(t *testing.T) {
+	ctx := context.Background()
+	s := openStore(t)
+	pkg := strings.Repeat("a", 64)
+	media, _, err := s.ImportCoreMedia(ctx, []byte("cartridge"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		mediaID string
+		size    int64
+		want    error
+	}{
+		{media.MediaID, 8, catalog.ErrInvalidCoreROM},
+		{strings.Repeat("b", 64), 9, catalog.ErrCoreMediaNotFound},
+	} {
+		if _, err := s.CreateCoreROMEntry(ctx, "Atomic cartridge", "fes.coleco", pkg, "cart", tc.size, tc.mediaID, false); !errors.Is(err, tc.want) {
+			t.Fatalf("invalid initial ROM: got %v, want %v", err, tc.want)
+		}
+		entries, err := s.CoreEntries(ctx)
+		if err != nil || len(entries) != 0 {
+			t.Fatalf("failed creation retained entry: %+v, %v", entries, err)
+		}
+	}
+	entry, err := s.CreateCoreROMEntry(ctx, "Atomic cartridge", "fes.coleco", pkg, "cart", 9, media.MediaID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rom, err := s.CoreEntryROM(ctx, entry.GameID, "cart")
+	if err != nil || rom.PackageID != pkg || rom.MediaID != media.MediaID || rom.SourceSize != 9 || !entry.FirmwareRequired {
+		t.Fatalf("entry=%+v ROM=%+v err=%v", entry, rom, err)
+	}
+}
