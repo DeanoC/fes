@@ -306,10 +306,16 @@ makes better. The detected VIC is sampled on the same pass and deliberately
 not required there, because this check owns that verdict: a wrong mode gets
 the bounded, latched reactivation described below rather than a refused
 bring-up, which would leave the kit with no menu and, on the core path, no
-core. An unreadable 0x9e or 0x3e leaves the PLL unenforced instead of
+core. An unreadable 0x9e leaves the PLL unenforced instead of
 refusing a picture that may be good -- the same policy this check applies to
-the same read. The failure names the register and carries the sample it
-refused on, which the three episodes behind this work did not have.
+the same read -- but only while nothing has measured it unlocked: once a
+readable 0x9e has reported no lock, that is a measured fact about the board
+and a later unreadable register does not retract it. An unreadable 0x3e costs
+only the diagnostic, because the VIC decides nothing there. A spent budget is
+not an unreadable register and stays fatal. Every failure names the register
+it failed on and carries the sample it refused on, with each field reporting
+only what that sample read, which the three episodes behind this work did not
+have.
 
 Enforcing the PLL at bring-up does not make this check redundant for it. The
 link can go ready and the PLL can lock and then be lost, and only a reading

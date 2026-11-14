@@ -51,6 +51,9 @@ public:
 	std::uint8_t vic_status = 0x10;
 	std::deque<std::uint8_t> pll_statuses;
 	mister::Error detail_read_error;
+	// Fails 0x3e only, so the VIC diagnostic can be unreadable while the
+	// PLL still answers.
+	mister::Error vic_read_error;
 	// Fails the Nth 0x9e/0x3e read only, counting both registers, so a
 	// sample can succeed once and then fail on a later loop.
 	std::size_t fail_detail_read_index = std::numeric_limits<std::size_t>::max();

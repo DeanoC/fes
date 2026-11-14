@@ -138,7 +138,7 @@ void TestLinkRequiresPllLockAndRecordsVic()
 				{mister::ErrorCode::io_failed, "detail unreadable"};
 			const auto result = bring_up(unreadable);
 			assert(result.error.ok() && result.phase == "hdmi_verify");
-			assert(Mentions(result.error.message, "pll_lock=? rx_sense=? vic=?"));
+			assert(Mentions(result.error.message, "pll_lock=? rx_sense=1 vic=?"));
 			++scenarios;
 		}
 		// A spent budget is not an unreadable register. The transport reports
@@ -158,17 +158,72 @@ void TestLinkRequiresPllLockAndRecordsVic()
 			assert(Mentions(result.error.message, "link_status=0x60"));
 			++scenarios;
 		}
-		// A sample that succeeded once must not be reported again as if it
-		// had been read now: the second loop's unreadable 0x9e leaves the
-		// values from the first, so the line has to say it measured nothing.
+		// A PLL once read as unlocked stays refused. The second sample's
+		// unreadable 0x9e must not retract a measured fact and let bring-up
+		// through -- an ordinary bus blip would otherwise launder the
+		// refusal into success.
 		{
-			Fixture stale;
-			stale.i2c.pll_status = 0x02;
-			stale.i2c.fail_detail_read_index = 2;
-			const auto result = bring_up(stale);
+			Fixture blip;
+			blip.i2c.pll_status = 0x02;
+			blip.i2c.fail_detail_read_index = 2;
+			const auto result = bring_up(blip);
+			assert(!result.error.ok() && result.phase == "hdmi_verify");
+			assert(Mentions(result.error.message, "pixel PLL did not lock"));
+			++scenarios;
+		}
+		// Reporting stays per sample even so. A link that goes down after an
+		// unlocked reading must not print that reading's PLL and VIC beside
+		// the new link status: the refusal stands, the stale fields do not.
+		{
+			Fixture went_down;
+			went_down.i2c.pll_status = 0x02;
+			went_down.i2c.link_statuses = {0x60, 0x40};
+			const auto result = bring_up(went_down);
+			assert(!result.error.ok() && result.phase == "hdmi_verify");
+			assert(Mentions(result.error.message, "pixel PLL did not lock"));
+			assert(Mentions(result.error.message, "link_status=0x40"));
+			assert(Mentions(result.error.message, "pll_lock=? rx_sense=0 vic=?"));
+			++scenarios;
+		}
+		// A failed link read names the register it failed on and claims no
+		// sample: the transport leaves its output untouched on failure, so
+		// the previous byte must not be printed as this one.
+		{
+			Fixture no_link;
+			no_link.i2c.link_read_error =
+				{mister::ErrorCode::io_failed, "bus wedged"};
+			const auto result = bring_up(no_link);
+			assert(!result.error.ok() && result.phase == "hdmi_verify");
+			assert(Mentions(result.error.message, "link status read failed"));
+			assert(Mentions(result.error.message, "link_status=? pll_lock=? rx_sense=? vic=?"));
+			++scenarios;
+		}
+		// The VIC is recorded, never required, so an unreadable 0x3e must not
+		// let a definitively unlocked PLL through. It is read on its own
+		// account and its failure does not touch the PLL verdict.
+		{
+			Fixture no_vic;
+			no_vic.i2c.pll_status = 0x02;
+			no_vic.i2c.vic_read_error =
+				{mister::ErrorCode::io_failed, "vic unreadable"};
+			const auto result = bring_up(no_vic);
+			assert(!result.error.ok() && result.phase == "hdmi_verify");
+			assert(Mentions(result.error.message, "pixel PLL did not lock"));
+			assert(Mentions(result.error.message, "pll_lock=0"));
+			assert(Mentions(result.error.message, "vic=?"));
+			++scenarios;
+		}
+		// The mirror of it: a locked PLL finishes the poll whether or not the
+		// VIC answered, and the line says which of the two it measured.
+		{
+			Fixture locked_no_vic;
+			locked_no_vic.i2c.vic_read_error =
+				{mister::ErrorCode::io_failed, "vic unreadable"};
+			const auto result = bring_up(locked_no_vic);
 			assert(result.error.ok() && result.phase == "hdmi_verify");
-			assert(Mentions(result.error.message, "pll_lock=? rx_sense=? vic=?"));
-			assert(!Mentions(result.error.message, "pll_lock=0"));
+			assert(Mentions(result.error.message, "pll_lock=1"));
+			assert(Mentions(result.error.message, "rx_sense=1"));
+			assert(Mentions(result.error.message, "vic=?"));
 			++scenarios;
 		}
 		// A link that never goes ready still reports the link, and reports no

@@ -107,14 +107,22 @@ Error WakeAdv(I2c& i2c, std::uint64_t deadline)
 // black-screen episodes left nothing to go on (DeanoC/fes#1823).
 std::string LinkSampleDetail(const VideoResult& result)
 {
-	std::string detail = std::string(" link_status=") + HexByte(result.link_status);
-	if (!result.detail_read) return detail + " pll_lock=? rx_sense=? vic=?";
-	return detail + " pll_lock=" +
-		((result.pll_status & adv7513::kPllLocked) ? "1" : "0") +
-		" rx_sense=" +
-		((result.link_status & adv7513::kStatusMonitorSense) ? "1" : "0") +
-		" vic=" + std::to_string(result.vic_status >> adv7513::kVicShift);
+	// Each field reports only what was read. A register that never answered
+	// prints "?" rather than its default or a previous sample's value: a
+	// fabricated 0 here reads as a measurement, which is the worst thing a
+	// diagnostic line can do.
+	return std::string(" link_status=") +
+		(result.link_read ? HexByte(result.link_status) : "?") +
+		" pll_lock=" + (result.pll_read ?
+			((result.pll_status & adv7513::kPllLocked) ? "1" : "0") : "?") +
+		" rx_sense=" + (result.link_read ?
+			((result.link_status & adv7513::kStatusMonitorSense) ? "1" : "0") : "?") +
+		" vic=" + (result.vic_read ?
+			std::to_string(result.vic_status >> adv7513::kVicShift) : "?");
 }
+
+bool PllLocked(const VideoResult& result)
+{ return result.pll_read && (result.pll_status & adv7513::kPllLocked) != 0; }
 
 // A ready link and a locked pixel PLL behind it, both polled to the caller's
 // deadline. The transmitter has just been reprogrammed and the PLL locks over
@@ -129,48 +137,70 @@ std::string LinkSampleDetail(const VideoResult& result)
 // (NativeHardware::CheckIdleDisplayHealth) owns that verdict so a wrong mode
 // gets its bounded, latched reactivation instead of a refused bring-up.
 //
-// An unreadable 0x9e or 0x3e leaves the PLL unenforced rather than refusing a
-// picture that may be perfectly good, which is how the idle check treats the
-// same read. The link read at 0x42 stays fatal, as it has always been.
+// An unreadable 0x9e leaves the PLL unenforced rather than refusing a picture
+// that may be perfectly good, which is how the idle check treats the same
+// read. An unreadable 0x3e costs only the diagnostic: the VIC is not required,
+// so it never decides whether the poll finishes. The link read at 0x42 stays
+// fatal, as it has always been, and a spent budget is fatal from any of the
+// three -- the transport reports the deadline before every transaction, so
+// accepting it would pass the never-locked PLL this poll exists to refuse.
 Error RequireLink(I2c& i2c, Clock& clock, std::uint64_t deadline,
 	VideoResult* result)
 {
-	bool link_ready = false;
+	// Poll-scoped, unlike the per-sample flags below. Once a readable 0x9e has
+	// reported the PLL unlocked, that is a measured fact about this board, and
+	// no later unreadable register retracts it. Without it an ordinary bus
+	// blip on a subsequent sample would launder a definitive refusal into a
+	// successful bring-up, which is the one thing this poll exists to prevent.
+	bool seen_unlocked = false;
 	for (;;) {
 		if (clock.NowMs() >= deadline)
-			return {ErrorCode::io_failed, (link_ready ?
+			return {ErrorCode::io_failed, (seen_unlocked ?
 				"pixel PLL did not lock behind a ready link" :
 				"deadline exceeded") + LinkSampleDetail(*result)};
 		const Error error = i2c.ReadByte(adv7513::reg::kStatus,
 			&result->link_status, deadline);
-		if (!error.ok()) return error;
-		link_ready = (result->link_status & adv7513::kStatusLinkReady) ==
-			adv7513::kStatusLinkReady;
-		if (link_ready) {
-			// Nothing describes this sample until both registers answer, so
-			// clear the flag first: an earlier loop's values must never be
-			// reported as if they were read now.
-			result->detail_read = false;
+		// Reporting is per sample, so these clear on every pass, including the
+		// passes that never reach the PLL: a link read that failed, or one
+		// that found the link down, must not leave an earlier sample's PLL and
+		// VIC on the result to be printed beside this sample's link status.
+		result->pll_read = false;
+		result->vic_read = false;
+		if (!error.ok()) {
+			// The transport names no register, and on failure it leaves the
+			// output untouched, so neither the byte nor the flag may stand.
+			result->link_read = false;
+			return {ErrorCode::io_failed, "link status read failed: " +
+				error.message + LinkSampleDetail(*result)};
+		}
+		result->link_read = true;
+		if ((result->link_status & adv7513::kStatusLinkReady) ==
+			adv7513::kStatusLinkReady) {
 			std::uint8_t pll = 0, vic = 0;
-			Error detail = i2c.ReadByte(adv7513::reg::kPllStatus, &pll, deadline);
-			if (detail.ok()) {
+			const Error pll_error = i2c.ReadByte(adv7513::reg::kPllStatus,
+				&pll, deadline);
+			if (pll_error.ok()) {
 				result->pll_status = pll;
-				detail = i2c.ReadByte(adv7513::reg::kVicDetected, &vic, deadline);
+				result->pll_read = true;
+				if (!PllLocked(*result)) seen_unlocked = true;
 			}
-			if (!detail.ok()) {
-				// An unreadable register leaves the PLL unenforced. A spent
-				// budget does not: the transport reports the deadline from
-				// these reads too, and accepting that would pass exactly the
-				// never-locked PLL this poll exists to refuse, whenever the
-				// clock crossed between the link read and this one.
+			// Recorded, never required, and read on its own account: a failure
+			// here must not disturb the PLL verdict above, or an unlocked PLL
+			// would be accepted because a diagnostic was unreadable.
+			if (i2c.ReadByte(adv7513::reg::kVicDetected, &vic, deadline).ok()) {
+				result->vic_status = vic;
+				result->vic_read = true;
+			}
+			if (!pll_error.ok()) {
 				if (clock.NowMs() >= deadline)
 					return {ErrorCode::io_failed,
-						detail.message + LinkSampleDetail(*result)};
+						pll_error.message + LinkSampleDetail(*result)};
+				// An unreadable 0x9e leaves the requirement unenforced, but
+				// only while nothing has measured it unlocked.
+				if (!seen_unlocked) return {};
+			} else if (PllLocked(*result)) {
 				return {};
 			}
-			result->vic_status = vic;
-			result->detail_read = true;
-			if (pll & adv7513::kPllLocked) return {};
 		}
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
