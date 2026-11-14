@@ -1,0 +1,19 @@
+# Repaired source-rearm matched boot chain
+
+Implementation `160a1344db2f1b3a50aec0db811331f57de48a21` passes the complete matched BL31, SPL/U-Boot, shared-lock PFG composition and native file-admission checks. This is file evidence; no board programming, SD write or native trial has been performed for this candidate.
+
+The actual vendor START parser counterexample and its focused repair are recorded in [START negotiation](../2026-11-14-de25-start-negotiation/README.md). The preceding format-15 build at `c5c794535b7974eeb5d4a8b26ddc763e806b569a` passes all eleven selected affected phases and the full matched build, but was withheld from hardware after that counterexample. The repaired head passes fourteen focused tests with zero skips and generated consistency for 69 consumers/45 fixtures. Its broader affected campaign is running and is not claimed passed here.
+
+The repaired chain is `098cc62be21f67ef16ae5a672a8cfc1f3d47c8af892638ceccd173f41b477671`, boot ID `383a2d7ea685103c`, FIT SHA-256 `55e4fd75b23e352830ea569812725b94a7b6af4186f630ddad11f174a057a6f0`. The FIT contains 8,542,928 bytes within its explicit 16 MiB boot window. The package/configuration arena retains its separate 8 MiB bound.
+
+The CPU SDK and entry payload are byte-identical to the preceding build and reused only after all 1,002 selected source-map entries, artifact hashes and copied bytes/modes match the repaired checkout. Their original receipts and generated-source paths remain unchanged. Firmware, SPL and composition are rebuilt after the repair; no original provenance is rewritten.
+
+The repaired matched archive contains 41,747 files, independently read back at `/home/deano/fes-retained/de25-rearm-start-matched-20261114-r1/matched-chain.tar.gz`, SHA-256 `e5d7e1216b492d9ca22dad75ed068bc44be9924bf9d96e3f1c0f96d54d4ca63f`. Its retention manifest records the original SDK/entry archive and unchanged sealed FPGA project dependencies. Preserve those dependencies with this archive.
+
+A new operator prepares MENU/ZX81/MENU/ZX80/MENU, with source generations 4/10/15/21/26, four release/rearm transitions and final Park, followed by exact original-FIT restoration and the original baseline cycle. Forty-six host model tests pass, including five configurations through the actual paired client, malformed/missing successor evidence, durable native-execution marking, one-attempt flow, no recovery after an active failure, saved 51-command baseline replay, idle capture and programming-bound boot checks. The repeated-load model injects its boot observation and synthetic SDM wire; UART, JTAG, networking and programming are modeled. No native execution or physical HDMI result follows from these tests.
+
+The actual current candidate and original baseline both pass complete native file admission. Real cross-role/digest rejection checks and the final frozen procedure are still being prepared. No new trial authority or attempt ledger is claimed in this record. Standing human trial approval remains the authority for a later exact frozen trial; failed native execution still requires a physical reset before restoration-only recovery.
+
+The last independently verified physical state remains the original baseline at Park after the earlier format-14 trial, with the test card installed. [That physical result](../2026-11-14-de25-retained-secure-reader-physical/README.md) covers the first retained-source MENU and its exact baseline restoration; it does not qualify the new repeat-load path. Repeated physical loads, general package admission, broader devices, independent interconnect drain and whole-EL3 stack qualification remain open. The earlier USB ownership failure is not declared fixed. The full DE10-equivalent goal remains active.
+
+See [exact artifact identities and completed check receipts](software.json).
