@@ -73,6 +73,29 @@ higher CPU") and calls the kit's 286-12 preset a "classic 386 at 12.8 MHz".
   run's own `make_games_disk.py`; it is the disk that run used. The reference's copy differs in four files, listed in
   `method.md`; `ULTIMA6\` is byte-identical.
 
+## What the kit was actually running
+
+The HIL driver reports `rc=0` even when a kit refuses a core at admission, so a
+run can produce frames while nothing of the intended core ever loaded (seen on
+Kit B the same morning, on another session's hand-packed `.fcore`: HTTP 422
+`INVALID_ARCHIVE`, driver `rc=0`, plausible frames). Run `g1`'s
+`result.json` was read back for this record rather than trusted:
+
+- `package` is `fc01c95686d0…`, the seal above;
+- the Ultima VI load (`seq 7`) returned `state: active` in 11.38 s with
+  `fes.pc386.machine 1.0` among its active interfaces, and no `error` anywhere
+  in the file;
+- the disk it staged hashes `e28bc5a24d41…`, which is `u6nm.img`'s own
+  SHA-256, and the kit replied with the same digest;
+- the settings written before the load read back as preset 1, frequency
+  override 0, turbo 0.
+
+**Nothing in this record is judged from black or missing frames.** Kit B's
+capture card freezes its last frame when the signal drops
+([#1823](https://github.com/DeanoC/fes/issues/1823)), so it cannot be used to
+count them; the pitch figures are audio, and the walk figures count motion in a
+picture that is running throughout. No capture here went unexpectedly black.
+
 ## Ultima VI: PC speaker pitch
 
 Ultima VI's lute is played by fixed key presses — the note for key `6` thirty
