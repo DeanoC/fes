@@ -52,10 +52,16 @@ That masking is the one part of this script that can *remove* coverage, and it
 fails silently in the only direction that matters: a destination wrongly masked
 is a citation the record stops checking while this script still exits 0. Three
 revisions lost destinations that way (#1829 review), each time because a new
-clause shape was read by rules written for the previous one. So anyone adding a
-correction kind should start from `current_only`, and should check the coverage
-numbers this prints rather than only its status -- the citation and endpoint
-counts going *down* is the symptom, and nothing else reports it.
+clause shape was read by rules written for the previous one.
+
+So the clause shapes are pinned by `tests/test_s8_census_checker.py`, and
+anyone adding a correction kind should add its shape there before changing
+`current_only`. Those fixtures assert the extracted endpoint *set*, which the
+totals printed below cannot stand in for: a masking change can hide one
+destination while exposing one stale source, leaving both counts unchanged, and
+since fingerprints are keyed by `path:line` that stale endpoint can be
+fingerprinted by another citation and pass the content check as well. Only the
+set tells the two apart.
 
 Check 1 is the one that matters: a line number can stay in range while
 pointing at the wrong line, and that is exactly how two earlier revisions of
@@ -249,6 +255,28 @@ def current_only(text):
     return ''.join(out)
 
 
+def citations_of(text):
+    """Every citation one line of this record asserts, after masking.
+
+    Yields `(as written, path, [line numbers])`. This is the single place the
+    record's assertions are read out of its prose, so a regression fixture can
+    pin what a clause shape asserts and be pinning what the check itself sees
+    (`tests/test_s8_census_checker.py`). A fixture that re-implemented the
+    extraction would only pin itself.
+    """
+    for match in CITATION.finditer(current_only(text)):
+        # A citation may be a comma list, `foo.py:12,34-36,40`. Every number
+        # after the first leans on the same path, and reading only the first is
+        # how two stale numbers in this record's own text survived three review
+        # rounds (DeanoC/fes#1839).
+        tail = [n for part in (match.group(4) or '').split(',')
+                if part.strip() for n in part.strip().lstrip(':').split('-')]
+        numbers = [int(group) for group
+                   in (match.group(2), match.group(3), *tail)
+                   if group is not None]
+        yield match.group(0), match.group(1), numbers
+
+
 def load_fingerprints():
     """The fingerprint file, or None when it is absent.
 
@@ -272,25 +300,15 @@ def check_citations(record=False):
     for doc in DOCS:
         path = os.path.join(HERE, doc)
         for row, line in enumerate(lines_of(path), 1):
-            for match in CITATION.finditer(current_only(line.replace('\\|', '|'))):
-                cited = match.group(1)
+            for written, cited, numbers in citations_of(line.replace('\\|', '|')):
                 citations += 1
                 target = resolve(cited)
                 if target is None:
-                    problems.append(f'{doc}:{row}: {match.group(0)} does not resolve')
+                    problems.append(f'{doc}:{row}: {written} does not resolve')
                     continue
                 body = lines_of(target)
-                # A citation may be a comma list, `foo.py:12,34-36,40`. Every
-                # number after the first leans on the same path, and reading
-                # only the first is how two stale numbers in this record's own
-                # text survived three review rounds (DeanoC/fes#1839).
-                tail = [n for part in (match.group(4) or '').split(',')
-                        if part.strip() for n in part.strip().lstrip(':').split('-')]
-                for group in (match.group(2), match.group(3), *tail):
-                    if group is None:
-                        continue
+                for n in numbers:
                     endpoints += 1
-                    n = int(group)
                     if not 1 <= n <= len(body):
                         problems.append(
                             f'{doc}:{row}: {cited}:{n} past end ({len(body)} lines)')
