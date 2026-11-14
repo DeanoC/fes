@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // 8x8 glyphs for the RAM tester. Row 0 is the top. The high bit is the left pixel.
-// The glyphs are the square-cornered FES block face drawn for FES (the C64
-// diagnostic font uses the same face); they are not copied from any ROM font.
+// The glyphs are the square-cornered FES block face drawn for FES; they are
+// not copied from any ROM font.
 module ram_font (
     input wire [7:0] ch,
     input wire [2:0] row,
