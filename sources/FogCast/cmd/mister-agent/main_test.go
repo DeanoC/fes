@@ -451,7 +451,7 @@ func TestBindApplianceDataReportsAbsentPartition(t *testing.T) {
 		t.Fatal("absent data partition must not enable a durable core store")
 	}
 	cfg := appliancedata.ProductionConfig()
-	if got := strings.Join(cfg.BindNames, ","); got != "cache,saves,core-data,launcher-cache,evidence" {
+	if got := strings.Join(cfg.BindNames, ","); got != "cache,saves,core-data,launcher-cache,evidence,disk-images" {
 		t.Fatalf("production bind names = %s", got)
 	}
 }

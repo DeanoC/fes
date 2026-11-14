@@ -155,8 +155,9 @@ that disappears cannot silently promote it. Corrupt selection state boots factor
 and rejects further update mutations until the card state is repaired.
 
 If the card already has an ext4 `FESDATA3` partition, the native agent bind-mounts
-cache, saves, core-data, launcher-cache and evidence from that volume during
-startup. It copies missing FAT files onto p3 first and never wipes releases or
+cache, saves, core-data, launcher-cache, evidence and disk-images from that
+volume during startup. It copies missing FAT files onto p3 first and never
+wipes releases or
 credentials. That bind is refused while status shows trial, pending, or corrupt
 so a trial boot keeps using the 1 GiB FAT trees.
 

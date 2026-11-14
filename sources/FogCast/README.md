@@ -317,8 +317,9 @@ The native FES appliance also has a release/update client and a fixed bootstrap
 with watchdog-bounded trial boots. These require FES bootstrap media; ordinary
 direct-root images do not expose the update API. A card with leftover capacity
 already formatted as `FESDATA3` bind-mounts cache, saves, core-data,
-launcher-cache and evidence from that partition at agent startup unless
-`GET /v1/update` shows trial, pending, or corrupt. Releases stay on the 1 GiB
+launcher-cache, evidence and disk-images from that partition at agent startup
+unless `GET /v1/update` shows trial, pending, or corrupt. Releases stay on the
+1 GiB
 FAT. Confirmation promotes a trial to known-good, atomically publishes that
 image's sealed idle core to FAT `/idle.rbf`, and only then lets the watchdog
 disarm. A non-trial boot, including factory fallback, republishes the running
