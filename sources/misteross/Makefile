@@ -68,8 +68,8 @@ help:
 		"  build-fes-coleco-video  Seal the separate Coleco video development shell" \
 		"  build-fes-video-part  Build VIDEO_VARIANT=direct|scanlines against VIDEO_SHELL and VIDEO_PACKAGE" \
 		"  sim-fes-ramtest  Test the RAM tester against SDRAM and HPS DDR models, holds and identity" \
-		"  build-fes-ramtest-100  Seal the OSS 100 MHz SDRAM and HPS DDR tester with HIP nextpnr" \
-		"  build-fes-ramtest-130  Seal the OSS 130 MHz SDRAM and HPS DDR tester with HIP nextpnr" \
+		"  build-fes-ramtest-100  Seal the OSS 100 MHz SDRAM and HPS DDR tester (GPU_ROUTER=HIP|CUDA, default HIP)" \
+		"  build-fes-ramtest-130  Seal the OSS 130 MHz SDRAM and HPS DDR tester (GPU_ROUTER=HIP|CUDA, default HIP)" \
 		"  diagnose-fes-ramtest-timing  Measure the 130 MHz RAM tester on the shared toolchain" \
 		"  toolchain-fes-ramtest  Provision the FES RAM Tester HIP toolchain (per-core lock)" \
 		"  toolchain-fes-atari-st  Provision the Atari ST OSS toolchain (per-core lock)" \
@@ -96,7 +96,7 @@ help:
 		"  synth-fes-native-video  Diagnostic locked synthesis, requires CACHE_ROOT; no route/seal" \
 		"  sim-fes-z80  Test original NMOS and documented fast Z80 RTL" \
 		"  sim-fes-riscv  Test the original RV32I CPU, the fes.riscv system and its board shell" \
-		"  build-fes-riscv  Seal FES RISC-V with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
+		"  build-fes-riscv  Seal FES RISC-V (CACHE_ROOT= for shared cache, GPU_ROUTER=HIP|CUDA, default HIP)" \
 		"  sim-fes-tms9918-timing  Check the shared ~60 Hz NTSC raster enable across Coleco clock rates" \
 		"  sim-fes-coleco-oss  Test the OSS-conditional ColecoVision RAM and shell paths" \
 		"  sim-fes-coleco-sgm-integrated  Test the v2 SGM module and shell RAM through CPU/socket cycles" \
@@ -126,7 +126,7 @@ help:
 		"  sms-diagnostic  Generate the open Master System Mode 4 cartridge and reference image" \
 		"  build-fes-sms-quartus  Quartus oracle (quartus.lock) package for FES Master System (fes.sms)" \
 		"  build-fes-sms  Seal FES Master System with HIP nextpnr/Mistral (Coleco lock; CACHE_ROOT= for shared cache)" \
-		"  build-fes-pong  Seal FES Pong with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
+		"  build-fes-pong  Seal FES Pong (CACHE_ROOT= for shared cache, GPU_ROUTER=HIP|CUDA, default HIP)" \
 		"  apple2-diagnostic  Generate the open Apple II firmware, synthetic disk and reference frames" \
 		"  sim-fes-apple2  Test the fes.computer mailbox, Apple II machine/Disk II and board shell" \
 		"  sim-fes-apple2-mailbox  Replay the fes.computer golden exchanges against the shared endpoint" \
@@ -237,10 +237,10 @@ sim-fes-ramtest:
 	$(PYTHON) scripts/sim_fes_ramtest.py
 
 build-fes-ramtest-100:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py --memory-mhz 100 $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py --memory-mhz 100 $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
 
 build-fes-ramtest-130:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py --memory-mhz 130 $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py --memory-mhz 130 $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
 
 diagnose-fes-ramtest-timing:
 	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/diagnose_fes_ramtest_timing.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",) $(if $(GPU_DEVICE),--gpu-device "$(GPU_DEVICE)",)
@@ -1947,7 +1947,7 @@ build-fes-sms:
 
 
 build-fes-pong:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pong.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pong.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
 
 toolchain:
 	@$(SHARED_MAKE_ENV)scripts/bootstrap.sh
@@ -2112,15 +2112,15 @@ sim-fes-menu:
 
 .PHONY: build-fes-menu-pattern
 build-fes-menu-pattern:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_menu.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_menu.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
 
 .PHONY: build-fes-menu-ddr
 build-fes-menu-ddr:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_menu.py --mode ddr $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_menu.py --mode ddr $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
 
 .PHONY: build-fes-menu-package
 build-fes-menu-package:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_menu_package.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_menu_package.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
 
 .PHONY: sim-fes-zx81-clock sim-fes-zx81-ay
 sim-fes-zx81-clock:
@@ -2159,7 +2159,7 @@ sim-fes-riscv:
 	$(PYTHON) scripts/sim_fes_riscv.py --verilator "$(VERILATOR)"
 
 build-fes-riscv:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_riscv.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_riscv.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(strip $(GPU_ROUTER)), --gpu-router "$(GPU_ROUTER)",)
 
 # Atari 520ST motherboard, shared memory and optional stock-firmware boot.
 ST_CORE := cores/fes-atari-st

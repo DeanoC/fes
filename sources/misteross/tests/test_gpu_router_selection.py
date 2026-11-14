@@ -29,7 +29,7 @@ from scripts import build_fes_riscv as riscv
 from scripts import fes_build_common as board
 from scripts import fes_de10nano_evidence as board_evidence
 from tests.producer_fixture import EXECUTION
-from tests.test_build_fes_pong import BuildFesPongTests
+from tests import test_build_fes_pong
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -302,12 +302,13 @@ class CudaRecordTests(unittest.TestCase):
 class RouteLogBackendTests(unittest.TestCase):
     """A real evidence fixture, not a mock: the route log must prove the backend.
 
-    The passing-output fixture lives on Pong's own suite. Borrow the helper
-    rather than subclassing it, which would re-run that whole suite here.
+    The passing-output fixture lives on Pong's own suite. Reach it through the
+    module, not by importing the TestCase: binding that class here would make
+    unittest discovery collect its tests in this module too.
     """
 
     def _write_passing_outputs(self, directory):
-        BuildFesPongTests._write_passing_outputs(self, directory)
+        test_build_fes_pong.BuildFesPongTests._write_passing_outputs(self, directory)
 
     def _cuda_output(self, directory):
         self._write_passing_outputs(directory)

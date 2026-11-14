@@ -82,7 +82,7 @@
         "nextpnr": "1eecf877"
       },
       "board": "de10",
-      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA`, defaulting to HIP (`scripts/build_fes_menu_package.py`); `make` forwards `GPU_ROUTER=`.",
       "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
       "features": "Media: none. Input: none in the package interfaces. HDMI: fixed 720p60 menu display and blitter over HPS DDR (`fes.video.menu-display`, `fes.video.menu-blitter`). Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Bootstrap image display firmware, not a playable core. The only `fpga_packages` row in `profiles/native-integration-dev.toml`. Lock nextpnr `1eecf877`.",
@@ -199,7 +199,7 @@
         "nextpnr": "552ba246"
       },
       "board": "de10",
-      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA`, defaulting to HIP (`scripts/build_fes_pong.py`); `make` forwards `GPU_ROUTER=`.",
       "quartus": "Recipe `quartus_role` is `check only when a twin exists`. No `build-fes-pong-quartus` target was found. Not a shipped variant.",
       "features": "Media: ROM-less. Persists settings and best rally (`fes.persistence.words`, `fes.pong.progress`). Input: `fes.gamepad`. HDMI: shared `fes_video_720p`, fixed 720p60. Display plane is Planned in `docs/display-pipeline.md`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Library standing `supported`. Not in the bootstrap image. Named kit notes do not accept a later bitstream.",
@@ -262,7 +262,7 @@
         "nextpnr": "bec82e36"
       },
       "board": "de10",
-      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA`, defaulting to HIP (`scripts/build_fes_ramtest.py`); `make` forwards `GPU_ROUTER=`.",
       "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-ramtest-quartus` is Quartus 17.0.2 at 130 MHz (`RAMTEST_MHZ=100` selects 100 MHz). The catalog utility is the OSS 100 MHz variant. 130 MHz closure remains open.",
       "features": "Media: ROM-less utility. Input: `fes.gamepad`. HDMI: fixed 720p60. Memory: SDRAM addon and `fes.memory.hps-ddr`. Display plane is Planned in `docs/display-pipeline.md`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Library standing `supported`. Not in the bootstrap image. No exact-image hardware acceptance is claimed in core status.",
@@ -1386,7 +1386,7 @@
         "nextpnr": "8f453ebc"
       },
       "board": "de10",
-      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA`, defaulting to HIP (`scripts/build_fes_riscv.py`); `make` forwards `GPU_ROUTER=`.",
       "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
       "features": "Media: none. The package runs hand-assembled demonstration firmware. Input: `fes.gamepad`. No audio interface on the producer. HDMI: 160x120 framebuffer in the shared 720p raster. Display plane is Planned in `docs/display-pipeline.md`. CPU: `fes_rv32_cpu` in `cores/fes-common/rtl/riscv`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Library standing `experimental`. Not in the bootstrap image. Kit loads cited in core status accept only the packages they name.",
