@@ -869,6 +869,41 @@ int main(int argc, char **argv) {
             bad("back-to-back", "st0=" + hex80(b2b0) + " st1=" + hex80(b2b1));
         else ok("back-to-back");
 
+        // Eight pushes back to back with no settling between them, which is
+        // what a program does: every one must land, and the stack must come
+        // back to TOP 0 with all eight registers written.
+        u.clear_latch();
+        u.reg_form(OP_FNINIT);
+        uint8_t v[8][10];
+        for (int n = 0; n < 8; ++n) {
+            std::memset(v[n], 0, 10);
+            v[n][7] = 0x80;
+            v[n][8] = uint8_t(0xff);
+            v[n][9] = uint8_t(0x3f + n);   // 1.0, 2.0, 4.0, ... by exponent
+            // Each load's three parts, with no settle() after the last.
+            for (int part = 2; part >= 0; --part) {
+                u.present(OP_FLD_M80, FMT_F80, part == 2, part == 0, unsigned(part));
+                uint32_t w = 0;
+                std::memcpy(&w, v[n] + 4 * part, part == 2 ? 2 : 4);
+                u.commit(unsigned(part), w, part == 0);
+            }
+        }
+        u.settle();
+        {
+            bool ok8 = ((u.sw() >> 11) & 7) == 0 && u.tw() == 0x0000;
+            std::string what = "top=" + hex((u.sw() >> 11) & 7, 1) + " tw=" + hex(u.tw(), 4);
+            for (int n = 0; n < 8 && ok8; ++n) {
+                uint8_t got[10];
+                u.sti(unsigned(7 - n), got);   // ST(7) is the first pushed
+                if (std::memcmp(got, v[n], 10) != 0) {
+                    ok8 = false;
+                    what += " st" + std::to_string(7 - n) + "=" + hex80(got) + " want " + hex80(v[n]);
+                }
+            }
+            if (ok8) ok("eight-pushes");
+            else bad("eight-pushes", what);
+        }
+
         // A control form leaves C1 and the other condition codes alone.
         u.clear_latch();
         u.reg_form(OP_FNINIT);
