@@ -13,9 +13,13 @@ Each core below has three builds:
 
 - **main:** a clean checkout of main `2d895034c`, running main's producer with
   its local toolchain roots (`build/toolchain/<root>/install`). Those roots hold
-  hardlinks of the PR's per-tool installs, which are the same commits as main's
-  locks name. These reference BUILD_IDs are main's code with those binaries;
-  they are not the BUILD_IDs of main's sealed packages.
+  hardlinks of per-tool installs at the same commits main's locks name. These
+  reference BUILD_IDs are main's code with those binaries; they are not the
+  BUILD_IDs of main's sealed packages. The runs passed no `--cache-root`, and
+  `FES_TOOLCHAIN_CACHE_ROOT` and `CACHE_ROOT` were stripped from the
+  environment: `_authenticate_tools` returns from its shared-cache branch
+  before it reads `toolchain_root`, so a cache root silently ignores
+  `--toolchain-root` and resolves binaries no evidence here covers.
 - **forced:** a clean checkout of the PR, run with
   [`forced_build_id.py`](forced_build_id.py) and the main build's BUILD_ID.
 - **own:** the same PR checkout, running the producer's own command line.
@@ -34,6 +38,15 @@ embeds its own install prefix. For the ZX81 family, for example:
 That difference is why every own BUILD_ID in this record differs from main's:
 BUILD_ID v2 hashes tool identities, and a tool identity carries the binary's
 sha256.
+
+**The two sides are genuinely different builds, not one install seen twice.**
+They are separate installs with different keys and different recipe digests:
+main's side `20685ac5…`, an earlier revision of this PR's `bootstrap.sh`, and
+the PR's side `75baea6d…`, its current one. So the forced comparison varies the
+producer and helper code *and* the binaries at once, and still reproduces main's
+RBF byte for byte. That is the evidence that an install's prefix does not reach
+the RBF — the premise this PR rests on — rather than an assumption behind it.
+Nothing in this record needed the tooling held constant, and it was not.
 
 ## Registered OSS producers
 
