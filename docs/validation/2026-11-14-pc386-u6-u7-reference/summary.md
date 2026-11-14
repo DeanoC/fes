@@ -136,32 +136,32 @@ and the reference's memory.
 
 | | kit, 286-12 | reference, 286 at 12.5 MHz | reference scaled to 12.0 MHz |
 | --- | --- | --- | --- |
-| key `6` | **840.72 Hz** (31 notes, 840.42–840.90) | **962.95 Hz** (five captures, 962.29–963.23) | 924.43 Hz |
-| key `1` | **499.79 Hz** (31 notes, 499.65–499.87) | **573.56 Hz** (five captures, 573.26–574.28) | 550.62 Hz |
-| kit below the reference | | **12.69% and 12.86%** (2.35 and 2.38 semitones) | **9.06% and 9.23%** (1.64 and 1.68 semitones) |
+| key `6` | **840.69 Hz** (three captures, 840.65–840.70) | **962.95 Hz** (five captures, 962.29–963.23) | 924.43 Hz |
+| key `1` | **499.78 Hz** (three captures, 499.77–499.79) | **573.56 Hz** (five captures, 573.26–574.28) | 550.62 Hz |
+| kit below the reference | | **12.70% and 12.86%** (2.35 and 2.38 semitones) | **9.06% and 9.23%** (1.64 and 1.68 semitones) |
 
 **Verdict: fail.** The band is ±5.9%, one semitone, and the kit is outside it
 on both notes against the reference as measured, at 12.5 MHz. It is still
 outside it against the reference scaled to the preset's nominal 12.0 MHz,
 which holds while the game's delay unit does not change across that step (see
 below). The
-measurement is far finer than the band: the kit's notes spread 0.05% and the
-reference's 1%, and the kit's figures are the same as the 10 November run's on a
-different seal, through this record's own analyser — 840.70 against 840.72 Hz
-and 499.78 against 499.79 — so this is the machine and not the day.
+measurement is far finer than the band: the kit's three captures agree to
+0.006% and the reference's five to 0.18%, and the kit's figures are the same as
+the 10 November run's on a different seal, through this record's own analyser —
+840.70 against 840.69 Hz and 499.78 against 499.78 — so this is the machine and
+not the day.
 
-**The reference side now has five captures and the kit side two**, and
-`pitch.json` names them all: one kit capture on this package (`g1`) with the 10
-November capture on package `650bc477` behind it, and five reference captures —
-`m3`, `m4`, and three plays taken inside a single Use in run `m6`. An earlier
-reference run was made and its lute landed in character creation, so it holds
-no notes. **The kit side is one short of the three a side the method asked
-for.** The method's reason for three was to show the spread is well inside the
-band, and it is — 0.05% on the kit, and 0.10% and 0.18% across the five reference
-captures, against ±5.9%, with the difference being measured 100 times larger
-than either — but the shortfall is a deviation and is named here rather than
-left to be noticed. Three kit captures were queued for Kit B and not run,
-because the kit was held by another session throughout.
+**Both sides now have the three repeats the method asked for**, and more:
+three kit captures on this package, taken as three plays inside one Use in run
+`g3` on Kit B, and five reference captures — `m3`, `m4`, and three plays inside
+one Use in run `m6`. `pitch.json` also keeps the earlier kit captures `g1` and
+the 10 November `t1`, which is on a different seal. An earlier reference run
+was made and its lute landed in character creation, so it holds no notes.
+
+The repeats do what the method asked of them. The three kit captures spread
+**0.006%** on key `6` and **0.004%** on key `1`; the five reference captures
+spread 0.10% and 0.18%. The band is ±5.9% and the difference being measured is
+12.7%, so it is between 70 and 2,000 times either side's own spread.
 
 **The reference was running at full speed for each lute play.** 86Box shows its
 emulation speed in the window's tool bar, and the grab taken at the end of each
@@ -176,7 +176,7 @@ and 511.8 Hz before, 839.0 and 501.5 Hz after, and gives that step as a ratio
 measured with
 one estimator throughout: 0.9767 for key `6` and 0.9799 for key `1`. Applied to
 today's figures, the kit before #1453 would have been 860.8 and 510.0 Hz, a
-shortfall against this reference of **10.6% and 11.1%**, against 12.69% and
+shortfall against this reference of **10.6% and 11.1%**, against 12.70% and
 12.86% today. So #1453 added about two points (2.1 and 1.8) to roughly eleven
 that were already there.
 
