@@ -30,7 +30,7 @@ kit was measured. The reference machines are in
 | --- | --- |
 | **Ultima VI, PC speaker pitch at the 286-12 preset** | **Fail.** The kit's notes are 12.7–12.9% below the reference's, 2.35 and 2.39 semitones flat. The band is ±5.9%, one semitone. Scaling the reference from its 12.5 MHz to the preset's nominal 12.0 leaves 9.0–9.3% and about 1.7 semitones, if the game keeps the same delay unit across that step. |
 | **Ultima VI, walking speed at the 286-12 preset** | **Not decided**, and the method is the problem, not the kit: on the reference the turn rate follows how fast the keys are sent (56% higher at seventeen keys a second than at ten), and the step rate spreads 23% at one key rate where the band is ±10%. So no kit window was run with it. The figures are below for whoever measures it next. |
-| **Ultima VII: The Black Gate, NPC pace at 386DX-25** | **Not done.** The game stops at its own memory check on the reference, and the reference board for a 386DX-25 is not settled; see below. |
+| **Ultima VII: The Black Gate, NPC pace at 386DX-25** | **Not done.** A reference board must be settled first, by the rule that validated the 286 one. The game stops at its own memory check on the reference, and the reference board for a 386DX-25 is not settled; see below. |
 
 So **#1368's last box is not ticked and the issue stays open**, and pc386 does
 not reach tier 1 on this work. The pitch failure has its own issue.
@@ -50,6 +50,16 @@ preset scores **33**, above every real 286 of that clock in the database and
 level with its 16 MHz boards (33, 36, 42), which is the difference these checks
 are about: the preset is a 386 core paced to a table, not a 286. CHKCPU refuses to run on the reference at all ("requires a 386 or
 higher CPU") and calls the kit's 286-12 preset a "classic 386 at 12.8 MHz".
+
+**Does the preset's own calibration make this verdict unsafe?** No, and the
+record says so rather than leaving it to be wondered about. The 286-12 preset
+benchmarks about 30% faster than real 286 boards of its clock
+([#1840](https://github.com/DeanoC/fes/issues/1840)), which is a CPU-throughput
+finding. It cuts the other way for pitch: a faster CPU would raise the note,
+and the kit's note is lower. It does, however, qualify the two checks still
+open — a walking speed or an NPC pace measured against a preset that is itself
+30% fast would not mean what it appears to, whatever the measurement's own
+quality. That is said again where those checks are.
 
 **Evidence class**, as `AGENTS.md` asks it be named: exact-artifact hardware
 acceptance for the kit side — the sealed package `fc01c956…` on Kit B, with
@@ -145,6 +155,21 @@ times larger than either — but the shortfall is a deviation and is named here
 rather than left to be noticed. Three kit captures were queued for Kit B and
 not run, because the kit was held by another session.
 
+**The condition is not new, and most of it predates #1453.**
+[#1474's record](../2026-11-04-pc386-speaker-kit/summary.md) measured the same
+two keys on Kit B on 4 November, before and after #1453's ISA charges: 859.0
+and 511.8 Hz before, 839.0 and 501.5 Hz after. Against the reference measured
+here that is a shortfall of 12.08% and 12.14% *before* #1453, and 14.75% and
+14.44% after, so #1453 added about 2.3 points to roughly 10.8 that were already
+there. The kit's figures today are within 0.21% and 0.34% of 4 November's, ten
+days and several seals apart, which is the analyser's own resolution: nothing
+recent regressed, and what is new here is the reference.
+
+The two keys' shortfalls agree to 0.3% (ratios 1.1452 and 1.1483), which looks
+like one multiplier on a timebase rather than anything per-note — against
+which #1474 found #1453's own drop was *not* uniform, 2.01% at 512 Hz rising to
+2.59% at 1,265 Hz, and left that unexplained.
+
 **What is not established is the cause.** There is already a model for this
 loop: [#1472's record](../2026-11-04-pc386-speaker-kit/summary.md) puts one
 pass of the routine's loop at about 89 clocks plus about 475 for each of the
@@ -156,7 +181,16 @@ kit: what the reference pays for the same two port accesses was not measured.
 So most of the difference is elsewhere: the governor's pacing of the rest of the pass,
 and the pass costing a 386 a different number of clocks than a 286 whatever the
 table says. Nothing here separates them, and no lute capture at another preset
-exists to split them with (#1481 measured the lute at 286-12 only). The issue filed from
+exists to split them with (#1481 measured the lute at 286-12 only).
+
+The direction of the error is itself a clue, and a testable prediction. The
+kit's CPU benchmarks *faster* than the reference's — TopBench 33 against 23,
+which is [#1840](https://github.com/DeanoC/fes/issues/1840) — while its notes
+come out *lower*. Those only sit together if this loop's rate is set by its I/O
+cost rather than by instruction throughput, which is what #1453 moved. So
+sweeping the governor's ISA charges should move the pitch and changing CPU
+throughput should not; if that holds, the cause is the I/O charge model and the
+residual 10.8% says it was over-charging before #1453 too. The issue filed from
 this record asks for that.
 
 ## Ultima VI: walking speed
@@ -201,7 +235,15 @@ be judged against a ±10% band:
   should capture at 60 fps, which Kit A's path and the reference both allow.
 
 A sound measurement would have to drive the keys from the guest's own timer, or
-find a figure inside the game that counts turns.
+find a figure inside the game that counts turns. **That dependence is itself
+the finding**: anyone measuring Ultima VI's pace by sending keys and counting
+what moves will measure their own key timing unless they deal with it first.
+
+Even then, the figure would have to be read against
+[#1840](https://github.com/DeanoC/fes/issues/1840): the preset the walk is
+measured at is about 30% fast on CPU against real 286 boards of its clock, so
+matching the reference's walking speed at it would not mean the preset is
+right, and missing it would not say which of the two was wrong.
 
 That is `method.md`'s fourth amendment, written before the kit run that would
 have been compared with these numbers, and corrected there as it is here.
@@ -236,7 +278,9 @@ benchmark above, a 1988 C&T 386/AT with no cache, scores 40 against the kit
 preset's 68, where TopBench's database has real 20–25 MHz 386 machines from 25
 to 60. A verdict on NPC pace should not rest on a board chosen after the fact,
 so the board has to be fixed first, by the same rule that validated the 286
-one.
+one: mid-range among that database's real machines of the class. And as with
+the walk, the figure would then have to be read against
+[#1840](https://github.com/DeanoC/fes/issues/1840).
 
 ## What this does not cover
 
