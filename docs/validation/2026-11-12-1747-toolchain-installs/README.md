@@ -369,9 +369,19 @@ The third is in CI rather than a local sweep, and it is latent on main.
   relying on it: top-level key sets identical, three fields changed —
   `source_revision` `40c23ed3b` to `ed410a1cb`, the five hashes, and
   `binaries_sha256` for `Vfes_de25_combined_sim` alone while both clients stay
-  unchanged — and the `tools` block untouched, so the environment really was the
-  same. That last pair is the positive evidence: only the simulator recompiles
-  against those headers, and a hand-edited fixture could not have produced it.
+  unchanged — and the `tools` block untouched.
+
+  Those two findings only work together, and the order matters. The unchanged
+  `tools` block is what establishes the environment was the same: host
+  Verilator 5.032 and `c++` 14.2.0, the same builder image and SDK volume, and
+  the pinned qemu found inside the builder image at
+  `/usr/bin/qemu-aarch64-static`, sha256 `4f55e2e88dc05dc0…`, matching the
+  recorded `qemu_sha256`. Only on a fixed environment does the selective binary
+  change mean anything: with the compiler held, exactly one artifact moving —
+  the one that compiles those headers, while both clients do not — is something
+  a hand-edited fixture could not produce without modelling the build graph.
+  Selectivity alone would have been ambiguous, because a different compiler
+  could also move one binary and not others.
   With that fixture in place this branch passes `build_test.RecipeTests`, 22
   tests; restored to main's, it fails again. So the red check here clears when
   #1843 lands, with no change to this PR.
@@ -387,6 +397,22 @@ The third is in CI rather than a local sweep, and it is latent on main.
   fixture branch and does not touch the fixture — so they can land in either
   order, though #1843 first avoids turning a latent failure into a visible one
   with no fix available.
+
+  **What #1846 does not close, and it is the same shape.** The capture set is now
+  derived from disk in all three places rather than copied, so a new captured
+  *file* is picked up everywhere — which is what #1842 was. The capture
+  *patterns* are still hand-copied, and now exist three times: `proof.py:66-71`
+  produces them, `build_test.py:233-243` checks them, `test_affected.py` routes
+  them. A new pattern in the producer reaches neither of the others, and the
+  symptom would be a receipt whose inputs the checker does not check and the
+  planner does not route. The three agree in result today — 61 entries, identical
+  sets — but they have **already drifted in form**: `proof.py` lists
+  `zx81-hps/cosim/wire.hpp` both explicitly and under its own
+  `zx81-hps/cosim/*.hpp` glob, so its raw list is 62 entries deduping to 61,
+  where the checker's is 61 with no duplicate. Harmless, because both sides
+  dedupe into dicts, and it is the ordinary first stage of exactly this failure.
+  One helper exporting the patterns, imported by all three, ends the family
+  rather than reducing it to two.
 
 **The sweep is green once the first two are accounted for.** All 37 commands in
 `test_changed.py --plan-only` pass: commands 0–11 at `19443449b`, where the
