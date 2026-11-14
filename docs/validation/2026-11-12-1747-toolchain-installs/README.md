@@ -272,6 +272,14 @@ does. Both are worth recording because the next person will hit them.
   The helper arrived in #1786; this branch does not touch the file. Not fixed
   here, per one scope per PR.
 
+**The sweep is green once those two are accounted for.** All 37 commands in
+`test_changed.py --plan-only` pass: commands 0–11 at `19443449b`, where the
+`test_*.py` lane reports `OK (skipped=86)` over 2202 tests, and the 25 RTL
+simulation lanes that the early stop had left unstarted, run directly, 25 of 25
+exit 0. The plan at `19443449b` is byte-identical in command set and argv to the
+plan that produced those 25 results, so the documentation commits between them
+change nothing about what runs.
+
 ## Why CI appeared not to run on this branch
 
 Worth its own line, because it cost two hours. For a `pull_request` event GitHub
