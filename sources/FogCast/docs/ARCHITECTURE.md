@@ -4220,9 +4220,10 @@ A format-3 title whose firmware ROM has no selection gets the host's
 [bundled firmware](../../../docs/bundled-firmware.md) for that core, ROM ID and
 exact size, when the host loaded one from its `[firmware] bundled_dir`. The
 host derives that default for reads and launches without saving it as a user
-selection, so a later bundle update changes the effective default. An explicit
-selection is preserved, including a previously saved ZX81 ROM when its media
-still exists; removing the host's bundled default does not clear saved choices.
+selection, so a later bundle update changes the effective default. A saved
+selection is preserved. Older setups may have saved the then-bundled ZX81 ROM
+as their selection; if that media still exists, they keep it and may remain
+ready after the host default is removed.
 Catalog setup also leaves a selected bundled default
 unsaved. `GET /api/v1/library/core-entries/{game_id}/rom?rom_id={rom_id}` returns an empty
 `media_id` for that unsaved default, with its digest in `bundled_media_id` and
