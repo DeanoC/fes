@@ -945,6 +945,42 @@ int main(int argc, char **argv) {
         u.reg_form(OP_FNINIT);
         u.clear_latch();
 
+        // The same window on FLDCW's own apply: the flag is already set and
+        // masked, and the word being loaded unmasks it, so ES follows the
+        // control word this apply writes rather than any flag it raises.
+        // The latch has to be set against that word, not from the ES edge a
+        // cycle later (Codex P1; 387 PRM section 2.3.1).
+        u.reg_form(OP_FNINIT);
+        u.reg_form(OP_FCHS);             // an empty ST(0): IE and SF, masked
+        u.present(OP_FLDCW, FMT_F32, true, true, 0);
+        u.commit(0, 0x037e, true);       // the same word with IM cleared
+        {
+            bool idle_seen = false, gap = false;
+            for (int n = 0; n < 64 && !idle_seen; ++n) {
+                if (!u.top.busy_o) {
+                    idle_seen = true;
+                    u.top.iss = 1;
+                    u.top.iss_wait = 0;
+                    u.top.iss_op = OP_FCHS;
+                    u.top.iss_fmt = 0;
+                    u.top.iss_first = 1;
+                    u.top.iss_last = 1;
+                    u.top.iss_part = 0;
+                    u.top.eval();
+                    gap = !u.top.hold;
+                    u.top.iss = u.top.iss_first = u.top.iss_last = 0;
+                    u.top.eval();
+                } else {
+                    u.tick();
+                }
+            }
+            if (!idle_seen) bad("latch-ldcw-unmask", "the unit never went idle");
+            else if (gap) bad("latch-ldcw-unmask", "an ESC was free the cycle FLDCW unmasked");
+            else ok("latch-ldcw-unmask");
+        }
+        u.reg_form(OP_FNINIT);
+        u.clear_latch();
+
         // FSTP ST(0) with an empty stack and the invalid exception masked:
         // the masked result writes the real indefinite to the destination
         // and the pop then empties that same register, so the tag word must

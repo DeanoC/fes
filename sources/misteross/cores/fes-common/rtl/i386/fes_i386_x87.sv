@@ -1136,7 +1136,18 @@ module fes_i386_x87 (
                             fl <= 6'd0;
                             sf <= 1'b0;
                         end
-                        X87_LDCW: cw <= mval[15:0];
+                        X87_LDCW: begin
+                            cw <= mval[15:0];
+                            // A new mask set can expose a flag the old one
+                            // masked, and ES follows the registered control
+                            // word, so the edge detector below would see it
+                            // a cycle after this apply has made the unit
+                            // idle. Latch BUSY# here, against the word being
+                            // loaded (387 PRM section 2.3.1: FLDCW reports
+                            // an exception it unmasks at the next ESC or
+                            // WAIT).
+                            if (unmasked(fl | f, mval[15:0])) latched <= 1'b1;
+                        end
                         X87_STENV: cw[5:0] <= 6'h3f;  // FNSTENV masks every exception
                         X87_ST_M, X87_STP_M: pop = cur_pop;
                         X87_LDENV, X87_RSTOR:
