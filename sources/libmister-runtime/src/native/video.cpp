@@ -8,8 +8,10 @@
 #include "native/adv7513.hpp"
 #include "native/video_recipe.hpp"
 
+#include <chrono>
 #include <cstdint>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace mister {
@@ -100,52 +102,138 @@ Error WakeAdv(I2c& i2c, std::uint64_t deadline)
 	return {};
 }
 
+// The three registers bring-up samples, in one spelling for both the success
+// line and the failure message. A failure that names no register is why three
+// black-screen episodes left nothing to go on (DeanoC/fes#1823).
+std::string LinkSampleDetail(const VideoResult& result)
+{
+	// Each field reports only what was read. A register that never answered
+	// prints "?" rather than its default or a previous sample's value: a
+	// fabricated 0 here reads as a measurement, which is the worst thing a
+	// diagnostic line can do.
+	return std::string(" link_status=") +
+		(result.link_read ? HexByte(result.link_status) : "?") +
+		" pll_lock=" + (result.pll_read ?
+			((result.pll_status & adv7513::kPllLocked) ? "1" : "0") : "?") +
+		" rx_sense=" + (result.link_read ?
+			((result.link_status & adv7513::kStatusMonitorSense) ? "1" : "0") : "?") +
+		" vic=" + (result.vic_read ?
+			std::to_string(result.vic_status >> adv7513::kVicShift) : "?");
+}
+
+bool PllLocked(const VideoResult& result)
+{ return result.pll_read && (result.pll_status & adv7513::kPllLocked) != 0; }
+
+// A ready link and a locked pixel PLL behind it, both polled to the caller's
+// deadline. The transmitter has just been reprogrammed and the PLL locks over
+// the following frames, so one reading is not an answer; the loop is paced so
+// a genuine fault does not spin the I2C bus for the whole budget.
+//
+// The PLL is required because 0x9e bit 4 tracks the lock to *our* input pixel
+// clock: unlocked behind a ready link is this board failing to feed the
+// transmitter, which no attached display can cause and no later reading makes
+// better. The detected VIC at 0x3e is recorded and deliberately not required
+// -- it is a detection of our own input timing too, but the idle health check
+// (NativeHardware::CheckIdleDisplayHealth) owns that verdict so a wrong mode
+// gets its bounded, latched reactivation instead of a refused bring-up.
+//
+// An unreadable 0x9e leaves the PLL unenforced rather than refusing a picture
+// that may be perfectly good, which is how the idle check treats the same
+// read. An unreadable 0x3e costs only the diagnostic: the VIC is not required,
+// so it never decides whether the poll finishes. The link read at 0x42 stays
+// fatal, as it has always been, and a spent budget is fatal from any of the
+// three -- the transport reports the deadline before every transaction, so
+// accepting it would pass the never-locked PLL this poll exists to refuse.
 Error RequireLink(I2c& i2c, Clock& clock, std::uint64_t deadline,
 	VideoResult* result)
 {
-	do {
+	// Poll-scoped, unlike the per-sample flags below. Once a readable 0x9e has
+	// reported the PLL unlocked, that is a measured fact about this board, and
+	// no later unreadable register retracts it. Without it an ordinary bus
+	// blip on a subsequent sample would launder a definitive refusal into a
+	// successful bring-up, which is the one thing this poll exists to prevent.
+	bool seen_unlocked = false;
+	for (;;) {
 		if (clock.NowMs() >= deadline)
-			return {ErrorCode::io_failed, "deadline exceeded"};
+			return {ErrorCode::io_failed, (seen_unlocked ?
+				"pixel PLL did not lock behind a ready link" :
+				"deadline exceeded") + LinkSampleDetail(*result)};
 		const Error error = i2c.ReadByte(adv7513::reg::kStatus,
 			&result->link_status, deadline);
-		if (!error.ok()) return error;
-	} while ((result->link_status & adv7513::kStatusLinkReady) !=
-		adv7513::kStatusLinkReady);
-	return {};
-}
-
-// The PLL lock and detected mode behind a ready link. A black picture on a
-// ready link has been seen with neither read, so bring-up records both.
-// Reporting only: a read failure leaves the registers out of the message and
-// never fails a verified link.
-void ReadLinkDetail(I2c& i2c, std::uint64_t deadline, VideoResult* result)
-{
-	std::uint8_t pll = 0, vic = 0;
-	if (!i2c.ReadByte(adv7513::reg::kPllStatus, &pll, deadline).ok()) return;
-	if (!i2c.ReadByte(adv7513::reg::kVicDetected, &vic, deadline).ok()) return;
-	result->pll_status = pll;
-	result->vic_status = vic;
-	result->detail_read = true;
+		// Reporting is per sample, so these clear on every pass, including the
+		// passes that never reach the PLL: a link read that failed, or one
+		// that found the link down, must not leave an earlier sample's PLL and
+		// VIC on the result to be printed beside this sample's link status.
+		result->pll_read = false;
+		result->vic_read = false;
+		if (!error.ok()) {
+			// The transport names no register, and on failure it leaves the
+			// output untouched, so neither the byte nor the flag may stand.
+			result->link_read = false;
+			return {ErrorCode::io_failed, "link status read failed: " +
+				error.message + LinkSampleDetail(*result)};
+		}
+		result->link_read = true;
+		if ((result->link_status & adv7513::kStatusLinkReady) ==
+			adv7513::kStatusLinkReady) {
+			std::uint8_t pll = 0, vic = 0;
+			const Error pll_error = i2c.ReadByte(adv7513::reg::kPllStatus,
+				&pll, deadline);
+			if (pll_error.ok()) {
+				result->pll_status = pll;
+				result->pll_read = true;
+				if (!PllLocked(*result)) seen_unlocked = true;
+			}
+			// Recorded, never required, and read on its own account: a failure
+			// here must not disturb the PLL verdict above, or an unlocked PLL
+			// would be accepted because a diagnostic was unreadable.
+			const Error vic_error = i2c.ReadByte(
+				adv7513::reg::kVicDetected, &vic, deadline);
+			if (vic_error.ok()) {
+				result->vic_status = vic;
+				result->vic_read = true;
+			} else if ((PllLocked(*result) || !seen_unlocked) &&
+				clock.NowMs() >= deadline) {
+				// The VIC is optional, but an exhausted caller budget is not:
+				// do not let a successful PLL sample turn a timed-out read into
+				// a successful bring-up. If this poll already measured an
+				// unlocked PLL and it remains unlocked, let that direct refusal
+				// keep precedence over the optional read's error.
+				return {ErrorCode::io_failed,
+					"VIC register 0x3e read failed: " + vic_error.message +
+					LinkSampleDetail(*result)};
+			}
+			if (!pll_error.ok()) {
+				if (clock.NowMs() >= deadline)
+					// Say what was measured, not only what failed last. A
+					// PLL read unlocked and then unreadable is the whole
+					// finding; the transport message alone loses it, on the
+					// one line a black screen gets diagnosed from.
+					return {ErrorCode::io_failed, (seen_unlocked ?
+						"pixel PLL did not lock behind a ready link and "
+						"became unreadable: " : "") +
+						pll_error.message + LinkSampleDetail(*result)};
+				// An unreadable 0x9e leaves the requirement unenforced, but
+				// only while nothing has measured it unlocked.
+				if (!seen_unlocked) return {};
+			} else if (PllLocked(*result)) {
+				return {};
+			}
+		}
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+	}
 }
 
 void CompleteVideo(const VideoRecipe& recipe, VideoResult* result, LogSink& log)
 {
 	result->phase = "hdmi_verify";
-	std::string detail;
-	if (result->detail_read)
-		detail = std::string(" pll_lock=") +
-			((result->pll_status & adv7513::kPllLocked) ? "1" : "0") +
-			" rx_sense=" +
-			((result->link_status & adv7513::kStatusMonitorSense) ? "1" : "0") +
-			" vic=" + std::to_string(result->vic_status >> adv7513::kVicShift);
-	else detail = " pll_lock=? rx_sense=? vic=?";
 	result->error = {ErrorCode::none,
 		std::string("recipe=") + recipe.identity +
 		" bus=" + result->selected_bus +
 		" address=" + HexByte(adv7513::kMainMapAddress7Bit) +
 		" power_before=" + HexByte(result->power_before) +
 		" power_after=" + HexByte(result->power_after) +
-		" link_status=" + HexByte(result->link_status) + detail};
+		LinkSampleDetail(*result)};
 	WritePhase(log, "hdmi_verify", *result, result->error);
 }
 
@@ -215,7 +303,6 @@ VideoResult FixedVideoBringup::BringUpCustom(std::uint64_t deadline, bool audio)
 	PhaseSuccess("hdmi_wake", &result, log_);
 	error = RequireLink(i2c_, clock_, deadline, &result);
 	if (!error.ok()) return PhaseFailure("hdmi_verify", error, result);
-	ReadLinkDetail(i2c_, deadline, &result);
 	if (audio) {
 		// The identified core remains held and supplies zero samples until Start.
 		error = i2c_.WriteByte(adv7513::reg::kPacketEnable1,
@@ -255,7 +342,6 @@ VideoResult SplashVideoBringup::BringUp(const IdleRecipe&, std::uint64_t deadlin
  PhaseSuccess("hdmi_wake", &result, log_);
  error = RequireLink(i2c_, clock_, deadline, &result);
  if (!error.ok()) return failure("hdmi_verify");
- ReadLinkDetail(i2c_, deadline, &result);
  CompleteVideo(recipe_, &result, log_); return result;
 }
 } // namespace native

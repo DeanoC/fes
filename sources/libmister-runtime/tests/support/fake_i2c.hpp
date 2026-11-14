@@ -45,9 +45,19 @@ public:
 	std::uint8_t power_after = 0x10;
 	std::deque<std::uint8_t> link_statuses = {0x60};
 	// 0x9e bit 4 set is a locked pixel PLL; 0x3e>>2 is the detected VIC.
+	// pll_statuses scripts successive readings, for a PLL that locks a few
+	// frames after the pixel stream starts; the last one scripted sticks.
 	std::uint8_t pll_status = 0x12;
 	std::uint8_t vic_status = 0x10;
+	std::deque<std::uint8_t> pll_statuses;
 	mister::Error detail_read_error;
+	// Fail one detail register without the other, so the PLL requirement and
+	// the VIC diagnostic can be exercised independently.
+	mister::Error vic_read_error;
+	mister::Error pll_read_error;
+	// Fails the Nth 0x9e/0x3e read only, counting both registers, so a
+	// sample can succeed once and then fail on a later loop.
+	std::size_t fail_detail_read_index = std::numeric_limits<std::size_t>::max();
 	mister::Error select_error;
 	mister::Error power_read_error;
 	mister::Error link_read_error;
@@ -64,6 +74,7 @@ private:
 	std::size_t timing_write_index_ = std::numeric_limits<std::size_t>::max();
 	std::size_t release_write_index_ = std::numeric_limits<std::size_t>::max();
 	std::size_t link_read_count_ = 0;
+	std::size_t detail_read_count_ = 0;
 	std::uint8_t last_link_status_ = 0;
 };
 
