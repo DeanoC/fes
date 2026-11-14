@@ -518,12 +518,16 @@ Still open for the games ([#1368](https://github.com/DeanoC/fes/issues/1368)):
 - Ultima VII NPC pace, against a reference.
 
 Launches with Serpent Isle's disk image sometimes capture a black picture at
-the DOS prompt: 12 black DOS-prompt grabs in 400 launches on Kit B. No part of
-it is pc386's. In the eight black prompt grabs taken on an instrumented scratch
-seal the core still drove lit pixels onto the HDMI transmitter pins, with the
+the DOS prompt: 12 black DOS-prompt grabs in 400 launches on Kit B. For the
+eight of them that were probed, it is not pc386's; the other four are
+unclassified, and a probed recurrence belongs to
+[#1833](https://github.com/DeanoC/fes/issues/1833). In the eight black prompt
+grabs taken on an instrumented scratch seal the core still drove lit pixels onto the HDMI transmitter pins, with the
 picture present in DDR, and in the two that were checked the ADV7513 read
 powered, link-ready, PLL-locked and detecting 720p60 while HDMI audio arrived at
-full level; the other four had no such probe. The same capture — a uniform RGB-0
+full level. The four earlier black launches (main's seal and `d1`) had no
+presenter, plane or transmitter probe at all, so nothing is concluded about
+them. The same capture — a uniform RGB-0
 frame — also appears on Kit A through a different grabber and a different
 transmitter, and with no pc386 core loaded at all: it is the FES Home screen
 going black after a baseline restore in #1767's Kit A run, which that run itself

@@ -11,7 +11,10 @@ grabber. It proposed a Kit A run to tell the kits' paths apart.
 and a different transmitter, with no pc386 core loaded — it is the FES Home
 screen after a baseline restore in #1767's Kit A run, which that run itself
 classified a real failure. The stage that blackens the picture is in the display
-or capture path every core and the menu share, so #1494 is not a pc386 defect.
+or capture path every core and the menu share, so #1494's symptom is not a pc386
+defect. That is concluded for the eight episodes with pin-level probes; the four
+earlier black launches had no probe of their own and stay unclassified, and a
+probed recurrence belongs to #1833.
 Which of those stages it is stays open as
 [#1833](https://github.com/DeanoC/fes/issues/1833), split out of
 [#1823](https://github.com/DeanoC/fes/issues/1823), and the two cheap tests that
@@ -134,8 +137,10 @@ for a whole launch with HDMI audio arriving at the lit level.
 #1494's runs `k7`–`k9` could not have seen a frozen frame either way. Every
 launch ended at the same DOS prompt, so a stale frame is indistinguishable from
 a live one: across `k8`'s 101 prompt grabs there are only 10 distinct frame
-hashes, each repeated 11–18 times (the prompt's blinking cursor). That is the
-hole this record's runs close, by typing a per-launch nonce before the grab.
+hashes, each repeated 11–18 times (the prompt's blinking cursor). That hole is
+still open: the queued `b1` run types a per-launch nonce before the grab so that
+a stale frame cannot pass as a live one, and until it lands no kit evidence here
+distinguishes the two.
 
 ## The signature in data already taken
 
