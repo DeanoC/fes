@@ -484,11 +484,12 @@ point where the rig is holding the game back on both of them, because what is
 then being compared is how each machine behaves under a rig artefact.
 
 **What this does not establish** is that no usable plateau exists anywhere. The
-rates tried here are 10, 12.3 and 25 a second, and the peak sits at or below
-10; nothing was sampled between 1 and 10, where the game's own maximum would
-have to be. Finding it would mean sweeping that range for a rate at which the
-step rate stops rising *before* the suppression sets in, and showing the two
-sides agree on where that is.
+rates tried here are 10, 12.3 and 25 a second, and the peak lies somewhere
+below 12.3 — nothing was sampled below 10, nor anywhere in the gap between 10
+and 12.3, and the response could still be rising inside either. Finding the
+maximum would mean sweeping everything under 12.3 a second, that gap included,
+for a rate at which the step rate stops rising *before* the suppression sets
+in, and showing the two sides agree on where that is.
 
 **What is established is that the three methods tried here cannot measure it.**
 All three fail on one cause — the game steps when it next looks at the keyboard
@@ -496,7 +497,7 @@ and drops what is queued meanwhile: a held key reaches the two sides
 differently, a matched tap rate measures the tap rate, and over-keying measures
 a suppressed rate.
 
-**What would be needed instead** is either that sweep below 10 keys a second,
+**What would be needed instead** is either that sweep below 12.3 keys a second,
 run on both sides, or a measurement that does not go through the keyboard at
 all: a count the game itself keeps — its own turn counter in memory, read from
 the machine on each side — or an instrumented build. The second is the surer

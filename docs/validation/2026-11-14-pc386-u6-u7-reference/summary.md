@@ -339,10 +339,11 @@ steps. Two machines compared at that point are being compared under a rig
 artefact, not on walking speed.
 
 That is not a proof that no usable plateau exists. The rates tried here are 10,
-12.3 and 25 a second and the peak sits at or below 10; nothing was sampled
-between 1 and 10, where the game's own maximum would have to be. Finding it
-would mean sweeping that range on both sides for a rate at which the step rate
-stops rising before the suppression sets in.
+12.3 and 25 a second, and the peak lies somewhere below 12.3 — nothing was
+sampled below 10, nor in the gap between 10 and 12.3, and the response could
+still be rising inside either. Finding the maximum would mean sweeping
+everything under 12.3 a second on both sides, that gap included, for a rate at
+which the step rate stops rising before the suppression sets in.
 
 **What is established is that the three methods tried here cannot measure it**,
 all on one cause — the game steps when it next looks at the keyboard and drops

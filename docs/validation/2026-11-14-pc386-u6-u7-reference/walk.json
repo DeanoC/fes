@@ -164,7 +164,7 @@
    "mean_at_25": 2.072,
    "mean_at_12_3": 2.061,
    "mean_at_10_earlier_windows": 2.944,
-   "reading": "Not usable. The over-keyed figure is steady (12.3 and 25 a second agree to 0.53%) but it sits below what the same machine on the same route gave at 10 a second, so excess queued keys suppress steps and the steady figure is a rate the game can be held down to, not one it can reach. This does not show that no usable plateau exists: nothing was sampled between 1 and 10 keys a second, where the game's own maximum would have to be."
+   "reading": "Not usable. The over-keyed figure is steady (12.3 and 25 a second agree to 0.53%) but it sits below what the same machine on the same route gave at 10 a second, so excess queued keys suppress steps and the steady figure is a rate the game can be held down to, not one it can reach. This does not show that no usable plateau exists: the peak lies somewhere below 12.3 keys a second, and neither the range under 10 nor the gap between 10 and 12.3 was sampled."
   },
   "verdict": "the over-keyed rate is suppressed, so it is not walking speed; not measured",
   "standard_errors": {
