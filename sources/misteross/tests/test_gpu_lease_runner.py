@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+import select
 import stat
 import subprocess
 import sys
@@ -428,19 +429,24 @@ class PhaseLeaseRouteTests(unittest.TestCase):
         release = self.directory / "release-holder"
         holder = subprocess.Popen(
             [str(self.gpu_run), "--no-wait", "--owner", "blocker", "--", sys.executable, "-c",
-             "import pathlib,sys,time\nwhile not pathlib.Path(sys.argv[1]).exists(): time.sleep(0.01)",
+             "import pathlib,sys,time\nprint('ready', flush=True)\n"
+             "while not pathlib.Path(sys.argv[1]).exists(): time.sleep(0.01)",
              str(release)],
-            env=self.environment(),
+            env=self.environment(), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         )
 
         def stop():
             release.write_text("release", encoding="utf-8")
-            holder.wait(timeout=10)
+            holder.communicate(timeout=30)
         self.addCleanup(stop)
-        deadline = time.monotonic() + 5
-        while self.status()["gpus"][0]["state"] != "held":
-            self.assertLess(time.monotonic(), deadline, "the GPU 7 blocker did not acquire")
-            time.sleep(0.02)
+        # gpu-run starts its child only after it owns the lease. Wait for that
+        # explicit signal rather than repeatedly spawning gpu-status while a
+        # short wall-clock startup deadline expires under contention.
+        readable, _, _ = select.select([holder.stdout], [], [], 30)
+        self.assertTrue(readable, "the GPU 7 blocker did not start")
+        self.assertEqual(holder.stdout.readline(), b"ready\n", "the GPU 7 blocker exited before acquiring")
+        gpu = self.status()["gpus"][0]
+        self.assertEqual((gpu["state"], gpu["pid"]), ("held", holder.pid))
         return stop
 
     def route_in_thread(self, **options):
