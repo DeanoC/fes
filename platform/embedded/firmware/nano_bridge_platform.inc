@@ -14,13 +14,52 @@ static struct fes_nano_boot fes_nano_owned_boot;
 static spinlock_t fes_nano_owned_lock;
 void fes_nano_bridge_platform_lock(void) { spin_lock(&fes_nano_owned_lock); }
 void fes_nano_bridge_platform_unlock(void) { spin_unlock(&fes_nano_owned_lock); }
+void fes_nano_bridge_platform_invalidate_held(void)
+{
+    fes_nano_owned_bridges.failed = 1;
+    fes_nano_boot_invalidate(&fes_nano_owned_boot);
+}
 void fes_nano_bridge_platform_invalidate(void)
 {
     fes_nano_bridge_platform_lock();
-    fes_nano_owned_bridges.failed = 1;
-    fes_nano_boot_invalidate(&fes_nano_owned_boot);
+    fes_nano_bridge_platform_invalidate_held();
     fes_nano_bridge_platform_unlock();
 }
+#ifdef FES_NANO_COLD_SERIAL
+static unsigned char fes_nano_reset_attempted;
+static int fes_nano_reset_binding(uint64_t owner,uint64_t epoch,uint64_t generation)
+{
+    return owner && epoch && fes_nano_owned_boot.attempted &&
+        fes_nano_owned_bridges.initialized &&
+        fes_nano_owned_boot.owner==owner && fes_nano_owned_boot.epoch==epoch &&
+        fes_nano_owned_bridges.state.owner==owner && fes_nano_owned_bridges.epoch==epoch &&
+        fes_nano_owned_bridges.state.generation==generation;
+}
+int fes_nano_bridge_platform_cold_reset_held(uint64_t owner,uint64_t epoch,
+    uint64_t generation,struct fes_nano_reset_ops ops)
+{
+    if (fes_nano_reset_attempted) {
+        fes_nano_reset_attempted=2;
+        fes_nano_bridge_platform_invalidate_held();
+        return -1;
+    }
+    fes_nano_reset_attempted=1;
+    /* Revocation is unconditional and preserves any earlier boot error.
+     * No callback can observe a still-authorized ordinary dispatcher. */
+    fes_nano_bridge_platform_invalidate_held();
+    if (!fes_nano_reset_binding(owner,epoch,generation) || !ops.scope) return -1;
+    int scoped=ops.scope(ops.context,owner,epoch,generation);
+    unsigned valid=fes_nano_reset_binding(owner,epoch,generation) &&
+        fes_nano_owned_boot.failed && fes_nano_owned_bridges.failed;
+    fes_nano_bridge_platform_invalidate_held();
+    if (scoped!=1 || !valid || fes_nano_reset_attempted!=1) return -1;
+    fes_nano_reset_attempted=2;
+    fes_nano_platform_cold_reset_request();
+    /* Posting a request, or returning from the mailbox driver, proves no
+     * reset. Keep the lock, source reservation and consumed attempt. */
+    return -5;
+}
+#endif
 
 int fes_nano_bridge_fabric_handshake(void)
 {

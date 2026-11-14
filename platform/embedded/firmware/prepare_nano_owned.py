@@ -115,6 +115,24 @@ def psci_source(text, cold_serial=False):
     for name in names:
         text, count = re.subn(r"(\b" + name + r"\([^;]*?\)\s*\{)", r"\1\n\tfes_nano_bridge_platform_invalidate();", text, count=1)
         if count != 1: raise ValueError("owned PSCI context changed: " + name)
+    # A separate trusted held-lock entry must not recurse through PSCI's
+    # ordinary invalidator or select the RSU branch. Preserve the cold path's
+    # vendor cache ordering. It grants no post-reset admission or source reuse.
+    text += '''
+#ifdef FES_NANO_COLD_SERIAL
+void fes_nano_platform_cold_reset_request(void)
+{
+#if CACHE_FLUSH
+    dcsw_op_all(DCCISW);
+    invalidate_cache_low_el();
+#if PLATFORM_MODEL == PLAT_SOCFPGA_AGILEX5
+    flush_l3_dcache();
+#endif
+#endif
+    mailbox_reset_cold();
+}
+#endif
+'''
     return '#include "nano_bridge_platform.h"\n' + text
 
 

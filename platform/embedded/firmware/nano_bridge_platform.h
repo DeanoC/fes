@@ -16,6 +16,27 @@ void fes_nano_bridge_platform_setup(void);
 void fes_nano_bridge_platform_lock(void);
 void fes_nano_bridge_platform_unlock(void);
 void fes_nano_bridge_platform_invalidate(void);
+/* Secure callers already holding the owned dispatcher lock only. Never
+ * release/reacquire that lock around a failed configuration. */
+void fes_nano_bridge_platform_invalidate_held(void);
+#ifdef FES_NANO_COLD_SERIAL
+struct fes_nano_reset_ops {
+    void *context;
+    /* Independent recovery observation, after boot authority is revoked.
+     * Exactly one proves the same CPU, held lock, source reservation and all
+     * master containment for these exact identities. Ordinary boot owns()
+     * is deliberately invalid here. No elapsed retirement guard is reused. */
+    int (*scope)(void *,uint64_t owner,uint64_t epoch,uint64_t generation);
+};
+/* Trusted terminal recovery only, under the held lock. One attempt per boot,
+ * consumed even on failed admission. No NS entry, source release or retry.
+ * A returning reset request is uncertain: caller must remain parked. */
+int fes_nano_bridge_platform_cold_reset_held(uint64_t owner,uint64_t epoch,
+    uint64_t generation,struct fes_nano_reset_ops);
+/* Fixed cold mailbox provider in the pinned PSCI translation unit. It neither
+ * acquires the owned lock nor selects RSU/warm reset from mutable state. */
+void fes_nano_platform_cold_reset_request(void);
+#endif
 /* Secure platform integration only. No NS command can supply either policy
  * or callbacks. The default provider has no qualified boot evidence. */
 int fes_nano_platform_boot_record(struct fes_nano_boot_record *, struct fes_nano_boot_policy *,
