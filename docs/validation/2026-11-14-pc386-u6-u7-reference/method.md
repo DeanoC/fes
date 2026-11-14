@@ -310,3 +310,55 @@ cache line recorded with the score. TopBench's database holds no 386DX at
 the record says so, gives the board's score beside the database's nearest
 real machines, and treats the comparison as decided only if it comes out the
 same on both boards — the cached one and the uncached `ecs386`.
+
+## Sixth amendment: the walk is driven by saturating taps, and what makes a window valid
+
+Written before the kit was keyed again, and before any burst-walk figure was
+read on either side.
+
+A small DOS program written for this, `KEYPACE.COM`
+(`~/fes-scratch/u6ref/tools/keypace.asm`), measures what a driven guest
+actually receives. It reads keys through INT 16h, the way Ultima VI does, and
+records the BIOS tick at each one. On the reference (run kp4):
+
+| what the driver sent | keys the guest got | rate |
+|---|---|---|
+| hold a key for 10 s | **1** | — |
+| 40 taps, 0.25 s apart | 40 | 4.1/s, even |
+| burst of 60, 80 ms apart | 60 | 9.9/s |
+| burst of 60, 40 ms apart | 60 | 16.8/s |
+| burst of 60, 20 ms apart | 60 | 24.4/s |
+
+Two things follow. **A held key must never be used**: 86Box's emulated keyboard
+does not repeat and the driver turns the host's auto-repeat off, so a hold
+reaches the reference as one keystroke, while the kit's keyboard repeats. (The
+walk windows recorded above were already tap loops, at a nominal ten keys a
+second, so this does not explain their spread; it rules out the method an
+earlier command file used.) And **the rig can saturate the game**: it delivers
+up to 24 keys a second with none dropped, far above any rate Ultima VI steps
+at.
+
+So the walk is measured by saturating the input and reading where the game's
+own step rate stops rising. Each side is keyed at two different over-rates,
+with `KEYPACE.COM` run there first to record the rate actually delivered. The
+rates do not have to match between the sides; what counts is that on each side
+the two over-rates give the same step rate to within the band. That is what
+shows the input is saturated and the rate is the machine's. If a side's step
+rate still follows its key rate at the fastest the rig can send, the walk is
+input-bound there, the check cannot discriminate the two machines, and this
+record says so rather than quoting a number.
+
+**Two validity gates, which the windows recorded above did not state.** They
+are written here before any burst-walk window is read:
+
+1. *Not in combat.* A grab taken immediately before each window must show the
+   party out of combat. Ultima VI's combat mode is turn-based, so a window
+   captured during the throne-room fight measures turns, not walking. The run
+   `bw2` was discarded under this gate.
+2. *The reference at full speed.* 86Box's own speed indicator must read 100%
+   for every frame of the window, read with `speed_check.py` from the capture
+   itself. The three walk windows and two of the three pass windows recorded
+   above hold at 100%; `p1` does not, and that is noted beside its figure.
+   `bw2` ran at 80-86% and was discarded under this gate too.
+
+The band is unchanged: ±10% on the rate.
