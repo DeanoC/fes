@@ -312,6 +312,7 @@ module fes_i386_x87 (
     logic [2:0]  save_reg;      // the register FNSAVE or FRSTOR is moving
     logic        busy;
     logic        es_q;          // ES a cycle ago, for the board's latch
+    logic        env_load;      // FLDENV or FRSTOR is loading, field by field
     logic        committed;     // the instruction in flight has retired
     logic [1:0]  nw;            // a no-wait form waiting to commit: 1 FNINIT, 2 FNCLEX
     logic [10:0] cur_op_raw;    // its 387 opcode, which commit stores
@@ -360,9 +361,14 @@ module fes_i386_x87 (
     // ESC after one must not be taken before it. An instruction the unit has
     // taken waits only for its own value. FNINIT and FNCLEX themselves wait
     // for none of this (HRM section 5.1).
-    assign hold = present && iss && !iss_nowait && !unbuilt
-               && (iss_wait ? latched || busy || nw != 2'd0
-                            : iss_first && (fired || busy || latched || nw != 2'd0)
+    // FNINIT and FNCLEX skip the board's latch, not the unit: they do their
+    // work at their own commit, so one behind an instruction the unit has
+    // taken, or behind another of them, waits like any other ESC. A 387 is
+    // busy while FNINIT runs (33 clocks, datasheet pp. 37-39).
+    assign hold = present && iss && !unbuilt
+               && (iss_nowait ? fired || busy || nw != 2'd0
+                  : iss_wait ? latched || busy || nw != 2'd0
+                             : iss_first && (fired || busy || latched || nw != 2'd0)
                               || val_form && seq != S_RDY
                               || iss_save_rd && iss_part[4:2] + top != ra_live);
     // FNINIT and FNCLEX wait for neither the latch nor the unit, so they are
@@ -371,8 +377,8 @@ module fes_i386_x87 (
     // flags, the hazard Intel's note about FWAIT before FNCLEX describes.
     logic take_nw;
     assign take = present && iss && iss_first && !started && !busy && !latched
-               && !iss_wait && !iss_nowait && iss_dec != X87_UNIMPL;
-    assign take_nw = present && iss && iss_first && iss_nowait && nw == 2'd0;
+               && nw == 2'd0 && !iss_wait && !iss_nowait && iss_dec != X87_UNIMPL;
+    assign take_nw = present && iss && iss_first && iss_nowait && nw == 2'd0 && !started && !busy;
     // The control forms, which leave the x87 pointers and the opcode as they
     // are: the same list fes_i386_decode gives X87P_NONE. FNOP (D9 D0) is
     // not one of them; FENI, FDISI and FSETPM (DB E0, E1, E4) are.
@@ -679,6 +685,7 @@ module fes_i386_x87 (
     assign push_i = top - 3'd1;
     assign pop_i = top;
     assign busy = seq != S_IDLE || rw_en;
+    assign env_load = started && (cur == X87_LDENV || cur == X87_RSTOR);
 
     // The exceptions this operation raises that are not masked, which set ES
     // and the board's latch instead of a result.
@@ -688,6 +695,9 @@ module fes_i386_x87 (
 
     always_ff @(posedge clk) begin
         mul_start <= 1'b0;
+        // A one-cycle pulse: the CPU acts on it at one commit, not at every
+        // commit after the first FINIT.
+        clr_pointers <= 1'b0;
         if (reset) begin
             cw <= 16'h037f;
             fl <= 6'd0;
@@ -1098,7 +1108,11 @@ module fes_i386_x87 (
                         X87_LDCW: cw <= mval[15:0];
                         X87_STENV: cw[5:0] <= 6'h3f;  // FNSTENV masks every exception
                         X87_ST_M, X87_STP_M: pop = cur_pop;
-                        default: ;  // FNOP, FNSTCW, FNSTSW, FLDENV, FRSTOR
+                        X87_LDENV, X87_RSTOR:
+                            // The whole environment is in: ERROR# now
+                            // follows the flags and masks it loaded.
+                            if (es) latched <= 1'b1;
+                        default: ;  // FNOP, FNSTCW, FNSTSW
                     endcase
                     um = unmasked(f, cw);
                     // The flags and the stack flag are sticky; ES stays set
@@ -1178,17 +1192,17 @@ module fes_i386_x87 (
                     top <= 3'd0;
                     empty <= 8'hff;
                     opcode <= 11'd0;
-                    seq <= S_IDLE;
-                    started <= 1'b0;
-                    fired <= 1'b0;
-                    committed <= 1'b0;
                 end else begin
                     fl <= 6'd0;
                     sf <= 1'b0;
                 end
             end
             end
-            if (es && !es_q) latched <= 1'b1;
+            // The environment arrives field by field, with the control
+            // word before the status word, so the summary can rise on the
+            // old flags part way through: the latch waits for the whole
+            // instruction, and its own apply sets it if ES is still active.
+            if (es && !es_q && !env_load) latched <= 1'b1;
         end
     end
 endmodule

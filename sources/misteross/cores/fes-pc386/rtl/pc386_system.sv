@@ -307,7 +307,11 @@ module pc386_system #(
         .dma_done(dma_done), .dma_rdata(dma_rdata), .dma_drq({2'b00, drq1}),
         .dma_ack_valid(dma_ack_valid), .dma_ack_write(dma_ack_write), .dma_ack_tc(dma_ack_tc),
         .dma_ack_channel(dma_ack_channel), .dma_ack_wdata(dma_ack_wdata), .dma_ack_done(dma_ack_done),
-        .dma_ack_rdata(dma_ack_rdata), .device_irq(sound_irq), .speaker(speaker), .nmi_mask(nmi_mask),
+        // IRQ 13 is the coprocessor's error, which the CPU's x87 unit
+        // raises through the board's latch (fes_i386_x87); the handler
+        // clears the latch by writing port F0h.
+        .dma_ack_rdata(dma_ack_rdata), .device_irq(sound_irq | {2'b00, x87_irq13, 13'd0}),
+        .speaker(speaker), .nmi_mask(nmi_mask),
         .sound_access(sound_access), .sound_write(sound_write), .sound_adlib(sound_adlib),
         .sound_address(sound_address), .sound_wdata(sound_wdata), .sound_rdata(sound_rdata),
         .post_valid(post_valid), .post_code(post_code),

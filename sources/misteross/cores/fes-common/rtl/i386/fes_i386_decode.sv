@@ -1162,8 +1162,12 @@ module fes_i386_decode (
                     x87_insn = 1'b1;
                     if (x87) begin
                         x87_fmt = fes_i386_pkg::x87_format(b0[2:0], reg_f);
-                        known = fes_i386_pkg::x87_decode({b0[2:0], modrm}, x87_fmt)
-                             != fes_i386_pkg::X87_UNIMPL;
+                        // A form a later slice builds stops as not built,
+                        // but #NM comes first: with EM or TS set a 386
+                        // raises it for every ESC, whatever the form, which
+                        // is what lazy context switching relies on.
+                        known = esc_nm || fes_i386_pkg::x87_decode({b0[2:0], modrm}, x87_fmt)
+                                       != fes_i386_pkg::X87_UNIMPL;
                         if (reg_form) begin
                             if (b0 == 8'hdf && modrm == 8'he0) begin
                                 // FNSTSW AX: the status word into AX.

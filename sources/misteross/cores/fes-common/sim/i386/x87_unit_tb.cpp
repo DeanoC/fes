@@ -210,6 +210,36 @@ struct Unit {
         commit(0, 0, true);
         settle();
     }
+    // The second instruction presented before the first commits, which is
+    // what the CPU does: its uop sits in D while the one before it is still
+    // in the pipeline. `present` returns only once the hold drops, so this
+    // is the overlap the per-instruction helpers cannot make.
+    void overlap(unsigned op_a, unsigned op_b) {
+        present(op_a, 0, true, true, 0);
+        top.wb = 1;                      // A commits while B waits in D
+        top.wb_part = 0;
+        top.wb_val = 0;
+        top.wb_last = 1;
+        top.iss = 1;
+        top.iss_wait = 0;
+        top.iss_op = op_b;
+        top.iss_fmt = 0;
+        top.iss_first = 1;
+        top.iss_last = 1;
+        top.iss_part = 0;
+        top.iss_fire = 0;
+        tick();
+        top.wb = top.wb_last = 0;
+        top.eval();
+        for (int n = 0; n < 64 && top.hold; ++n) tick();
+        top.iss_fire = 1;
+        top.eval();
+        tick();
+        top.iss = top.iss_first = top.iss_fire = 0;
+        top.eval();
+        commit(0, 0, true);
+        settle();
+    }
     // Unmask the invalid-operation exception and raise one, which sets ES
     // and latches BUSY#.
     void settle() {
@@ -902,6 +932,37 @@ int main(int argc, char **argv) {
             }
             if (ok8) ok("eight-pushes");
             else bad("eight-pushes", what);
+        }
+
+        // The next instruction presented before the one before it commits,
+        // which is what the CPU does and what the identity-on run tripped
+        // on: FNINIT and FNCLEX skip the board's latch, not the unit, so
+        // each of these must leave both instructions' work done.
+        u.clear_latch();
+        // `top` is where TOP must end up, counting the pushes after the
+        // last FNINIT in the pair, from the FNINIT before it.
+        struct Overlap { const char *label; unsigned a, b, top; };
+        const Overlap overlaps[] = {
+            {"const-then-init", op_const(0), OP_FNINIT, 0},
+            {"init-then-init", OP_FNINIT, OP_FNINIT, 0},
+            {"clex-then-const", OP_FNCLEX, op_const(0), 7},
+            {"init-then-const", OP_FNINIT, op_const(0), 7},
+            {"const-then-const", op_const(0), op_const(3), 6},
+        };
+        for (const Overlap &o : overlaps) {
+            u.reg_form(OP_FNINIT);
+            u.overlap(o.a, o.b);
+            // Whatever the pair, the unit must be idle and its state must be
+            // the second instruction's: FNINIT leaves the stack empty, a
+            // constant leaves one pushed.
+            const bool pushed = o.b != OP_FNINIT && o.b != OP_FNCLEX;
+            const unsigned want_top = o.top;
+            if (u.top.busy_o) bad(std::string("overlap.") + o.label, "the unit stayed busy");
+            else if (((u.sw() >> 11) & 7) != want_top)
+                bad(std::string("overlap.") + o.label, "top=" + hex((u.sw() >> 11) & 7, 1));
+            else if (pushed && (u.tw() & 0xc000) == 0xc000)
+                bad(std::string("overlap.") + o.label, "tw=" + hex(u.tw(), 4));
+            else ok(std::string("overlap.") + o.label);
         }
 
         // A control form leaves C1 and the other condition codes alone.

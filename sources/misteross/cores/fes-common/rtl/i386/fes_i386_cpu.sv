@@ -1830,7 +1830,7 @@ module fes_i386_cpu #(
         d_out = '0;
         d_out.valid = issue;
         d_out.uop = u;
-        d_out.x87 = dc.x87;
+        d_out.x87 = dc.x87 && !dc.x87_wait;
         d_out.x87_part = dc.x87_part;
         d_out.gov = dc.gov;
         d_out.eip = d_eip;
