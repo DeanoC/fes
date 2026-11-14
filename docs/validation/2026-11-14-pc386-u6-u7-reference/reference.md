@@ -37,14 +37,18 @@ the same benchmark drive the kit's presets were measured on
 | Machine | TopBench |
 | --- | --- |
 | **86Box 286 at 12.5 MHz (the Ultima VI reference)** | **23** |
-| Real 286s at 12–12.5 MHz in TopBench's database | 21, 22, 22, 23, 25, 27 |
+| Real 286s at 12–12.5 MHz in TopBench's database | 16, 21, 22, 22, 23, 25, 27 |
+| Real 286s at 16 MHz in the same database | 33, 36, 42 |
 | pc386 at the 286-12 preset (#1486) | 33 |
 | **86Box 386DX at 25 MHz (the Black Gate reference)** | **40** |
 | Real 386DX/SX machines at 20–25 MHz in the database | 25, 26, 39, 40, 41, 46, 46, 47, 47, 49, 60 |
 | pc386 at the 386DX-25 preset (#1486) | 68 |
 
 The 286 reference sits in the middle of the real 286s of its clock, so its
-board defaults — `cpu_waitstates = 1` among them — are period-typical. The 386
+board defaults — `cpu_waitstates = 1` among them — are period-typical. (The 16
+in that row is an accelerator card in an IBM PC/XT, not an AT-class board.) The
+kit's 286-12 preset, at 33, scores where that database's real 16 MHz 286 boards
+do. The 386
 reference sits inside the real range but on the slow side of it, which is what
 a 1988 chipset with no cache and shadow RAM off should do; a cached 386DX-25
 of 1990 would score higher.

@@ -15,8 +15,13 @@ left them open. This record names one, checks it against real hardware, and
 measures what it can with it.
 
 The method and the pass rule were fixed before any kit capture, in
-[`method.md`](method.md), and amended four times, each time before the next kit
-capture and each time saying what had been seen. The reference machines are in
+[`method.md`](method.md). It was then amended four times and corrected twice.
+The first two amendments came before the only kit run that measured anything,
+`g1`; the rest came after it, as the reference's own repeats were understood,
+and no kit capture followed them. Each says what had been seen when it was
+written. **The lute block, the pitch analyser and the ±5.9% band are as first
+committed**, so the pitch verdict does not rest on anything written after the
+kit was measured. The reference machines are in
 [`reference.md`](reference.md).
 
 ## Result
@@ -37,12 +42,13 @@ no FPU, IBM VGA, AdLib and the PC speaker, the drive behind an XT-IDE
 Universal BIOS. Full settings and the reasons in [`reference.md`](reference.md).
 
 TopBench 0.38a, from the same benchmark drive the kit's presets were measured
-on, scores it **23**. Real 286 boards at 12 and 12.5 MHz in TopBench's own
-database — it ships with the benchmark — score **21, 22, 22, 23, 25 and 27**.
-The reference sits in the middle of them. The kit's 286-12 preset scores
-**33**, above every real 286 of that clock in the database, which is the
-difference these checks are about: the preset is a 386 core paced to a table,
-not a 286. CHKCPU refuses to run on the reference at all ("requires a 386 or
+on, scores it **23**. TopBench's own database — it ships with the benchmark —
+holds 27 real 286 machines; the seven at 12 to 12.5 MHz score **16, 21, 22, 22,
+23, 25 and 27**, the 16 being an accelerator card in an IBM PC/XT rather than
+an AT-class board. The reference sits in the middle of them. The kit's 286-12
+preset scores **33**, above every real 286 of that clock in the database and
+level with its 16 MHz boards (33, 36, 42), which is the difference these checks
+are about: the preset is a 386 core paced to a table, not a 286. CHKCPU refuses to run on the reference at all ("requires a 386 or
 higher CPU") and calls the kit's 286-12 preset a "classic 386 at 12.8 MHz".
 
 ## Package and kit
@@ -56,10 +62,15 @@ higher CPU") and calls the kit's 286-12 preset a "classic 386 at 12.8 MHz".
   (`--netlist`, default suite, complete corpus), run on the sealing host.
 - **Kit B**, core-only on its baseline (image `179affbb…`, software
   `7ddb0bfb…`). Nothing installed, no reboot, no host change. The claim and
-  the restore are in Kit B's status file.
-- **Disk.** `u6nm.img` (`e28bc5a2…`): main's FreeDOS games image plus Ultima VI
-  from Deano's eXoDOS copy with its music off, the same disk the 10 November
-  rerun used. The reference's copy differs in four files, listed in
+  the restore are in Kit B's status file. The wrapper's own shell was killed
+  after it had claimed the kit (it was mistaken for a run still waiting for the
+  lock), so the run finished on its own and the restore check — remove the
+  run's data trees, snapshot, compare with the pre-run probe, release — was run
+  by hand from the same script's tail and logged as such at 11:53.
+- **Disk.** `u6nm.img` (`e28bc5a2…`): main's FreeDOS games image (`e69194ec…`,
+  from `scripts/build_pc386_freedos_image.py --profile games`) plus Ultima VI
+  from Deano's eXoDOS copy with its music off, put together by the 10 November
+  run's own `make_games_disk.py`; it is the disk that run used. The reference's copy differs in four files, listed in
   `method.md`; `ULTIMA6\` is byte-identical.
 
 ## Ultima VI: PC speaker pitch

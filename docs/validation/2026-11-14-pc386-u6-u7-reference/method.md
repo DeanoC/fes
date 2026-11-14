@@ -51,10 +51,10 @@ preset's nominal clock, which makes the reference *faster*, so a kit that is
 faster than the reference is faster still against a true 286-12. The band
 below is wider than that offset.
 
-**Same drive, same game.** Each side runs the same disk image, built by
-`scripts/build_pc386_game_drive.py` from Deano's eXoDOS copies: `u6nm.img`
-(`e28bc5a2…`, the FreeDOS games image plus Ultima VI with music off) and
-`a-u7bg.img`. The reference copy differs in exactly three files, because
+**Same drive, same game.** Each side runs the same disk image: `u6nm.img`
+(`e28bc5a2…`, main's FreeDOS games image plus Ultima VI with its music off) and
+`a-u7bg.img`, both put together for the 10 November run by its own
+`make_games_disk.py` from Deano's eXoDOS copies. The reference copy differs in exactly three files, because
 FreeDOS's 386 kernel refuses to load on a 286:
 
 - `KERNEL.SYS`: FreeDOS kernel 2046's 8086 FAT16 build
@@ -169,7 +169,7 @@ So the reference disk differs from the kit's `u6nm.img` in five files:
 
 **The reference is checked against real 286 machines.** TopBench's own
 database, on the benchmark drive, holds real 286 boards at 12 and 12.5 MHz
-scoring 21, 22, 22, 23, 25 and 27. The 86Box reference scores **23**, in the
+scoring 16, 21, 22, 22, 23, 25 and 27 (the 16 an accelerator card in an XT). The 86Box reference scores **23**, in the
 middle of them, so `cpu_waitstates = 1` and the rest of the board's defaults
 are period-typical. (The kit's 286-12 preset scores 33, which is above every
 real 286 at that clock in the database; that is the thing being measured, not
@@ -208,10 +208,11 @@ existed, because of exactly that.
    `GAME.EXE` quits to the prompt without a word.
 4. **Four files differ on the reference disk**, not five: `KERNEL.SYS`,
    `HIMEM.SYS` (added), `FDCONFIG.SYS` and `AUTOEXEC.BAT`. The image carries
-   FreeDOS kernel **2043**'s 386 FAT16 build (46,256 bytes, SHA-256
-   `932c0c15…`); the reference carries kernel **2046**'s 8086 FAT16 build
-   (46,298 bytes, SHA-256 `00962622…`), because no 8086 build of 2043 was to
-   hand and the DOS kernel is not in the game's timing path. `ULTIMA6\` is
+   FreeDOS kernel **2043**, the build whose banner reads "80386 CPU required -
+   FAT32 support" (46,256 bytes, SHA-256 `932c0c15…`); the reference carries
+   kernel **2046**'s 8086 FAT16 build (46,298 bytes, SHA-256 `00962622…`),
+   because no 8086 build of 2043 was to hand and the DOS kernel is not in the
+   game's timing path. `ULTIMA6\` is
    byte-identical on both.
 
 The metrics and the band do not move: each rate within ±10% of the
