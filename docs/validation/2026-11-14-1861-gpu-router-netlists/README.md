@@ -59,6 +59,8 @@ lock serves main and branch.
 | `cores/fes-pong/toolchain.lock` | `3a5accbd` | `8fcc4cb4` | `552ba246` | HIP `gfx1100;gfx1201` |
 | `cores/fes-menu/toolchain.lock` | `3a5accbd` | `8fcc4cb4` | `1eecf877` | HIP `gfx1100;gfx1201` |
 | `cores/fes-zx81/toolchain.lock` | `3a5accbd` | `8fcc4cb4` | `1eecf877` | HIP `gfx1100;gfx1201` |
+| `cores/fes-ramtest/toolchain.lock` | `3a5accbd` | `8fcc4cb4` | `bec82e36` | HIP `gfx1100;gfx1201` |
+| `cores/fes-riscv/toolchain.lock` | `3a5accbd` | `8fcc4cb4` | `8f453ebc` | HIP `gfx1100;gfx1201` |
 
 Exact binary digests are in each run's `netlist.json`. Only nextpnr differs
 between these locks, and nextpnr routes nothing here; it is authenticated
@@ -71,10 +73,25 @@ digest and the authenticated tool identities. The netlists themselves are 3.3 MB
 each and are not committed; the digests and the command are the record D12 asks
 for.
 
+<!-- results:start -->
+| Core | Changed files in its closure | Netlist sha256 | Match |
+| --- | --- | --- | --- |
+| `fes.menu` | `build_fes_menu_package.py`, `build_fes_menu.py`, `fes_de10nano_evidence.py` | `05ab4ada678920c408b045026fbd88073f05152867ba628ff253757bc23d0a31` | **byte-identical** |
+| `fes.pong` | `build_fes_pong.py`, `fes_de10nano_evidence.py` | `e7948651bcc0cc2ffbbd3c52c8643c642bc6964826e2a0ae65d18e3fd90cf12b` | **byte-identical** |
+| `fes.ramtest` | `build_fes_ramtest.py`, `fes_de10nano_evidence.py` | `0d59db94f2352a40c9b0e57ab69c6626ff5a3f7b33f5843ae9507e9bf3bf6c7a` | **byte-identical** |
+| `fes.riscv` | `build_fes_riscv.py`, `fes_de10nano_evidence.py` | `e8db4d58afb81e7766d7e21c9ce6d1d18736196badb9dbc23fb742d8c4549be8` | **byte-identical** |
+| `fes.ts1000` | `fes_de10nano_evidence.py` | `96bcf1f6411ab04324e86a58fd525bd5c722f3afbf02c7db67365be074cc6dca` | **byte-identical** |
+| `fes.zx80` | `fes_de10nano_evidence.py` | `b7effcba3f7a30349ae55aef0eac6a857d00f04dc4fe1b959a0c482534df6f82` | **byte-identical** |
+| `fes.zx81` | `fes_de10nano_evidence.py` | `b5c296e5c76810f5655e70a945518dd511654e8b450fb7bbbb616e442f15604b` | **byte-identical** |
+<!-- results:end -->
 
+The table is rendered into those markers by `python3 summarise.py --write`, so
+no digest in it is transcribed by hand.
 
-The table is rendered by `summarise.py` from `reports/`, so no digest in it is
-transcribed by hand.
+**All four cores whose own producer script this PR edits** — `fes.pong`,
+`fes.menu`, `fes.ramtest` and `fes.riscv` — produce byte-identical netlists, as
+do the ZX81-family cores measured so far, which change only through the shared
+helper.
 
 `fes.pong` is the strongest case in the set: both its own producer script and
 the shared helper changed. `cmp` reports the two 3,294,796-byte netlists
