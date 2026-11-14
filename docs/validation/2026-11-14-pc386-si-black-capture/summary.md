@@ -19,8 +19,9 @@ Which of those stages it is stays open as
 [#1833](https://github.com/DeanoC/fes/issues/1833), split out of
 [#1823](https://github.com/DeanoC/fes/issues/1823), and the two cheap tests that
 would separate them are approved for an episode and wait for one.** Most of the
-evidence below is from runs already taken, remeasured here. This record's own Kit B runs are `b1`
-(13 launches) and `b2` (30), both complete and both with no black launch. They
+evidence below is from runs already taken, remeasured here. This record's own
+Kit B runs are `b1` (13 launches) and `b2` (30), both complete and both with no
+black launch. They
 contribute the timing and nonce evidence — each launch's blank window is dated
 and the grab lands 31 s or more after it closes — and no episode of their own.
 A third run carries the episode probe Deano has approved and is queued behind
