@@ -107,6 +107,49 @@ unit goes wrong:
 | the latch set a cycle after ES | an ESC already in D slipped past it |
 | the control forms cleared C1, and C1 was wrong for a masked overflow and a masked invalid integer store | FNSTSW and its kin leave the condition codes alone |
 
+## What the sources and the oracle settled
+
+Four questions the plan left to the manuals, and where each was settled.
+
+- **A store raises no denormal exception.** Storing a denormal or a
+  pseudo-denormal to a 32- or 64-bit real sets underflow and precision but
+  not the denormal flag: the 387's FST and FIST report invalid, overflow,
+  underflow and precision only, and the host's own FSTP agrees. FTST's
+  operand does raise it, because a compare is an arithmetic operand, and the
+  host agrees there too. The unit followed the plan's reading of section
+  3.1.7 at first and raised it on stores; the bench caught it.
+- **ES is the exception summary, not a bit of its own.** It is any flag that
+  is not masked, so it follows every change to the flags and to the control
+  word. That is what the oracle has: Bochs re-evaluates
+  `status & ~control & exceptions` and sets or clears ES and B together from
+  its FLDENV, FRSTOR, FNINIT, FNCLEX and FNSTENV
+  (`clear_unmasked_fpu_exception`, `cpu/fpu/ferr.cc`). It is also what the
+  387's RESET state says, where IM is clear and IE set so ES and B come out
+  set (Appendix C.1). FNSTENV therefore clears ES by masking everything, and
+  FLDCW unmasking a pending flag sets it with no special case.
+- **A save image holds ST(0) to ST(7), not the physical registers.** The
+  387's FSAVE image labels its register area ST(0) upward (387 PRM, the
+  FSAVE and FRSTOR image), so the unit's chunk index is TOP plus the
+  image's. It moved the physical registers at first, which only shows when
+  TOP is away from zero; the bench's FNSAVE with TOP at 5 caught it.
+- **The tag word is derived, and a 387's is not.** The unit keeps one empty
+  bit a register and reads the other three classes out of the value, which
+  is what the oracle's accessor compares ("empty stays empty, any other from
+  the value"). A 387 keeps the tag word itself, so an FLDENV whose tags
+  disagree with its registers would read back differently on real hardware
+  than on either of these. It costs no read of the stack and it matches the
+  oracle, so it is what the unit does; nothing in lockstep can see the
+  difference.
+
+**No new `divergences.toml` entry is justified yet.** The two candidates are
+not exercised by anything this slice runs: the 387's state after a CPU reset
+is already the open `cpu-reset-387-state` entry from slice 0, and the x87
+directed programs start with FNINIT so they do not depend on it; and a
+multi-part operand that faults part way leaves this unit partly updated, as
+the coprocessor bus's transfers leave a real 387, where Bochs applies its
+operand at once -- but exception 9 is not built yet, so that is a slice
+item, not an observed difference. An entry goes in when a run shows one.
+
 ## Checks
 
 | Check | Where | Result |
