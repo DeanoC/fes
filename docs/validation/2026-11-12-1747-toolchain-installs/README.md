@@ -117,7 +117,16 @@ All eight seeds completed in each run; none was lost to a route timeout. The
 margins on both passes are inside placer noise — 1.7% for the #1788 head and
 0.21% at this head — so neither is evidence that anything was repaired, and
 moving the lock forward is not a fix. The #1788 fold has been reverted out of
-this PR: #1752 does not touch `fes.ramtest`, and #1788 stays open on its own.
+this PR: #1752 does not touch `fes.ramtest`.
+
+#1788 itself is now in draft with its premise withdrawn, since this core closes
+at this head without the lock move. Two things made it worth withdrawing rather
+than merging. Its own comparison is void on its own terms: its evidence was
+taken at `70fc97f61` on 13 Nov, and `090144ced` (#1767) changed this core's RTL
+on main thirteen hours later. And since the D12 amendment in this PR, a nextpnr
+pin is a route-deciding input, so folding it in would oblige a re-measurement
+rather than let this record's evidence carry forward — the clause's first
+application is to the PR that prompted it.
 
 **Why there is no comparison to be had.** Main commit `090144ced` (#1767)
 changed this core's RTL, so the pre-#1767 forced-build reference is void, not
