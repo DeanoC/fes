@@ -114,8 +114,9 @@ func (s *reportLease) poll() ([]byte, error) {
 	return report, nil
 }
 
-// Close revokes local polling before one firmware stop. Copies of a pointer
-// share closed state; an old source cannot stop a replacement generation.
+// Close revokes local polling and drains a capable asynchronous report driver
+// before one firmware stop. Copies share closed state; an old source cannot
+// drain or stop a replacement generation.
 func (s *reportLease) close(ctx context.Context) error {
 	if s == nil {
 		return ErrRetired
@@ -143,6 +144,19 @@ func (s *reportLease) close(ctx context.Context) error {
 		return ErrRetired
 	}
 	s.closed = true
+	if s.fault == nil && !s.paused {
+		if driver, ok := s.driver.(pollingDriver); ok {
+			if control := driver.pollingControl(); control != nil {
+				// The driver owns packet completion, RX and channel retirement.
+				// Firmware Stop still independently checks and resets the PIO
+				// controller. A failed drain cannot revive this report source.
+				s.fault = control.PausePolling(ctx)
+				if s.fault == nil {
+					s.paused = true
+				}
+			}
+		}
+	}
 	priorFault := s.fault
 	stopErr := c.transitionLocked(ctx, g.FesEmbeddedUsbStop)
 	after, known := c.LastReceipt()

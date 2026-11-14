@@ -31,7 +31,24 @@ Polling and closing serialize with lease mutations. Cached receipts authorize
 only the source's own generation; they are not fresh hardware observations.
 Stale sources cannot poll or stop replacements. Driver errors latch, drop partial
 reports and prohibit further driver access; closure still attempts one known
-stop. `Close` revokes polling before invoking firmware.
+stop. `Close` revokes polling and, for a driver exposing polling control, drains
+its pending report/channel work before invoking firmware Stop. An already
+paused driver is not drained twice. The same lease and operation locks cover
+both steps, so another poll cannot arm a packet between drain and Stop.
+Firmware still independently validates PIO ownership, channel retirement,
+AHB idle and reset readback. A drain error remains latched even if the one known
+firmware cleanup succeeds; it never supplies a usable input source. Previously
+failed drivers are not entered again. Cancellation before a firmware mutation
+keeps the existing known-lease cleanup rule, including the drained state.
+
+The final native Quit previously resumed input after core return and went
+directly to firmware Stop. Register/device tests now require the actual DWC2
+host's pending packet, RX FIFO and channel to be retired before that call, for
+both keyboard and gamepad. The exact previous source fails those unpaused-close
+checks. Actual C shared-firmware tests separately exercise cancellation, stale
+ownership, drain failure, foreign DMA and one-stop/no-replay behavior. These
+checks do not identify the cause of the physical USB error or qualify reset
+recovery of an already panicked runtime.
 
 Tests use the actual C dispatcher/service/platform/board/cold policy through a
 register-model process. DWC2 tests separately exercise the real host driver with
