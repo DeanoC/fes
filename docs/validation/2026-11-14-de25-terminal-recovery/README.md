@@ -76,6 +76,13 @@ link targets. [retention-proof.json](retention-proof.json) records this result.
 The earlier vendor primitive model remains bound to its original source; only
 its unchanged fixed cold function/provider are reused here.
 
+The host's `terminal_recovery_trace.observe()` records an exact selected-build
+attempt/return only after terminal Park. Four tests cover partial, foreign,
+duplicated, malformed and reordered records and a subsequent SPL banner.
+Every result leaves reset completion, fresh boot admission, recovery safety,
+source reuse and ordinary resume false. This is UART telemetry, not permission
+to bypass the host's existing physical-reset stop after a native failure.
+
 The selected firmware has not been programmed. Physical cold reset, loader
 redelivery, both SMMU banks, fresh device/boot-epoch admission and subsequent
 repeated core loading remain unqualified. No current source sequence may reuse
