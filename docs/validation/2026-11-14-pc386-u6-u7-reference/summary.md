@@ -51,7 +51,7 @@ higher CPU") and calls the kit's 286-12 preset a "classic 386 at 12.8 MHz".
   of **main `1b4601831`**, built on `chip-30x0-ai-dev` in a clean detached
   worktree. `verify_pc386_quartus_seal.py` passes it against that revision
   (`SEAL_OK`, 119 bound inputs). Timing passes: worst setup +0.468 ns, hold
-  +0.099 ns; system 61.44 MHz, pixel 74.27 MHz, audio 12.29 MHz. 36,189 of
+  +0.090 ns; system 61.44 MHz, pixel 74.27 MHz, audio 12.29 MHz. 36,189 of
   41,910 ALMs. Its lockstep report is the one this tree's lockstep produced
   (`--netlist`, default suite, complete corpus), run on the sealing host.
 - **Kit B**, core-only on its baseline (image `179affbb…`, software
@@ -69,7 +69,10 @@ times, then key `1` — and its effects come from the game toggling port 61h in
 CPU-timed loops, so the note that comes out is a measurement of the machine.
 Both sides play the same notes from the same point in the game. The pitch of
 each note is the autocorrelation peak of the middle of it; the figures are in
-[`pitch.json`](pitch.json).
+[`pitch.json`](pitch.json). The lute block, this analyser and the ±5.9% band
+are as first committed, and have not changed since; the kit's capture was taken
+in run `g1`, before `method.md`'s third amendment, which changed only the walk
+and the reference's memory.
 
 | | kit, 286-12 | reference, 286 at 12.5 MHz | reference scaled to 12.0 MHz |
 | --- | --- | --- | --- |
@@ -105,20 +108,27 @@ its own checks, so no kit time was spent on it.
   with the space bar, which cannot be blocked by anything in the way.
 
 The reference's own three repeats of each (`walk.json`), with the emulation
-holding 100% through all but one window. Run 1 of each pair sent its keys at
-about 17 a second, runs 2 and 3 at 10:
+holding 100% through all but one window. The three walk windows all used the
+same loop, at a nominal ten keys a second; of the pass windows, the first sent
+its keys at about seventeen a second and the other two at ten:
 
 | | run 1 | run 2 | run 3 | range |
 | --- | --- | --- | --- | --- |
 | steps a second | 2.66 | 1.96 | 1.89 | 1.89–2.66 |
 | turns a second | 1.55 | 1.14 | 1.11 | 1.11–1.55 |
 
-**At the same key rate the repeats agree — 1.14 and 1.11 turns a second, 1.96
-and 1.89 steps — and at a higher key rate the same machine gives 1.55 and 2.66.
-The figure follows the input, so it is not the game's rate**, and nothing can
-be judged against the band with it. Ultima VI takes a step or a turn only when
-it next looks at the keyboard, and it drops what is queued, so the rate that
-comes out is the rate the keys arrive at, up to whatever the game can manage.
+Two things are wrong with this, and both have to be fixed before anything can
+be judged against a ±10% band:
+
+- **The pass figure follows the key rate.** At ten keys a second the two
+  windows agree, 1.14 and 1.11 turns a second; at about seventeen the same
+  machine gives 1.55. Ultima VI takes a turn only when it next looks at the
+  keyboard and drops what is queued meanwhile, so what comes out is partly the
+  rate the keys arrive at.
+- **The walk has an outlier at the same key rate.** All three windows used the
+  same loop, and gave 2.66, 1.96 and 1.89 steps a second. The last two agree to
+  4%; the first does not, and nothing here says why.
+
 A sound measurement would have to drive the keys from the guest's own timer, or
 find a figure inside the game that counts turns.
 

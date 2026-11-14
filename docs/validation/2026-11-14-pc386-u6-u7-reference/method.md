@@ -257,3 +257,13 @@ meanwhile, so what is being measured is partly the key timing.
 
 The conclusion stands — the walk is not decided and the kit windows were not
 run — but the reason is this, not the spread.
+
+## Correction to the correction
+
+The correction above said the first window of each pair was keyed faster. That
+is true of the pass windows only. The three walk windows all ran the same loop
+at a nominal ten keys a second and gave 2.66, 1.96 and 1.89 steps a second, so
+the walk has an outlier at the same key rate that nothing here explains, while
+the passes follow the key rate (1.55 at about seventeen a second, 1.14 and 1.11
+at ten). Both faults have to be fixed before the band can be applied; neither
+changes the conclusion that the walk is not decided here.
