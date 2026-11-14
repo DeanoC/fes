@@ -183,7 +183,8 @@
   "reference_40MHz": 48,
   "kit_preset3": 68,
   "kit_no_preset": 303,
-  "note": "303 is the core with no governor preset applied -- the first kit run set settings for the first game only, which is why its second and third windows are not at preset 3"
+  "note": "303 is the core with no governor preset applied -- the first kit run set settings for the first game only, which is why its second and third windows are not at preset 3",
+  "provenance": "reference figures from separate benchmark VMs (same board and clock, XT-IDE controller, benchmark drive); the kit figure from the same claim as its pace windows"
  },
  "verdict": {
   "reference_cycles_s": [
@@ -206,5 +207,40 @@
   "window_ratio_kit_over_reference": 0.7362,
   "kit_scene_speed_vs_reference": 1.351,
   "pace_equivalent_386dx_clock_mhz": "between 33.3 and 40, about 37 by interpolation"
- }
+ },
+ "kit_mem_c": {
+  "free_conventional_bytes": 594272,
+  "largest_program_bytes": 594256,
+  "upper_total_k": 96,
+  "upper_free_k": 84,
+  "high_modules": [
+   "HIMEMX",
+   "COMMAND",
+   "CTMOUSE"
+  ],
+  "source": "kit/runs/u7pace/fr/p1-mem.png"
+ },
+ "reference_mem_c": {
+  "free_conventional_bytes": 595312,
+  "largest_program_bytes": 595296,
+  "upper_total_k": 96,
+  "upper_free_k": 84,
+  "high_modules": [
+   "HIMEMX",
+   "COMMAND",
+   "CTMOUSE"
+  ],
+  "source": "runs/r1/fr/r1-mem.png"
+ },
+ "speed_readouts": {
+  "m1": "100% every frame",
+  "m2": "100% every frame",
+  "m6": "100% every frame",
+  "33MHz": "100% every frame",
+  "40MHz": "100% in 486 of 501 window frames, 101% in 15",
+  "m3": "85-104%, 100% in 55% of frames",
+  "m4": "83-101%, 100% in 90%",
+  "m5": "91-104%, 100% in 73%"
+ },
+ "kit_disk_sha256_staged": "41c7b9d8ed5dab75de2792b62fab448bab29d20bcc1837bf79c6c23b1389c34f"
 }

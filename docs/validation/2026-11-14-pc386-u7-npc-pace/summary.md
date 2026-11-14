@@ -227,7 +227,7 @@ both machines.
 | mean | 11.800 s | 8.733 s |
 | spread between windows | 1.14% | 0.00% |
 | world to conversation | 46.67, 46.67, 46.60 s | 34.33, 34.35, 34.35 s |
-| TopBench, same runs | 40 | 68 |
+| TopBench | 40 | 68 |
 
 **The kit's cycle is 26.0% shorter than the reference's, against a ±10% band.
 That is a fail**, and the spread on each side is far inside the band — 1.1%
@@ -236,8 +236,11 @@ and 0.0% — so the method decides it rather than leaving it open.
 A second quantity, measured the same way and never used for the verdict,
 agrees: the time from the world appearing to the conversation starting is
 34.34 s on the kit against 46.65 s on the reference, a ratio of **0.736**
-where the cycle's is **0.740**. Two independent timings of the same scene give
-the same answer to half a percent.
+where the cycle's is **0.740**. **It is not independent corroboration**, and
+the arithmetic says why: the window is 3.95 cycles on the reference and 3.93
+on the kit, so the conversation fires after a fixed number of the character's
+cycles and the two figures are one timeline read twice. What it does show is
+that the detector found the same timeline on two different captures.
 
 **The displacement figure `method.md` first committed is not usable**, as its
 second amendment said before any kit capture: across the three reference
@@ -247,34 +250,49 @@ agree to 0.04%. It is in `pace.json` and nothing rests on it.
 ### Reading the miss
 
 `method.md` fixed the classification before any figure was read: compare the
-pace ratio with *T*, the TopBench ratio. **That rule cannot be applied, and
-the reason is a finding about the reference, not about the kit.** Its premise
-is that the game's pace and TopBench move together. On the reference they do
-not:
+pace ratio with *T*, the TopBench ratio. **Applied as written it returns
+"specific to this title"** — *T* = 68/40 = 1.70 and the kit runs the scene
+1.35× faster, well outside ±10% of *T*. **The rule is nonetheless set aside,
+and the cause is reported as not classified**, because its premise fails on
+the reference itself: it assumes the game's pace and TopBench move together,
+and on the reference they do not.
 
 | 86Box 386DX, same board | TopBench | walk cycle |
 | --- | --- | --- |
 | 25.0 MHz | 40 | 11.800 s |
 | 33.3 MHz | 46 | 9.467 s |
-| 40.0 MHz | 48 | ≤ 8.467 s (the window failed the 100% gate, so the true cycle is shorter) |
+| 40.0 MHz | 48 | 8.467 s (its window read 101% for one second in 501 frames, so the true cycle is at or just above this; it fails the gate as written) |
 
 A 60% rise in clock moves TopBench by 20% and the game's pace by 39%. So the
 two are not proportional even within one machine, and the ratio of two
 machines' TopBench scores cannot be used to say what their pace ratio ought to
-be. The rule is reported as not applicable rather than applied anyway.
+be. The rule is reported as not applicable rather than applied anyway, and
+`method.md`'s third amendment records that this was decided after the kit
+figures were read, together with what the rule would have returned.
+
+The three sweep points also fit **cycle ≈ 2.9 s + 222/MHz**, so about 2.9 s of
+the 25 MHz cycle — a quarter of it — does not move with the clock at all.
+Whatever that part is, it is not the CPU, and it is not attributed here: the
+reference's `hdd_01_speed` was never varied, so disk timing is among the
+candidates. It is one more reason the TopBench ratio is the wrong instrument.
 
 **What the sweep does give is a sharper statement than the rule would have.**
 The kit's 8.733 s sits between the reference at 33.3 MHz (9.467 s) and at
 40 MHz (≤8.467 s):
 
-> **At the 386DX-25 preset the kit paces The Black Gate's world like an 86Box
-> 386DX at about 37 MHz — roughly 1.35× the pace of the 386DX-25 the preset
-> names.**
+> **At the 386DX-25 preset the kit paces The Black Gate's world like
+> 86Box's 386DX at about 38 MHz — between its 33.3 and 40 MHz points, and
+> about 1.35× the pace of 86Box's 386DX-25.**
 
-That is the same shape as [#1840](https://github.com/DeanoC/fes/issues/1840)
-at 286-12 and as Part 2's benchmark reading, now measured in a game rather
-than in a benchmark, and it is a fault of the preset's pacing rather than of
-anything specific to this title. Two things keep it from being a complete
+Read it as about 86Box's 386 model, not about a real 386DX-25: Part 2 measured
+that model at TopBench 40 where the real range scaled to 25 MHz is 31–78.
+
+It is the same *shape* as [#1840](https://github.com/DeanoC/fes/issues/1840)
+at 286-12 and as Part 2's benchmark reading — the kit running ahead of the
+machine its preset names — now seen in a game rather than in a benchmark.
+**Whether the cause is the preset's pacing or something particular to this
+title is not settled by one title**, and the rule that was meant to settle it
+is the one set aside above. Two further things keep this from being a complete
 account, and both are stated rather than glossed:
 
 - **The reference is at the slow end of its class.** Part 2 measured it at
@@ -305,9 +323,13 @@ the two things that wedged the kit on 14 November.
   [#1486](https://github.com/DeanoC/fes/pull/1486)'s figure, re-measured on
   this seal in the same claim as the pace windows, as `method.md` required.
 
-Both runs verified from `result.json` before any figure was trusted: no
-`error` on any command, every `load` reporting `state: active`, the staged
-disk digest matching, and the wrapper's own before/after listings agreeing.
+Both runs verified from `result.json` and `acks.jsonl` before any figure was
+trusted, item by item: **no `error` on any command**; **every `load` reporting
+`state: active`**; the **stage events naming `u7bg-umap.img` with SHA-256
+`41c7b9d8…` and the kit's `reply_sha256` matching it** in both runs; the
+governor's own reply showing `"preset": 0` before and **`"preset": 3` after**
+for each of `q1-u7bg`, `q2-u7bg`, `q3-u7bg` and `qb-bench`; and the wrapper's
+before/after/clean listings agreeing with nothing left and nothing gone.
 
 ### The seal and the disk
 
@@ -320,30 +342,60 @@ changed since, so the figures above are for revision `1b4601831`.
 Both sides run the kit's own `u7bg-master.img` (SHA-256 `d9bfafd4…`) with
 `UMAP.COM` copied in, a fresh copy per run. The copies differ in exactly two
 bytes — the FAT directory entry's timestamp for `UMAP.COM`, in both copies of
-the table — and in nothing else; the reference's windows ran digests
-`cff7e4b0…` (m1, m2) and `41c7b9d8…` (m6 and the clock sweep), the kit's
-`41c7b9d8…`.
+the table — and in nothing else, which was checked with `cmp -l`. The kit's
+staged copy is `41c7b9d8…`; the reference's windows ran `cff7e4b0…` (m2) and
+`41c7b9d8…` (m6 and the clock sweep). **m1's copy was not digested before it
+ran and its digest is not recoverable**, because the game wrote to it; it was
+made the same way from the same master, and that is all that can be said of
+it.
 
 ### The memory map, side by side
 
-`UMAP.COM` on both machines, which is the Part 1 claim checked rather than
-asserted:
+`UMAP.COM` on both machines, in full, which is the Part 1 claim checked rather
+than asserted. The reference, from `runs/r1/fr/r1-umap.png`:
 
 ```
-reference           kit
-A000 ...........     A000 ................
-B000 ....WWWWWWWW    B000 ........WWWWWWWW
-C000 Rrrrr...WWWW…   C000 RrrrrrrrWWWWWWWW
-D000 WWWWWWWWWWWW…   D000 WWWWWWWWWWWWWWWW
-E000 ...........     E000 ................
-F000 rrrrrr-----r…   F000 rrrrrrrrrr--rr-r
+UMAP A000-FFFF 4K blocks R=rom W=ram r=ro .=ff -=00
+A000 ................
+B000 ........WWWWWWWW
+C000 Rrrrr...WWWWWWWW
+D000 WWWWWWWWWWWWWWWW
+E000 ................
+F000 rrrrrr-----rrrrr
 ```
 
-C800–DFFF is 96 KiB of writable RAM on both, which is what the games image's
-UMB provider asks for. They differ above C500, where the reference reads open
-bus and the kit reads the body of its VGA BIOS, and in the BIOS at F000;
-neither is in the game's path. Free conventional memory is 595,312 bytes on
-the reference; the kit's `MEM /C` is in the run's `p1-mem.png`.
+and the kit, from `kit/runs/u7pace/fr/p1-umap.png`:
+
+```
+UMAP A000-FFFF 4K blocks R=rom W=ram r=ro .=ff -=00
+A000 ................
+B000 ........WWWWWWWW
+C000 RrrrrrrrWWWWWWWW
+D000 WWWWWWWWWWWWWWWW
+E000 ................
+F000 rrrrrrrrrr--rr-r
+```
+
+**C800–DFFF is 96 KiB of writable RAM on both**, which is what the games
+image's UMB provider asks for, and both print `UMBM: Upper Memory Blocks:
+C800-DFFF` with no refusal. They differ at C500–C7FF, where the reference
+reads open bus and the kit reads the body of its VGA BIOS, and in the BIOS at
+F000; neither is in the game's path.
+
+`MEM /C` agrees as closely:
+
+| | reference | kit |
+| --- | --- | --- |
+| free conventional | 595,312 bytes | **594,272 bytes** |
+| largest program | 595,296 | 594,256 |
+| upper memory, total / free | 96K / 84K | 96K / 84K |
+| loaded high | HIMEMX, COMMAND, CTMOUSE | HIMEMX, COMMAND, CTMOUSE |
+| extended (XMS) free | 7,009K | 15,201K |
+
+The two differ by **1,040 bytes of conventional memory, 0.17%**, and carry the
+same drivers in the same place. The kit has twice the extended memory, which
+the game does not use: it refuses to start at all when an XMS manager takes
+the HMA, which is why both run the image's menu entry 1.
 
 ## What this record does not cover
 
@@ -356,9 +408,30 @@ the reference; the kit's `MEM /C` is in the run's `p1-mem.png`.
   much of the 26% a mid-range reference would absorb is not measured.
 - **Five 86Box 386DX boards** (Part 2) are unmeasured, not measured and equal.
 - **The reference's emulation speed depends on Powerboat's load.** Three of
-  six 25 MHz windows failed the 100% gate and are excluded; their cycles
-  (12.067, 11.867, 11.867 s) are in `pace.json` and agree with the three that
-  passed, but they are not part of the verdict.
+  six 25 MHz windows failed the gate and are excluded; their cycles (12.067,
+  11.867, 11.867 s) are in `pace.json` and agree with the three that passed,
+  but they are not part of the verdict. The gate tests that the emulator's
+  own readout does not change within the window; reading the strips shows the
+  three that passed held **100% for every frame**, while the three excluded
+  ranged 85–104%, 83–101% and 91–104%. `method.md`'s third amendment gives
+  the counts.
+- **The part of the reference's cycle that does not scale with clock.** The
+  sweep fits cycle ≈ 2.9 s + 222/MHz, so roughly a quarter of the 25 MHz
+  cycle is clock-independent and unattributed. The reference's
+  `hdd_01_speed` (`1997_5400rpm`) was never varied, so disk timing is among
+  the candidates and was not ruled out. One 25 MHz run at another disk speed
+  would test it.
+- **Whether the miss is the preset or the title.** One title cannot separate
+  them, and the rule that was meant to is set aside (above).
+- **The reference's TopBench figures (40, 46, 48) are from separate benchmark
+  machines**, not from the pace runs: the same board and clock, but with the
+  XT-IDE controller and the benchmark drive, because the pace reference's
+  CMOS drive type is cut for the games image's geometry. The kit's 68 *is*
+  from the same claim as its pace windows.
+- **The capture rates differ** — 15 fps on the reference, 60 on the kit —
+  which is a deviation from `method.md`'s third validity gate, recorded in
+  its third amendment.
+- **m1's drive digest** was not taken before it ran (above).
 - **The displacement metric** `method.md` first committed, which its second
   amendment set aside before any kit capture.
 - The reference's DOS layout is like the kit's, not identical: `reference.md`

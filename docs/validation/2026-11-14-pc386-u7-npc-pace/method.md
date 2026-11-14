@@ -265,3 +265,49 @@ to **0.6%**, sixteen times inside the band. So:
 The band itself does not move, the scene does not move, the validity gates do
 not move, and the classification rule for a miss does not move. Three windows
 a side still stand, and a window that fails a gate is not one.
+
+## Third amendment: everything that changed after the kit figures were read
+
+Written last, after both kit claims and the clock sweep. It changes no
+quantity and no band; it exists so that the order of events is in this file
+and not only in the summary. Each item says what it is.
+
+1. **The classification rule is set aside, and what it would have returned is
+   recorded.** The rule above compares the pace ratio with *T*, the TopBench
+   ratio, and would have returned **title-specific**: *T* = 68/40 = 1.70 and
+   the kit runs the scene 1.35× faster, well outside ±10% of *T*. It is set
+   aside because its premise fails on the reference itself — across 25, 33.3
+   and 40 MHz the reference's TopBench moves 20% while the game's pace moves
+   39%, so a TopBench ratio cannot say what a pace ratio ought to be. **This
+   was decided after the kit figures were read**, and the summary therefore
+   reports the cause as *not classified* rather than claiming the answer the
+   rule would have given or the opposite one.
+2. **The lit-level mark was made adaptive**, after the kit capture, because
+   the kit's HDMI path renders the same scene at a different grey level than
+   86Box's window and a fixed level found no world frame in it. It is now
+   taken halfway between each capture's own dark and bright plateaus. **The
+   reference figures are unchanged by it** (m1 and m2 re-ran to the same
+   world, conversation, cycle and pace figures to every digit).
+3. **The analyser was committed after the kit capture, not before.** The
+   method's text committed the quantity beforehand; `u7pace.py` itself was
+   written against the reference windows and then run unchanged on both
+   sides.
+4. **Validity gate 3 is not met as written.** It asks for the same capture
+   rate on both sides; the reference was captured at 15 fps and the kit at
+   60 fps. The gate's purpose — that the measured rate be well under half the
+   capture rate — is met with room to spare on both (a cycle of 9–12 s against
+   15 and 60 frames a second), and the quantity is a period in seconds, which
+   no capture rate enters. It is recorded as a deviation rather than waved
+   through.
+5. **The clock sweep and the reference's TopBench at 33.3 and 40 MHz were run
+   after the kit figures**, to read the miss rather than to decide it. The
+   verdict is the kit against the 25 MHz reference at ±10%, as fixed above.
+6. **The speed gate's exclusions are reported from the readouts themselves.**
+   The gate tests that the emulator's readout does not change within the
+   window; reading the distinct strips shows what it was. m1, m2, m6 and the
+   33.3 MHz sweep run read **100% for every frame**. m3, m4 and m5 vary — 85
+   to 104%, 83 to 101% and 91 to 104%, at 100% for 55%, 90% and 73% of their
+   frames — and are excluded. The 40 MHz sweep run reads 100% for 486 of its
+   501 window frames and 101% for 15, so it fails the gate as written; a
+   fast second shortens a measured period, so its true cycle is at or just
+   above the 8.467 s measured, and the summary says so where it uses it.
