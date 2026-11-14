@@ -749,6 +749,8 @@ func LaunchBlockCopy(game hostclient.Game) string {
 		return "This ROM can't be read."
 	case hostclient.LaunchNotReady:
 		return "This game isn't ready to launch."
+	case hostclient.LaunchMissingPackage:
+		return "Needs the installed core package"
 	case hostclient.LaunchMissingFirmware:
 		return "Required machine firmware is missing. Import it before Play."
 	case hostclient.LaunchMissingROM:

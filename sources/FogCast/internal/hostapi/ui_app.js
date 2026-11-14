@@ -343,6 +343,7 @@
     if (source.launchable === true || source.launchable === false) record.launchable = source.launchable;
     if (source.firmware_required === true || source.firmware_required === false) record.firmware_required = source.firmware_required;
     if (source.firmware_ready === true || source.firmware_ready === false) record.firmware_ready = source.firmware_ready;
+    if (source.package_unavailable === true || source.package_unavailable === false) record.package_unavailable = source.package_unavailable;
     if (source.rom_required === true || source.rom_required === false) record.rom_required = source.rom_required;
     if (source.rom_ready === true || source.rom_ready === false) record.rom_ready = source.rom_ready;
     if (source.video_required === true || source.video_required === false) record.video_required = source.video_required;
@@ -911,6 +912,7 @@
     if (game.state === 'missing' || game.root_online !== true) return 'This game’s source is offline.';
     if (game.state === 'invalid') return 'This ROM can’t be read.';
     if (game.state !== 'available') return 'This game isn’t ready to launch.';
+    if (game.package_unavailable === true) return 'Needs the installed core package';
     // Same expansion gates as Go Game.LaunchBlock, before firmware and ROM.
     if (typeof game.expansion_id === 'string' && game.expansion_id.trim() && game.expansion_ready !== true) {
       return 'Needs an expansion';

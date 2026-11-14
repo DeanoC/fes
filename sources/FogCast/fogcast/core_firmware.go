@@ -28,7 +28,15 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 		}
 		comp := protocol.CoreComposition{FirmwareRequired: entry.FirmwareRequired}
 		inspection, inspectErr := s.installedCoreInspection(ctx, entry.PackageID)
-		if inspectErr == nil && hasVideoSocket(inspection) {
+		if inspectErr != nil {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			comp.PackageUnavailable = true
+			out[id] = comp
+			continue
+		}
+		if hasVideoSocket(inspection) {
 			comp.VideoRequired = true
 			var err error
 			comp.VideoReady, err = video.ready(ctx, inspection)
@@ -36,7 +44,7 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 				return nil, err
 			}
 		}
-		if inspectErr == nil && inspection.Descriptor.Format == 5 && entry.FirmwareRequired {
+		if inspection.Descriptor.Format == 5 && entry.FirmwareRequired {
 			// A household firmware object cannot fill a sealed static base.
 			out[id] = comp
 			continue
@@ -50,7 +58,7 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 			}
 			return base, baseErr
 		}
-		if inspectErr == nil && inspection.Descriptor.Format == 4 {
+		if inspection.Descriptor.Format == 4 {
 			comp.FirmwareRequired = true
 			comp.ROMRequired = true
 			comp.ROMID = inspection.Descriptor.ROMs[1].ID
@@ -72,7 +80,7 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 					comp.ROMMediaID = binding.MediaID
 				}
 			}
-		} else if inspectErr == nil && inspection.Descriptor.ROM != nil {
+		} else if inspection.Descriptor.ROM != nil {
 			comp.ROMID = inspection.Descriptor.ROM.ID
 			comp.ROMRole = inspection.Descriptor.ROM.Role
 			comp.ROMSourceSize = inspection.Descriptor.ROM.SourceSize
@@ -110,7 +118,7 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 			comp.ExpansionID = selected.ExpansionID
 			if selected.ExpansionID != "" {
 				asset, assetErr := expansions.ReadCoreExpansion(ctx, selected.ExpansionID)
-				comp.ExpansionReady = assetErr == nil && inspectErr == nil && asset.Manifest.ShellPackageID == entry.PackageID && asset.Manifest.ShellBuildID == inspection.Descriptor.Build.ID && asset.Manifest.ShellSHA256 == inspection.Descriptor.Payload.SHA256
+				comp.ExpansionReady = assetErr == nil && asset.Manifest.ShellPackageID == entry.PackageID && asset.Manifest.ShellBuildID == inspection.Descriptor.Build.ID && asset.Manifest.ShellSHA256 == inspection.Descriptor.Payload.SHA256
 				if comp.ExpansionReady {
 					data, err := loadBase()
 					if err == nil && inspection.Descriptor.Format == 5 {
@@ -122,18 +130,16 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 				}
 			}
 		}
-		if inspectErr == nil {
-			slots, err := s.slotCompositionFor(ctx, entry, inspection, loadBase)
-			if err != nil {
-				return nil, err
-			}
-			comp.SlotExpansions = slots
+		slots, err := s.slotCompositionFor(ctx, entry, inspection, loadBase)
+		if err != nil {
+			return nil, err
 		}
-		if inspection.Descriptor.Format == 4 && inspectErr == nil {
+		comp.SlotExpansions = slots
+		if inspection.Descriptor.Format == 4 {
 			out[id] = comp
 			continue
 		}
-		if inspectErr == nil && inspection.Descriptor.ROM != nil && inspection.Descriptor.ROM.Role == protocol.FirmwareRole {
+		if inspection.Descriptor.ROM != nil && inspection.Descriptor.ROM.Role == protocol.FirmwareRole {
 			out[id] = comp
 			continue
 		}

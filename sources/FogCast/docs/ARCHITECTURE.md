@@ -66,7 +66,9 @@ the current profile and its Direct fallback, verifies the selected stored part
 against the exact shell, and checks each part once per listing without composing
 the shell. Built-in Direct remains the final fallback for raster shells; an
 installed selected part that fails verification is not silently bypassed. The
-browser and kit block Play with the same missing-video reason. This is host
+browser and kit block Play with the same missing-video reason. When the shell
+cannot be inspected, its requirements are unknown, so the row instead blocks
+Play with a missing-package reason. This is host
 catalog readiness, not proof of target readiness or of compatibility with every
 selected CPU/slot combination; launch still performs full admission. The
 `availability=ready` list filter selects available, online sources and can

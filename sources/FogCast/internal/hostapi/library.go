@@ -1006,6 +1006,7 @@ func enrichCompositions(ctx context.Context, service Service, games []gameResult
 			return
 		}
 		game.FirmwareRequired = comp.FirmwareRequired
+		game.PackageUnavailable = comp.PackageUnavailable
 		if comp.FirmwareRequired {
 			game.FirmwareReady = comp.FirmwareReady
 		}

@@ -137,4 +137,19 @@ func TestNativeVideoReadinessInGroupedSourceAvailableQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 	check(true)
+	// A missing shell leaves its requirements unknown; do not advertise Play
+	// merely because the title's old catalog row and video part still exist.
+	if err := os.Remove(filepath.Join(paths.CorePackages, inspection.PackageID+".fcore")); err != nil {
+		t.Fatal(err)
+	}
+	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games?grouped=1&availability=ready")
+	var page struct {
+		Games []hostclient.Game `json:"games"`
+	}
+	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &page) != nil || len(page.Games) != 1 {
+		t.Fatalf("missing package list: %d %s", response.Code, response.Body.String())
+	}
+	if game := page.Games[0]; game.LaunchEligible() || game.LaunchBlock() != hostclient.LaunchMissingPackage {
+		t.Fatalf("missing package remained eligible: %+v", game)
+	}
 }
