@@ -20,10 +20,10 @@ Which of those stages it is stays open as
 [#1823](https://github.com/DeanoC/fes/issues/1823), and the two cheap tests that
 would separate them need Deano's OK.** Most of the evidence below is from runs
 already taken, remeasured here. This record's own Kit B runs are `b1`
-(13 launches, complete) and `b2` (continuing): `b1` saw no black launch, so it
-contributes the timing and nonce evidence — it dates each launch's blank window
-and shows the grab landing 31 s or more after it closes — and no episode of its
-own. `b2` hunts an episode with the full probe set on it.
+(13 launches) and `b2` (30), both complete and both with no black launch. They
+contribute the timing and nonce evidence — each launch's blank window is dated
+and the grab lands 31 s or more after it closes — and no episode of their own.
+A third run with Deano's newly approved episode probe is pending.
 
 ## What was already established
 
@@ -238,13 +238,14 @@ I²C silence is the FPGA reconfiguration itself, and the luma gap sits exactly o
 it. (#1823 separately measured 2.81 s and 3.07 s of an unreadable transmitter,
 but that was #1804's *recovery* reprogram, a different event.)
 
-Across all 13 of `b1`'s launches the shape is the same and the margin is wide:
+Across all 43 launches of `b1` and `b2` the shape is the same and the margin is
+wide:
 
 | | min | median | max |
 | --- | --- | --- | --- |
-| last second with no delivered frames | 16 s | 17 s | 24 s |
-| the grab, on the same clock | 47.2 s | 50.3 s | 60.2 s |
-| **margin between them** | **31.2 s** | **34.1 s** | **36.2 s** |
+| last second with no delivered frames | 15 s | 18 s | 24 s |
+| the grab, on the same clock | 47.2 s | 51.4 s | 62.6 s |
+| **margin between them** | **31.2 s** | **34.4 s** | **38.6 s** |
 
 In every launch the picture is lit in the very next second after the gap, and no
 launch has a single dark second after it. So the grab sits at least 31 s after
@@ -252,12 +253,17 @@ the launch's own blank window closes: a black prompt grab is not that window
 arriving late, and the eight prompt-only episodes of `k8` and `k9` are not early
 grabs.
 
-**The nonce renders.** `b1` types `echo <nonce> ###…` with a bar of `3 + n mod
-17` hashes, and the mean grey of the frame's top 120 rows rises monotonically
-with it across the 13 launches (4.70 at 3 hashes, 5.95 at 7, 7.35 at 11, 8.46 at
-15). Every launch's prompt frame hash is distinct, where `k8`'s 101 launches
-shared 10 hashes. A frame left over from an earlier launch would now show the
-wrong bar, so a stale frame can no longer pass as a live one.
+**The nonce renders.** The runs type `echo <nonce> ###…` with a bar of
+`3 + n mod 17` hashes, and the mean grey of the frame's top 120 rows rises
+monotonically with it (4.70 at 3 hashes, 5.95 at 7, 7.35 at 11, 8.46 at 15).
+All 43 prompt frames are distinct, where `k8`'s 101 launches shared 10 hashes. A
+frame left over from an earlier launch would show the wrong bar, so a stale
+frame can no longer pass as a live one.
+
+**No episode in 43 launches.** `b1` (13) and `b2` (30) saw no black grab at all,
+and not one dark second after any launch's gap. At the earlier rate of 12 in 400
+(3%), 43 clean launches in a row happen about one time in four, so this does not
+show the rate has changed; it does mean neither run caught an episode to probe.
 
 ## A bring-up outage and an episode do not look alike
 
@@ -362,7 +368,7 @@ Powerboat, remeasured today. Run `b1` is this record's own kit run.
   reduction maps that uniform field to mean 6.61, peak 7, where a lit DOS prompt
   reduces to mean 16.25, peak 73.
 
-**Run `b1`** (Kit B, from 10:51 EET, core-only on its baseline — software
+**Runs `b1` and `b2`** (Kit B, 10:51–11:05 and 11:06–11:34 EET, core-only on its baseline — software
 `7ddb0bfb`, image `179affbb`, no install, no image change, no reboot, no I2C
 write). Package `27f478e0`, the Quartus 17.0.2 seal of main `7e08be726`; disk
 `a-u7si.img` (`f32f047a…`), the FreeDOS games image with Serpent Isle from
@@ -373,5 +379,18 @@ every lit launch's frame is unique and a stale frame cannot pass as a live one; 
 per-frame HDMI luma log across stop → load → prompt; and a read-only
 `0x41`/`0x42`/`0x9E`/`0x3E` poll at about 20 Hz through each bring-up. Its
 episodes can only be placed after the capture buffers, not after the core's
-pins: `27f478e0` carries no presenter or display-plane probe. Driver
-`~/fes-scratch/si1494/kit/si1494d.py`, data under `.../runs/b1`.
+pins: `27f478e0` carries no presenter or display-plane probe. `b2` adds a denser capture-buffer sample (288 words a buffer over the
+nonce's own rows, where `b1`'s 48-word sample at `k9`'s coordinates read all
+zeros on a lit prompt). Driver `~/fes-scratch/si1494/kit/si1494d.py`, data under
+`.../runs/b1` and `.../runs/b2`.
+
+**The probe a third run would carry.** Deano has approved, for an episode only,
+#1003's `0xBA[7:5]` sweep and a restart of Powerboat's `fes-4kpro-fanout`
+(relayed 14 November). The driver now implements them in that order on a black
+launch: record the transmitter's registers, step `0xBA[7:5]` through its six
+settings with 2 s of frames and a grab at each, restore the original value, and
+only if no setting brings the picture back, restart the fan-out and grab again.
+A setting that clears it names the transmitter's input sampling; a picture that
+returns only after the restart names Powerboat's capture chain. One episode
+spends itself on one answer, which is why the sweep goes first: the restart
+re-establishes the link and would destroy the state the sweep reads.
