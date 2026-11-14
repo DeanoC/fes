@@ -25,7 +25,7 @@ lists them.
   microcode and the sequencer's offsets changed.
 - **The identity-on path runs, and is being brought up.** The first ESC
   instructions through the CPU with a 387 fitted, together with Codex's
-  review, found eleven more faults
+  review, found twelve more faults
   ([below](#what-the-identity-on-run-found)), two of them edits of mine
   that had silently not applied: the pointer-clear pulse that was never
   deassserted, which is why the instruction pointer read zero in every
@@ -177,6 +177,14 @@ fixed in the commit that found it.
 | WAIT took the ESC path, where its opcode is 9Bh's low bits and the byte after it | that usually decodes as a form no slice builds, which killed its hold; WAIT now waits for the latch and the unit's work and no more |
 | FLDENV and FRSTOR discarded the environment's pointer fields | the 387's state could not be restored; they are read back now, including the opcode, which only the real-mode and 32-bit protected layouts carry |
 | FINIT did not clear the x87 pointers | the 387 PRM's FINIT clears them with the words, and so does FNSAVE |
+| the pointer-clear pulse was never deasserted, an edit of mine that silently had not applied | after the first FINIT every commit cleared the pointers, which is why the instruction pointer read zero in every program (Codex P1) |
+| and then it arrived a cycle after the commit, where the CPU keeps the pointers | unless something else committed in that cycle the clear was lost; the unit says so in the commit's own cycle now |
+| the CPU's ERROR# never reached the slave PIC's IRQ 13, another edit that had not applied | a guest handler could never clear the board's latch, and the record already claimed it was wired (Codex P2) |
+| a second no-wait form was silently dropped, and a dropped one's commit ran the younger instruction's path | FNINIT and FNCLEX skip the board's latch, not the unit, so one behind another waits (Codex P2) |
+| FLDENV and FRSTOR load the control word before the status word, so the exception summary could rise on the old flags part way through and latch BUSY# for nothing | the latch waits for the whole environment, and its apply sets it if ES is still active (Codex P1) |
+| with CR0.EM or CR0.TS set, an ESC form a later slice builds stopped as not built instead of raising #NM | lazy context switching relies on #NM coming first (Codex P2) |
+| a store's own first uop waited for the unit, and a store's conversion makes the unit busy before that uop issues | the store forms hung; a first uop now waits for the unit only while the unit has not taken it |
+| a 32-bit environment's reserved halves read zero | they are all ones, with a 387 as without one, which is what the oracle writes |
 
 ## Checks
 
