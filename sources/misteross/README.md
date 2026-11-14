@@ -269,12 +269,12 @@ matching `toolchain-fes-<core>` target that provisions its
 `cores/fes-<core>/toolchain.lock`: menu, Pong, ZX81, Coleco, SMS,
 SG-1000, Apple II, C64, Spectrum, RISC-V, RAM Tester and Atari ST. Without a
 cache, each producer reads the local install that its own target writes.
-Menu and ZX81 pin nextpnr `1eecf877`, Pong's lock pins `552ba246`, and
+Menu pins nextpnr `1eecf877`, Pong's lock pins `552ba246`, and
 RISC-V's `8f453ebc`, so each has its own slot. Apple II, Atari ST and C64 use
 nextpnr `5fe55f3d` from nextpnr #276; their shell validators require that
 producer pin's exact F0/F1 `$ROUTETHRU` map. Apple II and C64 share one slot,
-while the Atari ST lock has its own. Spectrum uses nextpnr main `bd7a1c0d`,
-which contains #276 as merged, and has its own slot. Coleco has its own slot
+while the Atari ST lock has its own. Spectrum and ZX81 use nextpnr main `bd7a1c0d`,
+which contains #276 as merged; each has its own slot. Coleco has its own slot
 at nextpnr `bec82e36`, which includes #296 and #299 and retains #276's exact
 F0/F1 `$ROUTETHRU` map; its lock also pins Yosys `5391eeb1`. The Coleco
 development shell still uses nextpnr `9128800f`, whose exact route-through

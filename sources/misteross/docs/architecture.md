@@ -808,9 +808,10 @@ python3 -m unittest discover -s tests -p test_pnr_recipes.py
 The `0a253257` schema review is recorded in the
 [upstream source comparison](https://github.com/DeanoC/nextpnr/compare/552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b...0a253257eadd8a7877b881ab1f940cbd9739c1be).
 
-Each distinct lock selects its own cached toolchain slot. Menu and ZX81 pin
-nextpnr `1eecf877` (ZX81 fes#936; Menu moved when its blitter took DSP
-multipliers), Pong's lock pins `552ba246` (fes#887), RISC-V's `8f453ebc`
+Each distinct lock selects its own cached toolchain slot. Menu pins
+nextpnr `1eecf877` (moved when its blitter took DSP multipliers), ZX81's
+lock pins nextpnr main `bd7a1c0d` (moved from `1eecf877` when `fes.ts1500`
+missed timing there), Pong's lock pins `552ba246` (fes#887), RISC-V's `8f453ebc`
 (fes#945), and Coleco's pins Yosys `5391eeb1` with nextpnr `bec82e36`
 (current main includes #296 and #299, retaining #289, #290, #292); each
 selects its own slot. Apple II, Atari ST (fes#910) and C64 pin nextpnr
@@ -1148,8 +1149,8 @@ is not the product bitstream and is not a fallback when the HIP seal fails.
 Registered FES producers select compiler pins from their corresponding
 `cores/fes-<core>/toolchain.lock`. Four locks contain the repository-level
 commits and share its compiler-cache slot. Apple II and C64 share a second
-slot on nextpnr `5fe55f3d` (nextpnr #276). Menu and ZX81 (nextpnr
-`1eecf877`), Pong (`552ba246`), RISC-V (`8f453ebc`), Atari ST (`5fe55f3d`),
+slot on nextpnr `5fe55f3d` (nextpnr #276). Menu (nextpnr
+`1eecf877`), ZX81 (nextpnr main `bd7a1c0d`), Pong (`552ba246`), RISC-V (`8f453ebc`), Atari ST (`5fe55f3d`),
 Spectrum (nextpnr main `bd7a1c0d`) and Coleco (Yosys `5391eeb1` with nextpnr
 `bec82e36`) each have their own.
 Producers select that cache only through an explicit `--cache-root` argument or the Make

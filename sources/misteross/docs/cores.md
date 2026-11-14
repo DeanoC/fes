@@ -292,8 +292,8 @@ path.
 Each registered package authenticates the lock named by its `lock_path` in
 `config/core-recipes.toml`. A lock can move to another nextpnr that
 `scripts/pnr_recipe.py` classifies; that core then gets its own slot. Pong's
-lock pins nextpnr `552ba246`, Menu's and ZX81's pin `1eecf877` (Menu moved
-when its blitter took DSP multipliers), RISC-V's pins `8f453ebc`, and
+lock pins nextpnr `552ba246`, Menu's pins `1eecf877` (Menu moved
+when its blitter took DSP multipliers), ZX81's pins nextpnr main `bd7a1c0d`, RISC-V's pins `8f453ebc`, and
 Coleco's pins Yosys `5391eeb1` with nextpnr `bec82e36`; each has its own slot.
 Apple II and C64 pin nextpnr `5fe55f3d` for its F0/F1 boundary `$ROUTETHRU`
 map (#1007); their locks are identical and share one slot. Atari ST pins
