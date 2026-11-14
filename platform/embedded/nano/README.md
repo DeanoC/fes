@@ -74,6 +74,28 @@ session; uncertain writes are recorded and never retried or rolled back.
 The protected recovery boot files remain independently checked by UploadSession.
 This operation neither activates the staged FIT nor proves native persistence.
 
+`jtag_server_trace.JtagServerTrace` adds optional host diagnostics around an
+already admitted programmer call. It attaches `strace` only to the recorded
+private TRWU8CBL server after checking its PID/start ticks, UID, executable
+digest, arguments and absence of another tracer. Only the absolute executable
+name or the vendor launcher's `jtagd` spelling is accepted as `argv[0]`; the
+executable path/hash and every other argument remain exact. The caller retains
+its existing claim and poll `check()` during the call. The trace stops at
+120 seconds or 8 MiB; the existing programmer's 90-second bound remains.
+These are host trace limits, separate from the boot FIT and core package bounds.
+Only ioctl syscalls are recorded, with 32-byte string limits and decoded file
+descriptors. No extra JTAG configuration/status command is issued.
+
+The caller closes the tracer before closing its server. Cleanup signals only
+the owned tracer, verifies its exit and the same live server's detachment, and
+retains early tracer exit separately. Lost ownership is sticky. Receipts grant
+no programming, reset or recovery authority. Attachment pauses server threads
+and changes host timing, so a traced run is diagnostic evidence. Eleven injected
+model tests cover identity/ownership/attachment/deadline/output/cleanup faults.
+A real host-only disposable-process fixture checks ioctl capture, normal detach
+and survival after abrupt tracer death; its vendor identity is injected and
+it opens no USB device. Physical private-server tracing remains unqualified.
+
 `jtag_enumeration.cpp` is a separate scan-only diagnostic for the installed
 programmer's two-pass automatic enumeration: count zero/null list/automatic
 scan enabled, followed by one bounded device-list read. It requires the exact
