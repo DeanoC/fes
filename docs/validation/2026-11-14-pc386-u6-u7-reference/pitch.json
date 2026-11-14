@@ -1,0 +1,76 @@
+{
+ "kit_g1": [
+  {
+   "n": 31,
+   "median": 840.72,
+   "min": 840.42,
+   "max": 840.9
+  },
+  {
+   "n": 31,
+   "median": 499.79,
+   "min": 499.65,
+   "max": 499.87
+  }
+ ],
+ "ref_m3": [
+  {
+   "n": 35,
+   "median": 962.29,
+   "min": 953.57,
+   "max": 971.53
+  },
+  {
+   "n": 32,
+   "median": 574.28,
+   "min": 567.6,
+   "max": 578.79
+  }
+ ],
+ "ref_m4": [
+  {
+   "n": 31,
+   "median": 963.23,
+   "min": 960.33,
+   "max": 964.21
+  },
+  {
+   "n": 31,
+   "median": 573.54,
+   "min": 571.34,
+   "max": 576.7
+  }
+ ],
+ "keys": [
+  "6",
+  "1"
+ ],
+ "comparison": [
+  {
+   "key": "6",
+   "kit_hz": 840.72,
+   "reference_hz": 962.76,
+   "kit_over_reference": 0.8732,
+   "kit_below_reference_pct": 12.68,
+   "semitones_flat": 2.35,
+   "reference_scaled_to_12MHz_hz": 924.25,
+   "kit_below_scaled_pct": 9.04,
+   "semitones_flat_scaled": 1.64,
+   "band_pct": 5.9,
+   "verdict": "fail"
+  },
+  {
+   "key": "1",
+   "kit_hz": 499.79,
+   "reference_hz": 573.91,
+   "kit_over_reference": 0.8709,
+   "kit_below_reference_pct": 12.91,
+   "semitones_flat": 2.39,
+   "reference_scaled_to_12MHz_hz": 550.95,
+   "kit_below_scaled_pct": 9.29,
+   "semitones_flat_scaled": 1.69,
+   "band_pct": 5.9,
+   "verdict": "fail"
+  }
+ ]
+}

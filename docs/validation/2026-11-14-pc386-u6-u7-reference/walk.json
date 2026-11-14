@@ -1,0 +1,59 @@
+{
+ "reference_286_12_5MHz": {
+  "walk": [
+   {
+    "capture": "t1",
+    "steps": 116,
+    "span_s": 43.2,
+    "steps_per_s": 2.66,
+    "median_gap_frames": 10
+   },
+   {
+    "capture": "t2",
+    "steps": 82,
+    "span_s": 41.3,
+    "steps_per_s": 1.961,
+    "median_gap_frames": 10
+   },
+   {
+    "capture": "t3",
+    "steps": 83,
+    "span_s": 43.4,
+    "steps_per_s": 1.889,
+    "median_gap_frames": 13.0
+   }
+  ],
+  "pass": [
+   {
+    "capture": "p1",
+    "turns": 70,
+    "span_s": 44.4,
+    "turns_per_s": 1.553,
+    "median_gap_frames": 18
+   },
+   {
+    "capture": "p2",
+    "turns": 51,
+    "span_s": 43.7,
+    "turns_per_s": 1.143,
+    "median_gap_frames": 27.0
+   },
+   {
+    "capture": "p3",
+    "turns": 48,
+    "span_s": 42.6,
+    "turns_per_s": 1.104,
+    "median_gap_frames": 29
+   }
+  ],
+  "walk_range": [
+   1.889,
+   2.66
+  ],
+  "pass_range": [
+   1.104,
+   1.553
+  ]
+ },
+ "note": "t1-t3 walk a one-tile square at 10 taps a second; p1 taps at about 17 a second, p2 and p3 at 10."
+}
