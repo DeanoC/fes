@@ -48,6 +48,15 @@ the ones to the left of a `->` in a clause that records a correction (`:1230
 that the design record carried them. The number to the right of the arrow is
 checked like any other.
 
+That masking is the one part of this script that can *remove* coverage, and it
+fails silently in the only direction that matters: a destination wrongly masked
+is a citation the record stops checking while this script still exits 0. Three
+revisions lost destinations that way (#1829 review), each time because a new
+clause shape was read by rules written for the previous one. So anyone adding a
+correction kind should start from `current_only`, and should check the coverage
+numbers this prints rather than only its status -- the citation and endpoint
+counts going *down* is the symptom, and nothing else reports it.
+
 Check 1 is the one that matters: a line number can stay in range while
 pointing at the wrong line, and that is exactly how two earlier revisions of
 this record went wrong. Run from the repo root:
