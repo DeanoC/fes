@@ -39,6 +39,8 @@ type CoreEntryVideo struct {
 	Choices          []CoreVideoChoice `json:"choices"`
 }
 
+const missingDirectVideoPartMessage = "native video shell requires a matching Direct video part for this exact core package"
+
 func defaultVideoProfile(profile string) string {
 	if profile == "" {
 		return "direct"
@@ -210,7 +212,7 @@ func (s *Service) videoEntryCandidate(ctx context.Context, inspection corepackag
 		candidate, found = candidates["direct"]
 	}
 	if !found && requiresVideoPart(inspection) {
-		return catalog.CoreVideoPart{}, false, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission", Message: "native video shell requires a matching Direct video part for this exact core package"}
+		return catalog.CoreVideoPart{}, false, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission", Message: missingDirectVideoPartMessage}
 	}
 	return candidate, found, nil
 }

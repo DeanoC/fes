@@ -57,6 +57,10 @@ two-source transport and linked-load path before it becomes selectable.
 Two-source staging retains its parsed sealed map only within that operation,
 reusing it for receipt verification and linking. Publication and restart adoption
 independently validate their retained package bytes.
+Native-video shells also require a matching video part admitted against the
+exact shell in the host's own catalog. The default profile is Direct. If no
+preferred or Direct part is available, launch stops before target mutation and
+reports the missing part as an admission error.
 
 This is the canonical description of the working system.
 
