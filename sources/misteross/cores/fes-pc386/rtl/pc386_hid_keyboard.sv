@@ -25,8 +25,8 @@
 // snapshot may differ from the projected state, after a clear or a diff
 // position passed while scanning was disabled). The transitions in the FIFO
 // are listed in a third table, for the clear's roll-back. Pause's reported
-// state, which a silent release and a later completion can both write, is
-// kept in a flip-flop and restored last.
+// state is kept in a flip-flop and restored last; a silent release invalidates
+// the outstanding older Pause completions so they cannot undo that release.
 //
 // Typematic: the most recently pressed key other than a modifier or Pause
 // repeats its make sequence after the delay and then at the rate of the
@@ -242,11 +242,16 @@ module pc386_hid_keyboard (
     reg [4:0] flight_count, rollback_left;
     reg rollback_valid;
     reg [8:0] rollback_entry;
-    // Pause is the one key whose make has bytes and whose release has none,
-    // so its reported state can be written by a silent release and then by
-    // the make's later completion. A clear restores the reported state, so
-    // Pause's is kept here and written last by every roll-back.
+    // Pause is the one key whose make has bytes and whose release has none.
+    // Its silent release supersedes all earlier makes still in the FIFO. Count
+    // those older completions separately: newer makes must still commit, even
+    // when the guest has not yet taken all the older ones. A clear restores
+    // pause_sent after rolling the other transitions back.
     reg pause_sent;
+    reg [4:0] pause_flight, pause_stale;
+    wire pause_projected = projected && sending_bit == PAUSE_BIT;
+    wire pause_committed = committed && complete_bit == PAUSE_BIT;
+    wire pause_release = silent && key_scanning && !key_cancel && bit_index == PAUSE_BIT;
     wire pause_restore = rolling && rollback_left == 0 && !rollback_valid;
 
     // Table writes
@@ -273,10 +278,24 @@ module pc386_hid_keyboard (
             diffing <= 0; fetched <= 0; pass <= 0; position <= 0;
             key_valid <= 0; kind <= NONE; code <= 0; make <= 0; repeat_send <= 0; sending_bit <= 0; step <= 0;
             flight_write <= 0; flight_count <= 0; rollback_at <= 0; rollback_left <= 0; rollback_valid <= 0;
-            pause_sent <= 0;
+            pause_sent <= 0; pause_flight <= 0; pause_stale <= 0;
         end else begin
-            if (committed && complete_bit == PAUSE_BIT) pause_sent <= complete_make;
-            if (silent && key_scanning && !key_cancel && bit_index == PAUSE_BIT) pause_sent <= want_press;
+            if (pause_committed && pause_stale == 0) pause_sent <= complete_make;
+            if (pause_release) pause_sent <= want_press;
+            if (key_cancel) begin
+                pause_flight <= 0;
+                pause_stale <= 0;
+            end else begin
+                case ({pause_projected, pause_committed})
+                    2'b10: pause_flight <= pause_flight + 5'd1;
+                    2'b01: pause_flight <= pause_flight - 5'd1;
+                    default: ;
+                endcase
+                if (pause_release)
+                    pause_stale <= pause_flight - {4'd0, pause_committed};
+                else if (pause_committed && pause_stale != 0)
+                    pause_stale <= pause_stale - 5'd1;
+            end
             // Serial passes, which a clear does not stop: observed must come
             // back whole from its rotation.
             if (init) begin
