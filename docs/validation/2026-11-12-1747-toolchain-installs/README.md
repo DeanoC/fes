@@ -324,6 +324,31 @@ re-measured against the new base.
   shape narrows nothing — it only reproduces the difference. The second shape is
   what says whether the cause was the producer and helper edits; the third,
   whether it was the install. Reach for one of those, not for a repeat.
+- **Never `chmod` the linked files, and the campaign's own populator did.** The
+  files in a filled root are hardlinks into the published cache installs, so a
+  `chmod` on the link changes the install's own inode — 444 to 644, 555 to 755.
+  The script ran `chmod -R u+w <root>` before `rmtree`, which damaged the
+  published modes of every install it had linked (Yosys `7e027803` 333 files,
+  Mistral `d6fe2f26` 13, and four nextpnr installs one each). Nothing errors at
+  the time. What fails is later, and elsewhere: the PR's own closure check
+  rejects the install with
+
+  ```
+  shared toolchain verification failed: published yosys install/evidence closure differs from ready manifest
+  ```
+
+  That message names the tool but not the cause, and the cause is a file mode
+  rather than content, so it reads like a corrupted or half-published install.
+  `rmtree` needs write permission on *directories*, which are fresh inodes from
+  the link pass, so restricting the `chmod` to `-type d` both works and leaves
+  the cache alone.
+
+  Two things follow. The check did its job — it refused to build against
+  installs whose published closure no longer matched, which is the behaviour
+  this PR adds. And the method as documented is not repeatable: run as written
+  it leaves the cache in a state the verification rejects. Repair by taking the
+  modes from a healthy sibling install of the same tool; `find
+  <cache>/tools -path '*/install/*' -type f -perm -u=w` should return nothing.
 - **The producer must not be wrapped in `gpu-run`.** `fes_build_common` raises
   `invoke the producer outside gpu-run; GPU nextpnr calls acquire their own
   lease` when `GPU_RUN_DEVICE` or `GPU_LEASE_FD` is set, because an outer lease
