@@ -26,7 +26,8 @@ current header replaced, links successfully: NOBITS is `0x50000..0x5ff40`,
 leaving 192 bytes. The source region and stack boundaries are checked from
 the resulting ELF symbols. This preview deliberately has stale producer
 bindings and is not admitted as a boot image. A fresh source-bound matched
-build is required; whole-EL3 stack and physical behavior remain unqualified.
+build is recorded in the [subsequent matched candidate](../2026-11-14-de25-publication-matched/README.md).
+Whole-EL3 stack and physical behavior remain unqualified.
 
 ## Software-reset investigation
 

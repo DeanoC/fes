@@ -1,0 +1,18 @@
+{
+  "status": "passed-actual-matched-ELF-private-layout",
+  "source_commit": "0c8fd0d37e0b36bc6fe1924b519dd6b1b219d756",
+  "elf_sha256": "4ec62eca45e49bff31c79752d39e880f5e2f72eec179169a1b019c99676acb1f",
+  "symbols": {
+    "__NOBITS_START__": 327680,
+    "__NOBITS_END__": 393024,
+    "__STACKS_START__": 327680,
+    "__STACKS_END__": 360448,
+    "__BSS_END__": 393024
+  },
+  "private_limit": 393216,
+  "spare_bytes": 192,
+  "stack_count": 4,
+  "bytes_per_stack": 8192,
+  "hardware_actions": false,
+  "whole_EL3_stack_qualified": false
+}

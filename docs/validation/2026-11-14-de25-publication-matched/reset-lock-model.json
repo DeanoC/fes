@@ -1,0 +1,33 @@
+{
+  "status": "passed-reset-lock-source-model",
+  "inputs": {
+    "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/nano_bridge_platform.inc": "72f73f9316653d93de95f02c27662a0e79cae8e061b29bb6c5b136d4e692b9be",
+    "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/nano_boot.c": "cc9e3567f05345e19be3aee00b0f09fb0d2cad2216f6cba1697da4c7fff2fcce",
+    "/home/deano/fes/out/dev/de25-publication-compact/out/publication-boot/native-bl31/source/plat/intel/soc/common/socfpga_psci.c": "4bc91d5727d0de07d4d3bdcd93ab42ef18469456b0edd716e1a64bdaf5d20c70",
+    "/home/deano/fes/out/dev/de25-publication-compact/out/publication-boot/native-bl31/source/plat/intel/soc/common/soc/socfpga_mailbox.c": "c5b0a36f198f8494a069ad86cb6e8ca5cbd2a9fe48bd6caffd524f495d1114b2"
+  },
+  "command": [
+    "cc",
+    "-std=c11",
+    "-O1",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-fsanitize=address,undefined",
+    "-fno-sanitize-recover=all",
+    "-I/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware",
+    "/home/deano/fes/out/dev/de25-source-release/out/secure-reset-lock-model-r4/reset_lock.c",
+    "-o",
+    "/home/deano/fes/out/dev/de25-source-release/out/secure-reset-lock-model-r4/reset_lock"
+  ],
+  "model": {
+    "status": "passed-reset-lock-source-model",
+    "cases": 2,
+    "held_case": "recursive-lock-before-mailbox",
+    "hardware_actions": false
+  },
+  "binary_sha256": "4a734455eeb08bb5b118513ad980965a3dec2ab0d7ee15f5e0e4b8be7833d1ee",
+  "classification": "actual source functions with injected nonrecursive lock and mailbox transport; no actual reset, changed firmware or hardware qualification",
+  "hardware_actions": false
+}

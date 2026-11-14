@@ -1,0 +1,171 @@
+{
+  "status": "passed-independent-matched-archive-readback",
+  "source_commit": "0c8fd0d37e0b36bc6fe1924b519dd6b1b219d756",
+  "archive": "/home/deano/fes-retained/de25-publication-matched-20261114-r1/matched.tar.gz",
+  "archive_sha256": "d09a4d8ac4951d3b93ff0426e096882a73c2002955b8137ce5de800ae42ff882",
+  "archive_bytes": 541784913,
+  "files": 60404,
+  "unique_regular_payloads": 44289,
+  "checks": {
+    "publication-projects": {
+      "argv": [
+        "python3",
+        "out/publication-boot/prepare.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-publication-compact",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.6801512110978365,
+      "log_sha256": "2477a5d23bf5830b4c14f04b5bc164c73f0f725fb1c50fca1fb1d51288f6e131"
+    },
+    "publication-sdk": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/build-native.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-publication-compact",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 97.6569105910603,
+      "log_sha256": "5c7f6e0971c22509170957569f3cdc4ce7efc1201f4637d85bbc6d8f813438b6"
+    },
+    "publication-entry": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/build-chain.py",
+        "entry"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-publication-compact",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 71.23886652500369,
+      "log_sha256": "67baffe84df2dad3596b95f50730c778597b7e06d4fa91ea1cc437672715e21a"
+    },
+    "publication-bl31": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/build-chain.py",
+        "bl31"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-publication-compact",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 48.4257941050455,
+      "log_sha256": "6880c1c8152110968475df68f366c776c2706a9ec777c2fc13b78c46b89cf202"
+    },
+    "publication-uboot": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/build-chain.py",
+        "uboot"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-publication-compact",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 125.86852499912493,
+      "log_sha256": "446ee609dc067a45b9b09629f359a434a399b97b86a320e614c3d1ae6687e4ad"
+    },
+    "publication-compose": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/compose.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-publication-compact",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 67.035570677137,
+      "log_sha256": "6dc1dcb7834741276ccd0907e7fe99ca6dea186e6dadeb78f84532fb6f225859"
+    },
+    "publication-matched": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/verify-chain.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-publication-compact",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 54.432845183881,
+      "log_sha256": "72554faf58cb2e49b72b70232603009317be5102eab9dccde016e0035191cf82"
+    },
+    "publication-matched-pipeline": {
+      "argv": [
+        "python3",
+        "out/publication/run-publication-matched.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-publication-compact",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 465.0419649030082,
+      "log_sha256": "fa94f43703b325a50b6a0000fc55d4546c3e7f951814302b4854833a19f8528a"
+    },
+    "publication-compact-models": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "/home/deano/fes/out/dev/de25-setup-release/tests",
+        "-p",
+        "test_nano_source_retirement.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 89.85474661900662,
+      "log_sha256": "471156132983e2f0b643d6ca64e14550c5309c15bd1e8d3bd2013b6c01634629"
+    },
+    "publication-compact-link-preview": {
+      "argv": [
+        "python3",
+        "out/publication/preview-publication-compact-link.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.403813959797844,
+      "log_sha256": "419261b5341adc43ddfd3381c4f5e5674c3e93aaa3aab70a2ba3cabf5d690a32"
+    },
+    "publication-compact-check": {
+      "argv": [
+        "make",
+        "-C",
+        "/home/deano/fes/out/dev/de25-setup-release",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 13.41784315300174,
+      "log_sha256": "4ffe37a0582de7ca316571feada015e041e0fcc1e04f967bf1c719a8c98bc0bc"
+    },
+    "publication-reset-lock-model-r4": {
+      "argv": [
+        "python3",
+        "out/publication/model-secure-reset-lock.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20059108408167958,
+      "log_sha256": "9376230c805e24cad4baa3ddd02531947775ff8503a9f1735a1cc4c738747994"
+    }
+  },
+  "failed_candidate_bl31": {
+    "argv": [
+      "/usr/bin/python3",
+      "out/publication-boot/build-chain.py",
+      "bl31"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-publication-proof",
+    "returncode": 1,
+    "timed_out": false,
+    "elapsed": 27.215804514940828,
+    "log_sha256": "aa17c7690be41b7ae22c179d190bd2cbb4775e8817f05625f536234ac74cbee4"
+  },
+  "classification": "fresh SDK/entry/BL31/SPL-U-Boot/FPGA composition and full native file admission; NOT hardware boot or repeated-loading acceptance",
+  "source_bundle_prerequisite": "63c9e242f5d4ac852faf1965218a5f6393e4be64",
+  "hardware_actions": false,
+  "hardware_accepted": false
+}
