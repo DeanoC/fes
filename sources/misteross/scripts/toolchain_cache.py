@@ -1806,6 +1806,51 @@ def _tree_bytes(path: Path) -> int:
     return total
 
 
+def _tombstone_pid(name: str) -> int | None:
+    """The pid in a ``.prune-<name>-<pid>`` tombstone, if it parses."""
+
+    match = re.fullmatch(r"\.prune-.+-(\d+)", name)
+    return int(match.group(1)) if match else None
+
+
+def _reclaim_tombstones(parent: Path, *, apply: bool, report: dict[str, list[str]],
+                        output) -> int:
+    """Remove ``.prune-*`` trees left by a prune that died after its rename.
+
+    ``remove()`` renames an install aside before deleting it, and both
+    enumeration passes skip dot-prefixed directories, so an interrupted or
+    failed delete leaves a complete install that no later run would ever
+    revisit. Only tombstones whose creating process is gone are reclaimed: a
+    live pid means a concurrent prune is still deleting that tree, and
+    skipping it is the safe answer. A reused pid can only make us skip.
+    """
+
+    freed = 0
+    for directory in sorted(parent.iterdir()):
+        if not directory.name.startswith(".prune-") or directory.is_symlink() or not directory.is_dir():
+            continue
+        pid = _tombstone_pid(directory.name)
+        if pid is not None and Path(f"/proc/{pid}").exists():
+            print(f"in progress, skipped: {directory.name}", file=output)
+            continue
+        size = _tree_bytes(directory)
+        freed += size
+        label = f"{parent.name}/{directory.name}"
+        if not apply:
+            print(f"would reclaim: {label} (abandoned prune, {size / 2**30:.1f} GiB)", file=output)
+            report["removed"].append(label)
+            continue
+        try:
+            _remove_tree(directory)
+        except OSError as error:
+            print(f"cannot reclaim {label}: {error}", file=output)
+            freed -= size
+            continue
+        print(f"reclaimed: {label} (abandoned prune, {size / 2**30:.1f} GiB)", file=output)
+        report["removed"].append(label)
+    return freed
+
+
 def _remove_tree(path: Path) -> None:
     """Delete a published (read-only) tree that has been renamed aside."""
 
@@ -1963,6 +2008,7 @@ def prune(
         parent = tools_root / tool
         if not parent.is_dir():
             continue
+        freed += _reclaim_tombstones(parent, apply=apply, report=report, output=output)
         for directory in sorted(parent.iterdir()):
             if directory.name.startswith(".") or directory.is_symlink() or not directory.is_dir():
                 continue
@@ -1998,6 +2044,7 @@ def prune(
 
     slots = cache_root / "slots"
     if legacy_slots and slots.is_dir():
+        freed += _reclaim_tombstones(slots, apply=apply, report=report, output=output)
         for directory in sorted(slots.iterdir()):
             if directory.name.startswith(".") or directory.is_symlink() or not directory.is_dir():
                 continue

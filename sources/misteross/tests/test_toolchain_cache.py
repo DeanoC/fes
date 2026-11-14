@@ -896,6 +896,39 @@ class ToolchainCachePruneTests(unittest.TestCase):
         self.assertEqual(toolchain_cache.verify_install(recent, "verilator").key, recent_install.key)
         self.assertEqual(list((self.cache / "tools" / "yosys").glob(".prune-*")), [])
 
+    def test_prune_reclaims_tombstones_only_from_dead_prunes(self):
+        """An interrupted prune leaves a complete install nobody revisits.
+
+        ``remove()`` renames the directory aside to ``.prune-<name>-<pid>``
+        before deleting it, and both enumeration passes skip dot-prefixed
+        names, so a delete that dies after the rename strands the whole tree.
+        A live pid means a concurrent prune is still working on it.
+        """
+        pinned = self.request()
+        for tool in toolchain_cache.TOOLS:
+            _publish(pinned, tool)
+        parent = self.cache / "tools" / "yosys"
+        dead_pid = int(Path("/proc/sys/kernel/pid_max").read_text()) + 1
+        abandoned = parent / f".prune-{'a' * 64}-{dead_pid}"
+        (abandoned / "install" / "bin").mkdir(parents=True)
+        (abandoned / "install" / "bin" / "yosys").write_text("stranded", encoding="utf-8")
+        live = parent / f".prune-{'b' * 64}-{os.getpid()}"
+        (live / "install").mkdir(parents=True)
+
+        report, output = self.prune()
+        self.assertIn(f"yosys/{abandoned.name}", report["removed"])
+        self.assertIn("would reclaim", output)
+        self.assertIn("in progress, skipped", output)
+        self.assertTrue(abandoned.exists(), "a dry run removes nothing")
+
+        report, output = self.prune(apply=True)
+        self.assertIn(f"yosys/{abandoned.name}", report["removed"])
+        self.assertFalse(abandoned.exists())
+        self.assertTrue(live.exists(), "a live prune's tombstone is left alone")
+        self.assertIn("reclaimed", output)
+        # The pinned installs are untouched by the sweep.
+        toolchain_cache.verify_ready(pinned)
+
     def test_prune_reads_locks_from_the_ref_not_the_worktree(self):
         pinned = self.request()
         install = _publish(pinned, "yosys")

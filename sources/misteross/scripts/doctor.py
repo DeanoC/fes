@@ -126,7 +126,15 @@ def _shared_cache_selected() -> bool:
 
 
 def _shared_toolchain() -> tuple[Any | None, str | None]:
-    """Resolve the lock's authenticated shared installs without modifying the cache."""
+    """Resolve the lock's authenticated shared installs, holding each one.
+
+    The checks below execute binaries out of this resolution, so the installs
+    are held (shared locks, last use stamped) until the process exits rather
+    than merely verified. Verifying without holding let a concurrent
+    `toolchain-prune APPLY=1` rename an install between the check and the probe,
+    and doctor then reported a missing or unlaunchable tool that was in fact
+    fine. Probing a tool is a use, so stamping it is right as well.
+    """
 
     cache_text = os.environ.get("FES_TOOLCHAIN_CACHE_ROOT", "").strip()
     if not cache_text:
@@ -143,7 +151,7 @@ def _shared_toolchain() -> tuple[Any | None, str | None]:
             gpu_router=router,
             hip_architectures=architectures,
         )
-        manifest = toolchain_cache.verify_ready(request)
+        manifest = toolchain_cache.resolve_ready(request)
     except Exception as exc:  # noqa: BLE001 - doctor reports all readiness failures
         return None, f"shared toolchain cache verification failed: {exc}"
     return manifest, None
