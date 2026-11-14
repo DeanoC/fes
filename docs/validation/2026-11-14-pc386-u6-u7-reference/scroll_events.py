@@ -46,6 +46,7 @@ for i in range(1, frames):
     diffs.append(round(mad(prev, cur), 2))
     prev = cur
 
+quiet = [d for d in diffs if d <= THRESH]
 events, run = [], None
 for i, d in enumerate(diffs, start=1):
     if d > THRESH:
@@ -66,5 +67,7 @@ out = {'raw': raw, 'frames': frames, 'fps': FPS, 'threshold': THRESH,
        'span_s': round((events[-1] - events[0]) / FPS, 2) if len(events) > 1 else None,
        'rate_over_span': round((len(events) - 1) * FPS / (events[-1] - events[0]), 3) if len(events) > 1 else None,
        'max_diff': max(diffs) if diffs else None,
-       'quiet_median_diff': statistics.median([d for d in diffs if d <= THRESH]) if diffs else None}
+       # A capture whose every transition is above the threshold has no quiet frame
+       # to take a median of; report null rather than raising on an empty list.
+       'quiet_median_diff': statistics.median(quiet) if quiet else None}
 print(json.dumps(out))
