@@ -1,0 +1,22 @@
+{
+  "status": "passed",
+  "classification": "retained physical selected-package Tenfoot App cycle diagnostic; no general runtime admission or physical USB/display qualification",
+  "observer_source": "4ecd73cfea5d5e64839025dac14d051a9ecf230b",
+  "archive": "/home/deano/fes-retained/de25-tenfoot-core-cycle-20261104-r2/observed-chain-and-procedure.tar.gz",
+  "archive_sha256": "af93d4589a1c27cee31547c85be5dd5634bad028dbfef991e7374dad5e30ed03",
+  "archive_bytes": 203698019,
+  "regular_members_verified": 48937,
+  "internal_links_verified": 59,
+  "source_update_bundle": "/home/deano/fes-retained/de25-tenfoot-core-cycle-20261104-r2/source-update.bundle",
+  "source_update_bundle_sha256": "1def434cc2e97d68da24158e8b153e238ecdcf024c060c60c62c8f8a68b8d497",
+  "required_base_bundle": "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/source.bundle",
+  "required_base_bundle_sha256": "daeee37ba8c039ffc165c2c92d7a639af01c441099fe1359ae207846fa75216f",
+  "required_sealed_project_archive": "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/matched-candidate.tar.gz",
+  "required_sealed_project_archive_sha256": "1479d5fa439c77457a3c19959a97b810b8ce5a6aa0672bb4567519f2d7229d17",
+  "combined_source_restore_and_strict_fsck": true,
+  "hardware_attempts": 1,
+  "hardware_retries": 0,
+  "diagnostic_cycles": 3,
+  "production_acceptance": false,
+  "offline_toolchain_export": false
+}

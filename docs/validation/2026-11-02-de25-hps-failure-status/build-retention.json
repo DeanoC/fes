@@ -1,0 +1,24 @@
+{
+  "archive": "/home/deano/fes-retained/de25-hps-failure-status-20261102/builds.tar.gz",
+  "size": 148213449,
+  "sha256": "e469a6edaced8d8f79aa736930078c817b8645ce39930d737b92aeaf0d06758f",
+  "members": 43681,
+  "every_member_verified": true,
+  "source": {
+    "source_commit": "42f2586b24a07dbbf1cfb8fd40dadf07ec7b6e65",
+    "tree": "32914835dcdab2fef146f2c4b5ba63d49a3b34db",
+    "bundle_sha256": "0a8a39b862abd7cd08b0b2517594c1f86972c54fcb61ff5c7761eee1102634e4",
+    "prerequisite_commit": "1a0cf9d46f6d30f4c4cead17a7f5252109b41ba2",
+    "previous_object_store": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-20261102/source-restore.git",
+    "alternate_object_stores": [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-sdm-status-20261102/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-20261102/source-restore.git/objects"
+    ],
+    "restored_tree_verified": true,
+    "verified_reachable_objects": 8570,
+    "missing_objects": 0,
+    "scope": "incremental bundle; requires the documented prior source-retention chain"
+  },
+  "manifest_sha256": "8f8c757eee4427973a00328e32f86d5587bf4b9be647076a00b170821f349c2a",
+  "prior_retention": "/home/deano/fes-retained/de25-hps-status-shadow-20261102"
+}

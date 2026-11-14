@@ -1,0 +1,84 @@
+{
+  "status": "focused-software-checks-passed",
+  "base": "fa3b9830256e35a26c09a9f2cb607364a3ad629c",
+  "checks": {
+    "generated-consumers": {
+      "argv": [
+        "make",
+        "generate"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 10.813109142007306,
+      "log_sha256": "9f591b88bacea4b1f98d35e4385e5bcce509613a5bf1bd913eb32a646a27a0ca"
+    },
+    "focused-final": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "test_nano_tape",
+        "test_nano_tape_service",
+        "test_nano_tenfoot_trace",
+        "test_nano_paired_tenfoot_trace"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.4020429379306734,
+      "log_sha256": "d84b97e8c98c1e9d09f8f705c7f91c476e699fbfcd0bca07bbb30ba6f5e0d680"
+    },
+    "computer-final": {
+      "argv": [
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "./computer"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.40105379396118224,
+      "log_sha256": "01273f469da63027315ad5b25af8de83568206f82cb1fe6e7b0e8f17d68b3b0f"
+    },
+    "go-final-uncached": {
+      "argv": [
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-count=1",
+        "./computer",
+        "./nativefabric",
+        "./board/de25nano"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 39.82476406800561,
+      "log_sha256": "35ba194edefff9a3bde40795a0743c1b6bed7af6c093f70b4b8ea065354a2ff6"
+    },
+    "strong-final": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "test_nano_mixed_cold.NanoMixedColdTests.test_actual_initial_tape_supplier_dispatch_hash_and_return",
+        "test_nano_mixed_cold.NanoMixedColdTests.test_actual_mmu_profile_launch_tape_return_and_failures"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 30.41971456212923,
+      "log_sha256": "07902f080d8cf1b090947f3fe1a5ed17e1241417d072b84bc37b55fe359d4e0a"
+    }
+  },
+  "shared_contract_major": 2,
+  "fpga_protocol_changed": false,
+  "matched_boot_chain_built": false,
+  "hardware_acceptance": false,
+  "ordinary_core_load_acceptance": false,
+  "goal_complete": false
+}

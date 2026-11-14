@@ -1,0 +1,102 @@
+{
+  "status": "passed",
+  "classification": "actual generated DDR inventory and negative copies; no compiled seal or hardware acceptance",
+  "source_project": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr",
+  "inputs_sha256": {
+    "board/hps/inputs.json": "0096bed9adfe9d2a0689b4504a52e81b7a44e8b4a31b9f45122077480105d992",
+    "board/hps/project/qsys_top/qsys_top.sopcinfo": "e659e5fda944aebf44e5f46cd658f161ecda6a724b8d37422f0b7ad886748fd3",
+    "board/hps/project/fes_mailbox/fes_de25_embedded.sv": "e8a8f0f41aca9dfce55ef7177a5cbecefa410d849b93c6ce4547d159f4aa2f26",
+    "board/hps/project/peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v": "de2e1debf30b297c97660407ab1b06530646190c131b52d64fce960b365472f7",
+    "board/hps/project/fes_mailbox/fes_embedded_control.sv": "95bc4ef8f470612d71dfa2737e96a988e8a8508e5db56857455bf294654667f3",
+    "board/hps/project/fes_mailbox/generated/fes_embedded_control.vh": "20e1f042865b54a4cc6a7334b874fedc9f95aa87deb2757ce04a35cc023fc597",
+    "board/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/synth/peripheral_subsys_fes_embedded.v": "800eb7389621a642615c7c6707e6cf5fb008e0e4a20727fe42f870b8b96a6e30",
+    "board/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/fes_de25_embedded_10/synth/fes_de25_embedded.sv": "e8a8f0f41aca9dfce55ef7177a5cbecefa410d849b93c6ce4547d159f4aa2f26",
+    "board/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/fes_de25_embedded_10/synth/fes_embedded_control.sv": "95bc4ef8f470612d71dfa2737e96a988e8a8508e5db56857455bf294654667f3",
+    "board/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/fes_de25_embedded_10/synth/fes_embedded_control.vh": "20e1f042865b54a4cc6a7334b874fedc9f95aa87deb2757ce04a35cc023fc597",
+    "board/hps/project/fes_mailbox/fes_de25_ddr_probe.v": "884512e8259f8ac1becdeae5dd2845de450ee6ec3dc5b977f67fb11bb676d498",
+    "board/hps/project/fes_mailbox/generated/fes_de25_ddr_probe.vh": "5e79081cdf4daca60057540a3c3ce4eb12ad6f88eceb475a828779588ac717c3",
+    "board/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ddr_probe/fes_de25_ddr_probe_10/synth/fes_de25_ddr_probe.v": "884512e8259f8ac1becdeae5dd2845de450ee6ec3dc5b977f67fb11bb676d498",
+    "board/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ddr_probe/fes_de25_ddr_probe_10/synth/generated/fes_de25_ddr_probe.vh": "5e79081cdf4daca60057540a3c3ce4eb12ad6f88eceb475a828779588ac717c3"
+  },
+  "cases": [
+    {
+      "case": "pass",
+      "result": "accepted",
+      "proof": {
+        "instance": "subsys_periph.fes_embedded",
+        "clock_hz": 100000000,
+        "maps": {
+          "lw": {
+            "name": "subsys_periph.fes_embedded.avs",
+            "base": 66560,
+            "span": 256
+          },
+          "jtag": {
+            "name": "subsys_periph.fes_embedded.avs",
+            "base": 1115136,
+            "span": 256
+          }
+        },
+        "cpu_physical_address": "not-established",
+        "reader_memory": {
+          "backend": "hps-ddr",
+          "bus_base": 2499805184,
+          "bytes": 8192
+        },
+        "physical_ddr": "wired-unqualified",
+        "maintenance_masters": "held-reset-from-configuration",
+        "other_ddr_master": "fes_ddr_probe; independent cancel/drain required"
+      }
+    },
+    {
+      "case": "missing-maintenance-hold",
+      "result": "rejected",
+      "reason": "generated maintenance master reset hold route differs: subsys_debug_jtag_rst_in.in_reset"
+    },
+    {
+      "case": "live-maintenance-reset",
+      "result": "rejected",
+      "reason": "generated maintenance master reset hold route differs: subsys_debug_jtag_rst_in.in_reset"
+    },
+    {
+      "case": "duplicate-maintenance-reset",
+      "result": "rejected",
+      "reason": "generated maintenance master reset hold route differs: subsys_debug_jtag_rst_in.in_reset"
+    },
+    {
+      "case": "live-coherent-master",
+      "result": "rejected",
+      "reason": "generated maintenance master reset hold route differs: subsys_debug_hps_m.clk_reset"
+    },
+    {
+      "case": "extra-ddr-master",
+      "result": "rejected",
+      "reason": "generated DDR master inventory differs"
+    },
+    {
+      "case": "wrong-forwarded-window",
+      "result": "rejected",
+      "reason": "generated embedded memory parameters differ or override build identity"
+    },
+    {
+      "case": "untied-reset",
+      "result": "rejected",
+      "reason": "maintenance reset constant source differs"
+    },
+    {
+      "case": "probe-local",
+      "result": "rejected",
+      "reason": "inherited DDR probe source differs from sealed inventory"
+    },
+    {
+      "case": "probe-generated",
+      "result": "rejected",
+      "reason": "inherited DDR probe source differs from sealed inventory"
+    },
+    {
+      "case": "probe-macro",
+      "result": "rejected",
+      "reason": "inherited DDR probe source differs from sealed inventory"
+    }
+  ]
+}

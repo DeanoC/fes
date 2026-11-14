@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/nano-keyboard-return-native-20261109/build_chain.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 261.306180204032,
+  "log_sha256": "52f5ab51ec063c33440673fa5ed3ab07fa286f3b8bc1f70b09399151d732157b"
+}

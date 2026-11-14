@@ -1,0 +1,46 @@
+"""Replay the terminal trial without turning a failed launch into acceptance."""
+import hashlib,json,re,sys
+from pathlib import Path
+a=Path(__file__).resolve().parent;root=a.parents[1];s=root/'out/nano-secure-control-trial-20261109';t=s/'trial';doc=root/'docs/validation/2026-11-09-de25-secure-control-trial'
+sys.path[:0]=[str(t),str(root/'platform/embedded/nano')]
+from common import UBOOT,ENTRY,CANDIDATE,sha
+from trial_inputs import shared_policy
+from native_trace import decode_native_boot
+from configuration_trace import extract,START_PHASES
+raw=(t/'native-console.log').read_bytes();n=json.loads((t/'native-result.json').read_text());r=json.loads((t/'experiment-result.json').read_text());cleanup=json.loads((s/'cleanup-evidence.json').read_text());assert cleanup['status']=='passed'
+u=json.loads((UBOOT/'result.json').read_text());e=json.loads((ENTRY/'result.json').read_text());cold=u['native_handoff']['cold_boot_profile'];context=cold['hps_context'];policy=shared_policy(entry=e,cold=cold)
+end=re.search(rb'(?m)^FES_ENTRY EL1 HANDOFF\r?\n',raw);assert end
+boot=decode_native_boot(raw[:end.end()],u['native_handoff']['build_id'],cold['owner_seed'],package=dict(package_id=context['package_id'],payload_sha256=context['core_sha256'],payload_bytes=context['core_size'],build_id=context['build_id']),atf=u['native_handoff']['atf_handoff'],usb_control=True,usb_shared=True,firmware_ram_trace=True,firmware_mmu=u['firmware_mmu_proof'],hps_context=policy['hps_context'],hps_io=policy['hps_io'])
+assert boot==n['boot_trace'] and boot['loader_ready'] and not boot['errors'];mmu=boot['firmware_mmu_trace'];assert mmu['valid'] and mmu['complete'] and not mmu['faults']
+arms=list(re.finditer(rb'(?m)^NOTICE:  FES_NANO_CORE_TRANSFER phase=arm owner=[0-9a-f]+ generation=(\d+)[^\r\n]*\r?\n',raw));assert [int(m[1]) for m in arms]==[4,10]
+configurations=[]
+for i,(match,spec,previous) in enumerate(zip(arms,(cold['hps_menu_program']['configuration'],cold['hps_configuration']),(0,4))):
+ segment=raw[match.start():arms[i+1].start() if i+1<len(arms) else len(raw)]
+ cfg=extract(segment,spec,generation=int(match[1]),previous=previous,rearm=bool(previous),require_programmed=False,require_activation=True)
+ assert not cfg['errors'] and cfg['complete'] and cfg['activation'] and cfg['offset']==spec['core_size']
+ obs=cfg['start_observation'];assert obs['complete'] and [(x['phase'],x['status']) for x in obs['records']]==[(p,2 if p==7 else 0) for p in START_PHASES]
+ fragments=cfg.pop('parts');cfg['unparsed_fragments_sha256']=hashlib.sha256(b''.join(fragments)).hexdigest()
+ configurations.append(dict(generation=int(match[1]),bytes=cfg['offset'],proof=cfg))
+smmu=[x.decode() for x in raw.splitlines() if b'FES_NANO_SMMU ' in x];assert len(smmu)==4 and all('reads=26 ' in x and 's_idr1=80000018 ' in x for x in smmu)
+assert n['startup_trace']['complete'] and not n['startup_trace']['errors'];assert n['startup_reply']['native']['State']=='ready'
+frames=n['startup_menu_observations'];assert len(frames)==3 and all(x['event']=='frame' and x['frame']['Underflows']==0 for x in frames)
+returns=[json.loads(x.split(b' ',1)[1]) for x in raw.splitlines() if x.startswith(b'FES_NATIVE_MENU_STATE ') and b'"event":"return"' in x];assert len(returns)==1 and returns[0]['after']['MastersContained'] and returns[0]['frames']==4
+assert b'FES_NANO_WINDOW_READER_DRAIN' in raw and b'FES_NANO_WINDOW_CLOSURE' in raw
+assert n['app_commands']==[dict(action='launch',selection=0,payload_hex='0d',bound_seconds=100,status='failed',error='native failure marker; no further command')]
+rows=[x.decode() for x in raw.splitlines() if b'FES_NANO_TAPE_FAILURE ' in x];assert len(rows)==1
+fields=dict(re.findall(r'(\w+)=(-?[0-9a-f]+)',rows[0]));decimal={'error','generation','bytes','opcode','index','reads','writes','frame_phase','next','frame_failed','complete','hz'}
+tape={k:int(v,10 if k in decimal else 16) for k,v in fields.items()};assert tape['error']==-6 and tape['bytes']==917 and tape['next']==512 and tape['complete']==0 and tape['frame_failed']==1
+assert 0.999<(tape['tick']-tape['began'])/tape['hz']<1 and b'FES_NANO_TAPE_CONTAINMENT' in raw and b'attempted=1 status=0' in raw
+states=[json.loads(x.split(b' ',1)[1]) for x in raw.splitlines() if x.startswith(b'FES_NATIVE_TENFOOT_STATE ')];assert states[-1]['native']['State']=='reboot_required' and states[-1]['native']['Held'] and states[-1]['native']['rom_receipt_sha256']
+assert not n['pass'] and not r['pass'] and n['passive_failure_tail']['complete'] and n['passive_failure_tail']['bound_seconds']==2
+assert r['total_transport_programming_failures']==2 and not r['incomplete_programming_phases']
+reservations={}
+for name in ('recovery','native'):
+ p=t/(name+'-program-consumed.json');x=json.loads(p.read_text());y=json.loads(p.with_name(p.name+'.scan.json').read_text());assert x['state']=='reserved-before-scan' and y['state']=='consumed-before-programming';reservations[name]=dict(reservation_sha256=sha(p),scan_sha256=sha(p.with_name(p.name+'.scan.json')))
+result=dict(status='physical-menu-ready-core-configured-tape-deadline-failure',source_commit=r['source_commit'],compiled_firmware_source=json.loads((CANDIDATE/'publication.json').read_text())['source_head'],native_boot_id=u['native_handoff']['build_id'],raw_console_replay_matches=True,pass_=False,mmu_memory_proof_complete=True,native_boot_decoder_complete=boot['complete'],secure_loader_verified=n['secure_cold_boot_verified'],el1_handoff=b'FES_ENTRY EL1 HANDOFF' in raw,sd_fat_started=b'phase=fat_mount_end' in raw,
+ configuration_complete=True,configuration_cycles_observed=len(configurations),configurations=configurations,smmu_observations=smmu,secure_smmu_id_visible=True,initial_menu_ready=True,startup_observation_seconds=n['startup_observation_seconds'],menu_frames_observed=returns[0]['frames'],menu_window_drain_and_closure_observed=True,menu_observations=frames,menu_return_observation=returns[0],first_launch_requested=True,core_configured='fes.zx81',core_running=False,normal_core_return=False,tape_attempted=True,tape_failure=tape,tape_deadline_seconds=1,tape_last_successful_clock_seconds=(tape['tick']-tape['began'])/tape['hz'],tape_failing_clock_sample_recorded=False,tape_failure_contained=True,final_app_state=states[-1],ordinary_core_load_acceptance=False,physical_display_verified=False,physical_input_verified=False,cleanup=cleanup,programming_reservations=reservations,historical_programming_failures=2,new_programming_failures=0,consumed_image_retired=True,hardware_actions=False,goal_complete=False,
+ interpretation='The selected control-address repair permits menu Ready with four frame submissions, secure SMMU ID visibility, window access and a drained menu closure before the first launch. ZX81 FPGA configuration/activation succeeds and the App retains a ROM receipt, but the first initial tape transfer exceeds the unchanged one-second limit after 512 of 917 bytes. The trace reports successful failure containment and reboot_required with resources held. No running-core or core-return cycle, HDMI capture or ordinary appliance acceptance is established.',
+ next_step='Investigate the sampled per-access ownership costs and uncached EL3 stack traffic while preserving every live CPU/ownership/USB/register guard and the original one-second tape budget. Do not replay this consumed image or extend its deadline.',
+ logs={name:sha(t/name) for name in ('native-console.log','native-result.json','experiment-result.json','uploads/result.json')},error=n['error'])
+result['pass']=result.pop('pass_');(doc/'hardware-result.json').write_text(json.dumps(result,indent=2)+'\n');(a/'hardware-analysis.json').write_text(json.dumps(result,indent=2)+'\n')
+print('PASS terminal replay: menu Ready/four submitted frames, secure SMMU ID, menu closure, ZX81 configuration; tape deadline fails at512/917, resources held, cleanup passed')

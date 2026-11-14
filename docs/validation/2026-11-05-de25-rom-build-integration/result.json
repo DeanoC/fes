@@ -1,0 +1,42 @@
+{
+  "base": "096fd9e7f8c6761933470d2638200f23172244d5",
+  "checks": {
+    "arm64_native_command_compile": "pass, fixture profile, no compiled boot context or board run",
+    "boot_entry_rom_integration": "pass, 56 tests",
+    "producer_metadata_and_routes": "pass, 6 tests"
+  },
+  "failed_preparation": [
+    "first fixture archive had excess USTAR trailer; corrected to canonical two end blocks",
+    "first Python invocation omitted tests fixture import path"
+  ],
+  "format": 1,
+  "hardware_operations": false,
+  "logs": {
+    "out/nano-rom-build-integration-20261105/boot-integration-tests-v1.log": "aa0eeb015b69a46b018cf74ac71c978d1b2d918ce0937e22a63eeecc9e2e89e9",
+    "out/nano-rom-build-integration-20261105/command-cross-compile-v1.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-rom-build-integration-20261105/producer-final-tests.log": "6bfff45b65c2a9bf88415d78df041052376a15498e4cf631fea78dc5c90de732",
+    "out/nano-rom-build-integration-20261105/producer-metadata-v1.log": "093d13b6ae37e8426c0bc0e0dd4aa66a518c4eea72a9574dc1e9933b0e1d0b03",
+    "out/nano-rom-build-integration-20261105/rom-build-tests-v1.log": "a39b17683a92c630aec4828f75e8aed60b2b454eab368e928919a9bb0f91013c",
+    "out/nano-rom-build-integration-20261105/rom-build-tests-v2.log": "6d21edf5c43aa43bfc1a7d8c658d0a998068c5e9697a91287f5c40ed7a3e2511"
+  },
+  "matched_boot_chain": false,
+  "quartus_build": false,
+  "scope": "nano-rom-build-integration-host-checks-v1",
+  "source_sha256": {
+    "platform/embedded/firmware/README.md": "01fd2e36fe45306c7b3cd409bf7c199bcc214e2c1f064650fd79554d617606a9",
+    "platform/embedded/nano/hps_context.py": "01a480e12abd55e282e90391e994f3ea2c862c80b690a0878ba5a9a7769e1f9f",
+    "platform/embedded/tamago/README.md": "a12f3efd401f46c5477d455a4e8f3e1d4b5904a89f4f6aefe48ac0eb0fa24003",
+    "platform/embedded/tamago/build.py": "00cc499dce817ce49af90af28da87ab4b747af1cb70fdb43fea4b93656372bce",
+    "platform/embedded/tamago/cmd/fpgaload/main.go": "cfc4b494c5b76cc11141b9f8deb11a3020c13befe72a9bcaf25146ec84512b6f",
+    "platform/embedded/tamago/cmd/nano-rom-selection/main.go": "a69def20032c6ba4d79d06b89f9501a996737debee1f18718c4817c986a4bb4e",
+    "platform/embedded/tamago/nativefabric/README.md": "7d4a94f91cee6689db3c0c8370627aac4af86e2696de73a78251ca9d03b68969",
+    "platform/embedded/tamago/run.py": "b5e3889552724c425cb3b35bd6b779eb354de24189baac2451236e0b91653914",
+    "sources/misteross/docs/architecture.md": "bdb9c19ec30386fa39a7e9806102f67765d039dd3750c1b41da2c8cb72e103cf",
+    "sources/misteross/prototypes/de25_board_control/README.md": "0d3b7c2484e39a24e5dc235d4fd0e052bec7823f9bfa3e89e548e06a35f40fe8",
+    "sources/misteross/prototypes/de25_board_control/seal.py": "4350a2cc687e0c34cc89af5dd2b9176f791788fbde29ee322b8d9c6f1522f3e5",
+    "sources/misteross/prototypes/de25_board_control/verify.py": "3de63d7d41770347a4a9ae255e0328c603517470c851a6d8016244c019cd75f4",
+    "sources/misteross/tests/test_de25_sealed_identity.py": "82d6913b4cd05f598e4f18c5260fbd900fafd34a0706518d920c304edfb6212d",
+    "tests/test_nano_rom_build.py": "9a674687617a10fa19d2763c0071f72f3fbb8b4999408370628aa365ccb82dac",
+    "tests/test_nano_rom_context.py": "0c05a9ed1d1ceffd2ccd6a0f944605ffd2495fc7c102b0b54b1f89d16cc8b5b7"
+  }
+}

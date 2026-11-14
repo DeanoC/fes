@@ -1,0 +1,14 @@
+{
+  "status": "terminal-offboard-seal-bound-failure",
+  "source_head": "b8d788c067384b91f919a46bdcc295b25bbeb9a8",
+  "fit_bytes": 8391336,
+  "fit_bound": 8388608,
+  "excess_bytes": 2728,
+  "sdk_cross_built": true,
+  "entry_built": true,
+  "bl31_built": true,
+  "upload_or_programming_attempted": false,
+  "hardware_actions": false,
+  "old_image_replay_allowed": false,
+  "next_repair": "compile only the frontend selected by the existing build tag; preserve the upload/seal bound"
+}

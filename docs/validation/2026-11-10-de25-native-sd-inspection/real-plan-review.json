@@ -1,0 +1,32 @@
+{
+  "status": "passed-independent-spare-card-and-layout-review",
+  "plan_sha256": "6c866cf22eb9a0f9ae729228db13c05cf1d0b8248149b82af58b681bd4a66cc5",
+  "cid": "275048534430344730da25e394012b",
+  "sectors": 7774208,
+  "scratch_lba": 7774200,
+  "scratch_sectors": 8,
+  "matched_historical_physical_card": true,
+  "historical_fixture_sha256": "d23ee86d6d1a76ac0ca3fa2c4cd3e8f35d85af6750558c621c4f34c04de459b3",
+  "historical_console_sha256": "eaf04da7fa540be1bc57ab2fc7dd0e7a67488eebae7eacf626e4f4d9afd84b95",
+  "mbr_matches_installed_recovery_image": true,
+  "mbr_sha256": "13f4a84a267e67f06b1d09fdfa130a7625a0aab9b363163e711aa9854d7c944c",
+  "partition_layout": [
+    {
+      "type": 12,
+      "start": 32768,
+      "sectors": 262144
+    }
+  ],
+  "scratch_outside_all_partitions": true,
+  "declared_boot_image_bytes": 150994944,
+  "recovery_and_native_environment_in_volatile_memory": true,
+  "config_sha256": {
+    "out/nano-mmu-logging-recovery-20261109/uboot-trace/build/.config": "3c152e1a46949c9a9e14f46a22c304d4fbbc034bd2e056e37312266c7687315e",
+    "out/nano-sd-scratch-20261110/uboot-inspect-ddr-r2/build/.config": "c06cc01c43638eef6f064c79d407784f30f77b6000da63f73a3ef6aba47ddf91"
+  },
+  "qualified_recovery_image_sha256": "78be01d3a807dc644e32f94d24090c6c6d3121f2d938d5e30e9268dc1ac11dff",
+  "layout_producer_sha256": "5ae09597c4899f54cc4d754500895a7880f96d47181f9fbbcdbce3cb4e51d33f",
+  "scope": "Disposable spare confirmed by historical physical CID/capacity, qualified MBR/image layout and volatile U-Boot environment. Plan remains build input only.",
+  "live_authority": false,
+  "native_write_attempted": false
+}

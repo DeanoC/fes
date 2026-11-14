@@ -1,0 +1,71 @@
+{
+  "scope": "cached-native-menu-stop-cause-through-terminal-frontend",
+  "hardware_actions": false,
+  "hardware_accepted": false,
+  "source_sha256": {
+    "platform/embedded/tamago/nativefabric/program_service.go": "35352de040ffc9bb330b225212a60483cb553c11bd833bb0e06e03efaf47a33c",
+    "platform/embedded/tamago/nativefabric/program_menu.go": "8d4e1f5cd957fb918c81d82172adbefbaebef3d2d69c0c8db690b420ecfe3de2",
+    "platform/embedded/tamago/nativefabric/program_menu_platform_test.go": "e22069509d5e4518e4339241b3ecf5278e7b77b7b2b551a0e1d08b9167ab5033"
+  },
+  "checks": {
+    "menu-stop-cause-red-r2": {
+      "argv": [
+        "bash",
+        "-c",
+        "cd platform/embedded/tamago && go test -race -run TestMenuStopCauseSurvivesFrontendRetirement -count=1 ./nativefabric"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 1,
+      "timed_out": false,
+      "elapsed": 4.003222747007385,
+      "log_sha256": "c848356e8faeb8aba963d8edda567a9eab1130a206397cbd7dfbec432ebcb99a"
+    },
+    "menu-stop-cause-green": {
+      "argv": [
+        "bash",
+        "-c",
+        "cd platform/embedded/tamago && go test -race -run TestMenuStopCauseSurvivesFrontendRetirement -count=1 ./nativefabric"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.804316974012181,
+      "log_sha256": "a368e36e35d3ef163bca6dbe59f9b48c50fc9c2b0968a18126afdc6eb0987d09"
+    },
+    "menu-stop-module-race": {
+      "argv": [
+        "bash",
+        "-c",
+        "cd platform/embedded/tamago && go test -race ./..."
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 139.08979626116343,
+      "log_sha256": "469b2a39af3911d4f3a19059b3b212d78769f3074a067a1dfba000127b47f8aa"
+    },
+    "menu-stop-source-check": {
+      "argv": [
+        "make",
+        "check-generated",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 17.812264061067253,
+      "log_sha256": "6f6229a4684c7ffaeba2621c8529f3424bcb4b212605b694bb43ab20ac98174e"
+    },
+    "next-boot-cause-sdk": {
+      "argv": [
+        "python3",
+        "out/next-boot-with-cause/build-native.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 82.24597095604986,
+      "log_sha256": "fdbff424ca3c3d29aea0b6ff0923a73176b4e45b7a1b6718d4e585f2c0ea399f"
+    }
+  }
+}

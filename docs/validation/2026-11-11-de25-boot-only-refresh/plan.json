@@ -1,0 +1,144 @@
+{
+  "format": 1,
+  "scope": "nano-boot-only-refresh-plan-v1",
+  "board": "TRWU8CBL",
+  "previous_boot": {
+    "purpose": "boot",
+    "source": "out/nano-configuration-startup-chain-20261111/native-composition/u-boot.itb",
+    "destination": "FES/UPLOAD.BIN",
+    "bytes": 8379032,
+    "sha256": "215a5e342e48a7de9fdd86231398d646bd779d408ba8f6fc7f065dda9d2231c9"
+  },
+  "files": [
+    {
+      "purpose": "boot",
+      "source": "out/nano-http-catalog-chain-20261111/native-composition/u-boot.itb",
+      "destination": "FES/UPLOAD.BIN",
+      "bytes": 8379032,
+      "sha256": "4ffb2723c97535ab39ada25fbf9c70c01869706333d3dbe530b56c664065b2a5"
+    },
+    {
+      "purpose": "package",
+      "source": "out/nano-catalog-observer-20261111/staged-export/FES/PKGTEST.BIN",
+      "destination": "FES/PKGTEST.BIN",
+      "bytes": 1659392,
+      "sha256": "191f63a663d2ce12a83bc499e2a6f89332732a260b2bb3e0c8daf2ff71ecd5b7"
+    },
+    {
+      "purpose": "metadata",
+      "source": "out/nano-catalog-observer-20261111/staged-export/FES/PROGRAM.JSN",
+      "destination": "FES/PROGRAM.JSN",
+      "bytes": 3269,
+      "sha256": "f03276391ec2ff380cc1be67633bed840b4908520a3dd4a84394ccedba00c26c"
+    },
+    {
+      "purpose": "firmware",
+      "source": "out/nano-catalog-observer-20261111/staged-export/FES/FIRMWARE.BIN",
+      "destination": "FES/FIRMWARE.BIN",
+      "bytes": 8192,
+      "sha256": "14ad84f4243efcd41587ff46ab932d11087043e8d455a1ed2a227b9657828dfa"
+    },
+    {
+      "purpose": "package-alt",
+      "source": "out/nano-catalog-observer-20261111/staged-export/FES/PKGALT.BIN",
+      "destination": "FES/PKGALT.BIN",
+      "bytes": 1663488,
+      "sha256": "b46b3af120e9ef853220a9404b2fa5a9607df660c5a76e94e86031ea08d5e042"
+    },
+    {
+      "purpose": "metadata-alt",
+      "source": "out/nano-catalog-observer-20261111/staged-export/FES/PROGALT.JSN",
+      "destination": "FES/PROGALT.JSN",
+      "bytes": 3269,
+      "sha256": "223955a3ec1bc9c148775a00eac598c81a037bc9f10c4944f8336fadc5673820"
+    },
+    {
+      "purpose": "firmware-alt",
+      "source": "out/nano-catalog-observer-20261111/staged-export/FES/FIRMALT.BIN",
+      "destination": "FES/FIRMALT.BIN",
+      "bytes": 4096,
+      "sha256": "9374711cb6a5fd53c1c98d1d20ecb444d01d621a322f3d066ef216d515ac5161"
+    },
+    {
+      "purpose": "tape",
+      "source": "out/nano-catalog-observer-20261111/staged-export/FES/GAME.P",
+      "destination": "FES/GAME.P",
+      "bytes": 917,
+      "sha256": "3664f171999bf597cc284754ac8f7ad2071bafd78fb1cd48c330d82dfbebaabb"
+    },
+    {
+      "purpose": "menu-package",
+      "source": "out/nano-catalog-observer-20261111/staged-export/FES/MENU.FCP",
+      "destination": "FES/MENU.FCP",
+      "bytes": 1711104,
+      "sha256": "8be58f92484c004da30cbf66c1beccf86252b0b1c2483d8384defc16a833c9b1"
+    },
+    {
+      "purpose": "menu-metadata",
+      "source": "out/nano-catalog-observer-20261111/staged-export/FES/MENU.JSN",
+      "destination": "FES/MENU.JSN",
+      "bytes": 2676,
+      "sha256": "c751e4160e7ac440284e76672c849a23113d8422621a0a1f0fc64c1976e145c9"
+    },
+    {
+      "purpose": "menu-selection",
+      "source": "out/nano-catalog-observer-20261111/staged-export/FES/MENUSEL.JSN",
+      "destination": "FES/MENUSEL.JSN",
+      "bytes": 282,
+      "sha256": "03e353539c17319e89bf457d81624a32c5aedd28a19fd79828013c888d7e0365"
+    },
+    {
+      "purpose": "selection",
+      "source": "out/nano-catalog-observer-20261111/staged-export/FES/CORESEL.JSN",
+      "destination": "FES/CORESEL.JSN",
+      "bytes": 63,
+      "sha256": "b003ab10e32b3bb3121d910557bdfb9d1083c77cc05e933beaed67eb6d4ae09a"
+    },
+    {
+      "purpose": "ui-catalog",
+      "source": "out/nano-catalog-observer-20261111/staged-export/FES/UI.JSON",
+      "destination": "FES/UI.JSON",
+      "bytes": 60,
+      "sha256": "3dd321e5e3af4ed77e2051f4c5c1e8e7cf049bc40e113afca00d3494eaacb1b0"
+    },
+    {
+      "purpose": "install-manifest",
+      "source": "out/nano-catalog-observer-20261111/staged-export/FES/INSTALL.JSN",
+      "destination": "FES/INSTALL.JSN",
+      "bytes": 1817,
+      "sha256": "9cb348531e8d756312aad0a136611d874aeeccde525ef12419ac421c4f254dc0"
+    }
+  ],
+  "retained_records": [
+    {
+      "source": "out/nano-catalog-observer-20261111/expected-prior-installed-record.json",
+      "destination": "FES/INSTALLED/6581aab8a5b415a8dceac77198cbb104d76108f9ae38a34ba45f164a630c891d.JSN",
+      "sha256": "6581aab8a5b415a8dceac77198cbb104d76108f9ae38a34ba45f164a630c891d",
+      "bytes": 754,
+      "read_only": true,
+      "before_staging": true,
+      "after_fresh_boot": true
+    }
+  ],
+  "native_boot_id": "6f54fe7c04d34128",
+  "native_sdk_sha256": "c607dc9d9f9e3dcc6ab57269614217cb0ec32916814c79076d30441f48e53893",
+  "previous_upload_evidence": {
+    "path": "out/nano-catalog-install-trial-20261111/trial/uploads/result.json",
+    "sha256": "ae8e73dd73cd6719ca11204f50d459c6c364265d0954df03858fc29045d3bf9b"
+  },
+  "prior_failure": {
+    "path": "docs/validation/2026-11-11-de25-catalog-install-usb-stop/hardware-result.json",
+    "sha256": "e76eedf0467947566bd0a0b8e8fbb329bce2a1efaddcad4d34b568255ce813ef"
+  },
+  "execute": false,
+  "hardware_actions": false,
+  "live_authority": false,
+  "execution_available": false,
+  "fresh_source_and_recovery_admission_required": true,
+  "physical_connection_correction_required": true,
+  "write_destinations": [
+    "FES/UPLOAD.BIN"
+  ],
+  "activation": false,
+  "persistence_verified": false
+}

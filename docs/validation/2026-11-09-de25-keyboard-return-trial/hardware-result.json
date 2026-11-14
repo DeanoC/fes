@@ -1,0 +1,78 @@
+{
+  "status": "physical-keyboard-stop-not-observed",
+  "native_boot_id": "ff0e7da217a21406",
+  "compiled_source": "545f3402232de5e018069455bb38628e15e39050",
+  "operator_source": "0f507a1f9bc14eff0d570b72fa7e4e0ebe01417f",
+  "secure_boot_and_native_ready": true,
+  "startup_seconds": 58.160836591152474,
+  "initial_menu_verified": true,
+  "configuration_cycles_observed": 2,
+  "core_launches_verified": [
+    "fes.zx81"
+  ],
+  "tape_receipt": {
+    "scope": "nano-computer-fetch-tape-v1",
+    "owner": 3832134579842882261,
+    "generation": 1,
+    "package_id": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+    "build_id": "0792e51a2e51512bfb8fe44e93a69ddd",
+    "before": {
+      "Cycles": 0,
+      "Address": 0
+    },
+    "held": {
+      "Cycles": 0,
+      "Address": 0
+    },
+    "running": {
+      "Cycles": 11928,
+      "Address": 977
+    },
+    "delta": 11928,
+    "polls": 1,
+    "elapsed_ns": 1291848575,
+    "limit_ns": 7000000000,
+    "tape_bytes": 917,
+    "tape_elapsed_ns": 1199775625,
+    "tape_limit_ns": 6000000000,
+    "control_elapsed_ns": 92072950
+  },
+  "successful_commands_independently_replayed": 1,
+  "physical_wait_bound_seconds": 60,
+  "physical_stop_observed": false,
+  "uart_stop_substitute_sent": false,
+  "keyboard_hardware_failure_proven": false,
+  "operator_keypress_timing_known": false,
+  "last_observed_service_state": "running",
+  "last_observed_generation": 1,
+  "normal_return_verified": false,
+  "final_park_verified": false,
+  "host_detached": true,
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "auto_adjust_readback": 1,
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "new_programming_failures": 0,
+  "historical_programming_failures": 2,
+  "consumed_image_retired": true,
+  "ordinary_core_load_acceptance": false,
+  "physical_display_verified": false,
+  "general_usb_reliability_qualified": false,
+  "goal_complete": false,
+  "console_sha256": "d2cf7f845d0edc3b879edbedf47e1717f43e4089ac4e77f08a210ca341115e48",
+  "native_receipt_sha256": "47e6bbf8c57098ca5674111c8170ef311d7ed9a3540d7f042d78eec114b3b8d4",
+  "experiment_receipt_sha256": "4781038761748798ef66defdc9291d0a888c05747b7ea243337b9b6f65ccc12f",
+  "interpretation": "The one fresh bounded diagnostic passed recovery, all13 uploads/readbacks, native boot/Ready, menu closure and ZX81+tape launch. No USB Stop action appeared during the60s human-action wait. This proves neither a key press nor an input failure. The first failure terminated capture with its passive tail, and host/programmer cleanup passed. Last observed native state remains Running1; no owned return/master-stop/finalPark is claimed. No image or grant replay.",
+  "pass": false,
+  "operator_unavailable_reported": true,
+  "operator_keypress_confirmed": false,
+  "physical_check_deferred_until_operator_returns": true,
+  "operator_note": "User reports not being at the kit and defers the physical check until tomorrow. No physical key press or display observation is confirmed."
+}

@@ -1,0 +1,61 @@
+{
+  "status": "passed-independent-recovery-readback",
+  "source_commit": "dfb12ae8d6818fbd4082bb8a5fe6dd5b45dddab2",
+  "retained_native_source": "9b495a4d04ccad6ca1e1168ba11e5505cef1e549",
+  "retained_native_build": "e4487fd3d4c10b80",
+  "retained_native_receipt_sha256": "7727bfcc3dd725ed49efe8b32d02286227057c31d4de7d1d894b803129ad45f1",
+  "native_writer_rerun": false,
+  "sd_write_commands_sent": false,
+  "native_launch_in_this_attempt": false,
+  "recovery_boot_passed": true,
+  "read_only_independent_tail_readback": true,
+  "lba": 7774200,
+  "sectors": 8,
+  "pattern_sha256": "7815723063731c0a7e82ce5b44a08b3677ae11464c7424f8c5846b4e7bfc47e5",
+  "protected_prefix_unchanged": true,
+  "mbr_unchanged": true,
+  "recovery_fit_unchanged": true,
+  "recovery_manifest_unchanged": true,
+  "card_summary_verified": true,
+  "full_cid_reobserved": false,
+  "live_memory_observation_stages": [
+    "admit",
+    "before-tail",
+    "after-tail",
+    "complete"
+  ],
+  "console_closed": true,
+  "last_observed_board_state": "qualified recovery prompt after successful read-only verification",
+  "cpu_park_observed": false,
+  "new_programming_failures": 0,
+  "cleanup": {
+    "status": "passed",
+    "clock_readback_logs": [
+      {
+        "parameter": "JtagClock",
+        "value": "15M",
+        "log_sha256": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18"
+      },
+      {
+        "parameter": "JtagClockAutoAdjust",
+        "value": 1,
+        "log_sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      }
+    ],
+    "owned_private_server_gone": true,
+    "usb_permissions_exact": true,
+    "usb_node_unchanged": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "experiment_result_sha256": "85820fd90fa2897d53d5471da796b555ca7eb0c7ac41845ccdbbbbbd81f89ba3"
+  },
+  "raw_sha256": {
+    "out/nano-sd-independent-readback-20261110/trial/experiment-result.json": "85820fd90fa2897d53d5471da796b555ca7eb0c7ac41845ccdbbbbbd81f89ba3",
+    "out/nano-sd-independent-readback-20261110/trial/readback-result.json": "cde28a352639d36dcc15ac4866bb7b0ceeb3fd9a49fa0c418741f7a74361ff75",
+    "out/nano-sd-independent-readback-20261110/trial/readback-console.log": "ee772f0e31f69d2109a495ccb577369ed894324ffdfdefcc8d5392b32d4506d8"
+  },
+  "original_failed_readback_capture_unchanged": true,
+  "scope": "Separate fresh read-only recovery verifies the retained completed native write; no FAT persistence/install/power-loss qualification.",
+  "ordinary_admission": false,
+  "full_appliance_acceptance": false
+}

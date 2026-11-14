@@ -1,0 +1,9 @@
+{
+  "status": "passed",
+  "archive": "/home/deano/fes-retained/de25-native-fetch-trial-20261102/first-stop.tar.gz",
+  "bytes": 198258,
+  "sha256": "ce74d6f718691890ffc84c20a4284f9965880516c60c1c98d183fd4e193f745a",
+  "members": 71,
+  "manifest_sha256": "eb98c3237a3e428b9d136bee56f8fa95bdfdfbf9a19ca02c1d0f71688bcad3ba",
+  "hardware_stop_evidence_sha256": "ecb217809f73c5689683e462227cf8f792779129a7a5e6bbadc54cde86e97699"
+}

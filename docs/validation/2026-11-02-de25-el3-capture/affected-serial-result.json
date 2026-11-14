@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "python3",
+    "out/nano-el3-capture-20261102/run_plan_serial.py"
+  ],
+  "returncode": -15,
+  "timed_out": true,
+  "elapsed": 900.0310444519855,
+  "log_sha256": "e531bfcfdaedd726399fcbb3254999dc4be7deac620d9fad0569a4d2123d496d"
+}

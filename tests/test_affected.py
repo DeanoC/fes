@@ -10,6 +10,9 @@ from scripts.affected import (changed_paths, plan, LANES, CORES, MODULE_ROOTS,
                                FPGA_SOFTWARE_TESTS, PARENT_ROOTS, CI_BROAD_INPUTS)
 
 
+from scripts.affected import native_compatibility_input
+
+
 class AffectedTests(unittest.TestCase):
     def test_hil_inventory_selects_only_parent(self):
         result = plan(['config/hil-go-consumers.json'])
@@ -203,6 +206,8 @@ class AffectedTests(unittest.TestCase):
         self.assertEqual(set(consumers), {
             ('misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.vh'),
             ('misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp'),
+            ('FES', 'image/kernel/de25-dma/generated/fes_de25_ddr_probe.h'),
+            ('FES', 'platform/embedded/firmware/generated/fes_de25_ddr_probe.h'),
         })
         result = plan([definition])
         self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
@@ -676,6 +681,142 @@ class AffectedTests(unittest.TestCase):
             result = plan(paths)
             self.assertTrue(result['lanes']['host'] and result['lanes']['runtime'])
             self.assertFalse(result['lanes']['fpga'])
+
+
+    def test_embedded_tape_contract_has_only_private_c_and_go_consumers(self):
+        from scripts.affected import EMBEDDED_TAPE_INPUTS, embedded_control_input, native_fabric_input
+        definition = 'packages/fabric/fes_fabric_embedded_tape.yaml'
+        source = Path(__file__).resolve().parents[1] / 'scripts/consistency.py'
+        registry = next(node.value for node in ast.parse(source.read_text()).body
+                        if isinstance(node, ast.Assign) and
+                        any(isinstance(name, ast.Name) and name.id == 'GENERATED' for name in node.targets))
+        self.assertEqual({(module, path) for _, item, module, path in ast.literal_eval(registry)
+                          if item == definition}, {
+            ('FES', 'platform/embedded/firmware/generated/fes_embedded_tape.h'),
+            ('FES', 'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_tape.go'),
+        })
+        for path in EMBEDDED_TAPE_INPUTS:
+            with self.subTest(path=path):
+                result = plan([path])
+                self.assertEqual(result['cores'], [])
+                self.assertEqual({k for k, v in result['lanes'].items() if v},
+                                 {'parent', 'fpga', 'contracts'} if path.startswith('sources/')
+                                 else {'parent', 'fpga'})
+                self.assertTrue(embedded_control_input(path))
+                self.assertTrue(native_fabric_input(path))
+        self.assertEqual(set(plan([*EMBEDDED_TAPE_INPUTS,
+            'sources/mister-packages/packages/fabric/unknown.yaml'])['cores']), set(CORES))
+
+
+    def test_embedded_rom_definition_has_only_private_firmware_and_prototype_consumers(self):
+        from scripts.affected import EMBEDDED_ROM_INPUTS, embedded_board_control_check_input
+        definition = 'packages/fabric/fes_fabric_embedded_rom.yaml'
+        source = Path(__file__).resolve().parents[1] / 'scripts/consistency.py'
+        registry = next(node.value for node in ast.parse(source.read_text()).body
+                        if isinstance(node, ast.Assign) and
+                        any(isinstance(name, ast.Name) and name.id == 'GENERATED' for name in node.targets))
+        self.assertEqual({(module, path) for _, item, module, path in ast.literal_eval(registry)
+                          if item == definition}, {
+            ('FES', 'platform/embedded/firmware/generated/fes_embedded_rom.h'),
+            ('misteross', 'prototypes/de25_board_control/generated/fes_embedded_rom.vh'),
+        })
+        for path in EMBEDDED_ROM_INPUTS:
+            with self.subTest(path=path):
+                result = plan([path])
+                self.assertEqual(result['cores'], [])
+                self.assertEqual({k for k, v in result['lanes'].items() if v},
+                                 {'parent', 'fpga', 'contracts'} if path.startswith('sources/')
+                                 else {'parent', 'fpga'})
+                self.assertTrue(embedded_board_control_check_input(path))
+        self.assertEqual(set(plan([*EMBEDDED_ROM_INPUTS,
+            'sources/mister-packages/packages/fabric/unknown.yaml'])['cores']), set(CORES))
+
+
+    def test_native_computer_has_no_shipped_core_consumer(self):
+        for path in ('platform/embedded/tamago/computer/computer.go',
+                     'platform/embedded/tamago/computer/testdata/probe.cpp',
+                     'sources/mister-packages/packages/fabric/fes_fabric_embedded_computer.yaml',
+                     'sources/mister-packages/testdata/oracles/fes-embedded-computer.json'):
+            with self.subTest(path=path):
+                result = plan([path])
+                lanes = {'parent', 'contracts'} if path.startswith('sources/') else {'parent'}
+                self.assertEqual(result['cores'], [])
+                self.assertEqual({k for k, v in result['lanes'].items() if v}, lanes)
+        self.assertEqual(set(plan(['sources/mister-packages/packages/fabric/unknown.yaml'])['cores']), set(CORES))
+        self.assertEqual(set(plan(['sources/mister-packages/packages/abi/fes_computer.yaml'])['cores']), set(CORES))
+
+
+    def test_embedded_producer_is_a_standalone_simulation(self):
+        for path in ('sources/misteross/prototypes/embedded_control/producer.py',
+                     'sources/misteross/prototypes/embedded_control/embedded_producer_top.sv',
+                     'sources/misteross/prototypes/embedded_control/probe.cpp'):
+            with self.subTest(path=path):
+                r = plan([path])
+                self.assertEqual(r['cores'], [])
+                self.assertEqual({k for k, v in r['lanes'].items() if v}, {'parent', 'fpga'})
+
+
+    def test_de25_embedded_board_diagnostic_has_no_shipped_core_consumer(self):
+        for path in ('sources/misteross/prototypes/de25_board_control/build.py',
+                     'sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv',
+                     'sources/misteross/prototypes/de25_board_control/verify.py'):
+            with self.subTest(path=path):
+                result = plan([path])
+                self.assertEqual(result['cores'], [])
+                self.assertEqual({k for k, v in result['lanes'].items() if v}, {'parent', 'fpga'})
+
+
+    def test_embedded_control_has_only_its_standalone_consumer(self):
+        for path in ('sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',
+                     'sources/misteross/cores/fes-common/generated/fes_embedded_control.vh',
+                     'platform/embedded/firmware/control.cpp'):
+            with self.subTest(path=path):
+                r = plan([path])
+                self.assertEqual(r['cores'], [])
+                self.assertEqual({k for k,v in r['lanes'].items() if v}, {'parent','fpga'})
+        r = plan(['sources/mister-packages/packages/fabric/fes_fabric_embedded_control.yaml'])
+        self.assertEqual(r['cores'], [])
+        self.assertEqual({k for k,v in r['lanes'].items() if v}, {'parent','fpga','contracts'})
+        self.assertEqual(set(plan(['sources/misteross/cores/fes-common/rtl/unknown.sv'])['cores']), set(CORES))
+
+
+    def test_owned_firmware_definitions_have_only_embedded_c_and_go_consumers(self):
+        for stem in ('bridges', 'sd', 'mac'):
+            definition = 'packages/fabric/fes_fabric_embedded_' + stem + '.yaml'
+            source = Path(__file__).resolve().parents[1] / 'scripts/consistency.py'
+            registry = next(node.value for node in ast.parse(source.read_text()).body
+                            if isinstance(node, ast.Assign) and
+                            any(isinstance(name, ast.Name) and name.id == 'GENERATED' for name in node.targets))
+            consumers = {(module, path) for _, item, module, path in ast.literal_eval(registry)
+                         if item == definition}
+            self.assertEqual(consumers, {
+                ('FES', 'platform/embedded/firmware/generated/fes_embedded_' + stem + '.h'),
+                ('FES', 'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_' + stem + '.go'),
+            })
+            paths = ['sources/mister-packages/' + definition,
+                     'sources/mister-packages/testdata/oracles/fes-embedded-' + stem + '.json']
+            for path in paths:
+                with self.subTest(path=path):
+                    result = plan([path])
+                    self.assertEqual(result['cores'], [])
+                    self.assertEqual({k for k, v in result['lanes'].items() if v},
+                                     {'parent', 'fpga', 'contracts'})
+            # Unreviewed neighbors retain the conservative all-consumer rule.
+            for path in ('sources/mister-packages/packages/fabric/unknown.yaml',
+                         'sources/mister-packages/testdata/oracles/unknown.json'):
+                self.assertEqual(set(plan([*paths, path])['cores']), set(CORES))
+
+
+    def test_native_nano_profile_has_no_linux_or_shipped_core_consumer(self):
+        path = 'sources/mister-packages/packages/programming/de25_embedded.yaml'
+        result = plan([path])
+        self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled}, {'parent', 'contracts'})
+        self.assertEqual(result['cores'], [])
+        self.assertFalse(any(result['test_modes'].values()))
+        self.assertTrue(native_compatibility_input(path))
+
+
+
 
 
 if __name__ == '__main__':

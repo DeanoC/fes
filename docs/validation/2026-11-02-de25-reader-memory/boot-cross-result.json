@@ -1,0 +1,11 @@
+{
+  "status": "passed",
+  "head": "26212a2703b948d40cefcd686a15444d4e12967c",
+  "classification": "actual matched serial/SD cold boot chain cross-build; DDR memory and configuration disabled; no hardware execution",
+  "steps": [
+    "bl31-cross",
+    "uboot-cross"
+  ],
+  "reused_native_entry": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-reader-memory-20261102/serial-entry-v2",
+  "reuse_scope": "native and entry selected sources unchanged; rechecked by cold.entry"
+}

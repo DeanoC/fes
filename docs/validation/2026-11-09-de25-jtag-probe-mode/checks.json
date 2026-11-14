@@ -1,0 +1,112 @@
+{
+  "status": "passed",
+  "source_base": "1db28a3a5d9517a090c9374abea294e7a582768f",
+  "parent_tests": 1775,
+  "parent_skips": 3,
+  "checks": [
+    {
+      "label": "test_affected.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.40085694706067443,
+      "log_sha256": "5efc65f428f34744f4918bd8255508ac341680010e62b413492fe8199dd41614"
+    },
+    {
+      "label": "test_test_changed.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.002115514827892,
+      "log_sha256": "47f7c15e237a60fe43cf78c1fd43b4baf0999fa62121c954b6dbb4822b71436f"
+    },
+    {
+      "label": "committed whitespace",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "1db28a3a5d9517a090c9374abea294e7a582768f",
+        "--head",
+        "1db28a3a5d9517a090c9374abea294e7a582768f"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20152994710952044,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "working whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20084906602278352,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "parent Python regressions",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"docs/validation/2026-11-09-de25-mmu-trial-v2/README.md\", \"platform/embedded/nano/README.md\", \"platform/embedded/nano/jtag_probe.py\", \"tests/test_nano_jtag_probe.py\"]"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 330.0481359870173,
+      "log_sha256": "a862998a0e87e0df714a8f775ecf358df40c0a39cf5cd44a73e04322423a9cc4"
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.804520049830899,
+      "log_sha256": "dbe036bed3ef167b1b67bf32995b1f1c6272d7c810828a9ec3c98318c9007fb8"
+    }
+  ],
+  "hardware_actions": false,
+  "mmu_image_rebuilt": false,
+  "new_hardware_acceptance": false,
+  "execution_admitted": false
+}

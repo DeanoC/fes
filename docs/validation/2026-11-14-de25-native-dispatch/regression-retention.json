@@ -1,0 +1,15 @@
+{
+  "status": "independently-retained-all-seven-software-phases",
+  "source_commit": "ceb1f311cbb07ef02390ab3871d578b9f0e5388e",
+  "archive": "/home/deano/fes-retained/de25-native-dispatch-regressions-20261114-r1/checks.tar.gz",
+  "archive_sha256": "2eb68b275cd9f2f5d3c9ce0fb8526f5f90241ba904fc36fc96345a890b74821d",
+  "archive_bytes": 165116,
+  "dependencies": {
+    "/home/deano/fes-retained/de25-native-dispatch-models-20261114-r2/software-models.tar.gz": "f0ac47d32c419ffa7b4df042078a0631ac6a7f848a85d903443abef5cf285a50",
+    "/home/deano/fes-retained/de25-rearm-restoration-pending-20261114-r1/pending-sources.tar.gz": "206d2ba087f56579de8d4d08cfc4871a4501f1c230dcb10499f2015feed20b30"
+  },
+  "parent_tests": 2719,
+  "parent_skips": 7,
+  "hardware_actions": false,
+  "physical_reset_confirmation_pending": true
+}

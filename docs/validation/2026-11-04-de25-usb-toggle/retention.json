@@ -1,0 +1,22 @@
+{
+  "status": "passed",
+  "scope": "native descriptor byte88 timeout after acknowledged direct-IN notification; exact artifacts, procedures, references and source verified",
+  "head": "8f1ac227c15a44a0784ed3790a81f7e6b06f74b7",
+  "hardware_observers": [
+    "1a168998c"
+  ],
+  "native_source": "1a168998c",
+  "archive_bytes": 33277798,
+  "archive_sha256": "e9ad5142ccee975363dd935cf2e239dc1a2b1e897788a989ec7f7fe09f761c7c",
+  "archive_regular_files": 200,
+  "source_update_sha256": "b01c782d17b02f54b1ced38f55cb3db273e1767f200ed2450ab66609efb330bc",
+  "source_restore_and_strict_fsck": true,
+  "required_prior_files": {
+    "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/source.bundle": "daeee37ba8c039ffc165c2c92d7a639af01c441099fe1359ae207846fa75216f",
+    "/home/deano/fes-retained/de25-tenfoot-core-cycle-20261104-r2/source-update.bundle": "1def434cc2e97d68da24158e8b153e238ecdcf024c060c60c62c8f8a68b8d497",
+    "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/matched-candidate.tar.gz": "1479d5fa439c77457a3c19959a97b810b8ce5a6aa0672bb4567519f2d7229d17"
+  },
+  "claim_retained": true,
+  "USB_stop_proven": false,
+  "hardware_qualification": false
+}

@@ -1,0 +1,10 @@
+{
+  "status": "passed",
+  "files": 626,
+  "archive": "/home/deano/fes-retained/de25-rom-resources-20261105-r1/evidence.tar.gz",
+  "archive_bytes": 35247787,
+  "archive_sha256": "d989e4a83930d734981d54fb6db0a9c95721e1859a6ba0d238a723313a6a9a94",
+  "all_members_read_back_and_hashed": true,
+  "implementation": "b581998b24ce3a67cbe9ce805028d42be091dd12",
+  "source_prerequisites": "source-restore-result.json"
+}

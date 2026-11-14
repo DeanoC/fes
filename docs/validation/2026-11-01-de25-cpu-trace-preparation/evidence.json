@@ -1,0 +1,219 @@
+{
+  "affected_checks": 6,
+  "artifact_check": {
+    "capture_helper_sends_no_uart_commands": true,
+    "diagnostic_id": "15a3809e5598e76c",
+    "frozen_inputs_match": true,
+    "hardware_commands_issued": false,
+    "helper_syntax_checked": true,
+    "model": "SoCFPGA Agilex5 Terasic DE25-Nano",
+    "sof_sha256": "41e0693a304474f7cb747de6564e69f7440ebe3600d7fc1c43265c80858bd8f5",
+    "startup_text_matches_seed": true,
+    "status": "verified",
+    "trace": {
+      "bytes": 304,
+      "capacity": 32,
+      "early_readback_over_jtag_qualified": false,
+      "line_poll_limit": 262144,
+      "ocram_address": 61384,
+      "serial_before_clocks": false,
+      "stages": {
+        "01": "c-entry",
+        "02": "sample-done",
+        "03": "dm-begin",
+        "04": "dm-done",
+        "05": "managers-done",
+        "06": "pinmux-done",
+        "07": "timer-begin",
+        "08": "timer-done",
+        "09": "mailbox-begin",
+        "0a": "mailbox-done",
+        "0b": "notify-begin",
+        "0c": "notify-done",
+        "0d": "clock-begin",
+        "0e": "clock-done",
+        "0f": "console-begin",
+        "10": "console-done",
+        "11": "report-begin",
+        "12": "park",
+        "e0": "dm-error",
+        "e1": "clock-error"
+      },
+      "uart_configuration_modified": false
+    }
+  },
+  "artifacts": {
+    "config_sha256": "1817b8db2b41b3d2b87bb3f25c864a055731929715ccda8146db06aff85d55b0",
+    "reference_sof_sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+    "sof_sha256": "41e0693a304474f7cb747de6564e69f7440ebe3600d7fc1c43265c80858bd8f5",
+    "spl_elf_sha256": "6f7d78ac2ec08c0a38a2742db66513de4d61e7e847bc12465687f5666cfea8c1",
+    "spl_sha256": "d3bfc1823d4e5726566c2efc5ce575c4578c082bd407c6abc56e08a95545513f"
+  },
+  "bounded_test": {
+    "automatic_retry": false,
+    "candidate_attempts": 1,
+    "cpu_serial_seconds": 40,
+    "factory_card_retained": true,
+    "fesboot": false,
+    "flash_write": false,
+    "jtag_id": "4362C0DD",
+    "kit": "TRWU8CBL",
+    "overall_phase_seconds": 240,
+    "program_seconds": 90,
+    "query_seconds": 30,
+    "restoration_required_before_release": true,
+    "sd_write": false
+  },
+  "checks": [
+    {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_cpu_diagnostic.py",
+        "-v"
+      ],
+      "label": "focused",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "43f7a92871cdf41010555bd8c9c767addeb61736"
+      ],
+      "label": "affected",
+      "returncode": 0
+    }
+  ],
+  "classification": "off-board CPU trace preparation; no new physical execution",
+  "coverage_note": "The affected run covered the initial trace implementation. After capture decoding was added, its entire focused suite was rerun on the completed producer; the actual final cross-build also used the completed producer. Other implementation inputs did not change.",
+  "date": "2026-11-01",
+  "diagnostic_id": "15a3809e5598e76c",
+  "disabled_options": [
+    "SPL_MMC",
+    "SPL_FS_FAT",
+    "SPL_FS_EXT4",
+    "SPL_RAM_DEVICE",
+    "SPL_WDT",
+    "SPL_ALTERA_SDRAM"
+  ],
+  "excluded_symbols": [
+    "mmc_init",
+    "spl_load_image_fat",
+    "spl_invoke_atf",
+    "fes_nano_spl_handoff",
+    "sdram_mmr_init",
+    "initr_watchdog"
+  ],
+  "final_focused_tests": 4,
+  "format": 1,
+  "hardware_actions_this_step": [],
+  "kit_claim_acquired": false,
+  "limits": [
+    "not a native boot chain or signed boot",
+    "no DDR/storage/EL3/Go/drain qualification",
+    "embedded SPL not independently decoded from SOF",
+    "pre-clock checkpoints are OCRAM only; JTAG trace readback is unqualified",
+    "bounded UART polls cannot preempt a stalled MMIO read"
+  ],
+  "local_preparation": "out/nano-cpu-trace-prep-20261101",
+  "physical_qualification": false,
+  "prepared_trial": "out/nano-cpu-trace-trial-20261101",
+  "previous_startup_audit": {
+    "actual_lowlevel": "lowlevel_init_agilex5.S",
+    "earlier_generic_soc64_attribution_inapplicable": true,
+    "objects": {
+      "arch/arm/cpu/armv8/start.o": {
+        "equal": true,
+        "previous_text_sha256": "9d182da39984cdb6656c6bed8647e96f79b5238f6a476ddc654861ebdedadbd4",
+        "seed_text_sha256": "9d182da39984cdb6656c6bed8647e96f79b5238f6a476ddc654861ebdedadbd4"
+      },
+      "arch/arm/lib/crt0_64.o": {
+        "equal": true,
+        "previous_text_sha256": "34615c1f545ff5f1cb5d7ea64f1e93cb0fdd750dfc7957f88e480903ed471c92",
+        "seed_text_sha256": "34615c1f545ff5f1cb5d7ea64f1e93cb0fdd750dfc7957f88e480903ed471c92"
+      },
+      "arch/arm/mach-socfpga/lowlevel_init_agilex5.o": {
+        "equal": true,
+        "previous_text_sha256": "6ed9e4594da13144a3dc38df69c5ca7befb7549b43417ea0992fc879db1f9073",
+        "seed_text_sha256": "6ed9e4594da13144a3dc38df69c5ca7befb7549b43417ea0992fc879db1f9073"
+      }
+    }
+  },
+  "producer_sources": {
+    "platform/embedded/nano/cpu_diagnostic.py": "31455af573f343c78dc7240e66f9aff5ce5ee3433ac1489156b644090cd45b83",
+    "platform/embedded/nano/cpu_trace.c": "8948db7d1940564c0cce0abe2444620e58bd7d4c98d42b95d2785bb5db771d82",
+    "platform/embedded/nano/cpu_trace.h": "ab64fd4f0808a6887ecadbede286a5b798c57d3b846656e5fa30506d0734ee41",
+    "tests/test_nano_cpu_diagnostic.py": "b81ddeda272d57fb84955b6b3dbc2d9503370edf39158d37e130140f0da557ef"
+  },
+  "receipts_sha256": {
+    "affected-checks.log": "6ce8f18a6dcaba95fea1200af662b833b20e1de4462f3dc71f321037028716bf",
+    "artifact-check.json": "0adb2897462b146afa4b27e97db6068f13b76332fa396e5336ccf9cf47d24768",
+    "candidate-v3/result.json": "e9572e9335139c7329b7cd021d0d2273f8be7782b8c50d695fc9eafa7d024a53",
+    "checks-result.json": "b407ad241a28a2baebc6d88c9f4cbcfe6f20c0dd43672a6d9aafda5ef8dd640e",
+    "focused-final.log": "f9a446800c879f9b1a4a050014736bd299cec58c05e079bd86fb5ee6c2bf8437",
+    "previous-startup-audit.json": "ee7cf986a10aef1f266a8e5a8ff2bfbff52e146756ed30649a8b854169e2b11a"
+  },
+  "retained_evidence": "/home/deano/fes-retained/de25-nano-cpu-trace-preparation-20261101",
+  "source_base": "43f7a92871cdf41010555bd8c9c767addeb61736",
+  "timezone": "Europe/Sofia",
+  "trace": {
+    "bytes": 304,
+    "capacity": 32,
+    "early_readback_over_jtag_qualified": false,
+    "line_poll_limit": 262144,
+    "ocram_address": 61384,
+    "serial_before_clocks": false,
+    "stages": {
+      "01": "c-entry",
+      "02": "sample-done",
+      "03": "dm-begin",
+      "04": "dm-done",
+      "05": "managers-done",
+      "06": "pinmux-done",
+      "07": "timer-begin",
+      "08": "timer-done",
+      "09": "mailbox-begin",
+      "0a": "mailbox-done",
+      "0b": "notify-begin",
+      "0c": "notify-done",
+      "0d": "clock-begin",
+      "0e": "clock-done",
+      "0f": "console-begin",
+      "10": "console-done",
+      "11": "report-begin",
+      "12": "park",
+      "e0": "dm-error",
+      "e1": "clock-error"
+    },
+    "uart_configuration_modified": false
+  },
+  "vendor_revision": "d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413",
+  "vendor_startup_objects": {
+    "arch/arm/cpu/armv8/start.o": {
+      "seed_match": true,
+      "text_sha256": "9d182da39984cdb6656c6bed8647e96f79b5238f6a476ddc654861ebdedadbd4"
+    },
+    "arch/arm/lib/crt0_64.o": {
+      "seed_match": true,
+      "text_sha256": "34615c1f545ff5f1cb5d7ea64f1e93cb0fdd750dfc7957f88e480903ed471c92"
+    },
+    "arch/arm/mach-socfpga/lowlevel_init_agilex5.o": {
+      "seed_match": true,
+      "text_sha256": "6ed9e4594da13144a3dc38df69c5ca7befb7549b43417ea0992fc879db1f9073"
+    }
+  },
+  "vendor_startup_sources": {
+    "arch/arm/cpu/armv8/start.S": "8ffccace8fdd794ef149bfcf49f228bb87be718dc93fed106b8887eb5de759fd",
+    "arch/arm/cpu/armv8/u-boot-spl.lds": "9c91c68cc68c22fe1a474a457979cf440d33971875e3ce0dd2417afd1d5d4fc7",
+    "arch/arm/include/asm/macro.h": "184b19fe0cbfc2bf9160f5ec05947a9dad60c3d08bbbfcfe6e5d404ba1f6b7a1",
+    "arch/arm/lib/crt0_64.S": "e27345adf0500ea9fa60b37fcb7aab69277b6945c310febb919758c07eed0d79",
+    "arch/arm/mach-socfpga/lowlevel_init_agilex5.S": "117cfdbdd21a99421ac6daccc6e40b998887ccc555053b41b79031cea34b5066"
+  }
+}

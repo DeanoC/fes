@@ -1,0 +1,114 @@
+{
+  "serial": "TRWU8CBL",
+  "source_commit": "01a80fd996b747447210d6d1de43183d4e65cb4a",
+  "phase": "native",
+  "native_build_source_commit": "01a80fd996b747447210d6d1de43183d4e65cb4a",
+  "sof_sha256": "8be214c5aacb3215fc21a02c397218c3115102d766af253ca666eb1bcaaec927",
+  "initial_card_image_sha256": "42ac2e14fcb224fb8f39c38b0f26e7999b31c800180bd22489619fdc39f4bacf",
+  "card_reference_scope": "historical preparation only; live file verification is in the new upload receipt",
+  "fit_sha256": "b39b202e7c1a69bb314573a44a43017b3329b39dea90aac56cd39a673a30c8eb",
+  "started_utc": "2026-11-02T09:18:32.075726+00:00",
+  "stage": "matched native prompt",
+  "programming_attempted": true,
+  "fesboot_sent": false,
+  "pass": false,
+  "sd_write_commands_sent": false,
+  "qualified_recovery_receipt_sha256": "dcffe8d6f271ffade76045801568880fc34c7a986fcb3dddc7d43b55dfdcb5d1",
+  "live_card_receipt_sha256": "ea80b3ce40ac648a05012abc36ae77966e7e131f0ba66d5f14e31ea59e31f453",
+  "prior_stop_receipt_sha256": "7d7a99ea6df8eade89a39e2dd8fadd33299869daa61929095478bee15ccbfc89",
+  "runner_sha256": "e286fd3da9be0cf3d6e23e40dd4c4c63b0637d169ea3a6af2ca9ff099adf95b4",
+  "clock_checks": [
+    {
+      "clock": "6M",
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    }
+  ],
+  "jtag_id": "4362C0DD",
+  "boot_trace": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "cef122831c4e8d13"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 13952276715691960065,
+          "epoch": 5334101063,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      }
+    ],
+    "errors": [],
+    "loader_ready": false,
+    "complete": false,
+    "last_checkpoint": "spl_handoff",
+    "core_load_acceptance": false,
+    "configuration_transfer": {
+      "complete": false,
+      "completed_bytes": 0,
+      "core_sha256": "170a3929afc316bcaa51b25e69ce60a7f44c53542126ce6e82d90a99767998d0",
+      "arena_base": 2491416576,
+      "arena_size": 8388608
+    },
+    "ddr_read": {
+      "complete": false,
+      "errors": [],
+      "records": [],
+      "reads": 0,
+      "writes": 0,
+      "polls": 0,
+      "data_remained_contained": false,
+      "runtime_admission": false,
+      "core_load_acceptance": false
+    },
+    "classification": "serial-observed fixed DDR read, master stop and bridge drain; no runtime admission"
+  },
+  "programming_complete": true,
+  "error": "stage timeout: matched native prompt",
+  "usb_permissions_restored": true,
+  "console_sha256": "488dabba21627ee0ae44d3a6e305451d19bfb231b4c62eefce8758a64f5f3cef",
+  "finished_utc": "2026-11-02T09:19:36.463130+00:00",
+  "decoder_sha256": "bf45a45bad3e9a79fbb6bd57f3e3d3e659702894facbab54c551cb98d8323b2c"
+}

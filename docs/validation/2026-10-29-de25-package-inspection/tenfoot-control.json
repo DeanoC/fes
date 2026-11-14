@@ -1,0 +1,53 @@
+{
+  "status": "passed",
+  "elf_sha256": "4efd572998c3063aeb7c1bfbe74001402df3a92589d5e8bf73cb6f38d9362afd",
+  "first_boot_frames": [
+    {
+      "seq": 1,
+      "titles": 0,
+      "focus": 0,
+      "layout": "grid"
+    },
+    {
+      "seq": 2,
+      "titles": 3,
+      "focus": 0,
+      "layout": "grid"
+    },
+    {
+      "seq": 5,
+      "titles": 3,
+      "focus": 1,
+      "layout": "grid"
+    },
+    {
+      "seq": 8,
+      "titles": 3,
+      "focus": 1,
+      "layout": "shelf"
+    }
+  ],
+  "second_boot_frames": [
+    {
+      "seq": 1,
+      "titles": 0,
+      "focus": 0,
+      "layout": "shelf"
+    },
+    {
+      "seq": 2,
+      "titles": 3,
+      "focus": 0,
+      "layout": "shelf"
+    }
+  ],
+  "saved_preferences": {
+    "safe_area_pct": 0.05,
+    "layout": "shelf",
+    "attract_enabled": false,
+    "home": "library"
+  },
+  "persistence": "verified FAT32 write, fresh QEMU boot, loaded preference and displayed layout",
+  "full_receipt": "out/native-packages-tenfoot-control/result.json",
+  "full_receipt_sha256": "9895bd12d98169cdc6e2e4467145a38c9ed582256cb3a53b7905d6ea1de257f2"
+}

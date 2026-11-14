@@ -1,0 +1,96 @@
+{
+  "status": "passed",
+  "source_commit": "4be141f96f946ec536af3f358a0e05e341d875df",
+  "base_commit": "1ba994d591892cf6d5b89fcb61253c74a9d1d8c2",
+  "native_build_source_commit": "af37a76aed47e049b0a70909026dd55cce567b1a",
+  "classification": "bounded hardware diagnostic: verified four-file upload and persistent native three-session load/Run/Hold/return/Park",
+  "native_boot_id": "916b895d55afba6e",
+  "current_host_software_scopes": 6,
+  "reused_native_software_scopes": 8,
+  "selected_parent_tests": 1355,
+  "parent_passed": 1353,
+  "parent_environment_skips": [
+    [
+      "test_media_inputs.UbootDerivationTest.test_locked_upstream_derives_locked_uboot",
+      "locked upstream uboot.img cache is absent"
+    ],
+    [
+      "test_gpu_lease.GpuLeaseTests.test_macos_statfs_reports_the_lease_filesystem",
+      "statfs(2) layout is the macOS one"
+    ]
+  ],
+  "selected_native_git_blobs": 121,
+  "selected_pinned_sdk_module_files": 1298,
+  "native_inputs_unchanged": true,
+  "model_cases": {
+    "actual_outer_controller": 59,
+    "actual_native_exchange": 12,
+    "actual_independent_replay": 12,
+    "four_file_upload": 46,
+    "upload_receipt_mutation": 185,
+    "transport_and_parser_tests": 7
+  },
+  "configuration_cycles": 3,
+  "configuration_intervals_seconds": [
+    13.3468223475,
+    13.34685698,
+    13.3484815125
+  ],
+  "launch_intervals_seconds": [
+    72.51196174696088,
+    72.4957085250644,
+    72.51346420496702
+  ],
+  "return_intervals_seconds": [
+    0.2631678570760414,
+    0.23224907193798572,
+    0.22001017106231302
+  ],
+  "outer_elapsed_seconds": 490.6303766260389,
+  "outer_bound_seconds": 800,
+  "native_command_count": 44,
+  "raw_console_bytes": 31080,
+  "raw_console_sha256": "c6abc7aa5372a1e991a613cecd79d38c7dee361980a8ce6a655d74a2f160638c",
+  "saved_capture_rejections": 58,
+  "final_state": {
+    "scope": "nano-contained-program-service-v1",
+    "op": "park",
+    "ok": true,
+    "state": "parked",
+    "owner": "3668639a78ff4be1",
+    "generation": 6,
+    "held": true
+  },
+  "native_service_hardware_qualified": true,
+  "ordinary_runtime_admission": false,
+  "different_physical_packages": false,
+  "physical_usb_video_native_network_acceptance": false,
+  "native_tenfoot_acceptance": false,
+  "physical_ddr_drain_qualified": false,
+  "identity_evidence": "matched native source checks live identity internally; serial identity is the service publication",
+  "cpu_mapping_evidence": "linked platform mapping checks bracket actual reservations/MMIO; no separate mapping serial dump in this frontend",
+  "cleanup": {
+    "original_clock_restored": true,
+    "usb_permissions_restored": true,
+    "private_server_stopped": true,
+    "uart_free": true,
+    "claim_retained": true,
+    "spare_retained": true,
+    "factory_restored": false
+  },
+  "board_state": "native service terminal Park; application generation6; final master-stop generation15; SD contained/data held; same exclusive claim/spare retained",
+  "quartus_3090_jobs": false,
+  "quartus_fpga_compiles": false,
+  "new_native_cross_build": false,
+  "serial_recovery_upgrade": false,
+  "next_step": "produce and verify distinct eligible physical FPGA packages under the shared Quartus lease, then native selection and Tenfoot/input/video/ordinary runtime integration",
+  "evidence_sha256": {
+    "source.json": "25a1a2f242a9b76acb43d7b96c12ef409f50400e9c11e1448fb621ed89a4f492",
+    "software-result.json": "af201393bc6cae932bd8ab55cd8124f79e3613ac26c0f41990d0e11a2f13a3d7",
+    "selected-inputs.json": "d1f9c9081344381d5126965e8844b26ea03b319b51cfc9a8551992ca3465f654",
+    "trial/preflight.json": "8a88ea7c1288368c764e7206710ba8a4a7435be2e7cfaf52c111d9c2aac3c804",
+    "hardware-result.json": "755964c6f4b9b54cbd4676133c96a6bf668efe98aaa58a7d3c07efb85f75b9fd",
+    "hardware-evidence.json": "d05135e194750fa0aca437aca8de69f7ce4d0fbde8ec7d778f64adf214d5bdd9",
+    "hardware-audit-result.json": "603c5d01714731a265d6e5bb93585ed832e4e7cefeabda15613f0b26a5a17347"
+  }
+}

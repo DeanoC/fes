@@ -1,0 +1,66 @@
+{
+  "status": "passed-original-baseline-restoration-after-command-observe-USB-failure",
+  "restoration_procedure_sha256": "4e8810501870b37bca3245751bd5baa275340b3f0d2ca5f1361e6abb77f62e11",
+  "failed_trial_procedure_sha256": "780506965993f29c2ca8d1d46b7d18221f1bb38ef2323bb2df1b36b9f5493321",
+  "failed_trial_archive_sha256": "33aad38f38771f032baa5b2bcad5d7233bc9963bd8d483e292b1331ffafce19c",
+  "elapsed_seconds": 329.6399696699809,
+  "original_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+  "original_phase1_sha256": "c01c97dde2fe75ce7e6145ccce2a52b6fa8449f43731ba0bd2ce94cbfc3d91d4",
+  "original_FIT_verified_by_sealed_SPL": true,
+  "fresh_SD_file_readbacks_claimed": false,
+  "SD_refresh_attempted": false,
+  "baseline_boot_verified": true,
+  "baseline_cycle_commands": 51,
+  "baseline_exit_generation": 5,
+  "baseline_final_Park_verified": true,
+  "independent_saved_wire_replay": {
+    "status": "passed-saved-installer-wire-and-poll-times",
+    "discovered": true,
+    "commands": 51,
+    "polling_offers": 503,
+    "hardware_actions": false,
+    "live_authority": false,
+    "persistence_verified": false
+  },
+  "program_and_wire_witness": {
+    "boot_boundary_verified": true,
+    "console_sha256": "c63e611e33970152cee97556fbd344a5fb64f8159441f14c6d085451859a792e",
+    "all_wire_sha256": "7d370a9e1aae1768550078817938fcb7d170361bd3deb0f86138fec28fe593e8",
+    "completed_program_epoch": "650471:162097188"
+  },
+  "owned_processes": [
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/command-observe-restore/attempt/native-baseline/transport.json",
+      "pid": 650471,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/command-observe-restore/attempt/native-baseline/owned-worker.json",
+      "pid": 650226,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/command-observe-restore/attempt/native-baseline/owned-programmer.json",
+      "pid": 651356,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/command-observe-restore/attempt/native-baseline/file-admission/owned-worker.json",
+      "pid": 650355,
+      "original_process_stopped": true
+    }
+  ],
+  "UART_closed_and_free": true,
+  "USB_identity_inode_permissions_restored": true,
+  "JTAG_auto_1_15M": true,
+  "after_fresh_human_confirmed_power_cycle": true,
+  "failed_candidate_retried": false,
+  "failed_candidate_retirement_qualified": false,
+  "baseline_drain_root_cause_fixed": false,
+  "baseline_USB_root_cause_fixed": false,
+  "last_verified_board_state": "original native baseline final Park",
+  "general_core_load_acceptance": false,
+  "permanent_QSPI_written": false,
+  "factory_card_changed": false,
+  "bottom_kit_touched": false
+}

@@ -1,0 +1,66 @@
+=== RUN   TestNanoFirmwareBridgeSiPGates
+--- PASS: TestNanoFirmwareBridgeSiPGates (0.01s)
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/cold
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/active
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/fabric-absent
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/missing-hardware
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/missing-fabric
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/stop-failure
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/missing-producer
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/ownership-ABA
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/reset-readback
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/control-open
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/data-open
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/ownership-during-stop
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/identity-recovery
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/lost-transfer
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/cold
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/active
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/fabric-absent
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/missing-hardware
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/missing-fabric
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/stop-failure
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/missing-producer
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/ownership-ABA
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/reset-readback
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/control-open
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/data-open
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/ownership-during-stop
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/identity-recovery
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/lost-transfer
+--- PASS: TestNanoFirmwareBridgeCyclesAndFailures (0.21s)
+    --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-8 (0.11s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/cold (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/active (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/fabric-absent (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/missing-hardware (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/missing-fabric (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/stop-failure (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/missing-producer (0.00s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/ownership-ABA (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/reset-readback (0.00s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/control-open (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/data-open (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/ownership-during-stop (0.00s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/identity-recovery (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/lost-transfer (0.01s)
+    --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-d (0.10s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/cold (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/active (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/fabric-absent (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/missing-hardware (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/missing-fabric (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/stop-failure (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/missing-producer (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/ownership-ABA (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/reset-readback (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/control-open (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/data-open (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/ownership-during-stop (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/identity-recovery (0.01s)
+        --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/lost-transfer (0.01s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/nativefabric	1.223s

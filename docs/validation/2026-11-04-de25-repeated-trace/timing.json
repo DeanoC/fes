@@ -1,0 +1,71 @@
+{
+  "classification": "analysis of stopped timed trace; no new hardware acceptance",
+  "source_commit": "c814590156ec6f6f8a5b8ed33e881f17e09743f9",
+  "received_complete_frames": 9,
+  "frame_timings": [
+    {
+      "frame": 1,
+      "render_us": 16045,
+      "present_us": 2976175
+    },
+    {
+      "frame": 2,
+      "render_us": 15052,
+      "present_us": 2956240
+    },
+    {
+      "frame": 3,
+      "render_us": 14861,
+      "present_us": 2955340
+    },
+    {
+      "frame": 4,
+      "render_us": 14849,
+      "present_us": 2955083
+    },
+    {
+      "frame": 5,
+      "render_us": 14975,
+      "present_us": 2955159
+    },
+    {
+      "frame": 6,
+      "render_us": 14989,
+      "present_us": 2955929
+    },
+    {
+      "frame": 7,
+      "render_us": 15001,
+      "present_us": 2955862
+    },
+    {
+      "frame": 8,
+      "render_us": 14929,
+      "present_us": 2955881
+    },
+    {
+      "frame": 9,
+      "render_us": 14884,
+      "present_us": 2955411
+    }
+  ],
+  "average_render_us": 15065,
+  "average_present_us": 2957897,
+  "last_progress": {
+    "index": 10,
+    "phase": "present_begin",
+    "elapsed_us": 26906907
+  },
+  "original_transfer_read_return_seconds": 45,
+  "original_failure_retained": true,
+  "passive_followup_bytes": 0,
+  "passive_serial_writes": false,
+  "final_bridge_state": "unknown; passive follow-up yielded no return receipt",
+  "retries": 0,
+  "files": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-present-trace-20261104/failure-evidence.json": "a2887a6cd3e35d432470eb6d277bbb141e66b89b625838695da774efcc201ef3",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-present-trace-20261104/passive-tail.json": "fefc081b58c2b0aca0f453f89c7564a514da5b5e54623fdfcc80099fc1e8d8ac",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-present-trace-20261104/passive-tail.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-present-trace-20261104/generated-rearm-proof.json": "8428b224ee76872bcfd3fe284b6109eb2a07d398c96fdf3cc1549f25bab0aa73"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "status": "passed",
+  "path": "out/nano-mmu-logging-20261109/native-bl31-uart/source/plat/intel/soc/agilex5/bl31_plat_setup.c",
+  "sha256": "dfcb6f6c66e809e38bfe10508d08467ae6daa7704b39dd1f063baabf475099de",
+  "pinned_reference_revision": "580dcb5c4e10aa7daff2bf69d493c076a6d3e665",
+  "vendor_ocram_mapping": [
+    {
+      "line": 220,
+      "text": "\tMAP_REGION_FLAT(OCRAM_BASE, OCRAM_SIZE, MT_NON_CACHEABLE | MT_RW | MT_SECURE),"
+    }
+  ],
+  "software_only": true,
+  "hardware_permission": false
+}

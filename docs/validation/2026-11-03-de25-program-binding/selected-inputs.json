@@ -1,0 +1,46 @@
+{
+  "status": "passed",
+  "checkout_source_commit": "d9ddb6ce43d8e2b514f6bdec0624ef2fedcc7c7c",
+  "native_build_source_commit": "d9ddb6ce43d8e2b514f6bdec0624ef2fedcc7c7c",
+  "native_sdk_checkout_commit": "d9ddb6ce43d8e2b514f6bdec0624ef2fedcc7c7c",
+  "sdk_uncompiled_difference": [],
+  "selected_git_blobs": 116,
+  "selected_module_sdk_files": 1298,
+  "pinned_source_receipts": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-activation-20261102/native-sdk/result.json": "af1a3db2cbb54c4e24f6c6043c492ee350ed2a74c25d7c1c5be15518ee10c2e8",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-sdk/result.json": "626d244165c5e6569b9fe686e73a5ebf8b2736e98145ae59f20d9095a9681a21",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-activity-20261102/native-sdk/result.json": "1b40b511145173ce3df3880ec52e2117a595dcc7f98491cd519dfe1326588011"
+  },
+  "native_elf_sha256": "0a40a602536fcbe6062705dc361362194420f6478ad5a221d50858343d68bd10",
+  "cpu_mapping": {
+    "format": 1,
+    "scope": "pinned-tamago-el1-resources-v1",
+    "ram_base": 2214592512,
+    "ram_bytes": 268435456,
+    "control_base": 536937472,
+    "control_bytes": 256,
+    "dma_base": 2491416576,
+    "dma_bytes": 8388608,
+    "reader_base": 2499805184,
+    "reader_bytes": 2097152
+  },
+  "cpu_mapping_sha256": "d4fe0201d08baf6902d7f786b21592f151a07c6f689e808f8067c09452b69c37",
+  "actual_native_mapping_assembly": {
+    "translateRead": {
+      "symbol": "github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map.translateRead.abi0",
+      "disassembly_sha256": "5ae98a939b9345709ecab935aaf15b6488c50a2540981f209974a2ce094f1d97",
+      "opcode": "d5087800"
+    },
+    "translateWrite": {
+      "symbol": "github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map.translateWrite.abi0",
+      "disassembly_sha256": "cfe2ddfc7fd90d8ad77d2ff1b08523d4f8c5daef6b4b2c267c59e5536717800c",
+      "opcode": "d5087820"
+    },
+    "cpuState": {
+      "symbol": "github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map.cpuState.abi0",
+      "disassembly_sha256": "e3ecd98679fb0fb583753f7c3dd025df35d30033c495ceb9ee6b9f6eb3312ed9",
+      "opcode": null
+    }
+  },
+  "hardware_acceptance": false
+}

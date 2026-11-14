@@ -1,0 +1,11 @@
+{
+  "status": "passed-exact-completed-setup-final-checks-retention",
+  "source_head": "bfdac3256789536dacfdf5a38d83a1d1ead99903",
+  "archive": "/home/deano/fes-retained/de25-setup-final-completed-checks-20261114-r1/checks.tar.gz",
+  "archive_sha256": "95131fc302892491067cec254a62d915422e4ca99666bc49beebc66c0df6d018",
+  "all_eleven_selected_phases_passed": true,
+  "native_modules_completed": 30,
+  "native_outer_wrapper_passed": false,
+  "CI_assessed": false,
+  "hardware_parent_preparation_failure_open": true
+}

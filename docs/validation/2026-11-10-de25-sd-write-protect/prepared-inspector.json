@@ -1,0 +1,18 @@
+{
+  "status": "matched-read-only-inspector-prepared-not-deployed",
+  "compiled_source": "a5d6027e9",
+  "native_boot_id": "72f88abee51877af",
+  "fit_bytes": 2615096,
+  "fit_sha256": "d6979b3844a30a4aa0953d4a1682e72752f3ecaed89f7b26c288cbfba33b0cd7",
+  "spl_sha256": "7f24e3ba9aef7cc0c0fc1b7276322c078b53555eecab0d8bb76043dc4feb723d",
+  "entry_sha256": "b1ded1be5828101f425905939887abb6fed816013dd3c1b7c8d8bd9d45f1d5da",
+  "native_sof_sha256": "597fe7b9c5940b07b4b3ff4eb361a2cec1f45a140f82292ea6acdae02ff1684a",
+  "elf_sha256": "8974cf67de4c324af53e28cf6c702a3b2f953241d36db39121b7b8299e17b128",
+  "full_native_source_and_receipt_validation": true,
+  "embedded_spl_independently_decoded": true,
+  "sd_write_plan": null,
+  "native_writes_enabled": false,
+  "hardware_attempted": false,
+  "ordinary_admission": false,
+  "note": "Read-only card inspection after the retained failed writer; no old tail hash is presumed and no new writer has been built."
+}

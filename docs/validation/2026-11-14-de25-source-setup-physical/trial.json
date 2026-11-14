@@ -1,0 +1,83 @@
+{
+  "status": "stopped-dispatch-aware-repeated-load-trial-reset-required",
+  "procedure_sha256": "bd7e264b19140da2d3426f6fac7a707fdaca2b700a9770959538c1c804febbc8",
+  "operator_source_head": "156833ed87f33e9cace0b31c28dfe863b3bf4410",
+  "compiled_firmware_source_head": "2c20c0c0f80a5d963c47320ff5713834e0680ba9",
+  "elapsed_seconds": 432.4522267631255,
+  "flow": {
+    "physical_reset_required": true,
+    "recovery_safe": false,
+    "status": "stopped",
+    "diagnostic_verified": false,
+    "baseline_restored": false,
+    "rollback_attempted": false,
+    "fit_state": "candidate",
+    "ordinary_admission": false,
+    "hardware_acceptance": false,
+    "live_adapter_qualified": false,
+    "error": "bounded role stopped: native-diagnostic",
+    "roles_consumed": [
+      "recovery-before",
+      "native-diagnostic"
+    ],
+    "plan_sha256": "c3d75b2d8f3a22d0660c82dc62ebc2077e286a98188fbcb337cd8b6c71c9413e"
+  },
+  "native": {
+    "native-diagnostic": {
+      "error": "source path failed or parked",
+      "UART_bytes": 45579,
+      "App_commands": 0,
+      "programming_witness": {
+        "boot_boundary_verified": true,
+        "console_sha256": "5bcc311e8e45486d234f234e913964705f2cc166d9d272bdcd2714f4986faade",
+        "all_wire_sha256": "0563b1070fd120ac681dbcda6276af2bc2f24f47d6c9aa8317f3bffe913e3879",
+        "completed_program_epoch": "17339:167824131"
+      },
+      "program_log_exists": true,
+      "completed_program_exists": true,
+      "dispatch_observation": {
+        "scope": "nano-native-program-dispatch-observation-v1",
+        "operation_finished": true,
+        "ownership_verified": true,
+        "ownership_failed": false,
+        "programming_may_have_started": true,
+        "marker_path": "/home/deano/fes/out/dev/de25-source-release/out/source-setup-trial/attempt/native-diagnostic/native-execution-attempted.json",
+        "hardware_acceptance": false,
+        "recovery_authority": false
+      },
+      "native_execution_attempted": true
+    }
+  },
+  "refresh": {
+    "forward": {
+      "status": "verified-reversible-fit-refresh",
+      "direction": "forward",
+      "plan_sha256": "c3d75b2d8f3a22d0660c82dc62ebc2077e286a98188fbcb337cd8b6c71c9413e",
+      "previous_boot_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+      "boot_sha256": "6e8b7d8c657db55a4c01c9e1eae8bd5f5d4f4e7736864dd5f2fc4594c12e85a1",
+      "preserved_files": 16,
+      "readbacks_before": 17,
+      "readbacks_after": 17,
+      "session": "6487ff390aed09ad88ee2120003d3a9a",
+      "physical_boot_accepted": false
+    }
+  },
+  "baseline_restored": false,
+  "baseline_final_Park_verified": false,
+  "baseline_cycle_commands": 0,
+  "physical_reset_required": true,
+  "candidate_FIT_remains_on_test_card": true,
+  "diagnostic_retried": false,
+  "source_rearm_qualified": false,
+  "owned_process_records": 16,
+  "owned_processes_stopped": true,
+  "UART_closed_and_free": true,
+  "USB_identity_inode_permissions_restored": true,
+  "JTAG_auto_1_15M": true,
+  "hardware_acceptance": false,
+  "general_core_load_acceptance": false,
+  "permanent_QSPI_written": false,
+  "factory_card_changed": false,
+  "bottom_kit_touched": false,
+  "last_verified_board_state": "unqualified after stopped diagnostic; physical reset required"
+}

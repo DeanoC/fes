@@ -1,0 +1,45 @@
+{
+  "status": "passed",
+  "checkout_source_commit": "6e75ec57f3447cbe3e805ba6f6d9b1884046c00b",
+  "native_build_source_commit": "6e75ec57f3447cbe3e805ba6f6d9b1884046c00b",
+  "test_only_difference": [],
+  "selected_git_blobs": 115,
+  "selected_module_sdk_files": 1298,
+  "pinned_source_receipts": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-activation-20261102/native-sdk/result.json": "af1a3db2cbb54c4e24f6c6043c492ee350ed2a74c25d7c1c5be15518ee10c2e8",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-sdk/result.json": "626d244165c5e6569b9fe686e73a5ebf8b2736e98145ae59f20d9095a9681a21",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-activity-20261102/native-sdk/result.json": "1b40b511145173ce3df3880ec52e2117a595dcc7f98491cd519dfe1326588011"
+  },
+  "native_elf_sha256": "f29f0c0d7f166d795246b2e666858051560e9d74e6e071832307719bc7ce3aaf",
+  "cpu_mapping": {
+    "format": 1,
+    "scope": "pinned-tamago-el1-resources-v1",
+    "ram_base": 2214592512,
+    "ram_bytes": 268435456,
+    "control_base": 536937472,
+    "control_bytes": 256,
+    "dma_base": 2491416576,
+    "dma_bytes": 8388608,
+    "reader_base": 2499805184,
+    "reader_bytes": 2097152
+  },
+  "cpu_mapping_sha256": "d4fe0201d08baf6902d7f786b21592f151a07c6f689e808f8067c09452b69c37",
+  "actual_native_mapping_assembly": {
+    "translateRead": {
+      "symbol": "github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map.translateRead.abi0",
+      "disassembly_sha256": "2f8fe8c69d30fb0cca1f3971d0fb9a34ff2dcc7c7f68b6495c35ce9b6f2ad092",
+      "opcode": "d5087800"
+    },
+    "translateWrite": {
+      "symbol": "github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map.translateWrite.abi0",
+      "disassembly_sha256": "33dff5a5c701b1a51c23cfa4eee2ddbd8a83f85cfbd834b97f411123ca0c3fff",
+      "opcode": "d5087820"
+    },
+    "cpuState": {
+      "symbol": "github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map.cpuState.abi0",
+      "disassembly_sha256": "25cf023cb8972f6a2d897b49f81d7f916533917e2821fbbd01e5fa7a9ac9b619",
+      "opcode": null
+    }
+  },
+  "hardware_acceptance": false
+}

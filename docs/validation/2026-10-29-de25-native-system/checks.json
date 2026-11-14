@@ -1,0 +1,23 @@
+{
+  "base_commit": "d95277daa9d5a6befbe7487945cc4865c7684b69",
+  "hardware_evidence": "QEMU emulated devices only; no DE25 board",
+  "scope": "native Go + existing tenfoot, FAT32, network, ramfb and serial input",
+  "main_run": "out/native-runner-tenfoot-final-3",
+  "interactive_run": "out/native-runner-interactive",
+  "tests": {
+    "native_two_boot_integration": "passed",
+    "real_catalog_ids_match": "passed",
+    "serial_right_then_layout": "passed",
+    "fat32_readback_and_restart": "passed",
+    "interactive_mode": "passed",
+    "competing_disk_lock": "passed",
+    "tenfoot_full_host_suite": "passed",
+    "preference_store_race_tests": "passed",
+    "native_block_fat_display_input_network_tests": "passed",
+    "network_a5_dma_bidirectional_192k_and_reset": "passed",
+    "repository_test_changed": "passed (1065 parent tests, generated consumers, FogCast Go and browser suites)",
+    "deadcode_linux_amd64_and_arm": "passed",
+    "documentation_links": "passed",
+    "compiled_source_unchanged_after_run": "passed"
+  }
+}

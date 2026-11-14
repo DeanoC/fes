@@ -1,0 +1,14 @@
+{
+  "status": "passed-prepared-fat-file-retention",
+  "path": "/home/deano/fes-retained/de25-sd-fat-file-prepared-20261110-r1",
+  "source_head": "4bf4a5c6c017192d18c5ea01d9debdac44ed9e14",
+  "compiled_source": "e984200f1d86f8a772f116b17ebde5759c97dcc7",
+  "files": 2405,
+  "selected_source_files": 2234,
+  "manifest_sha256": "248c5f9cbe9d95f91b67a86b9de2f9b253043403dba41bd75f9b569c0c89735e",
+  "archive_sha256": "fec8694ad362e774926ede30bcb1385ad9df6207b9856c74f819df68625d1170",
+  "source_restore_fsck_pack_verified": true,
+  "archive_readback_modes_verified": true,
+  "hardware_actions": false,
+  "live_authority": false
+}

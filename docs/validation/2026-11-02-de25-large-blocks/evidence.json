@@ -1,0 +1,23 @@
+{
+  "source_commit": "cac97213eee7619bd40d99173b46f3ce1c14968f",
+  "native_boot_id": "ee88aa1a65d7861e",
+  "native_run_passed": true,
+  "configuration_complete": true,
+  "ready": 1,
+  "completed_bytes": 2027520,
+  "chunk_bytes": 1048512,
+  "chunks": 2,
+  "core_sha256": "415cc2d68955755d2de406b233e34fa2cd6cce755089ba842f10f62e6945320c",
+  "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+  "build_id": "e25bb65a1d14a2bbbddf4c770ea033e5",
+  "arm_to_complete_seconds": 16.295608215,
+  "interval_hash_seconds": 11.5801238725,
+  "identity_matches_sealed_package": true,
+  "control_reclosed_generation": 3,
+  "all_data_paths_held": true,
+  "runtime_admission": false,
+  "core_load_acceptance": false,
+  "buffer_reclaim": false,
+  "native_sd_writes": false,
+  "scope": "one cold contained transfer, firmware readiness and live sealed identity/reclose; no active core launch or return"
+}

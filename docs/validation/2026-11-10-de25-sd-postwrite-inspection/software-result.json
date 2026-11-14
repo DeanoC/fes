@@ -1,0 +1,38 @@
+{
+  "status": "passed-new-postwrite-inspection-preparation",
+  "base_commit": "90259ead7c412a585588fe283b5f52bd3ef87296",
+  "compiled_source": "a5d6027e9e8697b58f2c06be452995648fa5eb75",
+  "native_boot_id": "72f88abee51877af",
+  "frozen_files": 2410,
+  "operator_models": {
+    "status": "passed",
+    "scope": "host fixtures only; no file admitted for hardware and no device action",
+    "private_decoder_positive": true,
+    "private_decoder_malformed_and_missing_final_pass_reject": true,
+    "single_upload_positive": true,
+    "negative_receipts": [
+      "foreign-boot-bytes",
+      "wrong-recovery",
+      "different-live-session",
+      "fresh-wrote-card",
+      "fresh-not-readonly",
+      "protection-failed",
+      "wrong-destination",
+      "not-closed",
+      "missing-admit-boundary"
+    ],
+    "source_sha256": {
+      "out/nano-sd-reinspect-trial-20261110/trial/upload_checks.py": "9c81863cec82045a4d03a63bea1c9987c7b6c10409b63a6f7825dc70ad2d3c3f",
+      "out/nano-sd-reinspect-trial-20261110/trial/native.py": "a985535d06b5103168f4157433183df2f3e5ea8a969b5ef3784974c0af008da8",
+      "out/nano-sd-reinspect-trial-20261110/operator_models.py": "57bf969163ee9e96f00d9f6b681d4963a7e5c3077096a35f5ba0601fa6ff683b"
+    },
+    "live_authority": false
+  },
+  "software_evidence": "docs/validation/2026-11-10-de25-sd-write-protect/software-result.json",
+  "prior_write_outcome": "unknown",
+  "original_tail_presumed": false,
+  "native_writes": false,
+  "hardware_attempted": false,
+  "live_authority": false,
+  "ordinary_admission": false
+}

@@ -7,7 +7,7 @@ fields, variables and constants, which deadcode does not look at.
 Every repository Go module is loaded together through a temporary go.work, so a
 library function used only by another module is live. A finding counts only when
 it appears in both Linux lanes the repo ships: the host (linux/amd64) and the kit
-(linux/arm, GOARM=7). Files that build only for darwin, windows or the sdl3 tag
+(linux/arm, GOARM=7). Files that build only for darwin, windows, tamago or the sdl3 tag
 are outside both lanes, so their callers keep code live and their own code is not
 checked. Delete what this reports; there is no allowlist.
 """
@@ -29,6 +29,7 @@ DEADCODE = 'golang.org/x/tools/cmd/deadcode@v0.52.0'
 STATICCHECK = 'honnef.co/go/tools/cmd/staticcheck@2025.1.1'
 MODULES = (
     'platform',
+    'platform/embedded/tamago',
     'sources/FogCast',
     'sources/FogCast/appliance',
     'sources/mister-packages',

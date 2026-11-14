@@ -1,0 +1,16 @@
+{
+  "status": "passed-exact-post-reset-restoration-byte-hash-mode-retention",
+  "archive": "/home/deano/fes-retained/de25-fresh420-baseline-restored-physical-20261114-r1/restoration.tar.gz",
+  "archive_sha256": "6faa15d2a0e885e5ead2b8fbff580da2227a478d0b6c7cbd5b1005dd5b78df3c",
+  "dependencies": {
+    "/home/deano/fes/out/dev/de25-source-release/out/fresh420-restoration/retention-proof.json": "1a228bece83f8829fe6f2f8b9fb77a4139b6209a1d01dafa647c1023c20253aa",
+    "/home/deano/fes-retained/de25-fresh420-restoration-prepared-20261114-r1/prepared-procedure.tar.gz": "903ea6900898252fd8bb4c27a83c89c26d6af0a89b651592ac8dc1fe534f8636",
+    "/home/deano/fes-retained/de25-command-snapshot-procedure-prepared-20261113-r1/prepared-procedure.tar.gz": "1b5b82ea534a6af428682a59cad431042173292d3269735fc3b8215dff1bc793",
+    "/home/deano/fes/out/dev/de25-source-release/out/fresh420-physical/retention-proof.json": "90280a428ee3a168ae2d7365922e803850902ae46b88c533a958dc0e8a548cff",
+    "/home/deano/fes-retained/de25-fresh420-physical-20261114-r1/physical-trial.tar.gz": "c6d18f87365e49795c575c0abfa37881f2b0951f3933278f5ba9463c64ce3fee"
+  },
+  "baseline_restored": true,
+  "failed_candidate_native_menu_qualified": false,
+  "candidate_native_programming_previously_issued": true,
+  "general_core_load_acceptance": false
+}

@@ -1,0 +1,48 @@
+{
+  "status": "passed",
+  "observed": {
+    "instance": "subsys_periph.fes_embedded",
+    "clock_hz": 100000000,
+    "maps": {
+      "lw": {
+        "name": "subsys_periph.fes_embedded.avs",
+        "base": 66560,
+        "span": 256
+      },
+      "jtag": {
+        "name": "subsys_periph.fes_embedded.avs",
+        "base": 1115136,
+        "span": 256
+      }
+    },
+    "cpu_physical_address": "not-established",
+    "reader_memory": {
+      "backend": "onchip",
+      "bus_base": 0,
+      "bytes": 0
+    },
+    "physical_ddr": "not-connected"
+  },
+  "negative_cases": [
+    {
+      "case": "wrong-base",
+      "rejected": true,
+      "reason": "generated embedded peripheral base differs"
+    },
+    {
+      "case": "missing-jtag",
+      "rejected": true,
+      "reason": "('avalon', 'subsys_debug_fpga_m.master', 'subsys_periph_pb_cpu_0.s0')"
+    },
+    {
+      "case": "wrong-span",
+      "rejected": true,
+      "reason": "generated embedded lw map differs"
+    },
+    {
+      "case": "changed-generated-source",
+      "rejected": true,
+      "reason": "generated embedded source differs: fes_embedded_control.sv"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+FES fabric lifecycle model EL=1 hardware=none
+FES_FABRIC_CHECK boot-order PASS
+FES_FABRIC_CHECK immutable-admission PASS
+FES_FABRIC_CHECK replace-save-before-drain PASS
+FES_FABRIC_CHECK no-command-replay PASS
+FES_FABRIC_CHECK identity-before-release PASS
+FES_FABRIC_CHECK uncertain-save-retains-owner PASS
+FES_FABRIC_CHECK known-save-failure-retains-owner PASS
+FES_FABRIC_CHECK drain-failure-no-program PASS
+FES_FABRIC_CHECK abandoned-frame-no-reuse PASS
+FES_FABRIC_CHECK frame-fault-retains-core PASS
+FES_FABRIC_CHECK one-recovery-then-explicit PASS
+FES_FABRIC_MODEL PASS hardware=none

@@ -1,0 +1,207 @@
+{
+  "bootchain": {
+    "bl31_sha256": "b7058f9c27f36f59d4b355de336fb67cf26d4bf651eb048a865ed0f63684bd6c",
+    "board_serial": "TRWU8CBL",
+    "classification": "matched serial-only Nano probe candidate; physical boot gate pending",
+    "embedded_spl_independently_decoded": false,
+    "fat32_sectors": 262144,
+    "fat32_start_sector": 32768,
+    "fit_raw_sector": 512,
+    "fit_sha256": "21d9a1bf3c035e5ea4e4330bae15fd7ad8da891f8035a6deed38b94e18a6d6a0",
+    "format": 1,
+    "limitations": [
+      "gate compiled for Nano but not physically executed",
+      "no native SD/USB/network/display/FPGA activation",
+      "test image is a regular file; no card, flash, kit or boot configuration was changed"
+    ],
+    "native_entry_sha256": "1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950",
+    "native_handoff": {
+      "build_id": "82a6d9421d08e0e3",
+      "classification": "source-derived serial-only Nano handoff; physical gate not executed",
+      "entry_image_sha256": "1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950",
+      "entry_receipt_sha256": "f2ee3755aaf331934027379e9c84eebae88c6ea40d98b9cfe42642cdd5b4b4da",
+      "producer_sources": {
+        "platform/embedded/nano/handoff.c": "1bffae6e47ae82df75e9ce330f90c312362302aa3b88ff6ca6dba42b02e90785",
+        "platform/embedded/nano/handoff.h": "4b2845a162325c7ca7da00cadce807801d1d4308353ac1c3701419fe83ba9bb5",
+        "platform/embedded/nano/prepare_uboot.py": "a60b3d012943766a765ce4c7b5465c12a4d1ce1f2f9a31f704135b6daf928cc1",
+        "platform/embedded/nano/probe-profile.json": "02c764a2b6fcb0705046c939ad1fabe55a0daf330d4d7f3f1750cde29107a8f8",
+        "platform/embedded/nano/uboot.c": "2ade5e4cc55f2273f9afd36c51936a61a9fa1d3fd1cc23c14a705d37ef62c06c"
+      },
+      "profile_sha256": "02c764a2b6fcb0705046c939ad1fabe55a0daf330d4d7f3f1750cde29107a8f8"
+    },
+    "profile_sha256": "02c764a2b6fcb0705046c939ad1fabe55a0daf330d4d7f3f1750cde29107a8f8",
+    "recovery_reference_sof_sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+    "sof_sha256": "a1f778ea42ca395ab0994fe0e185e2ce0dfc8d03ecdc1a0b8c6b4d60806e93b4",
+    "spl_sha256": "4b137ccf5cba28429823c185d71349c4576838ae0b25c5900b4f008c750a9c8c"
+  },
+  "build_id": "82a6d9421d08e0e3",
+  "cable": "DE25-Nano [3-11.1-iface0]",
+  "candidate_directory": "/home/deano/fes-retained/de25-nano-handoff-20261031/evidence/nano-handoff-test-kit-v6",
+  "classification": "physical matched boot; native handoff rejected at first bridge containment; factory baseline restored",
+  "files": {
+    "BOOTCHAIN.JSON": {
+      "bytes": 2150,
+      "sha256": "8bb10a95cfe642a098ac1380c125492c14b7621234bad447e38d5b6eeeeaade7"
+    },
+    "baseline-console.log": {
+      "bytes": 1695,
+      "sha256": "b2747c71bd56873068b34aca4a131ade3f417b52934928718df5f6fa5a2e8414"
+    },
+    "baseline-values.txt": {
+      "bytes": 425,
+      "sha256": "22df12bcfbc7aa41b60b264df1fd3e9de6d3ac32b1b9ec275b99da26d948edfb"
+    },
+    "baseline.json": {
+      "bytes": 433,
+      "sha256": "f0aa88a1695e0530841a7835ede3e686001631429c6b07f490db24d8faf639f4"
+    },
+    "baseline_serial.py": {
+      "bytes": 2864,
+      "sha256": "65ca7cc33fa73e371aaca92bc19a3f1e8392df95d11702367a4fb8c2aa57045c"
+    },
+    "continue_probe.py": {
+      "bytes": 4026,
+      "sha256": "d6d56eed59cfe02664423e3a5589d358fce5201629fb5f7ecc3b6feef2a6b71a"
+    },
+    "native-console.log": {
+      "bytes": 2022,
+      "sha256": "c36b9557b89b60b00c338ade612290edf8302c2387f25a3dc201f66972732663"
+    },
+    "native-jtag-query.log": {
+      "bytes": 1690,
+      "sha256": "769c4215dd880b18b77959e42f9d650f49d39bdf5101d3aa8e644498e2bbae82"
+    },
+    "native-program.log": {
+      "bytes": 2961,
+      "sha256": "d90478c177706b7fef313afa824cd81231c0660466553d5e46d8365a6529c96e"
+    },
+    "native-result.json": {
+      "bytes": 758,
+      "sha256": "92932c6b22efa245a5fa140ffc26f6a9c84401446c3f058d10790ebf153f6062"
+    },
+    "original-card-restored.json": {
+      "bytes": 135,
+      "sha256": "9beefa9fdcd8f7a085fa2f8b77f0dd9959a768b1636e5c6f76bc15fff524ffc8"
+    },
+    "prepare_spare.py": {
+      "bytes": 3363,
+      "sha256": "d15f028b94da477b9143b10520ef3fd59870556d43db43246179e76312765b42"
+    },
+    "probe-console.log": {
+      "bytes": 615,
+      "sha256": "1162036f2368255b898e781c15432a6ad41dbe6d5be4ec1bf07ddccac2886c7d"
+    },
+    "probe-result.json": {
+      "bytes": 641,
+      "sha256": "68b96773493583fd57ed0358cc9fcabe88697276884e456dde117ed78516e310"
+    },
+    "probe_serial.py": {
+      "bytes": 6805,
+      "sha256": "821cd97a763b0cc7dc94eeccf343c78a3ced927fda5e754454b805543b7b26a3"
+    },
+    "recover_serial.py": {
+      "bytes": 4448,
+      "sha256": "cfdf03ead7d1df1a8f7c3a281dc7ae3ea60e8d8844c7b4dbc4bc457305ba4f52"
+    },
+    "recovery-console.log": {
+      "bytes": 34896,
+      "sha256": "d2480cda52abeb6dba675df8b6eff59648c77bf387579fd9f2da680c1a25e994"
+    },
+    "recovery-jtag-query.log": {
+      "bytes": 1690,
+      "sha256": "cd28f9b6059a955729480462e5664ea96e3502350cbab0e98d9142a73b9e625e"
+    },
+    "recovery-program.log": {
+      "bytes": 2973,
+      "sha256": "860a6557c4ffbdd48a0cd8ab153a6f231ccb1dc71c022e15e8d669134b8f8e42"
+    },
+    "recovery-result.json": {
+      "bytes": 349,
+      "sha256": "e693ccd8c1fe365308cf14149daf558c0dc2d42de4cde6dd029c2d175de01d29"
+    },
+    "restored-console.log": {
+      "bytes": 1446,
+      "sha256": "8c65615db1511ec7b3177ed18cf0df939609df31dcf9592e5cdd67f0ebe35ac6"
+    },
+    "restored-result.json": {
+      "bytes": 629,
+      "sha256": "b4f302932b21500b999d8e369936bcb951a58a7fc030d60a84c185f88525bb6b"
+    },
+    "shutdown-console.log": {
+      "bytes": 8180,
+      "sha256": "4c876753437102bf1a7a91b6f9b50146ba6498729c9134537908a9c99cc5a3d9"
+    },
+    "shutdown.json": {
+      "bytes": 82,
+      "sha256": "dd4ab9415e6d6ae3f6166bf65da9e9421ca8d243318a90fd768fd75594dd3b2a"
+    },
+    "shutdown_serial.py": {
+      "bytes": 3650,
+      "sha256": "c2d5ca791172d8c80dd9c67c8f863fce60bbb102c14e1ad15f7f990c76026823"
+    },
+    "spare-write.json": {
+      "bytes": 1387,
+      "sha256": "fc66a9b82a343093695fe0c89b969ffdea29649388cb3d2baffbf50021cbf277"
+    },
+    "test-card-inserted.json": {
+      "bytes": 135,
+      "sha256": "6634a4820b06b30315079295e8ee79531c4e8b1e16c376df5672f4b4a27c35bc"
+    },
+    "verify_factory.py": {
+      "bytes": 3894,
+      "sha256": "796e309b342cee07dc792722afc26eb5f7fd4adab5f6d67ee9bd8834bbdc49ba"
+    }
+  },
+  "format": 1,
+  "hardware": {
+    "ddr_calibrated_bytes": 1073741824,
+    "fesboot_attempts": 1,
+    "full_handoff_passed": false,
+    "initial_cpu_counter_watchdog_gate_passed": true,
+    "initial_memory_gate_passed": true,
+    "matched_spl_uboot_booted": true,
+    "native_entry_reached": false,
+    "native_go_probe_passed": false,
+    "rejection": "FES_NANO_HANDOFF REJECT bridge service/readback",
+    "rejection_phase": "first contain(), before peripheral-reset sequence and entry read",
+    "retried_after_containment": false,
+    "smc_status_vs_readback_failure_distinguished": false
+  },
+  "jtag_id": "4362C0DD",
+  "limitations": [
+    "No native entry, Go, tenfoot or native peripheral/FPGA activation acceptance",
+    "Peripheral reset, late handoff, final device state and global traffic drain remain unqualified",
+    "Combined rejection does not distinguish SMC error from reset-bit mismatch",
+    "Only top target programmed; shared JTAG broker left running"
+  ],
+  "private_files_excluded": [
+    "login credentials",
+    "vendor manual login extract",
+    "original spare-card prefix backup"
+  ],
+  "restoration": {
+    "after_boot_uuid": "dca09536-3152-4968-8951-941ce37c22f9",
+    "before_boot_uuid": "34322962-bd96-4fed-a4d5-424327fffebf",
+    "claim_released": true,
+    "factory_card_reimaged": false,
+    "factory_kernel_root_card_model_matched": true,
+    "flash_programmed": false,
+    "method": "original SD + volatile vendor-reference JTAG SOF; no physical power cycle",
+    "physical_power_cycle_needed": false,
+    "qspi_power_on_boot_retested": false,
+    "uart_logged_out_and_closed": true,
+    "usb_permissions_restored": "root:root 0664"
+  },
+  "retained_directory": "/home/deano/fes-retained/de25-nano-serial-test-20261031",
+  "serial": "TRWU8CBL",
+  "source_commit": "8539d23287de3b5af75ea8c6594aa2e7e4977345",
+  "spare_card": {
+    "capacity_bytes": 3980394496,
+    "image_bytes": 150994944,
+    "image_sha256": "150a59128c68662d273b4e5a94477cfa637364f1399ad79e39b5446050ec0ea0",
+    "raw_readback_verified": true,
+    "reader_serial": "000000000819"
+  },
+  "uart_baud": 115200,
+  "uart_interface": "if02"
+}

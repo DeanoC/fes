@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "python3",
+    "out/nano-el3-capture-20261102/run_plan_parallel.py"
+  ],
+  "returncode": 1,
+  "timed_out": false,
+  "elapsed": 300.3417213310022,
+  "log_sha256": "0d7ee49c31ce6c4e0a81da23ef9d7fd64b425eccabd73b2d9c4cf4aae328d99d"
+}

@@ -1,0 +1,244 @@
+{
+  "base_commit": "8dc3de51236e55a2c2b1ba775aec24ea4bcbe6e9",
+  "checks": {
+    "additional_sip_gate_case": 1,
+    "affected_results": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "native runtime firmware and FPGA launch integration",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "embedded producer identity and native control integration",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "embedded firmware and identity/drain RTL integration",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "test_*.py",
+        "lane": "fpga",
+        "returncode": 0
+      }
+    ],
+    "affected_status": "passed",
+    "doc_link_tests": 7,
+    "fixture_copies": 37,
+    "generated_consumers": 31,
+    "native_lifecycle_child_cases": 13,
+    "native_selected_skips": 0,
+    "race_detector": true,
+    "recovery_policy_and_artifact_tests": 4,
+    "standalone_boot_master_cases": 26,
+    "tenfoot_child_cases": 5,
+    "vendor_driver_cases": 18
+  },
+  "classification": "secure-only boot handoff receiver and ordered master-stop provider tested off-board; separate recovery firmware/media prepared; no board acceptance",
+  "controlled_bl31": {
+    "binding": {
+      "boot_proof_installed": false,
+      "expected_boot_state": "recognized owned service, NOT_READY",
+      "makefile_sha256": "1ae97dd9d370b1be840eff9c2e17ed40ab2abebdd01b1e9778ae35da352346ea",
+      "psci_sha256": "7b2bf14d8e5eeeb1ddf28bba6aeb5022c16eea18aa29ddb4b484ecf837a1e52c",
+      "reset_sha256": "a3b10e6776f77f5a697fcd4d054c669322fae1ed41213159a6fef400fe2d5c60",
+      "service_sha256": "85097c1c8c273642d322521f679e1213fe669ba9a14188f0aa3dc4111c704470",
+      "setup_sha256": "a5e64a22acdd491e6225a2d051d721ba9c0717aa5d5df7121a364f2e4bd54544"
+    },
+    "boot_proof_installed": false,
+    "bytes": 41021,
+    "mode": "owned-unready",
+    "sha256": "5d9f2c0bfae6ef41d97ae9ad9bffa265acf2b0f92322f17f71db931333a93849"
+  },
+  "effects": {
+    "flash_programmed": false,
+    "hardware_contacted": false,
+    "native_boot_enabled": false,
+    "physical_card_written": false,
+    "physical_programming_profile_added": false,
+    "qualified_hardware_drain_callbacks_installed": false,
+    "real_per0_register_adapter_compiled": true,
+    "recovery_files_prepared": true,
+    "secure_boot_evidence_producer_installed": false
+  },
+  "failed_attempts": [
+    {
+      "log": "out/nano-boot-focused-v1.log",
+      "reason": "active stop initially required already-closed bridges; fixed by fresh quiescence receipt before closure, invalidated before enable"
+    },
+    {
+      "log": "out/nano-boot-recovery-uboot-v1.log",
+      "reason": "wrong smaller cross-tool prefix lacked readelf; retry uses recorded U-Boot wrapper tools"
+    },
+    {
+      "log": "out/nano-boot-recovery-kit-v1.log",
+      "reason": "resolved mtools symlink lost multicall command name; preserve executable basename"
+    }
+  ],
+  "limitations": [
+    "actual secure SPL/Boot ROM history evidence and complete board quiesce/drain/owner callbacks remain unqualified; default provider unavailable and native service NOT_READY",
+    "record identity and independent policy checks are not authenticated measured boot; no SPL attestation producer installed",
+    "HPS reset provider is serial-only and has no implicit native peripheral resume",
+    "network recovery is a separate strict-firmware manual loader, not native network support",
+    "NIC/PHY, stable MAC and SD-writing behavior need a bounded board trial",
+    "future experimental FIT space reserved but no experimental SPL slot selection, atomic updater or rollback engine implemented",
+    "no sealed Nano package, physical FIFO/CDC drain or FPGA timing requalification"
+  ],
+  "native": {
+    "boot_object_sha256": "4f084646841848521b22eb5c589c5ec35d5c97489707f92228beb7275b4873df",
+    "controlled_sip_sha256": "85097c1c8c273642d322521f679e1213fe669ba9a14188f0aa3dc4111c704470",
+    "rpc_sha256": "71d6bd58bab976ddfdc1be064433f495214136ec22db5f016dad0c4740648b94"
+  },
+  "preserved_at": "/home/deano/fes-retained/de25-nano-trusted-handoff-20261031",
+  "receipts": {
+    "out/nano-boot-native-v1/result.json": "4adb0a367fd3a9c5338507a1b5d69ea7ca0b9f67785c0cb41d4c320313270484",
+    "out/nano-boot-owned-bl31-v1/result.json": "26f1f909c7a2ba9fe2d3806ac89a847ed476a3d4b509f8844c4d839fc961dadf",
+    "out/nano-boot-recovery-kit-v2/result.json": "912e97aa532b6a689ccae6fee8b95553155deb2a060079b570085b1df5aa1c2e",
+    "out/nano-boot-recovery-uboot-v2/result.json": "b7a232db2f8588b7b1b573ab4fa7d8bcd9f97188ef31d64b0c0cf9efea401751",
+    "out/nano-boot-strict-bl31-v1/result.json": "2f460f387c06d4df9116912139b391718880b27d8d8e06c919e59131cad32b42",
+    "out/nano-boot-test-changed-result.json": "9b7c876d95ce761c8378fc9b451fa39f9f42edac16068327416d924c37acf5d8"
+  },
+  "recovery": {
+    "atomic_updater_implemented": false,
+    "config_sha256": "b514af2a986ab00371f13bb90aa7720710a5e8a3690da34612c1a5551172ccbd",
+    "embedded_spl_independently_decoded": false,
+    "fat32_start_sector": 32768,
+    "fit_raw_sector": 512,
+    "fit_sha256": "71f413629a7714ab1a7bd4c6331969ba2670bdc447ddbc3bb8c103e52b525721",
+    "future_experiment_fit_reserved_sectors": [
+      16384,
+      32768
+    ],
+    "hardware_network_and_write_acceptance": false,
+    "jtag_sd_writer_implemented": false,
+    "loader": {
+      "automatic_writes": false,
+      "manual_prompt": true,
+      "native_handoff": false,
+      "profile_sha256": "bb0e10b9a4b67fb96a5e6fc2211567a78b8c170bbcf9345d41bf0b8159d58c0a",
+      "random_mac": false,
+      "sd_dma": false
+    },
+    "sd_image_bytes": 150994944,
+    "sd_image_sha256": "b36bad84c2b00db3b27919b47882440981d0dd298ac645b88766bfffff45d986",
+    "sof_sha256": "f5ec8595a88a0bbc9205e9b50cfa00def22e3cc9e65ddb1af8dcde1ad42ba3ec",
+    "spl_sha256": "c8a381931513024d1e95ddbfdecdb269c244c21cc347e59b7dbac28329cc38d4"
+  },
+  "source_sha256": {
+    "platform/embedded/firmware/build_terasic.py": "265474f8508755d7c9c9ee5f4c656b86814d853c5e43528349da7c624867c17c",
+    "platform/embedded/firmware/build_terasic_uboot.py": "0d050dea423b604defed078fa91d6ff1b595fcc218fe3b518d37617065c534d3",
+    "platform/embedded/firmware/control.cpp": "897bd6cab9addd84efd3be52d0ddfb51fbb217bb9f626a0bf244af78107297d4",
+    "platform/embedded/firmware/control.hpp": "c84f8c5aebb8a15286651b1536e78121b690ff4778dc1ca393d8bb8d56064bb0",
+    "platform/embedded/firmware/generated/fes_embedded_bridges.h": "52d1cda431a42daade9dcf0cad49987c60179693e6bbfcc8385075e217ab6e08",
+    "platform/embedded/firmware/generated/fes_embedded_control.hpp": "8856d106e50c7b3a8394c8e1442568446087195dfd3e6f3099ad63931dd41df1",
+    "platform/embedded/firmware/nano_boot.c": "3d09269591bdc90733da41462109f7c3c335f7f18c92f1fa38a6287243db6040",
+    "platform/embedded/firmware/nano_boot.h": "e95dfbb06fd03f0cb11bc33c7260a3828722962231efaa8a397fc81af4e97b4b",
+    "platform/embedded/firmware/nano_bridge_diag.h": "b80c4442198cbbdff4781d66ace85ab4a930804114176e5927e8984d1e78e904",
+    "platform/embedded/firmware/nano_bridge_diag.inc": "4d6a679e495b06dbda6d40db269492faf6ffa20aa2024262d57c6d648fd7c946",
+    "platform/embedded/firmware/nano_bridge_platform.h": "85c3ae63484f3453d120133f1a7577533f97f2870d663b1610d4d9382c037e5e",
+    "platform/embedded/firmware/nano_bridge_platform.inc": "0e8fa1e6d835c4505abc1324c7a340cb819b8e65ea9061a76e94412853010a8f",
+    "platform/embedded/firmware/nano_bridge_sip.c": "4e8ac3d37fc97f372b290c09ac5fd6b1bd6b5bf8707028ec8c67fb53075d162d",
+    "platform/embedded/firmware/nano_bridge_sip.h": "6d89f334a2cb624da3299b8dd433e227e29dd88883042a1c3f128fc59c3ac921",
+    "platform/embedded/firmware/nano_bridges.c": "6b3000f0a0fd7e671ab55932a14072ad0cd4759cda12a834c5b77cd351d6a4d0",
+    "platform/embedded/firmware/nano_bridges.h": "06bbc5e28763c949a0b3939ee5cadfd34f06df269bdcbce099f6e3470f945f97",
+    "platform/embedded/firmware/nano_owned_sip.inc": "d3c15be1574f1178e24ca54bcb3110dfcd9e647148f261ee2db48f6acaa62fd9",
+    "platform/embedded/firmware/prepare_nano_owned.py": "f48d5904c8f0e0b5642587ed48cba97a0f8d93878eacebbd0a63e0537f0435bf",
+    "platform/embedded/firmware/prepare_tfa.py": "8cf0fca78340d2cfd18f3f6ba6dd9239bb5ff615f4746d1c38105d77d1d950ee",
+    "platform/embedded/firmware/tests/bridge_diag_service.c": "fe81728b0e347cc099e18b9cda98add94b2d2ac9898a071a580ebbb6e6e9beb3",
+    "platform/embedded/firmware/tests/contained_path.hpp": "c3e9da659c491930bc33c1cffb27a72d490035635077933079a6b18f43726dd0",
+    "platform/embedded/firmware/tests/endpoint_tb.cpp": "f89e362aeabc3d4dc2acaa2e0a53209d977dffd5634b78f2721d9c66ce2b4de5",
+    "platform/embedded/firmware/tests/nano_boot_test.c": "cb2a8b5c57baaa94032c42a941d2d9d431e8cfb0c44472ede846f9b75106d5ff",
+    "platform/embedded/firmware/tests/nano_bridge_driver_test.c": "76a42e8045184c1daf97448c91830cb908e53239022dd834ad8e3cc7290f13c2",
+    "platform/embedded/firmware/tests/nano_bridge_fixture.h": "33647e03121098fcb51a6d0cb7426ead15a53e3c23c4f294250368638bb6f369",
+    "platform/embedded/firmware/tests/nano_bridge_fixture.inc": "96c5eae260a2c68cf2634063eb496ca0e0554d16f6be8fb50d6eb5f143544634",
+    "platform/embedded/firmware/tests/nano_bridge_sip_test.c": "dd40c383f238f8771ba42415f77b43cf6dcb47f292fa2c764570cd6fc436e643",
+    "platform/embedded/firmware/tests/nano_bridges_test.c": "d4d46d8a2ca36143a0c7641b129c08ba0c57a6477bbedbfd16f05055ea0e4c45",
+    "platform/embedded/firmware/tests/native_rpc.cpp": "1eab0f3a7d573d81f047d4b76709c030a09d6df92b30fe830bfdfba06569c046",
+    "platform/embedded/firmware/tests/terasic_reset_test.h": "4246d7ac753b5a40f1c44373d2b9a7de21621bad7dea582eeced9dc4e30543e5",
+    "platform/embedded/firmware/tests/tfa_stubs.h": "f123b431456dcf83dccead6dc4e4f80fe5711f6aaf49d71aaa80a4ab185eceef",
+    "platform/embedded/firmware/verify.py": "952b3b0f1a97e45802e5961492f1a47ebbbcc90ea8e97fa8094dc785a6da4bd8",
+    "platform/embedded/firmware/verify_nano_bridges.py": "511074620156ec23021ff6c3b3d2c67f5391dbb18d2b3bfd813cffdb097ce136",
+    "platform/embedded/firmware/verify_owned_sip.py": "587758a3774c5b0367986a3ba91ca74e021c2f1d34e6aea52149e45310945ef7",
+    "platform/embedded/nano/recovery.py": "bb0e10b9a4b67fb96a5e6fc2211567a78b8c170bbcf9345d41bf0b8159d58c0a",
+    "platform/embedded/nano/recovery_package.py": "bce05719a211965ab2978d3c63423a8bad2df5e5d32cf9709d493efcd990a803",
+    "platform/embedded/tamago/embeddedcontrol/control.go": "bd59f72ba1114aa304de6818b38018414b2d47c23e46a1af69eab28ad1918b31",
+    "platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_bridges.go": "0d91c28b5a969f4c17aa19f5d789204712d4862166ca3a09a01dab4c37fdd40c",
+    "platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_control.go": "e22c36be27afaae2869639adaf1325dec347b0c48818bfc1d3408cdd33f0c238",
+    "platform/embedded/tamago/fabricmodel/checks.go": "a95ad19b2239d7d987837b99043e50de9e72b0ba4f005b79dc753587e0d645ca",
+    "platform/embedded/tamago/fabricmodel/model.go": "b67cfbf6c83914a4e4272d52b745fdbaac8bb02bd85f1717350d874ab1c6dd03",
+    "platform/embedded/tamago/fabricmodel/model_test.go": "22b53652fe045f54384e59ffa86d217afe7a56d683d6dfd8bc1b874049ef3137",
+    "platform/embedded/tamago/go.mod": "77f9be13dda9fc16855b0b62787252f9568ad1b280bada66b2e924702f241d94",
+    "platform/embedded/tamago/go.sum": "87dbccb2e14a610a1de9666fa936a18f374bd299b50436b44405b5d75e8fd5c4",
+    "platform/embedded/tamago/modelbackend/backend.go": "8b0f746a98bb93890b186ffebde31ccd412d2c35e191d6338410001c9d0e385d",
+    "platform/embedded/tamago/modelbackend/backend_test.go": "44f05a583f2d6d00f0e81abd09254344ac75e405d6853c1bcd9dc56e769daf21",
+    "platform/embedded/tamago/modelbackend/nano_bridge_service_test.go": "afb3f46a0c36887caa5f805a6a65a3ff6e50129c9281d4ca8b93ba4bc4cf59db",
+    "platform/embedded/tamago/modelbackend/native_endpoint_test.go": "73b846159e4366cf8b0b126c5884f8774805f7787d65babeeaf6eeef9798e64d",
+    "platform/embedded/tamago/modelbackend/sealed_nano_test.go": "e686dd37c46a2ce267a87e724d30b751564b9d9caca19dfc7d87f90006df26e2",
+    "platform/embedded/tamago/modelbackend/transport.go": "71ffde9b4b3bcbcf3b70ca95170127e9d2c2b63033b6e4a4d83e4bd20a41d87c",
+    "platform/embedded/tamago/nativefabric/binding.go": "fd6891409b8cef8d5a11a4ce177dcd56d661ecec479f3cca041220b25d3c7dae",
+    "platform/embedded/tamago/nativefabric/binding_test.go": "1e6160b6a3788d5bfd541cd3be47bad5a39f678e6c6f31ff39bf54b0034f2395",
+    "platform/embedded/tamago/nativefabric/bridges.go": "5edb4164a6513a84b07907043404911118e2c0ac41292fdcade163d2c1a02505",
+    "platform/embedded/tamago/nativefabric/bridges_test.go": "19795e5a6d09623ffa896904277511ca7a40622dd774b7b873c90f762f52f8ed",
+    "platform/embedded/tamago/nativefabric/cpuhooks.go": "7545b9135e9de0e0bf9617265163b545bafdbcfe304c03276680daec07d8e5c6",
+    "platform/embedded/tamago/nativefabric/cpuhooks_test.go": "2c963dad0646dc9438b5ccdd6d6e9bfc806abfaa8bd437b135da9c5c756642be",
+    "platform/embedded/tamago/nativefabric/endpoint.go": "cfd7c508e92bf4bf5cc2e2de62f0c586549ddd0c385b390374cf87f0f07565fc",
+    "platform/embedded/tamago/nativefabric/endpoint_test.go": "73f7a0c82f209e19c849b4b4b780ad2a5e6cd0c7f3d32aba85fc5cac4bc049d9",
+    "platform/embedded/tamago/nativefabric/firmware_bridges.go": "ff782f44b0d0d449fb3a91e27e41e12381758b60596430a852dbe0a3a2f6fc01",
+    "platform/embedded/tamago/nativefabric/firmware_bridges_test.go": "41e49a8cdc40a529cedb3bd0803cdec13e8d8489d809c599ff50a1bc8f884671",
+    "platform/embedded/tamago/nativefabric/hpsfirst.go": "bdf53b196eca33c1fa5228eaea2fdbce2d54c3bbc86881097c1d337ee20fc502",
+    "platform/embedded/tamago/nativefabric/hpsfirst_test.go": "501f5c024c846f356167352306fc38745c6fade7f356871dfcf92fefe1a44df1",
+    "platform/embedded/tamago/nativefabric/nano_bridge_service_test.go": "48ec1c3f825e85f856f886c9e640d7eb71ed5a686b29cd476c69aa4d168339d0",
+    "platform/embedded/tamago/nativefabric/producer_integration_test.go": "8269adee063acb8d09692c4eaff2fbb2e275c19add4db0f1f620436935b15243",
+    "platform/embedded/tamago/nativefabric/rtl_integration_test.go": "6bdf508c8855b5c5d9b86b51c2413a1c08c082aac48dc13cfab21e3b2d6b0cf9",
+    "platform/embedded/tamago/nativefabric/sealed_nano_test.go": "5f68f62d81d1e497cf9ffa537453be855f4e4937b4530b867b4487804f7c64f7",
+    "platform/embedded/tamago/nativefabric/verify.py": "77b06a1047c3331073a5003787cf9afb2430977fe576157607a7dd2e80970792",
+    "platform/embedded/tamago/nativefabric/verify_producer.py": "47f759a25ecffbb46b14e0e8718179ea2a475d5681ef47d51c65102bc56adb1b",
+    "platform/embedded/tamago/nativefabriccheck/checks.go": "9295df5e3b17f2b37325edf02af5f4bb918f08a96d635c0aee3fa222b84d7e36",
+    "platform/embedded/tamago/nativefabriccheck/checks_test.go": "c55f61bb741c0d4f5d8444e1fa6e402cf87c1b76b3f6c47a1c5782f5818baac6",
+    "platform/embedded/tamago/runtimeadmission/admission.go": "286811ae3d65497ec2ec350c8a274b164eedcc98ffb10741c13835935b6ec13b",
+    "platform/embedded/tamago/runtimeadmission/admission_test.go": "a3f5ee7e74f03d3ea11e17ce573b79679272ecf1e128d5d08b4c05428acd7927",
+    "sources/mister-packages/packages/fabric/fes_fabric_embedded_control.yaml": "08929e0a4a14ee03fb949332403c5c7b85d299822e10af023d6c089a52d03a73",
+    "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh": "20e1f042865b54a4cc6a7334b874fedc9f95aa87deb2757ce04a35cc023fc597",
+    "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv": "95bc4ef8f470612d71dfa2737e96a988e8a8508e5db56857455bf294654667f3",
+    "tests/test_nano_boot.py": "6cdcd841f41817ebf9f12f5b59e3bb1b3f80d99fc1dc4e942833f674661013f0",
+    "tests/test_nano_recovery.py": "c3cd5487328c80a017b055889ef9aa402babcf4c45a53c1dedb8a8830e9ae33f"
+  },
+  "status": "passed",
+  "strict_bl31": {
+    "bytes": 57405,
+    "mode": "strict",
+    "sha256": "d5bc92fad82d8ee60ebfb0cda1efeea4fbb065dfec1c5af3aa73194e320cf121"
+  }
+}

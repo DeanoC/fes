@@ -1,0 +1,37 @@
+{
+  "base": "9a9590eb8b807531210848d6b391ec2047a70b95",
+  "source_files": {
+    "platform/embedded/tamago/nativefabric/README.md": "ec0392b9dd735597b14d99ca78ad6fb41a25fbd1147982719aca14bd959948e6",
+    "platform/embedded/tamago/nativefabric/program_download.go": "11f765aeb0ad8c486d57abb1e1b0fc23d0b8cf3b201c114af330199b83685f1b",
+    "platform/embedded/tamago/nativefabric/program_staging.go": "78545f65c6030ab063eec8cda46ad01941aebec238255c720be8c62111ea890b",
+    "platform/embedded/tamago/nativefabric/program_download_catalog_test.go": "b1df480631fc4014fb54351143e93074ab8e24db8e34f946d5eca18b897f3600"
+  },
+  "checks": {
+    "native-go-final": {
+      "argv": [
+        "python3",
+        "-c",
+        "import subprocess;subprocess.run(['go','test','./nativefabric','./packagestore','-count=1'],cwd='platform/embedded/tamago',check=True)"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 71.04321919800714,
+      "log_sha256": "adeb06c7b8a7798e3903dafa2329ad1f5444f4261b200858cd8b696d0a8ac51c"
+    },
+    "affected-regressions": {
+      "argv": [
+        "make",
+        "test-changed",
+        "TEST_CHANGED_ARGS=--base 9a9590eb8b807531210848d6b391ec2047a70b95 --jobs 2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 567.9991627570707,
+      "log_sha256": "da53502e80f5b2c14eb8f1ed4ef24d927b106330522815281bb03cdf24ff434c"
+    }
+  },
+  "hardware_actions": false,
+  "native_ethernet_qualified": false
+}

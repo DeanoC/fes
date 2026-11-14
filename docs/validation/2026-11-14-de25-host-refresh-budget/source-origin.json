@@ -1,0 +1,18 @@
+{
+  "scope": "host-only-refresh-budget-repair-prototype",
+  "origin": "/home/deano/fes/out/dev/de25-source-release/out/table-batch-trial",
+  "origin_procedure_sha256": "2af464ad0bf0befe0c783d90397363c8db30f3b679564f44f0757e525ffc2006",
+  "consumed_origin_not_modified": true,
+  "original_refresh_seconds": 300,
+  "selected_refresh_seconds": 420,
+  "leg_bound_seconds": 800,
+  "transaction_bound_seconds": 1800,
+  "recovery_seconds": 270,
+  "native_seconds": 480,
+  "outer_seconds": 2400,
+  "firmware_deadlines_changed": false,
+  "native_image_changed": false,
+  "procedure_frozen": false,
+  "execution_authority": false,
+  "hardware_actions": false
+}

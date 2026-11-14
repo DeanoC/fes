@@ -1,0 +1,282 @@
+{
+  "format": 1,
+  "root": "/home/deano/fes/out/dev/de25-embedded-os",
+  "base": "befd16f3ef0c6b78e69c3c45c0c2d050d0a42849",
+  "head": "cac97213eee7619bd40d99173b46f3ce1c14968f",
+  "checkout_head": "cac97213eee7619bd40d99173b46f3ce1c14968f",
+  "merge_base": "befd16f3ef0c6b78e69c3c45c0c2d050d0a42849",
+  "local_paths": [],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": false,
+      "runtime": false,
+      "contracts": false,
+      "fpga": true
+    },
+    "skipped": [
+      "host",
+      "runtime",
+      "contracts"
+    ],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": false,
+      "full_race": false
+    },
+    "paths": [
+      "platform/embedded/firmware/nano_cold_platform.c",
+      "platform/embedded/firmware/tests/nano_cold_platform_test.c",
+      "platform/embedded/nano/README.md",
+      "platform/embedded/nano/hps_context.py",
+      "platform/embedded/nano/native_trace.py",
+      "platform/embedded/tamago/cmd/fpgaload/main.go",
+      "platform/embedded/tamago/nativefabric/README.md",
+      "platform/embedded/tamago/nativefabric/prepare_configuration.go",
+      "platform/embedded/tamago/nativefabric/prepare_configuration_test.go",
+      "platform/embedded/tamago/nativefabric/retire_configuration.go",
+      "platform/embedded/tamago/nativefabric/retire_configuration_test.go",
+      "tests/test_nano_configuration.py",
+      "tests/test_nano_hps_context.py",
+      "tests/test_nano_native_trace.py"
+    ],
+    "reasons": [
+      "platform/embedded/firmware/nano_cold_platform.c: embedded firmware/RTL integration; no shipped core consumer",
+      "platform/embedded/firmware/tests/nano_cold_platform_test.c: embedded firmware/RTL integration; no shipped core consumer",
+      "platform/embedded/nano/hps_context.py: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/nano/native_trace.py: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/cmd/fpgaload/main.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/nativefabric/prepare_configuration.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/nativefabric/prepare_configuration_test.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/nativefabric/retire_configuration.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/nativefabric/retire_configuration_test.go: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_nano_configuration.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_nano_hps_context.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_nano_native_trace.py: parent orchestration/tests/assembly; component sources unchanged"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "befd16f3ef0c6b78e69c3c45c0c2d050d0a42849",
+        "--head",
+        "cac97213eee7619bd40d99173b46f3ce1c14968f"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/firmware/nano_cold_platform.c\", \"platform/embedded/firmware/tests/nano_cold_platform_test.c\", \"platform/embedded/nano/README.md\", \"platform/embedded/nano/hps_context.py\", \"platform/embedded/nano/native_trace.py\", \"platform/embedded/tamago/cmd/fpgaload/main.go\", \"platform/embedded/tamago/nativefabric/README.md\", \"platform/embedded/tamago/nativefabric/prepare_configuration.go\", \"platform/embedded/tamago/nativefabric/prepare_configuration_test.go\", \"platform/embedded/tamago/nativefabric/retire_configuration.go\", \"platform/embedded/tamago/nativefabric/retire_configuration_test.go\", \"tests/test_nano_configuration.py\", \"tests/test_nano_hps_context.py\", \"tests/test_nano_native_trace.py\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "native runtime firmware and FPGA launch integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "go",
+        "verilator"
+      ],
+      "files": [
+        "platform/embedded/tamago/nativefabric/verify.py",
+        "platform/embedded/firmware/tests/native_rpc.cpp"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "embedded producer identity and native control integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "g++",
+        "git",
+        "go",
+        "make",
+        "verilator",
+        "verilator_bin"
+      ],
+      "files": [
+        "sources/misteross/prototypes/embedded_control/producer.py",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "embedded firmware and identity/drain RTL integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/firmware/verify.py"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "verilator"
+      ],
+      "files": [
+        "platform/embedded/firmware/verify.py",
+        "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "test_*.py",
+      "cwd": "sources/misteross",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "strace"
+      ],
+      "files": [
+        "tests/test_*.py"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "planned"
+}

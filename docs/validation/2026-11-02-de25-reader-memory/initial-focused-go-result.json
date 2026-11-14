@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+    "-C",
+    "platform/embedded/tamago",
+    "test",
+    "-race",
+    "-count=1",
+    "-timeout",
+    "90s",
+    "-run",
+    "TestReaderMemory|TestHPSContext|TestReaderProbe",
+    "./nativefabric"
+  ],
+  "returncode": 1,
+  "timed_out": false,
+  "elapsed": 1.0009143409552053,
+  "log_sha256": "92c0d21fc744a42666f7828d6a310886e3e618e4818e271655cd40600e84d049"
+}

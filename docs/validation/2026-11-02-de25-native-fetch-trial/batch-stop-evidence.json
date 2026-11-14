@@ -1,0 +1,62 @@
+{
+  "verification_status": "passed",
+  "hardware_result": "stopped-before-core-package-write-and-native-attempt",
+  "classification": "firmware upload/readback passed; repeated upload rejected live prior-download RAM reservations before package transfer/write; no native candidate programmed or run",
+  "source_commit": "535bda0d9d2909a4aaff837ce7d69d2cb2c4d67f",
+  "native_build_source_commit": "726a16f4e2d979e68fb67e85e97c916e3e94ee4f",
+  "recovery_programming_complete": true,
+  "firmware_sd_write": true,
+  "firmware_sd_readback_verified": true,
+  "package_sd_write": false,
+  "native_candidate_attempted": false,
+  "native_sd_writes": false,
+  "core_load_acceptance": false,
+  "execution_observed": false,
+  "runtime_admission": false,
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "uart_free": true,
+  "private_server_stopped": true,
+  "claim_retained": true,
+  "factory_restore_requested": false,
+  "stop_stage": "upload-package/bdinfo",
+  "observed_reservations": [
+    [
+      0,
+      16777215,
+      16777216,
+      "no-map"
+    ],
+    [
+      2181038080,
+      2187644739,
+      6606660,
+      "none"
+    ],
+    [
+      2189426688,
+      2196033347,
+      6606660,
+      "none"
+    ],
+    [
+      2197815296,
+      2198767607,
+      952312,
+      "none"
+    ],
+    [
+      3199123440,
+      3221225471,
+      22102032,
+      "no-overwrite"
+    ]
+  ],
+  "root_cause": "current uploader requires no reserved scratch RAM; the first verified TFTP/fatload left flags-none LMB reservations in those buffers. No owned-reservation reuse contract exists.",
+  "firmware_receipt_sha256": "f7aaf3d85442762e115ff9ed1b4617f4f3dac145987507252de43818f0b31e5a",
+  "package_receipt_sha256": "a19736252e22842287822581808427ceb5d44d29dfb93513380f9697388ae272",
+  "raw_console_sha256": "7a90897211cebefabfba8b73d28f4940968db4928693958462e0abba5c4495b0",
+  "raw_bytes": 1737,
+  "experiment_sha256": "263ede425e5d5d9c5904f9a013a9d04f650cee5dbfd66f787a158587631ce045",
+  "transport_sha256": "6be8bc5ff305134f0f3b1373421355e8b7be52b8e300a9d7ee91b03dd6293992"
+}

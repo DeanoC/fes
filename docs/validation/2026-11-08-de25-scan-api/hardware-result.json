@@ -1,0 +1,112 @@
+{
+  "status": "fresh-scan-and-identity-pass",
+  "serial": "TRWU8CBL",
+  "source_commit": "9a33682164f901c63a34ee7bc9700ab7f63b2596",
+  "diagnostic_procedure_consumed": true,
+  "observation": {
+    "observation_complete": true,
+    "scan_attempted": true,
+    "actual_forced_scan_calls": 1,
+    "name": {
+      "bytes": 44,
+      "valid_length": true,
+      "matches": true,
+      "chain_type": 2,
+      "hex": "444532352d4e616e6f206f6e206c6f63616c686f73743a3335393539205b332d31312e312d6966616365305d",
+      "text": "DE25-Nano on localhost:35959 [3-11.1-iface0]"
+    },
+    "scan_return_code": 0,
+    "fresh_identity_verified": true,
+    "captures": [
+      {
+        "name": "CapturedDR",
+        "rc": 0,
+        "bytes": 16,
+        "valid_length": true,
+        "hex": "28343336324330444429205b33325d00",
+        "ascii": "(4362C0DD) [32]\u0000"
+      },
+      {
+        "name": "CapturedIR",
+        "rc": 0,
+        "bytes": 11,
+        "valid_length": true,
+        "hex": "2830303129205b31305d00",
+        "ascii": "(001) [10]\u0000"
+      },
+      {
+        "name": "CapturedBypass",
+        "rc": 0,
+        "bytes": 8,
+        "valid_length": true,
+        "hex": "283029205b315d00",
+        "ascii": "(0) [1]\u0000"
+      },
+      {
+        "name": "NormalBypass",
+        "rc": 0,
+        "bytes": 8,
+        "valid_length": true,
+        "hex": "283029205b315d00",
+        "ascii": "(0) [1]\u0000"
+      }
+    ],
+    "scalars": [
+      {
+        "phase": "before",
+        "name": "JtagClockAutoAdjust",
+        "rc": 0,
+        "value": 1
+      },
+      {
+        "phase": "after",
+        "name": "JtagClock",
+        "rc": 0,
+        "value": 6000000
+      },
+      {
+        "phase": "after",
+        "name": "JtagClockAutoAdjust",
+        "rc": 0,
+        "value": 1
+      }
+    ],
+    "messages": [],
+    "programming": false,
+    "cpu_reset": false,
+    "grant": false,
+    "hardware_core_acceptance": false,
+    "historical_failure_cause_proven": false
+  },
+  "cleanup": {
+    "status": "passed",
+    "exact_USB_permissions": true,
+    "same_USB_identity": true,
+    "recorded_clock_readback": "15M",
+    "owned_server_gone": true,
+    "uart_owners": [],
+    "hardware_actions": false,
+    "grant": false
+  },
+  "original_error87_explained": false,
+  "programming_grant": false,
+  "fpga_programming": false,
+  "cpu_reset": false,
+  "sd_uart_commands": false,
+  "bottom_kit_touched": false,
+  "ordinary_core_load_acceptance": false,
+  "goal_complete": false,
+  "prior_native_reservation_still_retired": true,
+  "prior_scan_diagnostic_still_retired": true,
+  "evidence_sha256": {
+    "out/nano-scan-api-20261108/trial/result.json": "6e5431199c76816e2322c9fb85c2f04a47fabd0807029bd2edf23b0bd0533c52",
+    "out/nano-scan-api-20261108/trial/scan.log": "693c9e52c29b1bf4c39f2201da8a7ce941dd6e00e74eb9645ad60854914892f8",
+    "out/nano-scan-api-20261108/trial/attempt.json": "b1cca623d7557aa02314f75c08a015ef2032a91621aa4659892a306e0c9e2d54",
+    "out/nano-scan-api-20261108/trial/transport.json": "17e4a6193949f947e3406e7c77c70d10c171584d9b212555b87d4f63f4695519",
+    "out/nano-scan-api-20261108/preflight.json": "7aec0894108e8f31e75db248e38c282a09f8e4e27d797f80e4a0f852129f00b2",
+    "out/nano-scan-api-20261108/cleanup-evidence.json": "797d46b0ac580ee6805f7c9d169fa78dd762196bb7f2e11066b96f77553d2a55",
+    "out/nano-scan-api-20261108/prepared-retention-proof.json": "acf26e2ce33418e8eb084a2b0ee7de3d82f543f4474a0d0da5abb68d245fdece",
+    "out/nano-scan-api-20261108/live-scan-result.json": "d470f753ee0601ae8bba2614be7e11d82f48fe9e4b89cf039219e35a956f2229",
+    "out/nano-scan-api-20261108/cleanup-independent-result.json": "c058d5bed39c4571876910c622fb2c5d67e42802917e62bfd812a214d6d06bd1"
+  }
+}

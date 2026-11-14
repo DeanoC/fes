@@ -1,0 +1,32 @@
+{
+  "status": "consumed-retired-no-replay",
+  "native_boot_id": "1059bb64e5cac38b",
+  "source_commit": "56f7283dfbcca2d690fe5663b6f0d4c41cba5940",
+  "compiled_source": "964657270765b48643d6ebabd115fad9a95fcfe7",
+  "programming_reservations": {
+    "recovery": {
+      "reservation_sha256": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+      "scan_sha256": "ac29680b50a9856dcd9267f6cb0f78e21be2cf6dcc9164e6e9f603300bb8f5eb"
+    },
+    "native": {
+      "reservation_sha256": "9a8721153316bd81a90c1a3046f62d31654c615cf3219528a6f4c8e22d0fa4d7",
+      "scan_sha256": "4758a31857b1bd59d32727609afa0ed1637e0d5bedec9b4fd988ee013c867997"
+    }
+  },
+  "new_programmer_failures": 0,
+  "reason": "First menu frame followed by USB periodic channel error and failed channel halt; no tape or core launch attempt",
+  "automatic_retry_allowed": false,
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "auto_adjust_readback": 1,
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "firmware_return_observed": false,
+  "cpu_park_observed": false
+}

@@ -1,0 +1,172 @@
+{
+  "status": "failed-rejected-zero-JEDEC-read",
+  "whole_attempt_passed": false,
+  "source_commit": "cad3aea8500b040c895912913a3d771208109cf1",
+  "board": "TRWU8CBL",
+  "native_boot_reference": "548caa50395f3d94",
+  "error": "invalid or unstable raw flash identity/status",
+  "protocol_records": [
+    {
+      "operation": "config",
+      "response": [
+        0,
+        1704704,
+        3221225609,
+        3,
+        0,
+        15
+      ]
+    },
+    {
+      "operation": "open",
+      "response": []
+    },
+    {
+      "operation": "select",
+      "response": []
+    },
+    {
+      "operation": "jedec",
+      "response": [
+        0
+      ]
+    },
+    {
+      "operation": "status",
+      "response": [
+        0
+      ]
+    },
+    {
+      "operation": "status",
+      "response": [
+        0
+      ]
+    },
+    {
+      "operation": "close",
+      "response": []
+    }
+  ],
+  "qspi_closed": true,
+  "cleanup_independently_verified": true,
+  "cleanup": {
+    "status": "passed-independent-cleanup-of-failed-readonly-identity",
+    "whole_attempt_passed": false,
+    "board": "TRWU8CBL",
+    "private_server_absent": true,
+    "clock_readback": {
+      "JtagClockAutoAdjust": 1,
+      "JtagClock": "15M"
+    },
+    "exact_usb_permissions_restored": true,
+    "uart_owners": [],
+    "processes_inventoried": 607,
+    "close_response_independently_verified": true,
+    "live_part_identity_verified": false,
+    "complete_backup": false,
+    "flash_write_commands_sent": false,
+    "programming_attempted": false,
+    "hardware_commands_sent": 0
+  },
+  "current_cpu_park_reobserved": false,
+  "prior_park_evidence": {
+    "path": "docs/validation/2026-11-11-de25-phase1-startup-hardware/hardware-result.json",
+    "sha256": "73459d71220d371b82bc9d315e4fb8f8415d36c01dd15042b2594c20dc16836d",
+    "scope": "previous phase1-only final Park and archived cleanup; current CPU state not reobserved"
+  },
+  "part_identified": false,
+  "geometry_qualified": false,
+  "complete_backup": false,
+  "flash_array_read_commands_sent": false,
+  "flash_write_commands_sent": false,
+  "sd_write_commands_sent": false,
+  "programming_attempted": false,
+  "prior_programming_failures_unchanged": 3,
+  "evidence_sha256": {
+    "out/nano-qspi-identify-20261111/audit_cleanup.py": "4ce442b30583d97dfed0daed4f96b93bd831dfdc1299e64ebbee85a479624a8a",
+    "out/nano-qspi-identify-20261111/cleanup-audit-process.json": "7173db080cb6942ae35fa37b0c749c37e80e65f797d15c4bf956eb77dbc0f873",
+    "out/nano-qspi-identify-20261111/cleanup-audit-result.json": "7c625adcb01a4e3810c67e8b02c3b32f6777f24113a144c1a8af87e7637c7f55",
+    "out/nano-qspi-identify-20261111/cleanup-audit.log": "5a3f0a3d15a5fcc8e26306d152e46e18cc285ca22710676af34cddb7fa4de258",
+    "out/nano-qspi-identify-20261111/cleanup-evidence.json": "17f0179d28e99456258cbab2357400271d15adf7dd12e48ca22eb15d790b7245",
+    "out/nano-qspi-identify-20261111/freeze-operator-process.json": "306ab282d05e0af19d02e22db92adc98090853cb0d007df00a7f9e4f5e528aa7",
+    "out/nano-qspi-identify-20261111/freeze-operator-result.json": "895f1f1492f5616c70f5b6511244f5ff88243d1c9b3b6982985bcda796859588",
+    "out/nano-qspi-identify-20261111/freeze-operator.log": "684fee9a5c2cbe68dcf79dd362ca5e8151490ce5afec04d0285464246f35c373",
+    "out/nano-qspi-identify-20261111/freeze.py": "1601e98f6a2073fffff611f1d90c316e6897f78378e57cb8b9e337fb2ceb802f",
+    "out/nano-qspi-identify-20261111/frozen-procedure.json": "0a2ccca5d571c9166093266f23cb4ac4d3dad329b55106ddb307efbe0f791734",
+    "out/nano-qspi-identify-20261111/hardware-trial-process.json": "5dc30b034263ddac00865aef615277af7cdb079ce0bcb78a44d664bc2179a8f1",
+    "out/nano-qspi-identify-20261111/hardware-trial-result.json": "e17bee2c3a1610cc614c4d9cdebbb08778fc4aa44818cfa43b0c23d7a362ebd6",
+    "out/nano-qspi-identify-20261111/hardware-trial.log": "ed9a68b943420702c96c0014521ba3a8c53403a977d0b9c51374136a45708eac",
+    "out/nano-qspi-identify-20261111/protocol-models-process.json": "516ad12d0dc1b9097a7bf13e0e8183adbe20f0be41efc791f38f3b45b8bee206",
+    "out/nano-qspi-identify-20261111/protocol-models-result.json": "a346c3ad2fd41e8a4284bf29bdc389c2b4bfa9f9e4fba4e6cacb4063fcfa61cf",
+    "out/nano-qspi-identify-20261111/protocol-models.log": "bc8a9dd834301b901b6bafbcbe22420884e5b102e0bcb6506d942173be728c90",
+    "out/nano-qspi-identify-20261111/protocol_models.py": "6ebe1d371f546d19a9484d6a7e512cd9ceb49fce17a7e4a41d1f7a07c6f95395",
+    "out/nano-qspi-identify-20261111/run.py": "10e64dd990d75e256c8498a018dad8c33d5cbb0a84f08cc53cd86ac394a399e7",
+    "out/nano-qspi-identify-20261111/source.json": "4381d3db45359707bce2cf9748189d2b7331a714eff3603f7afc29f04d4f0aca",
+    "out/nano-qspi-identify-20261111/trial/attempt-consumed.json": "3b067a8355d18d765198a6195c00e2470997c82fca429c562cceabb360a1feef",
+    "out/nano-qspi-identify-20261111/trial/common.py": "284f5e1863c8fbf22083004a17a239fa86739d388e2616827d737c755b1016e5",
+    "out/nano-qspi-identify-20261111/trial/forced-scan.log": "7c42ef2588f6078afef1871fc064e3a0af7e6b2d5a585d5df4a2ba6c8ab05b4a",
+    "out/nano-qspi-identify-20261111/trial/host_link.py": "f2a10245c541db49b0336d87eb9eea90f3c69cac478e6805d108603bff078790",
+    "out/nano-qspi-identify-20261111/trial/identify.py": "82ae337481e2505130c2de181e9da2f2a2605a9f55c2ce4f913fe3cb63e101e5",
+    "out/nano-qspi-identify-20261111/trial/param-read-1.log": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+    "out/nano-qspi-identify-20261111/trial/param-read-10.log": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "out/nano-qspi-identify-20261111/trial/param-read-11.log": "85c63fac9c727e3795d2f5b57e91a62757cc2ce9d1f34f6f6a737fd710a0d6d5",
+    "out/nano-qspi-identify-20261111/trial/param-read-13.log": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "out/nano-qspi-identify-20261111/trial/param-read-14.log": "85c63fac9c727e3795d2f5b57e91a62757cc2ce9d1f34f6f6a737fd710a0d6d5",
+    "out/nano-qspi-identify-20261111/trial/param-read-16.log": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "out/nano-qspi-identify-20261111/trial/param-read-17.log": "85c63fac9c727e3795d2f5b57e91a62757cc2ce9d1f34f6f6a737fd710a0d6d5",
+    "out/nano-qspi-identify-20261111/trial/param-read-19.log": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "out/nano-qspi-identify-20261111/trial/param-read-2.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "out/nano-qspi-identify-20261111/trial/param-read-20.log": "85c63fac9c727e3795d2f5b57e91a62757cc2ce9d1f34f6f6a737fd710a0d6d5",
+    "out/nano-qspi-identify-20261111/trial/param-read-22.log": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "out/nano-qspi-identify-20261111/trial/param-read-23.log": "85c63fac9c727e3795d2f5b57e91a62757cc2ce9d1f34f6f6a737fd710a0d6d5",
+    "out/nano-qspi-identify-20261111/trial/param-read-25.log": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "out/nano-qspi-identify-20261111/trial/param-read-26.log": "85c63fac9c727e3795d2f5b57e91a62757cc2ce9d1f34f6f6a737fd710a0d6d5",
+    "out/nano-qspi-identify-20261111/trial/param-read-28.log": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "out/nano-qspi-identify-20261111/trial/param-read-29.log": "85c63fac9c727e3795d2f5b57e91a62757cc2ce9d1f34f6f6a737fd710a0d6d5",
+    "out/nano-qspi-identify-20261111/trial/param-read-33.log": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+    "out/nano-qspi-identify-20261111/trial/param-read-34.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "out/nano-qspi-identify-20261111/trial/param-read-4.log": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "out/nano-qspi-identify-20261111/trial/param-read-6.log": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "out/nano-qspi-identify-20261111/trial/param-read-7.log": "85c63fac9c727e3795d2f5b57e91a62757cc2ce9d1f34f6f6a737fd710a0d6d5",
+    "out/nano-qspi-identify-20261111/trial/param-read-8.log": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "out/nano-qspi-identify-20261111/trial/param-read-9.log": "85c63fac9c727e3795d2f5b57e91a62757cc2ce9d1f34f6f6a737fd710a0d6d5",
+    "out/nano-qspi-identify-20261111/trial/param-write-3.log": "8ae3543c6ecfd4b3fc409c8c1d7ec8161fd12a015efccc1c20d07849786a4a4e",
+    "out/nano-qspi-identify-20261111/trial/param-write-31.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-qspi-identify-20261111/trial/param-write-32.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-qspi-identify-20261111/trial/param-write-5.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-qspi-identify-20261111/trial/private-client-setup.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-qspi-identify-20261111/trial/private-server.log": "313024a2d27e45e1bf2ec046cf5695d802a800aa42e049777e9747e2299aa6ba",
+    "out/nano-qspi-identify-20261111/trial/private-top-enumeration.log": "47fcb84f0b531b5bdf8c18e50446645d8f1cb4a13fd27a86719be9b6a0ddbd46",
+    "out/nano-qspi-identify-20261111/trial/private_jtag.py": "887b8d10933e59736044ef249551623657919232d754848c38e43610894a2965",
+    "out/nano-qspi-identify-20261111/trial/progress.json": "9ffd998f94b083a5d0be19985ae252d4a0684cee46b1197f979699da95c86043",
+    "out/nano-qspi-identify-20261111/trial/read_protocol.py": "ae483c1d448f2fa0cd44763825e955fa77f9192ec32a8fb42766eaa2b9d354aa",
+    "out/nano-qspi-identify-20261111/trial/result.json": "bea9d6466b651caa40f7a6d8baac3d7a15d0efbee87bbb00a254b11ab087c288",
+    "out/nano-qspi-identify-20261111/trial/sdm-12-config.log": "d2d159ccc6cc9e16f94a48ba81d5460ecab7c26053c72fd2c8653d094b3a4d87",
+    "out/nano-qspi-identify-20261111/trial/sdm-15-open.log": "cab7f0fcec7752b05282d296985b84b290bab8c4ee1ded42b741f892952a340a",
+    "out/nano-qspi-identify-20261111/trial/sdm-18-select.log": "ed13ac3439e33c16bfde2ac248b69ca34375726fa6a6c23fe07ecdee9afbfc9b",
+    "out/nano-qspi-identify-20261111/trial/sdm-21-jedec.log": "832f61c29048148ffc35db41c743ec4f77a01354c9c7c6e1585c6e8ec6dba4af",
+    "out/nano-qspi-identify-20261111/trial/sdm-24-status.log": "925a9a5ca6d6b6bc9fe3de616f5377dd919a06aaaba36ad1462deff9f13cad40",
+    "out/nano-qspi-identify-20261111/trial/sdm-27-status.log": "ecaabd229ace2c759033994dd140aae4d67e9e6a3f0d2e14625d1f3ef853b57e",
+    "out/nano-qspi-identify-20261111/trial/sdm-30-close.log": "6696c9a157817b7fb3e8d6e7a47e4a95cf6bdca78cf06e40e692727653f2e648",
+    "out/nano-qspi-identify-20261111/trial/transport.json": "20efeb3ee09d950afedfd27ef2d136dac5c8edeb7dcf3f185d9efaad8813d297",
+    "out/nano-qspi-identify-20261111/trial/transport_guards.py": "25f6208a5367d0e7e5a36fea8011390f2425c841eba453d9fccfcfaadfcfa225",
+    "out/nano-qspi-identify-20261111/trial/vendor-list.log": "86935733e95bcc3ac66450385bd4342710d6298b65397a31737419788026d81e",
+    "out/nano-qspi-identify-20261111/usb-stability-live-process.json": "779b6a7f966d918b59f980311fbdb43d4736847a0ff4ef98a87f8196ac02ec84",
+    "out/nano-qspi-identify-20261111/usb-stability-live-proof.json": "1b1d8e952ad1bc7eab0408f2f3a30e63fff7fa77bbf8c832e71d6a91b5e36693",
+    "out/nano-qspi-identify-20261111/usb-stability-live-result.json": "db2308e330d9b3ee49f294359cb28549b768eae37b550545b11a0d47a8f26b52",
+    "out/nano-qspi-identify-20261111/usb-stability-live.log": "a879b28798342900c856b068d01556f4cdd199bdf73efd5faae478ed5b6bf23d",
+    "out/nano-qspi-identify-20261111/usb_stability_live.py": "089caa46d40fafcbe1b9b1542c3fc477ac1dd6fc7142fc893f47f6d02c6de28d"
+  },
+  "host_supervisor": {
+    "argv": [
+      "python3",
+      "out/nano-qspi-identify-20261111/trial/identify.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+    "returncode": 1,
+    "timed_out": false,
+    "elapsed": 15.033257056958973,
+    "log_sha256": "ed9a68b943420702c96c0014521ba3a8c53403a977d0b9c51374136a45708eac"
+  }
+}

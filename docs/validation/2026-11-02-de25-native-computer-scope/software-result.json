@@ -1,0 +1,229 @@
+{
+  "status": "passed",
+  "head": "5b00f0486576bb192e3de1cb09569c59902cca2b",
+  "base": "5e6ad1d7b3e15c0335de91e19005fc7eabe4dca3",
+  "plan_sha256": "5139215af8e8f7e68bd8a3ab1cc3fdb33a6dc1b86e80920ce47e0a7b8f0d4eee",
+  "results": [
+    {
+      "index": 0,
+      "label": "test_affected.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "log": "software-0.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.6033814150141552,
+      "log_sha256": "b91a7d62bfea5e985159d142989b39bf8cd06e5e898cdab968007c2d56449376",
+      "child_receipt_sha256": "5228a49d9988d907dabbed45d3156e2834fb961923741efd9e9e55a2581f1634"
+    },
+    {
+      "index": 1,
+      "label": "test_test_changed.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "log": "software-1.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.203156109084375,
+      "log_sha256": "3350206df29a1fcb4efe08ccaf966ba6b78cbcae75d60fd5c11c61f1a57ab2bf",
+      "child_receipt_sha256": "25d9f6ae2330bd10759ed77ddf6bf6fb901a2334316eb3d699ad9f4a42a0e5df"
+    },
+    {
+      "index": 2,
+      "label": "committed whitespace",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "5e6ad1d7b3e15c0335de91e19005fc7eabe4dca3",
+        "--head",
+        "5b00f0486576bb192e3de1cb09569c59902cca2b"
+      ],
+      "log": "software-2.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20044444198720157,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "e74f9c0dfbf4e17f33dc473d20569064da0e14b618c17c9b1549fa8f65ce195a"
+    },
+    {
+      "index": 3,
+      "label": "working whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "log": "software-3.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.22108127200044692,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "430827d0b97686b39f7a31d706d3acc567ec9fa0b48f9ae200b3565991e38b67"
+    },
+    {
+      "index": 4,
+      "label": "parent Python regressions",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-native-20261102/parent_partitions.py"
+      ],
+      "log": "software-4.log",
+      "planned_argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/entry/build.py\", \"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/nano_computer_control.inc\", \"platform/embedded/firmware/nano_owned_sip.inc\", \"platform/embedded/firmware/prepare_nano_owned.py\", \"platform/embedded/firmware/tests/nano_cold_platform_test.c\", \"platform/embedded/firmware/tests/nano_computer_control_test.c\", \"platform/embedded/nano/README.md\", \"platform/embedded/nano/cold_profile.py\", \"platform/embedded/nano/hps_context.py\", \"platform/embedded/tamago/build.py\", \"platform/embedded/tamago/cmd/fpgaload/main.go\", \"platform/embedded/tamago/computer/README.md\", \"platform/embedded/tamago/computer/verify.py\", \"platform/embedded/tamago/nativefabric/README.md\", \"platform/embedded/tamago/nativefabric/computer.go\", \"platform/embedded/tamago/nativefabric/computer_test.go\", \"platform/embedded/tamago/nativefabric/hpscontext.go\", \"platform/embedded/tamago/nativefabric/testdata/hps-computer.json\", \"platform/embedded/tamago/run.py\", \"tests/test_nano_computer.py\", \"tests/test_nano_configuration.py\"]"
+      ],
+      "verification_mode": "same-selected-suite-partitioned-by-module",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 337.8997154610697,
+      "log_sha256": "2834cf7fe104befdfc598a124b2533247f988b273d1ebeb4adefb83802c1d849",
+      "child_receipt_sha256": "6eb38ab7c43b14504fa96c0d7cf6d115fc86e8acc82a5f37f1fd6c9e0d48eb55"
+    },
+    {
+      "index": 5,
+      "label": "working-tree generated consumer consistency",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "log": "software-5.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 10.222372243995778,
+      "log_sha256": "39911a38609b8ca0592f13bd0e960ba0cd433f6599caf6ce88f25c65a0e67b3d",
+      "child_receipt_sha256": "0c39df932e14e6daa13aca940fb65b670483213bdea256796660ea54b0ff76e5"
+    },
+    {
+      "index": 6,
+      "label": "native computer transport and command failures",
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "90s",
+        "./computer/..."
+      ],
+      "log": "software-6.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.8057733660098165,
+      "log_sha256": "bb0d51f94ec7d31d5c2e07312ee872726ec065513665a3938ae22a7e1320e3d2",
+      "child_receipt_sha256": "4c793a01e51908d854cfc4275e0f56246e50f7a167f78e70fdd1e8dc7fad333e"
+    },
+    {
+      "index": 7,
+      "label": "native SD firmware lease and PIO lifecycle",
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "90s",
+        "./sdcontrol",
+        "./sdhci",
+        "./fat",
+        "./packagestore"
+      ],
+      "log": "software-7.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 10.411020313040353,
+      "log_sha256": "ad8eff2dca196d3f3ab4ae4910aa3297d1696d156be31307033b68a4e9712cb7",
+      "child_receipt_sha256": "3c81ebb507dd39bc672d4c075cc7b83db4e43674fb2b9229c1f6607081fea69f"
+    },
+    {
+      "index": 8,
+      "label": "native runtime firmware and FPGA launch integration",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "log": "software-8.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 124.12405047204811,
+      "log_sha256": "fe2c23e711a09800a168c9e0c8c2cfa9b51d8ce5cb8958a24e0032f52f6009ba",
+      "child_receipt_sha256": "8f3c7705bca6ff06cf5058eed70467e637864d046985b3dea99f19737fd4357d"
+    },
+    {
+      "index": 9,
+      "label": "embedded producer identity and native control integration",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "log": "software-9.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 25.04236729303375,
+      "log_sha256": "347839adce93cac2abb9c53d06193214faf00190f37bf1dfe17712158015940a",
+      "child_receipt_sha256": "f56c85f1c41d020c8fc32120fb19dc2adf416544d8de73aa3157eccc6b1492af"
+    },
+    {
+      "index": 10,
+      "label": "embedded firmware and identity/drain RTL integration",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/firmware/verify.py"
+      ],
+      "log": "software-10.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 7.81281327304896,
+      "log_sha256": "10bf9c64742cb739dfb048016938fca519e4e982ae1146603e4031ea2ecef5ec",
+      "child_receipt_sha256": "ae72b52b584e5a0d590eea11cf6099eca1c6b5c89922ae6c9413dd3ea1b1adeb"
+    },
+    {
+      "index": 11,
+      "label": "test_*.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "log": "software-11.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 622.9190677310107,
+      "log_sha256": "a62d1e7dd060496fb4a99ec4544e595656fb4419ebe2d3a298741027185754e0",
+      "child_receipt_sha256": "dcd022b63c9b355ff58012c3c4beee48c88f1ea0d70b12eff1ffd3da1d2df123"
+    }
+  ]
+}

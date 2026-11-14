@@ -1,0 +1,70 @@
+{
+  "status": "passed-read-only-producer-inventory",
+  "source_commit": "90f7db3e7247d52ffe7ebd507e9a119912d836dd",
+  "projects": {
+    "computer-project": {
+      "hps_parameters": {
+        "f2sdram_data_width": "256",
+        "f2sdram_address_width": "32",
+        "f2sdram_SMMU": "false",
+        "EMIF_AXI_Enable": "true"
+      },
+      "vendor_adapter": {
+        "adapter_source_sha256": "29da61c67255e9efd98b7ca9a63d9fcbfc37d9b1175d33f0cfd62f46f8c637ad",
+        "adapter_generated_sha256": "fcc90a71082c709a648265d09d58322ed535ce1499dff474aaf8bb55c53a3431",
+        "arcache": 2,
+        "arprot": 3,
+        "aruser": 224
+      },
+      "generated_mpfe_aruser": "{17'h3,f2sdram_aruser_intr[7:0]}",
+      "generated_mpfe_awuser": "{17'h3,f2sdram_awuser_intr[7:0]}",
+      "external_axi_user": 224,
+      "mpfe_combined_user": 992
+    },
+    "menu-project": {
+      "hps_parameters": {
+        "f2sdram_data_width": "256",
+        "f2sdram_address_width": "32",
+        "f2sdram_SMMU": "false",
+        "EMIF_AXI_Enable": "true"
+      },
+      "vendor_adapter": {
+        "adapter_source_sha256": "29da61c67255e9efd98b7ca9a63d9fcbfc37d9b1175d33f0cfd62f46f8c637ad",
+        "adapter_generated_sha256": "fcc90a71082c709a648265d09d58322ed535ce1499dff474aaf8bb55c53a3431",
+        "arcache": 2,
+        "arprot": 3,
+        "aruser": 224
+      },
+      "generated_mpfe_aruser": "{17'h3,f2sdram_aruser_intr[7:0]}",
+      "generated_mpfe_awuser": "{17'h3,f2sdram_awuser_intr[7:0]}",
+      "external_axi_user": 224,
+      "mpfe_combined_user": 992
+    }
+  },
+  "files": {
+    "out/retained-control-boot/computer-project/board/hps/project/hps_subsys/ip/hps_subsys/agilex_hps.ip": "5bc2e311b06fd55bb311e231968fe30d3d17d465fc4155237072672cda337ecb",
+    "out/retained-control-boot/computer-project/board/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/agilex_hps_intel_sundancemesa_mpfe_100_d7hziti.sv": "3f3d357986f918355ec9fb5c816727ed808f6dd2fd692fbd49aa7116f9208949",
+    "out/retained-control-boot/menu-project/board/hps/project/hps_subsys/ip/hps_subsys/agilex_hps.ip": "5bc2e311b06fd55bb311e231968fe30d3d17d465fc4155237072672cda337ecb",
+    "out/retained-control-boot/menu-project/board/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/agilex_hps_intel_sundancemesa_mpfe_100_d7hziti.sv": "3f3d357986f918355ec9fb5c816727ed808f6dd2fd692fbd49aa7116f9208949"
+  },
+  "vendor_tieoffs": {
+    "path": "/data/altera_pro/26.3/ip/altera/intel_hps/sm/mpfe/mpfe_tieoffs.csv",
+    "sha256": "fae760f8e95865b0fb6b2bf035ceb07d6cf4c4e2dfdbe21ae95dd027dc2be62b"
+  },
+  "retired_smmu": {
+    "cr0": 0,
+    "cr0ack": 0,
+    "gbpa": 1048576,
+    "queue_producer": 12,
+    "queue_consumer": 12
+  },
+  "existing_reader_gate": "requires bypass_controls_clear=1; rejects retained GBPA.ABORT",
+  "unknowns": [
+    "meaning of generated upper 17-bit user tieoff for TBU translation/bypass",
+    "whether MPFE reader transactions can proceed while global abort is set",
+    "appropriate separate reader-route handoff and fresh ownership proof"
+  ],
+  "source_memory_reuse": false,
+  "reader_route_qualified": false,
+  "hardware_actions": false
+}

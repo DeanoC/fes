@@ -1,0 +1,676 @@
+# Native Go embedded base
+
+This exploratory image runs the existing tenfoot application directly on
+QEMU's single-core AArch64 `virt` machine through
+[TamaGo](https://github.com/usbarmory/tamago). There is no guest Linux, libc,
+WebAssembly interpreter or dynamically loaded executable. It is an emulator
+integration prototype, not a flashable DE25-Nano image.
+
+The `tenfoot` program mounts a real FAT32 disk through VirtIO, reads its API
+configuration and preferences, connects to a private FogCast host through a
+real VirtIO NIC and TCP stack, and draws the existing software renderer into
+QEMU ramfb at 1280×720. A real xHCI USB boot keyboard supplies live navigation
+and settings commands; PL011 remains an explicit diagnostic input option.
+The host runs the normal scanner/catalog/API against a private library. Boot
+configuration supplies the gateway URL and loopback Host header expected by
+the existing private API policy. The runner's sample files are synthetic browsing
+data, not
+playable ROMs. Physical core launch and FPGA programming are unavailable.
+
+The separate `probe` program checks time, goroutine scheduling, allocation/GC
+and TamaGo's volatile in-memory filesystem.
+The QEMU-only `mapcheck` program checks live EL1 CPU state, page tables and
+hardware translations for its heap, UART and uncached DMA, then checks an
+unaligned DMA copy. It uses the same [mapping implementation](board/arm64map/README.md)
+as the Nano transport; its success is emulator evidence.
+
+Nano cross-builds also accept the explicit `--arm64-features` experiment. It
+uses a source-checked overlay of the pinned Go compiler's empty ARM64 feature
+initializer, reads the architectural feature registers at EL1 and calls Go's
+existing parser before crypto packages select their implementations. It forces
+no ISA flags and changes no installed compiler files. Unsupported features keep
+the standard generic path. The generated overlay and selected sources are
+included in the native source proof; the option is rejected by the normal QEMU
+runner. Its rebuilt chain now passes a [bounded physical menu/return comparison](../../../docs/validation/2026-11-07-de25-native-cpu-feature-trial/README.md),
+with presentation falling from about 3.8 to 1.3 seconds per frame. The option
+remains an explicit experiment; full application and platform qualification
+remain open.
+
+The standalone check uses the same overlay at QEMU EL1, verifies known SHA-1,
+SHA-256/SHA-384, AES/GCM and CRC32 results, and reads the actual SHA2 dispatch
+flags for baseline, discovered and SHA2-masked cases. The masked case tests
+advertised-feature handling on an emulated CPU that still implements SHA2;
+this is not physical CPU or performance qualification:
+
+```sh
+python3 platform/embedded/tamago/verify_cpu_features.py \
+  --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
+  --qemu out/bootchain-tools/root/usr/bin/qemu-system-aarch64 \
+  --output out/native-cpu-feature-check
+```
+
+An extracted QEMU may also require its library directory in `LD_LIBRARY_PATH`.
+
+Board selection is now explicit: `--board qemu` (default) runs the emulated
+hardware drivers; `--board de25-nano --profile FILE` cross-builds the separate
+Nano UART/timer, cold read-only SDHCI and direct DWC2 keyboard paths. Nano also has an XGMAC static-IPv4 prototype with explicit DMA/PHY firmware
+requirements. Optional display copies into a boot-firmware-owned window; it
+requires a matching Nano scanout artifact and provides no physical drain or FPGA
+activation support. See the
+[board selection and firmware contract](board/README.md) for exact scope and
+bring-up commands. The bounded [Nano boot and read-only SD diagnostics](../nano/README.md)
+now pass; other physical device and core-launch qualification remains open.
+The explicit `fpgaload --window-memory` mode accepts only the sealed
+`hps-ddr-window` personality and its complete 4 MiB reservation. It links the
+existing tenfoot renderer, publishes one XRGB frame under closed ownership,
+then configures and checks the matched endpoint while keeping FPGA data access
+held. Native entry and cold firmware carry the same opt-in and map. This mode
+cannot use `--ddr-read` or the computer-control modes, and grants no display,
+buffer reuse or ordinary runtime admission.
+
+Adding `--window-read` binds the sealed full-frame access contract into Go,
+native entry and secure firmware. It reads the published frame through the
+existing native CSR driver and returns through firmware's independent
+all-master stop and DDR drain. Both the full memory window and its contents
+remain pinned until reboot, including on failure. Software and RTL model
+checks do not establish physical display or normal core-load acceptance.
+
+The separate `fpgaload --menu-present` selection accepts the source-bound
+`hps-ddr-menu` producer and its complete two-slot 8 MiB reservation. The native
+command retains the selected package through SD containment, reserves that
+uncached arena, configures the sealed core, then uses `MenuSession` to present
+three changing actual Tenfoot frames. It finishes through independent secure
+master-stop and bridge closure. The SDK, native entry, cold firmware header and
+HPS-first composition bind the same menu access digest and ABI `0x10203043`.
+Other reader/computer modes and USB selections cannot be combined with this
+initial cold test. Both slots remain pinned after success or failure. This
+adds the native boot path; physical HDMI, storage resume, input and the full
+menu/core/menu application lifecycle still require integration and acceptance.
+
+Adding `--window-present` selects the owned presenter in the native command.
+It renders twelve changing tenfoot states and waits for the matching full-frame
+CRC and local reader drain before updating the same pinned arena. Each frame
+records its generation, publication hash, read checksum and drain cookie.
+The final return uses secure firmware's independent master stop and bridge
+closure; its cached reader acknowledgement must match frame twelve. Build,
+entry and cold-firmware receipts carry this separate selection. Failure logs
+use cached observations and keep memory pinned. Native HDMI and ordinary
+runtime admission still need separate implementation and hardware acceptance.
+The [matched repeated-frame diagnostic](../../../docs/validation/2026-11-04-de25-buffered-window/README.md)
+now passes all twelve frames, local reader drains and final firmware closure
+on TRWU8CBL. Its private 32 KiB hash scratch retains complete byte coverage;
+all device bounds remain unchanged. This result covers the fixed reader scope.
+
+Adding the explicit `--window-storage-return` option to `--window-present`
+selects a separate matched SD handback prototype. After the complete display
+return it resumes the original store, freshly reads/verifies the same selected
+package and contains SD again. Its success marker includes closed, resumed
+and newly contained generations. It performs no SD writes or second FPGA load.
+The option is bound through native/entry/firmware/composition receipts; the
+original frame-only mode is unchanged. The
+[matched physical diagnostic](../../../docs/validation/2026-11-04-de25-window-storage-return/README.md)
+passes frame return in 44.05 seconds and fresh SD retention/containment in
+55.79 seconds, within their separate 45/100-second limits. Ordinary core loading
+and the normal native UI loop remain open.
+
+The separate `--window-reload` option requires `--window-storage-return` and
+selects one second native configuration from that freshly retained handoff.
+The first session presents twelve changing frames; the second presents two,
+then closes through a new independent firmware master stop. SD stays contained
+and the original frame arena stays pinned. SDK, entry, cold-profile and FPGA
+composition receipts carry the explicit selection. The second transfer keeps
+the existing 20-second configuration limit. This prototype still requires a
+matched bounded hardware test and supplies no ordinary package admission.
+
+The repeated-frame diagnostic emits timed `STEP` records before and after
+rendering, presentation and final return. A partial trace retains the last
+completed frame and the CPU step which did not return. These progress records
+add no device reads and supply no frame, drain or closure receipt themselves.
+
+Nano images omit ELF symbols and DWARF sections and now store the complete ELF
+in the entry's bounded gzip format. Go's runtime PC/line metadata remains in the
+decoded image. This permits the full Tenfoot command handler in the unchanged
+8 MiB FIT window. The frame diagnostic exercises search/text commands; the
+normal native UI loop and physical launch integration remain separate work.
+
+The Nano-only `fpga` program cross-builds a read-only TF-A SDM mailbox probe.
+It reports silicon IDCODE and configuration status, without programming,
+opening bridges or establishing a live package identity. See [SDM](sdm/README.md).
+The Nano-only `hpsio` program uses a sealed HPS-first project and the contained
+serial profile to request two exact read-only samples of 164 HPS pinmux
+registers from matched secure firmware. It verifies both digest halves and
+unchanged cold source ownership before reporting the result. It has no FPGA
+configuration or device-opening operation. The observation covers this fixed
+I/O subset; `HPSContextVerifier` still supplies no general boot admission.
+
+The Nano-only `bootcontext` program compares the compiled HPS-first package
+descriptor with a read-only secure-firmware digest under the same closed
+owner/generation. It requires `--hps-first-project` and the exact source serial
+probe profile. The [matched build](../nano/README.md#source-context-readback)
+does not grant physical core admission or implement `BootHandoffVerifier`.
+The separate `fpgacontext` program binds the compiler-derived CPU control map
+as well, requests one secure identity read with data held, and checks that
+control has closed again before reporting the observed ABI/build. It uses
+the same required sealed project/profile and matched boot chain. See the
+[CPU identity diagnostic](../nano/README.md#cpu-fpga-identity-diagnostic) for
+the exact containment and failure contract; physical runtime admission remains
+unavailable.
+The Nano-only `fpgastatus` program selects the separate secure configuration
+query, checks unchanged closed source ownership and reports SDM readiness.
+It uses the same compiled source/control-map inputs and matched boot chain,
+and performs no FPGA register access or bridge opening.
+The Nano-only `fpgaload` program adds a source-bound first phase-two transfer.
+Its build derives whole/chunk digests and a separate upload archive from the
+verified sealed package, excludes an uncached transfer arena from every other
+owner, and binds that descriptor into native code, SPL and BL31. It reads and
+retains `FES/PKGTEST.BIN` through owned SD/FAT, contains SD, and
+then checks the actual staged bytes under that closed ownership. The core RBF
+is no longer embedded in the native executable. Private preparation captures
+the contained SD generation and rejects a resumed or changed storage handoff.
+Before that first transfer it requires a source-derived live CPU mapping
+observation covering Go RAM, control, configuration DMA and reader memory.
+Actual MMIO and configuration calls also check mappings around each operation;
+uncertain results retain storage and reject further progress.
+The same `ConfigurationTransfer` engine used by the runtime then drives the contained
+firmware protocol, followed by readiness and live identity with control
+reclosed. This one-shot cold profile grants no runtime compatibility or data
+release. See [contained phase-two configuration](../nano/README.md#contained-phase-two-configuration).
+The QEMU `fabric` diagnostic also models the dedicated configuration protocol
+under a hypothetical held-bridge firmware contract. Its generation-bound drain,
+buffer ownership and identity-before-release checks do not enable Nano programming.
+
+## Build and run
+
+The native module pins TamaGo and its modified Go compiler to **1.26.5**,
+matching FES. Exact compiler, runtime and network pins are in
+[toolchain.lock.toml](toolchain.lock.toml). Stock Go cannot build `GOOS=tamago`.
+Extract the verified compiler archive under `out/embedded-base-tools/tamago`,
+then populate the private cache explicitly:
+
+```sh
+cd platform/embedded/tamago
+GOTOOLCHAIN=local \
+GOMODCACHE="$PWD/../../../out/embedded-base-tools/tamago/mod" \
+../../../out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go mod download
+cd ../../..
+(cd sources/FogCast && GOWORK=off go build \
+  -o ../../out/embedded-base-tools/fogcast-host ./cmd/fogcast-embedded-host)
+```
+
+The runner requires Python 3, QEMU AArch64 with ramfb, and mtools. It creates
+only ordinary files under a fresh output directory; it never opens a physical
+block device. Compiler builds use `GOPROXY=off`, `GOSUMDB=off`,
+`GOTOOLCHAIN=local` and `-mod=readonly`.
+
+```sh
+python3 platform/embedded/tamago/run.py tenfoot \
+  --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
+  --qemu out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64 \
+  --output out/native-go-system
+```
+
+The default test boots twice on the same FAT32 image. It verifies catalog
+loading, sends live USB keyboard navigation and a layout change, captures QEMU's
+actual display, independently reads the saved JSON, then checks that a fresh
+boot restores the changed layout. The report records tool/ELF/source hashes,
+commands, disk identity, logs and screenshots. This proves a clean restart;
+it is not abrupt-power-loss or hardware acceptance. Use the runner's
+`--help` for interactive operation and host binary selection. USB is the
+default; `--input uart` selects the independent serial diagnostic backend.
+
+For manual use, add `--interactive` (USB keys in the QEMU window, Ctrl-] in
+the terminal to exit) and choose
+`--display sdl` or a supported QEMU display. Use `--disk out/my-boot.img` to retain
+preferences between invocations; a per-disk lock covers preparation and both
+boots. The runner refreshes boot connection/input configuration on an existing image
+without replacing its saved preferences.
+
+`probe` uses the same compiler/QEMU arguments without storage or networking.
+All output directories must be fresh and beneath the current worktree's `out/`.
+
+`programfetch` tests content delivery from an existing Nano export tree, using
+a private host HTTP server and the guest's real VirtIO/Lneto TCP stack:
+
+```sh
+python3 platform/embedded/tamago/run.py programfetch \
+  --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
+  --qemu /path/to/qemu-system-aarch64 \
+  --export-root /path/to/nano-export --program-id zx81-rom \
+  --output out/native-program-fetch
+```
+
+The server exposes only the selected export's control files and payloads.
+The runner checks the requested file set, package/build/ROM/tape identities,
+unchanged source hashes and an unchanged fresh FAT image. It uses the shared
+`nativefabric.ProgramSource.Fetch` content validator. The backend's `Download`
+adds compiled admission; its separate owned installer has HTTP/FAT launch,
+return and fresh-boot tests. QEMU content verification does not establish Nano
+Ethernet, DMA containment, writable physical SD or FPGA activation. The Nano
+profile still disables networking and selects read-only SD.
+
+## Platform contract
+
+The image enters at EL1 and links at `0x40020000`, leaving the first 64 KiB
+of RAM clear for early runtime tables and vectors, including the ELF header
+page immediately below the link address. Go owns 256 MiB beginning
+at `0x40000000`. The combined profile provides 512 MiB physical RAM: a separate
+64 MiB DMA arena starts at `0x50000000`, followed by an 8 MiB framebuffer arena.
+`board/qemuvirt.InitDevices` walks the installed page tables and maps the device
+arenas as Normal noncacheable, non-executable memory. They never overlap the
+Go heap. Disk, network, USB and display retain DMA ownership until completion;
+ambiguous device failure retains buffers and requires reboot.
+
+One CPU is used; interrupts are masked. Drivers poll with deadlines and yield
+cooperatively. The runtime has no asynchronous goroutine preemption. The
+software renderer
+and scanout now yield every four rows and split large copies into 32 KiB chunks.
+The actual renderer/network stress test passes 30 concurrent 192 KiB responses
+with identical pixels and unchanged HTTP timeouts. Other CPU-heavy work still
+needs cooperative chunks; this is not a general latency guarantee. No QEMU
+address or firmware assumption is a DE25 board constant.
+
+| Component | Implemented here | Still required for DE25 |
+| --- | --- | --- |
+| CPU/RAM/time | AArch64 runtime; separate QEMU and Nano UART/counter hooks; validated Nano RAM profile | Actual Nano firmware/DDR/EL1/cache handoff and IRQ qualification |
+| Display | Shared RGBA-to-XRGB copier; QEMU RAMFB; optional Nano boot-owned window | Matching Nano scanout firmware, HDMI qualification and proven drain/handoff |
+| Input | QEMU xHCI, real USB boot-keyboard control/interrupt transfers; optional PL011; Nano DWC2 PIO direct keyboard | Nano PHY/VBUS and real input qualification, hubs and gamepads |
+| Storage | VirtIO reads/writes/FLUSH; Nano hardware-tested cold read-only SD/FAT32/package retention; software-tested reopening after a verified core return | Native writes and hardware qualification of returned-core SD access |
+| Preferences | Existing preallocated FAT32 JSON file; data and metadata flushes | Allocation/update strategy and power-loss-safe publication |
+| Network | Shared IPv4/TCP/HTTP; QEMU VirtIO; Nano XGMAC 2.10 with explicit DMA/PHY profile | Nano RGMII/PHY/cache/SMMU qualification, throughput and qualified entropy |
+| FPGA | Retained-package lifecycle connected to tenfoot Play/Back; source-bound Nano first-load prototype and read-only probes | Physical runtime admission, active drain, repeated launch/return and DMA revocation |
+
+The [FAT32 layer](fat/README.md) updates preallocated files and explicitly creates
+new files/directories with allocation; rename, removal and atomic replacement
+remain unavailable. Creation has host/model and independent readback coverage;
+Nano board writes remain disabled. The preference record reserves
+4096 bytes. TamaGo's default `os` filesystem remains volatile; only the explicit
+`tenfoot.PreferenceStore` backed by this volume persists settings. Native
+Linux tenfoot keeps its existing file-based implementation.
+
+The board's deterministic entropy source only seeds runtime hash tables.
+Authentication and TLS are not qualified. The private test API uses numeric
+IPv4 HTTP addresses; DHCP, DNS configuration, UDP, IPv6, network recovery and
+throughput qualification remain outside this prototype. The separate
+[Zephyr reference](../zephyr/README.md) is not part of this boot image.
+
+The [fabric lifecycle model](fabricmodel/README.md) runs separately through
+`run.py fabric`. It checks ownership and recovery order with software-only
+images. It does not replace the production runtime. The separate model-only Play path
+below now connects that lifecycle to the actual UI.
+
+## Package inspection without a host OS
+
+`run.py packages` builds a separate native diagnostic, creates a fresh FAT32
+image from the existing shared format-2/3/4 conformance corpus, and inspects
+its archives through `corepackage.RetainArchive`. The validator is shared with
+normal FogCast staging: canonical archive shape, manifest rules, payload/map
+hashes and package identity are unchanged. Reads allocate within the declared
+archive bound and reject short, extra or non-progressing input. The caller's
+reader must enforce deadlines for blocking I/O; cancellation is checked between
+reads and validation phases.
+
+```sh
+python3 platform/embedded/tamago/run.py packages \
+  --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
+  --qemu out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64 \
+  --output out/native-package-inspection
+```
+
+This run needs no remote host, display or USB device. It verifies package IDs
+and payloads, corrupts one runner-owned source file, proves the retained payload
+is unchanged and a fresh read fails, then restores the exact original FAT32
+image. Existing `--disk` images are refused by this diagnostic. Generated
+archives are synthetic test fixtures, never deployable bitstreams.
+
+The retained object keeps private bytes in RAM; returned metadata and payload
+read cursors cannot mutate it. This is not durable package installation or
+hardware admission. A syntactically valid unknown ABI remains valid for
+inspection, with compatibility left to the runtime. Format-3/4 ROM maps are
+validated, but linking and their activation receipts are not implemented here.
+The native FAT reader currently limits individual files to 64 MiB, below the
+shared 65 MiB archive cap. Maximum-size memory/latency behavior is unqualified.
+No FPGA is programmed; physical tenfoot Play remains unavailable.
+
+## Runtime admission of verified packages
+
+`run.py admission` connects retained archives to the software fabric lifecycle.
+It builds a host-only [oracle](../runtime/admission_oracle.cpp) from the existing
+runtime's `OpenCorePackage` and `CheckCoreCompatibility` implementation. This
+keeps profile/ABI pairings and interface semantics in their current owner,
+libmister-runtime. The helper constructs no physical backend. Its restricted
+model-driver snapshot uses generated runtime contract identities, and its
+per-package decisions bind the exact verified package ID. The oracle binary
+hash identifies the policy producer in the receipt.
+
+```sh
+python3 platform/embedded/tamago/run.py admission \
+  --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
+  --qemu out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64 \
+  --output out/native-runtime-admission
+```
+
+The runner also needs a host C++14 compiler. It records compiler, oracle,
+compiler-reported source/header dependencies, native ELF and FAT32 hashes.
+It downloads nothing and refuses an existing disk. `RUNTIME.JSON` is a trusted,
+runner-owned **test input**, not an authenticated admission receipt. Editing it
+cannot authorize physical programming: this gate has only `LoadModel` and
+accepts only the explicit `qemu-model-only` scope. A production backend must
+perform its own runtime-owned checks against retained bytes and live hardware.
+The separate [native Go compatibility checker](runtimeadmission/README.md)
+now implements the runtime's target/profile/ABI and interface semantics over
+exact retained archives. Its DE10 registry and ABI identities come from the
+shared definitions. The native diagnostic compares each Go decision with the
+C++ oracle before the existing model lifecycle, including linked ROM cases.
+This removes C++ execution from the native contract-checking implementation;
+the host oracle remains a validation reference. It supplies no qualified Nano
+profile, boot proof, live identity or physical activation method.
+
+The native gate checks the expected package ID, target, programming profile,
+ABI, required interfaces and exact-package compatibility decision before calling
+`Controller.Load`. Missing policy or decisions fail closed. Successful loads
+copy the retained payload into the software model and bind the complete package,
+core, ABI version and build identity to the identify/release sequence. Rejection
+leaves the current core, input generation and prepared display frame intact.
+An accepted replacement still saves the old owner and waits for its frame to
+finish; identity failure recovers to idle before release.
+
+The diagnostic runs all eleven structurally valid shared corpus entries plus
+six compatibility cases: missing mandatory gamepad, newer ABI, diagnostic-only
+profile, unknown required interface, unknown optional interface, and an invalid
+optional persistence declaration. The last case requires the C++ semantic check;
+matching required capabilities alone would miss it. An unknown optional extension
+can pass. Default/absent policy, absent exact-package decisions and wrong expected
+IDs are also rejected without changing ownership. A full build-identity mismatch
+exercises recovery to idle.
+
+This backend models simple-game 1.0 and a restricted application 1.0 driver
+with gamepad and fixed video. Raw
+format-2 payloads retain their 1 MiB bound. Format-3/4 raw loads reject; the
+separate retained ROM activation path below supplies their required receipts. Existing DE10-Nano corpus targets remain
+DE10-Nano targets; none become DE25-compatible. Production driver resolution,
+HPS DDR layout, native display composition and physical lifecycle checks remain
+outside this prototype. There is no FPGA programming, live identity proof or physical hardware
+acceptance. Model-only tenfoot Play is covered below.
+
+The same corpus can run on the host with the race detector after a native run:
+
+```sh
+FES_ADMISSION_FIXTURES="$PWD/out/native-runtime-admission/package-fixtures" \
+  GOWORK=off go -C platform/embedded/tamago test -race \
+  ./runtimeadmission ./admissioncheck ./fabricmodel
+```
+
+
+## Retained ROM linking and activation receipts
+
+The same `run.py admission` command now also links three full synthetic RBF
+fixtures: format-3 firmware, format-3 cartridge, and format-4 BIOS plus cartridge.
+`Archive.LinkROMs` copies sources after checking exact IDs, roles, descriptor
+order and lengths, then calls the existing target linker against the retained
+sealed map. `LinkedArchive` owns those sources, the package and programmed bytes
+in RAM. `Receipt`, `Inspection`, `Source` and `Programmed` expose independent
+metadata/copying readers. No path lookup or filesystem staging is needed to link.
+
+`LoadLinkedModel` accepts this opaque object plus the expected package ID and
+receipt SHA256. The receipt binds source IDs/roles/digests/sizes, sealed map,
+package and programmed digest/size. A reconstructed JSON receipt is insufficient.
+Compatibility still requires the C++ oracle decision for the original package;
+linking alone cannot grant an unsupported target, ABI or interface. Before any
+owner transition, the gate verifies the derived output digest and creates a
+private model image. Simulated identity includes the complete receipt digest
+and programmed digest, so a different ROM for the same package cannot be released
+under the original selection.
+
+The diagnostic uses existing Mistral golden synthetic ROM vectors rather than
+inventing CRAM encoding. All three linked outputs must match its ramp-vector
+hash and size. Each case mutates a runner-owned FAT32 ROM source after retention,
+independently links that changed source, rejects the changed object under the
+original receipt, activates the original retained bytes, and restores the source.
+The entire FAT32 disk must finish with its original hash. Missing/wrong receipts,
+wrong package IDs, raw format-3/4 loads, missing sources and wrong roles reject
+without retiring the old owner or frame. A simulated live receipt mismatch must
+recover to idle. Host race tests compare their full receipts with native results.
+
+Linked model buffers are bounded at 8 MiB to accommodate the approximately 2 MiB
+synthetic bitstreams. This is an emulation limit, not a hardware-package size or
+latency qualification. Sources survive for the opaque object's lifetime; the
+model separately owns its programming-byte copy through completion/recovery.
+Nothing is durably installed. Other expansion families, initial media, real-board resources
+and live GP identity remain separate. Selected CPU/video parts now extend the
+retained activation path as described below. These are
+Cyclone V test vectors and supply no Agilex/DE25 programming support. Linker CPU,
+heap and concurrent UI/network latency have not been qualified on the board.
+
+
+## Tenfoot Play and return through the model
+
+```sh
+python3 platform/embedded/tamago/run.py play \
+  --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
+  --qemu out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64 \
+  --output out/native-tenfoot-play
+```
+
+This builds the existing `cmd/tenfoot` with an explicitly selected model boot
+configuration, then drives Play and Back using QEMU's USB keyboard. It retains
+and links real synthetic Mistral fixtures from FAT32, checks the selected package,
+source digests and receipt, activates the model, parks/resumes the existing UI
+renderer, and returns to the same catalog selection. The session contains no
+emulated gameplay or physical FPGA output. The [model adapter](modelbackend/README.md)
+explains actor, frame, input and request ownership.
+
+The test covers normal launch/return, wrong ROM, wrong receipt, canceled
+preparation, programming/identity recovery and a failed save followed by retry.
+It also rejects delayed input/display events. QMP screenshots and complete
+state/command traces accompany the receipt. Tenfoot handles its own Quit, idle
+release and backend close before the runner reaps QEMU. All input disk bytes
+must remain unchanged. QMP waits drain guest serial output while assembling
+possibly partial replies; their existing five-second control timeout is unchanged.
+
+The host-only fixture helper uses an installed standard Go toolchain to derive
+expected receipts with the same linker. No alternate ROM encoding is introduced.
+The ordinary `run.py tenfoot` mode still browses the real private network host,
+checks USB navigation and persists layout across two boots. Model mode uses an
+in-process diagnostic catalog and does not claim production host/target launch
+orchestration, physical programming, board DMA containment or DE25 acceptance.
+
+
+## CPU/video parts in retained activation
+
+For the explicit sealed Nano held-ROM profile, `fpgaload --selected-programs`
+also requires `--firmware-rom IMAGE --rom-host-go HOST_GO`, computer control,
+reload and storage return. `HOST_GO` is a host Go 1.26.5 compiler. The builder
+snapshots the separate 4/8 KiB firmware image and uses the existing retained
+package linker to derive its content-bound activation receipt. It exports
+`FIRMWARE.BIN`, `rom-selection.json`, `PROGRAM.JSN` and `CORESEL.JSN`, and links
+the complete sealed ROM resource map into the native command. The catalog
+references `FES/FIRMWARE.BIN`; firmware content is not added to the FPGA package.
+Wrong sizes, foreign packages, missing ROM resources and ordinary profiles reject.
+The command explicitly constructs the ROM verifier rather than inferring hardware
+capabilities from the catalog. These build connections require a fresh producer
+and matched boot chain; host receipt tests and compilation are not board acceptance.
+
+`run.py play` now runs eleven cases. In addition to the existing seven, it
+activates a synthetic Coleco application shell with one CPU expansion and one
+raster video part, then rejects changed, missing and incompatible selections.
+Both part payloads make actual fenced bit changes; the pre-ROM overlay and final
+programmed output have different digests. Existing admission and composition
+implementations enforce the exact shell/package/build and closed socket roles.
+No alternate linker or compatibility policy is introduced.
+
+`Archive.LinkROMs(ctx, sources, parts...)` accepts `PartInput` objects containing
+an expected asset ID and archive bytes. It copies/parses each bounded archive
+and retains it behind a copying `Part` reader. The receipt carries the canonical
+`PartsComposition` and its pre-ROM overlay digest; `Overlay` exposes an independent
+reader. The existing ROM identity still carries the final programmed digest.
+Changing a valid part's identity changes the activation receipt even when its
+payload and programmed bytes are identical. Model admission still needs the
+selected full receipt, and the active session exposes its parts composition
+only after release.
+
+This exercises the existing CPU/video parts mechanism, not every multi-slot
+expansion family. It provides no FPGA programming or DE25 acceptance. The
+[board adaptation plan](../board-adaptation.md) describes the next real-driver
+work while keeping QEMU as the regression backend.
+
+## Persistent native window requests
+
+`fpgaload --window-memory --window-read --window-present
+--window-storage-return --window-service` explicitly selects a persistent
+fixed-package window service. It excludes the bounded `--window-reload` test.
+After initial configuration and a complete Tenfoot-rendered frame, the frontend
+prints `FES_NATIVE_WINDOW_REPLY` status and accepts bounded JSON requests over
+UART. It uses the `nano-contained-window-service-v1` scope. Commands are
+`status`, `present`, `return`, `launch` and terminal `park`; all except status
+require the exact cached hexadecimal owner and current service generation.
+Package paths, physical addresses and frame bytes cannot be supplied over UART.
+Replies include cached frame CRC/hash/byte/drain observations, the last owned
+bridge return and SD generation. Those observations cannot mint display handles
+or authorize later transitions. Retired-service replies omit successful observations.
+The original compiled package is freshly retained for each launch. This is a
+request-driven renderer/ownership prototype, not the complete Tenfoot App
+backend or ordinary package admission.
+
+`WindowService` serializes presentation, return and launch and keeps private
+display handles. Return completes firmware drain/closure and resumes the same
+SD store before publishing Ready. Launch validates the package while SD is
+usable, then contains SD, configures within the existing 20-second bound and
+presents the first frame before returning a new handle. A completed request's
+cancellation cannot cancel that handle. Accepted return completes independently
+of requester cancellation. Stale or foreign handles reject before device I/O;
+uncertainty after containment retires the service without retry. Plans, failed
+reservations and the complete frame arena remain pinned until reboot.
+
+The service uses the existing platform hooks and wire contract. Host tests join
+the real archive, transfer and renderer with modeled secure calls/CSRs, including
+three cycles, cancellation, concurrent requests and failures. The previously
+accepted bounded hardware image does not qualify this new native mode.
+Physical HDMI, USB hub input, the complete native Tenfoot launch backend and
+ordinary package/ROM/parts/media admission remain open.
+
+The [matched persistent-service hardware diagnostic](../../../docs/validation/2026-11-04-de25-window-service-hardware/README.md)
+now passes three fixed-window sessions, six frames, two fresh SD/package cycles,
+six expected stale-request rejections and final Park on TRWU8CBL. This is
+acceptance for its exact diagnostic image and observer, not the complete App
+backend, ordinary admission or HDMI/input qualification.
+
+`nativefabric.NewProgramBackend` supplies an in-process Tenfoot transport over
+`ProgramService`. Its bounded, privately copied catalog maps UI game IDs to
+platform-selected SD requests; launch still retains and preflights the selected
+package before containment. Session replies carry the actual package identity
+and service generation. Bound stop requests compare the complete captured play,
+then invoke the owned native return and SD-resume path. Malformed requests,
+stale stops and attempts to relaunch a retired service cause no firmware calls.
+The constructor transfers exclusive frontend ownership; keep the service and
+its retained resources rooted until reboot, and do not also attach a console.
+
+Host tests run the full existing Tenfoot App, renderer and RunPlatform loop
+against this adapter and the actual Go ProgramService/ProgramLoader/store,
+with secure calls and FPGA registers modeled. They cover repeated launch and
+return, content rejection before containment, and terminal programming/identity
+and return failures. This is software integration evidence. The native boot
+command has not yet selected this adapter; physical HDMI, USB hub input,
+ordinary ROM/parts/media admission and native Ethernet remain open. The
+separately accepted fixed-window renderer diagnostic does not grant display
+ownership to these computer sessions.
+
+`ProgramService.Launch` now verifies instruction-fetch activity before publishing
+Running. After identity it issues Hold, requires two identical count/address
+observations, issues Run once and waits for a positive bounded counter delta.
+The complete sequence shares the existing computer timeout and poll bound.
+Counter reset/backwards movement, Hold drift, cancellation, late IO and ownership
+loss retire the session, close control once and retain SD/arena ownership.
+Modulo counter wrap is accepted only as a forward delta below half the range.
+
+The serial adapter emits one `FES_NATIVE_CORE_FETCH` observation per running
+generation before its state report. It binds the actual samples to the selected
+package/build and owner/generation. The trace checker requires that evidence
+after FPGA configuration and before published Running, rejects missing/stale or
+duplicate observations, and never treats saved evidence as permission for IO.
+This checks fetch-bus activity under Hold/Run; retired instructions, emulation
+fidelity, physical input/video and normal ROM/package admission remain separate.
+
+Computer limit failures can include the last native register access's separate
+secure ownership-before, register-I/O and ownership-after durations. The register
+phase includes the CPU transport's live mapping verification. These saved
+diagnostic values are read only after a limit failure; successful operations
+print nothing. They change no ownership checks, deadlines, poll limits or retry
+behavior, and do not establish which sub-operation dominates until measured on
+the matched hardware image.
+
+The explicit `fpgaload --tenfoot-serial` selection now runs the full Tenfoot App
+on the native CPU through this adapter. It requires `--selected-programs`,
+`--computer-control`, `--computer-reload` and `--computer-storage-return`.
+Its separately selected `de25tenfootserial` build tag keeps the App loop out of
+unselected command builds. SDK, native entry, cold-chain identity and composition
+receipts carry the selection. It grants no additional firmware authority.
+
+Before boot, supply `FES/CORESEL.JSN` and a canonical `FES/UI.JSON`, for example
+this compact JSON followed by one newline:
+
+```json
+{"entries":[{"id":"zx81","program":0,"title":"ZX81"},{"id":"zx80","program":1,"title":"ZX80"}],"format":1,"scope":"nano-tenfoot-catalog-v1"}
+```
+
+The bounded catalog supplies friendly names and indexes into CORESEL, without
+choosing package paths or hardware resources. UART navigation uses the existing
+Tenfoot keys: arrows, Enter, `s` to stop, `q` to quit. Quit during a load waits
+for its outcome; during a running core it requests the owned Stop and waits for
+Ready or terminal containment. State replies explicitly identify
+`display=serial-state-only`; the software renderer runs, without HDMI output.
+Preferences are copied into RAM and do not persist across reboot. Recovery
+uploads accept the fixed `--purpose ui-catalog` destination `FES/UI.JSON`, with
+an 8 KiB bound and the same write/readback ownership checks as other files.
+
+
+The Nano selected-program Tenfoot image accepts an explicit
+`--shared-usb-input boot-keyboard|gamepad` alongside `--computer-control`,
+`--computer-reload`, `--computer-storage-return`, `--selected-programs` and
+`--tenfoot-serial`. It requires the sealed SD profile and complete HPS pin map.
+The native program verifies the initial cold owner and pins before SD acquisition,
+requires `usbcontrol.NewSharedPIO` and opens exactly the selected controlled input
+protocol. There is no direct-controller or exclusive-service fallback. Tenfoot
+uses the existing paused-input backend during loads and returns. Gamepad menu
+buttons 1/2 mean Confirm/Back; this diagnostic maps arrows plus buttons 1/2 to
+S/start and Space for the selected computer. These fixed assignments grant no
+compatibility for another package. Output remains serial state, with no HDMI
+grant. A healthy idle exit closes USB through its exact receipt; uncertain core
+states keep resources retained. Hardware combined-operation acceptance is open.
+
+The shared serial diagnostic also emits the verified HPS source/pin observations,
+its exact USB Ready lease, delivered report and successful poll-call counts at pause/resume boundaries,
+and the final owned USB Stop receipt. These counters are local observations,
+serialized by the backend; logging adds no firmware calls or device authority.
+Polls advance only after a raw source call returns without error, even when it
+returns no report. Keyboard `SET_IDLE(0)` may suppress unchanged reports under
+[HID 1.11 section 7.2.4](https://www.usb.org/sites/default/files/hid1_11.pdf).
+The observer requires increasing polls before each transition and unchanged
+poll/report counts while paused; keyboard reports may remain zero. Gamepad
+report-progress checks remain. Missing counters, regression, overflow, lost
+ownership or missing pause/resume/Stop still reject. Old traces without the
+new counter cannot satisfy this observer; a matched rebuilt image is required.
+These observations do not demonstrate physical controls or normal admission.
+
+## Secure initial tape selection on Nano
+
+`--initial-tape` selects the fixed-window firmware service for initial game
+media in the native computer build. It requires selected computer programs,
+held ROM, shared USB, serial Tenfoot and owned SD return. A shared validator
+binds the SDK link assignment, entry receipt and cold firmware flag. Firmware
+construction additionally requires `--nano-firmware-ocram`; an incomplete
+selection rejects before use. The runtime startup checks its generated board
+constant against the linked selection and advertises `InitialTapePlatform`
+only for the selected CPU wrapper.
+
+The hook requires the existing completed pinned program arena. It publishes
+private bytes and a fixed descriptor, brackets the SMC with complete mapping
+checks and validates the exact returned protocol state before Run. Uncertain
+service or mapping results retain memory and retire the operation, without
+per-word fallback. Ordinary/model builds keep the explicit regular mailbox
+path. All original operation deadlines remain unchanged.
+
+Portable board-hook tests execute the actual C service/engine with modeled
+ownership, digest and endpoint callbacks. Separate actual strong-provider and
+captured-RTL tests retain their own evidence boundaries. A successful cross-build
+or these software checks does not establish a passing physical tape transfer or
+normal DE10-equivalent appliance behavior.

@@ -1,0 +1,125 @@
+{
+  "status": "passed",
+  "head": "3b38d09b67fc7c9d6b153583855b6eaf15d85d95",
+  "base": "c4e69a4ff382028fcf66932d384c8d9d2590afaf",
+  "plan_sha256": "2eb63f21e09ecbeed2375aa47bf7a3d468adbac82182006ce806dee089af4fc3",
+  "results": [
+    {
+      "index": 0,
+      "label": "test_affected.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "log": "software-0.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4028764449758455,
+      "log_sha256": "dbee3acbb55c26eef239b1da32bf3916cc7a1d01a1f59110c2bba669a4aa8ea0",
+      "child_receipt_sha256": "d9e8ad3efe4a4a6e5880c451a5f6f3cd2c067bc4a9d283f71af8e0018a69a6e6"
+    },
+    {
+      "index": 1,
+      "label": "test_test_changed.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "log": "software-1.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.4021868139971048,
+      "log_sha256": "a08c392877515f56d1fe278e0b170a5ecf3e0130d9a6c19af974d25b2491367e",
+      "child_receipt_sha256": "f918fcadda581e40a03917dbca994822df27a9047e41ab7207e62a86f92fc93f"
+    },
+    {
+      "index": 2,
+      "label": "committed whitespace",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "c4e69a4ff382028fcf66932d384c8d9d2590afaf",
+        "--head",
+        "3b38d09b67fc7c9d6b153583855b6eaf15d85d95"
+      ],
+      "log": "software-2.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20118316600564867,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "05c92f8128be666d136d302fafbb4ebd50e7d92b46d0cec513534066d45d8f85"
+    },
+    {
+      "index": 3,
+      "label": "working whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "log": "software-3.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20170592598151416,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "e4162ce482a07cb55dc721ac7b27b8c9f343fd1b08ec9c7c392f2e60bdbc4ef0"
+    },
+    {
+      "index": 4,
+      "label": "parent Python regressions",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-control-trial-20261102/parent_partitions.py"
+      ],
+      "log": "software-4.log",
+      "planned_argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/nano/README.md\", \"platform/embedded/nano/native_trace.py\", \"tests/test_nano_native_trace.py\"]"
+      ],
+      "verification_mode": "same-selected-suite-partitioned-by-module",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 299.58418614498805,
+      "log_sha256": "9ea82d8e3561e9a10446753d02d40f2af56c1d9c6bf283c439712c5e6c70cbb3",
+      "child_receipt_sha256": "4f9b44680ac0558d3dc94044a38222bc4cfa52b401f197b266894afe304d9119"
+    },
+    {
+      "index": 5,
+      "label": "working-tree generated consumer consistency",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "log": "software-5.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 8.412300606956705,
+      "log_sha256": "39911a38609b8ca0592f13bd0e960ba0cd433f6599caf6ce88f25c65a0e67b3d",
+      "child_receipt_sha256": "2596bd765b5f53abb853a275f76cca428990c5c761c145aa4ec96ae1c0600977"
+    }
+  ]
+}

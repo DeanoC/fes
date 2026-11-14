@@ -25,6 +25,15 @@ and content selection; the MiSTer is a small, directly controlled target.
   The local API can inspect and explicitly remove unused remote-only cached
   cassettes while retaining selected and locally imported media.
   See [remote library sources](docs/ARCHITECTURE.md#remote-library-sources).
+- Tenfoot's existing model and renderer can run through an injected platform
+  loop, without SDL or Linux display/input devices. The experimental
+  [embedded base](../../platform/embedded/README.md) uses this boundary for
+  Linux-free execution. Native backends keep their existing behavior; this
+  does not make the embedded target a complete FogCast host or FPGA runtime.
+  The shared core-package reader also retains format-3/4 ROM sources and linked
+  bytes and selected CPU/video part archives in RAM with content-bound activation
+  receipts for the embedded model;
+  physical runtime admission remains separate.
 
 - **Settings → BIOS & media drives** remembers USB volumes and SMB shares on
   either the kit/launcher device or the FogCast host, with separate BIOS and
@@ -60,6 +69,9 @@ and content selection; the MiSTer is a small, directly controlled target.
   Machine names are plain model names. New setups default to those names;
   package versions/hashes and generated HIL labels do not become headings.
   Custom game/setup names and exact launch/media identities are preserved.
+  Systems setup offers **Open library** when the source already advertises
+  configured entries. It refreshes the library and preserves ordinary launch
+  checks.
 
 - The tenfoot **Systems** room lists prepared playable systems, models and
   editions. **Set up** opens the selected workbench; **Add system** remains

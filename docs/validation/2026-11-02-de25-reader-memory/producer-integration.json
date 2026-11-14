@@ -1,0 +1,302 @@
+{
+  "status": "passed",
+  "classification": "host-only producer simulation and native Go control; no RBF or hardware acceptance",
+  "tool_search_order": "passed",
+  "commands": [
+    {
+      "label": "first-build",
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/embedded_control/producer.py",
+        "build",
+        "--output",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/de25-producer-check-3bd2b6d39a2c49ac8f05c7ec68af9d60/first",
+        "--control-abi",
+        "0x10203040"
+      ]
+    },
+    {
+      "label": "second-build",
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/embedded_control/producer.py",
+        "build",
+        "--output",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/de25-producer-check-3bd2b6d39a2c49ac8f05c7ec68af9d60/second",
+        "--control-abi",
+        "0x10203041"
+      ]
+    },
+    {
+      "label": "first-verify",
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/embedded_control/producer.py",
+        "verify",
+        "--output",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/de25-producer-check-3bd2b6d39a2c49ac8f05c7ec68af9d60/first"
+      ]
+    },
+    {
+      "label": "wrong-live-id",
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-embedded-os/out/de25-producer-check-3bd2b6d39a2c49ac8f05c7ec68af9d60/first/identity-probe",
+        "09415df6ae592a3fbc897ca0f8933313",
+        "270544960"
+      ]
+    },
+    {
+      "label": "wrong-live-abi",
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-embedded-os/out/de25-producer-check-3bd2b6d39a2c49ac8f05c7ec68af9d60/first/identity-probe",
+        "79415df6ae592a3fbc897ca0f8933313",
+        "270544961"
+      ]
+    },
+    {
+      "label": "wrong-descriptor",
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/embedded_control/producer.py",
+        "verify",
+        "--output",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/de25-producer-check-3bd2b6d39a2c49ac8f05c7ec68af9d60/corruption"
+      ]
+    },
+    {
+      "label": "wrong-record",
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/embedded_control/producer.py",
+        "verify",
+        "--output",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/de25-producer-check-3bd2b6d39a2c49ac8f05c7ec68af9d60/corruption"
+      ]
+    },
+    {
+      "label": "wrong-live-binding",
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/embedded_control/producer.py",
+        "verify",
+        "--output",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/de25-producer-check-3bd2b6d39a2c49ac8f05c7ec68af9d60/corruption"
+      ]
+    },
+    {
+      "label": "wrong-artifact",
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/embedded_control/producer.py",
+        "verify",
+        "--output",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/de25-producer-check-3bd2b6d39a2c49ac8f05c7ec68af9d60/corruption"
+      ]
+    },
+    {
+      "label": "native-binding",
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/tamago",
+      "argv": [
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "45s",
+        "-v",
+        "-run",
+        "^TestProducedIdentityBindsNativeControl$",
+        "./nativefabric"
+      ]
+    }
+  ],
+  "first": {
+    "artifact_sha256": "4bead90d810faa994cf265fbb9ab2fb69512a53a3e801a36f18e9d93f80cf61c",
+    "build_id": "79415df6ae592a3fbc897ca0f8933313",
+    "classification": "host-simulation-only",
+    "command": [
+      "/usr/bin/verilator",
+      "--cc",
+      "--exe",
+      "--build",
+      "--top-module",
+      "embedded_producer_top",
+      "-Wall",
+      "--Mdir",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/de25-producer-check-3bd2b6d39a2c49ac8f05c7ec68af9d60/first/obj",
+      "-I/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/cores/fes-common/generated",
+      "-GBUILD_ID=128'h79415df6ae592a3fbc897ca0f8933313",
+      "-GCONTROL_ABI=270544960",
+      "-CFLAGS",
+      "-std=c++17 -O2",
+      "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv",
+      "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/embedded_control/embedded_producer_top.sv",
+      "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/embedded_control/probe.cpp"
+    ],
+    "descriptor_sha256": "b58fef5a9dec78ec45a0f3953aced283ed3cf753652309a3e7e8f3c1414af3bf",
+    "limitations": [
+      "host Verilator model, no RBF or production package",
+      "no board routing, timing, DDR or hardware qualification",
+      "diagnostic tool hashes are not production toolchain authentication"
+    ],
+    "observed": {
+      "build_id": "79415df6ae592a3fbc897ca0f8933313",
+      "control_abi": 270544960,
+      "drain": true,
+      "status": "passed"
+    },
+    "revision": "26212a2703b948d40cefcd686a15444d4e12967c",
+    "source_sha256": {
+      "cores/fes-common/generated/fes_embedded_control.vh": "20e1f042865b54a4cc6a7334b874fedc9f95aa87deb2757ce04a35cc023fc597",
+      "cores/fes-common/rtl/fes_embedded_control.sv": "95bc4ef8f470612d71dfa2737e96a988e8a8508e5db56857455bf294654667f3",
+      "prototypes/embedded_control/embedded_producer_top.sv": "3924ce5f1bdcf04fe47383ae799508a5126d28ff9a4a828c9ebed8d6b7d0dabb",
+      "prototypes/embedded_control/probe.cpp": "1b735c5986e640771c16f6022e6b004f2fb54c0ab47627227eb35a3c66ac31bc",
+      "prototypes/embedded_control/producer.py": "d51b34aeca05f5008318bb617de5e639cf19fea86212e97dea7afb4a4882000d",
+      "scripts/compiler_read_audit.py": "874cda5a860f367153400e70366eb7ac1d6fc87579a2755033413291067a48f6",
+      "scripts/core_package.py": "a4281f6b8106c56b6e5c561737cccdf58a129e00d2a4a9e622909cd1a5c894cd",
+      "scripts/export_core_package.py": "e11f7940e3ff561156bb0a28f7c55641c559bb5cbe5371faf27461aa08ae90a0",
+      "scripts/rfc3986_validator.py": "95fc6d48642f111952b25c040947765bccba669210c8c140b7ed9647fd7e470c",
+      "scripts/source_repository.py": "29ab5ad573767ebe32c171a391e675852b968a4c570365ad3a2ec9637c0ca003"
+    },
+    "source_state": "committed",
+    "status": "passed",
+    "tools": {
+      "cxx": "/usr/bin/g++ | g++ (Debian 14.2.0-19) 14.2.0 | sha256:6b3696e4dcb85e1c949c732a02befa50e3983ecf94ce7e8e58d9d503b954b79d",
+      "make": "/usr/bin/make | GNU Make 4.4.1 | sha256:8a229baf64671988cfb5af43ba3070c6ce7214cf32bcf96155115559d1466fa7",
+      "python": "/usr/bin/python3.13 | Python 3.13.5 | sha256:17b78e0a93175e86f9ac03141924fd7a7f0c0c52e66b34bfa0de20ffef989df1",
+      "verilator": "/usr/bin/verilator | Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2) | sha256:672a1ccf3468902f66387049f001b04f254bbcece7d5e816e3861715889bf252",
+      "verilator-bin": "/usr/bin/verilator_bin | Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2) | sha256:619464a17a8c212219abceeeee23f529b72801ef594814ae32f4b9747fd38703",
+      "verilator-support": "/usr/share/verilator/include | sha256:af3b6c1dce07e7d1f7568bfeaff49163239a8bd472c5f76765c0d4a0a5f9c83c"
+    }
+  },
+  "second": {
+    "artifact_sha256": "1bb775486dd673c57add1389e33145aa2b1c78d1035e8bf4759eda5dee838803",
+    "build_id": "45cb4cf3ea8367ecad3a3d4d4769088a",
+    "classification": "host-simulation-only",
+    "command": [
+      "/usr/bin/verilator",
+      "--cc",
+      "--exe",
+      "--build",
+      "--top-module",
+      "embedded_producer_top",
+      "-Wall",
+      "--Mdir",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/de25-producer-check-3bd2b6d39a2c49ac8f05c7ec68af9d60/second/obj",
+      "-I/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/cores/fes-common/generated",
+      "-GBUILD_ID=128'h45cb4cf3ea8367ecad3a3d4d4769088a",
+      "-GCONTROL_ABI=270544961",
+      "-CFLAGS",
+      "-std=c++17 -O2",
+      "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv",
+      "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/embedded_control/embedded_producer_top.sv",
+      "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/embedded_control/probe.cpp"
+    ],
+    "descriptor_sha256": "f1c08bcf7beb98de8374d0b6cf98d3e5c64cf18dbf1970378d2c8886df3d7fa4",
+    "limitations": [
+      "host Verilator model, no RBF or production package",
+      "no board routing, timing, DDR or hardware qualification",
+      "diagnostic tool hashes are not production toolchain authentication"
+    ],
+    "observed": {
+      "build_id": "45cb4cf3ea8367ecad3a3d4d4769088a",
+      "control_abi": 270544961,
+      "drain": true,
+      "status": "passed"
+    },
+    "revision": "26212a2703b948d40cefcd686a15444d4e12967c",
+    "source_sha256": {
+      "cores/fes-common/generated/fes_embedded_control.vh": "20e1f042865b54a4cc6a7334b874fedc9f95aa87deb2757ce04a35cc023fc597",
+      "cores/fes-common/rtl/fes_embedded_control.sv": "95bc4ef8f470612d71dfa2737e96a988e8a8508e5db56857455bf294654667f3",
+      "prototypes/embedded_control/embedded_producer_top.sv": "3924ce5f1bdcf04fe47383ae799508a5126d28ff9a4a828c9ebed8d6b7d0dabb",
+      "prototypes/embedded_control/probe.cpp": "1b735c5986e640771c16f6022e6b004f2fb54c0ab47627227eb35a3c66ac31bc",
+      "prototypes/embedded_control/producer.py": "d51b34aeca05f5008318bb617de5e639cf19fea86212e97dea7afb4a4882000d",
+      "scripts/compiler_read_audit.py": "874cda5a860f367153400e70366eb7ac1d6fc87579a2755033413291067a48f6",
+      "scripts/core_package.py": "a4281f6b8106c56b6e5c561737cccdf58a129e00d2a4a9e622909cd1a5c894cd",
+      "scripts/export_core_package.py": "e11f7940e3ff561156bb0a28f7c55641c559bb5cbe5371faf27461aa08ae90a0",
+      "scripts/rfc3986_validator.py": "95fc6d48642f111952b25c040947765bccba669210c8c140b7ed9647fd7e470c",
+      "scripts/source_repository.py": "29ab5ad573767ebe32c171a391e675852b968a4c570365ad3a2ec9637c0ca003"
+    },
+    "source_state": "committed",
+    "status": "passed",
+    "tools": {
+      "cxx": "/usr/bin/g++ | g++ (Debian 14.2.0-19) 14.2.0 | sha256:6b3696e4dcb85e1c949c732a02befa50e3983ecf94ce7e8e58d9d503b954b79d",
+      "make": "/usr/bin/make | GNU Make 4.4.1 | sha256:8a229baf64671988cfb5af43ba3070c6ce7214cf32bcf96155115559d1466fa7",
+      "python": "/usr/bin/python3.13 | Python 3.13.5 | sha256:17b78e0a93175e86f9ac03141924fd7a7f0c0c52e66b34bfa0de20ffef989df1",
+      "verilator": "/usr/bin/verilator | Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2) | sha256:672a1ccf3468902f66387049f001b04f254bbcece7d5e816e3861715889bf252",
+      "verilator-bin": "/usr/bin/verilator_bin | Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2) | sha256:619464a17a8c212219abceeeee23f529b72801ef594814ae32f4b9747fd38703",
+      "verilator-support": "/usr/share/verilator/include | sha256:af3b6c1dce07e7d1f7568bfeaff49163239a8bd472c5f76765c0d4a0a5f9c83c"
+    }
+  },
+  "go_sha256": "8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9",
+  "native_source_sha256": {
+    "platform/embedded/tamago/embeddedcontrol/control.go": "bd59f72ba1114aa304de6818b38018414b2d47c23e46a1af69eab28ad1918b31",
+    "platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_bridges.go": "301f802349de341279d080c02498d6476fe47b2e77e9756b7be67e3eed0dbb28",
+    "platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_control.go": "e22c36be27afaae2869639adaf1325dec347b0c48818bfc1d3408cdd33f0c238",
+    "platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_sd.go": "80bc9f2c3f34767224bfa18e8417363180767000f597bc423bec80a771647293",
+    "platform/embedded/tamago/fabricmodel/checks.go": "a95ad19b2239d7d987837b99043e50de9e72b0ba4f005b79dc753587e0d645ca",
+    "platform/embedded/tamago/fabricmodel/model.go": "b67cfbf6c83914a4e4272d52b745fdbaac8bb02bd85f1717350d874ab1c6dd03",
+    "platform/embedded/tamago/fabricmodel/model_test.go": "22b53652fe045f54384e59ffa86d217afe7a56d683d6dfd8bc1b874049ef3137",
+    "platform/embedded/tamago/nativefabric/binding.go": "fd6891409b8cef8d5a11a4ce177dcd56d661ecec479f3cca041220b25d3c7dae",
+    "platform/embedded/tamago/nativefabric/binding_test.go": "1e6160b6a3788d5bfd541cd3be47bad5a39f678e6c6f31ff39bf54b0034f2395",
+    "platform/embedded/tamago/nativefabric/bridges.go": "ef28e641f0f286ccb9107a7ca7101fe1739fdba86954d9b2b0e79ea9eef67959",
+    "platform/embedded/tamago/nativefabric/bridges_test.go": "2de93c21a8994ce7762442a0362c59b2daa3c2c3dfb770a8342e23dc7b8e3135",
+    "platform/embedded/tamago/nativefabric/configuration.go": "7440c1627615a578e4301e40beb1348a58d0f961d073deb0ecacc13e65fe43df",
+    "platform/embedded/tamago/nativefabric/configuration_test.go": "a8af8798ae86f867e1a756f824496df1036d4247693aa2f3465017e8804054df",
+    "platform/embedded/tamago/nativefabric/controlprobe.go": "098270673038091babc0fdb406e565338f63be060243aa99e05c53d9164fe3ca",
+    "platform/embedded/tamago/nativefabric/controlprobe_test.go": "14a709f0a75235ffe815270118e692d4f7faf69767833f6f202110e88a5c16b9",
+    "platform/embedded/tamago/nativefabric/cpuhooks.go": "8a37f91fcf80699f508cf81c85c48579e035b292f938d2b0ec0738fa8a0038c0",
+    "platform/embedded/tamago/nativefabric/cpuhooks_test.go": "a8a1b7d914d40b7b77eafaf84575eea99afe7552f93d077b422a0675b3ff974a",
+    "platform/embedded/tamago/nativefabric/endpoint.go": "3c29c952c185a33c9eaf858237fbf835fd713c71c1c7fd81419903b14e59b930",
+    "platform/embedded/tamago/nativefabric/endpoint_test.go": "73f7a0c82f209e19c849b4b4b780ad2a5e6cd0c7f3d32aba85fc5cac4bc049d9",
+    "platform/embedded/tamago/nativefabric/firmware_bridges.go": "004f51a801c9b7f6dd0f49aa7bc8a20b251818b4a3e54e535167ded12c78132d",
+    "platform/embedded/tamago/nativefabric/firmware_bridges_test.go": "388d94640f5ea85eedc8871fe18f57211e5f05ed37649a4dc78363be46e47980",
+    "platform/embedded/tamago/nativefabric/hpscontext.go": "fcb1a9b5e544fdb8c8a5b16bf251d03456e5bd0518bc2a0d714937f03011b24e",
+    "platform/embedded/tamago/nativefabric/hpscontext_test.go": "b98f11f8a5d2120d25cd0ba97c49df438148bf2cb612e041d9a10f6c00a1423a",
+    "platform/embedded/tamago/nativefabric/hpsfirst.go": "367b9e0a153b993ea1ed4f44dc5101b24cb90e2cbaf7bd965f6a0b8418bcafc4",
+    "platform/embedded/tamago/nativefabric/hpsfirst_test.go": "501f5c024c846f356167352306fc38745c6fade7f356871dfcf92fefe1a44df1",
+    "platform/embedded/tamago/nativefabric/nano_bridge_service_test.go": "9e23ff7d7c68bae461580e2caa1ed6dfccbfa64ffb02dd28debf018cba40fa49",
+    "platform/embedded/tamago/nativefabric/prepare_configuration.go": "cc0cb7357b21f1b2d90e2d74ccb5dbeb07d92b81f262af818e4371d9fb8b1687",
+    "platform/embedded/tamago/nativefabric/prepare_configuration_test.go": "478c0531d1cfa4a635ad2145996bd35e6a20efad24faa6201eedab478f494817",
+    "platform/embedded/tamago/nativefabric/producer_integration_test.go": "8269adee063acb8d09692c4eaff2fbb2e275c19add4db0f1f620436935b15243",
+    "platform/embedded/tamago/nativefabric/readermemory.go": "adb22e40d8f3daaccb542de6cf0829ab474620a4827d3e42b734e08258772197",
+    "platform/embedded/tamago/nativefabric/readermemory_test.go": "498a1f0f055cefdadea3591b6a539ac0000a6c8bae3db032e7a630157a6346d7",
+    "platform/embedded/tamago/nativefabric/readerprobe_test.go": "ce499f690d456baa9d96477db68bdda0212bbe18c3bae9510bd710130b6c76aa",
+    "platform/embedded/tamago/nativefabric/retire_configuration.go": "bf816c105b5db9938fd93419ecc77697eb42a1559491fd5389cb03d4fecf6ca7",
+    "platform/embedded/tamago/nativefabric/retire_configuration_test.go": "b4607b45cce5456b0f7060bfbafa3738db1ab13deb21726c603dee6dd3a22503",
+    "platform/embedded/tamago/nativefabric/rtl_integration_test.go": "6bdf508c8855b5c5d9b86b51c2413a1c08c082aac48dc13cfab21e3b2d6b0cf9",
+    "platform/embedded/tamago/nativefabric/sealed_nano_test.go": "101bbd2a1431b040d048c4132dad7c5bd0101113699aadee0ba8ca2b5ac8e038",
+    "platform/embedded/tamago/nativefabric/stored_configuration.go": "6bb6c4ffbeb7ad0495095ba872a06aa784dc24286fa2e41b407696a163a3263f",
+    "platform/embedded/tamago/nativefabric/stored_configuration_test.go": "610c347f507b7e3f3c1ead49763f2f5bac931646fa1f15e9a45b624ff068a0c8",
+    "platform/embedded/tamago/nativefabric/transfer.go": "04070136aa429ed7653b1129d4de389704801487d6770e6cb121bc473416490a",
+    "platform/embedded/tamago/nativefabric/transfer_test.go": "d0f3221b6d01685974dfdab80192ccc13e3ff60af532252d215b43a943e6c530",
+    "platform/embedded/tamago/nativefabric/transfer_window_test.go": "e4d256e933079357ac6c3b1c19714e6d2800eb6adbed9687fd36a790e942d636",
+    "platform/embedded/tamago/nativefabric/verify_producer.py": "47f759a25ecffbb46b14e0e8718179ea2a475d5681ef47d51c65102bc56adb1b"
+  },
+  "logs_sha256": {
+    "first-build": "09cafdf3ffe800b4d9315b932f3c73968328be70de3f58c506cc8cef2e89650a",
+    "second-build": "1cc540cb136bac200263a23f257fdad98965fde4784dd974be72656b53d4f755",
+    "first-verify": "9f9c6cca995560a79480c60370b04d4d57fc2dc870f6244d5a0d3c5481c526ef",
+    "wrong-live-id": "646b7525656e2a9db37cde5da6ab1725741d84aab30b84480e255699a500d170",
+    "wrong-live-abi": "9c61f74831d45d1ac59b668dd5aa09935db521c0ff311356e29758f9543bb768",
+    "wrong-descriptor": "1f3f2eb290a86eb358986d5f40aff4b2bacd2e290f6861df283f99afc389cf17",
+    "wrong-record": "47a26ff41a5045f91f508722879bc2ec301f0ab71f72c8ed60cd8d764a77b3ee",
+    "wrong-live-binding": "d8b9e8929ea1e830b60bbd37a7fd1296e09e0c3db53739dee24e791385cd367e",
+    "wrong-artifact": "e5f940a82704e24418ea79c68b21ff38240bc11f89f94493a36f4a2e40e0c4de",
+    "native-binding": "7ceddf335bfa698356fa74b2097a147f8a0becf4431d0439ba849767e128109f"
+  },
+  "limitations": [
+    "host executables are not RBFs or FES packages",
+    "no Nano source pinout, actual producer, physical timing or hardware qualification",
+    "record/tool hashes are diagnostic correlations, not authenticated production seals"
+  ]
+}

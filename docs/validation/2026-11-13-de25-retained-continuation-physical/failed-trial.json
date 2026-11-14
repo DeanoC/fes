@@ -1,0 +1,1976 @@
+{
+  "status": "stopped-active-native-no-recovery-programming",
+  "procedure_sha256": "13fd4da8431cf9e05085482e3d5df26e9192f81918dd81104ace3b65a2b402aa",
+  "source_commit": "3ad86522589a87ca77579406d8aaea589c4a688b",
+  "elapsed_seconds": 381.488537079189,
+  "candidate_FIT_sha256": "1f248739ef1154f49fbd68fd02ccd40b3195073d53a8a4edec649c7e236b9cb9",
+  "candidate_FIT_still_installed": true,
+  "exact_original_FIT_restored_and_read_back": false,
+  "baseline_restored": false,
+  "baseline_final_Park_verified": false,
+  "physical_reset_required": true,
+  "recovery_programming_after_unknown_active_native": false,
+  "boot": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 1,
+        "values": {
+          "id": "95d1b9c9b79ed255"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 2,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 3,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 27,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 34,
+        "values": {
+          "owner": 584717712473629745,
+          "epoch": 6778027075,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "spl_barrier_before",
+        "line": 35,
+        "values": {
+          "phase": "before"
+        }
+      },
+      {
+        "stage": "spl_barrier_after",
+        "line": 36,
+        "values": {
+          "phase": "after"
+        }
+      },
+      {
+        "stage": "spl_atf_entry",
+        "line": 37,
+        "values": {
+          "phase": "entry"
+        }
+      },
+      {
+        "stage": "spl_atf_hash_before",
+        "line": 38,
+        "values": {
+          "phase": "hash-before"
+        }
+      },
+      {
+        "stage": "spl_atf_hash_after",
+        "line": 39,
+        "values": {
+          "phase": "hash-after"
+        }
+      },
+      {
+        "stage": "spl_atf",
+        "line": 40,
+        "values": {
+          "target": 2147483648,
+          "bl32": 0,
+          "bl33": 2149580800,
+          "fdt": 0,
+          "params": 3220176904,
+          "cold": 139848,
+          "cookie": 5066060512865812482,
+          "el": 3,
+          "mpidr": 2164260864,
+          "sctlr": 12912696,
+          "scr": 15,
+          "daif": 960,
+          "bytes": 356800,
+          "sha256": "b278212941ee0203b16d2a2c98cb436c73afe53e46d5e58f55745202ecbef731"
+        }
+      },
+      {
+        "stage": "el3_capture_before",
+        "line": 66,
+        "values": {
+          "phase": "before",
+          "pointer": 139848,
+          "cookie": 5066060512865812482
+        }
+      },
+      {
+        "stage": "el3_capture_after",
+        "line": 67,
+        "values": {
+          "phase": "after",
+          "pointer": 139848,
+          "cookie": 5066060512865812482
+        }
+      },
+      {
+        "stage": "capability_smmu",
+        "line": 77,
+        "values": {
+          "status": 0,
+          "reads": 26,
+          "idr0": 135233087,
+          "idr1": 242457880,
+          "aidr": 1,
+          "s_idr1": 2147483672,
+          "cr0": 0,
+          "ack": 0,
+          "gbpa": 0,
+          "agbpa": 0,
+          "s_cr0": 0,
+          "s_ack": 0,
+          "s_init": 0,
+          "s_gbpa": 0,
+          "s_agbpa": 0,
+          "identified": 1,
+          "settled": 1,
+          "bypass_controls_clear": 1
+        }
+      },
+      {
+        "stage": "capability",
+        "line": 78,
+        "values": {
+          "status": 0,
+          "reads": 26,
+          "owner": 584717712473629745,
+          "epoch": 6778027075,
+          "idr0": 135233087,
+          "idr1": 242457880,
+          "idr3": 60,
+          "idr5": 4194421,
+          "cr1": 0,
+          "cr2": 4,
+          "sdm_ctrl": 3,
+          "sdm_ids": 655370,
+          "sdm_ar": 0,
+          "sdm_aw": 0,
+          "por1": 0,
+          "mac_ctrl": 3,
+          "mac_ids": 65537
+        }
+      },
+      {
+        "stage": "usb_setup",
+        "line": 79,
+        "values": {
+          "status": 0,
+          "board_error": 0,
+          "platform_error": 0
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 80,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "sd_platform",
+        "line": 81,
+        "values": {
+          "setup": 1,
+          "ready": 1
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 182,
+        "values": {
+          "id": "95d1b9c9b79ed255"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 186,
+        "values": {}
+      },
+      {
+        "stage": "autoboot",
+        "line": 198,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 199,
+        "values": {
+          "id": "95d1b9c9b79ed255"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 201,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216369456,
+          "malloc_start": 3216404480,
+          "malloc_end": 3220606976,
+          "reloc": 3220606976,
+          "fdt": 3216377600
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 257,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 584717712473629745,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 267,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 584717712473629745,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 292,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 293,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 294,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 302,
+        "values": {}
+      }
+    ],
+    "errors": [],
+    "loader_ready": true,
+    "complete": false,
+    "last_checkpoint": "el1",
+    "core_load_acceptance": false,
+    "loader_progress": {
+      "records": [
+        {
+          "phase": "memory-before",
+          "line": 200
+        },
+        {
+          "phase": "memory-after",
+          "line": 209
+        },
+        {
+          "phase": "snapshot-before",
+          "line": 210
+        },
+        {
+          "phase": "registers-before",
+          "line": 211
+        },
+        {
+          "phase": "registers-after",
+          "line": 212
+        },
+        {
+          "phase": "cpu0-before",
+          "line": 213
+        },
+        {
+          "phase": "cpu0-after",
+          "line": 220
+        },
+        {
+          "phase": "cpu1-before",
+          "line": 221
+        },
+        {
+          "phase": "cpu1-after",
+          "line": 228
+        },
+        {
+          "phase": "cpu2-before",
+          "line": 229
+        },
+        {
+          "phase": "cpu2-after",
+          "line": 236
+        },
+        {
+          "phase": "cpu3-before",
+          "line": 237
+        },
+        {
+          "phase": "cpu3-after",
+          "line": 244
+        },
+        {
+          "phase": "reset-before",
+          "line": 245
+        },
+        {
+          "phase": "reset-after",
+          "line": 246
+        },
+        {
+          "phase": "watchdog-before",
+          "line": 247
+        },
+        {
+          "phase": "watchdog-after",
+          "line": 248
+        },
+        {
+          "phase": "uart-before",
+          "line": 249
+        },
+        {
+          "phase": "uart-after",
+          "line": 250
+        },
+        {
+          "phase": "snapshot-after",
+          "line": 251
+        },
+        {
+          "phase": "cpu-check-before",
+          "line": 252
+        },
+        {
+          "phase": "cpu-check-after",
+          "line": 253
+        },
+        {
+          "phase": "watchdog-stop-before",
+          "line": 254
+        },
+        {
+          "phase": "watchdog-stop-after",
+          "line": 255
+        },
+        {
+          "phase": "owned-before",
+          "line": 256
+        },
+        {
+          "phase": "owned-after",
+          "line": 258
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "firmware_call_may_have_started": true
+    },
+    "affinity_calls": {
+      "records": [
+        {
+          "phase": "smc-before",
+          "line": 214,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 215,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 216,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 217,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 218,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 219,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 222,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 223,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 224,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 225,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 226,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 227,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 230,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 231,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 232,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 233,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 234,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 235,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 238,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 239,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 240,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 241,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 242,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 243,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 268,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 269,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 270,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 271,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 272,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 273,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-before",
+          "line": 274,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 275,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 276,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 277,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 278,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 279,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-before",
+          "line": 280,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 281,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 282,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 283,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 284,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 285,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-before",
+          "line": 286,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 287,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 288,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 289,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 290,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 291,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        }
+      ],
+      "valid": true,
+      "initial_complete": true,
+      "complete": true,
+      "instruction_may_have_started": true,
+      "cache_may_have_started": true,
+      "instruction_returns_observed": 8
+    },
+    "firmware_mmu_trace": {
+      "records": [
+        {
+          "el": 12,
+          "midr": 1093652560,
+          "mpidr": 2164260864,
+          "mmfr0": 1052962,
+          "daif": 704,
+          "scr": 568,
+          "sctlr": 12916794,
+          "tcr": 0,
+          "root": 2147778560,
+          "mair": 4963046916272786084,
+          "witness": 2147840384,
+          "phase": "before",
+          "line": 112,
+          "writes": 0,
+          "memory": 0
+        },
+        {
+          "el": 12,
+          "midr": 1093652560,
+          "mpidr": 2164260864,
+          "mmfr0": 1052962,
+          "daif": 704,
+          "scr": 568,
+          "sctlr": 13441087,
+          "tcr": 2155885856,
+          "root": 2147815424,
+          "mair": 4456703,
+          "witness": 2147840384,
+          "phase": "after",
+          "line": 179,
+          "writes": 4,
+          "memory": 1
+        }
+      ],
+      "steps": [
+        {
+          "phase": "admit-before",
+          "operation": 0,
+          "line": 113
+        },
+        {
+          "phase": "admit-after",
+          "operation": 0,
+          "line": 114
+        },
+        {
+          "phase": "barrier-before",
+          "operation": 0,
+          "line": 115
+        },
+        {
+          "phase": "barrier-after",
+          "operation": 0,
+          "line": 116
+        },
+        {
+          "phase": "write-before",
+          "operation": 0,
+          "line": 117
+        },
+        {
+          "phase": "write-after",
+          "operation": 0,
+          "line": 118
+        },
+        {
+          "phase": "write-before",
+          "operation": 1,
+          "line": 119
+        },
+        {
+          "phase": "write-after",
+          "operation": 1,
+          "line": 120
+        },
+        {
+          "phase": "write-before",
+          "operation": 2,
+          "line": 121
+        },
+        {
+          "phase": "write-after",
+          "operation": 2,
+          "line": 122
+        },
+        {
+          "phase": "barrier-before",
+          "operation": 1,
+          "line": 123
+        },
+        {
+          "phase": "barrier-after",
+          "operation": 1,
+          "line": 124
+        },
+        {
+          "phase": "admit-before",
+          "operation": 0,
+          "line": 125
+        },
+        {
+          "phase": "admit-after",
+          "operation": 0,
+          "line": 126
+        },
+        {
+          "phase": "write-before",
+          "operation": 3,
+          "line": 127
+        },
+        {
+          "phase": "write-after",
+          "operation": 3,
+          "line": 165
+        },
+        {
+          "phase": "admit-before",
+          "operation": 0,
+          "line": 166
+        },
+        {
+          "phase": "admit-after",
+          "operation": 0,
+          "line": 167
+        },
+        {
+          "phase": "memory-before",
+          "operation": 0,
+          "line": 168
+        },
+        {
+          "phase": "clean-before",
+          "operation": 0,
+          "line": 169
+        },
+        {
+          "phase": "clean-after",
+          "operation": 0,
+          "line": 170
+        },
+        {
+          "phase": "clean-before",
+          "operation": 0,
+          "line": 171
+        },
+        {
+          "phase": "clean-after",
+          "operation": 0,
+          "line": 172
+        },
+        {
+          "phase": "memory-after",
+          "operation": 0,
+          "line": 173
+        },
+        {
+          "phase": "admit-before",
+          "operation": 0,
+          "line": 174
+        },
+        {
+          "phase": "admit-after",
+          "operation": 0,
+          "line": 175
+        }
+      ],
+      "transitions": [
+        {
+          "phase": "enabled",
+          "sctlr": 13441087,
+          "vbar": 2147512320,
+          "line": 160
+        },
+        {
+          "phase": "restored",
+          "sctlr": 13441087,
+          "vbar": 2147811328,
+          "line": 178
+        }
+      ],
+      "faults": [],
+      "status_before": {
+        "records": [
+          {
+            "index": 0,
+            "name": "dsu_detect",
+            "value": 0,
+            "line": 128
+          },
+          {
+            "index": 1,
+            "name": "dsu_interrupt",
+            "value": 0,
+            "line": 129
+          },
+          {
+            "index": 2,
+            "name": "dsu_status_before",
+            "value": 0,
+            "line": 130
+          },
+          {
+            "index": 3,
+            "name": "dsu_location0",
+            "value": 0,
+            "line": 131
+          },
+          {
+            "index": 4,
+            "name": "dsu_location1",
+            "value": 0,
+            "line": 132
+          },
+          {
+            "index": 5,
+            "name": "dsu_status_after",
+            "value": 0,
+            "line": 133
+          },
+          {
+            "index": 6,
+            "name": "ocram_detect",
+            "value": 0,
+            "line": 134
+          },
+          {
+            "index": 7,
+            "name": "ocram_interrupt",
+            "value": 0,
+            "line": 135
+          },
+          {
+            "index": 8,
+            "name": "ocram_status_before",
+            "value": 0,
+            "line": 136
+          },
+          {
+            "index": 9,
+            "name": "ocram_location0",
+            "value": 0,
+            "line": 137
+          },
+          {
+            "index": 10,
+            "name": "ocram_location1",
+            "value": 0,
+            "line": 138
+          },
+          {
+            "index": 11,
+            "name": "ocram_status_after",
+            "value": 0,
+            "line": 139
+          },
+          {
+            "index": 12,
+            "name": "ecc_config",
+            "value": 536720,
+            "line": 140
+          },
+          {
+            "index": 13,
+            "name": "ecc_initialized",
+            "value": 1,
+            "line": 141
+          },
+          {
+            "index": 14,
+            "name": "ecc_pending",
+            "value": 0,
+            "line": 142
+          },
+          {
+            "index": 15,
+            "name": "ecc_decoder",
+            "value": 0,
+            "line": 143
+          },
+          {
+            "index": 16,
+            "name": "pfr0",
+            "value": 286335522,
+            "line": 144
+          },
+          {
+            "index": 17,
+            "name": "midr",
+            "value": 1093652560,
+            "line": 145
+          },
+          {
+            "index": 18,
+            "name": "disr",
+            "value": 0,
+            "line": 146
+          },
+          {
+            "index": 19,
+            "name": "count",
+            "value": 2,
+            "line": 147
+          },
+          {
+            "index": 20,
+            "name": "selector_before",
+            "value": 0,
+            "line": 148
+          },
+          {
+            "index": 21,
+            "name": "features",
+            "value": 43430,
+            "line": 149
+          },
+          {
+            "index": 22,
+            "name": "control",
+            "value": 0,
+            "line": 150
+          },
+          {
+            "index": 23,
+            "name": "status_before",
+            "value": 0,
+            "line": 151
+          },
+          {
+            "index": 24,
+            "name": "misc",
+            "value": 0,
+            "line": 152
+          },
+          {
+            "index": 25,
+            "name": "status_after",
+            "value": 0,
+            "line": 153
+          },
+          {
+            "index": 26,
+            "name": "selector_after",
+            "value": 0,
+            "line": 154
+          }
+        ],
+        "pending": null,
+        "complete": true,
+        "valid": true,
+        "ras": "complete",
+        "reason": null,
+        "hardware_authority": false
+      },
+      "logging": {
+        "records": [
+          {
+            "phase": "arm-before",
+            "line": 156
+          },
+          {
+            "phase": "armed",
+            "line": 157
+          },
+          {
+            "phase": "restore-before",
+            "line": 176
+          },
+          {
+            "phase": "restored",
+            "line": 177
+          }
+        ],
+        "valid": true,
+        "complete": true,
+        "write_attempted": true,
+        "armed": true,
+        "restore_attempted": true,
+        "restored": true,
+        "failed": false,
+        "failure": null,
+        "hardware_authority": false
+      },
+      "status_fault": {
+        "records": [],
+        "pending": null,
+        "complete": false,
+        "valid": true,
+        "ras": null,
+        "reason": null,
+        "hardware_authority": false
+      },
+      "mailbox_views": {
+        "records": [
+          {
+            "phase": 0,
+            "values": {
+              "cin": 2,
+              "cout": 2,
+              "rin": 1,
+              "rout": 1,
+              "bell": 0,
+              "status": 3489329231
+            },
+            "line": 159,
+            "begin_line": 158
+          },
+          {
+            "phase": 1,
+            "values": {
+              "cin": 0,
+              "cout": 0,
+              "rin": 0,
+              "rout": 0,
+              "bell": 0,
+              "status": 0
+            },
+            "line": 162,
+            "begin_line": 161
+          },
+          {
+            "phase": 2,
+            "values": {
+              "cin": 2,
+              "cout": 2,
+              "rin": 1,
+              "rout": 1,
+              "bell": 0,
+              "status": 3489329231
+            },
+            "line": 164,
+            "begin_line": 163
+          }
+        ],
+        "pending": null,
+        "valid": true,
+        "complete": true,
+        "hardware_authority": false
+      },
+      "valid": true,
+      "complete": true,
+      "hardware_authority": false
+    },
+    "firmware_ram_trace": {
+      "records": [
+        {
+          "kind": "entry",
+          "line": 41,
+          "phase": null
+        },
+        {
+          "kind": "pass",
+          "line": 42,
+          "phase": null
+        }
+      ],
+      "complete": true,
+      "valid": true,
+      "vendor_records": [
+        {
+          "phase": "enter",
+          "line": 44
+        },
+        {
+          "phase": "reset-before",
+          "line": 45
+        },
+        {
+          "phase": "reset-after",
+          "line": 46
+        },
+        {
+          "phase": "cpu-data-before",
+          "line": 47
+        },
+        {
+          "phase": "cpu-data-after",
+          "line": 48
+        },
+        {
+          "phase": "rw-cache-before",
+          "line": 49
+        },
+        {
+          "phase": "rw-cache-after",
+          "line": 50
+        },
+        {
+          "phase": "nobits-cache-before",
+          "line": 55
+        },
+        {
+          "phase": "nobits-cache-after",
+          "line": 60
+        },
+        {
+          "phase": "bss-before",
+          "line": 61
+        },
+        {
+          "phase": "bss-after",
+          "line": 62
+        },
+        {
+          "phase": "stack-before",
+          "line": 63
+        },
+        {
+          "phase": "stack-after",
+          "line": 64
+        },
+        {
+          "phase": "setup-before",
+          "line": 65
+        },
+        {
+          "phase": "setup-after",
+          "line": 71
+        }
+      ],
+      "vendor_complete": true,
+      "exceptions": [],
+      "status_probe": {
+        "records": [],
+        "pending": null,
+        "complete": false,
+        "valid": true
+      },
+      "ras_probe": {
+        "records": [],
+        "pending": null,
+        "complete": false,
+        "valid": true,
+        "outcome": null,
+        "original_selector": null,
+        "selector_may_have_changed": false,
+        "selector_restored": false,
+        "record_complete": false
+      },
+      "decode_log": {
+        "records": [
+          {
+            "phase": "idle",
+            "line": 43
+          },
+          {
+            "phase": "setup-before",
+            "line": 51
+          },
+          {
+            "phase": "baseline-zero",
+            "line": 52
+          },
+          {
+            "phase": "enable-before",
+            "line": 53
+          },
+          {
+            "phase": "enabled",
+            "line": 54
+          },
+          {
+            "phase": "restore-before",
+            "line": 58
+          },
+          {
+            "phase": "restored",
+            "line": 59
+          }
+        ],
+        "valid": true,
+        "complete": true,
+        "write_attempted": true,
+        "restore_attempted": true,
+        "restored": true,
+        "failed": false
+      },
+      "cache_maintenance": {
+        "records": [
+          {
+            "phase": "setway-before",
+            "line": 56
+          },
+          {
+            "phase": "setway-after",
+            "line": 57
+          }
+        ],
+        "valid": true,
+        "complete": true,
+        "maintenance_may_have_started": true
+      },
+      "runtime_startup": {
+        "records": [
+          {
+            "phase": "main-before",
+            "line": 72
+          },
+          {
+            "phase": "platform-before",
+            "line": 75
+          },
+          {
+            "phase": "owned-before",
+            "line": 76
+          },
+          {
+            "phase": "owned-after",
+            "line": 82
+          },
+          {
+            "phase": "gic-driver-before",
+            "line": 83
+          },
+          {
+            "phase": "gic-driver-after",
+            "line": 84
+          },
+          {
+            "phase": "gic-distributor-before",
+            "line": 85
+          },
+          {
+            "phase": "gic-distributor-after",
+            "line": 86
+          },
+          {
+            "phase": "gic-redistributor-before",
+            "line": 87
+          },
+          {
+            "phase": "gic-redistributor-after",
+            "line": 88
+          },
+          {
+            "phase": "gic-cpu-before",
+            "line": 89
+          },
+          {
+            "phase": "gic-cpu-after",
+            "line": 90
+          },
+          {
+            "phase": "mailbox-before",
+            "line": 91
+          },
+          {
+            "phase": "mailbox-after",
+            "line": 92
+          },
+          {
+            "phase": "platform-after",
+            "line": 93
+          },
+          {
+            "phase": "libraries-before",
+            "line": 94
+          },
+          {
+            "phase": "libraries-after",
+            "line": 95
+          },
+          {
+            "phase": "services-before",
+            "line": 96
+          },
+          {
+            "phase": "services-after",
+            "line": 97
+          },
+          {
+            "phase": "next-image-before",
+            "line": 98
+          },
+          {
+            "phase": "next-image-after",
+            "line": 99
+          },
+          {
+            "phase": "runtime-before",
+            "line": 100
+          },
+          {
+            "phase": "runtime-after",
+            "line": 101
+          },
+          {
+            "phase": "console-before",
+            "line": 102
+          },
+          {
+            "phase": "console-after",
+            "line": 103
+          },
+          {
+            "phase": "main-after",
+            "line": 104
+          },
+          {
+            "phase": "data-clean-before",
+            "line": 105
+          },
+          {
+            "phase": "data-clean-after",
+            "line": 106
+          },
+          {
+            "phase": "bss-clean-before",
+            "line": 107
+          },
+          {
+            "phase": "bss-clean-after",
+            "line": 110
+          },
+          {
+            "phase": "exit-before",
+            "line": 111
+          }
+        ],
+        "valid": true,
+        "complete": true
+      },
+      "exit_cache": {
+        "records": [
+          {
+            "phase": "clean-before",
+            "line": 108
+          },
+          {
+            "phase": "clean-after",
+            "line": 109
+          }
+        ],
+        "valid": true,
+        "complete": true,
+        "maintenance_may_have_started": true
+      }
+    },
+    "startup_policy": {
+      "bootcommand": "fesboot",
+      "bootdelay": 2,
+      "mode": "autoboot",
+      "scope": "nano-native-startup-v1"
+    },
+    "atf_observation": {
+      "target": 2147483648,
+      "bl32": 0,
+      "bl33": 2149580800,
+      "fdt": 0,
+      "params": 3220176904,
+      "cold": 139848,
+      "cookie": 5066060512865812482,
+      "el": 3,
+      "mpidr": 2164260864,
+      "sctlr": 12912696,
+      "scr": 15,
+      "daif": 960,
+      "bytes": 356800,
+      "sha256": "b278212941ee0203b16d2a2c98cb436c73afe53e46d5e58f55745202ecbef731"
+    },
+    "capability_boot_smmu": {
+      "status": 0,
+      "reads": 26,
+      "idr0": 135233087,
+      "idr1": 242457880,
+      "aidr": 1,
+      "s_idr1": 2147483672,
+      "cr0": 0,
+      "ack": 0,
+      "gbpa": 0,
+      "agbpa": 0,
+      "s_cr0": 0,
+      "s_ack": 0,
+      "s_init": 0,
+      "s_gbpa": 0,
+      "s_agbpa": 0,
+      "identified": 1,
+      "settled": 1,
+      "bypass_controls_clear": 1,
+      "secure_implemented": true,
+      "access_qualified": false
+    },
+    "capability_observation": {
+      "status": 0,
+      "reads": 26,
+      "owner": 584717712473629745,
+      "epoch": 6778027075,
+      "idr0": 135233087,
+      "idr1": 242457880,
+      "idr3": 60,
+      "idr5": 4194421,
+      "cr1": 0,
+      "cr2": 4,
+      "sdm_ctrl": 3,
+      "sdm_ids": 655370,
+      "sdm_ar": 0,
+      "sdm_aw": 0,
+      "por1": 0,
+      "mac_ctrl": 3,
+      "mac_ids": 65537,
+      "access_qualified": false,
+      "SDM_remap_stage_resolved": false,
+      "DMA_access_granted": false
+    },
+    "hps_io_observation": {
+      "complete": false,
+      "map_sha256": "297995427d26df7bb4c51f0c68ca50735468ea22aae7323d92aa6e781e18f0ae",
+      "registers": 164,
+      "reads": 0,
+      "runtime_admission": false
+    }
+  },
+  "source_retirement_continuation": {
+    "passed": true,
+    "continuation_verified": true,
+    "continuation": {
+      "build": "081d55a8cdded873",
+      "owner": 584717712473629745,
+      "epoch": 6778027075,
+      "generation": 4,
+      "ready": 1,
+      "elapsed_us": 592705,
+      "retained": 1,
+      "reuse": 0,
+      "activated": 0
+    },
+    "retirement": {
+      "passed": true,
+      "source_flow_verified": true,
+      "retirement_verified": true,
+      "timing_validated": true,
+      "retirement_observation": {
+        "passed": true,
+        "errors": [],
+        "source_flow_verified": true,
+        "retirement_verified": true,
+        "input_observation": {
+          "passed": true,
+          "result": {
+            "build": "081d55a8cdded873",
+            "status": 0,
+            "detail": 0,
+            "proof": 1,
+            "owner": 584717712473629745,
+            "epoch": 6778027075,
+            "generation": 4,
+            "bytes": 1708032,
+            "accepted": 1708032,
+            "posted": 1708032,
+            "acknowledged": 1708032,
+            "completed": 1708032,
+            "posts": 2,
+            "acks": 2,
+            "buffers": 2,
+            "pending": 0,
+            "outstanding": 0,
+            "configured": 1,
+            "failed": 0,
+            "first_error": 0,
+            "service_error": 0,
+            "source_failed": 0,
+            "scope_reason": 0,
+            "bad_offset": 0,
+            "bad_value": 0,
+            "arm_writes": 12,
+            "elapsed_us": 11581395,
+            "sha384": "faef83bbdc549d5a117cf09ecda3007150b45156cbb13ed7d138d0ab048c28a92964d0e9f8d1cafee563b202e0a0e606",
+            "retained": 1,
+            "activated": 0
+          },
+          "errors": [],
+          "source_flow_verified": true,
+          "negotiated_credits": 4,
+          "negotiated_block_bytes": 1048560,
+          "recorded_DATA_requests": 2,
+          "recorded_DATA_bytes": 1708032,
+          "matching_source_digest": "faef83bbdc549d5a117cf09ecda3007150b45156cbb13ed7d138d0ab048c28a92964d0e9f8d1cafee563b202e0a0e606",
+          "remap_observation": {
+            "records": [
+              {
+                "kind": "remap",
+                "line": 655,
+                "values": {
+                  "kind": 1,
+                  "phase": 0,
+                  "operand": 0,
+                  "por1": 0,
+                  "bypass": 0,
+                  "ctrl": 3,
+                  "ids": 655370,
+                  "ar": 0,
+                  "aw": 0
+                }
+              },
+              {
+                "kind": "remap",
+                "line": 656,
+                "values": {
+                  "kind": 1,
+                  "phase": 1,
+                  "operand": 0,
+                  "por1": 0,
+                  "bypass": 0,
+                  "ctrl": 3,
+                  "ids": 655370,
+                  "ar": 2147483648,
+                  "aw": 2147483648
+                }
+              },
+              {
+                "kind": "remap",
+                "line": 669,
+                "values": {
+                  "kind": 2,
+                  "phase": 0,
+                  "operand": 2491416576,
+                  "por1": 0,
+                  "bypass": 0,
+                  "ctrl": 3,
+                  "ids": 655370,
+                  "ar": 2147483648,
+                  "aw": 2147483648
+                }
+              },
+              {
+                "kind": "remap",
+                "line": 670,
+                "values": {
+                  "kind": 2,
+                  "phase": 1,
+                  "operand": 343932928,
+                  "por1": 0,
+                  "bypass": 0,
+                  "ctrl": 3,
+                  "ids": 655370,
+                  "ar": 2147483648,
+                  "aw": 2147483648
+                }
+              },
+              {
+                "kind": "submit",
+                "line": 673,
+                "values": {
+                  "address": 343932928,
+                  "bytes": 1048512,
+                  "por1": 0,
+                  "bypass": 0,
+                  "ctrl": 3,
+                  "ids": 655370,
+                  "ar": 2147483648,
+                  "aw": 2147483648
+                }
+              },
+              {
+                "kind": "result",
+                "line": 674,
+                "values": {
+                  "status": 0
+                }
+              }
+            ],
+            "complete": true,
+            "mailbox_status": 0,
+            "mailbox_accepted": true,
+            "vendor_operand_subtraction_matches": true,
+            "submission_starts_at_transformed_pointer": true,
+            "stream_identity_stable": true,
+            "observations_atomic": false,
+            "source_attested": false,
+            "SDM_tcu_input": null,
+            "SDM_route_qualified": false,
+            "DMA_access_granted": false,
+            "independent_drain": false
+          },
+          "DMA_authority": false,
+          "ordinary_runtime_activation": false,
+          "buffer_reuse_authority": false,
+          "physical_isolation_qualification": false
+        },
+        "result": {
+          "build": "081d55a8cdded873",
+          "owner": 584717712473629745,
+          "epoch": 6778027075,
+          "generation": 4,
+          "bytes": 1708032,
+          "sha384": "faef83bbdc549d5a117cf09ecda3007150b45156cbb13ed7d138d0ab048c28a92964d0e9f8d1cafee563b202e0a0e606",
+          "status": 0,
+          "phase": 6,
+          "retired": 1,
+          "first_error": 0,
+          "writes": 5,
+          "producer": 12,
+          "consumer": 12,
+          "control": 0,
+          "abort": 1048576,
+          "elapsed_us": 401247,
+          "bad_offset": 0,
+          "bad_value": 0,
+          "retained": 1,
+          "reuse": 0,
+          "activated": 0
+        },
+        "recorded_DATA_requests": 2,
+        "recorded_DATA_bytes": 1708032,
+        "ordinary_runtime_activation": false,
+        "buffer_reuse_authority": false,
+        "DMA_authority": false,
+        "independent_interconnect_drain": false
+      },
+      "timing": {
+        "build": "081d55a8cdded873",
+        "owner": 584717712473629745,
+        "epoch": 6778027075,
+        "generation": 4,
+        "bytes": 1708032,
+        "sha384": "faef83bbdc549d5a117cf09ecda3007150b45156cbb13ed7d138d0ab048c28a92964d0e9f8d1cafee563b202e0a0e606",
+        "phase": 6,
+        "timed": 1,
+        "mask": 127,
+        "start_us": 49960072,
+        "last_us": 50361319,
+        "observed_us": 50361319,
+        "guards": 161,
+        "samples": 161,
+        "owners": 161,
+        "sources": 5,
+        "validated": 5,
+        "reads": 1186,
+        "writes": 5,
+        "polls": 4,
+        "first_us": [
+          49960072,
+          50002927,
+          50019440,
+          50078799,
+          50138275,
+          50259051,
+          50318406
+        ],
+        "latest_us": [
+          50001596,
+          50018115,
+          50077468,
+          50136826,
+          50257705,
+          50317076,
+          50361319
+        ],
+        "retained": 1,
+        "reuse": 0,
+        "activated": 0
+      },
+      "errors": [],
+      "recorded_DATA_requests": 2,
+      "recorded_DATA_bytes": 1708032,
+      "ordinary_runtime_activation": false,
+      "buffer_reuse_authority": false,
+      "DMA_authority": false,
+      "queue_observation_validated": true,
+      "queue": {
+        "build": "081d55a8cdded873",
+        "owner": 584717712473629745,
+        "epoch": 6778027075,
+        "generation": 4,
+        "bytes": 1708032,
+        "sha384": "faef83bbdc549d5a117cf09ecda3007150b45156cbb13ed7d138d0ab048c28a92964d0e9f8d1cafee563b202e0a0e606",
+        "phase": 6,
+        "stage": 10,
+        "policy": 1,
+        "completion_seen": 1,
+        "completion_us": 50235067,
+        "attempted": 1,
+        "initialized": 1,
+        "submitted": 1,
+        "failed": 0,
+        "error": 0,
+        "timed": 1,
+        "start_us": 50138248,
+        "last_us": 50256074,
+        "observed_us": 50256074,
+        "samples": 27,
+        "slots": 6,
+        "published": 1,
+        "polls": 1,
+        "reads": 0,
+        "read_samples": 1186,
+        "last_offset": 156,
+        "last_value": 12,
+        "consumer_samples": 21,
+        "consumer": 12,
+        "consumer_read": 1186,
+        "consumer_phase": 6,
+        "consumer_stage": 10,
+        "consumer_poll": 1,
+        "retained": 1,
+        "reuse": 0,
+        "activated": 0
+      },
+      "queue_stage": "complete",
+      "queue_sample_is_completion_proof": false
+    },
+    "errors": [],
+    "native_activation_verified": false,
+    "memory_reuse_authorized": false,
+    "ordinary_runtime_activation": false
+  },
+  "continuation_parse_error": null,
+  "native_failure": "native failure marker",
+  "native_failure_tail": {
+    "bound_seconds": 1,
+    "captured_bytes": 159,
+    "error": null,
+    "read_only": true,
+    "UART_bytes_written": 0,
+    "original_verdict_remains_failed": true
+  },
+  "wire_proof": {
+    "boot_boundary_verified": true,
+    "console_sha256": "947f1b54047f6140267e7182e310e859aac1cdf7b4fbe171fe39ce84849e5934",
+    "all_wire_sha256": "acb3335b4f423f26101d2eb50df24a5f6eac6c1990073ed848059cd3986b4ea6",
+    "completed_program_epoch": "1500388:162817114"
+  },
+  "forward_refresh": {
+    "status": "verified-reversible-fit-refresh",
+    "direction": "forward",
+    "plan_sha256": "ffc6f8b560d88bacd8c9b57f696de7db3e1d2357895118fcb3af4c05cade19e3",
+    "previous_boot_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+    "boot_sha256": "1f248739ef1154f49fbd68fd02ccd40b3195073d53a8a4edec649c7e236b9cb9",
+    "preserved_files": 16,
+    "readbacks_before": 17,
+    "readbacks_after": 17,
+    "session": "11e0a4b0b3c730a55962114b4109f6f2",
+    "physical_boot_accepted": false
+  },
+  "roles": {
+    "recovery-before": {
+      "status": "verified",
+      "transport_epoch": "1472137:162792522",
+      "transport_cleaned": true
+    },
+    "native-diagnostic": {
+      "status": "failed",
+      "transport_epoch": "1500388:162817114",
+      "transport_cleaned": true
+    }
+  },
+  "UART_closed_and_free": true,
+  "UART_process_fd_scan_verified": true,
+  "owned_processes": [
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/retained-continuation-trial/attempt/forward/owned-worker.json",
+      "pid": 1475324,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/retained-continuation-trial/attempt/native-diagnostic/transport.json",
+      "pid": 1500388,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/retained-continuation-trial/attempt/native-diagnostic/owned-worker.json",
+      "pid": 1500254,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/retained-continuation-trial/attempt/native-diagnostic/owned-programmer.json",
+      "pid": 1501303,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/retained-continuation-trial/attempt/recovery-before/transport.json",
+      "pid": 1472137,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/retained-continuation-trial/attempt/recovery-before/owned-worker.json",
+      "pid": 1471895,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/retained-continuation-trial/attempt/recovery-before/owned-programmer.json",
+      "pid": 1473108,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/retained-continuation-trial/attempt/native-diagnostic/file-admission/owned-worker.json",
+      "pid": 1500380,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/retained-continuation-trial/attempt/forward/native-input-preflight/native-baseline/owned-worker.json",
+      "pid": 1475859,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/retained-continuation-trial/attempt/forward/native-input-preflight/native-diagnostic/owned-worker.json",
+      "pid": 1475775,
+      "original_process_stopped": true
+    }
+  ],
+  "JTAG_auto_1_15M": true,
+  "USB_identity_inode_permissions_restored": true,
+  "native_initial_menu_Quit_Park_verified": false,
+  "memory_reuse_authorized": false,
+  "general_core_load_acceptance": false,
+  "diagnostic_retried": false,
+  "board_volatile_state": "failed active native; physical reset required before restoration-only",
+  "permanent_QSPI_written": false,
+  "factory_card_changed": false,
+  "bottom_kit_touched": false
+}

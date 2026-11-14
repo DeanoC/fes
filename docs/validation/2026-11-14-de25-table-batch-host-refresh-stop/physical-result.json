@@ -1,0 +1,91 @@
+{
+  "status": "stopped-host-refresh-before-native-programming-physical-reset-required",
+  "procedure_sha256": "2af464ad0bf0befe0c783d90397363c8db30f3b679564f44f0757e525ffc2006",
+  "operator_source_head": "156833ed87f33e9cace0b31c28dfe863b3bf4410",
+  "compiled_firmware_source_head": "5764c9495b6597da306546879194100021986a37",
+  "elapsed_seconds": 763.1606143419631,
+  "flow": {
+    "physical_reset_required": true,
+    "recovery_safe": false,
+    "status": "stopped",
+    "diagnostic_verified": false,
+    "baseline_restored": false,
+    "rollback_attempted": true,
+    "fit_state": "uncertain",
+    "ordinary_admission": false,
+    "hardware_acceptance": false,
+    "live_adapter_qualified": false,
+    "error": "bounded FIT refresh stopped: forward",
+    "rollback_error": "bounded FIT refresh stopped: rollback",
+    "roles_consumed": [
+      "recovery-before",
+      "recovery-rollback"
+    ],
+    "plan_sha256": "c187744682830d6b9917b31046a486f30759abfe08957b70b8b7181926be170f"
+  },
+  "native": {},
+  "refresh": {
+    "forward": {
+      "status": "partial-refresh-not-promoted-to-pass",
+      "payload_sha256": "adeb0238f4e0a3c50b513058a332a106aef0c84e411f48304b695b107d8475f0",
+      "payload_write_readback_verified": true,
+      "full_refresh_verified": false,
+      "checks": {
+        "before": {
+          "verified_readbacks": 17,
+          "incomplete": []
+        },
+        "after": {
+          "verified_readbacks": 16,
+          "incomplete": [
+            "boot"
+          ]
+        }
+      },
+      "host_deadline_seconds": 300,
+      "worker_timed_out": true
+    },
+    "rollback": {
+      "status": "partial-refresh-not-promoted-to-pass",
+      "payload_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+      "payload_write_readback_verified": true,
+      "full_refresh_verified": false,
+      "checks": {
+        "before": {
+          "verified_readbacks": 17,
+          "incomplete": []
+        },
+        "after": {
+          "verified_readbacks": 16,
+          "incomplete": [
+            "boot"
+          ]
+        }
+      },
+      "host_deadline_seconds": 300,
+      "worker_timed_out": true
+    }
+  },
+  "baseline_restored": false,
+  "baseline_final_Park_verified": false,
+  "baseline_cycle_commands": 0,
+  "physical_reset_required": true,
+  "candidate_FIT_remains_on_test_card": false,
+  "diagnostic_retried": false,
+  "source_rearm_qualified": false,
+  "owned_process_records": 16,
+  "owned_processes_stopped": true,
+  "UART_closed_and_free": true,
+  "USB_identity_inode_permissions_restored": true,
+  "JTAG_auto_1_15M": true,
+  "hardware_acceptance": false,
+  "general_core_load_acceptance": false,
+  "permanent_QSPI_written": false,
+  "factory_card_changed": false,
+  "bottom_kit_touched": false,
+  "last_verified_board_state": "recovery loader stopped; original FIT payload readback verified, original native baseline not booted",
+  "candidate_native_programming_issued": false,
+  "original_FIT_payload_write_readback_verified": true,
+  "full_refresh_verified": false,
+  "host_refresh_timed_out": true
+}

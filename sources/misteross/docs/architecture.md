@@ -28,6 +28,355 @@ It opens no device and performs no bit editing. The format1 CRAM linker refuses
 these assets. Format1 identities and framing remain covered by the existing
 full expansion suite. This preparation grants no normal package seal, runtime
 programming profile, physical PR or timing acceptance.
+## Embedded control endpoint
+
+The shared package reader recognizes Nano format-3 `cpu-csr-v1` held-ROM maps:
+one required `fes.embedded.rom` 1.0 interface and a 4/8 KiB firmware source,
+with no bitstream destinations or physical addresses in the map. Its payload
+stays unchanged and the source is delivered separately by a compatible native
+runtime. Cyclone V maps and linking retain their existing rules. This structural
+recognition does not register a Nano programming profile or establish physical
+activation support. The explicit held-ROM diagnostic producer exports format 3
+with a size-bound map and unchanged FPGA payload; ordinary diagnostic variants
+retain format 2. The separate firmware source is selected by the native runtime.
+
+The experimental `fes_embedded_control` component supplies immutable build/ABI
+identity and generation/cookie-bound drain for one single-ID AXI read port.
+Its CSR constants come from the separate `fes.fabric.embedded.control` package.
+It holds an offered AR through disable, drains accepted bursts, and makes read
+protocol faults sticky. It is single-clock; board interconnect/CDC, DDR window
+validation, global containment, scanout and Nano pin/clock/reset glue are not
+provided. No shipped core or production producer includes it. The standalone
+`prototypes/embedded_control/producer.py` producer creates a format-2 functional
+input record, derives its 128-bit ID with the existing `build_identity`, and
+passes that ID and an explicit experimental ABI value into a simulation top
+that instantiates the endpoint. It emits a host executable and diagnostic
+descriptor under FES `out/`; verification compares the record, artifact hash,
+live identity and held-read drain. The FES native integration check reads the
+same descriptor and exercises the Go control adapter against that model.
+This is an experimental simulation, not a package, RBF, authenticated toolchain
+seal or board producer. FES also integrates its Verilator
+test with the portable firmware adapter and actual prepared TF-A C functions;
+see the [contract](../../mister-packages/docs/embedded-control.md) and
+[verifier](../../../platform/embedded/firmware/README.md). This simulation is
+not an RBF, timing result or hardware acceptance.
+
+The separate `prototypes/embedded_control/verify_window.py` simulation connects
+the endpoint to a fixed XRGB8888 window source. It renders the actual tenfoot
+App/Presenter, stages those pixels through the native `scanout.Surface`, and
+checks every returned pixel against an independent external AXI memory model.
+Requests stop at each row and 4 KiB boundary; padded rows do not enter the pixel
+stream. Full frames may repeat within an admitted reader generation. A partial
+or aborted frame requires a strictly newer admitted generation before restart;
+the endpoint exposes that generation directly to the source. A frame-complete
+event is only delivery, and never supplies the endpoint's generation/cookie
+drain acknowledgement or permission to reclaim memory.
+Resetting only the window cannot adopt a previously active endpoint; losing
+only the endpoint generation poisons the still-owned window source.
+
+The model covers held addresses, consumer stalls through the final beat,
+four outstanding reads, missing/error/stale responses, rejected stops, reset,
+and reuse only after actual response drain. Invalid windows offer no read.
+Its functional record binds the RTL, parameters, actual renderer executable and
+both frame images. A digested sidecar records the selected first-party renderer
+source closure within the existing functional-record size bound.
+
+The real Nano Avalon adapter now has a separate `hps-ddr-window` diagnostic
+backend (`0x10203042`). It connects this source to a fixed 1280×720/5120-byte
+stride, 4 MiB bus window and an IEEE CRC32 sink. CPU START must match the enabled
+reader generation and carry a fresh cookie. STATUS latches the frame generation,
+cookie, byte counts and CRC together; completion grants no reader drain. Up to
+four reads use the same AXI endpoint and its actual disable/drain ledger. The
+new native `scanout.WindowReader` checks the live identity and geometry, submits
+each command once, verifies full counts and expected CRC, and checks ownership
+again before publishing a result. Uncertain operations retire it and leave
+memory and containment with the platform. The integrated host model exercises
+the actual Avalon wrapper and native driver, including corruption, coherent
+observations, cancellation, concurrency and owner changes after completion.
+
+Backend/window/profile and both window RTL units enter the sealed board source
+closure. Generated handoff verification checks those installed bytes and the
+four-read issuing contract. The dedicated native cold path binds the full
+4 MiB reservation through secure firmware and retains it until reboot.
+The [matched full-width diagnostic](../../../docs/validation/2026-11-04-de25-fullwidth-window/README.md)
+passes one 3,686,400-byte frame, reader/master drain and hardware bridge closure
+on TRWU8CBL. Its FPGA producer uses 256-bit HPS reads and retains both 128-bit
+response halves in the endpoint's drain ledger. Pixel-clock crossing, HDMI,
+buffer reuse and registered Nano admission remain unfinished. Physical evidence
+applies to the exact producer and native sources named in that record.
+
+The opt-in `prototypes/embedded_control/fes_embedded_menu_scanout.sv` now
+connects the existing menu video/FIFO to that owned read endpoint. Unlike the
+window CRC sink, this path produces the actual 1280×720 RGB/sync stream. Two
+4 MiB slots in one fixed 8 MiB arena supply packed XRGB frames. An explicit
+Start requires an observed endpoint retirement and a newer live generation;
+submissions alternate slots and use strictly increasing nonzero sequences.
+The existing `COMPLETE_FRAME_ACK` mode acknowledges only a fully scanned frame,
+including its final pixel. Underflow blanks missed pixels without shifting the
+remaining stream and cannot acknowledge an incomplete submission.
+
+The shared pipeline's ports use one qualified pixel clock. The board producer
+now has an explicit `hps-ddr-menu` personality, described below; its matched
+native boot selection and physical HDMI qualification remain open. The existing
+4 MiB window profile cannot authorize this 8 MiB source. The runtime keeps both slots
+pinned, publishes immutable pixels before submission, and waits for the new slot's
+complete-frame acknowledgement before updating its predecessor. Local Quiesce
+stops new frames, preserves a stalled command and drains the menu reader before
+reporting Stopped. It neither disables the owned AXI endpoint nor grants memory
+reclamation; firmware's endpoint/all-master stop and bridge closure still follow.
+Ownership loss, invalid submissions and an uncertain source reset cannot create
+a new session. Faults blank RGB and require containment rather than replay.
+
+`verify_menu.py` runs actual Tenfoot-rendered/native-copy frames through that
+source, the real menu video/reader, embedded endpoint and Nano 128/256-bit DDR
+adapter. Its independent memory/raster model checks every active pixel, page and
+slot bounds, complete-frame acknowledgement, normal backpressure, stalled stop,
+underflow, bus errors, stale submissions and video-only reset. A prefetch-time
+acknowledgement mutation must fail, and a one-slot reservation must offer no DDR
+read. The only menu-reader derivation is the existing guarded M10K-to-M20K RAM
+hint replacement. Verilator suppresses inherited empty-pin and unused-signal
+style warnings; functional warnings remain fatal. This is a host simulation,
+not a compiled Nano package, physical HDMI result or runtime admission grant.
+
+The separate private `fes_embedded_menu_control.sv` now binds that source to
+relative CSR commands in the upper aperture: generation/sequence/slot staging,
+Start, Submit and Quiesce, plus coherent STATUS/result and fixed geometry reads.
+Its FMS1 layout and `0x10203043` test ABI are experimental; no registered package
+or production profile selects them. The host top's opt-in CSR mode shares the
+existing endpoint response channel and the same qualified pixel clock.
+
+The native `scanout.MenuPresenter` now drives those controls through injected
+platform ownership, memory and register hooks. It copies only the spare slot
+through `Surface.Present`, orders publication, then submits once and waits for
+full display completion. Once the preceding frame completes, CSR submission
+capacity stays available through repeat-frame prefetch. One accepted descriptor
+is held until the video side can consume it; a second outstanding descriptor
+rejects. Staging-register changes cannot alter that pending descriptor. Stop or
+ownership loss discards the pending handoff without releasing either slot.
+Stop must complete local Quiesce before the existing
+endpoint Disable/drain. Both slots stay pinned and firmware's independent
+all-master stop/bridge closure is still required. Unknown ownership, partial
+copy/publication, uncertain commands and failed stops retire without replay.
+The explicit native menu diagnostic selects a matching sealed Nano package;
+ordinary appliance and physical display acceptance remain separate.
+
+`nativefabric.MenuSession` now requires its own compiled source/control/memory/
+access contracts, an ordered boot-pinned 8 MiB arena and the same owner's fresh
+completed transfer. It supplies the presenter's private CSR and memory hooks,
+then independently requests the existing firmware master-stop and bridge close.
+The menu ABI's maintenance-held register is `0xcc`; the board selection derives
+it from the same static hold that drives its maintenance reset output. The C
+helper accepts only the explicit ABI/8 MiB pair. Native ownership/failure tests
+inject secure responses; separate actual C/RTL tests check active and already
+locally drained stop, wrong geometry and lost ownership. No test grants physical
+DDR, HDMI, memory release or menu storage/reconfiguration acceptance.
+
+The opt-in board producer selects `--reader-memory hps-ddr-menu` with HPS-first,
+the reviewed board revision and the exact `0x95000000` / 8 MiB arena. It installs
+`fes_de25_menu`: CPU Avalon control stays on the existing 100 MHz clock, while
+the shared video/reader/width adapter uses the existing 74.25 MHz pixel clock.
+The HDMI wrapper exports its qualified pixel reset. The generated video export
+selects the menu's RGB/sync, while Platform Designer connects its read-only AXI
+port to the retained HPS DDR adapter. Source/generation checks reject changed
+clocks, reset/video exports, widths, master inventory, FIFO derivation or source.
+Explicit parent clock/reset bridges supply that clock owner to generated
+interconnect; their complete generated parameters and connections are checked.
+Its distinct private HPS profile and canonical functional identity bind those
+files, two-slot geometry and clock/timeout parameters. It registers no normal
+FES menu programming profile.
+
+`fes_de25_menu_cdc` carries one complete CSR request and response using a
+four-phase handshake. Both packets remain stable until acknowledgement returns.
+The CPU-side timeout is 1,048,576 clocks (about 10.49 ms at the declared rate).
+After first use, pixel reset or timeout permanently retires that bridge; later
+calls return an error. A timed-out request is uncertain and may have executed
+once; timeout is neither cancellation nor drain. Backend reset waits for the
+old request to withdraw before accepting another, so reset cannot replay it.
+Error replies also return `0xffffffff`, which the existing native identity and
+status checks reject, because generated upstream masters may discard Avalon
+response codes. The error bit therefore remains physically observable in data.
+The 45/33-bit packets have explicit 10 ns flight/skew bounds; only the three
+first-stage control inputs and four raw reset-release ingress pins are cut.
+Second stages, reset recovery/removal and HDMI output paths remain timed.
+The menu has its own constraints because its predecessor's unused video logic
+may be pruned; existing computer/window constraints are unchanged.
+
+`prototypes/de25_board_control/verify_menu.py` tests that actual board module at
+the 100/74.25 MHz ratio with independent memory/raster checks of actual Tenfoot
+frames, three submissions, local stop and owned endpoint drain. It also checks
+640 exact CSR packets over five phases and stopped-clock/reset failure cases.
+Removing the reset re-arm fence or timeout must fail a negative control. The
+standalone board verifier includes these checks. This is host simulation;
+generated HPS AXI clock-crossing simulation, routed timing, matched native boot
+and physical display/input remain separate gates.
+
+The same verifier now runs the actual native presenter with race detection
+against the CSR/video/DDR model. CPU writes populate independent model memory,
+whose published bytes and output pixels must equal actual Tenfoot renderings.
+It rejects writes into a currently fetched slot or outstanding DDR request.
+The direct video checks retain their independent final-pixel/early-ack negative
+control. Source-only reset, held addresses, corruption, callback failures and
+concurrent/replayed calls supply no frame, drain or memory-release receipt.
+
+The separate `prototypes/de25_board_control` overlay builds a private copy of
+an explicitly selected DE25 ZX81 diagnostic producer and adds an Avalon
+aperture for this endpoint. It includes its adapter and endpoint sources in
+the board producer's existing source/vendor fingerprint, and supplies that
+same fingerprint to the computer and embedded-control endpoints. The fingerprint
+also binds the overlay's version-1.1 computer transport and generated register
+headers. Its read-only fetch count/address sample actual Z80 bus activity,
+preserve the count across execution Hold and add no clock, master or GP opcode.
+The generated component HDL must match those installed source bytes. This
+observation measures fetch cycles rather than retired instructions or video.
+
+The overlay also owns the board-local capture HDL. Its system token owner uses
+the computer's already qualified 100 MHz Platform Designer reset; its pixel
+token owner and readiness synchronizer share one local pixel release chain.
+Both resets assert asynchronously, including with stopped clocks, and release
+on their own clock. The source-bound timing file rejects the removed private
+release chains, removes their obsolete ingress cuts and retains recovery/removal
+checks on the shared reset fan-out. Execution Hold does not reset or reclaim an outstanding
+frame bank. A transport reset retires the enclosing computer epoch rather than
+manufacturing a new ready session. Writer-control induction and full video
+comparison cover identical qualified release inputs; the actual board ROM model
+separately checks the enclosing reset wiring and stopped-clock retirement with
+a broken-wiring negative control. The outer HDMI wrapper and vendor reset
+controllers still have separate release cones; no reset-domain rule is waived.
+
+The capture's external RGB/DE/sync mask is qualified in the pixel domain by
+the same reset that owns scanout state. No direct system-reset mask reaches
+those signals. Asynchronous assertion remains available with stopped clocks;
+release waits for pixel edges. This closes a direct system-clock data path to
+the HDMI pads without a reset-to-output timing exception. Pad skew/load and the
+complete external timing contract remain separate qualification work.
+
+Its source-bound SDC forwards the actual pixel PLL clock to the clock pad and
+requires all 27 RGB/control pads to meet the ADV7513 Rev B receiver minima,
+1.8 ns setup and 1.3 ns hold, including every launch source. Exact clock/target
+and pad inventories reject missing constraints. This receiver-only requirement
+has a zero board-skew reference; actual board skew/loading and the inherited
+vendor clock-voltage discrepancy remain unresolved. It lets the fitter repair
+receiver timing without claiming external electrical or board qualification.
+
+The captured HDMI wrapper qualifies the asynchronous interrupt through two
+50 MHz stages using the existing configuration reset. Only its first D pin
+has an asynchronous-input exception; the second stage and divided-clock
+consumer remain timed. A guarded initializer change waits for actual busy
+entry before accepting completion, preventing a stale `END` from completing
+a newly asserted `GO`. Its byte controller, divider and register table retain
+their captured bytes. Original/derived source hashes enter verification.
+The actual wrapper/reset and process-synthesized control circuit are tested
+with an open-drain bus model, NACK retry, IRQ reinitialization, reset mid-transfer
+and negative controls for both repairs. Digital circuit modeling does not
+establish Quartus circuit equivalence or board I2C timing/loading.
+
+The reviewed ROM/HPS-DDR variant declares the 100 MHz association on both reset
+bridges. Platform Designer consequently shares the memory reset-request
+controller's reset and early request with the peripheral devices through an
+owned combinational bridge. The memory reset output itself asserts on a clock
+edge, so its early asynchronous request is required to contain devices with
+stopped clocks. Both inputs must clear before release. Its OCM reset/request
+connections and complete sequencing parameters are checked in generated HDL;
+the remaining peripheral controller synchronizes interconnect reset on both
+edges. This preserves memory reset sequencing while removing the independent
+peripheral asynchronous release. Native context verification binds the helper
+and the generated ownership evidence. This does not qualify vendor maintenance
+or outer HDMI reset reconvergence.
+
+The separate ROM stream prototype buffers one 4 KiB or 8 KiB image in
+synchronous FPGA RAM. It accepts complete little-endian 128-bit beats with
+backpressure and exposes no read bytes until exact length, final-beat position
+and IEEE CRC32 agree. Abort, lost execution Hold, a repeated Start or bad CRC
+retires the image until reset. The portable ZX81 machine's explicit
+`EXTERNAL_ROM` parameter selects its one-clock ROM read input; the default
+internal and linked-ROM paths retain their existing source and address decode.
+The simulation wrapper holds the real ZX80/ZX81 CPU through image admission,
+then checks a streamed program's RAM write and HALT. No physical producer
+selects that wrapper. The standalone verifier supplies only its synthetic
+streamed image; it requires no bundled ZX81 firmware file, and the internal ROM
+stays blank. A relative ROM CSR wrapper now joins the receiver to a
+freestanding C firmware transfer. The shared fabric definition supplies
+its C/Verilog offsets, identity, FIFO and status constants. Secure code must
+supply owned, bounded MMIO hooks under its lifecycle lock; the transfer copies
+the input, checks its CRC, brackets accesses with live ownership and verifies
+held completion and build identity. It performs no CPU release, bridge opening,
+retry or automatic cleanup. The opt-in strong cold provider connects the transfer
+to the existing computer control-opening gate under its secure lock. Version-2
+program bindings capture a fixed ROM extension and bind an aligned image within
+the existing configuration reservation; SHA-384 checks the private input before
+endpoint access. The gate returns success only after ROM completion, and uses
+its existing containment path on failure. Model tests run that actual provider
+include and gate against the RTL with injected platform/digest operations. No
+generated cold profile enables the ROM binding, and ordinary native retained-
+package admission remains incomplete. The producer's explicit `--external-rom`
+variant adds the real computer/ROM conduit and a 128-byte slave at peripheral
+offset `0x10500`, with a distinct HPS-first ROM diagnostic profile. It refreshes
+the three reviewed machine/clock/mailbox files from the overlay revision and
+names them in the canonical source roots. Generated-interface checks require
+the exact slave, no new master, the same 100 MHz clock/reset and held ROM path.
+The machine's rational clock defaults retain 1625/13056 at 52.224 MHz; DE25
+selects 13/200 at 100 MHz. The board model exercises actual Avalon peripherals
+and mailbox Run/Hold, with a separate reset gate for unloaded or failed ROM.
+This source/model integration is not routed timing or a physical ROM result.
+
+The board overlay also has an explicit `--sealed-computer` export choice for
+the reviewed HPS-first CPU-fed ROM variant. It declares the existing
+`fes.computer` 1.0 ABI and the shared `de25-native-computer-v1` compatibility
+profile, with separate retained firmware. That choice and both shared
+definitions enter the pre-synthesis functional identity, so its package and
+build ID are distinct from the embedded diagnostic export. This is a package
+candidate from the private two-revision producer; normal Nano boot/firmware
+activation and physical acceptance remain separate and incomplete.
+
+The fingerprint is diagnostic, not the canonical record or a sealed package identity. The
+overlay records its board and overlay revisions separately. Generated handoff
+checks the 256-byte peripheral-relative window, its clock/reset and the JTAG
+route; a JTAG address is not a CPU physical address. The default on-chip responder
+exercises held addresses, partial bursts and faults without DDR. The explicit
+manual DDR variant routes the same control/drain endpoint's read-only AXI port to
+the HPS memory adapter. It bounds each snapshotted request to a compiled bus
+window and one 4 KiB page, permits one burst at a time, and uses actual AXI
+response/error/backpressure signals. Backend, window and distinct control ABI
+enter the source/vendor fingerprint and canonical functional identity. Its
+generated interface and HPS route are checked separately from its external-bus
+RTL model. The board's read-width adapter emits aligned 256-bit HPS transfers
+and returns each response as two ordered 128-bit beats to the portable reader.
+Its buffered upper half remains in the original reader's outstanding ledger;
+raw response validity remains visible while empty so it cannot create a false
+drain acknowledgement. Manual DDR requests require 32-byte alignment and an
+even number of reader beats. The fixed frame retains its full byte count and
+CRC contract. DDR mode disables the unused coherent F2H hard interface and removes
+its maintenance manager/translator. Holding that manager in reset otherwise
+lets synthesis prune its connection while leaving an enabled hard port
+unconnected. Both remaining maintenance JTAG managers stay in reset through
+checked generated routes. The inherited probe retains independent cancellation/drain requirements;
+its actual Avalon RTL is tested with the native firmware stop helper. This
+structural and model evidence does not prove complete master containment,
+firmware operation, physical
+MMIO, a Nano profile, reset lifetime or production admission. The overlay never
+programs hardware. The hardware-independent verifier also exercises the same
+Avalon adapter through the native Go control code.
+
+The overlay's explicit computer model selects the captured ZX81 (default) or
+ZX80 machine logic. ZX80 also derives its firmware from the reviewed combined
+ROM into the decoder's first 4 KiB; a different source layout rejects. Both
+retain the diagnostic's built-in 16 KiB RAM and existing HPS/DDR/master envelope.
+The model enters the functional fingerprint and canonical record before
+synthesis. Artifact verification checks the model macro and actual firmware
+copies; the native computer RTL verifier applies the same selection. Neither
+variant registers an ordinary Nano profile or establishes physical acceptance.
+
+The diagnostic uses the standard Quartus Pro compile tasks separately, from
+IP generation and synthesis through every fitter stage, signoff timing and
+assembly. Each task has a 120-second limit, heartbeat and retained log. Failed
+tasks stop sealing and terminate only their owned process group. The recipe
+accepts an explicit 1–16 compiler worker limit, binding the selected count in
+the project, functional record and build receipt. The default is two workers.
+It changes no timing constraint, seed or optimization mode. Its canonical record
+binds this bounded flow and the actual `quartus_syn` executable.
+The [physical diagnostic](../../../docs/validation/2026-10-30-de25-embedded-control-hardware/README.md)
+checks that endpoint and its local responder on one exact DE25 SOF through JTAG;
+it does not change the physical-DDR, firmware or package-admission boundaries.
 
 ## DE25-Nano board diagnostic
 

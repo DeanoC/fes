@@ -1,0 +1,10 @@
+{
+  "scope": "unchanged complete sealed project trees retained in the preceding archive",
+  "archive": "/home/deano/fes-retained/de25-command-snapshot-matched-20261113-r1/matched-chain.tar.gz",
+  "archive_sha256": "9587828cdddfd72ab618154a1bb73bb1ccaaa7b3bbcfff8ebfb369991f4247eb",
+  "projects": [
+    "computer-project",
+    "menu-project"
+  ],
+  "complete_project_membership_and_hashes_checked": true
+}

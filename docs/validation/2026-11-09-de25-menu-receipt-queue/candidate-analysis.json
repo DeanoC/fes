@@ -1,0 +1,419 @@
+{
+  "status": "compiled-source-bound-menu-diagnostic",
+  "source": "21731d04e91447d4216c9300baaa6eb57003153c",
+  "package_id": "385c0b5016521b802b528fe158892ed5776cd5fc2c11710e0e08f4bc034b9762",
+  "build_id": "87ebcfe5b831f68e83513ef78b9e8ade",
+  "generation_checks": {
+    "csr_timeout_cycles": 1048576,
+    "generated_sha256": {
+      "ip/qsys_top/qsys_top_fes_menu_pixel_clk.ip": "60dbd6cb7076722a25fbafb57e42b6e068390ab4e577a633ed81af8d0a9764ab",
+      "ip/qsys_top/qsys_top_fes_menu_reset.ip": "df78212a15affca5036887f6f55ac95795249951acd63047ad790af9327a4259",
+      "peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v": "41ec589314d6096088326d280b3b8d205fe7fbd7576bcf4c2f2af1ef9767da4d",
+      "qsys_top/qsys_top.sopcinfo": "f85d4f8683f29e57593b0a7e1baed4d43458dda7c2e4b52e3cb05f4365416eeb",
+      "qsys_top/synth/qsys_top.v": "961cba8af88a3a130933f72ee88c6341ced90eb5b82402b8050853b14ce9d0d2"
+    },
+    "physical_qualification": false,
+    "pixel_hz": 74250000,
+    "scope": "bounded-cpu-pixel-menu-v1",
+    "slot_bytes": 4194304,
+    "slots": 2,
+    "system_hz": 100000000
+  },
+  "phase_seconds": {
+    "dni_ipgenerate": 4.205411880975589,
+    "dni_elaboration": 52.3504025649745,
+    "dni_synthesis": 37.33664195192978,
+    "fitter_plan": 88.38109164498746,
+    "fitter_place": 145.4284644969739,
+    "fitter_route": 88.57630959898233,
+    "fitter_retime": 58.75363084906712,
+    "fitter_finalize": 64.65825258684345,
+    "sta_signoff": 13.814080191077664,
+    "assembler": 19.822472573025152
+  },
+  "limits_seconds": {
+    "dni_ipgenerate": 120,
+    "dni_elaboration": 120,
+    "dni_synthesis": 120,
+    "fitter_plan": 120,
+    "fitter_place": 180,
+    "fitter_route": 120,
+    "fitter_retime": 120,
+    "fitter_finalize": 120,
+    "sta_signoff": 120,
+    "assembler": 120
+  },
+  "multicorner": {
+    "slacks": [
+      1.494,
+      0.001,
+      7.281,
+      0.125,
+      0.22
+    ],
+    "tns": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "clocks": {
+      "EMIF_REF_CLOCK": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "2.220"
+      ],
+      "adv7513_config": [
+        "16.709",
+        "0.004",
+        "18.178",
+        "0.125",
+        "50018.706"
+      ],
+      "adv7513_video": [
+        "4.008",
+        "0.035",
+        "N/A",
+        "N/A",
+        "5.861"
+      ],
+      "altera_reserved_tck": [
+        "12.809",
+        "0.096",
+        "61.181",
+        "0.165",
+        "28.581"
+      ],
+      "fes_video_inst|video_clock|iopll_0_n_cnt_clk": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "49.563"
+      ],
+      "fes_video_inst|video_clock|iopll_0_outclk0": [
+        "3.145",
+        "0.004",
+        "N/A",
+        "N/A",
+        "5.861"
+      ],
+      "fes_video_inst|video_clock|iopll_0_refclk": [
+        "17.837",
+        "0.126",
+        "16.827",
+        "0.221",
+        "9.591"
+      ],
+      "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "8.583"
+      ],
+      "pll_inst|iopll_0_outclk0": [
+        "1.494",
+        "0.001",
+        "7.281",
+        "0.168",
+        "4.406"
+      ],
+      "pll_inst|iopll_0_refclk": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "9.231"
+      ],
+      "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "8.313"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0": [
+        "N/A",
+        "0.376",
+        "N/A",
+        "N/A",
+        "0.419"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "0.272"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "0.220"
+      ]
+    }
+  },
+  "unwaived_signoff_findings": [
+    {
+      "rule": "TMC-20012 - Missing Output Delay Constraint",
+      "severity": "High",
+      "violations": 3,
+      "waived": "0"
+    },
+    {
+      "rule": "TMC-20011 - Missing Input Delay Constraint",
+      "severity": "High",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+      "severity": "Medium",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+      "severity": "Low",
+      "violations": 2,
+      "waived": "0"
+    }
+  ],
+  "unconstrained": {
+    "Illegal Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Input Ports": [
+      1,
+      1
+    ],
+    "Paths from Unconstrained Input Ports (Pairs-Only)": [
+      3,
+      3
+    ],
+    "Unconstrained Output Ports": [
+      2,
+      2
+    ],
+    "Paths to Unconstrained Output Ports (Pairs-Only)": [
+      10,
+      10
+    ]
+  },
+  "baseline_unconstrained": {
+    "Illegal Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Input Ports": [
+      1,
+      1
+    ],
+    "Paths from Unconstrained Input Ports (Pairs-Only)": [
+      3,
+      3
+    ],
+    "Unconstrained Output Ports": [
+      2,
+      2
+    ],
+    "Paths to Unconstrained Output Ports (Pairs-Only)": [
+      9,
+      9
+    ]
+  },
+  "output_path_inventory": {
+    "baseline": [
+      {
+        "delay_ns": 7.393,
+        "source": "fes_video_inst|hdmi_config|mI2C_CTRL_CLK",
+        "target": "HDMI_I2C_SCL",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "delay_ns": 7.172,
+        "source": "fes_video_inst|hdmi_config|u0|SD_COUNTER[3]~DUPLICATE",
+        "target": "HDMI_I2C_SCL",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "delay_ns": 7.123,
+        "source": "fes_video_inst|hdmi_config|u0|SD_COUNTER[0]~DUPLICATE",
+        "target": "HDMI_I2C_SCL",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "delay_ns": 7.064,
+        "source": "fes_video_inst|hdmi_config|u0|SD_COUNTER[2]~DUPLICATE",
+        "target": "HDMI_I2C_SCL",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "delay_ns": 7.059,
+        "source": "fes_video_inst|hdmi_config|u0|SD_COUNTER[1]~DUPLICATE",
+        "target": "HDMI_I2C_SCL",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "delay_ns": 7.052,
+        "source": "fes_video_inst|hdmi_config|u0|SD_COUNTER[4]",
+        "target": "HDMI_I2C_SCL",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "delay_ns": 6.893,
+        "source": "fes_video_inst|hdmi_config|u0|SD_COUNTER[5]",
+        "target": "HDMI_I2C_SCL",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "delay_ns": 6.821,
+        "source": "fes_video_inst|hdmi_config|u0|SCLK",
+        "target": "HDMI_I2C_SCL",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "delay_ns": 6.061,
+        "source": "fes_video_inst|hdmi_config|u0|SDO",
+        "target": "HDMI_I2C_SDA",
+        "corner": "Slow fix4 100C Model"
+      }
+    ],
+    "new": [
+      {
+        "delay_ns": 7.346,
+        "source": "fes_video_inst|hdmi_config|mI2C_CTRL_CLK",
+        "target": "HDMI_I2C_SCL",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "delay_ns": 7.146,
+        "source": "fes_video_inst|hdmi_config|u0|SD_COUNTER[4]",
+        "target": "HDMI_I2C_SCL",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "delay_ns": 7.085,
+        "source": "fes_video_inst|hdmi_config|u0|SD_COUNTER[3]",
+        "target": "HDMI_I2C_SCL",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "delay_ns": 6.898,
+        "source": "fes_video_inst|hdmi_config|u0|SD_COUNTER[2]~DUPLICATE",
+        "target": "HDMI_I2C_SCL",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "delay_ns": 6.85,
+        "source": "fes_video_inst|hdmi_config|u0|SD_COUNTER[2]",
+        "target": "HDMI_I2C_SCL",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "delay_ns": 6.792,
+        "source": "fes_video_inst|hdmi_config|u0|SD_COUNTER[0]~DUPLICATE",
+        "target": "HDMI_I2C_SCL",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "delay_ns": 6.744,
+        "source": "fes_video_inst|hdmi_config|u0|SD_COUNTER[1]",
+        "target": "HDMI_I2C_SCL",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "delay_ns": 6.689,
+        "source": "fes_video_inst|hdmi_config|u0|SD_COUNTER[5]",
+        "target": "HDMI_I2C_SCL",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "delay_ns": 6.608,
+        "source": "fes_video_inst|hdmi_config|u0|SCLK",
+        "target": "HDMI_I2C_SCL",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "delay_ns": 6.067,
+        "source": "fes_video_inst|hdmi_config|u0|SDO",
+        "target": "HDMI_I2C_SDA",
+        "corner": "Slow fix4 100C Model"
+      }
+    ]
+  },
+  "output_path_delta_classification": "Existing HDMI I2C SD_COUNTER[2] is retained both as original and DUPLICATE;9 to10 physical pairs. All raw rows remain unconstrained and preserved.",
+  "no_new_unconstrained_clock_or_menu_ddr_cone": true,
+  "paired_inventory_settings_unchanged": true,
+  "menu_model_sources_checked": 483,
+  "menu_model": "out/nano-menu-receipt-queue-build-20261109/board-model",
+  "HDMI_compiled_bindings": {
+    "board.v": "f3b75b0883114c3be77d92b6f145881e5ffe205385f9159fa2f208c266ec4b3d",
+    "I2C_HDMI_Config.v": "c51f4e78bc99dc0d46814464a5bdce2b33fccf7651bb9a001eca3f6b53ce4c0e",
+    "I2C_HDMI_Config.v.original": "b9b7c477173fee9b6cb5e3d6a6ba1122c7a0b539f205d807b1d61b22048fd391",
+    "I2C_Controller.v": "4ac2feae20095dc7287dedec70bdeb8949b086ea6ce3c3a33583063e978003ab",
+    "fes_de25_top_reset.v": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a"
+  },
+  "timing_signoff": false,
+  "native_menu_chain_built": false,
+  "hardware_actions": false,
+  "core_load_acceptance": false,
+  "goal_complete": false
+}

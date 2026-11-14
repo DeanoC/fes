@@ -1,0 +1,470 @@
+{
+  "status": "partial-native-menu-boot-usb-timeout-no-launch",
+  "source": "c3cfb88bfb78532796a48086fc78174753794877",
+  "native_boot_id": "15d3bb264a5a082e",
+  "recovery_boot_passed": true,
+  "verified_writes": 12,
+  "fresh_readbacks": 12,
+  "native_boot_verified": true,
+  "hps_pin_reads": 328,
+  "usb_shared_ready": true,
+  "all_cpu_startup_checkpoints": true,
+  "menu_configuration": {
+    "configuration_timing": {
+      "counter_frequency": 400000000,
+      "first_counter": 25544635975,
+      "last_counter": 29712540471,
+      "hash_ticks": 3999616382,
+      "interval_ticks": 4167904496,
+      "interval_hash_ticks": 3634186472
+    },
+    "configuration_records": [
+      {
+        "stage": "configuration_arm",
+        "line": 1,
+        "values": {
+          "phase": "arm",
+          "owner": 4833439511298827749,
+          "generation": 4,
+          "completed": 0,
+          "pending": 0,
+          "total": 1712128,
+          "base": 2491416576,
+          "counter": 25544635975,
+          "hash_ticks": 365429910
+        }
+      },
+      {
+        "stage": "configuration_start",
+        "line": 2,
+        "values": {
+          "phase": "start",
+          "owner": 4833439511298827749,
+          "generation": 4,
+          "completed": 0,
+          "pending": 0,
+          "total": 1712128,
+          "base": 2491416576,
+          "counter": 25965731431,
+          "hash_ticks": 727810849
+        }
+      },
+      {
+        "stage": "configuration_engine",
+        "line": 3,
+        "values": {
+          "credits": 4,
+          "block_bytes": 1048560,
+          "next_job": 0,
+          "owner": 4833439511298827749,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 4,
+        "values": {
+          "phase": 1,
+          "owner": 4833439511298827749,
+          "generation": 4,
+          "completed": 0,
+          "pending": 0,
+          "job": 0,
+          "cin": 5,
+          "cout": 5,
+          "rin": 6,
+          "rout": 6,
+          "bell": 0,
+          "status": 3422220367,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 5,
+        "values": {
+          "phase": "write",
+          "owner": 4833439511298827749,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1048512,
+          "total": 1712128,
+          "base": 2491416576,
+          "counter": 26615045518,
+          "hash_ticks": 1314176167
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 6,
+        "values": {
+          "phase": 2,
+          "owner": 4833439511298827749,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1048512,
+          "job": 0,
+          "cin": 5,
+          "cout": 5,
+          "rin": 6,
+          "rout": 6,
+          "bell": 0,
+          "status": 3422220367,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 7,
+        "values": {
+          "phase": "write",
+          "owner": 4833439511298827749,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1712128,
+          "total": 1712128,
+          "base": 2491416576,
+          "counter": 27300309996,
+          "hash_ticks": 1899783274
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 8,
+        "values": {
+          "phase": 2,
+          "owner": 4833439511298827749,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1712128,
+          "job": 1,
+          "cin": 9,
+          "cout": 9,
+          "rin": 7,
+          "rout": 6,
+          "bell": 1,
+          "status": 3422220367,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 9,
+        "values": {
+          "phase": "poll",
+          "owner": 4833439511298827749,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1712128,
+          "total": 1712128,
+          "base": 2491416576,
+          "counter": 28147658640,
+          "hash_ticks": 2626657480
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 10,
+        "values": {
+          "phase": 3,
+          "owner": 4833439511298827749,
+          "generation": 4,
+          "completed": 1048512,
+          "pending": 663616,
+          "job": 2,
+          "cin": 13,
+          "cout": 13,
+          "rin": 8,
+          "rout": 7,
+          "bell": 1,
+          "status": 3422220367,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 11,
+        "values": {
+          "phase": "poll",
+          "owner": 4833439511298827749,
+          "generation": 4,
+          "completed": 1048512,
+          "pending": 663616,
+          "total": 1712128,
+          "base": 2491416576,
+          "counter": 28740844066,
+          "hash_ticks": 3131565407
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 12,
+        "values": {
+          "phase": 3,
+          "owner": 4833439511298827749,
+          "generation": 4,
+          "completed": 1712128,
+          "pending": 0,
+          "job": 2,
+          "cin": 13,
+          "cout": 13,
+          "rin": 8,
+          "rout": 8,
+          "bell": 0,
+          "status": 3422220367,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_status",
+        "line": 13,
+        "values": {
+          "phase": "status",
+          "owner": 4833439511298827749,
+          "generation": 4,
+          "completed": 1712128,
+          "pending": 0,
+          "total": 1712128,
+          "base": 2491416576,
+          "counter": 29331879976,
+          "hash_ticks": 3635205823
+        }
+      },
+      {
+        "stage": "fabric_activation",
+        "line": 14,
+        "values": {
+          "owner": 4833439511298827749,
+          "generation": 4,
+          "previous": 0,
+          "rearm": 0
+        }
+      },
+      {
+        "stage": "configuration_complete",
+        "line": 15,
+        "values": {
+          "phase": "complete",
+          "owner": 4833439511298827749,
+          "generation": 4,
+          "completed": 1712128,
+          "pending": 0,
+          "total": 1712128,
+          "base": 2491416576,
+          "counter": 29712540471,
+          "hash_ticks": 3999616382
+        }
+      }
+    ],
+    "configuration_generation": 4,
+    "runtime_admission": false
+  },
+  "menu_observations": [
+    {
+      "scope": "nano-program-menu-v1",
+      "event": "frame",
+      "menu": 1,
+      "identity": {
+        "PackageID": "c69484491de11e1ee6d1c955b7d54e02e3fe513a0ad39d5376e23e539ba75444",
+        "CoreID": "fes.de25-embedded-diagnostic",
+        "ABI": "fes.de25-embedded-diagnostic",
+        "BuildID": "40bf9e4b00c1d25192fd06df5d97c5bd",
+        "Platform": "de25_nano",
+        "Device": "A5EB013BB23BE4SCS",
+        "ProgrammingProfile": "de25-embedded-hps-first-menu-prototype-v1",
+        "ActivationReceiptSHA256": "",
+        "ProgrammedSHA256": "a9baf204120486cf49ad6c0bd235893c111a49a829cfe7701996cd0ba063ab26",
+        "Major": 1,
+        "Minor": 0
+      },
+      "source_sha256": "af09f008891978f6c49431dc4b6b3a04c47626f0e7ac64f905c4fdc6332a4f69",
+      "source_generation": 4,
+      "opened": {
+        "Capabilities": {
+          "Mask": 15,
+          "ControlMask": 2,
+          "HardwareDrainMask": 12,
+          "FabricHandshake": 1
+        },
+        "Owner": 4833439511298827749,
+        "Generation": 6,
+        "ResetMask": 5,
+        "NeverEnabled": false,
+        "MastersContained": false
+      },
+      "after": {
+        "Capabilities": {
+          "Mask": 15,
+          "ControlMask": 2,
+          "HardwareDrainMask": 12,
+          "FabricHandshake": 1
+        },
+        "Owner": 4833439511298827749,
+        "Generation": 6,
+        "ResetMask": 5,
+        "NeverEnabled": false,
+        "MastersContained": false
+      },
+      "frames": 1,
+      "frame": {
+        "Generation": 1,
+        "Sequence": 1,
+        "Submitted": 1,
+        "Slot": 0,
+        "Underflows": 0
+      },
+      "memory_sha256": "125441e0ad19db5c5d8ca226c8e78ae89672b44fd6a6b36e799cfdd2b1d65353",
+      "control_sha256": "f5bff50ea84170496c170b110c0d1279c19d3af77f3f79981007fe9334068981",
+      "access_sha256": "2da018d3d93ddf1194619a1575e929a8844519fbf8cd26fd5d541054cf3a54d9"
+    },
+    {
+      "scope": "nano-program-menu-v1",
+      "event": "frame",
+      "menu": 1,
+      "identity": {
+        "PackageID": "c69484491de11e1ee6d1c955b7d54e02e3fe513a0ad39d5376e23e539ba75444",
+        "CoreID": "fes.de25-embedded-diagnostic",
+        "ABI": "fes.de25-embedded-diagnostic",
+        "BuildID": "40bf9e4b00c1d25192fd06df5d97c5bd",
+        "Platform": "de25_nano",
+        "Device": "A5EB013BB23BE4SCS",
+        "ProgrammingProfile": "de25-embedded-hps-first-menu-prototype-v1",
+        "ActivationReceiptSHA256": "",
+        "ProgrammedSHA256": "a9baf204120486cf49ad6c0bd235893c111a49a829cfe7701996cd0ba063ab26",
+        "Major": 1,
+        "Minor": 0
+      },
+      "source_sha256": "af09f008891978f6c49431dc4b6b3a04c47626f0e7ac64f905c4fdc6332a4f69",
+      "source_generation": 4,
+      "opened": {
+        "Capabilities": {
+          "Mask": 15,
+          "ControlMask": 2,
+          "HardwareDrainMask": 12,
+          "FabricHandshake": 1
+        },
+        "Owner": 4833439511298827749,
+        "Generation": 6,
+        "ResetMask": 5,
+        "NeverEnabled": false,
+        "MastersContained": false
+      },
+      "after": {
+        "Capabilities": {
+          "Mask": 15,
+          "ControlMask": 2,
+          "HardwareDrainMask": 12,
+          "FabricHandshake": 1
+        },
+        "Owner": 4833439511298827749,
+        "Generation": 6,
+        "ResetMask": 5,
+        "NeverEnabled": false,
+        "MastersContained": false
+      },
+      "frames": 2,
+      "frame": {
+        "Generation": 1,
+        "Sequence": 2,
+        "Submitted": 2,
+        "Slot": 1,
+        "Underflows": 0
+      },
+      "memory_sha256": "125441e0ad19db5c5d8ca226c8e78ae89672b44fd6a6b36e799cfdd2b1d65353",
+      "control_sha256": "f5bff50ea84170496c170b110c0d1279c19d3af77f3f79981007fe9334068981",
+      "access_sha256": "2da018d3d93ddf1194619a1575e929a8844519fbf8cd26fd5d541054cf3a54d9"
+    }
+  ],
+  "menu_frame_acknowledgements": 2,
+  "underflows": 0,
+  "initial_ready_with_two_titles": false,
+  "launch_commands_sent": 0,
+  "computer_launches": 0,
+  "configurations_completed": 1,
+  "failure": "DWC2 interrupt-IN packet timeout before the first complete launcher Ready",
+  "independent_secure_closure": {
+    "master_stop": {
+      "status": 0,
+      "owner": 4833439511298827749,
+      "generation": 6,
+      "reset": 5,
+      "reader_reads": 88,
+      "reader_polls": 1,
+      "disable": 0,
+      "probe_polls": 2,
+      "cancel": 0,
+      "complete": 1
+    },
+    "reader_drain": {
+      "owner": 4833439511298827749,
+      "generation": 6,
+      "reset": 5,
+      "reader_generation": 1,
+      "request_generation": 1,
+      "cookie": 1,
+      "ack_generation": 1,
+      "ack_cookie": 1,
+      "status": 4,
+      "pending": 0
+    },
+    "closure": {
+      "owner": 4833439511298827749,
+      "generation": 7,
+      "reset": 15,
+      "hardware_drained": 8,
+      "data_remained_contained": 0,
+      "producers_quiescent": 1,
+      "fabric_acknowledged": 0
+    },
+    "physical_ddr_drain_qualified": false
+  },
+  "native_menu_return_receipt_present": false,
+  "menu_trace_finish_rejected": "menu evidence lacks a final verified return",
+  "input_service_delay_is_hypothesis": true,
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "board_state": "native panic after observed secure reader drain and bridge closure generation7/resetf; memory retained; factory restore waived",
+  "attempt_limit": 1,
+  "attempts": 1,
+  "retry_performed": false,
+  "ordinary_admission": false,
+  "core_load_acceptance": false,
+  "physical_HDMI_verified": false,
+  "evidence_sha256": {
+    "out/nano-paired-board-20261108/trial/native-console.log": "b9a9181fabb951a8d390cbe9ccb5f04a08306a644d60302b10a23e928a514f97",
+    "out/nano-paired-board-20261108/trial/native-result.json": "bc30d5a2c6256df126625aac44be22999107917b8116b33d53b355622ab94ecd",
+    "out/nano-paired-board-20261108/trial/experiment-result.json": "3d65e468430125f2cc2c0108715663370480d3cc65c6fa47b873418c8211c867",
+    "out/nano-paired-board-20261108/trial/uploads/result.json": "a81c7b3cb57de87ecf1dd0c2d092d200d3d427c30c36041f8997ff18e197bf69",
+    "out/nano-paired-board-20261108/cleanup-evidence.json": "7fecd92dbf5fcf639e54b7c9e3b602b1171d67c1e9529f2bf67e1ce82aedfe8c"
+  },
+  "remaining": "Investigate USB polling service across blocking menu presentation, preserve real USB and all deadlines; rebuild matched native chain before a fresh bounded attempt.",
+  "goal_complete": false
+}

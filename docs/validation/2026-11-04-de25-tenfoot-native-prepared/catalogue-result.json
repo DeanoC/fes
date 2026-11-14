@@ -1,0 +1,50 @@
+{
+  "status": "passed",
+  "classification": "two actual sealed diagnostic packages and matching native-source catalog; preflight only",
+  "native_source": "e225ea89b002fcc53a90c743f66c592d1f8d35ff",
+  "fpga_source": "7808f74c2fda87cc56a0fe92e5a17454fd31746a",
+  "programs": [
+    {
+      "model": "zx81",
+      "package_id": "93a2192a0b1f0c014917dba9d27485798f105beabd466e3026422380edbf5ca5",
+      "build_id": "a44922576284d6d92781c31b27ec4f45",
+      "package_sha256": "21546abc7f661d3fc96cbd1ce60e89ef6f7ba5eb863de6ab800cffd584b906ee",
+      "metadata_sha256": "ec488f470d31ad6c822f5bc635662516abfb94885ba9cab3bc8ecf0a75ae4980"
+    },
+    {
+      "model": "zx80",
+      "package_id": "3901e5349ea384bfc2d2f3ab9c349e5d81892a39fb4dd0d68802cd4b1732eee9",
+      "build_id": "e37f06507e6bdc4c2198f06e6cd5d125",
+      "package_sha256": "27597a804df6ce91766b917cb11a923ed2bfa1a70ff7a74860f11f35e457c414",
+      "metadata_sha256": "5e26d384751a4ca2b85af7632cdc1ae1db032a501b5ab01e43a1ef69215546ba"
+    }
+  ],
+  "files": {
+    "CORESEL.JSN": {
+      "sha256": "def298403eb4a6d873a7f2ec06e92bdd5dac1d64ec841c793fcc5079a68fc12f",
+      "bytes": 513
+    },
+    "PKGALT.BIN": {
+      "sha256": "27597a804df6ce91766b917cb11a923ed2bfa1a70ff7a74860f11f35e457c414",
+      "bytes": 1645568
+    },
+    "PKGTEST.BIN": {
+      "sha256": "21546abc7f661d3fc96cbd1ce60e89ef6f7ba5eb863de6ab800cffd584b906ee",
+      "bytes": 1653760
+    },
+    "PROGALT.JSN": {
+      "sha256": "5e26d384751a4ca2b85af7632cdc1ae1db032a501b5ab01e43a1ef69215546ba",
+      "bytes": 2118
+    },
+    "PROGRAM.JSN": {
+      "sha256": "ec488f470d31ad6c822f5bc635662516abfb94885ba9cab3bc8ecf0a75ae4980",
+      "bytes": 2118
+    },
+    "UI.JSON": {
+      "sha256": "aa2b1ca51c62330b343d71b2b8c36c5eb1a8355fc87d3e26f6d53aac516f2456",
+      "bytes": 141
+    }
+  },
+  "hardware_actions": false,
+  "ordinary_admission": false
+}

@@ -1,0 +1,1000 @@
+{
+  "status": "passed",
+  "source_commit": "4b62ea3234f6d9ae427327d80033594a1100d4b8",
+  "classification": "selected AArch64 diagnostic firmware and native image; no hardware acceptance",
+  "secure_capture_trace": true,
+  "secure_capture_markers_in_actual_binary": true,
+  "vendor_setup_reconstructed_exactly": true,
+  "vendor_assembly_unchanged": {
+    "drivers/ti/uart/aarch64/16550_console.S": "04590941d593034a2d37d32ba570c6d9f8fc17f5b202a7f9de2657e7a2c943fa",
+    "include/arch/aarch64/assert_macros.S": "265f602cd1a61f3997481494b77be3a04fc8bbd292560df11204d9594252d0e5",
+    "include/arch/aarch64/console_macros.S": "21795a17a1ebe098628388d612b7f156a570117ddac54ffc77a5750d207298e6",
+    "include/arch/aarch64/asm_macros.S": "14df0869ba71bdb7c7b4ce2b5df3c0a7cfb0f7d83f6263aa170f0ddcc2c91655",
+    "include/lib/cpus/aarch64/cpu_macros.S": "a3d1bbc8f4b3511a0032b66f24151bda193d1e9dc7fed5b662d9ac0bcd185709",
+    "include/common/asm_macros_common.S": "cf6632b19cd788525539af5ec4c5679bde2399235aeee9f0967f03a85a1d65c3",
+    "lib/cpus/aarch64/aem_generic.S": "ee75728e6c00cda22db0575e8d465c37b76680ab6ab66828a9d42b78ff3e4174",
+    "plat/intel/soc/agilex5/soc/agilex5_cache.S": "f41d7e66d603aa9fb327bcbf653660592e865825f120e9a419abee87b339e360",
+    "plat/intel/soc/common/include/plat_macros.S": "c825a20cf761f08043596d03f2984acce2056c1a7c209a62a6ee5c74e5c62a8d",
+    "include/arch/aarch64/el3_common_macros.S": "731852658339cd149d0fd08762f0a70c9d5adba0336b402ce22532c98feebde6",
+    "include/lib/pmf/aarch64/pmf_asm_macros.S": "c1b0160dc8bc72d976a7b2fd3cb77c995d222b84f6d95fff75489a55c8fb6320",
+    "bl31/aarch64/bl31_entrypoint.S": "2cb7c9d1d7845f8d1338acb77b074da3975e17342127fff42d5ff37509f0efde",
+    "lib/aarch64/cache_helpers.S": "675fe70fd4919347c9ac8fd3ffd5b3f09ec53f948e926ce51cf342083a68b8e6",
+    "lib/el3_runtime/aarch64/context.S": "d0dad83f3c4ed98a71164dbebcda0290fafd674c8b2cc618da7f072624ef0c30",
+    "lib/cpus/aarch64/cortex_a55.S": "86fe4db06e78ebb0619d33be5c8382df7f42623822d21ce26bc01757992f38ac",
+    "lib/cpus/aarch64/wa_cve_2022_23960_bhb.S": "eb121d17f1882547d4db9b66b7c3beb470416109d4f460c8974d39e37b17042d",
+    "lib/cpus/aarch64/cortex_a76.S": "73ff175269fcf2b446cd64f8a4524269180c22a6e03f94a6ead7bd20eab2422a",
+    "lib/el3_runtime/aarch64/cpu_data.S": "261c39311766c9db1466a9198fe7766f5e61d5da0de7754e406289aa3903282c",
+    "lib/cpus/aarch64/cpu_helpers.S": "52280e0c088f7cf61c0b6ac54ffdbfcc3f026597bc7303e6e8bf7e524ba6be89",
+    "bl31/aarch64/crash_reporting.S": "9fd88235d2cc4e37e861e759c036291740a109b30c84432c4ac68c3577f59f82",
+    "common/aarch64/debug.S": "6a3b5d8ed9d43d0e899c22e21f3f63f8d6c27f3b7db95856ada391cb4566c91e",
+    "lib/cpus/aarch64/dsu_helpers.S": "c528bb95af6d0ccc0e0c7ddfadaafe7b2fe77cf1df927dc97ff75871abc2bb11",
+    "lib/xlat_tables_v2/aarch64/enable_mmu.S": "f38b20161fb1efd9ab025ebc8093094317c6e7770505c198caacab0eb1f83930",
+    "lib/aarch64/misc_helpers.S": "a37b5a8b63e07e02d17d21488d15ac0b0f803cee807e548f0aa0c0004b729230",
+    "plat/intel/soc/common/aarch64/plat_helpers.S": "4a3bf72321dbb4473fc14456310d471a3ac6ecfe4cd1ef056d5684e3884b8141",
+    "plat/common/aarch64/platform_helpers.S": "d5be51467e5dc7eb213a6ea830406d25781f829ec4ab727c43f64f08b823935c",
+    "plat/common/aarch64/platform_mp_stack.S": "5e7dafe815bf37f5ab4a4647b33ca16defa9cf37e3393dd059a44d7ad8443f57",
+    "lib/psci/aarch64/psci_helpers.S": "710557ca185b836217bd7b4c2a40bd735abf8fac55165814fafe4b3103401555",
+    "bl31/aarch64/runtime_exceptions.S": "f3e7cae2b37c6922462406be5e4cbb3833819296df63fae607bbf56f31003a42",
+    "lib/locks/exclusive/aarch64/spinlock.S": "716b08c569afc40314f97431f40ae285a227a3d54b663583e0e93f530c09d5b1",
+    "lib/cpus/aarch64/wa_cve_2017_5715_bpiall.S": "2867a3b663231d6911678492ad94086ec006cd775d966733c2bf24eb36f4b121",
+    "lib/cpus/aarch64/wa_cve_2017_5715_mmu.S": "27a3c63c079ceebf4683e0f075828c71dfb2cb1228fd032ecfcdc79d2b8de7bd"
+  },
+  "vendor_entry_executable_sections_unchanged": {
+    ".text": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    ".text.asm.bl31_entrypoint": "171df27c2fed4751f2fe291c9ef0351421d363c6b55cdc26865fafab29569156",
+    ".text.asm.bl31_warm_entrypoint": "cf4073cb483297bfad9d2306afa911ba663c91bd0244887230669f4fc3d41a2c"
+  },
+  "vendor_entry_object_old_sha256": "fbc50d05eff6dc9a5921774f300b246bc5b4eb449a6a852d601c97bf9c8eb6c0",
+  "vendor_entry_object_new_sha256": "fbc50d05eff6dc9a5921774f300b246bc5b4eb449a6a852d601c97bf9c8eb6c0",
+  "bl31_bin_size": 53309,
+  "bl31_load_segments": [
+    [
+      2147483648,
+      2147580608
+    ]
+  ],
+  "layout_scope": "linked firmware and addresses changed; executable entry object compared before relocation; no startup cause inferred",
+  "hps_io_sha256": "03e83b579fc5edd07a52dd6b58ea27481c43733dcd72eb8f2b66422b454640c5",
+  "hps_io_selected": true,
+  "computer_control_selected": false,
+  "computer_reload_selected": false,
+  "bounded_ddr_read_selected": false,
+  "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+  "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+  "strong_symbols": {
+    "fes_nano_platform_hps_io_sip": "T",
+    "fes_nano_hps_io_sip": "T",
+    "fes_nano_hps_io_init": "T"
+  },
+  "inputs": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/plat/intel/soc/common/include/fes_nano_cold_profile.h": "cb7f5500bda08e102292cb6cf929c414161c6a7d3f32911cd80d9de59ad70a11",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/build/agilex5/release/bl31/bl31.elf": "9b225b2734b586d6cb2ba0a93b86f2b0dac6b949f7c4427ef89c79b68b603172",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-sdk/hpsio.elf": "76b95e0cc99516fa54d7af18cdec6973794f71580c4b4b936754c8017c862c24",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-composition/native-hps-first.sof": "16735e86b836047ec993dd1f52dab5026923d170c71d8a91a55d58676500fc3c",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-composition/u-boot.itb": "4662ecb6a0c21831ab51ae4c8292f80566556d7d613af86625d25e715e26cc44",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/plat/intel/soc/agilex5/bl31_plat_setup.c": "aa66cc9cd230b4be5a7b28444ed83a802db03a282399b5a5131069ba03dd86e6",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/build/agilex5/release/bl31/bl31_entrypoint.o": "fbc50d05eff6dc9a5921774f300b246bc5b4eb449a6a852d601c97bf9c8eb6c0",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-ddr-cycle-20261102/native-bl31/source/build/agilex5/release/bl31/bl31_entrypoint.o": "fbc50d05eff6dc9a5921774f300b246bc5b4eb449a6a852d601c97bf9c8eb6c0",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/drivers/ti/uart/aarch64/16550_console.S": "04590941d593034a2d37d32ba570c6d9f8fc17f5b202a7f9de2657e7a2c943fa",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/include/arch/aarch64/assert_macros.S": "265f602cd1a61f3997481494b77be3a04fc8bbd292560df11204d9594252d0e5",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/include/arch/aarch64/console_macros.S": "21795a17a1ebe098628388d612b7f156a570117ddac54ffc77a5750d207298e6",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/include/arch/aarch64/asm_macros.S": "14df0869ba71bdb7c7b4ce2b5df3c0a7cfb0f7d83f6263aa170f0ddcc2c91655",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/include/lib/cpus/aarch64/cpu_macros.S": "a3d1bbc8f4b3511a0032b66f24151bda193d1e9dc7fed5b662d9ac0bcd185709",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/include/common/asm_macros_common.S": "cf6632b19cd788525539af5ec4c5679bde2399235aeee9f0967f03a85a1d65c3",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/lib/cpus/aarch64/aem_generic.S": "ee75728e6c00cda22db0575e8d465c37b76680ab6ab66828a9d42b78ff3e4174",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/plat/intel/soc/agilex5/soc/agilex5_cache.S": "f41d7e66d603aa9fb327bcbf653660592e865825f120e9a419abee87b339e360",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/plat/intel/soc/common/include/plat_macros.S": "c825a20cf761f08043596d03f2984acce2056c1a7c209a62a6ee5c74e5c62a8d",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/include/arch/aarch64/el3_common_macros.S": "731852658339cd149d0fd08762f0a70c9d5adba0336b402ce22532c98feebde6",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/include/lib/pmf/aarch64/pmf_asm_macros.S": "c1b0160dc8bc72d976a7b2fd3cb77c995d222b84f6d95fff75489a55c8fb6320",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/bl31/aarch64/bl31_entrypoint.S": "2cb7c9d1d7845f8d1338acb77b074da3975e17342127fff42d5ff37509f0efde",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/lib/aarch64/cache_helpers.S": "675fe70fd4919347c9ac8fd3ffd5b3f09ec53f948e926ce51cf342083a68b8e6",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/lib/el3_runtime/aarch64/context.S": "d0dad83f3c4ed98a71164dbebcda0290fafd674c8b2cc618da7f072624ef0c30",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/lib/cpus/aarch64/cortex_a55.S": "86fe4db06e78ebb0619d33be5c8382df7f42623822d21ce26bc01757992f38ac",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/lib/cpus/aarch64/wa_cve_2022_23960_bhb.S": "eb121d17f1882547d4db9b66b7c3beb470416109d4f460c8974d39e37b17042d",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/lib/cpus/aarch64/cortex_a76.S": "73ff175269fcf2b446cd64f8a4524269180c22a6e03f94a6ead7bd20eab2422a",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/lib/el3_runtime/aarch64/cpu_data.S": "261c39311766c9db1466a9198fe7766f5e61d5da0de7754e406289aa3903282c",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/lib/cpus/aarch64/cpu_helpers.S": "52280e0c088f7cf61c0b6ac54ffdbfcc3f026597bc7303e6e8bf7e524ba6be89",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/bl31/aarch64/crash_reporting.S": "9fd88235d2cc4e37e861e759c036291740a109b30c84432c4ac68c3577f59f82",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/common/aarch64/debug.S": "6a3b5d8ed9d43d0e899c22e21f3f63f8d6c27f3b7db95856ada391cb4566c91e",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/lib/cpus/aarch64/dsu_helpers.S": "c528bb95af6d0ccc0e0c7ddfadaafe7b2fe77cf1df927dc97ff75871abc2bb11",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/lib/xlat_tables_v2/aarch64/enable_mmu.S": "f38b20161fb1efd9ab025ebc8093094317c6e7770505c198caacab0eb1f83930",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/lib/aarch64/misc_helpers.S": "a37b5a8b63e07e02d17d21488d15ac0b0f803cee807e548f0aa0c0004b729230",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/plat/intel/soc/common/aarch64/plat_helpers.S": "4a3bf72321dbb4473fc14456310d471a3ac6ecfe4cd1ef056d5684e3884b8141",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/plat/common/aarch64/platform_helpers.S": "d5be51467e5dc7eb213a6ea830406d25781f829ec4ab727c43f64f08b823935c",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/plat/common/aarch64/platform_mp_stack.S": "5e7dafe815bf37f5ab4a4647b33ca16defa9cf37e3393dd059a44d7ad8443f57",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/lib/psci/aarch64/psci_helpers.S": "710557ca185b836217bd7b4c2a40bd735abf8fac55165814fafe4b3103401555",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/bl31/aarch64/runtime_exceptions.S": "f3e7cae2b37c6922462406be5e4cbb3833819296df63fae607bbf56f31003a42",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/lib/locks/exclusive/aarch64/spinlock.S": "716b08c569afc40314f97431f40ae285a227a3d54b663583e0e93f530c09d5b1",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/lib/cpus/aarch64/wa_cve_2017_5715_bpiall.S": "2867a3b663231d6911678492ad94086ec006cd775d966733c2bf24eb36f4b121",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/lib/cpus/aarch64/wa_cve_2017_5715_mmu.S": "27a3c63c079ceebf4683e0f075828c71dfb2cb1228fd032ecfcdc79d2b8de7bd",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/build/agilex5/release/bl31.bin": "712f1c19f93e794e23093ca31e72d13fa0ffe2e76cc576fde1f48e1fc2b4d803",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-uboot/build/spl/u-boot-spl": "d3dbf58f0db28ad45064aca063c873c4ad8c299f80713f7456fe2e5ad01d73e3",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-uboot/source/arch/arm/mach-socfpga/fes_nano_atf_seal.h": "6e26e3d158cef7c66c944196ba8788f87101cc2730389b3e15ade9c214f018ea",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-el3-capture-20261102/native-bl31/source/build/agilex5/release/bl31/bl31.elf": "3001a335ae387375ce7b49218eae7c8d243982e7bb68306454f89d75ca48d9f4",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/linked-fes_nano_spl_handoff.txt": "0e6abf152e4afb2537c449701d57c0ec045d21dfdd7bc8539bb953e78a62625a",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/linked-fes_nano_spl_atf_trace.txt": "634badf4a1f8fc55c261d087ded05411976b7fbd07c9e052458e378545cdaf84",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/linked-spl_invoke_atf.txt": "c2efccb7116e54f7598c4314669865a42491334694847262ed5b89f1c66f73f8",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-uboot/source/arch/arm/mach-socfpga/fes_nano_spl_console.inc": "52a5a7ad6d564635eea4c37cd542392dfd760ca07bad123d3fe581f903dc9204",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-uboot/source/arch/arm/dts/socfpga_agilex5.dtsi": "d0b1f1376291208d49422a1175f7cc3e14212bafcc4ef8b53f53af1a55c8fdb2",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/spl-all-disassembly.log": "587ad6b84b5476928d04eb0305c4ffe02ed73e7b33399483a87b575497aef1d0"
+  },
+  "runtime_admission": false,
+  "native_build_source_commit": "4b62ea3234f6d9ae427327d80033594a1100d4b8",
+  "spl_atf_trace": true,
+  "atf_handoff": {
+    "bl32": 0,
+    "bl33": 2149580800,
+    "bytes": 53309,
+    "fdt": 0,
+    "format": 2,
+    "params_base": 3220176896,
+    "params_bytes": 1048576,
+    "scope": "loaded-bl31-handoff-v2",
+    "sha256": "712f1c19f93e794e23093ca31e72d13fa0ffe2e76cc576fde1f48e1fc2b4d803",
+    "target": 2147483648
+  },
+  "spl_atf_direct_callees": [
+    "fes_nano_spl_cold_puts.part.0",
+    "fes_nano_spl_cold_printf",
+    "fes_nano_spl_cold_printf",
+    "fes_nano_spl_cold_puts.part.0",
+    "sha256_starts",
+    "sha256_update",
+    "sha256_finish",
+    "fes_nano_spl_cold_puts.part.0",
+    "memcmp",
+    "fes_nano_spl_cold_puts.part.0",
+    "fes_nano_spl_cold_printf",
+    "fes_nano_spl_cold_puts.part.0",
+    "fes_nano_spl_cold_printf",
+    "fes_nano_spl_cold_puts.part.0",
+    "fes_nano_spl_cold_printf",
+    "fes_nano_spl_cold_printf",
+    "fes_nano_spl_cold_puts.part.0"
+  ],
+  "startup_comparison": {
+    "bl31_entrypoint": {
+      "old_address": 2147483648,
+      "address": 2147483648,
+      "old_size": 264,
+      "size": 264,
+      "instruction_bytes_unchanged": false,
+      "address_unchanged": true,
+      "sha256": "f1b15ca7c10a2cd43246ad18c75884858582c556801f8a0e8b78d7862617a18b"
+    },
+    "bl31_setup": {
+      "old_address": 2147497044,
+      "address": 2147484132,
+      "old_size": 20,
+      "size": 20,
+      "instruction_bytes_unchanged": true,
+      "address_unchanged": false,
+      "sha256": "aa170f4c8c4ea5a26ac136dfe85e54e210345f4630c63e164338662c0099507b"
+    },
+    "bl31_early_platform_setup2": {
+      "old_address": 2147508340,
+      "address": 2147495428,
+      "old_size": 344,
+      "size": 344,
+      "instruction_bytes_unchanged": false,
+      "address_unchanged": false,
+      "sha256": "d32fb242ae1b3af9ec46cb2f2739b48f6f804ac443660760b230ec001c42cec7"
+    },
+    "console_16550_register": {
+      "old_address": 2147554704,
+      "address": 2147519732,
+      "old_size": 76,
+      "size": 76,
+      "instruction_bytes_unchanged": false,
+      "address_unchanged": false,
+      "sha256": "2eb02d40fd6674b61223ba0c994a9bca89f611e34e1d8b391ae576732eea7cc9"
+    },
+    "console_set_scope": {
+      "old_address": 2147500972,
+      "address": 2147488060,
+      "old_size": 24,
+      "size": 24,
+      "instruction_bytes_unchanged": true,
+      "address_unchanged": false,
+      "sha256": "8f39608c194d4152f2ae5ff1d8ae21925ee53460501474741638b8ada5d2718c"
+    },
+    "fes_nano_cold_capture": {
+      "old_address": 2147522036,
+      "address": 2147503572,
+      "old_size": 164,
+      "size": 164,
+      "instruction_bytes_unchanged": false,
+      "address_unchanged": false,
+      "sha256": "67a2170189f4768289c18329c5c9fcce983d2242839b88ab78d4946d22f6b248"
+    }
+  },
+  "startup_comparison_scope": "old exact linked-byte comparison retained; exact object code and relocation targets verified for changed layout",
+  "startup_relocation_proof": {
+    "bl31_entrypoint": {
+      "object_old": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-el3-capture-20261102/native-bl31/source/build/agilex5/release/bl31/bl31_entrypoint.o",
+      "object_new": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/build/agilex5/release/bl31/bl31_entrypoint.o",
+      "object_code_sha256": "171df27c2fed4751f2fe291c9ef0351421d363c6b55cdc26865fafab29569156",
+      "exact_object_code_and_relocations": true,
+      "relocations": [
+        [
+          16,
+          274,
+          "runtime_exceptions",
+          0
+        ],
+        [
+          28,
+          283,
+          "reset_handler",
+          0
+        ],
+        [
+          52,
+          283,
+          "init_cpu_data_ptr",
+          0
+        ],
+        [
+          132,
+          275,
+          "__RW_START__",
+          0
+        ],
+        [
+          136,
+          277,
+          "__RW_START__",
+          0
+        ],
+        [
+          140,
+          275,
+          "__RW_END__",
+          0
+        ],
+        [
+          144,
+          277,
+          "__RW_END__",
+          0
+        ],
+        [
+          152,
+          283,
+          "inv_dcache_range",
+          0
+        ],
+        [
+          156,
+          275,
+          "__BSS_START__",
+          0
+        ],
+        [
+          160,
+          277,
+          "__BSS_START__",
+          0
+        ],
+        [
+          164,
+          275,
+          "__BSS_END__",
+          0
+        ],
+        [
+          168,
+          277,
+          "__BSS_END__",
+          0
+        ],
+        [
+          176,
+          283,
+          "zeromem",
+          0
+        ],
+        [
+          184,
+          283,
+          "plat_set_my_stack",
+          0
+        ],
+        [
+          204,
+          283,
+          "bl31_setup",
+          0
+        ],
+        [
+          208,
+          283,
+          "bl31_main",
+          0
+        ],
+        [
+          212,
+          275,
+          "__DATA_START__",
+          0
+        ],
+        [
+          216,
+          277,
+          "__DATA_START__",
+          0
+        ],
+        [
+          220,
+          275,
+          "__DATA_END__",
+          0
+        ],
+        [
+          224,
+          277,
+          "__DATA_END__",
+          0
+        ],
+        [
+          232,
+          283,
+          "clean_dcache_range",
+          0
+        ],
+        [
+          236,
+          275,
+          "__BSS_START__",
+          0
+        ],
+        [
+          240,
+          277,
+          "__BSS_START__",
+          0
+        ],
+        [
+          244,
+          275,
+          "__BSS_END__",
+          0
+        ],
+        [
+          248,
+          277,
+          "__BSS_END__",
+          0
+        ],
+        [
+          256,
+          283,
+          "clean_dcache_range",
+          0
+        ],
+        [
+          260,
+          282,
+          "el3_exit",
+          0
+        ]
+      ],
+      "linked_changed_offsets": [
+        16,
+        28,
+        52,
+        132,
+        140,
+        144,
+        152,
+        156,
+        164,
+        168,
+        176,
+        184,
+        204,
+        208,
+        212,
+        220,
+        232,
+        236,
+        244,
+        248,
+        256,
+        260
+      ],
+      "changed_linked_words_only_at_relocations": true,
+      "linked_call_targets_checked": true,
+      "all_relocation_bitfields_targets_and_literals_checked": true,
+      "old_address": 2147483648,
+      "address": 2147483648,
+      "size": 264
+    },
+    "bl31_setup": {
+      "object_old": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-el3-capture-20261102/native-bl31/source/build/agilex5/release/bl31/bl31_main.o",
+      "object_new": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/build/agilex5/release/bl31/bl31_main.o",
+      "object_code_sha256": "8053f904844f47f826612df006cbda8e788d6d06d9d732cac0be0966eb4a89c5",
+      "exact_object_code_and_relocations": true,
+      "relocations": [
+        [
+          8,
+          283,
+          "bl31_early_platform_setup2",
+          0
+        ],
+        [
+          16,
+          282,
+          "bl31_plat_arch_setup",
+          0
+        ]
+      ],
+      "linked_changed_offsets": [],
+      "changed_linked_words_only_at_relocations": true,
+      "linked_call_targets_checked": true,
+      "all_relocation_bitfields_targets_and_literals_checked": true,
+      "old_address": 2147497044,
+      "address": 2147484132,
+      "size": 20
+    },
+    "bl31_early_platform_setup2": {
+      "object_old": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-el3-capture-20261102/native-bl31/source/build/agilex5/release/bl31/bl31_plat_setup.o",
+      "object_new": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/build/agilex5/release/bl31/bl31_plat_setup.o",
+      "object_code_sha256": "b07a352fb7c25bad72c31c5dc42982d504a46867177dbbb91bcaeed6d50c5b2e",
+      "exact_object_code_and_relocations": true,
+      "relocations": [
+        [
+          36,
+          275,
+          ".bss.console.0",
+          0
+        ],
+        [
+          40,
+          277,
+          ".bss.console.0",
+          0
+        ],
+        [
+          76,
+          283,
+          "console_16550_register",
+          0
+        ],
+        [
+          88,
+          283,
+          "console_set_scope",
+          0
+        ],
+        [
+          100,
+          275,
+          ".rodata.bl31_early_platform_setup2.str1.1",
+          0
+        ],
+        [
+          104,
+          277,
+          ".rodata.bl31_early_platform_setup2.str1.1",
+          0
+        ],
+        [
+          108,
+          283,
+          "tf_log",
+          0
+        ],
+        [
+          120,
+          283,
+          "fes_nano_cold_capture",
+          0
+        ],
+        [
+          132,
+          275,
+          ".rodata.bl31_early_platform_setup2.str1.1",
+          61
+        ],
+        [
+          136,
+          277,
+          ".rodata.bl31_early_platform_setup2.str1.1",
+          61
+        ],
+        [
+          140,
+          283,
+          "tf_log",
+          0
+        ],
+        [
+          144,
+          283,
+          "setup_smmu_stream_id",
+          0
+        ],
+        [
+          176,
+          275,
+          ".bss.bl33_image_ep_info",
+          0
+        ],
+        [
+          180,
+          277,
+          ".bss.bl33_image_ep_info",
+          0
+        ],
+        [
+          188,
+          275,
+          ".bss.bl33_image_ep_info",
+          0
+        ],
+        [
+          192,
+          277,
+          ".bss.bl33_image_ep_info",
+          0
+        ],
+        [
+          216,
+          283,
+          "arm_get_spsr_for_bl33_entry",
+          0
+        ],
+        [
+          284,
+          283,
+          "memcpy",
+          0
+        ],
+        [
+          308,
+          275,
+          ".bss.bl32_image_ep_info",
+          0
+        ],
+        [
+          312,
+          277,
+          ".bss.bl32_image_ep_info",
+          0
+        ],
+        [
+          316,
+          283,
+          "memcpy",
+          0
+        ],
+        [
+          328,
+          275,
+          ".bss.bl33_image_ep_info",
+          0
+        ],
+        [
+          332,
+          277,
+          ".bss.bl33_image_ep_info",
+          0
+        ],
+        [
+          336,
+          283,
+          "memcpy",
+          0
+        ]
+      ],
+      "linked_changed_offsets": [
+        36,
+        76,
+        100,
+        104,
+        120,
+        132,
+        136,
+        176,
+        188,
+        284,
+        308,
+        316,
+        328,
+        336
+      ],
+      "changed_linked_words_only_at_relocations": true,
+      "linked_call_targets_checked": true,
+      "all_relocation_bitfields_targets_and_literals_checked": true,
+      "old_address": 2147508340,
+      "address": 2147495428,
+      "size": 344
+    },
+    "console_16550_register": {
+      "object_old": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-el3-capture-20261102/native-bl31/source/build/agilex5/release/bl31/16550_console.o",
+      "object_new": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/build/agilex5/release/bl31/16550_console.o",
+      "object_code_sha256": "a858b2c01445afccaec6f23de24ca7be1a8b402d8a84fd11bab675420aab89cb",
+      "exact_object_code_and_relocations": true,
+      "relocations": [
+        [
+          20,
+          283,
+          "console_16550_core_init",
+          0
+        ],
+        [
+          36,
+          275,
+          "console_16550_putc",
+          0
+        ],
+        [
+          40,
+          277,
+          "console_16550_putc",
+          0
+        ],
+        [
+          48,
+          275,
+          "console_16550_flush",
+          0
+        ],
+        [
+          52,
+          277,
+          "console_16550_flush",
+          0
+        ],
+        [
+          68,
+          282,
+          "console_register",
+          0
+        ]
+      ],
+      "linked_changed_offsets": [
+        40,
+        52,
+        68
+      ],
+      "changed_linked_words_only_at_relocations": true,
+      "linked_call_targets_checked": true,
+      "all_relocation_bitfields_targets_and_literals_checked": true,
+      "old_address": 2147554704,
+      "address": 2147519732,
+      "size": 76
+    },
+    "console_set_scope": {
+      "object_old": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-el3-capture-20261102/native-bl31/source/build/agilex5/release/bl31/multi_console.o",
+      "object_new": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/build/agilex5/release/bl31/multi_console.o",
+      "object_code_sha256": "8f39608c194d4152f2ae5ff1d8ae21925ee53460501474741638b8ada5d2718c",
+      "exact_object_code_and_relocations": true,
+      "relocations": [],
+      "linked_changed_offsets": [],
+      "changed_linked_words_only_at_relocations": true,
+      "linked_call_targets_checked": true,
+      "all_relocation_bitfields_targets_and_literals_checked": true,
+      "old_address": 2147500972,
+      "address": 2147488060,
+      "size": 24
+    },
+    "fes_nano_cold_capture": {
+      "object_old": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-el3-capture-20261102/native-bl31/source/build/agilex5/release/bl31/nano_cold_platform.o",
+      "object_new": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-io-20261102/native-bl31/source/build/agilex5/release/bl31/nano_cold_platform.o",
+      "object_code_sha256": "1ba151f60167bc89de2f71aefa935629c29af604222d0b8dad4af790a15cb597",
+      "exact_object_code_and_relocations": true,
+      "relocations": [
+        [
+          0,
+          275,
+          ".bss.capture_attempted",
+          0
+        ],
+        [
+          4,
+          285,
+          ".bss.capture_attempted",
+          0
+        ],
+        [
+          12,
+          285,
+          ".bss.capture_attempted",
+          0
+        ],
+        [
+          104,
+          275,
+          ".bss.captured",
+          0
+        ],
+        [
+          108,
+          277,
+          ".bss.captured",
+          0
+        ],
+        [
+          116,
+          283,
+          "memcpy",
+          0
+        ],
+        [
+          128,
+          283,
+          "fes_nano_cold_checksum",
+          0
+        ],
+        [
+          136,
+          275,
+          ".bss.capture_valid",
+          0
+        ],
+        [
+          152,
+          285,
+          ".bss.capture_valid",
+          0
+        ]
+      ],
+      "linked_changed_offsets": [
+        0,
+        4,
+        12,
+        104,
+        108,
+        116,
+        128,
+        136,
+        152
+      ],
+      "changed_linked_words_only_at_relocations": true,
+      "linked_call_targets_checked": true,
+      "all_relocation_bitfields_targets_and_literals_checked": true,
+      "old_address": 2147522036,
+      "address": 2147503572,
+      "size": 164
+    }
+  },
+  "startup_relocation_checker_sha256": "22611240222fd8de55a1ebe60657c67dc7d5e282cbf3487392ee617a6611b4de",
+  "spl_checkpoint_order": {
+    "barrier_before": {
+      "address": 7640,
+      "word": "97fffe0f",
+      "instruction": "bl\t1614 <fes_nano_spl_cold_puts.part.0>",
+      "callee": "fes_nano_spl_cold_puts.part.0",
+      "string_argument": "FES_NANO_SPL BARRIER phase=before\n"
+    },
+    "dsb_sy": {
+      "address": 7644,
+      "word": "d5033f9f",
+      "instruction": "dsb\tsy"
+    },
+    "barrier_after": {
+      "address": 7656,
+      "word": "97fffe0b",
+      "instruction": "bl\t1614 <fes_nano_spl_cold_puts.part.0>",
+      "callee": "fes_nano_spl_cold_puts.part.0",
+      "string_argument": "FES_NANO_SPL BARRIER phase=after\n"
+    },
+    "guard_entry": {
+      "address": 6276,
+      "word": "97ffff64",
+      "instruction": "bl\t1614 <fes_nano_spl_cold_puts.part.0>",
+      "callee": "fes_nano_spl_cold_puts.part.0",
+      "string_argument": "FES_NANO_SPL ATF_STEP phase=entry\n"
+    },
+    "current_el": {
+      "address": 6280,
+      "word": "d5384246",
+      "instruction": "mrs\tx6, currentel"
+    },
+    "hash_before": {
+      "address": 6548,
+      "word": "97ffff20",
+      "instruction": "bl\t1614 <fes_nano_spl_cold_puts.part.0>",
+      "callee": "fes_nano_spl_cold_puts.part.0",
+      "string_argument": "FES_NANO_SPL ATF_STEP phase=hash-before\n"
+    },
+    "hash_calls": [
+      {
+        "address": 6560,
+        "word": "94001f14",
+        "instruction": "bl\t95f0 <sha256_starts>",
+        "callee": "sha256_starts",
+        "string_argument": null
+      },
+      {
+        "address": 6576,
+        "word": "94002763",
+        "instruction": "bl\tb73c <sha256_update>",
+        "callee": "sha256_update",
+        "string_argument": null
+      },
+      {
+        "address": 6588,
+        "word": "94002763",
+        "instruction": "bl\tb748 <sha256_finish>",
+        "callee": "sha256_finish",
+        "string_argument": null
+      }
+    ],
+    "hash_after": {
+      "address": 6608,
+      "word": "97ffff11",
+      "instruction": "bl\t1614 <fes_nano_spl_cold_puts.part.0>",
+      "callee": "fes_nano_spl_cold_puts.part.0",
+      "string_argument": "FES_NANO_SPL ATF_STEP phase=hash-after\n"
+    },
+    "final_atf": {
+      "address": 6812,
+      "word": "97fffee7",
+      "instruction": "bl\t1638 <fes_nano_spl_cold_printf>",
+      "callee": "fes_nano_spl_cold_printf",
+      "string_argument": "FES_NANO_SPL ATF target=%llx bl32=%llx bl33=%llx fdt=%llx params=%llx cold=%llx cookie=%llx el=%u mpidr=%llx sctlr=%llx scr=%llx daif=%llx bytes=%lu sha256="
+    },
+    "caller_handoff": {
+      "address": 15172,
+      "word": "97fff835",
+      "instruction": "bl\t1c18 <fes_nano_spl_handoff>",
+      "callee": "fes_nano_spl_handoff",
+      "string_argument": null
+    },
+    "caller_guard": {
+      "address": 15204,
+      "word": "97fff739",
+      "instruction": "bl\t1848 <fes_nano_spl_atf_trace>",
+      "callee": "fes_nano_spl_atf_trace",
+      "string_argument": null
+    },
+    "caller_bl31_branch": {
+      "address": 15232,
+      "word": "d63f02e0",
+      "instruction": "blr\tx23"
+    }
+  },
+  "spl_checkpoint_scope": "actual linked call/literal order; runtime progress remains unqualified",
+  "contained_console": {
+    "scope": "bounded-uart1-v1",
+    "roots": [
+      "fes_nano_spl_cold_printf",
+      "fes_nano_spl_cold_puts.part.0",
+      "fes_nano_spl_cold_wait",
+      "fes_nano_spl_cold_write"
+    ],
+    "reachable_callees": {
+      "fes_nano_spl_cold_write": [
+        "fes_nano_spl_cold_wait"
+      ],
+      "fes_nano_spl_cold_wait": [],
+      "fes_nano_spl_cold_puts.part.0": [
+        "fes_nano_spl_cold_write"
+      ],
+      "fes_nano_spl_cold_printf": [
+        "fes_nano_spl_cold_write",
+        "vsnprintf"
+      ],
+      "vsnprintf": [
+        "memcpy",
+        "vsnprintf_internal"
+      ],
+      "vsnprintf_internal": [
+        "number",
+        "put_dec_trunc",
+        "strcpy",
+        "string",
+        "uuid_bin_to_str",
+        "uuid_guid_get_str"
+      ],
+      "uuid_bin_to_str": [
+        "memcpy",
+        "sprintf"
+      ],
+      "sprintf": [
+        "vsprintf"
+      ],
+      "vsprintf": [
+        "memcpy",
+        "vsnprintf_internal"
+      ],
+      "memcpy": [],
+      "number": [
+        "put_dec"
+      ],
+      "put_dec": [
+        "put_dec_trunc"
+      ],
+      "put_dec_trunc": [],
+      "string": [
+        "strnlen"
+      ],
+      "strnlen": [],
+      "strcpy": [],
+      "uuid_guid_get_str": []
+    },
+    "local_format_switches": [
+      {
+        "branch_address": 59908,
+        "table_address": 120888,
+        "entries": 22,
+        "table_sha256": "4dce0a4e2863e048b8a9bcd308e31fbe561b480e007dcad79197e33316670298",
+        "destinations": [
+          59912,
+          61084,
+          59720,
+          59720,
+          59720,
+          59720,
+          61104,
+          59720,
+          59720,
+          59720,
+          59720,
+          60908,
+          61200,
+          60244,
+          59720,
+          59720,
+          60140,
+          59720,
+          61108,
+          59720,
+          59720,
+          61072
+        ],
+        "function_start": 59080,
+        "function_size": 2348,
+        "all_destinations_inside_formatter": true,
+        "index_bound": 21,
+        "context": [
+          {
+            "address": 59880,
+            "instruction": "sub\tw1, w1, #0x63"
+          },
+          {
+            "address": 59884,
+            "instruction": "cmp\tw1, #0x15"
+          },
+          {
+            "address": 59888,
+            "instruction": "b.hi\te948 <vsnprintf_internal+0x280>  // b.pmore"
+          },
+          {
+            "address": 59892,
+            "instruction": "ldr\tx2, [sp, #120]"
+          },
+          {
+            "address": 59896,
+            "instruction": "ldrh\tw1, [x2, w1, uxtw #1]"
+          },
+          {
+            "address": 59900,
+            "instruction": "adr\tx2, ea08 <vsnprintf_internal+0x340>"
+          },
+          {
+            "address": 59904,
+            "instruction": "add\tx1, x2, w1, sxth #2"
+          },
+          {
+            "address": 59908,
+            "instruction": "br\tx1"
+          }
+        ]
+      }
+    ],
+    "indirect_callback_calls_absent": true,
+    "scheduler_and_device_callback_paths_absent": true,
+    "uart_base": 281026816,
+    "uart_lsr": 281026836,
+    "register_shift": 2,
+    "register_io_bytes": 4,
+    "poll_cap_per_wait": 100000,
+    "message_buffer_bytes": 384,
+    "source_sha256": "52a5a7ad6d564635eea4c37cd542392dfd760ca07bad123d3fe581f903dc9204",
+    "vendor_uart_register_map_sha256": "d0b1f1376291208d49422a1175f7cc3e14212bafcc4ef8b53f53af1a55c8fdb2"
+  }
+}

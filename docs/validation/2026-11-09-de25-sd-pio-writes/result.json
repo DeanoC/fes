@@ -1,0 +1,28 @@
+{
+  "status": "software-and-native-cross-build-passed-hardware-unqualified",
+  "base_commit": "2ed23b5b39a4ec8679927a0a185e070b45ac82ef",
+  "source_sha256": {
+    "platform/embedded/tamago/sdhci/sdhci.go": "f79ccbf06cf3483212e6a05197a7b7a5a9316b14b5427c150fd98a3f0195a672",
+    "platform/embedded/tamago/sdhci/write_test.go": "c5a40e8dd7899eb27882ea224b052115bf648fe4edce6311a8ea4b9ce007e31c",
+    "platform/embedded/tamago/sdcontrol/session.go": "0434882043432083dd6344171755a26eaafd9c98bf2069c57f9af6d33c8153ac",
+    "platform/embedded/tamago/sdcontrol/session_test.go": "35cdbb099c0802d1b57410f6d74d4a4a22b7c40df5aca6eb132171cbd4dccf51",
+    "platform/embedded/tamago/sdcontrol/card_test.go": "3afe386de2129c28a4d063c709ddd889b2ee178e89855639922cd833e47d6dd1",
+    "platform/embedded/tamago/sdcontrol/write_test.go": "f9ff9cd13a53595d89fa2b2c22f61b64154f3a0377759fb30cdbe196c32c43f7",
+    "platform/embedded/tamago/board/de25nano/storage.go": "eed7efee09515bd5324f3d86c7eb00a990b5b21236060a43685ae073f9d2d710"
+  },
+  "affected_checks": 8,
+  "real_firmware_and_pio_join": true,
+  "real_fat32_preference_write_remount": true,
+  "independent_mtype_readback": true,
+  "write_errors_retire_and_retain_lease": true,
+  "quiesce_fences_current_sector_boundary": true,
+  "current_nano_board_access": "read-only",
+  "write_mode_physically_qualified": false,
+  "hardware_actions": false,
+  "ordinary_appliance_acceptance": false,
+  "raw_affected_log": "out/nano-sd-writes-20261109/affected.log",
+  "raw_affected_log_sha256": "aec850f9e519862fa3361d3b6228bd480071ee8333cdf79e08cd931163f03faa",
+  "native_cross_build_source": "b22b2fe0c2ba3e9b6ca06ab33aca8017eb8530ce",
+  "native_cross_build_elf_sha256": "c4eec1d24fe579da417e53ad13d6b0a0c649bb98db77ad28fcb7dadcf9484e96",
+  "native_board_build_still_read_only": true
+}

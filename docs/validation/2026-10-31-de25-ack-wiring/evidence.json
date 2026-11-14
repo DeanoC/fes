@@ -1,0 +1,337 @@
+{
+  "base_commit": "6924a6d9d801c1d309c214245218f57598ca55c0",
+  "classification": "hardware-independent reference-source audit and actual-C register model; no admission or bitstream change",
+  "closed_bridge_model": {
+    "all_cases_passed": true,
+    "before_reset_masks": [
+      0,
+      4,
+      7,
+      15
+    ],
+    "cases": 32,
+    "physical_drain_proven": false,
+    "profiles": [
+      "vendor original",
+      "strict physically tested transformation"
+    ],
+    "real_netlist_tieoff_proven": false,
+    "soft_responder_and_hardware_drain_independent": true,
+    "strict_return_keeps_optional_handshake_and_hardware_drain_failures": true,
+    "vendor_return_masks_earlier_failures": true
+  },
+  "effects": {
+    "board_programmed": false,
+    "card_written": false,
+    "hardware_contacted": false,
+    "new_board_compatibility_or_security_registry": false,
+    "runtime_gate_modified": false
+  },
+  "files": {
+    "audit_reference.py": {
+      "bytes": 4015,
+      "sha256": "63a808728edeef4797e1f1ebcec2cf52f21bb98ddf928f321c4b9e0de1b0f687"
+    },
+    "check-plan.json": {
+      "bytes": 3168,
+      "sha256": "ea3a1c13518252e0cc0c01c4b2a26d9f580e7d41cd8bd4060c9de08a20549966"
+    },
+    "closed-bridge-model.json": {
+      "bytes": 17196,
+      "sha256": "64f65489347c1316013e432d82ddbdb7ec8176ab71017dd9ff2ae34ab4165ba5"
+    },
+    "exercise_closed_bridge.py": {
+      "bytes": 6960,
+      "sha256": "8098e72ae9fb79a51b8d3658f9dfa8512dea5b200cf2b2ee27d55499c40149bf"
+    },
+    "make-check.log": {
+      "bytes": 137,
+      "sha256": "540ac0c109f444c127d9291125778fa8dafe033b0a18528c379be833e7882fc0"
+    },
+    "reference-audit.json": {
+      "bytes": 8874,
+      "sha256": "d7fdf84c17ee9f872ede887b001cdba43f4f0a073428310db3b3ea0bd0c720a5"
+    },
+    "sources.json": {
+      "bytes": 1758,
+      "sha256": "35c13ce408412f81abd332546505483c8260862aabae67f7b4825cf798f76f61"
+    },
+    "strict-closed-model": {
+      "bytes": 18384,
+      "sha256": "0b4e816822a3b54792344bd8e769d6da2c6f65a7c4d52d7e6e3c25283b4d3a46"
+    },
+    "strict-closed-model.c": {
+      "bytes": 18238,
+      "sha256": "9dcaddb312b51d077e382145dd808d1535d3b67898fe3ea18282cc568569a809"
+    },
+    "test-changed.log": {
+      "bytes": 13511,
+      "sha256": "4b1e7e74ed72eb145ee3212c902f428bca225786dce051dc6fe90560479ce830"
+    },
+    "upstream-reset-manager.c": {
+      "bytes": 34378,
+      "sha256": "25b27561f5eb242980d00e979f3ac5e667e990f6380a6426becdb9ec718a378b"
+    },
+    "upstream-reset-manager.json": {
+      "bytes": 379,
+      "sha256": "3422a880efacbbee353c697c9f1264af7c75562002a0dfd7257d6b2a715c2144"
+    },
+    "user-clarification.json": {
+      "bytes": 393,
+      "sha256": "8c649dab3fecac680b4a1652f7e43061c634d23429b81be3c7836a10ea814d84"
+    },
+    "vendor-closed-model": {
+      "bytes": 17896,
+      "sha256": "75e000c86ee912429de838e61830c803a23b716b270f92827f934c4220bb6901"
+    },
+    "vendor-closed-model.c": {
+      "bytes": 15936,
+      "sha256": "ca5ae0a8716f5a94938e7ed9d9590e5bdf22514eed3d0d86b93fd97dc33c4d09"
+    },
+    "vendor-selection.json": {
+      "bytes": 11268,
+      "sha256": "bf4b0eb6e5dd02534b19a51b2c66897c48568f58adef9bb0efcde80444af7d34"
+    },
+    "vendor/golden_top.qsf": {
+      "bytes": 47543,
+      "sha256": "bc80837d530aaebc3966a30e17bfa330b5c36603f17dcfc52c15496a85e155a1"
+    },
+    "vendor/golden_top.v": {
+      "bytes": 11719,
+      "sha256": "6ab21f707e9e85f373d45758603675752ee61f8558b80ce84f3c57fc19d0ad98"
+    },
+    "vendor/hps_subsys/hps_subsys.qsys": {
+      "bytes": 612853,
+      "sha256": "94e6828c17dc501d216d867ba41e44adb7c468d41250b650c9bbbbbc7fe9e05f"
+    },
+    "vendor/hps_subsys/hps_subsys/hps_subsys_generation.rpt": {
+      "bytes": 1418,
+      "sha256": "5826b27c41f67c81de0f2bafaf43c2608b3654c8f150bcfc43c149a2b76ffd0e"
+    },
+    "vendor/hps_subsys/hps_subsys/hps_subsys_inst.v": {
+      "bytes": 36805,
+      "sha256": "926f89ccfb1e3299fc51379c49f2d07d41c4ba6940fd1035522f6c81fe75ad9f"
+    },
+    "vendor/hps_subsys/hps_subsys/synth/hps_subsys.v": {
+      "bytes": 95072,
+      "sha256": "9fd558810b20c86ddad2e123f7bd54f8b6501328eda7720fc41d6bc769bae365"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps.ip": {
+      "bytes": 622361,
+      "sha256": "ab5fed80711d8a9e8af9bca1364d10119d4633ce1381339679ad8493a7f61332"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/agilex_hps_bb.v": {
+      "bytes": 44471,
+      "sha256": "f217518d9e2e76f8ef3aef35893a16ca40a1c72f5f90f4bda381c0a3242a4375"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/agilex_hps_inst.v": {
+      "bytes": 42985,
+      "sha256": "fefabf5a42eacf6e7f43460c9db9ad5b8342e0158f9817d4f40d78f7da76a26b"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_agilex_5_soc_900/synth/agilex_hps_intel_agilex_5_soc_900_g3shaoa.v": {
+      "bytes": 155465,
+      "sha256": "f2202d4553ca78e1fe4bbd78b0d4fea6ec161527cf4e04ae81c6e6762c067073"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/agilex_hps_intel_sundancemesa_hps_100_5efv6ky.v": {
+      "bytes": 70944,
+      "sha256": "54aaee3f63e0f3086d301941b0b9e37464a99efeb6b6440c8faf37a78cb0b3c1"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/add_a_b_s0_s1.sv": {
+      "bytes": 3296,
+      "sha256": "f3a2ad339ee4033f7e089cf2af04a480b4e02f9d3e06243087e6a52c038e01f3"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/ff_macro_c2p.sv": {
+      "bytes": 2579,
+      "sha256": "db2c13e2169847bf71df1ebf3dcc0d86d83423f928f1a1d35441d997623ff46c"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/ff_macro_p2c.sv": {
+      "bytes": 2541,
+      "sha256": "12df951425ef642b0f61535f451336e0e4fd48370f6a8ab940011cde0d2bc3eb"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/generic_mlab_sc.sv": {
+      "bytes": 6227,
+      "sha256": "e3939ae056318def93966a75c3a27d7d892ca049837638232550e4f5bbf969d2"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/hps_axi4_ready_latency_adapter.sv": {
+      "bytes": 10639,
+      "sha256": "e141543b093acdce1c925658586779f5ac5d8a8bc9524db23d8c58cf3a86a648"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/ready_latency_adapter.sv": {
+      "bytes": 4758,
+      "sha256": "d9db4cda51303cb3e47b25dd885b14014e943146e2501148616822c944e223ab"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/ready_latency_reset_synchronizer.sv": {
+      "bytes": 3341,
+      "sha256": "f61422325d979319f4bcb94a4daf80a4995a3c5bb11e93bfb2926358db9d470e"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/scfifo_s.sv": {
+      "bytes": 6584,
+      "sha256": "2dd1deea40c7c59c9aebb65a0385008ba034b7f3df866f5f495833735e95d0cb"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/scfifo_s_normal.sv": {
+      "bytes": 6942,
+      "sha256": "9377589bbe01898b90ccc93a915337c3a0480f2f6deb66376059504ef5a61bb5"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/scfifo_s_showahead.sv": {
+      "bytes": 7780,
+      "sha256": "f26416f1e7b8c2127ad73e6757bae510191fb6fbde9237fe02f145e357e551fd"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/agilex_hps_intel_sundancemesa_mpfe_100_6mxaziy.sv": {
+      "bytes": 43773,
+      "sha256": "71d45406e7f56983a31bfbd2b33c5abf85b1a9e32b41ea3c524aa830fac7b011"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/add_a_b_s0_s1.sv": {
+      "bytes": 3296,
+      "sha256": "f3a2ad339ee4033f7e089cf2af04a480b4e02f9d3e06243087e6a52c038e01f3"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/ff_macro_c2p.sv": {
+      "bytes": 2579,
+      "sha256": "db2c13e2169847bf71df1ebf3dcc0d86d83423f928f1a1d35441d997623ff46c"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/ff_macro_p2c.sv": {
+      "bytes": 2541,
+      "sha256": "12df951425ef642b0f61535f451336e0e4fd48370f6a8ab940011cde0d2bc3eb"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/generic_mlab_sc.sv": {
+      "bytes": 6227,
+      "sha256": "e3939ae056318def93966a75c3a27d7d892ca049837638232550e4f5bbf969d2"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/mpfe_ready_latency_adapter.sv": {
+      "bytes": 22912,
+      "sha256": "804e04ea3d5cfd27a615b19a88a8b9e6a8a274ef3d963bc4d410902c56dd14a6"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/ready_latency_adapter.sv": {
+      "bytes": 4758,
+      "sha256": "d9db4cda51303cb3e47b25dd885b14014e943146e2501148616822c944e223ab"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/ready_latency_reset_synchronizer.sv": {
+      "bytes": 3341,
+      "sha256": "f61422325d979319f4bcb94a4daf80a4995a3c5bb11e93bfb2926358db9d470e"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/scfifo_s.sv": {
+      "bytes": 6584,
+      "sha256": "2dd1deea40c7c59c9aebb65a0385008ba034b7f3df866f5f495833735e95d0cb"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/scfifo_s_normal.sv": {
+      "bytes": 6942,
+      "sha256": "9377589bbe01898b90ccc93a915337c3a0480f2f6deb66376059504ef5a61bb5"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/scfifo_s_showahead.sv": {
+      "bytes": 7780,
+      "sha256": "f26416f1e7b8c2127ad73e6757bae510191fb6fbde9237fe02f145e357e551fd"
+    },
+    "vendor/hps_subsys/ip/hps_subsys/agilex_hps/synth/agilex_hps.v": {
+      "bytes": 83337,
+      "sha256": "16fd72d9f95d3afc5f3198ae8da68874d5ea8555e1212de760615b6136b07552"
+    },
+    "vendor/output_files/golden_top_hps.sof": {
+      "bytes": 1480451,
+      "sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09"
+    },
+    "vendor/qsys_top.qsys": {
+      "bytes": 649292,
+      "sha256": "698e08be98cf4e03e26cd5e1e897d7b50d382ef426bd92df8b7ffe573f6dcb44"
+    }
+  },
+  "format": 1,
+  "retained_directory": "/home/deano/fes-retained/de25-nano-ack-investigation-20261031",
+  "source_audit": {
+    "agilex5_already_reset_shortcut_present": false,
+    "archive": "/home/deano/fes/out/cache/de25-vendor/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
+    "archive_sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66",
+    "classification": "vendor archive source and generated-wrapper inspection; not decoded SOF/netlist or physical drain evidence",
+    "explicit_top_level_handshake_connections": [],
+    "generic_other_family_shortcut_applicable": false,
+    "hard_primitive_ack_port": "f2s_pending_rst_ack <- f2h_pending_rst_ack_n",
+    "inference": "disabled/unhandled optional fabric handshake is consistent with the observed stage-3 timeout; source-to-prebuilt-netlist equivalence is not established",
+    "named_wrapper_ack_path": [
+      [
+        "hps_subsys/hps_subsys/synth/hps_subsys.v",
+        "h2f_warm_reset_handshake_reset_ack",
+        "h2f_warm_reset_handshake_reset_ack"
+      ],
+      [
+        "hps_subsys/ip/hps_subsys/agilex_hps/synth/agilex_hps.v",
+        "h2f_warm_reset_handshake_reset_ack",
+        "h2f_warm_reset_handshake_reset_ack"
+      ],
+      [
+        "hps_subsys/ip/hps_subsys/agilex_hps/intel_agilex_5_soc_900/synth/agilex_hps_intel_agilex_5_soc_900_g3shaoa.v",
+        "f2h_pending_rst_ack_n",
+        "h2f_warm_reset_handshake_reset_ack"
+      ]
+    ],
+    "prebuilt_sof_proven_built_from_selected_source_bytes": false,
+    "prebuilt_sof_sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+    "source_sha256": "8118f8564debe15764db725a6188fb5885884fd1178e3804416a697d6d1cf2fb",
+    "status": "passed",
+    "strict_disable_already_reset_cases": "See actual-C matrix in closed-bridge-model.json",
+    "warm_reset_handshake_parameter": "Rst_hps_warm_en=false"
+  },
+  "sources": [
+    {
+      "scope": "optional fabric warning handshake followed by separate hardware fence/drain; not an already-reset admission rule",
+      "title": "Agilex 5 TRM 26.1.1 F2H Bridge Reset Sequence",
+      "url": "https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/f2h-bridge-reset-sequence?contentId=c_gmrOZ2YnB81JpJzHT2bg"
+    },
+    {
+      "scope": "separate fabric quiescence and hardware drain stages",
+      "title": "Agilex 5 TRM 26.1.1 F2SDRAM Bridge Reset Sequence",
+      "url": "https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/f2sdram-bridge-reset-sequence?contentId=prXQhRfZNXRlsNYuatfXnQ"
+    },
+    {
+      "scope": "warm-reset handshake option exposes request/ack conduit",
+      "title": "Agilex 5 HPS Component Reference Manual 26.1.1 Reset Signals",
+      "url": "https://docs.altera.com/r/docs/813752/26.1.1/hard-processor-system-component-reference-manual-agilex-5-socs/reset-signals?contentId=eb6Y1gV34nuWNo9TlCdUfw"
+    },
+    {
+      "scope": "actual vendor routine compared with strict source used in the trace",
+      "title": "Pinned Terasic TF-A reset manager",
+      "url": "https://github.com/terasic/arm-trusted-firmware/blob/580dcb5c4e10aa7daff2bf69d493c076a6d3e665/plat/intel/soc/common/soc/socfpga_reset_manager.c"
+    },
+    {
+      "scope": "same Agilex5 unconditional flow remains in this comparison; not a selected firmware pin",
+      "title": "Upstream comparison snapshot",
+      "url": "https://github.com/ARM-software/arm-trusted-firmware/blob/9799b799fb51edef36607bcd534b5510aa4156bc/plat/intel/soc/common/soc/socfpga_reset_manager.c"
+    }
+  ],
+  "upstream_comparison": {
+    "classification": "source comparison only; not selected firmware",
+    "commit": "9799b799fb51edef36607bcd534b5510aa4156bc",
+    "sha256": "25b27561f5eb242980d00e979f3ac5e667e990f6380a6426becdb9ec718a378b",
+    "url": "https://raw.githubusercontent.com/ARM-software/arm-trusted-firmware/9799b799fb51edef36607bcd534b5510aa4156bc/plat/intel/soc/common/soc/socfpga_reset_manager.c"
+  },
+  "user_usb_clarification": {
+    "classification": "clarifies recovery capture gap; not a new FPGA/firmware fault",
+    "context": "USB cable accidentally pulled during SD-card change",
+    "diagnostic_trace_preceded_disconnect": true,
+    "factory_baseline_verified_after_reconnect": true,
+    "physical_power_cycle_confirmed": null,
+    "source": "user message after the prior trial",
+    "usb_disconnect_confirmed_by_user": true
+  },
+  "validation": {
+    "actual_c_model": {
+      "cases": 32,
+      "physical_drain_proof": false,
+      "status": "passed",
+      "undefined_behavior_sanitizer": true
+    },
+    "affected_change_checks": {
+      "base": "6924a6d9d801c1d309c214245218f57598ca55c0",
+      "committed_whitespace": "passed",
+      "status": "passed",
+      "test_affected_tests": 29,
+      "test_test_changed_tests": 34,
+      "working_whitespace": "passed"
+    },
+    "make_check": {
+      "copied_source_pins": 0,
+      "fixture_copies": 37,
+      "generated_consumers": 29,
+      "status": "passed"
+    },
+    "markdown_links": "local report links verified",
+    "reference_source_audit": "passed"
+  }
+}

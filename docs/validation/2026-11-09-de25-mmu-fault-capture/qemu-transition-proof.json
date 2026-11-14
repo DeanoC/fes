@@ -1,0 +1,212 @@
+{
+  "status": "passed",
+  "actual_assembly_source_sha256": "754cc6240bd6322b72a868c0e7fb0ff9f7b006564d4d80995495ad0739f8e945",
+  "classification": "actual leaf/vector code on emulated A53 EL3; fixture CPU and UART constants plus one PL011-only map; Nano mappings unchanged; not Nano hardware qualification",
+  "cases": [
+    {
+      "case": "normal",
+      "uart_sha256": "00007b9b8fe1a1b840b2c05dd3172fa71e2efdd5de37d00e4ea98dcdb59e006d",
+      "uart_bytes": 177,
+      "returncode": 0,
+      "terminal_park_observed": false,
+      "observed_fault": null,
+      "fixture_defines": [
+        "-DFES_MMU_MIDR=0x410fd034",
+        "-DFES_MMU_MPIDR=0x80000000",
+        "-DFES_MMU_UART_DATA=0x09000000",
+        "-DFES_MMU_UART_STATUS=0x80043100"
+      ]
+    },
+    {
+      "case": "replay",
+      "uart_sha256": "00007b9b8fe1a1b840b2c05dd3172fa71e2efdd5de37d00e4ea98dcdb59e006d",
+      "uart_bytes": 177,
+      "returncode": 0,
+      "terminal_park_observed": false,
+      "observed_fault": null,
+      "fixture_defines": [
+        "-DFES_MMU_MIDR=0x410fd034",
+        "-DFES_MMU_MPIDR=0x80000000",
+        "-DFES_MMU_UART_DATA=0x09000000",
+        "-DFES_MMU_UART_STATUS=0x80043100"
+      ]
+    },
+    {
+      "case": "foreign-vbar",
+      "uart_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "uart_bytes": 0,
+      "returncode": 0,
+      "terminal_park_observed": false,
+      "observed_fault": null,
+      "fixture_defines": [
+        "-DFES_MMU_MIDR=0x410fd034",
+        "-DFES_MMU_MPIDR=0x80000000",
+        "-DFES_MMU_UART_DATA=0x09000000",
+        "-DFES_MMU_UART_STATUS=0x80043100"
+      ]
+    },
+    {
+      "case": "restore-failure",
+      "uart_sha256": "f1931fafdf15a230c843901953b8f73da404d09a548c052f958c13175df873b4",
+      "uart_bytes": 88,
+      "returncode": 0,
+      "terminal_park_observed": false,
+      "observed_fault": null,
+      "fixture_defines": [
+        "-DFES_MMU_MIDR=0x410fd034",
+        "-DFES_MMU_MPIDR=0x80000000",
+        "-DFES_MMU_UART_DATA=0x09000000",
+        "-DFES_MMU_UART_STATUS=0x80043100"
+      ]
+    },
+    {
+      "case": "wrong-cpu",
+      "uart_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "uart_bytes": 0,
+      "returncode": 0,
+      "terminal_park_observed": false,
+      "observed_fault": null,
+      "fixture_defines": [
+        "-DFES_MMU_MIDR=0",
+        "-DFES_MMU_MPIDR=0x80000000",
+        "-DFES_MMU_UART_DATA=0x09000000",
+        "-DFES_MMU_UART_STATUS=0x80043100"
+      ]
+    },
+    {
+      "case": "nonsecure-cold",
+      "uart_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "uart_bytes": 0,
+      "returncode": 0,
+      "terminal_park_observed": false,
+      "observed_fault": null,
+      "fixture_defines": [
+        "-DFES_MMU_MIDR=0x410fd034",
+        "-DFES_MMU_MPIDR=0x80000000",
+        "-DFES_MMU_UART_DATA=0x09000000",
+        "-DFES_MMU_UART_STATUS=0x80043100"
+      ]
+    },
+    {
+      "case": "stack-permission",
+      "uart_sha256": "a1c4ccacfad18fe13f833e3423c92a476137bdea77b815bb03ccc8b090b02b49",
+      "uart_bytes": 348,
+      "returncode": null,
+      "terminal_park_observed": true,
+      "observed_fault": {
+        "esr": 2516582479,
+        "elr": 2147483760,
+        "far": 2147737568,
+        "spsr": 973,
+        "sp": 2147737584,
+        "sctlr": 13441085,
+        "tcr": 2155885856,
+        "root": 2147733504,
+        "mair": 4456703,
+        "scr": 568,
+        "vbar": 2147493888
+      },
+      "fixture_defines": [
+        "-DFES_MMU_MIDR=0x410fd034",
+        "-DFES_MMU_MPIDR=0x80000000",
+        "-DFES_MMU_UART_DATA=0x09000000",
+        "-DFES_MMU_UART_STATUS=0x80043100"
+      ]
+    },
+    {
+      "case": "data-translation",
+      "uart_sha256": "f8e807c1bc25fec0e44e10a64b6fe3cd67181eaf5ad25f8600092ed62aa03f9f",
+      "uart_bytes": 348,
+      "returncode": null,
+      "terminal_park_observed": true,
+      "observed_fault": {
+        "esr": 2516582469,
+        "elr": 2147483764,
+        "far": 1073741824,
+        "spsr": 973,
+        "sp": 2147762160,
+        "sctlr": 13441085,
+        "tcr": 2155885856,
+        "root": 2147733504,
+        "mair": 4456703,
+        "scr": 568,
+        "vbar": 2147493888
+      },
+      "fixture_defines": [
+        "-DFES_MMU_MIDR=0x410fd034",
+        "-DFES_MMU_MPIDR=0x80000000",
+        "-DFES_MMU_UART_DATA=0x09000000",
+        "-DFES_MMU_UART_STATUS=0x80043100"
+      ]
+    },
+    {
+      "case": "instruction-permission",
+      "uart_sha256": "db60bed3ec9228c8c7a0f941443e18499b4c46cf03ead9288cd6aac774c896eb",
+      "uart_bytes": 348,
+      "returncode": null,
+      "terminal_park_observed": true,
+      "observed_fault": {
+        "esr": 2248146959,
+        "elr": 2147733504,
+        "far": 2147733504,
+        "spsr": 973,
+        "sp": 2147762160,
+        "sctlr": 13441085,
+        "tcr": 2155885856,
+        "root": 2147733504,
+        "mair": 4456703,
+        "scr": 568,
+        "vbar": 2147493888
+      },
+      "fixture_defines": [
+        "-DFES_MMU_MIDR=0x410fd034",
+        "-DFES_MMU_MPIDR=0x80000000",
+        "-DFES_MMU_UART_DATA=0x09000000",
+        "-DFES_MMU_UART_STATUS=0x80043100"
+      ]
+    },
+    {
+      "case": "uart-timeout",
+      "uart_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "uart_bytes": 0,
+      "returncode": null,
+      "terminal_park_observed": true,
+      "observed_fault": null,
+      "fixture_defines": [
+        "-DFES_MMU_MIDR=0x410fd034",
+        "-DFES_MMU_MPIDR=0x80000000",
+        "-DFES_MMU_UART_DATA=0x09000000",
+        "-DFES_MMU_UART_STATUS=0x80043100"
+      ]
+    },
+    {
+      "case": "uart-all-ones",
+      "uart_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "uart_bytes": 0,
+      "returncode": null,
+      "terminal_park_observed": true,
+      "observed_fault": null,
+      "fixture_defines": [
+        "-DFES_MMU_MIDR=0x410fd034",
+        "-DFES_MMU_MPIDR=0x80000000",
+        "-DFES_MMU_UART_DATA=0x09000000",
+        "-DFES_MMU_UART_STATUS=0x80043100"
+      ]
+    },
+    {
+      "case": "nested-uart-fault",
+      "uart_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "uart_bytes": 0,
+      "returncode": null,
+      "terminal_park_observed": true,
+      "observed_fault": null,
+      "fixture_defines": [
+        "-DFES_MMU_MIDR=0x410fd034",
+        "-DFES_MMU_MPIDR=0x80000000",
+        "-DFES_MMU_UART_DATA=0x09000000",
+        "-DFES_MMU_UART_STATUS=0x60000000"
+      ]
+    }
+  ],
+  "hardware_actions": false
+}

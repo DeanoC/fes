@@ -1,0 +1,35 @@
+{
+  "status": "passed",
+  "source_commit": "89bed50551ede17feec935b0e23991f1e0b6209f",
+  "selected_groups": 12,
+  "parent_tests": 1308,
+  "parent_partition_tests": [
+    436,
+    436,
+    436
+  ],
+  "parent_skips": [
+    [
+      "test_gpu_lease.GpuLeaseTests.test_macos_statfs_reports_the_lease_filesystem",
+      "statfs(2) layout is the macOS one"
+    ],
+    [
+      "test_media_inputs.UbootDerivationTest.test_locked_upstream_derives_locked_uboot",
+      "locked upstream uboot.img cache is absent"
+    ]
+  ],
+  "parent_partition_cap_seconds": 300,
+  "parent_outer_cap_seconds": 900,
+  "other_scope_cap_seconds": 300,
+  "fpga_tests": 1577,
+  "fpga_skips": 75,
+  "fpga_cap_seconds": 840,
+  "generated_consumers": 43,
+  "fixture_copies": 37,
+  "native_qemu_cases": 17,
+  "native_qemu_linked_cases": 3,
+  "paired_compatibility_cases": 657,
+  "hardware_run": false,
+  "quartus_run": false,
+  "physical_runtime_admission": false
+}

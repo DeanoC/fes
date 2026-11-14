@@ -1,0 +1,34 @@
+{
+  "source": {
+    "repository": "DeanoC/fes",
+    "commit": "7d622df69955b472ed6ae75fe36f5fce75394a1b",
+    "file": "platform/embedded/firmware/generated/fes_embedded_mac.h",
+    "note": "Base before fixed-window MAC lease prototype; no physical supplier or board selection."
+  },
+  "fabric": {
+    "id": "fes.fabric.embedded.mac",
+    "major": 1,
+    "minor": 0
+  },
+  "constants": {
+    "FesEmbeddedMacCall": 3254780677,
+    "FesEmbeddedMacCookie": 1178948429,
+    "FesEmbeddedMacTag": 1179468593,
+    "FesEmbeddedMacQuery": 0,
+    "FesEmbeddedMacAcquire": 1,
+    "FesEmbeddedMacConfirm": 2,
+    "FesEmbeddedMacStop": 3,
+    "FesEmbeddedMacOK": 0,
+    "FesEmbeddedMacBusy": 1,
+    "FesEmbeddedMacRejected": 2,
+    "FesEmbeddedMacError": 4,
+    "FesEmbeddedMacNotReady": 5,
+    "FesEmbeddedMacSupported": 1,
+    "FesEmbeddedMacActive": 2,
+    "FesEmbeddedMacConfirmed": 4,
+    "FesEmbeddedMacContained": 8,
+    "FesEmbeddedMacPinnedWindow": 16,
+    "FesEmbeddedMacPrivateGeneration": 32,
+    "FesEmbeddedMacFlags": 63
+  }
+}

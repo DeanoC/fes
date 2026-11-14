@@ -46,6 +46,34 @@ func TestSoftwareSwapRestoresOnlyForIncrementalFrames(t *testing.T) {
 	}
 }
 
+func TestSoftwareSwapRestoresLargeFrameWithoutChangingPresentedPixels(t *testing.T) {
+	// Cross several embedded copy chunks, including a partial final chunk.
+	s, err := NewSoftware(257, 129)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range s.pix {
+		s.pix[i] = byte(i*37 + i/257)
+	}
+	want := append([]byte(nil), s.pix...)
+	presented := s.swapFramebuffer(make([]byte, len(s.pix)))
+	if !bytes.Equal(s.Framebuffer().Pix, want) {
+		t.Fatal("incremental frame did not restore every pixel")
+	}
+	s.FillRect(Rect{X: 250, Y: 125, W: 7, H: 4}, RGB(7, 8, 9))
+	if !bytes.Equal(presented, want) {
+		t.Fatal("incremental drawing changed the presented frame")
+	}
+	snapshot := s.Snapshot()
+	if !bytes.Equal(snapshot.Pix, s.Framebuffer().Pix) {
+		t.Fatal("large snapshot did not copy every pixel")
+	}
+	snapshot.Pix[len(snapshot.Pix)-1] ^= 0xff
+	if bytes.Equal(snapshot.Pix, s.Framebuffer().Pix) {
+		t.Fatal("snapshot aliases the live framebuffer")
+	}
+}
+
 // wholeFramePresenter keeps every presented frame.
 type wholeFramePresenter struct {
 	mu     sync.Mutex

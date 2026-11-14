@@ -1,0 +1,15 @@
+{
+  "status": "passed-exact-separated-final-checks-retention",
+  "source_head": "2c20c0c0f80a5d963c47320ff5713834e0680ba9",
+  "archive": "/home/deano/fes-retained/de25-source-setup-final-checks-20261114-r1/checks.tar.gz",
+  "archive_sha256": "b1be6a0d83fb7d5311694e59061d2d6558a7806ced405b1e372539b3c04e696c",
+  "archive_bytes": 726207,
+  "dependencies": {
+    "/home/deano/fes-retained/de25-source-setup-focused-20261114-r1/software.tar.gz": "03a5f768469b3b3655a3e0c6595e8e28fe68598df65b2b0da44494406290a75f",
+    "/home/deano/fes-retained/de25-source-setup-matched-20261114-r1/matched-chain.tar.gz": "29318ff0ca32a9dddd07987cde8fc20e07a1c3270c3c505c7fe98306399ebe2e"
+  },
+  "original_whole_campaign_passed": false,
+  "separate_final_phase_passed": true,
+  "CI_assessed": false,
+  "hardware_actions": false
+}

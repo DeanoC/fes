@@ -1,0 +1,47 @@
+{
+  "scope": "offboard-bootflash-trial-preparation",
+  "tested_base": "fd3e7b2a373432b54098a27deeb2426022424e09",
+  "working_tree_code_sha256": {
+    "platform/embedded/nano/flash_trial.py": "c578a8485fe8c4d4b9632775f82a3c223ede14f5ddb9be61172d6cc8d2288b02",
+    "platform/embedded/nano/power_on_trace.py": "84ea807017df4500dab1ab0a05ec20e82c9ca3486a462baad66871a852ea35e9",
+    "tests/test_nano_flash_trial.py": "e526aa8578b2285e4ae1a2682364bdc0cb90806c72a6ef9a1f1ce504b9ee5710",
+    "tests/test_nano_power_on_trace.py": "e2aaa447d41bc7e42d3dd4cd0ae468382d2ddfbdfcfc82455ee12ea1f96cc8d1"
+  },
+  "hardware_actions": false,
+  "flash_write_authorized": false,
+  "affected_software": {
+    "argv": [
+      "make",
+      "test-changed",
+      "TEST_CHANGED_ARGS=--base HEAD"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 564.1921233967878,
+    "log_sha256": "0a3f6b55b41a97f325c1f3ec037ab64d30d340e39ae188dd3ecdbf1d3a00bf57"
+  },
+  "parent_test_count": 1999,
+  "parent_skipped": 5,
+  "new_contract_test_count": 21,
+  "collector_cases": [
+    "synthetic POR full discovery/launch/return",
+    "truncated final return",
+    "missing physical cycle confirmation",
+    "JTAG boot rejection"
+  ],
+  "positive_power_on_trace_synthetic": true,
+  "actual_vendor_image_decode": true,
+  "operator_model_proof_source_frozen": false,
+  "parent_consistency": {
+    "argv": [
+      "make",
+      "check"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 15.474031940102577,
+    "log_sha256": "5cbe8f92012a86c0de4b7da51878894818913609b997c88446b17459e32ea527"
+  }
+}

@@ -1,0 +1,123 @@
+{
+  "bl31_guard_prefix_bytes": 852,
+  "chain_sha256": "8c6e45d693f69417b356289e06cc4c224e97ed2879825964ead33270bd4adc58",
+  "classification": "corrected real-producer ARM guard and matched rebuilt file chain; no physical boot",
+  "compiled_fabric_absent_value": 1,
+  "core_load_acceptance": false,
+  "evidence": {
+    "out/nano-firmware-wire-fix-20261106/audit_bl31-v1.py": "10782f1c115c4931880c1c6f2c4339af3c88b7040993c1b8f884b4347b6f5de2",
+    "out/nano-firmware-wire-fix-20261106/audit_bl31.py": "3a170f87650acf6da929658b506a2124b9f623bc0343074f08adec3ff528bc28",
+    "out/nano-firmware-wire-fix-20261106/audit_chain.py": "e2313e40c9400b0749a3b3a122806fa3c054bf4c2964bfc6e4aea12aa523ad30",
+    "out/nano-firmware-wire-fix-20261106/bl31-audit-result.json": "aea600780a00194b72dd1a7c8d18f9772054e72aec6f218c1147150b1a2d5705",
+    "out/nano-firmware-wire-fix-20261106/bl31-audit-v2-result.json": "9616ed6fbea26a8b857a1cf47731f6fa69fd4ddbf019ef90496287b7c443cf1a",
+    "out/nano-firmware-wire-fix-20261106/bl31-audit.json": "0f9cd23a7519b6d19899906a396f255ac056b6e439c4cb406b007001dd7ec220",
+    "out/nano-firmware-wire-fix-20261106/bl31-selected-result.json": "e1889bc371652c1e1d0ab72335f88a05bc5ae8cc220a69dceaf9e351c821c723",
+    "out/nano-firmware-wire-fix-20261106/build-plan.json": "e05fdf1bdb0011ddb12ace82b7cb8dd36f0544a1287c710a4f44138cd1deb132",
+    "out/nano-firmware-wire-fix-20261106/chain-audit-result.json": "3dbc01b54220349a9b5cad75c9d731142b56f322e164915f1411f0f5f6c17347",
+    "out/nano-firmware-wire-fix-20261106/chain-audit.json": "7aa8a626c1a9ef6d650c35fdf238dec1c44fa5339b9f575e5a9dbd04dcfbc8cf",
+    "out/nano-firmware-wire-fix-20261106/changed-checks-result.json": "8ac83b39f7335bcf9de49444326e2b130d9e00d5f337960f826ce3d80b3b7b5c",
+    "out/nano-firmware-wire-fix-20261106/composition-result.json": "3c71cf9470d7cf727a3ef5d8a9ccc22b98b148db8979856bfe09ccebd8ac81d6",
+    "out/nano-firmware-wire-fix-20261106/documentation-check-result.json": "24dd091e58f35a5ec943b5d63560e79854ac66e1b292ec8b34387449280bfa9a",
+    "out/nano-firmware-wire-fix-20261106/entry-cases-result.json": "8909f5f90f1604e710f041ee1bb9ae8e0dffd8a4b5230f3c6a9d12bbec867bed",
+    "out/nano-firmware-wire-fix-20261106/entry-cases/result.json": "e16ba96284a47022e29aaed26914e63d0f415c499a17c9ab5e6a9ab51a64af22",
+    "out/nano-firmware-wire-fix-20261106/entry-faults-result.json": "745f4a2ef9ca8613f211829694a4a69caee9bd8568f3115604faef7ba7cf9e0a",
+    "out/nano-firmware-wire-fix-20261106/entry-faults/result.json": "5747f127a729dc23656b8a44ab304dfeaac7d5667b496ce819e74365128c1304",
+    "out/nano-firmware-wire-fix-20261106/entry-old-guard-result.json": "65697cea0bbf6a107cd2a28ec5523357a18ac9298ef7ab6e34c4cd9ad3476d49",
+    "out/nano-firmware-wire-fix-20261106/entry-old-guard/result.json": "d76698b349862abb3f5ad24f1cbd6c3f76ef925bb1ef14a39790f1d4005646bb",
+    "out/nano-firmware-wire-fix-20261106/entry-pilot-result.json": "a828654fd582c01bb3f8b13988546ffbd45f94b9b4f92f5472de803883d88559",
+    "out/nano-firmware-wire-fix-20261106/entry-pilot/result.json": "cd6eae49368c542f7f8dc700f74a61c3f80f7afa6f0ea0a0b15d0ca659534751",
+    "out/nano-firmware-wire-fix-20261106/entry_check.py": "2cee7a8146c69c93e7a5a604226bb58695e38e27c93e7d5155026c9e2dfdbc86",
+    "out/nano-firmware-wire-fix-20261106/native-bl31/result.json": "7bbc535409e57b023edb947ae5e42a8e577d7001d76136ea77ffbaabf8785b6f",
+    "out/nano-firmware-wire-fix-20261106/native-composition/result.json": "a5e57f1c77a75cd015dd42ead7a92298358c0491d9258f080a59509193adc062",
+    "out/nano-firmware-wire-fix-20261106/native-uboot/result.json": "715d17cf50c9a9e6d4f65a5fa58ac000d54c659a8ed19cb998cbea5fcefaf8c7",
+    "out/nano-firmware-wire-fix-20261106/publication-check-result.json": "7681742e748f10f6709ecf87a0b9173ae98f085a688ce43d412b18922eb1c8cd",
+    "out/nano-firmware-wire-fix-20261106/retain.py": "3920854d518fb78f19d96359b539ca5e1385a02f4b6a28516263bb7922c63c2c",
+    "out/nano-firmware-wire-fix-20261106/run.py": "8dea93a99adab57fd4721de0379fa6fbbcd75877d64f4d7e8ed80a041df6ed3c",
+    "out/nano-firmware-wire-fix-20261106/selection-result.json": "327a86d492c964c4455667c54f2bbdcb62163f1d38eee0a8ecbbb6086465899c",
+    "out/nano-firmware-wire-fix-20261106/selection-v2-result.json": "4115b9479d86ec97975fc0ebc3d9ae54967e9908e902e1b704ba9944e64fda7e",
+    "out/nano-firmware-wire-fix-20261106/spl-final-branch.disassembly": "330c924954353a8d60c46543f7d4c9dcb02ce85605b7fd7ad6e193290b8f156b",
+    "out/nano-firmware-wire-fix-20261106/spl-live-guard.disassembly": "da0010312280db77ee52547cddb96843262a71c67aef25dd83bb74c3afd57bc8",
+    "out/nano-firmware-wire-fix-20261106/summarize.py": "f1617f394ad5ee4f216daa93a718bb503ec3d8415210addbb6b0fdd9179a1967",
+    "out/nano-firmware-wire-fix-20261106/uboot-selected-result.json": "f654c78cddba35c22a1fb651fe04db3757c7b7673cbee3970c24ee6e05963618"
+  },
+  "fit_bytes": 8097792,
+  "format": 1,
+  "hardware_actions": false,
+  "implementation_source": "7477f6dc23ea642e1eba2657d85b091f663179a9",
+  "implementation_sources": {
+    "platform/embedded/firmware/README.md": "aa1c1b4e4298ce705e1632c9e66ba7aa8f0a2a425e1d9beaec413f5aaec9552c",
+    "platform/embedded/firmware/nano_firmware_entry.inc": "79c725877e59717b64920cf88745c9b9a84efde9986fa1ca7f742c195a62fcc7",
+    "platform/embedded/firmware/nano_firmware_ram.py": "58b02154ada6a1d02a242772d85ad7d0c97adaaf08cd0d4a1b6c19218d3b5221",
+    "tests/fixtures/nano-cold-record/generate.c": "4f5ef7697435595314359cbae9fa6c77b59e976b9ce62f6ee26afd8ea156fde6",
+    "tests/test_nano_firmware_selection.py": "a12236af39abdaedfdb73b7dde86d79f541b3f92ef24886de80dd59fcdc6f938"
+  },
+  "integration_base": "5a874c9f0c31c6c33d2e0abb9464872c52ba4284",
+  "integration_results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "native runtime firmware and FPGA launch integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded producer identity and native control integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded firmware and identity/drain RTL integration",
+      "lane": "fpga",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "matched_boot_chain_built": true,
+  "native_application_reused_byte_exact": true,
+  "native_application_source": "31d716957759c3dede3330877dac2ce7bcd2d643",
+  "old_guard_rejects_real_producer": true,
+  "ordinary_admission": false,
+  "parent_environment_skips": 2,
+  "parent_tests": 1507,
+  "permission_to_program": false,
+  "physical_ram_reservation_verified": false,
+  "predecessor_first_failing_instruction_observed": false,
+  "predecessor_physical_stop": "docs/validation/2026-11-06-de25-guarded-ocram-trial/physical-result.json",
+  "producer_tests": 1581,
+  "producer_tool_or_fixture_skips": 75,
+  "qemu_real_producer_cases": 254,
+  "status": "passed",
+  "wire_constants_bound_to_c": 13
+}

@@ -47,6 +47,10 @@ func TestCommandsAcceptABIAndProgrammingDefinitions(t *testing.T) {
 	if err != nil || !strings.Contains(cpp, "FesGpSignature") {
 		t.Fatalf("emit-cpp ABI = %q, %v", cpp, err)
 	}
+	c, err := emitCPath(abiPath)
+	if err != nil || !strings.Contains(c, "#define FES_GP_SIGNATURE ") {
+		t.Fatalf("emit-c ABI = %q, %v", c, err)
+	}
 	goOutput, err := emitGoPath(profilesPath)
 	if err != nil || !strings.Contains(goOutput, "De10NanoProgrammingProfilePairs") {
 		t.Fatalf("emit-go registry = %q, %v", goOutput, err)

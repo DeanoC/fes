@@ -1,0 +1,167 @@
+{
+  "serial": "TRWU8CBL",
+  "source_commit": "c768ef002b2208fc67d3d3238f82a6a5d42cc5a5",
+  "phase": "native",
+  "sof_sha256": "27591af1b0b7b00545b74777c75ece3559e7b2a015aa17101b10aac9dc7009e1",
+  "initial_card_image_sha256": "f7c4a2c77e44de5c6679b8e2c274100dd9ebb4961c900e7a6de10f727a34850c",
+  "prepared_full_image_sha256_not_written": "292a42f38128e2503e97f8d38ffe5903cdd9748fcfca45feec95c692aba550ed",
+  "fit_sha256": "34138a1b0725b53dfc9ca1a6f77b05ad24cf9d8b8c4e4dc585029f40e8085ac3",
+  "started_utc": "2026-11-01T13:38:39.398426+00:00",
+  "stage": "one fesboot",
+  "programming_attempted": true,
+  "fesboot_sent": true,
+  "pass": false,
+  "sd_write_commands_sent": false,
+  "qualified_recovery_receipt_sha256": "934e712bd0be4792a142e201d7143f9030f4bb65490c14d2d9939a349f621cc6",
+  "live_card_receipt_sha256": "3f5a32a357d1d09c4f75bac9f850c8ea12ff11573b0a463e4b76663d57e934da",
+  "prior_stop_receipt_sha256": "8982dc34c2f4aa3a257072ea5203afbbf15e8f76c10b5243415382874de28747",
+  "runner_sha256": "d08967ecfd8e461837b309a70ea2c13913eff24c45e5c3752e300add363a63f6",
+  "clock_checks": [
+    {
+      "clock": "6M",
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    }
+  ],
+  "jtag_id": "4362C0DD",
+  "boot_trace": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "fd50a1e40b848645"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 16898301716560877111,
+          "epoch": 3718258189,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 41,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 44,
+        "values": {
+          "id": "fd50a1e40b848645"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 48,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 60,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 61,
+        "values": {
+          "id": "fd50a1e40b848645"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 62,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216373888,
+          "malloc_start": 3216408576,
+          "malloc_end": 3220611072,
+          "reloc": 3220611072,
+          "fdt": 3216383296
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 69,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 16898301716560877111,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 78,
+        "values": {
+          "phase": "after-remove",
+          "status": 4,
+          "flags": 5062696002989850624,
+          "owner": 0,
+          "generation": 0
+        }
+      }
+    ],
+    "errors": [
+      "failure marker at line 79",
+      "malformed or unexpected probe marker at line 79",
+      "after-remove owner/flags/generation differs"
+    ],
+    "loader_ready": false,
+    "complete": false,
+    "last_checkpoint": "after-remove",
+    "core_load_acceptance": false
+  },
+  "programming_complete": true,
+  "build_id": "fd50a1e40b848645",
+  "secure_cold_boot_verified": true,
+  "error": "native handoff/probe trace rejected: ['failure marker at line 79', 'malformed or unexpected probe marker at line 79', 'after-remove owner/flags/generation differs']",
+  "usb_permissions_restored": true,
+  "console_sha256": "946df6c10cd7a8a977cbb8461bd800cae72e3a7166ba2770a6037ae26b4434c6",
+  "finished_utc": "2026-11-01T13:38:57.426962+00:00",
+  "decoder_sha256": "4c9dab5fde6356c14e610eb2028956251594ad80bd02e4e23b0435d0fcebdeea"
+}

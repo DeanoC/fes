@@ -1,0 +1,24 @@
+"""Read sampled tape costs and exact local MMU-state symbol/descriptor."""
+from pathlib import Path
+import json,re,hashlib,sys,struct
+root=Path.cwd();a=root/'out/nano-secure-control-analysis-20261109';s=root/'out/nano-secure-control-trial-20261109';raw=(s/'trial/native-console.log').read_text();rows=[]
+for line in raw.splitlines():
+ if 'FES_NANO_TAPE_COST ' not in line and 'FES_NANO_TAPE_OWNERSHIP_COST ' not in line:continue
+ v=dict(re.findall(r'(\w+)=([\w-]+)',line));samples=int(v['samples']);hz=int(v['hz']);ticks=int(v['ticks'],16);calls=int(v.get('calls',v.get('parent_calls','0')))
+ rows.append(dict(family='ownership-part' if 'OWNERSHIP_COST' in line else 'callback',kind=v['kind'],calls=calls,samples=samples,sampled_ticks=ticks,sampled_mean_microseconds=ticks/samples/hz*1e6,estimated_total_seconds=ticks/samples*calls/hz,source_line=line))
+sys.path.insert(0,str(root/'platform/embedded/firmware'));import nano_firmware_mmu as mmu
+b=root/'out/nano-secure-control-20261109/native-bl31';r=json.loads((b/'result.json').read_text());elf=(b/'source/build/agilex5/release/bl31/bl31.elf').read_bytes();assert hashlib.sha256(elf).hexdigest()==r['bl31_elf_sha256']
+sections=[];off=struct.unpack_from('<Q',elf,40)[0];stride,count=struct.unpack_from('<HH',elf,58)
+for i in range(count):sections.append(struct.unpack_from('<IIQQQQIIQQ',elf,off+i*stride))
+states=[]
+for section in sections:
+ if section[1]!=2:continue
+ ns=sections[section[6]];names=elf[ns[4]:ns[4]+ns[5]]
+ for pos in range(section[4],section[4]+section[5],section[9]):
+  n,info,other,index,address,size=struct.unpack_from('<IBBHQQ',elf,pos)
+  if info&15==1 and index and names[n:names.index(0,n)]==b'mmu':states.append((address,size))
+assert len(states)==1;addr,size=states[0];assert addr==0x5c780
+bounds=r['firmware_mmu_proof']['layout'];leaf=int.from_bytes(mmu.file_bytes(elf,bounds['tables']['ocram']+(addr//4096)*8,8)[0],'little');assert leaf==mmu._leaf(addr&~4095,mmu.NC|mmu.XN,3)
+proof=dict(status='source-and-terminal-sample-analysis',native_boot_id='bd103b1a199bc2be',sample_rows=rows,actual_elf_sha256=r['bl31_elf_sha256'],mmu_state_address=addr,mmu_state_bytes=size,mmu_state_descriptor=leaf,mmu_state_cache_type='secure Normal NC in OCRAM',scope_wrapper_stack_bytes=112,scope_wrapper_operation_table_copy_bytes=48,scope_wrapper_second_operation_table_copy_bytes=48,scope_wrapper_disassembly_sha256=hashlib.sha256((a/'fes_nano_mmu_platform_scope.disassembly').read_bytes()).hexdigest(),stack_mapping_unchanged='secure Normal NC OCRAM',sampling_limitation='Systematic one-in-64 samples estimate cost; not an exhaustive cycle profile or proof of a proposed speedup.',proposed_change=['Pass MMU operations by const pointer and use one static const platform table, preserving every fresh observation and failure predicate.','Place only the zero-initialized MMU state in the existing private initialized DDR data section, within the same two-MiB exclusion. Verify actual linked symbol, initialization bytes, RW/XN permissions and matched fit bound.','Keep other BSS, OCRAM and stack mappings, ownership/USB/CPU/register guard frequency, failure latching and the original tape deadline unchanged.'],new_source_patch_applied=False,new_tests_run=False,new_hardware_attempt=False)
+(a/'tape-cost-analysis.json').write_text(json.dumps(proof,indent=2)+'\n');(root/'docs/validation/2026-11-09-de25-secure-control-trial/tape-cost-analysis.json').write_text(json.dumps(proof,indent=2)+'\n')
+print('MMU state is NC OCRAM;',[(x['kind'],round(x['sampled_mean_microseconds'],2)) for x in rows if x['family']=='ownership-part'])

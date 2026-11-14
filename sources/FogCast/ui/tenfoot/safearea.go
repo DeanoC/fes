@@ -12,7 +12,6 @@ import (
 
 	"github.com/DeanoC/FogCast/ui/inputmap"
 	"github.com/DeanoC/FogCast/ui/rooms"
-	"golang.org/x/sys/unix"
 )
 
 // kitPersistentStateDir is the writable FAT directory the kit software
@@ -216,7 +215,7 @@ func chooseConfigDir(dir string) (string, bool) {
 func configDirWritable(dir string) bool {
 	info, err := os.Stat(dir)
 	if err == nil {
-		return info.IsDir() && unix.Access(dir, unix.W_OK) == nil
+		return info.IsDir() && directoryWritable(dir, info)
 	}
 	if !os.IsNotExist(err) {
 		return false
@@ -235,7 +234,7 @@ func ancestorWritable(dir string) bool {
 		}
 		info, err := os.Stat(parent)
 		if err == nil {
-			return info.IsDir() && unix.Access(parent, unix.W_OK) == nil
+			return info.IsDir() && directoryWritable(parent, info)
 		}
 		if !os.IsNotExist(err) {
 			return false
@@ -332,6 +331,10 @@ func loadTenfootPrefs(path string) (tenfootPrefs, error) {
 	if err != nil {
 		return tenfootPrefs{}, err
 	}
+	return decodeTenfootPrefs(data)
+}
+
+func decodeTenfootPrefs(data []byte) (tenfootPrefs, error) {
 	var prefs tenfootPrefs
 	if err := json.Unmarshal(data, &prefs); err != nil {
 		return tenfootPrefs{}, err
@@ -341,20 +344,27 @@ func loadTenfootPrefs(path string) (tenfootPrefs, error) {
 	return prefs, nil
 }
 
+func encodeTenfootPrefs(prefs tenfootPrefs) ([]byte, error) {
+	prefs.SafeAreaPct = clampSafeAreaPct(prefs.SafeAreaPct)
+	prefs.Layout = parseLayout(prefs.Layout).String()
+	data, err := json.MarshalIndent(prefs, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(data, '\n'), nil
+}
+
 func saveTenfootPrefs(path string, prefs tenfootPrefs) error {
 	if path == "" {
 		return fmt.Errorf("prefs path is empty")
 	}
-	prefs.SafeAreaPct = clampSafeAreaPct(prefs.SafeAreaPct)
-	prefs.Layout = parseLayout(prefs.Layout).String()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(prefs, "", "  ")
+	data, err := encodeTenfootPrefs(prefs)
 	if err != nil {
 		return err
 	}
-	data = append(data, '\n')
 	return os.WriteFile(path, data, 0o644)
 }
 

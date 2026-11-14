@@ -1,0 +1,247 @@
+{
+  "format": 1,
+  "root": "/home/deano/fes/out/dev/de25-embedded-os",
+  "base": "180eac38dac236f92792ddbc93975bdd39c5a925",
+  "head": "0775d3fcfaa1c9469e4cdfa8bb58e64944bc0b59",
+  "checkout_head": "0775d3fcfaa1c9469e4cdfa8bb58e64944bc0b59",
+  "merge_base": "180eac38dac236f92792ddbc93975bdd39c5a925",
+  "local_paths": [],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": false,
+      "runtime": false,
+      "contracts": false,
+      "fpga": true
+    },
+    "skipped": [
+      "host",
+      "runtime",
+      "contracts"
+    ],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": false,
+      "full_race": false
+    },
+    "paths": [
+      "platform/embedded/nano/hps_context.py",
+      "sources/misteross/docs/architecture.md",
+      "sources/misteross/prototypes/de25_board_control/README.md",
+      "sources/misteross/prototypes/de25_board_control/build.py",
+      "sources/misteross/prototypes/de25_board_control/ddr_probe.cpp",
+      "sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv",
+      "sources/misteross/prototypes/de25_board_control/fes_de25_embedded_hw.tcl",
+      "sources/misteross/prototypes/de25_board_control/integrate.tcl",
+      "sources/misteross/prototypes/de25_board_control/probe.cpp",
+      "sources/misteross/prototypes/de25_board_control/reader_memory.py",
+      "sources/misteross/prototypes/de25_board_control/seal.py",
+      "sources/misteross/prototypes/de25_board_control/test_handoff.py",
+      "sources/misteross/prototypes/de25_board_control/verify.py",
+      "sources/misteross/prototypes/de25_board_control/verify_ddr.py",
+      "sources/misteross/tests/test_de25_sealed_identity.py"
+    ],
+    "reasons": [
+      "platform/embedded/nano/hps_context.py: parent orchestration/tests/assembly; component sources unchanged",
+      "sources/misteross/prototypes/de25_board_control/build.py: standalone embedded producer simulation; no shipped core consumer",
+      "sources/misteross/prototypes/de25_board_control/ddr_probe.cpp: standalone embedded producer simulation; no shipped core consumer",
+      "sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv: standalone embedded producer simulation; no shipped core consumer",
+      "sources/misteross/prototypes/de25_board_control/fes_de25_embedded_hw.tcl: standalone embedded producer simulation; no shipped core consumer",
+      "sources/misteross/prototypes/de25_board_control/integrate.tcl: standalone embedded producer simulation; no shipped core consumer",
+      "sources/misteross/prototypes/de25_board_control/probe.cpp: standalone embedded producer simulation; no shipped core consumer",
+      "sources/misteross/prototypes/de25_board_control/reader_memory.py: standalone embedded producer simulation; no shipped core consumer",
+      "sources/misteross/prototypes/de25_board_control/seal.py: standalone embedded producer simulation; no shipped core consumer",
+      "sources/misteross/prototypes/de25_board_control/test_handoff.py: standalone embedded producer simulation; no shipped core consumer",
+      "sources/misteross/prototypes/de25_board_control/verify.py: standalone embedded producer simulation; no shipped core consumer",
+      "sources/misteross/prototypes/de25_board_control/verify_ddr.py: standalone embedded producer simulation; no shipped core consumer",
+      "sources/misteross/tests/test_de25_sealed_identity.py: FPGA producer/package software tests; RTL unchanged"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "180eac38dac236f92792ddbc93975bdd39c5a925",
+        "--head",
+        "0775d3fcfaa1c9469e4cdfa8bb58e64944bc0b59"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/nano/hps_context.py\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/prototypes/de25_board_control/README.md\", \"sources/misteross/prototypes/de25_board_control/build.py\", \"sources/misteross/prototypes/de25_board_control/ddr_probe.cpp\", \"sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv\", \"sources/misteross/prototypes/de25_board_control/fes_de25_embedded_hw.tcl\", \"sources/misteross/prototypes/de25_board_control/integrate.tcl\", \"sources/misteross/prototypes/de25_board_control/probe.cpp\", \"sources/misteross/prototypes/de25_board_control/reader_memory.py\", \"sources/misteross/prototypes/de25_board_control/seal.py\", \"sources/misteross/prototypes/de25_board_control/test_handoff.py\", \"sources/misteross/prototypes/de25_board_control/verify.py\", \"sources/misteross/prototypes/de25_board_control/verify_ddr.py\", \"sources/misteross/tests/test_de25_sealed_identity.py\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "DE25 Avalon control and native integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "sources/misteross/prototypes/de25_board_control/verify.py",
+        "--standalone"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "g++",
+        "git",
+        "go",
+        "make",
+        "tclsh",
+        "verilator",
+        "verilator_bin"
+      ],
+      "files": [
+        "sources/misteross/prototypes/de25_board_control/verify.py",
+        "sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "test_*.py",
+      "cwd": "sources/misteross",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "strace"
+      ],
+      "files": [
+        "tests/test_*.py"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "planned"
+}

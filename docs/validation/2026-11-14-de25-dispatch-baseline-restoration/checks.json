@@ -1,0 +1,143 @@
+{
+  "dispatch-restore-prepare": {
+    "argv": [
+      "python3",
+      "out/publication/prepare-dispatch-restoration.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 0.2007485469803214,
+    "log_sha256": "47ae9c04722886faabe2b819e2eae3ca5ee9e76ce6af6e3c7122bb7975649d66"
+  },
+  "dispatch-restore-scope": {
+    "argv": [
+      "python3",
+      "out/dispatch-rearm-restoration/test_restore_scope.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 0.2008294598199427,
+    "log_sha256": "44ebe0c88f0572fdce3eb921745a9bad6146c3a7b335442415ab667d39b91ae7"
+  },
+  "dispatch-restore-admit": {
+    "argv": [
+      "python3",
+      "out/dispatch-rearm-restoration/admission.py",
+      "prepare",
+      "native-baseline"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 55.42883567721583,
+    "log_sha256": "a4639c6eec8af1edf5fb5cf39addff10dff75c17011cb48aa28daafd3e66c5b3"
+  },
+  "dispatch-restore-freeze": {
+    "argv": [
+      "python3",
+      "out/dispatch-rearm-restoration/freeze.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 6.004692879971117,
+    "log_sha256": "0e87f15619c05215d9f58be845060eec6ed0a3d85f91f924de3440f38d1c4562"
+  },
+  "dispatch-restore-default-user": {
+    "argv": [
+      "python3",
+      "out/dispatch-rearm-restoration/run_restoration.py",
+      "--procedure-sha256",
+      "dd7ce8778c4f36b694005532aee3fc20fa9fc372589fb2fe1af54a3360b0306a"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 6.404482204001397,
+    "log_sha256": "f6673c2c70cdeb22c2dfa091015def476ceda77d17781a9a2c6dc569abdea85b"
+  },
+  "dispatch-restore-default-root": {
+    "argv": [
+      "python3",
+      "out/dispatch-rearm-restoration/run_restoration.py",
+      "--procedure-sha256",
+      "dd7ce8778c4f36b694005532aee3fc20fa9fc372589fb2fe1af54a3360b0306a"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 6.604478476801887,
+    "log_sha256": "f6673c2c70cdeb22c2dfa091015def476ceda77d17781a9a2c6dc569abdea85b"
+  },
+  "dispatch-restore-prepared-retention": {
+    "argv": [
+      "python3",
+      "out/publication/retain-dispatch-restoration-prepared.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 6.606902405852452,
+    "log_sha256": "98888e73a1a39167098c7238b93e89c84a886116b20ed24160f5269a5c23c4cf"
+  },
+  "dispatch-restore-execute": {
+    "argv": [
+      "python3",
+      "out/dispatch-rearm-restoration/run_restoration.py",
+      "--procedure-sha256",
+      "dd7ce8778c4f36b694005532aee3fc20fa9fc372589fb2fe1af54a3360b0306a",
+      "--execute"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 573.6853918731213,
+    "log_sha256": "ea4f4f9a2b507acbb745659985c96f0f5ac02761d7d76b66c32ebab25ff28b97"
+  },
+  "dispatch-restored-owned-scan": {
+    "argv": [
+      "python3",
+      "out/dispatch-restored-physical/check_owned_processes.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 0.2006798069924116,
+    "log_sha256": "2d80385c23d91dd8c759b3b3973c5b78085cf0c7577ac0a4e6528b5fa5ddb7f5"
+  },
+  "dispatch-restored-uart-scan": {
+    "argv": [
+      "python3",
+      "out/dispatch-restored-physical/check_uart.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 0.20071196206845343,
+    "log_sha256": "2ec3bf96bdab53e67104b3a18f235e9ccfc8dff30141b27c8245da3fda06a7c4"
+  },
+  "dispatch-restored-independent-replay": {
+    "argv": [
+      "python3",
+      "out/dispatch-restored-physical/collect.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 3.0018323101103306,
+    "log_sha256": "ae4649eafd2e4862283368443dca5b75949d60a1850fb1a40d5ce1043b621971"
+  },
+  "dispatch-restored-retention": {
+    "argv": [
+      "python3",
+      "out/dispatch-restored-physical/retain.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1.205054226797074,
+    "log_sha256": "a2cfc673cb5ebd38bc0e2dca099769e8b0736919ae824618af9bfff9ff6b776e"
+  }
+}

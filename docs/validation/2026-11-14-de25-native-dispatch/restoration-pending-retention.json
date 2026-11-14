@@ -1,0 +1,19 @@
+{
+  "status": "retained-restoration-sources-pending-physical-confirmation",
+  "archive": "/home/deano/fes-retained/de25-rearm-restoration-pending-20261114-r1/pending-sources.tar.gz",
+  "archive_sha256": "206d2ba087f56579de8d4d08cfc4871a4501f1c230dcb10499f2015feed20b30",
+  "archive_bytes": 3654765,
+  "dependencies": {
+    "/home/deano/fes-retained/de25-source-rearm-physical-20261114-r1/physical-trial.tar.gz": "b277179fd8a0a809d1c4449c4653f9b91afd7d04775915836ddec5d61740d641",
+    "/home/deano/fes-retained/de25-source-rearm-procedure-prepared-20261114-r1/prepared-procedure.tar.gz": "7cb82925e6a0e68b31535efee195ab9fd0cd260313f0fc63285e93d9fa3ac15c",
+    "/home/deano/fes-retained/de25-command-snapshot-procedure-prepared-20261113-r1/prepared-procedure.tar.gz": "1b5b82ea534a6af428682a59cad431042173292d3269735fc3b8215dff1bc793"
+  },
+  "source_scope_tests": 7,
+  "native_baseline_file_admission": true,
+  "human_reset_confirmed": false,
+  "procedure_frozen": false,
+  "execution_attempt_created": false,
+  "hardware_actions": false,
+  "diagnostic_authority": false,
+  "required_next_action": "fresh human top-only reset confirmation before freeze and restoration-only execution"
+}

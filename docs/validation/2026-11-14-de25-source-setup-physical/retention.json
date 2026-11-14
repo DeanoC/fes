@@ -1,0 +1,19 @@
+{
+  "status": "passed-exact-dispatch-aware-physical-trial-byte-hash-mode-retention",
+  "archive": "/home/deano/fes-retained/de25-source-setup-physical-20261114-r1/physical-trial.tar.gz",
+  "archive_sha256": "e4a1a63cf7e81b85d8b81773819966cae52e608a4918792ee009f67aada40331",
+  "archive_bytes": 2518154,
+  "dependencies": {
+    "/home/deano/fes/out/dev/de25-source-release/out/source-setup-trial/retention-proof.json": "133753c2a08a33fff24b7820eb1d0d3220eb66c134f100ce54457438d456d3ce",
+    "/home/deano/fes-retained/de25-source-setup-procedure-prepared-20261114-r1/prepared-procedure.tar.gz": "feab540887588cbe78e2c3d9853f0de3a65a8155440278a13519b42799582969",
+    "/home/deano/fes-retained/de25-command-snapshot-procedure-prepared-20261113-r1/prepared-procedure.tar.gz": "1b5b82ea534a6af428682a59cad431042173292d3269735fc3b8215dff1bc793",
+    "/home/deano/fes/out/dev/de25-dispatch-release/out/source-setup-boot/retention-result.json": "c2dc2d78fa1ec80de21167f259db3f901a14c6503bd29fe4bfb45f29905ed61d",
+    "/home/deano/fes-retained/de25-source-setup-matched-20261114-r1/matched-chain.tar.gz": "29318ff0ca32a9dddd07987cde8fc20e07a1c3270c3c505c7fe98306399ebe2e",
+    "/home/deano/fes/out/dev/de25-source-release/out/dispatch-restored-physical/retention-proof.json": "3069e3ab76bebe1c090481896fe9903374f3d3cce51ada3b02976c5913335f91",
+    "/home/deano/fes-retained/de25-dispatch-rearm-baseline-restored-physical-20261114-r1/restoration.tar.gz": "066a6a156d49b04219da92544510a8cb3327fdb94b51f4d568cf547cc7abb034"
+  },
+  "trial_result_status": "stopped-dispatch-aware-repeated-load-trial-reset-required",
+  "baseline_restored": false,
+  "physical_reset_required": true,
+  "general_core_load_acceptance": false
+}

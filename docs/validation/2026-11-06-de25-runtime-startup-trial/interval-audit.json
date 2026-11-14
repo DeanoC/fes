@@ -1,0 +1,104 @@
+{
+  "status": "PASS",
+  "scope": "source-bound interval and helper audit only; exact stalled/faulting instruction unobserved",
+  "elf_sha256": "f960f6989db3eb20c8872eff7eb86cd5d50b7dc403a3c64c622284ef80ec3c51",
+  "last_marker_pc": 2147491044,
+  "following_call_pc": 2147491164,
+  "following_call": "clean_dcache_range",
+  "following_call_target": 2147599456,
+  "compiled_bss_base": 360448,
+  "compiled_bss_end": 384704,
+  "compiled_bss_bytes": 24256,
+  "helper_instructions": [
+    {
+      "pc": 2147599456,
+      "operation": "cbz",
+      "arguments": "x1, 8001c494 <exit_loop_cvac>"
+    },
+    {
+      "pc": 2147599460,
+      "operation": "mrs",
+      "arguments": "x3, ctr_el0"
+    },
+    {
+      "pc": 2147599464,
+      "operation": "ubfx",
+      "arguments": "x3, x3, #16, #4"
+    },
+    {
+      "pc": 2147599468,
+      "operation": "mov",
+      "arguments": "x2, #0x4"
+    },
+    {
+      "pc": 2147599472,
+      "operation": "lsl",
+      "arguments": "x2, x2, x3"
+    },
+    {
+      "pc": 2147599476,
+      "operation": "add",
+      "arguments": "x1, x0, x1"
+    },
+    {
+      "pc": 2147599480,
+      "operation": "sub",
+      "arguments": "x3, x2, #0x1"
+    },
+    {
+      "pc": 2147599484,
+      "operation": "bic",
+      "arguments": "x0, x0, x3"
+    },
+    {
+      "pc": 2147599488,
+      "operation": "dc",
+      "arguments": "cvac, x0"
+    },
+    {
+      "pc": 2147599492,
+      "operation": "add",
+      "arguments": "x0, x0, x2"
+    },
+    {
+      "pc": 2147599496,
+      "operation": "cmp",
+      "arguments": "x0, x1"
+    },
+    {
+      "pc": 2147599500,
+      "operation": "b.cc",
+      "arguments": "8001c480 <loop_cvac>"
+    },
+    {
+      "pc": 2147599504,
+      "operation": "dsb",
+      "arguments": "sy"
+    },
+    {
+      "pc": 2147599508,
+      "operation": "ret",
+      "arguments": ""
+    }
+  ],
+  "helper_cache_operation": "DC CVAC, x0",
+  "vendor_mmu_enable_hook_is_stub": true,
+  "sctlr_at_bss_clean_observed": false,
+  "call_execution_proven": false,
+  "cache_instruction_execution_proven": false,
+  "terminal_wait_window_includes": [
+    "completed text transmission through bss-clean-before",
+    "bounded UART final drain / possible diagnostic park",
+    "BL and clean_dcache_range",
+    "original by-address cache loop / completion barrier",
+    "not-yet-observed bss-clean-after"
+  ],
+  "next": "Qualify a cold-only full-hierarchy setway clean for the private BSS exit range, after proving current controls/ownership and preserving data/warm paths; no blind operation skip",
+  "hardware_actions": false,
+  "core_load_acceptance": false,
+  "evidence_sha256": {
+    "out/nano-runtime-startup-20261106/native-bl31-final/source/build/agilex5/release/bl31/bl31.elf": "f960f6989db3eb20c8872eff7eb86cd5d50b7dc403a3c64c622284ef80ec3c51",
+    "out/nano-runtime-startup-20261106/native-bl31-final/source/plat/intel/soc/agilex5/bl31_plat_setup.c": "dfcb6f6c66e809e38bfe10508d08467ae6daa7704b39dd1f063baabf475099de",
+    "out/nano-runtime-startup-board-20261106/audit_interval.py": "c3a3a0fe4eedf8b488554ea71425399159011aef7b679d9807a3131a20b93cd7"
+  }
+}

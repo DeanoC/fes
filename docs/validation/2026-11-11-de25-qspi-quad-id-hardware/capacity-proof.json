@@ -1,0 +1,19 @@
+{
+  "scope": "array-capacity-inference-from-live-ID-and-pinned-vendor-table",
+  "live_wire_id": "20bb18",
+  "id_source": "AFh via SDM QSPI_READ_DEVICE_REG, raw word 0018bb20",
+  "vendor_table_url": "https://raw.githubusercontent.com/terasic/u-boot-socfpga/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/drivers/mtd/spi/spi-nor-ids.c",
+  "vendor_table_sha256": "0daff6a00dae52f280ed72614613211c63cf03266da05e1c4938390a99c5ed05",
+  "candidate_names": [
+    "n25q128a11",
+    "mt25qu128ab"
+  ],
+  "array_bytes": 16777216,
+  "sector_bytes": 65536,
+  "sectors": 256,
+  "subsector_4k_flag_present": true,
+  "exact_die_or_package_identified": false,
+  "sfdp_read": false,
+  "erase_or_write_authority": false,
+  "complete_backup": false
+}

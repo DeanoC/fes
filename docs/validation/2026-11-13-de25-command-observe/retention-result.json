@@ -1,0 +1,8 @@
+{
+  "status": "retained-and-independently-read-back",
+  "archive": "/home/deano/fes-retained/de25-command-observe-matched-20261113-r1/matched-chain.tar.gz",
+  "archive_sha256": "b4cd8a6f46c326917e947b4250dc1bdab449d4ffeaebe7ecafd72d47db248413",
+  "archive_bytes": 119008031,
+  "hardware_actions": false,
+  "hardware_accepted": false
+}

@@ -1,0 +1,67 @@
+{
+  "scope": "fresh recovery per changed FIT/package upload and readback, fresh FIT hash after package write; one native fetch-activity diagnostic; restore15M",
+  "ddr_traffic_requested": false,
+  "data_release_requested": false,
+  "execution_observation_requested": true,
+  "execution_observed": false,
+  "core_load_acceptance": false,
+  "source_commit": "535bda0d9d2909a4aaff837ce7d69d2cb2c4d67f",
+  "native_build_source_commit": "726a16f4e2d979e68fb67e85e97c916e3e94ee4f",
+  "native_sof_sha256": "f5ce1d8655ccd51f99a245ea67cf2eab1850d7695bc4b2a67456d152410a638c",
+  "target_clock": "6M",
+  "clock_change_attempted": true,
+  "pass": false,
+  "sd_write_commands_sent": true,
+  "started_utc": "2026-11-02T16:51:08.990732+00:00",
+  "stages": [
+    {
+      "clock_operation": "clock-before",
+      "returncode": 0,
+      "output": "15M"
+    },
+    {
+      "clock_operation": "clock-set-6M",
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "clock_operation": "clock-confirm-6M",
+      "returncode": 0,
+      "output": "6M"
+    },
+    {
+      "phase": "recovery-boot",
+      "returncode": 0
+    },
+    {
+      "phase": "upload-boot",
+      "returncode": 0
+    },
+    {
+      "phase": "recovery-package",
+      "returncode": 0
+    },
+    {
+      "phase": "upload-package",
+      "returncode": 1
+    },
+    {
+      "clock_operation": "clock-restore",
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "clock_operation": "clock-restored-readback",
+      "returncode": 0,
+      "output": "15M"
+    }
+  ],
+  "original_clock": "15M",
+  "stage": "upload-package",
+  "error": "phase stopped: upload-package",
+  "restored_clock": "15M",
+  "original_clock_restored": true,
+  "private_server_stopped": true,
+  "usb_permissions_restored": true,
+  "finished_utc": "2026-11-02T16:53:28.099987+00:00"
+}

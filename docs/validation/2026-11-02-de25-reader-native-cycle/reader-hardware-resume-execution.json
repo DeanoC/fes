@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/nano-reader-native-resume-trial-20261102/experiment.py"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 147.70358882495202,
+  "log_sha256": "a353f19b8a4e301bb4454e0e5964592a7bfb8c27ff8568d4864545eefbf08646"
+}

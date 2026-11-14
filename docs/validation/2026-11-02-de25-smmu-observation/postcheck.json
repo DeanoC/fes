@@ -1,0 +1,224 @@
+{
+  "status": "passed",
+  "source_commit": "64157280e2e7b06d08c1e43fb7ceff6c0214e3ed",
+  "raw_console_sha256": "7095188f5c9c8508314233c3a496d5252f6d7710f0a3e1ff969de539d75b6fa8",
+  "raw_bytes": 4034,
+  "decoded": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "7d7770adbe1314e8"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 4376143067109496083,
+          "epoch": 3808460875,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "smmu",
+        "line": 41,
+        "values": {
+          "status": 0,
+          "reads": 26,
+          "idr0": 135233087,
+          "idr1": 242457880,
+          "aidr": 1,
+          "s_idr1": 2147483672,
+          "cr0": 0,
+          "ack": 0,
+          "gbpa": 0,
+          "agbpa": 0,
+          "s_cr0": 0,
+          "s_ack": 0,
+          "s_init": 0,
+          "s_gbpa": 0,
+          "s_agbpa": 0,
+          "identified": 1,
+          "settled": 1,
+          "bypass_controls_clear": 1
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 42,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 46,
+        "values": {
+          "id": "7d7770adbe1314e8"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 50,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 62,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 63,
+        "values": {
+          "id": "7d7770adbe1314e8"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 64,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216373888,
+          "malloc_start": 3216408576,
+          "malloc_end": 3220611072,
+          "reloc": 3220611072,
+          "fdt": 3216383424
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 71,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 4376143067109496083,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 80,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 4376143067109496083,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 81,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 82,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 83,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 84,
+        "values": {}
+      },
+      {
+        "stage": "go",
+        "line": 88,
+        "values": {}
+      }
+    ],
+    "errors": [],
+    "loader_ready": true,
+    "complete": true,
+    "last_checkpoint": "go",
+    "core_load_acceptance": false,
+    "smmu_observation": {
+      "status": 0,
+      "reads": 26,
+      "idr0": 135233087,
+      "idr1": 242457880,
+      "aidr": 1,
+      "s_idr1": 2147483672,
+      "cr0": 0,
+      "ack": 0,
+      "gbpa": 0,
+      "agbpa": 0,
+      "s_cr0": 0,
+      "s_ack": 0,
+      "s_init": 0,
+      "s_gbpa": 0,
+      "s_agbpa": 0,
+      "identified": 1,
+      "settled": 1,
+      "bypass_controls_clear": 1,
+      "secure_implemented": true,
+      "access_qualified": false
+    }
+  },
+  "uart_free": true,
+  "clock_restored": "15M",
+  "factory_restored": false,
+  "claim_retained": true,
+  "attempts_on_source": 2,
+  "fit_upload_fresh_readback": true,
+  "resume_fit_receipt_carried_forward": true,
+  "ddr_traffic_requested": false,
+  "core_load_acceptance": false
+}

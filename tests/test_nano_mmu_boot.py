@@ -1,0 +1,305 @@
+"""Selected MMU policy and complete boot-trace admission, without hardware."""
+import copy
+import hashlib
+import json
+from pathlib import Path
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+
+ROOT=Path(__file__).resolve().parents[1]
+sys.path[:0]=[str(ROOT/'platform/embedded/firmware'),str(ROOT/'platform/embedded/nano')]
+import nano_firmware_mmu as mmu
+import mmu_trace
+import mmu_status
+import mmu_logging
+import mmu_mailbox_view
+from test_nano_native_trace import trace,fixture,firmware_progress,atf_progress,BUILD,SEED
+from prepare_uboot import atf_descriptor
+
+
+def proof():
+    root=0x8003c000
+    diagnostic={name:dict(address=address,bytes=size,sha256='1'*64) for name,address,size in
+        (('write',0x80024000,4096),('restore',0x80026000,120),('capture',0x80025000,300),
+         ('vectors',0x80032000,2048),('park_vectors',0x80032800,2048),('park',0x80027000,8))}
+    diagnostic.update(decode_logging=mmu_logging.SHA,logging_state=root+24584,logging_state_bytes=8,status_inventory=mmu_status.SHA,runtime_vectors=0x80030000,saved_vbar=root+24576,saved_bytes=8,
+                      uart_data=0x10c02100,uart_status=0x10c02114,uart_polls=100000,uart_bytes=384)
+    diagnostic['hex_formatter']=dict(address=0x80023800,bytes=96,sha256='3'*64,contract=mmu_mailbox_view.HEX,
+        calls={name:[diagnostic[name]['address']+12] for name in ('write','restore','capture')})
+    diagnostic['mailbox_views']=dict(contract_sha256=mmu_mailbox_view.SHA,maximum_reads=18,hardware_authority=False,
+        sites=[{name:dict(address=0x80024000+phase*1000+offset,bytes=size,sha256='2'*64)
+                for name,offset,size in [('scope_before',64,356),('setup',420,28),('reads',448,24),('loop',472,12),('scope_after',484,356)]}
+               for phase in range(3)])
+    return dict(selected_policy=dict(mmu.RUNTIME_CONTRACT),witness=root+24576+64,witness_bytes=64,
+        transition_diagnostic=diagnostic,
+        startup_cache_helper=dict(address=0x80023000,bytes=44,sha256=mmu_trace.CACHE_HELPER_SHA),
+        layout=dict(tables_start=root,tables_end=root+24576,data_start=root+24576,data_end=root+24576+128,
+            tables={name:root+i*4096 for i,name in enumerate(mmu.NAMES)}))
+
+
+def row(phase):
+    r=dict(el=12,midr=0x412fd050,mpidr=0x81000000,mmfr0=2,daif=0x2c0,scr=0x530,
+        sctlr=0x30c5183a,tcr=0,root=0,mair=0,witness=0x80042040)
+    if phase=='after':r.update(sctlr=r['sctlr']|0x80005,tcr=mmu.TCR,root=0x8003c000,mair=mmu.MAIR)
+    return 'NOTICE:  FES_NANO_EL3_MMU phase='+phase+' '+\
+        ' '.join(name+'='+format(r[name],'x') for name in mmu_trace.FIELDS)+\
+        (' writes=4 memory=1\r\n' if phase=='after' else ' writes=0 memory=0\r\n')
+
+
+def step_rows():
+    return ['NOTICE:  FES_NANO_EL3_MMU_STEP phase='+phase+' operation='+str(operation)+'\r\n'
+            for phase,operation in mmu_trace.STEPS]
+
+
+def status_rows(phase='before'):
+    return (''.join('FES_NANO_EL3_MMU_STATUS phase='+phase+' index='+format(i,'02d')+' value=0000000000000000\r\n'
+                    for i in range(len(mmu_status.MMIO)+1))+
+            'FES_NANO_EL3_MMU_STATUS phase='+phase+' END ras=skip reason=feature\r\n')
+
+
+def log_rows(phase):
+    return ''.join('FES_NANO_EL3_MMU_LOG phase='+p+'\r\n' for p in (('arm-before','armed') if phase=='armed' else ('restore-before','restored')))
+
+
+def mailbox_rows(phase):
+    return ('FES_NANO_EL3_MMU_MAILBOX phase='+str(phase)+' BEGIN\r\n'+
+            'FES_NANO_EL3_MMU_MAILBOX phase='+str(phase)+' '+
+            'values='+('0000000000000000,'*6)+'\r\n')
+
+
+def vector_row(phase):
+    event=('FES_NANO_EL3_MMU_TRANSITION phase='+phase+' sctlr='+format(0x30c5183a|0x80005,'016x')+
+           ' vbar='+format(0x80032000 if phase=='enabled' else 0x80030000,'016x')+'\r\n')
+    return (log_rows('armed')+mailbox_rows(0)+event+mailbox_rows(1)+mailbox_rows(2) if phase=='enabled' else log_rows('restored')+event)
+
+
+def transition(rows=None):
+    rows=step_rows() if rows is None else rows
+    return row('before')+''.join(rows[:15])+status_rows()+vector_row('enabled')+''.join(rows[15:])+vector_row('restored')+row('after')
+
+
+def base_trace():
+    anchor='NOTICE:  FES_NANO_EL3_CAPTURE phase=before'
+    descriptor=('FES_NANO_SPL ATF target=80000000 bl32=0 bl33=80200000 fdt=0 params=bff00008 cold=21768 '
+        'cookie=464e433200000002 el=3 mpidr=81000000 sctlr=1000 scr=501 daif=3c0 bytes=90173 sha256='+'1'*64+'\r\n')
+    return firmware_progress(fixture().replace(anchor,''.join(atf_progress())+descriptor+anchor))
+
+
+def decode(raw,selected=True):
+    return trace.decode_native_boot(raw,BUILD,SEED,atf=atf_descriptor('1'*64,90173),
+        firmware_ram_trace=True,firmware_mmu=proof() if selected else None)
+
+
+class NanoMMUBootTests(unittest.TestCase):
+    def test_vendor_cache_repair_preserves_the_original_invalidation_and_returns(self):
+        source='before\n'+mmu.VENDOR_CACHE_BODY+'\nafter\n'
+        repaired=mmu.restore_vendor_cache(source)
+        self.assertEqual(repaired.replace('\tmsr\tSCR_EL3, x0\n\tisb\n\tret\n',''),source)
+        for bad in (source+mmu.VENDOR_CACHE_BODY,source.replace('ALLE2','ALLE1'),repaired):
+            with self.assertRaises(ValueError):mmu.restore_vendor_cache(bad)
+
+    def installation(self, source):
+        # Small source exports exercise transformations and their hash binding.
+        # The real vendor hashes are separately exercised by the matched build.
+        files={mmu.LD:'before\n    __RW_START__ = . ;\n#else\n    __RW_START__ = . ;\n',
+            mmu.COMMON_LD:'*(SORT_BY_ALIGNMENT(.data*))\n*(SORT_BY_ALIGNMENT(.bss*))\n',
+            mmu.VENDOR_CACHE:mmu.VENDOR_CACHE_BODY+'\n',
+            mmu.ram.ENTRY:'fes_ram_bss_clean\n\tfes_ram_uart_text fes_nano_ram_runtime_exit_before\n\tb\tel3_exit\n',
+            'plat/intel/soc/agilex5/platform.mk':'BL31_SOURCES += original.c\n'}
+        for name,text in files.items():
+            path=source/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(text)
+        (source/'plat/intel/soc/common/include').mkdir(parents=True)
+        binding=dict(sources={mmu.ram.ENTRY:hashlib.sha256(files[mmu.ram.ENTRY].encode()).hexdigest()})
+        return files,binding
+
+    def test_install_composes_ram_binding_and_detects_every_changed_installed_file(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source=Path(temp);files,ram_binding=self.installation(source)
+            profile=dict(usb_shared=True,initial_tape=True,computer_reload=True,hps_menu_program={},
+                         firmware_mmu=dict(mmu.RUNTIME_CONTRACT))
+            with patch.object(mmu.ram,'checked',return_value=mmu.ram.CONTRACT),\
+                    patch.object(mmu,'LD_SHA',hashlib.sha256(files[mmu.LD].encode()).hexdigest()),\
+                    patch.object(mmu,'COMMON_LD_SHA',hashlib.sha256(files[mmu.COMMON_LD].encode()).hexdigest()),\
+                    patch.object(mmu,'VENDOR_CACHE_SHA',hashlib.sha256(files[mmu.VENDOR_CACHE].encode()).hexdigest()):
+                binding=mmu.install(source,profile,ram_binding)
+            mmu.ram.verify_installed(source,ram_binding);mmu.verify_installed(source,binding)
+            self.assertEqual(binding['prior_ram_entry_sha256'],hashlib.sha256(files[mmu.ram.ENTRY].encode()).hexdigest())
+            entry=(source/mmu.ram.ENTRY).read_text()
+            self.assertLess(entry.index('fes_ram_bss_clean'),entry.index('bl\tfes_nano_mmu_platform_boot'))
+            self.assertIn('cbnz\tx0, .Lfes_ram_park\n\tb\tel3_exit',entry)
+            self.assertIn('\tmsr\tSCR_EL3, x0\n\tisb\n\tret\nendfunc invalidate_cache_low_el',
+                          (source/mmu.VENDOR_CACHE).read_text())
+            common=(source/mmu.COMMON_LD).read_text()
+            self.assertIn('*(SORT_BY_ALIGNMENT(.data*)) *(.fes_mmu_witness)',common)
+            self.assertNotIn('*(SORT_BY_ALIGNMENT(.bss*)) *(.fes_mmu_witness)',common)
+            for name in binding['sources']:
+                with self.subTest(name=name):
+                    path=source/name;original=path.read_bytes();path.write_bytes(original+b' changed')
+                    with self.assertRaises(ValueError):mmu.verify_installed(source,binding)
+                    path.write_bytes(original)
+            with self.assertRaises(ValueError):mmu.verify_installed(source,dict(binding,contract={}))
+
+    def test_install_rejects_stale_ram_or_unreviewed_vendor_source_before_writing(self):
+        for changed in (mmu.ram.ENTRY,mmu.LD,mmu.COMMON_LD,mmu.VENDOR_CACHE):
+            with self.subTest(changed=changed),tempfile.TemporaryDirectory() as temp:
+                source=Path(temp);files,ram_binding=self.installation(source)
+                (source/changed).write_text(files[changed]+' changed')
+                before={str(p.relative_to(source)):p.read_bytes() for p in source.rglob('*') if p.is_file()}
+                profile=dict(usb_shared=True,initial_tape=True,computer_reload=True,hps_menu_program={},
+                             firmware_mmu=dict(mmu.RUNTIME_CONTRACT))
+                with patch.object(mmu.ram,'checked',return_value=mmu.ram.CONTRACT),\
+                        patch.object(mmu,'LD_SHA',hashlib.sha256(files[mmu.LD].encode()).hexdigest()),\
+                        patch.object(mmu,'COMMON_LD_SHA',hashlib.sha256(files[mmu.COMMON_LD].encode()).hexdigest()),\
+                        patch.object(mmu,'VENDOR_CACHE_SHA',hashlib.sha256(files[mmu.VENDOR_CACHE].encode()).hexdigest()):
+                    with self.assertRaises(ValueError):mmu.install(source,profile,ram_binding)
+                self.assertEqual(before,{str(p.relative_to(source)):p.read_bytes() for p in source.rglob('*') if p.is_file()})
+
+    def test_policy_is_fixed_and_requires_complete_ram_and_role_selection(self):
+        self.assertEqual(hashlib.sha256(json.dumps(mmu.RUNTIME_CONTRACT,sort_keys=True,separators=(',',':')).encode()).hexdigest(),mmu_trace.POLICY_SHA)
+        self.assertEqual(hashlib.sha256(mmu.VENDOR_CACHE_CODE).hexdigest(),mmu_trace.CACHE_HELPER_SHA)
+        p=dict(usb_shared=True,initial_tape=True,computer_reload=True,hps_menu_program={})
+        with patch.object(mmu.ram,'checked',return_value=mmu.ram.CONTRACT):
+            self.assertEqual(mmu.selected(p,True),mmu.RUNTIME_CONTRACT)
+            for name in p:
+                bad=dict(p);bad.pop(name)
+                with self.subTest(name=name),self.assertRaises(ValueError):mmu.selected(bad,True)
+            bad=dict(p,firmware_mmu=dict(mmu.RUNTIME_CONTRACT,mair=0x4404ff))
+            with self.assertRaises(ValueError):mmu.checked(bad)
+        with self.assertRaises(ValueError):mmu.selected(p,1)
+        self.assertIsNone(mmu.selected({},False))
+
+    def test_trace_witness_must_stay_in_private_initialized_data_and_off_lifetime_state(self):
+        for address in (0x5f000,0x80200000,0x80042041,0x80042000,0x80042080):
+            p=proof();p['witness']=address
+            with self.subTest(address=hex(address)),self.assertRaises(ValueError):mmu_trace.parameters(p)
+        for name,value in (('data_start',0x80042008),('data_end',0x80200001),('data_end',0x80042040)):
+            p=proof();p['layout'][name]=value
+            with self.subTest(name=name,value=value),self.assertRaises(ValueError):mmu_trace.parameters(p)
+
+    def test_complete_post_cleanup_transition_is_required_before_loader(self):
+        raw=base_trace().replace('U-Boot 2025.01-fes-nano-',transition()+'U-Boot 2025.01-fes-nano-',1)
+        good=decode(raw);self.assertTrue(good['complete'],good['errors'])
+        self.assertTrue(good['firmware_mmu_trace']['complete'])
+        self.assertFalse(decode(raw,False)['loader_ready'])
+        self.assertFalse(decode(base_trace())['loader_ready'])
+        for rows in (row('before'),row('after'),row('after')+row('before'),row('before')*2+row('after'),row('before')+row('after')*2):
+            damaged=raw.replace(transition(),rows)
+            self.assertFalse(decode(damaged)['loader_ready'])
+        early=raw.replace(transition(),'').replace('FES_NANO_RAM RUNTIME phase=main-before',transition()+'FES_NANO_RAM RUNTIME phase=main-before')
+        self.assertFalse(decode(early)['loader_ready'])
+
+    def test_every_register_memory_or_write_count_mismatch_rejects(self):
+        raw=base_trace().replace('U-Boot 2025.01-fes-nano-',transition()+'U-Boot 2025.01-fes-nano-',1)
+        for name in (*mmu_trace.FIELDS,'writes','memory'):
+            token=next(t for t in row('after').split() if t.startswith(name+'='))
+            value=int(token.split('=')[1],16);replacement=name+'='+format(value^1,'x')
+            damaged=raw.replace(row('after'),row('after').replace(token,replacement))
+            with self.subTest(name=name):self.assertFalse(decode(damaged)['loader_ready'])
+
+    def test_each_missing_duplicate_changed_or_early_step_rejects(self):
+        rows=step_rows();steps=''.join(rows)
+        raw=base_trace().replace('U-Boot 2025.01-fes-nano-',transition()+'U-Boot 2025.01-fes-nano-',1)
+        for i,step in enumerate(rows):
+            for damaged in (rows[:i]+rows[i+1:],
+                            rows[:i]+[step,step]+rows[i+1:],
+                            rows[:i]+[step.replace('operation=','operation=9')]+rows[i+1:]):
+                with self.subTest(index=i,damaged=damaged):
+                    self.assertFalse(decode(raw.replace(transition(),transition(damaged)))['loader_ready'])
+        self.assertFalse(decode(raw.replace(transition(),steps+row('before')+row('after')))['loader_ready'])
+        self.assertFalse(decode(raw.replace(transition(),row('before')+row('after')+steps))['loader_ready'])
+
+    def test_interrupted_transition_retains_only_observed_bounded_steps(self):
+        for i in range(len(mmu_trace.STEPS)+1):
+            rows=step_rows()
+            prefix=''.join(rows[:min(i,15)])+(status_rows()+vector_row('enabled') if i>=15 else '')+''.join(rows[15:i])
+            raw=base_trace().split('U-Boot 2025.01-fes-nano-',1)[0]+row('before')+prefix
+            result=decode(raw);self.assertFalse(result['loader_ready'])
+            self.assertEqual(len(result['firmware_mmu_trace']['steps']),i)
+            self.assertFalse(result['firmware_mmu_trace']['complete'])
+
+    def test_both_exact_vector_transitions_are_required_in_order(self):
+        raw=base_trace().replace('U-Boot 2025.01-fes-nano-',transition()+'U-Boot 2025.01-fes-nano-',1)
+        for phase in ('enabled','restored'):
+            event=vector_row(phase)
+            for replacement in ('',event*2,event.replace('sctlr=','sctlr=1'),event.replace('vbar=000000008003','vbar=000000008004')):
+                with self.subTest(phase=phase,replacement=replacement):self.assertFalse(decode(raw.replace(event,replacement))['loader_ready'])
+        self.assertFalse(decode(raw.replace(vector_row('enabled'),'').replace(row('before'),vector_row('enabled')+row('before')))['loader_ready'])
+
+    def test_fault_is_retained_once_and_can_never_admit_the_loader(self):
+        values=dict(esr=0x9600004f,elr=0x80026000,far=0x8003dff0,spsr=0x3cd,sp=0x8003dff0,
+                    sctlr=0xcd183f,tcr=mmu.TCR,root=0x8003c000,mair=mmu.MAIR,scr=0x238,vbar=0x80032000,sp0=0x57f00)
+        fault='FES_NANO_EL3_MMU_FAULT '+' '.join(k+'='+format(values[k],'016x') for k in mmu_trace.FAULT_FIELDS)+'\r\n'
+        prefix=base_trace().split('U-Boot 2025.01-fes-nano-',1)[0]+row('before')+''.join(step_rows()[:15])
+        for enabled in ('',status_rows()+vector_row('enabled')):
+            result=decode(prefix+enabled+fault+fault*100+transition())
+            state=result['firmware_mmu_trace'];self.assertFalse(result['loader_ready'] or state['complete'] or state['valid'])
+            self.assertEqual(len(state['faults']),1);self.assertEqual(state['faults'][0]['esr'],values['esr'])
+            self.assertEqual(state['faults'][0]['ec'],0x25)
+            self.assertEqual(state['faults'][0]['interrupted_sp'],values['sp'])
+        for field in ('vectors','runtime_vectors','uart_polls','saved_vbar'):
+            p=proof()
+            if isinstance(p['transition_diagnostic'][field],dict):p['transition_diagnostic'][field]['address']+=4
+            else:p['transition_diagnostic'][field]+=1
+            with self.subTest(field=field),self.assertRaises(ValueError):mmu_trace.parameters(p)
+
+    def test_status_inventory_after_fault_is_diagnostic_only_at_each_late_step(self):
+        values=dict(esr=0xbe000011,elr=0x80026000,far=0x5c780,spsr=0x2cc,sp=0x58000,
+                    sctlr=0x30c5183a|0x80005,tcr=mmu.TCR,root=0x8003c000,mair=mmu.MAIR,
+                    scr=0x238,vbar=0x80032000,sp0=0x57e80)
+        fault='FES_NANO_EL3_MMU_FAULT '+' '.join(k+'='+format(values[k],'016x') for k in mmu_trace.FAULT_FIELDS)+'\r\n'
+        prefix=base_trace().split('U-Boot 2025.01-fes-nano-',1)[0]+row('before')+''.join(step_rows()[:15])
+        for stop in (15,18,23,26):
+            raw=prefix+status_rows()+vector_row('enabled')+''.join(step_rows()[15:stop])+fault+status_rows('fault')
+            report=decode(raw);s=report['firmware_mmu_trace']
+            self.assertFalse(report['loader_ready'] or s['valid'] or s['complete'])
+            self.assertTrue(s['status_before']['complete'] and s['status_fault']['complete'])
+            self.assertEqual(s['faults'][0]['interrupted_sp'],values['sp0'])
+            self.assertEqual(s['faults'][0]['ec'],47)
+        partial=prefix+status_rows().splitlines(keepends=True)[0]+\
+                'FES_NANO_EL3_MMU_STATUS phase=before index=01 value=\r\n'+fault+status_rows('fault')
+        s=decode(partial)['firmware_mmu_trace'];self.assertFalse(s['valid'] or s['complete'])
+        self.assertEqual(s['status_before']['pending']['index'],1);self.assertTrue(s['status_fault']['complete'])
+        for interrupted in ('FES_NANO_EL3_MMU_STATUS phase=before index=01 value=123',
+                            'FES_NANO_EL3_MMU_STATUS phase=bef'):
+            report=decode(prefix+interrupted+'\r\n'+fault*20+status_rows('fault')+transition())
+            s=report['firmware_mmu_trace']
+            self.assertFalse(report['loader_ready'] or s['valid'] or s['complete'])
+            self.assertEqual(len(s['faults']),1)
+            self.assertEqual(s['faults'][0]['esr'],values['esr'])
+            self.assertTrue(s['status_fault']['complete'])
+        report=decode(prefix+status_rows('fault')+transition());self.assertFalse(report['loader_ready'])
+
+    def test_status_completion_cannot_be_omitted_or_replayed_into_boot_authority(self):
+        raw=base_trace().replace('U-Boot 2025.01-fes-nano-',transition()+'U-Boot 2025.01-fes-nano-',1)
+        for replacement in ('',status_rows()*2,status_rows().replace('ras=skip reason=feature','ras=complete')):
+            with self.subTest(replacement=replacement):self.assertFalse(decode(raw.replace(status_rows(),replacement))['loader_ready'])
+
+    def test_logging_cannot_be_missing_replayed_or_restored_before_activation(self):
+        raw=base_trace().replace('U-Boot 2025.01-fes-nano-',transition()+'U-Boot 2025.01-fes-nano-',1)
+        self.assertTrue(decode(raw)['loader_ready'])
+        for phase in ('arm-before','armed','restore-before','restored'):
+            event='FES_NANO_EL3_MMU_LOG phase='+phase+'\r\n'
+            for replacement in ('',event*2,'FES_NANO_EL3_MMU_LOG FAIL phase=restore\r\n'):
+                with self.subTest(phase=phase,replacement=replacement):self.assertFalse(decode(raw.replace(event,replacement))['loader_ready'])
+        moved=raw.replace(log_rows('restored'),'').replace(log_rows('armed'),log_rows('armed')+log_rows('restored'))
+        self.assertFalse(decode(moved)['loader_ready'])
+        prefix=base_trace().split('U-Boot 2025.01-fes-nano-',1)[0]+row('before')+''.join(step_rows()[:15])+status_rows()
+        report=decode(prefix+'FES_NANO_EL3_MMU_LOG phase=arm-before\r\nFES_NANO_EL3_MMU_LOG FAIL phase=enable\r\n'+log_rows('restored')+transition())
+        state=report['firmware_mmu_trace'];self.assertFalse(report['loader_ready'] or state['valid'] or state['complete'])
+        self.assertTrue(state['logging']['failed'] and state['logging']['restored'])
+
+    def test_bad_proof_and_flooded_failed_records_never_recover(self):
+        for key,value in (('witness',0x50000),('witness_bytes',128),('selected_policy',{}),
+                          ('startup_cache_helper',{}),('startup_cache_helper',dict(address=0x80023000,bytes=44,sha256='0'*64))):
+            p=proof();p[key]=value
+            with self.assertRaises(ValueError):mmu_trace.parameters(p)
+        s=mmu_trace.state();args=dict(expected=mmu_trace.parameters(proof()),startup_complete=True,
+            exit_cache_complete=True,uboot_seen=False,prior_valid=True)
+        self.assertIsNotNone(mmu_trace.observe(s,'FES_NANO_EL3_MMU FAIL status=-7',1,**args))
+        for i in range(100):mmu_trace.observe(s,row('after').removeprefix('NOTICE:  ').strip(),i+2,**args)
+        self.assertFalse(s['valid'] or s['complete']);self.assertLessEqual(len(s['records']),2)
+
+
+if __name__=='__main__':unittest.main()

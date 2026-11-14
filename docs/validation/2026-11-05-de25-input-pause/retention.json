@@ -1,0 +1,29 @@
+{
+  "status": "passed",
+  "source": "98ce71bb80a89a045d33f0d0e6265e1d69a114ec",
+  "path": "/home/deano/fes-retained/de25-input-pause-20261105-r1",
+  "archive_sha256": "6ba81075838398debec77199e0bd23a959d5109bdf4bba3f7c737d8d262a6813",
+  "archive_bytes": 28052246,
+  "regular_files_verified": 480,
+  "source_update_sha256": "54155969bf8954e88f77efbed83c0b077ad850b73ad2780f555751861d3f76ab",
+  "source_update_prerequisite": "3c269a723592b16188e2f7bab9eabd72563a6a6e",
+  "required_prior_source_bundles": {
+    "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/source.bundle": "daeee37ba8c039ffc165c2c92d7a639af01c441099fe1359ae207846fa75216f",
+    "/home/deano/fes-retained/de25-tenfoot-core-cycle-20261104-r2/source-update.bundle": "1def434cc2e97d68da24158e8b153e238ecdcf024c060c60c62c8f8a68b8d497",
+    "/home/deano/fes-retained/de25-usb-cycle-20261104-r1/source-update.bundle": "1c225f6f9a2ad4d40c9895e652d72b659ca8bcfc0800886604a15c6477791653",
+    "/home/deano/fes-retained/de25-usb-cycle-20261104-r1/publication.bundle": "557175aa3b2d55c76c1eb09ed1ceb3cc460121676d62c0283b307c07ea02fa96",
+    "/home/deano/fes-retained/de25-gamepad-tenfoot-20261104-r1/source-update.bundle": "3677473b9bdba14a6128b4be7a0566b152a58f296e758e3d8101f903bd976488",
+    "/home/deano/fes-retained/de25-gamepad-tenfoot-20261104-r1/publication.bundle": "a4d038b90fa7f40a4d265043f561b8a7716c637c72c47399146aa25a8a8b4cee",
+    "/home/deano/fes-retained/de25-usb-composition-20261104-r1/source-update.bundle": "0b6d1126ad2440411944f1a25c28ad735d92d1245fa718988ef5dc62f716916e",
+    "/home/deano/fes-retained/de25-usb-composition-20261104-r1/publication.bundle": "4c0b28a584c58979b7af0603963f64d41c85c0a50391889bdc8964f5743aa7f5",
+    "/home/deano/fes-retained/de25-usb-master-20261105-r1/source-update.bundle": "8cafec8cdc642c2aa53835a157eb001b97eba0bc58c0451cc0f55940602574cf",
+    "/home/deano/fes-retained/de25-usb-master-20261105-r1/publication.bundle": "7ded9e73b58e3f72e9bbbd85dd492fbb91886c574238566e8800b446e6240cb3",
+    "/home/deano/fes-retained/de25-usb-shared-service-20261105-r1/source-update.bundle": "5569a1680ef9aecc56f588df7983eb8573927cc320c1b9fe8e11e4c691201bb4",
+    "/home/deano/fes-retained/de25-usb-shared-service-20261105-r1/publication.bundle": "6ffaa301a62679042ec250111ca7768f6249221d8aa65ad9b86f83011b3944b5"
+  },
+  "source_with_prerequisites_restored": true,
+  "strict_fsck_passed": true,
+  "standalone_toolchain_export": false,
+  "working_artifacts_removed": false,
+  "hardware": false
+}

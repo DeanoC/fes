@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/nano-reader-native-resume-trial-20261102/recovery.py",
+    "recovery-package",
+    "--check-only"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.20078339602332562,
+  "log_sha256": "a523ee42fffd96488cac636afde76466e2c62a69ac76a868226b466cf5b94836"
+}

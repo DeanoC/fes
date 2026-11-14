@@ -1,0 +1,187 @@
+{
+  "scope": "opt-in-publication-integration-refresh",
+  "merged_main": "daac138c7c9eb5d40009314fd8dbd797dffd2c3f",
+  "merge_head": "bbd4a6d0ecc9764c6dbccad8a75ca04cf1c63d63",
+  "working_tree_patch_included": true,
+  "paired_current_cases": 691,
+  "hardware_acceptance": false,
+  "checks": {
+    "opt-in-refresh-generated": {
+      "argv": [
+        "python3",
+        "scripts/generate.py",
+        "--write"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 8.004918608115986,
+      "log_sha256": "98aa9342b3d813336d2f4a5981e9eea4fc6b8ce23987c9a2063c903df98c7d91"
+    },
+    "opt-in-workflow-repaired": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "tests.test_ci_workflow",
+        "tests.test_embedded_opt_in",
+        "-q"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.802420002175495,
+      "log_sha256": "074a088a98dd6c5bba99778cf68b694f1a1da9f272a2094e5f2875decdb9144f"
+    },
+    "opt-in-parent-repair-check": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "tests.test_de25_computer_model",
+        "tests.test_nano_identity",
+        "tests.test_nano_cold.NanoColdTests.test_cold_producer_consumer_and_failures",
+        "tests.test_nano_native_trace.NativeFATFileTraceTests.test_actual_firmware_pio_fat_records_and_payload_match_decoder",
+        "tests.test_nano_native_trace.NativeFastFATFileTraceTests.test_actual_c_dispatch_pio_clock_fat_and_independent_readback_match_decoder",
+        "-q"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 49.893821662990376,
+      "log_sha256": "e55be635ae4b490edae84137c066b2326e56268e1dd3eb800f6a16fb49131c25"
+    },
+    "opt-in-native-module-repaired": {
+      "argv": [
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-timeout",
+        "240s",
+        "./..."
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 229.12761602713726,
+      "log_sha256": "9fdca62a4c369009314d73e277fa028608592b014500c7aadfc47d7d4523d723"
+    },
+    "opt-in-tenfoot-main-cross": {
+      "argv": [
+        "env",
+        "FES_EXPERIMENTAL_DE25_EMBEDDED=1",
+        "python3",
+        "platform/embedded/tamago/run.py",
+        "tenfoot",
+        "--board",
+        "de25-nano",
+        "--profile",
+        "platform/embedded/nano/probe-profile.json",
+        "--compiler",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+        "--module-cache",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/mod",
+        "--output",
+        "out/opt-in-tenfoot-main-cross"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 10.612801055889577,
+      "log_sha256": "12f8e691c3afd6f1752f0de95f8a5e68633271f5bd7b8ce36a9664e401580893"
+    },
+    "opt-in-current-compatibility-parity": {
+      "argv": [
+        "python3",
+        "platform/embedded/runtime/verify_compatibility.py",
+        "--output",
+        "out/opt-in-current-compatibility-parity"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 37.087405037134886,
+      "log_sha256": "7935a8465015a9f3a1f6b24823b96abfbb87d792772c735d9f7c93166ff5aae7"
+    },
+    "opt-in-doc-policy-check": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "tests.test_affected",
+        "tests.test_test_changed",
+        "tests.test_test_policy",
+        "tests.test_ci_workflow",
+        "tests.test_check_doc_links",
+        "-q"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 20.41817121906206,
+      "log_sha256": "3e86becadcd401db78bc745999401be843b06d4d1b027c2fd30deeea43f85d12"
+    },
+    "opt-in-generator-check": {
+      "argv": [
+        "python3",
+        "scripts/generate.py",
+        "--check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 21.51775540690869,
+      "log_sha256": "6560ab46893638b4ca245d6cf5fb12d507402ef14d4a1b315f006707b9f40037"
+    },
+    "opt-in-producer-cleanup-check": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "sources/misteross/tests",
+        "-p",
+        "test_pcxt_dos_acceptance.py",
+        "-q"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.401612777961418,
+      "log_sha256": "7e30f6e464160e2546b9541cd1b962e5fa392bb609c66217720ed08283848fc5"
+    },
+    "opt-in-doc-links": {
+      "argv": [
+        "python3",
+        "scripts/check_doc_links.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.6008554839063436,
+      "log_sha256": "112ab742576d07de470e5efa97b5e38a5efe2f0f6adabfdaeec5618439afe125"
+    },
+    "opt-in-ui-main-merge": {
+      "argv": [
+        "go",
+        "-C",
+        "sources/FogCast",
+        "test",
+        "-race",
+        "-timeout",
+        "180s",
+        "./ui/tenfoot",
+        "./ui/rooms",
+        "./cmd/fogcast-embedded-host"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 128.294858193025,
+      "log_sha256": "8461578aba96259fd4e96fb2eef4236626d47169b992d4d331be5983c7a8df8e"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "status": "passed",
+  "source_commit": "6def94cfbcb0f6bf1ee0435a0bbafce240665837",
+  "base_commit": "5665860d60787910d3d651acdb34446714cb1898",
+  "native_artifact_source": "5665860d60787910d3d651acdb34446714cb1898",
+  "scope": "host decoder and diagnostic evidence only; no native or FPGA byte changes",
+  "affected_commands": [
+    "test_affected.py",
+    "test_test_changed.py",
+    "committed whitespace",
+    "working whitespace",
+    "parent Python regressions",
+    "working-tree generated consumer consistency"
+  ],
+  "log_sha256": "c6b59383db7269ead40a898ce942c2c0160239618a36c02973934e15f0b34435",
+  "focused_test_methods": 4,
+  "saved_capture_replay": true,
+  "damaged_captures_rejected": 35,
+  "startup_omissions_rejected": 16,
+  "additional_hardware_runs": 0
+}

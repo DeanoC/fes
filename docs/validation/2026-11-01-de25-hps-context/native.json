@@ -1,0 +1,248 @@
+{
+  "serial": "TRWU8CBL",
+  "source_commit": "9743c0819eb34e3ebcce81f286eb2210a37be22b",
+  "phase": "native",
+  "native_build_source_commit": "6e8102da071676abe56a38e7deca39b673a8d394",
+  "sof_sha256": "616ee321fbef264be244f3725ad79905707b237a8968b64241ed1d4f4db44910",
+  "initial_card_image_sha256": "42ac2e14fcb224fb8f39c38b0f26e7999b31c800180bd22489619fdc39f4bacf",
+  "card_reference_scope": "historical preparation only; live file verification is in the new upload receipt",
+  "fit_sha256": "b1f0cfe34c1aba102e7d2bf7589b6862a7df0cf14eba4581ec69b3f71e573eda",
+  "started_utc": "2026-11-01T19:13:58.063428+00:00",
+  "stage": "PASS native",
+  "programming_attempted": true,
+  "fesboot_sent": true,
+  "pass": true,
+  "sd_write_commands_sent": false,
+  "qualified_recovery_receipt_sha256": "8324e60c370a739a22e97479cc64b2b69d77199fcbc2dc623faf3fb6f757c1f9",
+  "live_card_receipt_sha256": "f48ffe2d70940cf5d893c65d007a7350f342c24c8f483f6814beea07dcd9923a",
+  "prior_stop_receipt_sha256": "259d5d53b789c9ed403e067d9a331c5a5ab1894adb6ea1a44c064f0d653eb9d1",
+  "runner_sha256": "7b4075e76d97d9b61276d9cfdaae453bd3c2b099a5ebb05af01e0d01ee675224",
+  "clock_checks": [
+    {
+      "clock": "6M",
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    },
+    {
+      "clock": "6M",
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    }
+  ],
+  "jtag_id": "4362C0DD",
+  "boot_trace": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "d0584135f55f2ad9"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 5380823972543936707,
+          "epoch": 4408671075,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 41,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 45,
+        "values": {
+          "id": "d0584135f55f2ad9"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 49,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 61,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 62,
+        "values": {
+          "id": "d0584135f55f2ad9"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 63,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216373888,
+          "malloc_start": 3216408576,
+          "malloc_end": 3220611072,
+          "reloc": 3220611072,
+          "fdt": 3216383136
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 70,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 5380823972543936707,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 79,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 5380823972543936707,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 80,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 81,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 82,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 83,
+        "values": {}
+      },
+      {
+        "stage": "hps_context",
+        "line": 84,
+        "values": {
+          "sha256": "94da3557f175eae05144d70937c3afceda20c6c9f9ca9d25155535da3e0814fc",
+          "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+          "build_id": "e25bb65a1d14a2bbbddf4c770ea033e5",
+          "owner": 5380823972543936707,
+          "generation": 1
+        }
+      }
+    ],
+    "errors": [],
+    "loader_ready": true,
+    "complete": true,
+    "last_checkpoint": "hps_context",
+    "core_load_acceptance": false
+  },
+  "programming_complete": true,
+  "build_id": "d0584135f55f2ad9",
+  "secure_cold_boot_verified": true,
+  "native_hps_context_expected": {
+    "sha256": "94da3557f175eae05144d70937c3afceda20c6c9f9ca9d25155535da3e0814fc",
+    "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+    "build_id": "e25bb65a1d14a2bbbddf4c770ea033e5"
+  },
+  "physical_activation": false,
+  "ownership_snapshots": [
+    [
+      "before-entry",
+      "46424f31000000df",
+      "4aac86e4ea6338c3",
+      "1"
+    ],
+    [
+      "after-remove",
+      "46424f31000000df",
+      "4aac86e4ea6338c3",
+      "1"
+    ]
+  ],
+  "observed_markers": [
+    "spl",
+    "initial",
+    "scope",
+    "mmc",
+    "fit",
+    "spl_handoff",
+    "provider",
+    "uboot",
+    "dram",
+    "prompt",
+    "boot",
+    "memory",
+    "before-entry",
+    "after-remove",
+    "live",
+    "handoff",
+    "el2",
+    "el1",
+    "hps_context"
+  ],
+  "usb_permissions_restored": true,
+  "console_sha256": "655a5c2a5ec07b67b3a5e80ec35fa4675e2aa275ee1f7f30221ec3bf19dee691",
+  "finished_utc": "2026-11-01T19:14:21.973586+00:00",
+  "decoder_sha256": "03f927577503a44744370e0cd290cbee3b2cd72d7dd4fc4d16316932cc830327"
+}

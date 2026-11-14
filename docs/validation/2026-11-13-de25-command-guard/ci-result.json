@@ -1,0 +1,193 @@
+{
+  "source_commit": "3caa3e3cfd870b109516dddba6a87c847a4c4133",
+  "run_id": 43428861389,
+  "run_url": "https://github.com/DeanoC/fes/actions/runs/43428861389",
+  "conclusion": "failure",
+  "jobs": [
+    {
+      "name": "plan",
+      "id": 131897000225,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "simulation-tools",
+      "id": 131897169360,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "host (2)",
+      "id": 131897169387,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "contracts",
+      "id": 131897169398,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "consistency",
+      "id": 131897169421,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "parent-tests (software)",
+      "id": 131897169440,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "host (1)",
+      "id": 131897169441,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "runtime",
+      "id": 131897169445,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "parent-tests (media)",
+      "id": 131897169459,
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "fpga-producer",
+      "id": 131897169474,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "host (3)",
+      "id": 131897169615,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (pcxt, sim-fes-pcxt-machine)",
+      "id": 131897403290,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-integrated)",
+      "id": 131897403297,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (menu, sim-fes-menu)",
+      "id": 131897403304,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (pcxt, sim-fes-pcxt-smoke)",
+      "id": 131897403305,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (apple2, sim-fes-apple2)",
+      "id": 131897403333,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (coleco, sim-fes-coleco-unit)",
+      "id": 131897403340,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (atari-st, sim-fes-atari-st-smoke)",
+      "id": 131897403348,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (coleco, sim-fes-coleco-diagnostic)",
+      "id": 131897403372,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (pc386, sim-fes-pc386-scroll)",
+      "id": 131897403392,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (c64, sim-fes-c64-smoke)",
+      "id": 131897403395,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (coleco, sim-fes-coleco-board-graphics)",
+      "id": 131897403397,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (coleco, sim-fes-coleco-unit-oss)",
+      "id": 131897403409,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (application, sim-fes-application)",
+      "id": 131897403489,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (pc386, sim-fes-pc386)",
+      "id": 131897403531,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (pcxt, sim-fes-pcxt-write)",
+      "id": 131897403571,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (pcxt, sim-fes-pcxt-media)",
+      "id": 131897403620,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (pcxt, sim-fes-pcxt-mailbox)",
+      "id": 131897403665,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (pcxt, sim-fes-pcxt-fdc)",
+      "id": 131897403929,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "fpga-simulation (pong, sim-fes-pong)",
+      "id": 131897405387,
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "failed_test": "TestTrialStorageRefreshReopensHeldBackFactory",
+  "failed_package": "github.com/DeanoC/fes/platform/internal/kitsoftware",
+  "message": "bootstrap agent unexpectedly opened durable packages <nil>",
+  "package_source_unchanged_against_base": "daac138c7c9eb5d40009314fd8dbd797dffd2c3f",
+  "failure_is_not_waived": true
+}

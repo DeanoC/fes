@@ -1,0 +1,45 @@
+{
+  "source_head": "82ad1d0e6a78f0717e222f739a0eb933fc1bb0a6",
+  "base": "4e3260456df6da10c502c47d09185d6c751dd9db",
+  "scope": "entry compression only; all SDK inputs unchanged",
+  "sdk_source_hashes_unchanged": true,
+  "results": {
+    "entry-codec": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_entry_payload.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.8021858551073819,
+      "log_sha256": "fbc294a8079b2cbcc3d44deb3e7b124bd6db174df608e114db220dd7610af402"
+    },
+    "entry-regressions": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_entry*.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.201172832865268,
+      "log_sha256": "b88621fbd98baf2202ed853d60d682e81e241108a32e40311e7a1dccb3df3768"
+    }
+  },
+  "hardware_actions": false
+}

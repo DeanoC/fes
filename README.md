@@ -26,6 +26,14 @@ builds the AArch64 runtime/agent, sealed MENU, release, boot selector and
 reproducible card through ordinary FES commands. Its real kernel/rootfs virtual
 boot passes; the subsequent managed native integration proof covers MENU and
 catalog ZX81, with full normal-kit acceptance still open.
+The separate [Linux-free native experiment](platform/embedded/README.md),
+selected explicitly with `FES_EXPERIMENTAL_DE25_EMBEDDED=1`, now
+passes bounded physical ZX81 → ZX80 → ZX81 package loading and return on
+DE25-Nano, with selected FPGA/ROM identities checked over serial. Bounded native
+ZX81 installation and independent reboot discovery/launch also pass. Broader
+package/device support, source-memory retirement and full appliance acceptance
+remain open. Linux build and image defaults are unchanged. The default
+appliance and playable packages target DE10-Nano.
 
 Agents: read [AGENTS.md](AGENTS.md), then the
 [development guide](docs/development.md) and the selected component's guidance.

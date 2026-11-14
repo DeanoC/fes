@@ -1,0 +1,264 @@
+{
+  "status": "passed",
+  "source": "6c932050e4405331dcffeadac3b768a9f4699899",
+  "base": "9264d374f24f85c5ecf71f6b46351d81cd42f5a3",
+  "classification": "host/model typed gamepad input through actual Tenfoot App, program backend and owned service; ARM64 cross-build; no physical combined input/core acceptance",
+  "source_sha256": {
+    "platform/embedded/tamago/input/gamepad.go": "015ebb1def9b543be50db1dc975e8f732414be5a4a7e7ecfe4876880a9bbbb2a",
+    "platform/embedded/tamago/nativefabric/program_gamepad.go": "09fa148d619c57b2e501fbb5b93947d2fbc699d62dd1b1c33081201d6303f4a4",
+    "platform/embedded/tamago/nativefabric/program_gamepad_platform_test.go": "cf588e45a370bacdb6f9c2e6e64c4eef3ff4d5de6ac60f5596e9cf5a0de1c891",
+    "platform/embedded/tamago/nativefabric/program_gamepad_test.go": "ed015a5d83d93ef67cd96bc6b508a49a8884372ddda9b42092147935f8eb7c64",
+    "platform/embedded/tamago/nativefabric/program_input.go": "3335567c9245940ed2d7757d728e7fc1968ac6aaa31f841ec1ef026db82f0dec",
+    "platform/embedded/tamago/nativefabric/program_keyboard.go": "097355df3615239cd93b1d904fd06e5cdba28449debadc6bf5a4fd1450132082"
+  },
+  "software": {
+    "typed-input-regression": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=90s",
+        "./input",
+        "./nativefabric",
+        "-run",
+        "TestProgramInput|TestProgramKeyboard|TestGamepad"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.602849276037887,
+      "log_sha256": "b9cbfeb739b25e3fd46ee7738ca3e931bcab01a3e6d0e2815745b10dd2e292c3"
+    },
+    "gamepad-bindings": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=90s",
+        "./nativefabric",
+        "-run",
+        "TestProgramGamepad"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.203085064073093,
+      "log_sha256": "e8e2a2e0e6c64dbf8e7cf756cb9e136d993d0214ed5f0cc9555b14ffe5dfd022"
+    },
+    "gamepad-app-cycles": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=90s",
+        "./nativefabric",
+        "-run",
+        "TestProgramGamepad"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.203474485082552,
+      "log_sha256": "eaa0b9e212278c98df23fb1c75d82b7bf66e7cd079ab9b43503f211f75f55d5a"
+    },
+    "full-host-race": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=180s",
+        "./..."
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 36.82228045607917,
+      "log_sha256": "73f137c6f95164bc76dbb429fc9504577e6fa599dbb3e89cd06cab611dd2acf7"
+    },
+    "gamepad-app-faults": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=90s",
+        "./nativefabric",
+        "-run",
+        "TestProgramGamepadFullTenfootLaunchReturnAndFailures",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.003789551090449,
+      "log_sha256": "d2bf920962bcd3622d2983d39589a6d9a01ea2a65d74c09e685d44549982ebc9"
+    },
+    "committed-host-race": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=180s",
+        "./..."
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 40.625525442068465,
+      "log_sha256": "3ff53c68d2856e7c64edd183d5c8d725157643e7dbcb7d4ff5cea3f25834fd87"
+    },
+    "consistency": {
+      "argv": [
+        "make",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 8.405543633038178,
+      "log_sha256": "273915f27c798cb3223bae157afc4edf45e1d7cab1a6e05b5172f999f2f30d90"
+    },
+    "committed-consistency": {
+      "argv": [
+        "make",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 8.405150203034282,
+      "log_sha256": "273915f27c798cb3223bae157afc4edf45e1d7cab1a6e05b5172f999f2f30d90"
+    },
+    "selection-native-sdk": {
+      "argv": [
+        "python3",
+        "platform/embedded/tamago/run.py",
+        "fpgaload",
+        "--compiler",
+        "out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+        "--board",
+        "de25-nano",
+        "--profile",
+        "platform/embedded/nano/sd-profile.json",
+        "--hps-first-project",
+        "out/nano-tenfoot-serial-20261104/core-zx81/sealed-project",
+        "--computer-control",
+        "--computer-reload",
+        "--computer-storage-return",
+        "--selected-programs",
+        "--tenfoot-serial",
+        "--output",
+        "out/nano-gamepad-tenfoot-20261104/native-sdk"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 22.011575683020055,
+      "log_sha256": "8722f0488acc6f85bad7cef0a51cd704194508c96f954f2f84292ed994fccd11"
+    },
+    "affected-plan": {
+      "argv": [
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "9264d374f",
+        "--head",
+        "HEAD",
+        "--plan-only"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20047910092398524,
+      "log_sha256": "7586bf7c68e9f0c6b59c6f46cbd14dae959dbdc61b7b0ed83c4d0b179424bfb1"
+    },
+    "affected-tests": {
+      "argv": [
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "9264d374f",
+        "--head",
+        "6c932050e",
+        "--jobs",
+        "2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 440.2481738280039,
+      "log_sha256": "4c0f16200932047b3ca305e6f64a31633fe197c13dd48f76f02088995d1da3b1"
+    }
+  },
+  "app_cycles": 3,
+  "app_generation_after_cycles": 6,
+  "app_fault_cases": [
+    "source failure",
+    "invalid report",
+    "partial core-input write",
+    "closure failure"
+  ],
+  "firmware_rtl": {
+    "path": "out/native-fabric-hooks-3371ef566efa4b4384ee3daa51da5bad",
+    "result_sha256": "309a4f66f5e3da877f60112f36ef6915d868b81f6342f135fd337f7ac38c07ae",
+    "classification": "host native Go lifecycle/tenfoot with actual patched TF-A C and Verilated FPGA RTL; simulated bridges, memory and SDM; no hardware acceptance"
+  },
+  "native_build": {
+    "result_sha256": "ff8083ecdb9a4b0a822f5ab66ac138025a48963f35d406c755cbdfc475992695",
+    "elf_sha256": "d0cea64fc59f7dbd6487d0d2c2f80e8feb49af3ff14a6e76e1bc40d2a3b281b7",
+    "source_files_match_commit": true,
+    "usb_enabled": false,
+    "hardware_execution": false
+  },
+  "hardware_programmed": false,
+  "firmware_composition_enabled": false,
+  "normal_core_load_acceptance": false,
+  "wire_or_module_contract_changed": false
+}

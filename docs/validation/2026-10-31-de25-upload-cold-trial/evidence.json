@@ -1,0 +1,703 @@
+{
+  "board_serial": "TRWU8CBL",
+  "classification": "physical diagnostic: upload passed, native initial SPL proof rejected; follow-up is off-board only",
+  "factory_before": {
+    "BOOT_ID": "8700edbb-81df-4107-9c04-c8d679cf0a60",
+    "CARD_SECTORS": "61069312",
+    "KERNEL": "6.12.11-gd7d192a9ddd9",
+    "MODEL": "SoCFPGA Agilex5 Terasic DE25-Nano",
+    "ROOT": "/dev/mmcblk0p2 ext3"
+  },
+  "factory_card_cid_sha256": "630825446173160e558b6a515b132dcd61c38076be7d4e1433ea7dd9d2f5cb28",
+  "factory_card_or_flash_reimaged": false,
+  "factory_restoration": {
+    "boot_id": "3dc3f7ca-7b12-467a-9291-eca23caf6190",
+    "card_capacity_model_match": true,
+    "client_date": "2026-11-01",
+    "kernel": "6.12.11-gd7d192a9ddd9",
+    "kit_claim": "released",
+    "logged_out": true,
+    "method": "original factory SD and user-reported reboot after power-cycle request; no successful reference JTAG programming",
+    "physical_reset_method_independently_observed": false,
+    "qspi_power_on_boot_retested": false,
+    "root": "/dev/mmcblk0p2 ext3",
+    "user_report": "rebooted",
+    "verified": true
+  },
+  "failed_restoration_attempt": {
+    "error": "expected FPGA ID absent",
+    "finished_utc": "2026-10-31T19:31:12.484892+00:00",
+    "login_observed": false,
+    "serial": "TRWU8CBL",
+    "sof_sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+    "stage": "preflight",
+    "started_utc": "2026-10-31T19:31:10.176999+00:00",
+    "usb_permissions_restored": true
+  },
+  "followup": {
+    "artifact_audit": {
+      "actual_vendor_alignment_cases": [
+        {
+          "block_length": 1,
+          "node": "atf",
+          "read_offset": 431400,
+          "read_size": 41021,
+          "within_sealed_file": true
+        },
+        {
+          "block_length": 64,
+          "node": "atf",
+          "read_offset": 431360,
+          "read_size": 41088,
+          "within_sealed_file": true
+        },
+        {
+          "block_length": 1,
+          "node": "fdt-0",
+          "read_offset": 472424,
+          "read_size": 22960,
+          "within_sealed_file": true
+        },
+        {
+          "block_length": 64,
+          "node": "fdt-0",
+          "read_offset": 472384,
+          "read_size": 23040,
+          "within_sealed_file": true
+        },
+        {
+          "block_length": 1,
+          "node": "fes-entry",
+          "read_offset": 495384,
+          "read_size": 4216289,
+          "within_sealed_file": true
+        },
+        {
+          "block_length": 64,
+          "node": "fes-entry",
+          "read_offset": 495360,
+          "read_size": 4216320,
+          "within_sealed_file": false
+        },
+        {
+          "block_length": 1,
+          "node": "uboot",
+          "read_offset": 1464,
+          "read_size": 429936,
+          "within_sealed_file": true
+        },
+        {
+          "block_length": 64,
+          "node": "uboot",
+          "read_offset": 1408,
+          "read_size": 430016,
+          "within_sealed_file": true
+        }
+      ],
+      "all_final_packaging_inputs_still_match": true,
+      "bl31_sha256": "20c4a7b6c0509b0f8f6a77522c714e67a6c2400bbad489203ab9b7634dd34cb6",
+      "chain_sha256": "67030ba9047443528faaf5bd92139145527860cedad54528819b40856a98b39c",
+      "classification": "off-board artifact, real vendor alignment helper and compiled query audit; no hardware acceptance",
+      "cold_query_compiled_and_features_zero": true,
+      "fit_hash_found_in_final_spl_binary": true,
+      "fit_sha256": "12e6e7843b5c9f3a949a2d45856c32e9eb8e314d8dac617a21da37b870b55592",
+      "inputs": {
+        "out/nano-cold-serial-bl31-v10/result.json": "954c0a6e39c34b2d828ea3be2b3ad8ff21a1aa5e5c94c3b9beef8270aeeee3f4",
+        "out/nano-cold-serial-bl31-v10/source/build/agilex5/release/bl31/bl31.elf": "b14812744e071c757c967f92eae66955e793a354594f0a944663cc016af2e461",
+        "out/nano-cold-serial-kit-v5/result.json": "5c888a6c5e10500ad60ff8b1bc3f768b96dd719f7dc2e3835680770bb80f0535",
+        "out/nano-cold-serial-uboot-v10/build/spl/u-boot-spl.bin": "62e092c49891f15478b6ad117586cc177f941e614f8d86d6ef9a476d7bd17607",
+        "out/nano-cold-serial-uboot-v10/result.json": "22a6884a46e6d4da7e45703930a1dc1f45d14061b5bcc59e8bce9f3c75da9888",
+        "out/nano-cold-serial-uboot-v10/source/common/spl/spl_fit.c": "e6ed53183aac3a73f20135906a192d5b580888e97aadb26fab1690ebf11dba5a"
+      },
+      "native_parser_block_length": 1,
+      "recovery_prefix_sha256": "2586b521d2e8b69622c6c7d52156a540ef5a1c695ae410a38f2c1483054cad71",
+      "sd_image_sha256": "c371189bfa7b88c9e31ea2ee163abb5c03f931c885fb1c09604690e1277020d9",
+      "sof_sha256": "ebf1b052e953a674145f362f6790e792e8cae9b0b71b8e1e8d0063781ab2915b",
+      "spl_record_address": 135872,
+      "spl_record_size": 168,
+      "spl_sha256": "52977d56fe01c71a60c49008bcd8001af24e0a6580128e601da011863728412a",
+      "status": "passed",
+      "strong_symbols": [
+        "fes_nano_platform_boot_record",
+        "fes_nano_cold_capture",
+        "fes_nano_cold_consume",
+        "fes_nano_cold_owns",
+        "fes_nano_cold_quiesce",
+        "fes_nano_cold_quiescent"
+      ]
+    },
+    "artifacts": {
+      "bl31_sha256": "20c4a7b6c0509b0f8f6a77522c714e67a6c2400bbad489203ab9b7634dd34cb6",
+      "fit_sha256": "12e6e7843b5c9f3a949a2d45856c32e9eb8e314d8dac617a21da37b870b55592",
+      "sd_image_sha256": "c371189bfa7b88c9e31ea2ee163abb5c03f931c885fb1c09604690e1277020d9",
+      "sof_sha256": "ebf1b052e953a674145f362f6790e792e8cae9b0b71b8e1e8d0063781ab2915b",
+      "spl_sha256": "52977d56fe01c71a60c49008bcd8001af24e0a6580128e601da011863728412a"
+    },
+    "classification": "POR mask correction and fresh CPU diagnostics; no hardware execution",
+    "cold_profile": {
+      "chain_sha256": "67030ba9047443528faaf5bd92139145527860cedad54528819b40856a98b39c",
+      "entry_image_sha256": "1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950",
+      "entry_image_size": 4216289,
+      "entry_receipt_sha256": "f2ee3755aaf331934027379e9c84eebae88c6ea40d98b9cfe42642cdd5b4b4da",
+      "experimental_fit_path": "FES/UPLOAD.BIN",
+      "format": 1,
+      "owner_seed": 7422789431388816211,
+      "producer_sources": {
+        "platform/embedded/firmware/build_terasic.py": "0866048f93a7260342074ccd3fd284ac98b4b932168dedc95f55ae2f798f7fd1",
+        "platform/embedded/firmware/build_terasic_uboot.py": "d14063bd744f652631eea67c4ddb41e24e336008ab2c06c4098c2ec5cc2a5cfb",
+        "platform/embedded/firmware/generated/fes_embedded_bridges.h": "52d1cda431a42daade9dcf0cad49987c60179693e6bbfcc8385075e217ab6e08",
+        "platform/embedded/firmware/generated/fes_embedded_control.hpp": "8856d106e50c7b3a8394c8e1442568446087195dfd3e6f3099ad63931dd41df1",
+        "platform/embedded/firmware/nano_boot.c": "3d09269591bdc90733da41462109f7c3c335f7f18c92f1fa38a6287243db6040",
+        "platform/embedded/firmware/nano_boot.h": "e95dfbb06fd03f0cb11bc33c7260a3828722962231efaa8a397fc81af4e97b4b",
+        "platform/embedded/firmware/nano_bridge_diag.h": "b80c4442198cbbdff4781d66ace85ab4a930804114176e5927e8984d1e78e904",
+        "platform/embedded/firmware/nano_bridge_diag.inc": "4d6a679e495b06dbda6d40db269492faf6ffa20aa2024262d57c6d648fd7c946",
+        "platform/embedded/firmware/nano_bridge_platform.h": "85c3ae63484f3453d120133f1a7577533f97f2870d663b1610d4d9382c037e5e",
+        "platform/embedded/firmware/nano_bridge_platform.inc": "68126bbdead8ec17de15deb33cabfaee0e24b02ea2207cce09c05f347df2aa70",
+        "platform/embedded/firmware/nano_bridge_sip.c": "4e8ac3d37fc97f372b290c09ac5fd6b1bd6b5bf8707028ec8c67fb53075d162d",
+        "platform/embedded/firmware/nano_bridge_sip.h": "6d89f334a2cb624da3299b8dd433e227e29dd88883042a1c3f128fc59c3ac921",
+        "platform/embedded/firmware/nano_bridges.c": "6b3000f0a0fd7e671ab55932a14072ad0cd4759cda12a834c5b77cd351d6a4d0",
+        "platform/embedded/firmware/nano_bridges.h": "06bbc5e28763c949a0b3939ee5cadfd34f06df269bdcbce099f6e3470f945f97",
+        "platform/embedded/firmware/nano_cold.c": "efe675fc5c12cb495574c47690614ce4b536e7b21b2ed733f2d026d45c6ddd3a",
+        "platform/embedded/firmware/nano_cold.h": "cd56de144ebf82c7436967f4e571da887d947ff07d23f74d418416865102f98f",
+        "platform/embedded/firmware/nano_cold_mmio.inc": "ca5ce4c3a47f49ac01cec73bc34843f75d8cf6a62fc5325b073972c37ea9b450",
+        "platform/embedded/firmware/nano_cold_platform.c": "343964613062964f89e46dd75e17de58c54e40106eca833ebb8d4e7d13804c32",
+        "platform/embedded/firmware/nano_owned_sip.inc": "5a7153cf82c4da300b4741e485cd1c8d171c9e51d119e13a286642115c5e96a2",
+        "platform/embedded/firmware/prepare_nano_owned.py": "6d7f8560b3aba09d78f0d3cdd389561e07c765c1c2bbac904704d9131a662631",
+        "platform/embedded/firmware/prepare_tfa.py": "8cf0fca78340d2cfd18f3f6ba6dd9239bb5ff615f4746d1c38105d77d1d950ee",
+        "platform/embedded/firmware/verify.py": "952b3b0f1a97e45802e5961492f1a47ebbbcc90ea8e97fa8094dc785a6da4bd8",
+        "platform/embedded/nano/cold_profile.py": "51af8f1b25b3f1ed17feeb33810545b009d6ff65b9bd59f1906db99b864fdd28",
+        "platform/embedded/nano/handoff.c": "1bffae6e47ae82df75e9ce330f90c312362302aa3b88ff6ca6dba42b02e90785",
+        "platform/embedded/nano/handoff.h": "4b2845a162325c7ca7da00cadce807801d1d4308353ac1c3701419fe83ba9bb5",
+        "platform/embedded/nano/prepare_uboot.py": "73bd06d0f428d2a7b0f355acf32aec5b2c80e9dd3b41f4b085d68bded12f47dc",
+        "platform/embedded/nano/probe-profile.json": "02c764a2b6fcb0705046c939ad1fabe55a0daf330d4d7f3f1750cde29107a8f8",
+        "platform/embedded/nano/spl_cold.c": "ea8298cb3f90095611a86e50cd62bc6851f64ae6b2e8d3c4d212e1a8101d5537",
+        "platform/embedded/nano/uboot.c": "fefe281b2e92e7908c5765a2d08bb33ca2b0700e5aa96b8ae2da401df5dbbbbf"
+      },
+      "profile": "cold-serial-preloaded",
+      "reference_sof_sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+      "tfa_pin": "580dcb5c4e10aa7daff2bf69d493c076a6d3e665",
+      "uboot_pin": "d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413"
+    },
+    "cpu_gate_changed": false,
+    "header_allowed_cause_mask": 5,
+    "physical_tuple_still_rejected": true,
+    "record_address": 135872,
+    "record_size": 168,
+    "source_commit": "def25f9279fe82f5c566d7c0c658983c2d54b3e7"
+  },
+  "format": 1,
+  "hardware_helper_sha256": {
+    "audit_followup.py": "0cd32627f45227c3f9518798913575750ba77bfc065e5a583784aa3fbed1e2ce",
+    "baseline_serial.py": "937994b3f20886e68c1d6e1f86dac4e04558352e8092e4d64d42ce2d5ee14161",
+    "boot.py": "bd0084c5f772b044c6e31562eae3734e95b8224de853c1b32f0fb9e06cfb83f8",
+    "check_recovery_link.py": "08be196bcdb8db04545ff98ed925079751ded81945abfa1c25ee0e46eafb5c1c",
+    "collect_evidence.py": "070a12e6da0c8152e13d2cd280f197e2ed9524af44c9c6c16bd4e36a417fed7e",
+    "common.py": "cd624dc50feec2b6568f64ee946ab4cff34cee93536353bee6e0f67cc8ea7068",
+    "observe_factory.py": "6785ebbe0708168b4994883b98a03eb554f8eaba00004e8ed1d4904b6b4173ff",
+    "prepare_spare.py": "a42dabd3e65cf413b4dbb0ffddfbcf8bca0be84f2d0beb230a4cf90d3f1495fe",
+    "recover_serial.py": "f005db2ed44985377c2288d84e6752da738bfb8ef8b625b1c10dea1c5cf640d6",
+    "shutdown_serial.py": "a4dc9ef1b431876a2c894cf05636c22f024086b6af3703f0ad1a15c8b39829d6",
+    "upload_trial.py": "d1c1cbcf39be29e57049287c5999cb764814fbd628011deeb2b9d95a9bc2dc11",
+    "validate.py": "337ce32661ed14206986fbb83788735660ce573e71837f900509be8c4f8e4c4f",
+    "verify_factory.py": "86d51055a95c3b5933d7ce9f009c9b2ad1bd76e6a5d3de32e7ad4a2a6520cb24",
+    "verify_restored_jtag.py": "396adbbd3c570b208a892ce1a21b5018eb52e17753aa61238d11f42a2976a9cd"
+  },
+  "host_cleanup": {
+    "claim_released": true,
+    "client_date": "2026-11-01",
+    "factory_boot_id": "3dc3f7ca-7b12-467a-9291-eca23caf6190",
+    "factory_restore_verified": true,
+    "jtag_id_observed": true,
+    "own_programmer_uart_tftp_closed": true,
+    "shared_jtag_service_unchanged": true,
+    "target_usb_node": "/dev/bus/usb/003/061",
+    "usb_gid": 0,
+    "usb_mode": "0o664",
+    "usb_uid": 0,
+    "utc": "2026-11-01T06:45:23.737379+00:00"
+  },
+  "initial_state_analysis": {
+    "classification": "offline evaluation of retained initial hardware tuple against exact tested predicates; no new hardware observation",
+    "held_unused_master_mask": "0xff213f3f",
+    "limits": [
+      "MPIDR/core were not in this initial console line",
+      "raw values are not permission to broaden reset/history acceptance",
+      "FIT verification, SD idle/drain and EL3 provider were not reached"
+    ],
+    "observed": {
+      "bridge": 79,
+      "cause": 4,
+      "cpus": 15,
+      "kind": 4,
+      "per0": 4286562303,
+      "release": 0,
+      "valid": 0
+    },
+    "predicate_results": {
+      "cause_within_old_mask": false,
+      "cpu_inventory_for_core0": false,
+      "cpu_inventory_for_core2": false,
+      "data_bridges_held": true,
+      "release_idle": true,
+      "sdm_boot_kind_allowed": true,
+      "unused_masters_held": true
+    },
+    "primary_core_recorded": false,
+    "raw_line": "FES_NANO_SPL BEGIN cause=00000004 per0=ff7fbfff bridge=0000004f cpus=0000000f release=00000000 kind=4 valid=0"
+  },
+  "limitations": [
+    "single successful upload core/transport run; standalone CLI claim lifecycle not hardware exercised",
+    "native FIT parse, SD drain, EL3 handoff, Go payload and physical launch/return not reached",
+    "follow-up v10/kit-v5 are new unqualified artifacts",
+    "FAT writing is not atomic or guaranteed durable across power loss",
+    "cause of broken JTAG chain not established",
+    "private login and original card-region backup excluded from publication"
+  ],
+  "log_sha256": {
+    "baseline-console.log": "495e138f5e82a271bd370d5d592d6c6dc5302510839d87fcad451b6018d172fa",
+    "corrected-affected.log": "40dcc9bb0b39c02fbb983d7862455406de10db9986f351c384ddd756b42f2617",
+    "corrected-cold-tests.log": "390bf3ceda89d612191737e322039894cad39062f4dd8cd5854887fddd7d285e",
+    "factory-observation.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "followup-audit.log": "5babb1f962102e727d56395cab070b13be883b5cd954adaee4d1b1e5136b2870",
+    "followup-package.log": "1b7600a176905ad01ecabbff85597e3bc872ff4106432759739af045e169e094",
+    "native-console.log": "8bc1560ea575c771a2b4cd14cf686d3bddb88d085304ac61acbf23a2336e3a4e",
+    "native-jtag-query.log": "6e8dae5d147d2fc582317264693b91dda4f03d0e4bcfe3f981766238c8a5eec1",
+    "native-program.log": "f6c0044e14abb7f1f974a7ec9895d67eae390d891b34f0d828496eb70c480810",
+    "recovery-boot-console.log": "6195d9678ccf2821345a7f9659ccbdd45fae47a30a236d7d305d09ba1609fe2f",
+    "recovery-boot-jtag-query.log": "1c540b16ddcd528168ef9d0adf95289b0e9d3871f98babf400794a02db47f107",
+    "recovery-boot-program.log": "b4c0b6bf9f913a1d8c2bbad75fac89fb4c22e1b08ad264b852a623941d3687e0",
+    "recovery-clock-before.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "recovery-clock-restore.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "recovery-clock-slow.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "recovery-console.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "recovery-jtag-query.log": "005be485abf0105f20716f07e9f027ef519d8cef3be599396718c6bb17d23b74",
+    "recovery-slow-chain.log": "abc7beed90321eed05dc3f0b21f9a765c683b7584c2cc48d20b419ea74bbb8bf",
+    "restored-console.log": "e57900f13f6490a0a86370abbe1d12bba7e30bcc2aec766597814effa3fb6ab4",
+    "restored-jtag-query.log": "4055c21638b1045de92fd424463fb127c11044c04af9410c2ff78764862b58c6",
+    "shutdown-console.log": "83c866a4d9792a3af324c3cfd010b849dc1868148ae4f0f05cb0b6bb2af33094",
+    "validation-heartbeat.log": "c19e370763f44985eb6da4496d5022401043e5fcca1adcdf605c2f09f2d0c7fc"
+  },
+  "native": {
+    "console_sha256": "8bc1560ea575c771a2b4cd14cf686d3bddb88d085304ac61acbf23a2336e3a4e",
+    "error": "SPL cold boot proof rejected; no native command sent",
+    "fesboot_sent": false,
+    "finished_utc": "2026-10-31T19:29:56.261895+00:00",
+    "fit_sha256": "9926773577fcb139b4a379cc293646d1e178619e3a4c8190f843e17d172bbf26",
+    "image_sha256": "9e5e50c4a1c414cb82587a41deb5469b6e62e2f979be8a9182c7c866ddf10719",
+    "jtag_id": "4362C0DD",
+    "pass": false,
+    "phase": "native",
+    "programming_attempted": true,
+    "programming_complete": true,
+    "serial": "TRWU8CBL",
+    "sof_sha256": "a0fb02797b0c109115ba81352c151529ce3b2b47fedcbf9001db137d1d6b3f6c",
+    "source_commit": "6253f834202005f91a3c89d6d8f6c146b0e27d9f",
+    "stage": "matched native prompt",
+    "started_utc": "2026-10-31T19:29:50.540972+00:00",
+    "usb_permissions_restored": true
+  },
+  "original_tested_artifact_retention": "/home/deano/fes-retained/de25-nano-cold-upload-20261031",
+  "other_boards_touched": false,
+  "recorded_utc": "2026-11-01T06:46:04.542299+00:00",
+  "recovery_boot": {
+    "console_sha256": "6195d9678ccf2821345a7f9659ccbdd45fae47a30a236d7d305d09ba1609fe2f",
+    "fesboot_sent": false,
+    "finished_utc": "2026-10-31T19:28:34.769383+00:00",
+    "fit_sha256": "9926773577fcb139b4a379cc293646d1e178619e3a4c8190f843e17d172bbf26",
+    "image_sha256": "9e5e50c4a1c414cb82587a41deb5469b6e62e2f979be8a9182c7c866ddf10719",
+    "jtag_id": "4362C0DD",
+    "pass": true,
+    "phase": "recovery",
+    "programming_attempted": true,
+    "programming_complete": true,
+    "prompt_verified": true,
+    "serial": "TRWU8CBL",
+    "sof_sha256": "f5ec8595a88a0bbc9205e9b50cfa00def22e3cc9e65ddb1af8dcde1ad42ba3ec",
+    "source_commit": "6253f834202005f91a3c89d6d8f6c146b0e27d9f",
+    "stage": "PASS recovery",
+    "started_utc": "2026-10-31T19:28:26.035787+00:00",
+    "usb_permissions_restored": true
+  },
+  "recovery_link_check": {
+    "chain_id_observed": false,
+    "clock_changed": true,
+    "clock_restored": true,
+    "commands": [
+      {
+        "args": [
+          "/data/altera_pro/26.3/quartus/bin/jtagconfig",
+          "--getparam",
+          "DE25-Nano [3-11.1-iface0]",
+          "JtagClock"
+        ],
+        "name": "recovery-clock-before",
+        "output": "15M\n",
+        "returncode": 0
+      },
+      {
+        "args": [
+          "/data/altera_pro/26.3/quartus/bin/jtagconfig",
+          "--setparam",
+          "DE25-Nano [3-11.1-iface0]",
+          "JtagClock",
+          "6M"
+        ],
+        "name": "recovery-clock-slow",
+        "output": "",
+        "returncode": 0
+      },
+      {
+        "args": [
+          "/data/altera_pro/26.3/quartus/bin/quartus_pgm",
+          "-c",
+          "DE25-Nano [3-11.1-iface0]",
+          "-a"
+        ],
+        "name": "recovery-slow-chain",
+        "output": "1) DE25-Nano [3-11.1-iface0]\n\nInfo: *******************************************************************\nInfo: Running Quartus Prime Programmer\n    Info: Version 26.3.0 Build 114 10/14/2026 SC Pro Edition\n    Info: Copyright (C) 2026  Altera Corporation. All rights reserved.\n    Info: Your use of Altera Corporation's design tools, logic functions \n    Info: and other software and tools, and any partner logic \n    Info: functions, and any output files from any of the foregoing \n    Info: (including device programming or simulation files), and any \n    Info: associated documentation or information are expressly subject \n    Info: to the terms and conditions of the Altera Program License \n    Info: Subscription Agreement, the Altera Quartus Prime License Agreement,\n    Info: the Altera IP License Agreement, or other applicable license\n    Info: agreement, including, without limitation, that your use is for\n    Info: the sole purpose of programming logic devices manufactured by\n    Info: Altera and sold by Altera or its authorized distributors.  Please\n    Info: refer to the Altera Software License Subscription Agreements \n    Info: on the Quartus Prime software download page.\n    Info: Processing started: Sat Oct 31 21:33:00 2026\n    Info: System process ID: 1535664\nInfo: Command: quartus_pgm -c \"DE25-Nano [3-11.1-iface0]\" -a\nInfo (213045): Using programming cable \"DE25-Nano [3-11.1-iface0]\"\nInfo: Quartus Prime Programmer was successful. 0 errors, 0 warnings\n    Info: Peak virtual memory: 572 megabytes\n    Info: Processing ended: Sat Oct 31 21:33:02 2026\n    Info: Elapsed time: 00:00:02\n    Info: System process ID: 1535664\n  Unable to read device chain - JTAG chain broken\n",
+        "returncode": 0
+      },
+      {
+        "args": [
+          "/data/altera_pro/26.3/quartus/bin/jtagconfig",
+          "--setparam",
+          "DE25-Nano [3-11.1-iface0]",
+          "JtagClock",
+          "15M"
+        ],
+        "name": "recovery-clock-restore",
+        "output": "",
+        "returncode": 0
+      }
+    ],
+    "finished_utc": "2026-10-31T19:33:02.464519+00:00",
+    "original_clock": "15M",
+    "serial": "TRWU8CBL",
+    "started_utc": "2026-10-31T19:32:59.715203+00:00"
+  },
+  "register_map": {
+    "cpu_release_address": "0x10d11094",
+    "cpu_status_address": "0x10d11090",
+    "cpu_status_semantics_qualified_by_this_test": false,
+    "download_url": "https://docs.altera.com/api/khub/documents/Z5suNak8Ubz6FMY3WjgxBQ/content",
+    "landing_url": "https://docs.altera.com/v/u/resources/864455/agilex-5-cs-and-r1-suffix-opn-hps-register-map",
+    "last_por_bit": 2,
+    "sdm_cold_bit": 0,
+    "sdm_warm_bit": 1,
+    "stat_address": "0x10d11000",
+    "stat_reset": 4,
+    "version": "CS/R1 revB0 RC28",
+    "zip_sha256": "c4720c039263d5423662994fc41cd1c9a324f9fcf3bc1187a3a742f532537925"
+  },
+  "restoration_record_validation": {
+    "affected_results": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      }
+    ],
+    "documentation_links": "passed",
+    "log_sha256": {
+      "restoration-checks.log": "699cd2ce310328902b8d66acb7929e7c674b9556e9d01adcf84784b64654f137",
+      "restoration-doc-links.log": "112ab742576d07de470e5efa97b5e38a5efe2f0f6adabfdaeec5618439afe125"
+    },
+    "status": "passed"
+  },
+  "restored_jtag": {
+    "finished_utc": "2026-11-01T06:44:19.181163+00:00",
+    "jtag_id": "4362C0DD",
+    "jtag_id_observed": true,
+    "returncode": 0,
+    "scope": "one read-only exact-cable chain query after user reboot and factory verification",
+    "serial": "TRWU8CBL",
+    "started_utc": "2026-11-01T06:44:18.015993+00:00",
+    "usb_permissions_restored": true
+  },
+  "retained_directory": "/home/deano/fes-retained/de25-nano-upload-cold-trial-20261031",
+  "spare_card": {
+    "capacity": 3980394496,
+    "expected_image_sha256": "9e5e50c4a1c414cb82587a41deb5469b6e62e2f979be8a9182c7c866ddf10719",
+    "image_bytes": 150994944,
+    "readback_sha256": "9e5e50c4a1c414cb82587a41deb5469b6e62e2f979be8a9182c7c866ddf10719",
+    "resolved": "/dev/sda",
+    "serial": "Generic_STORAGE_DEVICE-0:0",
+    "stage": "readback-verified",
+    "target_by_id": "/dev/disk/by-id/usb-Generic_STORAGE_DEVICE-0:0"
+  },
+  "status": "completed partial diagnostic; factory restored",
+  "tested_cold_profile": {
+    "chain_sha256": "2f23ec149a2568ccec02e31c1b3e4e99cb4cde329f006f7ba4022d334a542457",
+    "entry_image_sha256": "1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950",
+    "entry_image_size": 4216289,
+    "entry_receipt_sha256": "f2ee3755aaf331934027379e9c84eebae88c6ea40d98b9cfe42642cdd5b4b4da",
+    "experimental_fit_path": "FES/UPLOAD.BIN",
+    "format": 1,
+    "owner_seed": 3396818117197129933,
+    "producer_sources": {
+      "platform/embedded/firmware/build_terasic.py": "0866048f93a7260342074ccd3fd284ac98b4b932168dedc95f55ae2f798f7fd1",
+      "platform/embedded/firmware/build_terasic_uboot.py": "d14063bd744f652631eea67c4ddb41e24e336008ab2c06c4098c2ec5cc2a5cfb",
+      "platform/embedded/firmware/generated/fes_embedded_bridges.h": "52d1cda431a42daade9dcf0cad49987c60179693e6bbfcc8385075e217ab6e08",
+      "platform/embedded/firmware/generated/fes_embedded_control.hpp": "8856d106e50c7b3a8394c8e1442568446087195dfd3e6f3099ad63931dd41df1",
+      "platform/embedded/firmware/nano_boot.c": "3d09269591bdc90733da41462109f7c3c335f7f18c92f1fa38a6287243db6040",
+      "platform/embedded/firmware/nano_boot.h": "e95dfbb06fd03f0cb11bc33c7260a3828722962231efaa8a397fc81af4e97b4b",
+      "platform/embedded/firmware/nano_bridge_diag.h": "b80c4442198cbbdff4781d66ace85ab4a930804114176e5927e8984d1e78e904",
+      "platform/embedded/firmware/nano_bridge_diag.inc": "4d6a679e495b06dbda6d40db269492faf6ffa20aa2024262d57c6d648fd7c946",
+      "platform/embedded/firmware/nano_bridge_platform.h": "85c3ae63484f3453d120133f1a7577533f97f2870d663b1610d4d9382c037e5e",
+      "platform/embedded/firmware/nano_bridge_platform.inc": "68126bbdead8ec17de15deb33cabfaee0e24b02ea2207cce09c05f347df2aa70",
+      "platform/embedded/firmware/nano_bridge_sip.c": "4e8ac3d37fc97f372b290c09ac5fd6b1bd6b5bf8707028ec8c67fb53075d162d",
+      "platform/embedded/firmware/nano_bridge_sip.h": "6d89f334a2cb624da3299b8dd433e227e29dd88883042a1c3f128fc59c3ac921",
+      "platform/embedded/firmware/nano_bridges.c": "6b3000f0a0fd7e671ab55932a14072ad0cd4759cda12a834c5b77cd351d6a4d0",
+      "platform/embedded/firmware/nano_bridges.h": "06bbc5e28763c949a0b3939ee5cadfd34f06df269bdcbce099f6e3470f945f97",
+      "platform/embedded/firmware/nano_cold.c": "19e4da87e939d86e31268b8c6c78469e93bce3623373e64ee38391a967e0b68b",
+      "platform/embedded/firmware/nano_cold.h": "3bde38e77736ea4115753211aa0be2ecb36c39e165b7ea2a2c8276337cde20e7",
+      "platform/embedded/firmware/nano_cold_mmio.inc": "ca5ce4c3a47f49ac01cec73bc34843f75d8cf6a62fc5325b073972c37ea9b450",
+      "platform/embedded/firmware/nano_cold_platform.c": "343964613062964f89e46dd75e17de58c54e40106eca833ebb8d4e7d13804c32",
+      "platform/embedded/firmware/nano_owned_sip.inc": "5a7153cf82c4da300b4741e485cd1c8d171c9e51d119e13a286642115c5e96a2",
+      "platform/embedded/firmware/prepare_nano_owned.py": "6d7f8560b3aba09d78f0d3cdd389561e07c765c1c2bbac904704d9131a662631",
+      "platform/embedded/firmware/prepare_tfa.py": "8cf0fca78340d2cfd18f3f6ba6dd9239bb5ff615f4746d1c38105d77d1d950ee",
+      "platform/embedded/firmware/verify.py": "952b3b0f1a97e45802e5961492f1a47ebbbcc90ea8e97fa8094dc785a6da4bd8",
+      "platform/embedded/nano/cold_profile.py": "51af8f1b25b3f1ed17feeb33810545b009d6ff65b9bd59f1906db99b864fdd28",
+      "platform/embedded/nano/handoff.c": "1bffae6e47ae82df75e9ce330f90c312362302aa3b88ff6ca6dba42b02e90785",
+      "platform/embedded/nano/handoff.h": "4b2845a162325c7ca7da00cadce807801d1d4308353ac1c3701419fe83ba9bb5",
+      "platform/embedded/nano/prepare_uboot.py": "73bd06d0f428d2a7b0f355acf32aec5b2c80e9dd3b41f4b085d68bded12f47dc",
+      "platform/embedded/nano/probe-profile.json": "02c764a2b6fcb0705046c939ad1fabe55a0daf330d4d7f3f1750cde29107a8f8",
+      "platform/embedded/nano/spl_cold.c": "085dcf5d13493df23125769181ef6a3df640966260012ded43ad6cb87dfb4c8d",
+      "platform/embedded/nano/uboot.c": "fefe281b2e92e7908c5765a2d08bb33ca2b0700e5aa96b8ae2da401df5dbbbbf"
+    },
+    "profile": "cold-serial-preloaded",
+    "reference_sof_sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+    "tfa_pin": "580dcb5c4e10aa7daff2bf69d493c076a6d3e665",
+    "uboot_pin": "d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413"
+  },
+  "tested_source_commit": "6253f834202005f91a3c89d6d8f6c146b0e27d9f",
+  "tested_spl_build_id": "ae9d1d6ba30a7e5f",
+  "upload": {
+    "activation": false,
+    "board_serial": "TRWU8CBL",
+    "boot_files_unchanged": true,
+    "card_verified": true,
+    "classification": "physical production upload core/transport under encompassing board-trial claim; standalone CLI claim lifecycle not exercised",
+    "client_ip": "192.168.10.211",
+    "commands": [
+      {
+        "command": "version",
+        "output": "version; echo FES_UPLOAD_7aa1d82dd688=$?\r\nU-Boot 2025.01-fes-nano-recovery-gd0f8813fd6bf (Jun 27 2025 - 01:40:35 +0000)socfpga_agilex5\r\n\r\nFES_UPLOAD_7aa1d82dd688=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "bdinfo",
+        "output": "bdinfo; echo FES_UPLOAD_e26ea8da71a7=$?\r\nboot_params = 0x0000000080000100\r\nDRAM bank   = 0x0000000000000000\r\n-> start    = 0x0000000080000000\r\n-> size     = 0x0000000040000000\r\nflashstart  = 0x0000000000000000\r\nflashsize   = 0x0000000000000000\r\nflashoffset = 0x0000000000000000\r\nbaudrate    = 115200 bps\r\nrelocaddr   = 0x00000000bfef7000\r\nreloc off   = 0x000000003fcf7000\r\nBuild       = 64-bit\r\n\r\nError: ethernet@10810000 No valid MAC address found.\r\n\r\nError: ethernet@10810000 No valid MAC address found.\r\n\r\nError: ethernet@10810000 No valid MAC address found.\r\n\r\nError: ethernet@10810000 No valid MAC address found.\r\ncurrent eth = unknown\r\neth-1addr   = (not set)\r\nIP addr     = <NULL>\r\nfdt_blob    = 0x00000000bfaee810\r\nlmb_dump_all:\r\n memory.count = 0x1\r\n memory[0]\t[0x80000000-0xbfffffff], 0x40000000 bytes, flags: none\r\n reserved.count = 0x2\r\n reserved[0]\t[0x0-0xffffff], 0x1000000 bytes, flags: no-map\r\n reserved[1]\t[0xbeaecff0-0xbfffffff], 0x1513010 bytes, flags: no-overwrite\r\ndevicetree  = separate\r\nserial addr = 0x0000000010c02100\r\n width      = 0x0000000000000004\r\n shift      = 0x0000000000000002\r\n offset     = 0x0000000000000000\r\n clock      = 0x0000000005f5e100\r\narch_number = 0x0000000000000000\r\nTLB addr    = 0x00000000bffe0000\r\nirq_sp      = 0x00000000bfaecff0\r\nsp start    = 0x00000000bfaecff0\r\nEarly malloc usage: 1780 / 2000\r\nFES_UPLOAD_e26ea8da71a7=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "mmc dev 0",
+        "output": "mmc dev 0; echo FES_UPLOAD_168779a104f4=$?\r\nswitch to partitions #0, OK\r\nmmc0 is current device\r\nFES_UPLOAD_168779a104f4=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "mmcinfo",
+        "output": "mmcinfo; echo FES_UPLOAD_fe395c9b4a44=$?\r\nDevice: mmc0@10808000\r\nManufacturer ID: 27\r\nOEM: 5048\r\nName: SD04G \r\nBus Speed: 50000000\r\nRd Block Len: 512\r\nSD version 3.0\r\nHigh Capacity: Yes\r\nCapacity: 3.7 GiB\r\nBus Width: 4-bit\r\nErase Group Size: 512 Bytes\r\nFES_UPLOAD_fe395c9b4a44=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "mmc part",
+        "output": "mmc part; echo FES_UPLOAD_0c5f06bd1392=$?\r\n\r\nPartition Map for mmc device 0  --   Partition Type: DOS\r\n\r\nPart\tStart Sector\tNum Sectors\tUUID\t\tType\r\n  1\t32768     \t262144    \t00000000-01\t0c\r\nFES_UPLOAD_0c5f06bd1392=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "mmc read 83000000 0 8000",
+        "output": "mmc read 83000000 0 8000; echo FES_UPLOAD_76217b3139cc=$?\r\nMMC read: dev # 0, block # 0, count 32768 ... 32768 blocks read: OK\r\nFES_UPLOAD_76217b3139cc=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "hash sha256 83000000 1000000",
+        "output": "hash sha256 83000000 1000000; echo FES_UPLOAD_116aa4cf9263=$?\r\nsha256 for 83000000 ... 83ffffff ==> 2586b521d2e8b69622c6c7d52156a540ef5a1c695ae410a38f2c1483054cad71\r\nFES_UPLOAD_116aa4cf9263=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "fatload mmc 0:1 83000000 u-boot.itb",
+        "output": "fatload mmc 0:1 83000000 u-boot.itb; echo FES_UPLOAD_896b5979a145=$?\r\n948272 bytes read in 88 ms (10.3 MiB/s)\r\nFES_UPLOAD_896b5979a145=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "hash sha256 83000000 e7830",
+        "output": "hash sha256 83000000 e7830; echo FES_UPLOAD_401125fc1b80=$?\r\nsha256 for 83000000 ... 830e782f ==> 71f413629a7714ab1a7bd4c6331969ba2670bdc447ddbc3bb8c103e52b525721\r\nFES_UPLOAD_401125fc1b80=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "fatload mmc 0:1 82000000 FES/RECOVERY.JSON",
+        "output": "fatload mmc 0:1 82000000 FES/RECOVERY.JSON; echo FES_UPLOAD_ea3dd63ca215=$?\r\n1098 bytes read in 21 ms (50.8 KiB/s)\r\nFES_UPLOAD_ea3dd63ca215=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "hash sha256 82000000 44a",
+        "output": "hash sha256 82000000 44a; echo FES_UPLOAD_271036050ac0=$?\r\nsha256 for 82000000 ... 82000449 ==> 1a345ddfefc37e1fcfc5cebd17c2cb33dea8b2b70c921b32aac36aec9fe93035\r\nFES_UPLOAD_271036050ac0=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "setenv autoload no",
+        "output": "setenv autoload no; echo FES_UPLOAD_3b726751a4da=$?\r\nFES_UPLOAD_3b726751a4da=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "setenv netretry no",
+        "output": "setenv netretry no; echo FES_UPLOAD_d78c34c921b8=$?\r\nFES_UPLOAD_d78c34c921b8=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "setenv bootpretryperiod 10000",
+        "output": "setenv bootpretryperiod 10000; echo FES_UPLOAD_5b7d4e484575=$?\r\nFES_UPLOAD_5b7d4e484575=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "setenv ethaddr 02:fe:25:08:cb:01",
+        "output": "setenv ethaddr 02:fe:25:08:cb:01; echo FES_UPLOAD_590481fe293b=$?\r\nFES_UPLOAD_590481fe293b=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "setenv tftptimeout 1000",
+        "output": "setenv tftptimeout 1000; echo FES_UPLOAD_cce66c552e5c=$?\r\nFES_UPLOAD_cce66c552e5c=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "setenv tftptimeoutcountmax 3",
+        "output": "setenv tftptimeoutcountmax 3; echo FES_UPLOAD_f18ad8d56d11=$?\r\nFES_UPLOAD_f18ad8d56d11=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "dhcp",
+        "output": "dhcp; echo FES_UPLOAD_c9a1d61f14d0=$?\r\n\r\nWarning: ethernet@10810000 MAC addresses don't match:\r\nAddress in DT is\t\tff:ff:ff:ff:ff:ff\r\nAddress in environment is\t02:fe:25:08:cb:01\r\nethernet@10810000 Waiting for PHY auto negotiation to complete....... done\r\nBOOTP broadcast 1\r\nDHCP client bound to address 192.168.10.211 (4 ms)\r\nFES_UPLOAD_c9a1d61f14d0=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "setenv serverip 192.168.10.202",
+        "output": "setenv serverip 192.168.10.202; echo FES_UPLOAD_8a6dbca11b07=$?\r\nFES_UPLOAD_8a6dbca11b07=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "tftpboot 82000000 U585A12.BIN",
+        "output": "tftpboot 82000000 U585A12.BIN; echo FES_UPLOAD_3d1d30f75557=$?\r\nUsing ethernet@10810000 device\r\nTFTP from server 192.168.10.202; our IP address is 192.168.10.211\r\nFilename 'U585A12.BIN'.\r\nLoad address: 0x82000000\r\nLoading: *\b#################################################################\r\n\t #################################################################\r\n\t #################################################################\r\n\t #################################################################\r\n\t #############################################################\r\n\t 10.9 MiB/s\r\ndone\r\nBytes transferred = 4711676 (47e4fc hex)\r\nFES_UPLOAD_3d1d30f75557=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "hash sha256 82000000 47e4fc",
+        "output": "hash sha256 82000000 47e4fc; echo FES_UPLOAD_510a1fd14bd5=$?\r\nsha256 for 82000000 ... 8247e4fb ==> 9926773577fcb139b4a379cc293646d1e178619e3a4c8190f843e17d172bbf26\r\nFES_UPLOAD_510a1fd14bd5=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "fatwrite mmc 0:1 82000000 FES/UPLOAD.BIN 47e4fc",
+        "output": "fatwrite mmc 0:1 82000000 FES/UPLOAD.BIN 47e4fc; echo FES_UPLOAD_3bb2b8e3a10e=$?\r\n4711676 bytes written in 641 ms (7 MiB/s)\r\nFES_UPLOAD_3bb2b8e3a10e=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "mw.b 82800000 a5 47e4fc",
+        "output": "mw.b 82800000 a5 47e4fc; echo FES_UPLOAD_996738ecddf7=$?\r\nFES_UPLOAD_996738ecddf7=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "fatload mmc 0:1 82800000 FES/UPLOAD.BIN",
+        "output": "fatload mmc 0:1 82800000 FES/UPLOAD.BIN; echo FES_UPLOAD_6d2b9972c8d1=$?\r\n4711676 bytes read in 396 ms (11.3 MiB/s)\r\nFES_UPLOAD_6d2b9972c8d1=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "hash sha256 82800000 47e4fc",
+        "output": "hash sha256 82800000 47e4fc; echo FES_UPLOAD_9eb1611511f3=$?\r\nsha256 for 82800000 ... 82c7e4fb ==> 9926773577fcb139b4a379cc293646d1e178619e3a4c8190f843e17d172bbf26\r\nFES_UPLOAD_9eb1611511f3=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "cmp.b 82000000 82800000 47e4fc",
+        "output": "cmp.b 82000000 82800000 47e4fc; echo FES_UPLOAD_7fa0a455b62a=$?\r\nTotal of 4711676 byte(s) were the same\r\nFES_UPLOAD_7fa0a455b62a=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "mmc read 83000000 0 8000",
+        "output": "mmc read 83000000 0 8000; echo FES_UPLOAD_d1caab2b03e3=$?\r\nMMC read: dev # 0, block # 0, count 32768 ... 32768 blocks read: OK\r\nFES_UPLOAD_d1caab2b03e3=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "hash sha256 83000000 1000000",
+        "output": "hash sha256 83000000 1000000; echo FES_UPLOAD_f2c0691371af=$?\r\nsha256 for 83000000 ... 83ffffff ==> 2586b521d2e8b69622c6c7d52156a540ef5a1c695ae410a38f2c1483054cad71\r\nFES_UPLOAD_f2c0691371af=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "fatload mmc 0:1 83000000 u-boot.itb",
+        "output": "fatload mmc 0:1 83000000 u-boot.itb; echo FES_UPLOAD_33e3d6c555c3=$?\r\n948272 bytes read in 88 ms (10.3 MiB/s)\r\nFES_UPLOAD_33e3d6c555c3=0\r\nSOCFPGA_AGILEX5 # "
+      },
+      {
+        "command": "hash sha256 83000000 e7830",
+        "output": "hash sha256 83000000 e7830; echo FES_UPLOAD_0936f8d6aa8d=$?\r\nsha256 for 83000000 ... 830e782f ==> 71f413629a7714ab1a7bd4c6331969ba2670bdc447ddbc3bb8c103e52b525721\r\nFES_UPLOAD_0936f8d6aa8d=0\r\nSOCFPGA_AGILEX5 # "
+      }
+    ],
+    "destination": "FES/UPLOAD.BIN",
+    "download_verified": true,
+    "finished_utc": "2026-10-31T19:29:16.489806+00:00",
+    "format": 1,
+    "payload_bytes": 4711676,
+    "payload_sha256": "9926773577fcb139b4a379cc293646d1e178619e3a4c8190f843e17d172bbf26",
+    "prompt_parked": true,
+    "sd_readback_verified": true,
+    "sd_write_attempted": true,
+    "stage": "complete",
+    "started_utc": "2026-10-31T19:29:07.081596+00:00",
+    "status": "verified"
+  },
+  "validation": {
+    "actual_cold_cases": 75,
+    "actual_platform_cases": 12,
+    "actual_seal_cases": 11,
+    "affected": {
+      "base": "6253f834202005f91a3c89d6d8f6c146b0e27d9f",
+      "results": [
+        {
+          "label": "test_affected.py",
+          "lane": "always",
+          "returncode": 0
+        },
+        {
+          "label": "test_test_changed.py",
+          "lane": "always",
+          "returncode": 0
+        },
+        {
+          "label": "committed whitespace",
+          "lane": "always",
+          "returncode": 0
+        },
+        {
+          "label": "working whitespace",
+          "lane": "always",
+          "returncode": 0
+        },
+        {
+          "label": "parent Python regressions",
+          "lane": "parent",
+          "returncode": 0
+        },
+        {
+          "label": "working-tree generated consumer consistency",
+          "lane": "parent",
+          "returncode": 0
+        },
+        {
+          "label": "native runtime firmware and FPGA launch integration",
+          "lane": "parent",
+          "returncode": 0
+        },
+        {
+          "label": "embedded producer identity and native control integration",
+          "lane": "parent",
+          "returncode": 0
+        },
+        {
+          "label": "embedded firmware and identity/drain RTL integration",
+          "lane": "fpga",
+          "returncode": 0
+        },
+        {
+          "label": "test_*.py",
+          "lane": "fpga",
+          "returncode": 0
+        }
+      ],
+      "status": "passed"
+    },
+    "cold_python_tests": 3,
+    "source_sha256": {
+      "platform/embedded/firmware/nano_cold.c": "efe675fc5c12cb495574c47690614ce4b536e7b21b2ed733f2d026d45c6ddd3a",
+      "platform/embedded/firmware/nano_cold.h": "cd56de144ebf82c7436967f4e571da887d947ff07d23f74d418416865102f98f",
+      "platform/embedded/firmware/tests/nano_cold_test.c": "9460fcd4e6c87de0aa9e480e2d10d70469ad5e11c65662c9bf196477eb0bf918",
+      "platform/embedded/nano/spl_cold.c": "ea8298cb3f90095611a86e50cd62bc6851f64ae6b2e8d3c4d212e1a8101d5537",
+      "tests/test_nano_cold.py": "506411491ca938987f6674e6679c2965f6fc53ec13544a0bde0a5ccef19b17ec"
+    },
+    "ubsan_and_strict_warnings": true
+  },
+  "worktree": "/home/deano/fes/out/dev/de25-embedded-os"
+}

@@ -1,0 +1,51 @@
+{
+  "status": "prepared-source-and-build",
+  "compiled_source": "ad38a355f7a7d3cea0a31ce2065b402952aca9a4",
+  "base": "039bd7264176ffdec25e448c3fc7a514e67f314c",
+  "native_boot_id": "4489a0cd784922b0",
+  "retired_image": {
+    "native_boot_id": "69a03065693442b5",
+    "attempts": 1,
+    "max_attempts": 1,
+    "result": "failed-secure-initial-tape-deadline"
+  },
+  "new_image_attempts": 0,
+  "max_new_image_attempts": 1,
+  "prior_transport_programming_failures": 1,
+  "max_transport_programming_failures_before_fix": 2,
+  "ordinary_hardware_acceptance": false,
+  "physical_programming_admission": false,
+  "performance_repair": false,
+  "tape_deadline_seconds": 1,
+  "parent_tests": 1734,
+  "parent_skips": 2,
+  "misteross_tests": 1595,
+  "misteross_skips": 79,
+  "original_guard_callback_bodies_and_engine_preserved": true,
+  "native_payload_unchanged_from_retired_image": true,
+  "bl31_sha256": "244ad7d7788433b2fb4e7c48d966d2c33a5ee7a82fd84b493f1ad0f2e8ca21bb",
+  "fit_sha256": "d157cea11154494341ad08a4a0d642c9d665f6e1fd8fc34a12b8fff211fba7ea",
+  "fit_bytes": 8309296,
+  "fit_limit": 8388608,
+  "ocram_remaining_bytes": 7488,
+  "original_ocram_limit": 393216,
+  "source_and_artifact_digests_checked": 2260,
+  "checks_summary": {
+    "path": "out/nano-tape-profile-20261108/checks-summary.json",
+    "sha256": "8c6cb095bcb79c51d06c001f3f25cfad2692075f1498ec9879cf0a1946c754e5"
+  },
+  "chain_integrity": {
+    "path": "out/nano-tape-profile-runtime-20261108/chain-file-integrity.json",
+    "sha256": "e69b749164961883febe28ebc007f510ddfa316f3d9335694646ccdcbfe3982d"
+  },
+  "firmware_integrity": {
+    "path": "out/nano-tape-profile-runtime-20261108/firmware-file-proof.json",
+    "sha256": "4960716572d909564222d9405e6b15213b3f61699189380180f9b0f90b2804eb"
+  },
+  "first_overall_build_timeout_retained": true,
+  "only_uboot_rebuilt_jobs": 8,
+  "shared_quartus_lock_used_for_packaging": true,
+  "retention_target": "/home/deano/fes-retained/de25-tape-cost-source-and-build-20261108-r2",
+  "next_step": "fresh operator/source/file admission and bounded top-only diagnostic; stop at first failure; no replay",
+  "prior_archive_policy_failure_retained": "/home/deano/fes-retained/de25-tape-cost-source-and-build-20261108-r1"
+}

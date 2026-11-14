@@ -1,0 +1,1069 @@
+=== RUN   TestExplicitIdentityVersionsAndBuildByteOrder
+--- PASS: TestExplicitIdentityVersionsAndBuildByteOrder (0.00s)
+=== RUN   TestOpenRejectsAdapterAndUnknownState
+--- PASS: TestOpenRejectsAdapterAndUnknownState (0.00s)
+=== RUN   TestUncertainCommandsAreNeverReplayed
+=== RUN   TestUncertainCommandsAreNeverReplayed/timeout
+=== RUN   TestUncertainCommandsAreNeverReplayed/write-error
+=== RUN   TestUncertainCommandsAreNeverReplayed/cancel
+=== RUN   TestUncertainCommandsAreNeverReplayed/fault
+=== RUN   TestUncertainCommandsAreNeverReplayed/wrong-gpo
+=== RUN   TestUncertainCommandsAreNeverReplayed/bad-signature
+=== RUN   TestUncertainCommandsAreNeverReplayed/error-ack
+=== RUN   TestUncertainCommandsAreNeverReplayed/reserved-gpi
+=== RUN   TestUncertainCommandsAreNeverReplayed/nonzero-success
+=== RUN   TestUncertainCommandsAreNeverReplayed/read-error
+=== RUN   TestUncertainCommandsAreNeverReplayed/read-busy-error
+--- PASS: TestUncertainCommandsAreNeverReplayed (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/timeout (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/write-error (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/cancel (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/fault (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/wrong-gpo (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/bad-signature (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/error-ack (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/reserved-gpi (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/nonzero-success (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/read-error (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/read-busy-error (0.00s)
+=== RUN   TestPartialKeyboardFailureRetiresWithoutNeutralizationRetry
+--- PASS: TestPartialKeyboardFailureRetiresWithoutNeutralizationRetry (0.00s)
+=== RUN   TestClockDeadlineAndCancellation
+--- PASS: TestClockDeadlineAndCancellation (0.00s)
+=== RUN   TestValidationAndSerialization
+--- PASS: TestValidationAndSerialization (0.00s)
+=== RUN   TestSelectedRTLLaunchInputMediaReturnAndRelaunch
+--- PASS: TestSelectedRTLLaunchInputMediaReturnAndRelaunch (9.39s)
+=== RUN   TestSelectedRTLIdentityAndEpochFailures
+=== RUN   TestSelectedRTLIdentityAndEpochFailures/mismatch-before-release
+=== RUN   TestSelectedRTLIdentityAndEpochFailures/reset-poisons-epoch
+--- PASS: TestSelectedRTLIdentityAndEpochFailures (0.13s)
+    --- PASS: TestSelectedRTLIdentityAndEpochFailures/mismatch-before-release (0.03s)
+    --- PASS: TestSelectedRTLIdentityAndEpochFailures/reset-poisons-epoch (0.10s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/computer	9.519s
+?   	github.com/DeanoC/fes/platform/embedded/tamago/computer/generated	[no test files]
+=== RUN   TestBuildIDWordOrderAndRejection
+--- PASS: TestBuildIDWordOrderAndRejection (0.00s)
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/build-id
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/payload-digest
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/activation-receipt
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/package-id
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/core-id
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/platform
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/device
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/programming-profile
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/abi
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/abi-major
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/abi-minor
+--- PASS: TestPreflightBindsExactProfileBuildAndPayload (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/build-id (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/payload-digest (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/activation-receipt (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/package-id (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/core-id (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/platform (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/device (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/programming-profile (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/abi (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/abi-major (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/abi-minor (0.00s)
+=== RUN   TestProfileValidationRejectsAmbiguity
+--- PASS: TestProfileValidationRejectsAmbiguity (0.00s)
+=== RUN   TestCPUBridgeColdAndOwnedClosedAreIdempotent
+=== RUN   TestCPUBridgeColdAndOwnedClosedAreIdempotent/mask-1
+=== RUN   TestCPUBridgeColdAndOwnedClosedAreIdempotent/mask-4
+=== RUN   TestCPUBridgeColdAndOwnedClosedAreIdempotent/mask-5
+=== RUN   TestCPUBridgeColdAndOwnedClosedAreIdempotent/mask-8
+=== RUN   TestCPUBridgeColdAndOwnedClosedAreIdempotent/mask-9
+=== RUN   TestCPUBridgeColdAndOwnedClosedAreIdempotent/mask-c
+=== RUN   TestCPUBridgeColdAndOwnedClosedAreIdempotent/mask-d
+--- PASS: TestCPUBridgeColdAndOwnedClosedAreIdempotent (0.00s)
+    --- PASS: TestCPUBridgeColdAndOwnedClosedAreIdempotent/mask-1 (0.00s)
+    --- PASS: TestCPUBridgeColdAndOwnedClosedAreIdempotent/mask-4 (0.00s)
+    --- PASS: TestCPUBridgeColdAndOwnedClosedAreIdempotent/mask-5 (0.00s)
+    --- PASS: TestCPUBridgeColdAndOwnedClosedAreIdempotent/mask-8 (0.00s)
+    --- PASS: TestCPUBridgeColdAndOwnedClosedAreIdempotent/mask-9 (0.00s)
+    --- PASS: TestCPUBridgeColdAndOwnedClosedAreIdempotent/mask-c (0.00s)
+    --- PASS: TestCPUBridgeColdAndOwnedClosedAreIdempotent/mask-d (0.00s)
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/close
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/producer
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/fabric
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/hardware
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/held-data
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/reset
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/owner
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/generation
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/capability
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/masters
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/readback
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/readback-reset
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/close
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/producer
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/fabric
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/hardware
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/held-data
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/reset
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/owner
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/generation
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/capability
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/masters
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/readback
+=== RUN   TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/readback-reset
+--- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/ (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/close (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/producer (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/fabric (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/hardware (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/held-data (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/reset (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/owner (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/generation (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/capability (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/masters (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/readback (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-1/readback-reset (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/ (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/close (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/producer (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/fabric (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/hardware (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/held-data (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/reset (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/owner (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/generation (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/capability (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/masters (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/readback (0.00s)
+    --- PASS: TestCPUBridgeActiveClosureRequiresIndependentEvidence/handshake-2/readback-reset (0.00s)
+=== RUN   TestCPUBridgeControlOnlyClosureDoesNotInventDataAcknowledgements
+=== RUN   TestCPUBridgeControlOnlyClosureDoesNotInventDataAcknowledgements/#00
+=== RUN   TestCPUBridgeControlOnlyClosureDoesNotInventDataAcknowledgements/held-data
+=== RUN   TestCPUBridgeControlOnlyClosureDoesNotInventDataAcknowledgements/fabric
+=== RUN   TestCPUBridgeControlOnlyClosureDoesNotInventDataAcknowledgements/hardware
+--- PASS: TestCPUBridgeControlOnlyClosureDoesNotInventDataAcknowledgements (0.00s)
+    --- PASS: TestCPUBridgeControlOnlyClosureDoesNotInventDataAcknowledgements/#00 (0.00s)
+    --- PASS: TestCPUBridgeControlOnlyClosureDoesNotInventDataAcknowledgements/held-data (0.00s)
+    --- PASS: TestCPUBridgeControlOnlyClosureDoesNotInventDataAcknowledgements/fabric (0.00s)
+    --- PASS: TestCPUBridgeControlOnlyClosureDoesNotInventDataAcknowledgements/hardware (0.00s)
+=== RUN   TestCPUBridgeRejectsUnprovedInitialStates
+=== RUN   TestCPUBridgeRejectsUnprovedInitialStates/unknown-closed
+=== RUN   TestCPUBridgeRejectsUnprovedInitialStates/partial
+=== RUN   TestCPUBridgeRejectsUnprovedInitialStates/partial-ddr
+=== RUN   TestCPUBridgeRejectsUnprovedInitialStates/partial-seven
+=== RUN   TestCPUBridgeRejectsUnprovedInitialStates/cold-master
+=== RUN   TestCPUBridgeRejectsUnprovedInitialStates/unspecified
+=== RUN   TestCPUBridgeRejectsUnprovedInitialStates/owner-zero
+=== RUN   TestCPUBridgeRejectsUnprovedInitialStates/generation-zero
+=== RUN   TestCPUBridgeRejectsUnprovedInitialStates/mask
+=== RUN   TestCPUBridgeRejectsUnprovedInitialStates/control-mask
+=== RUN   TestCPUBridgeRejectsUnprovedInitialStates/drain-mask
+=== RUN   TestCPUBridgeRejectsUnprovedInitialStates/no-drain-mask
+=== RUN   TestCPUBridgeRejectsUnprovedInitialStates/overflow
+=== RUN   TestCPUBridgeRejectsUnprovedInitialStates/observe
+--- PASS: TestCPUBridgeRejectsUnprovedInitialStates (0.00s)
+    --- PASS: TestCPUBridgeRejectsUnprovedInitialStates/unknown-closed (0.00s)
+    --- PASS: TestCPUBridgeRejectsUnprovedInitialStates/partial (0.00s)
+    --- PASS: TestCPUBridgeRejectsUnprovedInitialStates/partial-ddr (0.00s)
+    --- PASS: TestCPUBridgeRejectsUnprovedInitialStates/partial-seven (0.00s)
+    --- PASS: TestCPUBridgeRejectsUnprovedInitialStates/cold-master (0.00s)
+    --- PASS: TestCPUBridgeRejectsUnprovedInitialStates/unspecified (0.00s)
+    --- PASS: TestCPUBridgeRejectsUnprovedInitialStates/owner-zero (0.00s)
+    --- PASS: TestCPUBridgeRejectsUnprovedInitialStates/generation-zero (0.00s)
+    --- PASS: TestCPUBridgeRejectsUnprovedInitialStates/mask (0.00s)
+    --- PASS: TestCPUBridgeRejectsUnprovedInitialStates/control-mask (0.00s)
+    --- PASS: TestCPUBridgeRejectsUnprovedInitialStates/drain-mask (0.00s)
+    --- PASS: TestCPUBridgeRejectsUnprovedInitialStates/no-drain-mask (0.00s)
+    --- PASS: TestCPUBridgeRejectsUnprovedInitialStates/overflow (0.00s)
+    --- PASS: TestCPUBridgeRejectsUnprovedInitialStates/observe (0.00s)
+=== RUN   TestCPUBridgeDataSelectionAndPartialReleaseFailures
+=== RUN   TestCPUBridgeDataSelectionAndPartialReleaseFailures/open
+=== RUN   TestCPUBridgeDataSelectionAndPartialReleaseFailures/open-reset
+=== RUN   TestCPUBridgeDataSelectionAndPartialReleaseFailures/open-owner
+--- PASS: TestCPUBridgeDataSelectionAndPartialReleaseFailures (0.00s)
+    --- PASS: TestCPUBridgeDataSelectionAndPartialReleaseFailures/open (0.00s)
+    --- PASS: TestCPUBridgeDataSelectionAndPartialReleaseFailures/open-reset (0.00s)
+    --- PASS: TestCPUBridgeDataSelectionAndPartialReleaseFailures/open-owner (0.00s)
+=== RUN   TestCPUBridgeClosedReceiptCannotSurviveOwnershipOrResetChange
+=== RUN   TestCPUBridgeClosedReceiptCannotSurviveOwnershipOrResetChange/owner
+=== RUN   TestCPUBridgeClosedReceiptCannotSurviveOwnershipOrResetChange/generation
+=== RUN   TestCPUBridgeClosedReceiptCannotSurviveOwnershipOrResetChange/reset
+=== RUN   TestCPUBridgeClosedReceiptCannotSurviveOwnershipOrResetChange/capability
+=== RUN   TestCPUBridgeClosedReceiptCannotSurviveOwnershipOrResetChange/masters
+--- PASS: TestCPUBridgeClosedReceiptCannotSurviveOwnershipOrResetChange (0.00s)
+    --- PASS: TestCPUBridgeClosedReceiptCannotSurviveOwnershipOrResetChange/owner (0.00s)
+    --- PASS: TestCPUBridgeClosedReceiptCannotSurviveOwnershipOrResetChange/generation (0.00s)
+    --- PASS: TestCPUBridgeClosedReceiptCannotSurviveOwnershipOrResetChange/reset (0.00s)
+    --- PASS: TestCPUBridgeClosedReceiptCannotSurviveOwnershipOrResetChange/capability (0.00s)
+    --- PASS: TestCPUBridgeClosedReceiptCannotSurviveOwnershipOrResetChange/masters (0.00s)
+=== RUN   TestCPUBridgeReleaseOrderAndReadbackFailures
+=== RUN   TestCPUBridgeReleaseOrderAndReadbackFailures/no-contain
+=== RUN   TestCPUBridgeReleaseOrderAndReadbackFailures/data-before-control
+=== RUN   TestCPUBridgeReleaseOrderAndReadbackFailures/open
+=== RUN   TestCPUBridgeReleaseOrderAndReadbackFailures/open-reset
+=== RUN   TestCPUBridgeReleaseOrderAndReadbackFailures/open-owner
+=== RUN   TestCPUBridgeReleaseOrderAndReadbackFailures/configuration-active
+--- PASS: TestCPUBridgeReleaseOrderAndReadbackFailures (0.00s)
+    --- PASS: TestCPUBridgeReleaseOrderAndReadbackFailures/no-contain (0.00s)
+    --- PASS: TestCPUBridgeReleaseOrderAndReadbackFailures/data-before-control (0.00s)
+    --- PASS: TestCPUBridgeReleaseOrderAndReadbackFailures/open (0.00s)
+    --- PASS: TestCPUBridgeReleaseOrderAndReadbackFailures/open-reset (0.00s)
+    --- PASS: TestCPUBridgeReleaseOrderAndReadbackFailures/open-owner (0.00s)
+    --- PASS: TestCPUBridgeReleaseOrderAndReadbackFailures/configuration-active (0.00s)
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-8
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-8/cold
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-8/active
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-8/absent-fabric
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-8/hardware-drain
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-8/fabric-ack
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-8/control-open
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-8/data-open
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-8/identity-recovery
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-8/lost-completion
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-d
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-d/cold
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-d/active
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-d/absent-fabric
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-d/hardware-drain
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-d/fabric-ack
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-d/control-open
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-d/data-open
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-d/identity-recovery
+=== RUN   TestCPUBridgeContractLaunchReturnAndFailures/mask-d/lost-completion
+--- PASS: TestCPUBridgeContractLaunchReturnAndFailures (0.00s)
+    --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-8 (0.00s)
+        --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-8/cold (0.00s)
+        --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-8/active (0.00s)
+        --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-8/absent-fabric (0.00s)
+        --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-8/hardware-drain (0.00s)
+        --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-8/fabric-ack (0.00s)
+        --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-8/control-open (0.00s)
+        --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-8/data-open (0.00s)
+        --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-8/identity-recovery (0.00s)
+        --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-8/lost-completion (0.00s)
+    --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-d (0.00s)
+        --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-d/cold (0.00s)
+        --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-d/active (0.00s)
+        --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-d/absent-fabric (0.00s)
+        --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-d/hardware-drain (0.00s)
+        --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-d/fabric-ack (0.00s)
+        --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-d/control-open (0.00s)
+        --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-d/data-open (0.00s)
+        --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-d/identity-recovery (0.00s)
+        --- PASS: TestCPUBridgeContractLaunchReturnAndFailures/mask-d/lost-completion (0.00s)
+=== RUN   TestNativeComputerScopeClosesAndRevokesIO
+--- PASS: TestNativeComputerScopeClosesAndRevokesIO (0.00s)
+=== RUN   TestNativeComputerFailuresKeepAdmissionClosedAndDoNotReplay
+=== RUN   TestNativeComputerFailuresKeepAdmissionClosedAndDoNotReplay/wrong-build
+=== RUN   TestNativeComputerFailuresKeepAdmissionClosedAndDoNotReplay/changed-owner
+=== RUN   TestNativeComputerFailuresKeepAdmissionClosedAndDoNotReplay/lost-open
+=== RUN   TestNativeComputerFailuresKeepAdmissionClosedAndDoNotReplay/ack-timeout
+=== RUN   TestNativeComputerFailuresKeepAdmissionClosedAndDoNotReplay/lost-close
+=== RUN   TestNativeComputerFailuresKeepAdmissionClosedAndDoNotReplay/bad-closure
+--- PASS: TestNativeComputerFailuresKeepAdmissionClosedAndDoNotReplay (0.01s)
+    --- PASS: TestNativeComputerFailuresKeepAdmissionClosedAndDoNotReplay/wrong-build (0.00s)
+    --- PASS: TestNativeComputerFailuresKeepAdmissionClosedAndDoNotReplay/changed-owner (0.00s)
+    --- PASS: TestNativeComputerFailuresKeepAdmissionClosedAndDoNotReplay/lost-open (0.00s)
+    --- PASS: TestNativeComputerFailuresKeepAdmissionClosedAndDoNotReplay/ack-timeout (0.00s)
+    --- PASS: TestNativeComputerFailuresKeepAdmissionClosedAndDoNotReplay/lost-close (0.00s)
+    --- PASS: TestNativeComputerFailuresKeepAdmissionClosedAndDoNotReplay/bad-closure (0.00s)
+=== RUN   TestNativeComputerClosureRejectsNewRunBeforeItsFinalHoldCanRace
+--- PASS: TestNativeComputerClosureRejectsNewRunBeforeItsFinalHoldCanRace (0.00s)
+=== RUN   TestNativeComputerRejectsUncompiledMapBeforeFirmware
+=== RUN   TestNativeComputerRejectsUncompiledMapBeforeFirmware/cpu_base
+=== RUN   TestNativeComputerRejectsUncompiledMapBeforeFirmware/span
+=== RUN   TestNativeComputerRejectsUncompiledMapBeforeFirmware/scope
+=== RUN   TestNativeComputerRejectsUncompiledMapBeforeFirmware/package_id
+=== RUN   TestNativeComputerRejectsUncompiledMapBeforeFirmware/build_id
+=== RUN   TestNativeComputerRejectsUncompiledMapBeforeFirmware/control_map_sha256
+=== RUN   TestNativeComputerRejectsUncompiledMapBeforeFirmware/handoff_sha256
+=== RUN   TestNativeComputerRejectsUncompiledMapBeforeFirmware/abi_minor
+=== RUN   TestNativeComputerRejectsUncompiledMapBeforeFirmware/capabilities
+=== RUN   TestNativeComputerRejectsUncompiledMapBeforeFirmware/hps_master
+=== RUN   TestNativeComputerRejectsUncompiledMapBeforeFirmware/endpoint_sha256
+=== RUN   TestNativeComputerRejectsUncompiledMapBeforeFirmware/wrapper_sha256
+=== RUN   TestNativeComputerRejectsUncompiledMapBeforeFirmware/missing
+=== RUN   TestNativeComputerRejectsUncompiledMapBeforeFirmware/duplicate
+=== RUN   TestNativeComputerRejectsUncompiledMapBeforeFirmware/unknown
+--- PASS: TestNativeComputerRejectsUncompiledMapBeforeFirmware (0.00s)
+    --- PASS: TestNativeComputerRejectsUncompiledMapBeforeFirmware/cpu_base (0.00s)
+    --- PASS: TestNativeComputerRejectsUncompiledMapBeforeFirmware/span (0.00s)
+    --- PASS: TestNativeComputerRejectsUncompiledMapBeforeFirmware/scope (0.00s)
+    --- PASS: TestNativeComputerRejectsUncompiledMapBeforeFirmware/package_id (0.00s)
+    --- PASS: TestNativeComputerRejectsUncompiledMapBeforeFirmware/build_id (0.00s)
+    --- PASS: TestNativeComputerRejectsUncompiledMapBeforeFirmware/control_map_sha256 (0.00s)
+    --- PASS: TestNativeComputerRejectsUncompiledMapBeforeFirmware/handoff_sha256 (0.00s)
+    --- PASS: TestNativeComputerRejectsUncompiledMapBeforeFirmware/abi_minor (0.00s)
+    --- PASS: TestNativeComputerRejectsUncompiledMapBeforeFirmware/capabilities (0.00s)
+    --- PASS: TestNativeComputerRejectsUncompiledMapBeforeFirmware/hps_master (0.00s)
+    --- PASS: TestNativeComputerRejectsUncompiledMapBeforeFirmware/endpoint_sha256 (0.00s)
+    --- PASS: TestNativeComputerRejectsUncompiledMapBeforeFirmware/wrapper_sha256 (0.00s)
+    --- PASS: TestNativeComputerRejectsUncompiledMapBeforeFirmware/missing (0.00s)
+    --- PASS: TestNativeComputerRejectsUncompiledMapBeforeFirmware/duplicate (0.00s)
+    --- PASS: TestNativeComputerRejectsUncompiledMapBeforeFirmware/unknown (0.00s)
+=== RUN   TestSelectedComputerRTLUsesOwnedNativeScope
+--- PASS: TestSelectedComputerRTLUsesOwnedNativeScope (0.42s)
+=== RUN   TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies
+=== RUN   TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/unready
+=== RUN   TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/ready
+=== RUN   TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/status
+=== RUN   TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/tag
+=== RUN   TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/bits
+=== RUN   TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/owner
+=== RUN   TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/generation
+=== RUN   TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/after-owner
+=== RUN   TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/after-mask
+=== RUN   TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/after-transport
+=== RUN   TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/query-transport
+=== RUN   TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/query-stale-generation
+--- PASS: TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies (0.00s)
+    --- PASS: TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/unready (0.00s)
+    --- PASS: TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/ready (0.00s)
+    --- PASS: TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/status (0.00s)
+    --- PASS: TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/tag (0.00s)
+    --- PASS: TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/bits (0.00s)
+    --- PASS: TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/owner (0.00s)
+    --- PASS: TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/generation (0.00s)
+    --- PASS: TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/after-owner (0.00s)
+    --- PASS: TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/after-mask (0.00s)
+    --- PASS: TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/after-transport (0.00s)
+    --- PASS: TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/query-transport (0.00s)
+    --- PASS: TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies/query-stale-generation (0.00s)
+=== RUN   TestControlProbeRequiresCompiledSourceAndClosedReturnedScope
+--- PASS: TestControlProbeRequiresCompiledSourceAndClosedReturnedScope (0.00s)
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/unready
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/busy
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/transport
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/tag
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/abi
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/build-high
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/build-low
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-owner
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-generation
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-mask
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-masters
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-capability
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-never
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-transport
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/not-cold
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/stale-closed-generation
+--- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/unready (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/busy (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/transport (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/tag (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/abi (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/build-high (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/build-low (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-owner (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-generation (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-mask (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-masters (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-capability (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-never (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-transport (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/not-cold (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/stale-closed-generation (0.00s)
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/empty
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/unknown
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/missing
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/address
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/package
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/handoff
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/duplicate
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-pass
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-missing
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-null
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-base
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-span
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-maintenance
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-scope
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-unknown
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-duplicate
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-onchip
+--- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/empty (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/unknown (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/missing (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/address (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/package (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/handoff (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/duplicate (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-pass (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-missing (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-null (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-base (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-span (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-maintenance (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-scope (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-unknown (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-duplicate (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/ddr-stop-onchip (0.00s)
+=== RUN   TestControlProbeUnreadyReturnsNoIdentityAndDoesNotRetry
+--- PASS: TestControlProbeUnreadyReturnsNoIdentityAndDoesNotRetry (0.00s)
+=== RUN   TestCPUHooksValidateApertureAndPropagateTransportErrors
+--- PASS: TestCPUHooksValidateApertureAndPropagateTransportErrors (0.00s)
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/pass
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/transport0
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/transport1
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/transport2
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/transport3
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/transport4
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/transport5
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/identity-tag
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/onchip-abi
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/stale-build
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/unready
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/partial-unready
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/busy
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/two-transitions
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/late-owner
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/late-active
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/late-capability
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/late-pattern
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/overflow
+=== RUN   TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/not-cold
+--- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay (0.01s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/pass (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/transport0 (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/transport1 (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/transport2 (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/transport3 (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/transport4 (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/transport5 (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/identity-tag (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/onchip-abi (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/stale-build (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/unready (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/partial-unready (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/busy (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/two-transitions (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/late-owner (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/late-active (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/late-capability (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/late-pattern (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/overflow (0.00s)
+    --- PASS: TestDDRProbePinsMemoryAndRequiresThreeClosedTransitionsWithoutReplay/not-cold (0.00s)
+=== RUN   TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware
+=== RUN   TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/missing-pin
+=== RUN   TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/failed-pin
+=== RUN   TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/pattern
+=== RUN   TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/address
+=== RUN   TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/missing-contract
+=== RUN   TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/unknown
+=== RUN   TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/duplicate
+=== RUN   TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/attributes
+=== RUN   TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/close-mask
+=== RUN   TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/memory-map
+--- PASS: TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware (0.00s)
+    --- PASS: TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/missing-pin (0.00s)
+    --- PASS: TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/failed-pin (0.00s)
+    --- PASS: TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/pattern (0.00s)
+    --- PASS: TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/address (0.00s)
+    --- PASS: TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/missing-contract (0.00s)
+    --- PASS: TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/unknown (0.00s)
+    --- PASS: TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/duplicate (0.00s)
+    --- PASS: TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/attributes (0.00s)
+    --- PASS: TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/close-mask (0.00s)
+    --- PASS: TestDDRProbeRejectsUnqualifiedMapsAndFailedReservationBeforeFirmware/memory-map (0.00s)
+=== RUN   TestLaunchReturnUsesFirmwareAndGenerationBoundDrain
+--- PASS: TestLaunchReturnUsesFirmwareAndGenerationBoundDrain (0.00s)
+=== RUN   TestFailuresKeepOwnershipAndNeverReleaseTarget
+=== RUN   TestFailuresKeepOwnershipAndNeverReleaseTarget/firmware
+=== RUN   TestFailuresKeepOwnershipAndNeverReleaseTarget/stale
+=== RUN   TestFailuresKeepOwnershipAndNeverReleaseTarget/contain
+=== RUN   TestFailuresKeepOwnershipAndNeverReleaseTarget/start
+=== RUN   TestFailuresKeepOwnershipAndNeverReleaseTarget/foreign
+=== RUN   TestFailuresKeepOwnershipAndNeverReleaseTarget/control
+=== RUN   TestFailuresKeepOwnershipAndNeverReleaseTarget/release
+--- PASS: TestFailuresKeepOwnershipAndNeverReleaseTarget (0.00s)
+    --- PASS: TestFailuresKeepOwnershipAndNeverReleaseTarget/firmware (0.00s)
+    --- PASS: TestFailuresKeepOwnershipAndNeverReleaseTarget/stale (0.00s)
+    --- PASS: TestFailuresKeepOwnershipAndNeverReleaseTarget/contain (0.00s)
+    --- PASS: TestFailuresKeepOwnershipAndNeverReleaseTarget/start (0.00s)
+    --- PASS: TestFailuresKeepOwnershipAndNeverReleaseTarget/foreign (0.00s)
+    --- PASS: TestFailuresKeepOwnershipAndNeverReleaseTarget/control (0.00s)
+    --- PASS: TestFailuresKeepOwnershipAndNeverReleaseTarget/release (0.00s)
+=== RUN   TestIdentityMismatchPerformsOneContainedIdleRecovery
+--- PASS: TestIdentityMismatchPerformsOneContainedIdleRecovery (0.00s)
+=== RUN   TestDeadlineAndMutationRetainPendingRegion
+=== RUN   TestDeadlineAndMutationRetainPendingRegion/lost
+=== RUN   TestDeadlineAndMutationRetainPendingRegion/mutation
+--- PASS: TestDeadlineAndMutationRetainPendingRegion (0.00s)
+    --- PASS: TestDeadlineAndMutationRetainPendingRegion/lost (0.00s)
+    --- PASS: TestDeadlineAndMutationRetainPendingRegion/mutation (0.00s)
+=== RUN   TestSaveFailureRetainsRunningOwner
+--- PASS: TestSaveFailureRetainsRunningOwner (0.00s)
+=== RUN   TestCancellationAndRegressingClockRetainUnresolvedTransfer
+=== RUN   TestCancellationAndRegressingClockRetainUnresolvedTransfer/cancel
+=== RUN   TestCancellationAndRegressingClockRetainUnresolvedTransfer/clock
+--- PASS: TestCancellationAndRegressingClockRetainUnresolvedTransfer (0.00s)
+    --- PASS: TestCancellationAndRegressingClockRetainUnresolvedTransfer/cancel (0.00s)
+    --- PASS: TestCancellationAndRegressingClockRetainUnresolvedTransfer/clock (0.00s)
+=== RUN   TestEndpointCannotSwitchControllers
+--- PASS: TestEndpointCannotSwitchControllers (0.00s)
+=== RUN   TestDeadlineAfterSlowEnablePreventsDataRelease
+--- PASS: TestDeadlineAfterSlowEnablePreventsDataRelease (0.00s)
+=== RUN   TestFirmwareBridgesUsePrivateReadOnlyProbeAndDecodeOwnedReplies
+--- PASS: TestFirmwareBridgesUsePrivateReadOnlyProbeAndDecodeOwnedReplies (0.00s)
+=== RUN   TestFirmwareBridgesRejectUnreadyLegacyAndMalformedRepliesWithoutRetry
+--- PASS: TestFirmwareBridgesRejectUnreadyLegacyAndMalformedRepliesWithoutRetry (0.00s)
+=== RUN   TestHPSContextUsesCompiledBytesAndRemainsSeparateFromLiveBootAdmission
+--- PASS: TestHPSContextUsesCompiledBytesAndRemainsSeparateFromLiveBootAdmission (0.00s)
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/transport-before
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/unready
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/open
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/masters
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/missing-context
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/legacy-tag
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/wrong-part0
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/wrong-part1
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/transport-part1
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/owner
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/generation
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/capability
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/zero
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/digest
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/transport-after
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/reserved-part
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/busy
+--- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/transport-before (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/unready (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/open (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/masters (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/missing-context (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/legacy-tag (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/wrong-part0 (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/wrong-part1 (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/transport-part1 (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/owner (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/generation (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/capability (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/zero (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/digest (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/transport-after (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/reserved-part (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/busy (0.00s)
+=== RUN   TestHPSContextRejectsWrongPackageAndUnqualifiedDescriptorBeforeFirmware
+--- PASS: TestHPSContextRejectsWrongPackageAndUnqualifiedDescriptorBeforeFirmware (0.00s)
+=== RUN   TestHPSFirstPairRequiresExactPackageAndTrustedHandoff
+=== RUN   TestHPSFirstPairRequiresExactPackageAndTrustedHandoff/boot-order
+=== RUN   TestHPSFirstPairRequiresExactPackageAndTrustedHandoff/package
+=== RUN   TestHPSFirstPairRequiresExactPackageAndTrustedHandoff/build
+=== RUN   TestHPSFirstPairRequiresExactPackageAndTrustedHandoff/core
+=== RUN   TestHPSFirstPairRequiresExactPackageAndTrustedHandoff/phase1
+=== RUN   TestHPSFirstPairRequiresExactPackageAndTrustedHandoff/io-hash
+=== RUN   TestHPSFirstPairRequiresExactPackageAndTrustedHandoff/tool
+--- PASS: TestHPSFirstPairRequiresExactPackageAndTrustedHandoff (0.00s)
+    --- PASS: TestHPSFirstPairRequiresExactPackageAndTrustedHandoff/boot-order (0.00s)
+    --- PASS: TestHPSFirstPairRequiresExactPackageAndTrustedHandoff/package (0.00s)
+    --- PASS: TestHPSFirstPairRequiresExactPackageAndTrustedHandoff/build (0.00s)
+    --- PASS: TestHPSFirstPairRequiresExactPackageAndTrustedHandoff/core (0.00s)
+    --- PASS: TestHPSFirstPairRequiresExactPackageAndTrustedHandoff/phase1 (0.00s)
+    --- PASS: TestHPSFirstPairRequiresExactPackageAndTrustedHandoff/io-hash (0.00s)
+    --- PASS: TestHPSFirstPairRequiresExactPackageAndTrustedHandoff/tool (0.00s)
+=== RUN   TestNanoFirmwareBridgeSiPGates
+    nano_bridge_service_test.go:46: run nativefabric/verify.py --nano-bridge-service
+--- SKIP: TestNanoFirmwareBridgeSiPGates (0.00s)
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/cold
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/active
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/fabric-absent
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/missing-hardware
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/missing-fabric
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/stop-failure
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/missing-producer
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/ownership-ABA
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/reset-readback
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/control-open
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/data-open
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/ownership-during-stop
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/identity-recovery
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-8/lost-transfer
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/cold
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/active
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/fabric-absent
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/missing-hardware
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/missing-fabric
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/stop-failure
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/missing-producer
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/ownership-ABA
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/reset-readback
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/control-open
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/data-open
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/ownership-during-stop
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/identity-recovery
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+=== RUN   TestNanoFirmwareBridgeCyclesAndFailures/mask-d/lost-transfer
+    nano_bridge_service_test.go:125: run nativefabric/verify.py --nano-bridge-service
+--- PASS: TestNanoFirmwareBridgeCyclesAndFailures (0.00s)
+    --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-8 (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/cold (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/active (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/fabric-absent (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/missing-hardware (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/missing-fabric (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/stop-failure (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/missing-producer (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/ownership-ABA (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/reset-readback (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/control-open (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/data-open (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/ownership-during-stop (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/identity-recovery (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-8/lost-transfer (0.00s)
+    --- PASS: TestNanoFirmwareBridgeCyclesAndFailures/mask-d (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/cold (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/active (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/fabric-absent (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/missing-hardware (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/missing-fabric (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/stop-failure (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/missing-producer (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/ownership-ABA (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/reset-readback (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/control-open (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/data-open (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/ownership-during-stop (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/identity-recovery (0.00s)
+        --- SKIP: TestNanoFirmwareBridgeCyclesAndFailures/mask-d/lost-transfer (0.00s)
+=== RUN   TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart
+=== RUN   TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart/pass
+=== RUN   TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart/map
+=== RUN   TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart/source
+=== RUN   TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart/address
+=== RUN   TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart/changed-data
+=== RUN   TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart/changed-owner
+--- PASS: TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart (0.00s)
+    --- PASS: TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart/pass (0.00s)
+    --- PASS: TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart/map (0.00s)
+    --- PASS: TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart/source (0.00s)
+    --- PASS: TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart/address (0.00s)
+    --- PASS: TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart/changed-data (0.00s)
+    --- PASS: TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart/changed-owner (0.00s)
+=== RUN   TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest
+=== RUN   TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/pass
+=== RUN   TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/status
+=== RUN   TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/tag
+=== RUN   TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/size
+=== RUN   TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/owner
+=== RUN   TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/generation
+=== RUN   TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/transport
+=== RUN   TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/after-owner
+=== RUN   TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/after-mask
+=== RUN   TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/after-transport
+=== RUN   TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/preparation-stale-generation
+--- PASS: TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest (0.00s)
+    --- PASS: TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/pass (0.00s)
+    --- PASS: TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/status (0.00s)
+    --- PASS: TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/tag (0.00s)
+    --- PASS: TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/size (0.00s)
+    --- PASS: TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/owner (0.00s)
+    --- PASS: TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/generation (0.00s)
+    --- PASS: TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/transport (0.00s)
+    --- PASS: TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/after-owner (0.00s)
+    --- PASS: TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/after-mask (0.00s)
+    --- PASS: TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/after-transport (0.00s)
+    --- PASS: TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest/preparation-stale-generation (0.00s)
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/control
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/empty
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/trailing
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/unknown
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/package
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/build
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/sha256
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/sha384
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/bytes
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/base
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/arena
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/dram
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/chunk
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/chunk-count
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/chunk-digest
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/region
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/region-base
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/region-size
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/region-data
+=== RUN   TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/release
+--- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC (0.01s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/control (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/empty (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/trailing (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/unknown (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/package (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/build (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/sha256 (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/sha384 (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/bytes (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/base (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/arena (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/dram (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/chunk (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/chunk-count (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/chunk-digest (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/region (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/region-base (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/region-size (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/region-data (0.00s)
+    --- PASS: TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC/release (0.00s)
+=== RUN   TestProducedIdentityBindsNativeControl
+    producer_integration_test.go:91: run verify_producer.py for the producer integration
+--- SKIP: TestProducedIdentityBindsNativeControl (0.00s)
+=== RUN   TestBoardAvalonIdentityBindsNativeControl
+    producer_integration_test.go:190: run the DE25 board-control verifier for this integration
+--- SKIP: TestBoardAvalonIdentityBindsNativeControl (0.00s)
+=== RUN   TestReaderMemoryReservationKeepsBootPinnedPatternAndClosedOwner
+--- PASS: TestReaderMemoryReservationKeepsBootPinnedPatternAndClosedOwner (0.00s)
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/allocation-error
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/nil
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/address
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/size
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/pattern
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/late-bytes
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/owner
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/generation
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/open
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/active
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/late-owner
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/0
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/1
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/2
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/3
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/4
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/5
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/6
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/7
+--- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays (0.01s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/allocation-error (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/nil (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/address (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/size (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/pattern (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/late-bytes (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/owner (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/generation (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/open (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/active (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/late-owner (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/0 (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/1 (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/2 (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/3 (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/4 (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/5 (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/6 (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/7 (0.00s)
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/cpu_attributes
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/lifetime
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/pattern_sha256
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/scope
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/cpu_base
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/bus_base
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/package_id
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/bytes
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/arena_bytes
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/pattern
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/format
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/build_id
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/fpga_addressing
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/extra
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/arena_base
+--- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission (0.01s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/cpu_attributes (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/lifetime (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/pattern_sha256 (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/scope (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/cpu_base (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/bus_base (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/package_id (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/bytes (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/arena_bytes (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/pattern (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/format (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/build_id (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/fpga_addressing (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/extra (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/arena_base (0.00s)
+=== RUN   TestReaderProbeBindsDedicatedOperationAndReclosedStorageGeneration
+--- PASS: TestReaderProbeBindsDedicatedOperationAndReclosedStorageGeneration (0.00s)
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/unready
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/partial-unready
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/busy
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/transport
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/identity-only-tag
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/abi
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/build
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-owner
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-generation
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-mask
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-masters
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-transport
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/not-cold
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/overflow
+--- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/unready (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/partial-unready (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/busy (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/transport (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/identity-only-tag (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/abi (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/build (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-owner (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-generation (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-mask (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-masters (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-transport (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/not-cold (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/overflow (0.00s)
+=== RUN   TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer
+=== RUN   TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/pass
+=== RUN   TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/diagnostic-timeout
+=== RUN   TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/diagnostic-error
+=== RUN   TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/snapshot-transport
+=== RUN   TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/snapshot-owner
+=== RUN   TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/snapshot-open
+=== RUN   TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/status
+=== RUN   TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/tag
+=== RUN   TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/owner
+=== RUN   TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/generation
+=== RUN   TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/positive-diagnostic
+=== RUN   TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/retirement-transport
+--- PASS: TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer (0.01s)
+    --- PASS: TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/pass (0.00s)
+    --- PASS: TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/diagnostic-timeout (0.00s)
+    --- PASS: TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/diagnostic-error (0.00s)
+    --- PASS: TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/snapshot-transport (0.00s)
+    --- PASS: TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/snapshot-owner (0.00s)
+    --- PASS: TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/snapshot-open (0.00s)
+    --- PASS: TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/status (0.00s)
+    --- PASS: TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/tag (0.00s)
+    --- PASS: TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/owner (0.00s)
+    --- PASS: TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/generation (0.00s)
+    --- PASS: TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/positive-diagnostic (0.00s)
+    --- PASS: TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer/retirement-transport (0.00s)
+=== RUN   TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC
+=== RUN   TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/live
+=== RUN   TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/done
+=== RUN   TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/no-pending
+=== RUN   TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/already-attempted
+=== RUN   TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/region
+=== RUN   TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/release
+=== RUN   TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/address
+=== RUN   TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/size
+=== RUN   TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/dram
+=== RUN   TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/chunk
+=== RUN   TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/digest
+=== RUN   TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/source
+=== RUN   TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/owner
+=== RUN   TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/generation
+=== RUN   TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/open
+=== RUN   TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/masters
+=== RUN   TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/fabric
+--- PASS: TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC (0.01s)
+    --- PASS: TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/live (0.00s)
+    --- PASS: TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/done (0.00s)
+    --- PASS: TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/no-pending (0.00s)
+    --- PASS: TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/already-attempted (0.00s)
+    --- PASS: TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/region (0.00s)
+    --- PASS: TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/release (0.00s)
+    --- PASS: TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/address (0.00s)
+    --- PASS: TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/size (0.00s)
+    --- PASS: TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/dram (0.00s)
+    --- PASS: TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/chunk (0.00s)
+    --- PASS: TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/digest (0.00s)
+    --- PASS: TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/source (0.00s)
+    --- PASS: TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/owner (0.00s)
+    --- PASS: TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/generation (0.00s)
+    --- PASS: TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/open (0.00s)
+    --- PASS: TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/masters (0.00s)
+    --- PASS: TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC/fabric (0.00s)
+=== RUN   TestActualFirmwareRTLLaunchReturnAndFailures
+=== RUN   TestActualFirmwareRTLLaunchReturnAndFailures/launch-return-drains-accepted-read
+    rtl_integration_test.go:145: run nativefabric/verify.py for actual firmware/RTL integration
+=== RUN   TestActualFirmwareRTLLaunchReturnAndFailures/unknown-firmware-before-disable
+    rtl_integration_test.go:200: run nativefabric/verify.py for actual firmware/RTL integration
+=== RUN   TestActualFirmwareRTLLaunchReturnAndFailures/foreign-completion-retains-memory
+    rtl_integration_test.go:216: run nativefabric/verify.py for actual firmware/RTL integration
+=== RUN   TestActualFirmwareRTLLaunchReturnAndFailures/wrong-identity-recovers-idle
+    rtl_integration_test.go:230: run nativefabric/verify.py for actual firmware/RTL integration
+--- PASS: TestActualFirmwareRTLLaunchReturnAndFailures (0.00s)
+    --- SKIP: TestActualFirmwareRTLLaunchReturnAndFailures/launch-return-drains-accepted-read (0.00s)
+    --- SKIP: TestActualFirmwareRTLLaunchReturnAndFailures/unknown-firmware-before-disable (0.00s)
+    --- SKIP: TestActualFirmwareRTLLaunchReturnAndFailures/foreign-completion-retains-memory (0.00s)
+    --- SKIP: TestActualFirmwareRTLLaunchReturnAndFailures/wrong-identity-recovers-idle (0.00s)
+=== RUN   TestSealedNanoPackageNativeFirmwareCycle
+    sealed_nano_test.go:228: run verify_sealed.py for the sealed Nano integration
+--- SKIP: TestSealedNanoPackageNativeFirmwareCycle (0.00s)
+=== RUN   TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure
+=== RUN   TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/pass
+=== RUN   TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/no-handoff
+=== RUN   TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/bad-map
+=== RUN   TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/no-reservation
+=== RUN   TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/wrong-package
+=== RUN   TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/wrong-owner
+=== RUN   TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/wrong-generation
+=== RUN   TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/not-cold
+=== RUN   TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/resume-before-constructor
+=== RUN   TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/resume-before-start
+=== RUN   TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/resume-in-reserve
+=== RUN   TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/reservation-error
+=== RUN   TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/changed-reservation
+=== RUN   TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/late-generation
+=== RUN   TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/retirement
+--- PASS: TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure (0.78s)
+    --- PASS: TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/pass (0.19s)
+    --- PASS: TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/no-handoff (0.04s)
+    --- PASS: TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/bad-map (0.03s)
+    --- PASS: TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/no-reservation (0.03s)
+    --- PASS: TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/wrong-package (0.05s)
+    --- PASS: TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/wrong-owner (0.04s)
+    --- PASS: TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/wrong-generation (0.03s)
+    --- PASS: TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/not-cold (0.03s)
+    --- PASS: TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/resume-before-constructor (0.04s)
+    --- PASS: TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/resume-before-start (0.04s)
+    --- PASS: TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/resume-in-reserve (0.04s)
+    --- PASS: TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/reservation-error (0.04s)
+    --- PASS: TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/changed-reservation (0.05s)
+    --- PASS: TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/late-generation (0.09s)
+    --- PASS: TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure/retirement (0.06s)
+=== RUN   TestConfigurationTransferAcceptedBusyAndExactRelativeCompletions
+--- PASS: TestConfigurationTransferAcceptedBusyAndExactRelativeCompletions (0.00s)
+=== RUN   TestConfigurationTransferFailuresRetainAndNeverReplay
+=== RUN   TestConfigurationTransferFailuresRetainAndNeverReplay/transport
+=== RUN   TestConfigurationTransferFailuresRetainAndNeverReplay/start
+=== RUN   TestConfigurationTransferFailuresRetainAndNeverReplay/write
+=== RUN   TestConfigurationTransferFailuresRetainAndNeverReplay/write-mutation
+=== RUN   TestConfigurationTransferFailuresRetainAndNeverReplay/cpu-address
+=== RUN   TestConfigurationTransferFailuresRetainAndNeverReplay/foreign
+=== RUN   TestConfigurationTransferFailuresRetainAndNeverReplay/duplicate
+=== RUN   TestConfigurationTransferFailuresRetainAndNeverReplay/missing
+=== RUN   TestConfigurationTransferFailuresRetainAndNeverReplay/busy-address
+=== RUN   TestConfigurationTransferFailuresRetainAndNeverReplay/completion-mutation
+=== RUN   TestConfigurationTransferFailuresRetainAndNeverReplay/source-mutation
+=== RUN   TestConfigurationTransferFailuresRetainAndNeverReplay/done
+=== RUN   TestConfigurationTransferFailuresRetainAndNeverReplay/done-mutation
+=== RUN   TestConfigurationTransferFailuresRetainAndNeverReplay/release
+--- PASS: TestConfigurationTransferFailuresRetainAndNeverReplay (0.00s)
+    --- PASS: TestConfigurationTransferFailuresRetainAndNeverReplay/transport (0.00s)
+    --- PASS: TestConfigurationTransferFailuresRetainAndNeverReplay/start (0.00s)
+    --- PASS: TestConfigurationTransferFailuresRetainAndNeverReplay/write (0.00s)
+    --- PASS: TestConfigurationTransferFailuresRetainAndNeverReplay/write-mutation (0.00s)
+    --- PASS: TestConfigurationTransferFailuresRetainAndNeverReplay/cpu-address (0.00s)
+    --- PASS: TestConfigurationTransferFailuresRetainAndNeverReplay/foreign (0.00s)
+    --- PASS: TestConfigurationTransferFailuresRetainAndNeverReplay/duplicate (0.00s)
+    --- PASS: TestConfigurationTransferFailuresRetainAndNeverReplay/missing (0.00s)
+    --- PASS: TestConfigurationTransferFailuresRetainAndNeverReplay/busy-address (0.00s)
+    --- PASS: TestConfigurationTransferFailuresRetainAndNeverReplay/completion-mutation (0.00s)
+    --- PASS: TestConfigurationTransferFailuresRetainAndNeverReplay/source-mutation (0.00s)
+    --- PASS: TestConfigurationTransferFailuresRetainAndNeverReplay/done (0.00s)
+    --- PASS: TestConfigurationTransferFailuresRetainAndNeverReplay/done-mutation (0.00s)
+    --- PASS: TestConfigurationTransferFailuresRetainAndNeverReplay/release (0.00s)
+=== RUN   TestConfigurationTransferBootGateMutationAndCancellation
+=== RUN   TestConfigurationTransferBootGateMutationAndCancellation/rejected
+=== RUN   TestConfigurationTransferBootGateMutationAndCancellation/mutated
+=== RUN   TestConfigurationTransferBootGateMutationAndCancellation/cancelled
+=== RUN   TestConfigurationTransferBootGateMutationAndCancellation/retire-mutation
+--- PASS: TestConfigurationTransferBootGateMutationAndCancellation (0.00s)
+    --- PASS: TestConfigurationTransferBootGateMutationAndCancellation/rejected (0.00s)
+    --- PASS: TestConfigurationTransferBootGateMutationAndCancellation/mutated (0.00s)
+    --- PASS: TestConfigurationTransferBootGateMutationAndCancellation/cancelled (0.00s)
+    --- PASS: TestConfigurationTransferBootGateMutationAndCancellation/retire-mutation (0.00s)
+=== RUN   TestConfigurationTransferRejectsInvalidReservations
+=== RUN   TestConfigurationTransferRejectsInvalidReservations/cpu
+=== RUN   TestConfigurationTransferRejectsInvalidReservations/empty
+=== RUN   TestConfigurationTransferRejectsInvalidReservations/base
+=== RUN   TestConfigurationTransferRejectsInvalidReservations/chunk
+=== RUN   TestConfigurationTransferRejectsInvalidReservations/large-chunk
+=== RUN   TestConfigurationTransferRejectsInvalidReservations/region
+=== RUN   TestConfigurationTransferRejectsInvalidReservations/release
+=== RUN   TestConfigurationTransferRejectsInvalidReservations/length
+=== RUN   TestConfigurationTransferRejectsInvalidReservations/bytes
+=== RUN   TestConfigurationTransferRejectsInvalidReservations/alignment
+=== RUN   TestConfigurationTransferRejectsInvalidReservations/below-dram
+=== RUN   TestConfigurationTransferRejectsInvalidReservations/relative-overflow
+=== RUN   TestConfigurationTransferRejectsInvalidReservations/range-overflow
+--- PASS: TestConfigurationTransferRejectsInvalidReservations (0.00s)
+    --- PASS: TestConfigurationTransferRejectsInvalidReservations/cpu (0.00s)
+    --- PASS: TestConfigurationTransferRejectsInvalidReservations/empty (0.00s)
+    --- PASS: TestConfigurationTransferRejectsInvalidReservations/base (0.00s)
+    --- PASS: TestConfigurationTransferRejectsInvalidReservations/chunk (0.00s)
+    --- PASS: TestConfigurationTransferRejectsInvalidReservations/large-chunk (0.00s)
+    --- PASS: TestConfigurationTransferRejectsInvalidReservations/region (0.00s)
+    --- PASS: TestConfigurationTransferRejectsInvalidReservations/release (0.00s)
+    --- PASS: TestConfigurationTransferRejectsInvalidReservations/length (0.00s)
+    --- PASS: TestConfigurationTransferRejectsInvalidReservations/bytes (0.00s)
+    --- PASS: TestConfigurationTransferRejectsInvalidReservations/alignment (0.00s)
+    --- PASS: TestConfigurationTransferRejectsInvalidReservations/below-dram (0.00s)
+    --- PASS: TestConfigurationTransferRejectsInvalidReservations/relative-overflow (0.00s)
+    --- PASS: TestConfigurationTransferRejectsInvalidReservations/range-overflow (0.00s)
+=== RUN   TestConfigurationTransferWindowBatchesAndLookahead
+--- PASS: TestConfigurationTransferWindowBatchesAndLookahead (0.07s)
+=== RUN   TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer
+=== RUN   TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/foreign
+=== RUN   TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/cpu-address
+=== RUN   TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/duplicate
+=== RUN   TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/gap
+=== RUN   TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/busy-address
+=== RUN   TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/missing
+=== RUN   TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/completion-mutation
+=== RUN   TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/write-mutation
+=== RUN   TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/write-error
+=== RUN   TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/cancelled
+=== RUN   TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/before-poll-mutation
+--- PASS: TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer (0.00s)
+    --- PASS: TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/foreign (0.00s)
+    --- PASS: TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/cpu-address (0.00s)
+    --- PASS: TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/duplicate (0.00s)
+    --- PASS: TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/gap (0.00s)
+    --- PASS: TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/busy-address (0.00s)
+    --- PASS: TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/missing (0.00s)
+    --- PASS: TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/completion-mutation (0.00s)
+    --- PASS: TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/write-mutation (0.00s)
+    --- PASS: TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/write-error (0.00s)
+    --- PASS: TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/cancelled (0.00s)
+    --- PASS: TestConfigurationTransferWindowFailuresRetainEveryPossibleBuffer/before-poll-mutation (0.00s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/nativefabric	1.384s

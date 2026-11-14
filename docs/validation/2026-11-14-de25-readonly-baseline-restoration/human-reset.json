@@ -1,0 +1,11 @@
+{
+  "scope": "top-TRWU8CBL-physical-power-cycle-for-read-only-baseline-restoration",
+  "completed": true,
+  "original_procedure_sha256": "2af464ad0bf0befe0c783d90397363c8db30f3b679564f44f0757e525ffc2006",
+  "failure_archive_sha256": "9d8a3b013b6caadfb14a824cf60407a21029b82a5af22e03afe985a73ddb6251",
+  "human_quote": "Power-cycled again now; test card stays in",
+  "additional_human_quote": "TRWU8CBL power-cycled; test card stays in",
+  "confirmation_question_id": "call_c7aa1ce30c994584bda80846dce260ef",
+  "original_reset_request_id": "call_bb60d617a84c4a9d969e9e2ac794e7f0",
+  "recorded_utc": "2026-11-14T11:22:26.245110+00:00"
+}

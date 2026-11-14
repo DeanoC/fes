@@ -1,0 +1,176 @@
+{
+  "status": "failed",
+  "head": "12cba59dbfd692c3c6bf0d9978cf3554aa294d5d",
+  "base": "ae599d8d85b418980eeaebae32388444409e491f",
+  "plan_sha256": "eb689f7ca4644c8e4155c52a1e9ce9714b76727e85e739639fc525611f854107",
+  "results": [
+    {
+      "index": 0,
+      "label": "test_affected.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "log": "software-0.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4004947160137817,
+      "log_sha256": "f4d3422ae81ee3a95bf1e68b7bd9f46eda83bc0072a7bce1fafa9397004f7429",
+      "child_receipt_sha256": "9c2c7cd655ce662b54f984c268de3ff69c17d15f1503361d8e1c3f910560f48f"
+    },
+    {
+      "index": 1,
+      "label": "test_test_changed.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "log": "software-1.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.2010010180529207,
+      "log_sha256": "ee0d61765eb8356b0bdc5e24c150218ed258cbe554367f7d840c7350ca0bfecb",
+      "child_receipt_sha256": "0ada3abcd14c7b839999ccda93e14a3af6d19aad3fcdc18b12255fd625dac384"
+    },
+    {
+      "index": 2,
+      "label": "committed whitespace",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "ae599d8d85b418980eeaebae32388444409e491f",
+        "--head",
+        "12cba59dbfd692c3c6bf0d9978cf3554aa294d5d"
+      ],
+      "log": "software-2.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20088599098380655,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "d6d944218675ec78b458fbea6efa9458cc33c508aca4e95c5c26abb51646682d"
+    },
+    {
+      "index": 3,
+      "label": "working whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "log": "software-3.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2012706829700619,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "6d61a72c4c344d7e5c5de06a7c16e67668baca73f954aa1c1081800821d7b0d5"
+    },
+    {
+      "index": 4,
+      "label": "parent Python regressions",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-software-20261102/parent_partitions.py"
+      ],
+      "log": "software-4.log",
+      "planned_argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/README.md\", \"platform/embedded/tamago/computer/README.md\", \"platform/embedded/tamago/computer/computer.go\", \"platform/embedded/tamago/computer/computer_test.go\", \"platform/embedded/tamago/computer/generated/fes_computer.go\", \"platform/embedded/tamago/computer/generated/fes_de25_computer.go\", \"platform/embedded/tamago/computer/rtl_test.go\", \"platform/embedded/tamago/computer/tape.go\", \"platform/embedded/tamago/computer/testdata/probe.cpp\", \"platform/embedded/tamago/computer/verify.py\", \"scripts/affected.py\", \"scripts/consistency.py\", \"scripts/test_changed.py\", \"scripts/test_policy.py\", \"sources/mister-packages/README.md\", \"sources/mister-packages/docs/de25-computer.md\", \"sources/mister-packages/internal/pack/fabric_test.go\", \"sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml\", \"sources/mister-packages/testdata/oracles/fes-de25-computer.json\", \"tests/test_affected.py\", \"tests/test_consistency.py\", \"tests/test_test_changed.py\", \"tests/test_test_policy.py\"]"
+      ],
+      "verification_mode": "same-selected-suite-partitioned-by-module",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 289.44504745304585,
+      "log_sha256": "6120663029388a49ac7d577891e780c7b78561d6065cadf4d1c801985e95cb90",
+      "child_receipt_sha256": "0f7ca641169a945e8ccbaba9260feec8484921889cf0790ef268db13e986f0fa"
+    },
+    {
+      "index": 5,
+      "label": "working-tree generated consumer consistency",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "log": "software-5.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 7.410524100065231,
+      "log_sha256": "39911a38609b8ca0592f13bd0e960ba0cd433f6599caf6ce88f25c65a0e67b3d",
+      "child_receipt_sha256": "2b8861b70e14cec27b275a0b06b83841eb575ee7013196928120fc462c8ab93b"
+    },
+    {
+      "index": 6,
+      "label": "native computer transport and command failures",
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "90s",
+        "./computer/..."
+      ],
+      "log": "software-6.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.6107725499896333,
+      "log_sha256": "33b45d1f4bbeb6083094773b3abd876649c3e1914ff96d5fe6cef47190f9eb9a",
+      "child_receipt_sha256": "049cfcca89e58d0295d94158280e388323c5eaa546fcc20f22422f7b2f1030d5"
+    },
+    {
+      "index": 7,
+      "label": "host Go and UI tests",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/host_tests.py",
+        "--ui-if-needed",
+        "--paths-json",
+        "[\"platform/embedded/README.md\", \"platform/embedded/tamago/computer/README.md\", \"platform/embedded/tamago/computer/computer.go\", \"platform/embedded/tamago/computer/computer_test.go\", \"platform/embedded/tamago/computer/generated/fes_computer.go\", \"platform/embedded/tamago/computer/generated/fes_de25_computer.go\", \"platform/embedded/tamago/computer/rtl_test.go\", \"platform/embedded/tamago/computer/tape.go\", \"platform/embedded/tamago/computer/testdata/probe.cpp\", \"platform/embedded/tamago/computer/verify.py\", \"scripts/affected.py\", \"scripts/consistency.py\", \"scripts/test_changed.py\", \"scripts/test_policy.py\", \"sources/mister-packages/README.md\", \"sources/mister-packages/docs/de25-computer.md\", \"sources/mister-packages/internal/pack/fabric_test.go\", \"sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml\", \"sources/mister-packages/testdata/oracles/fes-de25-computer.json\", \"tests/test_affected.py\", \"tests/test_consistency.py\", \"tests/test_test_changed.py\", \"tests/test_test_policy.py\"]"
+      ],
+      "log": "software-7.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 44.87542403500993,
+      "log_sha256": "c47015fc6e6905362e6a69d71c11b74483edff2ed3c6148853af4f10a7748ffc",
+      "child_receipt_sha256": "0f2605f12fb29802e5f0529585fdaecdc2953475c40813833fe0c3e559dca378"
+    },
+    {
+      "index": 8,
+      "label": "runtime software tests",
+      "argv": [
+        "make",
+        "-j2",
+        "test"
+      ],
+      "log": "software-8.log",
+      "returncode": -15,
+      "timed_out": true,
+      "elapsed": 300.17074004991446,
+      "log_sha256": "19a4c61381c8d5226d0e724527ef5f7c8dfc12c825b19c197b36f31b5e379675",
+      "child_receipt_sha256": "14a2055c6a8e351f67c9bd328ac964295083d393fd09b12258dfbb094c315837"
+    }
+  ]
+}

@@ -19,6 +19,26 @@ DE25_COMPUTER_DEFINITION = 'sources/mister-packages/packages/fabric/fes_fabric_d
 DE25_RAMTEST_DEFINITION = 'sources/mister-packages/packages/fabric/fes_fabric_de25_ramtest.yaml'
 DE25_PR_CONTROL_DEFINITION = 'sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml'
 
+# These private channels emit only the embedded C/Go service/client constants.
+# They change no deployed ABI, FPGA endpoint or Linux image/video consumer.
+EMBEDDED_FIRMWARE_CONTRACT_INPUTS = frozenset({
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_mac.yaml',
+    'sources/mister-packages/testdata/oracles/fes-embedded-mac.json',
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_sd.yaml',
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_tape.yaml',
+    'sources/mister-packages/testdata/oracles/fes-embedded-sd.json',
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml',
+    'sources/mister-packages/testdata/oracles/fes-embedded-bridges.json',
+})
+
+# Only the experimental native Go computer integration consumes these files.
+# The shared fes.computer ABI retains its full existing consumer checks.
+NATIVE_COMPUTER_CONTRACT_INPUTS = frozenset({
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_computer.yaml',
+    'sources/mister-packages/testdata/oracles/fes-embedded-computer.json',
+    'sources/mister-packages/packages/programming/de25_embedded.yaml',
+})
+
 # Video producer, package-admission and host library consumer inputs. Changes
 # here re-include the real-device video suites in the parent run.
 VIDEO_FILES = frozenset({
@@ -100,6 +120,12 @@ def _classify(path):
     # unlike the standalone headless image, it belongs in the media partition.
     if path == 'image/de25-nano/managed_media.py':
         return {'video': False, 'media': True, 'full_race': False}
+    # Standalone Linux-free boot/runtime prototypes have their own firmware,
+    # SD PIO, QEMU and native lifecycle checks. The Linux appliance does not
+    # compile the nested TamaGo module or consume these firmware/entry images.
+    if ((_under(path, 'platform/embedded') and '..' not in Path(path).parts) or
+            path in EMBEDDED_FIRMWARE_CONTRACT_INPUTS or path in NATIVE_COMPUTER_CONTRACT_INPUTS):
+        return dict.fromkeys(TEST_MODE_KEYS, False)
     # The standalone DE25 headless image has its own build/verification checks.
     # It consumes no DE10 image, core package, runtime or media assembly input.
     if _under(path, 'image/de25-nano') and '..' not in Path(path).parts:

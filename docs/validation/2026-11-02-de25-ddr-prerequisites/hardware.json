@@ -1,0 +1,133 @@
+{
+  "status": "passed",
+  "source_commit": "b05c00f0a6f26df0acfc03e762e85e71e86d6d81",
+  "classification": "bounded contained DDR prerequisites hardware diagnostic",
+  "core_load_acceptance": false,
+  "data_release": false,
+  "ddr_traffic_requested": false,
+  "experiment_passed": true,
+  "smmu_observation": {
+    "status": 0,
+    "reads": 26,
+    "idr0": 135233087,
+    "idr1": 242457880,
+    "aidr": 1,
+    "s_idr1": 2147483672,
+    "cr0": 0,
+    "ack": 0,
+    "gbpa": 0,
+    "agbpa": 0,
+    "s_cr0": 0,
+    "s_ack": 0,
+    "s_init": 0,
+    "s_gbpa": 0,
+    "s_agbpa": 0,
+    "identified": 1,
+    "settled": 1,
+    "bypass_controls_clear": 1,
+    "secure_implemented": true,
+    "access_qualified": false
+  },
+  "ddr_firewall_observation": {
+    "status": 0,
+    "owner": 17123405221983103689,
+    "generation": 4,
+    "reset": 15,
+    "mpfe_reset": 0,
+    "reads": 66,
+    "enable": 1,
+    "base": 2499805184,
+    "bytes": 8192,
+    "regions": [
+      {
+        "index": 0,
+        "base": 2148532224,
+        "baseext": 0,
+        "limit": 3221225471,
+        "limitext": 0
+      },
+      {
+        "index": 1,
+        "base": 0,
+        "baseext": 0,
+        "limit": 65535,
+        "limitext": 0
+      },
+      {
+        "index": 2,
+        "base": 0,
+        "baseext": 0,
+        "limit": 65535,
+        "limitext": 0
+      },
+      {
+        "index": 3,
+        "base": 0,
+        "baseext": 0,
+        "limit": 65535,
+        "limitext": 0
+      },
+      {
+        "index": 4,
+        "base": 0,
+        "baseext": 0,
+        "limit": 65535,
+        "limitext": 0
+      },
+      {
+        "index": 5,
+        "base": 0,
+        "baseext": 0,
+        "limit": 65535,
+        "limitext": 0
+      },
+      {
+        "index": 6,
+        "base": 0,
+        "baseext": 0,
+        "limit": 65535,
+        "limitext": 0
+      },
+      {
+        "index": 7,
+        "base": 0,
+        "baseext": 0,
+        "limit": 65535,
+        "limitext": 0
+      }
+    ],
+    "layout_known": true,
+    "window_covered": true,
+    "access_qualified": false
+  },
+  "master_stop_observation": {
+    "status": 0,
+    "owner": 17123405221983103689,
+    "generation": 5,
+    "reset": 13,
+    "reader_reads": 88,
+    "reader_polls": 1,
+    "disable": 0,
+    "probe_polls": 2,
+    "cancel": 0,
+    "complete": 1,
+    "physical_ddr_drain_qualified": false
+  },
+  "configuration_transfer": {
+    "complete": true,
+    "completed_bytes": 1642496,
+    "core_sha256": "170a3929afc316bcaa51b25e69ce60a7f44c53542126ce6e82d90a99767998d0",
+    "arena_base": 2491416576,
+    "arena_size": 8388608
+  },
+  "raw_console_sha256": "1fdbbf109327341099598cbefc5a9ac87cdedc391959c131d11972097cdfc084",
+  "raw_bytes": 14163,
+  "package_id": "07b2d01003dc92e4993ba7f72761444ae801a1a005f87e0a1b65f9aad9dfeb7d",
+  "build_id": "d2435ab5d8221892162a1044d81dfb76",
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "uart_free": true,
+  "claim_retained": true,
+  "board": "TRWU8CBL",
+  "factory_restore_requested": false
+}

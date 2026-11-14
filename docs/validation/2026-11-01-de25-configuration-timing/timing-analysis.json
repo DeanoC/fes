@@ -1,0 +1,280 @@
+{
+  "format": 1,
+  "source_commit": "9ce1af2a6e65426a759d7240722845a425d820b3",
+  "hardware_pass": false,
+  "timing_accounting_valid": true,
+  "observation_errors": [],
+  "fixed_native_deadline_seconds": 20,
+  "counter_frequency": 400000000,
+  "trace_sha256": "11c90ef4014fc66ccd4d4b25f3c2675382d0078523053a64250d9e1645307823",
+  "last_checkpoint": "configuration_poll",
+  "confirmed_prefix_bytes": 720896,
+  "secure_digest_seconds_at_first_marker": 3.2163195875,
+  "secure_digest_seconds_at_last_marker": 16.837574655,
+  "observed_interval_seconds": 15.8008503225,
+  "observed_interval_secure_digest_seconds": 13.6212550675,
+  "native_status_at_late_return": {
+    "phase": "completion",
+    "elapsed_seconds": 20.12178,
+    "accepted_bytes": 786432,
+    "completed_bytes": 720896,
+    "outstanding_buffers": 1,
+    "retained_bytes": 2027520
+  },
+  "intervals": [
+    {
+      "from": "configuration_arm",
+      "to": "configuration_start",
+      "completed_before": 0,
+      "elapsed_seconds": 3.6180000725,
+      "secure_digest_seconds": 3.21602053
+    },
+    {
+      "from": "configuration_start",
+      "to": "configuration_write",
+      "completed_before": 0,
+      "elapsed_seconds": 3.3842220825,
+      "secure_digest_seconds": 3.3204016725
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 0,
+      "elapsed_seconds": 0.2539955175,
+      "secure_digest_seconds": 0.208384155
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 0,
+      "elapsed_seconds": 0.2549873725,
+      "secure_digest_seconds": 0.208377855
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 0,
+      "elapsed_seconds": 0.26642945,
+      "secure_digest_seconds": 0.208369915
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 65536,
+      "elapsed_seconds": 0.2543278675,
+      "secure_digest_seconds": 0.2083812075
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 65536,
+      "elapsed_seconds": 0.2553183675,
+      "secure_digest_seconds": 0.2083867125
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 65536,
+      "elapsed_seconds": 0.2668594125,
+      "secure_digest_seconds": 0.2083931925
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 131072,
+      "elapsed_seconds": 0.25449912,
+      "secure_digest_seconds": 0.2083803025
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 131072,
+      "elapsed_seconds": 0.25548771,
+      "secure_digest_seconds": 0.2083736725
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 131072,
+      "elapsed_seconds": 0.2669114225,
+      "secure_digest_seconds": 0.2083631625
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 196608,
+      "elapsed_seconds": 0.254506635,
+      "secure_digest_seconds": 0.20836955
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 196608,
+      "elapsed_seconds": 0.2554894,
+      "secure_digest_seconds": 0.208372575
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 196608,
+      "elapsed_seconds": 0.2669139075,
+      "secure_digest_seconds": 0.2083685625
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 262144,
+      "elapsed_seconds": 0.2544992,
+      "secure_digest_seconds": 0.2083852725
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 262144,
+      "elapsed_seconds": 0.2554800075,
+      "secure_digest_seconds": 0.2083717975
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 262144,
+      "elapsed_seconds": 0.266924995,
+      "secure_digest_seconds": 0.208376815
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 327680,
+      "elapsed_seconds": 0.2544989375,
+      "secure_digest_seconds": 0.2083768475
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 327680,
+      "elapsed_seconds": 0.255490365,
+      "secure_digest_seconds": 0.208384325
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 327680,
+      "elapsed_seconds": 0.2669210175,
+      "secure_digest_seconds": 0.20836927
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 393216,
+      "elapsed_seconds": 0.25449663,
+      "secure_digest_seconds": 0.2083736825
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 393216,
+      "elapsed_seconds": 0.2554901575,
+      "secure_digest_seconds": 0.20838057
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 393216,
+      "elapsed_seconds": 0.2669202875,
+      "secure_digest_seconds": 0.208358995
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 458752,
+      "elapsed_seconds": 0.254499685,
+      "secure_digest_seconds": 0.2083782875
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 458752,
+      "elapsed_seconds": 0.2554841175,
+      "secure_digest_seconds": 0.20837427
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 458752,
+      "elapsed_seconds": 0.2669425575,
+      "secure_digest_seconds": 0.20838599
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 524288,
+      "elapsed_seconds": 0.2545074375,
+      "secure_digest_seconds": 0.20838204
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 524288,
+      "elapsed_seconds": 0.255500115,
+      "secure_digest_seconds": 0.2083849875
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 524288,
+      "elapsed_seconds": 0.2669385675,
+      "secure_digest_seconds": 0.2083876475
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 589824,
+      "elapsed_seconds": 0.2545025475,
+      "secure_digest_seconds": 0.20838645
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 589824,
+      "elapsed_seconds": 0.2554713425,
+      "secure_digest_seconds": 0.2083723325
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 589824,
+      "elapsed_seconds": 0.266929045,
+      "secure_digest_seconds": 0.2083772225
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 655360,
+      "elapsed_seconds": 0.2544956525,
+      "secure_digest_seconds": 0.208375805
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_poll",
+      "completed_before": 655360,
+      "elapsed_seconds": 0.2554801525,
+      "secure_digest_seconds": 0.20837521
+    },
+    {
+      "from": "configuration_poll",
+      "to": "configuration_write",
+      "completed_before": 655360,
+      "elapsed_seconds": 0.2669288675,
+      "secure_digest_seconds": 0.2083760225
+    },
+    {
+      "from": "configuration_write",
+      "to": "configuration_poll",
+      "completed_before": 720896,
+      "elapsed_seconds": 0.2545003,
+      "secure_digest_seconds": 0.2083781625
+    }
+  ],
+  "runtime_admission": false,
+  "scope": "Clock/digest observations up to the last emitted secure marker; later untraced work is excluded. Late completion is not accepted."
+}

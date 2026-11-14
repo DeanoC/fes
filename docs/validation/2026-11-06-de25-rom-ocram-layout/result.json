@@ -1,0 +1,87 @@
+{
+  "status": "linked-only",
+  "base": "72e2d2b414d07f08ea5936a1bea08649229f23cd",
+  "reference_compiled_source": "ca2d6edf07f0a5ba081a2d98dc9b7d89e0c93fc5",
+  "vendor_ocram": {
+    "base": 0,
+    "bytes": 524288
+  },
+  "candidate": {
+    "base": 327680,
+    "limit": 393216,
+    "bytes": 65536,
+    "reserved": false
+  },
+  "prototype": {
+    "status": "linked-only",
+    "classification": "vendor-supported separate NOBITS layout compiles; no reservation, startup, latency, isolation or hardware acceptance",
+    "candidate_base": 327680,
+    "candidate_limit": 393216,
+    "nobits_bytes": 57024,
+    "selected_symbols": {
+      "__NOBITS_START__": 327680,
+      "__STACKS_START__": 327680,
+      "__BSS_START__": 360448,
+      "__STACKS_END__": 360448,
+      "computer_rom": 363520,
+      "usb_master": 372600,
+      "usb_board": 372960,
+      "configuration_program": 376160,
+      "provider": 377056,
+      "__BSS_END__": 384704,
+      "__NOBITS_END__": 384704
+    },
+    "segments": [
+      {
+        "base": 327680,
+        "bytes": 57024,
+        "file_bytes": 0,
+        "flags": 6
+      },
+      {
+        "base": 2147483648,
+        "bytes": 127037,
+        "file_bytes": 127037,
+        "flags": 7
+      }
+    ],
+    "elf_sha256": "e0771838c24c2ef7dc5544e2baf614a2315bcfc538759de056ca359f10216c22",
+    "script_sha256": "a96eb176d81500fb31f4533b8a886ffbcdbcf1cf7e20fda7d34ddbaa9fb1b30a",
+    "build_log_sha256": "4c19cb692a4535f330661f18cea6106b5623d815e3b69388427524cc90988fdf",
+    "symbols_sha256": "30e5ed4596a2873294fe91f193a1ac36bf72c6f42720107776bd9657dc9ec09b",
+    "production_gate_rejected": true,
+    "rejection": "BL31 load segment exceeds the vendor firmware bounds",
+    "hardware_actions": false,
+    "permission_to_program": false,
+    "ordinary_admission": false
+  },
+  "evidence_sha256": {
+    "out/nano-rom-ocram-layout-20261106/prototype.py": "a96eb176d81500fb31f4533b8a886ffbcdbcf1cf7e20fda7d34ddbaa9fb1b30a",
+    "out/nano-rom-ocram-layout-20261106/candidate.json": "ef2fa67d91278c99d715df232bad538b1a312272560adff9e7964e382b516896",
+    "out/nano-rom-ocram-layout-20261106/result.json": "bb608de91459471e33e27baaf972f4631040baa267896ca66da685b40721cf4a",
+    "out/nano-rom-ocram-layout-20261106/build.log": "4c19cb692a4535f330661f18cea6106b5623d815e3b69388427524cc90988fdf",
+    "out/nano-rom-ocram-layout-20261106/symbols.log": "30e5ed4596a2873294fe91f193a1ac36bf72c6f42720107776bd9657dc9ec09b",
+    "out/nano-rom-o2-20261106/ocram-layout-prototype-result.json": "7ea468c25d82b3c6f66373d7eb6e9e49e7f5949b9b8d5050a6bbc769a1651f78",
+    "out/nano-rom-o2-20261106/ocram-layout-prototype.log": "c8874f8ec8bbf13f75e3e48feac1eb0fbb4abeb1d79759d66ea9d552eeab2995",
+    "out/nano-rom-o2-20261106/native-bl31-final/source/bl31/bl31.ld.S": "f6da064e38aa9b19dbab1d82dd427628ee38f83f6d12c0a9a68fd98a2e22177c",
+    "out/nano-rom-o2-20261106/native-bl31-final/source/include/arch/aarch64/el3_common_macros.S": "731852658339cd149d0fd08762f0a70c9d5adba0336b402ce22532c98feebde6",
+    "out/nano-rom-o2-20261106/native-bl31-final/source/plat/intel/soc/agilex5/include/socfpga_plat_def.h": "b81f876a236e6f73b8de38ed2110fd73938ab74a15b65b5713c1cf6b351257cc",
+    "out/nano-rom-o2-20261106/native-uboot-complete/build/.config": "c09b65c041a12bd43b93b9318c16edddca06827ca206f9def0636153b03e28c9",
+    "out/nano-rom-o2-20261106/native-uboot-complete/source/arch/arm/mach-socfpga/include/mach/base_addr_soc64.h": "27c2835dd6001ef46bd5a86fa4b6721cb3b0322d8c48ba214db943be8bb1cbd8",
+    "out/nano-rom-o2-20261106/native-uboot-complete/source/arch/arm/mach-socfpga/include/mach/handoff_soc64.h": "7dd3be3b80a150f3f5a4e1f9b019a047c8fe40eca11844dfa6a1c2d9800ad0f3",
+    "platform/embedded/firmware/build_terasic.py": "d4045b8247dcf2cfefe91a123786c4c8fbc493a13b1b61d1c4efc0d35cd019a5"
+  },
+  "spl_observations": {
+    "max_image_bytes": 262144,
+    "actual_image_end": 152232,
+    "stack_top": 462848,
+    "early_malloc_bytes": 8192,
+    "bss_base": 3220176896,
+    "bss_end": 3220177592,
+    "handoff_base": 520192,
+    "handoff_bytes": 4096
+  },
+  "hardware_actions": false,
+  "permission_to_program": false,
+  "next": "audit every SPL/U-Boot/firmware allocation and lifetime, then implement a matched reservation and native-map exclusion before allowing the new NOBITS range; preserve current DDR-only gate until then"
+}

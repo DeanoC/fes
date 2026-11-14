@@ -1,0 +1,39 @@
+{
+  "source": {
+    "repository": "DeanoC/fes",
+    "commit": "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+    "file": "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.hpp",
+    "sha256": "931f6e4814b041ca4225e9c98ec6ef3b0b84c85c0baab9d528824b0f78b054a1",
+    "runtime_base_commit": "6bb565fddd75848524fa6ba52bdfdf078d7ce55b",
+    "note": "Baseline source and checksum identify the imported 1.0 contract. The reviewed 1.1 extension changes Version to 0x10001 and adds read-only FetchCount/FetchAddress at 24/28; the current overlay and generated consumers implement those additions. It grants no ordinary runtime admission."
+  },
+  "fabric": {
+    "id": "fes.fabric.embedded-computer",
+    "major": 1,
+    "minor": 1
+  },
+  "constants": {
+    "FesDe25ComputerIdentity": 1144150616,
+    "FesDe25ComputerVersion": 65537,
+    "FesDe25ComputerIdOffset": 0,
+    "FesDe25ComputerVersionOffset": 4,
+    "FesDe25ComputerStatusOffset": 8,
+    "FesDe25ComputerGpoOffset": 12,
+    "FesDe25ComputerGpiOffset": 16,
+    "FesDe25ComputerFaultOffset": 20,
+    "FesDe25ComputerSpan": 32,
+    "FesDe25ComputerAddressBits": 5,
+    "FesDe25ComputerPeripheralOffset": 66304,
+    "FesDe25ComputerZx81TapeMaxBytes": 16375,
+    "FesDe25ComputerStatusReady": 1,
+    "FesDe25ComputerStatusBusy": 2,
+    "FesDe25ComputerStatusFault": 4,
+    "FesDe25ComputerFaultReset": 1,
+    "FesDe25ComputerFaultPartial": 2,
+    "FesDe25ComputerFaultBusy": 4,
+    "FesDe25ComputerFaultToggle": 8,
+    "FesDe25ComputerFaultAddress": 16,
+    "FesDe25ComputerFetchCountOffset": 24,
+    "FesDe25ComputerFetchAddressOffset": 28
+  }
+}

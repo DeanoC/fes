@@ -1,0 +1,11 @@
+{
+  "status": "stopped-before-device-access",
+  "changed_files": [
+    "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/README.md"
+  ],
+  "changed_tree_membership": [],
+  "native_program_attempted": false,
+  "recovery_program_attempted": false,
+  "attempt_records_created": false,
+  "hardware_actions": false
+}

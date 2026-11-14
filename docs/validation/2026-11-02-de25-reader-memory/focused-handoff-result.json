@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_embedded_nano_handoff.py",
+    "-v"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.6006875300081447,
+  "log_sha256": "1da20bfc9b92c57b9fcb416957b5a3648135448a5742a1e3676f8608ea8f7dde"
+}

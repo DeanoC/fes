@@ -1,0 +1,1372 @@
+{
+  "status": "passed-supplier-cost-model",
+  "classification": "injected cost only; no physical latency measurement",
+  "sources": {
+    "tests/test_nano_source_retirement.py": "af15853bf81bc1cc360d29a8b602ffe8907bc0e98f0957041351760ea397356c",
+    "platform/embedded/firmware/nano_identity.c": "5d5ef7e331503135b7c380fde9f3a628dc5a1157591bb72fe09438438a3657a7",
+    "platform/embedded/firmware/nano_usb_board.h": "9887841dc4326d21da1de895fbd0a77303edc9fd04d99c32dc13b10ef0a30bb3",
+    "platform/embedded/firmware/nano_owned_sip.inc": "5e825cdba7f4c1074ae91c3601379936e92149379bee0154866dd7bf2d4866c5",
+    "platform/embedded/firmware/nano_tape.c": "bea8fa774be0af06fdeafee65ce3e63f12a185a9192b4c5e75f1b4cda079d6ef",
+    "platform/embedded/firmware/input_transfer.c": "4ae4a5e625ee4d0e8bbd3014dfb7cc00fa2ce6b8e3fd3b97865f789bb42b2a5d",
+    "platform/embedded/firmware/nano_hps_io.h": "f474b92888ad54f9f44034fe194185471bf06da09e8019dfa96084e10567a42d",
+    "platform/embedded/firmware/nano_firmware_call.py": "8f9a209ed90a7dcea2660e9d0f150e49b1212cef5bc546da0ddfb6442fde60fa",
+    "platform/embedded/firmware/nano_capability_profile.py": "70c094ff47984dd1369c85cda6bb4c774710b75cc5803a5d4e4a8a4b63e40e65",
+    "platform/embedded/firmware/nano_tape_service.h": "e8adbb19b159acf7092ea0e211808be74e3c4f3b75e4db62eff58dfe2a5e9d17",
+    "platform/embedded/firmware/fault64_service.h": "89007e46a8c4abdcacfebe479d34c97e222aca0c7063aeb63b3f43e630c55c94",
+    "platform/embedded/firmware/nano_rom.h": "a83f20cf6994490260726859b2d6f0919d33aaaf6e8f4942187300ad3859c270",
+    "platform/embedded/firmware/nano_firmware_runtime.py": "26e9928e1c947c10b55dd541600fcf855f273934dfe39e655a6b3614bcff64c0",
+    "platform/embedded/firmware/nano_cpu_mode.h": "d57cc52824c7337c068663906aed5e962bce8faa95f76231bcfd827f6e278fe6",
+    "platform/embedded/firmware/event_wait.c": "f53badcc4d2d19e526f1e186a763edaf7aee9ca641ab368cb2c66e9f76847fac",
+    "platform/embedded/firmware/verify_owned_sip.py": "5826f0159fd63ab12a46880c9052a65266662495646db3749487ebb52dd576ec",
+    "platform/embedded/firmware/nano_firmware_fault.inc": "1e3fe4e495edbc742962b79b98ed24de72c0005eba4ecacd40e119ef24e998ec",
+    "platform/embedded/firmware/nano_firmware_runtime.inc": "6ea8d7fe83882c793758999cf5004bf0d8a11cb8932f43812c62dcc79dd3f97a",
+    "platform/embedded/firmware/nano_capability_platform.inc": "9ddb29584585e53373db14045d384d76062f730b8dd9aee6aef4f5dcaa1e0712",
+    "platform/embedded/firmware/nano_boot.c": "cc9e3567f05345e19be3aee00b0f09fb0d2cad2216f6cba1697da4c7fff2fcce",
+    "platform/embedded/firmware/event_capture.h": "85cd3d6501d1b0f1fc9988f0690ff44e7e0dd5c5d67beff9e247423df1f59b1f",
+    "platform/embedded/firmware/nano_sdm_probe_profile.py": "5db8d0732e38da34f233c937e66dc55d36a74b2ac7e4e03a73fd41c2851daf70",
+    "platform/embedded/firmware/nano_mailbox_observe.h": "9a94ca09a822c1305905fe8d403f8d41f4d8e905c939ec64920bdf5d87873194",
+    "platform/embedded/firmware/nano_cold_platform.c": "e550878cd479bbb4d7a9817d3da1c25104e699d47db5b39120a1423af1e9db2a",
+    "platform/embedded/firmware/nano_probe_stop.c": "eeced562098d1386fca83de5dbab313b04bb90ffd6abc7a43622614721b244be",
+    "platform/embedded/firmware/nano_capability.h": "dcf6df30da9f7dcbaa494d97e07044fbef84dff60c79c9cdfcac371559c1e5ac",
+    "platform/embedded/firmware/input_tables.h": "9711d6c53eb890609ee8fd34e481a1029b2e67f5fcf58ed8f154c8b72feb1040",
+    "platform/embedded/firmware/nano_sdm_retire_platform.inc": "dd875b5cb8b236126dfbd75207f13af81ead4b35f539b2783d0bd256c9f598ca",
+    "platform/embedded/firmware/fault64.h": "6b5765ce6500620fd065d416b88a720e4a6de62c5ffc25c3efa39dc02d0130ea",
+    "platform/embedded/firmware/nano_bridges.h": "e5b12062fc89cf2129dc6fc523a4dbef625300488fb6e63293eba9e44c5dd5a5",
+    "platform/embedded/firmware/nano_ddr_read.h": "51f462f6ec9a562b174bcc25ada73242a2c5106b53ad8dba24e283984d62a514",
+    "platform/embedded/firmware/nano_usb_service.c": "d1d9de778b4671bebb2128ce1333e9ecd513f7137cee8e15d0b3a49ce48dc97c",
+    "platform/embedded/firmware/nano_rom_platform.inc": "a81f14862cb7d4ac74796283a393d3bd0b356bbc7e6a03ef6cf767280334818c",
+    "platform/embedded/firmware/nano_secure_mmio.h": "e0e69645a7aa432560f0c079ec8ed576649f706c7d5c46484332d670efcaa680",
+    "platform/embedded/firmware/sdm_input_mailbox.h": "61e67de3f3524dc2938bda5e42297e3df43b30f55efe6e65db3df4e775696513",
+    "platform/embedded/firmware/nano_mailbox.py": "b551c124a346b520649f3495360247ae1cdf7cb65cd6075e6768b6e5f1043d45",
+    "platform/embedded/firmware/nano_mmu.h": "f631b9189a22f050d4c739ed08e31ffc8498dc15ae4b7a89917efbdf38200a83",
+    "platform/embedded/firmware/nano_tape_service.c": "cd26284989a536fad1c379e9e19e291a56dc0ca9bc6bf0682b8a7d2e916ab2aa",
+    "platform/embedded/firmware/nano_probe_stop.h": "9a100abf22ef6805d0693d1a7c86ec376339a623ca461e426becdb32879cae97",
+    "platform/embedded/firmware/nano_firmware_entry.inc": "053b72722a25abeabdf8ff9fb4cdcbfd7bde115000513332d9741f75952e787f",
+    "platform/embedded/firmware/nano_fabric_stop.c": "70bd12438d9b079d8c6c800dac492102ad9a2325c7d297e6005c45d66794f9de",
+    "platform/embedded/firmware/verify_probe_stop.py": "943c19ab2bb7753ab51a2a734cfdce625bcc3463a6558fea826efd468cb5d5d3",
+    "platform/embedded/firmware/nano_bridge_diag.inc": "4d6a679e495b06dbda6d40db269492faf6ffa20aa2024262d57c6d648fd7c946",
+    "platform/embedded/firmware/prepare_nano_owned.py": "cba1787399ddf316fafd2e80860f8303d73cc385d4f2a5d9e519b220f8108c3a",
+    "platform/embedded/firmware/nano_sd.c": "46dfb6c3dc6785ce5060d9bea62fcac5cc28fb7cda4e94df16ffbee07005da9b",
+    "platform/embedded/firmware/nano_smmu.h": "df4acce05089fda2ffcffcb4708d639c80c9a33cd4107158d5cbaed34e9c65e2",
+    "platform/embedded/firmware/nano_firmware_mmu.py": "404dff9b7ba55d505961e2b59812e3dad5008545c024d93428b880701f28e4d3",
+    "platform/embedded/firmware/nano_bridge_platform.inc": "72f73f9316653d93de95f02c27662a0e79cae8e061b29bb6c5b136d4e692b9be",
+    "platform/embedded/firmware/nano_cold.c": "e2d40b00e19ca7aa47819b17cee2018b92bb7793081863d1f395e74dbbc533af",
+    "platform/embedded/firmware/nano_sdm_fault_platform.inc": "ee649e96806b2cc9d437e2e5b1b549e8412c99d6698748ecef9b0df776674ce2",
+    "platform/embedded/firmware/event_wire.h": "2790ae492ea72769cf4bc4eacb0a10bc94f9a638d6d0b220a1a508cd4517ff92",
+    "platform/embedded/firmware/nano_firmware_cache.inc": "b16c2ebc961e0adfa1b2d37e533cf7630ffb6d7912005e81cccfc72e17439188",
+    "platform/embedded/firmware/nano_sdm_input_finish.inc": "b75fbb8f1c8b966fce07813607b9171d19dee02ff7e745c2121c4d8bb754bca7",
+    "platform/embedded/firmware/nano_fabric_stop.h": "37d321da4266347477372450460280cf3b7f0d1e866c8379478a69b824f50519",
+    "platform/embedded/firmware/nano_usb_composition.h": "85df40f207f4445e505a91a5656bbabf7aca450d95ff2940e0ea98736e075ccb",
+    "platform/embedded/firmware/nano_hps_io.c": "fbf6db20753c36d84cc88d8c732fa1c57a4adbe386da2e300976aac7e3d5c8dc",
+    "platform/embedded/firmware/nano_mmu_memory.c": "016b42683528703d335bf97d163300cfb46145cc15f342d5d2593aff5a156598",
+    "platform/embedded/firmware/nano_usb_boot.inc": "55a2eb51e45569f5e6d31daca4a0f499ed283f452166fb6ecc844d25d0ef1e87",
+    "platform/embedded/firmware/nano_capability.c": "67a2c3ef81713169546080679a7a5c100a5f7bac572242dceb8f1b6366345d0b",
+    "platform/embedded/firmware/nano_bridge_diag.h": "b80c4442198cbbdff4781d66ace85ab4a930804114176e5927e8984d1e78e904",
+    "platform/embedded/firmware/nano_sd.h": "3091c8e63f298eb7b0d6e25c057dfe809b58926454d39813e60eb49b73e250f9",
+    "platform/embedded/firmware/nano_smmu.c": "701c4b63917facb09a2ca5577d331a80600a5fde3884aa6b03f0c7853c7074c9",
+    "platform/embedded/firmware/sdm_input_probe_setup.h": "568c62656cbc598df3268ce29caff1547fdf41dfb42e7d25fa7e69f7d2b21109",
+    "platform/embedded/firmware/fault64.c": "098108e078c0613ad68c3f15a4bb505af4868bb9a607e37201235efdcfb45524",
+    "platform/embedded/firmware/source_retire.h": "017f4b5210165183a303c7daa61166ff71b656846c9c03b8118695ce2dc0436e",
+    "platform/embedded/firmware/nano_identity.h": "7ab82fb21248fe56dc98728499c12b1391c57da14b98b49b250184750d787601",
+    "platform/embedded/firmware/probe_setup.c": "cbd35b617610040d9b9c8e1cb424a5737c81e80ec64adcf96e926f005ed58e14",
+    "platform/embedded/firmware/nano_sdm_source_platform.inc": "fae1b33e7585bce00ca188f5fd645b32c9fdc7f5e15b39137d177b4f21f57c5b",
+    "platform/embedded/firmware/nano_mailbox_observe.inc": "2e6a44c50a77995425b268ed3e8cf7a36ccb1bfb91bf4f2b7bfff541f0a47afb",
+    "platform/embedded/firmware/nano_mmu_logging.inc": "ab1505c00ec6fa792c5d6793d0d532ed00925c6f5ebdf29bcd5c99374a5fbb04",
+    "platform/embedded/firmware/nano_tape_platform.inc": "2a070f6c2104759ce8dc0939f1cfaaa2f5d96406be28d5e7ad5454e768fe0fc3",
+    "platform/embedded/firmware/nano_usb_platform.h": "8d3cfe40b04cc097ca8759c524011e1d349177b70e0e946db57fc9f1e35086de",
+    "platform/embedded/firmware/nano_sdm_input_profile.py": "cdaf6a7d1c2b8dc319bdc014ab0f036d5ebf3c79b5c2291f4c13f939cb420331",
+    "platform/embedded/firmware/nano_mmu_platform.c": "bf5676edfb1f1c2ce03f4d2d673b7dd644774e27120b390f749112f60997c5e7",
+    "platform/embedded/firmware/nano_usb_board.c": "fddbf1061cdf2f822687437fa1275472244c10c75dc20b5c6ae8f209ce58e88b",
+    "platform/embedded/firmware/nano_rom.c": "43d7752f49ce902fdc72e8f60e8b72565b14145dfe9198169d3afda6cf8bfbfa",
+    "platform/embedded/firmware/nano_ddr_read.c": "e19101b6b9f776401697c8aec15f7f5cade69f69aff3a4ca331e7f11d7a96dcf",
+    "platform/embedded/firmware/nano_firmware_ram.h": "ce118906e1b400e005b467bdb9b034aa07e733ba8f5ae400c4563eba24f201ff",
+    "platform/embedded/firmware/event_wait.h": "37630532a23f7add4e489f7e38ab744f5ca6a9ced278a117a46494c8d3b55bbb",
+    "platform/embedded/firmware/nano_mac.h": "bca05dec2ad209db0fbba426629c7f4c719b0da753b43786ae4398c0e75ee125",
+    "platform/embedded/firmware/nano_mmu_memory.h": "3d141fd03d014671fc1f070f993fb7b5c8eacd06f1fb91a0813747d7e6f70a95",
+    "platform/embedded/firmware/sdm_input_probe_setup.c": "e754c3456f6bc1c9edf9ef0b3a449b10971fed5119b33c1e4756daa75648c2fa",
+    "platform/embedded/firmware/nano_secure_mmio.py": "049b7dee29616813c21dfb45920b3945f0b8b0bebd7b720aa95290b31b84ce69",
+    "platform/embedded/firmware/nano_usb_platform.c": "2c4af43b9d230f71792b37b7aa96713fc89730606b105c680848c8b6eeb180ee",
+    "platform/embedded/firmware/nano_bridge_sip.c": "fa4dd884d8235aae5aea96eab4352e8394a87953edefd05ddabb1d2dc9b05ade",
+    "platform/embedded/firmware/probe_setup.h": "01611f66967d90573602cc32b4f8001a745c252f28a861a922c88278ce7b9278",
+    "platform/embedded/firmware/nano_digest.py": "61d401edb5ac7a8b3a7fe95a7bc6b23e149b66e57c6266817fc51787ea10880e",
+    "platform/embedded/firmware/source_retire.c": "78542f674a664824e80087356ac7de52909469e38c4630e299c66f6e884611c9",
+    "platform/embedded/firmware/input_tables.c": "b842dc2ea784ec5c2aef846c7da22b971b2e9fa1f688f29e24bc14299fbec58f",
+    "platform/embedded/firmware/nano_usb_composition.c": "7358abb215cfe5ec98674c9fc76169a19c26100672cfe8bb80ec9d29955a76ef",
+    "platform/embedded/firmware/nano_usb_service.h": "d4e627ccb7e359c67175c433a84d2bdf850eea0bf65cf22ba5bbc4238f200c1c",
+    "platform/embedded/firmware/prepare_tfa.py": "511db177f046c0ac4e2d8987cb1f26707e362e0175fdd254f39a7ef081295329",
+    "platform/embedded/firmware/verify_fabric_stop.py": "de05139eef78034b169ae129be9a4ac69272f7671ba2e25a8fc8377e9a5bc4c4",
+    "platform/embedded/firmware/nano_boot.h": "466582d06c121b5756872e6143de075d1ca596c977c11d0f1d4495510aa2c7ee",
+    "platform/embedded/firmware/nano_bridge_sip.h": "1ec1d37e5b1203002ca8b29cb0a7fcdce20b6ead878ce26baf0a2d6d150d842e",
+    "platform/embedded/firmware/nano_sdm_probe_platform.inc": "db5f321e90c0df3db11e0ab03f240e73a1178852c2441784da95e1b36f3f7df4",
+    "platform/embedded/firmware/input_transfer.h": "a27071356549965af5b315b8bc497b5e617d4397475a7076f1ea5fe0639cc327",
+    "platform/embedded/firmware/nano_sd_platform.c": "78ffcfcbb451663f5bab0fb8ad72daeb656cebf558d5630d099f0ac972f8f96f",
+    "platform/embedded/firmware/input_transfer_service.c": "0ff5b581df6c7e8e01b1a6fbc0f38b032f0485736bdac37cc4b28d7fa9a954c6",
+    "platform/embedded/firmware/nano_configuration.c": "140ab414ca6c728abb49102b49c2212ebe7f44134dc0cf7e1629ebb9c0155c10",
+    "platform/embedded/firmware/nano_computer_control.inc": "58a33d3c26c88d4bf081dda4d2d95c32c1f29e4071a07e6a27272a4ef119dff8",
+    "platform/embedded/firmware/nano_cold.h": "1c70c9d6759cd05d380ce60792ffe82df2f1ec96f9d860618059f33c18091db3",
+    "platform/embedded/firmware/input_transfer_service.h": "142f29ac1621188769dff4121719e6edb649062712c18e61aaebce1523345752",
+    "platform/embedded/firmware/build_terasic_uboot.py": "662c2bf0bae00b0700154ea01ce600bce2d60b4c227c9a03ea3ab8a9df9701ff",
+    "platform/embedded/firmware/nano_bridge_platform.h": "cc92cdced68b12fcd1604d32a4890b9aa3b15ce572825ac9f6d4df6379a0c308",
+    "platform/embedded/firmware/sdm_input_vendor_service.c": "a37080b3f12ed6c9ddfee3b182886edbbff2ed353fa8384144cc9243303cacab",
+    "platform/embedded/firmware/nano_sdm_fault_service.py": "91653b4512e8d3060f1f4b2b0553b5237e16f0dccfa4f1c7be7b5253cea02353",
+    "platform/embedded/firmware/nano_mac.c": "fea570eb32d443ebc0eee3615169f031e069764b6ed5e28d30a9f821a995c853",
+    "platform/embedded/firmware/verify.py": "cc41e8958cc869526f60227211989d787782fe746d1c4f6771dda398c618b086",
+    "platform/embedded/firmware/nano_ddr_firewall.h": "1a54e6bbacbb308cc38df5b7d4df1e592d4d1d840a748a343b0d5bb6d182e016",
+    "platform/embedded/firmware/nano_program_control.inc": "ea7ca04afd2f0ed43b0f4e61f9b940e6f55c69041f9b55ec748bbe6979998cd2",
+    "platform/embedded/firmware/nano_bridges.c": "fc927e779ed319bca74e5a096df8bfad05eb0f4623f67d53d3ec09082cbd29b9",
+    "platform/embedded/firmware/command_queue.c": "4f5df8ed5ec3f5b40459c2f5e333a905147510a0c4b60a260c341a1b1672adb3",
+    "platform/embedded/firmware/nano_sdm_probe.h": "2b31cff82e65e2ea238cd1a01045636572bc00f1dd9a59d8e248ea80c6457e37",
+    "platform/embedded/firmware/nano_program.h": "4ea7f80839a17d3983d53d3722fc33af675d5a720edf7734a795ad64d6d5e9ab",
+    "platform/embedded/firmware/nano_program.c": "37fd2ae7d4bd6fce8e58a2498f470693feec8d4a62c8d23c125a718ec03a061b",
+    "platform/embedded/firmware/build_terasic.py": "4cd1d2f31382587a805fc20cede09413ce69a6f9d2be007afa528d4721864070",
+    "platform/embedded/firmware/nano_mmu_platform.h": "79d5ff7d776bdea94729aae61a91bd1f90c00003926d6f7fe33f66aa60e451a0",
+    "platform/embedded/firmware/nano_remap_trace.py": "f13436c1d696370a154ad97f82ae4435ef2a0d7fb45cf1251135edc1de92ebb6",
+    "platform/embedded/firmware/nano_window_control.inc": "b50761e9ac67697956781557a4af45ca444de1aaacb0678f6023ca34ed8181d2",
+    "platform/embedded/firmware/nano_sd_platform.h": "5eb74049b5f6a3a222ee7b26f7d310e1714b92183538bed4c0f8decfaf8af4c0",
+    "platform/embedded/firmware/nano_firmware_decode.inc": "0817f885c72aaf44b1c26a229a87706c1b2d632aa0e8137db8350c688d7272fe",
+    "platform/embedded/firmware/verify_nano_bridges.py": "d2b019f7a41a06295e1da5049bfa5628b415d4de41c322c7cddf79337997fa9b",
+    "platform/embedded/firmware/event_wire.c": "c450eea403e36b02fa456c8220dddacc463f8b93e1caaaf5ca4c60685521ff7f",
+    "platform/embedded/firmware/nano_mmu.c": "878b7e4deae55c2111c0eac74fba93ce954ae3eb384b63aacc2902ee5aa3d3e8",
+    "platform/embedded/firmware/nano_start_trace.py": "e76659b75bf33b581cc739be9bb1530cf2ee6de58d4b94aac4092df74eedab7e",
+    "platform/embedded/firmware/nano_ddr_firewall.c": "7725a163f614e42ebb9396147569302497b1a22bd3a2329c065ba57e91c398e6",
+    "platform/embedded/firmware/nano_firmware_percpu.py": "58e93ded2c73ac371ca261c8ef66171812a3a9994db7fe0c12ac38348964202f",
+    "platform/embedded/firmware/nano_firmware_exit_cache.inc": "09689764d15d92af56335b20f638b04f4192cd9a8e4c263ded45f10233dc6020",
+    "platform/embedded/firmware/nano_mailbox_status.inc": "185225e3d31d1135d7c06bec70dd433c3071742bd11e8d72c118b8c454715c8a",
+    "platform/embedded/firmware/sdm_input_vendor_mailbox.c": "646d19813cfcfdec7c0abf982d777c49cb0c6ae110f090098bd07b1e7ca463f7",
+    "platform/embedded/firmware/nano_mmu_transition.h": "a55596fe449d07b3c43624ef5d45947dcefd324774c7e379c57b3cedb15165b8",
+    "platform/embedded/firmware/nano_firmware_ram.py": "71c937297fe495a08abb5fabd15cd96fe42e9af3ae94ecb02ce79112f35d3ad4",
+    "platform/embedded/firmware/nano_tape.h": "a9e4e2face6bb857291509e6e9bbab7115d8fd5a69785be68ff61ea7b153563b",
+    "platform/embedded/firmware/event_capture.c": "e40580fac9156a06caf73a3e6a5314c0dbf832e19637ec8d125ec1a2e379effd",
+    "platform/embedded/firmware/nano_sdm_fault_profile.py": "e9f28df0d9a1f0611df7cc6091f69781da4800d06e99ec199168b0baa5bcbd9c",
+    "platform/embedded/firmware/nano_cold_mmio.inc": "faa5bac24cca2344a98c15433efb17966dd59e54457bd6df82592f528267cb92",
+    "platform/embedded/firmware/nano_configuration.h": "bfd1d77134ab4c4352c2e86d7857da9e7de4324bfa2811c77c481f1132428d43",
+    "platform/embedded/firmware/command_queue.h": "7e872968ea987f61ec8f8ad04f93b92fdc74e853cc525515a4263d43efb3aa9f",
+    "platform/embedded/firmware/tests/nano_mmu_test_platform.inc": "a46a0a295d5b191a34f3d2aa591cac13493fc5d818ca9344c1b7f0cd13b7fe99",
+    "platform/embedded/firmware/tests/nano_mac_test.c": "932b419a8b43fa96f6d328c3a436fe294955cfb4af3ed88d0bb616cfc6929053",
+    "platform/embedded/firmware/tests/nano_rom_platform_test.h": "ae19ac781f4a1b116e9a43c72be57e6c0702ea4327255b1df16262cbdd508ff2",
+    "platform/embedded/firmware/tests/nano_usb_boot_test.c": "92d3ed010884edca6c5d70fce0fef0d855a5b05105c3e4399019197425d0a6bb",
+    "platform/embedded/firmware/tests/nano_window_control_test.c": "a8c090b4edf8adf807946e187c2968346c23d203217017fbf1ddc096aa4a46ae",
+    "platform/embedded/firmware/tests/nano_recovery_return_uart_test.c": "372cc63b55df744da403bc5d97552160152f4a3fa095b7159a4437df2b6a82df",
+    "platform/embedded/firmware/tests/nano_usb_board_test.c": "33f696937449076c9ea6d8937a4a5497dfd668fcfa18a310492e06b95bb038cd",
+    "platform/embedded/firmware/tests/nano_sd_return_test.c": "b7d296beb41b09dd0751ea3fc2921f7fd72ca8397897444222ea42b83070048b",
+    "platform/embedded/firmware/tests/nano_coherent_snapshot_test.c": "58412a4c657575c597f9d0f0c272eb5d48fde69736f590505cdb5693b7bd8857",
+    "platform/embedded/firmware/tests/nano_mailbox_test.c": "19af808bece8c8fb15f6c939b111fd30de35c68cff9aedcb2466f0f8def85c6c",
+    "platform/embedded/firmware/tests/nano_sd_rpc.c": "8ad75f155d1896342a5d29f2b138c9de55d2354ee141f1bc3faf5faf3c1cffb6",
+    "platform/embedded/firmware/tests/nano_usb_board_fixture.h": "ae9fae639649d94dc1f909cdeeac96a23cbfd31d9e5032475ebb56942de1521b",
+    "platform/embedded/firmware/tests/nano_program_test.c": "e05163273f39a8ff43cc4143b37c43f414876f37e98de8fe356780cea6d7a4b9",
+    "platform/embedded/firmware/tests/nano_usb_rpc.c": "44146a754e9fdd4137f34d434d39670da5085ba4d84bea75e347315857693fe2",
+    "platform/embedded/firmware/tests/nano_bridge_fixture.inc": "64336bed324687de620b8104632fb28ab72af938a13c0961d77ef2e84b2778ee",
+    "platform/embedded/firmware/tests/nano_mixed_cold_test.inc": "6ce0f8fef404ff01ee6c598ff63c9897fa0c6364088dd92404f31e4fd47af3ae",
+    "platform/embedded/firmware/tests/nano_window_sd_return_test.c": "f6ff8314a560ec2c11b197b10a44d904bbc3ea82011fd05189c197ad490d64b0",
+    "platform/embedded/firmware/tests/nano_rom_owner_test.c": "ad7712366f2002ba83da6e8ac43530e931179b160d862f694ab02d7296ea7f4b",
+    "platform/embedded/firmware/tests/nano_hps_io_test.c": "9c3a8d51ec452fab4c30a887f9de2a906ed2f0218e497507c42c50135de6c77c",
+    "platform/embedded/firmware/tests/nano_cold_test.c": "0fc5ebecebc15a2fe42d08cd9a5f6b83fb6a72ad185ad93ff847caec0c4e1415",
+    "platform/embedded/firmware/tests/nano_mmu_test.c": "4f1e174fac60caa22ddc3f2afd5d2bc6a0a5eab6231bc6179db2ac1e9fbd6256",
+    "platform/embedded/firmware/tests/bridge_diag_service.c": "fe81728b0e347cc099e18b9cda98add94b2d2ac9898a071a580ebbb6e6e9beb3",
+    "platform/embedded/firmware/tests/nano_ddr_read_test.inc": "d43687e47853ee2f1787cebf1bee38e2b02013cbc5806f77d3ed19ff457bcdc0",
+    "platform/embedded/firmware/tests/nano_recovery_phy_test.c": "5d5e1368df342449c1c08cd6202d1f96252ee85471208a0ddfc00d175d95b7b2",
+    "platform/embedded/firmware/tests/nano_rom_steps_test.c": "018eba46e54e9923bd1338b44dc5a759779ace8ca67c60e3d8104de37a708176",
+    "platform/embedded/firmware/tests/nano_recovery_return_test.c": "eae0fe6458f0b84bffb92315554608e130e9a22bcef51b3d2c5823cff38ca28f",
+    "platform/embedded/firmware/tests/nano_cold_platform_test.c": "afb56f64a60b4cec08c349a8f9f6edfc5dabe6af5e212f119dd9571f5255af7b",
+    "platform/embedded/firmware/tests/nano_usb_shared_rpc.c": "d72f034b96a06c8c145d1768c4acdf6347fa464feac3928fde2b41a151df9bec",
+    "platform/embedded/firmware/tests/nano_mac_dispatch_test.c": "6e994ddb843e2caeba46faf328008b3f243011339980500e90b70dcba484ed7f",
+    "platform/embedded/firmware/tests/nano_window_runtime_test.inc": "a26c6519666d0e137c1995c69dd34a9c5364b567cd396bbf471e757be669fac7",
+    "platform/embedded/firmware/tests/nano_sd_test.c": "f4c323d0a0e9134f1e2d443dcbf7074beead4174b8efcb9ea0a105eb616089f5",
+    "platform/embedded/firmware/tests/nano_usb_master_test.c": "7ac97397c1c2bbe6ce678002b27d9120dc78f421451bcd88a004fdeec5b57cc0",
+    "platform/embedded/firmware/tests/nano_tape_service_test.c": "724462134254e9f49296530b62a83f2d2e52a4475c66ff1f22b240eb5b99b0e0",
+    "platform/embedded/firmware/tests/nano_mac_fixture.h": "e85cbc2a9927def64a11570516dab359a629fdd93ece57fef3b87ad4b13475d6",
+    "platform/embedded/firmware/tests/nano_program_control_test.c": "b8fcd292071e0f5d21e401941d2b2df074d63138c137b933bd9b1cbdd4591f22",
+    "platform/embedded/firmware/tests/nano_usb_platform_test.c": "1626a9fc3266266006080b2ec36b1b6c3563f66409184262b904e49c61383c93",
+    "platform/embedded/firmware/tests/nano_bridge_driver_test.c": "33d1a4ef954957a9961d0f931f5ff2b661370abe411612809b1589e269fa7c03",
+    "platform/embedded/firmware/tests/nano_boot_test.c": "cb2a8b5c57baaa94032c42a941d2d9d431e8cfb0c44472ede846f9b75106d5ff",
+    "platform/embedded/firmware/tests/tfa_stubs.h": "ac58dc5b86983c8f53b8335ac29dd0d6b241b1c4cbe89e5b2df305e7a5e79221",
+    "platform/embedded/firmware/tests/nano_configuration_test.c": "286f412fde9639d4553718269f12e25575c97fb072726ecb90dc9b9a134a5f4a",
+    "platform/embedded/firmware/tests/terasic_reset_test.h": "4246d7ac753b5a40f1c44373d2b9a7de21621bad7dea582eeced9dc4e30543e5",
+    "platform/embedded/firmware/tests/nano_ddr_firewall_test.c": "d12bf08f47ff6404f9b81fc2154c82fb4da5233c6ec7abd6f501b6e382d1555e",
+    "platform/embedded/firmware/tests/nano_bridges_test.c": "b9657c596b072c39638396c313b7d18409198869bec52c613fe383bc6dab3eda",
+    "platform/embedded/firmware/tests/nano_tape_test.c": "a68316c9e8138bbd73305f871ce330c9b538e74a42571988aebacd011172e21d",
+    "platform/embedded/firmware/tests/nano_owner_dispatch_test.c": "8a589de13227bcc5b368d3036b98dbe642d3a3f1bd817e8ef9dfb2db7a127316",
+    "platform/embedded/firmware/tests/nano_mac_setup_test.c": "55a632c931eef8708f8599e8eb3910080bd9ad240b83acf60dd69d5d5aa5ec27",
+    "platform/embedded/firmware/tests/nano_computer_control_test.c": "a9357360307601250ee697c2638b4f5c0bb092926218a6c0210543372af80708",
+    "platform/embedded/firmware/tests/nano_tape_endpoint_test.c": "bd5c2667a86de9c67a5bc82585abbbd4756fdb542b1cb15624bc60008e388241",
+    "platform/embedded/firmware/tests/nano_mailbox_status_test.c": "6924eefc025f8333da119463a025c3127d05ece222e26b7ae34012923411e7c9",
+    "platform/embedded/firmware/tests/nano_usb_composition_test.c": "581fa54b9e0a0f3ca362603c5037cd2870927c4c43a379a409dcf7915efc1711",
+    "platform/embedded/firmware/tests/nano_identity_test.c": "5805040c991a3b4eb8a42bfbded023d3d6ec195baafbb75155c09a64cb38bb4c",
+    "platform/embedded/firmware/tests/nano_usb_fixture.h": "874a976a7827c78dede1eadc13f377ee3a450442776dbfe9c595e1a49c01884e",
+    "platform/embedded/firmware/tests/nano_owner_snapshot_test.c": "54fecec20f621c37f055dba7da39ee102fa09a47123494b28e8889e3a8c47b72",
+    "platform/embedded/firmware/tests/nano_rom_steps_platform_test.c": "e27429f774a52452b930190bb0e3f1fd3318941a01847f8774f34e6beaba6219",
+    "platform/embedded/firmware/tests/nano_sd_platform_test.c": "c531a3a07a2321ae4d4bf82a3b7871e0c852e5c39415b81faeba71b0ea6802d9",
+    "platform/embedded/firmware/tests/nano_mixed_tape_test.inc": "43c189a282029951f15f7edb1eb2cde89f803f679147e0c0a493b1d40c9f3813",
+    "platform/embedded/firmware/tests/nano_bridge_fixture.h": "33647e03121098fcb51a6d0cb7426ead15a53e3c23c4f294250368638bb6f369",
+    "platform/embedded/firmware/tests/nano_smmu_test.c": "f782589d0eb3ac21735c46dddd934f4e6d20890730277b7fbf982d3eb984875b",
+    "platform/embedded/firmware/tests/nano_bridge_sip_test.c": "d7b0f5aa62327c868c020af1a0a458e67a45a780416b761e5f2f7faa3cf9124d",
+    "platform/embedded/firmware/tests/nano_mixed_usb_test.inc": "063bfd599dd48a0f146c67287e06bc7d322b714d7694adb2794e4da87a13db56",
+    "platform/embedded/firmware/tests/nano_usb_shared_boot_test.c": "05499c691da0f107b648051c507b331976847af43443eca8148fb1f5a0df2e3e",
+    "platform/embedded/firmware/tests/nano_rom_platform_test.c": "4680e68eeef2e4543028abfe86a5ca32bc993589b53bb635b766395964a58147",
+    "platform/embedded/firmware/tests/nano_mac_rpc.c": "ef33592eee38011cada21d7bee596a260adcb0e3ec8a2f4a76949844a6251f08",
+    "platform/embedded/firmware/tests/sdm_retire/retire_cost_test.c": "8112b5e660871d98872bf1862702ca9081152622b77975970284d5f6d49f79e2",
+    "platform/embedded/firmware/tests/sdm_retire/write_gate_test.c": "c7bfc43bbc1ee35e4dec8a045616387b2ff109df1bd7fe1a50d7a97f499f572c",
+    "platform/embedded/firmware/tests/sdm_retire/joined_test.c": "2b6def8d1b5f39bafa9c2dafc3b580778ce5c55f1f99c40d20f917e118636e2c",
+    "platform/embedded/firmware/tests/sdm_retire/retire_test.c": "4fd22f02ad641923722d7e7ead3362f1fc1d2adc82b47f823e6e8157201548c7",
+    "platform/embedded/firmware/tests/sdm_retire/batch_faults.c": "ca2594af2c05a8b6f15dd9d158c6215461632a44a2e23b36babe3d21074b1c88",
+    "platform/embedded/firmware/tests/sdm_retire/command_progress_test.c": "b982f44896a48f20685a41efc135961cb1e51fa2a9af2baab76051ab1768980d",
+    "platform/embedded/firmware/tests/sdm_retire/retire_progress_faults.c": "e5bd903628946cd3c464b4d59e31333801007bfddd3898e921c1f56c4068d726",
+    "platform/embedded/firmware/tests/sdm_retire/command_snapshot_test.c": "3b9179b0b4be77c3d0f1acd8fb5951f04d636853ad807a6e5a1abe40722d9b2d",
+    "platform/embedded/firmware/tests/sdm_retire/joined_boundary_test.c": "f70191f660cd73c55f79310c4de49400c49973e9ac546a32ed798ca7a5e601b1",
+    "platform/embedded/nano/call_trace.py": "c42896936ec8ac18a9908394ccfd994258e3c26bb78f69a63699b580ab210ce4",
+    "platform/embedded/nano/cold_profile.py": "caa23df8e97e8b2b597766cf25480c7b7a6b1cac45f92511e2c86e7d7d5e2b73",
+    "platform/embedded/nano/configuration_trace.py": "fa48b7886ab40efff94f126c9a2966ef41d257ba52b872e7641a87157bda6bb2",
+    "platform/embedded/nano/cpu_diagnostic.py": "2e3a5bbee1ac150861769a1653e457b2c9ca8b0293e5acbcb52635e72a4aa64e",
+    "platform/embedded/nano/ddr_trace.py": "56b1acef4ac18bb00108380a8743f42e8cc82e9b57244a4dc32ee457eef68778",
+    "platform/embedded/nano/fat_file_readback.py": "ed088245db4257258cc5244262a6433ca363dddd961e853ba95090e16a9b26e0",
+    "platform/embedded/nano/fat_file_trace.py": "1ee71def030e0c8431d93bdee58dcdadda76104dd7a81434de77340181806497",
+    "platform/embedded/nano/fault_status.py": "e948c22defcd014fd5eec02d90e21f083beab29ccee4ace8d8945ba57b5c6e58",
+    "platform/embedded/nano/fit_layout.py": "96cfe0a3aab4ababc4d01a0ada12c9f17b67e21fe54b46f49ca2ad7b092b1164",
+    "platform/embedded/nano/flash_trial.py": "c578a8485fe8c4d4b9632775f82a3c223ede14f5ddb9be61172d6cc8d2288b02",
+    "platform/embedded/nano/gamepad_delivery_trace.py": "90a3ac777873ae0d9ce75226cf24558da3c66f59abbf1e850d83739ce0d3b1e3",
+    "platform/embedded/nano/hps_boot.py": "72e6cf971b1af9a7399ccb6da388cec66165b72da5fd17bc7173dccf8c5ca743",
+    "platform/embedded/nano/hps_context.py": "6ac96f2ac50f0b6b69c1e808f0e6f62647d9800821692876f84b70944e2a26fd",
+    "platform/embedded/nano/hps_io.py": "cbb0527cda79cb0e65920d6babf1d7434eda7c432fa9de9fce75c82ebf53d5a4",
+    "platform/embedded/nano/initial_tape.py": "eadfedcb3dd4d2c96da830268a773fc5c631cc44f1eedeba669c343dce686e42",
+    "platform/embedded/nano/input_action_trace.py": "eff7c19a1f4be42cf74e7199e98b27bd2fbb551bab5ec46e64e629b0b3136339",
+    "platform/embedded/nano/installer_boot_refresh.py": "901650cf15596d22931627a24244da4726d5c879b6204fa324ae701d5ebe2451",
+    "platform/embedded/nano/installer_client.py": "bc0d7c99ab8adbf2f4683c2c0267dd39640dd92842c7171e680f6981c1b128e1",
+    "platform/embedded/nano/installer_cycle.py": "cf5d01a3b370a58cba1be7f7e929fa0b50d83a982f8e9fed89324e8d53c1cd21",
+    "platform/embedded/nano/installer_recovery.py": "b10b2135fee83d5d70e88be246a86553c818becd6bbfbe9cd778dbb810320b24",
+    "platform/embedded/nano/installer_trace.py": "f757ce9b44d075260dcc5f3978bc9ed8f1a1d106f444a9ce40140bd6aa51150c",
+    "platform/embedded/nano/jtag_clock.py": "20da883de4171d1ef26211af32125535d85908c6a5812c3e81cfcb07eb819705",
+    "platform/embedded/nano/jtag_probe.py": "7483e3a2677020f46751b78a15b896449f5b119b30a817a855d26f0b8f5fe854",
+    "platform/embedded/nano/jtag_programming.py": "69982395374b78cc393079f35e065bf2cbbf293674eb3e93ee1fb949ed51fae2",
+    "platform/embedded/nano/loader_progress.py": "670c81af3b7a6444ce3e757e2bbd7b5d7980e66a8f87e9df111c86c270c9b012",
+    "platform/embedded/nano/menu_service_trace.py": "7d1f3a4e9a0a384cc2a00d30daee5ac4a970a8069b9ebe1e0d88fb6d66deb7e7",
+    "platform/embedded/nano/menu_trace.py": "42c60f63bd2d7da1ff3056ca9fea3820c401ef5b38313cec25c931d27d55ace4",
+    "platform/embedded/nano/mmu_logging.py": "9abd0095f4c22f0ef5c2daa7615b210ef2cdaa5568cc7a60833e4636867e1a39",
+    "platform/embedded/nano/mmu_mailbox_view.py": "f01957718d73e14bfa297cf015c014981d9fe8e9a2914c137e1eea1193b824a9",
+    "platform/embedded/nano/mmu_status.py": "47e361d66826df306895c58c355e2d83a9d27d3d7712d6100ff56ad07669e9b5",
+    "platform/embedded/nano/mmu_trace.py": "3c53489dd5da295a0295ccccf4c90a95a4832636c3fa2b1a48a9be0dd09dc8d4",
+    "platform/embedded/nano/native_admission.py": "8c0c641628ac75268a6d1ab75a56b5731497fc7fd1b2ed589334cea8acb3747f",
+    "platform/embedded/nano/native_trace.py": "7171f882b8b1282b93eddbcef39f3202a6d170a9524485bbd0fb9a9b42b1ebc9",
+    "platform/embedded/nano/package.py": "9b3a89c485a059084766b12c0dcc1b57ad188244c51acdd8cab7f0483b0221b7",
+    "platform/embedded/nano/paired_firmware_trace.py": "e08b1ef3920a21fa9aac8669b3cbd7d7d2fd21016d628512ff96cea166b40261",
+    "platform/embedded/nano/paired_tenfoot_trace.py": "11c366ba302088902226786453a6c88a441e90e256da9cff80f2bee374bd209b",
+    "platform/embedded/nano/power_on_trace.py": "84ea807017df4500dab1ab0a05ec20e82c9ca3486a462baad66871a852ea35e9",
+    "platform/embedded/nano/prepare_uboot.py": "515821160744986490e63db1f64e28b1ba2dacc50aad699a182363e22ae8bb05",
+    "platform/embedded/nano/program_client.py": "242935098215c413eb0f7c132cf02bf7eff480160ed13f6ebbc769cbf809e0e2",
+    "platform/embedded/nano/reader_trace.py": "2898de8498603cbb6aeecbe72d560229ab86ae6d02241cbb3c13a28c02766b85",
+    "platform/embedded/nano/recovery.py": "8cd45a8db47566c80d3f0e3da3c99a1deec4483e317a6b1a34af2e2e6b5b224d",
+    "platform/embedded/nano/recovery_package.py": "9cbeab21ea7217fed74e3daff794beca3641fcfeaa519c5cc0c94541b01f6211",
+    "platform/embedded/nano/recovery_return_package.py": "c30972ae95d98fe99dc44c51c1463dc88df21ba1088000c7d24d4fcf16320de7",
+    "platform/embedded/nano/recovery_return_trace.py": "8ff2637ede0b7b5bb928e3d011fba7f016515dd5409374ea64b054fc5dd45e7a",
+    "platform/embedded/nano/recovery_trace_console.py": "1d465d66cfec121fc93556ce0d25bb90fc758d6978c7b895f4cfd0db19735741",
+    "platform/embedded/nano/recovery_trace_upgrade.py": "1a01cf59c0640d6052aed8eb2bae46aca205954d6735830014217fdd969ce875",
+    "platform/embedded/nano/runtime_startup.py": "d2fa51f6309c351c724c61e3749bbd013361ba8449d307e0cf4b0917fa466e71",
+    "platform/embedded/nano/sd_scratch_readback.py": "7d27de409185d0b6fa8fbda946a7aed3e370166f6945e4cf08f957f0e4411aee",
+    "platform/embedded/nano/service_trace.py": "2a29d3f646089e184ba84457b7be9dc1e2868730bbcc0122bc2772fb5abe86f2",
+    "platform/embedded/nano/shared_input_trace.py": "c745ee1880159333e04c8e57edb0e131acc8d0761230f15c3c7812724e4b67f9",
+    "platform/embedded/nano/sof_hps.py": "11c9c21d46f28219accfd5a08d9a27486df84845ef4fee3573b2a0f6e72df70d",
+    "platform/embedded/nano/startup.py": "8b9d5f1a003c436eb8bf0cbe26df9010b5bc8b47872e01bdb66b2c4461dc3540",
+    "platform/embedded/nano/tape_ownership_cost.py": "54c58c74ffe371d30127842ca42fae0c8f7d177ad2618a8823675f5c1e8b4f76",
+    "platform/embedded/nano/tenfoot_trace.py": "d564f5f31622d5efbaf7c0f2716ae7cf93968026bf1ab170de846f5e1f972162",
+    "platform/embedded/nano/uart_transfer.py": "eaaf25994eec128c99f508d81f18ff78ca816697b50333a3fecfd9355597375c",
+    "platform/embedded/nano/upload.py": "04178059800291bfed447d7ff7df6de6f34cee65ed4471baa12f0cb570e6fc05",
+    "platform/embedded/nano/upload_memory.py": "a6da4f2db1f6b743ef07226d5b8e822b1f892e9857ef1f39e8706f9902fce45c",
+    "platform/embedded/nano/upload_transport.py": "ed06e8c283440333d558a3348429f4f175abb8f8d8b90c6358d0ec952049292a",
+    "platform/embedded/nano/usb_readiness.py": "e749c7d019993494ee5b5fbf85bb2fb32cf6fca579706140f7a9b152084d72c7",
+    "platform/embedded/nano/usb_selection.py": "5aa1c239bd5184f5380a86206621d93d58c41485b335f1421abbed2dd1d51d7b",
+    "platform/embedded/nano/usb_trace.py": "ed78e5f22d73459f6e059ec1ad22105414748b510f30a33edebd064b2acf4537",
+    "platform/embedded/nano/window_client.py": "d35f5157beefef59d99471df875c41833aa37b873a3f6e23c13b8bdb19559773",
+    "platform/embedded/nano/window_reload_trace.py": "d90de5685d03634f433041c2b10e9975885742eae57f71584de9bd85d4395acc",
+    "platform/embedded/nano/window_service_trace.py": "8a751aad06833de880c04cb68f9c0b46d084df70b365e041f8576b1daa1acf26",
+    "platform/embedded/nano/window_storage_trace.py": "d9f6e98ed4fe3b381fdf60b844cae5478567c605c5f37d239cb061b9e93c754f",
+    "platform/embedded/nano/window_trace.py": "de24d1943ab7afb71828a862093dd1acdc12ed7846e271b46d101c51b1b585d6",
+    "tests/fixtures/nano-usb-board/hps_bootloader_handoff.bin": "a17de6f2dbf5f4e93643b50b4c8291a33f930064f9a43bad3ece24e9c3dda04a"
+  },
+  "compiler": {
+    "path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+    "sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f"
+  },
+  "observations": {
+    "read_cost_cases": {
+      "0": {
+        "status": "passed",
+        "hardware_actions": false,
+        "retired": 1,
+        "phase": 6,
+        "first_error": 0,
+        "writes": 5,
+        "publish_attempted": 1,
+        "phase_counts": [
+          [
+            524,
+            0,
+            5120,
+            0,
+            10840,
+            6
+          ],
+          [
+            250,
+            1,
+            0,
+            0,
+            310,
+            12
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            3006,
+            1,
+            0,
+            12,
+            4236,
+            149
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            898,
+            0,
+            5120,
+            0,
+            11564,
+            7
+          ]
+        ]
+      },
+      "1": {
+        "status": "passed",
+        "hardware_actions": false,
+        "retired": 1,
+        "phase": 6,
+        "first_error": 0,
+        "writes": 5,
+        "publish_attempted": 1,
+        "phase_counts": [
+          [
+            524,
+            0,
+            5120,
+            0,
+            10840,
+            6
+          ],
+          [
+            250,
+            1,
+            0,
+            0,
+            310,
+            12
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            3006,
+            1,
+            0,
+            12,
+            4236,
+            149
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            898,
+            0,
+            5120,
+            0,
+            11564,
+            7
+          ]
+        ]
+      },
+      "2": {
+        "status": "passed",
+        "hardware_actions": false,
+        "retired": 1,
+        "phase": 6,
+        "first_error": 0,
+        "writes": 5,
+        "publish_attempted": 1,
+        "phase_counts": [
+          [
+            524,
+            0,
+            5120,
+            0,
+            10840,
+            6
+          ],
+          [
+            250,
+            1,
+            0,
+            0,
+            310,
+            12
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            3006,
+            1,
+            0,
+            12,
+            4236,
+            149
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            898,
+            0,
+            5120,
+            0,
+            11564,
+            7
+          ]
+        ]
+      },
+      "4": {
+        "status": "passed",
+        "hardware_actions": false,
+        "retired": 1,
+        "phase": 6,
+        "first_error": 0,
+        "writes": 5,
+        "publish_attempted": 1,
+        "phase_counts": [
+          [
+            524,
+            0,
+            5120,
+            0,
+            10840,
+            6
+          ],
+          [
+            250,
+            1,
+            0,
+            0,
+            310,
+            12
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            3006,
+            1,
+            0,
+            12,
+            4236,
+            149
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            898,
+            0,
+            5120,
+            0,
+            11564,
+            7
+          ]
+        ]
+      },
+      "8": {
+        "status": "passed",
+        "hardware_actions": false,
+        "retired": 1,
+        "phase": 6,
+        "first_error": 0,
+        "writes": 5,
+        "publish_attempted": 1,
+        "phase_counts": [
+          [
+            524,
+            0,
+            5120,
+            0,
+            10840,
+            6
+          ],
+          [
+            250,
+            1,
+            0,
+            0,
+            310,
+            12
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            3006,
+            1,
+            0,
+            12,
+            4236,
+            149
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            898,
+            0,
+            5120,
+            0,
+            11564,
+            7
+          ]
+        ]
+      },
+      "16": {
+        "status": "passed",
+        "hardware_actions": false,
+        "retired": 1,
+        "phase": 6,
+        "first_error": 0,
+        "writes": 5,
+        "publish_attempted": 1,
+        "phase_counts": [
+          [
+            524,
+            0,
+            5120,
+            0,
+            10840,
+            6
+          ],
+          [
+            250,
+            1,
+            0,
+            0,
+            310,
+            12
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            3006,
+            1,
+            0,
+            12,
+            4236,
+            149
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            898,
+            0,
+            5120,
+            0,
+            11564,
+            7
+          ]
+        ]
+      },
+      "32": {
+        "status": "passed",
+        "hardware_actions": false,
+        "retired": 1,
+        "phase": 6,
+        "first_error": 0,
+        "writes": 5,
+        "publish_attempted": 1,
+        "phase_counts": [
+          [
+            524,
+            0,
+            5120,
+            0,
+            10840,
+            6
+          ],
+          [
+            250,
+            1,
+            0,
+            0,
+            310,
+            12
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            3006,
+            1,
+            0,
+            12,
+            4236,
+            149
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            898,
+            0,
+            5120,
+            0,
+            11564,
+            7
+          ]
+        ]
+      },
+      "64": {
+        "status": "passed",
+        "hardware_actions": false,
+        "retired": 0,
+        "phase": 4,
+        "first_error": -3,
+        "writes": 4,
+        "publish_attempted": 1,
+        "phase_counts": [
+          [
+            524,
+            0,
+            5120,
+            0,
+            10840,
+            6
+          ],
+          [
+            250,
+            1,
+            0,
+            0,
+            310,
+            12
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            1655,
+            1,
+            0,
+            12,
+            2294,
+            85
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      },
+      "72": {
+        "status": "passed",
+        "hardware_actions": false,
+        "retired": 0,
+        "phase": 4,
+        "first_error": -3,
+        "writes": 4,
+        "publish_attempted": 1,
+        "phase_counts": [
+          [
+            524,
+            0,
+            5120,
+            0,
+            10840,
+            6
+          ],
+          [
+            250,
+            1,
+            0,
+            0,
+            310,
+            12
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            1599,
+            1,
+            0,
+            12,
+            2214,
+            82
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      },
+      "80": {
+        "status": "passed",
+        "hardware_actions": false,
+        "retired": 0,
+        "phase": 4,
+        "first_error": -3,
+        "writes": 3,
+        "publish_attempted": 0,
+        "phase_counts": [
+          [
+            524,
+            0,
+            5120,
+            0,
+            10840,
+            6
+          ],
+          [
+            250,
+            1,
+            0,
+            0,
+            310,
+            12
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            1395,
+            0,
+            0,
+            12,
+            1930,
+            72
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      },
+      "96": {
+        "status": "passed",
+        "hardware_actions": false,
+        "retired": 0,
+        "phase": 4,
+        "first_error": -3,
+        "writes": 3,
+        "publish_attempted": 0,
+        "phase_counts": [
+          [
+            524,
+            0,
+            5120,
+            0,
+            10840,
+            6
+          ],
+          [
+            250,
+            1,
+            0,
+            0,
+            310,
+            12
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            1135,
+            0,
+            0,
+            10,
+            1568,
+            59
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      },
+      "112": {
+        "status": "passed",
+        "hardware_actions": false,
+        "retired": 0,
+        "phase": 4,
+        "first_error": -3,
+        "writes": 3,
+        "publish_attempted": 0,
+        "phase_counts": [
+          [
+            524,
+            0,
+            5120,
+            0,
+            10840,
+            6
+          ],
+          [
+            250,
+            1,
+            0,
+            0,
+            310,
+            12
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            989,
+            0,
+            0,
+            8,
+            1370,
+            51
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      },
+      "128": {
+        "status": "passed",
+        "hardware_actions": false,
+        "retired": 0,
+        "phase": 4,
+        "first_error": -3,
+        "writes": 3,
+        "publish_attempted": 0,
+        "phase_counts": [
+          [
+            524,
+            0,
+            5120,
+            0,
+            10840,
+            6
+          ],
+          [
+            250,
+            1,
+            0,
+            0,
+            310,
+            12
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            933,
+            0,
+            0,
+            8,
+            1290,
+            48
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      },
+      "256": {
+        "status": "passed",
+        "hardware_actions": false,
+        "retired": 0,
+        "phase": 4,
+        "first_error": -3,
+        "writes": 3,
+        "publish_attempted": 0,
+        "phase_counts": [
+          [
+            524,
+            0,
+            5120,
+            0,
+            10840,
+            6
+          ],
+          [
+            250,
+            1,
+            0,
+            0,
+            310,
+            12
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            774,
+            1,
+            5120,
+            0,
+            11150,
+            18
+          ],
+          [
+            495,
+            0,
+            0,
+            2,
+            696,
+            24
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      },
+      "1000": {
+        "status": "passed",
+        "hardware_actions": false,
+        "retired": 0,
+        "phase": 2,
+        "first_error": -110,
+        "writes": 1,
+        "publish_attempted": 0,
+        "phase_counts": [
+          [
+            524,
+            0,
+            5120,
+            0,
+            10840,
+            6
+          ],
+          [
+            250,
+            1,
+            0,
+            0,
+            310,
+            12
+          ],
+          [
+            421,
+            0,
+            5120,
+            0,
+            10690,
+            2
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      }
+    },
+    "slow_clock": {
+      "status": "passed",
+      "hardware_actions": false,
+      "retired": 0,
+      "phase": 4,
+      "first_error": -3,
+      "writes": 4,
+      "publish_attempted": 1,
+      "phase_counts": [
+        [
+          524,
+          0,
+          5120,
+          0,
+          10840,
+          6
+        ],
+        [
+          250,
+          1,
+          0,
+          0,
+          310,
+          12
+        ],
+        [
+          774,
+          1,
+          5120,
+          0,
+          11150,
+          18
+        ],
+        [
+          774,
+          1,
+          5120,
+          0,
+          11150,
+          18
+        ],
+        [
+          2109,
+          1,
+          0,
+          12,
+          2946,
+          106
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    }
+  },
+  "deadlines_us": {
+    "command": 100000,
+    "retirement": 1000000,
+    "source": 20000000
+  },
+  "hardware_actions": false,
+  "ordinary_activation": false,
+  "memory_reuse_authorized": false
+}

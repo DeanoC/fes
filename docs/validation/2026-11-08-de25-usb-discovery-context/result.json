@@ -1,0 +1,83 @@
+{
+  "status": "software-and-matched-boot-chain-passed-hardware-pending",
+  "source_commit": "34da5c71f1b9db5c6fff94dd4e8fbfe5aaa4c6b1",
+  "base": "6e85767ec1b34e095afa5cdcff36f7128b2483f4",
+  "board_touched": false,
+  "classification": "failure diagnostics and captured rejection regression; software/cross-build only",
+  "changes": [
+    "Discovery errors retain captured address/VID/PID/class/speed inventory and selected candidate interface/endpoint/report length without extra I/O or target/protocol replacement.",
+    "Original error wrapping, admission, deadlines and failure containment remain.",
+    "Exact rejected 53-byte physical System/Consumer Control descriptor is retained as a negative fixture with provenance; model IDs do not identify the physical device."
+  ],
+  "checks": {
+    "affected_commands": 6,
+    "parent_tests": 1719,
+    "parent_existing_skips": 3,
+    "focused_race_packages": [
+      "dwc2",
+      "usb",
+      "usbcontrol"
+    ],
+    "new_top_level_tests": 3,
+    "negative_cases": [
+      "captured non-gamepad descriptor",
+      "no HID candidate preserves errors.Is",
+      "failed secure source remains unconfirmed and aborts lease",
+      "retired host and source cannot poll or issue I/O"
+    ],
+    "generated_consistency": "passed"
+  },
+  "boot_chain": {
+    "native_boot_id": "1472d526312e57fb",
+    "chain_sha256": "bf053a986cd773a1100cad222509f25f412fee7157c5cc8adad5b4ef7971a7c6",
+    "file_digests": 2249,
+    "integrity_sha256": "af2728e361f295c8941d04c61a77a13ef6cc78f87cf270bef0e7be064a731f1c",
+    "core_payload_unchanged": true,
+    "artifacts": {
+      "sdk": {
+        "path": "out/nano-usb-discovery-context-20261108/native-sdk/usbcheck.elf",
+        "bytes": 5378223,
+        "sha256": "48af9270a83cab2fabcf0c92061dc788726d0eebf5745bfc1e7ebe53d4705639"
+      },
+      "entry": {
+        "path": "out/nano-usb-discovery-context-20261108/native-entry/entry.img",
+        "bytes": 2207744,
+        "sha256": "83c5cf5e221b48dc934d170b48f5cc3c8276f74ff6e98dd90fc87973d20a2863"
+      },
+      "bl31": {
+        "path": "out/nano-usb-discovery-context-20261108/native-bl31/source/build/agilex5/release/bl31.bin",
+        "bytes": 65597,
+        "sha256": "1a31fb36637ee6c1b7ad11416538fe9ee91c5b1cd9d4f040fda567ea63be1b72"
+      },
+      "fit": {
+        "path": "out/nano-usb-discovery-context-20261108/native-uboot/build/u-boot.itb",
+        "bytes": 2729784,
+        "sha256": "210c9e68b1708ccc25cd6bfa6933abf1e70ab2a8100fa99418ca5252c3e38fe7"
+      },
+      "spl": {
+        "path": "out/nano-usb-discovery-context-20261108/native-uboot/build/spl/u-boot-spl-dtb.hex",
+        "bytes": 458219,
+        "sha256": "ba672536ad6d5b70fafd77ad217ef0b97d1d9d27a2fd8489ab7aafb1dce3d297"
+      },
+      "sof": {
+        "path": "out/nano-usb-discovery-context-20261108/native-composition/native-hps-first.sof",
+        "bytes": 1578281,
+        "sha256": "421a7e55215bd203f303318d2869dd4f087622a8f204c6198aaa9111e6a72741"
+      }
+    }
+  },
+  "evidence_sha256": {
+    "out/nano-usb-discovery-context-20261108/checks-summary.json": "81652564249027ec4c09bf69a7a89fa0b97f9728dd876d61f596bc30cae5522b",
+    "out/nano-usb-discovery-context-20261108/focused-final-result.json": "9ea6c69b0a7142ac4785ae20ce409e09201172aabbeefb8eb3f7f44a466d03f9",
+    "out/nano-usb-discovery-context-20261108/chain-file-integrity.json": "af2728e361f295c8941d04c61a77a13ef6cc78f87cf270bef0e7be064a731f1c"
+  },
+  "hardware_acceptance": false,
+  "goal_complete": false,
+  "consumed_preceding_usb_boot": "3c23bd7f67779909",
+  "preceding_hardware_retention": "/home/deano/fes-retained/de25-usb-control-nak-board-result-20261108-r1",
+  "remaining": [
+    "Freeze/admit a new one-attempt USB Ready/Stop procedure for changed boot bytes.",
+    "Fresh board test; no acceptance inherited from the failed image.",
+    "Return to combined initial-game-tape/core Run/return and normal appliance qualification."
+  ]
+}

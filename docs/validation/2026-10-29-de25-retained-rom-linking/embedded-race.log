@@ -1,0 +1,34 @@
+=== RUN   TestRejectBeforeOwnerMutation
+=== RUN   TestRejectBeforeOwnerMutation/target
+=== RUN   TestRejectBeforeOwnerMutation/profile
+=== RUN   TestRejectBeforeOwnerMutation/abi-minor
+=== RUN   TestRejectBeforeOwnerMutation/interface-minor
+=== RUN   TestRejectBeforeOwnerMutation/missing-decision
+=== RUN   TestRejectBeforeOwnerMutation/runtime-reject
+=== RUN   TestRejectBeforeOwnerMutation/wrong-package-decision
+--- PASS: TestRejectBeforeOwnerMutation (0.00s)
+    --- PASS: TestRejectBeforeOwnerMutation/target (0.00s)
+    --- PASS: TestRejectBeforeOwnerMutation/profile (0.00s)
+    --- PASS: TestRejectBeforeOwnerMutation/abi-minor (0.00s)
+    --- PASS: TestRejectBeforeOwnerMutation/interface-minor (0.00s)
+    --- PASS: TestRejectBeforeOwnerMutation/missing-decision (0.00s)
+    --- PASS: TestRejectBeforeOwnerMutation/runtime-reject (0.00s)
+    --- PASS: TestRejectBeforeOwnerMutation/wrong-package-decision (0.00s)
+=== RUN   TestPolicyAndMetadataArePrivate
+--- PASS: TestPolicyAndMetadataArePrivate (0.00s)
+=== RUN   TestPolicyCannotNamePhysicalScope
+--- PASS: TestPolicyCannotNamePhysicalScope (0.00s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/runtimeadmission	1.013s
+=== RUN   TestRuntimeOracleCorpus
+--- PASS: TestRuntimeOracleCorpus (0.10s)
+=== RUN   TestRetainedROMOracleCorpus
+--- PASS: TestRetainedROMOracleCorpus (6.08s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/admissioncheck	7.193s
+=== RUN   TestLifecycleInvariants
+--- PASS: TestLifecycleInvariants (0.00s)
+=== RUN   TestUnknownProgramRetainsIssuedBuffer
+--- PASS: TestUnknownProgramRetainsIssuedBuffer (0.00s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel	1.007s

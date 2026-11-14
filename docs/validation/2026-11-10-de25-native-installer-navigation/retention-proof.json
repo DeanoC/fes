@@ -1,0 +1,14 @@
+{
+  "status": "passed-prepared-native-installer-ui-retention",
+  "path": "/home/deano/fes-retained/de25-native-installer-ui-prepared-20261110-r1",
+  "source_head": "f2b0e7a3ae68f810dab93de58c9ab1fbfcbc618e",
+  "compiled_source": "49752d8b21cd1625ab0ee22892a20e628af36b87",
+  "files": 2546,
+  "selected_source_files": 2273,
+  "manifest_sha256": "0ccdfa5b0444be22540eb9e6231bb39f24b6f87b1adb925f141a00710b9dfb1d",
+  "archive_sha256": "da7a6b070f39c8d54018a218f882d17f710720cd016e605c5d43b7e1266a956e",
+  "source_restore_fsck_pack_verified": true,
+  "archive_readback_modes_verified": true,
+  "hardware_actions": false,
+  "live_authority": false
+}

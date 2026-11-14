@@ -1,0 +1,55 @@
+{
+  "status": "passed",
+  "scope": "host-model-only",
+  "base": "d5a2a8da045a04bdcc954b91cc70a2642e3397cd",
+  "hardware_actions": false,
+  "ordinary_admission": false,
+  "rom_hardware_acceptance": false,
+  "rom_driver_changed": false,
+  "rom_deadline_ticks": 400000000,
+  "rom_tick_hz": 400000000,
+  "rom_max_polls": 64,
+  "targeted_tests": 20,
+  "coherent_snapshot_cases": 69,
+  "strong_cpu_scope_cases": 21,
+  "shared_dispatcher_cases": 21,
+  "optimized_c_model": "-Os with UBSan",
+  "cold_reads": {
+    "complete": 26,
+    "separate": 182
+  },
+  "clock_reads_per_observation": 26,
+  "board_reads": {
+    "complete": 42,
+    "separate": 38
+  },
+  "rom_model_phases": 23,
+  "rom_sizes": [
+    4096,
+    8192
+  ],
+  "source_sha256": {
+    "platform/embedded/firmware/README.md": "277a091fafb71a8c099b112e168ce6ac3facd7a945b1b5fb74683959e92e39f9",
+    "platform/embedded/firmware/nano_cold.c": "e2d40b00e19ca7aa47819b17cee2018b92bb7793081863d1f395e74dbbc533af",
+    "platform/embedded/firmware/nano_cold.h": "1c70c9d6759cd05d380ce60792ffe82df2f1ec96f9d860618059f33c18091db3",
+    "platform/embedded/firmware/nano_usb_board.c": "fddbf1061cdf2f822687437fa1275472244c10c75dc20b5c6ae8f209ce58e88b",
+    "platform/embedded/firmware/nano_usb_composition.c": "1cb043fc1755ee1997cff76512817bdfe49c6829342473328db8c0c51cd5a650",
+    "platform/embedded/firmware/nano_usb_composition.h": "e75d400212a562ffe1248074b6d31c7a1de7fa2bc944693630f3d415dbf1c63e",
+    "platform/embedded/firmware/nano_usb_platform.c": "2c4af43b9d230f71792b37b7aa96713fc89730606b105c680848c8b6eeb180ee",
+    "platform/embedded/firmware/nano_usb_platform.h": "8d3cfe40b04cc097ca8759c524011e1d349177b70e0e946db57fc9f1e35086de",
+    "platform/embedded/firmware/tests/nano_coherent_snapshot_test.c": "58412a4c657575c597f9d0f0c272eb5d48fde69736f590505cdb5693b7bd8857",
+    "platform/embedded/firmware/tests/nano_usb_board_test.c": "33f696937449076c9ea6d8937a4a5497dfd668fcfa18a310492e06b95bb038cd",
+    "platform/embedded/firmware/tests/nano_usb_composition_test.c": "581fa54b9e0a0f3ca362603c5037cd2870927c4c43a379a409dcf7915efc1711",
+    "platform/embedded/firmware/tests/nano_usb_fixture.h": "874a976a7827c78dede1eadc13f377ee3a450442776dbfe9c595e1a49c01884e",
+    "platform/embedded/firmware/tests/nano_usb_master_test.c": "6557f5789c48493bfbe97487644451c85b9b7f5e988b22aa58a0d51689f5e014",
+    "platform/embedded/firmware/tests/nano_usb_platform_test.c": "1626a9fc3266266006080b2ec36b1b6c3563f66409184262b904e49c61383c93",
+    "tests/test_nano_coherent_snapshot.py": "9b617f52870aebfbc8bc09f7227b1b21c025f95e6ce5e5dbfb065440fae7eabe"
+  },
+  "logs_sha256": {
+    "out/nano-rom-coherent-ownership-20261105/all-tests-final.log": "2d3139e12c4730d59a1e01a1311581bce373a070725f307e9fb1c42b7fac1479",
+    "out/nano-rom-coherent-ownership-20261105/optimized-board-final-v2/result.json": "1f5dd33ac008e6dc47628649ef017086442cbf4d88936376b7085e16b2d7d3b8",
+    "out/nano-rom-coherent-ownership-20261105/optimized-board-final-v2/execute.log": "427eacd82b6cb6b10f9e0e75fcfb1a46ba4d87df915d3b008d2ede5ec73b0c58",
+    "out/nano-rom-coherent-ownership-20261105/rom-model-final-bindings/result.json": "700aba5483c0df1f1ad29c4310c239a02c170b58805ae8ae2c0d3a3099fb87be"
+  },
+  "next_gate": "ROM-specific trusted coherent ownership integration, matched rebuild and bounded hardware trace"
+}

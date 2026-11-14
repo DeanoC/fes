@@ -38,6 +38,13 @@ CORE_DEV_ARGS ?=
 CORE_DEV_ACCEPT_ARGS ?=
 TEST_CHANGED_ARGS ?= --base origin/main
 DE25_LINUX_ARGS ?=
+EMBEDDED_ARGS ?=
+# The native experiment is never selected by BOARD, build, image or release.
+.PHONY: embedded
+embedded:
+	@$(PYTHON) platform/embedded/experiment.py
+	$(PYTHON) platform/embedded/tamago/run.py $(EMBEDDED_ARGS)
+
 help:
 	@printf '%s\n' 'FES: start with AGENTS.md and docs/development.md' 'make source-status | check | doctor | build | host | image | verify | rebuild | dev | platform-provision | platform-test | target-acceptance | media | verify-media | rollback-media | test' 'Default: native-integration-dev, the DE10-Nano package-only image' 'Appliance bootstrap builds FES platform/ against the selected FogCast appliance module.' 'make media auto-embeds the private host token; use FES_UNPROVISIONED=1 for CI-only media.' 'Quartus builds the PC/XT diagnostic package and explicit oracles; build does not deploy.'
 	@printf '%s\n' 'make package-acceptance PACKAGE_ACCEPTANCE_ARGS="--help": one sealed package, explicit hardware opt-in, no image rebuild.'

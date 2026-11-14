@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_nano_configuration.py",
+    "-v"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 6.003598126000725,
+  "log_sha256": "00107e051c2d22d85d79fe8506ab19656ae2984475153986e080f3fbe6a97a03"
+}

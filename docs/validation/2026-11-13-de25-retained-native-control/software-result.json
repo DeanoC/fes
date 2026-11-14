@@ -1,0 +1,96 @@
+{
+  "status": "passed-current-source-software-and-matched-file-admission",
+  "source_commit": "90f7db3e7247d52ffe7ebd507e9a119912d836dd",
+  "predecessor": "a636abf08915c8589bffa38e7e7d99b7eba91085",
+  "focused_tests": 64,
+  "focused_skips": 0,
+  "production_control_cases": 49,
+  "reader_gate_cases": 6,
+  "parent_tests": 2672,
+  "parent_skips": 15,
+  "FPGA_software_tests": 2181,
+  "FPGA_software_skips": 88,
+  "checks": {
+    "retained-control-focused-current": {
+      "argv": [
+        "env",
+        "FES_NANO_TFA_ROOT=/home/deano/fes/out/dev/de25-embedded-os/out/terasic-git-restore-tfa",
+        "python3",
+        "out/publication/retained-control-focused.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 51.23113543493673,
+      "log_sha256": "b182745ec1975a36d5e177855b157a23e6291a6fd8261575ec1993b839728ed8"
+    },
+    "retained-control-affected": {
+      "argv": [
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "a636abf08915c8589bffa38e7e7d99b7eba91085",
+        "--jobs",
+        "2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2078.750497314846,
+      "log_sha256": "b23cb801bc293bbf601e2f079c1b5376d9ea9e35aa46f76d920f79bcbb963723"
+    },
+    "retained-control-matched-build": {
+      "argv": [
+        "python3",
+        "out/retained-control-boot/build-all.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 452.0254056530539,
+      "log_sha256": "e0aeb55143cca764f880ce2a33e9293c332e35f78e03b736be1a6e81ddadb962"
+    },
+    "retained-control-parent-check": {
+      "argv": [
+        "make",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 10.206940074916929,
+      "log_sha256": "04b7d0133f86510765e0c9fdb3bd8a9269cfc9a03e91c02efd8cf2f5866bac79"
+    },
+    "retained-control-vendor": {
+      "argv": [
+        "env",
+        "FES_NANO_TFA_ROOT=/home/deano/fes/out/dev/de25-embedded-os/out/terasic-git-restore-tfa",
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano*mailbox.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.004470517858863,
+      "log_sha256": "f526c0c18128fae0cdb7ac24a762112948e15dd8442a290ab2d3e1472b0bcdd5"
+    }
+  },
+  "retention": {
+    "status": "retained-and-independently-read-back",
+    "archive": "/home/deano/fes-retained/de25-retained-control-matched-20261113-r1/matched-chain.tar.gz",
+    "archive_sha256": "9374a4eba1cf71376f9b29dbe7fa30c3ba94b0dff2af8b4b1700293db55dc51b",
+    "archive_bytes": 121665565,
+    "hardware_actions": false,
+    "hardware_accepted": false
+  },
+  "hardware_actions": false,
+  "hardware_accepted": false,
+  "reader_route_qualified": false,
+  "ordinary_core_load_acceptance": false
+}

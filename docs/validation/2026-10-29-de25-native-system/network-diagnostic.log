@@ -1,0 +1,28 @@
+QEMU ['/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64', '-machine', 'virt,gic-version=3', '-cpu', 'cortex-a53', '-m', '512M', '-smp', '1', '-nographic', '-monitor', 'none', '-global', 'virtio-mmio.force-legacy=false', '-netdev', 'user,id=net0,hostfwd=tcp:127.0.0.1:18882-:8081', '-device', 'virtio-net-device,netdev=net0,mac=52:54:00:12:34:56', '-kernel', '/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-network-tools/proof/proof.elf']
+DMA_PRESEEDED_A5
+NIC 10.0.2.15/24 52:54:00:12:34:56
+HOST "GET /from-guest HTTP/1.1" 200 -
+GET 200 host received /from-guest
+HOST "GET /from-guest HTTP/1.1" 200 -
+GET 200 host received /from-guest
+HOST "GET /from-guest HTTP/1.1" 200 -
+GET 200 host received /from-guest
+HOST "GET /bulk HTTP/1.1" 200 -
+GUEST_BULK_PASS 196608
+FES_NETWORK_READY stats={Received:160 Transmitted:72 Dropped:0}
+HOST_TO_GUEST 200 hello from native Go /host-probe-0
+HOST_TO_GUEST 200 hello from native Go /host-probe-1
+HOST_TO_GUEST 200 hello from native Go /host-probe-2
+HOST_TO_GUEST 200 hello from native Go /host-probe-3
+HOST_TO_GUEST 200 hello from native Go /host-probe-4
+HOST_TO_GUEST 200 hello from native Go /host-probe-5
+HOST_TO_GUEST 200 hello from native Go /host-probe-6
+HOST_TO_GUEST 200 hello from native Go /host-probe-7
+HOST_TO_GUEST 200 hello from native Go /host-probe-8
+HOST_TO_GUEST 200 hello from native Go /host-probe-9
+HOST_BULK_PASS 196608
+FES_NETWORK_BIDIRECTIONAL_HTTP_PASS
+FAULT_TRIGGER resetting NIC
+FES_NETWORK_ERROR network: NIC stopped or requires reset
+FES_NETWORK_FAILURE_PASS
+qemu-system-aarch64: terminating on signal 15 from pid 2354066 (python3)

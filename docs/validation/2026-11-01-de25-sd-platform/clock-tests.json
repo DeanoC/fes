@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "python3",
+    "-m",
+    "unittest",
+    "tests.test_nano_cold",
+    "tests.test_nano_sd_platform",
+    "tests.test_embedded_nano_handoff",
+    "tests.test_embedded_board_profile",
+    "tests.test_nano_native_trace",
+    "-v"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 1.801156701054424,
+  "log_sha256": "93a41ab96f67fdf7e160b375732a8ac1af9cad39b3a0952c01c1a5f5a42fe7ef"
+}

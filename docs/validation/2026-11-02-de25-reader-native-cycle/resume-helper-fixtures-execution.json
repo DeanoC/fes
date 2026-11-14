@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "python3",
+    "out/nano-reader-native-resume-trial-20261102/test_resume.py"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.20063791098073125,
+  "log_sha256": "ea3916d1809402d1c71759dac727476c15ef02dd2a4f1b8ac6381afff4d2c86f"
+}

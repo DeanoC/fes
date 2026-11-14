@@ -1,0 +1,104 @@
+{
+  "scope": "file-only-qspi-readback-path-audit",
+  "status": "documented-interface-found-not-hardware-qualified",
+  "hardware_actions": false,
+  "flash_read_attempted": false,
+  "flash_write_authorized": false,
+  "tool": "/data/altera_pro/26.3/quartus/bin/quartus_pgm",
+  "help_sha256": {
+    "out/nano-qspi-readback-20261111/dev_info-help.txt": "6ae9f515e21bf58d57c13d73a1962bea03970cfac9a0e95a6b0b936e367271a5",
+    "out/nano-qspi-readback-20261111/operation-help.txt": "01f33c0b47f281ab3de4a64c66765077bada22b184d52ce33c8d0938b37b19f9",
+    "out/nano-qspi-readback-20261111/file_system-help.txt": "6fc4f872275ad2a90d405ddd7f65ffd84c7cb65be5c69f11a3884ce6c09b7d0e",
+    "out/nano-qspi-readback-20261111/cmd_code-help.txt": "fce57890966ba8979bdb4681d56ecea654b441a78bdbbfa78db651bac504b6bf",
+    "out/nano-qspi-readback-20261111/cmd_param-help.txt": "571c643428bf714a89571f0fb5f68fcde518296eda007a372eeadbf46d59afae",
+    "out/nano-qspi-readback-20261111/qspi_cs-help.txt": "84cd77981bdc0bad6ab7d25071fa3462dcb9f03abaf919eb81dc9ef90b4ea358"
+  },
+  "native_reference": "docs/validation/2026-11-11-de25-phase1-startup-hardware/hardware-result.json",
+  "sources": [
+    {
+      "title": "Agilex 5 operation commands",
+      "url": "https://docs.altera.com/r/docs/813773/26.1/device-configuration-user-guide-agilextm-5-fpgas-and-socs/operation-commands"
+    },
+    {
+      "title": "AN936 JTAG SDM command execution",
+      "url": "https://docs.altera.com/r/docs/683313/current/an-936-executing-sdm-commands-via-jtag-interface/execute-command"
+    }
+  ],
+  "proposed_allowlist": [
+    {
+      "name": "QSPI_OPEN",
+      "code": 50,
+      "params": [],
+      "response_words": 0
+    },
+    {
+      "name": "QSPI_SET_CS",
+      "code": 52,
+      "params": [
+        0
+      ],
+      "response_words": 0
+    },
+    {
+      "name": "QSPI_READ_DEVICE_REG_JEDEC",
+      "code": 53,
+      "params": [
+        159,
+        3
+      ],
+      "response_words": 1
+    },
+    {
+      "name": "QSPI_READ_DEVICE_REG_STATUS",
+      "code": 53,
+      "params": [
+        5,
+        1
+      ],
+      "response_words": 1
+    },
+    {
+      "name": "QSPI_READ",
+      "code": 58,
+      "params": "word-aligned offset and 1..1024 words within independently verified capacity",
+      "response_words": "exact requested count"
+    },
+    {
+      "name": "QSPI_CLOSE",
+      "code": 51,
+      "params": [],
+      "response_words": 0
+    }
+  ],
+  "forbidden": [
+    "QSPI_WRITE",
+    "QSPI_ERASE",
+    "QSPI_WRITE_DEVICE_REG",
+    "QSPI_SEND_DEVICE_OP",
+    "QSPI_DIRECT",
+    "RSU_IMAGE_UPDATE",
+    "R-operation",
+    "program-JIC-or-RPD",
+    "stock-sf-probe"
+  ],
+  "gates": [
+    "fresh clean source/claim/USB/UART/tool/private-service/clock/identity admission",
+    "source-bound final Park before open",
+    "strict command echo/header/status/response length checks",
+    "same-client exclusive open/select/read/close semantics",
+    "stop after first uncertain result; never retry a read or reopen",
+    "bounded close-only cleanup if ownership and mailbox identity still valid",
+    "little-endian serialization checked against independent known bytes",
+    "independent live JEDEC part and complete geometry before full-range reads",
+    "two complete independent reads of every byte with identical size and hash",
+    "include full flash array including unused regions; distinguish status registers and unobserved OTP/security areas",
+    "archive readback plus identification/status/tool/source records and prepare concrete restorable image before approval request"
+  ],
+  "unresolved": [
+    "whether the CLI mailbox identity persists across separate invocations",
+    "actual response framing and read-register byte packing on this device",
+    "safe bounded bulk read transport; per-command CLI overhead may require a persistent session",
+    "documented warning: partial reads may report OK; header success alone is insufficient",
+    "full factory-flash backup and rollback remain unimplemented/unqualified"
+  ]
+}

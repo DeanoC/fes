@@ -1,0 +1,40 @@
+{
+  "status": "single-forced-scan-passed-after-programming-failure",
+  "operator_source": "8d15a712006bd3d75289d3ec8ad3192ef2c02dd3",
+  "device_id": "4362C0DD",
+  "ir_bits": 10,
+  "scan_clock": "6M",
+  "forced_scan_calls": 1,
+  "programming_attempted": false,
+  "cpu_reset_attempted": false,
+  "SD_write_attempted": false,
+  "UART_opened": false,
+  "prior_native_image_replayed": false,
+  "prior_native_attempts": 1,
+  "prior_native_max_attempts": 1,
+  "programming_failure_cause_proven": false,
+  "continuous_transport_stability_proven": false,
+  "FPGA_configuration_verified": false,
+  "native_boot_verified": false,
+  "core_load_acceptance": false,
+  "goal_complete": false,
+  "cleanup": {
+    "status": "passed",
+    "usb_permissions_exact": true,
+    "clock_recorded_readback": "15M",
+    "private_server_gone": true,
+    "uart_owners": [],
+    "device_operations": false
+  },
+  "evidence_sha256": {
+    "out/nano-jtag-post-program-failure-20261108/result.json": "fec6ae8e4a51ceb467c83af744a65d8602f12843e357285c267b1ead57e3a7d2",
+    "out/nano-jtag-post-program-failure-20261108/diagnostic-result.json": "f9fb9e436b759bdfd66f2866c7bf0a05687717d9b4d1749251dd4fe99d92c5ad",
+    "out/nano-jtag-post-program-failure-20261108/diagnostic.log": "a4288363be0f264dd5bba296b9688fd0bb041f9f9d9004dcde3018bd2d650271",
+    "out/nano-jtag-post-program-failure-20261108/source.json": "16df271ee5cb8bfa970eef404774e7dc5ac875535f42c929ba05ad449a71c1b8",
+    "out/nano-jtag-post-program-failure-20261108/attempt.json": "cec9b1f4bbebea226cce9b4c6c267db131515cacb666005a4f5bfe7cc680d820",
+    "out/nano-jtag-post-program-failure-20261108/cleanup-evidence.json": "cfaf02592f466a4e5ad4c75a9130701e1946fedf2c265cff909eb05a99536e64",
+    "out/nano-jtag-post-program-failure-20261108/trial/forced-scan.log": "e3554275945ea6ef09c2d985ee00d4620abfec57db96e0975ae06f1bd70fe672",
+    "out/nano-jtag-post-program-failure-20261108/trial/transport.json": "f0464e51c4dd57fd029f1bfa54cf1027eddbb7f0c7d7c572bd9d7d3f78e7af65",
+    "out/nano-jtag-post-program-failure-20261108/trial/clock-restored-readback.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18"
+  }
+}

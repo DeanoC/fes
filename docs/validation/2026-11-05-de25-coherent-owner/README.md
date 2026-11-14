@@ -1,0 +1,19 @@
+# One complete fresh shared ownership observation
+
+Compiled source `7f3cfa92c87963238162e208b5aac909a64c8e13`, base `aed98c6d0`.
+
+The preceding hardware diagnostic isolated over 99% of a checked computer read in two secure ownership snapshot calls, about 9.1 ms each; register access including CPU mapping checks took 52.125 microseconds. The secure path nested complete cold/USB observations through boot, producer and retained-master callbacks, plus another full dispatcher gate.
+
+The shared producer contract now requires a complete trusted observation. Paired ordered cold samples enclose the independent producer bitmap and a fresh USB clock/DMA/IRQ/PIO/AHB-idle audit. CPU identity, EL3, translation/data-cache state and the secondary-release lock are checked on both sides by the strong adapter. Matching complete bridge/peripheral reset values are returned from that observation, so the consumer performs no MMIO outside its CPU guard. Producer/reset outputs publish only on success. Private generations, reservations and callback identities must remain unchanged; missing or replaced callbacks reject without fallback.
+
+The exact zero-argument read-only bridge request uses this complete observer once inside the existing dispatcher, with service validation before and after. Active SD and unconfirmed USB remain busy. Malformed requests, other operations and mutations keep the ordinary USB gate. The reply uses the existing codec; there is no new SiP operation, capability, caller-supplied address, cached permission or timeout allowance. Native before/after checks for every CSR, one-second/64-poll limits, the 20-second configuration limit and stop/drain callbacks remain.
+
+Tests execute 67 observation/fault modes, 21 strong CPU/IO/publication modes and 21 actual dispatcher modes. They include late CPU/reset/owner/epoch/generation changes, callback substitution, DMA/IRQ/idle failures, first/middle/final cold read errors, changed full reset values, staged output and terminal no-replay behavior. A compile test defines U-Boot's barrier macro. Actual dispatcher access counts equal one complete observation. The injected board supplier count is 38 per bridge observation, down from 228; explicit readiness still scans 328 pin values and performs 16 PHY transactions. Counts are model work, not physical timing.
+
+All eleven final selected checks passed, including parent/generated checks, SD lifecycle, isolated native firmware/FPGA launch integration, producer/RTL integration and core tooling. The application, entry, firmware and U-Boot were rebuilt from the same commit. Actual sealed ZX81/ZX80 packages, compiled call paths and bounded operator fixtures passed; composition preserves the sealed FPGA payload. This new image has not run on hardware.
+
+The first draft failed the ARM firmware shadow-name warning; the next failed U-Boot's barrier macro. Both failed build directories/logs are retained alongside the corrected candidate, were not programmed and contribute no final validation claims. Earlier draft software runs may span the small build repairs; only the final source-bound receipts are used here.
+
+The one-attempt TRWU8CBL procedure remains recovery, seven Ethernet uploads/fresh SD readbacks, then ZX81/ZX80/ZX81 launch/return/Quit with live USB ownership receipts. Stop on first failure, no retry. Factory restoration remains waived and the factory card stays untouched. The sealed FPGA dependency is `/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/matched-candidate.tar.gz`, SHA256 `1479d5fa439c77457a3c19959a97b810b8ce5a6aa0672bb4567519f2d7229d17`.
+
+Normal package/ROM/media admission, physical controls/video, native Ethernet and DE10-equivalent core-load readiness remain open. No new synthesis, timing signoff, CPU-halt proof or electrical qualification is claimed.

@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "source_base": "9c5992274",
+  "selected_gates_passed": 8,
+  "parent_tests": 1935,
+  "parent_skips": 3,
+  "sdk_source_hash_count": 2131,
+  "integration_source_hash_count": 470,
+  "all_selected_source_hashes_match": true,
+  "elf_sha256": "04e556fdb0bca2c25fd7ee36ab84cbe4a300af79e9e90b36dbb67ea36fc03f41",
+  "native_integration_output": "/home/deano/fes/out/dev/de25-embedded-os/out/native-fabric-hooks-bee8bc6846a94f458105247664d516d7",
+  "native_integration_classification": "host native Go lifecycle/tenfoot with actual patched TF-A C and Verilated FPGA RTL; simulated bridges, memory and SDM; no hardware acceptance",
+  "max_catalog_plans": 32,
+  "max_catalog_upload_content_bytes": 67108864,
+  "hardware_actions": false,
+  "native_ethernet_enabled": false,
+  "matched_boot_chain_built": false,
+  "startup_staged_records": 1,
+  "retention": "/home/deano/fes-retained/de25-multiple-package-catalog-20261111-r1",
+  "changed_source_sha256": {
+    "platform/embedded/tamago/nativefabric/program_backend.go": "305a6c26cb387b2182fbb9a152b67288f6ae9e0005e74254d9ab2265b2de4e6a",
+    "platform/embedded/tamago/nativefabric/program_staged_catalog.go": "d3ec0a47279603b93b0d379a8c606854d1ec33cf698570c44760efe7269cf369",
+    "platform/embedded/tamago/nativefabric/program_catalog_test.go": "bcb9a105e2d11e10893229e1cc960236faa4304f294ab9ccdff345c77542dc16",
+    "platform/embedded/tamago/packagestore/install.go": "8805b1595f9b235146033217be882303b85337a4e789268687c36d27175304f1"
+  }
+}

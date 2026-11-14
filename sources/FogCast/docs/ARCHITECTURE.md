@@ -60,6 +60,106 @@ independently validate their retained package bytes.
 
 This is the canonical description of the working system.
 
+## Embedded launcher boundary
+
+`ui/tenfoot.RunPlatform` runs the existing App, command handling and renderer
+with an injected frame clock, input source and presenter. The caller supplies
+the graphics device and the Client's HTTP transport; the loop does not open an
+SDL window, Linux framebuffer or runtime socket. It starts/stops the App and
+releases its own presentation resources without taking ownership of the
+caller's device. Native entry points continue to use their existing backends.
+
+Local catalog/database startup is kept in the native platform implementation,
+outside the portable App. Pure edition-key normalization lives in `protocol`
+so the room destination model does not import the database implementation.
+Embedded builds reject unsupported native package-inventory and Unix-socket
+operations explicitly; they do not substitute weaker artifact checks.
+
+The injected loop does not yet implement the Linux menu path's
+generation-bound pause/drain handoff. An embedded presenter must keep its
+software framebuffer separate from live DMA grants and implement that
+lifecycle before publishing frames across core transitions. The initial
+experiment only browses and navigates; it does not launch cores.
+
+This boundary supports the experimental
+[Linux-free base](../../../platform/embedded/README.md). Its native QEMU image
+uses real VirtIO networking to a private FogCast host, FAT32 preferences, live
+USB boot-keyboard input and ramfb scanout. `cmd/fogcast-embedded-host` boots
+the current `fogcast.Open`/`Service.Scan` and HTTP handlers on a private loopback
+listener. It requires `FES_EXPERIMENTAL_DE25_EMBEDDED=1`, owns its listener and
+service cleanup, and does not depend on the removed local-kit server helpers.
+It is not a hardware
+runtime or full standalone appliance. USB input, physical scanout and FPGA
+lifecycle still need board implementations. The existing Linux launch path and
+package/session contracts are unchanged.
+
+`App.SetPreferenceStore` optionally loads settings from an explicit JSON store
+before App startup. The embedding platform owns its durability contract; a
+successful write must include any required flushes. Existing native callers
+continue to use file paths. Settings are normalized through the same encoder
+and decoder in both paths. The QEMU adapter updates a preallocated FAT32 file;
+its guarantee is clean-restart persistence, not power-loss atomicity.
+
+A queued platform returns `ErrPreferencesPending`, serves the latest cached
+settings and exposes optional cached `PreferenceStatus`. Settings shows
+"Settings waiting to save" until a checkpoint completes, or "Settings not
+saved" after an asynchronous failure. Rendering never asks that status interface
+to perform IO. The Nano adapter loads its settings before menu startup and
+currently keeps changes volatile because its board profile is read-only. Its
+explicit persistent mode writes only during owned SD handoff windows on launch,
+return or final menu shutdown; both a displayed menu and a running core keep SD
+contained. Model and FAT restart tests cover that lifecycle; physical writes
+remain unqualified.
+
+`corepackage.RetainArchive` validates an exact-length reader using the existing
+canonical archive, manifest, payload and ROM-map rules. It retains private
+bytes and exposes copied inspection metadata and a copying payload reader.
+The OS-backed `Stage`/`StageBytes` paths share the canonical decoder with the
+retaining reader before their existing rooted private publication. No separate embedded validator,
+package identity domain, ABI allowlist or hardware admission is introduced.
+The native `packages` diagnostic reads shared conformance archives from FAT32;
+inspection does not authorize a Cyclone V package on an Agilex board. The
+physical runtime remains responsible for compatibility and linked-load receipts.
+The reader also recognizes format-2 `de25_nano` / `A5EB013BB23BE4SCS`
+archives for retained inspection. Their target contributes to package identity.
+This does not register an Agilex programming profile, ABI or physical driver.
+Format 3 also recognizes Nano's `cpu-csr-v1` held-ROM delivery map. It declares
+one 4/8 KiB firmware source and required `fes.embedded.rom` 1.0; the map binds
+the unchanged payload hash and source size without addresses or CRAM locations.
+`LinkROMs` retains that source privately and derives the same content-bound
+activation receipt while preserving the exact FPGA payload. Cyclone V staging,
+part composition, cartridge roles and format 4 are unavailable for this Nano
+delivery path. The Linux runtime's target checks and model/native admission
+policies remain independent; inspection or retention grants no hardware access.
+
+`Archive.LinkROMs` derives format-3 single-source and format-4 BIOS/cartridge
+programming bytes using the existing target linker and the retained package's
+sealed map. It validates source IDs, roles, order and sizes before copying them.
+The opaque `LinkedArchive` owns the package, sources and linked output in RAM;
+copying readers and deep-copied receipts cannot mutate that state. Its content
+receipt binds the exact package, map, source identities and programmed digest.
+A domain-separated SHA256 identifies that receipt. The embedded model requires
+both the expected package ID and receipt hash, and checks programmed bytes before
+starting a transition. This is volatile ownership and software-model evidence,
+not a durable install, authenticated token or physical admission.
+
+`LinkROMs` also accepts selected CPU/video part archives. It retains private
+archive copies, validates each exact asset ID, and uses existing parts admission
+and ROM-input composition. A sealed parts shell requires its selected video
+part; malformed, duplicate, missing and incompatible selections do not publish
+a linked object. The receipt includes the canonical parts tuple and pre-ROM
+overlay identity separately from the final ROM-linked digest. Part archives and
+overlay readers cannot mutate retained state; copied receipt selections cannot
+change it either. This does not change filesystem staging, native package
+formats, physical runtime admission or initial-media delivery.
+
+On TamaGo, the software renderer yields between groups of four raster rows
+and splits whole-frame copies into 32 KiB chunks. The ramfb presenter also
+yields every four scanout rows. These cooperative checkpoints let network and
+timer goroutines progress during rendering; they do not change pixel
+calculations or promise a frame deadline. Other Go targets retain their normal
+preemptive behavior.
+
 ## Normal FPGA game launch
 
 ```text

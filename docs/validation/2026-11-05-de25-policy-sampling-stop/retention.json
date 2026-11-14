@@ -1,0 +1,24 @@
+{
+  "status": "passed",
+  "source": "fc9180d249430e7bfa4bd2bf8c80ae92fa725082",
+  "native_source": "1423c2ee4a0d440a137d7301c614df73ea269f3d",
+  "hardware_result": "failed-first-launch",
+  "hardware_attempts": 1,
+  "hardware_retries": 0,
+  "archive_sha256": "cbda229b417f014b7a607759f1bbf2e4d624a99612c733156bdb05e293410545",
+  "archive_bytes": 229406,
+  "regular_files_verified": 129,
+  "prior_candidate_retention": {
+    "/home/deano/fes-retained/de25-policy-sampling-20261105-r1/publication.bundle": "8e1c4427fe1a87dd9fc8e4d9d8f1124469d4de1ccf80c0a58104b81de3a53afb",
+    "/home/deano/fes-retained/de25-policy-sampling-20261105-r1/software-and-chain-evidence.tar.gz": "14c0d3e949751d57d7a51d5c71858f327aa9ecbb0462fe337a54644057bf57e0",
+    "/home/deano/fes-retained/de25-policy-sampling-20261105-r1/SHA256SUMS": "3400ea1dfe394475bac1d6d55c15a7f54f8e651a2418d9734335f727245796b8",
+    "/home/deano/fes-retained/de25-policy-sampling-20261105-r1/source-update.bundle": "7470f732bd74588ce5ab8442e7621de635ccef9634a61acc7f88349e61b79a00",
+    "/home/deano/fes-retained/de25-policy-sampling-20261105-r1/publication-verification.json": "e0751ae7a4e5a478b7a5bab711689356dc33649bd0224fc3fed972c5554674bd",
+    "/home/deano/fes-retained/de25-policy-sampling-20261105-r1/retention.json": "3fbcbb2672cc4cc452080ae00dde4f460a06f4d27df682707e9f401289dea4bd"
+  },
+  "source_restore": "Candidate source, publication and operator-publication bundles already independently restored and strictly checked",
+  "cleanup_verified": true,
+  "ordinary_admission": false,
+  "core_loading_readiness": false,
+  "working_artifacts_removed": false
+}

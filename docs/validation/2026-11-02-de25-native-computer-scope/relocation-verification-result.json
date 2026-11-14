@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/nano-computer-native-20261102/check_selection-relocations.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.8076062389882281,
+  "log_sha256": "75a7c213dc03f2b3dc3235b020c9ac1a5d2d9bfeea38b76a5a1a63cb05f8b505"
+}

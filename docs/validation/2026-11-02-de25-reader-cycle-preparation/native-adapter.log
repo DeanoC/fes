@@ -1,0 +1,88 @@
+=== RUN   TestControlProbeRequiresCompiledSourceAndClosedReturnedScope
+--- PASS: TestControlProbeRequiresCompiledSourceAndClosedReturnedScope (0.00s)
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/unready
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/busy
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/transport
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/tag
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/abi
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/build-high
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/build-low
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-owner
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-generation
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-mask
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-masters
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-capability
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-never
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-transport
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/not-cold
+=== RUN   TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/stale-closed-generation
+--- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry (0.01s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/unready (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/busy (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/transport (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/tag (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/abi (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/build-high (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/build-low (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-owner (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-generation (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-mask (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-masters (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-capability (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-never (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/late-transport (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/not-cold (0.00s)
+    --- PASS: TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry/stale-closed-generation (0.00s)
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/empty
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/unknown
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/missing
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/address
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/package
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/handoff
+=== RUN   TestControlProbeRejectsUncompiledMapBeforeFirmware/duplicate
+--- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/empty (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/unknown (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/missing (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/address (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/package (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/handoff (0.00s)
+    --- PASS: TestControlProbeRejectsUncompiledMapBeforeFirmware/duplicate (0.00s)
+=== RUN   TestControlProbeUnreadyReturnsNoIdentityAndDoesNotRetry
+--- PASS: TestControlProbeUnreadyReturnsNoIdentityAndDoesNotRetry (0.00s)
+=== RUN   TestReaderProbeBindsDedicatedOperationAndReclosedStorageGeneration
+--- PASS: TestReaderProbeBindsDedicatedOperationAndReclosedStorageGeneration (0.00s)
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/unready
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/partial-unready
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/busy
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/transport
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/identity-only-tag
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/abi
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/build
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-owner
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-generation
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-mask
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-masters
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-transport
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/not-cold
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/overflow
+--- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry (0.01s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/unready (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/partial-unready (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/busy (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/transport (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/identity-only-tag (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/abi (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/build (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-owner (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-generation (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-mask (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-masters (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-transport (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/not-cold (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/overflow (0.00s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/nativefabric	1.039s

@@ -1,0 +1,57 @@
+FES_NANO_CORE_TRANSFER phase=arm owner=17 generation=4 completed=0 pending=0 total=1048640 base=94800000 counter=12c hash_ticks=64
+FES_NANO_CORE_TRANSFER phase=start owner=17 generation=4 completed=0 pending=0 total=1048640 base=94800000 counter=258 hash_ticks=c8
+FES_NANO_CORE_ENGINE credits=4 block_bytes=1048560 next_job=0 owner=17 generation=4
+FES_NANO_CORE_TRANSFER phase=write owner=17 generation=4 completed=0 pending=1048512 total=1048640 base=94800000 counter=44c hash_ticks=190
+FES_NANO_CORE_TRANSFER phase=poll owner=17 generation=4 completed=0 pending=1048512 total=1048640 base=94800000 counter=640 hash_ticks=258
+FES_NANO_CORE_TRANSFER phase=write owner=17 generation=4 completed=1048512 pending=128 total=1048640 base=94800000 counter=834 hash_ticks=320
+FES_NANO_CORE_TRANSFER phase=poll owner=17 generation=4 completed=1048512 pending=128 total=1048640 base=94800000 counter=a28 hash_ticks=3e8
+FES_NANO_CORE_TRANSFER phase=status owner=17 generation=4 completed=1048640 pending=0 total=1048640 base=94800000 counter=c1c hash_ticks=4b0
+FES_NANO_FABRIC_ACTIVATION owner=17 generation=4 previous=0 rearm=0 complete=1 data_held=1
+FES_NANO_CORE_TRANSFER phase=complete owner=17 generation=4 completed=1048640 pending=0 total=1048640 base=94800000 counter=d48 hash_ticks=514
+FES_NANO_CONFIG_QUERY command=4 words=6
+FES_NANO_CONFIG_STATUS status=0 words=6 state=0 version=10203 pins=80000000 soft=3 error_location=0 error_details=0 ready=1
+FES_NANO_SMMU status=0 reads=26 idr0=80f7e3f idr1=e739d18 aidr=1 s_idr1=80000018 cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 identified=1 settled=1 bypass_controls_clear=1 access=unqualified
+FES_NANO_DDR_FIREWALL status=0 owner=17 generation=4 reset=f mpfe_reset=0 reads=66 enable=1 base=95000000 bytes=4194304 access=unqualified
+FES_NANO_DDR_REGION index=0 base=80000000 baseext=0 limit=bfffffff limitext=0
+FES_NANO_DDR_REGION index=1 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_REGION index=2 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_REGION index=3 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_REGION index=4 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_REGION index=5 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_REGION index=6 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_REGION index=7 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_FIREWALL_END layout_known=1 window_covered=1 access=unqualified
+FES_NANO_WINDOW_SCOPE phase=control owner=17 generation=5 reset=d
+FES_NANO_SMMU status=0 reads=26 idr0=80f7e3f idr1=e739d18 aidr=1 s_idr1=80000018 cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 identified=1 settled=1 bypass_controls_clear=1 access=unqualified
+FES_NANO_DDR_FIREWALL status=0 owner=17 generation=5 reset=d mpfe_reset=0 reads=66 enable=1 base=95000000 bytes=4194304 access=unqualified
+FES_NANO_DDR_REGION index=0 base=80000000 baseext=0 limit=bfffffff limitext=0
+FES_NANO_DDR_REGION index=1 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_REGION index=2 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_REGION index=3 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_REGION index=4 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_REGION index=5 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_REGION index=6 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_REGION index=7 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_FIREWALL_END layout_known=1 window_covered=1 access=unqualified
+FES_NANO_WINDOW_GATE status=0 owner=17 generation=5 reset=d bytes=4194304 permit=owned-read
+FES_NANO_SMMU status=0 reads=26 idr0=80f7e3f idr1=e739d18 aidr=1 s_idr1=80000018 cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 identified=1 settled=1 bypass_controls_clear=1 access=unqualified
+FES_NANO_DDR_FIREWALL status=0 owner=17 generation=5 reset=d mpfe_reset=0 reads=66 enable=1 base=95000000 bytes=4194304 access=unqualified
+FES_NANO_DDR_REGION index=0 base=80000000 baseext=0 limit=bfffffff limitext=0
+FES_NANO_DDR_REGION index=1 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_REGION index=2 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_REGION index=3 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_REGION index=4 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_REGION index=5 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_REGION index=6 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_REGION index=7 base=0 baseext=0 limit=ffff limitext=0
+FES_NANO_DDR_FIREWALL_END layout_known=1 window_covered=1 access=unqualified
+FES_NANO_WINDOW_GATE status=0 owner=17 generation=5 reset=d bytes=4194304 permit=owned-read
+FES_NANO_WINDOW_SCOPE phase=data owner=17 generation=6 reset=5
+FES_TEST_WINDOW_FRAME bytes=3686400 crc32=9597d203
+FES_NANO_WINDOW_SCOPE phase=close owner=17 generation=6 reset=5
+FES_NANO_MASTER_STOP status=0 owner=17 generation=6 reset=5 reader_reads=132 reader_polls=2 disable=1 probe_polls=4 cancel=1 complete=1 data=active
+FES_NANO_WINDOW_READER_DRAIN owner=17 generation=6 reset=5 reader_generation=1 request_generation=1 cookie=7 ack_generation=1 ack_cookie=7 status=4 pending=0
+FES_NANO_WINDOW_CLOSURE owner=17 generation=7 reset=f hardware_drained=8 data_remained_contained=0 producers_quiescent=1 fabric_acknowledged=0
+PASS strong window SD return and fresh controller containment
+FES_NANO_CORE_TRANSFER phase=FAIL owner=17 generation=10 completed=0 pending=0 total=1048640 base=94800000 counter=e74 hash_ticks=578
+PASS strong window relaunch rejected invalid SD proof or bytes before START

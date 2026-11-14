@@ -1,0 +1,80 @@
+{
+  "source": "https://docs.altera.com/api/khub/documents/Z5suNak8Ubz6FMY3WjgxBQ/content",
+  "version": "CS/R1 revB0 RC28",
+  "zip_sha256": "c4720c039263d5423662994fc41cd1c9a324f9fcf3bc1187a3a742f532537925",
+  "html_sha256": "871c382b1b390efe7d33d8cfa0dd9cab5f48571296aa71288687d5e20a89d208",
+  "fields": {
+    "bootclksrc": {
+      "bo": 25,
+      "bw": 1,
+      "reset": "0x0",
+      "enums": []
+    },
+    "bootmode": {
+      "bo": 24,
+      "bw": 1,
+      "reset": "0x0",
+      "enums": []
+    },
+    "perf_trans": {
+      "bo": 17,
+      "bw": 1,
+      "reset": "0x0",
+      "enums": [
+        [
+          "0",
+          "State In Transition"
+        ],
+        [
+          "1",
+          "State Transition Completed"
+        ]
+      ]
+    },
+    "perplllocked": {
+      "bo": 16,
+      "bw": 1,
+      "reset": "0x0",
+      "enums": []
+    },
+    "main_trans": {
+      "bo": 9,
+      "bw": 1,
+      "reset": "0x0",
+      "enums": [
+        [
+          "0",
+          "State In Transition"
+        ],
+        [
+          "1",
+          "State Transition Completed"
+        ]
+      ]
+    },
+    "mainplllocked": {
+      "bo": 8,
+      "bw": 1,
+      "reset": "0x0",
+      "enums": []
+    },
+    "busy": {
+      "bo": 0,
+      "bw": 1,
+      "reset": "0x0",
+      "enums": [
+        [
+          "0",
+          "Clocks stable"
+        ],
+        [
+          "1",
+          "Clocks in transition"
+        ]
+      ]
+    }
+  },
+  "qualified_mask": 16974593,
+  "qualified_value": 197376,
+  "observed_first_trial": 33751808
+}

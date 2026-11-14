@@ -1,0 +1,621 @@
+
+U-Boot SPL 2025.01-fes-nano-4b94b8a323e5da52 (Jun 27 2025 - 01:40:35 +0000)
+FES_NANO_SPL BEGIN cause=00000004 per0=ff7fbfff bridge=0000004f cpus=0000000f release=00000000 kind=4 valid=1
+FES_NANO_SPL SCOPE mpidr=81000000 core=0 cause_now=00000004 cpus_now=0000000f release_now=00000000 reset_timeouts=00000000
+Reset state: Cold
+MPU           800000 kHz
+L4 Main	      400000 kHz
+L4 sys free   100000 kHz
+L4 MP         200000 kHz
+L4 SP         100000 kHz
+SDMMC         200000 kHz
+is_ddr_csr_clkgen_locked: ddr csr io96b_0 clkgenA is successfully locked
+io96b_cal_status: Calibration for IO96B instance 0x18400400 done at 0 msec!
+init_mem_cal: Initial DDR calibration IO96B_0 succeed
+DDR: Calibration success
+io96b_mb_init: num_instance 1
+io96b_mb_init: get memory interface IO96B 0
+io96b_mb_init: IO96B 0 mem_interface 0: ip_type_ret: 0x1
+io96b_mb_init: IO96B 0 mem_interface 0: instance_id_ret: 0x0
+io96b_mb_init: IO96B 0: num_mem_interface: 0x1
+LPDDR4: 1024 MiB
+ecc_enable_status: ECC enable status: 0
+DDR: size check success
+DDR: firewall init success
+DDR: init success
+Bloblist at 72000 not found (err=-2)
+WDT:   Not starting watchdog@10d00200
+Trying to boot from MMC1
+FES_NANO_SPL FIT verified before parsing
+## Checking hash(es) for config board-0 ... OK
+## Checking hash(es) for Image atf ... crc32+ OK
+## Checking hash(es) for Image uboot ... crc32+ OK
+## Checking hash(es) for Image fdt-0 ... crc32+ OK
+## Checking hash(es) for Image fes-entry ... crc32+ OK
+FES_NANO_SPL HANDOFF owner=7cc9694a6d94c46f epoch=13f5a6e01 per0=ff7fbfbf bridge=0000000f sd=01f700f0
+FES_NANO_SPL BARRIER phase=before
+FES_NANO_SPL BARRIER phase=after
+FES_NANO_SPL ATF_STEP phase=entry
+FES_NANO_SPL ATF_STEP phase=hash-before
+FES_NANO_SPL ATF_STEP phase=hash-after
+FES_NANO_SPL ATF target=80000000 bl32=0 bl33=80200000 fdt=0 params=bff00008 cold=21e98 cookie=464e433200000002 el=3 mpidr=81000000 sctlr=c50838 scr=f daif=3c0 bytes=90173 sha256=50323d4935036c83376460d79b1c299d9104d162d30b428db41d1429fd704595
+NOTICE:  FES_NANO_EL3_CAPTURE phase=before pointer=21e98 cookie=464e433200000002
+NOTICE:  FES_NANO_EL3_CAPTURE phase=after pointer=21e98 cookie=464e433200000002
+NOTICE:  SOCFPGA: Boot Core = 0
+NOTICE:  SOCFPGA: CPU ID = 0
+NOTICE:  SOCFPGA: Setting CLUSTERECTRL_EL1
+NOTICE:  BL31: v2.12.0(release):fes-nano-owned-unready-580dcb5c4e10
+NOTICE:  BL31: Built : 08:42:23, Jun 11 2025
+NOTICE:  FES_NANO_OWNED_BOOT provider=1 result=0 reset=0000000f
+NOTICE:  FES_NANO_SD_PLATFORM setup=1 ready=1
+
+
+U-Boot 2025.01-fes-nano-4b94b8a323e5da52 (Jun 27 2025 - 01:40:35 +0000)socfpga_agilex5
+
+CPU:   Intel FPGA SoCFPGA Platform (ARMv8 64bit Cortex-A55/A76)
+Model: SoCFPGA Agilex5 Terasic DE25-Nano
+DRAM:  1 GiB
+Core:  30 devices, 17 uclasses, devicetree: separate
+WDT:   Not starting watchdog@10d00200
+WDT:   Not starting watchdog@10d00300
+WDT:   Not starting watchdog@10d00400
+WDT:   Not starting watchdog@10d00500
+WDT:   Not starting watchdog@10d00600
+Loading Environment from <NULL>... OK
+In:    serial1@10c02100
+Out:   serial1@10c02100
+Err:   serial1@10c02100
+Fail to read JTAG Usercode. Default Board ID to 0
+SOCFPGA_AGILEX5 # fesboot
+FES_NANO_BOOT id=4b94b8a323e5da52
+FES_NANO_MEMORY ram_top=c0000000 sp=bfb5f880 malloc=bfb68000..bff6a000 reloc=bff6a000 fdt=bfb61e20
+lmb_dump_all:
+ memory.count = 0x1
+ memory[0]	[0x80000000-0xbfffffff], 0x40000000 bytes, flags: none
+ reserved.count = 0x2
+ reserved[0]	[0x0-0xffffff], 0x1000000 bytes, flags: no-map
+ reserved[1]	[0xbeb5fff0-0xbfffffff], 0x14a0010 bytes, flags: no-overwrite
+FES_NANO_OWNED phase=before-entry status=0 flags=46424f31000000df owner=7cc9694a6d94c46f generation=1
+## Flattened Device Tree blob at bfb61e20
+   Booting using the fdt blob at 0xbfb61e20
+Working FDT set to bfb61e20
+   Loading Device Tree to 00000000beb57000, end 00000000beb5ffb7 ... OK
+Working FDT set to beb57000
+
+Starting kernel ...
+
+FES_NANO_OWNED phase=after-remove status=0 flags=46424f31000000df owner=7cc9694a6d94c46f generation=1
+FES_NANO_HANDOFF affinity=0 counter=400000000 cpus=0,1,1,1 per0=ff7fbfbf bridges=0000000f
+FES_NANO_HANDOFF PASS serial-only
+FES_ENTRY EL2 CLEAN
+FES_ENTRY EL1 HANDOFF
+FES_NANO_LOAD_PACKAGE CONTAINED package_id=07b2d01003dc92e4993ba7f72761444ae801a1a005f87e0a1b65f9aad9dfeb7d owner=7cc9694a6d94c46f generation=4 source=sd storage_active=0
+FES_NATIVE_FPGA_READER_MEMORY PINNED cpu_base=95000000 bus_base=95000000 bytes=8192 arena_bytes=2097152 map_sha256=625d20cea4c58a0af705d53459d1bfdcf40d4b9fba20ef205111cde85a1fb686 pattern_sha256=96f99b502ad38f7bad381abfbe0aed2e38521412958125acaeb4dc7c9cfa89da owner=7cc9694a6d94c46f generation=4 fpga_access=unqualified
+FES_NATIVE_HPS_CONTEXT PASS sha256=3d8809ff23eacc5cb108b05fd79333157f77643b3542e666f9403b2027acdb43 package_id=07b2d01003dc92e4993ba7f72761444ae801a1a005f87e0a1b65f9aad9dfeb7d build_id=d2435ab5d8221892162a1044d81dfb76 owner=7cc9694a6d94c46f generation=4 runtime_programming=unavailable
+NOTICE:  FES_NANO_CORE_TRANSFER phase=arm owner=7cc9694a6d94c46f generation=4 completed=0 pending=0 total=1642496 base=94800000 counter=70611aeaa hash_ticks=165927d8
+NOTICE:  FES_NANO_CORE_TRANSFER phase=start owner=7cc9694a6d94c46f generation=4 completed=0 pending=0 total=1642496 base=94800000 counter=727a5650e hash_ticks=2ccd64cd
+NOTICE:  FES_NANO_CORE_ENGINE credits=4 block_bytes=1048560 next_job=0 owner=7cc9694a6d94c46f generation=4
+NOTICE:  FES_NANO_CORE_MAILBOX phase=1 owner=7cc9694a6d94c46f generation=4 completed=0 pending=0 job=0 cin=5 cout=5 rin=6 rout=6 bell=0 status=c3faf14f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=7cc9694a6d94c46f generation=4 completed=0 pending=1048512 total=1642496 base=94800000 counter=7551fe65e hash_ticks=519819d0
+NOTICE:  FES_NANO_CORE_MAILBOX phase=2 owner=7cc9694a6d94c46f generation=4 completed=0 pending=1048512 job=0 cin=5 cout=5 rin=6 rout=6 bell=0 status=c3faf14f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=7cc9694a6d94c46f generation=4 completed=0 pending=1642496 total=1642496 base=94800000 counter=78c65045d hash_ticks=76639267
+NOTICE:  FES_NANO_CORE_MAILBOX phase=2 owner=7cc9694a6d94c46f generation=4 completed=0 pending=1642496 job=1 cin=9 cout=9 rin=7 rout=6 bell=1 status=c3faf14f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=7cc9694a6d94c46f generation=4 completed=0 pending=1642496 total=1642496 base=94800000 counter=7cfadded1 hash_ticks=a34e79d7
+NOTICE:  FES_NANO_CORE_MAILBOX phase=3 owner=7cc9694a6d94c46f generation=4 completed=1048512 pending=593984 job=2 cin=d cout=d rin=8 rout=7 bell=1 status=c3faf14f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=7cc9694a6d94c46f generation=4 completed=1048512 pending=593984 total=1642496 base=94800000 counter=7fdc7cc9b hash_ticks=c1e1a59c
+NOTICE:  FES_NANO_CORE_MAILBOX phase=3 owner=7cc9694a6d94c46f generation=4 completed=1642496 pending=0 job=2 cin=d cout=d rin=8 rout=8 bell=0 status=c3faf14f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=status owner=7cc9694a6d94c46f generation=4 completed=1642496 pending=0 total=1642496 base=94800000 counter=82bda8128 hash_ticks=e073a251
+NOTICE:  FES_NANO_CORE_TRANSFER phase=complete owner=7cc9694a6d94c46f generation=4 completed=1642496 pending=0 total=1642496 base=94800000 counter=842fc6b8c hash_ticks=f6e76fa3
+FES_NATIVE_FPGA_PROGRAMMED PASS package_id=07b2d01003dc92e4993ba7f72761444ae801a1a005f87e0a1b65f9aad9dfeb7d core_sha256=170a3929afc316bcaa51b25e69ce60a7f44c53542126ce6e82d90a99767998d0 bytes=1642496 owner=7cc9694a6d94c46f generation=4 data_held=1 activation=unavailable
+NOTICE:  FES_NANO_CONFIG_QUERY command=4 words=6
+NOTICE:  FES_NANO_CONFIG_STATUS status=0 words=6 state=0 version=1a0300 pins=c0000089 soft=3 error_location=0 error_details=f ready=1
+NOTICE:  FES_NANO_SMMU status=0 reads=26 idr0=80f7e3f idr1=e739d18 aidr=1 s_idr1=80000018 cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 identified=1 settled=1 bypass_controls_clear=1 access=unqualified
+NOTICE:  FES_NANO_DDR_FIREWALL status=0 owner=7cc9694a6d94c46f generation=4 reset=f mpfe_reset=0 reads=66 enable=1 base=95000000 bytes=8192 access=unqualified
+NOTICE:  FES_NANO_DDR_REGION index=0 base=80100000 baseext=0 limit=bfffffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=1 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=2 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=3 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=4 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=5 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=6 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=7 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_FIREWALL_END layout_known=1 window_covered=1 access=unqualified
+NOTICE:  FES_NANO_IDENTITY phase=open owner=7cc9694a6d94c46f generation=4 reset=f base=20010400
+NOTICE:  FES_NANO_IDENTITY phase=read owner=7cc9694a6d94c46f generation=5 reset=d base=20010400
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=1 offset=0 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=1 offset=0 value=46455345
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=2 offset=4 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=2 offset=4 value=10000
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=3 offset=8 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=3 offset=8 value=10203041
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=4 offset=c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=4 offset=c value=d81dfb76
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=5 offset=10 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=5 offset=10 value=162a1044
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=6 offset=14 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=6 offset=14 value=d8221892
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=7 offset=18 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=7 offset=18 value=d2435ab5
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=8 offset=1c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=8 offset=1c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=9 offset=20 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=9 offset=20 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=10 offset=40 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=10 offset=40 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=11 offset=44 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=11 offset=44 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=12 offset=48 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=12 offset=48 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=13 offset=4c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=13 offset=4c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=14 offset=38 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=14 offset=38 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=15 offset=3c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=15 offset=3c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=16 offset=0 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=16 offset=0 value=46455345
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=17 offset=4 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=17 offset=4 value=10000
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=18 offset=8 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=18 offset=8 value=10203041
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=19 offset=c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=19 offset=c value=d81dfb76
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=20 offset=10 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=20 offset=10 value=162a1044
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=21 offset=14 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=21 offset=14 value=d8221892
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=22 offset=18 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=22 offset=18 value=d2435ab5
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=23 offset=1c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=23 offset=1c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=24 offset=20 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=24 offset=20 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=25 offset=40 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=25 offset=40 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=26 offset=44 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=26 offset=44 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=27 offset=48 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=27 offset=48 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=28 offset=4c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=28 offset=4c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=29 offset=38 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=29 offset=38 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=30 offset=3c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=30 offset=3c value=0
+NOTICE:  FES_NANO_DDR_CONTROL phase=14 owner=7cc9694a6d94c46f generation=5 reset=d
+NOTICE:  FES_NANO_SMMU status=0 reads=26 idr0=80f7e3f idr1=e739d18 aidr=1 s_idr1=80000018 cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 identified=1 settled=1 bypass_controls_clear=1 access=unqualified
+NOTICE:  FES_NANO_DDR_FIREWALL status=0 owner=7cc9694a6d94c46f generation=5 reset=d mpfe_reset=0 reads=66 enable=1 base=95000000 bytes=8192 access=unqualified
+NOTICE:  FES_NANO_DDR_REGION index=0 base=80100000 baseext=0 limit=bfffffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=1 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=2 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=3 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=4 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=5 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=6 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=7 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_FIREWALL_END layout_known=1 window_covered=1 access=unqualified
+NOTICE:  FES_NANO_DDR_GATE status=0 owner=7cc9694a6d94c46f generation=5 reset=d pattern_words=2048 permit=bounded-read
+NOTICE:  FES_NANO_DDR_CONTROL phase=15 owner=7cc9694a6d94c46f generation=5 reset=d
+NOTICE:  FES_NANO_SMMU status=0 reads=26 idr0=80f7e3f idr1=e739d18 aidr=1 s_idr1=80000018 cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 identified=1 settled=1 bypass_controls_clear=1 access=unqualified
+NOTICE:  FES_NANO_DDR_FIREWALL status=0 owner=7cc9694a6d94c46f generation=5 reset=d mpfe_reset=0 reads=66 enable=1 base=95000000 bytes=8192 access=unqualified
+NOTICE:  FES_NANO_DDR_REGION index=0 base=80100000 baseext=0 limit=bfffffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=1 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=2 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=3 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=4 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=5 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=6 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=7 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_FIREWALL_END layout_known=1 window_covered=1 access=unqualified
+NOTICE:  FES_NANO_DDR_GATE status=0 owner=7cc9694a6d94c46f generation=5 reset=d pattern_words=2048 permit=bounded-read
+NOTICE:  FES_NANO_DDR_CONTROL phase=16 owner=7cc9694a6d94c46f generation=6 reset=5
+NOTICE:  FES_NANO_DDR_READ phase=1 owner=7cc9694a6d94c46f generation=6 reset=5 reads=0 writes=0 polls=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=1 offset=0 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=1 offset=0 value=46455345
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=2 offset=4 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=2 offset=4 value=10000
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=3 offset=8 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=3 offset=8 value=10203041
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=4 offset=c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=4 offset=c value=d81dfb76
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=5 offset=10 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=5 offset=10 value=162a1044
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=6 offset=14 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=6 offset=14 value=d8221892
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=7 offset=18 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=7 offset=18 value=d2435ab5
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=8 offset=1c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=8 offset=1c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=9 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=9 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=10 offset=24 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=10 offset=24 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=11 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=11 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=12 offset=2c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=12 offset=2c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=13 offset=30 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=13 offset=30 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=14 offset=38 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=14 offset=38 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=15 offset=3c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=15 offset=3c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=16 offset=40 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=16 offset=40 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=17 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=17 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=18 offset=48 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=18 offset=48 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=19 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=19 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=20 offset=b0 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=20 offset=b0 value=95000000
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=21 offset=b4 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=21 offset=b4 value=2000
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=22 offset=b8 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=22 offset=b8 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=23 offset=94 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=23 offset=94 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=24 offset=98 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=24 offset=98 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=25 offset=a0 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=25 offset=a0 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=26 offset=a4 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=26 offset=a4 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=27 offset=a8 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=27 offset=a8 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=28 offset=ac value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=28 offset=ac value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=29 offset=0 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=29 offset=0 value=46455345
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=30 offset=4 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=30 offset=4 value=10000
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=31 offset=8 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=31 offset=8 value=10203041
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=32 offset=c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=32 offset=c value=d81dfb76
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=33 offset=10 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=33 offset=10 value=162a1044
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=34 offset=14 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=34 offset=14 value=d8221892
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=35 offset=18 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=35 offset=18 value=d2435ab5
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=36 offset=1c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=36 offset=1c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=37 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=37 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=38 offset=24 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=38 offset=24 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=39 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=39 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=40 offset=2c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=40 offset=2c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=41 offset=30 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=41 offset=30 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=42 offset=38 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=42 offset=38 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=43 offset=3c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=43 offset=3c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=44 offset=40 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=44 offset=40 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=45 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=45 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=46 offset=48 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=46 offset=48 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=47 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=47 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=48 offset=b0 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=48 offset=b0 value=95000000
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=49 offset=b4 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=49 offset=b4 value=2000
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=50 offset=b8 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=50 offset=b8 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=51 offset=94 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=51 offset=94 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=52 offset=98 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=52 offset=98 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=53 offset=a0 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=53 offset=a0 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=54 offset=a4 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=54 offset=a4 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=55 offset=a8 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=55 offset=a8 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=56 offset=ac value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=56 offset=ac value=0
+NOTICE:  FES_NANO_DDR_READ phase=2 owner=7cc9694a6d94c46f generation=6 reset=5 reads=56 writes=0 polls=0
+NOTICE:  FES_NANO_DDR_WRITE phase=before offset=24 value=1
+NOTICE:  FES_NANO_DDR_WRITE phase=after offset=24 value=1
+NOTICE:  FES_NANO_DDR_WRITE phase=before offset=28 value=0
+NOTICE:  FES_NANO_DDR_WRITE phase=after offset=28 value=0
+NOTICE:  FES_NANO_DDR_WRITE phase=before offset=34 value=1
+NOTICE:  FES_NANO_DDR_WRITE phase=after offset=34 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=57 offset=38 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=57 offset=38 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=58 offset=3c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=58 offset=3c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=59 offset=1c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=59 offset=1c value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=60 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=60 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=61 offset=40 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=61 offset=40 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=62 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=62 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=63 offset=48 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=63 offset=48 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=64 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=64 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=65 offset=24 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=65 offset=24 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=66 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=66 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=67 offset=2c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=67 offset=2c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=68 offset=30 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=68 offset=30 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=69 offset=38 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=69 offset=38 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=70 offset=3c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=70 offset=3c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=71 offset=1c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=71 offset=1c value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=72 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=72 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=73 offset=40 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=73 offset=40 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=74 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=74 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=75 offset=48 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=75 offset=48 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=76 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=76 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=77 offset=24 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=77 offset=24 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=78 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=78 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=79 offset=2c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=79 offset=2c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=80 offset=30 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=80 offset=30 value=0
+NOTICE:  FES_NANO_DDR_READ phase=3 owner=7cc9694a6d94c46f generation=6 reset=5 reads=80 writes=3 polls=1
+NOTICE:  FES_NANO_DDR_WRITE phase=before offset=84 value=95000000
+NOTICE:  FES_NANO_DDR_WRITE phase=after offset=84 value=95000000
+NOTICE:  FES_NANO_DDR_WRITE phase=before offset=88 value=1
+NOTICE:  FES_NANO_DDR_WRITE phase=after offset=88 value=1
+NOTICE:  FES_NANO_DDR_WRITE phase=before offset=80 value=8
+NOTICE:  FES_NANO_DDR_WRITE phase=after offset=80 value=8
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=81 offset=38 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=81 offset=38 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=82 offset=3c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=82 offset=3c value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=83 offset=1c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=83 offset=1c value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=84 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=84 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=85 offset=40 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=85 offset=40 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=86 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=86 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=87 offset=48 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=87 offset=48 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=88 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=88 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=89 offset=24 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=89 offset=24 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=90 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=90 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=91 offset=2c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=91 offset=2c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=92 offset=30 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=92 offset=30 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=93 offset=38 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=93 offset=38 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=94 offset=3c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=94 offset=3c value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=95 offset=1c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=95 offset=1c value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=96 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=96 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=97 offset=40 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=97 offset=40 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=98 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=98 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=99 offset=48 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=99 offset=48 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=100 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=100 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=101 offset=24 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=101 offset=24 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=102 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=102 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=103 offset=2c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=103 offset=2c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=104 offset=30 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=104 offset=30 value=0
+NOTICE:  FES_NANO_DDR_READ phase=4 owner=7cc9694a6d94c46f generation=6 reset=5 reads=104 writes=6 polls=2
+NOTICE:  FES_NANO_DDR_READ phase=5 owner=7cc9694a6d94c46f generation=6 reset=5 reads=104 writes=6 polls=2
+NOTICE:  FES_NANO_DDR_WRITE phase=before offset=2c value=7
+NOTICE:  FES_NANO_DDR_WRITE phase=after offset=2c value=7
+NOTICE:  FES_NANO_DDR_WRITE phase=before offset=30 value=0
+NOTICE:  FES_NANO_DDR_WRITE phase=after offset=30 value=0
+NOTICE:  FES_NANO_DDR_WRITE phase=before offset=34 value=2
+NOTICE:  FES_NANO_DDR_WRITE phase=after offset=34 value=2
+NOTICE:  FES_NANO_DDR_READ phase=6 owner=7cc9694a6d94c46f generation=6 reset=5 reads=104 writes=9 polls=2
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=105 offset=38 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=105 offset=38 value=4
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=106 offset=3c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=106 offset=3c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=107 offset=1c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=107 offset=1c value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=108 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=108 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=109 offset=40 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=109 offset=40 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=110 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=110 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=111 offset=48 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=111 offset=48 value=7
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=112 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=112 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=113 offset=24 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=113 offset=24 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=114 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=114 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=115 offset=2c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=115 offset=2c value=7
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=116 offset=30 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=116 offset=30 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=117 offset=38 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=117 offset=38 value=4
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=118 offset=3c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=118 offset=3c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=119 offset=1c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=119 offset=1c value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=120 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=120 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=121 offset=40 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=121 offset=40 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=122 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=122 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=123 offset=48 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=123 offset=48 value=7
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=124 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=124 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=125 offset=24 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=125 offset=24 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=126 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=126 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=127 offset=2c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=127 offset=2c value=7
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=128 offset=30 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=128 offset=30 value=0
+NOTICE:  FES_NANO_DDR_READ phase=7 owner=7cc9694a6d94c46f generation=6 reset=5 reads=128 writes=9 polls=3
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=129 offset=94 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=129 offset=94 value=20
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=130 offset=98 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=130 offset=98 value=f1ffefc0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=131 offset=a0 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=131 offset=a0 value=369ca8ab
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=132 offset=a4 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=132 offset=a4 value=59542ed2
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=133 offset=a8 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=133 offset=a8 value=fb0d9419
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=134 offset=ac value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=134 offset=ac value=1dc51a40
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=135 offset=38 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=135 offset=38 value=4
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=136 offset=3c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=136 offset=3c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=137 offset=1c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=137 offset=1c value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=138 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=138 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=139 offset=40 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=139 offset=40 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=140 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=140 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=141 offset=48 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=141 offset=48 value=7
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=142 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=142 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=143 offset=24 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=143 offset=24 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=144 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=144 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=145 offset=2c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=145 offset=2c value=7
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=146 offset=30 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=146 offset=30 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=147 offset=38 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=147 offset=38 value=4
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=148 offset=3c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=148 offset=3c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=149 offset=1c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=149 offset=1c value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=150 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=150 offset=20 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=151 offset=40 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=151 offset=40 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=152 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=152 offset=44 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=153 offset=48 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=153 offset=48 value=7
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=154 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=154 offset=4c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=155 offset=24 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=155 offset=24 value=1
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=156 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=156 offset=28 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=157 offset=2c value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=157 offset=2c value=7
+NOTICE:  FES_NANO_DDR_ACCESS phase=before ordinal=158 offset=30 value=0
+NOTICE:  FES_NANO_DDR_ACCESS phase=after ordinal=158 offset=30 value=0
+NOTICE:  FES_NANO_DDR_READ phase=8 owner=7cc9694a6d94c46f generation=6 reset=5 reads=158 writes=9 polls=4
+NOTICE:  FES_NANO_DDR_RESULT status=0 bytes=32 checksum=f1ffefc0 data0=369ca8ab data1=59542ed2 data2=fb0d9419 data3=1dc51a40 generation=1 cookie=7
+NOTICE:  FES_NANO_DDR_CONTROL phase=17 owner=7cc9694a6d94c46f generation=6 reset=5
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=31 offset=0 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=31 offset=0 value=46455345
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=32 offset=4 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=32 offset=4 value=10000
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=33 offset=8 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=33 offset=8 value=10203041
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=34 offset=c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=34 offset=c value=d81dfb76
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=35 offset=10 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=35 offset=10 value=162a1044
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=36 offset=14 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=36 offset=14 value=d8221892
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=37 offset=18 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=37 offset=18 value=d2435ab5
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=38 offset=1c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=38 offset=1c value=1
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=39 offset=20 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=39 offset=20 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=40 offset=40 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=40 offset=40 value=1
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=41 offset=44 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=41 offset=44 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=42 offset=48 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=42 offset=48 value=7
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=43 offset=4c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=43 offset=4c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=44 offset=38 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=44 offset=38 value=4
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=45 offset=3c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=45 offset=3c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=46 offset=0 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=46 offset=0 value=46455345
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=47 offset=4 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=47 offset=4 value=10000
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=48 offset=8 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=48 offset=8 value=10203041
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=49 offset=c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=49 offset=c value=d81dfb76
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=50 offset=10 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=50 offset=10 value=162a1044
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=51 offset=14 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=51 offset=14 value=d8221892
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=52 offset=18 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=52 offset=18 value=d2435ab5
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=53 offset=1c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=53 offset=1c value=1
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=54 offset=20 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=54 offset=20 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=55 offset=40 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=55 offset=40 value=1
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=56 offset=44 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=56 offset=44 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=57 offset=48 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=57 offset=48 value=7
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=58 offset=4c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=58 offset=4c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=59 offset=38 value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=59 offset=38 value=4
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=before ordinal=60 offset=3c value=0
+NOTICE:  FES_NANO_IDENTITY_ACCESS phase=after ordinal=60 offset=3c value=0
+NOTICE:  FES_NANO_IDENTITY phase=close owner=7cc9694a6d94c46f generation=6 reset=5 base=20010400
+NOTICE:  FES_NANO_MASTER_STOP status=0 owner=7cc9694a6d94c46f generation=6 reset=5 reader_reads=88 reader_polls=1 disable=0 probe_polls=2 cancel=0 complete=1 data=active
+NOTICE:  FES_NANO_DDR_CLOSURE owner=7cc9694a6d94c46f generation=7 reset=f hardware_drained=8 data_remained_contained=0 producers_quiescent=1 fabric_acknowledged=0
+NOTICE:  FES_NANO_IDENTITY phase=closed owner=7cc9694a6d94c46f generation=7 reset=f base=20010400
+FES_NATIVE_FPGA_IDENTITY PASS package_id=07b2d01003dc92e4993ba7f72761444ae801a1a005f87e0a1b65f9aad9dfeb7d build_id=d2435ab5d8221892162a1044d81dfb76 abi=10203041 base=20010400 map_sha256=63d62c64401f4c68fdcccf8e3f3b11a710eae52b5c3a7c479eb4f5babac2b634 owner=7cc9694a6d94c46f generation=7 data_held=1 runtime_programming=unavailable
+FES_NATIVE_FPGA_DDR_READER PASS owner=7cc9694a6d94c46f generation=7 reader_generation=1 cookie=7 bytes=32 data_closed=1 runtime_programming=unavailable

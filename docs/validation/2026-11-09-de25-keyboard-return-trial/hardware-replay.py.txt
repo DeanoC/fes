@@ -1,0 +1,30 @@
+"""Replay only the actually completed launch; no device IO or lifecycle permission."""
+import json,sys
+from pathlib import Path
+s=Path(__file__).resolve().parent;t=s/'trial';root=s.parents[1]
+sys.path[:0]=[str(t),str(root/'platform/embedded/nano')]
+from common import SDK,UBOOT,ENTRY,sha
+from trial_inputs import expected_programs,shared_policy
+from paired_tenfoot_trace import PairedTenfootClient
+from paired_checks import accept_boot
+n=json.loads((t/'native-result.json').read_text());r=json.loads((t/'experiment-result.json').read_text());raw=(t/'native-console.log').read_bytes();a=json.loads((s/'hardware-analysis.json').read_text())
+assert not n['pass'] and not r['pass'] and n['error']=='physical keyboard return was not observed within60s'
+assert n['console_sha256']==sha(t/'native-console.log')==a['console_sha256']
+accept_boot(n['startup_service_boot'],final=True)
+u=json.loads((UBOOT/'result.json').read_text());e=json.loads((ENTRY/'result.json').read_text());sdk=json.loads((SDK/'result.json').read_text());cold=u['native_handoff']['cold_boot_profile'];ctx=cold['hps_context'];clock=[0.0];w=n['command_windows'][0]
+def exchange(payload,bound,done):
+ assert payload==b'\r' and bound==100 and w['status']=='received'
+ for offer in w['offers']:
+  clock[0]=offer['elapsed_seconds'];last=done(raw[w['start']:offer['end']])
+ assert last;clock[0]=w['elapsed_seconds'];return raw[w['start']:w['end']]
+client=PairedTenfootClient(raw[:n['initial_capture_end']],build_record=sdk,build_id=u['native_handoff']['build_id'],owner_seed=cold['owner_seed'],atf=u['native_handoff']['atf_handoff'],package=dict(package_id=ctx['package_id'],payload_sha256=ctx['core_sha256'],payload_bytes=ctx['core_size'],build_id=ctx['build_id']),programs=expected_programs(),exchange=exchange,owns=lambda:True,now=lambda:clock[0],shared_usb=shared_policy(entry=e,cold=cold),firmware_ram_trace=True,firmware_mmu=u['firmware_mmu_proof'])
+assert client.view==n['startup_reply'] and client.key('launch',0)==n['app_commands'][0]
+assert len(n['app_commands'])==len(n['command_windows'])==1 and not n.get('physical_stop')
+assert client.view['native']['State']==a['last_observed_service_state']=='running' and client.view['native']['Generation']==a['last_observed_generation']==1
+assert all(v['source']=='uart' for v in client.records[0]['input_actions'])
+assert b'FES_NATIVE_INPUT_ACTION source=usb-' not in raw
+assert b'panic:' not in raw and b'channel_snapshot=' not in raw and b'FES_NANO_TAPE_FAILURE' not in raw
+assert json.loads((s/'cleanup-evidence.json').read_text())==a['cleanup'] and a['cleanup']['status']=='passed'
+assert a['native_boot_id']==u['native_handoff']['build_id'] and a['tape_receipt']==client.records[0]['fetch_observations'][0]
+assert a['new_programming_failures']==0 and r['total_transport_programming_failures']==a['historical_programming_failures']==2
+print('PASS exact saved startup/launch replay; no physical return, normal return or finalPark observed; host cleanup verified')

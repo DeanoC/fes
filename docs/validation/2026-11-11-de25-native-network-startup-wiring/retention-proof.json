@@ -1,0 +1,18 @@
+{
+  "status": "retained-software-and-cross-build-network-startup-wiring",
+  "source_head": "ed3cfbb17f9374c6070b84e7ceb7fe307349090f",
+  "files": 171,
+  "archive_sha256": "93cf75bffe00473d14321c8d5bbe340716b69417fba844ac6f1875e235670cff",
+  "source_bundle_sha256": "20bedc9288172ed1a699a7da08757bc949c07e2fb8715a04179f001234a7b174",
+  "base_bundle": "/home/deano/fes-retained/de25-menu-return-observation-20261110-r1/source.bundle",
+  "base_bundle_sha256": "d7166cde75bd88ea7f9d14ac4a5706b55c74cd215cc4f375abd1a5d6661a17d0",
+  "source_restore_fsck_pack_verified": true,
+  "archive_readback_modes_verified": true,
+  "superseded_initial_context_coupling_preserved": true,
+  "external_compiler_and_module_inputs_required": true,
+  "network_profile_enabled": false,
+  "hardware_actions": false,
+  "deployed": false,
+  "physical_mac_qualified": false,
+  "matched_boot_chain_built": false
+}

@@ -1,0 +1,64 @@
+{
+  "scope": "failed-whole-campaign-and-passed-separate-final-phase",
+  "whole_campaign_passed": false,
+  "original_supervisor": {
+    "argv": [
+      "make",
+      "test-changed",
+      "TEST_CHANGED_ARGS=--base=04147ceba848f385d68b53680a8d661823cfb6da"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-dispatch-release",
+    "returncode": -15,
+    "timed_out": true,
+    "elapsed": 2100.171212070156,
+    "log_sha256": "f876a4da531c3b388bac526160c37bf1567a3a82086a50e4e3054ce88d029540"
+  },
+  "original_worker_terminal": {
+    "scope": "original-worker-terminal-observation-after-parent-cap",
+    "worker_pid": 3572436,
+    "worker_start_ticks": "167376994",
+    "worker_terminal": true,
+    "kernel_exit_code_raw": null,
+    "observations": 0,
+    "wait_seconds": 0.002604131121188402,
+    "original_supervisor_still_failed": true,
+    "original_prefix_sha256": "f876a4da531c3b388bac526160c37bf1567a3a82086a50e4e3054ce88d029540",
+    "settled_log_sha256": "03fd249aa3b3dc28aed03cfa09c986f8b791c77c805782ce9954e2172c5cc1b3",
+    "terminal_prefix_bytes": 1036447,
+    "late_tail_bytes": 91540,
+    "processes_signalled": false,
+    "worker_restarted": false,
+    "hardware_actions": false
+  },
+  "settled_unittest_tests": 2181,
+  "settled_unittest_errors": 1,
+  "settled_unittest_skips": 88,
+  "error_cause": "supervisor SIGTERM becomes SystemExit: 0 in pc386 DeviceBench test; unittest records it and continues",
+  "selected_plan_sha256": "0a13bce4e6b739f8de944d825268d9a03987017ca6105ae3338dd60538694bba",
+  "replacement_phase_process_record": {
+    "pid": 3921085,
+    "process_start_ticks": "167539983",
+    "cap_seconds": 1800,
+    "start_monotonic": 1675399.835392921,
+    "argv": [
+      "python3",
+      "out/publication/run-source-setup-final-phase.py"
+    ]
+  },
+  "replacement_terminal_result_not_yet_observed": false,
+  "hardware_actions": false,
+  "replacement_final_supervisor": {
+    "argv": [
+      "python3",
+      "out/publication/run-source-setup-final-phase.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-dispatch-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1452.4053275471088,
+    "log_sha256": "01b02e4f83f93248f3d9f6b2d7cfda08fdac0b7d3e8378306f742965199cd132"
+  },
+  "replacement_tests": 2181,
+  "replacement_skips": 88,
+  "earlier_phase_completion_evidence": "derived from immutable sequential return-code gates advancing to observed final command; no separate per-phase exit receipts"
+}

@@ -1,0 +1,26 @@
+{
+  "started_utc": "2026-11-07T04:28:39.237402+00:00",
+  "serial": "TRWU8CBL",
+  "usb_identity": [
+    "3",
+    "21",
+    "/dev/ttyUSB0",
+    48128
+  ],
+  "prompt_verified": true,
+  "programming": false,
+  "SD_commands": false,
+  "network": false,
+  "board_reset": false,
+  "source": "462a0ebb75fb24601e3409980bb3ea8b6e299d7701fb4e74f842555c3ec0ffc5",
+  "status": "matched-recovery-prompt-observed",
+  "serial_settings_restored": true,
+  "finished_utc": "2026-11-07T04:28:53.257153+00:00",
+  "console_sha256": "e2f1d09058d45fbcce3170f43e8c11c313ff9fdcc73ce3477deba8df6ecd5db2",
+  "evidence_sha256": {
+    "out/nano-power-interruption-20261107/attempt.json": "09563455d335472515a7438cc54bd5e296da5a2fdeb15d0853603b78f832b6f0",
+    "out/nano-power-interruption-20261107/check.py": "462a0ebb75fb24601e3409980bb3ea8b6e299d7701fb4e74f842555c3ec0ffc5",
+    "out/nano-power-interruption-20261107/console.log": "e2f1d09058d45fbcce3170f43e8c11c313ff9fdcc73ce3477deba8df6ecd5db2",
+    "out/nano-power-interruption-20261107/result.json": "1545da5546824934be589531b18d96bdcc506cd87ca6c9b17e1427659918f956"
+  }
+}

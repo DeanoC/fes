@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "source_head": "957e834a68e1e563050a3737c2fb9b92b2f28f80",
+  "operator_source": "56f7283dfbcca2d690fe5663b6f0d4c41cba5940",
+  "path": "/home/deano/fes-retained/de25-stepped-tape-trial-hardware-20261109-r2",
+  "files": 5963,
+  "full_archive_readback": true,
+  "archive_modes_verified": true,
+  "bundle_import_and_pack_verified": true,
+  "standalone_source_restore_and_strict_fsck": true,
+  "hardware_actions": false
+}

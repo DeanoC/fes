@@ -1,0 +1,13 @@
+{
+  "status": "independently-retained-source-and-model-evidence",
+  "archive": "/home/deano/fes-retained/de25-native-dispatch-models-20261114-r2/software-models.tar.gz",
+  "archive_sha256": "f0ac47d32c419ffa7b4df042078a0631ac6a7f848a85d903443abef5cf285a50",
+  "archive_bytes": 38109,
+  "focused_tests": 22,
+  "adapter_model_tests": 4,
+  "hardware_actions": false,
+  "existing_failed_hardware_trial_modified": false,
+  "physical_reset_requirement_unchanged": true,
+  "model_board_fixture_dependency": "/home/deano/fes-retained/de25-source-rearm-procedure-prepared-20261114-r1/prepared-procedure.tar.gz",
+  "model_board_fixture_dependency_sha256": "7cb82925e6a0e68b31535efee195ab9fd0cd260313f0fc63285e93d9fa3ac15c"
+}

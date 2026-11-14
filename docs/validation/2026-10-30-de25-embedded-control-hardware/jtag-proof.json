@@ -1,0 +1,25 @@
+{
+  "status": "passed",
+  "serial": "TRWU8CBL",
+  "image_sha256": "c3c176b0ee88e8c1313c2c85fddd9d95db7c376d6ec3e0de4cecca47497c48db",
+  "build_id": "0e92b175ecf825e682b4a036cc2c65b4",
+  "control_abi": 270544960,
+  "cases": [
+    {
+      "case": "wrong-id",
+      "returncode": 1,
+      "log_sha256": "a101adeeb299661577d897134fda25d71496309a6a7aa13d09da28e929bdcfeb"
+    },
+    {
+      "case": "wrong-abi",
+      "returncode": 1,
+      "log_sha256": "a101adeeb299661577d897134fda25d71496309a6a7aa13d09da28e929bdcfeb"
+    },
+    {
+      "case": "identity-drain-fault",
+      "returncode": 0,
+      "log_sha256": "25800b542e40869c580e6907c26d522d7f6f9d8e33c6da84489cea4d04a3fa41"
+    }
+  ],
+  "scope": "JTAG control, on-chip responder; no DDR or native firmware acceptance"
+}

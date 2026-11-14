@@ -1,0 +1,15 @@
+{
+  "status": "scoped-deletion-complete",
+  "authorization": "resume cleanup of our own retained obsolete outputs",
+  "canonical_root": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-boot/native-uboot/source",
+  "archive": "/home/deano/fes-retained/de25-vendor-source-copy-cleanup-20261114-r1/canonical-source-files.tar.gz",
+  "archive_sha256": "3101099a5c4066776bdfb51bb83ad6186d3c0294f8939dfba505815a8d1dad3d",
+  "recoverable_bytes": 1457416038,
+  "free_before": 31791108096,
+  "current_candidate_preserved": true,
+  "all_final_boot_images_and_rollback_artifacts_preserved": true,
+  "hardware_actions": false,
+  "free_after": 33818816512,
+  "manifest": "/home/deano/fes-retained/de25-vendor-source-copy-cleanup-20261114-r1/result.json",
+  "manifest_sha256": "5658ac9b08d2b32c15c5c31e4e1357d6f2261dbb17ecaba3a98fd3bac2e97c8b"
+}

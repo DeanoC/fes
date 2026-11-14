@@ -5,7 +5,7 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/localcores"
-	"github.com/DeanoC/FogCast/libraryuser"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 // Availability is the play-availability family rooms, tenfoot, and the
@@ -453,7 +453,7 @@ func exactTitleMatches(games []hostclient.Game, query string) []hostclient.Game 
 }
 
 func normalizeTitle(s string) string {
-	return libraryuser.CanonicalEditionQuery(s)
+	return protocol.CanonicalEditionQuery(s)
 }
 
 // DestinationPreferenceKey is the household edition-preference key for a
@@ -463,7 +463,7 @@ func DestinationPreferenceKey(d Destination) string {
 	if q == "" {
 		q = strings.TrimSpace(d.Label)
 	}
-	return libraryuser.EditionKey(q, d.Platform)
+	return protocol.EditionKey(q, d.Platform)
 }
 
 // ApplyEditionPreference collapses Needs a choice onto the saved edition when

@@ -12,8 +12,8 @@
 // HUD path and FC2D opcode. Recorder is a call-order test double and does
 // not draw pixels.
 //
-// Window creation, events, gamepad, and text input stay in the SDL shell
-// (ui/tenfoot/sdl.go) until a later slice.
+// Window creation, events, gamepad, and text input belong to the selected
+// native shell or the injected ui/tenfoot.Platform implementation.
 package gfx
 
 import "image"

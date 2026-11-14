@@ -1,0 +1,165 @@
+{
+  "status": "passed-original-FIT-and-baseline-restoration-after-dispatch-source-setup-stop",
+  "restoration_procedure_sha256": "244c2dd7662d71feecf383e544a64f35a9c5ed9a02eaccd108d7d5dfc391641f",
+  "failed_trial_procedure_sha256": "bd7e264b19140da2d3426f6fac7a707fdaca2b700a9770959538c1c804febbc8",
+  "failed_trial_archive_sha256": "e4a1a63cf7e81b85d8b81773819966cae52e608a4918792ee009f67aada40331",
+  "elapsed_seconds": 603.146176418988,
+  "original_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+  "original_phase1_sha256": "c01c97dde2fe75ce7e6145ccce2a52b6fa8449f43731ba0bd2ce94cbfc3d91d4",
+  "original_FIT_verified_by_sealed_SPL": true,
+  "fresh_SD_file_readbacks_claimed": true,
+  "SD_refresh_attempted": true,
+  "exact_original_FIT_rollback": {
+    "status": "verified-reversible-fit-refresh",
+    "direction": "rollback",
+    "plan_sha256": "c3d75b2d8f3a22d0660c82dc62ebc2077e286a98188fbcb337cd8b6c71c9413e",
+    "previous_boot_sha256": "6e8b7d8c657db55a4c01c9e1eae8bd5f5d4f4e7736864dd5f2fc4594c12e85a1",
+    "boot_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+    "preserved_files": 16,
+    "readbacks_before": 17,
+    "readbacks_after": 17,
+    "session": "797f872ff752e401894c4ccda67c928a",
+    "physical_boot_accepted": false
+  },
+  "read_only_reset_gate": {
+    "status": "passed-read-only-NS-SMMU-reset-gate",
+    "commands": [
+      {
+        "command": "md.l 16000020 4",
+        "words": {
+          "369098784": 0,
+          "369098788": 0,
+          "369098792": 0,
+          "369098796": 4
+        }
+      },
+      {
+        "command": "md.l 16000044 2",
+        "words": {
+          "369098820": 0,
+          "369098824": 0
+        }
+      },
+      {
+        "command": "md.l 16000060 2",
+        "words": {
+          "369098848": 0,
+          "369098852": 0
+        }
+      },
+      {
+        "command": "md.l 16000080 3",
+        "words": {
+          "369098880": 0,
+          "369098884": 0,
+          "369098888": 0
+        }
+      },
+      {
+        "command": "md.l 16000090 4",
+        "words": {
+          "369098896": 0,
+          "369098900": 0,
+          "369098904": 0,
+          "369098908": 0
+        }
+      },
+      {
+        "command": "md.l 160000a0 2",
+        "words": {
+          "369098912": 0,
+          "369098916": 0
+        }
+      },
+      {
+        "command": "md.l 160100a8 2",
+        "words": {
+          "369164456": 0,
+          "369164460": 0
+        }
+      }
+    ],
+    "reads": 19,
+    "elapsed_seconds": 0.830858324887231,
+    "register_writes": 0,
+    "network_commands": 0,
+    "SD_writes": 0,
+    "secure_bank_examined": false,
+    "reset_domain_qualified": false,
+    "DMA_authority": false
+  },
+  "baseline_boot_verified": true,
+  "baseline_cycle_commands": 51,
+  "baseline_exit_generation": 5,
+  "baseline_final_Park_verified": true,
+  "independent_saved_wire_replay": {
+    "status": "passed-saved-installer-wire-and-poll-times",
+    "discovered": true,
+    "commands": 51,
+    "polling_offers": 536,
+    "hardware_actions": false,
+    "live_authority": false,
+    "persistence_verified": false
+  },
+  "program_and_wire_witness": {
+    "boot_boundary_verified": true,
+    "console_sha256": "369170596d221db31ec7c999ec3c1621fac41026c14aa9c8c4db7a051b15ec10",
+    "all_wire_sha256": "7a7031e06a5d048a2d2b694d01b07c1ff5ce360a0ad6789ced1f97de0e2f8518",
+    "completed_program_epoch": "160140:167908621"
+  },
+  "owned_processes": [
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/source-setup-restoration/attempt/native-baseline/transport.json",
+      "pid": 160140,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/source-setup-restoration/attempt/native-baseline/owned-worker.json",
+      "pid": 159380,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/source-setup-restoration/attempt/native-baseline/owned-programmer.json",
+      "pid": 161026,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/source-setup-restoration/attempt/recovery-rollback/transport.json",
+      "pid": 119601,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/source-setup-restoration/attempt/recovery-rollback/owned-worker.json",
+      "pid": 119251,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/source-setup-restoration/attempt/recovery-rollback/owned-programmer.json",
+      "pid": 120365,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/source-setup-restoration/attempt/rollback/owned-worker.json",
+      "pid": 121938,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/source-setup-restoration/attempt/native-baseline/file-admission/owned-worker.json",
+      "pid": 159764,
+      "original_process_stopped": true
+    }
+  ],
+  "UART_closed_and_free": true,
+  "USB_identity_inode_permissions_restored": true,
+  "JTAG_auto_1_15M": true,
+  "after_fresh_human_confirmed_power_cycle": true,
+  "failed_candidate_retried": false,
+  "failed_candidate_native_menu_qualified": false,
+  "candidate_native_programming_previously_issued": true,
+  "baseline_drain_root_cause_fixed": false,
+  "last_verified_board_state": "original native baseline final Park",
+  "general_core_load_acceptance": false,
+  "permanent_QSPI_written": false,
+  "factory_card_changed": false,
+  "bottom_kit_touched": false
+}

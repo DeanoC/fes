@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "go",
+    "-C",
+    "platform/embedded/tamago",
+    "test",
+    "-race",
+    "-count=1",
+    "./dwc2"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 2.8022090911399573,
+  "log_sha256": "9c1ef378edef0ae0b68954560bec7a5178ad9dc7afe0d8c5f4ffb98e983274db"
+}

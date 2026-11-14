@@ -1,0 +1,92 @@
+[
+  {
+    "label": "final-affected-tests",
+    "head": "d166c1e272086c78d4cf2aa815527af1ab63356a",
+    "status": "passed",
+    "local_paths": [],
+    "stages": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "DE25 Avalon control and native integration",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "test_*.py",
+        "lane": "fpga",
+        "returncode": 0
+      }
+    ],
+    "log_sha256": "05ef8ee3ad78a3fafa0b247c6056461241d38247b016cd63b843425cc78c5bd6",
+    "elapsed_seconds": 547.147981545073
+  },
+  {
+    "label": "final-pairing-affected-tests",
+    "head": "bc664a2e31bd67d1d332a1f3fecb90fc763bf4e2",
+    "status": "passed",
+    "local_paths": [],
+    "stages": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      }
+    ],
+    "log_sha256": "44d15cfe39d96319db8c81e0f0c6de431e74e0ca422309315363f07e5d013abe",
+    "elapsed_seconds": 186.12347011000384
+  }
+]

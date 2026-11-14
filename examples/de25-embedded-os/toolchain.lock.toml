@@ -1,0 +1,14 @@
+# Experiment inputs only. This is not an FES producer/toolchain promotion.
+[zephyr]
+url = "https://github.com/zephyrproject-rtos/zephyr.git"
+tag = "v4.2.0"
+commit = "413b789deb391d3a37d06b463288a5fe765ee57e"
+
+[sdk]
+version = "0.17.4"
+url = "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.4/zephyr-sdk-0.17.4_linux-x86_64_minimal.tar.xz"
+sha256 = "a7258bf50c892c4669712b2aacdfcd5e303245bcf36cb458a296039a664594f5"
+
+[aarch64]
+url = "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.4/toolchain_linux-x86_64_aarch64-zephyr-elf.tar.xz"
+sha256 = "d3c3790cad0b7fe579dc892d7f5e84e07f67008f04f1334ed6f95a3db3f4e608"

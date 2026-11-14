@@ -1,0 +1,77 @@
+"""Replay the completed prefix and preserve the failed second return."""
+import copy,hashlib,json,re,sys
+from pathlib import Path
+s=Path(__file__).resolve().parent;root=s.parents[1];t=s/'trial';doc=root/'docs/validation/2026-11-09-de25-channel-fault-trial'
+sys.path[:0]=[str(t),str(root/'platform/embedded/nano')]
+from common import SDK,UBOOT,ENTRY,CANDIDATE,sha
+from trial_inputs import shared_policy,expected_programs,expected_uploads_for
+from upload_checks import accept_uploads
+from native_trace import decode_native_boot
+from paired_tenfoot_trace import PairedTenfootClient
+from paired_checks import accept_boot
+from configuration_trace import extract,START_PHASES
+from tenfoot_trace import fetch_observation
+raw=(t/'native-console.log').read_bytes();n=json.loads((t/'native-result.json').read_text());r=json.loads((t/'experiment-result.json').read_text());cleanup=json.loads((s/'cleanup-evidence.json').read_text());assert cleanup['status']=='passed' and n['console_sha256']==sha(t/'native-console.log')
+u=json.loads((UBOOT/'result.json').read_text());e=json.loads((ENTRY/'result.json').read_text());sdk=json.loads((SDK/'result.json').read_text());cold=u['native_handoff']['cold_boot_profile'];context=cold['hps_context'];policy=shared_policy(entry=e,cold=cold);programs=expected_programs()
+end=re.search(rb'(?m)^FES_ENTRY EL1 HANDOFF\r?\n',raw);assert end
+package=dict(package_id=context['package_id'],payload_sha256=context['core_sha256'],payload_bytes=context['core_size'],build_id=context['build_id'])
+boot=decode_native_boot(raw[:end.end()],u['native_handoff']['build_id'],cold['owner_seed'],package=package,atf=u['native_handoff']['atf_handoff'],usb_control=True,usb_shared=True,firmware_ram_trace=True,firmware_mmu=u['firmware_mmu_proof'],hps_context=policy['hps_context'],hps_io=policy['hps_io'])
+assert boot==n['boot_trace'] and boot['loader_ready'] and not boot['errors'];assert boot['firmware_mmu_trace']['valid'] and boot['firmware_mmu_trace']['complete'] and not boot['firmware_mmu_trace']['faults']
+accept_boot(n['startup_service_boot'],final=True)
+commands=n['app_commands'];assert [(x['action'],x['selection'],x['status']) for x in commands]==[('launch',0,'verified'),('stop',None,'verified'),('focus',1,'verified'),('launch',1,'verified'),('stop',None,'failed')]
+# Replay the actual successful exchanges with their recorded polling times and
+# byte boundaries. This is a saved-wire replay, never a live transport/lease.
+clock=0.0;index=0
+windows=n['command_windows'];assert len(windows)==5
+
+def exchange(payload,bound,done):
+ global clock,index
+ w=windows[index];index+=1;assert w['request_hex']==payload.hex() and w['bound_seconds']==bound and w['status']=='received'
+ start=clock;completed=False
+ for offer in w['offers']:
+  clock=start+offer['elapsed_seconds'];completed=done(raw[w['start']:offer['end']])
+ assert completed and w['end']==w['offers'][-1]['end']
+ clock=start+w['elapsed_seconds'];return raw[w['start']:w['end']]
+client=PairedTenfootClient(raw[:n['initial_capture_end']],build_record=sdk,build_id=u['native_handoff']['build_id'],owner_seed=cold['owner_seed'],atf=u['native_handoff']['atf_handoff'],package=package,programs=programs,exchange=exchange,owns=lambda:True,now=lambda:clock,shared_usb=policy,firmware_ram_trace=True,firmware_mmu=u['firmware_mmu_proof'])
+assert client.view==n['startup_reply'] and client.boot==n['startup_service_boot']
+for saved in commands[:4]:
+ actual=client.key(saved['action'],saved['selection']);assert actual==saved
+assert client.records==commands[:4] and client.view['native']['State']=='running' and client.view['native']['Identity']==programs[1]['identity']
+assert windows[-1]['status']=='issued' and windows[-1]['end'] is None and commands[-1]['error']=='native failure marker; no further command'
+assert commands[1]['states'][-1]['native']['State']=='ready' and commands[1]['states'][-1]['session']=='idle'
+fetch=[fetch_observation(v.split(b' ',1)[1]) for v in raw.splitlines() if v.startswith(b'FES_NATIVE_CORE_FETCH ')]
+assert fetch==commands[0]['fetch_observations']+commands[3]['fetch_observations'] and [x['generation'] for x in fetch]==[1,3]
+assert [x['package_id'] for x in fetch]==[p['identity']['PackageID'] for p in programs]
+tape=fetch[0];assert tape['tape_bytes']==917 and tape['tape_elapsed_ns']>1000000000 and tape['tape_limit_ns']==6000000000 and tape['control_elapsed_ns']<1000000000
+assert fetch[1]['scope']=='nano-computer-fetch-v1' and 'tape_bytes' not in fetch[1]
+running=commands[0]['states'][-1]['native'];assert running['Held'] is False and dict(bytes=running['tape_bytes'],sha256=running['tape_sha256'])==programs[0]['tape']
+arms=list(re.finditer(rb'(?m)^NOTICE:  FES_NANO_CORE_TRANSFER phase=arm owner=[0-9a-f]+ generation=(\d+)[^\r\n]*\r?\n',raw));assert [int(m[1]) for m in arms]==[4,10,15,21,26]
+specs=[cold['hps_menu_program']['configuration'],programs[0]['configuration'],cold['hps_menu_program']['configuration'],programs[1]['configuration'],cold['hps_menu_program']['configuration']];configs=[]
+for i,(m,spec,previous) in enumerate(zip(arms,specs,(0,4,10,15,21))):
+ segment=raw[m.start():arms[i+1].start() if i+1<len(arms) else len(raw)]
+ cfg=extract(segment,spec,generation=int(m[1]),previous=previous,rearm=bool(previous),require_programmed=False,require_activation=True)
+ assert not cfg['errors'] and cfg['complete'] and cfg['activation'] and cfg['offset']==spec['core_size']
+ assert cfg['start_observation']['complete'] and [(v['phase'],v['status']) for v in cfg['start_observation']['records']]==[(p,2 if p==7 else 0) for p in START_PHASES]
+ parts=cfg.pop('parts');cfg['unparsed_fragments_sha256']=hashlib.sha256(b''.join(parts)).hexdigest();configs.append(dict(generation=int(m[1]),bytes=cfg['offset'],proof=cfg))
+menus=[json.loads(v.split(b' ',1)[1]) for v in raw.splitlines() if v.startswith(b'FES_NATIVE_MENU_STATE ')];assert sorted({v['menu'] for v in menus})==[1,2,3]
+assert [v['menu'] for v in menus if v['event']=='return']==[1,2] and all(v['frame']['Underflows']==0 for v in menus)
+assert len([v for v in menus if v['menu']==3])==1 and menus[-1]['frames']==1
+states=[json.loads(v.split(b' ',1)[1]) for v in raw.splitlines() if v.startswith(b'FES_NATIVE_TENFOOT_STATE ')];assert states[-1]['native']['State']=='ready' and states[-1]['native']['Generation']==4
+failure=re.search(rb'menu-frame at snapshot \(flags=([0-9a-f]+), last=\{Generation:(\d+) Sequence:(\d+) Submitted:(\d+) Slot:(\d+) Underflows:(\d+)\}\): window reader: aborted, faulted or inconsistent result',raw);assert failure
+failure=dict(zip(('flags','generation','sequence','submitted','slot','underflows'),[int(v,16 if i==0 else 10) for i,v in enumerate(failure.groups())]));assert failure==dict(flags=6,generation=1,sequence=1,submitted=1,slot=0,underflows=0)
+assert failure['flags']&16==0 and b'panic: native program service: reboot required; resources retained' in raw
+assert b'channel_snapshot=' not in raw and b'FES_NANO_TAPE_FAILURE ' not in raw
+closure=next(v.decode() for v in raw.splitlines() if b'FES_NANO_WINDOW_CLOSURE ' in v and b'generation=29 ' in v);assert 'reset=f ' in closure and 'producers_quiescent=1 ' in closure
+master=next(v.decode() for v in raw.splitlines() if b'FES_NANO_MASTER_STOP ' in v and b'generation=28 ' in v);assert 'status=0 ' in master and 'complete=1 ' in master
+reader=next(v.decode() for v in raw.splitlines() if b'FES_NANO_WINDOW_READER_DRAIN ' in v and b'generation=28 ' in v);assert 'status=4 pending=0' in reader
+assert not n['pass'] and not r['pass'] and n['passive_failure_tail']['complete'] and n['passive_failure_tail']['bound_seconds']==2
+assert r['total_transport_programming_failures']==2 and not r['incomplete_programming_phases']
+uploads,_,_=accept_uploads(t,expected_uploads_for(CANDIDATE/'native-composition',CANDIDATE,sha),sha(t/'recovery-boot-result.json'),sha);assert len(uploads['return_traces'])==13
+reservations={}
+for name in ('recovery','native'):
+ p=t/(name+'-program-consumed.json');x=json.loads(p.read_text());y=json.loads(p.with_name(p.name+'.scan.json').read_text());assert x['state']=='reserved-before-scan' and y['state']=='consumed-before-programming';reservations[name]=dict(reservation_sha256=sha(p),scan_sha256=sha(p.with_name(p.name+'.scan.json')))
+result=dict(status='physical-tape-zx81-return-zx80-launch-menu-receipt-failure',source_commit=r['source_commit'],compiled_source=json.loads((CANDIDATE/'publication.json').read_text())['source_head'],native_boot_id=u['native_handoff']['build_id'],raw_console_replay_matches=True,successful_command_prefix_independently_replayed=4,pass_=False,mmu_memory_proof_complete=True,secure_loader_verified=n['secure_cold_boot_verified'],el1_handoff=True,sd_fat_started=True,configuration_cycles_observed=5,configurations=configs,initial_menu_ready=True,startup_observation_seconds=n['startup_observation_seconds'],core_launches_verified=['fes.zx81','fes.zx80'],normal_core_returns_verified=['fes.zx81'],zx80_native_ready_after_return_seen=True,zx80_full_app_return_verified=False,third_launch_attempted=False,fetch_observations=fetch,tape_fixture_passed=True,tape_fixture_bytes=917,tape_fixture_sha256=running['tape_sha256'],tape_elapsed_seconds=tape['tape_elapsed_ns']/1e9,tape_control_elapsed_seconds=tape['control_elapsed_ns']/1e9,tape_size_derived_budget_exercised=True,tape_all_cases_hardware_qualified=False,menu_sessions_observed=3,menu_return_events_observed=2,menu_failure=failure,fpga_menu_fault_bit_set=False,new_usb_failure_observed=False,menu_failure_contained=True,master_stop=master,reader_drain=reader,window_closure=closure,last_emitted_app_state=states[-1],terminal_service_requires_reboot=True,ordinary_core_load_acceptance=False,physical_display_verified=False,physical_input_verified=False,cleanup=cleanup,programming_reservations=reservations,historical_programming_failures=2,new_programming_failures=0,consumed_image_retired=True,hardware_actions=False,goal_complete=False,
+ interpretation='Real917-byte tape transfer completed in1.205599140s with copied receipt and bounded control/fetch; ZX81 ran and returned to the App menu. ZX80 ran; its return restored menu3 and nativeReady generation4, then a menu-frame snapshot consistency check failed with flags6/last{generation1,sequence1,submitted1,slot0,underflows0}. Flags report running+submit-ready, without the hardware fault bit. Five configurations completed. No third launch or complete ZX80 App return. Prior USB startup error did not recur; its cause and general stability remain unqualified. Firstfailure stop+2s passive tail and independent device cleanup passed. Firmware return/CPU park unobserved.',
+ next_step='Investigate whether menu-frame polling rejects a valid preceding receipt before a submitted frame is acknowledged; compare the actual RTL/control handshake and reproduce the exact failure off-board before repairing. Keep all ownership/data checks and original deadlines. Do not replay consumed833277b3abc25cab.',logs={name:sha(t/name) for name in ('native-console.log','native-result.json','experiment-result.json','uploads/result.json')},error=n['error'])
+result['pass']=result.pop('pass_');(doc/'hardware-result.json').write_text(json.dumps(result,indent=2)+'\n');(s/'hardware-analysis.json').write_text(json.dumps(result,indent=2)+'\n')
+print('PASS strict saved-wire prefix replay: ZX81+tape/return, ZX80 launch; second return menu consistency failure contained, third launch absent, device cleanup verified')

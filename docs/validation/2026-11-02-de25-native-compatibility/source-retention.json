@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "source_commit": "89bed50551ede17feec935b0e23991f1e0b6209f",
+  "source_bundle": "/home/deano/fes-retained/de25-native-compatibility-20261102/source.bundle",
+  "source_bundle_sha256": "d0201355efbacccc204b8cb221887e0246c495afc48abc5378c5503c4411d7d3",
+  "source_bundle_bytes": 265376021,
+  "prerequisites": [],
+  "independent_restore": "/home/deano/fes-retained/de25-native-compatibility-20261102/source-restore.git",
+  "restore_head": "89bed50551ede17feec935b0e23991f1e0b6209f",
+  "alternates": false,
+  "full_fsck": true
+}

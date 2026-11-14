@@ -1,0 +1,40 @@
+{
+  "status": "passed-six-selected-gates",
+  "source_head": "0e67e4f93aeb8a0db957ea5b3ff32dd60f0317a0",
+  "parent_test_counts": [
+    "1919"
+  ],
+  "checks": {
+    "software-0-result.json": {
+      "path": "out/nano-jtag-enumeration-20261111/software-0-result.json",
+      "sha256": "4c19023cf0c659363602c425d85098eef34544a50783f5ecc329d6a141634ecb",
+      "log_sha256": "a76126b60cebf1749720771543897149826104e72ce8ac468644902cfd3b61fa"
+    },
+    "software-1-result.json": {
+      "path": "out/nano-jtag-enumeration-20261111/software-1-result.json",
+      "sha256": "d1860441c5beafbdb897baeacd6fbcac86192a8cecb4104b074d74beee572562",
+      "log_sha256": "e69f760fdd4a489a8e4ba49b865ff58dc4d5f9f49fb347adbc106505c1eea149"
+    },
+    "software-2-result.json": {
+      "path": "out/nano-jtag-enumeration-20261111/software-2-result.json",
+      "sha256": "214b4c423cfbfba6c6d7f11efe16d3141df1006e8d2bc897907ac1ef76ad57f7",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-3-result.json": {
+      "path": "out/nano-jtag-enumeration-20261111/software-3-result.json",
+      "sha256": "b2dd32e17fc93625700de9ebda725ff03980078702c2899e68ad6cf56cf82d51",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-4-result.json": {
+      "path": "out/nano-jtag-enumeration-20261111/software-4-result.json",
+      "sha256": "2c64749837e970a7a7b33f7a63d2248fb4f78173e536e058c13f4c568d8a44c4",
+      "log_sha256": "f80f1fdf8a35ef040ba756fd780745a8e68d23a6fa9e95f3755d47e1e6056525"
+    },
+    "software-5-result.json": {
+      "path": "out/nano-jtag-enumeration-20261111/software-5-result.json",
+      "sha256": "8c956f9121d236eb5a12970fe20864ca5ab601f3f70e0c691d2adc289418517a",
+      "log_sha256": "0d3b9149ecd3c2180968462d0aaef1844c3af5a5185fce2b0ed1c02ec490ea89"
+    }
+  },
+  "hardware_actions": false
+}

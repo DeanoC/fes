@@ -1,0 +1,9 @@
+NOTICE:  FES_NANO_CORE_TRANSFER phase=arm owner=98cc62a761fc2f1 generation=4 completed=0 pending=0 total=1708032 base=94800000 counter=3803a7ac7 hash_ticks=fcaf4db
+NOTICE:  FES_NANO_CORE_TRANSFER phase=start owner=98cc62a761fc2f1 generation=4 completed=0 pending=0 total=1708032 base=94800000 counter=393acfb99 hash_ticks=1fcc01e6
+NOTICE:  FES_NANO_START phase=0 status=0
+NOTICE:  FES_NANO_START phase=1 status=0
+NOTICE:  FES_NANO_START phase=2 status=0
+NOTICE:  FES_NANO_START phase=3 status=0
+NOTICE:  FES_NANO_START phase=9 status=4
+NOTICE:  FES_NANO_INPUT_RESULT build=098cc62be21f67ef status=4 detail=0 proof=0 owner=0 epoch=0 generation=0 bytes=0 accepted=0 posted=0 acknowledged=0 completed=0 posts=0 acks=0 buffers=0 pending=0 outstanding=0 configured=0 failed=0 first_error=0 service_error=-5 source_failed=1 scope_reason=27 bad_offset=0 bad_value=0 arm_writes=8 elapsed_us=0 sha384=000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 retained=1 activated=0
+NOTICE:  FES_NANO_INPUT_PARK retained=1 resume=0 activated=0

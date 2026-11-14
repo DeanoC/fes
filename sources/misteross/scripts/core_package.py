@@ -161,8 +161,12 @@ def _validate_fields(fields: object, payload: bytes | None) -> dict:
     _identifier(target["platform"], "target.platform")
     _string(target["device"], "target.device", nonempty=True)
     _identifier(target["programming_profile"], "target.programming_profile")
-    if target["platform"] != "de10_nano" or target["device"] != "5CSEBA6U23I7":
-        raise PackageError("target must be de10_nano device 5CSEBA6U23I7")
+    cyclone_v = target["platform"] == "de10_nano" and target["device"] == "5CSEBA6U23I7"
+    # Nano format 3 retains a separately delivered held ROM. It cannot use
+    # Cyclone V frame destinations or format 4's two-source patch recipe.
+    nano = format_version in (2, 3) and target["platform"] == "de25_nano" and target["device"] == "A5EB013BB23BE4SCS"
+    if not cyclone_v and not nano:
+        raise PackageError("unsupported core package target")
 
     payload_fields = _exact_dict(root["payload"], {"file", "size", "sha256"}, set(), "payload")
     if payload_fields["file"] != "core.rbf":
@@ -245,6 +249,11 @@ def _validate_fields(fields: object, payload: bytes | None) -> dict:
     if HEX64_RE.fullmatch(recipe_digest) is None:
         raise PackageError("build.recipe_sha256 must be 64 lowercase hexadecimal characters")
     _string(build["toolchain"], "build.toolchain", nonempty=True, max_bytes=1_024)
+    if nano and format_version == 3:
+        if root['rom']['role'] != 'firmware' or root['rom']['source_size'] not in (4096,8192) or root['rom']['size'] > 1024:
+            raise PackageError('Nano requires a bounded 4/8 KiB held firmware ROM')
+        if {'id':'fes.embedded.rom','major':1,'minor':0,'required':True} not in interfaces:
+            raise PackageError('Nano ROM requires its held transport interface')
     return root
 
 
@@ -286,15 +295,20 @@ def validate_rom_map(data: bytes, fields: dict) -> dict:
                              parse_float=reject_number, parse_constant=reject_number)
     except (UnicodeDecodeError, ValueError, RecursionError) as exc:
         raise PackageError("ROM map must be valid UTF-8 JSON with unique keys") from exc
-    _exact_dict(mapping, {"format", "device", "encoding", "base_sha256", "source_size", "blocks"}, set(), "ROM map")
+    nano = fields['format'] == 3 and fields['target']['platform'] == 'de25_nano'
+    _exact_dict(mapping, {"format", "device", "encoding", "base_sha256", "source_size"} | (set() if nano else {'blocks'}), set(), "ROM map")
     if type(mapping["format"]) is not int or mapping["format"] != 1:
         raise PackageError("unsupported ROM map format")
-    if mapping["device"] != fields["target"]["device"] or mapping["encoding"] != "m10k-1024x10-v1":
+    if mapping["device"] != fields["target"]["device"] or mapping["encoding"] != ('cpu-csr-v1' if nano else 'm10k-1024x10-v1'):
         raise PackageError("unsupported ROM map device or encoding")
     if mapping["base_sha256"] != fields["payload"]["sha256"]:
         raise PackageError("ROM map base digest mismatch")
     if type(mapping["source_size"]) is not int or mapping["source_size"] != source_size:
         raise PackageError("ROM map source size mismatch")
+    if nano:
+        if len(data) > 1024:
+            raise PackageError('held ROM map exceeds its bound')
+        return mapping
     blocks = mapping["blocks"]
     if not isinstance(blocks, list) or len(blocks) != source_size // 1024:
         raise PackageError("ROM map block count differs from source size")

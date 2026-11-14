@@ -1,0 +1,222 @@
+{
+  "status": "first-failure-retained",
+  "checkout": "a9e82583960c8d5a4719f5bcd1bd676c99e5e485",
+  "native_source": "dd4c6aebebe039478852d846f93b74f4a89c9c2b",
+  "serial": "TRWU8CBL",
+  "attempts": 1,
+  "retries": 0,
+  "console_sha256": "147574e16eb686b30cb7a3838f92b1a645a3b6bec72987045fbc2b42fba4af94",
+  "qualified_recovery": true,
+  "fixed_uploads_and_fresh_readbacks": 7,
+  "matched_native_boot": true,
+  "startup_checkpoints": 14,
+  "shared_ready": true,
+  "descriptor": "171f93692f2d718af6c6e9fc5b7d8c2580ac33fa2e3044ee2393c07ec839dc11",
+  "reports_before_pause": 7,
+  "usb_generation": 2,
+  "native_launch_keys": 1,
+  "native_cycles_completed": 0,
+  "return_or_quit_keys": 0,
+  "failure": "computer operation exceeded its time or poll limit: reason=deadline operation=open phase=after-read elapsed=1.003052055s step=18.244892ms limit=1s offset=0xc opcode=1 index=2 polls=1/64 reads=52 writes=3 access_offset=0xc access_write=false ownership_before=9.090945ms register_io=52.125\u00b5s ownership_after=9.100302ms access_complete=true",
+  "last_state": {
+    "State": "reboot_required",
+    "Owner": 9780924713999202547,
+    "Generation": 1,
+    "Identity": {
+      "PackageID": "93a2192a0b1f0c014917dba9d27485798f105beabd466e3026422380edbf5ca5",
+      "CoreID": "fes.de25-embedded-diagnostic",
+      "ABI": "fes.de25-embedded-diagnostic",
+      "BuildID": "a44922576284d6d92781c31b27ec4f45",
+      "Platform": "de25_nano",
+      "Device": "A5EB013BB23BE4SCS",
+      "ProgrammingProfile": "de25-embedded-hps-first-ddr-diagnostic-v1",
+      "ActivationReceiptSHA256": "",
+      "ProgrammedSHA256": "c0ae20b35077393f1d91dffa0c391f663559e2b4576e7867123079d0ef8d4c41",
+      "Major": 1,
+      "Minor": 0
+    },
+    "Held": true,
+    "Error": "computer operation exceeded its time or poll limit: reason=deadline operation=open phase=after-read elapsed=1.003052055s step=18.244892ms limit=1s offset=0xc opcode=1 index=2 polls=1/64 reads=52 writes=3 access_offset=0xc access_write=false ownership_before=9.090945ms register_io=52.125\u00b5s ownership_after=9.100302ms access_complete=true"
+  },
+  "current_transfer": [
+    {
+      "phase": "arm",
+      "counter": 32508197466,
+      "hash_ticks": 377018666,
+      "since_arm_seconds": 0.0,
+      "hash_since_arm_seconds": 0.0,
+      "outside_hash_since_arm_seconds": 0.0
+    },
+    {
+      "phase": "start",
+      "counter": 33055002853,
+      "hash_ticks": 754038424,
+      "since_arm_seconds": 1.3670134675,
+      "hash_since_arm_seconds": 0.942549395,
+      "outside_hash_since_arm_seconds": 0.42446407250000007
+    },
+    {
+      "phase": "write",
+      "counter": 33834410757,
+      "hash_ticks": 1372381156,
+      "since_arm_seconds": 3.3155332275,
+      "hash_since_arm_seconds": 2.488406225,
+      "outside_hash_since_arm_seconds": 0.8271270025000002
+    },
+    {
+      "phase": "write",
+      "counter": 34747879047,
+      "hash_ticks": 1990074220,
+      "since_arm_seconds": 5.5992039525,
+      "hash_since_arm_seconds": 4.032638885,
+      "outside_hash_since_arm_seconds": 1.5665650675
+    },
+    {
+      "phase": "poll",
+      "counter": 35862569952,
+      "hash_ticks": 2746025743,
+      "since_arm_seconds": 8.385931215,
+      "hash_since_arm_seconds": 5.9225176925,
+      "outside_hash_since_arm_seconds": 2.4634135225
+    },
+    {
+      "phase": "poll",
+      "counter": 36636467637,
+      "hash_ticks": 3262401837,
+      "since_arm_seconds": 10.3206754275,
+      "hash_since_arm_seconds": 7.2134579275,
+      "outside_hash_since_arm_seconds": 3.107217499999999
+    },
+    {
+      "phase": "status",
+      "counter": 37398095595,
+      "hash_ticks": 3777540298,
+      "since_arm_seconds": 12.2247453225,
+      "hash_since_arm_seconds": 8.50130408,
+      "outside_hash_since_arm_seconds": 3.7234412425
+    },
+    {
+      "phase": "complete",
+      "counter": 37818364051,
+      "hash_ticks": 4156329649,
+      "since_arm_seconds": 13.2754164625,
+      "hash_since_arm_seconds": 9.4482774575,
+      "outside_hash_since_arm_seconds": 3.827139005000001
+    }
+  ],
+  "previous_success_transfer": [
+    {
+      "phase": "arm",
+      "counter": 30766298887,
+      "hash_ticks": 376848791,
+      "since_arm_seconds": 0.0,
+      "hash_since_arm_seconds": 0.0,
+      "outside_hash_since_arm_seconds": 0.0
+    },
+    {
+      "phase": "start",
+      "counter": 31293501677,
+      "hash_ticks": 753635912,
+      "since_arm_seconds": 1.318006975,
+      "hash_since_arm_seconds": 0.9419678025,
+      "outside_hash_since_arm_seconds": 0.3760391725000001
+    },
+    {
+      "phase": "write",
+      "counter": 32035115494,
+      "hash_ticks": 1371601558,
+      "since_arm_seconds": 3.1720415175,
+      "hash_since_arm_seconds": 2.4868819175,
+      "outside_hash_since_arm_seconds": 0.6851596
+    },
+    {
+      "phase": "write",
+      "counter": 32903892646,
+      "hash_ticks": 1988939602,
+      "since_arm_seconds": 5.3439843975,
+      "hash_since_arm_seconds": 4.0302270275,
+      "outside_hash_since_arm_seconds": 1.3137573700000003
+    },
+    {
+      "phase": "poll",
+      "counter": 33963857936,
+      "hash_ticks": 2744402309,
+      "since_arm_seconds": 7.9938976225,
+      "hash_since_arm_seconds": 5.918883795,
+      "outside_hash_since_arm_seconds": 2.0750138274999994
+    },
+    {
+      "phase": "poll",
+      "counter": 34692915443,
+      "hash_ticks": 3260413335,
+      "since_arm_seconds": 9.81654139,
+      "hash_since_arm_seconds": 7.20891136,
+      "outside_hash_since_arm_seconds": 2.6076300299999993
+    },
+    {
+      "phase": "status",
+      "counter": 35419635082,
+      "hash_ticks": 3775211722,
+      "since_arm_seconds": 11.6333404875,
+      "hash_since_arm_seconds": 8.4959073275,
+      "outside_hash_since_arm_seconds": 3.1374331600000005
+    },
+    {
+      "phase": "complete",
+      "counter": 35814983869,
+      "hash_ticks": 4153709265,
+      "since_arm_seconds": 12.621712455,
+      "hash_since_arm_seconds": 9.442151185,
+      "outside_hash_since_arm_seconds": 3.1795612700000007
+    }
+  ],
+  "payload_bytes_reported_retired": 1650688,
+  "firmware_complete_reported": true,
+  "native_configuration_accepted": true,
+  "guard_reason": "computer-deadline",
+  "computer_guard": {
+    "reason": "deadline",
+    "operation": "open",
+    "phase": "after-read",
+    "elapsed": "1.003052055s",
+    "step": "18.244892ms",
+    "limit": "1s",
+    "offset": "0xc",
+    "opcode": "1",
+    "index": "2",
+    "polls": "1",
+    "poll_limit": "64",
+    "reads": "52",
+    "writes": "3"
+  },
+  "access_timing": {
+    "offset": "0xc",
+    "write": "false",
+    "ownership_before": "9.090945ms",
+    "register_io": "52.125\u00b5s",
+    "ownership_after": "9.100302ms",
+    "complete": "true"
+  },
+  "configuration_arm_to_complete_seconds": 13.2754164625,
+  "computer_control_open_observed": true,
+  "computer_ready_or_run_accepted": false,
+  "failure_tail_received_without_error": true,
+  "cpu_halt_proven": false,
+  "prior_shared_failure_source": "adcb08ee40a7ec223622e8e01a19e1a388a85eb8",
+  "interpretation": "Configuration completes with data held. Identity still exceeds the unchanged1s guard atword2 after52reads/3writes. The checked access took18.244892ms. Saved native timings isolate9.090945ms ownership-before,52.125microseconds register/mapping IO and9.100302ms ownership-after. Over99percent of the measured access is secure ownership checks; mapping/register IO is under0.3percent. No fullidentity,Run,USBresume,return orquit accepted. Full tail retained,master-stopcomplete/dataheld,CPUhalt unproved,no retry. Next reduce nested secure ownership observations while retaining fresh before/after CSR containment and the existing bounds.",
+  "ordinary_admission": false,
+  "core_loading_readiness": false,
+  "hardware_retry": false,
+  "cleanup": {
+    "status": "passed",
+    "scope": "independent read-only bounded-procedure host cleanup",
+    "clock_readback": "15M",
+    "exact_usb_permissions_restored": true,
+    "private_JTAG_process_gone": true,
+    "UART_free": true,
+    "claim_retained": true,
+    "hardware_retry": false,
+    "factory_restore": false,
+    "original_factory_card_untouched": true
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "classification": "host-only; simulated FPGA endpoint",
+  "mode": "zephyr",
+  "fes_base": "eea51e94e014e9603055e8a0309d7fefb7d5009a",
+  "source_sha256": {
+    "examples/de25-embedded-os/CMakeLists.txt": "ad8ca497b352410c5b14adce522aa46c53d7462b2b605a4c607da740da2a290a",
+    "examples/de25-embedded-os/baremetal/linker.ld": "091b1c1426b8d9cfda1c728fda1645d827a4ca1533dad8640376ed1d1d663c64",
+    "examples/de25-embedded-os/baremetal/main.cpp": "8cb943c70351838bf999104f08694485a4ebbaf794e87353b8468ba86f016aa0",
+    "examples/de25-embedded-os/baremetal/memory.cpp": "cffde6d4297b31d40e7276165d6cd8c6d4a5be56af96b55247c73a3037701eee",
+    "examples/de25-embedded-os/baremetal/startup.S": "afcc6c186835a15f0cb17fad22d42e84e1c02217354a824575e811be6bfe585a",
+    "examples/de25-embedded-os/prj.conf": "13a34c19b29452d6e63b4bdd4ae84cdc990239a86012bd4a6d43f152cd8ae09a",
+    "examples/de25-embedded-os/run.py": "53e728ac2f571a55f67a944d184d5fc64d5a83ff54c02649ada3d7ddb7843845",
+    "examples/de25-embedded-os/src/main.cpp": "edf8f0314d9f7369337af7724e6a4e654c1d2fe78d77f773d3fa1fbdcd759905",
+    "examples/de25-embedded-os/src/probe.cpp": "aa02e1c1deaeb8380e8fb8863361da776758cdddb14b51525107c2ba3be87523",
+    "examples/de25-embedded-os/src/probe.hpp": "5b8b29e25dd2223c436c919ebe934d9e6b07bbd3b98effb9a0cd86a6e3aa2f85",
+    "examples/de25-embedded-os/src/selftest.cpp": "eec5d316041f1162dbd2d97f13529610386be032804e8f91f4e62ad2596da77b",
+    "examples/de25-embedded-os/toolchain.lock.toml": "e72ac515be6a37519577a1bc7280f58ce08f2401ff2be58f25d2751bd78e4744",
+    "sources/libmister-runtime/src/native/generated/fes_gp.hpp": "ae213d0b526afdaa91490429a3772861c6616c2c4a18a7211c12784810f743cb"
+  },
+  "status": "passed",
+  "commands": [
+    [
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/zephyr-sdk-0.17.4/aarch64-zephyr-elf/bin/aarch64-zephyr-elf-g++",
+      "--version"
+    ],
+    [
+      "git",
+      "-C",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/zephyr",
+      "rev-parse",
+      "HEAD"
+    ],
+    [
+      "cmake",
+      "-S",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/examples/de25-embedded-os",
+      "-B",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-embedded-os/zephyr-final/build",
+      "-GNinja",
+      "-DBOARD=qemu_cortex_a53",
+      "-DPython3_EXECUTABLE=/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+      "-DZEPHYR_MODULES="
+    ],
+    [
+      "cmake",
+      "--build",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-embedded-os/zephyr-final/build",
+      "--parallel",
+      "4"
+    ],
+    [
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/zephyr-sdk-0.17.4/aarch64-zephyr-elf/bin/aarch64-zephyr-elf-readelf",
+      "-h",
+      "-l",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-embedded-os/zephyr-final/build/zephyr/zephyr.elf"
+    ],
+    [
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64",
+      "--version"
+    ],
+    [
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64",
+      "-machine",
+      "virt,gic-version=3",
+      "-cpu",
+      "cortex-a53",
+      "-m",
+      "128M",
+      "-smp",
+      "1",
+      "-nographic",
+      "-net",
+      "none",
+      "-kernel",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-embedded-os/zephyr-final/build/zephyr/zephyr.elf"
+    ]
+  ],
+  "sdk_version": "0.17.4",
+  "compiler": "aarch64-zephyr-elf-g++ (Zephyr SDK 0.17.4) 12.2.0\nCopyright (C) 2022 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+  "zephyr_commit": "413b789deb391d3a37d06b463288a5fe765ee57e",
+  "config_sha256": "f457f5d1ca390a461bcf41d2b182b09314c7e18e653ce023dff85b79cff25d4d",
+  "qemu": "QEMU emulator version 10.0.2 (v10.0.2-19-gfe132ed0c9-dirty)\nCopyright (c) 2003-2025 Fabrice Bellard and the QEMU Project developers\n",
+  "emulator_exit": "stopped after 10-second observation window",
+  "tests": 22,
+  "artifact_sha256": "975df43b268f9d57c5ade67062fbc673111848bcf0635de7a799ab88444b6f44",
+  "artifact_bytes": 657416
+}

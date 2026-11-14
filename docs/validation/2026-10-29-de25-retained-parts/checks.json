@@ -1,0 +1,42 @@
+{
+  "base": "d69dd0f2144df0d2e3b8512d1edc36837d7b011f",
+  "classification": "host software and native QEMU; no physical hardware acceptance",
+  "commands": [
+    {
+      "command": "GOWORK=off go -C sources/FogCast test -race ./corepackage -run ^TestRetainedParts -count=1",
+      "exit_code": 0
+    },
+    {
+      "command": "GOWORK=off go -C sources/FogCast test -race ./corepackage -run ^TestRetained(Parts|ROM) -count=1 -v",
+      "exit_code": 0
+    },
+    {
+      "command": "GOWORK=off go -C sources/FogCast test ./corepackage",
+      "exit_code": 0
+    },
+    {
+      "command": "FES_MODEL_FIXTURES=<composed fixtures> GOWORK=off go -C platform/embedded/tamago test -race -count=1 -v ./modelbackend ./runtimeadmission ./fabricmodel",
+      "exit_code": 0
+    },
+    {
+      "command": "GOWORK=off go -C platform/embedded/tamago vet ./modelbackend ./cmd/session-fixtures ./runtimeadmission",
+      "exit_code": 0
+    },
+    {
+      "command": "make deadcode",
+      "exit_code": 0
+    },
+    {
+      "command": "make test-changed TEST_CHANGED_ARGS=--base=d69dd0f2144df0d2e3b8512d1edc36837d7b011f",
+      "exit_code": 0
+    }
+  ],
+  "unittest_summaries": [
+    "Ran 21 tests in 0.175s",
+    "Ran 31 tests in 0.695s",
+    "Ran 2 tests in 2.862s",
+    "Ran 3 tests in 14.187s",
+    "Ran 33 tests in 31.161s",
+    "Ran 1107 tests in 864.579s"
+  ]
+}

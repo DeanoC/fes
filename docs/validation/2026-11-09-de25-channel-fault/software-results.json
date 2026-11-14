@@ -1,0 +1,87 @@
+{
+  "status": "offboard-diagnostic-checks-passed",
+  "source_base": "c37988bec1dd9d2d417dade2a520b9ff744ee0de",
+  "source_sha256": {
+    "platform/embedded/tamago/dwc2/host.go": "ba79699efa5ccae104431b397b0251aa3156d7710294acaf23cc0bd53fc5b1fc",
+    "platform/embedded/tamago/dwc2/channel_fault.go": "ea01019fbac310ffb26f50502622558e7cc265b3fb641cbe51db85b8815b3e0a",
+    "platform/embedded/tamago/dwc2/channel_fault_test.go": "796d5b83420fdddc9a38bdbf625dca17ad1d07bbb4a7688ebda183f5ff3fac7e",
+    "platform/embedded/tamago/dwc2/README.md": "50c2fbce21019c08676a2283edf84a53aa95c8b4c9a373b791911cfab5d7f78f"
+  },
+  "checks": {
+    "driver-final": {
+      "receipt_sha256": "de3d729cac20855b879ee56f75a839d295fb6052739c5c254904e213f3fa9f21",
+      "argv": [
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "./dwc2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.8022090911399573,
+      "log_sha256": "9c1ef378edef0ae0b68954560bec7a5178ad9dc7afe0d8c5f4ffb98e983274db"
+    },
+    "affected": {
+      "receipt_sha256": "9a2bd25fe42a34369f015da52917d238b1d3f587e852d8dd84492cbf0ee036d2",
+      "argv": [
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "c37988bec"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 340.41719056805596,
+      "log_sha256": "9cddc179b492f8070fb6208f856f5b7e167b2c90cf77003c3513690ba1f09bc6"
+    }
+  },
+  "affected_results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    }
+  ],
+  "register_reads": 15,
+  "register_writes": 0,
+  "diagnostic_clock_samples": 0,
+  "only_after_fatal_interrupt": true,
+  "original_interrupt_sample_preserved": true,
+  "non_destructive_RX_peek": true,
+  "transfer_recovery_or_retry_added": false,
+  "all_existing_timeouts_unchanged": true,
+  "hardware_acceptance": false,
+  "matched_chain_built": false,
+  "ordinary_core_load_acceptance": false,
+  "goal_complete": false
+}

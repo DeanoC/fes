@@ -1,0 +1,180 @@
+=== RUN   TestReceiptMismatchRetainsLastOwnership
+=== RUN   TestReceiptMismatchRetainsLastOwnership/tag
+=== RUN   TestReceiptMismatchRetainsLastOwnership/generation-stale
+=== RUN   TestReceiptMismatchRetainsLastOwnership/contained-active
+=== RUN   TestReceiptMismatchRetainsLastOwnership/unknown-status
+=== RUN   TestReceiptMismatchRetainsLastOwnership/owner
+=== RUN   TestReceiptMismatchRetainsLastOwnership/generation-skip
+=== RUN   TestReceiptMismatchRetainsLastOwnership/reserved
+=== RUN   TestReceiptMismatchRetainsLastOwnership/prepared-too-soon
+=== RUN   TestReceiptMismatchRetainsLastOwnership/error-state
+--- PASS: TestReceiptMismatchRetainsLastOwnership (0.00s)
+    --- PASS: TestReceiptMismatchRetainsLastOwnership/tag (0.00s)
+    --- PASS: TestReceiptMismatchRetainsLastOwnership/generation-stale (0.00s)
+    --- PASS: TestReceiptMismatchRetainsLastOwnership/contained-active (0.00s)
+    --- PASS: TestReceiptMismatchRetainsLastOwnership/unknown-status (0.00s)
+    --- PASS: TestReceiptMismatchRetainsLastOwnership/owner (0.00s)
+    --- PASS: TestReceiptMismatchRetainsLastOwnership/generation-skip (0.00s)
+    --- PASS: TestReceiptMismatchRetainsLastOwnership/reserved (0.00s)
+    --- PASS: TestReceiptMismatchRetainsLastOwnership/prepared-too-soon (0.00s)
+    --- PASS: TestReceiptMismatchRetainsLastOwnership/error-state (0.00s)
+=== RUN   TestQueryRejectsUnreadyOrActiveService
+--- PASS: TestQueryRejectsUnreadyOrActiveService (0.00s)
+=== RUN   TestConcurrentResumeIssuesOneGrant
+--- PASS: TestConcurrentResumeIssuesOneGrant (0.00s)
+=== RUN   TestFirmwareAndPIOReadQuiesceResume
+--- PASS: TestFirmwareAndPIOReadQuiesceResume (0.00s)
+=== RUN   TestSessionRetainsFailedGrantsAndStop
+=== RUN   TestSessionRetainsFailedGrantsAndStop/resume-partial
+=== RUN   TestSessionRetainsFailedGrantsAndStop/prepare
+=== RUN   TestSessionRetainsFailedGrantsAndStop/host-clock
+=== RUN   TestSessionRetainsFailedGrantsAndStop/stop
+=== RUN   TestSessionRetainsFailedGrantsAndStop/driver-stop
+=== RUN   TestSessionRetainsFailedGrantsAndStop/changed-card
+=== RUN   TestSessionRetainsFailedGrantsAndStop/lost-grant-response
+--- PASS: TestSessionRetainsFailedGrantsAndStop (0.01s)
+    --- PASS: TestSessionRetainsFailedGrantsAndStop/resume-partial (0.00s)
+    --- PASS: TestSessionRetainsFailedGrantsAndStop/prepare (0.00s)
+    --- PASS: TestSessionRetainsFailedGrantsAndStop/host-clock (0.00s)
+    --- PASS: TestSessionRetainsFailedGrantsAndStop/stop (0.00s)
+    --- PASS: TestSessionRetainsFailedGrantsAndStop/driver-stop (0.00s)
+    --- PASS: TestSessionRetainsFailedGrantsAndStop/changed-card (0.00s)
+    --- PASS: TestSessionRetainsFailedGrantsAndStop/lost-grant-response (0.00s)
+=== RUN   TestUnreadyServiceDoesNotAccessController
+--- PASS: TestUnreadyServiceDoesNotAccessController (0.00s)
+=== RUN   TestInvalidConfigDoesNotContactFirmware
+--- PASS: TestInvalidConfigDoesNotContactFirmware (0.00s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol	1.160s
+=== RUN   TestColdPIOFAT32
+--- PASS: TestColdPIOFAT32 (0.12s)
+=== RUN   TestPIOReadAndOwnership
+--- PASS: TestPIOReadAndOwnership (0.00s)
+=== RUN   TestBoundsBeforeMMIO
+--- PASS: TestBoundsBeforeMMIO (0.00s)
+=== RUN   TestTransferFailurePoisonsDevice
+=== RUN   TestTransferFailurePoisonsDevice/crc
+=== RUN   TestTransferFailurePoisonsDevice/timeout
+=== RUN   TestTransferFailurePoisonsDevice/inhibit
+=== RUN   TestTransferFailurePoisonsDevice/short
+=== RUN   TestTransferFailurePoisonsDevice/reject
+=== RUN   TestTransferFailurePoisonsDevice/frozen
+=== RUN   TestTransferFailurePoisonsDevice/removed
+--- PASS: TestTransferFailurePoisonsDevice (0.10s)
+    --- PASS: TestTransferFailurePoisonsDevice/crc (0.00s)
+    --- PASS: TestTransferFailurePoisonsDevice/timeout (0.00s)
+    --- PASS: TestTransferFailurePoisonsDevice/inhibit (0.00s)
+    --- PASS: TestTransferFailurePoisonsDevice/short (0.00s)
+    --- PASS: TestTransferFailurePoisonsDevice/reject (0.00s)
+    --- PASS: TestTransferFailurePoisonsDevice/frozen (0.10s)
+    --- PASS: TestTransferFailurePoisonsDevice/removed (0.00s)
+=== RUN   TestColdStartupRejected
+=== RUN   TestColdStartupRejected/reset
+=== RUN   TestColdStartupRejected/clock
+=== RUN   TestColdStartupRejected/power
+=== RUN   TestColdStartupRejected/echo
+=== RUN   TestColdStartupRejected/app
+=== RUN   TestColdStartupRejected/powerup
+=== RUN   TestColdStartupRejected/sdsc
+=== RUN   TestColdStartupRejected/ocr
+=== RUN   TestColdStartupRejected/rca
+=== RUN   TestColdStartupRejected/r6err
+=== RUN   TestColdStartupRejected/csd
+=== RUN   TestColdStartupRejected/csd3
+=== RUN   TestColdStartupRejected/ready
+=== RUN   TestColdStartupRejected/response
+=== RUN   TestColdStartupRejected/cid-zero
+=== RUN   TestColdStartupRejected/cid-ones
+--- PASS: TestColdStartupRejected (0.00s)
+    --- PASS: TestColdStartupRejected/reset (0.00s)
+    --- PASS: TestColdStartupRejected/clock (0.00s)
+    --- PASS: TestColdStartupRejected/power (0.00s)
+    --- PASS: TestColdStartupRejected/echo (0.00s)
+    --- PASS: TestColdStartupRejected/app (0.00s)
+    --- PASS: TestColdStartupRejected/powerup (0.00s)
+    --- PASS: TestColdStartupRejected/sdsc (0.00s)
+    --- PASS: TestColdStartupRejected/ocr (0.00s)
+    --- PASS: TestColdStartupRejected/rca (0.00s)
+    --- PASS: TestColdStartupRejected/r6err (0.00s)
+    --- PASS: TestColdStartupRejected/csd (0.00s)
+    --- PASS: TestColdStartupRejected/csd3 (0.00s)
+    --- PASS: TestColdStartupRejected/ready (0.00s)
+    --- PASS: TestColdStartupRejected/response (0.00s)
+    --- PASS: TestColdStartupRejected/cid-zero (0.00s)
+    --- PASS: TestColdStartupRejected/cid-ones (0.00s)
+=== RUN   TestColdReadRecoveryRequiresRemount
+--- PASS: TestColdReadRecoveryRequiresRemount (0.00s)
+=== RUN   TestIdentificationClockAndResponseTypes
+--- PASS: TestIdentificationClockAndResponseTypes (0.00s)
+=== RUN   TestMaximumSDXCCapacity
+--- PASS: TestMaximumSDXCCapacity (0.00s)
+=== RUN   TestDelayedCardPowerUp
+--- PASS: TestDelayedCardPowerUp (0.00s)
+=== RUN   TestQuiesceAndFreshControllerResume
+--- PASS: TestQuiesceAndFreshControllerResume (0.00s)
+=== RUN   TestResumeRejectsChangedCardAndCapacity
+=== RUN   TestResumeRejectsChangedCardAndCapacity/cid
+=== RUN   TestResumeRejectsChangedCardAndCapacity/capacity
+--- PASS: TestResumeRejectsChangedCardAndCapacity (0.00s)
+    --- PASS: TestResumeRejectsChangedCardAndCapacity/cid (0.00s)
+    --- PASS: TestResumeRejectsChangedCardAndCapacity/capacity (0.00s)
+=== RUN   TestResumeFailureRetiresDevice
+=== RUN   TestResumeFailureRetiresDevice/reset
+=== RUN   TestResumeFailureRetiresDevice/clock
+=== RUN   TestResumeFailureRetiresDevice/echo
+=== RUN   TestResumeFailureRetiresDevice/cid-zero
+=== RUN   TestResumeFailureRetiresDevice/cid-ones
+=== RUN   TestResumeFailureRetiresDevice/r6err
+=== RUN   TestResumeFailureRetiresDevice/csd3
+--- PASS: TestResumeFailureRetiresDevice (0.00s)
+    --- PASS: TestResumeFailureRetiresDevice/reset (0.00s)
+    --- PASS: TestResumeFailureRetiresDevice/clock (0.00s)
+    --- PASS: TestResumeFailureRetiresDevice/echo (0.00s)
+    --- PASS: TestResumeFailureRetiresDevice/cid-zero (0.00s)
+    --- PASS: TestResumeFailureRetiresDevice/cid-ones (0.00s)
+    --- PASS: TestResumeFailureRetiresDevice/r6err (0.00s)
+    --- PASS: TestResumeFailureRetiresDevice/csd3 (0.00s)
+=== RUN   TestQuiesceFailureRetiresDevice
+=== RUN   TestQuiesceFailureRetiresDevice/dma
+=== RUN   TestQuiesceFailureRetiresDevice/clock-off
+=== RUN   TestQuiesceFailureRetiresDevice/pending-error
+=== RUN   TestQuiesceFailureRetiresDevice/busy-before
+=== RUN   TestQuiesceFailureRetiresDevice/signal-mask
+=== RUN   TestQuiesceFailureRetiresDevice/status-mask
+=== RUN   TestQuiesceFailureRetiresDevice/clock-stop
+=== RUN   TestQuiesceFailureRetiresDevice/late-busy
+=== RUN   TestQuiesceFailureRetiresDevice/late-error
+=== RUN   TestQuiesceFailureRetiresDevice/clock-change
+=== RUN   TestQuiesceFailureRetiresDevice/dma-change
+=== RUN   TestQuiesceFailureRetiresDevice/busy-after-ready
+=== RUN   TestQuiesceFailureRetiresDevice/card-not-ready
+--- PASS: TestQuiesceFailureRetiresDevice (0.00s)
+    --- PASS: TestQuiesceFailureRetiresDevice/dma (0.00s)
+    --- PASS: TestQuiesceFailureRetiresDevice/clock-off (0.00s)
+    --- PASS: TestQuiesceFailureRetiresDevice/pending-error (0.00s)
+    --- PASS: TestQuiesceFailureRetiresDevice/busy-before (0.00s)
+    --- PASS: TestQuiesceFailureRetiresDevice/signal-mask (0.00s)
+    --- PASS: TestQuiesceFailureRetiresDevice/status-mask (0.00s)
+    --- PASS: TestQuiesceFailureRetiresDevice/clock-stop (0.00s)
+    --- PASS: TestQuiesceFailureRetiresDevice/late-busy (0.00s)
+    --- PASS: TestQuiesceFailureRetiresDevice/late-error (0.00s)
+    --- PASS: TestQuiesceFailureRetiresDevice/clock-change (0.00s)
+    --- PASS: TestQuiesceFailureRetiresDevice/dma-change (0.00s)
+    --- PASS: TestQuiesceFailureRetiresDevice/busy-after-ready (0.00s)
+    --- PASS: TestQuiesceFailureRetiresDevice/card-not-ready (0.00s)
+=== RUN   TestQuiesceFencesQueuedReadsAndStopsBatchAtSectorBoundary
+--- PASS: TestQuiesceFencesQueuedReadsAndStopsBatchAtSectorBoundary (0.00s)
+=== RUN   TestPrepareClockBeforeCommandsAndOnResume
+--- PASS: TestPrepareClockBeforeCommandsAndOnResume (0.00s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/sdhci	1.235s
+=== RUN   TestRealFATReadWriteAndRemount
+--- PASS: TestRealFATReadWriteAndRemount (0.01s)
+=== RUN   TestWriteAdmissionAndFlushFailure
+--- PASS: TestWriteAdmissionAndFlushFailure (0.00s)
+=== RUN   TestRejectGeometryAndCycle
+--- PASS: TestRejectGeometryAndCycle (0.00s)
+=== RUN   TestMBRPartition
+--- PASS: TestMBRPartition (0.02s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/fat	(cached)

@@ -1,0 +1,116 @@
+{
+  "status": "passed",
+  "source_commit": "9657ff54ff24f995d8f999322e52b9a89285053d",
+  "base_commit": "f1cc8065a27c3db97df32bddb997770b9eba7155",
+  "native_build_source_commit": "068495f0cf1d6011c31447a63bde4b70e7056702",
+  "classification": "bounded hardware diagnostic: four fixed uploads and fresh readbacks; matched SD-selected same-package load/run/return twice",
+  "native_boot_id": "145213088b9b4dbb",
+  "native_source_inputs_unchanged": true,
+  "selected_git_blobs": 118,
+  "selected_external_sdk_inputs": 1298,
+  "affected_software_scopes": 6,
+  "selected_parent_tests": 1345,
+  "parent_passed": 1343,
+  "parent_environment_skips": [
+    [
+      "test_media_inputs.UbootDerivationTest.test_locked_upstream_derives_locked_uboot",
+      "locked upstream uboot.img cache is absent"
+    ],
+    [
+      "test_gpu_lease.GpuLeaseTests.test_macos_statfs_reports_the_lease_filesystem",
+      "statfs(2) layout is the macOS one"
+    ]
+  ],
+  "model_fixture_counts": {
+    "actual_upload_runner": 46,
+    "upload_receipt_rejection": 185,
+    "outer_controller": 164,
+    "transport_and_phase": 11
+  },
+  "uploads": [
+    {
+      "purpose": "boot",
+      "destination": "FES/UPLOAD.BIN",
+      "payload_bytes": 6762676,
+      "payload_sha256": "5a3e8b2a3347294bcf3a1312c34a2b7138ef0b3725c7618966c1c350590df2a9"
+    },
+    {
+      "purpose": "package",
+      "destination": "FES/PKGTEST.BIN",
+      "payload_bytes": 1649664,
+      "payload_sha256": "75a2cdfb38f9e61f41ebe2554ca30de6e8e367246d294d3d8f00c514dbf47b73"
+    },
+    {
+      "purpose": "metadata",
+      "destination": "FES/PROGRAM.JSN",
+      "payload_bytes": 2118,
+      "payload_sha256": "6fea347ab1db35f9b75e01fd9b0a394506d97a668774109791327f0c877f5ebc"
+    },
+    {
+      "purpose": "selection",
+      "destination": "FES/CORESEL.JSN",
+      "payload_bytes": 514,
+      "payload_sha256": "fb8b76dd6b802e9a06c6834a59547b6c07e8708a3f070d4bc303da3f05c9285c"
+    }
+  ],
+  "raw_console_bytes": 16996,
+  "raw_console_sha256": "f80b7bbe0257e2540b0d5c0de0661360953eed1203a8f0d04688ef1211a3a9da",
+  "configuration_intervals_seconds": [
+    13.3440413025,
+    13.3466395525
+  ],
+  "initial_sd_seconds": 59.34077123191673,
+  "observer_phases": [
+    {
+      "phase": "first_core",
+      "bound_seconds": 45,
+      "elapsed_seconds": 18.52136623999104
+    },
+    {
+      "phase": "returned_storage",
+      "bound_seconds": 100,
+      "elapsed_seconds": 55.158675662009045
+    },
+    {
+      "phase": "second_core",
+      "bound_seconds": 45,
+      "elapsed_seconds": 18.29096990393009
+    }
+  ],
+  "outer_elapsed_seconds": 357.0509572509909,
+  "outer_bound_seconds": 800,
+  "saved_capture_rejections": 32,
+  "same_package_cycles": 2,
+  "different_physical_packages": false,
+  "cleanup": {
+    "original_clock_restored": true,
+    "usb_permissions_restored": true,
+    "private_server_stopped": true,
+    "uart_free": true,
+    "claim_retained": true,
+    "spare_retained": true,
+    "factory_restored": false
+  },
+  "board_state": "parked after owned return generation11; SD contained; data held; current phy-prepare recovery and spare retained; factory card safe",
+  "quartus_3090_jobs": false,
+  "quartus_fpga_compiles": false,
+  "new_native_cross_build": false,
+  "ordinary_runtime_admission": false,
+  "native_tenfoot_acceptance": false,
+  "physical_usb_video_network_acceptance": false,
+  "next_step": "persistent native request-driven launch/return service and different eligible physical packages, then physical input/video and normal runtime integration",
+  "evidence_sha256": {
+    "source.json": "7bbe0833596d70cc045b4dde4221ffdcb212cf261170196a24a971d2a320087b",
+    "selected-inputs.json": "6792d5e8435beeed27483f14f71e7ce34c8861ad8ffa8ed3d3f0474fe4e2541f",
+    "software-result.json": "4ec2523fd6b8058d77d490ad818f1fece01af5e325e14b00aa61be0be890b868",
+    "parent-coverage.json": "719ca2e2ab3b848b518a2cc4a49e2fe6780eab4fa12c8aed6f39b7c119761c58",
+    "upload-both-fixtures.json": "41bfa160e3ef19c754cee81be773451f95dbfbc10b170558ae99189a6fe6899f",
+    "upload-checks-fixtures.json": "b11fb6b9a5362cc204bc0e8fc44130bb144e985b9045467dc9fca65b28873381",
+    "trial/experiment-fixtures.json": "0104a5b70de18c05588ba2808377e80ef0bbed1e1f36fd0efdc1049b3f80bfc1",
+    "helper-verification.json": "4a49b59c9b3d3a8471a74c4bd49754f9e6a55d4f06b87beba556efd74bf935a3",
+    "trial/preflight.json": "d5f5b11bc70b8a842d38fd48fb7041ca2a2eae16cd4229b22fa97b1c4090d941",
+    "hardware-result.json": "5a9dcb846f2e7fbe29ef0bacde8b5f3db0596a2841c805e69f979ac4236350fd",
+    "hardware-evidence.json": "1b906b3b4752a4fa348059b61fa0356c28bbb2a60ea14b39c449a3d3bc91d664",
+    "hardware-audit-result.json": "cf8ff7346e740c0810630b8c5285bba0c9b2246939dbcad1e023279cf59c6dd9"
+  }
+}

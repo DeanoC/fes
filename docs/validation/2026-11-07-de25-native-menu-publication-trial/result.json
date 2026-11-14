@@ -1,0 +1,71 @@
+{
+  "status": "physical-cold-menu-and-secure-return-passed",
+  "operator_source": "0c9923946f98ef74a2922c16159fd0940a8fe380",
+  "attempts": 1,
+  "attempt_consumed": true,
+  "replay_allowed": false,
+  "first_failure_terminal": true,
+  "experiment_sha256": "88645d37a3c20b176ef0a4a883d65b7d833bac1fb9c259ea1dedf810fd1e7cc4",
+  "native_result_sha256": "d9db7dd1338a974e556aeaac3f3ff90deae3675cdedc6c18e0798ce57855a603",
+  "last_stage": "native",
+  "error": null,
+  "native_error": null,
+  "sd_write_commands_sent": true,
+  "sd_write_outcome_unknown": false,
+  "upload_group_status": "verified",
+  "verified_uploads": 2,
+  "fresh_readbacks": 2,
+  "native_fesboot_sent": true,
+  "native_programming_attempted": true,
+  "last_native_checkpoint": "menu_present_closed",
+  "menu_observation": {
+    "frames": 3,
+    "slots": [
+      0,
+      1,
+      0
+    ],
+    "closed_generation": 7,
+    "owner": 7011432431866071949,
+    "hardware_drained": 8,
+    "configuration_seconds": 12.3631728825,
+    "memory_released": false,
+    "hdmi_qualified": false,
+    "runtime_admission": false,
+    "menu_core_menu_qualified": false
+  },
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "hardware_actions": true,
+  "core_load_acceptance": false,
+  "native_menu_core_menu": false,
+  "physical_HDMI_qualified": false,
+  "physical_DDR_drain_qualified": false,
+  "timing_signoff": false,
+  "original_factory_card_touched": false,
+  "bottom_kit_touched": false,
+  "factory_restoration_requested": false,
+  "claim_retained": true,
+  "goal_complete": false,
+  "next": "Measure and improve native frame publication throughput, then integrate visible menu/core/menu with live input/media; ordinary package admission remains open",
+  "frame_present_microseconds": [
+    3760483,
+    3842556,
+    3838491
+  ],
+  "frame_render_microseconds": [
+    19435,
+    52848,
+    48481
+  ],
+  "menu_open_to_closed_microseconds": 14811114,
+  "last_board_state": "native diagnostic returned with all three frames acknowledged; independent closure generation7/resetf; arena retained until reboot; host cleanup independently passed"
+}

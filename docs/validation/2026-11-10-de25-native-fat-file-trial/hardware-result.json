@@ -1,0 +1,186 @@
+{
+  "status": "passed-bounded-native-fat-file-and-independent-recovery-readback",
+  "hardware_source": "918b5bfc3aa0428d4bb6004ac90d0372663e60df",
+  "observer_implementation": "1f29d152b",
+  "compiled_source": "e984200f1d86f8a772f116b17ebde5759c97dcc7",
+  "native_build_id": "11f99d3a93c5f9cc",
+  "expected_plan": {
+    "format": 1,
+    "cid": "275048534430344730da25e394012b",
+    "sectors": 7774208,
+    "mbr_sha256": "13f4a84a267e67f06b1d09fdfa130a7625a0aab9b363163e711aa9854d7c944c",
+    "scope": "nano-sd-fat-file-v1",
+    "path": "FES/SDP-2e64ec5f751c12bc.JSN",
+    "recovery_bytes": 1470,
+    "recovery_sha256": "95aca2b3116755247a122a9a4357c1efbcfb106adb4dfa5fe94e489cc1889664",
+    "fit_bytes": 954248,
+    "fit_sha256": "3722e24c551a794dd970e665cc4932b96cb62aefa353f39079285458d67d48e5"
+  },
+  "native_full_cid_and_capacity_checked": true,
+  "secure_cold_boot_verified": true,
+  "native_create_update_remount_verified": true,
+  "native_write_outcome_unknown": false,
+  "native_six_phases": [
+    {
+      "stage": "fat_file_ready",
+      "line": 128,
+      "values": {
+        "cid": "275048534430344730da25e394012b",
+        "sectors": 7774208,
+        "path": "FES/SDP-2e64ec5f751c12bc.JSN",
+        "bytes": 1024,
+        "sha256": "caaefa1a93cbd06cd8aa86238d6cf69f66367ef426f45e5330ba7932af271871",
+        "owner": 7347727830985641249,
+        "sd_generation": 3
+      }
+    },
+    {
+      "stage": "fat_file_created",
+      "line": 129,
+      "values": {
+        "cid": "275048534430344730da25e394012b",
+        "sectors": 7774208,
+        "path": "FES/SDP-2e64ec5f751c12bc.JSN",
+        "bytes": 4096,
+        "sha256": "b2df243e2d86b102fdc4434b679bc80705ac765fe85e6349792b360dd4e6bbac",
+        "owner": 7347727830985641249,
+        "sd_generation": 3
+      }
+    },
+    {
+      "stage": "fat_file_updated",
+      "line": 130,
+      "values": {
+        "cid": "275048534430344730da25e394012b",
+        "sectors": 7774208,
+        "path": "FES/SDP-2e64ec5f751c12bc.JSN",
+        "bytes": 1024,
+        "sha256": "caaefa1a93cbd06cd8aa86238d6cf69f66367ef426f45e5330ba7932af271871",
+        "owner": 7347727830985641249,
+        "sd_generation": 3
+      }
+    },
+    {
+      "stage": "fat_file_contained",
+      "line": 131,
+      "values": {
+        "cid": "275048534430344730da25e394012b",
+        "sectors": 7774208,
+        "path": "FES/SDP-2e64ec5f751c12bc.JSN",
+        "bytes": 1024,
+        "sha256": "caaefa1a93cbd06cd8aa86238d6cf69f66367ef426f45e5330ba7932af271871",
+        "owner": 7347727830985641249,
+        "sd_generation": 4
+      }
+    },
+    {
+      "stage": "fat_file_resumed",
+      "line": 132,
+      "values": {
+        "cid": "275048534430344730da25e394012b",
+        "sectors": 7774208,
+        "path": "FES/SDP-2e64ec5f751c12bc.JSN",
+        "bytes": 1024,
+        "sha256": "caaefa1a93cbd06cd8aa86238d6cf69f66367ef426f45e5330ba7932af271871",
+        "owner": 7347727830985641249,
+        "sd_generation": 6
+      }
+    },
+    {
+      "stage": "fat_file_pass",
+      "line": 133,
+      "values": {
+        "cid": "275048534430344730da25e394012b",
+        "sectors": 7774208,
+        "path": "FES/SDP-2e64ec5f751c12bc.JSN",
+        "bytes": 1024,
+        "sha256": "caaefa1a93cbd06cd8aa86238d6cf69f66367ef426f45e5330ba7932af271871",
+        "owner": 7347727830985641249,
+        "sd_generation": 7
+      }
+    }
+  ],
+  "native_phase_final_sd_contained": true,
+  "separate_fresh_recovery_boot_passed": true,
+  "independent_updated_file_readback": true,
+  "updated_file_bytes": 1024,
+  "updated_file_sha256": "caaefa1a93cbd06cd8aa86238d6cf69f66367ef426f45e5330ba7932af271871",
+  "protected_prefix_unchanged": true,
+  "mbr_unchanged": true,
+  "recovery_fit_unchanged": true,
+  "recovery_manifest_unchanged": true,
+  "recovery_card_summary_checked": true,
+  "recovery_full_cid_reobserved": false,
+  "live_memory_observation_stages": [
+    "admit",
+    "before-file",
+    "after-file",
+    "complete"
+  ],
+  "independent_readback_sd_writes": false,
+  "console_closed": true,
+  "three_programming_operations_completed": true,
+  "new_programming_failures": 0,
+  "cleanup": {
+    "status": "passed",
+    "clock_readback_logs": [
+      {
+        "parameter": "JtagClock",
+        "value": "15M",
+        "log_sha256": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18"
+      },
+      {
+        "parameter": "JtagClockAutoAdjust",
+        "value": 1,
+        "log_sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+      }
+    ],
+    "owned_private_server_gone": true,
+    "usb_permissions_exact": true,
+    "usb_node_unchanged": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "experiment_result_sha256": "7e4a9488c923ac4f8ceea497eb5f45f99f89d6b74070e9ca6196dc93097a8f38"
+  },
+  "retention": {
+    "status": "passed-terminal-hardware-retention",
+    "path": "/home/deano/fes-retained/de25-fat-file-trial-hardware-20261110-r1",
+    "source_head": "918b5bfc3aa0428d4bb6004ac90d0372663e60df",
+    "hardware_source": "918b5bfc3aa0428d4bb6004ac90d0372663e60df",
+    "compiled_source": "e984200f1d86f8a772f116b17ebde5759c97dcc7",
+    "files": 2560,
+    "code_trees": 3,
+    "manifest_sha256": "6331b0388c943f7fb9185cd78a571289c25d9ca8065ac7d04d15bce3f42bd175",
+    "archive_sha256": "c669679ca324087154472efef0600c958e0da96de824eba545cf41d644c3fc36",
+    "source_base_bundle": "/home/deano/fes-retained/de25-menu-return-observation-20261110-r1/source.bundle",
+    "source_base_bundle_sha256": "d7166cde75bd88ea7f9d14ac4a5706b55c74cd215cc4f375abd1a5d6661a17d0",
+    "source_delta_bundle_sha256": "d60cbf98283fe9ce83ce52c8cc2eb6ed5c8a43a6585d31f16d4afd8c25a4b906",
+    "source_restore_from_declared_bundles_fsck_pack_verified": true,
+    "archive_readback_modes_and_exact_code_trees_verified": true,
+    "hardware_actions": false,
+    "live_authority": false
+  },
+  "last_observed_board_state": "qualified recovery prompt after read-only file and protected-media verification",
+  "cpu_park_observed": false,
+  "native_sd_lease_carried_across_reboot": false,
+  "ordinary_startup_remains_read_only": true,
+  "physical_package_installation": false,
+  "power_loss_qualification": false,
+  "native_network_qualification": false,
+  "full_appliance_acceptance": false,
+  "evidence_sha256": {
+    "out/nano-fat-file-trial-20261110/trial/native-result.json": "62d45b30fabb7baf56b85efd5d1cb3b8b7cd6a991ee43fb534bb9373a1673964",
+    "out/nano-fat-file-trial-20261110/trial/native-console.log": "15102b00d89b0bfe8aacc729be15324fefad5d46951e86e2c5120aa688fc9295",
+    "out/nano-fat-file-trial-20261110/trial/readback-result.json": "f1c77fe5780286601bb45ea11d5f28f85c3d7c0cb0daa828673dc11043f1ff66",
+    "out/nano-fat-file-trial-20261110/trial/readback-console.log": "fa562c35b37a66dba98ffff7fb38477c4e1a644b049cbfc8ff8607010fa8011d",
+    "out/nano-fat-file-trial-20261110/trial/readback-recovery-result.json": "4cc8b0664064364ace2c350626c02c481c034ca7f9a3aac187d4361bf2ea61bb",
+    "out/nano-fat-file-trial-20261110/trial/experiment-result.json": "7e4a9488c923ac4f8ceea497eb5f45f99f89d6b74070e9ca6196dc93097a8f38",
+    "out/nano-fat-file-trial-20261110/cleanup-evidence.json": "9247e3b8e6fc78d2b927adaaeb929e549fa7e2f87cc4da7d211c96d8724c6796",
+    "out/nano-fat-file-trial-20261110/retention-proof.json": "50df1703555c92d06b3786f6fc1e6342065a0884010e47ed27b51071cd0a402b"
+  },
+  "programming_operations_completed": {
+    "recovery-boot": true,
+    "native": true,
+    "readback-recovery": true
+  }
+}

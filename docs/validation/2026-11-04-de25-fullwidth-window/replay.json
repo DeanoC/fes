@@ -1,0 +1,48 @@
+{
+  "status": "passed",
+  "raw_capture_sha256": "a1115c552045dd351a81276da14d68278ec56275add40fbcf2da580301b47784",
+  "raw_capture_bytes": 13280,
+  "full_capture_matches_native_receipt": true,
+  "last_checkpoint": "window_read_closed",
+  "frame": {
+    "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+    "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+    "owner": 12913662324972005131,
+    "source_generation": 4,
+    "closed_generation": 7,
+    "reader_generation": 1,
+    "cookie": 1,
+    "bytes": 3686400,
+    "crc32": 4148337422,
+    "frame_sha256": "a58b682bcf4749139141601be2b1f655c1019c627befc941a511c27b388a856d",
+    "access_map_sha256": "e9b4f9f3c82a44e0a457245843d3ad9f9a9ea42522548eac764c31fb8d5e5e27"
+  },
+  "rejected_captures": [
+    {
+      "case": "cpu-publication",
+      "accepted": false
+    },
+    {
+      "case": "full-window-gates",
+      "accepted": false
+    },
+    {
+      "case": "frame-result",
+      "accepted": false
+    },
+    {
+      "case": "all-master-stop",
+      "accepted": false
+    },
+    {
+      "case": "hardware-closure",
+      "accepted": false
+    },
+    {
+      "case": "frame-crc",
+      "accepted": false
+    }
+  ],
+  "hardware_access": false,
+  "decoder_sha256": "50f62e120dcce8bb665155614c42bc23cace2c1f3e2dfb7c3c8b5d50b7bb69db"
+}

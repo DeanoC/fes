@@ -1,0 +1,109 @@
+{
+  "status": "off-board-trace-package-UART-controller-passed-hardware-pending",
+  "implementation_source": "d0abab607ee1db69fdbe88c63789894adede288b",
+  "compiled_trace_source": "dfd4863c02f571c0875cd5c30b5163d9f58a6eef",
+  "software_aggregate_green": true,
+  "focused_tests": 26,
+  "parent_tests": {
+    "total": 1600,
+    "skipped": 3
+  },
+  "upgrade_modeled_scenarios": 32,
+  "trace_TFTP_scenarios": 40,
+  "actual_planned_bytes_controller_model": true,
+  "regular_file_image_bytes": 150994944,
+  "trace_package_status": "prepared-return-trace",
+  "generic_uploader_rejected": true,
+  "trace_build_base_validators_executed": true,
+  "qualified_SOF_reused": true,
+  "BL31_SPL_identical_to_qualified": true,
+  "prefix_change_only_fit_mirror": true,
+  "new_fit_sha256": "0f15b11576e91a6cb705de1f1b97e0960a03437b1821628abbd74bd4367f9855",
+  "new_prefix_sha256": "371cd116055bc7f458dc8254071f62768dcf7bd3c2498e70e8c3e6e04f62a956",
+  "UART_reserved_bytes": 8198704,
+  "transfers": {
+    "probe": {
+      "bytes": 1024,
+      "sha256": "785b0751fc2c53dc14a4ce3d800e69ef9ce1009eb327ccf458afe09c242c26c9"
+    },
+    "fit": {
+      "bytes": 954368,
+      "sha256": "8389c554241a34638f96eba15530ab07c83458a287a31044448a7832b716b9db"
+    },
+    "manifest": {
+      "bytes": 1464,
+      "sha256": "722ed9592c04f19dc19b7e6bd21c50c87aada7712fbd056f86b4e45551d7f0de"
+    }
+  },
+  "planned_writes": [
+    {
+      "target": "FES/R1107A.ITB",
+      "bytes": 953032,
+      "sha256": "c27efed4828f73ad000fe78649ae01d665e12452f457c3e569d25b20b5b031dd"
+    },
+    {
+      "target": "FES/R1107A.JSN",
+      "bytes": 1315,
+      "sha256": "4fa13be7cfecd0d756a492e945c6184c011814bafb903aeb626ee2155a00b8fb"
+    },
+    {
+      "target": "u-boot.itb",
+      "bytes": 954288,
+      "sha256": "0f15b11576e91a6cb705de1f1b97e0960a03437b1821628abbd74bd4367f9855"
+    },
+    {
+      "target": "raw-fit-sector-512",
+      "bytes": 954368,
+      "sha256": "8389c554241a34638f96eba15530ab07c83458a287a31044448a7832b716b9db"
+    },
+    {
+      "target": "FES/RECOVERY.JSON",
+      "bytes": 1464,
+      "sha256": "722ed9592c04f19dc19b7e6bd21c50c87aada7712fbd056f86b4e45551d7f0de"
+    }
+  ],
+  "rollback_files": [
+    "FES/R1107A.ITB",
+    "FES/R1107A.JSN"
+  ],
+  "retirement_on_failure_and_success": true,
+  "caller_inputs_snapshotted": true,
+  "upgrader_network_used": false,
+  "UART_transport_executed": false,
+  "complete_physical_operator_frozen": false,
+  "live_card_or_boot_qualification": false,
+  "hardware_actions": false,
+  "physical_SD_writes": false,
+  "native_activation": false,
+  "core_load_acceptance": false,
+  "timing_signoff": false,
+  "board_state": "No new device observations or board operations; continuing claim retained and last recorded recovery prompt remains unconfirmed",
+  "failed_host_preparations_retained": true,
+  "raw_evidence": "out/nano-recovery-trace-upgrade-20261107",
+  "retention_target": "/home/deano/fes-retained/de25-recovery-trace-upgrade-20261107-r1",
+  "evidence_sha256": {
+    "out/nano-recovery-trace-upgrade-20261107/source.json": "04ab251a485b0253da8f122b1ea8db93a20b76427ef57c96dea2e97110235cc3",
+    "out/nano-recovery-trace-upgrade-20261107/uart-plan.json": "91df51a00af2388f334e97858df6472f85cd5b611dd1aaf9d7102bd7dbb48ff8",
+    "out/nano-recovery-trace-upgrade-20261107/actual-input-model.json": "dbbd5e9f887bf09efccc84626713dca9c30cb9f84f10bfd15e106211976f5eb0",
+    "out/nano-recovery-trace-upgrade-20261107/trace-kit-v2/result.json": "2fc415ab93ef2a5129ce27f9b6a44e40d1515e1a0f860ec1624ab4be0d5606e8",
+    "out/nano-recovery-trace-upgrade-20261107/trace-kit-v2/RECOVERY.JSON": "722ed9592c04f19dc19b7e6bd21c50c87aada7712fbd056f86b4e45551d7f0de",
+    "out/nano-recovery-trace-upgrade-20261107/summarize.py": "ba895b8991a221b28415379846fbfc8c966c27cff87205c02a4f5473f8ce6ef0",
+    "out/nano-recovery-trace-upgrade-20261107/focused-result.json": "e528ebf6e39dbed08ba20486f74167cc63cb3246f61cf9c59530f6e4d8004440",
+    "out/nano-recovery-trace-upgrade-20261107/focused.log": "2cc70ae45bc2e6c9b65d65281943f2cad843b606dfd1769a79a92bfcb4a64f4a",
+    "out/nano-recovery-trace-upgrade-20261107/package-v2-result.json": "c0021e46abb2fc55147b98801828ac7b95c0f7716f43f003d944115a2e772a0d",
+    "out/nano-recovery-trace-upgrade-20261107/package-v2.log": "33034ea90e857829475e5eb9776ebedc90e9dee943f91f636c5a8aa2b80ab326",
+    "out/nano-recovery-trace-upgrade-20261107/uart-plan-result.json": "eb10b6d74a49077ba9cd66d089a917318032b42dd1b4f955b9c9eaf037484fdb",
+    "out/nano-recovery-trace-upgrade-20261107/uart-plan.log": "c03cf2067919875818e71b0a9dcb5a129376ce6d38c4475e7650e1ce45159711",
+    "out/nano-recovery-trace-upgrade-20261107/actual-input-model-result.json": "029502c715b05d54c4d30c98c342c2c5be3b05a2ec452664051f6bbd9460c1fb",
+    "out/nano-recovery-trace-upgrade-20261107/actual-input-model.log": "299b8982a57fe74f274b7c1945a5b2cc7804abc9be66fa3f82709e7029750cba",
+    "out/nano-recovery-trace-upgrade-20261107/affected-result.json": "868949dd4c869d75749cac91f323960ccc0160e52db0d6d95315cb938d6d13db",
+    "out/nano-recovery-trace-upgrade-20261107/affected.log": "14eb652643cc7870364260b4029e448faef0f4264f94a653db3cec367b1e2485",
+    "out/nano-recovery-trace-upgrade-20261107/package-initial-result.json": "5a70d01fdc9757ea2f85fd522237ffa2e90fa4296123efdf863096425017ad62",
+    "out/nano-recovery-trace-upgrade-20261107/package-initial.log": "04134d4e5eae94a057d6879017312bfad60295f9defd867f11412cd082677488",
+    "out/nano-recovery-trace-upgrade-20261107/uart-plan-initial-result.json": "8dae14f2dd7b711fab4b677e430ce5608b6c570a611d379770afbcdd088700db",
+    "out/nano-recovery-trace-upgrade-20261107/uart-plan-initial.log": "14ff5cb76c39ba562501d4ca2303943091529cc98526b5bd0d12148b4a9a2dc5",
+    "platform/embedded/nano/recovery_return_package.py": "afaee21fc354ab2d9d353a7a5e1841eed3b47009e68e19135ef535f0e4a93165",
+    "platform/embedded/nano/recovery_trace_upgrade.py": "79a4bee534b97a93153f1c745548a1e29f1793427bbe396dba8c62e527502dac",
+    "platform/embedded/nano/recovery_trace_console.py": "1d465d66cfec121fc93556ce0d25bb90fc758d6978c7b895f4cfd0db19735741"
+  }
+}

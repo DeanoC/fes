@@ -1,0 +1,22 @@
+{
+  "status": "passed",
+  "scope": "physical report-descriptor capture and failed gamepad parser admission; exact artifacts, procedures and source verified",
+  "head": "a08689e972e42b081f39541272378575a9b136e3",
+  "hardware_observers": [
+    "fc8b94f1e"
+  ],
+  "native_source": "19a59c4f0",
+  "archive_bytes": 35711409,
+  "archive_sha256": "c8309e2a871a1b708bb4fa74e39fd7f01646acad464a53541419e31216e5f6c3",
+  "archive_regular_files": 232,
+  "source_update_sha256": "f72094045adaa6074322400a8fa1a4b1103ff65c9e8a9ef8177c5a8e0123a307",
+  "source_restore_and_strict_fsck": true,
+  "required_prior_files": {
+    "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/source.bundle": "daeee37ba8c039ffc165c2c92d7a639af01c441099fe1359ae207846fa75216f",
+    "/home/deano/fes-retained/de25-tenfoot-core-cycle-20261104-r2/source-update.bundle": "1def434cc2e97d68da24158e8b153e238ecdcf024c060c60c62c8f8a68b8d497",
+    "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/matched-candidate.tar.gz": "1479d5fa439c77457a3c19959a97b810b8ce5a6aa0672bb4567519f2d7229d17"
+  },
+  "claim_retained": true,
+  "USB_stop_proven": false,
+  "hardware_qualification": false
+}

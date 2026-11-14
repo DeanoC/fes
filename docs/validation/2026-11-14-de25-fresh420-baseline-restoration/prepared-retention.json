@@ -1,0 +1,16 @@
+{
+  "status": "retained-final-restoration-only-procedure",
+  "procedure_sha256": "4e66ee7b44b12ed34b774fbe97fd71cea316c2448b4edd6902cd5b656bbf685f",
+  "archive": "/home/deano/fes-retained/de25-fresh420-restoration-prepared-20261114-r1/prepared-procedure.tar.gz",
+  "archive_sha256": "903ea6900898252fd8bb4c27a83c89c26d6af0a89b651592ac8dc1fe534f8636",
+  "archive_bytes": 100105082,
+  "reused_archive": "/home/deano/fes-retained/de25-command-snapshot-procedure-prepared-20261113-r1/prepared-procedure.tar.gz",
+  "reused_archive_sha256": "1b5b82ea534a6af428682a59cad431042173292d3269735fc3b8215dff1bc793",
+  "reused_blobs_verified": 5361,
+  "new_blobs_verified": 784,
+  "both_archives_required": true,
+  "human_reset_confirmed": true,
+  "attempt_created": false,
+  "hardware_actions": false,
+  "diagnostic_authority": false
+}

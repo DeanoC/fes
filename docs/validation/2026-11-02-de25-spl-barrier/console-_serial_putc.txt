@@ -1,0 +1,29 @@
+
+/home/deano/fes/out/dev/de25-embedded-os/out/nano-spl-barrier-20261102/native-uboot/build/spl/u-boot-spl:     file format elf64-littleaarch64
+
+
+Disassembly of section .text:
+
+0000000000018ef4 <_serial_putc>:
+   18ef4:	a9bd7bfd 	stp	x29, x30, [sp, #-48]!
+   18ef8:	910003fd 	mov	x29, sp
+   18efc:	a90153f3 	stp	x19, x20, [sp, #16]
+   18f00:	12001c34 	and	w20, w1, #0xff
+   18f04:	aa0003f3 	mov	x19, x0
+   18f08:	f90013f5 	str	x21, [sp, #32]
+   18f0c:	f9400001 	ldr	x1, [x0]
+   18f10:	f9403435 	ldr	x21, [x1, #104]
+   18f14:	71002a9f 	cmp	w20, #0xa
+   18f18:	54000061 	b.ne	18f24 <_serial_putc+0x30>  // b.any
+   18f1c:	528001a1 	mov	w1, #0xd                   	// #13
+   18f20:	97fffff5 	bl	18ef4 <_serial_putc>
+   18f24:	f9400aa2 	ldr	x2, [x21, #16]
+   18f28:	2a1403e1 	mov	w1, w20
+   18f2c:	aa1303e0 	mov	x0, x19
+   18f30:	d63f0040 	blr	x2
+   18f34:	31002c1f 	cmn	w0, #0xb
+   18f38:	54ffff60 	b.eq	18f24 <_serial_putc+0x30>  // b.none
+   18f3c:	f94013f5 	ldr	x21, [sp, #32]
+   18f40:	a94153f3 	ldp	x19, x20, [sp, #16]
+   18f44:	a8c37bfd 	ldp	x29, x30, [sp], #48
+   18f48:	d65f03c0 	ret

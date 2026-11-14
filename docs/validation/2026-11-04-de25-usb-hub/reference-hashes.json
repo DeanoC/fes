@@ -1,0 +1,12 @@
+{
+  "repository": "https://github.com/torvalds/linux",
+  "revision": "v6.12",
+  "files": {
+    "drivers_usb_core_hub.c": "fffdbb0984fdce15e1b82bf93072f59f37a40a89cbf7e201bd78e47997cf26dc",
+    "drivers_usb_dwc2_hcd.c": "3dd34e3dffdf5c4e8560f0db95b5b4adfd9106ced54e7e3ebb964effb587b801",
+    "drivers_usb_dwc2_hcd_intr.c": "cc998509cc806c4ea7beb6b5228a963158329643677d94436d1fac7aa3261f35",
+    "drivers_usb_dwc2_hw.h": "0ef85e65f98798a795cb0eb7b3904467248e0e80134fb6783dcd1ba570eea2ff"
+  },
+  "use": "register/transaction/hub protocol reference only; not linked into native image",
+  "partial_fetch_failure": "ch11.h fetch returned HTTP429; four other source files retained"
+}

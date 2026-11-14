@@ -1,0 +1,52 @@
+{
+  "status": "passed",
+  "classification": "linked source/instruction observation only; no CPU program-counter observation",
+  "source_commit": "82c410cc8a5af4fa2c77d535b3bd22eb7a19fa19",
+  "elf": "out/nano-atf-handoff-20261102/native-uboot/build/spl/u-boot-spl",
+  "elf_sha256": "aa6e9700a95b8cd43e6925631e6beaadc783971a6fadddb48efb00882441de9c",
+  "last_observed_stage": "spl_handoff",
+  "last_marker_printf": {
+    "address": 7184,
+    "word": "940034f1",
+    "instruction": "bl\tefd4 <printf>"
+  },
+  "following_barrier": {
+    "address": 7188,
+    "word": "d5033f9f",
+    "instruction": "dsb\tsy"
+  },
+  "handoff_return": {
+    "address": 7216,
+    "word": "d65f03c0",
+    "instruction": "ret"
+  },
+  "caller_handoff": {
+    "address": 14700,
+    "word": "97fff83d",
+    "instruction": "bl\t1a60 <fes_nano_spl_handoff>"
+  },
+  "caller_guard": {
+    "address": 14732,
+    "word": "97fff74e",
+    "instruction": "bl\t16c4 <fes_nano_spl_atf_trace>"
+  },
+  "caller_bl31_branch": {
+    "address": 14760,
+    "word": "d63f02e0",
+    "instruction": "blr\tx23"
+  },
+  "guard_instructions": 153,
+  "unresolved_operations": [
+    "completion of last marker output",
+    "DSB SY",
+    "handoff epilogue and return",
+    "argument and CPU-state guard",
+    "fixed loaded-BL31 SHA256",
+    "final ATF marker output"
+  ],
+  "last_cpu_pc_known": false,
+  "bl31_entry_observed": false,
+  "root_cause_proven": false,
+  "further_hardware_action": false,
+  "raw_console_sha256": "0bcfc14ffaed9fb556bcef7eea9925dad9f521324680d85993d05ee7fe964dab"
+}

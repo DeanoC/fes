@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_nano_input_action_trace.py",
+    "-v"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.8011958480346948,
+  "log_sha256": "c274b83614d05ea62051edf59294148b040de619abc705389100e90fec5111dd"
+}

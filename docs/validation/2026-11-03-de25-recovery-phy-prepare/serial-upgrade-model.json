@@ -1,0 +1,138 @@
+{
+  "status": "passed",
+  "cases": [
+    {
+      "case": "pass",
+      "accepted": true,
+      "writes": 5,
+      "transfers": [
+        "probe",
+        "fit",
+        "manifest"
+      ],
+      "error": null
+    },
+    {
+      "case": "version",
+      "accepted": false,
+      "writes": 0,
+      "transfers": [],
+      "error": "upgrade requires the explicitly qualified old recovery loader"
+    },
+    {
+      "case": "cookie",
+      "accepted": false,
+      "writes": 0,
+      "transfers": [],
+      "error": "upgrade cannot adopt a previous boot/session"
+    },
+    {
+      "case": "backup-exists",
+      "accepted": false,
+      "writes": 0,
+      "transfers": [],
+      "error": "upgrade rollback destination already exists"
+    },
+    {
+      "case": "prefix",
+      "accepted": false,
+      "writes": 0,
+      "transfers": [],
+      "error": "upgrade protected prefix differs"
+    },
+    {
+      "case": "prime",
+      "accepted": false,
+      "writes": 0,
+      "transfers": [],
+      "error": "upgrade FAT read length differs"
+    },
+    {
+      "case": "map",
+      "accepted": false,
+      "writes": 0,
+      "transfers": [],
+      "error": "live LMB differs from this session and its owned loads"
+    },
+    {
+      "case": "uart",
+      "accepted": false,
+      "writes": 0,
+      "transfers": [
+        "probe"
+      ],
+      "error": "unknown UART transfer"
+    },
+    {
+      "case": "probe",
+      "accepted": false,
+      "writes": 0,
+      "transfers": [
+        "probe"
+      ],
+      "error": "upgrade RAM/SD digest differs"
+    },
+    {
+      "case": "backup-timeout",
+      "accepted": false,
+      "writes": 1,
+      "transfers": [
+        "probe"
+      ],
+      "error": "unknown FAT write outcome"
+    },
+    {
+      "case": "fit-timeout",
+      "accepted": false,
+      "writes": 3,
+      "transfers": [
+        "probe",
+        "fit"
+      ],
+      "error": "unknown FAT write outcome"
+    },
+    {
+      "case": "raw-short",
+      "accepted": false,
+      "writes": 4,
+      "transfers": [
+        "probe",
+        "fit"
+      ],
+      "error": "upgrade raw FIT write incomplete"
+    },
+    {
+      "case": "manifest-timeout",
+      "accepted": false,
+      "writes": 5,
+      "transfers": [
+        "probe",
+        "fit",
+        "manifest"
+      ],
+      "error": "unknown FAT write outcome"
+    },
+    {
+      "case": "readback",
+      "accepted": false,
+      "writes": 3,
+      "transfers": [
+        "probe",
+        "fit"
+      ],
+      "error": "upgrade RAM/SD digest differs"
+    },
+    {
+      "case": "new-prefix",
+      "accepted": false,
+      "writes": 4,
+      "transfers": [
+        "probe",
+        "fit"
+      ],
+      "error": "upgrade protected prefix differs"
+    }
+  ],
+  "controller_sha256": "52e9b56fdd588da15cf723edc437f15c54356060e1391727161c01c1ca9b1d17",
+  "scope": "actual upgrade controller/stateful LMB/card model; no hardware"
+}

@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_nano_owned_sip.py",
+    "-v"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.20071281597483903,
+  "log_sha256": "be79ac05494d96b0a57748cce32aed33bd8c26a9a2a356e7b4d5a2f2792b676f"
+}

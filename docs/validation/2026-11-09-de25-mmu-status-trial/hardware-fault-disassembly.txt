@@ -1,0 +1,39 @@
+
+out/nano-mmu-status-20261109/native-bl31/source/build/agilex5/release/bl31/bl31.elf:     file format elf64-littleaarch64
+
+
+Disassembly of section .ro:
+
+000000008001ce08 <runtime_svc_init+0x128>:
+    8001ce08:	38001418 	strb	w24, [x0], #1
+    8001ce0c:	12001c21 	and	w1, w1, #0xff
+    8001ce10:	17fffffb 	b	8001cdfc <runtime_svc_init+0x11c>
+
+000000008001ce14 <tf_log>:
+    8001ce14:	a9b67bfd 	stp	x29, x30, [sp, #-160]!
+    8001ce18:	910003fd 	mov	x29, sp
+    8001ce1c:	a90153f3 	stp	x19, x20, [sp, #16]
+    8001ce20:	aa0003f4 	mov	x20, x0
+    8001ce24:	a9068be1 	stp	x1, x2, [sp, #104]
+    8001ce28:	90000181 	adrp	x1, 8004c000 <percpu_data>
+    8001ce2c:	a90793e3 	stp	x3, x4, [sp, #120]
+    8001ce30:	b9414421 	ldr	w1, [x1, #324]
+    8001ce34:	a9089be5 	stp	x5, x6, [sp, #136]
+    8001ce38:	f9004fe7 	str	x7, [sp, #152]
+    8001ce3c:	39400000 	ldrb	w0, [x0]
+    8001ce40:	6b00003f 	cmp	w1, w0
+    8001ce44:	54000243 	b.cc	8001ce8c <tf_log+0x78>  // b.lo, b.ul, b.last
+    8001ce48:	94000980 	bl	8001f448 <plat_log_get_prefix>
+    8001ce4c:	aa0003f3 	mov	x19, x0
+    8001ce50:	39400260 	ldrb	w0, [x19]
+    8001ce54:	35000220 	cbnz	w0, 8001ce98 <tf_log+0x84>
+    8001ce58:	910283e0 	add	x0, sp, #0xa0
+    8001ce5c:	a90403e0 	stp	x0, x0, [sp, #64]
+    8001ce60:	910183e0 	add	x0, sp, #0x60
+    8001ce64:	f9002be0 	str	x0, [sp, #80]
+    8001ce68:	128006e0 	mov	w0, #0xffffffc8            	// #-56
+    8001ce6c:	290b7fe0 	stp	w0, wzr, [sp, #88]
+    8001ce70:	a94407e0 	ldp	x0, x1, [sp, #64]
+    8001ce74:	a90207e0 	stp	x0, x1, [sp, #32]
+    8001ce78:	a94507e0 	ldp	x0, x1, [sp, #80]
+    8001ce7c:	a90307e0 	stp	x0, x1, [sp, #48]
