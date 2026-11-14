@@ -14,7 +14,7 @@ WIRE=PARK+b'\n'+ATTEMPT
 
 class TerminalRecoveryTraceTests(unittest.TestCase):
     def check_no_authority(self,result):
-        for name in ('reset_completed','fresh_boot_admitted','recovery_safe',
+        for name in ('request_publication_verified','reset_completed','fresh_boot_admitted','recovery_safe',
                      'source_reuse_authorized','ordinary_resume','hardware_acceptance'):
             self.assertIs(result[name],False,name)
 
@@ -23,14 +23,14 @@ class TerminalRecoveryTraceTests(unittest.TestCase):
                     b'old boot output\n'+WIRE,WIRE.replace(b'FES_',b'NOTICE:  FES_')):
             with self.subTest(raw=raw):
                 result=observe(raw,build_id=BUILD)
-                self.assertTrue(result['request_observed'])
+                self.assertTrue(result['attempt_observed'])
                 self.check_no_authority(result)
         self.assertEqual(observe(WIRE+RETURN,build_id=BUILD)['return_error'],-5)
 
     def test_partial_record_never_becomes_a_completed_request(self):
         for end in range(len(b'FES_NANO_RECOVERY_'),len(ATTEMPT)):
             result=observe(PARK+b'\n'+ATTEMPT[:end],build_id=BUILD)
-            self.assertFalse(result['request_observed'])
+            self.assertFalse(result['attempt_observed'])
             self.assertTrue(result['incomplete_marker'])
             self.check_no_authority(result)
 
@@ -47,7 +47,7 @@ class TerminalRecoveryTraceTests(unittest.TestCase):
 
     def test_missing_request_preserves_failure_without_granting_anything(self):
         result=observe(PARK+b'\n',build_id=BUILD)
-        self.assertFalse(result['request_observed'])
+        self.assertFalse(result['attempt_observed'])
         self.check_no_authority(result)
 
 

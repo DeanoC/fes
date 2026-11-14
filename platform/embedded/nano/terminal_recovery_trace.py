@@ -46,8 +46,8 @@ def observe(raw, *, build_id):
         returned=int(match[2])
     return dict(status='observed-terminal-recovery-telemetry',build_id=build_id,
                 wire_bytes=len(raw),wire_sha256=hashlib.sha256(raw).hexdigest(),
-                terminal_park_seen=park is not None,request_observed=attempt is not None,
-                request_returned=returned is not None,return_error=returned,
-                incomplete_marker=incomplete,reset_completed=False,fresh_boot_admitted=False,
+                terminal_park_seen=park is not None,attempt_observed=attempt is not None,
+                entry_returned=returned is not None,return_error=returned,
+                incomplete_marker=incomplete,request_publication_verified=False,reset_completed=False,fresh_boot_admitted=False,
                 recovery_safe=False,source_reuse_authorized=False,ordinary_resume=False,
                 hardware_acceptance=False)
