@@ -92,9 +92,13 @@ Kit B the same morning, on another session's hand-packed `.fcore`: HTTP 422
 
 **Nothing in this record is judged from black or missing frames.** Kit B's
 capture card freezes its last frame when the signal drops
-([#1823](https://github.com/DeanoC/fes/issues/1823)), so it cannot be used to
+([#1823](https://github.com/DeanoC/fes/issues/1823), an open intermittent
+black-HDMI defect after a kit-software activation), so it cannot be used to
 count them; the pitch figures are audio, and the walk figures count motion in a
-picture that is running throughout. No capture here went unexpectedly black.
+picture that is running throughout. One of `g1`'s 32 grabs is fully black,
+`u6-u00`, taken five seconds after `ultima6` was typed, where the game is
+changing video mode; it is not one of the captures anything is measured from,
+and no capture that is went black.
 
 ## Ultima VI: PC speaker pitch
 
@@ -132,12 +136,16 @@ times larger than either — but the shortfall is a deviation and is named here
 rather than left to be noticed. Three kit captures were queued for Kit B and
 not run, because the kit was held by another session.
 
-**What is not established is the cause.** The pc386 design document says
-Ultima VI's effects "toggle it in CPU-timed loops" and names the 720 ns `isa8`
-charge on each `OUT` as "one reason for the 286-class preset", so the I/O
-charge is a candidate; the governor's instruction pacing is another, and
-Ultima VI's delay loop costs a 386 a different number of clocks than a 286
-whatever the table says. Nothing here separates them. The issue filed from
+**What is not established is the cause.** There is already a model for this
+loop: [#1472's record](../2026-11-04-pc386-speaker-kit/summary.md) works it out
+as a fixed charge per toggle pass, where #1453's ISA charges add 14 clocks to a
+564-clock pass and drop the pitch 2.42% at the game's delay unit 1 — which is
+what was measured then (1.99, 2.34 and 2.59% over three keys). That model
+accounts for about two and a half points of the twelve-and-a-half here, so most
+of the difference is elsewhere: the governor's pacing of the rest of the pass,
+and the pass costing a 386 a different number of clocks than a 286 whatever the
+table says. Nothing here separates them, and no lute capture at another preset
+exists to split them with (#1481 measured the lute at 286-12 only). The issue filed from
 this record asks for that.
 
 ## Ultima VI: walking speed
