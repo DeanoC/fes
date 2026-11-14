@@ -91,6 +91,12 @@ module pc386_at_core #(
     input wire [15:0] wall_year,
     input wire [7:0] wall_month, wall_day, wall_hour, wall_minute, wall_second, wall_weekday,
     input wire x87_present,                 // the i386dx+387 identity (pc386_rtc)
+    // The AT board's coprocessor controls (IBM PC AT Technical Reference,
+    // "NMI and Coprocessor Controls"): a write to F0h clears the latched
+    // BUSY#, one to F1h resets the coprocessor. Both are write-only, so
+    // neither claims the cycle and a read of either floats FFh.
+    output wire x87_f0,
+    output wire x87_f1,
     // Disk
     input wire disk_present,
     input wire [31:0] disk_sectors,
@@ -181,6 +187,9 @@ module pc386_at_core #(
     assign ems_reg_write = access && cycle_write && port[15:2] == 14'h0098 && ems_pages != 8'd0;
     assign ems_reg_index = port[1:0];
     assign ems_reg_wdata = cycle_wdata[7:0];
+
+    assign x87_f0 = write_strobe && port == 16'h00f0;
+    assign x87_f1 = write_strobe && port == 16'h00f1;
 
     assign sound_access = access && select_sound;
     assign sound_write = cycle_write;

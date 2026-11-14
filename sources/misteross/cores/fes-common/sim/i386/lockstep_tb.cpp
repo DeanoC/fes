@@ -183,6 +183,13 @@ bool debug_programs = false;
 // joins the rule with the RTL's 387. Without it the lockstep is as before.
 bool x87_fitted = false;
 constexpr int UNBUILT_X87 = 387;
+// The 387's state is compared from this EIP on. A directed program's
+// prologue writes all eight registers and empties them, so that both sides
+// start its body with the same register contents; before that they differ,
+// because the bench restarts the CPU without re-initialising the unit's
+// register memory, which on a cold reset reads zero as Bochs's does. Zero
+// compares everything, which is what the corpus and random programs want.
+uint32_t x87_compare_from = 0;
 // The random programs' page directory and its four tables (Generator::pg_tables).
 constexpr uint32_t PG_PD = 0xf00000, PG_END = PG_PD + 0x5000, PG_ARENA = 0x200000;
 bool mixed = false;
@@ -485,6 +492,11 @@ public:
         top.nmi = 0;
         top.inta_ack = 0;
         top.io_ack = 0;
+        // The i386dx+387 identity, and the AT board's coprocessor controls,
+        // which this bench drives in the machine's place.
+        top.x87_present = x87_fitted;
+        top.x87_f0 = 0;
+        top.x87_f1 = 0;
         step_writes.clear();
         step_first_write_values.clear();
         io.log.clear();
@@ -526,6 +538,9 @@ public:
     void check_memory(Mismatches &out);
 
     void clock() {
+        // Ports F0h and F1h pulse for one cycle, as the machine's write
+        // strobe does: whatever this cycle set is cleared after it.
+        const bool clear_f0 = top.x87_f0, clear_f1 = top.x87_f1;
         top.clk = 0;
         top.eval();
         if (!top.reset) quiet = false;
@@ -624,8 +639,17 @@ public:
             }
             if (port.ready()) {
                 io_waiting = false;
-                if (now.write) io.out(now.port, now.length, now.data);
-                else top.io_rdata = io.in(now.port, now.length);
+                if (now.write) {
+                    io.out(now.port, now.length, now.data);
+                    // Ports F0h and F1h: the AT board's coprocessor
+                    // controls, by byte, which the machine decodes without
+                    // claiming the cycle (pc386_at_core).
+                    for (unsigned n = 0; n < now.length; ++n) {
+                        if (now.port + n == 0xf0) top.x87_f0 = 1;
+                        if (now.port + n == 0xf1) top.x87_f1 = 1;
+                    }
+                } else
+                    top.io_rdata = io.in(now.port, now.length);
                 top.io_ack = 1;
             }
         } else {
@@ -697,6 +721,8 @@ public:
             if (fetched_stores.executed(current, end, first_stale)) stale = first_stale;
         }
         ++cycles;
+        if (clear_f0) top.x87_f0 = 0;
+        if (clear_f1) top.x87_f1 = 0;
     }
 
     enum class Event { Retired, Unimplemented, Shutdown, Timeout };
@@ -725,6 +751,41 @@ public:
     }
 
     bool stopped() const { return top.trace_halt; }
+
+    // The 387's state, which the CPU reports through arch_x87_* and the
+    // oracle's accessor gives the same way (i386_oracle.h X87State). The
+    // registers are eight 80-bit words, little-endian in 32-bit lanes.
+    fes_i386::X87State x87_state() const {
+        fes_i386::X87State s;
+        s.control = uint16_t(top.arch_x87_cw);
+        s.status = uint16_t(top.arch_x87_sw);
+        s.tag = uint16_t(top.arch_x87_tw);
+        s.opcode = uint16_t(top.arch_x87_opcode);
+        s.pointers.ip = top.arch_x87_ip;
+        s.pointers.dp = top.arch_x87_dp;
+        s.pointers.cs = uint16_t(top.arch_x87_cs);
+        s.pointers.ds = uint16_t(top.arch_x87_ds);
+        for (int n = 0; n < 8; ++n) {
+            uint64_t significand = 0;
+            uint16_t sign_exponent = 0;
+            for (int b = 0; b < 10; ++b) {
+                const unsigned bit = 80 * unsigned(n) + 8 * unsigned(b);
+                uint64_t lane = top.arch_x87_regs[bit / 32];
+                if (bit % 32 > 24) lane |= uint64_t(top.arch_x87_regs[bit / 32 + 1]) << 32;
+                const uint8_t byte = uint8_t(lane >> (bit % 32));
+                if (b < 8) significand |= uint64_t(byte) << (8 * b);
+                else sign_exponent |= uint16_t(uint16_t(byte) << (8 * (b - 8)));
+            }
+            s.r[n] = {significand, sign_exponent};
+        }
+        return s;
+    }
+    // The unit works on past the instruction that started it, as a 387 does
+    // with BUSY# still active. A caller may wait for it once its program has
+    // halted, where the extra cycles cannot run another instruction.
+    void settle_x87() {
+        for (int n = 0; n < 64 && top.trace_x87_busy; ++n) clock();
+    }
 
     State state() const {
         State s;
@@ -1310,6 +1371,8 @@ struct Summary {
     // no387_rule: ESC instructions stepped under the no-387 rule, and those
     // of them the oracle moved past without stepping (EscStep).
     uint64_t no387_rule = 0, no387_skips = 0;
+    // The retirements the 387-present rule compared the unit's state at.
+    uint64_t x87_compared = 0;
 };
 
 void hash_state(Summary &summary, const State &s) {
@@ -1644,6 +1707,47 @@ bool rep_writes_own_instruction(const Code *own, const uint8_t *code, bool code3
 // and its segment (fes_i386::SEG_*), from the bytes at code and the state.
 // The 386EX's scaled base for a SIB index of 100b (the divergence
 // invalid-sib-scales-base) is not modelled: no case here uses one.
+// The ESC forms the RTL's x87 unit builds in this slice, which must track
+// fes_i386_pkg::x87_decode and x87_format (#1768 slice 2: the interface, the
+// state, the loads, the stores and the register forms; the arithmetic is
+// slices 3 to 5). A form it does not build stops the RTL as not built, which
+// is how the lockstep cannot pass over an instruction the build does not run.
+bool x87_slice2_form(uint8_t esc, uint8_t modrm) {
+    const unsigned low = esc & 7u;
+    const unsigned rf = (modrm >> 3) & 7u;
+    if ((modrm >> 6) != 3) {
+        switch (low << 3 | rf) {
+            case 1 << 3 | 0: case 5 << 3 | 0: case 3 << 3 | 5:           // FLD m32, m64, m80
+            case 3 << 3 | 0: case 7 << 3 | 0: case 7 << 3 | 5:           // FILD m32, m16, m64
+            case 1 << 3 | 2: case 5 << 3 | 2: case 3 << 3 | 2: case 7 << 3 | 2:   // FST, FIST
+            case 1 << 3 | 3: case 5 << 3 | 3: case 3 << 3 | 7:           // FSTP m32, m64, m80
+            case 3 << 3 | 3: case 7 << 3 | 3: case 7 << 3 | 7:           // FISTP m32, m16, m64
+            case 1 << 3 | 5: case 1 << 3 | 7: case 5 << 3 | 7:           // FLDCW, FNSTCW, FNSTSW m16
+            case 1 << 3 | 6: case 5 << 3 | 6:                            // FNSTENV, FNSAVE
+            case 1 << 3 | 4: case 5 << 3 | 4:                            // FLDENV, FRSTOR
+                return true;
+            default:
+                return false;   // the arithmetic forms, FBLD and FBSTP
+        }
+    }
+    switch (low) {
+        case 1:  // D9
+            if (modrm == 0xd0 || modrm == 0xe0 || modrm == 0xe1 || modrm == 0xe4 || modrm == 0xe5
+                || modrm == 0xf6 || modrm == 0xf7)
+                return true;                                     // FNOP, FCHS, FABS, FTST, FXAM, FDECSTP, FINCSTP
+            if ((modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8) return true;  // FLD ST(i), FXCH
+            return modrm >= 0xe8 && modrm <= 0xee;               // the constants
+        case 3:  // DB
+            return modrm == 0xe0 || modrm == 0xe1 || modrm == 0xe2 || modrm == 0xe3 || modrm == 0xe4;
+        case 5:  // DD
+            return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xd0 || (modrm & 0xf8) == 0xd8;
+        case 7:  // DF
+            return modrm == 0xe0;                                // FNSTSW AX
+        default:
+            return false;
+    }
+}
+
 struct EscOperand {
     uint32_t offset = 0;
     int seg = fes_i386::SEG_DS;
@@ -1860,10 +1964,14 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                          before.eip, outcome.code.c_str(), before.gpr[fes_i386::REG_ESP], before.gpr[fes_i386::REG_EBP],
                          before.seg[fes_i386::SEG_SS].base, before.cr0, before.gdtr.base, before.gdtr.limit);
         const bool code32 = before.seg[fes_i386::SEG_CS].ar & 0x4000;
+        // The 387-present rule: with the identity on, the RTL runs the forms
+        // this slice builds and the comparison below adds the 387's state at
+        // each retirement. A form a later slice builds stops the run as not
+        // built, per form rather than at the first ESC.
         if (x87_fitted) {
             unsigned k = 0;
             while (k < 15 && is_prefix(code[k])) ++k;
-            if (k < 15 && ((code[k] & 0xf8) == 0xd8 || code[k] == 0x9b)) {
+            if (k < 15 && (code[k] & 0xf8) == 0xd8 && !x87_slice2_form(code[k], code[k + 1])) {
                 ++summary.unbuilt[UNBUILT_X87];
                 outcome.unbuilt = UNBUILT_X87;
                 return outcome;
@@ -2808,6 +2916,24 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         if (before.eflags & 0x100) ++summary.debug_kinds["tf-steps"];
         if (before.dr7 & 0xff) ++summary.debug_kinds["armed-steps"];
         compare(oracle_state, rtl_state, skip, at, out);
+        // The 387's state, when the unit is idle. A load's work finishes
+        // after the instruction has retired, as a real 387's does with BUSY#
+        // still active, so a retirement that leaves it working is not a
+        // comparison point: waiting here would clock the CPU on past the
+        // next instruction. The next retirement compares instead, because
+        // the next ESC holds in D until the unit is idle and no other
+        // instruction touches the 387; a run that ends while it is working
+        // is compared by its caller, where more cycles are harmless.
+        if (x87_fitted && before.eip >= x87_compare_from && std::getenv("FES_I386_X87DBG"))
+            std::fprintf(stderr, "x87dbg %s busy %d rtl ip %x op %x sw %x oracle ip %x op %x sw %x\n",
+                         at.c_str(), int(rtl.top.trace_x87_busy), rtl.x87_state().pointers.ip,
+                         rtl.x87_state().opcode, rtl.x87_state().status, oracle.x87_state().pointers.ip,
+                         oracle.x87_state().opcode, oracle.x87_state().status);
+        if (x87_fitted && before.eip >= x87_compare_from && !rtl.top.trace_x87_busy) {
+            for (const std::string &field : fes_i386::x87_differences(oracle.x87_state(), rtl.x87_state()))
+                out.add(at + "x87." + field, 0, 1);
+            ++summary.x87_compared;
+        }
         hash_state(summary, rtl_state);
         if (!out.items.empty()) return outcome;
         if (!skip.empty()) {
@@ -10078,6 +10204,245 @@ int run_no387_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     return 0;
 }
 
+
+// ---- The ESC instructions with a 387 (directed) ------------------------------
+// The forms this slice builds, run through the CPU with the i386dx+387
+// identity on (#1768 slice 2). The lockstep compares every retirement as
+// usual, and with the identity on it compares the 387's whole state too, so
+// these programs are what exercises the unit inside the CPU; the random and
+// corpus programs run no ESC at all.
+//
+// Each program starts with FNINIT, so the comparison does not depend on the
+// 387's state after a CPU reset, which is the open cpu-reset-387-state
+// divergence (Bochs leaves CW 0040h with every tag valid; the unit resets as
+// FINIT does). Real mode at 0000:1000, data at 7000h, every vector a HLT.
+//   const       FNINIT, the seven constants, FXCH, FINCSTP, FDECSTP, FFREE
+//   loads       FLD m32, m64 and m80, FILD m16, m32 and m64, from the data
+//               pattern, then FXAM and FTST on each
+//   stores      the same values stored back as m32, m64, m80 and as 16-,
+//               32- and 64-bit integers, which the lockstep compares as
+//               writes and the bytes left behind
+//   words       FLDCW, FNSTCW, FNSTSW AX, FNSTSW m16, FNCLEX
+//   env         FNSTENV and FLDENV in both operand sizes
+//   save        FNSAVE and FRSTOR in both operand sizes, with TOP moved
+//   stack       eight pushes then a ninth (overflow), and FSTP from empty
+//               (underflow), with the exceptions masked
+//   wait        WAIT with a 387 fitted, which waits for BUSY# and no more
+int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                  Summary &summary) {
+    struct Asm {
+        std::vector<uint8_t> b;
+        void op(std::initializer_list<uint8_t> bytes) { b.insert(b.end(), bytes); }
+        void w(uint16_t v) { b.push_back(uint8_t(v)); b.push_back(uint8_t(v >> 8)); }
+        void m(unsigned reg, uint16_t off) { b.push_back(uint8_t(reg << 3 | 6)); w(off); }
+        void esc(uint8_t opcode, unsigned reg, uint16_t off) { b.push_back(opcode); m(reg, off); }
+        void o32() { b.push_back(0x66); }
+    };
+    constexpr uint32_t CODE = 0x1000, HANDLER = 0x1800, DS = 0x7000;
+    struct Case { const char *label; std::function<void(Asm &)> body; };
+    const Case cases[] = {
+        {"const", [](Asm &a) {
+            a.op({0xdb, 0xe3});                                    // FNINIT
+            for (uint8_t n = 0xe8; n <= 0xee; ++n) a.op({0xd9, n}); // FLD1 .. FLDZ
+            a.op({0xd9, 0xc9});                                    // FXCH ST(1)
+            a.op({0xd9, 0xf7});                                    // FINCSTP
+            a.op({0xd9, 0xf6});                                    // FDECSTP
+            a.op({0xdd, 0xc2});                                    // FFREE ST(2)
+            a.op({0xd9, 0xd0});                                    // FNOP
+        }},
+        {"loads", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);                                 // FLD m32
+            a.op({0xd9, 0xe5}); a.op({0xd9, 0xe4});                // FXAM, FTST
+            a.esc(0xdd, 0, 0x108);                                 // FLD m64
+            a.op({0xd9, 0xe5}); a.op({0xd9, 0xe4});
+            a.esc(0xdb, 5, 0x110);                                 // FLD m80
+            a.op({0xd9, 0xe5});
+            a.op({0xdb, 0xe3});
+            a.esc(0xdf, 0, 0x120);                                 // FILD m16
+            a.esc(0xdb, 0, 0x124);                                 // FILD m32
+            a.esc(0xdf, 5, 0x128);                                 // FILD m64
+            a.op({0xd9, 0xe0}); a.op({0xd9, 0xe1});                // FCHS, FABS
+        }},
+        {"stores", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);                                 // FLD m32
+            a.esc(0xd9, 2, 0x300);                                 // FST m32
+            a.esc(0xdd, 2, 0x304);                                 // FST m64
+            a.esc(0xdf, 2, 0x30c);                                 // FIST m16
+            a.esc(0xdb, 2, 0x310);                                 // FIST m32
+            a.esc(0xdb, 7, 0x314);                                 // FSTP m80
+            a.esc(0xdb, 0, 0x124);                                 // FILD m32
+            a.esc(0xdf, 7, 0x320);                                 // FISTP m64
+            a.esc(0xd9, 0, 0x104);                                 // FLD m32
+            a.esc(0xd9, 3, 0x328);                                 // FSTP m32
+        }},
+        {"words", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 5, 0x130);                                 // FLDCW
+            a.esc(0xd9, 7, 0x330);                                 // FNSTCW
+            a.op({0xdf, 0xe0});                                    // FNSTSW AX
+            a.esc(0xdd, 7, 0x332);                                 // FNSTSW m16
+            a.op({0xdb, 0xe2});                                    // FNCLEX
+            a.op({0xdb, 0xe1}); a.op({0xdb, 0xe4});                // FDISI, FSETPM
+        }},
+        {"env", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);
+            a.esc(0xd9, 6, 0x340);                                 // FNSTENV (16-bit)
+            a.esc(0xd9, 4, 0x340);                                 // FLDENV
+            a.o32(); a.esc(0xd9, 6, 0x360);                        // FNSTENV (32-bit)
+            a.o32(); a.esc(0xd9, 4, 0x360);                        // FLDENV
+        }},
+        {"save", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);
+            a.esc(0xdd, 0, 0x108);
+            a.esc(0xdd, 6, 0x380);                                 // FNSAVE (16-bit)
+            a.esc(0xdd, 4, 0x380);                                 // FRSTOR
+            a.o32(); a.esc(0xdd, 6, 0x400);                        // FNSAVE (32-bit)
+            a.o32(); a.esc(0xdd, 4, 0x400);                        // FRSTOR
+        }},
+        {"stack", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            for (int n = 0; n < 9; ++n) a.esc(0xd9, 0, 0x100);     // eight fit, the ninth overflows
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 3, 0x330);                                 // FSTP m32 from empty
+            a.op({0xd9, 0xe0});                                    // FCHS from empty
+        }},
+        {"wait", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.op({0x9b});                                          // WAIT
+            a.esc(0xd9, 0, 0x100);
+            a.op({0x9b});
+            a.op({0xdf, 0xe0});
+        }},
+    };
+
+    const bool was_fitted = x87_fitted;
+    x87_fitted = true;
+    oracle.set_at_coprocessor(true);
+    for (const Case &c : cases) {
+        Asm a;
+        // The prologue writes all eight registers and then empties them, so
+        // both sides start each program with the same register contents as
+        // well as the same words. Without it they differ from reset and stay
+        // differing, because nothing in this slice reads or writes a
+        // register the tag word calls empty: that is the open
+        // cpu-reset-387-state divergence, which this sidesteps rather than
+        // depends on.
+        a.op({0xdb, 0xe3});                                // FNINIT
+        for (int n = 0; n < 8; ++n) a.esc(0xd9, 0, 0x100); // eight FLD m32
+        a.op({0xdb, 0xe3});                                // FNINIT
+        x87_compare_from = CODE + uint32_t(a.b.size());    // the body, not the prologue
+        c.body(a);
+        a.op({0xf4});
+        std::vector<std::pair<uint32_t, uint8_t>> image;
+        for (size_t i = 0; i < a.b.size(); ++i) image.emplace_back(CODE + uint32_t(i), a.b[i]);
+        for (unsigned v = 0; v < 32; ++v) {
+            image.emplace_back(v * 4, uint8_t(HANDLER)); image.emplace_back(v * 4 + 1, uint8_t(HANDLER >> 8));
+            image.emplace_back(v * 4 + 2, 0); image.emplace_back(v * 4 + 3, 0);
+        }
+        image.emplace_back(HANDLER, 0xf4);
+        // The operands, each at the offset its form reads, so a drifting
+        // table cannot hand FLDCW a control word with an exception unmasked
+        // (which would set ES, latch BUSY# and hold the run for ever: this
+        // bench drives no IRQ 13).
+        struct Operand { uint16_t at; std::vector<uint8_t> bytes; };
+        const Operand operands[] = {
+            {0x100, {0x00, 0x00, 0xc0, 0x3f}},                                    // f32 1.5
+            {0x104, {0x00, 0x00, 0x80, 0xbf}},                                    // f32 -1.0
+            {0x108, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xc0}},            // f64 -2.25
+            {0x110, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x40}},  // f80 3.0
+            {0x120, {0x34, 0x12}},                                                // i16 1234h
+            {0x124, {0x78, 0x56, 0x34, 0x12}},                                    // i32 12345678h
+            {0x128, {0x21, 0x43, 0x65, 0x87, 0x09, 0x00, 0x00, 0x00}},            // i64
+            {0x130, {0x7f, 0x03}},                                                // the control word, all masked
+        };
+        for (const Operand &o : operands)
+            for (unsigned i = 0; i < o.bytes.size(); ++i)
+                image.emplace_back(DS + o.at + i, o.bytes[i]);
+        for (uint32_t i = 0x300; i < 0x460; ++i) image.emplace_back(DS + i, 0xcc);
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, value);
+            oracle.invalidate(address, 1);
+        }
+        State state;
+        for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0);
+        state.seg[fes_i386::SEG_DS] = fes_i386::real_mode_segment(uint16_t(DS >> 4));
+        state.eip = CODE;
+        state.gpr[fes_i386::REG_ESP] = 0x0f00;
+        // ET, as a 386 leaves it with a 387 that drives ERROR# low after
+        // RESET (fes_i386_cpu's x87_present and pc386_system's reset CR0).
+        state.cr0 = 0x7ffffff0 | 0x10;
+        oracle.reset();
+        oracle.set_state(state);
+        rtl.start(state);
+        Mismatches out;
+        Outcome outcome;
+        try {
+            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 400, true, summary, out,
+                               CODE + uint32_t(a.b.size()));
+        } catch (const std::exception &error) {
+            out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
+            oracle.reset();
+        }
+        if (!outcome.halted) out.add(std::string(c.label) + ".halt", 1, 0);
+        if (outcome.exception >= 0) out.add(std::string(c.label) + ".exception", 0xff, uint32_t(outcome.exception));
+        // The program has halted, so waiting for the unit cannot run another
+        // instruction: its last operation's state is compared here.
+        const uint32_t ip_before_settle = rtl.x87_state().pointers.ip;
+        const bool busy_before_settle = rtl.top.trace_x87_busy;
+        rtl.settle_x87();
+        const fes_i386::X87State want = oracle.x87_state(), got = rtl.x87_state();
+        for (const std::string &field : fes_i386::x87_differences(want, got))
+            out.add(std::string(c.label) + ".x87." + field, 0, 1);
+        // Both states in full on a failure: the fields differ in kind, so
+        // the mismatch list can only name them.
+        if (!out.items.empty()) {
+            auto show = [](const char *side, const fes_i386::X87State &s) {
+                std::cerr << "  " << side << " cw " << hex(s.control) << " sw " << hex(s.status)
+                          << " tw " << hex(s.tag) << " op " << hex(s.opcode)
+                          << " ip " << hex(s.pointers.ip) << " cs " << hex(s.pointers.cs)
+                          << " dp " << hex(s.pointers.dp) << " ds " << hex(s.pointers.ds);
+                for (int n = 0; n < 8; ++n)
+                    std::cerr << " r" << n << ' ' << hex(s.r[n].sign_exponent) << ':' << hex(s.r[n].significand);
+                std::cerr << '\n';
+            };
+            // stderr: the runner reads stdout as its own protocol.
+            std::cerr << "x87:" << c.label << " states (ip before settling " << hex(ip_before_settle)
+                      << ", busy " << busy_before_settle << ")\n";
+            show("oracle", want);
+            show("rtl   ", got);
+        }
+        end_run(bus, rtl, outcome.halted, out);
+        summary.cycles += rtl.cycles;
+        rtl.cycles = 0;
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        for (uint32_t address : rtl.written) {
+            if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        rtl.written.clear();
+        ++summary.runs;
+        if (out.items.empty()) {
+            ++summary.passed;
+        } else {
+            ++summary.failed;
+            std::cout << "FAIL x87:" << c.label;
+            for (const auto &item : out.items) std::cout << ' ' << item;
+            std::cout << '\n';
+        }
+    }
+    x87_fitted = was_fitted;
+    x87_compare_from = 0;
+    oracle.set_at_coprocessor(was_fitted);
+    return 0;
+}
+
 // 0000:1000 in real mode with a GDT at 2000h (LGDT's pointer at 2100h):
 //   08h code, 16-bit, base 0, 64K      18h data, base 0, 64K
 //   10h data, base 0, 4 GiB (G)        20h code, 16-bit, base 0, 4 GiB (G)
@@ -10959,6 +11324,8 @@ int main(int argc, char **argv) {
         run_paging_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "no387") {
         run_no387_cases(*oracle, bus, rtl, entries, summary);
+    } else if (mode == "x87") {
+        run_x87_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "test386") {
         return run_test386(*oracle, rtl);
     } else if (mode == "unbuilt") {
@@ -11021,7 +11388,8 @@ int main(int argc, char **argv) {
                 "\"pm_retirements\": %llu, \"cs_rule\": %llu, \"ss_error_rule\": %llu, \"fetch_rule\": %llu, "
                 "\"iret_save_rule\": %llu, \"pm_deliveries\": {%s}, "
                 "\"unbuilt_stops\": {%s}, \"pm_kinds\": {%s}, \"cs_limit\": {%s}, "
-                "\"no387_rule\": %llu, \"no387_skips\": %llu, \"dr6_rule\": %llu, \"db_rf_rule\": %llu, "
+                "\"no387_rule\": %llu, \"no387_skips\": %llu, \"x87_compared\": %llu, "
+                "\"dr6_rule\": %llu, \"db_rf_rule\": %llu, "
                 "\"debug_kinds\": {%s}}\n",
                 mode.c_str(), (unsigned long long)seed, latency ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
@@ -11057,7 +11425,8 @@ int main(int argc, char **argv) {
                 (unsigned long long)summary.iret_save_rule, pm_deliveries.c_str(),
                 unbuilt.c_str(), pm_kinds.c_str(), cs_limit.c_str(),
                 (unsigned long long)summary.no387_rule,
-                (unsigned long long)summary.no387_skips, (unsigned long long)summary.dr6_rule,
+                (unsigned long long)summary.no387_skips, (unsigned long long)summary.x87_compared,
+                (unsigned long long)summary.dr6_rule,
                 (unsigned long long)summary.db_rf_rule, named(summary.debug_kinds).c_str());
     return summary.failed ? 1 : 0;
 }
