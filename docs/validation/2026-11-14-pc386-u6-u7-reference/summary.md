@@ -96,9 +96,10 @@ capture card freezes its last frame when the signal drops
 black-HDMI defect after a kit-software activation), so it cannot be used to
 count them; the pitch figures are audio, and the walk figures count motion in a
 picture that is running throughout. One of `g1`'s 32 grabs is fully black,
-`u6-u00`, taken five seconds after `ultima6` was typed, where the game is
-changing video mode; it is not one of the captures anything is measured from,
-and no capture that is went black.
+`u6-u00` at 11:40:10, five seconds after `ultima6` was typed; the 10 November
+run's grab at the same point is black and the same size, so it is the game
+starting up rather than anything of #1823's. It is not one of the captures
+anything is measured from, and none of those went black.
 
 ## Ultima VI: PC speaker pitch
 
@@ -137,12 +138,14 @@ rather than left to be noticed. Three kit captures were queued for Kit B and
 not run, because the kit was held by another session.
 
 **What is not established is the cause.** There is already a model for this
-loop: [#1472's record](../2026-11-04-pc386-speaker-kit/summary.md) works it out
-as a fixed charge per toggle pass, where #1453's ISA charges add 14 clocks to a
-564-clock pass and drop the pitch 2.42% at the game's delay unit 1 — which is
-what was measured then (1.99, 2.34 and 2.59% over three keys). That model
-accounts for about two and a half points of the twelve-and-a-half here, so most
-of the difference is elsewhere: the governor's pacing of the rest of the pass,
+loop: [#1472's record](../2026-11-04-pc386-speaker-kit/summary.md) puts one
+pass of the routine's loop at about 89 clocks plus about 475 for each of the
+game's own delay units, so #1453's ISA charges — 14 clocks on the pass's port
+61h `IN` and `OUT` — drop the pitch 2.42% at one delay unit, which is what was
+measured then (1.99, 2.34 and 2.59% over three keys). That accounts for **at
+most** two and a half points of the twelve and a half here, and only on the
+kit: what the reference pays for the same two port accesses was not measured.
+So most of the difference is elsewhere: the governor's pacing of the rest of the pass,
 and the pass costing a 386 a different number of clocks than a 286 whatever the
 table says. Nothing here separates them, and no lute capture at another preset
 exists to split them with (#1481 measured the lute at 286-12 only). The issue filed from
