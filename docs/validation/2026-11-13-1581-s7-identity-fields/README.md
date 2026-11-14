@@ -66,10 +66,27 @@ The list is generated, not written by hand:
 twelve audited producers through `export_core_package.py`, and PC/XT through that plus its own two
 scripts. `fes.pcxt` and `fes.pcxt-dos` share one producer and so one closure.
 
-**The D12 evidence is not in this commit.** [#1752](https://github.com/DeanoC/fes/pull/1752) moves
-every BUILD_ID as well and is still open, so evidence gathered against today's main would not
-survive it. The campaign runs once main is settled, and this record gains its results before the PR
-leaves draft.
+**The D12 evidence is not in this commit yet.** [#1752](https://github.com/DeanoC/fes/pull/1752)
+moved every BUILD_ID as well, so evidence gathered before it landed would not have survived it. That
+PR merged as `04bf27bb6`, this branch merged main forward to `11da3640b`, and the campaign is
+therefore unblocked. This record gains its results before the PR leaves draft.
+
+### What the campaign needs, measured
+
+The merge base is `72d2fc4da`. Both sides run from one checkout path per side,
+`~/fes-scratch/d12s7/{main,pr}`, through the driver [#1752 landed on
+main](../2026-11-12-1747-toolchain-installs/forced_build_id.py): build the base, then build this
+branch with the base's `BUILD_ID` forced, and compare `core.rbf` byte for byte. Unlike #1752's own
+campaign both sides share one toolchain code path, because #1752 is in the merge base, so each side
+resolves the same per-tool installs the same way and the only difference is this change.
+
+Twelve of the thirteen cores need two builds each. Six toolchain installs those twelve pin are not
+on this host under the per-tool keys #1752 introduced, so they are from-source bootstraps before any
+core builds: nextpnr for `pong`, `sg1000`+`sms`, `menu`+`zx81`, `riscv` and `spectrum`, and Yosys for
+`coleco_socket_v2`. `ramtest`'s nextpnr and the Verilator that `apple2`, `atari_st` and `c64` share
+are present elsewhere on the host. The install key does not depend on the checkout path — the same
+key is derived from two different worktrees of this commit — so these are genuine misses rather than
+an artefact of where the campaign runs.
 
 ## Review fixes
 
