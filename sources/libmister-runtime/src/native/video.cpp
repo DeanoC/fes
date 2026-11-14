@@ -147,12 +147,27 @@ Error RequireLink(I2c& i2c, Clock& clock, std::uint64_t deadline,
 		link_ready = (result->link_status & adv7513::kStatusLinkReady) ==
 			adv7513::kStatusLinkReady;
 		if (link_ready) {
+			// Nothing describes this sample until both registers answer, so
+			// clear the flag first: an earlier loop's values must never be
+			// reported as if they were read now.
+			result->detail_read = false;
 			std::uint8_t pll = 0, vic = 0;
-			if (!i2c.ReadByte(adv7513::reg::kPllStatus, &pll, deadline).ok())
+			Error detail = i2c.ReadByte(adv7513::reg::kPllStatus, &pll, deadline);
+			if (detail.ok()) {
+				result->pll_status = pll;
+				detail = i2c.ReadByte(adv7513::reg::kVicDetected, &vic, deadline);
+			}
+			if (!detail.ok()) {
+				// An unreadable register leaves the PLL unenforced. A spent
+				// budget does not: the transport reports the deadline from
+				// these reads too, and accepting that would pass exactly the
+				// never-locked PLL this poll exists to refuse, whenever the
+				// clock crossed between the link read and this one.
+				if (clock.NowMs() >= deadline)
+					return {ErrorCode::io_failed,
+						detail.message + LinkSampleDetail(*result)};
 				return {};
-			result->pll_status = pll;
-			if (!i2c.ReadByte(adv7513::reg::kVicDetected, &vic, deadline).ok())
-				return {};
+			}
 			result->vic_status = vic;
 			result->detail_read = true;
 			if (pll & adv7513::kPllLocked) return {};

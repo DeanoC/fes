@@ -141,6 +141,36 @@ void TestLinkRequiresPllLockAndRecordsVic()
 			assert(Mentions(result.error.message, "pll_lock=? rx_sense=? vic=?"));
 			++scenarios;
 		}
+		// A spent budget is not an unreadable register. The transport reports
+		// the deadline from the detail reads too, and accepting that would
+		// pass the never-locked PLL this poll exists to refuse. The clock
+		// starts two ticks out so the loop is entered and the deadline falls
+		// between the link read and the detail read.
+		{
+			Fixture spent;
+			spent.clock.now = kDeadline - 2;
+			spent.i2c.pll_status = 0x02;
+			spent.i2c.detail_read_error =
+				{mister::ErrorCode::io_failed, "deadline exceeded"};
+			const auto result = bring_up(spent);
+			assert(!result.error.ok() && result.phase == "hdmi_verify");
+			assert(Mentions(result.error.message, "deadline exceeded"));
+			assert(Mentions(result.error.message, "link_status=0x60"));
+			++scenarios;
+		}
+		// A sample that succeeded once must not be reported again as if it
+		// had been read now: the second loop's unreadable 0x9e leaves the
+		// values from the first, so the line has to say it measured nothing.
+		{
+			Fixture stale;
+			stale.i2c.pll_status = 0x02;
+			stale.i2c.fail_detail_read_index = 2;
+			const auto result = bring_up(stale);
+			assert(result.error.ok() && result.phase == "hdmi_verify");
+			assert(Mentions(result.error.message, "pll_lock=? rx_sense=? vic=?"));
+			assert(!Mentions(result.error.message, "pll_lock=0"));
+			++scenarios;
+		}
 		// A link that never goes ready still reports the link, and reports no
 		// PLL sample because none was ever taken behind a ready link.
 		{

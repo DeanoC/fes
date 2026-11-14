@@ -51,6 +51,9 @@ public:
 	std::uint8_t vic_status = 0x10;
 	std::deque<std::uint8_t> pll_statuses;
 	mister::Error detail_read_error;
+	// Fails the Nth 0x9e/0x3e read only, counting both registers, so a
+	// sample can succeed once and then fail on a later loop.
+	std::size_t fail_detail_read_index = std::numeric_limits<std::size_t>::max();
 	mister::Error select_error;
 	mister::Error power_read_error;
 	mister::Error link_read_error;
@@ -67,6 +70,7 @@ private:
 	std::size_t timing_write_index_ = std::numeric_limits<std::size_t>::max();
 	std::size_t release_write_index_ = std::numeric_limits<std::size_t>::max();
 	std::size_t link_read_count_ = 0;
+	std::size_t detail_read_count_ = 0;
 	std::uint8_t last_link_status_ = 0;
 };
 
