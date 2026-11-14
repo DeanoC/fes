@@ -29,7 +29,7 @@ kit was measured. The reference machines are in
 | Check | Result |
 | --- | --- |
 | **Ultima VI, PC speaker pitch at the 286-12 preset** | **Fail.** The kit's notes are 12.7–12.9% below the reference's, 2.35 and 2.39 semitones flat; 9.0–9.3% and about 1.7 semitones even after the reference is scaled from 12.5 to 12.0 MHz. The band is ±5.9%, one semitone. |
-| **Ultima VI, walking speed at the 286-12 preset** | **Not decided**, and the method is the problem, not the kit: on the reference the figure follows how fast the keys are sent, so it is not the game's rate. No kit window was run with it. The figures are below for whoever measures it next. |
+| **Ultima VI, walking speed at the 286-12 preset** | **Not decided**, and the method is the problem, not the kit: on the reference the turn rate follows how fast the keys are sent, and the step rate has a window out by 40% at the same key rate. Neither is the game's rate, so no kit window was run with it. The figures are below for whoever measures it next. |
 | **Ultima VII: The Black Gate, NPC pace at 386DX-25** | **Not done.** The game stops at its own memory check on the reference, and the reference board for a 386DX-25 is not settled; see below. |
 
 So **#1368's last box is not ticked and the issue stays open**, and pc386 does
