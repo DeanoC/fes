@@ -75,7 +75,7 @@ UNESCAPED_PIPE = re.compile(r'(?<!\\)\|')
 CITATION = re.compile(
     r'((?:[A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:py|v|sv|cpp|h|svh|md|json|sh|files|txt|lock|yml|toml|tcl))'
     r'|(?:[A-Za-z0-9_][A-Za-z0-9_./-]*/)?Makefile)'
-    r':(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)*)')
+    r':(\d+)(?:-(\d+))?((?:,\s*:?\d+(?:-\d+)?)*)')
 
 _index = {}
 for dirpath, dirnames, filenames in os.walk(M):
@@ -162,23 +162,52 @@ def check_primary():
     return total, problems
 
 
+STALE_NUMBERS = re.compile(r':\d+(?:-\d+)?(?:,\s*:?\d+(?:-\d+)?)*')
+PATH_TOKEN = re.compile(r'[A-Za-z0-9_][A-Za-z0-9_./-]*'
+                        r'\.(?:py|v|sv|cpp|h|svh|md|json|sh|files|txt|lock|yml|toml|tcl)'
+                        r'|(?:[A-Za-z0-9_][A-Za-z0-9_./-]*/)?Makefile')
+
+
 def current_only(text):
-    """Blank out the stale side of every `old -> new` correction clause.
+    """Mask each correction's stale numbers while keeping its destination.
 
     A clause is delimited by `;` or by the end of the cell. Where it holds an
-    arrow, everything before the last arrow is a number the record is
-    reporting as wrong, so it must not be checked against the tree.
+    `old -> new` arrow, the numbers before the arrow are ones the record is
+    reporting as wrong, so they must not be checked against the tree -- but
+    the numbers *after* it are the corrected locations, and they are the whole
+    point of the clause, so they must be.
+
+    An earlier revision blanked everything before the last arrow. That removed
+    the path the destinations lean on, since a destination is written bare as
+    `:1707`, so neither side was checked; on `census-tables.md:460` it reduced
+    fifteen path-bearing corrections to two unrelated citations, leaving the
+    corrected checklist locations free to drift while this script exited 0
+    (DeanoC/fes#1829 review). So the numbers are masked individually and the
+    head's last path is carried onto the first destination, which the comma
+    continuation then extends.
     """
     out = []
     for clause in re.split(r'(;)', text):
-        if '->' in clause:
-            head, _, tail = clause.rpartition('->')
-            clause = ' ' * len(head + '->') + tail
-        out.append(clause)
+        if '->' not in clause:
+            out.append(clause)
+            continue
+        head, arrow, tail = clause.rpartition('->')
+        paths = PATH_TOKEN.findall(head)
+        masked = STALE_NUMBERS.sub(lambda m: ' ' * len(m.group(0)), head)
+        if paths:
+            tail = re.sub(r'(?<![\w.]):(\d)', paths[-1] + r':\1', tail, count=1)
+        out.append(masked + arrow + tail)
     return ''.join(out)
 
 
 def load_fingerprints():
+    """The fingerprint file, or None when it is absent.
+
+    Absence is reported by the caller as a problem rather than skipped:
+    exiting 0 while printing `content NOT checked` contradicted this script's
+    own contract that status 0 means both checks passed, and let a missing
+    artifact admit stale citations silently (DeanoC/fes#1829 review).
+    """
     try:
         with open(FINGERPRINTS) as handle:
             return json.load(handle)
@@ -206,8 +235,8 @@ def check_citations(record=False):
                 # number after the first leans on the same path, and reading
                 # only the first is how two stale numbers in this record's own
                 # text survived three review rounds (DeanoC/fes#1839).
-                tail = [n for part in (match.group(4) or '').split(',') if part
-                        for n in part.split('-')]
+                tail = [n for part in (match.group(4) or '').split(',')
+                        if part.strip() for n in part.strip().lstrip(':').split('-')]
                 for group in (match.group(2), match.group(3), *tail):
                     if group is None:
                         continue
@@ -247,9 +276,17 @@ def main():
     record = '--record-fingerprints' in sys.argv[1:]
     total, primary = check_primary()
     citations, endpoints, checked, cited = check_citations(record=record)
+    if not record and load_fingerprints() is None:
+        cited = cited + [f'{os.path.basename(FINGERPRINTS)} is missing, so no '
+                         'citation content was checked; re-record it with '
+                         '--record-fingerprints']
     print(f'{total} inventory rows, {len(primary)} primary-line problems')
-    note = (f', {checked} content-checked against citation-fingerprints.json'
-            if checked else ', content NOT checked (no fingerprint file)')
+    if record:
+        note = ', fingerprints recorded'
+    elif checked:
+        note = f', {checked} content-checked against citation-fingerprints.json'
+    else:
+        note = ', content NOT checked (no fingerprint file)'
     print(f'{citations} path:line citations ({endpoints} line endpoints'
           f'{note}), {len(cited)} problems')
     for problem in primary + cited:
