@@ -199,6 +199,62 @@ same runs are lit, so they are not classified here either way.)
 different ADV7513 boards, in the FES menu and Home path with no pc386 core
 present.**
 
+## The blank window of a core load, and where the grab lands
+
+Runs `k7`–`k9` grabbed the DOS prompt about 22 s after the load command returned
+and took no frames in between, so it was open whether a black prompt grab could
+just mean "the picture had not come up yet". Run `b1`'s per-frame luma log spans
+stop → load → prompt on every launch and dates it. Launch `p0n000`, lit, on the
+log's own clock (the log starts just before the `stop`):
+
+| From | To | What the capture showed |
+| --- | --- | --- |
+| 0 s | ~11.5 s | the FES menu, peak 255 |
+| ~11.5 s | ~17 s | **no frames delivered at all** — the capture reports a gap, not black |
+| ~17 s | ~22 s | the guest's boot text, peak 219 |
+| 22.07 s | 22.12 s | 4 black frames, at the guest's own boot transition (219 to 63) |
+| ~22 s | 42 s | the guest's screen, peak 63–74, to the end of the log |
+| | 50.1 s | the grab itself, 8 s after the log ends |
+
+Beside it, the read-only ADV7513 poll (818 samples in 39 s, about 21 Hz) shows
+the transmitter's side of the same event as **one contiguous stretch**, not
+something scattered:
+
+| From | To | Reading |
+| --- | --- | --- |
+| 0 s | 11.50 s | powered, link ready, pixel PLL locked, VIC 4 |
+| 11.58 s | 16.73 s | does not answer I²C at all (5.15 s) |
+| 16.78 s | 20.00 s | answers, power-down bit set, PLL unlocked (3.22 s) |
+| 20.16 s | 39.26 s | powered, link ready, PLL locked, VIC 4 again |
+
+Launch `p7n001` reads the same way around both of its bring-ups, the menu's and
+the core's: 2.64 s unreadable, then later 5.36 s unreadable followed by 3.31 s
+powered down. So a bring-up costs about 8.5 s at the transmitter, of which the
+I²C silence is the FPGA reconfiguration itself, and the luma gap sits exactly on
+it. (#1823 separately measured 2.81 s and 3.07 s of an unreadable transmitter,
+but that was #1804's *recovery* reprogram, a different event.)
+
+Across all 13 of `b1`'s launches the shape is the same and the margin is wide:
+
+| | min | median | max |
+| --- | --- | --- | --- |
+| last second with no delivered frames | 16 s | 17 s | 24 s |
+| the grab, on the same clock | 47.2 s | 50.3 s | 60.2 s |
+| **margin between them** | **31.2 s** | **34.1 s** | **36.2 s** |
+
+In every launch the picture is lit in the very next second after the gap, and no
+launch has a single dark second after it. So the grab sits at least 31 s after
+the launch's own blank window closes: a black prompt grab is not that window
+arriving late, and the eight prompt-only episodes of `k8` and `k9` are not early
+grabs.
+
+**The nonce renders.** `b1` types `echo <nonce> ###…` with a bar of `3 + n mod
+17` hashes, and the mean grey of the frame's top 120 rows rises monotonically
+with it across the 13 launches (4.70 at 3 hashes, 5.95 at 7, 7.35 at 11, 8.46 at
+15). Every launch's prompt frame hash is distinct, where `k8`'s 101 launches
+shared 10 hashes. A frame left over from an earlier launch would now show the
+wrong bar, so a stale frame can no longer pass as a live one.
+
 ## A bring-up outage and an episode do not look alike
 
 Three recordings now separate the two states, all reduced per frame here:
@@ -209,16 +265,20 @@ Three recordings now separate the two states, all reduced per frame here:
 | `k1831-hil/runs/kitB-20261114-102055/restore0-home.mkv` | #1831's 14 November episode, Kit B | 359 in 6.0 s at 60 fps | the same |
 | `b1`'s luma log, launch `p0n000` | a normal pc386 core load, Kit B | 2,179 in 42 s | **no frames at all** from ~11.5 s to ~17 s, then the picture; 4 black frames at 22.1 s, which are the `cls` the run types |
 
-So a bring-up's own outage shows up in the capture as **missing frames**, and an
-episode as a **full-rate stream of delivered black frames**. That separates "a
-bring-up outage" from everything else, which is worth having — but it does not
-separate the two sides of #1833. Powerboat reads both grabbers through one
+So a bring-up's own outage, as it happens, shows up in the capture as **missing
+frames**, while an episode shows up as a **full-rate stream of delivered black
+frames**. That is a useful difference but a weak classifier, and it does not
+separate the two sides of #1833 at all. Powerboat reads both grabbers through one
 long-lived `ffmpeg` fan-out into `v4l2loopback`; a reader of a loopback whose
 writer has stalled is served the last frame again, and if that frame was black
-the result is identical to a locked link carrying black pixels. Both hypotheses
-predict exactly 359 identical black frames with no gap and no drop warning, and
-#1831's run confirms its own `capture.log` is empty. So an episode's recording
-classifies it as "not a bring-up outage", and no further.
+the result is identical to a locked link carrying black pixels. Both hypotheses predict exactly 359 identical black
+frames with no gap and no drop warning, and #1831's run confirms its own
+`capture.log` is empty. Worse for the classifier: a fan-out that stalls *after*
+its last delivered frame has already gone black during a bring-up would also
+serve full-rate black, so a recording alone cannot even rule a bring-up outage
+out. What rules it out for #1831's attempt 0 is that run's own timing — its
+harness settles 60 s after `wait_selected` returns before it captures, about a
+minute clear of any bring-up — not the frame pattern.
 
 ## What this says about #1494
 
