@@ -1,0 +1,360 @@
+{
+  "format": 1,
+  "root": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+  "base": "c5c794535b7974eeb5d4a8b26ddc763e806b569a",
+  "head": "160a1344db2f1b3a50aec0db811331f57de48a21",
+  "checkout_head": "160a1344db2f1b3a50aec0db811331f57de48a21",
+  "merge_base": "c5c794535b7974eeb5d4a8b26ddc763e806b569a",
+  "local_paths": [],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": false,
+      "runtime": false,
+      "contracts": false,
+      "fpga": true
+    },
+    "skipped": [
+      "host",
+      "runtime",
+      "contracts"
+    ],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": false,
+      "full_race": false
+    },
+    "paths": [
+      "docs/validation/2026-11-14-de25-start-negotiation/README.md",
+      "docs/validation/2026-11-14-de25-start-negotiation/counterexample.json",
+      "docs/validation/2026-11-14-de25-start-negotiation/matched-control.json",
+      "docs/validation/2026-11-14-de25-start-negotiation/software.json",
+      "platform/embedded/firmware/input_transfer_service.c",
+      "platform/embedded/firmware/tests/sdm_retire/start_header_test.c",
+      "tests/test_nano_source_retirement.py"
+    ],
+    "reasons": [
+      "platform/embedded/firmware/input_transfer_service.c: embedded firmware/RTL integration; no shipped core consumer",
+      "platform/embedded/firmware/tests/sdm_retire/start_header_test.c: embedded firmware/RTL integration; no shipped core consumer",
+      "tests/test_nano_source_retirement.py: parent orchestration/tests/assembly; component sources unchanged"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+        "scripts/check_diff.py",
+        "--base",
+        "c5c794535b7974eeb5d4a8b26ddc763e806b569a",
+        "--head",
+        "160a1344db2f1b3a50aec0db811331f57de48a21"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"docs/validation/2026-11-14-de25-start-negotiation/README.md\", \"docs/validation/2026-11-14-de25-start-negotiation/counterexample.json\", \"docs/validation/2026-11-14-de25-start-negotiation/matched-control.json\", \"docs/validation/2026-11-14-de25-start-negotiation/software.json\", \"platform/embedded/firmware/input_transfer_service.c\", \"platform/embedded/firmware/tests/sdm_retire/start_header_test.c\", \"tests/test_nano_source_retirement.py\"]"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "Go command inventory",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+        "scripts/hil_go_inventory.py",
+        "--check"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+        "go"
+      ],
+      "files": [
+        "scripts/hil_go_inventory.py",
+        "config/hil-go-consumers.json"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "native runtime firmware and FPGA launch integration",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+        "c++",
+        "cc",
+        "go",
+        "verilator"
+      ],
+      "files": [
+        "platform/embedded/tamago/nativefabric/verify.py",
+        "platform/embedded/firmware/tests/native_rpc.cpp"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "embedded producer identity and native control integration",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+        "c++",
+        "cc",
+        "g++",
+        "git",
+        "go",
+        "make",
+        "verilator",
+        "verilator_bin"
+      ],
+      "files": [
+        "sources/misteross/prototypes/embedded_control/producer.py",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "embedded firmware and identity/drain RTL integration",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+        "platform/embedded/firmware/verify.py"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+        "c++",
+        "cc",
+        "verilator"
+      ],
+      "files": [
+        "platform/embedded/firmware/verify.py",
+        "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "test_*.py",
+      "cwd": "sources/misteross",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+        "strace"
+      ],
+      "files": [
+        "tests/test_*.py"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "passed-all-eleven-selected-phases",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "Go command inventory",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "native runtime firmware and FPGA launch integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded producer identity and native control integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded firmware and identity/drain RTL integration",
+      "lane": "fpga",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "terminal_result": {
+    "argv": [
+      "env",
+      "PATH=/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin:/usr/local/bin:/usr/bin:/bin",
+      "FES_NANO_TFA_ROOT=/home/deano/fes/out/dev/de25-embedded-os/out/terasic-git-restore-tfa",
+      "FES_NANO_SHA_REFERENCE=/home/deano/fes/out/dev/de25-embedded-os/out/terasic-git-restore-tfa/plat/intel/soc/common/lib/sha/sha.c",
+      "make",
+      "PYTHON=/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+      "test-changed",
+      "TEST_CHANGED_ARGS=--base=c5c794535b7974eeb5d4a8b26ddc763e806b569a"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1522.9538078871556,
+    "log_sha256": "26eb99789016367bb28f5b78733e646fcca2595a31336d7e6f6830e5dcea379f"
+  },
+  "terminal_result_sha256": "e12cb2362a179184241720968f9fd57e432a1dc6a2b8257e9bdab4a9f4c4e00e",
+  "log_sha256": "26eb99789016367bb28f5b78733e646fcca2595a31336d7e6f6830e5dcea379f"
+}

@@ -312,7 +312,12 @@
   },
   "hardware_actions": false,
   "hardware_accepted": false,
-  "broader_affected_checks": "running on implementation head; not claimed passed",
+  "broader_affected_checks": {
+    "status": "passed-all-eleven-selected-phases",
+    "implementation": "160a1344db2f1b3a50aec0db811331f57de48a21",
+    "record": "../2026-11-14-de25-rearm-inventory-stop/software.json"
+  },
   "ordinary_core_load_acceptance": false,
-  "whole_EL3_stack_qualified": false
+  "whole_EL3_stack_qualified": false,
+  "later_hardware_result": "spare FIT refresh passed; native JTAG inventory stopped before candidate programming; original baseline restoration pending"
 }
