@@ -164,6 +164,63 @@ class CorrectionShapeTests(unittest.TestCase):
             self.assertNotIn(stale, asserted(shape))
 
 
+class SectionTotalTests(unittest.TestCase):
+    """The per-area counts inside census-tables.md, which nothing checked.
+
+    Every `### ... -- N sites` heading states its own count, one area note
+    states a count and a number of distinct files, and the sum has to be the
+    row total the README states. The checker validated no total outside the
+    README, so a section note read "23 sites in 19 scripts" over 24 rows in 15
+    scripts and stayed that way through ten review rounds (DeanoC/fes#1829).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.lines = verify_census.lines_of(str(RECORD / "census-tables.md"))
+        heads = [(i, line) for i, line in enumerate(cls.lines)
+                 if line.startswith('### ')]
+        cls.sections = []
+        for (start, head), (end, _) in zip(
+                heads, heads[1:] + [(len(cls.lines), '')]):
+            rows, paths = 0, []
+            for line in cls.lines[start + 1:end]:
+                if not line.startswith('| `'):
+                    continue
+                cells = [c.strip() for c in
+                         verify_census.UNESCAPED_PIPE.split(line.strip())[1:-1]]
+                if len(cells) >= 5 and cells[1] not in ('---', 'Line'):
+                    rows += 1
+                    paths.append(cells[0].strip('`'))
+            cls.sections.append((start + 1, head, rows, len(set(paths))))
+
+    def test_every_heading_states_its_row_count(self):
+        self.assertTrue(self.sections, 'no sections found')
+        for row, head, rows, _ in self.sections:
+            claimed = re.search(r'—\s*(\d+)\s*sites', head)
+            self.assertIsNotNone(
+                claimed, f'census-tables.md:{row}: {head!r} states no count')
+            self.assertEqual(int(claimed.group(1)), rows,
+                             f'census-tables.md:{row}: {head!r} over {rows} rows')
+
+    def test_the_sections_sum_to_the_row_total(self):
+        total, _ = verify_census.check_primary()
+        self.assertEqual(sum(s[2] for s in self.sections), total)
+
+    def test_an_area_note_states_its_sites_and_files(self):
+        found = 0
+        for row, line in enumerate(self.lines, 1):
+            note = re.search(r'(\d+) sites in (\d+) (?:scripts|files)', line)
+            if not note:
+                continue
+            found += 1
+            section = [s for s in self.sections if s[0] < row]
+            self.assertTrue(section, f'census-tables.md:{row}: note before any heading')
+            _, head, rows, files = section[-1]
+            self.assertEqual((int(note.group(1)), int(note.group(2))), (rows, files),
+                             f'census-tables.md:{row}: note under {head!r}')
+        self.assertTrue(found, 'no area note found; drop this test if the form changed')
+
+
 class RangeTests(unittest.TestCase):
     """A cited range must not end before it starts.
 

@@ -86,7 +86,7 @@ what the README's counts come from.
 
 **Agent notes.**
 
-Area: sources/misteross/scripts/ excluding sim_fes_* and synth_fes_* (one deliberate exception, synth_fes_pcxt.py, because the task asked me to confirm it; it may duplicate the sim/synth agent). 60 sites in 28 files. Every line above, and every path:line inside a `what`, was re-read with sed after the search.
+Area: sources/misteross/scripts/ excluding sim_fes_* and synth_fes_* (one deliberate exception, synth_fes_pcxt.py, because the task asked me to confirm it; it may duplicate the sim/synth agent). 60 sites in 27 files, counting distinct `Path` entries. Every line above, and every path:line inside a `what`, was re-read with sed after the search.
 
 DOC CLAIMS CONFIRMED EXACT in this tree: build_fes_coleco_megacart.py:94, build_fes_coleco_socket_dev.py:105, build_video_part.py:34 and :167, hip_zx81_bus_carts.py:39 and :71, build_zx81_bus_validation_cart.py:32-33 with its compile at :157, hip_zx81_bus_socket.py:54 and :138, quartus_x87_spike.py:341 (and its machine()/spike() split is as described), build_fes_ramtest_quartus.py:101, synth_fes_pcxt.py:49 (which does also hash coleco_video_dpram.v into the receipt, at :57).
 
@@ -278,7 +278,7 @@ Scripts that match the macro or guarded-file patterns but are NOT invoked by any
 
 **Agent notes.**
 
-Area covered: all 30 sim_fes_*/synth_fes_* scripts under sources/misteross/scripts/. 23 sites in 19 scripts. Line numbers were re-opened with sed one by one, including every line cited inside a `what`.
+Area covered: all 30 sim_fes_*/synth_fes_* scripts under sources/misteross/scripts/. 24 sites in 15 scripts, counting distinct `Path` entries. Line numbers were re-opened with sed one by one, including every line cited inside a `what`.
 
 Doc claims, checked one by one against this tree. The task's claim list is the narrower, older one; the design doc's own census bullet at docs/design/rtl-frontend-lanes.md:787 (post-#1828) already matches almost all of what I found. Confirmed: sim_fes_coleco_native.py:21, sim_fes_zx81_session.py:31, sim_fes_native_video.py:23, synth_fes_native_video.py:14, sim_fes_native_socket.py:22, sim_fes_coleco_session.py:20, sim_fes_pcxt.py (:72 plus the three suite reads), synth_fes_pcxt.py:49, sim_fes_pcxt_dos.py:188, sim_fes_pcxt_media.py:39, sim_fes_pcxt_media_diag.py:17, sim_fes_coleco_quartus.py:58 and :32-33, sim_fes_sms_quartus.py:46, sim_fes_sg1000_quartus.py:46.
 
