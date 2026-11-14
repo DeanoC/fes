@@ -23,6 +23,7 @@ CASE dsr_reset MATCH
 CASE dor_select DIFFER LISTED
 CASE dor_mismatch DIFFER LISTED
 CASE reset_sense_pcn DIFFER LISTED
+CASE reset_during_seek DIFFER LISTED
 CASE status_registers DIFFER LISTED
 CASE fm_read DIFFER LISTED
 CASE read_deleted DIFFER LISTED

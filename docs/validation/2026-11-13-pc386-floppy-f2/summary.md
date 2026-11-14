@@ -116,6 +116,25 @@ cannot satisfy.
   units this machine does not have. Bochs zeroes `cylinder[0..3]` on a
   software reset as well as a hardware one, which is the `reset-pcn`
   divergence and its `reset_sense_pcn` case.
+- **A fourth round found the PCN being loaded rather than counted.** A seek
+  took its unit's PCN to the destination at dispatch while the head walked
+  there a pulse at a time, so a software reset that cut the seek short left
+  the PCN naming a cylinder the head had never reached, and every later seek
+  and implied seek counted its distance from there. It had been invisible
+  while a reset zeroed the register. The 82077AA puts the PCN in the step
+  loop — "after each step pulse is issued, NCN is compared against PCN"
+  (5.2.3) — so it now counts beside the head, and RECALIBRATE keeps the
+  clear at dispatch that the datasheet gives that one command.
+- **The head and the counter part company only at the ends of the medium.**
+  Clamping the PCN at zero alongside the head was the first cut of that fix,
+  and it moved `seek_below_zero` away from Bochs, which is the sign that the
+  model and not the reference is wrong. The datasheet draws the distinction:
+  on a RELATIVE SEEK past the last track the controller "would move the head
+  the specified number of tracks, regardless of the internal cylinder
+  position register (but would increment the register)", and "the resulting
+  PCN value is thus (NCN + PCN) mod 256" (5.2.5). The head stops where the
+  drive stops it; the counter does not stop, it wraps. So `physical_cyl`
+  saturates, `pcn` counts every pulse, and that case matches again.
 - **And the implied seek now stops at the track-zero sensor.** The distance
   from the named unit's PCN to the command's cylinder can take the selected
   drive's head below zero under a DOR mismatch, which eight unsigned bits
@@ -166,7 +185,7 @@ Every suite ran on this branch, on the ROM the branch ends with
 | --- | --- |
 | `floppy` (new) | PASS: 24 checks, all ok, all four swaps made, and the pattern FLOPTEST.COM wrote to B: is in sector 2399 of the image the bench wrote back ([log](floppy-suite.log)) |
 | `floppy-boot` (new) | PASS: FreeDOS boots from the 1.44M floppy in A: with CMOS 2Dh, 38h and 3Dh set to an A: launch, reaches the `A:\>` prompt 5.90 simulated s in, and DIR shows the boot floppy's label FDBOOT |
-| `fdc` | PASS: 38 cases, 20 matching Bochs, 15 listed divergences (the new `dor_mismatch`, `eot_no_step_pulse` and `reset_sense_pcn` among them), 3 RTL-only ([log](fdc-suite.log)) |
+| `fdc` | PASS: 39 cases, 20 matching Bochs, 16 listed divergences (the new `dor_mismatch`, `eot_no_step_pulse`, `reset_sense_pcn` and `reset_during_seek` among them), 3 RTL-only ([log](fdc-suite.log)) |
 | `devices` | PASS, with three new CMOS cases: no drive, two drives with an A: launch, one 360K drive with a CD launch |
 | `boot` (oracle) | PASS, with the VGA replay clean (84,949 events, no mismatch) |
 | `a20` | PASS on the boot and games images |
@@ -175,10 +194,11 @@ Every suite ran on this branch, on the ROM the branch ends with
 
 **The RTL CPU**, which is the slice's lockstep check: the same scripts with
 `fes_i386_cpu` in the oracle's place, so the DMA-terminated INT 13h reads,
-DMA channel 2 and IRQ 6 are its. Both ran again at `1b75a9750`, after the
-last two fixes, and retired the same counts as before them: the normal path
-is untouched, since a drive's head and its unit's PCN only part company
-under a DOR mismatch, which no guest makes.
+DMA channel 2 and IRQ 6 are its. Both ran again after every round of
+fixes, the last at `23218503b`, and retired the same counts each time: the
+normal path is untouched, since a drive's head and its unit's PCN only part
+company under a DOR mismatch or a reset that cuts a seek short, and no guest
+makes either.
 
 - **`floppy --cpu rtl`: PASS** ([log](floppy-rtl-suite.log)). The oracle boots
   and the RTL takes over at the prompt, as the `ems` suite does. All 24
@@ -204,7 +224,16 @@ the drives. The baseline was unchanged throughout (software `7ddb0bfb` on
 image `179affbb`, the same snapshot keys before and after, agent idle and
 lease free), and the run's four FogCast paths were removed afterwards.
 
-**And once more, after the last two fixes** (Kit B, run `b1`, 14 November
+**And on the head the record describes** (Kit A, run `a2`, 14 November
+2026). The round-5 seal `9f08910b0af8e1dc` launched on Kit A's baseline
+(software `a2756499` on image `179affbb`), core-only: FreeDOS boots to
+`C:\>` and DIR reports **33,292,288 bytes free**, the same figure every kit
+run of this branch has reported ([grab](kitA-a2-dir.png)). Claimed only
+after the status file logged Kit A FREE on that baseline with its agent idle
+and lease free, released FREE once the post-run snapshot matched the probe,
+and the three FogCast trees the run created removed in a second claim.
+
+**After the two fixes before those** (Kit B, run `b1`, 14 November
 2026). The round-4 seal `f1ac9f9828da1850` launched on Kit B's baseline
 (software `7ddb0bfb` on image `179affbb`), core-only: FreeDOS boots to
 `C:\>` and DIR reports **the same 33,292,288 bytes free** again
@@ -229,9 +258,8 @@ delta and the staged fixture image) were removed in a second claim.
 Quartus 17.0.2, seed 1, the CUDA slot on `chip-30x0-ai-dev`, from a clean
 worktree of the exact commit, with the lockstep `--netlist` report (#1782) in
 front of it (`lockstep exit=0`). Every analysis passes. The branch was sealed
-three times: once at its first head, again at `41ecd7ef7` when the review
-moved the controller, and last at `1b75a9750`, which is the build the
-record's figures describe. The branch's own merge base `53681975f` is
+four times, as the review moved the controller; the last, at `23218503b`,
+is the build the record's figures describe. The branch's own merge base `53681975f` is
 sealed the same way on the same host, so the slice can be measured against
 the tree it is a change to; the two mains of the two days are kept in the
 table as well, with what they do and do not show.
@@ -239,8 +267,9 @@ table as well, with what they do and do not show.
 | Build | ALMs | RAM blocks | DSP | Registers | Setup | Hold |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | **the branch's base `53681975f`** ([summary](base-r3-build-summary.json)) | 36,399 | 274 | 40 | 32,728 | +0.147 | +0.080 |
-| **F2 seal `1b75a9750`, 14 Nov** ([summary](seal-r4-build-summary.json)) | **36,635** | 274 | 40 | 33,004 | **+0.977** | **+0.098** |
-| **the slice** | **+236** | **0** | **0** | **+276** | | |
+| **F2 seal `23218503b`, 14 Nov** ([summary](seal-r5-build-summary.json)) | **36,556** | 274 | 40 | 32,935 | **+0.749** | **+0.069** |
+| **the slice** | **+157** | **0** | **0** | **+207** | | |
+| An earlier F2 head `1b75a9750` ([summary](seal-r4-build-summary.json)) | 36,635 | 274 | 40 | 33,004 | +0.977 | +0.098 |
 | An earlier F2 head `41ecd7ef7` ([summary](seal-r3-build-summary.json)) | 36,594 | 274 | 40 | 32,716 | +0.810 | +0.082 |
 | The doc's F2 estimate | +150 | 0 | 0 | | | |
 | main `1b4601831`, 14 Nov ([summary](main-r3-build-summary.json)) | 36,189 | 274 | 40 | 32,226 | +0.468 | +0.090 |
@@ -248,18 +277,17 @@ table as well, with what they do and do not show.
 | F2 seal `92ef982d6`, 13 Nov ([summary](seal-build-summary.json)) | 36,399 | 274 | 40 | 32,869 | +0.694 | +0.068 |
 | An earlier F2 head `18ccf4884` ([summary](earlier-seal-build-summary.json)) | 36,471 | 274 | 40 | 32,965 | +0.330 | +0.076 |
 
-- **+236 ALMs, +0 M10K and +0 DSP**, measured against the branch's own
+- **+157 ALMs, +0 M10K and +0 DSP**, measured against the branch's own
   merge base `53681975f` sealed the same way on the same host: the same tree
   with and without this slice, which is the only comparison that isolates
-  it. That is the figure to quote. At **87.4%** of the 5CSEBA6 the device
-  keeps its room. The slice is over the doc's +150 estimate by about the
-  ±200 ALM fit noise the area audit measures, and the last round's two fixes
-  — the PCN indexed by ST0's unit, and the signed saturating step — account
-  for 41 ALMs of it against the previous head.
-- **The register count rose with the last round**, from 12 fewer than the
-  base to 276 more. The two fixes add no state of their own, so that is the
-  fit choosing differently — retiming and duplication around the wider
-  arithmetic — not new registers in the design.
+  it. That is the figure to quote, and it lands on the doc's +150 estimate.
+  At **87.2%** of the 5CSEBA6 the device keeps its room. Counting the PCN in
+  the step engine costs 79 ALMs less than loading it at dispatch did, which
+  is where the figure came down from the previous head's +236.
+- **The register count sits 207 above the base**, having been 12 below it
+  two heads ago. None of the review's fixes adds state of its own, so that
+  spread is the fit choosing differently — retiming and duplication around
+  the arithmetic — rather than new registers in the design.
 - **The main-of-the-day comparisons are noisier, and the record keeps them
   so nobody re-derives them.** The branch carries none of main's commits
   since `8ab34380e`, and main itself shed 144 ALMs and 689 registers over
@@ -283,14 +311,14 @@ table as well, with what they do and do not show.
   pays the rest when its endpoint drives those inputs, as slice F1's record
   says of the controller itself.
 - **Timing is met with room**, and more of it than the base had: setup
-  +0.977 ns against the merge base's +0.147, hold +0.098 ns, minimum pulse
-  width +1.122 ns, recovery +6.546 ns, removal +0.495 ns, on the 61.44 MHz
+  +0.749 ns against the merge base's +0.147, hold +0.069 ns, minimum pulse
+  width +1.122 ns, recovery +6.291 ns, removal +0.453 ns, on the 61.44 MHz
   system clock with the 74.27 MHz pixel and 12.29 MHz audio clocks. Nothing
   was relaxed.
 - **The sealed commit is not the branch head**: everything committed after
-  `1b75a9750` is this record. No RTL, firmware or other seal input changed,
+  `23218503b` is this record. No RTL, firmware or other seal input changed,
   and all 119 of the seal's recorded input digests match the head's files.
-- Package `f1ac9f9828da1850…`, `BUILD_ID` `2f2a3c7cad0bb922b4394a9bb6b07c39`,
+- Package `9f08910b0af8e1dc…`, `BUILD_ID` `622aa3935b181750ce5da9d81611817a`,
   backend CUDA, device 5CSEBA6U23I7, status `pass`.
 
 ## Reproduce
