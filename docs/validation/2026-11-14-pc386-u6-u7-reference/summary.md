@@ -30,7 +30,7 @@ kit was measured. The reference machines are in
 | --- | --- |
 | **Ultima VI, PC speaker pitch at the 286-12 preset** | **Fail**, on three kit captures and five reference ones. The kit's notes are 12.7–12.9% below the reference's, 2.35 and 2.38 semitones flat. The band is ±5.9%, one semitone. Scaling the reference from its 12.5 MHz to the preset's nominal 12.0 leaves 9.0–9.3% and about 1.7 semitones, if the game keeps the same delay unit across that step. |
 | **Ultima VI, walking speed at the 286-12 preset** | **Not measurable by any method tried here**, and the methods are why, not the kit. Three were tried and all failed on one cause: the game steps when it next polls the keyboard and drops what is queued, so the rate follows how the keys arrive. Keying harder makes it walk *slower* — 2.94 steps a second at 10 keys a second, 2.06 and 2.07 at 12.3 and 25 — so the steady over-keyed figure is a suppressed rate, not a plateau. Measuring it needs the game's own step count, not motion in frames. |
-| **Ultima VII: The Black Gate, NPC pace at 386DX-25** | **Not established**, and **not** for want of a method: no pace was ever measured, because the game does not start on the reference. It stops at its own memory check, which is a configuration problem with a named cause and a route left to try. |
+| **Ultima VII: The Black Gate, NPC pace at 386DX-25** | **Not established**, and **not** for want of a method: no pace was ever measured, because the game does not start on the reference. It stops at its own memory check, which is a configuration problem with a named cause and routes left to try. Carried forward as [#1853](https://github.com/DeanoC/fes/issues/1853). |
 
 **These three are different outcomes and should not be read as one.** The pitch
 is a measured verdict. The walk is a documented dead end: three methods, each
@@ -463,6 +463,10 @@ What is left is to reproduce the kit's memory map — an 86Box ISA memory
 expansion board putting RAM behind C800–DFFF, so the games image's own UMB
 provider loads the drivers high there exactly as it does on the kit. That is
 the like-for-like route and it was not reached today.
+
+**This is now [#1853](https://github.com/DeanoC/fes/issues/1853)**, with its
+own session, and the ruled-out routes below are its starting point rather than
+work still open here.
 
 **Two things, then, for whoever picks this up**, in order: that memory board,
 which is a configuration change on the reference and should unblock the game;

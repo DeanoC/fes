@@ -536,7 +536,8 @@ the 286-12 preset scores above all of them
   check, because a real 386 board has no RAM behind C800-DFFF for the games
   image's UMB provider where the kit's machine does. The routes left are an
   86Box ISA memory board there, and settling the 386DX-25 reference board;
-  both are work not reached, not dead ends.
+  both are work not reached, not dead ends, and both are carried forward as
+  [#1853](https://github.com/DeanoC/fes/issues/1853).
 
 The walk also waits on [#1840](https://github.com/DeanoC/fes/issues/1840): the
 286-12 preset scores TopBench 33 where AT-class real 286 boards of its clock
