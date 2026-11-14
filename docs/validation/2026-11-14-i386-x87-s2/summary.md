@@ -192,40 +192,36 @@ fixed in the commit that found it.
 
 ## Checks
 
+Every gate below is of **`bf581e303`**, the branch's frozen head: one run,
+in the order the seal needs, on `chip-30x0-ai-dev` with CUDA
+(`/data/x87-s2-fits/gates3.log`).
+
 | Check | Where | Result |
 | --- | --- | --- |
-| `test_fes_i386_x87_unit.py` (70 cases: loads, stores, FXAM, FTST, the constants, the state forms, the protocol) | chip, lock's Verilator | 70 passed, 0 failed |
-| the same with `--netlist` (the seal's Yosys netlist of the unit) | chip | 70 passed, 0 failed |
-| the lockstep with the identity off, the full run | chip | every bucket 0 fail, the 1,933 no-387 directed cases included; the unbuilt sweep 53,008 encodings, 0 wrong |
+| `test_fes_i386_x87_unit.py` (84 cases: loads, stores, FXAM, FTST, the constants, the state forms, the protocol, the holds) | chip, the lock's Verilator | **84 passed, 0 failed** |
+| the same with `--netlist`, the seal's Yosys netlist of the unit | chip | **84 passed, 0 failed** |
+| the lockstep on the RTL, every bucket | chip | **0 fail**: the 1,933 no-387 directed cases (5,355 ESC instructions under the no-387 rule), the 8 identity-on programs with the 387's whole state compared at 13 retirements, unreal, protected mode, paging, tasks, debug and the undefined sweep |
+| the lockstep on the locked-Yosys netlist, the same buckets | chip | **0 fail**, the same counts |
+| the lockstep at governor preset 3, `--same-as` the max run | chip | **0 fail**, 16 retirements compared; every bucket agrees with the max run |
+| `test386.asm` on the RTL | chip | POST 00 … E0 EE **FF**, 79,641,629 steps, no EE difference |
+| the Quartus 17.0.2 seal of the frozen head | chip, CUDA | **passed**, package `25ba71ce`, below |
+| the two machine analysis fits, the identity overlaid on and left off | chip | below |
+| a kit run on that seal | Kit B | below |
 | `tests.test_pc386_machine` (82 tests: the whole machine simulated with the unit in it) | Powerboat | OK |
-| the unit's bench on the seal's Yosys netlist of the unit | chip | 82 passed, 0 failed |
-| the lockstep's x87 bucket, the identity on: eight directed programs of this slice's forms, on the RTL and on the netlist | chip | 8 passed, 0 failed each, the 387's whole state compared at every retirement |
-| the lockstep's other buckets, on the RTL and on the netlist | chip | directed 84, unreal 7, protected-mode 726, paging 148, memory 27, all 0 fail |
 | `tests.test_fes_i386_x87_unit`, `tests.test_fes_i386_ucode`, `tests.test_build_fes_pc386_quartus`, `tests.test_audit_fes_i386_case`, `tests.test_quartus_fes_i386` | Powerboat | OK |
 | Verilator `-Wall` lint (the lock's 5.054) | Powerboat and chip | clean |
 
-On `bb7b10c0c`, the head before the governor fix, every gate but one passed:
+The identity-off lockstep is the regression this slice turns on: with the
+identity clear the CPU must be the empty socket it was, and it is, across
+the random, protected-mode, task, debug and undefined programs and the
+per-encoding unbuilt sweep.
 
-| Check | Result |
-| --- | --- |
-| the unit's bench, RTL and the seal's Yosys netlist | 82 passed, 0 failed each |
-| the lockstep on the RTL: every bucket, the 1,933 no-387 directed cases and the 8 identity-on programs among them | passed |
-| the lockstep on the locked-Yosys netlist, the same buckets | passed |
-| test386.asm on the RTL | POST 00 … E0 EE **FF** |
-| the two machine fits | above |
-| the Quartus 17.0.2 seal | **passed**, package `fd12bda5` |
-| the lockstep at governor preset 3, `--same-as` the max run | **failed**: the x87 bucket deadlocked at FNINIT |
-
-The preset run is why the slice is not mergeable on that head, and the fix
-is the last row of the table above. Everything is running again on the head
-that carries it; a seal of the frozen RTL and a kit run on it are what is
-left.
-
-The identity-off run is the regression this slice turns on: with the
-identity clear the CPU must be the empty socket it was, and the short run
-says it is, across the random, protected-mode, task, debug and undefined
-programs and the per-encoding unbuilt sweep. The full run, the netlist run
-and test386 are in flight.
+**The head before this one failed one gate.** On `bb7b10c0c` the lockstep at
+governor preset 3 deadlocked at FNINIT: a no-wait control form took the one
+no-wait slot and then waited on it, and only its own commit clears it. Without
+the governor it issued in the same cycle, so nothing showed. `bf581e303`'s
+`nw_waiting` is the fix and the last row of the fault table above; every gate
+was re-run from the start on it, and the seal recorded here is of that head.
 
 ## Area and timing
 
@@ -267,6 +263,30 @@ The second's ran from the same output through the class decode, the
 exponent subtract and the shift amount into the multiplier's one-hot
 multiplicand, 9 levels.
 
+### The seal
+
+The Quartus 17.0.2 seal of `bf581e303`, built on `chip-30x0-ai-dev` from a
+clean checkout of that commit with `--gpu-router CUDA` and the full lockstep
+`--netlist` report in front of it, as #1782 requires:
+
+| | |
+| --- | --- |
+| package | `25ba71ceb4b2ae22fd5f4d7ccd6521767d5795fb9a6564643a5c13398e059fc6` |
+| `BUILD_ID` | `e48f617bcd2df180070ba4c18625e023` |
+| `core.rbf` | `b01d1663de9313a780bce1f1ba790101cf651243ba6747aa981c2c0d855a1595` |
+| ALMs | 36,406 of 41,910 (86.9%) |
+| DSP / M10K / registers | 40 / 274 / 32,727 |
+| system clock | 61.44 MHz, setup **+0.588 ns**, hold +0.115, pulse width +1.122, recovery +6.542, removal +0.258, every analysis 0 ns TNS |
+| pixel / audio clocks | 74.27 MHz / 12.29 MHz, both met |
+| the lockstep report it carries | netlist `39f9a82b`, report `d8324c44`, Verilator 5.054 of the i386 lock, Yosys `e240a465` |
+
+Main's last pc386 seal is 36,803 ALMs, taken before the keyboard's M10K win
+(#1802, −796), so main's baseline today is about **36,007**. The sealed core
+is **about 399 ALMs above that** with the identity clear: tying the identity
+to `1'b0` does not remove everything, because the unit's ERROR# reaches the
+slave PIC and its words feed the AT core's ports. It meets every analysis
+with margin to spare, and nothing was relaxed for it.
+
 ### The machine, measured
 
 A seal cannot measure this slice: the package ties the identity to `1'b0`
@@ -278,17 +298,17 @@ Quartus 17.0.2 at the seal's settings, seed 1:
 
 | The machine | ALMs | % of device | vs the 92% ceiling | DSP | M10K | CPU setup (ns) | CPU hold (ns) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| the identity clear, as the package has it | 36,530 | 87.2% | −2,027 | 40 | 274 | **+0.238** | +0.099 |
-| the identity set, so the unit is kept | 38,175 | 91.1% | **−382** | 49 | 278 | **+0.526** | +0.038 |
+| the identity clear, as the package has it | 36,532 | 87.2% | −2,025 | 40 | 274 | **+0.558** | +0.090 |
+| the identity set, so the unit is kept | 38,118 | 91.0% | **−439** | 49 | 278 | **+0.804** | +0.072 |
 
-- **The unit costs +1,645 ALMs, 9 DSP blocks and 4 M10K inside the machine**,
+- **The unit costs +1,586 ALMs, 9 DSP blocks and 4 M10K inside the machine**,
   and the machine meets the clock either way.
 - With the identity clear the machine is still about **520 ALMs and 2 DSP
   above** main with the keyboard win (about 36,007): tying the identity off
   does not remove everything, because the unit's ERROR# reaches the slave
   PIC and its words feed it.
-- At 38,175 the machine with a 387 fitted is **382 ALMs under the 92%
-  ceiling**, and its margin is +0.526 ns against the baseline's +0.58 to
+- At 38,118 the machine with a 387 fitted is **439 ALMs under the 92%
+  ceiling**, and its margin is +0.804 ns against the baseline's +0.58 to
   +0.86.
 
 ### What this says about the budget
@@ -304,12 +324,12 @@ This is the plan's "stop and report" case.
   dispatch, constant and seed ROMs held a hash of the address and its
   conversions were structural. The real conversions, their rounding and the
   environment and save layouts are what the difference buys.
-- The machine fits put it beyond doubt: this slice alone adds **+1,645**
+- The machine fits put it beyond doubt: this slice alone adds **+1,586**
   ALMs, where the spike predicted **+1,687** for the whole of option A,
   slow path and all.
 - So slices 3 to 5 — the 68-bit add and subtract, compare, the Goldschmidt
   divide and square root with their seed ROMs, FPREM, and the
-  transcendentals with their microcode ROM and constants — have **382 ALMs**
+  transcendentals with their microcode ROM and constants — have **439 ALMs**
   of headroom under the ceiling, and the spike's own standalone figures put
   the slow path alone above that.
 - Against the ceiling: main's last pc386 seal is 36,803 ALMs less the
