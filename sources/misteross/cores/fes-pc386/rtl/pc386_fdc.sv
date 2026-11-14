@@ -51,12 +51,21 @@
 // named one. Software writes DOR first (8.3), so this only shows in the
 // replay's dor_mismatch case; Bochs and QEMU run such a command on the
 // drive it names, and move DOR's select to it (sim/fdc_divergences.toml,
-// dor-select and dor-mismatch). The drive's physical track is separate from
-// the controller's per-unit PCN. Under that mismatch the controller steps
-// the DOR-selected drive but updates the command unit's PCN. A read or write
-// must find its C field on the physical track. It cannot use the command
-// unit's PCN to select a different image cylinder. ST3's TRK0 reports the
-// physical drive.
+// dor-select and dor-mismatch).
+//
+// Three cylinder numbers are kept apart, as the datasheet keeps them. Each
+// drive has the track its head stands on, which only step pulses move.
+// Each unit has a PCN, "the current head position" a seek works from (5.2.3),
+// which Recalibrate, the seeks and a transfer's implied seek write. And each
+// unit has the C of the command in hand, which the result phase returns and
+// which EOT advances ("ID information at result phase", Table 5-6) without
+// moving anything. A read or write performs an implied seek (5.1), which this
+// controller always has, since the locked BIOS sends no Seek of its own: it
+// steps the selected drive by the named unit's distance to C. Under a DOR
+// mismatch that leaves the selected drive's head away from its PCN, and the
+// transfer ends with ST1 ND, because no ID field on that track carries the
+// cylinder asked for. ST3's TRK0 and the disk-change line answer for the
+// drive DOR selects, and the image address is the command's C.
 //
 // Commands are decoded on the whole byte, so a command takes only the
 // modifier bits (MT, MFM, SK) the 82077AA gives it: Specify, Sense Drive
@@ -172,7 +181,7 @@ module pc386_fdc #(
     reg [3:0] srt, hut;
     reg [6:0] hlt;
     reg [7:0] config_byte, pretrk, perp;
-    reg [1:0][7:0] cyl, physical_cyl, sector, eot;
+    reg [1:0][7:0] cyl, pcn, physical_cyl, sector, eot;
     reg [1:0] head, changed, present_q, spun;
     reg [1:0][18:0] spin_us;
     reg [7:0] st0, st1, st2, st3, last_result;
@@ -231,13 +240,14 @@ module pc386_fdc #(
 
     // ---- Seeks: the target and the steps to it --------------------------
     wire command_drive = command[1][0];
-    wire [7:0] from_cyl = cyl[command_drive];
+    wire [7:0] from_cyl = pcn[command_drive];
     wire [8:0] seek_target = op == 8'h07 ? 9'd0 : op == 8'h0f ? {1'b0, command[2]} :
                              op[6] ? {1'b0, from_cyl} + {1'b0, command[2]} : {1'b0, from_cyl} - {1'b0, command[2]};
     wire [7:0] seek_distance = op[7] ? command[2] :
                                seek_target[7:0] > from_cyl ? seek_target[7:0] - from_cyl : from_cyl - seek_target[7:0];
-    // Recalibrate steps to the physical track-zero sensor, independent of
-    // the command unit's PCN. Other seeks emit the delta implied by that PCN.
+    // Recalibrate steps until the drive's track-zero sensor answers, so its
+    // steps count from where the selected drive's head stands. Every other
+    // seek emits the delta between the named unit's PCN and the new cylinder.
     wire [7:0] seek_steps = op == 8'h07 ? physical_cyl[dsel] : seek_distance;
     wire seek_direction_up = op == 8'h0f ? seek_target[7:0] > from_cyl : op[6];
 
@@ -308,7 +318,7 @@ module pc386_fdc #(
     wire [7:0] stepped_cyl = cyl[d] + 8'd1;
     wire end_of_track = sector[d] == eot[d] && (!mt || head[d] == two_sided[dsel]);
     // LBA of the selected drive's current sector, and of a format ID's.
-    wire [7:0] lba_cyl = formatting ? format_cyl : physical_cyl[dsel];
+    wire [7:0] lba_cyl = formatting ? format_cyl : cyl[d];
     wire [8:0] lba_track = ({lba_cyl, 1'b0} >> !two_sided[dsel]) + {8'd0, head[d] & two_sided[dsel]};
     wire [12:0] lba = 13'({4'd0, lba_track} * {5'd0, sectors_per_track}) + 13'(sector[d]) - 13'd1;
 
@@ -333,7 +343,7 @@ module pc386_fdc #(
     always @* begin
         case (result_kind)
             R_ST3: result_byte = st3;
-            R_SENSE: result_byte = result_index == 4'd0 ? st0 : cyl[d];
+            R_SENSE: result_byte = result_index == 4'd0 ? st0 : pcn[d];
             R_RW, R_FORMAT:
                 case (result_index)
                     4'd0: result_byte = st0;
@@ -346,8 +356,8 @@ module pc386_fdc #(
                 endcase
             R_DUMP:
                 case (result_index)
-                    4'd0: result_byte = cyl[0];
-                    4'd1: result_byte = cyl[1];
+                    4'd0: result_byte = pcn[0];
+                    4'd1: result_byte = pcn[1];
                     4'd2, 4'd3: result_byte = 8'h00;
                     4'd4: result_byte = {srt, hut};
                     4'd5: result_byte = {hlt, nd};
@@ -436,6 +446,18 @@ module pc386_fdc #(
         end
     endtask
 
+    // The seek a read or write makes before its transfer: the controller
+    // steps the selected drive by the distance from the named unit's PCN to
+    // the command's cylinder and takes that PCN with it, and those step
+    // pulses clear the drive's disk-change line.
+    task automatic implied_seek;
+        begin
+            physical_cyl[dsel] <= 8'(physical_cyl[dsel] + command[2] - pcn[d]);
+            pcn[d] <= command[2];
+            if (command[2] != pcn[d] && present[dsel]) changed[dsel] <= 0;
+        end
+    endtask
+
     task automatic fail(input [2:0] kind, input h, input [7:0] status1);
         begin
             st0 <= {5'b01000, h, 1'b0, d}; st1 <= status1; st2 <= 0;
@@ -443,16 +465,15 @@ module pc386_fdc #(
         end
     endtask
 
-    // Move to the next sector.
+    // Move to the next sector. Past EOT the command's own C advances, as
+    // the result phase table has it, and nothing else does: the controller
+    // issues no step pulse here, so the head stays where the transfer's
+    // implied seek put it and the disk-change line stays as it was.
     task automatic step_sector;
         begin
             sector[d] <= wrap ? 8'd1 : next_sector;
             if (wrap && mt) head[d] <= !head[d];
-            if (cylinder_step) begin
-                cyl[d] <= stepped_cyl >= tracks ? tracks : stepped_cyl;
-                if (physical_cyl[dsel] != 8'hff) physical_cyl[dsel] <= physical_cyl[dsel] + 8'd1;
-                if (present[dsel]) changed[dsel] <= 0;
-            end
+            if (cylinder_step) cyl[d] <= stepped_cyl >= tracks ? tracks : stepped_cyl;
         end
     endtask
 
@@ -480,7 +501,7 @@ module pc386_fdc #(
         if (reset) begin
             dor <= 8'h0c; xd <= 0; msr <= 8'h80; rate <= 2'd2; nd <= 0; lock <= 0;
             srt <= 0; hut <= 0; hlt <= 0; config_byte <= 0; pretrk <= 0; perp <= 0;
-            cyl <= 0; physical_cyl <= 0; head <= 0; sector <= {8'd1, 8'd1}; eot <= 0;
+            cyl <= 0; pcn <= 0; physical_cyl <= 0; head <= 0; sector <= {8'd1, 8'd1}; eot <= 0;
             changed <= 0; present_q <= present;
             st0 <= 0; st1 <= 0; st2 <= 0; st3 <= 0; last_result <= 0;
             pending_irq <= 0; pio_irq <= 0; reset_sensei <= 0;
@@ -624,7 +645,7 @@ module pc386_fdc #(
                             seek_up <= seek_direction_up;
                             steps <= seek_steps == 8'd0 ? 8'd1 : seek_steps;
                             if (seek_steps != 8'd0 && present[dsel]) changed[dsel] <= 0;
-                            cyl[command_drive] <= seek_target[7:0];
+                            pcn[command_drive] <= seek_target[7:0];
                             msr <= {6'd0, command_drive, !command_drive};
                             wait_us <= {8'd0, step_us};
                             ex <= X_STEP;
@@ -695,6 +716,8 @@ module pc386_fdc #(
                             st0 <= {5'b01000, head[d], 1'b0, d}; st1 <= 8'h01;
                         end else begin
                             st0 <= {5'd0, head[d], 1'b0, d};
+                            // The C of an ID field is the track it is on.
+                            cyl[d] <= physical_cyl[dsel];
                             sector[d] <= sector[d] >= sectors_per_track ? 8'd1 : sector[d] + 8'd1;
                         end
                         wait_us <= {9'd0, byte_us, 9'd0};   // a sector's time
@@ -715,11 +738,17 @@ module pc386_fdc #(
                     else if (command[5] != 8'd2 || command[2] >= tracks || command[4] == 8'd0 ||
                              command[4] > sectors_per_track || command[3][0] && !two_sided[dsel]) begin
                         cyl[d] <= command[2]; head[d] <= command[3][0]; sector[d] <= command[4];
+                        implied_seek();
                         fail(R_RW, command[3][0], 8'h04);
                     end else begin
                         cyl[d] <= command[2]; head[d] <= command[3][0]; sector[d] <= command[4];
                         eot[d] <= command[6] == 8'd0 ? sectors_per_track : command[6];
-                        if (command[2] != physical_cyl[dsel]) fail(R_RW, command[3][0], 8'h04);
+                        implied_seek();
+                        // The implied seek steps the drive DOR selects by the
+                        // named unit's own distance, so a command that names
+                        // another drive leaves that head short of the
+                        // cylinder it asked for: no ID field there carries it.
+                        if (physical_cyl[dsel] != pcn[d]) fail(R_RW, command[3][0], 8'h04);
                         else if (writing && write_protect[dsel]) fail(R_RW, command[3][0], 8'h02);
                         else if (writing) begin
                             wait_us <= byte_wait;
@@ -732,7 +761,7 @@ module pc386_fdc #(
                 // A read's next sector from the image.
                 X_FETCH: if (disk_left) not_ready();
                 else if (ready && owed == 8'd0 && !storing && !store_due) begin
-                    if (physical_cyl[dsel] >= tracks || sector[d] > sectors_per_track || head[d] && !two_sided[dsel])
+                    if (cyl[d] >= tracks || sector[d] > sectors_per_track || head[d] && !two_sided[dsel])
                         fail(R_RW, head[d], 8'h04);
                     else begin
                         target_lba <= lba; target_drive <= dsel;

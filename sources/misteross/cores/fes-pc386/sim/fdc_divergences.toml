@@ -35,10 +35,29 @@ id = "dor-mismatch"
 title = "A command naming a drive DOR does not select"
 cases = ["dor_mismatch"]
 reference = "Runs the whole command on the drive it names: its medium, geometry, cylinder, ready and status. QEMU does the same (fdctrl->cur_drv from the command byte)."
-rtl = "The command acts on the drive DOR selects: its medium and geometry, ready and spin-up, write protect, physical track, disk-change line and the step that clears it, and the image a sector is read from or stored to. ST3, which reports pin states, answers for that drive. The controller's own registers stay under the drive the command names: the PCN (Sense Interrupt Status's cylinder and Dumpreg's PCN bytes), the head, sector and EOT it works through, and ST0's drive select bits. Read and Write Data require the command's C field to match the physical track and use it for the image cylinder."
+rtl = "The command acts on the drive DOR selects: its medium and geometry, ready and spin-up, write protect, the head its step pulses move, TRK0, the disk-change line and the step that clears it, and the image a sector is read from or stored to. ST3, which reports pin states, answers for that drive. The controller's own registers stay under the drive the command names: the PCN its seeks and implied seeks work from (Sense Interrupt Status's cylinder and Dumpreg's PCN bytes), the head, sector and EOT it works through, the C its result phase returns, and ST0's drive select bits. So the steps a mismatched command asks for are the named unit's, while the head they move is the selected drive's: once the two have come apart, the transfer's implied seek leaves that head off the cylinder asked for and the command ends with ST0 IC=01 and ST1 ND rather than reading another cylinder's sector. A Recalibrate on the selected drive brings them back together."
 deciding = "The DS0-3 pins \"are decoded from the select bits in the Digital Output Register\" (82077AA datasheet 290166-007, pin description and 2.1.3; the same words are in the 82077SL's 290410-001, which is the 82077AA's superset, 8.0). Of the drive select bits inside a command byte, the note under that datasheet's command set table says \"these bits are used internally only. They are not reflected in the Drive Select pins. It is the users responsibility to maintain correspondence between these bits and the Drive Select pins (DOR)\" (290410-001 page 26). ST3's bits report the WP, TRK0, HDSEL and DS1,0 pins (290410-001, 7.4). Software writes DOR first (8.3), so no known guest depends on it. [#1796](https://github.com/DeanoC/fes/issues/1796)."
 follow = "rtl"
-note = "The replay separates command-unit PCN from the DOR-selected physical track: it reads cylinder 8 at that head position and rejects C=3 even though unit 1's PCN is 3."
+note = "The replay drives the two apart: a seek naming unit 0 while DOR still selects drive 0 leaves that head on cylinder 8 with the unit's PCN at 5, the next read ends ND, and a Recalibrate makes the same read work. [#1796](https://github.com/DeanoC/fes/issues/1796)"
+
+[[divergence]]
+id = "eot-step-pulse"
+title = "The cylinder past EOT"
+cases = ["eot_no_step_pulse"]
+reference = "increment_sector() advances the one per-drive cylinder it keeps, and calls reset_changeline() while doing so. That cylinder is also what Sense Interrupt Status and Dumpreg's PCN bytes return and what a seek counts its steps from, and ST3's TRK0 reads from it, so after a transfer that ends at EOT all of them have moved on a cylinder and the change line is clear."
+rtl = "Only the command's own C advances, and the result phase returns it. The controller issues no step pulse at a sector boundary, so the drive's head does not move, the unit's PCN stays on the cylinder the transfer's implied seek took it to, ST3's TRK0 still answers for where the head stands, and the disk-change line stays set until a step pulse clears it."
+deciding = "The 82077AA keeps the three apart. Table 5-6 is headed \"ID Information at Result Phase\" and gives C+1 there for a final sector equal to EOT: result bytes, not a position (290166-007, 5.1.1). The PCN is \"the current head position\" a SEEK compares against NCN and is written by SEEK and RECALIBRATE (5.2.2, 5.2.3), and a read or write moves the head only through the implied seek CONFIGURE's EIS enables, \"a seek operation will be performed before executing any read or write command that requires the C parameter in the command phase\" (the EIS parameter, and 5.1). ST3's TRK0 is the drive's own pin (7.4), and a drive's change line is reset by a step pulse with a disk in it, as the design's drive model has it. A guest that reads past EOT and then seeks reaches the cylinder it asks for either way, and the locked BIOS reads the PCN through none of these."
+follow = "rtl"
+
+[[divergence]]
+id = "implied-seek"
+title = "Implied seek regardless of CONFIGURE's EIS"
+cases = []
+checked = "eot_no_step_pulse"
+reference = "The command's cylinder addresses the image; the reference models no head position, so the question does not arise."
+rtl = "A read or write always performs the implied seek: it steps the drive DOR selects by the distance from the named unit's PCN to the command's C, takes that PCN with it, and the step pulses clear that drive's disk-change line. CONFIGURE's EIS bit does not gate it."
+deciding = "The locked BIOS sends no SEEK of its own before a transfer (`rombios.c`, `floppy_prepare_controller` and the AH=02h/03h paths), which on an 82077AA works only with implied seek enabled: \"if implied seek is not enabled, the read and write commands should be preceded by: 1) SEEK command\" (290166-007, 5.2.3). Always enabling it keeps the cylinder the guest asks for the cylinder read, which is what docs/design/pc386-removable-media.md, 40-track media, records, and makes the reference agree."
+follow = "both"
 
 [[divergence]]
 id = "status-registers"
