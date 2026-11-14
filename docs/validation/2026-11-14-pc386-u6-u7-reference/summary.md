@@ -29,7 +29,7 @@ kit was measured. The reference machines are in
 | Check | Result |
 | --- | --- |
 | **Ultima VI, PC speaker pitch at the 286-12 preset** | **Fail**, on three kit captures and five reference ones. The kit's notes are 12.7–12.9% below the reference's, 2.35 and 2.38 semitones flat. The band is ±5.9%, one semitone. Scaling the reference from its 12.5 MHz to the preset's nominal 12.0 leaves 9.0–9.3% and about 1.7 semitones, if the game keeps the same delay unit across that step. |
-| **Ultima VI, walking speed at the 286-12 preset** | **Not measurable this way**, and that is the result rather than a number. The game steps when it next polls the keyboard and drops what is queued, so the rate follows how the keys arrive — and not monotonically: keyed at 10 a second the reference walks at 2.94 steps a second, at 12.3 and 25 it walks at 2.06 and 2.07. There is no plateau to read. What would settle it is a count the game itself keeps, read from memory on each side. |
+| **Ultima VI, walking speed at the 286-12 preset** | **Not measured**, and the three methods tried are why, not the kit. The game steps when it next polls the keyboard and drops what is queued, so the rate follows how the keys arrive — and keying harder makes it walk slower: 2.94 steps a second at 10 keys a second, 2.06 and 2.07 at 12.3 and 25. Over-keying is steady but steady at a suppressed rate. What would settle it is a count the game itself keeps, read from memory on each side. |
 | **Ultima VII: The Black Gate, NPC pace at 386DX-25** | **Not done.** A reference board must be settled first, by the rule that validated the 286 one. The game stops at its own memory check on the reference, and the reference board for a 386DX-25 is not settled; see below. |
 
 So **#1368's last box is not ticked and the issue stays open**, and pc386 does
@@ -332,26 +332,31 @@ all at 100% emulation speed:
 | 12.3 | 1.818, 2.143, 2.222 | 2.06 |
 | 10 (the earlier windows, same analyser) | 3.33, 3.00, 2.50 | 2.94 |
 
-**The rate falls as the key rate rises**, and that is what settles it. The two
-over-rates agreeing with each other says only that they agree; both sit *below*
-what the same machine on the same route did when keyed more slowly, and a
-plateau cannot sit below a rate the game has already reached. So there is no
-saturation to read.
+**Keying harder makes the game walk slower.** The over-keyed figure is steady
+— 12.3 and 25 a second agree to 0.53% — but it is steady at a rate the game can
+be *held down to*, not the rate it can reach: excess queued keys suppress
+steps. Two machines compared at that point are being compared under a rig
+artefact, not on walking speed.
 
-**Ultima VI's walking speed is not measurable by sending keys and counting what
-moves.** Three approaches have now failed on one cause — the game steps when it
-next looks at the keyboard and drops what is queued meanwhile, so the rate that
-comes out depends on how the keys arrive, and not monotonically. A held key
-reaches the two sides differently; a matched tap rate measures the tap rate;
-over-keying has no plateau. What would settle it is a count the game itself
-keeps, read from memory on each side, or an instrumented build. Neither is
-available here, and the band is not applied to a number neither side could
-defend.
+That is not a proof that no usable plateau exists. The rates tried here are 10,
+12.3 and 25 a second and the peak sits at or below 10; nothing was sampled
+between 1 and 10, where the game's own maximum would have to be. Finding it
+would mean sweeping that range on both sides for a rate at which the step rate
+stops rising before the suppression sets in.
 
-Within that, the windows' own spread deserves naming: 1.77 to 2.31 at one key
-rate, so a three-window mean carries a 6-8% standard error and a comparison
-between two such means about 6% — too coarse for a ±10% band even if the
-plateau had been real.
+**What is established is that the three methods tried here cannot measure it**,
+all on one cause — the game steps when it next looks at the keyboard and drops
+what is queued meanwhile. A held key reaches the two sides differently; a
+matched tap rate measures the tap rate; over-keying measures a suppressed rate.
+The surer fix is a count the game itself keeps, read from memory on each side.
+Neither that nor the sweep was available here, and the band is not applied to a
+number neither side could defend.
+
+The windows' own spread would have been a problem in any case: 1.77 to 2.31 at
+one key rate. The three-window means carry standard errors of 7.8% and 6.0%,
+so a comparison between two such means carries √(7.8² + 6.0²) ≈ **9.8%** —
+level with the ±10% band on its own, before any difference between the
+machines is measured.
 
 **The matching kit run, `g4`, measured nothing.** It inserted `KEYPACE.COM`
 before the game, but the kit image boots to a menu rather than a DOS prompt, so

@@ -164,9 +164,15 @@
    "mean_at_25": 2.072,
    "mean_at_12_3": 2.061,
    "mean_at_10_earlier_windows": 2.944,
-   "reading": "Not saturation. The two over-rates agree with each other but both sit below what the same machine on the same route gave when keyed at 10 a second, and a plateau cannot sit below a rate the game has already reached. The rate falls as the key rate rises."
+   "reading": "Not usable. The over-keyed figure is steady (12.3 and 25 a second agree to 0.53%) but it sits below what the same machine on the same route gave at 10 a second, so excess queued keys suppress steps and the steady figure is a rate the game can be held down to, not one it can reach. This does not show that no usable plateau exists: nothing was sampled between 1 and 10 keys a second, where the game's own maximum would have to be."
   },
-  "verdict": "no plateau; the walk is not measurable by sending keys and counting what moves"
+  "verdict": "the over-keyed rate is suppressed, so it is not walking speed; not measured",
+  "standard_errors": {
+   "at_25_pct": 7.8,
+   "at_12_3_pct": 6.0,
+   "comparison_of_two_means_pct": 9.8,
+   "note": "two independent three-window means combine in quadrature, which is level with the plus/minus 10% band on its own"
+  }
  },
  "saturated_square_walk_kit": {
   "run": "g4, Kit B, 14 November",

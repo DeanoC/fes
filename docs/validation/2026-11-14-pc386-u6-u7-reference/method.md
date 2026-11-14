@@ -470,25 +470,36 @@ against `walk_rate.py`'s figures for the same captures:
 | t3 | 2.31 | 2.50 | 10 |
 
 The two counters agree to within one frame of median gap, so the analyser is
-sound. But that puts the same machine, on the same route, at about **3 steps a
-second when keyed at 10 a second** and at **2.07 when keyed at 12.3 and 25**.
-The rate falls as the key rate rises. A plateau cannot sit below a rate the
-game has already reached, so what the seventh amendment called saturation is
-not saturation: the two over-rates agreeing with each other says only that
-they agree, and both differ from the slower one.
+sound. But that puts the same machine, on the same route, at about **2.94 steps
+a second when keyed at 10 a second** and at **2.06 and 2.07 when keyed at 12.3
+and 25**. The response is not monotonic: keying harder makes the game walk
+*slower*.
 
-**The honest outcome is that Ultima VI's walking speed is not measurable by
-sending keys and counting what moves.** The game steps when it next looks at
-the keyboard and drops what is queued meanwhile, and the rate that comes out
-depends on how the keys arrive in a way that is not a simple saturation — it is
-not monotonic, so there is no rate fast enough to key it at and no plateau to
-read. Three different approaches have now failed on the same cause: a held key
-(which reaches the two sides differently), a matched tap rate (which measures
-the tap rate), and over-keying (no plateau).
+That does not mean the over-keyed figure is unstable — it is steady, and 12.3
+and 25 a second agree to 0.53%. **It means the figure it is steady at is not
+the game's walking speed.** Excess queued keys suppress steps, so over-keying
+settles on a rate the game can be held down to, not the rate it can reach. A
+measurement meant to compare two machines' walking speed cannot be taken at a
+point where the rig is holding the game back on both of them, because what is
+then being compared is how each machine behaves under a rig artefact.
 
-**What would be needed instead** is a measurement that does not go through the
-keyboard at all: a count the game itself keeps — its own turn counter in
-memory, read from the machine on each side — or an instrumented build. Neither
-is available here. This record therefore reports the walk as **not measurable
-this way** rather than quoting a number, and the figures above are what that
-conclusion rests on.
+**What this does not establish** is that no usable plateau exists anywhere. The
+rates tried here are 10, 12.3 and 25 a second, and the peak sits at or below
+10; nothing was sampled between 1 and 10, where the game's own maximum would
+have to be. Finding it would mean sweeping that range for a rate at which the
+step rate stops rising *before* the suppression sets in, and showing the two
+sides agree on where that is.
+
+**What is established is that the three methods tried here cannot measure it.**
+All three fail on one cause — the game steps when it next looks at the keyboard
+and drops what is queued meanwhile: a held key reaches the two sides
+differently, a matched tap rate measures the tap rate, and over-keying measures
+a suppressed rate.
+
+**What would be needed instead** is either that sweep below 10 keys a second,
+run on both sides, or a measurement that does not go through the keyboard at
+all: a count the game itself keeps — its own turn counter in memory, read from
+the machine on each side — or an instrumented build. The second is the surer
+one and neither is available here. This record therefore reports the walk as
+**not measured**, with the three methods that failed and why, rather than
+quoting a number from any of them.
