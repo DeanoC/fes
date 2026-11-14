@@ -59,8 +59,8 @@ reusing it for receipt verification and linking. Publication and restart adoptio
 independently validate their retained package bytes.
 Native-video shells also require a matching video part admitted against the
 exact shell in the host's own catalog. The default profile is Direct. If no
-preferred or Direct part is available, launch stops before target mutation and
-reports the missing part as an admission error.
+preferred or Direct part is available, launch stops before core-load dispatch
+and reports the missing part as an admission error.
 
 This is the canonical description of the working system.
 
