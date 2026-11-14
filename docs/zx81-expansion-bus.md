@@ -205,6 +205,19 @@ These checks are host evidence. Exact empty-shell and composed-cart hardware
 acceptance must separately verify the selected validation cart, composition tuple,
 RAMTOP, keyboard/tape behavior and clean Stop/reload on the designated kit.
 
+The QS Character Board is a separately routed cart, not part of the sealed
+ZX81-family shell. A D12 BUILD_ID-only proof for the shell does not cover a
+changed QS cart RBF. Because the cart can be loaded through FogCast's
+development-RBF path, a QS RTL change requires exact-artifact kit validation;
+it is not HIL N/A. Likewise, when a closure-only change moves IDs for the
+family packages, D12 evidence must cover every affected RBF: `fes.zx81`,
+`fes.zx80`, `fes.ts1000` and `fes.ts1500`, not just the standard ZX81 and ZX80
+outputs. For each affected package, prove that its Yosys netlist differs from
+main only in `BUILD_ID`, that PR tooling with main's `BUILD_ID` reproduces
+main's RBF byte for byte, and that the PR build passes its normal timing and
+seal gates. Host simulation and shell identity evidence do not replace the QS
+cart's hardware check.
+
 ## Designated-kit acceptance recipe
 
 Use the integrated runtime/agent and one private host catalog. Root is the kit
