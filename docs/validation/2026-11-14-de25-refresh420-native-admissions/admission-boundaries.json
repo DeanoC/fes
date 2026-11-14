@@ -1,0 +1,67 @@
+{
+  "status": "passed-real-dual-root-role-admission-boundaries",
+  "checks": [
+    {
+      "role": "native-diagnostic",
+      "label": "native-diagnostic-root-positive",
+      "expected_success": true,
+      "returncode": 0,
+      "log_sha256": "09ef94b5e81976bbb6bbadc43ce1b1792ebc7ed2eebfabd4f3fa8c49f767dc9e"
+    },
+    {
+      "role": "native-diagnostic",
+      "label": "native-diagnostic-cross-role-negative",
+      "expected_success": false,
+      "returncode": 1,
+      "log_sha256": "7861d522cd8557389bda8464dd826967072e161e8fd8281db46e882e3e20c3e1"
+    },
+    {
+      "role": "native-diagnostic",
+      "label": "native-diagnostic-wrong-digest-negative",
+      "expected_success": false,
+      "returncode": 1,
+      "log_sha256": "f823b2625392435edaab00e475d7173c14e0cbaba2bd1d237d1cc57d7e15bf19"
+    },
+    {
+      "role": "native-diagnostic",
+      "label": "native-diagnostic-root-restored",
+      "expected_success": true,
+      "returncode": 0,
+      "log_sha256": "09ef94b5e81976bbb6bbadc43ce1b1792ebc7ed2eebfabd4f3fa8c49f767dc9e"
+    },
+    {
+      "role": "native-baseline",
+      "label": "native-baseline-root-positive",
+      "expected_success": true,
+      "returncode": 0,
+      "log_sha256": "a4639c6eec8af1edf5fb5cf39addff10dff75c17011cb48aa28daafd3e66c5b3"
+    },
+    {
+      "role": "native-baseline",
+      "label": "native-baseline-cross-role-negative",
+      "expected_success": false,
+      "returncode": 1,
+      "log_sha256": "a6894f2f1d176dc1a06fef3247b2f65e8d184207dc1ce6d5a1ca6056deb880b4"
+    },
+    {
+      "role": "native-baseline",
+      "label": "native-baseline-wrong-digest-negative",
+      "expected_success": false,
+      "returncode": 1,
+      "log_sha256": "ca19158d4be0aae1b9dd6fca45a4f1faba652671c69232b06febca08349aa75a"
+    },
+    {
+      "role": "native-baseline",
+      "label": "native-baseline-root-restored",
+      "expected_success": true,
+      "returncode": 0,
+      "log_sha256": "a4639c6eec8af1edf5fb5cf39addff10dff75c17011cb48aa28daafd3e66c5b3"
+    }
+  ],
+  "source_sha256": {
+    "/home/deano/fes/out/dev/de25-source-release/out/table-refresh-budget-prototype/admission.py": "673a0a712ddeb9f04ed2eed6263995798dfd26989f93b4b44aaea7c1fb8c44b5",
+    "/home/deano/fes/out/dev/de25-source-release/out/table-refresh-budget-prototype/test_admission_roots.py": "5379fce32d7d8af1b48d4465a568fa9dab24e8343150afbc7abe8b175b292011"
+  },
+  "attempt_not_reserved": true,
+  "hardware_actions": false
+}
