@@ -67,5 +67,51 @@
    1.667
   ]
  },
- "note": "Every capture is 45 s of the reference window at 30 fps. rate_from_median_gap is the figure method.md fixed - steps or turns a second from the median gap between them - and rate_over_span is (count-1)/span for comparison. keys_per_s_nominal is how fast the driving loop sent keys: the three walk windows all used the same loop at a nominal ten a second; the pass windows differ, p1 at about seventeen against ten for p2 and p3."
+ "note": "Every capture is 45 s of the reference window at 30 fps. rate_from_median_gap is the figure method.md fixed - steps or turns a second from the median gap between them - and rate_over_span is (count-1)/span for comparison. keys_per_s_nominal is how fast the driving loop sent keys: the three walk windows all used the same loop at a nominal ten a second; the pass windows differ, p1 at about seventeen against ten for p2 and p3.",
+ "keypace_reference": {
+  "run": "kp4 and kp3, 14 November 2026",
+  "program": "keypace.asm, built with the repo-pinned NASM 2.16.03",
+  "note": "Keys the guest received through INT 16h, with the BIOS tick at each. The rig can saturate Ultima VI; a held key reaches 86Box as one keystroke.",
+  "cases": [
+   {
+    "sent": "hold one key for 10 s",
+    "received": 1
+   },
+   {
+    "sent": "40 taps, 0.25 s apart",
+    "received": 40,
+    "rate_per_s": 4.1
+   },
+   {
+    "sent": "burst of 60, 80 ms apart",
+    "received": 60,
+    "rate_per_s": 9.9
+   },
+   {
+    "sent": "burst of 60, 40 ms apart",
+    "received": 60,
+    "rate_per_s": 16.8
+   },
+   {
+    "sent": "burst of 60, 20 ms apart",
+    "received": 60,
+    "rate_per_s": 24.4
+   }
+  ]
+ },
+ "burst_walk_bw3": {
+  "verdict": "void: fails the method's first validity gate",
+  "why": "After the ninety passes earlier runs used, the grab taken before the windows still shows the game prompting '>Pass!', so the opening fight was not over. About 140 keys into an eight-second window gave 0 to 6 steps, which is combat, not walking.",
+  "speed_gate": "The four windows keyed at 16.8/s held 100% for all 240 frames; the four at 24.4/s ran at 71-101% under other work on the shared host.",
+  "steps_per_window": {
+   "w4-down-d40": 6,
+   "w5-right-d40": 2,
+   "w6-up-d40": 0,
+   "w7-left-d40": 6,
+   "w0-down-d20": 2,
+   "w1-right-d20": 4,
+   "w2-up-d20": 0,
+   "w3-left-d20": 2
+  }
+ }
 }
