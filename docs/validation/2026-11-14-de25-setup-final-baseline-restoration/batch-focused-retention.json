@@ -1,0 +1,21 @@
+{
+  "status": "passed-completed-table-batch-source-and-check-retention",
+  "source_head": "5764c9495b6597da306546879194100021986a37",
+  "source_parent": "f957d21d3633728a557f5b54d101d7f5285980d7",
+  "archive": "/home/deano/fes-retained/de25-table-batch-focused-20261114-r1/software.tar.gz",
+  "archive_sha256": "f56e9cd65cb4da9d8492f0bf9728f4601ea249fb73dfdb82ab71e3c6f42aae90",
+  "archive_bytes": 13051899,
+  "focused_tests": 28,
+  "focused_skips": 0,
+  "table_batch_cost_cases": 12,
+  "predecessor_counterexample_reproduced": true,
+  "vendor_AArch64_objects": 4,
+  "whole_affected_campaign_passed": false,
+  "matched_repair_build_claimed": false,
+  "hardware_repair_accepted": false,
+  "CI_assessed": false,
+  "dependencies": {
+    "matched_control_archive": "f5cd58aab99cf23c6a81dd927124946890fa5ec659c4b13970b0ae89503e0ea8",
+    "physical_failure_archive": "8c8170db8894dcc8ce97ea5eb3e937e121c23f1f777221fb46e59fcea2759ef8"
+  }
+}
