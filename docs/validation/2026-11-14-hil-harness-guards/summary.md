@@ -180,8 +180,12 @@ of them, which is what guard 3 changes.
   was not what made it unguarded. (`run-games.sh`'s tail only lists.) Neither
   copy checks for a loaded core; the new gate does, which is why guard 2
   belongs in the wrapper tail and not only in the hand-run scripts.
-- **"Restarting the agent clears a blocked lease."** Only when the cleanup
-  succeeds. The state is indeed in memory only: `kitlease.New` starts at
+- **"Restarting the agent clears a blocked lease."** True for this kind of
+  block, and now verified in the field rather than read off the code: the
+  #1368 session cleared Kit B's `blocked` lease at 17:44 EET with a warm
+  `reboot`, no power cycle, and the lease came back `free` with a fresh
+  generation and no owner. The qualification is the cleanup, not the
+  persistence: The state is indeed in memory only: `kitlease.New` starts at
   `State: "free"` (`sources/FogCast/internal/kitlease/manager.go:79`) and
   nothing in that package reads a persisted lease status back. But `New` then
   calls `revokeLocked("agent startup reconciliation")` (`:405`), which runs the
@@ -191,7 +195,21 @@ of them, which is what guard 3 changes.
   re-blocks one whose cleanup still fails. Maintenance reservations are the
   separate, persisted case (`maintenance_store.go`), and
   `idle_maintenance.go:8` requires the caller to reinstall intent after a
-  restart; their reasons are `:441` and `:459`, distinct from `:468`.
+  restart; their reasons are `:441` and `:459`, distinct from `:468`. **The
+  reason string is the discriminator**, so a record should say which kind it
+  means: the in-memory "kit cleanup failed or agent shutting down" clears on
+  any agent restart, a maintenance block does not.
+- **There is no way to stop out of a blocked lease, which is why these are
+  guards and not a recovery path.** The agent refuses
+  `POST /v1/kit/takeover` on a blocked lease with HTTP 409, so no token exists
+  to send a `stop` with — #1368's recovery tried that first. A wrapper
+  therefore cannot recover itself once the lease is blocked; it can only avoid
+  blocking it, which is what guard 2 does.
+  `fes-kit-software restart-service fogcast-kit` would be the narrower fix than
+  a reboot and **remains untested**: it is a destructive action on a shared kit
+  needing Deano's explicit OK, this work gave no occasion to try it, and
+  manufacturing a blocked lease to find out is not something to do to a shared
+  kit.
 - **Not implied by the incidents, found while fixing them:** a new file under
   `sources/misteross/scripts/` falls to the `sources/misteross/scripts/**`
   rule and asks for an `OVERLAY core:ALL` HIL — an overlay run of every core —
@@ -199,6 +217,24 @@ of them, which is what guard 3 changes.
   `kit_hil.py` as `none`, with a test. The lease client `kit.py` beside it
   keeps its overlay classification: the import graph reaches it from
   `pc386_wfw_kit_acceptance.py`, so that one is not a misclassification.
+
+## The gate against the real agents
+
+Kit B was released by the #1368 session at 17:44 EET, so `guard-idle` was run
+against both kits' live agents. This is a read-only pair of GETs — the same
+probe class the wrappers run *before* they claim — so no kit was claimed and
+nothing on either kit changed:
+
+    $ kit_hil.py guard-idle --config ~/.config/fogcast/config.toml --target kit2
+    {"state": "idle", "lease": "free", "target": "kit2", "host": "fes-kit-b"}   # rc 0
+    $ kit_hil.py guard-idle --config ~/.config/fogcast/config.toml --target dev
+    {"state": "idle", "lease": "free", "target": "dev", "host": "fes-kit-a"}    # rc 0
+
+So the pass path holds against the real wire, both kits are reachable by name
+from one unmodified host TOML (its `sha256` unchanged, `selected_target = 'dev'`
+still its only one), and each answer says which kit it is about. The refusal
+paths stay unit-tested: provoking them would mean loading a core to remove
+trees under, which is the thing the guard exists to prevent.
 
 ## Repository gates run here
 
