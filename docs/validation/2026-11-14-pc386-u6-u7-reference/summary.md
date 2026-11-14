@@ -347,9 +347,28 @@ low instead of high. An attempt to move the XT-IDE BIOS to C400h was made by
 writing a `[PC/AT XTIDE]` section into the configuration; the POST banner was
 not read back, so it is not known whether it moved, and it would not have
 helped in any case, because there is still no RAM to make upper memory out of.
-The next thing to try is `DOS=HIGH` with MS-DOS 6.22's `HIMEM.SYS`, as Ultima
-VI's reference does and as the kit's own menu entry 2 offers; that was not
-reached today.
+Three ways round it were tried on a cached 386DX-25 board and none worked:
+
+| what was booted | free conventional memory | what The Black Gate did |
+| --- | --- | --- |
+| the games image's own config (`u7b`) | not read | the 561,144-byte error |
+| MS-DOS 6.22 `HIMEM.SYS` with `DOS=HIGH` (`u7c`) | 600,128 bytes | the same error |
+| the same without `DOS=HIGH` (`u7d`, `ctl`) | 557,632 bytes | the same error, 3,512 bytes short |
+
+The middle row is the informative one: with **more** than the 561,144 bytes it
+asks for, it still refuses. That fits the kit's own boot menu, which labels its
+`DOS=HIGH` entry "More memory: **not for Ultima VII**" — the game's Voodoo
+memory manager wants the HMA free. So `DOS=HIGH` is ruled out rather than
+untried, and the remaining 3,512 bytes have to come from somewhere that is not
+the HMA. Trimming `FILES`, `BUFFERS` and the environment was tried and
+abandoned: the edited image would not boot, and it would have made the
+reference's DOS differ from the kit's in a way that matters to a game doing
+this much disk access.
+
+What is left is to reproduce the kit's memory map — an 86Box ISA memory
+expansion board putting RAM behind C800–DFFF, so the games image's own UMB
+provider loads the drivers high there exactly as it does on the kit. That is
+the like-for-like route and it was not reached today.
 
 The reference machine for it was also not settled. The board used for the
 benchmark above, a 1988 C&T 386/AT with no cache, scores 40 against the kit
@@ -360,6 +379,14 @@ one: mid-range among that database's real machines of the class. That rule is
 harder to apply here — the database has no 386DX at 25 MHz at all, its 386DX
 and 386SX machines at 20–25 MHz score 25 to 60, and its one 25 MHz entry with
 on-chip cache (an IBM 386SLC) scores 96.
+
+`method.md`'s fifth amendment fixes the rule from the preset's own definition —
+zero wait states means a cached board — and a cached 386DX-25 (`asus3863364k`,
+POST "Cache controller ... Enabled") was benchmarked for it: it scores **40**,
+the same as the uncached board. The two are therefore not far enough apart for
+the board choice to decide the comparison, which removes one objection to
+whatever figure a working run eventually produces, though it does not place
+either board among real machines.
 
 The 386DX-25 preset has the same question as
 [#1840](https://github.com/DeanoC/fes/issues/1840) asks of 286-12 — it scores
