@@ -27,10 +27,18 @@ struct VideoResult {
 	std::uint8_t power_after = 0;
 	std::uint8_t link_status = 0;
 	// ADV7513 0x9e (bit 4 is pixel PLL lock) and 0x3e (the detected VIC in
-	// bits 7:2). Diagnostics only: bring-up never requires them.
+	// bits 7:2), sampled behind a ready link. Bring-up requires the PLL lock
+	// and records the VIC without requiring it.
 	std::uint8_t pll_status = 0;
 	std::uint8_t vic_status = 0;
-	bool detail_read = false;
+	// Which of the three registers answered on the sample being reported.
+	// They are separate because each is reported separately and a value that
+	// was never read must never be printed as though it had been: the VIC
+	// read may fail on its own without touching the PLL verdict, and an
+	// unreadable PLL leaves the requirement unenforced rather than refused.
+	bool link_read = false;
+	bool pll_read = false;
+	bool vic_read = false;
 };
 
 // The live transmitter state behind a running picture, read without writing
