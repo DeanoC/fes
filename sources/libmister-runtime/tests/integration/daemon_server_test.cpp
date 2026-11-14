@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -185,6 +186,35 @@ std::string ReadToEof(int descriptor)
 		bytes.append(buffer, static_cast<std::size_t>(count));
 	}
 	return bytes;
+}
+
+// A commit reply can precede connection teardown. Bound the wait for the
+// peer's close by the same deadline as the frame exchange.
+bool WaitForEof(int descriptor, std::chrono::steady_clock::time_point deadline)
+{
+	for (;;) {
+		const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+			deadline - std::chrono::steady_clock::now()).count();
+		if (remaining <= 0) return false;
+		pollfd state{descriptor, POLLIN, 0};
+		const int ready = poll(&state, 1, static_cast<int>(remaining));
+		if (ready < 0 && errno == EINTR) continue;
+		if (ready <= 0) return false;
+		char byte;
+		const auto count = recv(descriptor, &byte, 1, MSG_DONTWAIT);
+		if (count < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) continue;
+		return count == 0;
+	}
+}
+
+void TestWaitForEofDeadline()
+{
+	int sockets[2];
+	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+	assert(!WaitForEof(sockets[0], std::chrono::steady_clock::now() + std::chrono::milliseconds(20)));
+	assert(close(sockets[1]) == 0);
+	assert(WaitForEof(sockets[0], std::chrono::steady_clock::now() + std::chrono::seconds(1)));
+	assert(close(sockets[0]) == 0);
 }
 
 std::string ReadRejectedFrameResponse(int descriptor)
@@ -1304,7 +1334,10 @@ void TestMenuBlitterGrantTakesCpuCommitsUntilAList()
   assert(SendFrame(socket,MenuRequest("menu_frame_begin",generation),-1,deadline).ok());
   ReceivedFrame begun;assert(ReceiveFrame(socket,deadline,&begun).ok());Contains(begun.line,"\"ok\":true");
   assert(SendFrame(socket,commit(SlotOf(begun.line)),-1,deadline).ok());
-  ReceivedFrame done;assert(ReceiveFrame(socket,deadline,&done).ok());close(socket);
+  ReceivedFrame done;assert(ReceiveFrame(socket,deadline,&done).ok());
+  // EOF follows destruction of the server's MenuFrame. A response alone can
+  // arrive while its preparation is still held by the connection handler.
+  assert(WaitForEof(socket,deadline));assert(close(socket)==0);
   return done.line;
  };
  const auto whole=[&](unsigned slot){return MenuCommit(generation,slot);};
@@ -1502,6 +1535,7 @@ void TestCleanShutdownSignals()
 
 int main()
 {
+	TestWaitForEofDeadline();
  TestCleanShutdownSignals();
  TestSessionDescriptorExchangeDoesNotFollowReopenedPlane();
  TestMenuPatternClientAgainstDaemon();
