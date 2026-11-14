@@ -156,3 +156,80 @@ two kits' runtimes differ by bundle (`7ddb0bfb` on B from main `5a16b14d8`,
 `a2756499` on A from main `2320f64da`), and `git diff` between those commits
 shows no change at all under `sources/libmister-runtime/`, so the transmitter
 bring-up both kits run is the same code.
+
+## The same frame, on Kit A, with no pc386 core
+
+The decisive evidence was already on Powerboat, in #1823's and #1767's runs. The
+all-black grab in #1494 is the PNG
+`4c6d2c8d8bbb3756757eacd65f2e662ac9a6f56594ea0e34760218bc21f02037` — a uniform
+RGB-0 1920x1080 frame, so that hash is the signature of any flat-black grab,
+whatever produced it. Searching every HDMI capture of those two runs' trees (345
+PNGs) for it finds:
+
+| Run | Kit | Grabber | Capture | Run's own verdict |
+| --- | --- | --- | --- | --- |
+| `k1767-hil/.../kitA-ramtest-20261113-101501` | **A** | ShadowCast 3 | `home-after-restore.png` | `home_after_restore_classification: REAL_FAILURE`, after `home_start_classification: PASS` |
+| `k1770/runs/kitB-20261113-112300` | B | 4KPRO | `r0-timing.png` and its recheck | #1823 episode |
+| `k1770/runs/kitB-20261113-133036` | B | 4KPRO | `r2-cheaper3.png` and its recheck | #1823 episode |
+| `k1767-hil/.../kitA-ramtest-*` (5 runs) | A | ShadowCast 3 | `scan-latency-*.png` | not classified here |
+
+All of them are byte-identical to #1494's black frame. The Kit A `home-after-restore`
+case is #1823's third episode: that run captured a correct FES Home at the start
+(`home-before.png`, 9,620 colours, mean luma 212, OCR reads "Home / Settings /
+FES COMPUTER / Sinclair ZX81") and the same flat black after the baseline
+restore, with the capture reported OK and the session idle.
+
+**No pc386 package was loaded in any of them.** They are the FES menu and Home
+path after a kit-software activation or restore. The same picture-level symptom
+therefore happens on both kits, through two different grabbers and two different
+ADV7513 boards, with no pc386 core present.
+
+## During an episode the capture is locked and delivering black
+
+#1823's Kit B episode has a video recording beside its grab
+(`k1770/runs/kitB-20261113-112300/r0-timing.mkv`). Measured here: 360 frames
+over 6.0 s at 60 fps, **every frame's peak grey 0**, no gap over 1 s in the
+stream.
+
+So in an episode the capture chain is not stalled and not holding a stale
+frame — it delivers a full-rate stream of black frames. With the transmitter
+reading powered, link-ready, PLL-locked and VIC 4 (#1494 `k9`), and the core
+driving lit pixels with the picture present in DDR (#1494 `k8`), what is
+established is that a locked HDMI stream carried a black picture while the FPGA
+was driving a lit one.
+
+## What this says about #1494
+
+- **The symptom is not a pc386 defect.** It reproduces with no pc386 core, on
+  both kits, in the shared menu and display path, and in pc386's own episodes
+  the core was driving lit pixels onto the HDMI pins with the picture in DDR.
+  Nothing in the pc386 package, the i386 CPU or the games image is implicated.
+- **It is the defect #1823 already tracks** ("Intermittent fully-black HDMI
+  after a kit-software activation, with every log reporting success"), seen
+  through a core load instead of an activation. Both events run the same
+  `QuiesceAdv` power-down and the same `hdmi_verify` bring-up.
+- **Which stage blackens the picture is still open**, and belongs to #1823: the
+  ADV7513's own video path (its sampling of an external DE, or its internal
+  video processing and TMDS output) and the grabbers' video paths both remain.
+  The two observations above narrow it: the sink is locked and delivering, and
+  the transmitter's readable state is normal.
+- **One cheap test would separate them**, and it is #1003's: during an episode,
+  sweep the ADV7513's input clock delay `0xBA[7:5]` and count black frames per
+  setting. If a delay clears the picture, the transmitter's input sampling is
+  the stage. That is an I2C write and needs Deano's explicit OK, as it did for
+  #1003.
+
+## Serpent Isle's own behaviour
+
+Nothing in #1494's original report needs a pc386 fix either:
+
+- the save is made and listed back (run `k3`'s first launch made its save blind,
+  through a black picture, and later launches list it);
+- Journey Onward loads in 3–6 s in all 22 lit launches, against about 5.5 s on
+  the Bochs-oracle machine;
+- the 10–20 s black main menu of run `v1` is explained by the same black-capture
+  episodes, not by the guest: the oracle bench shows the menu 3 s after Esc, and
+  every lit kit launch showed it by Esc + 6 s;
+- the missed Journey Onward clicks in `k1` and `k3` are explained by the menu's
+  20 s idle return to the introduction while the black-grab probes held it idle
+  for about 27 s (#1485's mechanism), not by lost input.
