@@ -463,10 +463,14 @@ wedge, and that evidence ends here; two uptime samples 25 s apart on the new
 configuration, and nothing about it is reproducible from the kit as it now
 stands.
 
-Run `b3`'s data trees (its game and media records — the 8 new paths reduce to
-those two tops, the staged disk image having been created by `b2`) and run
-`b2`'s three were then removed under their own claims, and Kit B was released
-idle and lease-free with only the shared scrub image left in `disk-images`.
+What was then removed is what the runs left **on the kit**, under
+`/media/fat/fogcast`: run `b3`'s two trees (its game and media records — its 8
+new paths reduce to those two tops, the staged disk image having been created by
+`b2`) and run `b2`'s three, each under its own claim, leaving only the shared
+scrub image in `disk-images`. Kit B was released idle and lease-free. The runs'
+own measurements are not kit-side and were not touched: they are on Powerboat
+under `~/fes-scratch/si1494/kit/runs/{b1,b2,b3}`, which is where every number in
+this record is read from.
 
 ## Inputs and what was measured here
 
@@ -508,7 +512,9 @@ episodes can only be placed after the capture buffers, not after the core's
 pins: `27f478e0` carries no presenter or display-plane probe. `b2` adds a denser capture-buffer sample (288 words a buffer over the
 nonce's own rows, where `b1`'s 48-word sample at `k9`'s coordinates read all
 zeros on a lit prompt). Driver `~/fes-scratch/si1494/kit/si1494d.py`, data under
-`.../runs/b1` and `.../runs/b2`.
+`~/fes-scratch/si1494/kit/runs/b1` and `.../runs/b2` on Powerboat (grabs,
+per-frame luma logs and `si.jsonl` per launch; nothing of it was on the kit, so
+the kit-side housekeeping above did not touch it).
 
 **Run `b3`** (Kit B, 11:53–12:31 EET, same kit conditions, package and disk as
 `b1` and `b2`, same alternating presets and per-launch nonce, same luma log and
@@ -517,7 +523,8 @@ zeros on a lit prompt). Driver `~/fes-scratch/si1494/kit/si1494d.py`, data under
 lit prompt — the sweep path executed end to end with no register write, which is
 what showed the probe works before an episode had to pay for it. 40 launches, no
 black grab, then the stop of launch 40 failed and the run ended. Data under
-`.../runs/b3`.
+`~/fes-scratch/si1494/kit/runs/b3` on Powerboat, the incident evidence with it
+(`wrapper.log`, `hil.log`, `p0n040-adv.txt`, the wedged-kit frame).
 
 **The probe an episode will carry.** Deano has approved, for an episode only,
 #1003's `0xBA[7:5]` sweep and a restart of Powerboat's `fes-4kpro-fanout`
