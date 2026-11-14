@@ -6,6 +6,16 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
+The [transition-poll batching repair](../../../docs/validation/2026-11-14-de25-transition-poll-batches/README.md)
+keeps each retirement transition's 22 register reads in one bounded read-only
+observation, with fresh ownership/time checks before and after. It preserves
+all five separately guarded control/publication writes, all retained table
+checks and the existing deadlines. Faults at every poll read position reject
+before another write. This reduces repeated supplier work around transitions;
+the distinct command-staging timeout still reproduces off-board. The repair
+has not been programmed on a kit and does not qualify repeated core loading
+or recovery after a failed retirement.
+
 The [dispatch-aware repeated-loading trial](../../../docs/validation/2026-11-14-de25-dispatch-rearm-physical/README.md)
 programs and boots its candidate, then stops during the first source's SMMU
 preparation before SDM START or DATA. Its eight register-write intents do not

@@ -188,6 +188,11 @@ class SourceRetirementTests(unittest.TestCase):
     def test_retirement_poll_supplier_faults(self):
         self.run_model("retire_progress_faults")
 
+    def test_transition_batches_reject_faults_before_the_next_write(self):
+        report = self.run_model("transition_batch_test")
+        self.assertEqual(report["cases"], 884)
+        self.assertEqual((report["phases"], report["read_positions"], report["fault_modes"]), (4, 22, 10))
+
     def test_raw_observations_survive_rejected_guards_without_authority(self):
         self.run_model("retire_observation_test")
 
@@ -227,9 +232,17 @@ class SourceRetirementTests(unittest.TestCase):
         # A native return clears issued/finishes configuration before that
         # probe, so compare earlier phases and the full final table scan.
         self.assertEqual(zero["phase_counts"][6][2], 5120)
-        for phase in (0, 1, 2, 3, 5):
+        for phase in (0,):
             self.assertEqual(zero["phase_counts"][phase], snapshot_baseline["phase_counts"][phase])
             self.assertEqual(zero["phase_counts"][phase], guard_baseline["phase_counts"][phase])
+        for phase in (1, 2, 3, 5):
+            current, previous = zero["phase_counts"][phase], guard_baseline["phase_counts"][phase]
+            # All control writes, table reads and command stores remain.
+            # Each register keeps its ordering barriers. Fresh ownership
+            # brackets one bounded poll instead of three nested guard pairs.
+            self.assertEqual(current[1:4], previous[1:4])
+            self.assertLess(current[0], previous[0])
+            self.assertLess(current[5], previous[5])
         self.assertFalse(baseline["eight_us_read_cost_retired"])
         self.assertTrue(rows[8]["retired"])
         self.assertFalse(rows[1000]["retired"])

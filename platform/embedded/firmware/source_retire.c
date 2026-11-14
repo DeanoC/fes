@@ -94,11 +94,6 @@ static int read32(struct nano_retire *s,uint32_t offset,uint32_t *value)
  if(e)return fail(s,e);
  return guard(s);
 }
-static int eq(struct nano_retire *s,uint32_t offset,uint32_t expected)
-{
- uint32_t got=0;if(read32(s,offset,&got))return -1;
- if(got!=expected){s->bad_offset=offset;s->bad_value=got;return fail(s,-5);}return 0;
-}
 static int write_ready(struct nano_retire *,uint32_t,uint32_t);
 static int write32(struct nano_retire *s,uint32_t offset,uint32_t value)
 {
@@ -127,42 +122,57 @@ static int source(struct nano_retire *s)
 /* These exact register reads have no acknowledgement or publication effect.
  * Ownership/time is checked before and after the bounded read-only batch.
  * Individual read errors and mismatches still stop at their first observation. */
-static int observe(struct nano_retire *s,const uint32_t (*rows)[2],unsigned count,const uint32_t (*tail)[2],unsigned extra,uint32_t *consumer)
+static int observe(struct nano_retire *s,const uint32_t (*rows)[2],unsigned count,const uint32_t (*tail)[2],unsigned extra,uint32_t sample_offset,uint32_t *sample)
 {
  if(!rows || !count || count>NANO_RETIRE_OBSERVE_MAX || extra>NANO_RETIRE_OBSERVE_MAX-count ||
-    (extra && !tail) || (consumer && count+extra==NANO_RETIRE_OBSERVE_MAX))return fail(s,-22);
+    (extra && !tail) || (sample && (count+extra==NANO_RETIRE_OBSERVE_MAX ||
+      (sample_offset!=GBPA && sample_offset!=0x24 && sample_offset!=0x9c))))return fail(s,-22);
  struct nano_retire_io io=s->io;
  const struct nano_sdm_input_binding binding=s->binding;
- if(guard(s) || !unchanged(s,&io,&binding))return fail(s,-13);
+ const unsigned phase=s->phase;
+ if(guard(s) || s->phase!=phase || !unchanged(s,&io,&binding))return fail(s,-13);
  uint32_t observed=0;
- for(unsigned n=0;n<count+extra+(consumer!=0);n++){
+ for(unsigned n=0;n<count+extra+(sample!=0);n++){
   const uint32_t *row=n==count+extra ? 0:n<count ? rows[n]:tail[n-count];
-  if(!unchanged(s,&io,&binding))return fail(s,-13);
+  if(s->phase!=phase || !unchanged(s,&io,&binding))return fail(s,-13);
   uint32_t got=0;io.barrier(io.context);
-  if(!unchanged(s,&io,&binding))return fail(s,-13);
-  s->reads++;int e=io.read32(io.context,row ? row[0]:0x9c,&got);
-  if(!e)observed_read(s,row ? row[0]:0x9c,got);
-  if(!unchanged(s,&io,&binding))return fail(s,-13);
+  if(s->phase!=phase || !unchanged(s,&io,&binding))return fail(s,-13);
+  s->reads++;int e=io.read32(io.context,row ? row[0]:sample_offset,&got);
+  if(!e)observed_read(s,row ? row[0]:sample_offset,got);
+  if(s->phase!=phase || !unchanged(s,&io,&binding))return fail(s,-13);
   io.barrier(io.context);
   if(e)return fail(s,e);
-  if(!unchanged(s,&io,&binding))return fail(s,-13);
+  if(s->phase!=phase || !unchanged(s,&io,&binding))return fail(s,-13);
   if(row && got!=row[1]){s->bad_offset=row[0];s->bad_value=got;return fail(s,-5);}
   if(!row)observed=got;
  }
- if(guard(s))return -1;
- if(consumer)*consumer=observed;
+ if(guard(s) || s->phase!=phase || !unchanged(s,&io,&binding))return fail(s,-13);
+ if(sample)*sample=observed;
  return 0;
 }
-static int fixed_view(struct nano_retire *s,const uint32_t (*tail)[2],unsigned extra,uint32_t *consumer)
+static int fixed_sample(struct nano_retire *s,const uint32_t (*tail)[2],unsigned extra,uint32_t sample_offset,uint32_t *sample)
 {
  static const uint32_t rows[][2]={
  {0,0x080f7e3f},{4,0x0e739d18},{0x14,0x00400075},{0x28,0x820},{0x2c,4},
  {0x48,0},{0x50,0},{0x54,0},{0x60,0},{0x64,0},
  {0x80,0x94000000},{0x84,0},{0x88,8},{0x90,0x94008003},{0x94,0},
  {0xa0,0x94009003},{0xa4,0},{0x100a8,0},{0x100ac,0}};
- return observe(s,rows,sizeof(rows)/sizeof(rows[0]),tail,extra,consumer);
+ return observe(s,rows,sizeof(rows)/sizeof(rows[0]),tail,extra,sample_offset,sample);
 }
-static int fixed(struct nano_retire *s){return fixed_view(s,0,0,0);}
+static int fixed_view(struct nano_retire *s,const uint32_t (*tail)[2],unsigned extra,uint32_t *consumer)
+{return fixed_sample(s,tail,extra,0x9c,consumer);}
+/* The transition poll is a fixed 22-register read-only batch. Keep every
+ * capability/base/error/event read and sample the changing ACK or GBPA last.
+ * No intermediate sample escapes its fresh post-batch ownership/time guard.
+ * All control and producer writes still use their separate full prewrite gate. */
+static int transition_view(struct nano_retire *s,uint32_t control,uint32_t offset,uint32_t *value)
+{
+ if(!value || (offset!=GBPA && offset!=0x24))return fail(s,-22);
+ const uint32_t tail[][2]={{GBPA,ABORT},{0x20,control},{0x24,control}};
+ /* Abort polling checks both controls before sampling GBPA. Other polls
+  * check abort and CR0 before sampling CR0ACK. */
+ return fixed_sample(s,tail+(offset==GBPA),2,offset,value);
+}
 /* No control/publication write uses a cached observation. The original
  * pre/post-write ownership gates remain, with an additional fresh register
  * view immediately before each of the same five allowed writes. */
@@ -189,7 +199,7 @@ static int transition(struct nano_retire *s,uint32_t before,uint32_t after)
  if(write32(s,0x20,after))return -1;
  for(unsigned n=0;n<NANO_RETIRE_POLLS;n++){
   uint32_t ack=0;s->polls++;
-  if(fixed(s) || eq(s,GBPA,ABORT) || eq(s,0x20,after) || read32(s,0x24,&ack))return -1;
+  if(transition_view(s,after,0x24,&ack))return -1;
   if(ack==after)return snapshot(s,after,s->queue_target,ABORT);
   if(ack!=before){s->bad_offset=0x24;s->bad_value=ack;return fail(s,-5);}
  }
@@ -201,7 +211,7 @@ static int initial_transition(struct nano_retire *s,uint32_t before,uint32_t aft
  if(source(s) || snapshot(s,before,s->queue_baseline,ABORT) || write32(s,0x20,after))return -1;
  for(unsigned n=0;n<NANO_RETIRE_POLLS;n++){
   uint32_t ack=0;s->polls++;
-  if(fixed(s) || eq(s,GBPA,ABORT) || eq(s,0x20,after) || read32(s,0x24,&ack))return -1;
+  if(transition_view(s,after,0x24,&ack))return -1;
   if(ack==after)return snapshot(s,after,s->queue_baseline,ABORT);
   if(ack!=before){s->bad_offset=0x24;s->bad_value=ack;return fail(s,-5);}
  }
@@ -296,7 +306,7 @@ int nano_source_retire(struct nano_retire *s,struct nano_sdm_input_binding bindi
  unsigned settled=0;
  for(unsigned n=0;n<NANO_RETIRE_POLLS;n++){
   uint32_t value=0;s->polls++;
-  if(fixed(s) || eq(s,0x20,13) || eq(s,0x24,13) || read32(s,GBPA,&value))return -1;
+  if(transition_view(s,13,GBPA,&value))return -1;
   if(value==ABORT){settled=1;break;}
   if(value!=(UPDATE|ABORT)){s->bad_offset=GBPA;s->bad_value=value;return fail(s,-5);}
  }
