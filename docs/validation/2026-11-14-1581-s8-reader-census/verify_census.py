@@ -168,6 +168,28 @@ PATH_TOKEN = re.compile(r'[A-Za-z0-9_][A-Za-z0-9_./-]*'
                         r'|(?:[A-Za-z0-9_][A-Za-z0-9_./-]*/)?Makefile')
 
 
+def blank(match):
+    return ' ' * len(match.group(0))
+
+
+def keep_first_run(segment):
+    """Blank every citation run in `segment` except the first.
+
+    In a clause with more than one arrow, a middle segment holds two things:
+    the destination of the arrow before it, written at its head, and the stale
+    source of the arrow after it. The first run is the destination and is
+    checked; everything after it is a number the record is reporting as wrong.
+    """
+    runs = list(STALE_NUMBERS.finditer(segment))
+    out, pos = [], 0
+    for run in runs[1:]:
+        out.append(segment[pos:run.start()])
+        out.append(' ' * (run.end() - run.start()))
+        pos = run.end()
+    out.append(segment[pos:])
+    return ''.join(out)
+
+
 def current_only(text):
     """Mask each correction's stale numbers while keeping its destination.
 
@@ -177,26 +199,44 @@ def current_only(text):
     the numbers *after* it are the corrected locations, and they are the whole
     point of the clause, so they must be.
 
-    An earlier revision blanked everything before the last arrow. That removed
-    the path the destinations lean on, since a destination is written bare as
-    `:1707`, so neither side was checked; on `census-tables.md:460` it reduced
-    fifteen path-bearing corrections to two unrelated citations, leaving the
-    corrected checklist locations free to drift while this script exited 0
-    (DeanoC/fes#1829 review). So the numbers are masked individually and the
-    head's last path is carried onto the first destination, which the comma
-    continuation then extends.
+    Two earlier revisions lost destinations here, each in a different way.
+    The first blanked everything before the last arrow, which removed the path
+    the destinations lean on, since a destination is written bare as `:1707`,
+    so neither side was checked. The second kept only the *last* arrow in the
+    clause, so a clause recording two corrections -- `coleco.py:387,401,440 ->
+    :424,:438,:477 and the FES_*_OSS cites :253-254,275,390 -> :290,:291,:312,
+    :427` -- had its first destination masked along with the stale numbers
+    (DeanoC/fes#1829 review). So every arrow is processed: the numbers before
+    the first arrow are stale, the first run after each arrow is a destination,
+    and in a middle segment the runs after that destination are the next
+    arrow's stale source.
+
+    The path a bare destination leans on is the last one written to its left,
+    carried across arrows, which is how `zx81.py:155 -> :68 (and the QSF cite
+    -> :256)` resolves both of its destinations in that file.
     """
     out = []
     for clause in re.split(r'(;)', text):
         if '->' not in clause:
             out.append(clause)
             continue
-        head, arrow, tail = clause.rpartition('->')
-        paths = PATH_TOKEN.findall(head)
-        masked = STALE_NUMBERS.sub(lambda m: ' ' * len(m.group(0)), head)
-        if paths:
-            tail = re.sub(r'(?<![\w.]):(\d)', paths[-1] + r':\1', tail, count=1)
-        out.append(masked + arrow + tail)
+        segments = clause.split('->')
+        rebuilt = []
+        path = None
+        for index, segment in enumerate(segments):
+            written = PATH_TOKEN.findall(segment)
+            if index == 0:
+                rebuilt.append(STALE_NUMBERS.sub(blank, segment))
+            else:
+                if path:
+                    segment = re.sub(r'(?<![\w.]):(\d)', path + r':\1',
+                                     segment, count=1)
+                    written = PATH_TOKEN.findall(segment)
+                rebuilt.append(segment if index == len(segments) - 1
+                               else keep_first_run(segment))
+            if written:
+                path = written[-1]
+        out.append('->'.join(rebuilt))
     return ''.join(out)
 
 
