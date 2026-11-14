@@ -3363,11 +3363,11 @@ func (a *App) logKitMenuReadiness() {
 	}
 	now := time.Now()
 	elapsed := now.Sub(startedAt).Round(time.Millisecond)
-	key := fmt.Sprintf("host_api=%q session_endpoint=%q host_session_seen=%t host_session_http_status=%d host_session_state=%q host_session_error=%q host_await_status=%t host_presents_paused=%t kit_host_preparing=%t host_unreachable=%t health_endpoint=%q host_health_seen=%t host_health_error=%q host_health_ready=%t target_reachable=%t target_ready=%t target_id=%q target_state=%q runtime_status_known=%t runtime_ready=%t runtime_available=%t runtime_generation=%d presented_generation=%d has_presented=%t display_paused=%t display_closed=%t underflows=%d last_err=%q",
+	key := fmt.Sprintf("host_api=%q session_endpoint=%q host_session_seen=%t host_session_http_status=%d host_session_state=%q host_session_error=%q host_await_status=%t host_presents_paused=%t kit_host_preparing=%t host_unreachable=%t health_endpoint=%q host_health_seen=%t host_health_error=%q host_health_ready=%t target_reachable=%t target_ready=%t target_id=%q target_state=%q runtime_status_known=%t runtime_ready=%t runtime_available=%t runtime_generation=%d presented_generation=%d has_presented=%t display_paused=%t display_closed=%t underflows=%d recovery_abandoned=%t last_err=%q",
 		baseURL, strings.TrimRight(baseURL, "/")+"/api/v1/session", sessionSeen, sessionHTTPStatus, sessionState, sessionError, hostAwaitStatus, hostPresentsPaused, kitHostPreparing, hostUnreachable,
 		strings.TrimRight(baseURL, "/")+"/api/v1/health", healthSeen, healthError, health.Ready, health.TargetReachable, health.TargetReady, health.Connection.TargetID, health.Connection.State,
 		readiness.StatusKnown, readiness.Ready, readiness.Available, readiness.Generation, readiness.PresentedGen, readiness.HasPresented,
-		readiness.Paused, readiness.Closed, readiness.Underflows, readiness.LastErr)
+		readiness.Paused, readiness.Closed, readiness.Underflows, readiness.RecoveryAbandoned, readiness.LastErr)
 	a.mu.Lock()
 	if key == a.kitMenuReadyLogKey && now.Sub(a.kitMenuReadyLogAt) < kitMenuReadinessLogPeriod {
 		a.mu.Unlock()

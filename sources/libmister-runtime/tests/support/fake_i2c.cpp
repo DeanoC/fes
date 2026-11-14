@@ -57,6 +57,11 @@ mister::Error FakeI2c::ReadByte(std::uint8_t address, std::uint8_t* value,
 		*value = power_after;
 		return {};
 	}
+	if (address == 0x9e || address == 0x3e) {
+		if (!detail_read_error.ok()) return detail_read_error;
+		*value = address == 0x9e ? pll_status : vic_status;
+		return {};
+	}
 	if (address != 0x42)
 		return {mister::ErrorCode::io_failed, "unexpected fake I2C register"};
 	const std::size_t read_index = link_read_count_++;

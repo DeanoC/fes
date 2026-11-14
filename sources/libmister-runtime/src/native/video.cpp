@@ -114,16 +114,38 @@ Error RequireLink(I2c& i2c, Clock& clock, std::uint64_t deadline,
 	return {};
 }
 
+// The PLL lock and detected mode behind a ready link. A black picture on a
+// ready link has been seen with neither read, so bring-up records both.
+// Reporting only: a read failure leaves the registers out of the message and
+// never fails a verified link.
+void ReadLinkDetail(I2c& i2c, std::uint64_t deadline, VideoResult* result)
+{
+	std::uint8_t pll = 0, vic = 0;
+	if (!i2c.ReadByte(adv7513::reg::kPllStatus, &pll, deadline).ok()) return;
+	if (!i2c.ReadByte(adv7513::reg::kVicDetected, &vic, deadline).ok()) return;
+	result->pll_status = pll;
+	result->vic_status = vic;
+	result->detail_read = true;
+}
+
 void CompleteVideo(const VideoRecipe& recipe, VideoResult* result, LogSink& log)
 {
 	result->phase = "hdmi_verify";
+	std::string detail;
+	if (result->detail_read)
+		detail = std::string(" pll_lock=") +
+			((result->pll_status & adv7513::kPllLocked) ? "1" : "0") +
+			" rx_sense=" +
+			((result->link_status & adv7513::kStatusMonitorSense) ? "1" : "0") +
+			" vic=" + std::to_string(result->vic_status >> adv7513::kVicShift);
+	else detail = " pll_lock=? rx_sense=? vic=?";
 	result->error = {ErrorCode::none,
 		std::string("recipe=") + recipe.identity +
 		" bus=" + result->selected_bus +
 		" address=" + HexByte(adv7513::kMainMapAddress7Bit) +
 		" power_before=" + HexByte(result->power_before) +
 		" power_after=" + HexByte(result->power_after) +
-		" link_status=" + HexByte(result->link_status)};
+		" link_status=" + HexByte(result->link_status) + detail};
 	WritePhase(log, "hdmi_verify", *result, result->error);
 }
 
@@ -136,6 +158,24 @@ FixedVideoBringup::FixedVideoBringup(I2c& i2c, Clock& clock,
 VideoQuiesceResult FixedVideoBringup::Quiesce(std::uint64_t deadline)
 {
 	return QuiesceAdv(i2c_, clock_, deadline);
+}
+
+Error FixedVideoBringup::ReadLinkHealth(std::uint64_t deadline,
+	VideoLinkHealth* output)
+{
+	if (output == nullptr)
+		return {ErrorCode::invalid_request, "missing link health output", "video"};
+	// Three single-byte reads of read-only registers. Nothing is written, so
+	// this never disturbs a running picture.
+	VideoLinkHealth health;
+	Error error = i2c_.ReadByte(adv7513::reg::kStatus, &health.status, deadline);
+	if (error.ok())
+		error = i2c_.ReadByte(adv7513::reg::kPllStatus, &health.pll, deadline);
+	if (error.ok())
+		error = i2c_.ReadByte(adv7513::reg::kVicDetected, &health.vic_raw, deadline);
+	if (!error.ok()) return error;
+	*output = health;
+	return {};
 }
 
 VideoResult FixedVideoBringup::PhaseFailure(const char* phase,
@@ -175,6 +215,7 @@ VideoResult FixedVideoBringup::BringUpCustom(std::uint64_t deadline, bool audio)
 	PhaseSuccess("hdmi_wake", &result, log_);
 	error = RequireLink(i2c_, clock_, deadline, &result);
 	if (!error.ok()) return PhaseFailure("hdmi_verify", error, result);
+	ReadLinkDetail(i2c_, deadline, &result);
 	if (audio) {
 		// The identified core remains held and supplies zero samples until Start.
 		error = i2c_.WriteByte(adv7513::reg::kPacketEnable1,
@@ -214,6 +255,7 @@ VideoResult SplashVideoBringup::BringUp(const IdleRecipe&, std::uint64_t deadlin
  PhaseSuccess("hdmi_wake", &result, log_);
  error = RequireLink(i2c_, clock_, deadline, &result);
  if (!error.ok()) return failure("hdmi_verify");
+ ReadLinkDetail(i2c_, deadline, &result);
  CompleteVideo(recipe_, &result, log_); return result;
 }
 } // namespace native
