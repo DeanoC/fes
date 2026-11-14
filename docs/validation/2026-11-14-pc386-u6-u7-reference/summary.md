@@ -28,7 +28,7 @@ kit was measured. The reference machines are in
 
 | Check | Result |
 | --- | --- |
-| **Ultima VI, PC speaker pitch at the 286-12 preset** | **Fail.** The kit's notes are 12.7–12.9% below the reference's, 2.35 and 2.39 semitones flat. The band is ±5.9%, one semitone. Scaling the reference from its 12.5 MHz to the preset's nominal 12.0 leaves 9.0–9.3% and about 1.7 semitones, if the game keeps the same delay unit across that step. |
+| **Ultima VI, PC speaker pitch at the 286-12 preset** | **Fail**, on two captures a side where the method asked for three. The kit's notes are 12.7–12.9% below the reference's, 2.35 and 2.39 semitones flat. The band is ±5.9%, one semitone. Scaling the reference from its 12.5 MHz to the preset's nominal 12.0 leaves 9.0–9.3% and about 1.7 semitones, if the game keeps the same delay unit across that step. |
 | **Ultima VI, walking speed at the 286-12 preset** | **Not decided**, and the method is the problem, not the kit: on the reference the turn rate follows how fast the keys are sent (56% higher at seventeen keys a second than at ten), and the step rate spreads 23% at one key rate where the band is ±10%. So no kit window was run with it. The figures are below for whoever measures it next. |
 | **Ultima VII: The Black Gate, NPC pace at 386DX-25** | **Not done.** A reference board must be settled first, by the rule that validated the 286 one. The game stops at its own memory check on the reference, and the reference board for a 386DX-25 is not settled; see below. |
 
@@ -59,11 +59,12 @@ scores TopBench 33 where the AT-class real 286 boards of its clock score 21 to
 finding, and it cuts the other way for pitch: a faster CPU would raise the
 note, and the kit's note is lower. Whether the two have a common cause in the
 governor's clock table is open; they are not the same measurement. It is the
-286-12 preset's figure, so it bears on Ultima VI; The Black Gate runs at
-preset 3 and has its own question, below. It does, however, qualify the two checks still
-open — a walking speed or an NPC pace measured against a preset that is
-itself 22% to 57% above the real boards of its clock would not mean what it
-appears to, whatever the measurement's own quality. That is said again where those checks are.
+286-12 preset's figure, so what it qualifies is **Ultima VI's walking speed**:
+a walk measured against a preset that is itself 22% to 57% above the real
+boards of its clock would not mean what it appears to, whatever the
+measurement's own quality. The Black Gate runs at preset 3 and has its own
+question on its own evidence, below. Both are said again where those checks
+are.
 
 **Evidence class**, as `AGENTS.md` asks it be named: exact-artifact hardware
 acceptance for the kit side — the sealed package `fc01c956…` on Kit B, with
