@@ -1,0 +1,160 @@
+--- frozen-previous-operator/transport.py
++++ fresh-dispatch-operator/transport.py
+@@ -6,6 +6,7 @@
+ """
+ import hashlib,importlib.util,json,os,re,signal,stat,subprocess,sys,time,types
+ from pathlib import Path
++from native_program_dispatch import NativeProgramDispatch
+ 
+ ROOT=Path('/home/deano/fes/out/dev/de25-embedded-os')
+ STAGE=ROOT/'out/nano-capability-operator-20261112'
+@@ -166,7 +167,7 @@
+ class Transport:
+  """One fresh service and clock lifetime. close() never masks a failed cleanup."""
+  def __init__(self,runtime,host):
+-  self.runtime,self.host=runtime,host;self.server=None;self.clock=None;self.started=False;self.closed=False;self.count=0;self.epoch=None;self.completed_program=None
++  self.runtime,self.host=runtime,host;self.server=None;self.clock=None;self.started=False;self.closed=False;self.count=0;self.epoch=None;self.completed_program=None;self.native_dispatch=None
+   self.cleanup=dict(transport_cleaned=False,clock_restored=False,owned_server_stopped=False,usb_permissions_restored=False,errors=[])
+  def guard(self):
+   self.host.guard();self.runtime.guards.adapter_cable();return True
+@@ -186,7 +187,12 @@
+   def invoke(cable):
+    self.guard();require(cable==self.runtime.guards.adapter_cable(),'private cable changed')
+    return self.host.program(self.runtime,['-m','jtag','-o',self.runtime.image['operation']],label,pump)
+-  grant,output=self.runtime.program_gate.program_once(phase,Path(self.runtime.image['path']),invoke,pump)
++  def admitted(dispatch):
++   return self.runtime.program_gate.program_once(phase,Path(self.runtime.image['path']),dispatch,pump)
++  if phase=='native':
++   self.native_dispatch=NativeProgramDispatch(self.runtime.common.BASE/'native-execution-attempted.json',image_sha256=self.runtime.image['sha256'],transport_epoch=self.epoch,owns=self.guard)
++   grant,output=self.native_dispatch.run(admitted,invoke)
++  else:grant,output=admitted(invoke)
+   self.guard();self.clock.verify()
+   require(output.count('Quartus Prime Programmer was successful. 0 errors, 0 warnings')==1 and
+    not re.search(r'(?m)^Error[ (]',output),'exact programmer success absent')
+--- frozen-previous-operator/rearm_session.py
++++ fresh-dispatch-operator/rearm_session.py
+@@ -20,16 +20,18 @@
+  def validate_live(self):
+   super().validate_live()
+   require(not any(v in self.raw for v in (b'FES_NANO_INPUT_PARK',b'FES_NANO_CONTINUATION_STOP')),'source path failed or parked')
+- def start_fresh_boot(self):
+-  durable(self.directory/'native-execution-attempted.json',dict(native_execution_attempted=True,reset_required_unless_verified_Park=True))
+-  self.receipt['native_execution_attempted']=True
+-  return super().start_fresh_boot()
+  def run(self):
+   require(self.capture.role=='native-diagnostic','rearm diagnostic role required')
+-  self.receipt.update(native_execution_attempted=False,native_quiescence_verified=False)
++  self.receipt.update(native_execution_attempted=True,native_quiescence_verified=False)
+   result=super().run()
++  dispatcher=getattr(self.transport,'native_dispatch',None)
++  observation=dispatcher.observation() if dispatcher is not None else None
++  result['native_program_dispatch']=observation
++  known_preprogram=(observation is not None and observation['operation_finished'] is True and observation['ownership_verified'] is True and observation['programming_may_have_started'] is False)
++  result['native_execution_attempted']=not known_preprogram
+   try:
+    if result['pass']:
++    require(observation is not None and observation['operation_finished'] is True and observation['programming_may_have_started'] is True,'native success lacks its dispatch marker')
+     result['source_rearm_cycle']=cycle_proof(self.client)
+     require(result['service']['passed'] and result['service']['exit_generation']==5 and
+      result['saved_wire_replay']['status']=='passed-saved-installer-wire-and-poll-times',
+--- frozen-previous-operator/worker.py
++++ fresh-dispatch-operator/worker.py
+@@ -36,7 +36,7 @@
+   finally:signal.alarm(0)
+   return 0 if result['status']=='verified' else 1
+  transport=None;session_result={};cleanup={};failure=None
+- result=dict(native_execution_attempted=False,status='failed',role=args.role,plan_sha256=procedure.bundle.sha256,serial='TRWU8CBL',transport_cleaned=False,claim_verified=False)
++ result=dict(native_execution_attempted=args.role.startswith('native'),status='failed',role=args.role,plan_sha256=procedure.bundle.sha256,serial='TRWU8CBL',transport_cleaned=False,claim_verified=False)
+  try:
+   if args.role.startswith('native'):
+    direction='forward' if args.role=='native-diagnostic' else 'rollback'
+@@ -55,6 +55,7 @@
+    capture=Capture(args.role,procedure.bundle,json.loads((LIVE/'capture-inputs.json').read_text()))
+    result['native_execution_attempted']=True
+    session_result=(RearmSession if args.role=='native-diagnostic' else NativeSession)(capture,transport,directory).run()
++  if args.role=='native-diagnostic':result['native_execution_attempted']=session_result.get('native_execution_attempted',True)
+   require(session_result['pass'] is session_result['UART_closed'] is True,'boot/cycle/UART completion failed')
+   if args.role.startswith('recovery'):require(session_result['prompt_verified'] is True,'fresh recovery prompt missing')
+   else:
+--- frozen-previous-operator/context.py
++++ fresh-dispatch-operator/context.py
+@@ -10,7 +10,7 @@
+  def __init__(self,expected_sha256,*,execute=False):
+   self.path=BASE/'procedure.json';self.raw=self.path.read_bytes();require(hashlib.sha256(self.raw).hexdigest()==expected_sha256,'procedure digest differs')
+   self.sha256=expected_sha256;self.value=json.loads(self.raw);self.execute=execute
+-  require(self.value['scope']=='bounded-four-role-SDM-source-rearm-FIT16-trial' and self.value['serial']=='TRWU8CBL' and
++  require(self.value['scope']=='bounded-four-role-SDM-dispatch-rearm-FIT16-trial' and self.value['serial']=='TRWU8CBL' and
+    self.value['permanent_QSPI_write'] is False,'wrong procedure scope')
+   plan=SWAP/'plan.json';self.bundle=Bundle(plan,self.value['plan_sha256']);self.initial_identity=None;self.prerequisite_sha256=None
+   spec=importlib.util.spec_from_file_location('runner_host_identity',ROOT/'out/nano-bootflash-trial-20261111/host_link.py')
+@@ -27,13 +27,16 @@
+   candidate=Path(self.value['candidate_root'])
+   require(subprocess.check_output(['git','rev-parse','HEAD'],cwd=candidate,text=True).strip()==self.value['candidate_source_head'],'candidate source checkout changed')
+   require(not subprocess.check_output(['git','status','--porcelain','--untracked-files=all'],cwd=candidate),'candidate source tree must remain clean')
++  operator=Path(self.value['operator_root'])
++  require(subprocess.check_output(['git','rev-parse','HEAD'],cwd=operator,text=True).strip()==self.value['operator_source_head'],'operator checkout changed')
++  require(not subprocess.check_output(['git','status','--porcelain','--untracked-files=all'],cwd=operator),'operator checkout must remain clean')
+   for name,row in self.value['files'].items():
+    p=Path(name);require(sha(p)==row['sha256'] and stat.S_IMODE(p.stat().st_mode)==row['mode'] and str(p.resolve(strict=True))==row['resolved'],'frozen input changed: '+name)
+   require(shutil.disk_usage(ROOT).free>30*(1<<30),'30 GiB free disk required');self.owner();return True
+  def approval(self):
+   require(self.execute,'file-only procedure has no execution authority')
+   p=BASE/'execution-approval.json';require(p.is_file() and not p.is_symlink(),'explicit execution approval absent')
+-  r=json.loads(p.read_text());require(r==dict(scope='one-four-role-volatile-SDM-source-rearm-diagnostic',serial='TRWU8CBL',
++  r=json.loads(p.read_text());require(r==dict(scope='one-four-role-volatile-SDM-dispatch-rearm-diagnostic',serial='TRWU8CBL',
+    procedure_sha256=self.sha256,approved=True,attempt_limit=1,permanent_QSPI_write=False),'approval is for another procedure')
+   return True
+  def guard(self):
+--- frozen-previous-operator/restoration_gate.py
++++ fresh-dispatch-operator/restoration_gate.py
+@@ -2,15 +2,15 @@
+ import hashlib,json,re,tarfile
+ from pathlib import Path
+ from transport import require,sha
+-from prior_fit_swap import Bundle as PriorBundle,validate_swap
++from fit_swap import Bundle as PriorBundle,validate_swap
+ from restoration_wire import wire,role,baseline
+ ROOT=Path('/home/deano/fes/out/dev/de25-embedded-os')
+-RESTORE=Path('/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial')
+-RESTORE_SHA='9698b0326faf8db63178e9f066b2162d3058c5e82b0f73a47175c517560bea45'
+-ARCHIVE=Path('/home/deano/fes-retained/de25-secure-reader-physical-20261114-r1/physical-trial.tar.gz')
+-ARCHIVE_SHA='fb071148e3927472741b7f791bdf59836169607a1be3df30e41bbfa3b5dc66fd'
+-PREFIX='out/secure-reader-trial/'
+-SCOPE='verified-prior-four-role-baseline-restoration-before-source-rearm-trial'
++RESTORE=Path('/home/deano/fes/out/dev/de25-embedded-opt-in/out/rearm-restoration')
++RESTORE_SHA='b8a2ab7dcbab00e2855045b54ff930a182c77595c5b5d9212f51a3c5adf43c18'
++ARCHIVE=Path('/home/deano/fes-retained/de25-source-rearm-baseline-restored-physical-20261114-r1/restoration.tar.gz')
++ARCHIVE_SHA='50353a70e669c7e10299a181134351c0ed1491ff348fe76dd0e91931142e5921'
++PREFIX='out/rearm-restoration/'
++SCOPE='verified-post-reset-baseline-restoration-before-dispatch-rearm-trial'
+ def read(path):
+  p=Path(path);require(p.is_file() and not any(q.is_symlink() for q in (p,*p.parents)),'plain restoration evidence required')
+  return json.loads(p.read_text())
+@@ -33,14 +33,15 @@
+   files[path]=digest;return path
+  def record(path):return read(add(path))
+  p=record(directory/'procedure.json');require(files[directory/'procedure.json']==RESTORE_SHA,'wrong restoration procedure')
+- require(p['scope']=='bounded-four-role-SDM-secure-reader-FIT16-trial' and p['attempt_limit']==1 and p['permanent_QSPI_write'] is False,'wrong restoration scope')
++ require(p['scope']=='bounded-format15-source-rearm-restoration-only' and p['diagnostic_authority'] is False and p['allowed_roles']==['recovery-rollback','rollback','native-baseline'] and p['permanent_QSPI_write'] is False,'wrong restoration scope')
+  plan_path=add(directory/'plan.json') if 'plan.json' in archived else directory/'plan.json'
+  # The archived procedure pins this plan even if its duplicate was omitted
+  # from the physical archive (it is retained in the prepared-source archive).
+  require(sha(plan_path)==p['plan_sha256'],'prior restoration plan changed');files[plan_path]=sha(plan_path)
++ reset=record(directory/'human-power-cycle.json');require(reset==record(a/'human-power-cycle.json') and reset['completed'] is True and reset['original_procedure_sha256']==p['original_procedure_sha256'] and reset['failure_archive_sha256']==p['failure_archive_sha256'] and bool(reset['human_quote']),'fresh restoration reset receipt absent')
+  prior=PriorBundle(plan_path,p['plan_sha256'])
+- attempt=record(a/'operator-attempt.json');require(attempt==dict(procedure_sha256=RESTORE_SHA,attempt_limit=1),'wrong restoration attempt')
+- result=record(a/'result.json');require(result.get('status')=='verified-logical-flow' and result.get('diagnostic_verified') is True and result.get('fit_state')=='baseline' and result.get('baseline_restored') is True and result.get('rollback_attempted') is True and result.get('roles_consumed')==['recovery-before','native-diagnostic','recovery-rollback','native-baseline'] and result.get('plan_sha256')==p['plan_sha256'],'restoration incomplete')
++ attempt=record(a/'operator-attempt.json');require(attempt==dict(procedure_sha256=RESTORE_SHA,scope='restoration-only',original_procedure_sha256=p['original_procedure_sha256']),'wrong restoration attempt')
++ result=record(a/'result.json');require(result.get('status')=='verified-restoration-only' and result.get('fit_restored') is True and result.get('baseline_cycle_park_verified') is True and result.get('diagnostic_retried') is False,'restoration incomplete')
+  roles={}
+  for name in ['recovery-rollback','native-baseline']:
+   d=a/name;r=record(d/'role-result.json');s=record(d/'supervisor-result.json');spec=next(v for v in prior.plan['roles'] if v['role']==name)
+@@ -68,7 +69,7 @@
+ def recheck(path,expected):
+  require(isinstance(expected,str) and re.fullmatch('[0-9a-f]{64}',expected) is not None and sha(path)==expected,'restoration prerequisite snapshot changed')
+  p=read(path)
+- require(p.get('scope')==SCOPE and p.get('restoration_procedure_sha256')==RESTORE_SHA and p.get('restoration_archive_sha256')==ARCHIVE_SHA and p.get('baseline_replayed_commands')==51 and p.get('original_FIT_rollback_verified') is p.get('recovery_program_verified') is True and p.get('hardware_actions') is False and len(p.get('files',{}))==25,'wrong restoration prerequisite')
++ require(p.get('scope')==SCOPE and p.get('restoration_procedure_sha256')==RESTORE_SHA and p.get('restoration_archive_sha256')==ARCHIVE_SHA and p.get('baseline_replayed_commands')==51 and p.get('original_FIT_rollback_verified') is p.get('recovery_program_verified') is True and p.get('hardware_actions') is False and len(p.get('files',{}))>=25,'wrong restoration prerequisite')
+  for name,h in p['files'].items():
+   q=Path(name);require(q.is_file() and not any(v.is_symlink() for v in (q,*q.parents)) and sha(q)==h,'prior restoration changed: '+name)
+  return True
