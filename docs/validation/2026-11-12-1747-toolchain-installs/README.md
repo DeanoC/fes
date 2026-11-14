@@ -262,11 +262,18 @@ recorded comparison still describes the current one. Condition 1 passing at the
 new base for all seventeen is consistent with that.
 
 That argument is sound but it is **not** what D12 now says. The clause asks
-whether the compiled source set is unchanged, and for these eight it is not. Two
-honest ways to close it: accept this derivation explicitly, or re-measure
-condition 2 for the eight. It is recorded here rather than resolved, because the
-difference between "the rule licenses it" and "an argument rescues it" is the
-distinction this whole record exists to keep.
+whether the compiled source set is unchanged, and for these eight it is not.
+**Deano accepted the derivation for these eight cores rather than ordering a
+re-measurement** (14 Nov), on the stated ground that the change is the removal
+of defines no core references. So they are closed by an accepted argument, not
+by the clause, and this record says which — the difference between "the rule
+licenses it" and "an argument rescues it" is the distinction it exists to keep.
+
+Anyone applying the clause later should note that it is blunter than this
+decision: it turns on the compiled source set changing at all, where the
+decision turned on whether the change could reach the netlist. Nothing here
+widens the clause, and a future case wants its own answer rather than this one
+read across.
 
 `fes.coleco` is not in that position. Main changed its own compiled RTL —
 `rtl/{coleco_application_gp.v,coleco_machine.sv,top.v}`, five of the 43 sources
