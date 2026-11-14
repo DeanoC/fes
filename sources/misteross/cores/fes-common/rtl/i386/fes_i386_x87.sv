@@ -353,12 +353,16 @@ module fes_i386_x87 (
     // The hold (BUSY#): a new instruction's first uop waits for the board's
     // latch and for the unit, which owns the instruction before it until its
     // work is done -- `fired` says that instruction's first uop has gone, so
-    // a first uop now is a new instruction's. An instruction the unit has
-    // taken waits only for its own value. FNINIT and FNCLEX wait for
-    // neither (HRM section 5.1).
+    // a first uop now is a new instruction's. It waits for a no-wait form
+    // that has issued and not yet committed too (`nw`): FNINIT resets the
+    // unit and FNCLEX clears its flags at their own commit, and a 387 is
+    // busy while it does (33 clocks for FNINIT, datasheet pp. 37-39), so an
+    // ESC after one must not be taken before it. An instruction the unit has
+    // taken waits only for its own value. FNINIT and FNCLEX themselves wait
+    // for none of this (HRM section 5.1).
     assign hold = present && iss && !iss_nowait && !unbuilt
-               && (iss_wait ? latched || busy
-                            : iss_first && (fired || busy || latched)
+               && (iss_wait ? latched || busy || nw != 2'd0
+                            : iss_first && (fired || busy || latched || nw != 2'd0)
                               || val_form && seq != S_RDY
                               || iss_save_rd && iss_part[4:2] + top != ra_live);
     // FNINIT and FNCLEX wait for neither the latch nor the unit, so they are

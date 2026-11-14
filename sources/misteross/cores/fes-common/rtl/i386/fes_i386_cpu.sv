@@ -3434,18 +3434,6 @@ module fes_i386_cpu #(
                 if (wb_s.uop.str_si) gpr[6] <= str_wb_step(gpr[6], wb_str_by, wb_s.uop.mem.addr32);
                 if (wb_s.uop.str_di) gpr[7] <= str_wb_step(gpr[7], wb_str_by, wb_s.uop.mem.addr32);
                 if (wb_s.uop.str_cx) gpr[1] <= str_wb_step(gpr[1], 32'hffff_ffff, wb_s.uop.mem.addr32);
-                // An ESC instruction's last uop: the x87 instruction pointer,
-                // and a memory form's data pointer ("x87 pointers").
-                if (wb_s.uop.x87p != 2'd0) begin
-                    fpu_ip <= wb_s.eip;
-                    fpu_cs <= seg_sel[SEG_CS];
-                    fpu_lip <= {12'd0, seg_sel[SEG_CS], 4'd0} + wb_s.eip;
-                end
-                if (wb_s.uop.x87p == 2'(fes_i386_pkg::X87P_IPDP)) begin
-                    fpu_dp <= wb_fdp;
-                    fpu_ds <= seg_sel[wb_s.uop.mem.seg];
-                    fpu_ldp <= {12'd0, seg_sel[wb_s.uop.mem.seg], 4'd0} + wb_fdp;
-                end
                 // FLDENV's and FRSTOR's fields 3 to 6.
                 if (x87_ld_env) begin
                     case (wb_s.x87_part[2:0])
@@ -3477,6 +3465,18 @@ module fes_i386_cpu #(
                     fpu_dp <= 32'd0;
                     fpu_ds <= 16'd0;
                     fpu_ldp <= 32'd0;
+                end
+                // An ESC instruction's last uop: the x87 instruction pointer,
+                // and a memory form's data pointer ("x87 pointers").
+                if (wb_s.uop.x87p != 2'd0) begin
+                    fpu_ip <= wb_s.eip;
+                    fpu_cs <= seg_sel[SEG_CS];
+                    fpu_lip <= {12'd0, seg_sel[SEG_CS], 4'd0} + wb_s.eip;
+                end
+                if (wb_s.uop.x87p == 2'(fes_i386_pkg::X87P_IPDP)) begin
+                    fpu_dp <= wb_fdp;
+                    fpu_ds <= seg_sel[wb_s.uop.mem.seg];
+                    fpu_ldp <= {12'd0, seg_sel[wb_s.uop.mem.seg], 4'd0} + wb_fdp;
                 end
                 // The system uops: CLTS, the CR0, CR2 and CR3 writes from T1,
                 // LMSW's (which cannot clear PE), and GDTR's and IDTR's from T0
