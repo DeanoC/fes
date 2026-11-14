@@ -86,6 +86,6 @@ func registerCoreROMs(mux *http.ServeMux, service Service) {
 			writeCoreLibraryError(w, err)
 			return
 		}
-		writeJSON(w, 200, value)
+		writeJSON(w, 200, coreROMResponseFor(value))
 	}))
 }

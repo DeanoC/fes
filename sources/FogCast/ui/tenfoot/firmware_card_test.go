@@ -44,7 +44,7 @@ func spectrumModels() []firmwareCardModel {
 }
 
 func TestFirmwareCardCopyBuiltIn(t *testing.T) {
-	c, ok := firmwareCardCopy("Atari ST", []firmwareCardModel{firmwareCardModelForCore("fes.atari-st", "Atari ST")}, []protocol.BundledFirmware{testEmuTOS}, true)
+	c, ok := firmwareCardCopy("Atari ST", "fes.atari-st", []firmwareCardModel{firmwareCardModelForCore("fes.atari-st", "Atari ST")}, []protocol.BundledFirmware{testEmuTOS}, true)
 	if !ok || c.Title != "Built-in firmware: EmuTOS" || c.Kicker != "First time on the Atari ST" || c.Primary != "Continue to Atari ST" || c.Secondary != "Licence" {
 		t.Fatalf("card %+v", c)
 	}
@@ -60,7 +60,7 @@ func TestFirmwareCardCopyBuiltIn(t *testing.T) {
 	if !strings.Contains(strings.Join(c.Footnote, " "), "Shown once") {
 		t.Fatalf("first-use footnote %q", c.Footnote)
 	}
-	again, _ := firmwareCardCopy("Atari ST", []firmwareCardModel{firmwareCardModelForCore("fes.atari-st", "Atari ST")}, []protocol.BundledFirmware{testEmuTOS}, false)
+	again, _ := firmwareCardCopy("Atari ST", "fes.atari-st", []firmwareCardModel{firmwareCardModelForCore("fes.atari-st", "Atari ST")}, []protocol.BundledFirmware{testEmuTOS}, false)
 	if again.Primary != "Close" || strings.Contains(strings.Join(again.Footnote, " "), "Shown once") {
 		t.Fatalf("reopened card %+v", again)
 	}
@@ -68,7 +68,7 @@ func TestFirmwareCardCopyBuiltIn(t *testing.T) {
 
 func TestFirmwareCardCopyMixedFamilyShowsAmstradNoticeOnce(t *testing.T) {
 	bundled := []protocol.BundledFirmware{testSpectrumROM("fes.spectrum", "48K ROM"), testSpectrumROM("fes.spectrum128", "128K ROMs"), testSpectrumROM("fes.spectrum-plus3", "+3 ROMs")}
-	c, ok := firmwareCardCopy("ZX Spectrum", spectrumModels(), bundled, true)
+	c, ok := firmwareCardCopy("ZX Spectrum", "fes.spectrum", spectrumModels(), bundled, true)
 	if !ok || c.Title != "Built-in firmware for most models" {
 		t.Fatalf("card %+v", c)
 	}
@@ -100,7 +100,7 @@ func TestFirmwareCardOnlyClaimsExactROMContract(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			wrong := correct
 			tc.mutate(&wrong)
-			card, ok := firmwareCardCopy("ZX Spectrum", []firmwareCardModel{model}, []protocol.BundledFirmware{wrong}, true)
+			card, ok := firmwareCardCopy("ZX Spectrum", "fes.spectrum", []firmwareCardModel{model}, []protocol.BundledFirmware{wrong}, true)
 			if !ok || card.Title != "The ZX Spectrum needs your firmware" {
 				t.Fatalf("incompatible bundle was claimed as built in: %+v", card)
 			}
@@ -109,23 +109,31 @@ func TestFirmwareCardOnlyClaimsExactROMContract(t *testing.T) {
 }
 
 func TestFirmwareCardCopyUserSupplied(t *testing.T) {
-	c, ok := firmwareCardCopy("Commodore 64", []firmwareCardModel{firmwareCardModelForCore("fes.c64", "Commodore 64")}, []protocol.BundledFirmware{testEmuTOS}, true)
+	c, ok := firmwareCardCopy("Commodore 64", "fes.c64", []firmwareCardModel{firmwareCardModelForCore("fes.c64", "Commodore 64")}, []protocol.BundledFirmware{testEmuTOS}, true)
 	if !ok || c.Title != "The Commodore 64 needs your firmware" || c.Secondary != "Set up system" || len(c.Licence) != 0 {
 		t.Fatalf("card %+v", c)
 	}
 	if !strings.Contains(strings.Join(c.Body, " "), "36 KiB") {
 		t.Fatalf("body %q", c.Body)
 	}
-	zx81, ok := firmwareCardCopy("ZX81", []firmwareCardModel{{CoreID: "fes.zx81", Label: "ZX81"}}, nil, true)
-	if !ok || zx81.Secondary != "Set up ZX81" || !strings.Contains(strings.Join(zx81.Body, " "), "ZX81 › Set up ZX81") {
+	zx81, ok := firmwareCardCopy("Sinclair ZX81", "fes.zx81", []firmwareCardModel{{CoreID: "fes.zx81", Label: "ZX81"}}, nil, true)
+	if !ok || zx81.Secondary != "Set up ZX81" || !strings.Contains(strings.Join(zx81.Body, " "), "Sinclair ZX81 › Set up ZX81") {
 		t.Fatalf("ZX81 setup copy does not match the room button: %+v", zx81)
 	}
+	for _, tc := range []struct{ coreID, mark string }{
+		{"fes.zx80", "ZX80"}, {"fes.ts1000", "TS1000"}, {"fes.ts1500", "TS1500"},
+	} {
+		card, ok := firmwareCardCopy("Sinclair ZX81", tc.coreID, []firmwareCardModel{{CoreID: tc.coreID, Label: tc.mark}}, nil, true)
+		if !ok || card.Secondary != "Set up "+tc.mark || !strings.Contains(strings.Join(card.Body, " "), "Sinclair ZX81 › Set up "+tc.mark) {
+			t.Fatalf("%s setup copy does not match the room button: %+v", tc.coreID, card)
+		}
+	}
 	// An older host lists nothing, so nothing is claimed as built in.
-	old, ok := firmwareCardCopy("ZX Spectrum", spectrumModels(), nil, true)
+	old, ok := firmwareCardCopy("ZX Spectrum", "fes.spectrum", spectrumModels(), nil, true)
 	if !ok || old.Title != "The ZX Spectrum needs your firmware" || len(old.Body) != 5 {
 		t.Fatalf("older host card %+v", old)
 	}
-	if _, ok := firmwareCardCopy("Pong", []firmwareCardModel{firmwareCardModelForCore("fes.pong", "Pong")}, nil, true); ok {
+	if _, ok := firmwareCardCopy("Pong", "fes.pong", []firmwareCardModel{firmwareCardModelForCore("fes.pong", "Pong")}, nil, true); ok {
 		t.Fatal("a family without firmware got a card")
 	}
 }
@@ -324,7 +332,7 @@ func TestFirmwareCardRequestIsDroppedAfterRoomChanges(t *testing.T) {
 
 func TestFirmwareCardPointerBlocksRoomTargetsAndOutsideClickBacksOut(t *testing.T) {
 	a := NewApp(nil, 1280, 720, 10)
-	content, ok := firmwareCardCopy("Atari ST", []firmwareCardModel{firmwareCardModelForCore("fes.atari-st", "Atari ST")}, []protocol.BundledFirmware{testEmuTOS}, false)
+	content, ok := firmwareCardCopy("Atari ST", "fes.atari-st", []firmwareCardModel{firmwareCardModelForCore("fes.atari-st", "Atari ST")}, []protocol.BundledFirmware{testEmuTOS}, false)
 	if !ok {
 		t.Fatal("firmware card copy unavailable")
 	}
@@ -361,12 +369,12 @@ func TestFirmwareCardPointerBlocksRoomTargetsAndOutsideClickBacksOut(t *testing.
 func TestFirmwareCardRender(t *testing.T) {
 	bundled := []protocol.BundledFirmware{testEmuTOS, testSpectrumROM("fes.spectrum", "48K ROM"), testSpectrumROM("fes.spectrum128", "128K ROMs"), testSpectrumROM("fes.spectrum-plus3", "+3 ROMs")}
 	scenes := map[string]FirmwareCardSnapshot{}
-	st, _ := firmwareCardCopy("Atari ST", []firmwareCardModel{firmwareCardModelForCore("fes.atari-st", "Atari ST")}, bundled, true)
+	st, _ := firmwareCardCopy("Atari ST", "fes.atari-st", []firmwareCardModel{firmwareCardModelForCore("fes.atari-st", "Atari ST")}, bundled, true)
 	scenes["built-in"] = FirmwareCardSnapshot{Open: true, Content: st}
 	scenes["licence"] = FirmwareCardSnapshot{Open: true, LicenceView: true, Content: st}
-	spectrum, _ := firmwareCardCopy("ZX Spectrum", spectrumModels(), bundled, true)
+	spectrum, _ := firmwareCardCopy("ZX Spectrum", "fes.spectrum", spectrumModels(), bundled, true)
 	scenes["mixed"] = FirmwareCardSnapshot{Open: true, Content: spectrum}
-	c64, _ := firmwareCardCopy("Commodore 64", []firmwareCardModel{firmwareCardModelForCore("fes.c64", "Commodore 64")}, bundled, true)
+	c64, _ := firmwareCardCopy("Commodore 64", "fes.c64", []firmwareCardModel{firmwareCardModelForCore("fes.c64", "Commodore 64")}, bundled, true)
 	scenes["your-rom"] = FirmwareCardSnapshot{Open: true, Content: c64}
 	for _, size := range [][2]int{{1280, 720}, {1024, 600}} {
 		for name, card := range scenes {
