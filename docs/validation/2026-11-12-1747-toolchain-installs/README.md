@@ -209,9 +209,13 @@ The three non-closing cores were also measured on the pre-merge tree. Their
 closures moved, so their placement outcomes were rerolled; the next section is
 that re-measurement.
 
-**The call since made.** Condition 2 is being re-measured against main
-`bb968862b` for four cores and not all seventeen (Deano, 14 Nov). Condition 1
-was re-measured for fourteen of the seventeen and passed throughout, and
+**The call since made.** Condition 2 was re-measured against main `bb968862b`
+for four cores and not all seventeen (Deano, 14 Nov). Condition 1
+was re-measured for all seventeen and passed throughout — eight pairs on
+Powerboat (apple2, c64, menu, pcxt-dos, pong, riscv, sg1000, sms) and eleven on
+chip-30x0-ai-dev (atari-st, pentagon, sg1000, sms, spectrum, spectrum-plus3,
+spectrum128, ts1000, ts1500, zx80, zx81), with sg1000 and sms measured
+independently on both hosts and each passing against its own host's pair. And
 thirteen cores have no change in their compiled source set between
 `2d895034c` and `bb968862b`, so their recorded comparison is against the same
 netlist it always was. Four cores are different because main changed RTL they
