@@ -235,6 +235,49 @@ Use `kit.py` for ordinary native bring-up and coordinate direct maintenance
 with the current owner. A workstation file lock cannot enforce sharing across
 hosts; no second lock service or misteross ownership database is introduced.
 
+## Guards a session's own harness must use
+
+A session's kit run is driven by a shell wrapper plus a Python driver, and each
+session copies its predecessor's pair. Three habits in those copies cost more
+than a retry on 14 November 2026 — two of them left Kit B's lease `blocked`
+with "operator recovery required" — so the guards against them live in
+`sources/misteross/scripts/kit_hil.py`, beside `kit.py`, and are checked in
+`sources/misteross/tests/test_kit_hil.py` (issue #1849).
+
+- **End of run.** `kit_hil.drain(source, execute, mode=...)` runs a command
+  file and returns `(done, reasons)`. `mode='batch'`, for a command file that
+  is complete when the run starts, ends the run when the file is exhausted: a
+  missing final `{"op": "quit"}` then costs nothing. `mode='live'`, for a
+  console whose commands are appended while the run watches frames, waits for
+  the next one — bounded (five minutes by default, not thirty), and saying
+  every heartbeat which command it waits for, that the file has no `quit`, that
+  the driver is alive and holds the kit, and when it will end the run by
+  itself. A driver that uses neither must not idle silently: a silent wait is
+  what read as a dead wrapper.
+- **The post-run tail.** Run `kit_hil.py guard-idle --config PRIVATE.toml`
+  before a tail removes anything, and halt the wrapper if it refuses (exit 3).
+  It fails closed: an unreachable agent, an agent that is not idle, a lease
+  that is not free and a loaded core each refuse, naming what is loaded and who
+  holds the lease. It waits out a `revoking` lease for 30 seconds, so a clean
+  close does not trip it. Removing a run's data trees under a loaded core is
+  what returned HTTP 500 from stop/close and blocked the lease.
+- **The run's verdict.** Run `kit_hil.py verdict runs/RUN/result.json` and
+  carry its exit code into the wrapper's own. A command the kit refused — an
+  HTTP 422 `INVALID_ARCHIVE` at admission, say — is recorded in `result.json`
+  while the driver's exit code stays 0. The invariant is that no run reports
+  success with an error in its `result.json`, and `drain` stops the script at
+  the first refused command so nothing runs over a core that never loaded.
+- **Liveness.** `kit_hil.run_lock(runs/RUN/kit-hil-run.lock)` is held by the
+  driver for the whole run and records its pid and command line;
+  `kit_hil.py alive runs/RUN/kit-hil-run.lock` answers whether that driver is
+  still alive, through a non-blocking `flock` and `/proc/<pid>/cmdline`. Never
+  ask with `pgrep -f`: it matches the asking shell's own command line, which
+  is how a live wrapper was read as dead. `kit_hil.program_pids` is the
+  `pgrep -x` form for the cases a lock cannot cover.
+
+The drivers on Powerboat are per-session copies that import `kit.py` by path,
+so these guards reach a run only once its driver and wrapper call them.
+
 ## Validation
 
 The [same-process recovery diagnostic](validation/2026-10-17-same-process-host-recovery.md)
