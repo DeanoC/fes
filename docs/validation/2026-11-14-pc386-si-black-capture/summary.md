@@ -18,9 +18,12 @@ probed recurrence belongs to #1833.
 Which of those stages it is stays open as
 [#1833](https://github.com/DeanoC/fes/issues/1833), split out of
 [#1823](https://github.com/DeanoC/fes/issues/1823), and the two cheap tests that
-would separate them need Deano's OK.** The evidence is below, all of it from
-runs already taken; a kit run of this record's own is still to come and is
-corroboration only.
+would separate them need Deano's OK.** Most of the evidence below is from runs
+already taken, remeasured here. This record's own Kit B runs are `b1`
+(13 launches, complete) and `b2` (continuing): `b1` saw no black launch, so it
+contributes the timing and nonce evidence — it dates each launch's blank window
+and shows the grab landing 31 s or more after it closes — and no episode of its
+own. `b2` hunts an episode with the full probe set on it.
 
 ## What was already established
 
