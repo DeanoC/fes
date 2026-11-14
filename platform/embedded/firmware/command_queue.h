@@ -75,19 +75,24 @@ struct nano_cmdq {
     struct nano_cmdq_binding binding;
     struct nano_cmdq_io io;
     uint64_t start,last;
-    unsigned attempted,initialized,submitted,failed,timed,slots_attempted;
-    unsigned publish_attempted,reads,polls;
-    int first_error;
     /* Existing counter samples, including a subsequently rejected sample.
      * These are observations only; last remains the accepted clock value. */
     uint64_t observed;
-    unsigned clock_samples,stage;
     uint64_t completion_us;
-    unsigned completion_seen,validation_policy;
     /* Validated publication-clock observations, never policy authority. */
     uint64_t publication_us;
-    unsigned publication_seen;
+    unsigned reads,polls,clock_samples;
+    int first_error;
+    /* Booleans, the six-slot count, eleven stages and selected policy all
+     * fit in bytes. Keep read, poll and sample counters full-width. These
+     * private controllers are copied/pinned under the held secure lock;
+     * their layout is not a wire ABI. No packed/unaligned accesses. */
+    uint8_t attempted,initialized,submitted,failed,timed,slots_attempted;
+    uint8_t publish_attempted,stage,completion_seen,validation_policy,publication_seen;
 };
+#if UINTPTR_MAX == UINT64_MAX
+_Static_assert(sizeof(struct nano_cmdq)<=192,"private command controller OCRAM budget");
+#endif
 /* Owns no allocator/reset/queue-enable/table/SMMU-enable/error-ack interface.
  * A throwing or failed publish retains the reservation and forbids retry.
  * The caller zeroes state once and keeps it after any uncertain operation.

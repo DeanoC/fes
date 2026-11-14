@@ -19,6 +19,14 @@ AArch64 objects compile. These provisional software budgets need matched-image
 and hardware timing checks. Software-controlled recovery is still unqualified,
 and this change has not been loaded on the kit.
 
+The first complete link of that timing candidate exceeded the private OCRAM
+reservation by 128 bytes. The [compact-controller repair](../../../docs/validation/2026-11-14-de25-compact-command-state/README.md)
+stores bounded flags/stages in bytes and keeps counters, clocks and identities
+at their original widths. The region, stack allocation, checks and wire values
+remain unchanged. All 31 retirement/source models pass; an unadmitted vendor
+link preview fits with 192 bytes remaining. A fresh matched producer build is
+required before using this changed header.
+
 The [transition-poll batching repair](../../../docs/validation/2026-11-14-de25-transition-poll-batches/README.md)
 kept each retirement transition's 22 register reads in one bounded read-only
 observation, with fresh ownership/time checks before and after. It preserves
