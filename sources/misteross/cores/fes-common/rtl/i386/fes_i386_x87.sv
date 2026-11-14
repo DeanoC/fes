@@ -41,13 +41,19 @@
 //   this unit makes happens at the instruction's commit (`wb_last`), in
 //   program order, as the x87 pointers already do.
 //
-// - **BUSY# is a hold in D.** While the board's latch is set, every ESC but
-//   FNINIT and FNCLEX, and WAIT, holds before it runs (`hold`), after #NM
-//   and #UD. A write to port F0h clears the latch, F1h resets the unit.
-//   The no-wait forms (FNSTSW, FNSTCW, FNSTENV, FNSAVE) skip only the
-//   pending-error check, not the wait for BUSY#, so they hold too: the 387
-//   PRM's Appendix F.1 list that leaves FSETPM out is the 286/287 AT's, and
-//   the HRM's rule is the one a 386 follows (slice 0's `fsetpm` case).
+// - **BUSY# is a hold in D, and there are two of them.** An ESC waits on
+//   the board's BUSY# latch, and it waits on the unit's own work. They are
+//   separate, and only the first is what the HRM calls the BUSY# wait.
+//   While the latch is set, every ESC but FNINIT and FNCLEX, and WAIT,
+//   holds before it runs (`hold`), after #NM and #UD. A write to port F0h
+//   clears the latch, F1h resets the unit. The no-wait forms (FNSTSW,
+//   FNSTCW, FNSTENV, FNSAVE) skip only the pending-error check, not the
+//   wait for BUSY#, so they hold too: the 387 PRM's Appendix F.1 list that
+//   leaves FSETPM out is the 286/287 AT's, and the HRM's rule is the one a
+//   386 follows (slice 0's `fsetpm` case). **FNINIT and FNCLEX skip the
+//   latch and nothing else: they still wait for the unit's work**, because
+//   this unit cannot abort an operation in flight. See `hold` below for why
+//   that is a decision and what it costs.
 //
 // - **The tag word is derived.** The unit keeps one empty bit a register and
 //   reads the other three classes (valid, zero, special) out of the value,
@@ -336,8 +342,8 @@ module fes_i386_x87 (
 
     // ---- Issue. ----
     // FNINIT and FNCLEX are the two forms that do not wait for BUSY# (HRM
-    // section 5.1), so they pass the latch and the unit's own work; every
-    // other ESC, and WAIT, holds.
+    // section 5.1), so they pass the board's latch; every other ESC, and
+    // WAIT, holds on it. They do not pass the unit's own work (`hold`).
     x87_op_e iss_dec;
     logic iss_nowait;
     assign iss_dec = x87_decode(iss_op, iss_fmt);
@@ -355,9 +361,6 @@ module fes_i386_x87 (
     // stops the instruction as not built, through the same x87_decode.
     logic unbuilt;
     assign unbuilt = !iss_wait && iss_dec == X87_UNIMPL;
-    // The hold (BUSY#): a new instruction waits for the board's latch and
-    // for the unit, and one the unit has taken waits for its own value.
-    // FNINIT and FNCLEX wait for neither (HRM section 5.1).
     // The hold (BUSY#): a new instruction's first uop waits for the board's
     // latch and for the unit, which owns the instruction before it until its
     // work is done -- `fired` says that instruction's first uop has gone, so
@@ -366,12 +369,27 @@ module fes_i386_x87 (
     // unit and FNCLEX clears its flags at their own commit, and a 387 is
     // busy while it does (33 clocks for FNINIT, datasheet pp. 37-39), so an
     // ESC after one must not be taken before it. An instruction the unit has
-    // taken waits only for its own value. FNINIT and FNCLEX themselves wait
-    // for none of this (HRM section 5.1).
-    // FNINIT and FNCLEX skip the board's latch, not the unit: they do their
-    // work at their own commit, so one behind an instruction the unit has
-    // taken, or behind another of them, waits like any other ESC. A 387 is
-    // busy while FNINIT runs (33 clocks, datasheet pp. 37-39).
+    // taken waits only for its own value.
+    //
+    // FNINIT and FNCLEX skip the board's latch and not the unit, which is a
+    // decision and not an oversight. A real 387 taking FNINIT while busy
+    // *aborts* the operation in flight; this unit has no abort, so its
+    // operation runs to its apply and writes the stack, TOP and the flags
+    // whenever that falls. Letting the no-wait forms overtake it without
+    // that abort was measured on #1821 and takes the bench to 86 of 87:
+    // `overlap.const-then-init` ends at TOP=7 with a register pushed, the
+    // push having landed after FNINIT's reset, where the oracle and a 387
+    // both end at TOP=0 with the stack empty. The faithful version is two
+    // behaviours and not one deletion -- FNINIT cancelling the operation the
+    // way `flush` does, and FNCLEX letting it run and set its flags
+    // afterwards -- and the second carries an oracle question, because Bochs
+    // is atomic: FLD of a denormal then FNCLEX leaves DE clear there and
+    // here, and would leave it set under the overtaking version. That is a
+    // divergences.toml entry and a design change. What is *not* at stake is
+    // the exception itself: the operation's apply sets `latched` in the same
+    // cycle it sets the flags, and FNCLEX clears only the flags and the
+    // stack flag, never the board's latch, which on an AT only a write to
+    // port F0h clears.
     //
     // A first uop waits for the unit only while the unit has not taken it
     // (`!started`): a store's own conversion makes the unit busy before its
@@ -387,10 +405,10 @@ module fes_i386_x87 (
                              : iss_first && (fired || !started && (busy || latched || nw != 2'd0))
                               || val_form && seq != S_RDY
                               || iss_save_rd && iss_part[4:2] + top != ra_live);
-    // FNINIT and FNCLEX wait for neither the latch nor the unit, so they are
-    // taken on their own, beside whatever the unit is working on: FNINIT
-    // resets it, which is why it needs no wait, and FNCLEX only clears the
-    // flags, the hazard Intel's note about FWAIT before FNCLEX describes.
+    // FNINIT and FNCLEX are taken into their own slot (`nw`) rather than
+    // the instruction's, so one of them can sit behind an ESC the unit has
+    // taken; `take_nw` still waits for the unit to be idle, for the reason
+    // set out above `hold`.
     logic take_nw;
     // A flush in the same cycle wins: D still holds the wrong-path
     // instruction this cycle, so taking it would leave `started` or the

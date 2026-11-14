@@ -198,16 +198,18 @@ Four questions the plan left to the manuals, and where each was settled.
   flags and the stack flag, never the board's latch, which on an AT only a
   write to port F0h clears.
 
-**A known defect in this PR's RTL comments.** The header and the two
-paragraphs above `hold` in `fes_i386_x87.sv` still say the no-wait forms
-"pass the latch and the unit's own work", "wait for neither" and are "taken
-on their own, beside whatever the unit is working on". The code does none of
-that, and the bench's own `overlap` group asserts the opposite. Four stale
-statements, left from the intent before the identity-on run forced the
-interlock. They are wrong and they are being corrected — but
-`fes_i386_x87.sv` is a sealed input, so the correction invalidates the seal
-and the kit run below. It goes in one commit with the gates, a new seal and
-a new kit run rather than being slipped in behind them.
+**The RTL's own comments said otherwise, and they were wrong.** The header
+and the two paragraphs above `hold` in `fes_i386_x87.sv` said the no-wait
+forms "pass the latch and the unit's own work", "wait for neither" and were
+"taken on their own, beside whatever the unit is working on" — left from the
+intent before the identity-on run forced the interlock, and contradicted by
+the code, by the bench's `overlap` group and by this record. Codex found
+them. They are corrected, the two duplicated `hold` paragraphs are collapsed
+into one, and the reason the interlock is there is now written where the
+interlock is. The change is comments only: with comments stripped the file
+is byte-identical to `8e771cd7d`'s. It is still a sealed input, so Deano's
+call was to redo rather than to carry the inconsistency, and the seal, the
+gates and the kit run below are of the head that has the fix.
 
 **No new `divergences.toml` entry is justified yet.** The two candidates are
 not exercised by anything this slice runs: the 387's state after a CPU reset
