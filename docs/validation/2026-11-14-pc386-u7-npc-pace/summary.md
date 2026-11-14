@@ -114,3 +114,76 @@ The reference's DOS memory layout is now like the kit's, not identical to it:
 both load HIMEMX and the mouse driver into UMBs at C800, and the free
 conventional figure is compared side by side in the pace section below. Any
 difference is named there rather than absorbed.
+
+## Part 2 — the reference board, settled before any capture
+
+**Done, and the answer is uncomfortable rather than convenient.**
+
+[`method.md`](method.md) was committed before any pace capture, with the board
+rule, the board, the metric and the band. It is pushed ahead of every capture
+so the order is in the branch's history and not only in its prose.
+
+### The rule, and the number it gives
+
+#1838 validated its 286 reference by placing it mid-range among the real
+machines of its class in TopBench 0.38a's shipped database. That database
+holds **no 386DX at 25 MHz at all**, so the rule needs a reading, and
+`method.md` fixes one: take every AT-class real 386DX entry at whatever clock
+and scale its score to 25 MHz by its clock.
+[`topbench_band.py`](topbench_band.py) does exactly that and
+[`topbench-386dx.json`](topbench-386dx.json) is its output, so the figures can
+be rederived. Eighteen entries, scaled to 25 MHz:
+
+```
+31 32 34 42 48 54 54 57 57 57 59 60 61 65 66 68 75 78
+```
+
+minimum 31, lower quartile 47, **median 57**, upper quartile 65, maximum 78.
+The four highest are one M326 motherboard entered at four clocks; without it
+the maximum is 66. The distribution is bimodal — three IBM PS/2 models at
+1.25–1.38 points per MHz, then everything else from 1.68 up, with nothing in
+between.
+
+### The reference does not meet it
+
+`asus3863364k` at 25 MHz, cached, scores TopBench **40** — fourth lowest of
+the nineteen, below the lower quartile, and in the gap between the two
+clusters rather than inside either. Three checks before concluding that:
+
+| setting | TopBench |
+| --- | --- |
+| `cpu_waitstates = 0` (the preset's own definition) | 40 |
+| `cpu_waitstates = 1` | 40 |
+| board default | 40 |
+
+and #1838 had already found the uncached `ecs386` and the cached
+`asus3863364k` both at 40. Five further 86Box 386DX boards (`award495`,
+`ecs386v`, `acc386`, `dataexpert386wb`, `asus386`) were staged for the same
+benchmark and are **not measured**: each has an AMI BIOS that drops into SETUP
+on a blank CMOS. They are listed as unmeasured, not presumed.
+
+So 86Box's 386DX at 25 MHz models a machine at the slow end of the real range,
+and nothing inside it reaches the middle. That is stated rather than worked
+around, and `method.md` fixes in advance how a pace miss would be classified
+against the throughput ratio.
+
+### Where the kit's preset sits, which is the part #1853 asked for
+
+The kit's 386DX-25 preset scored TopBench 68 in
+[#1486](https://github.com/DeanoC/fes/pull/1486) — an older seal, so
+`method.md` requires it re-measured in the same claim as the pace captures.
+Taken at face value for now, 68 is above sixteen of the eighteen real entries,
+and above all fourteen once the M326's four are set aside. It beats every real
+386DX-20 in the database (maximum 60) and sits just under the slowest real
+386DX-33 (71).
+
+**That is the same shape as [#1840](https://github.com/DeanoC/fes/issues/1840)
+found at 286-12, in a milder form.** At 286-12 the preset scored above *every*
+real 286 of its clock; at 386DX-25 it scores above most but not all real
+386DXs once they are scaled, and it stays inside the range. It is a
+qualification a pace comparison needs, not a second defect, and on this
+evidence it does not warrant its own issue.
+
+The reference is therefore slower than the kit by a measured factor of
+**68/40 = 1.7**, and any CPU-bound pace figure will differ by about that much
+before anything about the core is in question.
