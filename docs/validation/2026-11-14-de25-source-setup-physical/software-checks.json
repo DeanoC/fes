@@ -1,0 +1,79 @@
+{
+  "status": "passed-focused-repair-and-vendor-objects",
+  "checks": {
+    "setup-final-focused-v3": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_source_retirement.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-setup-final-verification",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 126.10253238398582,
+      "log_sha256": "07b8cc10162b6576d625ea182e757daa031424a3a3f21cb0e846110ef82e1217"
+    },
+    "setup-final-predecessor-control": {
+      "argv": [
+        "python3",
+        "out/publication/check-setup-counterexample.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-setup-final-verification",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.6032986191567034,
+      "log_sha256": "eb9e4d0a6481785f2e123c789d909a9753f65cfeebe1878aa7344eee196c1335"
+    },
+    "setup-final-vendor-objects": {
+      "argv": [
+        "python3",
+        "out/publication/compile-setup-final.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-setup-final-verification",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.0017700840253383,
+      "log_sha256": "35c7507488064a99cfb9877aab3e9e1d830aa13ad3f5dbbb0444dfb344466767"
+    },
+    "cross_compile": {
+      "status": "passed-three-selected-vendor-aarch64-objects",
+      "scope": "compile-only; no linked BL31, matched image, whole-EL3 stack or hardware qualification",
+      "base_receipt": "/home/deano/fes/out/dev/de25-dispatch-release/out/source-setup-boot/native-bl31/result.json",
+      "base_receipt_sha256": "e1e771cf3606af7d7fe9d6cd76230ce3afe511c84aebcf30f6e95ab286a4c278",
+      "compiler": {
+        "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-gcc",
+        "sha256": "ea55f8b35f29e94d8bbf6cb6f4a2ed39f8e204e2a2080cf06ba7c1733da11d95"
+      },
+      "changed_sources": {
+        "/home/deano/fes/out/dev/de25-setup-final-verification/platform/embedded/firmware/sdm_input_probe_setup.c": "e353b0b3121fafbc93caae0f94f1b38e12c4e9b9c3918824acc1b22f6f16405a",
+        "/home/deano/fes/out/dev/de25-setup-final-verification/platform/embedded/firmware/command_queue.c": "03398a69e22cf0aac05e7e2eacaeaa82db801307c3c1dabbe71ce6e4a26a64e9",
+        "/home/deano/fes/out/dev/de25-setup-final-verification/platform/embedded/firmware/source_retire.c": "b8eac234f523972d8d6e0646de0ba53ed938a46a5c3f76014f0a8f1995e3f4d5",
+        "/home/deano/fes/out/dev/de25-setup-final-verification/platform/embedded/firmware/command_queue.h": "59ce58dea8a750bcb84ca951490fea0a8fa868a548e628f467d3dfb1a6f6b940"
+      },
+      "objects": {
+        "/home/deano/fes/out/dev/de25-setup-final-verification/out/setup-final-aarch64/source/build/agilex5/release/bl31/probe_setup.o": "b45172f301822d9882993a2e2ebd39283e30efe3ed2cabb45c431ad2f5a2f3aa",
+        "/home/deano/fes/out/dev/de25-setup-final-verification/out/setup-final-aarch64/source/build/agilex5/release/bl31/command_queue.o": "ae29c5d0481ebe56de9ca9d536d64589d847c849b186caaa399542621f64be9e",
+        "/home/deano/fes/out/dev/de25-setup-final-verification/out/setup-final-aarch64/source/build/agilex5/release/bl31/source_retire.o": "576237141ebfcdc6ff823151c7c3776a5546ec014a8937661b18a34190f463ea"
+      },
+      "stack_files": {
+        "/home/deano/fes/out/dev/de25-setup-final-verification/out/setup-final-aarch64/source/build/agilex5/release/bl31/probe_setup.su": "54c2f0ff007d9cb45f4630611d4c2511b5da51640ca753cea2e86b0189c03666",
+        "/home/deano/fes/out/dev/de25-setup-final-verification/out/setup-final-aarch64/source/build/agilex5/release/bl31/command_queue.su": "fa4ccb18e29f08a3810bb685a5c9c8f946dcefe9c35385b1972c2ce5b261130f",
+        "/home/deano/fes/out/dev/de25-setup-final-verification/out/setup-final-aarch64/source/build/agilex5/release/bl31/source_retire.su": "6bb4d912e7898b8b5a75d0733cfea912cfe914af66fe336281e9aa6b534c5cb3"
+      },
+      "hardware_actions": false
+    }
+  },
+  "tests": 27,
+  "skips": 0,
+  "new_model_cases": 43,
+  "whole_campaign_passed": false,
+  "matched_repair_image_built": false,
+  "repair_hardware_accepted": false,
+  "CI_assessed": false
+}

@@ -38,7 +38,7 @@ static void barrier_mutating(void *p)
 int main(void)
 {
  unsigned cases=0;
- for(unsigned policy=0;policy<=1;policy++)for(cut=1;cut<=8;cut++)for(field=0;field<9;field++){
+ for(unsigned policy=0;policy<=2;policy++)for(cut=1;cut<=8;cut++)for(field=0;field<9;field++){
   struct model m={.owned=1,.producer=6,.consumer=6};hit=barriers=0;
   struct nano_cmdq_binding b={17,7,4,0x94008000,6};
   struct nano_cmdq_io io={&m,owns,clock_us,read_mutating,write_mutating,store_mutating,barrier_mutating,0,0};

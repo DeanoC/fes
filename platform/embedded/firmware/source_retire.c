@@ -31,9 +31,11 @@ static int prepared_valid(const struct nano_cmdq *q,const struct nano_sdm_input_
   q->submitted==1 && q->timed==1 && !q->failed && !q->first_error &&
   q->slots_attempted==NANO_CMDQ_COMMANDS && q->publish_attempted==1 &&
   q->stage==CMDQ_COMPLETE && q->completion_seen==1 &&
-  q->validation_policy==CMDQ_FULL_OPERATION_BOUND && q->last>=q->start &&
+  (q->validation_policy==CMDQ_FULL_OPERATION_BOUND || q->validation_policy==CMDQ_PREPARATION_FINAL_VALIDATION) &&
+  q->last>=q->start &&
   q->completion_us>=q->start && q->completion_us<=q->last &&
-  q->last-q->start<=NANO_CMDQ_BOUND_US && q->io.context && q->io.owns &&
+  q->completion_us-q->start<=NANO_CMDQ_BOUND_US &&
+  q->last-q->start<=(q->validation_policy==CMDQ_FULL_OPERATION_BOUND ? NANO_CMDQ_BOUND_US:NANO_CMDQ_FINAL_BOUND_US) && q->io.context && q->io.owns &&
   q->io.time_us && q->io.read32 && q->io.write32 && q->io.store && q->io.barrier;
 }
 static void observed_read(struct nano_retire *s,uint32_t offset,uint32_t value)

@@ -146,5 +146,5 @@ int main(void)
  }
  first();unsigned stores=m.stores,writes=m.writes;assert(next(6,1));
  assert(m.stores==stores && m.writes==writes);
- puts("{\"status\":\"passed\",\"completed_generations\":64,\"hardware_actions\":false}");assert(wraps);
+ puts("{\"status\":\"passed\",\"completed_generations\":64,\"hardware_actions\":false}");assert(wraps);return 0;
 }

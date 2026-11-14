@@ -13,7 +13,11 @@ enum nano_cmdq_validation_policy {
     CMDQ_FULL_OPERATION_BOUND,
     /* Only after owned progress/pointer/postguard accept the target. The
      * retained caller must also enforce its enclosing retirement deadline. */
-    CMDQ_RETAINED_FINAL_VALIDATION
+    CMDQ_RETAINED_FINAL_VALIDATION,
+    /* Input setup alone: completion still uses 100 ms. Its callbacks and
+     * caller enforce the original one-second preparation origin throughout
+     * both mandatory final snapshots and the final guard. */
+    CMDQ_PREPARATION_FINAL_VALIDATION
 };
 struct nano_cmdq_binding {
     uint64_t owner,epoch,generation,queue;

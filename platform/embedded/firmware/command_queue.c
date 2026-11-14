@@ -135,7 +135,8 @@ int nano_cmdq_submit(struct nano_cmdq *s,struct nano_cmdq_receipt *out,enum nano
 {
     if (!s || !s->initialized || s->submitted || s->failed) return -1;
     s->submitted=1; /* consume before any callback */
-    if (!out || (policy!=CMDQ_FULL_OPERATION_BOUND && policy!=CMDQ_RETAINED_FINAL_VALIDATION)) return fail(s,-22);
+    if (!out || (policy!=CMDQ_FULL_OPERATION_BOUND && policy!=CMDQ_RETAINED_FINAL_VALIDATION &&
+                 policy!=CMDQ_PREPARATION_FINAL_VALIDATION)) return fail(s,-22);
     s->validation_policy=(unsigned)policy; /* observation; decisions use local policy */
     uintptr_t a=(uintptr_t)s,b=(uintptr_t)out;
     if (a>UINTPTR_MAX-sizeof(*s) || b>UINTPTR_MAX-sizeof(*out) ||
@@ -184,10 +185,10 @@ int nano_cmdq_submit(struct nano_cmdq *s,struct nano_cmdq_receipt *out,enum nano
         if (cons==target) {
             /* Completion was observed under the original 100 ms origin and
              * bound. Do not rebase that clock or relax the progress path.
-             * Only the retained retirement caller can select the enclosing
+             * Only an explicitly bounded preparation or retirement caller can select the enclosing
              * finite bound for the still-mandatory final observations. */
             s->completion_us=s->last;s->completion_seen=1;
-            const uint64_t final_bound=policy==CMDQ_RETAINED_FINAL_VALIDATION ? NANO_CMDQ_FINAL_BOUND_US:NANO_CMDQ_BOUND_US;
+            const uint64_t final_bound=policy==CMDQ_FULL_OPERATION_BOUND ? NANO_CMDQ_BOUND_US:NANO_CMDQ_FINAL_BOUND_US;
             s->stage=CMDQ_FINAL_FIRST;
             if (snapshot(s,target,final_bound)) return -1;
             s->stage=CMDQ_FINAL_SECOND;

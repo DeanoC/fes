@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 #include "probe_setup.h"
 #include <string.h>
+_Static_assert(NANO_CMDQ_FINAL_BOUND_US==NANO_PROBE_BOUND_US,"same enclosing preparation bound required");
 static int fail(struct nano_probe_setup *s,int error)
 {
     s->failed=1;
@@ -369,7 +370,7 @@ int nano_probe_prepare(struct nano_probe_setup *s,struct nano_probe_receipt *out
     if(control(s,8))return s->first_error;
     struct nano_cmdq_binding b={s->binding.owner,s->binding.epoch,s->binding.generation,NANO_PROBE_BASE+NANO_PROBE_CMDQ,s->queue_baseline};
     struct nano_cmdq_io io={s,cmd_owns,cmd_time,cmd_read,cmd_write,cmd_store,cmd_barrier,0,0};
-    if (nano_cmdq_init(&s->command,b,io) || nano_cmdq_submit(&s->command,&s->command_receipt,CMDQ_FULL_OPERATION_BOUND)) return fail(s,-5);
+    if (nano_cmdq_init(&s->command,b,io) || nano_cmdq_submit(&s->command,&s->command_receipt,CMDQ_PREPARATION_FINAL_VALIDATION)) return fail(s,-5);
     if (!s->warm && (wr(s,0xa0,(uint32_t)(NANO_PROBE_BASE+NANO_PROBE_EVTQ)|3U) || wr(s,0xa4,0)))return s->first_error;
     if (
         equal(s,0x100a8,0) || equal(s,0x100ac,0) || control(s,12) ||

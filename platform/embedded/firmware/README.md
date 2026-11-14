@@ -21,6 +21,18 @@ the same eighth write and execute the observer with every callback poisoned.
 These new diagnostics require a new matched image before a future trial;
 the older failed image and its hardware evidence remain unchanged.
 
+The [new retained setup trace](../../../docs/validation/2026-11-14-de25-source-setup-physical/README.md)
+identifies completion at 79.457 ms and failure of the second final snapshot at
+100.672 ms, with preparation still within its original one-second lifetime.
+Input preparation now selects its own final-validation policy: all publication
+and completion observations retain the 100 ms deadline; both final snapshots
+and the final guard remain mandatory under the original one-second preparation
+origin. The callbacks still reject an expired parent or lost ownership, and
+later arm cannot establish a new origin. Arm-only setup keeps its full-operation
+policy. Retirement accepts only a timely completed setup with its selected
+finite validation history; a retirement-policy record cannot stand in for it.
+These changed firmware bytes require fresh matched-image and hardware checks.
+
 The selected format-14 source-continuation prototype returns to the native
 configuration checks only after one successful retirement and a fresh live
 engine/source/table/disabled-register check under the original one-second

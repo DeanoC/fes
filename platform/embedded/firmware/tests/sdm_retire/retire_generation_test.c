@@ -103,7 +103,7 @@ int main(void)
   fault=point=injected=0;negative++;
  }
  /* Entry rejects an incomplete, failed, stale or changed setup before MMIO. */
- for(unsigned kind=0;kind<12;kind++){
+ for(unsigned kind=0;kind<16;kind++){
   struct model m;struct nano_retire s={0};struct nano_retire_receipt r={0};
   struct nano_sdm_input_binding b=generation_setup(&m,15,8);
   struct nano_retire_io io=generation_io(&m);
@@ -111,7 +111,11 @@ int main(void)
   else if(kind==5)prepared->binding.baseline=16;
   else if(kind<=9){fault=kind;point=1;mutate(1);fault=point=injected=0;}
   else if(kind==10)prepared->completion_us=prepared->start+NANO_CMDQ_BOUND_US+1;
-  else prepared->validation_policy=CMDQ_RETAINED_FINAL_VALIDATION;
+  else if(kind==11)prepared->validation_policy=CMDQ_RETAINED_FINAL_VALIDATION;
+  else if(kind==12)prepared->validation_policy=3;
+  else if(kind==13){prepared->validation_policy=CMDQ_PREPARATION_FINAL_VALIDATION;prepared->last=prepared->start+NANO_CMDQ_FINAL_BOUND_US+1;}
+  else if(kind==14){prepared->validation_policy=CMDQ_PREPARATION_FINAL_VALIDATION;prepared->completion_us=prepared->start+NANO_CMDQ_BOUND_US+1;prepared->last=prepared->completion_us;}
+  else prepared->last=prepared->start+NANO_CMDQ_BOUND_US+1;
   assert(nano_source_retire(&s,b,io,&r) && s.failed && !s.retired);
   assert(!m.reads && !m.written && !m.stores && !r.translation_retired);negative++;
  }

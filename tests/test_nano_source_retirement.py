@@ -72,7 +72,7 @@ class SourceRetirementTests(unittest.TestCase):
     def run_model(self, name, joined=False, arguments=()):
         binary = self.output / name
         sources = [FIXTURE / (name + ".c"), FW / "source_retire.c", FW / "command_queue.c", FW / "input_tables.c"]
-        if name == "warm_probe_test":
+        if name in ("warm_probe_test", "setup_validation_test"):
             sources += [self.output / "probe_setup.c"]
         if name == "retained_window_gate_test":
             sources += [FW / "nano_smmu.c", FW / "nano_sdm_reader.c"]
@@ -114,7 +114,7 @@ class SourceRetirementTests(unittest.TestCase):
         report = self.run_model("retire_generation_test")
         self.assertEqual(report["completed_generations"], 256)
         self.assertGreater(report["wraps"], 0)
-        self.assertEqual(report["negative_cases"], 132)
+        self.assertEqual(report["negative_cases"], 136)
 
     def test_real_source_release_supplier_requires_returned_owned_source(self):
         report = self.run_model("source_release_test", joined=True)
@@ -135,6 +135,10 @@ class SourceRetirementTests(unittest.TestCase):
         self.assertEqual(report["cases"], 8)
         self.assertEqual(report["eight_write_failures"], 3)
         self.assertTrue(report["callbacks_poisoned"])
+
+    def test_preparation_completion_and_final_checks_keep_separate_finite_bounds(self):
+        report = self.run_model("setup_validation_test")
+        self.assertEqual(report["cases"], 43)
 
     def test_warm_probe_reuses_owned_queue_without_clearing_abort(self):
         report = self.run_model("warm_probe_test")

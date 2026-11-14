@@ -42,7 +42,7 @@ int main(void)
 {
  unsigned cases=0;const unsigned points[]={CMDQ_PROGRESS,CMDQ_FINAL_FIRST,CMDQ_FINAL_SECOND,CMDQ_FINAL_GUARD};
  const uint64_t times[]={80000,100001,105704,900000,1000001};
- for(unsigned policy=0;policy<=1;policy++)for(fallback=0;fallback<=1;fallback++)
+ for(unsigned policy=0;policy<=2;policy++)for(fallback=0;fallback<=1;fallback++)
  for(unsigned n=0;n<4;n++)for(unsigned t=0;t<sizeof(times)/sizeof(times[0]);t++)for(mutation=0;mutation<=5;mutation++){
   point=points[n];elapsed=times[t];injected=0;
   struct model m={.owned=1,.producer=6,.consumer=6};
@@ -79,7 +79,7 @@ int main(void)
   int error=nano_cmdq_submit(&m.queue,&r,CMDQ_RETAINED_FINAL_VALIDATION);
   assert((error==0)==(elapsed<=100000) && m.queue.completion_seen==(elapsed<=100000));cases++;
  }
- for(int policy=-1;policy<=2;policy+=3){
+ for(int policy=-1;policy<=3;policy+=4){
   struct model m={.owned=1,.producer=6,.consumer=6};struct nano_cmdq_binding b={17,7,4,0x94008000,6};
   struct nano_cmdq_io io={&m,owns,clock_us,read32,write32,store,barrier,snapshot,0};
   assert(!nano_cmdq_init(&m.queue,b,io));struct nano_cmdq_receipt r={0};
