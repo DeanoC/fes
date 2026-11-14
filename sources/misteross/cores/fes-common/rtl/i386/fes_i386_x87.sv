@@ -1162,6 +1162,10 @@ module fes_i386_x87 (
                             rw_idx <= top;
                             rw_val <= v;
                             rw_en <= 1'b1;
+                            // A masked stack underflow leaves the real
+                            // indefinite in the destination, so it is no
+                            // longer empty and its tag reads special.
+                            empty[top] <= 1'b0;
                         end
                         if (cur == X87_XCH) begin
                             // Two writes, so two cycles: ST(0) now and

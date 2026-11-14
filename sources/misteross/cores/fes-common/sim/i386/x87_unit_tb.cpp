@@ -687,8 +687,10 @@ int main(int argc, char **argv) {
 
         u.reg_form(OP_FNINIT);
         u.reg_form(OP_FCHS);  // ST(0) is empty
-        if ((u.sw() & 0x41) == 0x41 && (u.sw() & 0x200) == 0) ok("stack-underflow");
-        else bad("stack-underflow", "sw=" + hex(u.sw(), 4));
+        // Invalid and the stack flag, C1 clear, and the destination holding
+        // the real indefinite, so its tag is special (10) and not empty.
+        if ((u.sw() & 0x41) == 0x41 && (u.sw() & 0x200) == 0 && (u.tw() & 3) == 2) ok("stack-underflow");
+        else bad("stack-underflow", "sw=" + hex(u.sw(), 4) + " tw=" + hex(u.tw(), 4));
 
         // A stack overflow: eight pushes fill the stack, and the ninth
         // raises invalid with the stack flag and C1 set.
