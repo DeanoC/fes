@@ -1829,7 +1829,10 @@ module fes_i386_cpu #(
         d_out = '0;
         d_out.valid = issue;
         d_out.uop = u;
-        d_out.x87 = dc.x87 && !dc.x87_wait;
+        // With the identity clear nothing carries the flag, so the uop's
+        // commit touches no x87 state and FLDENV and FRSTOR load and
+        // discard, as the empty socket does. WAIT takes nothing either.
+        d_out.x87 = x87_present && dc.x87 && !dc.x87_wait;
         d_out.x87_part = dc.x87_part;
         d_out.gov = dc.gov;
         d_out.eip = d_eip;

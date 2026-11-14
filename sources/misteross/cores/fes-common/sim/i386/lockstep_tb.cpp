@@ -10401,15 +10401,16 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
         // the mismatch list can only name them.
         if (!out.items.empty()) {
             auto show = [](const char *side, const fes_i386::X87State &s) {
-                std::cout << "  " << side << " cw " << hex(s.control) << " sw " << hex(s.status)
+                std::cerr << "  " << side << " cw " << hex(s.control) << " sw " << hex(s.status)
                           << " tw " << hex(s.tag) << " op " << hex(s.opcode)
                           << " ip " << hex(s.pointers.ip) << " cs " << hex(s.pointers.cs)
                           << " dp " << hex(s.pointers.dp) << " ds " << hex(s.pointers.ds);
                 for (int n = 0; n < 8; ++n)
-                    std::cout << " r" << n << ' ' << hex(s.r[n].sign_exponent) << ':' << hex(s.r[n].significand);
-                std::cout << '\n';
+                    std::cerr << " r" << n << ' ' << hex(s.r[n].sign_exponent) << ':' << hex(s.r[n].significand);
+                std::cerr << '\n';
             };
-            std::cout << "x87:" << c.label << " states (ip before settling " << hex(ip_before_settle)
+            // stderr: the runner reads stdout as its own protocol.
+            std::cerr << "x87:" << c.label << " states (ip before settling " << hex(ip_before_settle)
                       << ", busy " << busy_before_settle << ")\n";
             show("oracle", want);
             show("rtl   ", got);
