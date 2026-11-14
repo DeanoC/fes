@@ -291,3 +291,31 @@ load, and a read-only `0x41`/`0x42`/`0x9E`/`0x3E` poll at about 20 Hz through
 each bring-up. It can only corroborate: `27f478e0` carries no presenter or
 display-plane probe, so its episodes would be placed after the capture buffers,
 not after the core's pins.
+
+## One timing question the queued run has to settle
+
+A passive per-frame luma log of Kit B's HDMI, taken today through the shared
+MJPEG viewer (`:8091`) while another session cycled activations and core loads
+on it, shows **15 black intervals in 29 minutes**: six of about 23 s, one of
+26.8 s, one of 73.5 s, and shorter ones, every black frame at the uniform-black
+peak of 7. Kit A, idle at Home over the same 42 minutes, had none. The kits were
+not doing the same thing, so this is not a kit comparison — what it shows is
+that a kit's display is routinely black for tens of seconds around a bring-up.
+
+That matters for one class of #1494's evidence. Runs `k7`–`k9` grabbed the DOS
+prompt about 22 s after the load command, and if a core load's own blank window
+can still be open at that moment, a black prompt grab would mean "the picture
+had not come up yet", not "the picture never came". Against that reading: at
+those grabs the presenter was showing a 720x400 picture, the capture buffers held
+the lit DOS prompt, and `k9`'s ADV7513 dump read powered up with the link ready
+and the PLL locked — and the four gameplay-observed cases stayed black for far
+longer (`k1`'s for about 4.7 minutes across 26 grabs). But the blank window of a
+pc386 core load has not been measured, and the earlier runs took no frames
+between the load and the grab.
+
+The queued `b1` run measures it directly: its per-frame luma log spans
+stop → load → prompt on every launch, so it dates the end of each launch's blank
+window and says where the grab lands relative to it. Until that lands, the
+eight prompt-only cases are *reported* as black grabs 22 s after a load, and the
+conclusion of this record rests on the Kit A episode and on `k8`'s pin-level
+probe rather than on their count.
