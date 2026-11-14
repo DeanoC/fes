@@ -43,10 +43,11 @@ CUDA_ARCHITECTURES="${FES_TOOLCHAIN_CUDA_ARCHITECTURES:-86}"
 CACHE_HELPER="$SCRIPT_DIR/toolchain_cache.py"
 CACHE_ENABLED=0
 CACHE_ROOT_REQUEST="${FES_TOOLCHAIN_CACHE_ROOT:-}"
-CACHE_KEY=""
-CACHE_SLOT=""
-CACHE_LOCK_PATH=""
 CACHE_LOCK_FD=""
+# Per-tool install plan from toolchain_cache.py. Unset first: an inherited
+# variable of the same name would otherwise block the associative declare.
+unset CACHE_TOOL_KEY CACHE_TOOL_DIRECTORY CACHE_TOOL_LOCK
+declare -A CACHE_TOOL_KEY=() CACHE_TOOL_DIRECTORY=() CACHE_TOOL_LOCK=()
 
 die() {
     printf 'bootstrap: %s\n' "$*" >&2
@@ -69,28 +70,24 @@ if [[ -n "$CACHE_ROOT_REQUEST" && "${1:-}" != "--check-prereqs" ]]; then
         --hip-architectures "$HIP_ARCHITECTURES" \
         --cuda-architectures "$CUDA_ARCHITECTURES" \
         plan --format lines)" || die "cannot derive shared toolchain cache identity"
-    while IFS=$'\t' read -r cache_field cache_value; do
-        case "$cache_field" in
-            key) CACHE_KEY=$cache_value ;;
-            slot) CACHE_SLOT=$cache_value ;;
-            source) CACHE_SOURCE_ROOT=$cache_value ;;
-            build) CACHE_BUILD_ROOT=$cache_value ;;
-            install) CACHE_INSTALL_ROOT=$cache_value ;;
-            evidence) CACHE_EVIDENCE_ROOT=$cache_value ;;
-            lock) CACHE_LOCK_PATH=$cache_value ;;
-            *) die "shared cache helper returned unknown plan field: $cache_field" ;;
+    while IFS=$'\t' read -r cache_tool cache_key cache_directory cache_lock; do
+        case "$cache_tool" in
+            yosys|mistral|nextpnr|verilator|openfpgaloader) ;;
+            *) die "shared cache helper returned an unknown tool: $cache_tool" ;;
         esac
+        [[ "$cache_key" =~ ^[0-9a-f]{64}$ && "$cache_directory" == /* && "$cache_lock" == /* ]] ||
+            die "shared cache helper returned an invalid plan for $cache_tool"
+        CACHE_TOOL_KEY["$cache_tool"]=$cache_key
+        CACHE_TOOL_DIRECTORY["$cache_tool"]=$cache_directory
+        CACHE_TOOL_LOCK["$cache_tool"]=$cache_lock
     done <<<"$cache_plan_lines"
-    [[ -n "$CACHE_KEY" && -n "$CACHE_SLOT" && -n "$CACHE_LOCK_PATH" ]] ||
-        die "shared cache helper returned an incomplete plan"
-    TOOLCHAIN_ROOT="$CACHE_SLOT"
-    SRC_ROOT="$CACHE_SOURCE_ROOT"
-    BUILD_ROOT="$CACHE_BUILD_ROOT"
-    INSTALL_ROOT="$CACHE_INSTALL_ROOT"
+    ((${#CACHE_TOOL_KEY[@]} == 5)) || die "shared cache helper returned an incomplete plan"
     CACHE_ENABLED=1
 fi
 
-readonly SCRIPT_DIR OPEN_MISTER_ROOT LOCKFILE PYTHON TOOLCHAIN_ROOT TOOLCHAIN_LOCK_PATH SRC_ROOT BUILD_ROOT INSTALL_ROOT JOBS GPU_ROUTER HIP_ARCHITECTURES CUDA_ARCHITECTURES CACHE_HELPER CACHE_ENABLED CACHE_ROOT_REQUEST CACHE_KEY CACHE_SLOT CACHE_LOCK_PATH INHERITED_TOOLCHAIN_ROOT INHERITED_TOOLCHAIN_INSTALL INHERITED_TOOLCHAIN_BUILD INHERITED_ROCM_PATH INHERITED_HIPCC INHERITED_CUDA_HOME INHERITED_CUDACXX INHERITED_CUDA_PATH
+# SRC_ROOT, BUILD_ROOT and INSTALL_ROOT stay writable: the shared cache points
+# them at each tool's own install directory in turn.
+readonly SCRIPT_DIR OPEN_MISTER_ROOT LOCKFILE PYTHON TOOLCHAIN_ROOT TOOLCHAIN_LOCK_PATH JOBS GPU_ROUTER HIP_ARCHITECTURES CUDA_ARCHITECTURES CACHE_HELPER CACHE_ENABLED CACHE_ROOT_REQUEST CACHE_TOOL_KEY CACHE_TOOL_DIRECTORY CACHE_TOOL_LOCK INHERITED_TOOLCHAIN_ROOT INHERITED_TOOLCHAIN_INSTALL INHERITED_TOOLCHAIN_BUILD INHERITED_ROCM_PATH INHERITED_HIPCC INHERITED_CUDA_HOME INHERITED_CUDACXX INHERITED_CUDA_PATH
 
 TOOLS=(yosys mistral nextpnr verilator openfpgaloader)
 declare -A REPO COMMIT ORDER
@@ -130,14 +127,17 @@ ordered_tools() {
 
 print_plan() {
     local tool
+    local root
     load_lock
     while IFS= read -r tool; do
+        root="$TOOLCHAIN_ROOT"
+        [[ "$CACHE_ENABLED" -eq 0 ]] || root="${CACHE_TOOL_DIRECTORY[$tool]}"
         printf 'tool: %s\n' "$tool"
         printf 'repo: %s\n' "${REPO[$tool]}"
         printf 'commit: %s\n' "${COMMIT[$tool]}"
-        printf 'source: %s\n' "$SRC_ROOT/$tool"
-        printf 'build: %s\n' "$BUILD_ROOT/$tool"
-        printf 'install: %s\n\n' "$INSTALL_ROOT"
+        printf 'source: %s\n' "$root/src/$tool"
+        printf 'build: %s\n' "$root/build/$tool"
+        printf 'install: %s\n\n' "$root/install"
     done < <(ordered_tools)
     printf 'lock: %s\n' "$TOOLCHAIN_LOCK_PATH"
     printf 'gpu-router: %s\n' "$GPU_ROUTER"
@@ -522,6 +522,9 @@ artifact_verified() {
         configuration_matches_expected "$tool" || return 1
         [[ "$(tr -d '\r' <"$config_path")" == "$(actual_tool_configuration "$tool")" ]] || return 1
     fi
+    if [[ "$tool" == mistral ]]; then
+        [[ -f "$INSTALL_ROOT/share/mistral/source/libmistral/cyclonev.h" ]] || return 1
+    fi
 }
 
 build_yosys() {
@@ -548,6 +551,12 @@ build_mistral() {
         -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$INSTALL_ROOT"
     run_logged mistral ninja -C "$build_dir" -j"$JOBS"
     run_logged mistral ninja -C "$build_dir" install
+    # Producers pin these database sources (scripts/rom_map.py DATABASE_FILES).
+    # Install them with the tool so they outlive the deleted source checkout.
+    local file
+    for file in data/m10k-mux.txt libmistral/cvd-sx120f.cc libmistral/cyclonev.h; do
+        install -D -m 0644 -- "$SRC_ROOT/mistral/$file" "$INSTALL_ROOT/share/mistral/source/$file"
+    done
 }
 
 build_nextpnr() {
@@ -597,6 +606,8 @@ build_tool() {
     local stamp="$build_dir/.built-${COMMIT[$tool]}"
     mkdir -p "$build_dir" "$INSTALL_ROOT/bin"
     checkout_pin "$tool"
+    # nextpnr-mistral compiles against the Mistral source (MISTRAL_ROOT).
+    [[ "$tool" != nextpnr ]] || checkout_pin mistral
 
     if [[ -f "$stamp" ]] && artifact_verified "$tool"; then
         printf '==> %s already built at %s (identity verified)\n' "$tool" "${COMMIT[$tool]}"
@@ -620,9 +631,7 @@ build_all_local() {
     local tool
     load_lock
     mkdir -p "$SRC_ROOT" "$BUILD_ROOT" "$INSTALL_ROOT/bin"
-    if [[ "$CACHE_ENABLED" -eq 1 ]]; then
-        export LD_LIBRARY_PATH="$INSTALL_ROOT/lib"
-    elif [[ -n "${LD_LIBRARY_PATH:-}" ]]; then
+    if [[ -n "${LD_LIBRARY_PATH:-}" ]]; then
         export LD_LIBRARY_PATH="$INSTALL_ROOT/lib:$LD_LIBRARY_PATH"
     else
         export LD_LIBRARY_PATH="$INSTALL_ROOT/lib"
@@ -644,7 +653,7 @@ prepare_shared_build_environment() {
     while IFS= read -r name; do
         case "$name" in
             PATH|HOME|USER|LOGNAME|TMPDIR|SHELL|TERM|LANG|LC_ALL|TZ) ;;
-            SCRIPT_DIR|OPEN_MISTER_ROOT|LOCKFILE|PYTHON|TOOLCHAIN_ROOT|TOOLCHAIN_LOCK_PATH|SRC_ROOT|BUILD_ROOT|INSTALL_ROOT|JOBS|GPU_ROUTER|HIP_ARCHITECTURES|CUDA_ARCHITECTURES|CACHE_HELPER|CACHE_ENABLED|CACHE_ROOT_REQUEST|CACHE_KEY|CACHE_SLOT|CACHE_LOCK_PATH|CACHE_LOCK_FD|CACHE_SOURCE_ROOT|CACHE_BUILD_ROOT|CACHE_INSTALL_ROOT|CACHE_EVIDENCE_ROOT|INHERITED_TOOLCHAIN_ROOT|INHERITED_TOOLCHAIN_INSTALL|INHERITED_TOOLCHAIN_BUILD)
+            SCRIPT_DIR|OPEN_MISTER_ROOT|LOCKFILE|PYTHON|TOOLCHAIN_ROOT|TOOLCHAIN_LOCK_PATH|SRC_ROOT|BUILD_ROOT|INSTALL_ROOT|JOBS|GPU_ROUTER|HIP_ARCHITECTURES|CUDA_ARCHITECTURES|CACHE_HELPER|CACHE_ENABLED|CACHE_ROOT_REQUEST|CACHE_LOCK_FD|INHERITED_TOOLCHAIN_ROOT|INHERITED_TOOLCHAIN_INSTALL|INHERITED_TOOLCHAIN_BUILD)
                 # These are shell-only bootstrap state.  Keep their values for
                 # the functions above, but remove any inherited export bit.
                 export -n "$name"
@@ -665,71 +674,92 @@ prepare_shared_build_environment() {
             [[ -z "$INHERITED_CUDA_PATH" ]] || export CUDA_PATH="$INHERITED_CUDA_PATH"
             ;;
     esac
-    export LD_LIBRARY_PATH="$INSTALL_ROOT/lib"
 }
 
 run_cache_helper() {
-    # The original request was validated before this generated install path
-    # existed.  Keep the same request identity for stage/publish by removing
-    # only the bootstrap-owned runtime library path; backend selectors retained
-    # above remain part of the request and are re-exported for HIP/CUDA.
-    env -u LD_LIBRARY_PATH "$PYTHON" "$CACHE_HELPER" "$@"
+    "$PYTHON" "$CACHE_HELPER" \
+        --root "$OPEN_MISTER_ROOT" --lock "$TOOLCHAIN_LOCK_PATH" \
+        --cache "$CACHE_ROOT_REQUEST" --gpu-router "$GPU_ROUTER" \
+        --hip-architectures "$HIP_ARCHITECTURES" \
+        --cuda-architectures "$CUDA_ARCHITECTURES" "$@"
 }
 
-shared_cache_lock() {
-    [[ "$CACHE_ENABLED" -eq 1 ]] || die "internal error: shared cache lock requested in local mode"
-    command -v flock >/dev/null 2>&1 || die "shared cache requires the flock utility"
-    # toolchain_cache.py has already validated the root and created the locks
-    # directory.  Opening the lock here keeps one descriptor held across all
-    # source/build/install work and ready publication.
-    [[ -f "$CACHE_LOCK_PATH" && ! -L "$CACHE_LOCK_PATH" ]] ||
-        die "shared cache lock path is not a regular non-symlink file: $CACHE_LOCK_PATH"
-    exec {CACHE_LOCK_FD}>"$CACHE_LOCK_PATH"
-    flock -x "$CACHE_LOCK_FD" || die "cannot acquire shared cache lock: $CACHE_LOCK_PATH"
+shared_cache_release() {
+    if [[ -n "${CACHE_LOCK_FD:-}" ]]; then
+        flock -u "$CACHE_LOCK_FD" 2>/dev/null || true
+        exec {CACHE_LOCK_FD}>&- 2>/dev/null || true
+        CACHE_LOCK_FD=""
+    fi
+}
+
+shared_cache_verify_hit() {
+    local tool="$1"
+    run_cache_helper --tool "$tool" --expect-key "${CACHE_TOOL_KEY[$tool]}" verify >/dev/null ||
+        die "shared $tool install is invalid: ${CACHE_TOOL_DIRECTORY[$tool]}/ready.json"
+    printf '==> shared %s install hit: %s\n' "$tool" "${CACHE_TOOL_KEY[$tool]}"
+}
+
+shared_cache_tool() {
+    local tool="$1"
+    local key="${CACHE_TOOL_KEY[$tool]}"
+    local directory="${CACHE_TOOL_DIRECTORY[$tool]}"
+    local lock="${CACHE_TOOL_LOCK[$tool]}"
+
+    # toolchain_cache.py init created the lock file. A shared lock is enough
+    # to verify a ready install, and consumers hold the same shared lock, so a
+    # hit never waits for a running producer. Only a build takes it
+    # exclusively; a prune skips any lock it cannot take exclusively.
+    [[ -f "$lock" && ! -L "$lock" ]] || die "shared cache lock path is not a regular non-symlink file: $lock"
+    exec {CACHE_LOCK_FD}>>"$lock"
+    flock -s "$CACHE_LOCK_FD" || die "cannot acquire shared cache lock: $lock"
+    touch -c -- "$lock"
+    if [[ -e "$directory/ready.json" || -L "$directory/ready.json" ]]; then
+        shared_cache_verify_hit "$tool"
+        shared_cache_release
+        return 0
+    fi
+    flock -x "$CACHE_LOCK_FD" || die "cannot acquire shared cache lock: $lock"
+    if [[ -e "$directory/ready.json" || -L "$directory/ready.json" ]]; then
+        # Another bootstrap published it while this one waited.
+        shared_cache_verify_hit "$tool"
+        shared_cache_release
+        return 0
+    fi
+    if [[ -e "$directory" || -L "$directory" ]]; then
+        # Holding the exclusive lock with no ready.json means an earlier build
+        # of this install failed. Nothing reads it, so start again.
+        [[ ! -L "$directory" ]] || die "shared $tool install path is a symlink: $directory"
+        printf '==> removing failed %s build: %s\n' "$tool" "$directory"
+        chmod -R u+w -- "$directory"
+        rm -rf -- "$directory"
+    fi
+
+    mkdir -m 700 "$directory" "$directory/src" "$directory/build" "$directory/install" "$directory/evidence"
+    SRC_ROOT="$directory/src"
+    BUILD_ROOT="$directory/build"
+    INSTALL_ROOT="$directory/install"
+    build_tool "$tool"
+    run_cache_helper --tool "$tool" --expect-key "$key" stage-evidence --build-root "$BUILD_ROOT" >/dev/null ||
+        die "cannot stage shared $tool authentication evidence"
+    run_cache_helper --tool "$tool" --expect-key "$key" publish --lock-fd "$CACHE_LOCK_FD" >/dev/null ||
+        die "cannot publish shared $tool ready manifest"
+    # ready.json keeps the evidence digests authentication checks; the
+    # checkout and the build tree are not part of the install.
+    rm -rf -- "$directory/src" "$directory/build"
+    printf '==> shared %s install published: %s\n' "$tool" "$key"
+    shared_cache_release
 }
 
 shared_cache_build() {
-    run_cache_helper \
-        --root "$OPEN_MISTER_ROOT" --lock "$TOOLCHAIN_LOCK_PATH" \
-        --cache "$CACHE_ROOT_REQUEST" --gpu-router "$GPU_ROUTER" \
-        --hip-architectures "$HIP_ARCHITECTURES" \
-        --cuda-architectures "$CUDA_ARCHITECTURES" --expect-key "$CACHE_KEY" init >/dev/null \
-        || die "cannot initialize shared toolchain cache root"
-    shared_cache_lock
-    trap 'if [[ -n "${CACHE_LOCK_FD:-}" ]]; then flock -u "$CACHE_LOCK_FD" 2>/dev/null || true; exec {CACHE_LOCK_FD}>&- 2>/dev/null || true; fi' EXIT
-
-    if [[ -e "$CACHE_SLOT/ready.json" || -L "$CACHE_SLOT/ready.json" ]]; then
-        run_cache_helper \
-            --root "$OPEN_MISTER_ROOT" --lock "$TOOLCHAIN_LOCK_PATH" \
-            --cache "$CACHE_ROOT_REQUEST" --gpu-router "$GPU_ROUTER" \
-            --hip-architectures "$HIP_ARCHITECTURES" \
-            --cuda-architectures "$CUDA_ARCHITECTURES" --expect-key "$CACHE_KEY" verify >/dev/null \
-            || die "shared cache ready manifest is invalid: $CACHE_SLOT/ready.json"
-        printf '==> shared toolchain cache hit: %s\n' "$CACHE_KEY"
-        return 0
-    fi
-    if [[ -e "$CACHE_SLOT" || -L "$CACHE_SLOT" ]]; then
-        die "shared cache slot is partial or failed (ready.json is absent); remove it manually before retrying: $CACHE_SLOT"
-    fi
-
-    mkdir -m 700 "$CACHE_SLOT"
-    mkdir -m 700 "$SRC_ROOT" "$BUILD_ROOT" "$INSTALL_ROOT" "$CACHE_EVIDENCE_ROOT"
+    local tool
+    run_cache_helper init >/dev/null || die "cannot initialize shared toolchain cache root"
+    command -v flock >/dev/null 2>&1 || die "shared cache requires the flock utility"
     prepare_shared_build_environment
-    build_all_local
-    run_cache_helper \
-        --root "$OPEN_MISTER_ROOT" --lock "$TOOLCHAIN_LOCK_PATH" \
-        --cache "$CACHE_ROOT_REQUEST" --gpu-router "$GPU_ROUTER" \
-        --hip-architectures "$HIP_ARCHITECTURES" \
-        --cuda-architectures "$CUDA_ARCHITECTURES" --expect-key "$CACHE_KEY" stage-evidence \
-        --build-root "$BUILD_ROOT" >/dev/null \
-        || die "cannot stage shared toolchain authentication evidence"
-    run_cache_helper \
-        --root "$OPEN_MISTER_ROOT" --lock "$TOOLCHAIN_LOCK_PATH" \
-        --cache "$CACHE_ROOT_REQUEST" --gpu-router "$GPU_ROUTER" \
-        --hip-architectures "$HIP_ARCHITECTURES" \
-        --cuda-architectures "$CUDA_ARCHITECTURES" --expect-key "$CACHE_KEY" publish --lock-fd "$CACHE_LOCK_FD" >/dev/null \
-        || die "cannot publish shared toolchain ready manifest"
-    printf '==> shared toolchain cache published: %s\n' "$CACHE_KEY"
+    trap shared_cache_release EXIT
+    load_lock
+    while IFS= read -r tool; do
+        shared_cache_tool "$tool"
+    done < <(ordered_tools)
 }
 
 build_all() {
@@ -748,6 +778,9 @@ Usage: scripts/bootstrap.sh [--check-prereqs | --print-plan]
 Builds the five repositories pinned in the selected lock under the selected
 toolchain root. Defaults are toolchain.lock and build/toolchain; Coleco uses
 FES_TOOLCHAIN_LOCKFILE, FES_TOOLCHAIN_ROOT, and FES_TOOLCHAIN_GPU_ROUTER=HIP.
+With FES_TOOLCHAIN_CACHE_ROOT each tool is built once per commit and build
+configuration under <cache>/tools/<tool>/<key> and shared by every lock that
+pins it.
 --check-prereqs reports missing host capabilities without installing anything.
 --print-plan prints the lock-derived plan without cloning or creating files.
 EOF

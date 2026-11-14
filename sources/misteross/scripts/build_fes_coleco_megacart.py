@@ -127,7 +127,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
     package_store = factory._package_store(root, package_store, private_bios=False)
     tools = socket.authenticate_tools(root, cache_root)
     identities = {name: tool.identity for name, tool in tools.items()}
-    database_root = tools["mistral"].path.parents[2] / "src/mistral"
+    database_root = rom_map.database_root(tools["mistral"].path)
     database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
     output = _prepare_output(root, relative=OUTPUT_RELATIVE, build_outputs=BUILD_OUTPUTS)
     _write_atomic(output / "socket.qsf", coleco_expansion.shell_qsf(

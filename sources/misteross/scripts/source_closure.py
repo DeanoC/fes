@@ -13,8 +13,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = Path(__file__).with_name('source_closures.json')
 EXCLUDED_PARTS = {'sim', 'testbench', 'tests'}
-# toolchain_cache._recipe_paths() defaults; listed here rather than imported so
-# toolchain_cache.py (whose bytes key every toolchain slot) stays unchanged.
+# Files tool authentication reads besides toolchain_cache.py itself: the
+# build_<tool> functions in bootstrap.sh key each install, and lockfile.py
+# parses the lock's pins.
 TOOLCHAIN_RECIPE_FILES = ('scripts/bootstrap.sh', 'scripts/lockfile.py', 'scripts/toolchain_cache.py')
 
 

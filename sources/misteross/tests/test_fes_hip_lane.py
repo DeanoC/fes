@@ -189,13 +189,13 @@ class FesHipLaneTests(unittest.TestCase):
                 authenticated = build_fes_pong._authenticate_tools(
                     ROOT, cache_root=selected.cache_root
                 )
-            self.assertEqual(authenticated["yosys"].path, manifest.install / "bin/yosys")
+            self.assertEqual(authenticated["yosys"].path, manifest.tools["yosys"].install / "bin/yosys")
             self.assertIn(HIP_CONFIGURATION, authenticated["nextpnr-mistral"].identity)
 
-    def test_one_shared_cache_gives_each_core_its_own_lock_slot(self) -> None:
+    def test_one_shared_cache_shares_tools_and_splits_nextpnr_by_pin(self) -> None:
         # The image build authenticates every selected core against one cache
-        # root. A core whose lock moves to another nextpnr gets that lock's
-        # slot; a core on the old lock keeps the old slot.
+        # root. A core whose lock moves to another nextpnr gets that nextpnr's
+        # install; the tools both locks pin stay one shared install.
         from scripts import build_fes_ramtest
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
@@ -220,7 +220,9 @@ class FesHipLaneTests(unittest.TestCase):
             ramtest_request, ramtest_manifest = publish_shared_toolchain(
                 base, lock_path=root / build_fes_ramtest.TOOLCHAIN_LOCK, gpu_router=HIP)
             self.assertEqual(pong_request.cache_root, ramtest_request.cache_root)
-            self.assertNotEqual(pong_manifest.slot, ramtest_manifest.slot)
+            self.assertNotEqual(pong_manifest.tools["nextpnr"].directory, ramtest_manifest.tools["nextpnr"].directory)
+            for tool in ("yosys", "mistral", "verilator", "openfpgaloader"):
+                self.assertEqual(pong_manifest.tools[tool].directory, ramtest_manifest.tools[tool].directory)
             with patch.dict(os.environ, {"PATH": str(base)}, clear=True), patch.object(
                 toolchain_cache, "host_identity",
                 return_value={"system": "Linux", "release": "test", "machine": "x86_64"},
@@ -230,8 +232,9 @@ class FesHipLaneTests(unittest.TestCase):
             ):
                 pong = build_fes_pong._authenticate_tools(root, cache_root=pong_request.cache_root)
                 ramtest = build_fes_ramtest._authenticate_tools(root, cache_root=ramtest_request.cache_root)
-            self.assertEqual(pong["nextpnr-mistral"].path, pong_manifest.install / "bin/nextpnr-mistral")
-            self.assertEqual(ramtest["nextpnr-mistral"].path, ramtest_manifest.install / "bin/nextpnr-mistral")
+            self.assertEqual(pong["nextpnr-mistral"].path, pong_manifest.tools["nextpnr"].binary)
+            self.assertEqual(ramtest["nextpnr-mistral"].path, ramtest_manifest.tools["nextpnr"].binary)
+            self.assertEqual(pong["yosys"].path, ramtest["yosys"].path)
             self.assertIn(f"commit={pong_pin};", pong["nextpnr-mistral"].identity)
             self.assertIn(f"commit={ramtest_pin};", ramtest["nextpnr-mistral"].identity)
 
@@ -272,9 +275,9 @@ class FesHipLaneTests(unittest.TestCase):
             ):
                 authenticated = build_fes_pong._authenticate_tools(local)
             self.assertEqual(authenticated["yosys"].path, install / "yosys")
-            self.assertNotEqual(authenticated["yosys"].path, request.cache_root / "slots")
+            self.assertFalse(authenticated["yosys"].path.is_relative_to(request.cache_root))
 
-    def test_root_and_coleco_share_the_hip_slot(self) -> None:
+    def test_root_and_coleco_share_the_hip_installs(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             cache = Path(directory) / "cache"
             cache.mkdir(mode=0o700)
@@ -300,9 +303,12 @@ class FesHipLaneTests(unittest.TestCase):
                     gpu_router="OFF", hip_architectures=HIP_ARCHITECTURES,
                 )
             self.assertEqual(COLECO_TOOLCHAIN_LOCK, "toolchain.lock")
-            self.assertEqual(toolchain_cache.cache_key(pong), toolchain_cache.cache_key(zx81))
-            self.assertEqual(toolchain_cache.cache_key(pong), toolchain_cache.cache_key(coleco))
-            self.assertNotEqual(toolchain_cache.cache_key(pong), toolchain_cache.cache_key(off))
+            self.assertEqual(toolchain_cache.tool_keys(pong), toolchain_cache.tool_keys(zx81))
+            self.assertEqual(toolchain_cache.tool_keys(pong), toolchain_cache.tool_keys(coleco))
+            # Only nextpnr takes the GPU lane; the OFF lane shares the rest.
+            hip_keys, off_keys = toolchain_cache.tool_keys(pong), toolchain_cache.tool_keys(off)
+            self.assertNotEqual(hip_keys.pop("nextpnr"), off_keys.pop("nextpnr"))
+            self.assertEqual(hip_keys, off_keys)
 
     def test_pong_and_zx81_commands_and_records_use_hip_gpu_router(self) -> None:
         tools = {"yosys": Path("/yosys"), "nextpnr-mistral": Path("/nextpnr-mistral")}

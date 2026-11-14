@@ -808,12 +808,12 @@ python3 -m unittest discover -s tests -p test_pnr_recipes.py
 The `0a253257` schema review is recorded in the
 [upstream source comparison](https://github.com/DeanoC/nextpnr/compare/552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b...0a253257eadd8a7877b881ab1f940cbd9739c1be).
 
-Each distinct lock selects its own cached toolchain slot. Menu and ZX81 pin
+Each lock resolves to the shared installs of the tools it pins. Menu and ZX81 pin
 nextpnr `1eecf877` (ZX81 fes#936; Menu moved when its blitter took DSP
 multipliers), Pong's lock pins `552ba246` (fes#887), RISC-V's `8f453ebc`
 (fes#945), and Coleco's pins Yosys `5391eeb1` with nextpnr `bec82e36`
 (current main includes #296 and #299, retaining #289, #290, #292); each
-selects its own slot. Apple II, Atari ST (fes#910) and C64 pin nextpnr
+of those nextpnr pins is its own install. Apple II, Atari ST (fes#910) and C64 pin nextpnr
 `5fe55f3d` for nextpnr #276's F0/F1 boundary `$ROUTETHRU` map. Spectrum pins
 nextpnr main `bd7a1c0d`, which contains #276 as merged and keeps that map, in
 its own slot. Coleco keeps the F0/F1 map on `bec82e36`. The Apple II and C64
@@ -1146,12 +1146,12 @@ is not the product bitstream and is not a fallback when the HIP seal fails.
 ## Shared compiler installation
 
 Registered FES producers select compiler pins from their corresponding
-`cores/fes-<core>/toolchain.lock`. Four locks contain the repository-level
-commits and share its compiler-cache slot. Apple II and C64 share a second
-slot on nextpnr `5fe55f3d` (nextpnr #276). Menu and ZX81 (nextpnr
-`1eecf877`), Pong (`552ba246`), RISC-V (`8f453ebc`), Atari ST (`5fe55f3d`),
+`cores/fes-<core>/toolchain.lock`. The shared cache holds one install per tool,
+commit and build configuration, not one per lock, so locks that pin the same
+Yosys or Verilator share it: Menu and ZX81 (nextpnr `1eecf877`), Pong
+(`552ba246`), RISC-V (`8f453ebc`), Apple II, C64 and Atari ST (`5fe55f3d`),
 Spectrum (nextpnr main `bd7a1c0d`) and Coleco (Yosys `5391eeb1` with nextpnr
-`bec82e36`) each have their own.
+`bec82e36`) differ only in the installs those pins name.
 Producers select that cache only through an explicit `--cache-root` argument or the Make
 `CACHE_ROOT=` variable. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is not a policy
 selector for registered producers. HIP (`gpu-router=HIP`,
@@ -1177,25 +1177,47 @@ doctor and doctor-strict use that same selection. An explicit
 `FES_TOOLCHAIN_CACHE_ROOT` remains accepted and wins when it agrees with
 `CACHE_ROOT`.
 
-Version 1 supports one user on one Linux x86-64 glibc host. The request
-identity combines the selected lock and recipe bytes, normalized host/compiler
-probes, and the OFF/HIP/CUDA configuration. The per-key lock covers private
-source/build directories and publication. The resulting slot keeps the
+The cache supports one user on one Linux x86-64 glibc host. Each tool's
+install lives at `<cache>/tools/<tool>/<key>`. Its key reads:
+
+- the tool's pin (repo and commit only, through `scripts/lockfile.py`; the
+  lock's rationale text and its bytes are not part of it);
+- the complete `scripts/bootstrap.sh`, so shared checkout, environment and
+  build orchestration changes cannot reuse an install made under older build
+  behavior. Any bootstrap edit conservatively changes every tool key;
+- the normalized host and compiler probes, without the kernel release or the
+  accelerator compiler.
+
+Only nextpnr adds the OFF/HIP/CUDA configuration, the accelerator compiler
+and backend environment, and the Mistral pin it compiles against. The HIP,
+OFF and CUDA lanes of a lock therefore share Yosys, Mistral, Verilator and
+openFPGALoader. Each install's own lock covers its private source/build
+directories and publication; after a verified publication bootstrap deletes
+`src/` and `build/`, keeping `install/`, the small `evidence/` records and
+`ready.json`. The Mistral install also carries the database sources producers
+pin (`share/mistral/source`, `scripts/rom_map.py`). An install keeps the
 compiled-in absolute prefix and is consumed in place; its ready manifest
 authenticates the complete install/support-file closure, internal links, and
 evidence before any tool path is used.
+
+A consumer that resolves an install holds a shared lock on it until the
+process exits and stamps the lock file's mtime as its last use.
+`make toolchain-prune CACHE_ROOT=…` (`scripts/toolchain_cache.py prune`) reports
+the installs that no `toolchain.lock` on `origin/main` pins for this host and
+nobody used in `KEEP_DAYS` (default 14), and removes them with `APPLY=1`. It
+never removes an install whose lock a build or consumer holds, removes failed
+builds, and considers the per-lock `slots/` of the old layout only with
+`LEGACY_SLOTS=1`, judging their last use by their binaries' access times.
 
 `FES_TOOLCHAIN_GPU_ROUTER` (default `OFF`) selects the lane.
 `FES_TOOLCHAIN_HIP_ARCHITECTURES` (default `gfx1100;gfx1201`) and
 `FES_TOOLCHAIN_CUDA_ARCHITECTURES` (default `86`) select the device targets;
 `scripts/bootstrap.sh` passes them to nextpnr as `CMAKE_HIP_ARCHITECTURES` or
 `CMAKE_CUDA_ARCHITECTURES` and to `scripts/toolchain_cache.py` as
-`--hip-architectures` / `--cuda-architectures`. A CUDA slot records
+`--hip-architectures` / `--cuda-architectures`. A CUDA nextpnr install records
 `gpu-router=CUDA; hip-architectures=unused; cuda-architectures=86`, and its
 key covers the architecture list. HIP and OFF configurations carry no CUDA
-field, so their keys do not depend on it. Those keys still include the bytes
-of `scripts/bootstrap.sh`, `scripts/lockfile.py` and `scripts/toolchain_cache.py`,
-so editing any of those scripts selects a new slot on every lane. The default builds native sm_86 code
+field, so their keys do not depend on it. The default builds native sm_86 code
 (RTX 3070/3090), so routing never JIT-compiles PTX; that JIT fails with "the
 provided PTX was compiled with an unsupported toolchain" when the NVIDIA
 driver is older than the CUDA toolkit. The list takes explicit CMake entries
@@ -1204,17 +1226,16 @@ they do not name a reproducible identity. The shared lane rejects the CMake
 environment selectors `CUDAARCHS` and `HIPARCHS` unless the router matches and
 the value equals the selected list, because CMake would otherwise build a
 different binary under the same key. CUDA producers (`gpu_choice("CUDA")`)
-authenticate the slot named by `FES_TOOLCHAIN_CUDA_ARCHITECTURES` (default
+authenticate the nextpnr install named by `FES_TOOLCHAIN_CUDA_ARCHITECTURES` (default
 `86`). That configuration is the nextpnr tool identity, so the package build
 id records the selection.
 
-A failed or interrupted build leaves a partial slot and no ready manifest.
-The resolver reports that slot and refuses to retry until an operator performs
-manual recovery. The legacy sourced `scripts/env.sh`, `scripts/run_sim.sh`,
+A failed or interrupted build leaves a partial install and no ready manifest.
+Consumers refuse it; the next bootstrap, holding that install's exclusive
+lock, removes it and builds again. The legacy sourced `scripts/env.sh`, `scripts/run_sim.sh`,
 Make simulation goals, `scripts/program.py`, and generic `make oss` paths
 reject a set `FES_TOOLCHAIN_CACHE_ROOT` rather than selecting a local or
-ambient tool; only the FES Python recipes have shared-slot consumers in this
-version. FPGA output schemas and the `BUILD_ID` algorithm are unchanged,
+ambient tool; only the FES Python recipes consume the shared installs. FPGA output schemas and the `BUILD_ID` algorithm are unchanged,
 although tool hashes and resulting artifacts may differ when a shared compiler
 is used.
 
@@ -4197,7 +4218,8 @@ retain their original SPDX notices. Core-specific machines, reset ROMs, diagnost
 and constraints remain in their existing directories. The old Coleco producer
 selects the repository-level `toolchain.lock`. Registered Coleco, SMS and
 SG-1000 producers select per-core locks. SMS and SG-1000 match the repository
-lock and share its slot. Coleco pins Yosys `5391eeb1` and uses its own slot.
+lock and share its installs. Coleco pins Yosys `5391eeb1`, which has its own
+Yosys install.
 Per-core generated simple-computer headers remain checked against mister-packages;
 consumers use their own generated include directory.
 
