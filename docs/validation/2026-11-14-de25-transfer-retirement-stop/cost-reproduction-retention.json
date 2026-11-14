@@ -1,0 +1,9 @@
+{
+  "status": "passed-exact-offboard-retirement-cost-reproduction-retention",
+  "archive": "/home/deano/fes-retained/de25-retirement-store-cost-repro-20261114-r1/model.tar.gz",
+  "archive_sha256": "65bc11bb90d28c79b411197c0926757c75673c52a94d872adeb7de0d50feafb9",
+  "source_head": "5764c9495b6597da306546879194100021986a37",
+  "costs_injected_not_measured": true,
+  "fix_implemented": false,
+  "hardware_actions": false
+}

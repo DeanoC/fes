@@ -1,0 +1,15 @@
+{
+  "status": "passed-prepared-table-batch-repeated-load-trial",
+  "procedure_sha256": "9e773e7a65445427841ae5d39e64e68cdaafa3e0662916da2a27d9f8e48b3619",
+  "archive": "/home/deano/fes-retained/de25-fresh420-procedure-prepared-20261114-r1/prepared-procedure.tar.gz",
+  "archive_sha256": "4250276980cc7c1f85ab67141940120fee9cba24ebf577927f49ad4e569d0e32",
+  "archive_bytes": 96464638,
+  "reused_archive": "/home/deano/fes-retained/de25-command-snapshot-procedure-prepared-20261113-r1/prepared-procedure.tar.gz",
+  "reused_archive_sha256": "1b5b82ea534a6af428682a59cad431042173292d3269735fc3b8215dff1bc793",
+  "reused_blobs_verified": 5362,
+  "new_blobs_verified": 725,
+  "both_archives_required": true,
+  "hardware_actions": false,
+  "attempt_not_reserved": true,
+  "diagnostic_retried": false
+}
