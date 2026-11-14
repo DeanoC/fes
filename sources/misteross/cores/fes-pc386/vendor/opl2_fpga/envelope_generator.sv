@@ -191,7 +191,8 @@ module envelope_generator
         .DATA_WIDTH(4),                 // $bits(state_t)
         .DEPTH(NUM_OPERATORS_PER_BANK),
         .OUTPUT_DELAY(0),
-        .DEFAULT_VALUE(RELEASE)
+        .DEFAULT_VALUE(RELEASE),
+        .RAMSTYLE_MLAB(1)
     ) state_mem (
         .clk,
         .wea(sample_clk_en_p[3]),

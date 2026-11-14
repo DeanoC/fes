@@ -143,7 +143,8 @@ module control_operators
         .DATA_WIDTH(REG_FILE_DATA_WIDTH),
         .DEPTH('h16),
         .OUTPUT_DELAY(0),
-        .DEFAULT_VALUE(0)
+        .DEFAULT_VALUE(0),
+        .RAMSTYLE_MLAB(1)
     ) am_vib_egt_ksr_mult_mem (
         .clk,
         .wea(opl2_reg_wr.valid && opl2_reg_wr.address >= 'h20 && opl2_reg_wr.address <= 'h35),
@@ -173,7 +174,8 @@ module control_operators
         .DATA_WIDTH(REG_FILE_DATA_WIDTH),
         .DEPTH('h16),
         .OUTPUT_DELAY(0),
-        .DEFAULT_VALUE(0)
+        .DEFAULT_VALUE(0),
+        .RAMSTYLE_MLAB(1)
     ) ar_dr_mem (
         .clk,
         .wea(opl2_reg_wr.valid && opl2_reg_wr.address >= 'h60 && opl2_reg_wr.address <= 'h75),
@@ -188,7 +190,8 @@ module control_operators
         .DATA_WIDTH(REG_FILE_DATA_WIDTH),
         .DEPTH('h16),
         .OUTPUT_DELAY(0),
-        .DEFAULT_VALUE(0)
+        .DEFAULT_VALUE(0),
+        .RAMSTYLE_MLAB(1)
     ) sl_rr_mem (
         .clk,
         .wea(opl2_reg_wr.valid && opl2_reg_wr.address >= 'h80 && opl2_reg_wr.address <= 'h95),
@@ -261,7 +264,8 @@ module control_operators
         .DATA_WIDTH(REG_FILE_DATA_WIDTH),
         .DEPTH('h9),
         .OUTPUT_DELAY(0),
-        .DEFAULT_VALUE(0)
+        .DEFAULT_VALUE(0),
+        .RAMSTYLE_MLAB(1)
     ) fnum_low_mem (
         .clk,
         .wea(opl2_reg_wr.valid && opl2_reg_wr.address >= 'hA0 && opl2_reg_wr.address <= 'hA8),
@@ -298,7 +302,8 @@ module control_operators
         .DATA_WIDTH(block_fnum_high_mem_width),
         .DEPTH('h9),
         .OUTPUT_DELAY(0),
-        .DEFAULT_VALUE(0)
+        .DEFAULT_VALUE(0),
+        .RAMSTYLE_MLAB(1)
     ) block_fnum_high_mem (
         .clk,
         .wea(opl2_reg_wr.valid && opl2_reg_wr.address >= 'hB0 && opl2_reg_wr.address <= 'hB8),

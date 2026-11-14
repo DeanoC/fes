@@ -22,6 +22,7 @@ int main(int argc,char**argv){
    if(t.halftrack!=expected.halftrack || t.rotation!=expected.rotation){
     std::fprintf(stderr,"position mismatch at %llu head %u/%u angle %u/%u\n",(unsigned long long)ticks,t.halftrack,expected.halftrack,t.rotation,expected.rotation);std::exit(1);
    }
+   if((t.halftrack&1) && (t.cache_ready||t.flux))throw std::runtime_error("half-track exposed cached track or flux");
    bool want=t.cache_ready&&expected.flux(t.ref_ce,t.drive_pins&4);
    if(bool(t.flux)!=want){
     std::fprintf(stderr,"flux mismatch at %llu head%u angle%u cache%u byte%u=%02x got%u want%u\n",(unsigned long long)ticks,t.halftrack,t.rotation,t.cache_ready,t.debug_byte_addr,t.debug_byte,t.flux,want);std::exit(1);
@@ -38,6 +39,22 @@ int main(int argc,char**argv){
  auto seek=[&](unsigned track){while(expected.halftrack!=track*2)step(expected.halftrack<track*2?1:-1);build();};
  auto revolution=[&](){auto start=compared;while(compared-start<3200000)tick();};
  build();
+ // A half-step must blank an already valid track without disturbing the
+ // spindle. Returning to the same track reuses that cache at the new angle;
+ // crossing onto the next full track waits for its own cache rebuild.
+ step(1);if(expected.halftrack!=37 || t.cache_ready || t.flux)throw std::runtime_error("half-track not blank");
+ auto angle_before=expected.rotation;for(unsigned i=0;i<100000;++i)tick();
+ if(expected.rotation==angle_before)throw std::runtime_error("half-track stopped spindle");
+ step(-1);if(expected.halftrack!=36 || !t.cache_ready)throw std::runtime_error("same-track cache not restored");
+ auto pulses_before=fluxes;for(unsigned i=0;i<100000;++i)tick();
+ if(fluxes==pulses_before)throw std::runtime_error("full-track flux did not resume");
+ step(1);step(1);if(expected.halftrack!=38)throw std::runtime_error("next full-track seek failed");
+ build();
+ // Enter the same half-track from the higher integer track and return there;
+ // its cached track must survive the blank position without rebuilding.
+ step(-1);if(expected.halftrack!=37 || t.cache_ready || t.flux)throw std::runtime_error("higher-side half-track not blank");
+ step(1);if(expected.halftrack!=38 || !t.cache_ready)throw std::runtime_error("higher-side cache not restored");
+ step(-1);step(-1);build();
  for(unsigned track=1;track<=35;++track){
   seek(track);revolution();
   std::printf("track%02u zone%u complete revolution passed at angle%u\n",track,RotatingDisk::zone(track),t.rotation);
@@ -52,14 +69,19 @@ int main(int argc,char**argv){
  step(1);if(expected.halftrack!=70)throw std::runtime_error("upper head limit failed");
  seek(1);step(-1);if(expected.halftrack!=2)throw std::runtime_error("lower head limit failed");
  t.drive_pins=(t.drive_pins&~3)|(expected.halftrack&3);
- // Remove and replace all bytes while the motor continues running.
+ // Remove and replace all bytes while the motor continues running and the
+ // head is parked between tracks. A finished rebuild is still invisible
+ // until the head returns to a full track.
+ step(1);if(expected.halftrack!=3)throw std::runtime_error("odd-track replacement seek failed");
  t.disk_ready=0;for(unsigned i=0;i<100;++i)tick();
  std::ifstream in(argv[3],std::ios::binary);std::vector<unsigned char>replacement((std::istreambuf_iterator<char>(in)),{});
  if(replacement.size()!=174848)return 2;
  for(unsigned i=0;i<replacement.size();i+=2){t.write_addr=i;t.write_data=replacement[i]|(replacement[i+1]<<8);t.write_enable=3;tick();}
  t.write_enable=0;tick();
  RotatingDisk replacement_disk(argv[2]);expected.tracks=std::move(replacement_disk.tracks);
- t.disk_ready=1;build();
+ t.disk_ready=1;for(unsigned i=0;i<50000;++i)tick();
+ if(t.cache_ready || t.flux)throw std::runtime_error("replacement visible on half-track");
+ step(-1);build();
  for(auto track:{1u,18u,25u,31u}){seek(track);t.drive_pins^=0x60;revolution();}
  std::printf("PASS: %llu reference ticks, %llu flux pulses, max build%u system clocks (%.3fms at52.224MHz), all35 tracks plus four replacement tracks\n",(unsigned long long)compared,(unsigned long long)fluxes,worst_build,worst_build/52224.0);
 }

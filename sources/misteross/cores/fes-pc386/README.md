@@ -517,11 +517,13 @@ archives in `C:\FDOS\BIN`, pinned in [`sim/freedos.lock`](sim/freedos.lock).
   - **Entry 1, the default.** The kernel stays in conventional memory (below).
     `DOSDATA=UMB` moves its data, stacks and LASTDRIVE to upper memory, and
     `FILESHIGH=30`, `BUFFERSHIGH=16` and `SHELLHIGH` move the file handles,
-    buffers and FreeCOM there too. MEM shows 582K (595,808 bytes) free. That
+    buffers and FreeCOM there too. MEM shows a largest executable program size
+    of 582K (595,808 bytes). That
     is enough for Frontier: Elite 2 (about 594,000) and Serpent Isle's
     published 573K (586,752 bytes). `FILES=30` covers Strike Commander's 25
     (#1525). The games-image MEM simulation requires Serpent Isle's figure
-    plus 1,024 bytes, and Frontier's.
+    plus 1,024 bytes, and Frontier's. The full CI tier runs
+    `make sim-fes-pc386-mem`, using the Bochs oracle CPU and VGA replay.
   - **Entry 2, more memory.** `DOS=HIGH,UMB`, `FILES=30`, `BUFFERS=16`, for
     programs that need more conventional memory, such as Falcon 3.0
     (614,400 bytes). MEM shows 622K (637,152 bytes). It is not for Ultima
