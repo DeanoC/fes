@@ -285,9 +285,13 @@ The jump is not cut to 16 bits: a CLTS that ends at FFFFh leaves EIP 10000h,
 as any other instruction does. The ESC instructions raise #NM when EM or TS
 is set ([ESC with no 387](#esc-with-no-387)).
 
-**ESC with no 387.** Until the x87 phase the CPU is a 386 with an empty 387
-socket, as the design's [FPU](../../../../docs/i386-cpu-design.md#fpu)
-section specifies. DC decodes every ModRM of D8h-DFh:
+**ESC with no 387.** With the `i386dx+387` identity clear -- which is how
+every package ships until the x87 phase's last slice -- the CPU is a 386
+with an empty 387 socket, as the design's
+[FPU](../../../../docs/i386-cpu-design.md#fpu) section specifies. With the
+identity set, `fes_i386_x87` answers instead, for the forms the phase's
+slices have built; everything below describes the empty socket. DC decodes
+every ModRM of D8h-DFh:
 - **#NM.** An ESC instruction raises #NM when CR0.EM or CR0.TS is set
   (`esc_nm`), after LOCK's #UD and the 15-byte #GP, as WAIT raises it when
   MP and TS are both set.
@@ -1590,6 +1594,34 @@ as Bochs's `translate_linear_legacy` at CPU level 3.
 - **Not coherent:** both TLBs keep an entry across a store into its page
   table until a CR3 write, as a 386's (and Bochs's) do. A DMA write into a
   page table between the walker's read and its A/D store is not seen.
+
+## The 387
+
+`fes_i386_x87`, with its multiply in `fes_i386_x87_mul`, is the 387 the
+`i386dx+387` identity fits. `x87_present` gates every path, so with the
+identity clear the CPU is the empty socket above and the fit trims the unit
+away; `pc386_system` ties it to `1'b0` until the x87 phase's last slice.
+What the phase's slice 2 builds, and what it does not, is in its record,
+[docs/validation/2026-11-14-i386-x87-s2](../../../../docs/validation/2026-11-14-i386-x87-s2/summary.md);
+the unit's own header comment carries the design. In short:
+
+- **The state.** Eight 80-bit registers in M10K with two read ports, the
+  control and status words, and a derived tag word: an empty bit a register
+  and the two class bits each write stores.
+- **One ESC in flight.** A store always reads committed state, a squashed
+  instruction leaves nothing to undo, and every architectural change happens
+  at the instruction's commit, as the x87 pointers already do.
+- **BUSY# is a hold in D,** not a freeze: a load's work finishes after the
+  instruction retires, as a real 387's does with BUSY# still active, and the
+  next ESC waits on it.
+- **The AT's error path.** An unmasked exception sets ES, which is ERROR#
+  and the level of IRQ 13 on the slave PIC, and latches BUSY# in the same
+  cycle. While latched, every ESC but FNINIT and FNCLEX, and WAIT, holds
+  before it runs, and the CPU takes an interrupt there as it does in HLT, so
+  IRQ 13's handler can write port F0h and release it. Port F1h resets the
+  unit and leaves the latch alone.
+- **Not built yet:** the arithmetic (slices 3 to 5), and exception 9 for a
+  coprocessor operand whose middle part crosses a page or segment boundary.
 
 ## Speed governor
 

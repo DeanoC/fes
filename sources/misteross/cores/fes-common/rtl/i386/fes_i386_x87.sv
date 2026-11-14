@@ -392,9 +392,12 @@ module fes_i386_x87 (
     // resets it, which is why it needs no wait, and FNCLEX only clears the
     // flags, the hazard Intel's note about FWAIT before FNCLEX describes.
     logic take_nw;
-    assign take = present && iss && iss_first && !started && !busy && !latched
+    // A flush in the same cycle wins: D still holds the wrong-path
+    // instruction this cycle, so taking it would leave `started` or the
+    // no-wait slot set for an instruction that can never commit.
+    assign take = present && iss && !flush && iss_first && !started && !busy && !latched
                && nw == 2'd0 && !iss_wait && !iss_nowait && iss_dec != X87_UNIMPL;
-    assign take_nw = present && iss && iss_first && iss_nowait && nw == 2'd0 && !started && !busy;
+    assign take_nw = present && iss && !flush && iss_first && iss_nowait && nw == 2'd0 && !started && !busy;
     // The control forms, which leave the x87 pointers and the opcode as they
     // are: the same list fes_i386_decode gives X87P_NONE. FNOP (D9 D0) is
     // not one of them; FENI, FDISI and FSETPM (DB E0, E1, E4) are.
@@ -1143,6 +1146,13 @@ module fes_i386_x87 (
                         default: ;  // FNOP, FNSTCW, FNSTSW
                     endcase
                     um = unmasked(f, cw);
+                    // ERROR# rises with this apply, and the board latches
+                    // BUSY# on that edge. Setting it here rather than from
+                    // the edge detector below closes the cycle between this
+                    // apply, which makes the unit idle, and the detector's
+                    // own edge, where an ESC would see neither busy nor
+                    // latched (387 PRM Appendix F.2, the AT's latch).
+                    if (um) latched <= 1'b1;
                     // The flags and the stack flag are sticky; ES stays set
                     // until FNCLEX, FNINIT or the F1h reset clears it.
                     if (cur != X87_INIT && cur != X87_SAVE && cur != X87_CLEX) begin
@@ -1169,7 +1179,10 @@ module fes_i386_x87 (
                             rw_idx <= top + cur_i;
                             rw_val <= v;
                             rw_en <= 1'b1;
-                            if (empty[top + cur_i]) empty[top + cur_i] <= 1'b0;
+                            // FSTP ST(0) writes the destination and pops the
+                            // same register: the pop wins, so it reads empty.
+                            if (empty[top + cur_i] && !(pop && cur_i == 3'd0))
+                                empty[top + cur_i] <= 1'b0;
                         end
                         if (cur == X87_CHS || cur == X87_ABS) begin
                             rw_idx <= top;

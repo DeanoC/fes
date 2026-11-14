@@ -356,8 +356,13 @@ progress.
 
 ### FPU
 
-Until the [x87](#x87) phase there is no FPU, and the CPU behaves as a 386 on
-an AT board with an empty 387 socket. Intel's 386 hardware reference requires
+Until the [x87](#x87) phase's last slice every package ships with the
+`i386dx+387` identity clear, and with it clear the CPU behaves as a 386 on
+an AT board with an empty 387 socket; this section describes that socket.
+The 387 itself is `fes_i386_x87`, behind the identity: slice 2 builds its
+state, interface, AT error path, loads, stores, register forms, constants
+and the environment and save layouts, and the arithmetic is slices 3 to 5
+([#1768](https://github.com/DeanoC/fes/issues/1768)). Intel's 386 hardware reference requires
 pull-up resistors on the data bus when no coprocessor is fitted, and a
 386DX-33 with an empty socket writes FFFFh for FNSTSW
 ([OS/2 Museum](https://www.os2museum.com/wp/learn-something-old-every-day-part-xviii-how-does-fpu-detection-work/)).

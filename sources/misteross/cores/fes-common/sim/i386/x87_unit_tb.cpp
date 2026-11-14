@@ -384,6 +384,7 @@ unsigned op_const(unsigned n) { return (1u << 8) | (0xe8 + n); }
 unsigned op_fxch(unsigned i) { return (1u << 8) | (0xc8 + i); }
 unsigned op_fld_st(unsigned i) { return (1u << 8) | (0xc0 + i); }
 unsigned op_ffree(unsigned i) { return (5u << 8) | (0xc0 + i); }
+unsigned op_fstp_st(unsigned i) { return (5u << 8) | (0xd8 + i); }  // DD D8+i
 
 int passed = 0, failed = 0;
 void ok(const std::string &name) {
@@ -906,6 +907,59 @@ int main(int argc, char **argv) {
         u.top.eval();
         u.settle();
         u.reg_form(OP_FNINIT);   // clears ES and masks every exception again
+        u.clear_latch();
+
+        // The same check at the cycle the unit goes idle, which is the one
+        // the apply makes: ES rises with the apply, and the latch has to be
+        // up in that very cycle. An edge detector a cycle later leaves a
+        // window where an ESC sees neither busy nor latched (Codex P1).
+        u.present(OP_FLDCW, FMT_F32, true, true, 0);
+        u.commit(0, 0x037e, true);   // invalid unmasked
+        u.settle();
+        u.present(OP_FCHS, 0, true, true, 0);
+        u.commit(0, 0, true);        // an empty ST(0): an unmasked stack fault
+        {
+            bool idle_seen = false, gap = false;
+            for (int n = 0; n < 64 && !idle_seen; ++n) {
+                if (!u.top.busy_o) {
+                    idle_seen = true;
+                    u.top.iss = 1;
+                    u.top.iss_wait = 0;
+                    u.top.iss_op = OP_FCHS;
+                    u.top.iss_fmt = 0;
+                    u.top.iss_first = 1;
+                    u.top.iss_last = 1;
+                    u.top.iss_part = 0;
+                    u.top.eval();
+                    gap = !u.top.hold;
+                    u.top.iss = u.top.iss_first = u.top.iss_last = 0;
+                    u.top.eval();
+                } else {
+                    u.tick();
+                }
+            }
+            if (!idle_seen) bad("latch-idle-edge", "the unit never went idle");
+            else if (gap) bad("latch-idle-edge", "an ESC was free the cycle the unit went idle");
+            else ok("latch-idle-edge");
+        }
+        u.reg_form(OP_FNINIT);
+        u.clear_latch();
+
+        // FSTP ST(0) with an empty stack and the invalid exception masked:
+        // the masked result writes the real indefinite to the destination
+        // and the pop then empties that same register, so the tag word must
+        // read empty for it and TOP must have moved on (Codex P2; 387 PRM
+        // section 2.3.6, the masked stack-underflow response).
+        u.reg_form(OP_FNINIT);
+        u.reg_form(op_fstp_st(0));
+        {
+            const unsigned top_now = (u.sw() >> 11) & 7;
+            if (top_now != 1) bad("fstp-st0-empty", "top=" + hex(top_now, 1));
+            else if (u.tw() != 0xffff) bad("fstp-st0-empty", "tw=" + hex(u.tw(), 4) + " want ffff");
+            else if ((u.sw() & 0x41) != 0x41) bad("fstp-st0-empty", "sw=" + hex(u.sw(), 4) + " want IE and SF");
+            else ok("fstp-st0-empty");
+        }
+        u.reg_form(OP_FNINIT);
         u.clear_latch();
 
         // A squashed store leaves the unit idle and the stack as it was; a
