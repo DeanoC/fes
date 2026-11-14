@@ -297,6 +297,24 @@ interval later. The pixel PLL and the sink's detected mode need frames to
 settle after bring-up, and a reading taken at the activation moment would
 call a healthy display lost.
 
+Bring-up itself holds one of these three. `hdmi_verify` polls the ready link
+and the pixel PLL behind it to the caller's deadline and fails if the PLL
+never locks, because 0x9e bit 4 tracks the lock to the board's own input
+pixel clock: unlocked behind a ready link is the board failing to feed the
+transmitter, which no attached display can cause and which no later reading
+makes better. The detected VIC is sampled on the same pass and deliberately
+not required there, because this check owns that verdict: a wrong mode gets
+the bounded, latched reactivation described below rather than a refused
+bring-up, which would leave the kit with no menu and, on the core path, no
+core. An unreadable 0x9e or 0x3e leaves the PLL unenforced instead of
+refusing a picture that may be good -- the same policy this check applies to
+the same read. The failure names the register and carries the sample it
+refused on, which the three episodes behind this work did not have.
+
+Enforcing the PLL at bring-up does not make this check redundant for it. The
+link can go ready and the PLL can lock and then be lost, and only a reading
+after bring-up can see that.
+
 A scanout that is disabled, faulted, unexpectedly quiesced or showing a
 sequence other than the committed frame is a lost picture at once. An
 unlocked PLL, a lost Rx sense or a mode that is not 720p60 is a lost picture

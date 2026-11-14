@@ -6,6 +6,7 @@
 #include "native/adv7513.hpp"
 #include <cassert>
 #include <cstdio>
+#include <string>
 using namespace mister::native;
 const std::uint64_t kDeadline = 100;
 std::size_t scenarios = 0;
@@ -76,8 +77,88 @@ void TestApplicationAudioPolicyAndFailureOrdering()
 	++scenarios;
 }
 
+
+bool Mentions(const std::string& message, const char* needle)
+{ return message.find(needle) != std::string::npos; }
+
+// Bring-up requires the pixel PLL behind a ready link, and deliberately does
+// not require the detected VIC: the idle health check owns that verdict so a
+// wrong mode gets its bounded reactivation instead of a refused bring-up.
+void TestLinkRequiresPllLockAndRecordsVic()
+{
+	for (bool splash : {false, true}) {
+		const auto bring_up = [splash](Fixture& fixture) {
+			FixedVideoBringup fixed(fixture.i2c, fixture.clock,
+				fixture.log, Menu720p60Recipe());
+			SplashVideoBringup idle(fixture.i2c, fixture.clock,
+				fixture.log, Menu720p60Recipe());
+			return splash ? idle.BringUp(SplashIdle(), kDeadline)
+				: fixed.BringUpCustom(kDeadline);
+		};
+		// An unlocked PLL through the deadline fails hdmi_verify, and the
+		// message names the register and carries the sample it refused on.
+		{
+			Fixture unlocked;
+			unlocked.i2c.pll_status = 0x02;
+			const auto result = bring_up(unlocked);
+			assert(!result.error.ok() && result.phase == "hdmi_verify");
+			assert(Mentions(result.error.message, "pixel PLL did not lock"));
+			assert(Mentions(result.error.message, "pll_lock=0"));
+			assert(Mentions(result.error.message, "link_status=0x60"));
+			assert(Mentions(result.error.message, "vic=4"));
+			++scenarios;
+		}
+		// The PLL locks over the frames after the pixel stream starts, so an
+		// unlocked first reading is not a failure.
+		{
+			Fixture settles;
+			settles.i2c.pll_statuses = {0x02, 0x02, 0x12};
+			const auto result = bring_up(settles);
+			assert(result.error.ok() && result.phase == "hdmi_verify");
+			assert(Mentions(result.error.message, "pll_lock=1"));
+			assert(settles.i2c.pll_statuses.empty());
+			++scenarios;
+		}
+		// A wrong detected mode is recorded and does not fail bring-up.
+		{
+			Fixture wrong_mode;
+			wrong_mode.i2c.vic_status = 0x04;
+			const auto result = bring_up(wrong_mode);
+			assert(result.error.ok() && result.phase == "hdmi_verify");
+			assert(Mentions(result.error.message, "vic=1"));
+			assert(Mentions(result.error.message, "pll_lock=1"));
+			++scenarios;
+		}
+		// An unreadable 0x9e leaves the PLL unenforced rather than refusing a
+		// picture that may be good, matching the idle check's read policy.
+		{
+			Fixture unreadable;
+			unreadable.i2c.pll_status = 0x02;
+			unreadable.i2c.detail_read_error =
+				{mister::ErrorCode::io_failed, "detail unreadable"};
+			const auto result = bring_up(unreadable);
+			assert(result.error.ok() && result.phase == "hdmi_verify");
+			assert(Mentions(result.error.message, "pll_lock=? rx_sense=? vic=?"));
+			++scenarios;
+		}
+		// A link that never goes ready still reports the link, and reports no
+		// PLL sample because none was ever taken behind a ready link.
+		{
+			Fixture never_ready;
+			never_ready.i2c.link_statuses = {0x40};
+			const auto result = bring_up(never_ready);
+			assert(!result.error.ok() && result.phase == "hdmi_verify");
+			assert(Mentions(result.error.message, "deadline exceeded"));
+			assert(Mentions(result.error.message, "link_status=0x40"));
+			assert(Mentions(result.error.message, "pll_lock=?"));
+			++scenarios;
+		}
+	}
+}
+
 int main() {
  TestApplicationAudioPolicyAndFailureOrdering();
+ TestLinkRequiresPllLockAndRecordsVic();
  // Every retained video write is fallible. Stop exactly at the failing write.
  for (bool splash : {false, true}) {
   Fixture good;

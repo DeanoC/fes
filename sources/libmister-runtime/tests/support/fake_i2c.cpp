@@ -59,6 +59,10 @@ mister::Error FakeI2c::ReadByte(std::uint8_t address, std::uint8_t* value,
 	}
 	if (address == 0x9e || address == 0x3e) {
 		if (!detail_read_error.ok()) return detail_read_error;
+		if (address == 0x9e && !pll_statuses.empty()) {
+			pll_status = pll_statuses.front();
+			pll_statuses.pop_front();
+		}
 		*value = address == 0x9e ? pll_status : vic_status;
 		return {};
 	}

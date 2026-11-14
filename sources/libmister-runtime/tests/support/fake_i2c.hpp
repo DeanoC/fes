@@ -45,8 +45,11 @@ public:
 	std::uint8_t power_after = 0x10;
 	std::deque<std::uint8_t> link_statuses = {0x60};
 	// 0x9e bit 4 set is a locked pixel PLL; 0x3e>>2 is the detected VIC.
+	// pll_statuses scripts successive readings, for a PLL that locks a few
+	// frames after the pixel stream starts; the last one scripted sticks.
 	std::uint8_t pll_status = 0x12;
 	std::uint8_t vic_status = 0x10;
+	std::deque<std::uint8_t> pll_statuses;
 	mister::Error detail_read_error;
 	mister::Error select_error;
 	mister::Error power_read_error;
