@@ -23,16 +23,15 @@ lists them.
   path is unchanged**: the full run passes every bucket, including the 1,933
   no-387 directed cases, which matters because the shared FNSAVE and FRSTOR
   microcode and the sequencer's offsets changed.
-- **The identity-on path runs, and four of its eight programs pass.** The
-  first ESC instructions through the CPU with a 387 fitted found five more
-  faults, four of them in the unit's protocol and one a silent corruption
-  ([below](#what-the-identity-on-run-found)). The constants and the stack
-  moves, the loads with FXAM and FTST, the stores of every format, and the
-  control and status words now match the oracle's 387 at every retirement.
-  Four programs still differ, in two registers and the tag word, after a
-  run of eight pushes; the unit passes the same eight back to back in its
-  own bench, so the difference is in the CPU's issue. **Until they pass the
-  slice is not mergeable.**
+- **The identity-on path runs, and is being brought up.** The first ESC
+  instructions through the CPU with a 387 fitted, together with Codex's
+  review, found eleven more faults
+  ([below](#what-the-identity-on-run-found)), two of them edits of mine
+  that had silently not applied: the pointer-clear pulse that was never
+  deassserted, which is why the instruction pointer read zero in every
+  program, and the CPU's ERROR# that never reached the slave PIC's IRQ 13.
+  The directed programs are not all passing yet. **Until they do the slice
+  is not mergeable.**
 - **The register stack lands in M10K**, as the plan assumed: 4 blocks, two
   copies of eight 80-bit words, with the tag word read from the class bits
   each write stores rather than from the registers.
