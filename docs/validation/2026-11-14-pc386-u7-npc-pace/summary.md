@@ -187,8 +187,11 @@ qualification a pace comparison needs, not a second defect, and on this
 evidence it does not warrant its own issue.
 
 The reference is therefore slower than the kit by a measured factor of
-**68/40 = 1.7**, and any CPU-bound pace figure will differ by about that much
-before anything about the core is in question.
+**68/40 = 1.7** on this benchmark. `method.md` expected to use that ratio to
+classify a pace miss; Part 3 measures the reference across three clocks and
+finds that its TopBench score and the game's pace do not move together, so the
+ratio cannot be used that way. It is given here as what it is — a benchmark
+ratio — and Part 3 says why it does not carry over.
 
 
 ## Part 3 — the pace, measured: **fail, by 26%**
