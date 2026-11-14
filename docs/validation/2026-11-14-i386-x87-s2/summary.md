@@ -7,18 +7,19 @@ error path, and the loads, stores and register forms the slice names.
 Arithmetic is slices 3 to 5. Deano's decisions on #1768 shape it: everything
 in the fabric, a nine-DSP multiply, and the shifts done as multiplies.
 
-This record covers the unit and its verification. **It does not yet cover the
-whole slice:** the CPU side, the machine side, the lockstep's 387-present
-rule, the seal and the kit run are not in it. [What is left](#what-is-left)
-lists them.
+This record covers the whole of what the PR builds: the unit and its
+verification, the CPU and machine sides, the lockstep's 387-present rule,
+the seal and the kit run on it. [What is left](#what-is-left) states what
+the slice's scope names and this PR does not have.
 
 **Result.**
 - **The unit is built and checked against a real 80-bit FPU.** An x86-64
   host's FPU is the same 80-bit unit a 387 is, so the bench drives the unit's
   CPU interface and compares every result and status word with the host's own
-  instruction. **75 cases pass on the RTL**, and the 70 cases the bench had
-  at the time passed on the seal's Yosys netlist of the unit as well. The
-  bench found twenty faults, each fixed in the commit that found it.
+  instruction. **87 cases pass on the RTL**, and all 87 pass on the seal's
+  Yosys netlist of the unit as well. The bench found the sixteen faults its
+  table [below](#what-the-bench-found) lists, each fixed in the commit that
+  found it.
 - **The CPU and the machine are in, and the lockstep says the identity-off
   path is unchanged**: the full run passes every bucket, including the 1,933
   no-387 directed cases, which matters because the shared FNSAVE and FRSTOR
@@ -30,7 +31,7 @@ lists them.
   the loads with FXAM and FTST, the stores of every format, the control and
   status words, FNSTENV and FLDENV in both operand sizes, FNSAVE and FRSTOR
   with TOP moved, the stack faults, and WAIT. Getting there, with Codex's
-  review, took twelve more faults
+  review, took fourteen more faults
   ([below](#what-the-identity-on-run-found)), two of them edits of mine
   that had silently not applied: the pointer-clear pulse that was never
   deasserted, which is why the instruction pointer read zero in every
@@ -105,7 +106,13 @@ lists them.
 
 ## What the bench found
 
-Twelve faults, each fixed in the commit that found it. They are the reason
+Sixteen faults, each fixed in the commit that found it. Four came from
+Codex's review: three from its review of the clock-closing head
+`bf581e303`, fixed in `641f06583`, and the fourth, the FLDCW latch at the
+foot of the table, from its review of `e440a62d`, fixed in `06c324ac0`.
+Three of the four — `latch-idle-edge`, `fstp-st0-empty` and
+`latch-ldcw-unmask` — have a bench case each that fails on the RTL before
+the fix and passes after. They are the reason
 the bench exists, and they are listed because they say where this kind of
 unit goes wrong:
 
@@ -123,6 +130,10 @@ unit goes wrong:
 | a write to port F1h set the board's latch | it must leave it alone |
 | the latch set a cycle after ES | an ESC already in D slipped past it |
 | the control forms cleared C1, and C1 was wrong for a masked overflow and a masked invalid integer store | FNSTSW and its kin leave the condition codes alone |
+| the BUSY# latch was set a cycle after the unit went idle | an unmasked exception makes the unit idle on the same edge that raises ERROR#, so for one cycle an ESC saw neither busy nor latched and ran with a fault pending. The apply now sets the latch itself rather than leaving it to the ES edge detector (`latch-idle-edge`) |
+| `FSTP ST(0)` left the popped register non-empty | the destination's write cleared the empty bit after the pop had set it, so the tag word read `fffe` where FNINIT plus a stack-underflow pop must leave `ffff` (`fstp-st0-empty`) |
+| a flush in the same cycle did not cancel a take | D still held the wrong-path ESC that cycle, so taking it would leave `started`, or the no-wait slot, set for an instruction that can never commit |
+| FLDCW's own apply did not latch BUSY# | ES is derived from the *registered* control word, so a word that unmasks a flag already set raised ES only the cycle after the apply had made the unit idle, and the edge detector latched a cycle after that. An ESC issued in between with an unmasked exception pending. FLDCW now latches against the word it is loading (387 PRM section 2.3.1); every other apply that writes the control word was checked for the same window and FLDCW was the only one left (`latch-ldcw-unmask`) |
 
 ## What the sources and the oracle settled
 
@@ -192,41 +203,48 @@ fixed in the commit that found it.
 
 ## Checks
 
-Every gate below is of **`bf581e303`**, the branch's frozen head: one run,
+Every gate below is of **`06c324ac0`**, the branch's frozen head: one run,
 in the order the seal needs, on `chip-30x0-ai-dev` with CUDA
-(`/data/x87-s2-fits/gates3.log`). The commits after it are this record and
-one test fixture (`same_as` compares the new `x87_cases` section, so the
-lockstep's own unit test needed it in its synthetic report); neither is a
-sealed input — the seal's `build-inputs.json` names no file under `tests/` —
-so the seal and the kit run stand for the branch head.
+(`/data/x87-s2-fits/gates5.log`). The only commit after it is this record,
+which is Markdown, so there are no RTL, recipe, firmware source or ABI
+header changes after the sealed revision and the seal and the kit run stand
+for the branch head. Two earlier heads had a full run and a seal of their
+own and both are superseded. `bf581e303` (seal `25ba71ce`) was superseded
+when Codex's review of it found three real RTL faults, and `641f06583`
+(seal `ff11f812`) when a review thread on `e440a62d`, which had gone
+unanswered, turned out to name a real fourth one: the FLDCW latch. Each
+time every gate, the seal and the kit run were redone from the start on the
+new head; the pc386 reseal exemption does not cover an i386 seal. The
+`ff11f812` seal never got a valid kit run — see the kit section.
 
 | Check | Where | Result |
 | --- | --- | --- |
-| `test_fes_i386_x87_unit.py` (84 cases: loads, stores, FXAM, FTST, the constants, the state forms, the protocol, the holds) | chip, the lock's Verilator | **84 passed, 0 failed** |
-| the same with `--netlist`, the seal's Yosys netlist of the unit | chip | **84 passed, 0 failed** |
+| `test_fes_i386_x87_unit.py` (87 cases: loads, stores, FXAM, FTST, the constants, the state forms, the protocol, the holds) | chip, the lock's Verilator | **87 passed, 0 failed** |
+| the same with `--netlist`, the seal's Yosys netlist of the unit | chip | **87 passed, 0 failed** |
 | the lockstep on the RTL, every bucket | chip | **0 fail**: the 1,933 no-387 directed cases (5,355 ESC instructions under the no-387 rule), the 8 identity-on programs with the 387's whole state compared at 13 retirements, unreal, protected mode, paging, tasks, debug and the undefined sweep |
 | the lockstep on the locked-Yosys netlist, the same buckets | chip | **0 fail**, the same counts |
 | the lockstep at governor preset 3, `--same-as` the max run | chip | **0 fail**, 16 retirements compared; every bucket agrees with the max run |
 | `test386.asm` on the RTL | chip | POST 00 … E0 EE **FF**, 79,641,629 steps, no EE difference |
-| the Quartus 17.0.2 seal of the frozen head | chip, CUDA | **passed**, package `25ba71ce`, below |
+| the Quartus 17.0.2 seal of the frozen head | chip, CUDA | **passed**, package `81ab96a1`, below |
 | the two machine analysis fits, the identity overlaid on and left off | chip | below |
 | a kit run on that seal | Kit B | below |
 | `tests.test_pc386_machine` (82 tests: the whole machine simulated with the unit in it) | Powerboat | OK |
 | `tests.test_fes_i386_x87_unit`, `tests.test_fes_i386_ucode`, `tests.test_build_fes_pc386_quartus`, `tests.test_audit_fes_i386_case`, `tests.test_quartus_fes_i386` | Powerboat | OK, 145 tests with the machine's |
-| the whole `tests/` tree, as CI discovers it | Powerboat | OK, **2,193 tests** |
-| Verilator `-Wall` lint (the lock's 5.054) | Powerboat and chip | clean |
+| the whole `sources/misteross/tests` tree, which is the tree CI's lanes discover and the one this PR's test change is in | Powerboat | OK, **2,193 tests**, 86 skipped |
+| Verilator `-Wall` lint (the lock's 5.054), in the bench's own build | chip | clean |
 
 The identity-off lockstep is the regression this slice turns on: with the
 identity clear the CPU must be the empty socket it was, and it is, across
 the random, protected-mode, task, debug and undefined programs and the
 per-encoding unbuilt sweep.
 
-**The head before this one failed one gate.** On `bb7b10c0c` the lockstep at
+**One earlier head failed a gate.** On `bb7b10c0c` the lockstep at
 governor preset 3 deadlocked at FNINIT: a no-wait control form took the one
 no-wait slot and then waited on it, and only its own commit clears it. Without
 the governor it issued in the same cycle, so nothing showed. `bf581e303`'s
-`nw_waiting` is the fix and the last row of the fault table above; every gate
-was re-run from the start on it, and the seal recorded here is of that head.
+`nw_waiting` is the fix, and every gate was re-run from the start on it. The
+three review fixes forced the same thing again on `641f06583`, and the FLDCW
+fix once more on `06c324ac0`, which is the head sealed here.
 
 ## Area and timing
 
@@ -241,7 +259,7 @@ seal's settings, 61.44 MHz. The envelope's stimulus and signature are about
 | `unit-noregs` | 1 | 1,757 | 4.2% | 9 | 4 | **+1.451** | +0.049 |
 | `unit-noregs` | 2 | 1,755 | 4.2% | 9 | 4 | **+1.243** | +0.068 |
 
-These are of `bf581e303`, the frozen head, so they include the protocol
+These are of `bf581e303`, the clock-closing head, so they include the protocol
 fixes and the pointer restore. Both variants meet the clock on both seeds.
 `unit-noregs` keeps +1.2 to +1.5 ns, the margin the slice-1 spike's option A
 had standalone (+1.7 to +1.9); `unit` is tighter at +0.5 to +0.7 because the
@@ -260,7 +278,7 @@ words, for the unit's two read ports. The tag word costs no read of them.
 | the first build | 2,191 / 2,177 | −7.568 / −6.905 | 2,075 / 2,084 | −5.716 / −5.552 |
 | the rounding split in two | 1,926 / 1,927 | −0.661 / +0.366 | 1,803 / — | +0.924 / — |
 | the shift's operands registered | 1,878 / 1,889 | +1.358 / +1.226 | 1,733 / 1,734 | +1.754 / +1.639 |
-| `bf581e303`, the frozen head | 1,888 / 1,891 | +0.656 / +0.515 | 1,757 / 1,755 | +1.451 / +1.243 |
+| `bf581e303`, the clock-closing head | 1,888 / 1,891 | +0.656 / +0.515 | 1,757 / 1,755 | +1.451 / +1.243 |
 
 The first build's worst path ran from the register stack's M10K output
 through the shift, a 65-bit adder's carry chain and the range compares into
@@ -271,20 +289,21 @@ multiplicand, 9 levels.
 
 ### The seal
 
-The Quartus 17.0.2 seal of `bf581e303`, built on `chip-30x0-ai-dev` from a
+The Quartus 17.0.2 seal of `06c324ac0`, built on `chip-30x0-ai-dev` from a
 clean checkout of that commit with `--gpu-router CUDA` and the full lockstep
 `--netlist` report in front of it, as #1782 requires:
 
 | | |
 | --- | --- |
-| package | `25ba71ceb4b2ae22fd5f4d7ccd6521767d5795fb9a6564643a5c13398e059fc6` |
-| `BUILD_ID` | `e48f617bcd2df180070ba4c18625e023` |
-| `core.rbf` | `b01d1663de9313a780bce1f1ba790101cf651243ba6747aa981c2c0d855a1595` |
-| ALMs | 36,406 of 41,910 (86.9%) |
-| DSP / M10K / registers | 40 / 274 / 32,727 |
-| system clock | 61.44 MHz, setup **+0.588 ns**, hold +0.115, pulse width +1.122, recovery +6.542, removal +0.258, every analysis 0 ns TNS |
-| pixel / audio clocks | 74.27 MHz / 12.29 MHz, both met |
-| the lockstep report it carries | netlist `39f9a82b`, report `d8324c44`, Verilator 5.054 of the i386 lock, Yosys `e240a465` |
+| package | `81ab96a11ba3d8969fadf19306856c78e77642f5229ec9ef1b47412671d22b45` |
+| `BUILD_ID` | `9a960e227f2200d681051b280f4e8264` |
+| `core.rbf` | `6b58880a8b892f745ad967d19cc2fcfdc5fda329425228f0ae79d81635bd7361` |
+| ALMs | 36,323 of 41,910 (86.7%) |
+| DSP / M10K / registers | 40 / 274 / 32,883 |
+| system clock | 61.44 MHz, setup **+0.752 ns**, hold +0.072, recovery +6.618, removal +2.463, minimum pulse width +1.162 |
+| pixel / audio clocks | 74.27 MHz setup +1.273, hold +0.077, pulse width +1.122 / 12.29 MHz setup +11.798, hold +0.181, removal +0.510 |
+| every analysis | the worst slack of each clock over all four corners (Slow and Fast, 100C and -40C), every one positive, 0 ns TNS throughout |
+| the lockstep report it carries | netlist `9270e41d`, report `d242bf47`, Verilator 5.054 of the i386 lock, Yosys `e240a465` |
 
 Main's last pc386 seal is 36,803 ALMs, but it was taken before the
 keyboard's M10K win (#1802, −796) landed, so it is not this seal's
@@ -305,24 +324,32 @@ measured rather than estimated:
 | The machine | ALMs | % of device | vs the 92% ceiling | DSP | M10K | CPU setup (ns) | CPU hold (ns) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `origin/main` (`53681975f`), the same flow | 36,625 | 87.4% | −1,932 | 40 | 274 | **+0.435** | +0.074 |
-| this branch, the identity clear, as the package has it | 36,532 | 87.2% | −2,025 | 40 | 274 | **+0.558** | +0.090 |
-| this branch, the identity set, so the unit is kept | 38,118 | 91.0% | **−439** | 49 | 278 | **+0.804** | +0.072 |
+| this branch, the identity clear, as the package has it | 36,434 | 86.9% | −2,123 | 40 | 274 | **+0.532** | +0.106 |
+| this branch, the identity set, so the unit is kept | 38,233 | 91.2% | **−324** | 49 | 278 | **+0.603** | +0.076 |
 
-- **Against main the unit costs +1,493 ALMs, 9 DSP blocks and 4 M10K**, and
+- **Against main the unit costs +1,608 ALMs, 9 DSP blocks and 4 M10K**, and
   the machine meets the clock in all three fits.
-- **With the identity clear this branch fits 93 ALMs smaller than main**, a
+- **With the identity clear this branch fits 191 ALMs smaller than main**, a
   negative delta, so tying the identity to `1'b0` really does remove the
   unit and the changes that are not behind it — the shared FNSAVE and FRSTOR
   microcode, the sequencer's offsets, the wider part field — cost nothing
   measurable. How small a difference means nothing here is worth stating:
   the seal and this fit are the same RTL at the same seed through two flows
-  and differ by 126 ALMs (36,406 against 36,532), so a hundred either way is
+  and differ by 111 ALMs (36,323 against 36,434), so a hundred either way is
   below this measurement's resolution. The 92% ceiling is a device figure
-  (38,557 of 41,910) and applies to both, but 38,118 is a fit-flow number,
-  so read the 439 with that 126 in mind.
-- At 38,118 the machine with a 387 fitted is **439 ALMs under the 92%
-  ceiling**, and its margin is +0.804 ns against main's +0.435 in the same
+  (38,557 of 41,910) and applies to both, but 38,233 is a fit-flow number,
+  so read the 324 with that 111 in mind.
+- At 38,233 the machine with a 387 fitted is **324 ALMs under the 92%
+  ceiling**, and its margin is +0.603 ns against main's +0.435 in the same
   flow.
+- **How firm those two figures are.** The previous head `641f06583` was
+  fitted the same way and gave +1,534 against main and 398 under the
+  ceiling. The only RTL between the two heads is the FLDCW latch, a
+  condition on an existing register, which is a handful of ALMs at most, so
+  the 74-ALM difference is this flow's spread between two fits of nearly the
+  same design. Read the headroom for slices 3 to 5 as **roughly 300 to 400
+  ALMs**, not as an exact 324; the direction, which is that it is a few
+  hundred and not a few thousand, is what the numbers settle.
 
 ### What this says about the budget
 
@@ -338,16 +365,16 @@ This is the plan's "stop and report" case.
   conversions were structural. The real conversions, their rounding and the
   environment and save layouts are what the difference buys.
 - The machine fits put it beyond doubt: against main, this slice alone adds
-  **+1,493** ALMs, where the spike predicted **+1,687** for the whole of
+  **+1,608** ALMs, where the spike predicted **+1,687** for the whole of
   option A, slow path and all.
 - So slices 3 to 5 — the 68-bit add and subtract, compare, the Goldschmidt
   divide and square root with their seed ROMs, FPREM, and the
-  transcendentals with their microcode ROM and constants — have **439 ALMs**
-  of headroom under the ceiling, and the spike's own standalone figures put
-  the slow path alone above that.
+  transcendentals with their microcode ROM and constants — have **about 324
+  ALMs**, call it three to four hundred, of headroom under the ceiling, and
+  the spike's own standalone figures put the slow path alone above that.
 - Against the ceiling: main fits at **36,625** in this flow and the 92%
   working ceiling is 38,557, so main itself has 1,932 ALMs of room and this
-  slice takes 1,493 of them. OPL2's MLAB win
+  slice takes 1,608 of them. OPL2's MLAB win
   ([#1795](https://github.com/DeanoC/fes/pull/1795), about −160) is not
   merged yet and would buy a little of it back.
 - What to do about it is Deano's call, and the spike's own
@@ -362,6 +389,11 @@ Deano asked for this before slices 3-5 are re-planned. It changes no RTL.
 The method is the [area audit's](../2026-11-08-i386-area-audit/summary.md):
 the producer's Yosys program without `flatten`, so the fit report lists ALMs
 per entity (`quartus_x87_spike.py --hierarchy`), Quartus 17.0.2, seed 1.
+Its fits are of `bf581e303`, the head the audit was asked for. The three
+review fixes in `641f06583` move the machine by +41 ALMs with the identity
+on and −37 with it off, and the FLDCW latch in `06c324ac0` by a further +74
+and −61; both are inside this flow's spread, and neither adds a module or a
+path, so the breakdown stands.
 
 **In the machine**, the identity overlaid on against off, the whole
 difference is three rows; every other module moves by less than 40 ALMs,
@@ -378,13 +410,13 @@ So the CPU-side cost of having a 387 at all — the issue and hold
 conditions, the unit's words substituted into the environment and save
 layouts, the `arch_x87_*` readout — is **143 ALMs**, and the rest is the
 unit. (This flow's delta is 1,641 where the flattened one gives 1,586 and
-the comparison against main gives 1,493; the three differ by about the
-noise stated above.)
+the comparison against main on the sealed head gives 1,608; the three
+differ by about the spread stated above.)
 
 **There is no untrimmable residual.** With the identity off both entities
 are 0.0 ALMs in the table. The ~520 ALMs this audit was asked to explain
 were an artefact of comparing a fit against an estimated baseline; measured
-against a fit of main, the identity-off machine is 93 ALMs *smaller*. The
+against a fit of main, the identity-off machine is 191 ALMs *smaller*. The
 unit's ERROR# reaching the slave PIC costs nothing when `present` is
 constant 0.
 
@@ -452,11 +484,11 @@ propagation works.
 
 ### The kit run
 
-Kit B, on the sealed package `25ba71ce` itself, core-only: nothing installed,
-no image or boot-config change, the baseline claimed in
-`~/kit-status/kitB-STATUS.md` before each pass and verified restored after it
+Kit B, on the sealed package `81ab96a1` itself, core-only: nothing
+installed, no image or boot-config change, the baseline claimed in
+`~/kit-status/kitB-STATUS.md` before the run and verified restored after it
 (bundle `7ddb0bfb` active, image `179affbb`, boot id unchanged, the run's
-FogCast data trees removed). The driver is
+three FogCast data trees removed, kit logged free). The driver is
 `~/fes-scratch/x87s2/kit/run-x87.sh` around `hil_x87.py`, a copy of the
 keyboard slice's, on the user-supplied FreeDOS drive `a6977555` (never
 committed). **The identity is clear in this package**, so the run is a
@@ -465,14 +497,25 @@ the 387's own behaviour is the unit's bench and the lockstep.
 
 | Pass | What it did | Result |
 | --- | --- | --- |
-| x1 | boot, `echo X87:Ok! [1@#]`, a held key's typematic, Keen 4 | FreeDOS boots, the prompt echoes every character including the shifted ones, Keen 4 launches and its menus take input; the game itself was not reached, the sequence stayed in the menus |
-| x2 | the same, then Keen 4 played, then a second boot for Wolfenstein 3D | Keen 4 reaches the world map and Keen moves; Wolfenstein's Options menu takes input |
-| x3 | Wolfenstein 3D from a fresh boot | its episode and difficulty screens take input |
-| x4 | Wolfenstein 3D from a fresh boot, a grab at every menu step | **Floor 1, health 100%, and the view moves and turns** |
+| x6b | boot FreeDOS from the sealed package, type at the prompt, launch Wolfenstein 3D, step through its menus, then move and turn in the game | **FreeDOS boots to `C:\>` with HimemX, µXMS and CuteMouse loaded; Wolfenstein reaches Floor 1 at health 100% and ammo 8, and the view both moves forward and turns** |
 
-Four boots of FreeDOS, two games played, the keyboard right at the DOS
-prompt and in both games, and the kit logged free on its baseline after
-every pass. The frames are in `~/fes-scratch/x87s2/kit/runs/x1..x4/fr`.
+The admission of the package was checked rather than assumed: `result.json`
+carries no `error`, the `package` command returned the package id, the load
+went `active` with `fes.pc386.machine 1.0` among its interfaces, and every
+grab returned `ok`. The frames are in `~/fes-scratch/x87s2/kit/runs/x6b/fr`.
+
+Two earlier kit sessions are superseded and are recorded only so the kit log
+reads straight. Passes x1 to x4 ran the same way on the `25ba71ce` seal of
+`bf581e303` — four boots, Keen 4 and Wolfenstein both played, the keyboard
+right at the prompt and in both games — and pass x5b, on the `ff11f812` seal,
+was **void**: it was packed with a plain `tar cf`, which is not the canonical
+`.fcore` layout, so the kit refused it at admission with
+`HTTP 422 INVALID_ARCHIVE` while the driver still reported `rc=0` and ran
+the rest of its script, whose frames therefore say nothing about that seal.
+Nothing was installed and the kit never left its baseline. The runner now fails the run
+when `result.json` holds an `error`, and the packer builds the archive with
+`scripts/core_package.py`'s own USTAR header so the package id matches the
+store digest before anything is sent.
 
 ## The CPU and the machine
 
@@ -508,11 +551,9 @@ empty socket's exactly as before.
 ## What is left
 
 Three things the slice's scope names are not in this PR. Exception 9 is the
-one that would need RTL, and building it now would void the seal and the kit
-run on it, so it is stated here for Deano to place: on this PR with a new
-seal, or on its own.
-
-
+one that would need RTL, and building it here would void this PR's seal and
+kit run, so Deano has placed it on its own branch, stacked on this one
+(`deano/i386-x87-exc9`), with its own gates, seal and kit run.
 
 - **The lockstep's 387 coverage is the eight directed programs.** The rule
   is in and they pass, but the generator still emits no ESC instruction, as
@@ -539,7 +580,7 @@ seal, or on its own.
   lands a kit can only run the sealed package with the identity off, which
   is what this slice's kit run checks; the 387's own behaviour is covered
   by the unit's bench and, once it has programs, the lockstep.
-- **Exception 9 is not built, and it is in this slice's scope.** It is
+- **Exception 9 is not built here; it is on its own branch.** It is
   raised when a coprocessor operand's middle part crosses into a
   not-present or protected page or segment: the transfer has begun, so the
   387 is partly updated and the fault cannot be restarted. Nothing this
@@ -549,9 +590,14 @@ seal, or on its own.
   directed lockstep case that straddles a page boundary with the second
   page absent, and a decision on what the unit leaves behind when it faults
   part way, which is also the `divergences.toml` entry that case would
-  settle (a real 387 keeps what the bus transferred; Bochs applies the
-  operand at once). It is the one named piece of the slice that is not in
-  the PR.
+  settle (a real 387 keeps what the bus transferred; Bochs never raises
+  vector 9 at all, so the rule is RTL-only and needs a `divergences.toml`
+  entry). The 386's own microcode settles when it fires: every ESC memory
+  entry point sets `IND = EA + size − 1` before the transfer
+  (`IND_DELTA` 9, 7, 3, 1 for m80, mq, md, mw), which is the manual's
+  "both ends valid" precondition implemented in hardware, so a violation
+  found once the transfer has begun aborts with no error code and no
+  restart. It is the one named piece of the slice that is not in this PR.
 
 ## Reproducing
 
