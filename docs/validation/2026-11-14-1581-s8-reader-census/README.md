@@ -7,32 +7,37 @@ macros are deleted.
 
 Taken on 14 November. None of the files below is edited by this census.
 
-**348 sites in 7 areas** — 320 in the six areas the parallel sweep covered, plus 28 in the DE25
-board tree, which the design record does not cover at all and which is inventoried separately. The
-six-area inventory is [`census-tables.md`](census-tables.md); DE25 is [`de25.md`](de25.md).
-
-**The base.** Every line number here is against this PR's base, `main` at `1b4601831`. The sweep
-itself ran against `deano/1581-s7-identity-fields` at `e2f090806`, which is not the same tree — that
-branch edits `build_fes_pcxt_quartus.py` and `quartus_fes_pcxt.py`, and `M/Makefile` differs by 11
-lines in its upper half. 286 of the 320 sites verified in place on this base; 33 were re-pointed and
-are marked as such in the inventory, resolved by searching each hit's recorded matched text, taking
-the candidate nearest its original line, and requiring a file's hits to keep their order. The last
-of the 320, `build_fes_zx81_oss.py:92`, is in place but could not be checked mechanically because
-the sweep abbreviated its long `RTL_SOURCES` tuple with an ellipsis; it was confirmed by hand. All 16
-DE25 citations verified in place, since that branch does not touch that part of the tree.
-
-Publishing stale exact sites would have repeated the very defect this census corrects in the record
-(correction 7 below). The gap was found by Codex review of the first push of this PR, not by me.
+**399 sites in 7 areas** — 371 in the six swept areas, plus 28 in the DE25 board tree, which the
+design record does not cover at all and which is inventoried separately. The six-area inventory is
+[`census-tables.md`](census-tables.md); DE25 is [`de25.md`](de25.md).
 
 | Area | Sites |
 | --- | --- |
-| Producers and tools (`M/scripts`, excluding sims) | 45 |
-| `M/Makefile` | 30 targets (26 macro-defining lines, ~72 guarded-file compile lines) |
-| Sim and synth scripts | 22 |
-| C++ testbenches | 51 |
-| Tests, docs and READMEs | 99 |
-| Closures and pinned inputs | 73 |
+| Producers and tools (`M/scripts`, excluding sims) | 60 |
+| `M/Makefile` | 108 |
+| Sim and synth scripts | 24 |
+| C++ testbenches | 30 |
+| Tests, docs and READMEs | 73 |
+| Closures and pinned inputs | 76 |
 | `M/boards/de25nano` | 17 sites + 11 macro-invisible readers = 28 |
+
+**The base, and how this record was got wrong once.** Every line number here is against this PR's
+base, `main` at `1b4601831`. The first revision of this record published numbers from
+`deano/1581-s7-identity-fields` instead — a tree that edits `build_fes_pcxt_quartus.py` and
+`quartus_fes_pcxt.py`, and whose `M/Makefile` differs from this base by a *non-constant* offset:
+−16 across the Coleco block, −7 across SG-1000, +8 and +9 across SMS and the tail. Codex review
+caught it. That would have shipped the exact defect correction 7 below calls out in the record, so
+the sweep was re-run against this base rather than patched: re-pointing derived numbers by text
+search had already collided once (`Makefile:1869` and `:1883` both sit nearest `:1880`, though the
+second belongs at `:1894`) and had left the line references *inside* the descriptions untouched.
+
+Verification of the re-run, performed here rather than taken on trust: 370 of the 371 primary lines
+re-checked by searching each row's recorded matched text on its stated line; the exception,
+`build_fes_zx81_oss.py:92`, holds a long `RTL_SOURCES` tuple the sweep abbreviated with an ellipsis
+and was confirmed by hand. All 456 `path:line` citations inside the cells resolve to a real file and
+a non-blank line, after one correction — a reference to `build_probe.sh:28`, one line past the end of
+a 27-line file, is now `:26`. All 16 DE25 citations verify unchanged, since neither branch touches
+that subtree.
 
 `M` = `sources/misteross`. Dated records (`docs/validation/` in both trees, dated plans) and the
 design record itself are excluded, as S8's acceptance specifies.
@@ -145,18 +150,25 @@ Confirmed present, with the line verified where noted:
 - **A lane asymmetry that is currently inherited by accident.** `M/Makefile:1732`
   (`sim-fes-sg1000-rom-link`) passes `-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1` to Verilog but no
   matching `-CFLAGS`, so `sg1000/machine_tb.cpp` compiles its *non*-OSS arm against OSS
-  (registered-media) RTL. **Eight recipes do this**, not the five first reported here: `:733`,
-  `:773`, `:912`, `:936`, `:1732`, `:1768`, and `:633` and `:2086`, where the define sits inside a
-  `$(if …)` so the state follows the goal name. `:1732` is the only one missing two macros.
-  `FES_Z80_UNREGISTERED_SIM` has to resolve each of the eight one way or the other.
+  (registered-media) RTL — its `-CFLAGS` carries only `-DFES_SG1000_ROM_LINK=1`, so both OSS macros
+  reach the RTL and neither reaches the C++. `FES_Z80_UNREGISTERED_SIM` has to resolve that
+  deliberately.
 
-  The set is derived rather than eyeballed, which is how it grew: group the Makefile into
-  backslash-continued recipes, collect each recipe's Verilog `-D` macros and its `-CFLAGS` macros,
-  and report the difference. Reading the hits one at a time had missed three recipes and cited the
-  rest loosely — the first report's `:1720` pointed at that recipe's `$(VERILATOR)` line rather than
-  its define one line below, which on the census tree was `:1721`. The claim itself holds: that
-  recipe's `-CFLAGS` carries only `-DFES_SG1000_ROM_LINK=1`, so both OSS macros reach the RTL and
-  neither reaches the C++.
+  **It is the only one**, and getting there took three attempts worth recording, because the
+  derivation needs two conditions rather than one:
+
+  1. the recipe's Verilog `-D` macros exceed its `-CFLAGS` macros, and
+  2. the recipe's C++ bench actually contains an `FES_*_OSS` conditional.
+
+  Only `machine_tb.cpp`, `gp_tb.cpp`, `expansion_tb.cpp` and `vdp_machine_tb.cpp` have such a
+  conditional. Condition 1 alone matches eight recipes — `:633`, `:733`, `:773`, `:912`, `:936`,
+  `:1732`, `:1768`, `:2086`, the first and last with the define inside a `$(if …)` — but seven of
+  them compile `graphics_tb.cpp`, `megacart_machine_tb.cpp`, `sgm_shell_ram_tb.cpp`,
+  `diagnostic_machine_tb.cpp`, `gp_media_tb.cpp` or `stream_tb.cpp`, none of which has an arm to
+  choose, so for those the missing `-CFLAGS` means nothing. Reading the reported hits one at a time
+  first gave five recipes, all mis-cited; applying condition 1 mechanically gave eight; applying
+  both gives one. The earlier `:1720` citation pointed at that recipe's `$(VERILATOR)` line rather
+  than its define, which on the census tree was `:1721`.
 - **A path literal that will raise.** `sim_fes_coleco_quartus.py:50-52` indexes its source list by
   the literal string `cores/fes-common/rtl/coleco_video_dpram.v`, so if S8 moves or renames that
   path the `--baseline` mode raises `ValueError` rather than failing a check.
@@ -176,23 +188,45 @@ Confirmed present, with the line verified where noted:
 6. S8's dependency list names no DE25 artifact, and S16 lists S8 as *its* dependency, so the arrow
    points the wrong way for the reviewed-input gate and the tape-store byte contract, both of which
    have to land inside S8a.
+7. Stale and wrong citations throughout, each corrected in this PR. Every line in the Quartus Lite
+   QSF row was off by 9 to 17 lines. The Makefile hint list in the census bullet matched no single
+   revision: its skew runs −16, −7, +8 and +9 across different blocks, and one hint, `:823`, has no
+   counterpart at all. `build_fes_pc386_quartus.py:333-337`, cited for the Yosys-and-Quartus split,
+   is `_authenticate_tools`; the real sites are `:284-286`, `:117`, `:330`, `:346` and `:352`. The
+   claim that the guest rates reach the netlist through `-chparam` at `:239` is wrong twice — `:239`
+   is also `_authenticate_tools`, and the word `chparam` appears nowhere in that file; the rates are
+   passed as `parameters=guest_rates()` at `:284-286` and the `chparam` text is emitted by
+   `M/scripts/yosys_netlist.py:159`. S11's producer-list ranges are each off by one to three lines.
+8. Two macro-dependent contracts the record does not mention. `sim_fes_coleco_quartus.py:45`, the
+   `--baseline` mode, git-shows pre-S8 copies of `coleco_machine.sv` and `coleco_video_dpram.v` that
+   still contain `` `ifdef QUARTUS ``, and demands two fixed failure strings, so it works only while
+   that script keeps setting `QUARTUS=1`. And `sim-fes-zx80-openrom` reaches `zx81_dpram.v` only
+   through a shell script, `cores/fes-zx81/openrom-zx80/dev/build_probe.sh:26`, which no grep of the
+   Makefile can see — another member of the macro-invisible class behind finding 1.
 
 ## Method and confidence
 
-Seven parallel agents, one per area, each instructed to open any file whose match it could not
-classify from the line alone and to follow variables and imports to the real reader. Their output
-was then checked against an independent baseline sweep run here:
-63 files hold a macro match outside dated records, with 26 in `M/Makefile` — which matches the
-per-area counts.
+Seven parallel agents, one per area, each told to open any file whose match it could not classify
+from the line alone, to follow variables and imports to the real reader, and to re-open every line
+it cited before returning. Their output was checked here against an independent baseline sweep: 63
+files hold a macro match outside dated records, 26 of them in `M/Makefile`.
 
-Verified by hand in this session: the four acceptance-pattern holes; the ramtest bare-`QUARTUS`
-spelling and the pattern's failure to match it; `quartus_x87_spike.py:341`; the three closure claims
-read straight from `source_closures.json`; the DE25 byte-identity diff; the `test_tape_store.py` and
+Checked mechanically here, over the whole inventory: every primary line against its recorded matched
+text (370 of 371; the one exception confirmed by hand), and every `path:line` citation inside the
+cells against the tree (456 of 456 after one correction). That check is what caught the wrong base,
+once Codex had pointed at two instances of it, and it is cheap enough to repeat whenever the base
+moves.
+
+Verified by hand: the four acceptance-pattern holes; the ramtest bare-`QUARTUS` spelling and the
+pattern's failure to match it; `quartus_x87_spike.py:341`; the three closure claims read straight
+from `source_closures.json`; the DE25 byte-identity diff; the `test_tape_store.py` and
 `retarget_tape` contracts; the three `reviewed-inputs.json` pins and their enforcement in
-`static_reference.py:83-84` with its self-binding at `:27`; and the dead guard at `tape_store.v:80`.
+`static_reference.py:83-84` with its self-binding at `:27`; the dead guard at `tape_store.v:80`; the
+single genuine lane asymmetry and the seven false candidates; the two pc386 citation errors and the
+absence of `chparam` from that file; and the three S11 producer ranges.
 
-Not independently re-verified, and carried on the agents' reporting: the bulk of the 320 individual
-sites, the per-target Makefile analysis, the C++ `-CFLAGS` asymmetry, the wrapper-sim import chains,
-and the claim that `M/boards/de25nano/shared-rtl/zx81_top.v` is dead code (reached only through a
-staging rename, with no `VERILOG_FILE` entry and no `reviewed-inputs.json` hash). That last one
-decides whether S8a ports site R5 or deletes the file, so confirm it before acting on it.
+Not independently re-verified, and carried on the agents' reporting: the individual `what`
+descriptions, the per-recipe Makefile analysis, the wrapper-sim import chains, and the claim that
+`M/boards/de25nano/shared-rtl/zx81_top.v` is dead code (reached only through a staging rename, with
+no `VERILOG_FILE` entry and no `reviewed-inputs.json` hash). That last one decides whether S8a ports
+site R5 or deletes the file, so confirm it before acting on it.
