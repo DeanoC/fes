@@ -596,7 +596,7 @@ The version is scattered across:
 - `M/cores/fes-pcxt/quartus.lock:1-3`;
 - `config/core-recipes.toml:1633` and `:1655`.
 
-No doc says why 17.0.2 was chosen (`M/AGENTS.md:82`).
+No doc says why 17.0.2 was chosen (`sources/misteross/AGENTS.md:83`, spelled in full because `M/AGENTS.md` resolves to the repository-root `AGENTS.md`).
 
 **Design:** a per-core `quartus.lock` in PC/XT's shape, extended as follows:
 
