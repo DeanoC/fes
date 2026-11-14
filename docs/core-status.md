@@ -528,8 +528,14 @@ the 286-12 preset scores above all of them
   when it next polls the keyboard and drops what is queued, so the rate follows
   how the keys arrive, and keying harder makes it walk slower — the reference
   gives 2.94 steps a second at 10 keys a second and 2.06 and 2.07 at 12.3 and
-  25, a steady figure but a suppressed one, not a plateau. Measuring it needs
-  the game's own step count rather than motion counted in frames;
+  25, a steady figure but a suppressed one, not a plateau. Two routes stay
+  open, and the record keeps both: the game's own step count rather than
+  motion counted in frames, which is the surer one, and a sweep of the
+  unsampled key rates below 12.3 a second on both machines
+  ([`method.md`](validation/2026-11-14-pc386-u6-u7-reference/method.md) under
+  its correction to the seventh amendment, and
+  [`summary.md`](validation/2026-11-14-pc386-u6-u7-reference/summary.md) under
+  the walk);
 - Ultima VII NPC pace is **not established**, which is not the same as the
   walk above: no pace was measured, and nothing says it cannot be. The Black
   Gate does not start on the reference at all — it stops at its own memory
