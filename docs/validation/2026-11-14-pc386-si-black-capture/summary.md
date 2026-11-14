@@ -409,8 +409,16 @@ reopened. So:
   chain, but does not say where in it: the card's own HDMI receiver relocking at
   stream start and Powerboat's fan-out or `v4l2loopback` unsticking look the
   same from here;
-- a picture that stays black places it before the capture: the transmitter's
-  video path, or something else persistent.
+- a picture that stays black is **inconclusive**. Restarting a userspace reader
+  does not reset every capture-side state: a stuck HDMI receiver inside the
+  card, or a uvcvideo or USB-device fault, can survive the reopen. Clearing
+  those would take a USB unbind and rebind of the card (the host already has an
+  `asus-4kpro-rebind` helper for a different failure), which is a further step
+  and a separate ask.
+
+So only recovery is evidence, and it is evidence for the capture chain as a
+whole. Non-recovery leaves both sides of #1833 standing and must not be written
+up as pointing at the transmitter.
 
 The sweep goes first for two reasons: a `0xBA` write changes what the
 transmitter sends and a cleared picture cannot be un-cleared, and the restart
