@@ -286,6 +286,19 @@ def citations_of(text):
         yield match.group(0), match.group(1), numbers
 
 
+def backwards_range(written, numbers):
+    """True when a cited range ends before it starts.
+
+    Re-pointing the record after a base move is per number, and moving a
+    range's start while leaving its end turns `:349-356` into `:369-356` --
+    which still resolves, still points at real lines, and reads as a citation
+    (DeanoC/fes#1829 review). Both endpoints are checked either way, so nothing
+    else reports it.
+    """
+    return any(b < a for a, b in zip(numbers, numbers[1:])
+               if f'{a}-{b}' in written)
+
+
 def unreachable_destination(text):
     """Clauses that record a correction no destination number follows.
 
@@ -339,6 +352,10 @@ def check_citations(record=False):
                     problems.append(f'{doc}:{row}: {written} does not resolve')
                     continue
                 body = lines_of(target)
+                if backwards_range(written, numbers):
+                    problems.append(
+                        f'{doc}:{row}: {written} runs backwards; a range that '
+                        'ends before it starts is a half-applied re-point')
                 for n in numbers:
                     endpoints += 1
                     if not 1 <= n <= len(body):

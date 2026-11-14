@@ -164,6 +164,41 @@ class CorrectionShapeTests(unittest.TestCase):
             self.assertNotIn(stale, asserted(shape))
 
 
+class RangeTests(unittest.TestCase):
+    """A cited range must not end before it starts.
+
+    Re-pointing after a base move is per number, so moving a range's start and
+    leaving its end turns `:349-356` into `:369-356`. It still resolves, still
+    points at real lines, and both endpoints are content-checked, so nothing
+    else reports it; I shipped exactly that for one commit (DeanoC/fes#1829).
+    """
+
+    def claim(self, text):
+        written, _, numbers = list(verify_census.citations_of(text))[0]
+        return verify_census.backwards_range(written, numbers)
+
+    def test_a_backwards_range_is_caught(self):
+        self.assertTrue(self.claim('a.py:369-356'))
+
+    def test_a_forwards_range_is_fine(self):
+        self.assertFalse(self.claim('a.py:369-376'))
+
+    def test_a_comma_list_is_not_a_range(self):
+        # Descending commas are a list of separate lines, not a span.
+        self.assertFalse(self.claim('a.py:40,12'))
+        self.assertFalse(self.claim('a.py:12,34-36,40'))
+
+    def test_the_record_holds_no_backwards_range(self):
+        for doc in verify_census.DOCS:
+            path = RECORD / doc
+            for row, line in enumerate(verify_census.lines_of(str(path)), 1):
+                for written, _, numbers in verify_census.citations_of(
+                        line.replace('\\|', '|')):
+                    self.assertFalse(
+                        verify_census.backwards_range(written, numbers),
+                        f'{doc}:{row}: {written} runs backwards')
+
+
 class ClaimedCountTests(unittest.TestCase):
     """The README states its coverage as numbers; keep every one of them true.
 
