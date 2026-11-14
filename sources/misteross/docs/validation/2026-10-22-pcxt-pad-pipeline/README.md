@@ -648,9 +648,10 @@ cell-name unions and all 93 source-provenance PIC FF input cones are retained.
 This is structural mapping evidence, not a candidate routed measurement or
 whole mapped-board equivalence proof.
 
-Both candidates are rejected before routing. [The complete PIC captures](pic-direct-events/README.md)
-retain source snapshots, proofs, negative witnesses, synthesis commands and
-outputs, full comparisons and independently verified archive manifests.
+Both candidates are rejected before routing. [The PIC capture record](pic-direct-events/README.md)
+keeps the analysis and archive manifests; its capture archive, which held the
+source snapshots, proofs, negative witnesses and synthesis outputs, was removed
+on 13 November 2026 because those snapshots held the ZX81 and ZX80 ROMs.
 The host syntheses take 361.68976250104606 and 400.9227558299899 seconds;
 GPU/full-route charge is zero. No tracked PIC RTL or production contract changes.
 
