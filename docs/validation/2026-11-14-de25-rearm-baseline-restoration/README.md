@@ -1,0 +1,15 @@
+# Original baseline restored after format-15 inventory stop
+
+Following the fresh direct human power-cycle confirmation, restoration-only procedure `b8a2ab7dcbab00e2855045b54ff930a182c77595c5b5d9212f51a3c5adf43c18` runs once and passes. The [failed format-15 attempt](../2026-11-14-de25-rearm-inventory-stop/README.md) remains consumed; no diagnostic or forward role is retried.
+
+The 32,157-file freeze binds the actual failure archive and human confirmation, the original baseline admission and the allowed recovery-rollback/rollback/native-baseline roles. Both user and root file-only preflights pass. The prepared source archive is independently read back before execution. No QSPI, factory-card or bottom-kit operation is authorized or performed.
+
+[Actual restoration](restoration.json) verifies fresh recovery programming and boot, the read-only nineteen-register SMMU reset view, exact original FIT `d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1` rollback/readback and all seventeen protected-file observations before and after. A fresh native boot verifies that FIT through its sealed SPL. All fifty-one original-baseline ZX81/ZX80 launch/return exchanges, USB STOP and final Park generation 5 pass. The bounded transaction takes 559.716 seconds within its original 1,200-second inner and 1,400-second outer bounds.
+
+An independent collector replays the actual programming witness, complete UART partition, every saved command and polling offer, and final Park. Its first read-only invocation stops on a missing local remap-observer dependency. The corrected collector loads the byte-identical observer and complete dependency closure from the original frozen trial, verifies their frozen hashes and replays successfully. No board rerun or frozen-input change is involved; the initial collector failure is retained.
+
+All eight owned PID/start records are stopped. Independent root FD scanning finds UART free. JTAG auto/15 MHz and exact USB identity/inode/permissions are restored. The current verified board state is the original native baseline at final Park, with the spare test card installed and all our hardware handles closed. The continuing top-kit claim remains held.
+
+The [actual restoration archive](retention.json) is retained separately from the failed attempt, with every selected byte/hash/mode independently read back and all prepared/failure dependencies recorded. The [completed checks](checks.json) and [frozen procedure identity](procedure.json) bind this result.
+
+This qualifies restoration of the original baseline. It does not qualify the newer source-release/rearm firmware, which was never programmed by the failed inventory attempt. The separately tested [host dispatch wrapper](../2026-11-14-de25-native-dispatch/README.md) is not deployed by this restoration. A fresh source-bound operator and bounded repeated-load trial remain necessary. Earlier USB ownership failures, general package loading and the DE10-equivalent acceptance goal remain open.
