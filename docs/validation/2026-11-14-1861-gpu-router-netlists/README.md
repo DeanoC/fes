@@ -9,7 +9,8 @@ therefore moves through `source_inputs`, and with it `BUILD_ID`, so
 D12 asks for three things. This record covers the **first** only:
 
 1. the core's Yosys netlist is byte-identical to main apart from the `BUILD_ID`
-   constant and `src` file paths — **in progress here**;
+   constant and `src` file paths — **done, for all 14 cores, and with neither
+   exemption needed**: the netlists are identical outright;
 2. a build with the PR's tooling and main's `BUILD_ID` reproduces main's RBF
    byte for byte — **not started** (needs a GPU route per core);
 3. the PR's own build passes the core's normal timing and seal gates —
@@ -63,7 +64,10 @@ synthesised the same producer sources, which each record's
 `pinned_inputs_sha256` attests independently of git:
 
 ```
-$ git diff --name-only b5d3ae232 cf8ec7bec -- sources/misteross/ | wc -l
+$ for r in b5d3ae232 cf8ec7bec 480c924f8; do \
+    git diff --name-only $r HEAD -- sources/misteross/ | wc -l; done
+0
+0
 0
 ```
 
@@ -80,6 +84,9 @@ lock serves main and branch.
 | `cores/fes-zx81/toolchain.lock` | `3a5accbd` | `8fcc4cb4` | `1eecf877` | HIP `gfx1100;gfx1201` |
 | `cores/fes-ramtest/toolchain.lock` | `3a5accbd` | `8fcc4cb4` | `bec82e36` | HIP `gfx1100;gfx1201` |
 | `cores/fes-riscv/toolchain.lock` | `3a5accbd` | `8fcc4cb4` | `8f453ebc` | HIP `gfx1100;gfx1201` |
+| `cores/fes-spectrum/toolchain.lock` | `3a5accbd` | `8fcc4cb4` | `bd7a1c0d` | HIP `gfx1100;gfx1201` |
+| `cores/fes-c64/toolchain.lock` | `3a5accbd` | `8fcc4cb4` | `5fe55f3d` | HIP `gfx1100;gfx1201` |
+| `cores/fes-coleco/toolchain.lock` | `5391eeb1` | `8fcc4cb4` | `bec82e36` | HIP `gfx1100;gfx1201` |
 
 Exact binary digests are in each run's `netlist.json`. Only nextpnr differs
 between these locks, and nextpnr routes nothing here; it is authenticated
@@ -93,25 +100,42 @@ each and are not committed; the digests and the command are the record D12 asks
 for.
 
 <!-- results:start -->
-| Core | Changed files in its closure | Netlist sha256 | Match |
-| --- | --- | --- | --- |
-| `fes.menu` | `build_fes_menu_package.py`, `build_fes_menu.py`, `fes_de10nano_evidence.py` | `05ab4ada678920c408b045026fbd88073f05152867ba628ff253757bc23d0a31` | **byte-identical** |
-| `fes.pong` | `build_fes_pong.py`, `fes_de10nano_evidence.py` | `e7948651bcc0cc2ffbbd3c52c8643c642bc6964826e2a0ae65d18e3fd90cf12b` | **byte-identical** |
-| `fes.ramtest` | `build_fes_ramtest.py`, `fes_de10nano_evidence.py` | `0d59db94f2352a40c9b0e57ab69c6626ff5a3f7b33f5843ae9507e9bf3bf6c7a` | **byte-identical** |
-| `fes.riscv` | `build_fes_riscv.py`, `fes_de10nano_evidence.py` | `e8db4d58afb81e7766d7e21c9ce6d1d18736196badb9dbc23fb742d8c4549be8` | **byte-identical** |
-| `fes.ts1000` | `fes_de10nano_evidence.py` | `96bcf1f6411ab04324e86a58fd525bd5c722f3afbf02c7db67365be074cc6dca` | **byte-identical** |
-| `fes.ts1500` | `fes_de10nano_evidence.py` | `d29bb54e119907959fb104890f8d2d038fff625cf84b2cdea09cc7525bbf37a7` | **byte-identical** |
-| `fes.zx80` | `fes_de10nano_evidence.py` | `b7effcba3f7a30349ae55aef0eac6a857d00f04dc4fe1b959a0c482534df6f82` | **byte-identical** |
-| `fes.zx81` | `fes_de10nano_evidence.py` | `b5c296e5c76810f5655e70a945518dd511654e8b450fb7bbbb616e442f15604b` | **byte-identical** |
+| Core | Changed files in its closure | Pinned inputs | Netlist sha256 | Match |
+| --- | --- | --- | --- | --- |
+| `fes.c64` | `fes_de10nano_evidence.py` | differ | `1b7efc74cd4f637d0e0ecdafc52ac06c49664de7ded7974938f07e0a7567ef83` | **byte-identical** |
+| `fes.coleco` | `fes_de10nano_evidence.py` | differ | `58e3e313595a9d481a3b43544766d145c56d92ff519f7955fd3c8699ffa52844` | **byte-identical** |
+| `fes.menu` | `build_fes_menu_package.py`, `build_fes_menu.py`, `fes_de10nano_evidence.py` | differ | `05ab4ada678920c408b045026fbd88073f05152867ba628ff253757bc23d0a31` | **byte-identical** |
+| `fes.pentagon` | `fes_de10nano_evidence.py` | differ | `b7e23071f5bb22020bd14c58b03b1e6a2b65b9254b7cf10ce52a3ce81b7bf334` | **byte-identical** |
+| `fes.pong` | `build_fes_pong.py`, `fes_de10nano_evidence.py` | differ | `e7948651bcc0cc2ffbbd3c52c8643c642bc6964826e2a0ae65d18e3fd90cf12b` | **byte-identical** |
+| `fes.ramtest` | `build_fes_ramtest.py`, `fes_de10nano_evidence.py` | differ | `0d59db94f2352a40c9b0e57ab69c6626ff5a3f7b33f5843ae9507e9bf3bf6c7a` | **byte-identical** |
+| `fes.riscv` | `build_fes_riscv.py`, `fes_de10nano_evidence.py` | differ | `e8db4d58afb81e7766d7e21c9ce6d1d18736196badb9dbc23fb742d8c4549be8` | **byte-identical** |
+| `fes.spectrum` | `fes_de10nano_evidence.py` | differ | `3f2dfb764a86b215ad4878203392ebd5823c2218e00e10f8f321eddaa85eccc7` | **byte-identical** |
+| `fes.spectrum-plus3` | `fes_de10nano_evidence.py` | differ | `2646f83230b81acf14bf7ca62bafd1f77aa30602874e05d713ec4c5f4afa4fce` | **byte-identical** |
+| `fes.spectrum128` | `fes_de10nano_evidence.py` | differ | `cd62753ae45dbfe930671831ed66ebec568ae4e0b1738fc3ee68ac5b2dda1957` | **byte-identical** |
+| `fes.ts1000` | `fes_de10nano_evidence.py` | differ | `96bcf1f6411ab04324e86a58fd525bd5c722f3afbf02c7db67365be074cc6dca` | **byte-identical** |
+| `fes.ts1500` | `fes_de10nano_evidence.py` | differ | `d29bb54e119907959fb104890f8d2d038fff625cf84b2cdea09cc7525bbf37a7` | **byte-identical** |
+| `fes.zx80` | `fes_de10nano_evidence.py` | differ | `b7effcba3f7a30349ae55aef0eac6a857d00f04dc4fe1b959a0c482534df6f82` | **byte-identical** |
+| `fes.zx81` | `fes_de10nano_evidence.py` | differ | `b5c296e5c76810f5655e70a945518dd511654e8b450fb7bbbb616e442f15604b` | **byte-identical** |
+
+Revisions measured on main: `72d2fc4da`.
+Revisions measured on branch: `480c924f8`, `b5d3ae232`, `cf8ec7bec`.
+Each row's pinned inputs were unmodified at the revision shown; `summarise.py` refuses to render a record with no revision or with a modified pinned input, and the driver refuses to write one.
 <!-- results:end -->
 
 The table is rendered into those markers by `python3 summarise.py --write`, so
 no digest in it is transcribed by hand.
 
-**All four cores whose own producer script this PR edits** — `fes.pong`,
-`fes.menu`, `fes.ramtest` and `fes.riscv` — produce byte-identical netlists, as
-do the ZX81-family cores measured so far, which change only through the shared
-helper.
+**All fourteen affected cores produce byte-identical netlists.** That covers
+both kinds of change: the four whose own producer script this PR edits
+(`fes.pong`, `fes.menu`, `fes.ramtest`, `fes.riscv`) and the ten that move only
+through the shared helper. `fes.coleco` is the only one on a different Yosys pin
+(`5391eeb1` rather than `3a5accbd`), so it exercised its own toolchain rather
+than the shared one.
+
+The `Pinned inputs` column is the argument in one line: those digests **differ**
+on every row, because the edited producer scripts and the shared helper are
+themselves pinned inputs and are exactly why `BUILD_ID` moves — and the netlist
+is identical anyway.
 
 `fes.pong` is the strongest case in the set: both its own producer script and
 the shared helper changed. `cmp` reports the two 3,294,796-byte netlists
@@ -120,5 +144,7 @@ binary. Nothing was normalised or excluded. `fes.menu` is the same kind of case
 through the package producer, and the ZX81 models stand for the ten cores whose
 closure picks up only the shared helper.
 
-Remaining cores are in progress; each needs its lock's nextpnr built before its
-producer will authenticate, even for a Yosys-only run.
+Each lock needed its own nextpnr built before its producer would authenticate,
+even for a Yosys-only run. Because the shared cache is content-addressed per
+tool *and* commit, one cache root served every lock: after the first, each
+additional lock cost a single nextpnr build rather than a full toolchain.
