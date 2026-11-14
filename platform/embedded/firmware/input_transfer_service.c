@@ -1,7 +1,9 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 #include "input_transfer_service.h"
-/* A selected one-attempt diagnostic, not a reusable native runtime session.
- * Failure and success retain all source pages, mappings and queues. */
+#include <string.h>
+/* A new generation may replace only a completed, explicitly released source.
+ * The platform still owns admission, source bytes, mappings and queues. Errors
+ * are global and sticky; a new source never resets a failed transaction. */
 static struct nano_sdm_transfer transfer;
 static struct nano_sdm_input_binding captured;
 static struct nano_sdm_transfer_io captured_io;
@@ -9,20 +11,60 @@ static uint64_t captured_start;
 static uint32_t accepted_bytes;
 static unsigned prepare_attempted,prepared,control_pending,control_header_seen;
 static unsigned source_release_attempted,source_released;
+static unsigned prepare_active;
 static int service_error;
 static int stop(int error)
 {if(!service_error)service_error=error<0 ? error:-5;return service_error;}
+struct nano_sdm_service_record {
+ struct nano_sdm_transfer transfer;
+ struct nano_sdm_input_binding binding;
+ struct nano_sdm_transfer_io io;
+ uint64_t start;
+ uint32_t accepted;
+ unsigned attempted,prepared,control_pending,control_header_seen,release_attempted,released;
+};
+/* Retain the last consumed success for firmware diagnostics, even when no
+ * debugger reads it. It is never consulted to authorize a source or retry. */
+static volatile struct nano_sdm_service_record previous_completion;
+static void capture_record(struct nano_sdm_service_record *r)
+{
+ memset(r,0,sizeof(*r));
+ r->transfer=transfer;r->binding=captured;r->io=captured_io;r->start=captured_start;
+ r->accepted=accepted_bytes;r->attempted=prepare_attempted;r->prepared=prepared;
+ r->control_pending=control_pending;r->control_header_seen=control_header_seen;
+ r->release_attempted=source_release_attempted;r->released=source_released;
+}
+static int record_unchanged(const struct nano_sdm_service_record *r)
+{
+ return !service_error && !memcmp(&r->transfer,&transfer,sizeof(transfer)) &&
+  !memcmp(&r->binding,&captured,sizeof(captured)) && r->io.context==captured_io.context &&
+  r->io.owns==captured_io.owns && r->io.time_us==captured_io.time_us && r->start==captured_start &&
+  r->accepted==accepted_bytes && r->attempted==prepare_attempted && r->prepared==prepared &&
+  r->control_pending==control_pending && r->control_header_seen==control_header_seen &&
+  r->release_attempted==source_release_attempted && r->released==source_released;
+}
+static int completion_record(void);
 int fes_nano_sdm_transfer_prepare(void)
 {
  if(service_error)return service_error;
- if(prepare_attempted)return stop(-16);
- prepare_attempted=1;
- int error=fes_nano_sdm_source_prepare(&captured,&captured_io,&captured_start);
+ if(prepare_active)return stop(-16);
+ unsigned warm=prepare_attempted;
+ if(warm && (warm!=1 || source_release_attempted!=1 || source_released!=1 ||
+    control_pending || control_header_seen!=1 || !completion_record()))return stop(-16);
+ prepare_active=1;prepare_attempted=1;
+ struct nano_sdm_service_record before;capture_record(&before);
+ struct nano_sdm_input_binding next={0};struct nano_sdm_transfer_io next_io={0};uint64_t next_start=0;
+ int error=fes_nano_sdm_source_prepare(&next,&next_io,&next_start);
  if(error)return stop(error);
- if(nano_sdm_input_validate(&captured) || !captured_io.context ||
-    !captured_io.owns || !captured_io.time_us ||
-    captured_io.owns(captured_io.context,&captured)!=1)return stop(-13);
- prepared=1;return 0;
+ if(!record_unchanged(&before) || prepare_active!=1 || nano_sdm_input_validate(&next) ||
+    !next_io.context || !next_io.owns || !next_io.time_us ||
+    (warm && (next.owner!=before.binding.owner || next.epoch!=before.binding.epoch ||
+     next.generation<=before.binding.generation || next_start<before.transfer.last)))return stop(-13);
+ if(next_io.owns(next_io.context,&next)!=1 || !record_unchanged(&before) || prepare_active!=1)return stop(-13);
+ if(warm)previous_completion=before; /* Diagnostic history, never a release grant. */
+ transfer=(struct nano_sdm_transfer){0};captured=next;captured_io=next_io;captured_start=next_start;
+ accepted_bytes=0;control_pending=control_header_seen=0;source_release_attempted=source_released=0;
+ prepared=1;prepare_active=0;return 0;
 }
 int fes_nano_sdm_transfer_begin(uint32_t credits,uint32_t block,uint32_t job)
 {

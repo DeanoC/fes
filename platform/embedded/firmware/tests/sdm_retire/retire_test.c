@@ -39,7 +39,7 @@ static struct nano_sdm_input_binding binding(void){struct nano_sdm_input_binding
 static unsigned cases;
 static struct model run(unsigned kind,unsigned at){struct model m;setup(&m);struct nano_retire s={0};struct nano_retire_receipt r={0};
  if(kind==1)m.fail_read=at;if(kind==2)m.fail_write=at;if(kind==3){m.fail_write=at;m.late_write=1;}if(kind==4)m.fail_store=at;if(kind==5)m.fail_owner=at;if(kind==6)m.fail_time=at;if(kind==7)m.back_time=at;
- struct nano_retire_io io={&m,owns,source,time_us,FES_TEST_RETIRE_READ,write32,store,barrier,prepared_queue()};int e=nano_source_retire(&s,binding(),io,&r);
+ struct nano_retire_io io={&m,owns,source,time_us,FES_TEST_RETIRE_READ,write32,store,barrier,prepared_queue(),0};int e=nano_source_retire(&s,binding(),io,&r);
  if(!kind || (kind==7 && at==1)){assert(!e && s.retired && r.translation_retired && r.memory_retained && !r.source_reuse_authorized && !r.interconnect_drained && !r.ordinary_activation);assert(m.written==5 && m.stores==6);
  static const uint32_t expected[5][2]={{0x44,0x80100000},{0x20,12},{0x20,8},{0x98,12},{0x20,0}};assert(!memcmp(m.writes,expected,sizeof(expected)));}
  else {if(!e || !s.failed)fprintf(stderr,"kind=%u at=%u e=%d failed=%u retired=%u\n",kind,at,e,s.failed,s.retired);assert(e && s.failed && !s.retired && !r.translation_retired && r.memory_retained && !r.source_reuse_authorized && !r.ordinary_activation);}
@@ -48,7 +48,7 @@ static void command_counter_edges(void){
  for(unsigned kind=1;kind<=14;kind++){
   struct model m;setup(&m);struct nano_retire s={0};struct nano_retire_receipt r={0};
   m.current=&s;m.command_fault=kind;
-  struct nano_retire_io io={&m,owns,source,time_us,FES_TEST_RETIRE_READ,write32,store,barrier,prepared_queue()};
+  struct nano_retire_io io={&m,owns,source,time_us,FES_TEST_RETIRE_READ,write32,store,barrier,prepared_queue(),0};
   assert(nano_source_retire(&s,binding(),io,&r) && m.injected && s.failed && !s.retired);
   assert(m.edge_writes==3 && !m.edge_stores && m.reads==m.edge_reads &&
     m.stores==m.edge_stores && m.written==m.edge_writes && !s.commands.publish_attempted);

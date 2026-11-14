@@ -41,7 +41,9 @@ class SourceRetirementTests(unittest.TestCase):
         # Compile the real readiness caller, not only configuration_after's
         # completion callback: that was the missing boundary in format 12.
         source = (FW / "nano_cold_platform.c").read_text()
-        for signature, filename in (("static int identity_configured(void *context)", "identity_configured_test.inc"),
+        for signature, filename in (("int fes_nano_platform_window_rearm(uint64_t owner,uint64_t generation)", "window_rearm_test.inc"),
+                                    ("static int configuration_return_generation(uint64_t owner,uint64_t generation)", "configuration_return_test.inc"),
+                                    ("static int identity_configured(void *context)", "identity_configured_test.inc"),
                                     ("static int window_gate(void)", "window_gate_test.inc"),
                                     ("int fes_nano_platform_window_return(uint64_t *generation)", "window_return_test.inc"),
                                     ("static int window_sd_return(void *context,const struct fes_nano_bridges *b,uint64_t *generation)", "window_sd_return_test.inc")):
@@ -53,6 +55,15 @@ class SourceRetirementTests(unittest.TestCase):
                 end += 1
             (cls.output / filename).write_text(source[start:end])
 
+        source = (FW / "sdm_input_vendor_service.c").read_text()
+        start = source.index("int fes_nano_sdm_vendor_source_idle(")
+        at = source.index("{", start)
+        depth, end = 1, at + 1
+        while depth:
+            depth += (source[end] == "{") - (source[end] == "}")
+            end += 1
+        (cls.output / "vendor_source_idle_test.inc").write_text(source[start:end])
+
 
     @classmethod
     def tearDownClass(cls):
@@ -61,6 +72,8 @@ class SourceRetirementTests(unittest.TestCase):
     def run_model(self, name, joined=False, arguments=()):
         binary = self.output / name
         sources = [FIXTURE / (name + ".c"), FW / "source_retire.c", FW / "command_queue.c", FW / "input_tables.c"]
+        if name == "warm_probe_test":
+            sources += [self.output / "probe_setup.c"]
         if name == "retained_window_gate_test":
             sources += [FW / "nano_smmu.c", FW / "nano_sdm_reader.c"]
         if joined:
@@ -107,6 +120,15 @@ class SourceRetirementTests(unittest.TestCase):
         report = self.run_model("source_release_test", joined=True)
         self.assertEqual(report["cases"], 66)
         self.assertTrue(report["actual_source_release_supplier"])
+
+    def test_real_service_and_supplier_rearm_between_menu_and_computer(self):
+        report = self.run_model("warm_service_test", joined=True)
+        self.assertEqual(report["completed_generations"], 12)
+        self.assertEqual(report["negative_cases"], 40)
+
+    def test_warm_probe_reuses_owned_queue_without_clearing_abort(self):
+        report = self.run_model("warm_probe_test")
+        self.assertEqual(report["completed_generations"], 64)
 
     def test_retained_continuation_requires_live_retired_state(self):
         self.run_model("continue_test")

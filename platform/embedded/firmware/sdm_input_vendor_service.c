@@ -84,6 +84,27 @@ static uint64_t socfpga_sip_handler(uint32_t smc_fid,
 
 struct fpga_config_info fpga_config_buffers[FPGA_CONFIG_BUFFER_SIZE];
 
+int fes_nano_sdm_vendor_source_idle(const struct nano_sdm_input_binding *binding)
+{
+ struct nano_sdm_transfer_result r;fes_nano_sdm_transfer_result(&r);
+ if(!binding || fes_nano_sdm_transfer_source_released(binding)!=1 ||
+    request_type!=NO_REQUEST || fes_contained_transport_status ||
+    !nano_sdm_input_same(binding,&r.binding) || current_block<0 ||
+    (uint32_t)current_block!=blocks_submitted || blocks_submitted!=r.buffers ||
+    max_blocks!=(int)r.credits || bytes_per_block!=r.block ||
+    current_buffer<0 || current_buffer>=FPGA_CONFIG_BUFFER_SIZE || read_block!=0)return 0;
+ for(unsigned n=0;n<FPGA_CONFIG_BUFFER_SIZE;n++){
+  const struct fpga_config_info *b=&fpga_config_buffers[n];
+  if(b->write_requested || b->subblocks_sent || b->size<0 || b->size_written!=b->size)return 0;
+  if(b->size){
+   if(b->block_number<0 || (uint32_t)b->block_number>=blocks_submitted ||
+      b->addr<NANO_SDM_TRANSFER_WIRE || b->addr-NANO_SDM_TRANSFER_WIRE>=binding->bytes ||
+      (uint32_t)b->size>binding->bytes-(b->addr-NANO_SDM_TRANSFER_WIRE))return 0;
+  }else if(b->addr || b->block_number)return 0;
+ }
+ return fes_nano_sdm_transfer_source_released(binding)==1;
+}
+
 /* Selected diagnostic only. Existing secure configuration lock scopes
  * these observations. Neither their contents nor their one-use flags control
  * any original operation. Samples are raw, not an atomic routing proof. */

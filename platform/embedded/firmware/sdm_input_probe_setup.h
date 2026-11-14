@@ -3,6 +3,7 @@
 #define NANO_SDM_PROBE_SETUP_H
 #include "command_queue.h"
 #include "input_tables.h"
+#include "source_retire.h"
 #define NANO_PROBE_BASE UINT64_C(0x94000000)
 #define NANO_PROBE_BYTES 0x10000U
 #define NANO_PROBE_MEMORY_WORDS 32U
@@ -66,6 +67,19 @@ struct nano_probe_setup {
     uint32_t last_offset;
     uint64_t last_value;
     int last_callback_status;
+    /* Warm preparation pins the actual previous retired engine until the
+     * new mapping is prepared and armed. Its supplier must prove that the
+     * source release was consumed for this exact new generation. */
+    unsigned warm;
+    uint32_t queue_baseline,queue_target,abort;
+    const struct nano_retire *previous,*pinned_previous;
+    struct nano_retire previous_snapshot;
+    int (*warm_scope)(void *,const struct nano_retire *,const struct nano_sdm_input_binding *);
+    int (*trusted_warm_scope)(void *,const struct nano_retire *,const struct nano_sdm_input_binding *);
+    struct nano_probe_io trusted_io;
+    struct nano_probe_binding trusted_binding;
+    struct nano_sdm_input_binding trusted_input;
+    int (*trusted_input_scope)(void *,const struct nano_sdm_input_binding *);
 };
 /* Once per cold diagnostic; init performs no physical operations. Prepare
  * sets up the default-abort NS stream table and selected SDM stage-2 root, runs
@@ -82,6 +96,9 @@ struct nano_probe_setup {
 int nano_probe_init(struct nano_probe_setup *,struct nano_probe_binding,struct nano_probe_io);
 int nano_probe_init_input(struct nano_probe_setup *,struct nano_probe_binding,struct nano_probe_io,
     const struct nano_sdm_input_binding *,int (*)(void *,const struct nano_sdm_input_binding *));
+int nano_probe_init_rearmed_input(struct nano_probe_setup *,struct nano_probe_binding,struct nano_probe_io,
+    const struct nano_sdm_input_binding *,int (*)(void *,const struct nano_sdm_input_binding *),
+    const struct nano_retire *,int (*)(void *,const struct nano_retire *,const struct nano_sdm_input_binding *));
 int nano_probe_prepare(struct nano_probe_setup *,struct nano_probe_receipt *);
 int nano_probe_arm(struct nano_probe_setup *,struct nano_probe_receipt *);
 #endif

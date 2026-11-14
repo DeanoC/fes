@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 #include "source_retire.h"
-static struct nano_retire source_retirement;
+static struct nano_retire source_retirements[2];
+#define source_retirement source_retirements[sdm_source_slot]
 static int retire_owned(void *,const struct nano_sdm_input_binding *);
 static int retire_valid(void *,const struct nano_sdm_input_binding *);
 static int retire_time(void *,uint64_t *);
@@ -27,7 +28,7 @@ static int retire_owned(void *context,const struct nano_sdm_input_binding *b)
     sdm_input_phase!=2 || !sdm_input_callbacks() ||
     i->context!=context || i->owns!=retire_owned || i->source_valid!=retire_valid ||
     i->time_us!=retire_time || i->read32!=retire_read || i->write32!=retire_write ||
-    i->store_command!=retire_store || i->barrier!=retire_barrier || i->prepared!=&sdm_arm_probe.command || !retire_completed(b) ||
+    i->store_command!=retire_store || i->barrier!=retire_barrier || i->prepared!=&sdm_arm_probe.command || i->initial_abort!=sdm_arm_probe.abort || !retire_completed(b) ||
     sdm_input_owns(&sdm_arm_probe,&sdm_arm_probe.binding)!=1 ||
     sdm_input_source(&sdm_arm_probe,&sdm_arm_probe.input)!=1)return 0;
  /* Fresh error/event observations also run after the final counter read.
@@ -38,9 +39,9 @@ static int retire_owned(void *context,const struct nano_sdm_input_binding *b)
   if(value){source_retirement.bad_offset=zero[n];source_retirement.bad_value=value;return 0;}
  }
  if(source_retirement.phase==RET_COMPLETE){
-  static const uint32_t final[][2]={{0x20,0},{0x24,0},{0x44,0x100000},
+  const uint32_t final[][2]={{0x20,0},{0x24,0},{0x44,0x100000},
    {0x80,0x94000000},{0x84,0},{0x88,8},{0x90,0x94008003},{0x94,0},
-   {0x98,12},{0x9c,12},{0xa0,0x94009003},{0xa4,0}};
+   {0x98,source_retirement.queue_target},{0x9c,source_retirement.queue_target},{0xa0,0x94009003},{0xa4,0}};
   for(unsigned n=0;n<sizeof(final)/sizeof(final[0]);n++){
    FES_PROBE_BARRIER();uint32_t value=FES_PROBE_READ32(UINT64_C(0x16000000)+final[n][0]);FES_PROBE_BARRIER();
    if(value!=final[n][1]){source_retirement.bad_offset=final[n][0];source_retirement.bad_value=value;return 0;}
@@ -86,13 +87,13 @@ static int retire_write(void *context,uint32_t offset,uint32_t value)
  if(context!=s || !((s->phase==RET_ABORT && offset==0x44 && value==0x80100000) ||
   (offset==0x20 && ((s->phase==RET_NO_TRANSLATION && value==12) ||
    (s->phase==RET_COMMAND_ONLY && value==8) || (s->phase==RET_DISABLE && value==0))) ||
-  (s->phase==RET_INVALIDATE && offset==0x98 && value==12 && s->commands.publish_attempted==1)))return -1;
+  (s->phase==RET_INVALIDATE && offset==0x98 && value==s->queue_target && s->commands.publish_attempted==1)))return -1;
  FES_PROBE_WRITE32(UINT64_C(0x16000000)+offset,value);return 0;
 }
 static int retire_store(void *context,unsigned slot,const uint8_t bytes[16])
 {
  struct nano_retire *s=&source_retirement;unsigned n=s->commands.slots_attempted;uint8_t expected[16];
- if(context!=s || s->phase!=RET_INVALIDATE || !n || n>6 || slot!=((6+n-1)&7U) ||
+ if(context!=s || s->phase!=RET_INVALIDATE || !n || n>6 || slot!=((s->queue_baseline+n-1)&7U) ||
     nano_cmdq_encode(n-1,expected) || memcmp(bytes,expected,16))return -1;
  for(unsigned word=0;word<2;word++){
   uint64_t value=0;for(unsigned j=0;j<8;j++)value|=(uint64_t)bytes[word*8+j]<<(j*8);
@@ -108,7 +109,7 @@ static int fes_nano_sdm_retire_source(struct nano_retire_receipt *out)
  if(!out || !retire_completed(&sdm_arm_probe.input) ||
     sdm_source_owns(&sdm_arm_probe,&sdm_arm_probe.input)!=1)return -1;
  struct nano_retire_io io={&source_retirement,retire_owned,retire_valid,retire_time,
-  retire_read,retire_write,retire_store,retire_barrier,&sdm_arm_probe.command};
+  retire_read,retire_write,retire_store,retire_barrier,&sdm_arm_probe.command,sdm_arm_probe.abort};
  return nano_source_retire(&source_retirement,sdm_arm_probe.input,io,out);
 }
 
@@ -117,6 +118,6 @@ static int fes_nano_sdm_continue_source(void)
  /* Construct the trusted callbacks again; do not accept a copied receipt or
   * the engine's mutable callback table as the continuation's input authority. */
  struct nano_retire_io io={&source_retirement,retire_owned,retire_valid,retire_time,
-  retire_read,retire_write,retire_store,retire_barrier,&sdm_arm_probe.command};
+  retire_read,retire_write,retire_store,retire_barrier,&sdm_arm_probe.command,sdm_arm_probe.abort};
  return nano_source_continue(&source_retirement,sdm_arm_probe.input,io);
 }

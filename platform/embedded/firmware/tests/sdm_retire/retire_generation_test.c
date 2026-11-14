@@ -41,7 +41,7 @@ static int generation_source(void *p,const struct nano_sdm_input_binding *b)
 static struct nano_retire_io generation_io(struct model *m)
 {
  return (struct nano_retire_io){m,generation_owned,generation_source,generation_clock,
-  generation_read,generation_write,generation_store,generation_barrier,prepared};
+  generation_read,generation_write,generation_store,generation_barrier,prepared,0};
 }
 static struct nano_sdm_input_binding generation_setup(struct model *m,uint64_t generation,uint32_t before)
 {

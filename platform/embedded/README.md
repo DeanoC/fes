@@ -79,6 +79,14 @@ now passes first MENU handoff, drain and Quit/Park, followed by exact original-F
 restoration and the full baseline cycle. Memory reuse and general core-load
 acceptance remain open.
 
+The [repeated-source firmware prototype](../../docs/validation/2026-11-14-de25-source-rearm/README.md)
+now connects the actual transfer service, release ledger and warm SMMU setup.
+Software tests pass twelve MENU/computer generations and forty failure cases,
+with changing source sizes, retained queue history and sticky errors. Real
+AArch64 vendor objects compile with that path manually enabled. Exported boot
+profiles keep source release disabled pending the matched repeated-load
+contract, SDK/auditor integration and a new hardware trial.
+
 This directory develops the Linux-free DE25-Nano base. QEMU supplies combined
 launcher integration, while bounded Nano CPU/SD/package diagnostics now run on
 the top kit. Bounded ZX81 installation and reboot discovery now pass; general

@@ -1,5 +1,12 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 #include <stdint.h>
+#include "nano_program.h"
+#define FES_NANO_WINDOW_STORAGE_RETURN 1
+#define FES_NANO_PROGRAM_ROLES 1
+#define FES_NANO_CONTROLLED_SD 1
+static uint64_t window_rearm_owner,window_rearm_generation,window_rearm_return;
+static unsigned active_program_role=FES_NANO_PROGRAM_ROLE_MENU;
+static int configuration_return_generation(uint64_t,uint64_t);
 #include "nano_sd_platform.h"
 struct fes_nano_bridges;
 static int window_sd_return(void *,const struct fes_nano_bridges *,uint64_t *);
@@ -19,6 +26,8 @@ static int release_sd_io_valid(void);
  * injected. SDM/parser/retirement and the subsequent SD stop are real engines. */
 #include "window_return_test.inc"
 #include "window_sd_return_test.inc"
+#include "configuration_return_test.inc"
+#include "vendor_source_idle_test.inc"
 struct fes_nano_configuration *fes_nano_platform_configuration(void){return &configuration;}
 static int release_sd_io_valid(void)
 {
@@ -30,6 +39,9 @@ static int release_sd_io_valid(void)
 static unsigned release_fault,inject,loads_during_release,mutation_seen;
 static void release_meter(unsigned kind)
 {
+#ifdef FES_TEST_WARM_METER
+ FES_TEST_WARM_METER(kind);
+#endif
  if(!inject || !sdm_release.active || mutation_seen)return;
  if(release_fault>=50 && release_fault<=55 && kind==2 && ++loads_during_release==6000){
   mutation_seen=1;
@@ -131,7 +143,10 @@ static void release_case(unsigned fault)
  assert(smmu_writes==writes && cb_stores==stores && data_posts==posts && control_posts==controls && payload_reads==old_payload);
  assert(!mbox_db_lock && !mbox_read_lock && !mbox_write_lock);
 }
-int main(void)
+#ifndef FES_TEST_SOURCE_RELEASE_MAIN
+#define FES_TEST_SOURCE_RELEASE_MAIN main
+#endif
+int FES_TEST_SOURCE_RELEASE_MAIN(void)
 {
  for(unsigned n=0;n<66;n++){
   pid_t p=fork();assert(p>=0);if(!p){release_case(n);_exit(0);}int status;assert(waitpid(p,&status,0)==p);

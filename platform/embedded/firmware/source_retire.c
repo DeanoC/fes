@@ -48,7 +48,7 @@ static void observed_read(struct nano_retire *s,uint32_t offset,uint32_t value)
 static int io_same(const struct nano_retire_io *a,const struct nano_retire_io *b)
 {return a->context==b->context && a->owns==b->owns && a->source_valid==b->source_valid &&
  a->time_us==b->time_us && a->read32==b->read32 && a->write32==b->write32 &&
- a->store_command==b->store_command && a->barrier==b->barrier && a->prepared==b->prepared;}
+ a->store_command==b->store_command && a->barrier==b->barrier && a->prepared==b->prepared && a->initial_abort==b->initial_abort;}
 static int unchanged(const struct nano_retire *s,const struct nano_retire_io *io,
  const struct nano_sdm_input_binding *binding)
 {
@@ -168,7 +168,7 @@ static int write_ready(struct nano_retire *s,uint32_t offset,uint32_t value)
 {
  uint32_t control=0,pointer=s->queue_baseline,abort=ABORT;
  switch(s->phase){
- case RET_ABORT:if(offset!=GBPA || value!=(UPDATE|ABORT))return fail(s,-22);control=13;abort=0;break;
+ case RET_ABORT:if(offset!=GBPA || value!=(UPDATE|ABORT))return fail(s,-22);control=13;abort=s->io.initial_abort;break;
  case RET_NO_TRANSLATION:if(offset!=0x20 || value!=12)return fail(s,-22);control=13;break;
  case RET_COMMAND_ONLY:if(offset!=0x20 || value!=8)return fail(s,-22);control=12;break;
  case RET_INVALIDATE:if(offset!=0x98 || value!=s->queue_target)return fail(s,-22);control=8;break;
@@ -283,13 +283,13 @@ int nano_source_retire(struct nano_retire *s,struct nano_sdm_input_binding bindi
     (a<b+sizeof(*out) && b<a+sizeof(*s)) || nano_sdm_input_validate(&binding) ||
     !io.context || !io.owns || !io.source_valid || !io.time_us ||
     !io.read32 || !io.write32 || !io.store_command || !io.barrier ||
-    !prepared_valid(io.prepared,&binding))return fail(s,-22);
+    (io.initial_abort && io.initial_abort!=ABORT) || !prepared_valid(io.prepared,&binding))return fail(s,-22);
  s->prepared_engine=io.prepared;
  memcpy(&s->prepared_snapshot,io.prepared,sizeof(s->prepared_snapshot));
  s->queue_baseline=(io.prepared->binding.baseline+NANO_CMDQ_COMMANDS)&15U;
  s->queue_target=(s->queue_baseline+NANO_CMDQ_COMMANDS)&15U;
  *out=(struct nano_retire_receipt){.memory_retained=1};
- if(source(s) || snapshot(s,13,s->queue_baseline,0) || snapshot(s,13,s->queue_baseline,0))return -1;
+ if(source(s) || snapshot(s,13,s->queue_baseline,io.initial_abort) || snapshot(s,13,s->queue_baseline,io.initial_abort))return -1;
  s->phase=RET_ABORT;if(write32(s,GBPA,UPDATE|ABORT))return -1;
  unsigned settled=0;
  for(unsigned n=0;n<NANO_RETIRE_POLLS;n++){

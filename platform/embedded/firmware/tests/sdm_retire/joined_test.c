@@ -324,12 +324,19 @@ static uint32_t probe_read(uint64_t address){
   if(retire_fault==3)return 13;
   if(retire_fault==4)return 1;
  }
+#if defined(FES_TEST_WARM_QUEUES)
+ if(address==0x1600009c && (registers[0x20/4]&8U) && registers[index]!=registers[0x98/4]){
+  assert(((registers[0x98/4]-registers[index])&15U)<=8);
+  registers[index]=(registers[index]+1)&15U;
+ }
+#else
  if(retire_armed && address==0x1600009c && registers[0x98/4]==12 && slots<12){
   if(retire_fault!=7)registers[index]=++slots;
   if(retire_fault==8 && slots==9)registers[index]=7;
  }
  if(mode==13 && smmu_reads==1)model.base.h.usb[8/4]|=1U<<5;
  if(address==0x1600009c && registers[0x98/4] && slots<6)registers[index]=++slots;
+#endif
  return registers[index];
 }
 static void probe_write(uint64_t address,uint32_t value){

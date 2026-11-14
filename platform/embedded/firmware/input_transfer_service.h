@@ -10,6 +10,9 @@ int fes_nano_sdm_source_prepare(struct nano_sdm_input_binding *,
  struct nano_sdm_transfer_io *,uint64_t *trusted_start_us);
 int fes_nano_sdm_source_start_ready(void);
 int fes_nano_sdm_source_validate(void);
+/* Strong read-only vendor descriptor/credit check before a new generation.
+ * The actual completed/released service record remains authoritative. */
+int fes_nano_sdm_vendor_source_idle(const struct nano_sdm_input_binding *);
 int fes_nano_sdm_transfer_prepare(void);
 int fes_nano_sdm_transfer_begin(uint32_t,uint32_t,uint32_t);
 int fes_nano_sdm_transfer_accept(uint64_t,uint64_t);

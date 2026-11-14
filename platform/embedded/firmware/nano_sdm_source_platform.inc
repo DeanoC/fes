@@ -28,7 +28,16 @@ extern const uint64_t fes_nano_mmu_root[],fes_nano_mmu_ddr[];
     fes_nano_cold_cpu_release_locked()==1 && captured.core==MPIDR_AFFLVL1_VAL(read_mpidr()))
 #define FES_PROBE_WAIT() wfi()
 #endif
-static struct nano_probe_setup sdm_arm_probe;
+static unsigned sdm_source_slot;
+static struct nano_probe_setup sdm_arm_probes[2];
+#define sdm_arm_probe sdm_arm_probes[sdm_source_slot]
+static struct { unsigned admitted,previous_slot; uint64_t previous_generation,generation,returned; } sdm_rearm;
+static int sdm_source_rearm_begin(void);
+static int sdm_source_rearm_returned(uint64_t,uint64_t);
+static int sdm_source_secure_scope(void);
+static const struct nano_retire *sdm_source_previous_retirement(void);
+static void sdm_source_rearm_prepared(void);
+static int sdm_source_rearm_scope(void *,const struct nano_retire *,const struct nano_sdm_input_binding *);
 static unsigned sdm_arm_entered,sdm_probe_scope_reason,sdm_input_phase;
 static unsigned sdm_source_failed;
 static unsigned sdm_source_released;
@@ -71,10 +80,25 @@ static int sdm_release_returned(const struct nano_probe_binding *binding)
 #if defined(FES_NANO_SDM_SOURCE_RELEASE) && FES_NANO_SDM_SOURCE_RELEASE == 1
  struct fes_nano_sd *s=&fes_nano_owned_sd;uint64_t returned=0;
  struct fes_nano_sd_ops expected=fes_nano_sd_platform_ops(&sd_platform);
+ unsigned menu=configuration_program.role==FES_NANO_PROGRAM_ROLE_MENU;
+ const struct fes_nano_fabric_progress *last=&fabric_stop.last_observed;
+ unsigned session=menu ? fes_nano_platform_window_return(&returned)==1 :
+  configuration_program.role==FES_NANO_PROGRAM_ROLE_COMPUTER &&
+  identity_probe.initialized && identity_probe.attempted && !identity_probe.active && !identity_probe.failed &&
+  !identity_probe.first_error && !identity_probe.cleanup_error && identity_probe.stage==FES_ID_COMPLETE &&
+  !identity_probe.reader && identity_probe.abi==FES_NANO_PROGRAM_COMPUTER_ABI &&
+  identity_probe.bridges==&fes_nano_owned_bridges && identity_probe.io.context==&provider && fabric_stop.qualified==1 &&
+  fabric_stop.attempted==1 && fabric_stop.done==1 && !fabric_stop.failed && !fabric_stop.first_error &&
+  fabric_stop.probe.done==1 && !fabric_stop.probe.failed && last->generation &&
+  last->generation==last->request_generation && last->generation==last->ack_generation &&
+  last->cookie && last->cookie==last->ack_cookie && last->status==FES_EMBEDDED_STATUS_DRAINED && !last->pending &&
+  fes_nano_bridges_held_return(&fes_nano_owned_bridges,&returned)==1;
  return binding && !sdm_source_released && FES_PROBE_SD_IO_BINDING_VALID() && configuration.source_release_attempted==1 &&
   !configuration.source_released && configuration.source_release_source==binding->generation &&
   configuration.source_release_generation==fes_nano_owned_bridges.state.generation &&
-  fes_nano_platform_window_return(&returned)==1 && returned<=UINT64_MAX-3 &&
+  session && binding->generation<=UINT64_MAX-(menu ? 3U:2U) &&
+  returned==binding->generation+(menu ? 3U:2U) && fabric_generation!=UINT64_MAX &&
+  returned==fabric_generation+1 && returned<=UINT64_MAX-3 &&
   configuration.source_release_generation==returned+3 && s->initialized && !s->failed &&
   !s->active && !s->prepared && s->bridges==&fes_nano_owned_bridges &&
   s->owner==binding->owner && s->epoch==binding->epoch && s->grant_generation==returned &&
@@ -93,6 +117,7 @@ static int sdm_probe_owns_mode(void *context,const struct nano_probe_binding *bi
     if(context!=&sdm_arm_probe || !binding || completed>3 || sdm_source_released)return sdm_probe_reject(1);
     if(!FES_PROBE_CPU() || FES_PROBE_FREQUENCY()!=400000000U)return sdm_probe_reject(2);
     if(!fes_nano_mmu_platform_scope())return sdm_probe_reject(3);
+    if(sdm_rearm.admitted && sdm_source_secure_scope()!=1)return sdm_probe_reject(37);
     if(!sdm_probe_geometry())return sdm_probe_reject(4);
     if(!provider.valid || provider.failed ||
        binding->owner!=provider.record.boot.owner || binding->epoch!=provider.record.boot.epoch ||
@@ -100,7 +125,7 @@ static int sdm_probe_owns_mode(void *context,const struct nano_probe_binding *bi
     if(!b->initialized || b->failed || b->device_lease || b->epoch!=binding->epoch ||
        b->state.owner!=binding->owner ||
        b->state.generation!=(completed==3 ? configuration.source_release_generation:binding->generation+(completed==2)) ||
-       b->state.reset!=(completed==2 ? 13U:15U) || b->state.masters_contained!=1 || b->state.never_enabled!=(completed<2))
+       b->state.reset!=(completed==2 ? 13U:15U) || b->state.masters_contained!=1 || b->state.never_enabled!=(completed<2 && !sdm_rearm.admitted))
         return sdm_probe_reject(6);
     if(!provider.devices_attempted || !provider.devices_bound ||
        !sd_platform.initialized || sd_platform.failed || sd_platform.active || sd_platform.prepared)
@@ -113,7 +138,7 @@ static int sdm_probe_owns_mode(void *context,const struct nano_probe_binding *bi
     if(fes_nano_owned_mac.attempted || fes_nano_owned_mac.initialized || fes_nano_owned_mac.failed)
         return sdm_probe_reject(7);
     if(!configuration.initialized || configuration.failed || !configuration.prepared ||
-       !configuration.started || configuration.finished!=(completed!=0) || configuration.rearmed ||
+       !configuration.started || configuration.finished!=(completed!=0) || configuration.rearmed!=sdm_rearm.admitted ||
        configuration.bridges!=b ||
        configuration.owner!=binding->owner || configuration.generation!=binding->generation ||
        !configuration.bytes || !configuration.chunk || (configuration.chunk&63U) ||
@@ -136,11 +161,25 @@ static int sdm_probe_owns_mode(void *context,const struct nano_probe_binding *bi
     if(!configuration_program.initialized || !configuration_program.bound || configuration_program.failed ||
        configuration_program.owner!=binding->owner || configuration_program.generation!=binding->generation ||
        configuration_program.bytes!=configuration.bytes || configuration_program.chunk!=configuration.chunk ||
-       configuration_program.mixed_roles!=1 || configuration_program.role!=FES_NANO_PROGRAM_ROLE_MENU ||
-       configuration_program.control_abi!=FES_NANO_PROGRAM_MENU_ABI)return sdm_probe_reject(10);
+       configuration_program.mixed_roles!=1 ||
+       !((configuration_program.role==FES_NANO_PROGRAM_ROLE_MENU &&
+          configuration_program.control_abi==FES_NANO_PROGRAM_MENU_ABI && !configuration_program.rom_bytes) ||
+         (sdm_rearm.admitted && configuration_program.role==FES_NANO_PROGRAM_ROLE_COMPUTER &&
+          configuration_program.control_abi==FES_NANO_PROGRAM_COMPUTER_ABI &&
+          (configuration_program.rom_bytes==4096 || configuration_program.rom_bytes==8192))))return sdm_probe_reject(10);
     if(completed==3){
        if(fabric_configuration_generation!=binding->generation || !sdm_release_returned(binding))
            return sdm_probe_reject(34);
+    }else if(!completed && sdm_rearm.admitted){
+       if(fabric_configuration_generation!=sdm_rearm.previous_generation ||
+          !fabric_generation || fabric_generation==UINT64_MAX ||
+          fabric_generation+1!=sdm_rearm.returned ||
+          !fabric_stop.qualified || !fabric_stop.attempted || !fabric_stop.done || fabric_stop.failed ||
+          fabric_stop.first_error || !fabric_stop.probe.done || fabric_stop.probe.failed ||
+          !identity_probe.initialized || !identity_probe.attempted || identity_probe.active ||
+          identity_probe.failed || identity_probe.first_error || identity_probe.cleanup_error ||
+          identity_probe.stage!=FES_ID_COMPLETE || identity_probe.bridges!=b ||
+          !sdm_source_rearm_returned(binding->owner,binding->generation))return sdm_probe_reject(36);
     }else if(fabric_configuration_generation!=(completed ? binding->generation:0) ||
        fabric_generation!=(completed==2 ? binding->generation+1:0) ||
        fabric_stop.attempted || fabric_stop.failed ||
@@ -161,8 +200,8 @@ static int sdm_probe_owns_mode(void *context,const struct nano_probe_binding *bi
     FES_PROBE_BARRIER();
     unsigned route=FES_PROBE_READ32(0x10d12184)==3 && FES_PROBE_READ32(0x10d121b0)==0xa000a &&
         FES_PROBE_READ32(0x10d1225c)==0 &&
-        FES_PROBE_READ32(0x10d12280)==(sdm_input_phase==2 ? 0x80000000U:0U) &&
-        FES_PROBE_READ32(0x10d12284)==(sdm_input_phase==2 ? 0x80000000U:0U);
+        FES_PROBE_READ32(0x10d12280)==(sdm_input_phase==2 || sdm_rearm.admitted ? 0x80000000U:0U) &&
+        FES_PROBE_READ32(0x10d12284)==(sdm_input_phase==2 || sdm_rearm.admitted ? 0x80000000U:0U);
     FES_PROBE_BARRIER();
     if(!route)return sdm_probe_reject(13);
     if(fes_nano_cold_owns(&provider,binding->owner,binding->epoch)!=1)return sdm_probe_reject(12);
@@ -189,7 +228,8 @@ static int sdm_probe_read(void *context,uint32_t offset,uint32_t *value)
 }
 static int sdm_probe_write(void *context,uint32_t offset,uint32_t value)
 {
-    if(context!=&sdm_arm_probe)return -1;
+    if(context!=&sdm_arm_probe || sdm_arm_probe.failed)return -1;
+    if(sdm_arm_probe.warm && offset!=0x20 && offset!=0x98)return -1;
     uint32_t expected=0;
     switch(offset) {
     case 0x20:if(value!=8 && value!=12 && value!=13)return -1;expected=value;break;
@@ -198,7 +238,7 @@ static int sdm_probe_write(void *context,uint32_t offset,uint32_t value)
     case 0x84:case 0x94:case 0xa4:break;
     case 0x88:expected=8;break;
     case 0x90:expected=0x94008003;break;
-    case 0x98:expected=6;break;
+    case 0x98:expected=sdm_arm_probe.queue_target;break;
     case 0xa0:expected=0x94009003;break;
     default:return -1;
     }
@@ -214,7 +254,7 @@ static int sdm_probe_range(uint32_t offset,uint32_t bytes)
 }
 static int sdm_probe_clear(void *context,uint32_t offset,uint32_t bytes)
 {
-    if(context!=&sdm_arm_probe || sdm_arm_probe.writes || !sdm_arm_probe.preparing || sdm_arm_probe.prepared ||
+    if(context!=&sdm_arm_probe || sdm_arm_probe.warm || sdm_arm_probe.writes || !sdm_arm_probe.preparing || sdm_arm_probe.prepared ||
         sdm_arm_probe.arming || sdm_arm_probe.armed || sdm_arm_probe.failed || !((offset==0 && bytes==0x8000) || (offset==0xa000 && bytes==0x2000) ||
         (offset==NANO_PROBE_CMDQ && bytes==128) || (offset==NANO_PROBE_EVTQ && bytes==256)))return -1;
     for (uint32_t n=0;n<bytes;n+=8) FES_PROBE_STORE64(NANO_PROBE_BASE+offset+n,0);
@@ -222,9 +262,11 @@ static int sdm_probe_clear(void *context,uint32_t offset,uint32_t bytes)
 }
 static int sdm_probe_store(void *context,uint32_t offset,uint64_t value)
 {
-    if(context!=&sdm_arm_probe || (offset&7U) || offset<NANO_PROBE_CMDQ || offset>=NANO_PROBE_CMDQ+96 ||
+    if(context!=&sdm_arm_probe || (offset&7U) || offset<NANO_PROBE_CMDQ || offset>=NANO_PROBE_CMDQ+128 ||
         !sdm_arm_probe.preparing || sdm_arm_probe.prepared || sdm_arm_probe.arming || sdm_arm_probe.armed || sdm_arm_probe.failed ||
-        !sdm_arm_probe.command.initialized || !sdm_arm_probe.command.submitted || sdm_arm_probe.command.publish_attempted)return -1;
+        !sdm_arm_probe.command.initialized || !sdm_arm_probe.command.submitted || sdm_arm_probe.command.publish_attempted ||
+        !sdm_arm_probe.command.slots_attempted || sdm_arm_probe.command.slots_attempted>6 ||
+        (offset-NANO_PROBE_CMDQ)/16!=((sdm_arm_probe.queue_baseline+sdm_arm_probe.command.slots_attempted-1)&7U))return -1;
     FES_PROBE_STORE64(NANO_PROBE_BASE+offset,value);return 0;
 }
 static int sdm_probe_load(void *context,uint32_t offset,uint64_t *value)
@@ -299,13 +341,13 @@ static int sdm_source_queues(void)
  if(sdm_source_failed || !sdm_arm_probe.armed || sdm_arm_probe.failed ||
     !sdm_arm_probe.attempted || !sdm_arm_probe.initialized || !sdm_arm_probe.prepared ||
     sdm_arm_probe.preparing!=1 || sdm_arm_probe.arming!=1 ||
-    !sdm_input_callbacks() || sdm_arm_probe.command_receipt.producer!=6 ||
-    sdm_arm_probe.command_receipt.consumer!=6 || !sdm_arm_probe.command_receipt.commands_completed)
+    !sdm_input_callbacks() || sdm_arm_probe.command_receipt.producer!=sdm_arm_probe.queue_target ||
+    sdm_arm_probe.command_receipt.consumer!=sdm_arm_probe.queue_target || !sdm_arm_probe.command_receipt.commands_completed)
   return sdm_source_stop(21);
- static const uint32_t registers[][2]={
+ const uint32_t registers[][2]={
   {0,0x080f7e3f},{4,0x0e739d18},{0x14,0x00400075},{0x20,13},{0x24,13},{0x28,0x820},{0x2c,4},
-  {0x44,0},{0x48,0},{0x50,0},{0x54,0},{0x60,0},{0x64,0},
-  {0x80,0x94000000},{0x84,0},{0x88,8},{0x90,0x94008003},{0x94,0},{0x98,6},{0x9c,6},
+  {0x44,sdm_arm_probe.abort},{0x48,0},{0x50,0},{0x54,0},{0x60,0},{0x64,0},
+  {0x80,0x94000000},{0x84,0},{0x88,8},{0x90,0x94008003},{0x94,0},{0x98,sdm_arm_probe.queue_target},{0x9c,sdm_arm_probe.queue_target},
   {0xa0,0x94009003},{0xa4,0},{0x100a8,0},{0x100ac,0}
  };
  for(unsigned n=0;n<sizeof(registers)/sizeof(registers[0]);n++){
@@ -349,8 +391,11 @@ int fes_nano_sdm_source_validate(void)
 int fes_nano_sdm_source_prepare(struct nano_sdm_input_binding *output,
  struct nano_sdm_transfer_io *transfer_io,uint64_t *trusted_start_us)
 {
- if(!output || !transfer_io || !trusted_start_us || sdm_arm_entered++ || sdm_input_phase || sdm_source_failed)
+ if(!output || !transfer_io || !trusted_start_us || sdm_source_failed || sdm_arm_entered==UINT32_MAX)
   return sdm_source_stop(25),-13;
+ unsigned warm=sdm_arm_entered!=0;
+ if(warm ? sdm_source_rearm_begin()!=1 : sdm_input_phase!=0)return sdm_source_stop(25),-13;
+ sdm_arm_entered++;
  struct nano_probe_binding b={provider.record.boot.owner,provider.record.boot.epoch,configuration.generation};
  struct nano_sdm_input_binding input={.owner=b.owner,.epoch=b.epoch,.generation=b.generation,
   .bytes=configuration.bytes,.chunk=configuration.chunk,.idr0=0x080f7e3f,.idr1=0x0e739d18,.idr5=0x00400075};
@@ -367,10 +412,14 @@ int fes_nano_sdm_source_prepare(struct nano_sdm_input_binding *output,
     configuration_check(&provider,FES_NANO_CONFIG_BASE,configuration.bytes,1))return sdm_source_stop(26),-13;
  uint64_t after_hash=0;
  if(sdm_source_time(&sdm_arm_probe,&after_hash))return -13;
- int status=nano_probe_init_input(&sdm_arm_probe,b,io,&input,sdm_input_source);struct nano_probe_receipt receipt;
+ int status=warm ? nano_probe_init_rearmed_input(&sdm_arm_probe,b,io,&input,sdm_input_source,
+   sdm_source_previous_retirement(),sdm_source_rearm_scope) :
+   nano_probe_init_input(&sdm_arm_probe,b,io,&input,sdm_input_source);
+ struct nano_probe_receipt receipt;
  if(!status)status=nano_probe_prepare(&sdm_arm_probe,&receipt);
  if(!status)status=nano_probe_arm(&sdm_arm_probe,&receipt);
  if(status)return sdm_source_stop(27),status;
+ if(warm)sdm_source_rearm_prepared();
  sdm_input_phase=1;
  if(sdm_source_owns(&sdm_arm_probe,&sdm_arm_probe.input)!=1)return -13;
  *output=sdm_arm_probe.input;
@@ -394,3 +443,5 @@ int fes_nano_sdm_source_start_ready(void)
 #include "nano_sdm_control_platform.inc"
 #include "nano_sdm_reader_platform.inc"
 #include "nano_sdm_release_platform.inc"
+
+#include "nano_sdm_rearm_platform.inc"

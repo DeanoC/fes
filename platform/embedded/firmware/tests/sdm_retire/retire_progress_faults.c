@@ -33,7 +33,7 @@ static unsigned progress_case(unsigned mode,unsigned at)
 {
  struct model m;setup(&m);struct nano_retire s={0};struct nano_retire_receipt r={0};m.current=&s;
  progress_mode=mode;progress_at=at;progress_reads=injected=0;
- struct nano_retire_io io={&m,owns,source,time_us,read32,write32,store,barrier,prepared_queue()};
+ struct nano_retire_io io={&m,owns,source,time_us,read32,write32,store,barrier,prepared_queue(),0};
  int e=nano_source_retire(&s,binding(),io,&r);
  if(!mode){assert(!e && s.retired && r.translation_retired && m.written==5);}
  else{

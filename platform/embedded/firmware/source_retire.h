@@ -24,6 +24,9 @@ struct nano_retire_io {
   * Its owned empty cursor supplies the starting point, including wrap. A
   * copied command receipt or a hardware pointer alone is not authority. */
  const struct nano_cmdq *prepared;
+ /* Exact abort state proved by the prepared controller's strong supplier.
+  * Cold starts use zero; a rearmed mapping keeps ABORT set throughout. */
+ uint32_t initial_abort;
 };
 struct nano_retire_receipt {
  uint64_t owner,epoch,generation,elapsed_us;
