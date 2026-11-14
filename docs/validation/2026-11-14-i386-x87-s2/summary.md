@@ -231,17 +231,17 @@ seal's settings, 61.44 MHz. The envelope's stimulus and signature are about
 
 | Variant | Seed | ALMs | % of the device | DSP | M10K | CPU setup (ns) | CPU hold (ns) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `unit` | 1 | 1,878 | 4.5% | 9 | 4 | **+1.358** | +0.060 |
-| `unit` | 2 | 1,889 | 4.5% | 9 | 4 | **+1.226** | +0.063 |
-| `unit-noregs` | 1 | 1,733 | 4.1% | 9 | 4 | **+1.754** | +0.049 |
-| `unit-noregs` | 2 | 1,734 | 4.1% | 9 | 4 | **+1.639** | +0.040 |
+| `unit` | 1 | 1,888 | 4.5% | 9 | 4 | **+0.656** | +0.085 |
+| `unit` | 2 | 1,891 | 4.5% | 9 | 4 | **+0.515** | +0.042 |
+| `unit-noregs` | 1 | 1,757 | 4.2% | 9 | 4 | **+1.451** | +0.049 |
+| `unit-noregs` | 2 | 1,755 | 4.2% | 9 | 4 | **+1.243** | +0.068 |
 
-These fits are of the head that closed the clock, before the five protocol
-faults and the pointer restore; the figures are the unit's shape rather than
-its final size, and a fit of the frozen head is owed with the rest.
-
-Both variants meet the clock on both seeds, with +1.2 to +1.8 ns, which is
-the margin the slice-1 spike's option A had standalone (+1.7 to +1.9).
+These are of `bf581e303`, the frozen head, so they include the protocol
+fixes and the pointer restore. Both variants meet the clock on both seeds.
+`unit-noregs` keeps +1.2 to +1.5 ns, the margin the slice-1 spike's option A
+had standalone (+1.7 to +1.9); `unit` is tighter at +0.5 to +0.7 because the
+envelope reads all eight registers out combinationally, which the sealed
+machine does not.
 The eight registers' readout costs about 145 ALMs and the sealed machine
 trims it, so `unit-noregs` is the figure to carry forward.
 
@@ -255,6 +255,7 @@ words, for the unit's two read ports. The tag word costs no read of them.
 | the first build | 2,191 / 2,177 | −7.568 / −6.905 | 2,075 / 2,084 | −5.716 / −5.552 |
 | the rounding split in two | 1,926 / 1,927 | −0.661 / +0.366 | 1,803 / — | +0.924 / — |
 | the shift's operands registered | 1,878 / 1,889 | +1.358 / +1.226 | 1,733 / 1,734 | +1.754 / +1.639 |
+| `bf581e303`, the frozen head | 1,888 / 1,891 | +0.656 / +0.515 | 1,757 / 1,755 | +1.451 / +1.243 |
 
 The first build's worst path ran from the register stack's M10K output
 through the shift, a 65-bit adder's carry chain and the range compares into
@@ -319,7 +320,7 @@ This is the plan's "stop and report" case.
   whole option-A unit, slow path and all, at **2,134 ALMs** standalone (mean
   of the fits that routed), and **+1,687** inside pc386.
 - This slice's unit, which is the interface, the state and the conversions
-  and **no arithmetic at all**, measures **1,733**: 81% of that figure.
+  and **no arithmetic at all**, measures **1,757**: 82% of that figure.
 - The spike's unit was built to be fitted, not run: its microcode,
   dispatch, constant and seed ROMs held a hash of the address and its
   conversions were structural. The real conversions, their rounding and the
