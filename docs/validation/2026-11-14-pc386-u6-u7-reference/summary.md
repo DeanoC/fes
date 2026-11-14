@@ -369,10 +369,24 @@ command file was missing its final `quit`, so the runner sat in its idle wait,
 and the run's post-run tail was then run by hand too early, removing the run's
 data trees while the core was loaded. The agent's own cleanup then failed with
 HTTP 500 — most likely because of that early removal, though that is not shown.
-The agent reports "operator recovery required", so it is Deano's to clear;
-nothing was attempted. No install, image, boot-config change or reboot was
-made, no I2C was touched, and the kit's data is byte-identical to before the
-run. The incident is logged in `~/kit-status/kitB-STATUS.md`.
+The agent reported "operator recovery required"; **a warm reboot cleared it**,
+at Deano's word, and the kit was restored, verified and released. Sending a
+stop was tried first and cannot be done — the agent refuses a takeover on a
+blocked lease with HTTP 409, so there is no token to stop with — and the
+narrower `fes-kit-software restart-service fogcast-kit` was not available. The
+reboot works because the lease status is in-memory only
+(`sources/FogCast/internal/kitlease/manager.go`: `kitlease.New` starts free with
+a fresh generation, and nothing reads a persisted lease back), so any restart of
+the agent clears it. A lease blocked by a *maintenance reservation* would not
+clear this way, since those persist; the reason string tells the two apart.
+
+After the boot: lease free with a new generation and no owner — the stale one
+did not survive — agent idle with no core loaded, image `179affbb` good with no
+pending and `state.previous` unchanged, bundle `7ddb0bfb` selected and active,
+`usb-storage.quirks=152d:0583:i` present in both `u-boot.txt` and
+`/proc/cmdline`, and the FogCast data byte-identical to before the run. No
+reimage, image or boot-config change, no I2C and no power cycle. The incident
+and the recovery are logged in `~/kit-status/kitB-STATUS.md`.
 
 That run would not have changed the conclusion. It was to produce the kit's
 half of a comparison whose reference half turned out not to mean what it looked
