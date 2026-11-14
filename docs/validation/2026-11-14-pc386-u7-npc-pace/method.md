@@ -1,0 +1,192 @@
+# Method and tolerance, fixed before the Black Gate captures
+
+Issue [#1853](https://github.com/DeanoC/fes/issues/1853), the last item of
+[#1368](https://github.com/DeanoC/fes/issues/1368). This file is committed
+before any pace capture on either side — before the reference is scouted for
+a scene, and before the kit is claimed — so the pass rule and the reference
+board cannot move afterwards. It follows the pattern
+[the 14 November Ultima VI record](https://github.com/DeanoC/fes/pull/1838)
+set: amendments are allowed, dated, and must say what had already been seen
+when each was written.
+
+What is already known and is **not** part of this file's commitment, because
+it was settled before it was written: that The Black Gate now starts on the
+reference, and how ([`summary.md`](summary.md), Part 1). No pace figure of any
+kind has been read on either machine.
+
+## What is being checked
+
+`sources/misteross/docs/pc386-machine-design.md`'s acceptance table says, for
+Ultima VII: The Black Gate, "386-class preset; NPC pace matches the
+reference", and defines a reference as "recordings from period hardware or a
+configured emulator, named in the acceptance record".
+
+One check: **The Black Gate's NPC pace at preset 3 (386DX-25), kit against
+reference.**
+
+## The reference board, and the rule it was chosen by
+
+### The rule
+
+[#1838's `method.md`](https://github.com/DeanoC/fes/pull/1838) validated its
+286 reference by placing it among the real machines of its class in TopBench
+0.38a's own shipped database (`DATABASE.INI` on the benchmark drive), and
+required the reference to sit mid-range among them. The same rule applies
+here, with one stated reading, because the database holds **no 386DX at 25 MHz
+at all**:
+
+> **The comparable class is every AT-class real 386DX entry in that database,
+> at whatever clock, with its score scaled to 25 MHz in proportion to its
+> clock. The reference board must sit mid-range in the resulting distribution.
+> "AT-class" excludes an accelerator card in an XT, as #1838 excluded one from
+> its 286 class.**
+
+Scaling by clock is the assumption this rule adds, and it is stated rather
+than hidden: it treats TopBench's score as proportional to clock for a fixed
+board design, which the database's one board entered at four clocks supports
+(M326 at 16, 20, 33 and 40 MHz scores 50, 60, 90 and 104 — 3.12, 3.00, 2.73
+and 2.60 points per MHz, falling slowly as the clock rises, so scaling *up*
+from a lower clock slightly over-states and scaling *down* from a higher clock
+slightly under-states).
+
+Nothing below is tuned to a result: the band and the metric are set here, and
+the classification rule for a miss is set here too.
+
+### The distribution
+
+18 AT-class real 386DX entries (19 with the Inboard 386 accelerator in an IBM
+PC/XT, which is excluded). Scaled to 25 MHz and sorted:
+
+```
+31 32 34 42 48 54 54 57 57 57 59 60 61 65 66 68 75 78
+```
+
+minimum 31, lower quartile 47, **median 57**, upper quartile 65, maximum 78.
+The four highest (65, 68, 75, 78) are all the same M326 motherboard at
+different clocks; without it the maximum is 66. The distribution is bimodal:
+three IBM PS/2 models at 1.25–1.38 points per MHz, then everything else from
+1.68 upwards, with nothing between.
+
+### The board
+
+**`asus3863364k`** — 86Box's [SiS 310] ASUS 386/33-64K, run at 25 MHz with
+its 64 KB cache enabled (the POST prints `Cache controller ... Enabled`), the
+interpreter, and no FPU. [`reference.md`](reference.md) gives it in full. It
+is chosen because it is a cached 386DX, which is what #1838's fifth amendment
+requires of a reference for a preset defined as the Intel386 table at 25 MHz
+with **zero wait states** (`sources/misteross/docs/i386-cpu-design.md`), and
+because it is the board The Black Gate was made to run on, so the Part 1
+configuration and the pace runs are the same machine.
+
+**It does not meet the rule, and that is reported rather than worked around.**
+It scores TopBench **40**, which is below the lower quartile of 47 and below
+every entry of the upper cluster — fourth lowest of the 19. It is not
+mid-range. Three things were checked before concluding that:
+
+- `cpu_waitstates = 0`, the preset's own definition, scores **40**, the same
+  as the board default. Wait states do not explain it.
+- The uncached `ecs386` and the cached `asus3863364k` both scored 40 in
+  #1838's work, so the cache does not explain it either.
+- Five other 86Box 386DX boards (`award495`, `ecs386v`, `acc386`,
+  `dataexpert386wb`, `asus386`) were set up for the same benchmark and are
+  **not benchmarked**: each has an AMI BIOS that drops into SETUP on a blank
+  CMOS, and giving each one a CMOS by hand was not worth it once the two
+  wait-state settings showed the score does not move. They are listed as not
+  measured, not as presumed 40s.
+
+So the honest statement is that 86Box's 386DX at 25 MHz models a machine at
+the slow end of the real range, and no board setting within it reaches the
+middle. Every figure below is therefore reported together with the throughput
+ratio, and a miss is classified by the rule in "If the check misses".
+
+### Where the kit sits
+
+The kit's 386DX-25 preset scored TopBench 68 in
+[#1486](https://github.com/DeanoC/fes/pull/1486). That figure is from an older
+seal, so **TopBench is re-run on the kit in the same claim as the pace
+captures**, and the figure used is that one. Against the distribution above,
+68 is above 16 of the 18 real entries, and above all 14 once the M326's four
+are set aside; it beats every real 386DX-20 in the database (maximum 60) and
+sits just under the slowest real 386DX-33 (71). That is the same shape as
+[#1840](https://github.com/DeanoC/fes/issues/1840) found at 286-12, in a
+milder form, and it is stated here because it qualifies any pace comparison
+rather than being added to one afterwards.
+
+## What is measured
+
+**NPC pace** is **the displacement of a named non-player character per second
+of wall-clock time, in a fixed scene, with no input sent during the window.**
+
+- It is an NPC's movement, not the rate at which the picture changes. #1838's
+  third amendment proposed the scene's update rate as a proxy, on the ground
+  that The Black Gate has no frame limiter so the redraw rate is the game
+  loop that walks the NPCs. That link was never measured, and this check does
+  not assume it. The update rate is still recorded, as a second series, so
+  that the link can be tested; the verdict rests on the displacement.
+- Displacement is measured in the scene's own pixels, per side, from the
+  captured frames: the NPC's sprite is tracked between frames and its path
+  length over the window divided by the window's length in seconds. The
+  analyser is committed with the record before the kit capture.
+- The scene is fixed and reached the same way on both sides, and the paths
+  from a cold boot to that scene are per side, as #1838's first amendment
+  established for Ultima VI, because the two machines take different times
+  through the game's menus.
+
+## Tolerance
+
+**The pace must be within ±10% of the reference's**, the band #1838 fixed for
+a rate, for the reasons it gave: wider than the measurement's own spread,
+wider than any clock offset between the two machines (here there is none —
+both are nominally 25 MHz), and narrower than the step between the governor's
+presets, so it cannot pass a machine running at the wrong one.
+
+**Three windows a side**, and the spread between repeats on one machine is
+reported. If the spread is not well inside the band, the check is not decided
+by this method and the record says so, with the figures, as #1838's fourth
+amendment required of the Ultima VI walk. Nothing is widened to admit a
+result.
+
+## Validity gates for a window
+
+A window counts only if all of these hold, and the record says for each
+window whether they did:
+
+1. **No input** is sent during the window, on either side, and the mouse
+   pointer is parked at the same place in the scene on both.
+2. **86Box holds 100% emulation speed** for the whole window. The speed
+   readout is captured alongside the picture; the title screen was already
+   seen to dip to 97%, so this is not a formality.
+3. The **capture rate is the same on both sides** (`REF_FPS` set to the kit's
+   HDMI grab rate), and the measured pace is well under half of it.
+4. The counted motion is the NPC's sprite moving, not palette cycling or
+   another animation in the scene.
+5. Only one 86Box runs on the host during a reference window.
+6. Both sides run **the same drive image**: `u7bg-master.img`
+   (SHA-256 `d9bfafd4…`) plus `UMAP.COM`, with a **fresh copy per run**,
+   because starting a game writes to it. Each side's copy is digested before
+   the run and the digests are given in the record.
+
+## If the check misses
+
+A miss is not by itself a core defect, because the reference is slower than
+the kit by a measured amount. The classification is fixed here, before any
+figure is read:
+
+- Let *T* be the TopBench ratio, kit over reference, both measured in this
+  work.
+- If the pace ratio is within the band of *T*, the difference is the preset's
+  throughput — the [#1840](https://github.com/DeanoC/fes/issues/1840) class of
+  finding, not a Black Gate defect.
+- If the pace ratio departs from *T*, the difference is specific to this
+  title, and that is a core finding.
+- A run at a second reference clock, chosen so its TopBench is near the kit's,
+  may be taken to separate the two. **It cannot turn a miss into a pass**: the
+  verdict of record is the kit against the 25 MHz reference at ±10%.
+
+## What is recorded either way
+
+The reference's and the kit's `UMAP.COM` maps, `MEM /C` output and TopBench
+scores, taken in the same runs as the pace captures; the drive digests; the
+per-window figures and their validity gates; and, if no figure survives the
+gates, what would be needed to measure it, in the way #1838 recorded the
+Ultima VI walk's three dead ends.
