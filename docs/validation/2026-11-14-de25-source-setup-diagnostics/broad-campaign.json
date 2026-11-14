@@ -1,5 +1,5 @@
 {
-  "scope": "failed-whole-campaign-and-pending-final-phase-requalification",
+  "scope": "failed-whole-campaign-and-passed-separate-final-phase",
   "whole_campaign_passed": false,
   "original_supervisor": {
     "argv": [
@@ -45,6 +45,20 @@
       "out/publication/run-source-setup-final-phase.py"
     ]
   },
-  "replacement_terminal_result_not_yet_observed": true,
-  "hardware_actions": false
+  "replacement_terminal_result_not_yet_observed": false,
+  "hardware_actions": false,
+  "replacement_final_supervisor": {
+    "argv": [
+      "python3",
+      "out/publication/run-source-setup-final-phase.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-dispatch-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1452.4053275471088,
+    "log_sha256": "01b02e4f83f93248f3d9f6b2d7cfda08fdac0b7d3e8378306f742965199cd132"
+  },
+  "replacement_tests": 2181,
+  "replacement_skips": 88,
+  "earlier_phase_completion_evidence": "derived from immutable sequential return-code gates advancing to observed final command; no separate per-phase exit receipts"
 }

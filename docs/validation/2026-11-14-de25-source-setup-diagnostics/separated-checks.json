@@ -1,0 +1,169 @@
+{
+  "status": "completed-selected-phase-coverage-with-original-campaign-timeout",
+  "source_head": "2c20c0c0f80a5d963c47320ff5713834e0680ba9",
+  "base": "04147ceba848f385d68b53680a8d661823cfb6da",
+  "original_whole_campaign_passed": false,
+  "original_whole_campaign_timed_out": true,
+  "driver_sha256": "cd2140929f8f54c9099c0311e2f20895ef4645f34828d6033b65b3a4c55b9767",
+  "selected_plan_sha256": "0a13bce4e6b739f8de944d825268d9a03987017ca6105ae3338dd60538694bba",
+  "earlier_phase_completion_evidence": "derived from immutable sequential return-code gates advancing to the observed final command; no separate per-phase exit receipts",
+  "earlier_phases": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "derived_returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "derived_returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "derived_returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "derived_returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "derived_returncode": 0
+    },
+    {
+      "label": "Go command inventory",
+      "lane": "parent",
+      "derived_returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "derived_returncode": 0
+    },
+    {
+      "label": "native runtime firmware and FPGA launch integration",
+      "lane": "parent",
+      "derived_returncode": 0
+    },
+    {
+      "label": "embedded producer identity and native control integration",
+      "lane": "parent",
+      "derived_returncode": 0
+    },
+    {
+      "label": "embedded firmware and identity/drain RTL integration",
+      "lane": "fpga",
+      "derived_returncode": 0
+    }
+  ],
+  "separately_completed_final_phase": {
+    "scope": "single-interrupted-final-selected-phase",
+    "source_head": "2c20c0c0f80a5d963c47320ff5713834e0680ba9",
+    "base": "04147ceba848f385d68b53680a8d661823cfb6da",
+    "command": {
+      "lane": "fpga",
+      "label": "test_*.py",
+      "cwd": "sources/misteross",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "strace"
+      ],
+      "files": [
+        "tests/test_*.py"
+      ]
+    },
+    "returncode": 0,
+    "elapsed_seconds": 1452.1335008670576,
+    "original_campaign_timed_out": true,
+    "original_campaign_restarted": false,
+    "firmware_bounds_changed": false,
+    "hardware_actions": false
+  },
+  "final_supervisor": {
+    "argv": [
+      "python3",
+      "out/publication/run-source-setup-final-phase.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-dispatch-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1452.4053275471088,
+    "log_sha256": "01b02e4f83f93248f3d9f6b2d7cfda08fdac0b7d3e8378306f742965199cd132"
+  },
+  "final_phase_tests": 2181,
+  "final_phase_skips": 88,
+  "parent_tests": 2714,
+  "parent_skips": 15,
+  "explicit_native_controls": {
+    "status": "passed-all-explicit-native-integration-controls",
+    "checks": [
+      {
+        "module": "test_nano_configuration.py",
+        "tests": 4,
+        "log_sha256": "fa9542174c503c59e0d84e51db4d8305f0305744d811a11564e499c5c4f52b49"
+      },
+      {
+        "module": "test_nano_mailbox.py",
+        "tests": 2,
+        "log_sha256": "ca25a3fb420d22efe9a1463aa5b801d879aadbb5c831d82ee004428ec407b6d9"
+      },
+      {
+        "module": "test_nano_mixed_cold.py",
+        "tests": 4,
+        "log_sha256": "99cb9ade5bc642f37715a7c75a7361c5cc7569bb474f4d111cf1e20815e306d6"
+      },
+      {
+        "module": "test_nano_secure_mailbox.py",
+        "tests": 3,
+        "log_sha256": "130b553b30513cc3643352170c34f02c52c5d4973e3a0ea3aa752c2ae4aa8bbe"
+      },
+      {
+        "module": "test_nano_secure_mmio.py",
+        "tests": 3,
+        "log_sha256": "a376735357e92886cedd7f629530eeacf9c932625bbc3c204bff59119e79bb63"
+      },
+      {
+        "module": "test_nano_start_trace.py",
+        "tests": 5,
+        "log_sha256": "38069ef3518b2de7dbe529be19b4265db5bb088fd5096b5c1ae98d7ad626fa42"
+      },
+      {
+        "module": "test_nano_transport.py",
+        "tests": 1,
+        "log_sha256": "42020c691000e2869e6a1b37c7513c958c7ea66bbdefe589ee03c00490e400af"
+      },
+      {
+        "module": "test_nano_rom_build.py",
+        "tests": 1,
+        "log_sha256": "625bc31ea5f30f5dad62b7e2202793236f0778d6212b67c8ef297c78d5752331"
+      },
+      {
+        "module": "test_nano_startup.py",
+        "tests": 7,
+        "log_sha256": "e796d2c704a627982296a2a1fcdaa470b6bfe10c10e5731cea11d5359a4d38e5"
+      }
+    ],
+    "tests": 30,
+    "skips": 0,
+    "pinned_vendor_root": "/home/deano/fes/out/dev/de25-embedded-os/out/terasic-git-restore-tfa",
+    "host_go": "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+    "hardware_actions": false
+  },
+  "CI_assessed": false,
+  "hardware_actions": false,
+  "ordinary_core_loading_accepted": false
+}
