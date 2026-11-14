@@ -142,9 +142,9 @@ outside it against the reference scaled to the preset's nominal 12.0 MHz,
 which holds while the game's delay unit does not change across that step (see
 below). The
 measurement is far finer than the band: the kit's notes spread 0.05% and the
-reference's 1%, and the kit's figures are the same as the 10 November run's
-(840.7 and 499.8 Hz) on a different seal, so this is the machine and not the
-day.
+reference's 1%, and the kit's figures are the same as the 10 November run's on a
+different seal, through this record's own analyser — 840.70 against 840.72 Hz
+and 499.78 against 499.79 — so this is the machine and not the day.
 
 **This is two captures a side, not the three the method asked for**, and
 `pitch.json` names all four: one kit capture on this package (`g1`) with the 10
@@ -163,8 +163,17 @@ two keys on Kit B on 4 November, before and after #1453's ISA charges: 859.0
 and 511.8 Hz before, 839.0 and 501.5 Hz after. Against the reference measured
 here, and on this record's own convention of the kit below the reference, that
 is a shortfall of **10.78% and 10.82% *before* #1453**, and 12.85% and 12.62%
-after, against 12.68% and 12.91% today. So #1453 added about two points to
-roughly eleven that were already there. The kit's figures today are within 0.21% and 0.34% of 4 November's, ten
+after, against 12.68% and 12.91% today. So #1453 added about two points (2.07 and 1.80) to
+roughly eleven that were already there.
+
+**Those 4 November figures come from a different estimator**, `u6_tones.py`'s
+envelope pitch, where this record uses autocorrelation, so the sub-percent
+agreement with today's is not by itself evidence that the kit has not moved.
+What is, because it is the same analyser on both: this record's own two kit
+captures, four days and two seals apart, give **840.70 and 840.72 Hz** for key
+`6` and **499.78 and 499.79 Hz** for key `1`. The 4 November figures are used
+here only for the step across #1453, which was measured within that record by
+one estimator throughout. The kit's figures today are within 0.21% and 0.34% of 4 November's, ten
 days and several seals apart, which is the analyser's own resolution: nothing
 recent regressed, and what is new here is the reference.
 
