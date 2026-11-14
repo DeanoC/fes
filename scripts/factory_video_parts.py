@@ -331,7 +331,7 @@ else:
         require(fields['parameters']['gpu_backend']==expected_backend, 'frozen shell GPU backend differs from the authenticated router')
         if st:
             tools = shell_producer._authenticate_atari_st_tools(root, Path(args['toolchain_cache']), gpu_router=args['gpu_router'])
-            database = rom_map.read_database(tools['mistral'].path.parents[2]/'src/mistral', shell_producer.ROM_DATABASE_SHA256)
+            database = rom_map.read_database(rom_map.database_root(tools['mistral'].path), shell_producer.ROM_DATABASE_SHA256)
             evidence = shell_producer.validate_build_evidence(shell, ram_database=database, gpu_backend=expected_backend)
             mapping, map_evidence = rom_map.build_rom_map(database, package.payload_bytes,
                 routed=json.loads(bounded(shell/'routed.json')), lane_rows=shell_producer.FIRMWARE_LANE_ROWS, expected_async_read=0)

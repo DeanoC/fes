@@ -1,0 +1,5 @@
+Warning (276020): Inferred RAM node "pc386_system:system|audio_opl2_queue_rtl_0" from synchronous design logic. Pass-through logic has been added to match the read-during-write behavior of the original design.
+Warning (276020): Inferred RAM node "pc386_system:system|machine_at_pages_rtl_0" from synchronous design logic. Pass-through logic has been added to match the read-during-write behavior of the original design.
+Info (276014): Found 2 instances of uninferred RAM logic
+ Info (276004): RAM logic "pc386_system:system|audio_opl2_opl2_cnt_mem_genblk1_mem_bank_regs_ram" is uninferred due to inappropriate RAM size
+ Info (276004): RAM logic "pc386_system:system|audio_opl2_opl2_control_operators_kon_mem_mem_single_bank_genblk1_mem_bank_regs_ram" is uninferred due to inappropriate RAM size

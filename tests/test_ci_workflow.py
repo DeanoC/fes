@@ -85,11 +85,22 @@ class ParentWorkflowTests(unittest.TestCase):
             '      - name: Simulate selected core scenarios\n', 1)[0]
         condition = ' '.join(step.split('if: >-', 1)[1].split('run:', 1)[0].split())
         self.assertEqual(condition, "matrix.target == 'sim-fes-pcxt-dos' || matrix.target == 'sim-fes-pc386-fesenv' "
+                                    "|| matrix.target == 'sim-fes-pc386-mem' "
                                     "|| matrix.target == 'sim-fes-pc386-a20' || matrix.target == 'sim-fes-pc386-c2xx' "
                                     "|| matrix.target == 'sim-fes-pc386-wait' || matrix.target == 'sim-fes-pc386-scroll' "
                                     "|| matrix.target == 'sim-fes-pc386-speaker' || "
                                     "matrix.target == 'sim-fes-pc386-cpu-profile'")
         self.assertIn('sudo apt-get update && sudo apt-get install -y mtools', step)
+
+    def test_pc386_full_tier_mem_target_boots_and_checks_games_image(self):
+        root = Path(__file__).resolve().parents[1]
+        result = subprocess.run(['make', '-n', '-C', str(root / 'sources/misteross'), 'sim-fes-pc386-mem'],
+                                capture_output=True, text=True, check=True)
+        command = ' '.join(result.stdout.split())
+        for required in ('--suite boot', '--image games', '--cpu oracle', "--type 'mem|'",
+                         "--expect 'Largest executable program size'", '--limit-seconds 10', '--download'):
+            with self.subTest(required=required):
+                self.assertIn(required, command)
 
     def test_pcxt_fixture_test_has_image_tools(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
