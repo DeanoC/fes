@@ -374,8 +374,19 @@ The third is in CI rather than a local sweep, and it is latent on main.
   against those headers, and a hand-edited fixture could not have produced it.
   With that fixture in place this branch passes `build_test.RecipeTests`, 22
   tests; restored to main's, it fails again. So the red check here clears when
-  #1843 lands, with no change to this PR. The structural half of #1842 stays
-  open, and is the half worth more.
+  #1843 lands, with no change to this PR.
+
+  The structural half — the half worth more — is #1846, which makes a change to
+  the receipt's captured inputs select the fpga lane that validates them.
+  Checked here by reverting only `scripts/affected.py` to main's version in a
+  clean worktree at that PR's head: its new test then fails with 51 subTest
+  failures, one per captured file that did not select the lane before, and
+  passes with the new predicate. So the test is wired to the predicate rather
+  than restating it, and it would have caught #1842 before it happened. The two
+  PRs are independent — #1846 is cut from `origin/main`, does not contain the
+  fixture branch and does not touch the fixture — so they can land in either
+  order, though #1843 first avoids turning a latent failure into a visible one
+  with no fix available.
 
 **The sweep is green once the first two are accounted for.** All 37 commands in
 `test_changed.py --plan-only` pass: commands 0–11 at `19443449b`, where the
