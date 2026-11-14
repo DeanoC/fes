@@ -24,8 +24,14 @@ void TestApplicationAudioPolicyAndFailureOrdering()
 	assert(video.BringUpCustom(kDeadline, true).error.ok());
 	const auto& calls = fixture.i2c.calls;
 	assert(calls[1].address == 0x44 && calls[1].value == 0x11);
+	// The verified link, then its PLL lock and detected mode, are the last
+	// reads before sample packets are enabled.
+	assert(calls[calls.size()-4].type == Type::read &&
+		calls[calls.size()-4].address == 0x42);
+	assert(calls[calls.size()-3].type == Type::read &&
+		calls[calls.size()-3].address == 0x9e);
 	assert(calls[calls.size()-2].type == Type::read &&
-		calls[calls.size()-2].address == 0x42);
+		calls[calls.size()-2].address == 0x3e);
 	assert(calls.back().address == 0x44 && calls.back().value == 0x79);
 	const std::size_t enabled_calls = calls.size();
 	assert(video.Quiesce(kDeadline).error.ok());

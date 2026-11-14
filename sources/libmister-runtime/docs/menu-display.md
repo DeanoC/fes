@@ -184,6 +184,175 @@ bytes after a request or commit newline are rejected rather than silently
 consumed. Split JSON and ancillary delivery remain in their request phase.
 Multiple, misplaced or truncated descriptors are rejected and closed.
 
+### Idle display health
+
+A confirmed present proves that one frame reached scanout. It says nothing
+about the next minute. While the idle menu is what is on screen, and no core
+session owns the display, a status request paces a live re-read of the
+display registers and, where the runtime owns the transmitter, three
+read-only ADV7513 registers: `0x42` (hot plug and Rx sense), `0x9e` (bit 4,
+pixel PLL lock) and `0x3e` (the detected VIC in bits 7:2; 720p60 is 4). The
+re-read happens at most once a second, never on the present path, and writes
+nothing. It also runs after that status reply has been sent, never before:
+the caller waits on neither the reads nor the recovery a lost picture takes,
+and the next status carries the result. A reply is complete at its newline,
+which is where a client's round trip ends; the daemon closes that connection
+only after the deferred check, so a client that read to end of file instead
+would wait the check out.
+
+Status then carries `menu_display.live` with `enabled`, `faulted`,
+`quiesced`, `displayed_sequence`, `scanout_frame`, `underflows_total` and
+`recovery_abandoned`, plus a nested
+`transmitter` object with `hot_plug`, `rx_sense`, `pll_lock` and `vic` when
+the transmitter was read. Those four reads succeed or fail together, so they
+are one object rather than four optional members. `live.underflows_total` is
+the hardware's absolute counter since the display was programmed, not the
+per-present delta the sibling `menu_display.underflows` carries: the
+one-scanline per-present cap does not apply to it. The whole `live` member is
+absent until a check has measured something: absent is "not measured", not
+"healthy". A health transition is logged once, under operation
+`menu_display_health`. The displayed sequence advances with every present and
+is logged but is not itself a transition; the verdict that it no longer
+matches the committed frame is.
+
+`live.displayed_sequence` is a sample: the register as that check read it,
+kept for the kit log and for diagnostics. It is not something a client
+compares against the sequence its own present returned. The check runs about
+once a second and a present happens whenever the UI changes, so after any
+present the published sample is one behind the committed frame until the
+next check; a client subtracting the two calls a healthy display lost,
+uploads a complete frame to "recover", and advances the sequence with that
+present.
+
+How often that repeats is timing this code does not control. The sample is
+refreshed only by the check that follows a status reply, and that check is
+paced to one per second whoever asks for it, so a client whose own status
+stream is effectively the sole driver of the check measures before every
+present it provokes and can stay one behind indefinitely. Any other status
+traffic at another phase refreshes the sample after the present instead and
+ends it. A failing read can extend it, but not unconditionally: a check whose
+display-register read fails consumes its pacing slot and deliberately
+publishes nothing, so the sample stays frozen. For presents to keep moving the
+committed sequence meanwhile, those same reads have to be succeeding on the
+present path -- `PresentMenuSlot` commits the sequence only after its own
+`ReadInfo` succeeds -- so a frozen sample alongside advancing presents needs
+failures intermittent enough to hit the deferred checks and miss the presents
+between them. A failure of the transmitter reads alone does not freeze the
+sample at all: `ReadIdleDisplayLive` still publishes the display half.
+
+What was measured, on 2026-11-13 on Kit B against image
+`179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018`: two
+activations each of runtime commit `b9f7052617b33b42067f5f9842af2add5132e0fa`
+(the pre-verdict head, kit-software bundle `0360cfc3`) and
+`1f5616b6b4e18232e2a5e5c85b4263b3dc1f56fd` (bundle `b765ee45`), with a UI
+change driven by injected key presses and the committed sequence sampled once
+a second for twenty seconds either side. The one-behind sample is real and was
+observed directly on `1f5616b6b` -- `live.displayed_sequence` 67 against a
+committed 68, converging on the next sample, with the verdict reading
+`unknown` at that moment. No extra presents appeared on `b9f705261` in that
+configuration. That run does not bound the cost either way: a client sampling
+status is itself what drives the check, so the instrument is in the causal
+path and the measurement cannot say how often the phases line up on a kit
+nobody is polling.
+
+`live.scanout_frame` is that comparison, made inside the check where
+`live.displayed_sequence` and the committed sequence are read in the same
+breath. It is `"matching"` when scanout is showing the committed frame,
+`"mismatched"` when it is not, and `"unknown"` when no measurement describes
+the frame now on the wire. It reports that comparison and nothing else. A
+display that is down for another reason is first disabled, faulted or
+quiesced, and the check tests those before the sequence; those facts are on
+the sample in their own right, and the verdict does not restate them. It also
+does not speak for the transmitter: a display whose pixel PLL is unlocked, whose
+sink sense is gone or whose mode is not 720p60 is still scanning out the frame
+the runtime committed, so the verdict stays `"matching"` while the runtime
+recovers that loss itself through the bounded reactivation below.
+
+Every write that moves the committed sequence sets the verdict to `"unknown"`,
+because the committed frame has moved and the last check never saw the new
+one: the present commit, hiding a session plane, and the quiesce inside the
+session-plane failure path. The published status copy is dropped on the
+present path too, not only the runtime's internal one -- a check is what
+refreshes that copy, it is up to a second away, and without the drop a reply
+read after a present would carry a verdict measured against the frame before
+it. Only the verdict is dropped -- the rest of the sample, `enabled`,
+`faulted`, `quiesced` and `recovery_abandoned` above all, stays published,
+since a client that sees no live reads at all goes back to presenting into a
+loss the runtime gave up on.
+
+A client treats only `"mismatched"` as a loss: an unknown verdict costs at
+most one more probe interval before the next check speaks, and that is the
+direction to err in. That bound assumes the checks keep reading. A check whose
+display-register read fails publishes nothing at all, deliberately, so that it cannot
+retract a give-up that is still in force, and the verdict then stands at
+whatever the last successful check or the last present left it for as long as
+the reads keep failing. The same failure fails presents, so a client learns of
+it through `available` and present errors rather than through this member. The
+member is absent from a runtime older than the verdict, which reads the same
+way.
+
+The read is paced at most once a second, and a successful menu program starts
+that interval, so the first read of a freshly programmed display is one whole
+interval later. The pixel PLL and the sink's detected mode need frames to
+settle after bring-up, and a reading taken at the activation moment would
+call a healthy display lost.
+
+A scanout that is disabled, faulted, unexpectedly quiesced or showing a
+sequence other than the committed frame is a lost picture at once. An
+unlocked PLL, a lost Rx sense or a mode that is not 720p60 is a lost picture
+on two consecutive readings, because those three settle over several frames.
+A loss takes the same bounded reactivation as a failed present: at most two
+menu reprograms in ten minutes. Once that budget is spent the loss is logged
+once and the display is left exactly as it is; nothing retries in a loop, and
+nothing is reprogrammed while a core session owns the display. A register
+that could not be read is not evidence of a loss and only logs; a display
+that cannot be read at all is logged on the first such sample and again when
+it becomes readable, not on every tick in between. Such a check also
+publishes nothing: `live` keeps whatever the registers last answered, because
+an unmeasured sample would otherwise overwrite a measured one and retract a
+give-up that is still in force.
+
+That budget window slides, so a condition a reprogram cannot clear would
+otherwise interrupt the idle Home twice every ten minutes forever. A
+reactivation records the reason it was spent on; if the next check reports
+the same reason, it is latched, logged once under phase `latched`, and spends
+no further budget until a healthy read clears it.
+
+Both give-ups -- a latched reason and a spent budget -- publish themselves as
+`live.recovery_abandoned`. It is the runtime's verdict rather than a register
+read: true once this loss will get no further reactivation, false on a
+healthy display, false while a transmitter loss is still settling, and false
+while the loss is still eligible for one. A healthy read clears every latch
+and with it the flag. The field exists because a client that sees a lost
+picture and nothing else would present to force recovery, and that present
+would spend from the present path exactly the budget the idle check withheld,
+or clear the menu package and drop the kit to splash. A client must therefore
+not present to recover an abandoned loss while it is set. It must not pull a
+supervised readiness marker down over it either: that marker is what stops
+and restarts the kit's software group, so withdrawing it would restart agent,
+runtime and launcher every few minutes, reprogram the same dead display on
+every restart, and block the bundle activation that could ship a fix -- the
+reprogram loop this policy gives the loss up to avoid. The kit log names the
+loss, and the picture stays gone until the hardware changes.
+
+FogCast's probe of an unchanged frame requires `live.enabled`, no
+`live.faulted` or `live.quiesced`, and `live.scanout_frame` not
+`"mismatched"`. It does not compare `live.displayed_sequence` with anything
+of its own. A runtime that measures the display but publishes no
+`scanout_frame` is older than the verdict, and the probe falls back to the
+sampled sequence there, as it does to the cached
+`menu_display.displayed_sequence` against a runtime that reports no `live`
+at all. Anything else sends a complete frame instead of acknowledging one -- unless
+`live.recovery_abandoned` is set, where it sends nothing at all and keeps
+probing on its interval, so ordinary presenting resumes on the first status
+that clears the flag. The recovery present FogCast sends when a backoff
+expires carries an unchanged frame too, and it is refused the same way, on
+the status read for that present rather than on an older one: the failure
+that armed the backoff is also what can have hidden the verdict until then.
+A frame whose pixels actually changed is still presented, and readiness is
+deliberately left where it was. An older runtime never sends the field, so it
+behaves exactly as before.
+
 ### Lifecycle
 
 Game launch, contained diagnostics and Stop revoke old menu generations.

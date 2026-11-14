@@ -30,6 +30,33 @@ public:
   menu_status.geometry={1280,720,5120,3686400,4194304};return {{},true,"fes.menu"};
  }
  mister::MenuDisplayStatus menu_display() const override {return menu_status;}
+ // The live re-read of the idle display. A scripted loss retires the menu
+ // exactly as the native hardware's bounded failure path does.
+ mister::Error CheckIdleDisplayHealth() override {
+  ++check_idle_display_calls;
+  // A test hook for the work this call stands for: GP and I2C reads, and,
+  // on a loss, a whole reprogram. Nothing may wait on it.
+  if(on_check_idle_display)on_check_idle_display();
+  // Native hardware compares the sample it just read against the committed
+  // sequence and publishes the answer here, so the fake publishes one too:
+  // a healthy check always finds the frame it committed.
+  if(check_idle_display_result.ok()){
+   menu_status.live.read=true;menu_status.live.enabled=true;
+   menu_status.live.scanout_frame=mister::MenuScanoutFrame::matching;
+   return {};
+  }
+  menu_status.available=false;menu_status.error=check_idle_display_result;
+  return check_idle_display_result;
+ }
+ // Native hardware answers this from its own 1 s pacing; here a test says
+ // when a read is due, so the runtime's fencing can be exercised directly.
+ bool IdleDisplayHealthDue() const override {
+  return idle_display_health_due&&menu_status.available&&!menu_status.session;
+ }
+ bool idle_display_health_due=true;
+ unsigned check_idle_display_calls=0;
+ std::function<void()> on_check_idle_display;
+ mister::Error check_idle_display_result;
  // The grant is ordinary memory here: both 4 MiB slots, plus the lists and
  // heap with a blitter, mappable by clients.
  mister::Error ShareMenuWindow(int* fd) override {
@@ -51,7 +78,11 @@ public:
    if(menu_status.session){menu_status.available=false;menu_status.error=menu_present_result;}
    return menu_present_result;
   }
-  menu_slot=slot;info->geometry=menu_status.geometry;info->displayed_sequence=++menu_status.displayed_sequence;return {};
+  // The commit moves the committed sequence, so the last verdict no longer
+  // describes what is on the wire -- native hardware drops it here too.
+  menu_slot=slot;info->geometry=menu_status.geometry;info->displayed_sequence=++menu_status.displayed_sequence;
+  menu_status.live.scanout_frame=mister::MenuScanoutFrame::unknown;
+  return {};
  }
  std::uint8_t menu_slot=0;
  std::vector<std::uint8_t> menu_present_slots;

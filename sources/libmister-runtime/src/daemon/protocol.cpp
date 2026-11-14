@@ -807,6 +807,46 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
   output.Append(",\"slots\":");output.Append(std::to_string(native::generated::FesApplicationMenuSlotCount));
   output.Append(",\"format\":\"bgrx8888\",\"displayed_sequence\":");output.Append(std::to_string(menu.displayed_sequence));
   if(menu.frame_mapping)output.Append(",\"frame_mapping\":true");
+  // What the display and transmitter reported the last time they were read,
+  // present only once a health check has measured them. A client that does
+  // not know the member leaves it alone; a client that does must not accept
+  // an unchanged frame while it says scanout is gone.
+  if(menu.live.read) {
+   const auto& live=menu.live;
+   output.Append(",\"live\":{\"enabled\":");output.Append(live.enabled?"true":"false");
+   output.Append(",\"faulted\":");output.Append(live.faulted?"true":"false");
+   output.Append(",\"quiesced\":");output.Append(live.quiesced?"true":"false");
+   // A sample of the register, for logs and diagnostics. It is not what a
+   // client compares against the sequence its own present returned: this
+   // was read when the check ran, the present happened afterwards, and the
+   // two instants disagree by design. "scanout_frame" is the comparison.
+   output.Append(",\"displayed_sequence\":");output.Append(std::to_string(live.displayed_sequence));
+   // The runtime's own verdict on whether scanout is showing the committed
+   // frame, made where both numbers are read together. "unknown" means no
+   // measurement describes the frame now on the wire, which a present makes
+   // true until the next check; only "mismatched" is a loss.
+   output.Append(",\"scanout_frame\":\"");output.Append(MenuScanoutFrameName(live.scanout_frame));
+   output.Append("\"");
+   // The absolute hardware counter, not the per-present delta that the
+   // sibling "underflows" carries, so it takes its own name.
+   output.Append(",\"underflows_total\":");output.Append(std::to_string(live.underflows_total));
+   // Not a register read but the runtime's own verdict on it: this loss gets
+   // no further reactivation, either because one already ran for it and did
+   // not clear it or because the bounded budget is spent. A client that
+   // presents to force recovery only spends from the present path the budget
+   // this policy kept, and must not read "available" as a picture either.
+   output.Append(",\"recovery_abandoned\":");output.Append(live.recovery_abandoned?"true":"false");
+   // The transmitter reads succeed or fail together, so they are one
+   // object: a client cannot see two of the four and guess at the rest.
+   if(live.link) {
+    output.Append(",\"transmitter\":{\"hot_plug\":");output.Append(live.hot_plug?"true":"false");
+    output.Append(",\"rx_sense\":");output.Append(live.rx_sense?"true":"false");
+    output.Append(",\"pll_lock\":");output.Append(live.pll_lock?"true":"false");
+    output.Append(",\"vic\":");output.Append(std::to_string(live.vic));
+    output.Append("}");
+   }
+   output.Append("}");
+  }
   output.Append(",\"underflows\":");output.Append(std::to_string(menu.underflows));
   output.Append(",\"error\":");AppendError(&output,menu.error);output.Append("}");
  }

@@ -1393,6 +1393,42 @@ void TestMenuProtocolRequestsAndStatus()
  assert(blitter.find("\"menu_frame\":{\"generation\":1,\"format\":\"bgrx8888\",\"slots\":2,\"slot_bytes\":4194304,"
   "\"blitter\":{\"minor\":1,\"list_offset\":8388608,\"commands\":32768,\"command_bytes\":32,\"heap_offset\":16777216,\"heap_bytes\":67108864}}")!=std::string::npos);
 
+ // The live re-read is absent until a health check has measured something,
+ // so a client cannot mistake "not measured" for a healthy display. The
+ // transmitter reads are present only when the board owns the ADV7513.
+ assert(listed.find("\"live\"")==std::string::npos);
+ mister::Status live_status=status;
+ live_status.menu_display.live.read=true;live_status.menu_display.live.enabled=true;
+ live_status.menu_display.live.displayed_sequence=9;live_status.menu_display.live.underflows_total=3;
+ const auto display_only=mister::daemon::EncodeResponse(2,true,live_status,"test",nullptr,nullptr,nullptr);
+ // An unmeasured verdict says so rather than leaving the client to compare
+ // the sampled sequence with its own present, which are two instants apart.
+ assert(display_only.find("\"live\":{\"enabled\":true,\"faulted\":false,\"quiesced\":false,"
+  "\"displayed_sequence\":9,\"scanout_frame\":\"unknown\",\"underflows_total\":3,"
+  "\"recovery_abandoned\":false}")!=std::string::npos);
+ // The two measured verdicts travel beside the sample they were made from.
+ live_status.menu_display.live.scanout_frame=mister::MenuScanoutFrame::matching;
+ const auto matching=mister::daemon::EncodeResponse(2,true,live_status,"test",nullptr,nullptr,nullptr);
+ assert(matching.find("\"displayed_sequence\":9,\"scanout_frame\":\"matching\",")!=std::string::npos);
+ live_status.menu_display.live.scanout_frame=mister::MenuScanoutFrame::mismatched;
+ const auto mismatched=mister::daemon::EncodeResponse(2,true,live_status,"test",nullptr,nullptr,nullptr);
+ assert(mismatched.find("\"displayed_sequence\":9,\"scanout_frame\":\"mismatched\",")!=std::string::npos);
+ live_status.menu_display.live.scanout_frame=mister::MenuScanoutFrame::unknown;
+ // A loss the runtime has stopped recovering travels with the sample that
+ // describes it: a client must not present to force recovery it withheld.
+ live_status.menu_display.live.recovery_abandoned=true;
+ const auto abandoned=mister::daemon::EncodeResponse(2,true,live_status,"test",nullptr,nullptr,nullptr);
+ assert(abandoned.find("\"underflows_total\":3,\"recovery_abandoned\":true}")!=std::string::npos);
+ live_status.menu_display.live.recovery_abandoned=false;
+ live_status.menu_display.live.link=true;live_status.menu_display.live.hot_plug=true;
+ live_status.menu_display.live.rx_sense=true;live_status.menu_display.live.pll_lock=true;
+ live_status.menu_display.live.vic=4;
+ const auto with_link=mister::daemon::EncodeResponse(2,true,live_status,"test",nullptr,nullptr,nullptr);
+ assert(with_link.find("\"live\":{\"enabled\":true,\"faulted\":false,\"quiesced\":false,"
+  "\"displayed_sequence\":9,\"scanout_frame\":\"unknown\",\"underflows_total\":3,\"recovery_abandoned\":false,"
+  "\"transmitter\":{\"hot_plug\":true,\"rx_sense\":true,"
+  "\"pll_lock\":true,\"vic\":4}}")!=std::string::npos);
+
  status.menu_display.frame_mapping=true;granted.frame_mapping=true;granted.blitter=false;
  const auto frame_mapping=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&granted);
  const auto marker=frame_mapping.find("\"frame_mapping\":true");
