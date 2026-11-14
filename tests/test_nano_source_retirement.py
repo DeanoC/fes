@@ -72,7 +72,7 @@ class SourceRetirementTests(unittest.TestCase):
     def run_model(self, name, joined=False, arguments=()):
         binary = self.output / name
         sources = [FIXTURE / (name + ".c"), FW / "source_retire.c", FW / "command_queue.c", FW / "input_tables.c"]
-        if name in ("warm_probe_test", "setup_validation_test"):
+        if name in ("warm_probe_test", "setup_validation_test", "setup_batch_cost_test"):
             sources += [self.output / "probe_setup.c"]
         if name == "retained_window_gate_test":
             sources += [FW / "nano_smmu.c", FW / "nano_sdm_reader.c"]
@@ -135,6 +135,11 @@ class SourceRetirementTests(unittest.TestCase):
         self.assertEqual(report["cases"], 8)
         self.assertEqual(report["eight_write_failures"], 3)
         self.assertTrue(report["callbacks_poisoned"])
+
+    def test_private_table_batches_cover_all_words_with_finite_cold_and_warm_cost(self):
+        report = self.run_model("setup_batch_cost_test")
+        self.assertEqual(report["cases"], 12)
+        self.assertEqual(report["max_words"], 128)
 
     def test_preparation_completion_and_final_checks_keep_separate_finite_bounds(self):
         report = self.run_model("setup_validation_test")

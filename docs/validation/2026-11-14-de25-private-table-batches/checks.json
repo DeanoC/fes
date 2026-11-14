@@ -1,0 +1,81 @@
+{
+  "status": "passed-scoped-table-batch-targeted-checks",
+  "tests": 28,
+  "skips": 0,
+  "cost_cases": 12,
+  "checks": {
+    "table-batch-focused-scoped": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_source_retirement.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-table-batch-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 81.84901236905716,
+      "log_sha256": "a0ad981199d5abb6ea03cc36407a89d7f0253831e0d77684e626d3e8c9409f02"
+    },
+    "table-batch-cost-controls": {
+      "argv": [
+        "python3",
+        "out/publication/check-table-batch-controls.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-table-batch-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.6018457140307873,
+      "log_sha256": "f8c2e9be50f704da166a65cca55219733f4fd91045d13d12e29ff16835b01631"
+    },
+    "table-batch-vendor-objects": {
+      "argv": [
+        "python3",
+        "out/publication/compile-table-batch.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-table-batch-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.602241330081597,
+      "log_sha256": "93fdc6e969331eba85ed7ed54a1fd5a0db1b56101370950e1b1b0455c9a47317"
+    },
+    "cost_controls": [
+      {
+        "words": 32,
+        "variant": "actual-frozen-predecessor",
+        "returncode": -6,
+        "stderr": "NANO_BATCH_COST words=32 warm=0 scenario=0 error=-110 first=-110 queue=0 elapsed=1000657\nmodel: /home/deano/fes/out/dev/de25-table-batch-proof/out/table-batch-controls/32/model.c:72: main: Assertion `!error && p->prepared && !p->failed && !nano_probe_arm(p,&receipt)' failed.\n"
+      },
+      {
+        "words": 64,
+        "variant": "synthetic-scoped-alternative",
+        "returncode": -6,
+        "stderr": "NANO_BATCH_COST words=64 warm=1 scenario=0 error=-110 first=-110 queue=0 elapsed=1000417\nmodel: /home/deano/fes/out/dev/de25-table-batch-proof/out/table-batch-controls/64/model.c:72: main: Assertion `!error && p->prepared && !p->failed && !nano_probe_arm(p,&receipt)' failed.\n"
+      },
+      {
+        "words": 128,
+        "variant": "scoped-candidate",
+        "returncode": 0,
+        "stderr": ""
+      }
+    ]
+  },
+  "compiled_sources": {
+    "/home/deano/fes/out/dev/de25-table-batch-proof/platform/embedded/firmware/sdm_input_probe_setup.c": "f6aa846a64bf64bcc379b5a6467041cd7b3658c734451f817f12dc387d96f442",
+    "/home/deano/fes/out/dev/de25-table-batch-proof/platform/embedded/firmware/command_queue.c": "03398a69e22cf0aac05e7e2eacaeaa82db801307c3c1dabbe71ce6e4a26a64e9",
+    "/home/deano/fes/out/dev/de25-table-batch-proof/platform/embedded/firmware/source_retire.c": "b8eac234f523972d8d6e0646de0ba53ed938a46a5c3f76014f0a8f1995e3f4d5",
+    "/home/deano/fes/out/dev/de25-table-batch-proof/platform/embedded/firmware/command_queue.h": "59ce58dea8a750bcb84ca951490fea0a8fa868a548e628f467d3dfb1a6f6b940",
+    "/home/deano/fes/out/dev/de25-table-batch-proof/platform/embedded/firmware/sdm_input_probe_setup.h": "625f85f7725d18861217117bc03f897ee352159906c6e523c2539c2ac2980a79",
+    "/home/deano/fes/out/dev/de25-table-batch-proof/platform/embedded/firmware/nano_sdm_source_platform.inc": "50a2014ef6b66632eabfe5a9578765e4b70924ff0ae39704665ea03acef65bd5"
+  },
+  "model_costs_are_injected": true,
+  "whole_EL3_stack_qualified": false,
+  "matched_candidate_built": false,
+  "hardware_accepted": false,
+  "whole_affected_campaign_passed": false
+}

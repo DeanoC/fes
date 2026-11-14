@@ -141,8 +141,8 @@ static uint64_t table_word(struct nano_probe_setup *s,uint32_t offset)
 }
 static int memory_block(struct nano_probe_setup *s,uint32_t offset,unsigned words,unsigned writing)
 {
-    uint64_t values[NANO_PROBE_MEMORY_WORDS];
-    if (!words || words>NANO_PROBE_MEMORY_WORDS || offset%8 ||
+    uint64_t values[NANO_PROBE_SETUP_WORDS];
+    if (!words || words>NANO_PROBE_SETUP_WORDS || offset%8 ||
         !(((s->input_selected ? nano_sdm_input_table_range(offset,words*8) :
            (offset<0x5000 && words*8<=0x5000-offset))) ||
           (!writing && offset>=NANO_PROBE_CMDQ && offset<NANO_PROBE_CMDQ+128 && words*8<=NANO_PROBE_CMDQ+128-offset) ||
@@ -322,18 +322,18 @@ int nano_probe_init_rearmed_input(struct nano_probe_setup *s,struct nano_probe_b
 }
 static int previous_tables(struct nano_probe_setup *s)
 {
- uint64_t values[NANO_PROBE_MEMORY_WORDS];
+ uint64_t values[NANO_PROBE_SETUP_WORDS];
  for(uint32_t at=0;at<0xc000;at+=sizeof(values)){
   if(!nano_sdm_input_table_range(at,sizeof(values)))continue;
   if(guard(s))return s->first_error;
   s->trusted_io.barrier(s->trusted_io.context);if(!integrity(s))return fail(s,-13);
-  s->loads+=NANO_PROBE_MEMORY_WORDS;
-  int error=s->trusted_io.load_block(s->trusted_io.context,at,values,NANO_PROBE_MEMORY_WORDS);
+  s->loads+=NANO_PROBE_SETUP_WORDS;
+  int error=s->trusted_io.load_block(s->trusted_io.context,at,values,NANO_PROBE_SETUP_WORDS);
   if(!integrity(s))return fail(s,-13);
   s->trusted_io.barrier(s->trusted_io.context);if(!integrity(s))return fail(s,-13);
   if(error)return fail(s,error);
   if(guard(s))return s->first_error;
-  for(unsigned n=0;n<NANO_PROBE_MEMORY_WORDS;n++){
+  for(unsigned n=0;n<NANO_PROBE_SETUP_WORDS;n++){
    uint64_t expected=0;
    if(nano_sdm_input_words(&s->previous_snapshot.binding,at+n*8,&expected,1) || values[n]!=expected)return fail(s,-5);
   }
@@ -355,10 +355,10 @@ int nano_probe_prepare(struct nano_probe_setup *s,struct nano_probe_receipt *out
     if (!s->warm && (clear(s,0,first_end) || (s->input_selected && clear(s,0xa000,0x2000)) ||
         clear(s,NANO_PROBE_CMDQ,128) || clear(s,NANO_PROBE_EVTQ,256)))return s->first_error;
     for(unsigned writing=1;writing<3;writing++){
-        for(unsigned offset=0;offset<first_end;offset+=NANO_PROBE_MEMORY_WORDS*8)
-            if(memory_block(s,offset,NANO_PROBE_MEMORY_WORDS,writing==1))return s->first_error;
-        if(s->input_selected)for(unsigned offset=0xa000;offset<0xc000;offset+=NANO_PROBE_MEMORY_WORDS*8)
-            if(memory_block(s,offset,NANO_PROBE_MEMORY_WORDS,writing==1))return s->first_error;
+        for(unsigned offset=0;offset<first_end;offset+=NANO_PROBE_SETUP_WORDS*8)
+            if(memory_block(s,offset,NANO_PROBE_SETUP_WORDS,writing==1))return s->first_error;
+        if(s->input_selected)for(unsigned offset=0xa000;offset<0xc000;offset+=NANO_PROBE_SETUP_WORDS*8)
+            if(memory_block(s,offset,NANO_PROBE_SETUP_WORDS,writing==1))return s->first_error;
     }
     if (!s->warm && (memory_block(s,NANO_PROBE_CMDQ,16,0) || memory_block(s,NANO_PROBE_EVTQ,32,0))) return s->first_error;
     if (!s->warm && (identity(s) || controls(s,0) || wr(s,0x28,0x820) ||

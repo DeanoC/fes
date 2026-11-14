@@ -33,6 +33,16 @@ policy. Retirement accepts only a timely completed setup with its selected
 finite validation history; a retirement-policy record cannot stand in for it.
 These changed firmware bytes require fresh matched-image and hardware checks.
 
+The [preparation-only memory batching change](../../../docs/validation/2026-11-14-de25-private-table-batches/README.md)
+targets the subsequent enclosing preparation deadline without widening it.
+Only unpublished preparation table callbacks grow to a fixed 1 KiB; every
+word/readback and every batch's ownership/time checks remain required. Source,
+retirement and control observations keep their separate 32-word batches, and
+MMIO/active queue operations stay individually guarded. Cold/warm cost models
+and vendor AArch64 objects pass; larger stack frames are recorded separately
+from whole-EL3 stack qualification. A new matched image and hardware check remain
+required before accepting the changed firmware.
+
 The selected format-14 source-continuation prototype returns to the native
 configuration checks only after one successful retirement and a fresh live
 engine/source/table/disabled-register check under the original one-second

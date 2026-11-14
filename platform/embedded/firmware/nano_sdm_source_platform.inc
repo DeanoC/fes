@@ -279,7 +279,7 @@ static int sdm_probe_load(void *context,uint32_t offset,uint64_t *value)
  * MMIO operations and active queue writes keep their existing individual guards. */
 static int sdm_probe_store_block(void *context,uint32_t offset,const uint64_t *values,unsigned words)
 {
-    if(context!=&sdm_arm_probe || !values || !words || words>NANO_PROBE_MEMORY_WORDS ||
+    if(context!=&sdm_arm_probe || !values || !words || words>NANO_PROBE_SETUP_WORDS ||
        !nano_sdm_input_table_range(offset,words*8) || sdm_arm_probe.writes ||
        !sdm_arm_probe.preparing || sdm_arm_probe.prepared || sdm_arm_probe.arming || sdm_arm_probe.armed || sdm_arm_probe.failed) return -1;
     for(unsigned n=0;n<words;n++)FES_PROBE_STORE64(NANO_PROBE_BASE+offset+n*8,values[n]);
@@ -287,7 +287,7 @@ static int sdm_probe_store_block(void *context,uint32_t offset,const uint64_t *v
 }
 static int sdm_probe_load_block(void *context,uint32_t offset,uint64_t *values,unsigned words)
 {
-    if(context!=&sdm_arm_probe || !values || !words || words>NANO_PROBE_MEMORY_WORDS ||
+    if(context!=&sdm_arm_probe || !values || !words || words>NANO_PROBE_SETUP_WORDS ||
        !sdm_probe_range(offset,words*8) || sdm_arm_probe.writes || !sdm_arm_probe.preparing || sdm_arm_probe.prepared ||
        sdm_arm_probe.arming || sdm_arm_probe.armed || sdm_arm_probe.failed) return -1;
     for(unsigned n=0;n<words;n++)values[n]=FES_PROBE_LOAD64(NANO_PROBE_BASE+offset+n*8);

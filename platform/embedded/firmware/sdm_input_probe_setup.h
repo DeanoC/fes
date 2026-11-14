@@ -7,6 +7,8 @@
 #define NANO_PROBE_BASE UINT64_C(0x94000000)
 #define NANO_PROBE_BYTES 0x10000U
 #define NANO_PROBE_MEMORY_WORDS 32U
+/* Unpublished preparation memory only; other observation phases stay at 32. */
+#define NANO_PROBE_SETUP_WORDS 128U
 #define NANO_PROBE_ROOT 0x4000U
 #define NANO_PROBE_CMDQ 0x8000U
 #define NANO_PROBE_EVTQ 0x9000U
@@ -29,7 +31,7 @@ struct nano_probe_io {
     int (*store64)(void *,uint32_t arena_offset,uint64_t);
     int (*load64)(void *,uint32_t arena_offset,uint64_t *);
     /* Initial unpublished table setup only. One callback transfers at most
-     * 32 words (256 bytes) of the private fixed arena, with full ownership and
+     * 128 words (1 KiB) of the private fixed arena, with full ownership and
      * elapsed-time checks immediately before and after the callback. All
      * bytes are checked before the first SMMU register write. No grouping of
      * peripheral registers or active queue operations is permitted. */
