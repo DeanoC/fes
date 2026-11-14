@@ -115,7 +115,7 @@ class RamTestAbiTest(unittest.TestCase):
     def test_parent_authentication_uses_shipped_rate_and_shared_cache(self):
         with patch.object(producer, "authenticate_for", return_value={}) as authenticate:
             self.assertEqual(producer._authenticate_tools(ROOT, cache_root=Path("/tmp/cache")), {})
-            authenticate.assert_called_once_with(ROOT, 100, Path("/tmp/cache"))
+            authenticate.assert_called_once_with(ROOT, 100, Path("/tmp/cache"), "HIP")
 
     def test_mailbox_and_video_are_fes_application(self):
         top = (CORE / "rtl" / "top.v").read_text()
