@@ -184,6 +184,7 @@ that frame finds it on both kits, in runs with no pc386 package loaded at all:
 | `k1767-hil/.../kitA-ramtest-20261113-101501` | **A** | ShadowCast 3 | `home-after-restore.png` | `home_after_restore_classification: REAL_FAILURE`, after `home_start_classification: PASS` |
 | `k1770/runs/kitB-20261113-112300` | B | 4KPRO | `r0-timing.png` and its recheck | #1823 episode |
 | `k1770/runs/kitB-20261113-133036` | B | 4KPRO | `r2-cheaper3.png` and its recheck | #1823 episode |
+| `k1831-hil/runs/kitB-20261114-102055` | B | 4KPRO | `restore0-home.png` | #1831's run, 14 November: restore attempt 0 scored `mean_luma 0.0` with no red panel, and cleared on a later activation |
 
 The Kit A case is #1823's third episode. That run captured a correct FES Home at
 its start (`home-before.png`, 9,620 colours, mean luma 212, OCR reads "Home /
@@ -198,18 +199,23 @@ same runs are lit, so they are not classified here either way.)
 different ADV7513 boards, in the FES menu and Home path with no pc386 core
 present.**
 
-## What a recording of an episode shows, and what it does not
+## An episode delivers black frames; a bring-up delivers none
 
-#1823's Kit B episode has a video recording beside its grab
-(`k1770/runs/kitB-20261113-112300/r0-timing.mkv`). Measured here: 360 frames
-over 6.0 s at 60 fps, every frame's peak grey 0, and no gap over 1 s.
+Three recordings now separate the two states, all reduced per frame here:
 
-That rules out the capture simply stopping. It does **not** show that the sink
-was locked: Powerboat's grabbers are read through a long-lived `ffmpeg` fan-out
-into `v4l2loopback` (`/usr/local/bin/fes-4kpro-fanout`), and a reader of a
+| Recording | What it is | Frames | Result |
+| --- | --- | --- | --- |
+| `k1770/runs/kitB-20261113-112300/r0-timing.mkv` | #1823 episode, Kit B | 360 in 6.0 s at 60 fps | every frame's peak grey 0, no gap over 1 s |
+| `k1831-hil/runs/kitB-20261114-102055/restore0-home.mkv` | #1831's 14 November episode, Kit B | 359 in 6.0 s at 60 fps | the same |
+| `b1`'s luma log, launch `p0n000` | a normal pc386 core load, Kit B | 2,179 in 42 s | **no frames at all** from ~11.5 s to ~17 s, then the picture; 4 black frames at 22.1 s, which are the `cls` the run types |
+
+So a bring-up's own outage shows up in the capture as missing frames, while an
+episode shows up as a full-rate stream of black frames. That is a usable
+signature, and it is the opposite of what a stalled capture would be expected to
+produce — but it does not settle #1833 either way: Powerboat reads both grabbers
+through one long-lived `ffmpeg` fan-out into `v4l2loopback`, and a reader of a
 loopback whose writer has stalled is served the last frame again, which at full
-rate looks exactly like this. A stalled pipeline repeating a black frame and a
-locked link carrying black pixels are not separated by the recording.
+rate looks exactly like an episode if that last frame was black.
 
 ## What this says about #1494
 
