@@ -57,6 +57,10 @@ two-source transport and linked-load path before it becomes selectable.
 Two-source staging retains its parsed sealed map only within that operation,
 reusing it for receipt verification and linking. Publication and restart adoption
 independently validate their retained package bytes.
+Native-video shells also require a matching video part admitted against the
+exact shell in the host's own catalog. The default profile is Direct. If no
+preferred or Direct part is available, launch stops before core-load dispatch
+and reports the missing part as an admission error.
 
 This is the canonical description of the working system.
 
@@ -913,6 +917,11 @@ launch-time `POST /api/v1/session/development-media` (`load_media`). See the FES
 [ZX81 tape media](../../../docs/zx81-tape-media.md).
 
 ### Coleco title selector and cartridge swap
+
+Creating a title with `media_role: "cartridge"` and an imported media digest
+binds that exact-size binary to the package's named cartridge ROM in the same
+catalog transaction as the title. Format-4 titles still need their separately
+selected BIOS; cartridge ROMs are not live media units.
 
 Factory Coleco format-4 packages link the 8 KiB BIOS and 16 KiB cartridge into
 the RBF at launch and do not expose a live media unit. Home and F12 during
