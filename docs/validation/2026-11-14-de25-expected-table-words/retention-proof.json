@@ -1,0 +1,137 @@
+{
+  "status": "passed-expected-table-word-source-and-model-retention",
+  "source_head": "c9f5f9ad42bf549af55e0b5e1b3e21c66863ef89",
+  "source_bundle_prerequisite": "00e546d9cdae5a2d12db012be741a561a0dc432e",
+  "archive": "/home/deano/fes-retained/de25-expected-table-words-20261114-r1/models-and-vendor-object.tar.gz",
+  "archive_sha256": "6d00ad5c0447ffbda4c33ab1b24332ff725c3af32c30bc800e2d8962f0c22fc6",
+  "archive_bytes": 11632600,
+  "files": 5017,
+  "source_sha256": "32be42ec3bbbc148b6a28b10f12882253603fe41cd356ee467eba62d38b077db",
+  "models": 34,
+  "portable_word_fixture": true,
+  "previous_source_counterexample": true,
+  "strict_vendor_object": true,
+  "individual_frames": {
+    "separate": {
+      "bytes": 0,
+      "kind": "static"
+    },
+    "receipt": {
+      "bytes": 80,
+      "kind": "static"
+    },
+    "initialize": {
+      "bytes": 80,
+      "kind": "static"
+    },
+    "integrity": {
+      "bytes": 32,
+      "kind": "static"
+    },
+    "cmd_context": {
+      "bytes": 32,
+      "kind": "static"
+    },
+    "cmd_store": {
+      "bytes": 112,
+      "kind": "static"
+    },
+    "cmd_write": {
+      "bytes": 48,
+      "kind": "static"
+    },
+    "cmd_read": {
+      "bytes": 48,
+      "kind": "static"
+    },
+    "cmd_time": {
+      "bytes": 48,
+      "kind": "static"
+    },
+    "guard": {
+      "bytes": 64,
+      "kind": "static"
+    },
+    "cmd_owns": {
+      "bytes": 32,
+      "kind": "static"
+    },
+    "table_words": {
+      "bytes": 64,
+      "kind": "static"
+    },
+    "memory_block": {
+      "bytes": 1376,
+      "kind": "static"
+    },
+    "previous_tables": {
+      "bytes": 1344,
+      "kind": "static"
+    },
+    "rd": {
+      "bytes": 48,
+      "kind": "static"
+    },
+    "equal": {
+      "bytes": 48,
+      "kind": "static"
+    },
+    "identity": {
+      "bytes": 32,
+      "kind": "static"
+    },
+    "controls": {
+      "bytes": 32,
+      "kind": "static"
+    },
+    "layout": {
+      "bytes": 48,
+      "kind": "static"
+    },
+    "configured": {
+      "bytes": 0,
+      "kind": "static"
+    },
+    "wr": {
+      "bytes": 48,
+      "kind": "static"
+    },
+    "control": {
+      "bytes": 80,
+      "kind": "static"
+    },
+    "clear": {
+      "bytes": 48,
+      "kind": "static"
+    },
+    "cmd_barrier": {
+      "bytes": 32,
+      "kind": "static"
+    },
+    "nano_probe_init": {
+      "bytes": 160,
+      "kind": "static"
+    },
+    "nano_probe_init_input": {
+      "bytes": 176,
+      "kind": "static"
+    },
+    "nano_probe_init_rearmed_input": {
+      "bytes": 192,
+      "kind": "static"
+    },
+    "nano_probe_prepare": {
+      "bytes": 320,
+      "kind": "static"
+    },
+    "nano_probe_arm": {
+      "bytes": 48,
+      "kind": "static"
+    }
+  },
+  "matched_image_built": false,
+  "whole_EL3_stack_qualified": false,
+  "hardware_actions": false,
+  "hardware_acceptance": false,
+  "affected_campaign_in_progress": true
+}
