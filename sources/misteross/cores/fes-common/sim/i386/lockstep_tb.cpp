@@ -533,7 +533,7 @@ public:
     void clock() {
         // Ports F0h and F1h pulse for one cycle, as the machine's write
         // strobe does: whatever this cycle set is cleared after it.
-        const bool f0 = top.x87_f0, f1 = top.x87_f1;
+        const bool clear_f0 = top.x87_f0, clear_f1 = top.x87_f1;
         top.clk = 0;
         top.eval();
         if (!top.reset) quiet = false;
@@ -714,6 +714,8 @@ public:
             if (fetched_stores.executed(current, end, first_stale)) stale = first_stale;
         }
         ++cycles;
+        if (clear_f0) top.x87_f0 = 0;
+        if (clear_f1) top.x87_f1 = 0;
     }
 
     enum class Event { Retired, Unimplemented, Shutdown, Timeout };
@@ -2915,6 +2917,11 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // the next ESC holds in D until the unit is idle and no other
         // instruction touches the 387; a run that ends while it is working
         // is compared by its caller, where more cycles are harmless.
+        if (x87_fitted && std::getenv("FES_I386_X87DBG"))
+            std::fprintf(stderr, "x87dbg %s busy %d rtl ip %x op %x sw %x oracle ip %x op %x sw %x\n",
+                         at.c_str(), int(rtl.top.trace_x87_busy), rtl.x87_state().pointers.ip,
+                         rtl.x87_state().opcode, rtl.x87_state().status, oracle.x87_state().pointers.ip,
+                         oracle.x87_state().opcode, oracle.x87_state().status);
         if (x87_fitted && !rtl.top.trace_x87_busy) {
             for (const std::string &field : fes_i386::x87_differences(oracle.x87_state(), rtl.x87_state()))
                 out.add(at + "x87." + field, 0, 1);
@@ -10310,6 +10317,16 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
     oracle.set_at_coprocessor(true);
     for (const Case &c : cases) {
         Asm a;
+        // The prologue writes all eight registers and then empties them, so
+        // both sides start each program with the same register contents as
+        // well as the same words. Without it they differ from reset and stay
+        // differing, because nothing in this slice reads or writes a
+        // register the tag word calls empty: that is the open
+        // cpu-reset-387-state divergence, which this sidesteps rather than
+        // depends on.
+        a.op({0xdb, 0xe3});                                // FNINIT
+        for (int n = 0; n < 8; ++n) a.esc(0xd9, 0, 0x100); // eight FLD m32
+        a.op({0xdb, 0xe3});                                // FNINIT
         c.body(a);
         a.op({0xf4});
         std::vector<std::pair<uint32_t, uint8_t>> image;
