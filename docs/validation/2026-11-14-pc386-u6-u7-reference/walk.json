@@ -6,21 +6,24 @@
     "steps": 116,
     "span_s": 43.2,
     "steps_per_s": 2.66,
-    "median_gap_frames": 10
+    "median_gap_frames": 10,
+    "keys_per_s_nominal": 10
    },
    {
     "capture": "t2",
     "steps": 82,
     "span_s": 41.3,
     "steps_per_s": 1.961,
-    "median_gap_frames": 10
+    "median_gap_frames": 10,
+    "keys_per_s_nominal": 10
    },
    {
     "capture": "t3",
     "steps": 83,
     "span_s": 43.4,
     "steps_per_s": 1.889,
-    "median_gap_frames": 13.0
+    "median_gap_frames": 13.0,
+    "keys_per_s_nominal": 10
    }
   ],
   "pass": [
@@ -29,21 +32,24 @@
     "turns": 70,
     "span_s": 44.4,
     "turns_per_s": 1.553,
-    "median_gap_frames": 18
+    "median_gap_frames": 18,
+    "keys_per_s_nominal": 17
    },
    {
     "capture": "p2",
     "turns": 51,
     "span_s": 43.7,
     "turns_per_s": 1.143,
-    "median_gap_frames": 27.0
+    "median_gap_frames": 27.0,
+    "keys_per_s_nominal": 10
    },
    {
     "capture": "p3",
     "turns": 48,
     "span_s": 42.6,
     "turns_per_s": 1.104,
-    "median_gap_frames": 29
+    "median_gap_frames": 29,
+    "keys_per_s_nominal": 10
    }
   ],
   "walk_range": [
@@ -55,5 +61,5 @@
    1.553
   ]
  },
- "note": "t1-t3 walk a one-tile square at 10 taps a second; p1 taps at about 17 a second, p2 and p3 at 10."
+ "note": "Every capture is 45 s of the reference window at 30 fps. keys_per_s_nominal is how fast the driving loop sent keys: the three walk windows all used the same loop at a nominal ten a second, so t1's 2.66 against 1.96 and 1.89 is an outlier at the same rate and is not explained here; the pass windows differ, p1 at about seventeen a second against ten for p2 and p3, and their figures follow that."
 }

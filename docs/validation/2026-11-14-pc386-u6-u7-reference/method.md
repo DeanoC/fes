@@ -253,7 +253,9 @@ what they show, and the correction matters because it changes what a later
 measurement has to fix.
 
 The first window of each pair sent its keys at about 17 a second and the other
-two at 10. At the same key rate the repeats agree: 1.14 and 1.11 turns a
+two at 10. *(Wrong for the walk windows: all three of those used the same loop
+at ten a second; only the pass windows differ. Corrected in the next section,
+and `walk.json` gives the rate per capture.)* At the same key rate the repeats agree: 1.14 and 1.11 turns a
 second, 1.96 and 1.89 steps. At the higher key rate the same machine gives
 1.55 turns and 2.66 steps. **The figure follows the input rate, so it is not
 the game's rate**, and no band can be applied to it. Ultima VI takes a step or
