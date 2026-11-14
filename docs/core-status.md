@@ -513,9 +513,19 @@ Manager ([Windows corpus](../sources/misteross/docs/pc386-windows-corpus.md)).
 Its first kit runs are in the
 [corpus record](validation/2026-11-12-pc386-windows-corpus/summary.md).
 
-Still open for the games ([#1368](https://github.com/DeanoC/fes/issues/1368)):
-- Ultima VI walking speed at 286-12, against a reference;
-- Ultima VII NPC pace, against a reference.
+Still open for the games ([#1368](https://github.com/DeanoC/fes/issues/1368)).
+An 86Box 286 at 12.5 MHz is now named as Ultima VI's reference, and scores in
+the middle of real 286 boards of that clock in TopBench's own database, where
+the 286-12 preset scores above all of them
+([record](validation/2026-11-14-pc386-u6-u7-reference/summary.md)):
+- Ultima VI's speaker effects play about 2.4 semitones flat against it
+  (840.72 and 499.79 Hz against 962.76 and 573.91), which fails
+  ([#1837](https://github.com/DeanoC/fes/issues/1837));
+- Ultima VI walking speed at 286-12 is still open, and not for want of a
+  reference: repeats of it on the reference alone spread about four times the
+  band the check needs, because the game is turn-based;
+- Ultima VII NPC pace is still open: The Black Gate needs 548 KiB free and the
+  reference has 505, and the reference board for a 386DX-25 is not settled.
 
 Launches with Serpent Isle's disk image sometimes show a black picture at
 the DOS prompt: 12 black DOS-prompt grabs in 400 launches on Kit B. Four of
