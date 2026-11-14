@@ -31,12 +31,19 @@ extern const uint64_t fes_nano_mmu_root[],fes_nano_mmu_ddr[];
 static struct nano_probe_setup sdm_arm_probe;
 static unsigned sdm_arm_entered,sdm_probe_scope_reason,sdm_input_phase;
 static unsigned sdm_source_failed;
+static unsigned sdm_source_released;
+static int sdm_release_clock(void);
 static uint32_t sdm_source_bad_offset,sdm_source_bad_value;
 static unsigned sdm_source_clock_started;
 static uint64_t sdm_source_clock_start,sdm_source_clock_last;
 static int sdm_source_time(void *,uint64_t *);
 #ifndef FES_PROBE_USB_BINDING_VALID
 #define FES_PROBE_USB_BINDING_VALID() fes_nano_usb_master_service_valid(&usb_master,&fes_nano_owned_bridges,&usb_platform)
+#endif
+#ifndef FES_PROBE_SD_IO_BINDING_VALID
+#define FES_PROBE_SD_IO_BINDING_VALID() (sd_platform.cold==&provider && !sd_platform.io.context && \
+ sd_platform.io.read==sd_read && sd_platform.io.write==sd_write && \
+ sd_platform.io.barrier==sd_barrier && sd_platform.io.wait==sd_wait)
 #endif
 static int sdm_probe_reject(unsigned reason)
 { sdm_probe_scope_reason=reason;return 0; }
@@ -59,11 +66,31 @@ static int sdm_probe_geometry(void)
         FES_PROBE_TABLE(fes_nano_mmu_root,2)==(FES_PROBE_SYMBOL(fes_nano_mmu_ddr)|3U) &&
         FES_PROBE_TABLE(fes_nano_mmu_ddr,160)==UINT64_C(0x0040000094000669);
 }
+static int sdm_release_returned(const struct nano_probe_binding *binding)
+{
+#if defined(FES_NANO_SDM_SOURCE_RELEASE) && FES_NANO_SDM_SOURCE_RELEASE == 1
+ struct fes_nano_sd *s=&fes_nano_owned_sd;uint64_t returned=0;
+ struct fes_nano_sd_ops expected=fes_nano_sd_platform_ops(&sd_platform);
+ return binding && !sdm_source_released && FES_PROBE_SD_IO_BINDING_VALID() && configuration.source_release_attempted==1 &&
+  !configuration.source_released && configuration.source_release_source==binding->generation &&
+  configuration.source_release_generation==fes_nano_owned_bridges.state.generation &&
+  fes_nano_platform_window_return(&returned)==1 && returned<=UINT64_MAX-3 &&
+  configuration.source_release_generation==returned+3 && s->initialized && !s->failed &&
+  !s->active && !s->prepared && s->bridges==&fes_nano_owned_bridges &&
+  s->owner==binding->owner && s->epoch==binding->epoch && s->grant_generation==returned &&
+  s->return_generation==returned && s->stopped_generation==configuration.source_release_generation &&
+  s->ops.context==expected.context && s->ops.scope==expected.scope && s->ops.resume==expected.resume &&
+  s->ops.prepare==expected.prepare && s->ops.stop==expected.stop && s->ops.returned==window_sd_return &&
+  !fes_nano_sd_returned(s,binding->owner,returned,configuration.source_release_generation);
+#else
+ (void)binding;return 0;
+#endif
+}
 static int sdm_probe_owns_mode(void *context,const struct nano_probe_binding *binding,unsigned completed)
 {
     struct fes_nano_bridges *b=&fes_nano_owned_bridges;
     sdm_probe_scope_reason=0;
-    if(context!=&sdm_arm_probe || !binding || completed>2)return sdm_probe_reject(1);
+    if(context!=&sdm_arm_probe || !binding || completed>3 || sdm_source_released)return sdm_probe_reject(1);
     if(!FES_PROBE_CPU() || FES_PROBE_FREQUENCY()!=400000000U)return sdm_probe_reject(2);
     if(!fes_nano_mmu_platform_scope())return sdm_probe_reject(3);
     if(!sdm_probe_geometry())return sdm_probe_reject(4);
@@ -71,8 +98,9 @@ static int sdm_probe_owns_mode(void *context,const struct nano_probe_binding *bi
        binding->owner!=provider.record.boot.owner || binding->epoch!=provider.record.boot.epoch ||
        provider.control_expected!=(completed==2) || provider.ddr_expected)return sdm_probe_reject(5);
     if(!b->initialized || b->failed || b->device_lease || b->epoch!=binding->epoch ||
-       b->state.owner!=binding->owner || b->state.generation!=binding->generation+(completed==2) ||
-       b->state.reset!=(completed==2 ? 13U:15U) || b->state.masters_contained!=1 || b->state.never_enabled!=(completed!=2))
+       b->state.owner!=binding->owner ||
+       b->state.generation!=(completed==3 ? configuration.source_release_generation:binding->generation+(completed==2)) ||
+       b->state.reset!=(completed==2 ? 13U:15U) || b->state.masters_contained!=1 || b->state.never_enabled!=(completed<2))
         return sdm_probe_reject(6);
     if(!provider.devices_attempted || !provider.devices_bound ||
        !sd_platform.initialized || sd_platform.failed || sd_platform.active || sd_platform.prepared)
@@ -110,7 +138,10 @@ static int sdm_probe_owns_mode(void *context,const struct nano_probe_binding *bi
        configuration_program.bytes!=configuration.bytes || configuration_program.chunk!=configuration.chunk ||
        configuration_program.mixed_roles!=1 || configuration_program.role!=FES_NANO_PROGRAM_ROLE_MENU ||
        configuration_program.control_abi!=FES_NANO_PROGRAM_MENU_ABI)return sdm_probe_reject(10);
-    if(fabric_configuration_generation!=(completed ? binding->generation:0) ||
+    if(completed==3){
+       if(fabric_configuration_generation!=binding->generation || !sdm_release_returned(binding))
+           return sdm_probe_reject(34);
+    }else if(fabric_configuration_generation!=(completed ? binding->generation:0) ||
        fabric_generation!=(completed==2 ? binding->generation+1:0) ||
        fabric_stop.attempted || fabric_stop.failed ||
        (completed && (fabric_stop.qualified!=1 || fabric_stop.done || fabric_stop.first_error)))
@@ -362,3 +393,4 @@ int fes_nano_sdm_source_start_ready(void)
 
 #include "nano_sdm_control_platform.inc"
 #include "nano_sdm_reader_platform.inc"
+#include "nano_sdm_release_platform.inc"

@@ -1166,9 +1166,12 @@ memory before copying any successor bytes. These steps hold the arena lock;
 no reusable host receipt or stale completion can release a newer lease.
 Rejection, uncertainty or changed state pins the arena and forbids retry.
 
-The firmware's default source-release supplier denies permission. Its actual
-retained-source mailbox/SMMU/return supplier and next-generation rearm remain
-unconnected, so this CPU hook does not yet enable repeated hardware loads.
+Exported firmware profiles still deny source release. The retained supplier
+implements the first MENU's actual completed ledger/parser, SMMU/table and
+window/SD return checks behind a disabled internal selection. Its fresh release
+clock does not expire a running session. Generation transition, computer-side
+warm ownership and SMMU/SDM rearming remain open, so the CPU hook does not yet
+enable repeated hardware loads.
 Models run actual menu/SD return and transfer controllers with injected SMC
 responses, including three successor launches and failure paths. The Nano SDK
 selects this with `--retain-configuration`; its receipt propagates through the

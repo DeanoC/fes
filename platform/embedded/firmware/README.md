@@ -81,11 +81,28 @@ request before CPU overwrite. The configuration gate requires its actual
 completed transfer and a newer closed owner, consumes one source-generation
 attempt, and checks the complete controller and fresh bridge scope around the
 secure platform callback. An attempted failed release cannot be bypassed by
-configuration rearm. The default callback grants no permission; connecting the
-real retained mailbox/SMMU/reader-return proof remains open. The native runtime
-uses this gate inside its original arena's atomic successor reservation. Host
-models exercise that order and its failure paths; no hardware source reuse or
-new-generation SMMU arm follows from these checks.
+configuration rearm. The retained supplier checks its actual completed transfer
+and parser, both SMMU banks, complete retained tables and private controller
+binding, the production window-return predicate and a freshly stopped SD cycle.
+It pins the SD service and raw-I/O callback tables. Two complete table passes
+bracket read-only empty-parser/FIFO checks; no response is consumed, error
+acknowledged, queue reset, table/register written or master opened. Success
+consumes the actual ledger and withdraws old reader/control permission before
+returning to the native arena. A late response cannot restore that permission.
+
+Release uses a fresh one-second clock under the owned call lock, independent of
+the original transfer/retirement clocks. Models cover a 25-hour running interval,
+deadline boundaries, source/owner/namespace/SD/parser changes, late mutations
+and responses. They run the real transfer and SD engines and production return
+predicates with injected retained reader state. The CPU arena separately checks
+its old payload, metadata and staged ROM before and after the secure call.
+
+All exported profiles explicitly set `FES_NANO_SDM_SOURCE_RELEASE=0` until the
+generation transition and SMMU/SDM rearm are complete. The enabled supplier
+currently qualifies the first MENU return; computer-side warm ownership is
+still part of that integration. The actual platform and service compile for
+AArch64 with the supplier manually enabled, without producing an admitted
+profile, linked BL31 or boot image. This is not repeated hardware core loading.
 
 The selected full-input retirement profile uses a bounded, read-only command
 snapshot callback. Each queue snapshot checks the same 24-register superset as

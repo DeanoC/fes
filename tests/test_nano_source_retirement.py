@@ -42,7 +42,9 @@ class SourceRetirementTests(unittest.TestCase):
         # completion callback: that was the missing boundary in format 12.
         source = (FW / "nano_cold_platform.c").read_text()
         for signature, filename in (("static int identity_configured(void *context)", "identity_configured_test.inc"),
-                                    ("static int window_gate(void)", "window_gate_test.inc")):
+                                    ("static int window_gate(void)", "window_gate_test.inc"),
+                                    ("int fes_nano_platform_window_return(uint64_t *generation)", "window_return_test.inc"),
+                                    ("static int window_sd_return(void *context,const struct fes_nano_bridges *b,uint64_t *generation)", "window_sd_return_test.inc")):
             start = source.index(signature)
             at = source.index("{", start)
             depth, end = 1, at + 1
@@ -100,6 +102,11 @@ class SourceRetirementTests(unittest.TestCase):
         self.assertEqual(report["completed_generations"], 256)
         self.assertGreater(report["wraps"], 0)
         self.assertEqual(report["negative_cases"], 132)
+
+    def test_real_source_release_supplier_requires_returned_owned_source(self):
+        report = self.run_model("source_release_test", joined=True)
+        self.assertEqual(report["cases"], 66)
+        self.assertTrue(report["actual_source_release_supplier"])
 
     def test_retained_continuation_requires_live_retired_state(self):
         self.run_model("continue_test")

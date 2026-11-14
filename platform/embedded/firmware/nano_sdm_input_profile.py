@@ -37,9 +37,9 @@ CONTRACT.update(retirement_command_clock='fresh-counter-monotonic-source-and-ret
                 retirement_final_validation_policy='retained-final-snapshots-only')
 FILES=('nano_sdm_input_profile.py','sdm_input_vendor_service.c','sdm_input_vendor_mailbox.c','sdm_input_mailbox.h',
  'nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','input_tables.c','input_tables.h','input_transfer.c','input_transfer.h',
- 'input_transfer_service.c','input_transfer_service.h','sdm_input_probe_setup.c','sdm_input_probe_setup.h','command_queue.c','command_queue.h','source_retire.c','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc','nano_sdm_reader_profile.py','nano_sdm_reader.h','nano_sdm_reader.c','nano_sdm_reader_platform.inc')
+ 'input_transfer_service.c','input_transfer_service.h','sdm_input_probe_setup.c','sdm_input_probe_setup.h','command_queue.c','command_queue.h','source_retire.c','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc','nano_sdm_reader_profile.py','nano_sdm_reader.h','nano_sdm_reader.c','nano_sdm_reader_platform.inc','nano_sdm_release_platform.inc')
 C_FILES=('input_tables.c','input_transfer.c','input_transfer_service.c','probe_setup.c','command_queue.c','source_retire.c','nano_sdm_reader.c')
-H_FILES=('input_tables.h','input_transfer.h','input_transfer_service.h','probe_setup.h','command_queue.h','nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc','nano_sdm_reader.h','nano_sdm_reader_platform.inc')
+H_FILES=('input_tables.h','input_transfer.h','input_transfer_service.h','probe_setup.h','command_queue.h','nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc','nano_sdm_reader.h','nano_sdm_reader_platform.inc','nano_sdm_release_platform.inc')
 SERVICE=Path('plat/intel/soc/common/socfpga_sip_svc.c');MAILBOX=Path('plat/intel/soc/common/soc/socfpga_mailbox.c');MAILBOX_HEADER=Path('plat/intel/soc/common/include/socfpga_mailbox.h')
 PLATFORM=Path('plat/intel/soc/common/nano_cold_platform.c');LD=Path('bl31/bl31.ld.S');MK=Path('plat/intel/soc/agilex5/platform.mk');HEADER=Path('plat/intel/soc/common/include/fes_nano_cold_profile.h')
 NAMES=tuple('plat/intel/soc/common/'+n for n in C_FILES)+tuple('plat/intel/soc/common/include/'+n for n in H_FILES)+tuple(map(str,(SERVICE,MAILBOX,MAILBOX_HEADER,PLATFORM,LD,MK,HEADER)))
@@ -69,10 +69,10 @@ def checked(profile):
  if json.dumps(v,sort_keys=True)!=json.dumps(CONTRACT,sort_keys=True):raise ValueError('unsupported SDM input transfer contract')
  return selected(profile,True)
 def header(profile):
- if checked(profile) is None:return '#define FES_NANO_RETAINED_READER_ROUTE 0\n#define FES_NANO_SDM_INPUT_TRANSFER 0\n#define FES_NANO_SDM_SOURCE_LEASE 0\n#define FES_NANO_SDM_RETIRE_SOURCE 0\n#define FES_NANO_RETIRE_TIMING 0\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 0\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 0\n'
+ if checked(profile) is None:return '#define FES_NANO_SDM_SOURCE_RELEASE 0\n#define FES_NANO_RETAINED_READER_ROUTE 0\n#define FES_NANO_SDM_INPUT_TRANSFER 0\n#define FES_NANO_SDM_SOURCE_LEASE 0\n#define FES_NANO_SDM_RETIRE_SOURCE 0\n#define FES_NANO_RETIRE_TIMING 0\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 0\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 0\n'
  chain=profile.get('chain_sha256','')
  if len(chain)!=64 or any(c not in '0123456789abcdef' for c in chain):raise ValueError('complete input transfer chain required')
- return ('#define FES_NANO_SDM_INPUT_TRANSFER 1\n#define FES_NANO_SDM_SOURCE_LEASE 1\n#define FES_NANO_SDM_RETIRE_SOURCE 1\n#define FES_NANO_RETIRE_TIMING 1\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 1\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 1\n#define FES_NANO_INPUT_BUILD "'+chain[:16]+'"\n'
+ return ('#define FES_NANO_SDM_SOURCE_RELEASE 0\n#define FES_NANO_SDM_INPUT_TRANSFER 1\n#define FES_NANO_SDM_SOURCE_LEASE 1\n#define FES_NANO_SDM_RETIRE_SOURCE 1\n#define FES_NANO_RETIRE_TIMING 1\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 1\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 1\n#define FES_NANO_INPUT_BUILD "'+chain[:16]+'"\n'
   '#define FES_NANO_RETAINED_READER_ROUTE 1\n#define FES_NANO_READER_ROUTE_SHA '+chr(34)+reader.digest(reader.checked(profile))+chr(34)+'\n'
   '#define FES_NANO_PROBE_HEAP_FIRST 0x84000000ULL\n#define FES_NANO_PROBE_HEAP_LAST 0x94000000ULL\n')
 def install(source,profile,start,mmu,ram,mailbox):

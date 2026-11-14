@@ -27,6 +27,13 @@ int fes_nano_sdm_transfer_control_begin(void);
 int fes_nano_sdm_transfer_control_finish(int status,unsigned words);
 /* Live immutable transfer state, no copied receipt or mutation. */
 int fes_nano_sdm_transfer_reader_ready(void);
+/* Consume the actual completed source once, under the owned call lock.
+ * The strong supplier must prove retained translation and real session/device
+ * return. A diagnostic copy cannot release source or reopen DATA. */
+int fes_nano_sdm_source_release_ready(const struct nano_sdm_input_binding *,unsigned tables);
+int fes_nano_sdm_transfer_release_source(const struct nano_sdm_input_binding *);
+/* Read the actual consumed source ledger; no copied release receipt is used. */
+int fes_nano_sdm_transfer_source_released(const struct nano_sdm_input_binding *);
 int fes_nano_sdm_transfer_read(unsigned int *,uint32_t *,uint32_t *,unsigned int *);
 int fes_nano_sdm_transfer_response(int,uint32_t,uint32_t,uint32_t);
 int fes_nano_sdm_transfer_buffer(uint32_t,uint32_t);

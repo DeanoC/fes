@@ -8,6 +8,7 @@ static struct nano_sdm_transfer_io captured_io;
 static uint64_t captured_start;
 static uint32_t accepted_bytes;
 static unsigned prepare_attempted,prepared,control_pending,control_header_seen;
+static unsigned source_release_attempted,source_released;
 static int service_error;
 static int stop(int error)
 {if(!service_error)service_error=error<0 ? error:-5;return service_error;}
@@ -66,7 +67,7 @@ int fes_nano_sdm_transfer_posted(int status,uint32_t job)
 /* Completion remains immutable while one separately selected control reply
  * is parsed. In particular, no successful control call clears configured,
  * prepare_attempted, source ownership, queue history or any sticky error. */
-static int completed(void)
+static int completion_record(void)
 {
  return prepared==1 && transfer.initialized==1 && transfer.configured==1 && !transfer.failed &&
   !transfer.first_error && !service_error && !nano_sdm_input_validate(&captured) &&
@@ -80,8 +81,37 @@ static int completed(void)
   transfer.headers==transfer.posts+transfer.status_polls &&
   transfer.buffer_reports==(captured.bytes+captured.chunk-1U)/captured.chunk;
 }
+static int completed(void){return !source_released && completion_record();}
 int fes_nano_sdm_transfer_reader_ready(void)
 {return !control_pending && control_header_seen==1 && completed();}
+static int release_live(const struct nano_sdm_input_binding *binding)
+{
+ return source_release_attempted==1 && !control_pending && control_header_seen==1 &&
+  nano_sdm_input_same(binding,&captured) && completed();
+}
+int fes_nano_sdm_transfer_release_source(const struct nano_sdm_input_binding *binding)
+{
+ if(service_error)return service_error;
+ if(source_release_attempted || !binding || nano_sdm_input_validate(binding))return stop(-13);
+ const struct nano_sdm_input_binding expected=*binding;
+ source_release_attempted=1;
+ if(!release_live(&expected))return stop(-13);
+ /* Both table passes use the platform's one fresh release clock. No clock,
+  * transfer history, parser state, error or queue pointer is reset here. */
+ for(unsigned pass=0;pass<2;pass++){
+  if(fes_nano_sdm_source_release_ready(&expected,1)!=1 || !release_live(&expected) ||
+     !fes_nano_sdm_control_mailbox_idle() || !release_live(&expected) ||
+     fes_nano_sdm_source_release_ready(&expected,0)!=1 || !release_live(&expected))return stop(-13);
+ }
+ if(!fes_nano_sdm_control_mailbox_idle() || !release_live(&expected))return stop(-13);
+ source_released=1; /* Withdraw old reader/control permission before returning. */
+ return 0;
+}
+int fes_nano_sdm_transfer_source_released(const struct nano_sdm_input_binding *binding)
+{
+ return binding && source_release_attempted==1 && source_released==1 &&
+  !control_pending && control_header_seen==1 && nano_sdm_input_same(binding,&captured) && completion_record();
+}
 int fes_nano_sdm_transfer_control_begin(void)
 {
  if(service_error)return service_error;

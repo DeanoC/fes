@@ -23,13 +23,18 @@ nothing. A failed or uncertain attempt cannot be replayed or bypassed by rearm.
 Success authorizes overwriting that old source; it does not arm the next SDM
 transfer, reopen a reader or assert whole-interconnect drain.
 
-The current weak supplier returns no permission (status 5 in the selected
-service). Nonselected cold services may reject the operation before this gate.
-The real retained-source release supplier is still to be connected to the
-mailbox/parser, SMMU and actual reader/ROM return state. Thus this contract and
-the CPU reservation hook currently grant no physical buffer reuse. Software
-models inject the supplier and exercise atomic release/copy, ownership changes,
-malformed replies and failure retention; they are not hardware acceptance.
+Default providers and all exported profiles grant no permission (status 5 in
+the selected service). Nonselected cold services may reject before this gate.
+The retained supplier implements completed ledger/parser, SMMU/retained-table
+and the first MENU's actual window/SD return checks. Its enable flag remains
+zero until generation transition, computer-side warm ownership and rearm are
+complete. Release consumes the actual ledger and revokes old reader/control
+permission without reopening DATA. Its own bounded clock starts at release,
+independently of how long the session ran. Thus this contract and the CPU hook
+currently grant no physical reuse. Models exercise the real supplier with
+injected retained return state, atomic CPU release/copy, stale ownership,
+malformed replies, late responses, callback changes and failure retention;
+these checks and enabled-object compilation are not hardware acceptance.
 
 The private SiP call `0xc2000301` uses an opt-in `x3=0x46455342` cookie.
 The number is unused in the inspected pins and outside their v2/v3 ranges.

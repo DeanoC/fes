@@ -269,6 +269,7 @@ typedef struct mailbox_service {
 #include "nano_fabric_stop.h"
 #include "reader_profile_fixture.h"
 struct fes_nano_mac fes_nano_owned_mac;
+#define fes_nano_owned_sd (model.base.service)
 static struct fes_nano_configuration configuration;
 static struct fes_nano_program configuration_program;
 static struct fes_nano_fabric_stop fabric_stop;
@@ -347,8 +348,12 @@ static void probe_write(uint64_t address,uint32_t value){
 static uint64_t load_word(uint64_t address){cb_loads++;assert(address>=0x94000000 && address<0x94010000 && !(address&7));return arena[(address-0x94000000)/8];}
 static void store_word(uint64_t address,uint64_t value){if(retire_armed && retire_fault==12 && !mutated){mutated=1;configuration_program.header[FES_NANO_PROGRAM_SHA384]^=1;}cb_stores++;assert(address>=0x94000000 && address<0x94010000 && !(address&7));arena[(address-0x94000000)/8]=value;mutate_on_memory();}
 static void park(void){parks++;longjmp(terminal,1);}
+#ifndef FES_PROBE_CPU
 #define FES_PROBE_CPU() 1
+#endif
+#ifndef FES_PROBE_FREQUENCY
 #define FES_PROBE_FREQUENCY() 400000000U
+#endif
 #define FES_PROBE_COUNTER() counter()
 #define FES_PROBE_SYMBOL(name) address_of(#name)
 #define FES_PROBE_TABLE(name,index) table_word(#name,index)
