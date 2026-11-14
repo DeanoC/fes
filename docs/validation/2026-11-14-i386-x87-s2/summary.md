@@ -123,7 +123,7 @@ unit goes wrong:
 | a store raised the denormal exception | the 387's FST and FIST report invalid, overflow, underflow and precision only |
 | an integer store's invalid cases stored nothing | they store the integer indefinite |
 | a masked overflow's largest-finite value and its exponent check | the exponent field was built wrong, and the check truncated to 12 bits |
-| FNINIT and FNCLEX were taken only when the unit was idle and the latch clear | which is exactly when they are needed: they do not wait for BUSY# |
+| FNINIT and FNCLEX were taken only when the board's latch was clear | which is exactly when they are needed: of every ESC form these two alone do not wait for BUSY# (HRM section 5.1), so they skip **the latch**. They still wait for the unit, which is a separate thing and is set out below |
 | a new instruction was not held while the one before it was still worked on | it issued without the unit taking it |
 | a squashed instruction left the unit busy | nothing after it could issue |
 | a flush after an instruction had retired threw its work away | a retired FILD lost its push |
@@ -168,6 +168,46 @@ Four questions the plan left to the manuals, and where each was settled.
   than on either of these. It costs no read of the stack and it matches the
   oracle, so it is what the unit does; nothing in lockstep can see the
   difference.
+
+- **The no-wait forms skip the board's latch; they do not skip the unit.**
+  HRM section 5.1's rule is that the 386 does not wait for BUSY# before
+  FNINIT and FNCLEX, which is about the latch. This unit also makes them
+  wait for its own in-flight work, and that is a decision rather than an
+  oversight. Codex's review of `d3a6c53d2` (a P1,
+  [thread](https://github.com/DeanoC/fes/pull/1821#discussion_r4573576213))
+  asked for the interlock to go, so a FNCLEX behind a running operation
+  would clear the flags and let that operation report its own exception
+  afterwards, as a 387 does. It was measured rather than argued: in a
+  scratch worktree of `06c324ac0`, never committed, with `fired || busy`
+  dropped from the no-wait arm of `hold` and `!started && !busy` from
+  `take_nw`, the bench goes to **86 passed, 1 failed** —
+  `overlap.const-then-init`, a constant's push still in the sequencer with
+  FNINIT behind it, ends at TOP=7 with a register pushed where the oracle
+  and a 387 both end at TOP=0 with the stack empty. The push lands after
+  the reset. A 387 that takes FNINIT while busy *aborts* the operation, and
+  this unit has no abort: the operation runs to its apply whenever that
+  falls. The faithful version is therefore two behaviours and not one
+  deletion — FNINIT cancelling the operation the way `flush` does, and
+  FNCLEX letting it run — and it carries an oracle question with it,
+  because Bochs is atomic: `FLD` of a denormal then FNCLEX leaves DE clear
+  in Bochs and in this unit, and would leave it set under the overtaking
+  version. That is a `divergences.toml` entry and a design change, so it is
+  Deano's call and not a review fix. The suppression the thread was most
+  concerned with does not happen either way: the operation's apply sets
+  `latched` in the same cycle it sets the flags, and FNCLEX clears only the
+  flags and the stack flag, never the board's latch, which on an AT only a
+  write to port F0h clears.
+
+**A known defect in this PR's RTL comments.** The header and the two
+paragraphs above `hold` in `fes_i386_x87.sv` still say the no-wait forms
+"pass the latch and the unit's own work", "wait for neither" and are "taken
+on their own, beside whatever the unit is working on". The code does none of
+that, and the bench's own `overlap` group asserts the opposite. Four stale
+statements, left from the intent before the identity-on run forced the
+interlock. They are wrong and they are being corrected — but
+`fes_i386_x87.sv` is a sealed input, so the correction invalidates the seal
+and the kit run below. It goes in one commit with the gates, a new seal and
+a new kit run rather than being slipped in behind them.
 
 **No new `divergences.toml` entry is justified yet.** The two candidates are
 not exercised by anything this slice runs: the 387's state after a CPU reset
@@ -351,9 +391,79 @@ measured rather than estimated:
   ALMs**, not as an exact 324; the direction, which is that it is a few
   hundred and not a few thousand, is what the numbers settle.
 
+### Does the machine still close at 91%? Nine seeds say yes
+
+The audit set the 92% working ceiling because "Quartus has met this design
+only up to 88%; above that is untested", and warned that past it dense
+packing starts merging unrelated logic into shared LABs and critical-path
+placement degrades. The identity-on fit here is at **91.0 to 91.3% of the
+device and it meets the clock**, which is the first measurement this design
+has above 88%.
+
+One seed closing proves little, and the risk worth testing is that closure
+becomes seed-dependent: a design that meets on seed 1 and misses on seeds 2
+to 8 has not really closed. So the identity-on machine fit was run on seeds
+2 to 9 as well, same flow, same settings
+(`quartus_x87_spike.py --mode machine --variant base --identity-on`,
+`/data/x87-s2-fits/seedsweep`). Every seed is here, including any that
+missed; the slack is the worst of that clock over all four corners.
+
+| Seed | ALMs | % of device | System clock setup (ns) | hold (ns) | Pixel clock setup (ns) |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 38,233 | 91.2% | **+0.603** | +0.076 | +1.391 |
+| 2 | 38,149 | 91.0% | **+0.832** | +0.087 | +1.056 |
+| 3 | 38,131 | 91.0% | **+0.546** | +0.047 | +1.313 |
+| 4 | 38,166 | 91.1% | **+0.742** | +0.083 | +1.545 |
+| 5 | 38,213 | 91.2% | **+0.454** | +0.068 | +0.745 |
+| 6 | 38,171 | 91.1% | **+0.699** | +0.058 | +1.407 |
+| 7 | 38,198 | 91.1% | **+0.767** | +0.050 | +1.531 |
+| 8 | 38,257 | 91.3% | **+0.896** | +0.088 | +1.592 |
+| 9 | 38,075 | 90.9% | **+0.695** | +0.080 | +1.494 |
+
+- **Nine seeds of nine meet setup and hold.** The worst setup over the whole
+  sweep is **+0.454 ns** and the best is +0.896; no seed is close to missing.
+  So closure at this fill is not seed luck for this design.
+- **The area spread across seeds is 182 ALMs** (38,075 to 38,257), which is
+  the ±150 to 200 this record states elsewhere, measured directly. That is
+  why the headroom figure is read as a few hundred ALMs rather than as an
+  exact number.
+- **What this is, and is not.** It is an analysis fit through the sealer's
+  own project, firmware and Yosys program, at the seal's settings, with the
+  identity overlaid to `1'b1`; its timing is reported rather than gated. It
+  is **not** a seal. The sealed package in this PR is 36,323 ALMs, 86.7%,
+  which is below the audit's tested 88%, and it met every analysis in the
+  sealer's own gate.
+- **Where the onset probably is.** The fit spike measured a machine with its
+  own option-A unit at 91.7 to 91.9% and got setup on **2 of 3 seeds**, one
+  of them at −0.878 ns, and its HPS variant at 92.0 to 92.4% on **1 of 3**.
+  Taken with this sweep, the point at which closure stops being reliable
+  sits between **91.3% and 91.7%** on the evidence there is. That is a
+  different unit in those fits, so it is a bracket and not a line.
+- **This record proposes no new ceiling figure.** Deano sets it, and the
+  whole-system reduction phase changes what it needs to be. What is recorded
+  here is the measurement: 91.0 to 91.3%, nine seeds, all meeting, worst
+  +0.454 ns.
+
 ### What this says about the budget
 
-This is the plan's "stop and report" case.
+This was the plan's "stop and report" case, and it has been reported and
+answered. Asked how the x87 should proceed given that slices 3 to 5 no
+longer fit the budget, Deano's answer was **raise the ceiling**, in
+preference to replanning the slices, and he set the order of work:
+"when working we will do a whole system reduction phase but least get it
+close to done before we chip away." So the architecture stands, area
+reduction is a phase after the x87 rather than a gate on each slice, and
+nothing here is trimmed to fit. What that means for the slices that follow:
+
+- **No slice-by-slice trimming.** A slice is built properly, measured and
+  reported. Buying a few hundred ALMs back inside a slice at the cost of
+  design quality is not the work.
+- **"Stop and report" now means the device, not the headroom.** A slice
+  stops because it genuinely cannot fit, not because it consumes what is
+  left. Consuming it is expected, and the number is information.
+- **The ceiling figure is Deano's to set**, and the reduction phase changes
+  what it needs to be, so this record proposes none. It records what is
+  measured, below.
 
 - The [fit spike](../2026-11-12-i386-x87-fit-spike/summary.md) measured its
   whole option-A unit, slow path and all, at **2,134 ALMs** standalone (mean
@@ -370,8 +480,25 @@ This is the plan's "stop and report" case.
 - So slices 3 to 5 — the 68-bit add and subtract, compare, the Goldschmidt
   divide and square root with their seed ROMs, FPREM, and the
   transcendentals with their microcode ROM and constants — have **about 324
-  ALMs**, call it three to four hundred, of headroom under the ceiling, and
-  the spike's own standalone figures put the slow path alone above that.
+  ALMs**, call it three to four hundred, of headroom under the old 92%
+  ceiling, and the spike's own standalone figures put the slow path alone
+  above that. That is the finding that was reported; the answer was to move
+  the ceiling, not the slices.
+- **What this record will not do is project slices 3 to 5 from the spike.**
+  The spike's split of the unit does not survive contact with the real
+  thing, in both directions at once: it measured the whole of option A,
+  arithmetic included, at +1,687 in the machine, and slice 2 with **no
+  arithmetic at all** is +1,608; and it estimated the CPU side at about 400
+  ALMs where the per-module audit measures **143**. So its conversions were
+  under-counted and its interface over-counted, and a projection built on
+  that split would be a number nobody could stand behind. The two bounds it
+  offers disagree: taken at face value the spike leaves 157 ALMs for every
+  arithmetic block, which is not credible for a 68-bit adder with its own
+  operand registers, let alone Goldschmidt, FPREM and the transcendentals;
+  taken as a ratio against slice 2's over-run it suggests something closer
+  to another 1,000. What would settle it is a slice-3 fit of real RTL, the
+  way slice 2 was measured, and that is the measurement to make rather than
+  an estimate to argue about now.
 - Against the ceiling: main fits at **36,625** in this flow and the 92%
   working ceiling is 38,557, so main itself has 1,932 ALMs of room and this
   slice takes 1,608 of them. OPL2's MLAB win
