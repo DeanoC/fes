@@ -22,6 +22,7 @@ uses. A fixture with its own copy of the extraction would pin only itself.
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
+import hashlib
 import importlib.util
 import json
 import re
@@ -138,44 +139,99 @@ class CorrectionShapeTests(unittest.TestCase):
 
 
 class ClaimedCountTests(unittest.TestCase):
-    """The README states its coverage as numbers; keep them true.
+    """The README states its coverage as numbers; keep every one of them true.
 
-    The record stated 723 citations and 954 endpoints while the script
-    reported 728 and 961, which is the same staleness the census exists to
-    correct, in the paragraph that asks the reader not to take it on trust
-    (DeanoC/fes#1829 review). Stating them is worth keeping -- a reader should
-    see the size of the claim without running anything -- so they are asserted
-    here instead of being removed.
+    The record claimed 723 citations and 954 endpoints while the script
+    reported 728 and 961 -- the same staleness the census exists to correct,
+    in the paragraph that asks the reader not to take it on trust. A first fix
+    asserted only the headline, so three further current claims stayed stale
+    and CI stayed green (DeanoC/fes#1829 review, twice).
+
+    So every pattern below must match, and *every* number it captures must
+    equal the live value. A sentence stating a historical count is written so
+    it cannot match -- correction 14's "711 citations and 831 endpoints to 723
+    and 954 as the record then stood" is a fact about that correction, not a
+    claim about this tree.
+
+    Stating the numbers at all is worth keeping: a reader should see the size
+    of the claim without running anything.
+    """
+
+    # Patterns are matched against README.md with whitespace collapsed, since
+    # several of these sentences wrap mid-claim.
+    ROWS = (r'all \*\*(\d+)\*\* inventory rows',
+            r'\((\d+) of (\d+), one of them matched')
+    CITATIONS = (r'all \*\*(\d+)\*\* `path:line` citations',
+                 r'every one of those (\d+) citations',
+                 r'against the tree \((\d+) of (\d+), now by content')
+    ENDPOINTS = (r'\(\*\*(\d+)\*\* line endpoints',
+                 r'All (\d+) line endpoints are now content-checked')
+    FINGERPRINTS = (r'(\d+) entries holding the sha256',)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.readme = ' '.join((RECORD / "README.md").read_text().split())
+        cls.rows, _ = verify_census.check_primary()
+        cls.citations, cls.endpoints, _, _ = verify_census.check_citations()
+        cls.fingerprints = len(json.loads(
+            (RECORD / "citation-fingerprints.json").read_text()))
+
+    def claims(self, patterns, live, what):
+        for pattern in patterns:
+            found = re.findall(pattern, self.readme)
+            self.assertTrue(
+                found, f'README.md no longer states {what} as {pattern!r}; '
+                'if the wording changed, update this pattern rather than '
+                'dropping the claim')
+            for match in found:
+                for number in (match if isinstance(match, tuple) else (match,)):
+                    self.assertEqual(
+                        int(number), live,
+                        f'README.md states {number} {what}, the record holds '
+                        f'{live} ({pattern!r})')
+
+    def test_every_row_count_is_current(self):
+        self.claims(self.ROWS, self.rows, 'inventory rows')
+
+    def test_every_citation_count_is_current(self):
+        self.claims(self.CITATIONS, self.citations, 'citations')
+
+    def test_every_endpoint_count_is_current(self):
+        self.claims(self.ENDPOINTS, self.endpoints, 'line endpoints')
+
+    def test_fingerprint_count_is_current(self):
+        self.claims(self.FINGERPRINTS, self.fingerprints, 'fingerprint entries')
+
+
+class FingerprintTests(unittest.TestCase):
+    """The stored digest is of the cited line as it stands.
+
+    It used to be taken from `.strip()`ed text, so a cited Python line could
+    change its indentation -- and with it which block the statement belongs to
+    -- with an unchanged digest, while the file claimed to hash the line's
+    whole text (DeanoC/fes#1829 review).
     """
 
     @classmethod
     def setUpClass(cls):
-        cls.readme = (RECORD / "README.md").read_text()
-        cls.rows, _ = verify_census.check_primary()
-        cls.citations, cls.endpoints, _, _ = verify_census.check_citations()
+        cls.prints = json.loads(
+            (RECORD / "citation-fingerprints.json").read_text())
 
-    def claimed(self, pattern):
-        found = re.search(pattern, self.readme)
-        self.assertIsNotNone(found, f"README.md no longer states {pattern!r}")
-        return int(found.group(1))
-
-    def test_row_count_is_current(self):
-        self.assertEqual(self.claimed(r"all \*\*(\d+)\*\* inventory rows"),
-                         self.rows)
-
-    def test_citation_count_is_current(self):
-        self.assertEqual(
-            self.claimed(r"all \*\*(\d+)\*\* `path:line` citations"),
-            self.citations)
-
-    def test_endpoint_count_is_current(self):
-        self.assertEqual(self.claimed(r"\(\*\*(\d+)\*\* line endpoints"),
-                         self.endpoints)
-
-    def test_fingerprint_count_is_current(self):
-        self.assertEqual(self.claimed(r"(\d+) entries holding the sha256"),
-                         len(json.loads(
-                             (RECORD / "citation-fingerprints.json").read_text())))
+    def test_digests_cover_leading_whitespace(self):
+        indented = 0
+        for key, digest in self.prints.items():
+            path, _, number = key.rpartition(":")
+            target = verify_census.resolve(path)
+            self.assertIsNotNone(target, f"{key} no longer resolves")
+            raw = verify_census.lines_of(target)[int(number) - 1]
+            self.assertEqual(
+                hashlib.sha256(raw.encode()).hexdigest(), digest,
+                f"{key} is not fingerprinted by its unstripped text")
+            if raw != raw.lstrip():
+                indented += 1
+        # Without an indented cited line the assertion above would pass on a
+        # stripped digest too, and prove nothing.
+        self.assertGreater(indented, 0, "no cited line is indented")
 
 
 class RecordTests(unittest.TestCase):

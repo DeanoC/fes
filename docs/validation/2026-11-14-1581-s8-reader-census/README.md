@@ -41,22 +41,22 @@ record against the tree it is read in, and is the evidence for every count below
 It makes two claims. First, all **374** inventory rows hold, on their stated line, the `Matched`
 text recorded for them — the check that matters, because a line number can stay in range while
 pointing at the wrong line, and that is how two earlier revisions of this record went wrong. Second,
-all **746** `path:line` citations written in the prose and the `What` cells of these three files
-(**987** line endpoints, counting every number of a comma list and both ends of a range) resolve to a
+all **747** `path:line` citations written in the prose and the `What` cells of these three files
+(**988** line endpoints, counting every number of a comma list and both ends of a range) resolve to a
 real file **and still hold the text they held when the record was written**.
 
 That second half is the part a reader should not take on trust, because until the #1829 review it was
 not true. A secondary citation was checked only for existing and being non-blank, so a base edit that
 shifted one onto another non-blank line passed — the exact defect two earlier revisions of this record
 shipped. The content check works from [`citation-fingerprints.json`](citation-fingerprints.json),
-760 entries holding the sha256 of each cited line's **whole** text, regenerated only
+761 entries holding the sha256 of each cited line's **whole** text, regenerated only
 deliberately:
 
     python3 docs/validation/2026-11-14-1581-s8-reader-census/verify_census.py --record-fingerprints
 
 What the fingerprints prove is bounded, and worth stating: they pin what each cited line said when
 they were taken, so any later drift is reported against them. They are not a retroactive claim that
-every one of those 723 citations was apt on the day it was written. Without the file the checker says
+every one of those 747 citations was apt on the day it was written. Without the file the checker says
 so in its output rather than passing quietly.
 
 Both pass with no exceptions, which took eight corrections beyond re-pointing the base. The
@@ -172,7 +172,7 @@ Confirmed present, with the line verified where noted:
   does name.
 - `M/scripts/build_zx81_bus_validation_cart.py:157` — the compile line; the doc names only its two
   list lines.
-- `M/scripts/sim_fes_ramtest.py:75` — the doc names no sim for `fes-ramtest/rtl/top.v`.
+- `M/scripts/sim_fes_ramtest.py:99` — the doc names no sim for `fes-ramtest/rtl/top.v`.
 - The three Icarus Quartus sims, which both set `QUARTUS=1` and read guarded files:
   `sim_fes_coleco_quartus.py:58` and `:32`/`:33`, `sim_fes_sms_quartus.py:46`,
   `sim_fes_sg1000_quartus.py:46` — six sites the table mentions only in passing at site 15.
@@ -300,7 +300,7 @@ Confirmed present, with the line verified where noted:
     `What` cell or in this record's prose, was checked for existing and being non-blank and nothing
     more. So a base edit that moved a cited construct onto another non-blank line passed — which is
     precisely the defect the first two revisions of this record shipped, and it means re-running the
-    checker after a base move did not protect the exact-site checklist it advertises. All 954 line
+    checker after a base move did not protect the exact-site checklist it advertises. All 988 line
     endpoints are now content-checked against a committed fingerprint file. Second, `.tcl` was not
     in the extension list, so three live citations went unread: `fes_de25_computer_hw.tcl:15` and
     `:77`, and `fes_de25_zx81_standard_hw.tcl:39`, all in `de25.md`. All three are correct; they
@@ -336,7 +336,8 @@ Confirmed present, with the line verified where noted:
     now a reported problem, verified by deleting the file: exit 1.
 
     Together those three raise what the record checks from 711 citations and 831 endpoints to
-    **723 and 954**. So for most of today this file's headline numbers overstated its coverage by
+    **723 and 954** as the record then stood; the headline above carries the
+    current figures. So for most of today this file's headline numbers overstated its coverage by
     about an eighth, in the direction that always flatters: the uncounted endpoints were the
     unchecked ones.
 
@@ -358,7 +359,7 @@ whenever the area cut changes.
 
 Checked mechanically here, over the whole inventory: every primary line against its recorded matched
 text (374 of 374, one of them matched up to the ellipsis its cell uses), and every `path:line`
-citation in these three files against the tree (723 of 723, now by content and not merely by
+citation in these three files against the tree (747 of 747, now by content and not merely by
 existence). Both are re-runnable as
 `verify_census.py`. That check is what caught the wrong base,
 once Codex had pointed at two instances of it, and it is cheap enough to repeat whenever the base

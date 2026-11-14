@@ -322,12 +322,19 @@ def check_citations(record=False):
                         problems.append(
                             f'{doc}:{row}: {cited}:{n} past end ({len(body)} lines)')
                         continue
-                    text = body[n - 1].strip()
+                    # The digest covers the line as it stands, indentation
+                    # included; `.strip()` here meant a cited Python line could
+                    # change block membership with an unchanged digest, and
+                    # contradicted this script's own claim to hash the whole
+                    # line (DeanoC/fes#1829 review). The stripped text is for
+                    # the blank test and for reporting only.
+                    raw = body[n - 1]
+                    text = raw.strip()
                     if not text:
                         problems.append(f'{doc}:{row}: {cited}:{n} is blank')
                         continue
                     key = f'{cited}:{n}'
-                    digest = hashlib.sha256(text.encode()).hexdigest()
+                    digest = hashlib.sha256(raw.encode()).hexdigest()
                     if record:
                         prints[key] = digest
                     elif prints is not None:
