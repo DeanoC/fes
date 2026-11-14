@@ -194,7 +194,11 @@ fixed in the commit that found it.
 
 Every gate below is of **`bf581e303`**, the branch's frozen head: one run,
 in the order the seal needs, on `chip-30x0-ai-dev` with CUDA
-(`/data/x87-s2-fits/gates3.log`).
+(`/data/x87-s2-fits/gates3.log`). The commits after it are this record and
+one test fixture (`same_as` compares the new `x87_cases` section, so the
+lockstep's own unit test needed it in its synthetic report); neither is a
+sealed input — the seal's `build-inputs.json` names no file under `tests/` —
+so the seal and the kit run stand for the branch head.
 
 | Check | Where | Result |
 | --- | --- | --- |
@@ -209,6 +213,7 @@ in the order the seal needs, on `chip-30x0-ai-dev` with CUDA
 | a kit run on that seal | Kit B | below |
 | `tests.test_pc386_machine` (82 tests: the whole machine simulated with the unit in it) | Powerboat | OK |
 | `tests.test_fes_i386_x87_unit`, `tests.test_fes_i386_ucode`, `tests.test_build_fes_pc386_quartus`, `tests.test_audit_fes_i386_case`, `tests.test_quartus_fes_i386` | Powerboat | OK, 145 tests with the machine's |
+| the whole `tests/` tree, as CI discovers it | Powerboat | OK, **2,193 tests** |
 | Verilator `-Wall` lint (the lock's 5.054) | Powerboat and chip | clean |
 
 The identity-off lockstep is the regression this slice turns on: with the
@@ -305,11 +310,16 @@ measured rather than estimated:
 
 - **Against main the unit costs +1,493 ALMs, 9 DSP blocks and 4 M10K**, and
   the machine meets the clock in all three fits.
-- **With the identity clear this branch is 93 ALMs smaller than main**, which
-  is inside the flow's own seed-to-seed spread: tying the identity to `1'b0`
-  really does remove the unit, and the changes that are not behind it — the
-  shared FNSAVE and FRSTOR microcode, the sequencer's offsets, the wider
-  part field — cost nothing measurable.
+- **With the identity clear this branch fits 93 ALMs smaller than main**, a
+  negative delta, so tying the identity to `1'b0` really does remove the
+  unit and the changes that are not behind it — the shared FNSAVE and FRSTOR
+  microcode, the sequencer's offsets, the wider part field — cost nothing
+  measurable. How small a difference means nothing here is worth stating:
+  the seal and this fit are the same RTL at the same seed through two flows
+  and differ by 126 ALMs (36,406 against 36,532), so a hundred either way is
+  below this measurement's resolution. The 92% ceiling is a device figure
+  (38,557 of 41,910) and applies to both, but 38,118 is a fit-flow number,
+  so read the 439 with that 126 in mind.
 - At 38,118 the machine with a 387 fitted is **439 ALMs under the 92%
   ceiling**, and its margin is +0.804 ns against main's +0.435 in the same
   flow.
@@ -402,6 +412,13 @@ empty socket's exactly as before.
   The identity stays `1'b0` in the package.
 
 ## What is left
+
+Three things the slice's scope names are not in this PR. Exception 9 is the
+one that would need RTL, and building it now would void the seal and the kit
+run on it, so it is stated here for Deano to place: on this PR with a new
+seal, or on its own.
+
+
 
 - **The lockstep's 387 coverage is the eight directed programs.** The rule
   is in and they pass, but the generator still emits no ESC instruction, as
