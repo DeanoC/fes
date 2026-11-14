@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "ed410a1cb6416366ebd958ace34d472358317965",
+  "source_revision": "0eafe7994e33abe2f881f6daf35e52f337ea8d39",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -96,7 +96,7 @@
     "sources/libmister-runtime/src/native/menu_display.hpp": "68d501fd143daa309f4fbac96a12e474b9d7ea63ce2b6497c2ef6e31ee35ee65",
     "sources/libmister-runtime/src/native/idle_recipe.hpp": "743d820a3bdba213a5d806dc834236b0e149ed930982b5104cba732e47e62527",
     "sources/libmister-runtime/src/native/video_recipe.hpp": "b471a537d3ed136028465f5dd11db0e7fe52f2534a9762a28f63c8f89583e8c0",
-    "sources/libmister-runtime/src/native/video.hpp": "1f5c499a8ec268b6e5b2253b001cb12d5c6cc45440d55b861068b0042546e67f",
+    "sources/libmister-runtime/src/native/video.hpp": "b44cd8217c3553ddc9e2ca05070040a55dea2bcc3f8c15dee1236bc2155b4276",
     "sources/libmister-runtime/src/native/adv7513.hpp": "be514b089db4d58a98165793794edece8bb070c38eec30f50dd806651d95d9db",
     "sources/libmister-runtime/src/native/hardware.hpp": "b8e6a52104d3e77dd7fe21a3dcaba3304dd1b2e4f068c07b4a5a5d5a2d9bb836",
     "sources/libmister-runtime/src/native/core_package.hpp": "70f18fc8c4605ee1fd9118fdfac9d9f1dfa4744cbc0b05e93f5584bca1f0122a",
