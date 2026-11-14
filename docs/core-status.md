@@ -523,16 +523,20 @@ the 286-12 preset scores above all of them
   ([#1837](https://github.com/DeanoC/fes/issues/1837)). The condition is not
   new: on #1474's own ratio across #1453, its ISA charges added about two of the
   twelve-and-a-half points and the rest predates them;
-- Ultima VI walking speed at 286-12 is **not measured**, and the record names
-  the three methods that failed rather than quoting a number: the game steps
+- Ultima VI walking speed at 286-12 is **not measurable by any method tried**,
+  and the record names all three rather than quoting a number: the game steps
   when it next polls the keyboard and drops what is queued, so the rate follows
   how the keys arrive, and keying harder makes it walk slower — the reference
   gives 2.94 steps a second at 10 keys a second and 2.06 and 2.07 at 12.3 and
-  25, a steady figure but a suppressed one. Settling it needs a count the game
-  keeps itself, read from memory on each side;
-- Ultima VII NPC pace is still open: The Black Gate stops at its own memory
-  check on the reference, which has no RAM behind C800-DFFF to put drivers in,
-  and the reference board for a 386DX-25 is not settled.
+  25, a steady figure but a suppressed one, not a plateau. Measuring it needs
+  the game's own step count rather than motion counted in frames;
+- Ultima VII NPC pace is **not established**, which is not the same as the
+  walk above: no pace was measured, and nothing says it cannot be. The Black
+  Gate does not start on the reference at all — it stops at its own memory
+  check, because a real 386 board has no RAM behind C800-DFFF for the games
+  image's UMB provider where the kit's machine does. The routes left are an
+  86Box ISA memory board there, and settling the 386DX-25 reference board;
+  both are work not reached, not dead ends.
 
 The walk also waits on [#1840](https://github.com/DeanoC/fes/issues/1840): the
 286-12 preset scores TopBench 33 where AT-class real 286 boards of its clock

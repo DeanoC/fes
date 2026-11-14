@@ -29,11 +29,18 @@ kit was measured. The reference machines are in
 | Check | Result |
 | --- | --- |
 | **Ultima VI, PC speaker pitch at the 286-12 preset** | **Fail**, on three kit captures and five reference ones. The kit's notes are 12.7–12.9% below the reference's, 2.35 and 2.38 semitones flat. The band is ±5.9%, one semitone. Scaling the reference from its 12.5 MHz to the preset's nominal 12.0 leaves 9.0–9.3% and about 1.7 semitones, if the game keeps the same delay unit across that step. |
-| **Ultima VI, walking speed at the 286-12 preset** | **Not measured**, and the three methods tried are why, not the kit. The game steps when it next polls the keyboard and drops what is queued, so the rate follows how the keys arrive — and keying harder makes it walk slower: 2.94 steps a second at 10 keys a second, 2.06 and 2.07 at 12.3 and 25. Over-keying is steady but steady at a suppressed rate. What would settle it is a count the game itself keeps, read from memory on each side. |
-| **Ultima VII: The Black Gate, NPC pace at 386DX-25** | **Not done.** A reference board must be settled first, by the rule that validated the 286 one. The game stops at its own memory check on the reference, and the reference board for a 386DX-25 is not settled; see below. |
+| **Ultima VI, walking speed at the 286-12 preset** | **Not measurable by any method tried here**, and the methods are why, not the kit. Three were tried and all failed on one cause: the game steps when it next polls the keyboard and drops what is queued, so the rate follows how the keys arrive. Keying harder makes it walk *slower* — 2.94 steps a second at 10 keys a second, 2.06 and 2.07 at 12.3 and 25 — so the steady over-keyed figure is a suppressed rate, not a plateau. Measuring it needs the game's own step count, not motion in frames. |
+| **Ultima VII: The Black Gate, NPC pace at 386DX-25** | **Not established**, and **not** for want of a method: no pace was ever measured, because the game does not start on the reference. It stops at its own memory check, which is a configuration problem with a named cause and a route left to try. |
+
+**These three are different outcomes and should not be read as one.** The pitch
+is a measured verdict. The walk is a documented dead end: three methods, each
+tried and each shown to measure the harness rather than the machine. Ultima VII
+is neither — nothing about it was measured, and what blocks it is a memory map,
+not a measurement limit.
 
 So **#1368's last box is not ticked and the issue stays open**, and pc386 does
-not reach tier 1 on this work. The pitch failure has its own issue.
+not reach tier 1 on this work. This record does not clear the Ultima VI half of
+that box either: the pitch check inside it **fails**, and has its own issue.
 
 ## The reference, and that it is credible
 
@@ -415,8 +422,10 @@ passing its own gates.
 
 ## Ultima VII: The Black Gate, NPC pace
 
-Not done. The Black Gate prints "Ultima VII requires 561144 bytes of DOS
-memory!" on the reference and exits. The free figure itself was not read there,
+**Not established — and the distinction from the walk above matters.** Nothing
+about NPC pace was measured here, and nothing here says it cannot be. What
+stops it is that The Black Gate does not start on the reference at all: it
+prints "Ultima VII requires 561144 bytes of DOS memory!" and exits. The free figure itself was not read there,
 but the cause is plain from the boot: the games image's UMB provider reports
 "no RAM found at C800. Aborted!", because a real 386 board has nothing behind
 C800–DFFF where the kit's machine has RAM, so HIMEMX and the mouse driver load
@@ -446,6 +455,17 @@ What is left is to reproduce the kit's memory map — an 86Box ISA memory
 expansion board putting RAM behind C800–DFFF, so the games image's own UMB
 provider loads the drivers high there exactly as it does on the kit. That is
 the like-for-like route and it was not reached today.
+
+**Two things, then, for whoever picks this up**, in order: that memory board,
+which is a configuration change on the reference and should unblock the game;
+and the reference board itself, which `method.md`'s fifth amendment now fixes
+as a cached 386DX-25. Settling the board is the smaller of the two — the cached
+and uncached boards both score TopBench 40, so the choice does not decide the
+comparison — but it has to be stated before a pace figure is read, not after.
+Neither is a dead end; both are work that was not reached. Any change made to
+the reference to get the game running must be named in the record beside the
+figure, because a reference configured unlike the kit's machine is a difference
+to declare rather than absorb.
 
 The reference machine for it was also not settled. The board used for the
 benchmark above, a 1988 C&T 386/AT with no cache, scores 40 against the kit
