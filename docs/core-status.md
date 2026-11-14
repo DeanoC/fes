@@ -513,9 +513,31 @@ Manager ([Windows corpus](../sources/misteross/docs/pc386-windows-corpus.md)).
 Its first kit runs are in the
 [corpus record](validation/2026-11-12-pc386-windows-corpus/summary.md).
 
-Still open for the games ([#1368](https://github.com/DeanoC/fes/issues/1368)):
-- Ultima VI walking speed at 286-12, against a reference;
-- Ultima VII NPC pace, against a reference.
+Still open for the games ([#1368](https://github.com/DeanoC/fes/issues/1368)).
+An 86Box 286 at 12.5 MHz is now named as Ultima VI's reference, and scores in
+the middle of real 286 boards of that clock in TopBench's own database, where
+the 286-12 preset scores above all of them
+([record](validation/2026-11-14-pc386-u6-u7-reference/summary.md)):
+- Ultima VI's speaker effects play about 2.4 semitones flat against it
+  (840.72 and 499.79 Hz against 962.76 and 573.91), which fails
+  ([#1837](https://github.com/DeanoC/fes/issues/1837)). The condition is not
+  new: on #1474's own ratio across #1453, its ISA charges added about two of the
+  twelve-and-a-half points and the rest predates them;
+- Ultima VI walking speed at 286-12 is still open, and not for want of a
+  reference: on the reference the turn rate follows how fast the keys are sent,
+  and the step rate spreads 23% at one key rate where the band is ±10%, so
+  nothing can be judged against it;
+- Ultima VII NPC pace is still open: The Black Gate stops at its own memory
+  check on the reference, which has no RAM behind C800-DFFF to put drivers in,
+  and the reference board for a 386DX-25 is not settled.
+
+The walk also waits on [#1840](https://github.com/DeanoC/fes/issues/1840): the
+286-12 preset scores TopBench 33 where AT-class real 286 boards of its clock
+score 21 to 27, so a pace measured at a preset is qualified by how well that
+preset is calibrated. That is CPU throughput, and the pitch failure runs the
+other way, so they are not the same measurement; whether they share a cause in
+the governor's clock table is open. The Black Gate runs at preset 3, which has
+the same question on weaker evidence and is not filed.
 
 Launches with Serpent Isle's disk image sometimes show a black picture at
 the DOS prompt: 12 black DOS-prompt grabs in 400 launches on Kit B. Four of
