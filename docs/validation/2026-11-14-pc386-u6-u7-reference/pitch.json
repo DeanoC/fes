@@ -77,22 +77,82 @@
      "max": 576.7
     }
    ]
+  },
+  "ref_m6_1": {
+   "side": "reference",
+   "run": "m6 play 1",
+   "when": "2026-11-14 14:10",
+   "notes": [
+    {
+     "n": 36,
+     "median": 963.02,
+     "min": 959.56,
+     "max": 964.77
+    },
+    {
+     "n": 31,
+     "median": 573.56,
+     "min": 570.4,
+     "max": 576.81
+    }
+   ]
+  },
+  "ref_m6_2": {
+   "side": "reference",
+   "run": "m6 play 2",
+   "when": "2026-11-14 14:11",
+   "notes": [
+    {
+     "n": 36,
+     "median": 962.85,
+     "min": 960.41,
+     "max": 965.12
+    },
+    {
+     "n": 31,
+     "median": 573.26,
+     "min": 567.07,
+     "max": 577.46
+    }
+   ]
+  },
+  "ref_m6_3": {
+   "side": "reference",
+   "run": "m6 play 3",
+   "when": "2026-11-14 14:12",
+   "notes": [
+    {
+     "n": 31,
+     "median": 962.95,
+     "min": 958.59,
+     "max": 965.92
+    },
+    {
+     "n": 31,
+     "median": 574.2,
+     "min": 569.61,
+     "max": 576.76
+    }
+   ]
   }
  },
  "keys": [
   "6",
   "1"
  ],
- "shortfall": "The method asked for three repeats a side. This is two a side: one kit capture on this package with the 10 November capture on package 650bc477 behind it, and two reference captures. A third reference run (m5) was attempted and its lute landed in character creation, so it holds no notes. The spreads below are far inside the band.",
+ "shortfall": "Five reference captures (m3, m4 and m6's three plays) against two kit captures: one on this package (g1) with the 10 November capture on 650bc477 behind it. The kit side is one short of the three a side the method asked for; the kit was held by another session.",
  "comparison": [
   {
    "key": "6",
    "kit_hz": 840.72,
-   "reference_hz": 962.76,
-   "kit_below_reference_pct": 12.68,
+   "reference_hz": 962.95,
+   "reference_captures": 5,
+   "reference_min": 962.29,
+   "reference_max": 963.23,
+   "kit_below_reference_pct": 12.69,
    "semitones_flat": 2.35,
-   "reference_scaled_to_12MHz_hz": 924.25,
-   "kit_below_scaled_pct": 9.04,
+   "reference_scaled_to_12MHz_hz": 924.43,
+   "kit_below_scaled_pct": 9.06,
    "semitones_flat_scaled": 1.64,
    "band_pct": 5.9,
    "verdict": "fail"
@@ -100,12 +160,15 @@
   {
    "key": "1",
    "kit_hz": 499.79,
-   "reference_hz": 573.91,
-   "kit_below_reference_pct": 12.91,
-   "semitones_flat": 2.39,
-   "reference_scaled_to_12MHz_hz": 550.95,
-   "kit_below_scaled_pct": 9.29,
-   "semitones_flat_scaled": 1.69,
+   "reference_hz": 573.56,
+   "reference_captures": 5,
+   "reference_min": 573.26,
+   "reference_max": 574.28,
+   "kit_below_reference_pct": 12.86,
+   "semitones_flat": 2.38,
+   "reference_scaled_to_12MHz_hz": 550.62,
+   "kit_below_scaled_pct": 9.23,
+   "semitones_flat_scaled": 1.68,
    "band_pct": 5.9,
    "verdict": "fail"
   }

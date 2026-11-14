@@ -40,7 +40,8 @@ the same benchmark drive the kit's presets were measured on
 | Real 286s at 12–12.5 MHz in TopBench's database | 16, 21, 22, 22, 23, 25, 27 |
 | Real 286s at 16 MHz in the same database | 33, 36, 42 |
 | pc386 at the 286-12 preset (#1486) | 33 |
-| **86Box 386DX at 25 MHz (`ecs386`, benchmarked only)** | **40** |
+| **86Box 386DX at 25 MHz (`ecs386`, uncached, benchmarked only)** | **40** |
+| **86Box 386DX at 25 MHz (`asus3863364k`, cache enabled, benchmarked only)** | **40** |
 | Real 386DX/SX machines at 20–25 MHz in the database | 25, 26, 39, 40, 41, 46, 46, 47, 47, 49, 60 |
 | pc386 at the 386DX-25 preset (#1486) | 68 |
 
@@ -65,3 +66,13 @@ whether The Black Gate would run and to put a figure beside the kit's
 comparison should be chosen the way the 286 one was — mid-range among real
 machines of its class in TopBench's database — before any NPC-pace verdict
 rests on it.
+
+`method.md`'s fifth amendment fixes the rule: the 386DX-25 preset is defined
+as the Intel386 table at 25 MHz with zero wait states, so the reference board
+must be a **cached** 386DX at 25 MHz. `asus3863364k`, whose POST prints
+"Cache controller ... Enabled", was benchmarked for that and scores **40** —
+the same as the uncached `ecs386`. TopBench's database holds no 386DX at
+25 MHz to place either against, so the figure cannot be read the way the 286
+one was; what it does say is that the two boards are not far enough apart for
+the board choice to decide a comparison between them. Both still sit well
+below the kit's 386DX-25 preset at 68.

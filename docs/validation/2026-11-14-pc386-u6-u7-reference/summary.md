@@ -136,9 +136,9 @@ and the reference's memory.
 
 | | kit, 286-12 | reference, 286 at 12.5 MHz | reference scaled to 12.0 MHz |
 | --- | --- | --- | --- |
-| key `6` | **840.72 Hz** (31 notes, 840.42–840.90) | **962.76 Hz** (two runs: 962.29, 963.23) | 924.25 Hz |
-| key `1` | **499.79 Hz** (31 notes, 499.65–499.87) | **573.91 Hz** (two runs: 574.28, 573.54) | 550.95 Hz |
-| kit below the reference | | **12.68% and 12.91%** (2.35 and 2.39 semitones) | **9.04% and 9.29%** (1.64 and 1.69 semitones) |
+| key `6` | **840.72 Hz** (31 notes, 840.42–840.90) | **962.95 Hz** (five captures, 962.29–963.23) | 924.43 Hz |
+| key `1` | **499.79 Hz** (31 notes, 499.65–499.87) | **573.56 Hz** (five captures, 573.26–574.28) | 550.62 Hz |
+| kit below the reference | | **12.69% and 12.86%** (2.35 and 2.38 semitones) | **9.06% and 9.23%** (1.64 and 1.68 semitones) |
 
 **Verdict: fail.** The band is ±5.9%, one semitone, and the kit is outside it
 on both notes against the reference as measured, at 12.5 MHz. It is still
@@ -150,16 +150,24 @@ reference's 1%, and the kit's figures are the same as the 10 November run's on a
 different seal, through this record's own analyser — 840.70 against 840.72 Hz
 and 499.78 against 499.79 — so this is the machine and not the day.
 
-**This is two captures a side, not the three the method asked for**, and
-`pitch.json` names all four: one kit capture on this package (`g1`) with the 10
-November capture on package `650bc477` behind it, and two reference captures
-(`m3`, `m4`). A third reference run was made and its lute landed in character
-creation, so it holds no notes. The method's reason for three was to show the
-spread is well inside the band, and it is — 0.05% on the kit and 0.1% between
-the two reference runs, against ±5.9%, with the difference being measured 100
-times larger than either — but the shortfall is a deviation and is named here
-rather than left to be noticed. Three kit captures were queued for Kit B and
-not run, because the kit was held by another session.
+**The reference side now has five captures and the kit side two**, and
+`pitch.json` names them all: one kit capture on this package (`g1`) with the 10
+November capture on package `650bc477` behind it, and five reference captures —
+`m3`, `m4`, and three plays taken inside a single Use in run `m6`. An earlier
+reference run was made and its lute landed in character creation, so it holds
+no notes. **The kit side is one short of the three a side the method asked
+for.** The method's reason for three was to show the spread is well inside the
+band, and it is — 0.05% on the kit, and 0.10% across the five reference
+captures, against ±5.9%, with the difference being measured 100 times larger
+than either — but the shortfall is a deviation and is named here rather than
+left to be noticed. Three kit captures were queued for Kit B and not run,
+because the kit was held by another session throughout.
+
+**The reference was running at full speed for each lute play.** 86Box shows its
+emulation speed in the window's tool bar, and the grab taken at the end of each
+lute play — `u6-played` in `m3` and `m4`, `u6-after3` in `m6` — reads 100%. It
+would not change the verdict either way: a reference held below real time can
+only read flat, which narrows the gap the kit is being judged on.
 
 **The condition is not new, and most of it predates #1453.**
 [#1474's record](../2026-11-04-pc386-speaker-kit/summary.md) measured the same
