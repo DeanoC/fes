@@ -30,9 +30,9 @@ swap 4.261 A
 disk A 1.44M /home/deano/fes/.claude/worktrees/silly-mcnulty-a4e35c/sources/misteross/build/sim/fes-pc386/floppy-a2.img read-only
 swap 4.794 A
 disk A 1.44M /home/deano/fes/.claude/worktrees/silly-mcnulty-a4e35c/sources/misteross/build/sim/fes-pc386/floppy-a.img
-swap 4.929 B
+swap 4.944 B
 disk B 360K /home/deano/fes/.claude/worktrees/silly-mcnulty-a4e35c/sources/misteross/build/sim/fes-pc386/floppy-b360.img
-swap 5.401 B
+swap 5.416 B
 disk B 1.2M /home/deano/fes/.claude/worktrees/silly-mcnulty-a4e35c/sources/misteross/build/sim/fes-pc386/floppy-b.img
 out B /home/deano/fes/.claude/worktrees/silly-mcnulty-a4e35c/sources/misteross/build/sim/fes-pc386/floppy/floppy-b-out.img 1228800
 PASS floppy
