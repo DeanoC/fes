@@ -2136,9 +2136,10 @@ validation cart; mixed-width `A1EN`/`A1BE` decoded but did not hold `POKE`/`OUT`
 Cart M10K keep a distinct top clock port (`FPGA_CLK1_50`) so
 `--fes-slot-clock clk_sys` can splice the inferred IB onto the shell 52.224 MHz
 net; naming that port `clk_sys` leaves M10K on the pad output. During `/RFSH` the shell presents the ULA character-ROM address as the QS
-`8400–87FF` window so the same 1 KiB cell supplies glyphs. QS power-up
-loads Sinclair glyphs 0–63 (ROM `1E00–1FFF`) into that cell so boot text
-is readable; CPU writes still replace rows. The shifter loads a
+`8400–87FF` window so the same 1 KiB cell supplies glyphs. The cell starts
+empty and holds no ROM bytes. QS claims those fetches only after the first
+CPU write to the window, which is the real board's character switch; until
+then, and again after CPU reset, the shell shows its own ROM glyphs. The shifter loads a
 registered `rfsh_chr` hold that keeps the first ROMCS byte; `/RFSH` is
 not muxed into `cpu_din` (that loop stopped the FES GP mailbox). The validation
 cart is the first consumer on that edge; Zon X and QS Character Board RTL share
