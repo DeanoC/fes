@@ -5,11 +5,41 @@ The registered native-video shell, `build_fes_coleco_socket_v2.py
 `2d895034c`. Coleco is the core whose main tool slot (`slots/9c81e35d…`, Coleco
 lock, HIP) still exists and still authenticates with main's code.
 
-**Against `2d895034c`, fes.coleco met every AGENTS.md D12 condition.** Whether
-that clears it of a reseal at this head is not settled here: the branch has
-since merged main `53681975f`, which moves this core's closure, so the second
-condition is unverified at `02beac79b`. See [What revision this evidence is
-against](README.md#what-revision-this-evidence-is-against).
+**The `2d895034c` comparison below is void, and has been replaced.** It is kept
+because what happened to it is the most useful thing in this file. Main changed
+three of this core's own RTL files — `rtl/{coleco_application_gp.v,
+coleco_machine.sv,top.v}` — plus the two shared ones, five of the 43 sources its
+producer compiles. So main's reference artifact moved, and the recorded
+`fbc2b284a93f0216…` no longer names anything to compare against. Codex raised
+this as a P1 on this file and was right.
+
+**Re-measured against main `bb968862b`, fes.coleco meets every D12 condition
+again**, with different numbers:
+
+| | value |
+| --- | --- |
+| main's BUILD_ID | `f9ed7347e8ef24a424456cb28f3764b6` |
+| `core.rbf`, main and forced | `c2df40af2c507da262800538e7bbde36b7c86a3ddf066861ef9f72a1792ad52f` |
+| the old recorded RBF | `fbc2b284a93f0216…` — **different** |
+
+Condition 1 holds at the new base too: 12,119 differing lines of 420,317, every
+one path-bearing, byte-identical once `slots/<64hex>/install`,
+`tools/yosys/<64hex>/install` and the checkout are collapsed. Builds took 2m35s
+and 2m40s. Main's side resolved its legacy slot `9c81e35dfa56…` through
+`--cache-root`, its own resolution path, with no root population — the slot
+still exists and still authenticates under main's code, confirmed with
+`resolve_ready` first.
+
+**That the two RBFs differ is the useful result.** It is the one core here whose
+own RTL main changed, and its placed-and-routed design moved accordingly. The
+carry-forward clause this PR adds to D12 would have been a formality if every
+voided comparison had turned out to agree anyway; this one does not agree, so
+the clause earned its keep on the day it was written. It also sharpens the
+contrast with the eight cores closed by derivation, whose only change was a
+header edit shown unable to reach their logic: same clause, genuinely different
+cases.
+
+The record of the original, now-void comparison follows.
 
 ## Builds
 

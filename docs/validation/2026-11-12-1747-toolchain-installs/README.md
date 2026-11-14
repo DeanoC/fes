@@ -230,12 +230,12 @@ in that window: the only candidates were two new `board = "de25-nano"` recipe
 entries, `cores/fes-pc386/toolchain.lock` and the i386 sub-lock, and
 `boards/de10nano/` is untouched.
 
-### The four-core partition missed eight, and why they survive anyway
+### Eight cores are closed by an argument, not by the clause
 
-The partition above was derived from what main changed under each core's own
-directory. That misses a shared header. `cores/fes-common/generated/fes_application.vh`
-changed between `2d895034c` and `bb968862b`, and it reaches cores that never
-name it, through `` `include ``:
+The partition has three classes, not two, and the middle one is where the
+clause runs out. `cores/fes-common/generated/fes_application.vh` changed between
+`2d895034c` and `bb968862b`, and it is **in the input lists** of eight cores
+beyond the four:
 
 | core | how the change reaches it | in the four? |
 | --- | --- | --- |
@@ -244,25 +244,31 @@ name it, through `` `include ``:
 | `fes.c64`, `fes.menu`, `fes.riscv`, `fes.sg1000` | same, plus their own RTL | yes |
 | `fes.coleco` | `cores/fes-coleco/rtl/top.v` includes it, plus three of its own RTL files | no — see below |
 
-So eight more cores had a compiled source change between the two bases, and the
-carry-forward clause does not license them as written. `fes.ramtest` compiles
-both the header and `fes_application_gp.v`, which also changed, but it has no
-comparison in either direction anyway.
+The partition classified these eight explicitly, as netlist-neutral by
+derivation, and did not overlook them — the header is why their producers came
+out as moved in the first place. `fes.ramtest` compiles both the header and
+`fes_application_gp.v`, which also changed, but it has no comparison in either
+direction anyway.
 
-**They survive on a derivation, which is not the same as the clause.** The whole
-of the header's change is the removal of ten `` `define ``s, all of them
-firmware-mailbox constants from #1714:
+**The derivation.** The whole of the header's change is the removal of ten
+`` `define ``s, all firmware-mailbox constants from #1714:
 `FES_APPLICATION_OPCODE_FIRMWARE_{BEGIN,DATA,COMMIT}`,
 `FES_APPLICATION_FIRMWARE_{BYTES,DATA_PAIR_INDEX,DATA_TAIL_INDEX}` and the four
-`FES_APPLICATION_INTERFACE_FIRMWARE_BLOB_*`. **No core references any of them** —
-checked by grepping every name across `cores/`, excluding simulation, with no
-hit. Removing an unreferenced `` `define `` cannot move a netlist, so main's
-netlist and main's RBF for those eight are the same at both bases and the
-recorded comparison still describes the current one. Condition 1 passing at the
-new base for all seventeen is consistent with that.
+`FES_APPLICATION_INTERFACE_FIRMWARE_BLOB_*`. `git grep -l` for those names at
+`2d895034c` across `cores/**` and `boards/**` returns **exactly two files**: the
+header that defined them and `cores/fes-common/rtl/fes_application_gp.v`, the
+module that used them. Neither the Spectrum nor the ZX81 producer compiles that
+module — the ones that do are coleco, sg1000, menu-package, riscv and ramtest.
+So the deleted macros are unreferenced in every file these eight cores compile,
+and a header of `` `define ``s alone gives no cell a `src` attribute. The change
+moves their `BUILD_ID` and can reach nothing else, so main's netlist and RBF for
+them are the same at both bases.
 
-That argument is sound but it is **not** what D12 now says. The clause asks
-whether the compiled source set is unchanged, and for these eight it is not.
+That argument is sound but it is **not** what D12 now says, and that is the
+point worth recording. The clause asks whether the compiled source set is
+unchanged. For these eight it is not: a file in their input lists changed. The
+rule therefore does not license them, even though the derivation does — a gap
+found by applying the clause on the day it was written.
 **Deano accepted the derivation for these eight cores rather than ordering a
 re-measurement** (14 Nov), on the stated ground that the change is the removal
 of defines no core references. So they are closed by an accepted argument, not
@@ -307,11 +313,15 @@ really were resolving tools from different prefixes — main's from its local
 hardlinked root, the forced build's from the shared per-tool cache — which is
 the isolation the campaign intended.
 
-**An RBF is not comparable across hosts.** Install paths land in generated cell
-names and the serials depend on path length, so the same binary and the same
-sources at 138 characters of prefix and at 47 produce different serials. Both
-sides of every comparison here ran on one host, and a future comparison must do
-the same.
+**An RBF is not reliably comparable across install prefixes, and the cause is
+unestablished.** A cross-host pair, 138 characters of prefix against 47,
+produced different serials in generated cell names from the same binary and
+sources. Path length looked like the mechanism and is not: Coleco's two
+prefixes are 132 and 138 characters, six apart, and its serials did not shift at
+all — the two sides' RBFs are byte-identical. So the observation stands and the
+explanation does not. Both sides of every comparison here ran in one place, and
+a future comparison should do the same until someone establishes what actually
+drives it.
 
 ## Re-measurement at `02beac79b`
 
@@ -549,6 +559,17 @@ re-measured against the new base.
   builds stays unambiguous, and a genuine collision between two OSS entries
   raises `duplicate P&R recipe for <core>` rather than picking one. The hazard
   is in reading the file by hand, not in the repository's reader.
+
+## Why a review reported as absent
+
+`gh pr view --json comments` returns a PR's **issue** comments and silently
+omits its reviews and review comments. Codex posts as a review, so this PR read
+as unreviewed through seven reviews and eleven findings, and that was reported
+twice as "Codex has not posted". The failure direction is the dangerous one: it
+hides work rather than inventing it, and nobody goes looking for a review that
+reports as absent. Query `gh api repos/<owner>/<repo>/pulls/<n>/reviews` and
+`.../pulls/<n>/comments`, or `gh pr checks` for state, and treat a quiet
+`comments` listing as no evidence either way.
 
 ## Why CI appeared not to run on this branch
 
