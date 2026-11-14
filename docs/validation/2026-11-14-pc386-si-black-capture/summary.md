@@ -18,7 +18,7 @@ probed recurrence belongs to #1833.
 Which of those stages it is stays open as
 [#1833](https://github.com/DeanoC/fes/issues/1833), split out of
 [#1823](https://github.com/DeanoC/fes/issues/1823), and the two cheap tests that
-would separate them need Deano's OK.** Most of the evidence below is from runs
+would separate them are approved for an episode and await one.** Most of the evidence below is from runs
 already taken, remeasured here. This record's own Kit B runs are `b1`
 (13 launches) and `b2` (30), both complete and both with no black launch. They
 contribute the timing and nonce evidence — each launch's blank window is dated
@@ -143,8 +143,9 @@ a live one: across `k8`'s 101 prompt grabs there are only 10 distinct frame
 hashes, each repeated 11–18 times (the prompt's blinking cursor). Run `b1` closes that hole for
 its own launches by typing a per-launch nonce before the grab (see below), but it
 saw no black launch in 13, so it has no episode of its own to say whether an
-episode's frame is live or stale. Run `b2` continues the hunt with the same
-nonce and a denser capture-buffer sample.
+episode's frame is live or stale. Run `b2` repeated it with the same nonce and a
+denser capture-buffer sample and saw none either, so for an episode the question
+is still open.
 
 ## The signature in data already taken
 
@@ -347,7 +348,8 @@ minute clear of any bring-up — not the frame pattern.
 ## Inputs and what was measured here
 
 Most of this record needed no kit: those numbers come from runs already taken on
-Powerboat, remeasured today. Run `b1` is this record's own kit run.
+Powerboat, remeasured today. Runs `b1` and `b2` are this record's own kit runs,
+both complete.
 
 - **Captures read.** `~/fes-scratch/acc1368r/kit/runs/{k1..k9}` (#1494's own
   runs), `~/fes-scratch/census-p5/kit/runs/*` (433 census grabs, package
