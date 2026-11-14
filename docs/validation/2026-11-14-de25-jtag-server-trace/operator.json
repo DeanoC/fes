@@ -1,0 +1,27 @@
+{
+  "scope": "prepared-private-server-traced-loading",
+  "host_source_head": "ea378a1bb608d4be7fa23e516578479e3490884a",
+  "procedure_sha256": "e2bae5dd7ffd03fbfe5c67c9c6a5198e318a25f03c4678e461bde6a5086c9319",
+  "frozen_files": 10910,
+  "plan_sha256": "f09448d89ed60d673d116394e7ebd5b429107df070cedfe26e4cb695f8e92ccc",
+  "firmware_source_head": "8394acfa52b1cbd898010e33d8e70aa380dd632d",
+  "native_image": {
+    "path": "/home/deano/fes/out/dev/de25-terminal-recovery-proof/out/publication-boot/native-composition/native-hps-first.hps.rbf",
+    "sha256": "5dec3d316891248e29f2a536a6782c9cf38b1422b5949bbbcf92077cffb88c20",
+    "bytes": 831488,
+    "kind": "hps-phase1-rbf",
+    "operation": "p;/home/deano/fes/out/dev/de25-terminal-recovery-proof/out/publication-boot/native-composition/native-hps-first.hps.rbf@1",
+    "volatile": true,
+    "flash_operation": false
+  },
+  "candidate_FIT": {
+    "path": "/home/deano/fes/out/dev/de25-terminal-recovery-proof/out/publication-boot/native-uboot/build/u-boot.itb",
+    "sha256": "3a70eb273cbdd3d2f01882f03e8b12c64ef2851d5ba56b4a4d7136e21d259a0c",
+    "bytes": 8547024
+  },
+  "prior_restoration_procedure_sha256": "d9583648655d04ce54392b53b506503ea8a40aaa7cbcdd5f2564c9aa942bd36d",
+  "prior_restoration_archive_sha256": "3f0e034bdf67fb3d23fe00fb03fe473dd804266c7e3dddfe7c580ac85e828b84",
+  "attempt_reserved": false,
+  "physical_private_server_tracing_qualified": false,
+  "hardware_acceptance": false
+}

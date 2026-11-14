@@ -1,0 +1,136 @@
+{
+  "server-trace-public-models-r4": {
+    "argv": [
+      "python3",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "/home/deano/fes/out/dev/de25-setup-release/tests",
+      "-p",
+      "test_nano_jtag_server_trace.py",
+      "-v"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 0.20079417200759053,
+    "log_sha256": "8be5d4590437cefe03e9ef720926bbd6c91822b4772338795758a6b71b845ef2"
+  },
+  "server-trace-real-host-r4": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/publication/check-server-trace-host-v4.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 0.20059525687247515,
+    "log_sha256": "94c5af9aa046d32a2c806b38b1ef341b8c161949776a125adda032220566fe72"
+  },
+  "server-traced-models-v2-r1": {
+    "argv": [
+      "python3",
+      "out/publication/check-server-traced-models-v2.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 28.64352795900777,
+    "log_sha256": "652e4dd27c148937003ab6830cc9662571564ed7ab0d5af86ecd34dee2dfa2cf"
+  },
+  "server-trace-v2-admission-boundaries-r1": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/server-traced-loading-trial-v2/test_admission_roots.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 8.608220324851573,
+    "log_sha256": "ef1092f8013a20203c522f0a26f6123114e7430df7ed9feffdda97cc7b2367a2"
+  },
+  "server-traced-v2-freeze-r1": {
+    "argv": [
+      "python3",
+      "out/server-traced-loading-trial-v2/freeze_selected.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 6.004637093981728,
+    "log_sha256": "ab867b30b87736db16f413270b15dd25f5b6393c408595dc6a4d7c5f32fd4933"
+  },
+  "server-traced-v2-default-user-r1": {
+    "argv": [
+      "python3",
+      "out/server-traced-loading-trial-v2/run_trial.py",
+      "--procedure-sha256",
+      "e2bae5dd7ffd03fbfe5c67c9c6a5198e318a25f03c4678e461bde6a5086c9319"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 8.805471686180681,
+    "log_sha256": "0e4c88ac012755eb22c4eb0c553426e05b46854f7b5e954496dea0ee33ebae3a"
+  },
+  "server-traced-v2-default-root-r1": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/server-traced-loading-trial-v2/run_trial.py",
+      "--procedure-sha256",
+      "e2bae5dd7ffd03fbfe5c67c9c6a5198e318a25f03c4678e461bde6a5086c9319"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 11.408795857103541,
+    "log_sha256": "0e4c88ac012755eb22c4eb0c553426e05b46854f7b5e954496dea0ee33ebae3a"
+  },
+  "server-trace-affected-r1": {
+    "argv": [
+      "make",
+      "-C",
+      "/home/deano/fes/out/dev/de25-setup-release",
+      "test-changed",
+      "TEST_CHANGED_ARGS=--base 4408e15c868f7626c4bdf9ead70d2eb0bc36022d"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 569.2540896830615,
+    "log_sha256": "27fa876096cbe2e287a099f5778118028a181ff9eaadb13b7d588f20018418ca"
+  },
+  "server-trace-committed-check-r1": {
+    "argv": [
+      "make",
+      "-C",
+      "/home/deano/fes/out/dev/de25-setup-release",
+      "check"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 14.613354556029662,
+    "log_sha256": "4ffe37a0582de7ca316571feada015e041e0fcc1e04f967bf1c719a8c98bc0bc"
+  },
+  "server-traced-retain-prepared-r1": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/publication/retain-server-traced-prepared.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 16.20988889504224,
+    "log_sha256": "297ea5617248b357e0d5f26e9b84e7a4dfaa783cb754d9d01137444162b02fef"
+  }
+}
