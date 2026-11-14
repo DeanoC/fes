@@ -34,9 +34,14 @@ separates trusted invalidation from the ordinary locking wrapper. It consumes
 one attempt, revokes ordinary authority, requires an independent live recovery
 scope and selects only the pinned cold mailbox provider. Sanitizer tests cover
 ownership drift, reentrancy, returning transport and retained reservations.
-Existing source profiles do not call this entry automatically; a terminal
-supplier, explicit diagnostic selection and fresh post-reset admission are
-still needed before it can replace a physical power cycle.
+Formats 16/17 keep this entry inactive. The
+[selected terminal supplier](../../../docs/validation/2026-11-14-de25-terminal-recovery/README.md)
+uses format 18 and requires `--nano-sdm-source-recovery` in both matched boot
+producers, alongside source rearm. It validates the actual completed source,
+revoked private binding and fresh CPU/device containment before one request.
+Cold and warm failure models pass, and recovery markers end the old trace
+sequence permanently. Physical reset, loader redelivery and fresh post-reset
+device/epoch admission remain necessary before it can replace a power cycle.
 
 The [transition-poll batching repair](../../../docs/validation/2026-11-14-de25-transition-poll-batches/README.md)
 kept each retirement transition's 22 register reads in one bounded read-only

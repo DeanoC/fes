@@ -1,0 +1,44 @@
+{
+  "status": "passed-generated-source-and-object-checks",
+  "source_commit": "8394acfa52b1cbd898010e33d8e70aa380dd632d",
+  "vendor_cold_function_sha256": "78d4ba85888bd0d9ae9a0b48109802fa4b2e08b2ae8f40939517cd23454a5cad",
+  "elf_sha256": "bda65b8e0cdcc95ac32485360ff320a96e4aef83ecba6094d73321b626d95dad",
+  "layout": {
+    "__NOBITS_START__": 327680,
+    "__NOBITS_END__": 393024,
+    "__STACKS_START__": 327680,
+    "__STACKS_END__": 360448,
+    "__BSS_END__": 393024
+  },
+  "private_limit": 393216,
+  "spare_bytes": 192,
+  "reset_objects": {
+    "fes_nano_platform_cold_reset_request": {
+      "object": "/home/deano/fes/out/dev/de25-terminal-recovery-proof/out/publication-boot/native-bl31/source/build/agilex5/release/bl31/socfpga_psci.o",
+      "object_sha256": "b623be744b349664426e62b66a5c69713c783281855c72551bf78afec5472c8d",
+      "present_in_normal_elf": true
+    },
+    "fes_nano_bridge_platform_cold_reset_held": {
+      "object": "/home/deano/fes/out/dev/de25-terminal-recovery-proof/out/publication-boot/native-bl31/source/build/agilex5/release/bl31/socfpga_reset_manager.o",
+      "object_sha256": "c335902d256d354b48470b07ebd84eb2d1f46c0abed5fbe2667cbe14b7db27bf",
+      "present_in_normal_elf": true
+    },
+    "fes_nano_sdm_source_recover": {
+      "object": "/home/deano/fes/out/dev/de25-terminal-recovery-proof/out/publication-boot/native-bl31/source/build/agilex5/release/bl31/nano_cold_platform.o",
+      "object_sha256": "bf28c30c645a9aaed7ec764a49e310f0dbebcb7b942917714dd0127cdee85665",
+      "present_in_normal_elf": true
+    }
+  },
+  "compiler_stack_records": {
+    "build/agilex5/release/bl31/nano_cold_platform.su": [
+      "plat/intel/soc/common/include/nano_sdm_recovery_platform.inc:31:12:sdm_recovery_cached\t288\tstatic",
+      "plat/intel/soc/common/include/nano_sdm_recovery_platform.inc:49:12:sdm_recovery_scope\t96\tstatic",
+      "plat/intel/soc/common/include/nano_sdm_recovery_platform.inc:64:31:fes_nano_sdm_source_recover\t16\tstatic",
+      "plat/intel/soc/common/include/nano_sdm_input_finish.inc:24:5:fes_nano_sdm_source_finish\t1040\tstatic"
+    ]
+  },
+  "recovery_policy_installed": true,
+  "physical_reset_qualified": false,
+  "whole_EL3_stack_qualified": false,
+  "hardware_actions": false
+}

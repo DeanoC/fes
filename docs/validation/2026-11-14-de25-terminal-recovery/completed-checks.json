@@ -1,0 +1,20 @@
+{
+  "status": "passed-final-consistency-and-retained-readback",
+  "implementation_source": "8394acfa52b1cbd898010e33d8e70aa380dd632d",
+  "archive_directory": "/home/deano/fes-retained/de25-terminal-recovery-20261114-r1/completed-checks",
+  "files": {
+    "terminal-recovery-publication-check-r1.log": {
+      "bytes": 276,
+      "sha256": "4ffe37a0582de7ca316571feada015e041e0fcc1e04f967bf1c719a8c98bc0bc"
+    },
+    "terminal-recovery-publication-check-r1-result.json": {
+      "bytes": 316,
+      "sha256": "15d5526960a9fbcfdd43040446851e9a5fab5233acd1f9c252da571d63042bc3"
+    },
+    "terminal-recovery-publication-check-r1-process.json": {
+      "bytes": 222,
+      "sha256": "62f1ee60bee1f71c6aca9fc8d7dc93aadc18d06f9a2ac9a4d3ff95708bb2feed"
+    }
+  },
+  "hardware_actions": false
+}

@@ -45,8 +45,36 @@ All 33 source/retirement sanitizer tests pass on the completed supplier,
 including the cold and warm terminal fixtures. Seven input-profile, five
 rearm-profile, three recovery-profile and four rearm-trace tests pass. USB
 master/composition, four coherent-snapshot tests, the held-lock reset fixture
-and the repository consistency check also pass. A fresh selected matched build
-is still required; the earlier unselected image does not qualify these hooks.
+and the repository consistency check also pass. Earlier unselected images do
+not qualify these hooks.
+
+Source `8394acfa52b1cbd898010e33d8e70aa380dd632d` passes a fresh normal
+SDK, CPU-entry, selected BL31, SPL/U-Boot, HPS-first composition and complete
+native file admission in frozen `de25-terminal-recovery-proof`. Its format-18
+chain is `52191427e95cfc88ec79f251518a6141ff6b96f716c8ed9252f9a50fe5137903`,
+boot tag `c5556b2812fa937c`, FIT
+`3a70eb273cbdd3d2f01882f03e8b12c64ef2851d5ba56b4a4d7136e21d259a0c`
+(8,547,024 bytes). [matched.json](matched.json) binds the producer checks.
+The canonical core payloads remain unchanged; composition holds the shared
+Quartus Pro lock without synthesis, fitting or programming.
+
+Unlike the preceding image, this final ELF retains the real terminal supplier,
+held-lock controller, fixed provider and private live recovery scope. Their
+installed bodies/object symbols are independently checked. The private NOBITS
+end remains `0x5ff40`, leaving 192 bytes with four unchanged 8 KiB stacks.
+Compiler frames are 288 bytes for cached recovery/source validation, 96 for
+the live scope, 16 for the recovery entry and 1,040 for source finish. These
+individual frames do not qualify the complete EL3 call chain. See
+[integration.json](integration.json).
+
+The source bundle, selected matched outputs, completed checks, initial fixture
+failures and the unchanged provider's earlier model are retained at
+`/home/deano/fes-retained/de25-terminal-recovery-20261114-r1/matched.tar.gz`,
+SHA-256 `3ad30477f6575fe6cbf541f7c4841bed0a82af45cdeb9680e215e4736cff91e7`.
+Independent readback verifies all 46,759 entries for bytes, hashes, modes and
+link targets. [retention-proof.json](retention-proof.json) records this result.
+The earlier vendor primitive model remains bound to its original source; only
+its unchanged fixed cold function/provider are reused here.
 
 The selected firmware has not been programmed. Physical cold reset, loader
 redelivery, both SMMU banks, fresh device/boot-epoch admission and subsequent
