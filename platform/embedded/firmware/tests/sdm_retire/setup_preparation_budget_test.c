@@ -11,8 +11,9 @@ int main(void)
   struct nano_probe_setup *p=&m.probes[m.slot];
   struct nano_retire saved;struct nano_cmdq prepared;
   if(warm){saved=*p->previous;prepared=*p->previous->prepared_engine;}
-  /* The supplier starts the same clock before the additional source digest.
-   * Preparation and arm must neither forget this cost nor rebase the clock. */
+  /* Model work already charged to this preparation lifetime. Later
+   * preparation and arm must neither forget it nor rebase the clock.
+   * The separate transfer clock includes the earlier source digest. */
   p->timed=1;p->start=p->last=m.now+1;
   uint64_t origin=p->start;
   m.now=p->start+(scenario==1 ? 2000000:scenario==2 ? 3900000:0);

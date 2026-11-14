@@ -172,7 +172,7 @@ class SourceRetirementTests(unittest.TestCase):
                          (0, -110, 0))
         self.expected_word_cost_observations = rows
 
-    def test_measured_scale_preparation_has_room_but_hash_and_io_expiry_still_stop(self):
+    def test_measured_scale_preparation_has_room_but_prior_work_and_io_expiry_still_stop(self):
         report = self.run_model("setup_preparation_budget_test")
         self.assertEqual(report["cases"], 8)
         self.assertGreater(report["slowest_prepared_us"], 1000000)

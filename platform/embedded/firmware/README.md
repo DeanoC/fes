@@ -9,14 +9,15 @@ Software tests and cross-builds remain distinct from hardware acceptance.
 The four-second preparation budget is a software startup bound, selected after
 physical warm preparation completed 5,120 loads and 2,816 stores before the
 previous one-second cutoff. It does not govern the core's real-time work.
-The same clock begins before the extra source digest and covers table work,
-nested final validation and arm; none of these stages can restart it. Command
+The preparation clock starts at its first guard and covers table work, nested
+final validation and arm; none of these stages can restart it. The independent
+twenty-second overall clock starts before the extra source digest. Command
 construction/consumption remains 100 ms, source release one second, retirement
 staging/consumption/final validation two/one/four seconds and transfer twenty
 seconds. The arm-only and fault-only producers retain their one-second setup.
 Old formats 16/17/18 and partial budget/version replacements are rejected.
 Cold/warm cost tests exercise complete preparation beyond one second, include
-prior digest cost, and retain the previous source on expiry before queue
+prior preparation work, and retain the previous source on expiry before queue
 submission. This budget change requires a new matched build and physical trial;
 it grants no acceptance to the previously stopped artifact.
 
@@ -25,7 +26,7 @@ separates command construction from completion observation: staging has two
 seconds, owned consumption has one second from the accepted prewrite-guard
 counter, and retirement plus continuation share four seconds from the original
 retirement origin. Every existing ownership, register, table and prewrite check
-remains. Input preparation now has four seconds from its original pre-digest origin;
+remains. Input preparation now has four seconds from its original first guard;
 source release retains its independent one-second budget. Profiles 19/20/21
 reject the previous one-second preparation contracts as well as
 the superseded timing contracts. Joined cost models now complete retirement

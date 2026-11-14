@@ -12,8 +12,9 @@
 #define NANO_PROBE_ROOT 0x4000U
 #define NANO_PROBE_CMDQ 0x8000U
 #define NANO_PROBE_EVTQ 0x9000U
-/* Startup work only: includes the pre-preparation source digest. The
- * parent clock also bounds nested final verification and the later arm. */
+/* Startup work only: the first preparation guard starts this clock.
+ * Nested final verification and the later arm share that origin. The
+ * separate 20-second transfer lifetime also includes the source digest. */
 #define NANO_PROBE_BOUND_US 4000000U
 struct nano_probe_binding { uint64_t owner,epoch,generation; };
 struct nano_probe_io {
