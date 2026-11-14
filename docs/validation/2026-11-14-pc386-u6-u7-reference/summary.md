@@ -157,7 +157,7 @@ November capture on package `650bc477` behind it, and five reference captures �
 reference run was made and its lute landed in character creation, so it holds
 no notes. **The kit side is one short of the three a side the method asked
 for.** The method's reason for three was to show the spread is well inside the
-band, and it is — 0.05% on the kit, and 0.10% across the five reference
+band, and it is — 0.05% on the kit, and 0.10% and 0.18% across the five reference
 captures, against ±5.9%, with the difference being measured 100 times larger
 than either — but the shortfall is a deviation and is named here rather than
 left to be noticed. Three kit captures were queued for Kit B and not run,
@@ -176,8 +176,8 @@ and 511.8 Hz before, 839.0 and 501.5 Hz after, and gives that step as a ratio
 measured with
 one estimator throughout: 0.9767 for key `6` and 0.9799 for key `1`. Applied to
 today's figures, the kit before #1453 would have been 860.8 and 510.0 Hz, a
-shortfall against this reference of **10.6% and 11.1%**, against 12.68% and
-12.91% today. So #1453 added about two points (2.1 and 1.8) to roughly eleven
+shortfall against this reference of **10.6% and 11.1%**, against 12.69% and
+12.86% today. So #1453 added about two points (2.1 and 1.8) to roughly eleven
 that were already there.
 
 **4 November's absolute pitches are not comparable with this record's**: they
@@ -187,7 +187,7 @@ same analyser on both, is this record's own two kit captures, four days and two
 seals apart: **840.70 and 840.72 Hz** for key `6`, **499.78 and 499.79** for
 key `1`. Nothing recent regressed, and what is new here is the reference.
 
-The two keys' shortfalls agree to 0.3% (ratios 1.1452 and 1.1483), which looks
+The two keys' shortfalls agree to 0.2% (ratios 1.1454 and 1.1476), which looks
 like one multiplier on the loop's time per pass rather than anything per-note
 (it is not the PIT's input clock: #1472 measured the carrier at 18.5–20.2 kHz
 at divisor 60, where a clock slow enough to explain this would put it near
@@ -284,36 +284,39 @@ gives the rig's delivery, which nothing here had measured before:
 | what the driver sent | keys the guest got | rate |
 | --- | --- | --- |
 | hold a key for 10 s | **1** | — |
-| 40 taps, 0.25 s apart | 40 | 4.1/s |
-| burst of 60, 80 ms apart | 60 | 9.9/s |
-| burst of 60, 40 ms apart | 60 | 16.8/s |
-| burst of 60, 20 ms apart | 60 | 24.4/s |
+| 40 taps, 0.25 s apart | 40 | 2.3/s |
+| burst of 60, 80 ms apart | 60 | 12.3/s |
+| burst of 60, 40 ms apart | 60 | 25.0/s |
+| burst of 60, 20 ms apart | 60 | 48.8/s |
 
 So the rig can key the reference far faster than the game steps, with nothing
 dropped — which makes the repair in `method.md`'s sixth amendment possible:
 **saturate the input on both sides and read where the game's step rate stops
-rising**, instead of sending keys at a rate the game can keep up with and
-measuring the rig. It also shows a held key must never be used: it reaches the
+rising**. It also shows a held key must never be used: it reaches the
 reference as one keystroke, where the kit's keyboard repeats.
 
 That amendment also writes down two validity gates the windows above never
 stated — the party out of combat in a grab taken immediately before each
 window, and 86Box's own speed indicator at 100% for every frame of it.
 
-**The first run under the new design, `bw3`, fails its own first gate**, and is
-recorded rather than used. After the ninety passes that earlier runs used, the
-grab still shows the game prompting `>Pass!`: the opening fight was not over.
-The windows bear that out — about 140 keys sent into an eight-second window
-produced 0 to 6 steps, which is combat taking a round per key, not walking. The
-four windows keyed at 16.8/s did hold 100% for all 240 frames and so pass the
-second gate; the four at 24.4/s ran at 71-101% under other work on the shared
-host and would have failed it.
+**The first run under the new design, `bw3`, is void, and what made it void is
+the step counter.** `walk_rate.py` counted 0 to 6 steps per eight-second window,
+but the grabs on either side of one of those windows show the Avatar crossing
+out of the throne room and down into the next room — many more steps than that.
+The analyser counts a run of changed frames as one step, which is sound at the
+three steps a second the earlier windows ran at and not at a saturated walk,
+where the map scrolls on almost every frame. So the design needs an analyser
+that measures displacement rather than counting scroll events, and that is what
+is missing. (The four windows keyed at 25/s did hold 100% for all 240 frames
+and pass the speed gate; the four at 48.8/s ran at 71-101% under other work on
+the shared host and would have failed it.)
 
 **So the walk still has no figure on either side**, but it now has a method that
 says what it measures and what makes a window void, and a tool that tells a rig
-fault from a game one. What is left is mechanical: pass turns until the combat
-prompt clears rather than a fixed ninety times, verify that in the grab, and
-capture on a quiet host.
+fault from a game one. What is left is not mechanical: the step counter has to be
+replaced by a displacement measure and shown to agree with the old one on a
+slow window first. `method.md`'s correction to the sixth amendment records
+that, and restates the first gate in terms that can be checked.
 
 Even then, the figure would have to be read against
 [#1840](https://github.com/DeanoC/fes/issues/1840): the 286-12 preset the walk

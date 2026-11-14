@@ -75,43 +75,50 @@
   "cases": [
    {
     "sent": "hold one key for 10 s",
-    "received": 1
+    "received": 1,
+    "run": "kp3"
    },
    {
     "sent": "40 taps, 0.25 s apart",
     "received": 40,
-    "rate_per_s": 4.1
+    "rate_per_s": 2.3,
+    "run": "kp3"
    },
    {
     "sent": "burst of 60, 80 ms apart",
     "received": 60,
-    "rate_per_s": 9.9
+    "rate_per_s": 12.3,
+    "run": "kp4"
    },
    {
     "sent": "burst of 60, 40 ms apart",
     "received": 60,
-    "rate_per_s": 16.8
+    "rate_per_s": 25.0,
+    "run": "kp4"
    },
    {
     "sent": "burst of 60, 20 ms apart",
     "received": 60,
-    "rate_per_s": 24.4
+    "rate_per_s": 48.8,
+    "run": "kp4"
    }
-  ]
+  ],
+  "rate_formula": "(n-1)/(last-first) over the tick list the program prints; SPAN includes the priming tap that starts the timing and must not be used as the denominator."
  },
  "burst_walk_bw3": {
-  "verdict": "void: fails the method's first validity gate",
-  "why": "After the ninety passes earlier runs used, the grab taken before the windows still shows the game prompting '>Pass!', so the opening fight was not over. About 140 keys into an eight-second window gave 0 to 6 steps, which is combat, not walking.",
-  "speed_gate": "The four windows keyed at 16.8/s held 100% for all 240 frames; the four at 24.4/s ran at 71-101% under other work on the shared host.",
-  "steps_per_window": {
-   "w4-down-d40": 6,
-   "w5-right-d40": 2,
-   "w6-up-d40": 0,
-   "w7-left-d40": 6,
-   "w0-down-d20": 2,
-   "w1-right-d20": 4,
-   "w2-up-d20": 0,
-   "w3-left-d20": 2
+  "verdict": "void: the step counter cannot measure a saturated walk",
+  "why": "walk_rate.py counts a run of changed frames as one step, so it merges steps once the map scrolls on almost every frame. It counted 0 to 6 steps per 8 s window, while the grabs on either side of w4 show the Avatar crossing out of the throne room into the next room. The party was out of combat: no hostile in view and no wound message, unlike the earlier bw2.",
+  "what_is_needed": "an analyser that measures the map view's displacement per frame and divides by Ultima VI's 16-pixel tile, checked against walk_rate.py on a slow window first",
+  "speed_gate": "the four windows keyed at 25/s held 100% for all 240 frames; the four at 48.8/s ran at 71-101% under other work on the shared host and would have failed it",
+  "steps_counted_per_window": {
+   "w4-down-25/s": 6,
+   "w5-right-25/s": 2,
+   "w6-up-25/s": 0,
+   "w7-left-25/s": 6,
+   "w0-down-48.8/s": 2,
+   "w1-right-48.8/s": 4,
+   "w2-up-48.8/s": 0,
+   "w3-left-48.8/s": 2
   }
  }
 }

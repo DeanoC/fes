@@ -519,7 +519,7 @@ the middle of real 286 boards of that clock in TopBench's own database, where
 the 286-12 preset scores above all of them
 ([record](validation/2026-11-14-pc386-u6-u7-reference/summary.md)):
 - Ultima VI's speaker effects play about 2.4 semitones flat against it
-  (840.72 and 499.79 Hz against 962.76 and 573.91), which fails
+  (840.72 and 499.79 Hz against 962.95 and 573.56), which fails
   ([#1837](https://github.com/DeanoC/fes/issues/1837)). The condition is not
   new: on #1474's own ratio across #1453, its ISA charges added about two of the
   twelve-and-a-half points and the rest predates them;

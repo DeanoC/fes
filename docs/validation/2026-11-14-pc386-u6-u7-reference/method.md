@@ -362,3 +362,55 @@ are written here before any burst-walk window is read:
    `bw2` ran at 80-86% and was discarded under this gate too.
 
 The band is unchanged: ±10% on the rate.
+
+## Correction to the sixth amendment: the delivered rates, and what makes a window void
+
+Two things in the amendment above are wrong and are corrected here rather than
+rewritten, because the amendment was pushed.
+
+**The delivered key rates were miscomputed.** `KEYPACE.COM` prints `SPAN` from
+the priming tap that starts its timing, about 22 ticks before the burst begins,
+and the rates were taken as 60 divided by that span. The rate is
+(n − 1) / (last − first) from the tick list the program also prints. Corrected,
+with the hold and the tap loop from run `kp3` and the bursts from `kp4`:
+
+| what the driver sent | keys the guest got | rate, corrected | rate as first recorded |
+| --- | --- | --- | --- |
+| hold a key for 10 s | **1** | — | — |
+| 40 taps, 0.25 s apart | 40 | **2.3/s** | 4.1/s |
+| burst of 60, 80 ms apart | 60 | **12.3/s** | 9.9/s |
+| burst of 60, 40 ms apart | 60 | **25.0/s** | 16.8/s |
+| burst of 60, 20 ms apart | 60 | **48.8/s** | 24.4/s |
+
+The corrected burst rates are the nominal 1000/delay exactly, so the burst op
+has no per-key overhead of its own; it is the tap loop, one `xdotool` process
+per key, that costs about 0.19 s a key. The kit's input path at
+`hold` = `gap` = 0.02 s delivers about 25 keys a second, which matches the
+40 ms burst, not the 20 ms one.
+
+**The run `bw3` is void, but not for the reason given.** The amendment's first
+gate asked for a grab showing the party out of combat, and `bw3` was called void
+under it because the panel still printed `>Pass!`. That is wrong: `>Pass!` is
+what a space press prints, and ninety had just been sent. The grab shows no
+hostile on screen and no wound message, where the discarded `bw2`'s shows both.
+
+What the grabs do show is that the measurement did not survive, for a different
+reason. Between `w4-before` and `w4-after` the Avatar crosses out of the throne
+room and down into the next room — far more than the **6** steps
+`walk_rate.py` counted for that window. That analyser counts a run of changed
+frames as one step, which is sound at the three steps a second the earlier
+windows ran at and not at a saturated walk, where the map scrolls on almost
+every frame. **So the step counter, not the game, is what fails under
+saturating input**, and no rate can be read from `bw3` either way.
+
+That leaves the saturation design intact and its analyser missing. Counting
+steps has to be replaced by measuring displacement — the whole-pixel shift of
+the map view between consecutive frames, summed and divided by Ultima VI's
+16-pixel tile — and that analyser has to be shown to agree with `walk_rate.py`
+on a slow window before any fast one is read with it. A first attempt
+(`scroll_shift.py` in the scratch tree) finds no shift at all on `w4` and is
+not trusted; the crop it was given may not be the map view.
+
+**Gate 1 is restated** so it can be checked: no hostile figure in the map view
+and no combat message in the text panel, in a grab taken immediately before the
+window. Gate 2 is unchanged.
