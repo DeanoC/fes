@@ -127,6 +127,10 @@ module fes_i386_x87 (
     output logic [15:0] tw_o,
     output logic [10:0] opcode_o,
     output logic        busy_o,
+    // FINIT clears the x87 pointers as well as the words (387 PRM, FINIT),
+    // and the CPU keeps them, so the unit says when: a pulse at the commit
+    // of FNINIT, or of FNSAVE, which leaves the unit as FINIT does.
+    output logic        clr_pointers,
     // The eight physical registers, which the bench reads through the CPU's
     // arch_* outputs to build the oracle's X87State; nothing in the machine
     // uses them, so the seal's fit trims the wires.
@@ -335,7 +339,7 @@ module fes_i386_x87 (
     // A form a later slice builds never reaches the unit: fes_i386_decode
     // stops the instruction as not built, through the same x87_decode.
     logic unbuilt;
-    assign unbuilt = iss_dec == X87_UNIMPL;
+    assign unbuilt = !iss_wait && iss_dec == X87_UNIMPL;
     // The hold (BUSY#): a new instruction waits for the board's latch and
     // for the unit, and one the unit has taken waits for its own value.
     // FNINIT and FNCLEX wait for neither (HRM section 5.1).
@@ -346,9 +350,10 @@ module fes_i386_x87 (
     // taken waits only for its own value. FNINIT and FNCLEX wait for
     // neither (HRM section 5.1).
     assign hold = present && iss && !iss_nowait && !unbuilt
-               && (iss_first && (fired || busy || latched)
-                   || val_form && seq != S_RDY
-                   || iss_save_rd && iss_part[4:2] + top != ra_live);
+               && (iss_wait ? latched || busy
+                            : iss_first && (fired || busy || latched)
+                              || val_form && seq != S_RDY
+                              || iss_save_rd && iss_part[4:2] + top != ra_live);
     // FNINIT and FNCLEX wait for neither the latch nor the unit, so they are
     // taken on their own, beside whatever the unit is working on: FNINIT
     // resets it, which is why it needs no wait, and FNCLEX only clears the
@@ -727,7 +732,6 @@ module fes_i386_x87 (
                 seq <= S_IDLE;
             end else begin
             if (take_nw) nw <= iss_dec == X87_INIT ? 2'd1 : 2'd2;
-            if (iss_fire && iss_first && !iss_wait) fired <= 1'b1;
             if (wb && wb_last && started) committed <= 1'b1;
             // A load uop's value, and an environment's or a save image's
             // fields, as each commits.
@@ -1057,6 +1061,7 @@ module fes_i386_x87 (
                             c1 = 1'b0;
                         end
                         X87_INIT, X87_SAVE: begin
+                            clr_pointers <= 1'b1;
                             // FNINIT, and FNSAVE once its image is stored,
                             // leave the unit as FINIT does (387 PRM section
                             // 4.8.1): control 037Fh, no flags, every tag
@@ -1142,11 +1147,16 @@ module fes_i386_x87 (
             // instruction's commit, with the x87 pointers, so one that
             // faults or is squashed leaves it alone.
             if (wb && wb_last && started && !cur_ctrl) opcode <= cur_op_raw;
+            // The instruction the unit owns has issued its first uop, which
+            // is set after the case so that a take and an issue in the same
+            // cycle -- a load form, which does not hold -- leaves it set.
+            if (iss && iss_fire && iss_first && !iss_wait && !iss_nowait) fired <= 1'b1;
             // FNINIT and FNCLEX, at their own commit, after the case above
             // so FNINIT's reset wins over an operation finishing with it.
             if (wb && wb_last && nw != 2'd0) begin
                 nw <= 2'd0;
                 if (nw == 2'd1) begin
+                    clr_pointers <= 1'b1;
                     cw <= 16'h037f;
                     fl <= 6'd0;
                     sf <= 1'b0;

@@ -200,6 +200,15 @@ struct Unit {
         top.f0 = 0;
         tick();
     }
+    // Two ESC instructions back to back, with no settling between them: the
+    // unit must hold the second until it has finished the first.
+    void back_to_back(unsigned op_a, unsigned op_b) {
+        present(op_a, 0, true, true, 0);
+        commit(0, 0, true);
+        present(op_b, 0, true, true, 0);
+        commit(0, 0, true);
+        settle();
+    }
     // Unmask the invalid-operation exception and raise one, which sets ES
     // and latches BUSY#.
     void settle() {
@@ -843,6 +852,21 @@ int main(int argc, char **argv) {
         u.st0(got);
         if (std::memcmp(got, one, 10) == 0) ok("flush-after-commit");
         else bad("flush-after-commit", hex80(got));
+
+        // Two pushes back to back, with no settling between them: the
+        // second must wait for the first, which the unit finishes after the
+        // instruction has retired.
+        u.clear_latch();
+        u.reg_form(OP_FNINIT);
+        u.back_to_back(op_const(0), op_const(6));   // FLD1 then FLDZ
+        uint8_t b2b0[10], b2b1[10];
+        u.sti(0, b2b0);
+        u.sti(1, b2b1);
+        const uint8_t want1[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0x3f};
+        if (((u.sw() >> 11) & 7) != 6) bad("back-to-back", "top=" + hex((u.sw() >> 11) & 7, 1));
+        else if (b2b0[9] != 0 || b2b0[8] != 0 || std::memcmp(b2b1, want1, 10) != 0)
+            bad("back-to-back", "st0=" + hex80(b2b0) + " st1=" + hex80(b2b1));
+        else ok("back-to-back");
 
         // A control form leaves C1 and the other condition codes alone.
         u.clear_latch();

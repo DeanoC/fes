@@ -21,7 +21,7 @@ module spike_x87_unit #(
     wire clk = FPGA_CLK1_50;
     logic         reset;
     logic [255:0] noise;
-    logic         hold, nx, error, latched, busy_o;
+    logic         hold, nx, error, latched, busy_o, clr_pointers;
     logic [31:0]  sval;
     logic [15:0]  cw_o, sw_o, tw_o;
     logic [10:0]  opcode_o;
@@ -32,14 +32,15 @@ module spike_x87_unit #(
         .clk, .reset, .present(noise[0]), .f0(noise[1] && noise[2]), .f1(noise[3] && noise[4]),
         .error, .latched,
         .iss(noise[5]), .iss_wait(noise[6]), .iss_op(noise[17:7]), .iss_fmt(noise[20:18]),
-        .iss_first(noise[21]), .iss_last(noise[22]), .iss_part(noise[28:23]),
+        .iss_first(noise[21]), .iss_fire(noise[22] && noise[21]), .iss_last(noise[29]),
+        .iss_part(noise[28:23]),
         .hold, .sval, .nx,
         .wb(noise[29]), .wb_last(noise[30]), .wb_val(noise[62:31]), .wb_part(noise[68:63]),
         .flush(noise[69] && noise[70]),
-        .cw_o, .sw_o, .tw_o, .opcode_o, .busy_o, .regs_o
+        .cw_o, .sw_o, .tw_o, .opcode_o, .busy_o, .clr_pointers, .regs_o
     );
     always_comb begin
-        fold = {sval, cw_o, sw_o} ^ {tw_o, opcode_o, 32'd0, hold, nx, error, latched, busy_o};
+        fold = {sval, cw_o, sw_o} ^ {tw_o, opcode_o, 31'd0, hold, nx, error, latched, busy_o, clr_pointers};
         if (REGS != 0)
             for (int n = 0; n < 10; n++) fold = fold ^ regs_o[64*n +: 64];
     end

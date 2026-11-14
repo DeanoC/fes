@@ -847,7 +847,7 @@ module fes_i386_cpu #(
     // A uop's part is the environment field fpn names, a save image's chunk
     // (fpn 7: register fpj[4:2]'s chunk fpj[1:0]), or an operand's chunk,
     // which the uop's offset gives: 0, 4 and 8 bytes on.
-    logic        x87_hold, x87_nx, x87_iss;
+    logic        x87_hold, x87_nx, x87_iss, x87_clr_pointers;
     logic [31:0] x87_sval;
     assign x87_iss = cur_valid && dc.x87;
     fes_i386_x87 x87 (
@@ -860,6 +860,7 @@ module fes_i386_cpu #(
         .wb(wb_commit && wb_s.x87), .wb_last(wb_commit && wb_s.x87 && wb_s.uop.ctl.end_of_instruction),
         .wb_val(wb_s.result), .wb_part(wb_s.x87_part), .flush(wb_flush),
         .cw_o(arch_x87_cw), .sw_o(arch_x87_sw), .tw_o(arch_x87_tw), .opcode_o(arch_x87_opcode),
+        .clr_pointers(x87_clr_pointers),
         .busy_o(trace_x87_busy), .regs_o(arch_x87_regs)
     );
     assign arch_x87_ip = fpu_ip;
@@ -3426,6 +3427,17 @@ module fes_i386_cpu #(
                     fpu_dp <= wb_fdp;
                     fpu_ds <= seg_sel[wb_s.uop.mem.seg];
                     fpu_ldp <= {12'd0, seg_sel[wb_s.uop.mem.seg], 4'd0} + wb_fdp;
+                end
+                // FINIT clears the pointers with the words (387 PRM, FINIT),
+                // and FNSAVE leaves the unit as FINIT does: the unit pulses
+                // this at their commit.
+                if (x87_clr_pointers) begin
+                    fpu_ip <= 32'd0;
+                    fpu_cs <= 16'd0;
+                    fpu_lip <= 32'd0;
+                    fpu_dp <= 32'd0;
+                    fpu_ds <= 16'd0;
+                    fpu_ldp <= 32'd0;
                 end
                 // The system uops: CLTS, the CR0, CR2 and CR3 writes from T1,
                 // LMSW's (which cannot clear PE), and GDTR's and IDTR's from T0
