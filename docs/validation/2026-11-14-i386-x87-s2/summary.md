@@ -188,6 +188,7 @@ fixed in the commit that found it.
 | with CR0.EM or CR0.TS set, an ESC form a later slice builds stopped as not built instead of raising #NM | lazy context switching relies on #NM coming first (Codex P2) |
 | a store's own first uop waited for the unit, and a store's conversion makes the unit busy before that uop issues | the store forms hung; a first uop now waits for the unit only while the unit has not taken it |
 | a 32-bit environment's reserved halves read zero | they are all ones, with a 387 as without one, which is what the oracle writes |
+| the uop carried the x87 flag whatever the identity, so this slice's pointer restore ran with no 387 fitted | six of the 1,933 no-387 directed cases regressed, FLDENV and FRSTOR in each environment: with the identity clear the flag is clear too, so those forms load and discard as the empty socket does |
 
 ## Checks
 
@@ -197,7 +198,9 @@ fixed in the commit that found it.
 | the same with `--netlist` (the seal's Yosys netlist of the unit) | chip | 70 passed, 0 failed |
 | the lockstep with the identity off, the full run | chip | every bucket 0 fail, the 1,933 no-387 directed cases included; the unbuilt sweep 53,008 encodings, 0 wrong |
 | `tests.test_pc386_machine` (82 tests: the whole machine simulated with the unit in it) | Powerboat | OK |
-| the lockstep's x87 bucket, the identity on: eight directed programs of this slice's forms | chip | 8 passed, 0 failed, the 387's whole state compared at every retirement |
+| the unit's bench on the seal's Yosys netlist of the unit | chip | 82 passed, 0 failed |
+| the lockstep's x87 bucket, the identity on: eight directed programs of this slice's forms, on the RTL and on the netlist | chip | 8 passed, 0 failed each, the 387's whole state compared at every retirement |
+| the lockstep's other buckets, on the RTL and on the netlist | chip | directed 84, unreal 7, protected-mode 726, paging 148, memory 27, all 0 fail |
 | `tests.test_fes_i386_x87_unit`, `tests.test_fes_i386_ucode`, `tests.test_build_fes_pc386_quartus`, `tests.test_audit_fes_i386_case`, `tests.test_quartus_fes_i386` | Powerboat | OK |
 | Verilator `-Wall` lint (the lock's 5.054) | Powerboat and chip | clean |
 
