@@ -81,6 +81,7 @@ for.
 | `fes.ramtest` | `build_fes_ramtest.py`, `fes_de10nano_evidence.py` | `0d59db94f2352a40c9b0e57ab69c6626ff5a3f7b33f5843ae9507e9bf3bf6c7a` | **byte-identical** |
 | `fes.riscv` | `build_fes_riscv.py`, `fes_de10nano_evidence.py` | `e8db4d58afb81e7766d7e21c9ce6d1d18736196badb9dbc23fb742d8c4549be8` | **byte-identical** |
 | `fes.ts1000` | `fes_de10nano_evidence.py` | `96bcf1f6411ab04324e86a58fd525bd5c722f3afbf02c7db67365be074cc6dca` | **byte-identical** |
+| `fes.ts1500` | `fes_de10nano_evidence.py` | `d29bb54e119907959fb104890f8d2d038fff625cf84b2cdea09cc7525bbf37a7` | **byte-identical** |
 | `fes.zx80` | `fes_de10nano_evidence.py` | `b7effcba3f7a30349ae55aef0eac6a857d00f04dc4fe1b959a0c482534df6f82` | **byte-identical** |
 | `fes.zx81` | `fes_de10nano_evidence.py` | `b5c296e5c76810f5655e70a945518dd511654e8b450fb7bbbb616e442f15604b` | **byte-identical** |
 <!-- results:end -->
