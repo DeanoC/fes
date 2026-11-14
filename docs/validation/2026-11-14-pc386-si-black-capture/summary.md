@@ -394,7 +394,25 @@ zeros on a lit prompt). Driver `~/fes-scratch/si1494/kit/si1494d.py`, data under
 launch: record the transmitter's registers, step `0xBA[7:5]` through its six
 settings with 2 s of frames and a grab at each, restore the original value, and
 only if no setting brings the picture back, restart the fan-out and grab again.
-A setting that clears it names the transmitter's input sampling; a picture that
-returns only after the restart names Powerboat's capture chain. One episode
-spends itself on one answer, which is why the sweep goes first: the restart
-re-establishes the link and would destroy the state the sweep reads.
+A setting that clears the picture names the transmitter's input sampling, as it
+did in #1003.
+
+What the restart can and cannot say is narrower, and worth stating before an
+episode is spent on it. It is **capture-only by construction**: it stops and
+restarts an `ffmpeg` process on Powerboat that reads the card over USB, and
+nothing in it reaches the kit. The transmitter keeps sending whatever it was
+sending — the ADV7513 has hot-plug forced high (`0xD6 = 0xC0`) and reads the
+sink's EDID only at bring-up, so it does not react to the card's stream being
+reopened. So:
+
+- a picture that returns after the restart places the fault in the capture
+  chain, but does not say where in it: the card's own HDMI receiver relocking at
+  stream start and Powerboat's fan-out or `v4l2loopback` unsticking look the
+  same from here;
+- a picture that stays black places it before the capture: the transmitter's
+  video path, or something else persistent.
+
+The sweep goes first for two reasons: a `0xBA` write changes what the
+transmitter sends and a cleared picture cannot be un-cleared, and the restart
+changes the capture state the sweep's own frame counts are read through. The
+record will say which answer the episode bought and which it did not.
