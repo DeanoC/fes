@@ -7,9 +7,10 @@ macros are deleted.
 
 Taken on 14 November. None of the files below is edited by this census.
 
-**399 sites in 7 areas** — 371 in the six swept areas, plus 28 in the DE25 board tree, which the
-design record does not cover at all and which is inventoried separately. The six-area inventory is
-[`census-tables.md`](census-tables.md); DE25 is [`de25.md`](de25.md).
+**402 sites in 8 areas** — 371 in the six swept areas, 3 in `*.sv` sim benches that no area
+covered, and 28 in the DE25 board tree, which the design record does not cover at all and which is
+inventoried separately. The inventory is [`census-tables.md`](census-tables.md); DE25 is
+[`de25.md`](de25.md).
 
 | Area | Sites |
 | --- | --- |
@@ -19,6 +20,7 @@ design record does not cover at all and which is inventoried separately. The six
 | C++ testbenches | 30 |
 | Tests, docs and READMEs | 73 |
 | Closures and pinned inputs | 76 |
+| SystemVerilog sim benches | 3 |
 | `M/boards/de25nano` | 17 sites + 11 macro-invisible readers = 28 |
 
 **The base, and how this record was got wrong once.** Every line number here is against this PR's
@@ -203,13 +205,30 @@ Confirmed present, with the line verified where noted:
    that script keeps setting `QUARTUS=1`. And `sim-fes-zx80-openrom` reaches `zx81_dpram.v` only
    through a shell script, `cores/fes-zx81/openrom-zx80/dev/build_probe.sh:26`, which no grep of the
    Makefile can see — another member of the macro-invisible class behind finding 1.
+9. The broadened acceptance pattern matches three comment lines the narrower one did not, and the
+   slice has to reword them: `cores/fes-{coleco,sms,sg1000}/sim/quartus_ram_tb.sv:3`, each reading
+   `// Run with QUARTUS and Intel's unmodified altera_mf.v, not a RAM stand-in.` These sit beside
+   the C++ benches but are `*.sv`, and the C++ area swept `*.cpp` and `*.h` only, so no area owned
+   them; they were added after the fact. The benches hold no guard, so nothing breaks at build time
+   — the cost of missing them is that S8 fails its own acceptance grep on a comment. Codex review
+   found them, which is the second time a gap in this census came from how the fan-out was cut
+   rather than from any agent's search.
 
 ## Method and confidence
 
 Seven parallel agents, one per area, each told to open any file whose match it could not classify
 from the line alone, to follow variables and imports to the real reader, and to re-open every line
-it cited before returning. Their output was checked here against an independent baseline sweep: 63
-files hold a macro match outside dated records, 26 of them in `M/Makefile`.
+it cited before returning. Their output was checked here against an independent baseline sweep run
+with the broadened pattern: on this base, 64 files hold a macro match outside dated records, and 26
+lines in `M/Makefile` define an `FES_*_OSS` macro, which the Makefile area matches exactly. The
+Makefile sets `QUARTUS` on no line at all — verified, `grep -c '\bQUARTUS\b'` returns 0.
+
+That file-level sweep is also how the `*.sv` gap in correction 9 was found to be the only one: every
+file it lists is now accounted for in `census-tables.md` or in `de25.md`, which spells the DE25
+paths relative to `boards/de25nano`. The areas were cut by directory and glob, and three `*.sv`
+benches fell between the C++ area's `*.cpp`/`*.h` glob and the tests area's directories. A sweep by
+file, compared against the inventory, is what closes that class of gap; it is worth re-running
+whenever the area cut changes.
 
 Checked mechanically here, over the whole inventory: every primary line against its recorded matched
 text (370 of 371; the one exception confirmed by hand), and every `path:line` citation inside the

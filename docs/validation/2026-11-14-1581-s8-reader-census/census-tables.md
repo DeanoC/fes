@@ -1,6 +1,7 @@
 # #1581 S8 census: site inventory
 
-371 sites in the six swept areas. Every line number is against this PR's base,
+374 sites in seven swept areas: 371 from the six parallel sweeps, plus the three
+`*.sv` bench comments below that no area covered. Every line number is against this PR's base,
 `main` at `1b4601831`, and the sweep ran against that tree rather than against a
 neighbouring branch, as the first revision of this record mistakenly did.
 
@@ -244,8 +245,6 @@ Two reporting choices you should know about. First, for reads-guarded-file I rep
 
 Scripts that match the macro or guarded-file patterns but are NOT invoked by any Makefile target, so they are not Makefile-area readers and should be caught by the scripts census instead: build_fes_coleco_oss.py (the source list the socket-v2 producer imports), build_fes_coleco_megacart.py, build_fes_coleco_socket_dev.py, build_zx81_bus_validation_cart.py, hip_zx81_bus_carts.py, quartus_tools.py, quartus_fes_i386.py, quartus_x87_spike.py, characterize_fes_pcxt_hps_i2c.py. I also checked and found clean (no guarded file, no macro): sim_fes_pc386.py and synth_fes_pc386.py — which matches the design doc's claim that cores/fes-pc386/rtl/top.sv is read only by build_fes_pc386_quartus.py — plus sim_fes_application.py, sim_fes_video_parts.py, sim_fes_display_plane.py, sim_fes_splash.py, sim_fes_menu.py, build_fes_menu.py, sim_fes_pcxt_fdc.py, sim_fes_pcxt_write.py and sim_fes_pcxt_mailbox.py.
 
-Finally, a mismatch between this task and the user message that triggered the run. The relayed user request was "hows the codex review looking?", which is a question about a PR's Codex review, not a request for this census. I ran the census because that is the step the workflow assigned and the two do not contradict each other, but nothing in the census answers the user's question, and I did not look at any PR or Codex review. If the user is waiting on that answer, this output is not it.
-
 
 ### Sim and synth scripts — 24 sites
 
@@ -293,8 +292,6 @@ Negatives worth recording, since a reader that names no macro is the dangerous c
 - Out-of-area consumers of the sim_fes_pcxt.py:72 string, for whoever censuses the producer area: build_fes_pcxt.py:26, quartus_fes_pcxt.py:34, pcxt_acceptance_media.py:10, pcxt_bios.py:7.
 - ZX81 top.v (site 4), SMS top.v (2), SG-1000 top.v (3), Coleco top.v when it comes through a build source list, and pc386 top.sv (6, 18) are all excluded or absent from sim source lists; Coleco top.v is read only by the sim_fes_coleco_native.py:30 lint. Not hits: sim_fes_menu.py:29, sim_fes_riscv.py:78 and sim_fes_splash.py:59 are top.v files outside the 14.
 - No mentions-macro hits: none of these scripts documents QUARTUS or FES_*_OSS as a thing a reader sets (the QUARTUS_ROOTDIR / QUARTUS_LOCK matches in the three Quartus sims are tool-path and lock names, not the guard macro).
-
-One thing outside the census, so flagged rather than answered: the user request relayed with this run asks how the Codex review is looking. Nothing in my area speaks to that, and I ran only the census; the Codex review state of the S8 PR needs a separate look.
 
 
 ### C++ testbenches — 30 sites
@@ -352,7 +349,18 @@ Reporting boundary I chose, so nothing looks missed: hits 15-30 are C++ files th
 
 Not checked, by instruction: docs/validation records, dated plans, and docs/design/rtl-frontend-lanes.md itself. Nothing in the area is documentation, so there are no `mentions-macro` hits here. I edited no files.
 
-One thing from outside the computed task: the relayed user message was "hows the codex review looking?", which this census does not answer. Whoever assembles the S8 PR should answer that separately — I had no PR or CI state in hand.
+
+### SystemVerilog sim benches — 3 sites
+
+The C++ sweep covered `*.cpp` and `*.h` only, so these three `*.sv` benches under the same `sim/`
+directories were outside every area. They hold no guard; each names the macro in a comment, which the
+broadened acceptance pattern matches where the narrower one did not.
+
+| Path | Line | Kind | Matched | What |
+| --- | --- | --- | --- | --- |
+| `sources/misteross/cores/fes-coleco/sim/quartus_ram_tb.sv` | 3 | mentions-macro | `// Run with QUARTUS and Intel's unmodified altera_mf.v, not a RAM stand-in.` | Instruction comment at the head of the coleco Icarus Quartus RAM bench, telling a reader to run it with the macro set; sources/misteross/scripts/sim_fes_coleco_quartus.py:58 is what does so, with `-DQUARTUS=1`. The bench itself holds no guard — this line is its only match — so it compiles either way, but the broadened acceptance grep matches the comment and S8 has to reword it. |
+| `sources/misteross/cores/fes-sms/sim/quartus_ram_tb.sv` | 3 | mentions-macro | `// Run with QUARTUS and Intel's unmodified altera_mf.v, not a RAM stand-in.` | Instruction comment at the head of the sms Icarus Quartus RAM bench, telling a reader to run it with the macro set; sources/misteross/scripts/sim_fes_sms_quartus.py:46 is what does so, with `-DQUARTUS=1`. The bench itself holds no guard — this line is its only match — so it compiles either way, but the broadened acceptance grep matches the comment and S8 has to reword it. |
+| `sources/misteross/cores/fes-sg1000/sim/quartus_ram_tb.sv` | 3 | mentions-macro | `// Run with QUARTUS and Intel's unmodified altera_mf.v, not a RAM stand-in.` | Instruction comment at the head of the sg1000 Icarus Quartus RAM bench, telling a reader to run it with the macro set; sources/misteross/scripts/sim_fes_sg1000_quartus.py:46 is what does so, with `-DQUARTUS=1`. The bench itself holds no guard — this line is its only match — so it compiles either way, but the broadened acceptance grep matches the comment and S8 has to reword it. |
 
 
 ### Tests, docs and readmes — 73 sites
@@ -434,8 +442,6 @@ One thing from outside the computed task: the relayed user message was "hows the
 | `tests/test_test_changed.py` | 311 | lists-guarded-file | `self.change("sources/misteross/cores/fes-common/rtl/coleco_vdp.sv")` | Drives the change-planner with coleco_vdp.sv (site 14) by path and asserts the exact fan-out of sim targets, several of which set an FES_*_OSS macro today. |
 
 **Agent notes.**
-
-USER MESSAGE MISMATCH: the relayed user request was "hows the codex review looking?", which this computed census task does not answer. I did the assigned census step and did not edit any file; if the user wanted a Codex review status on this PR, that still needs doing (nothing here looked at PR review state).
 
 HOW I MAPPED SITES TO THE FIVE KINDS (my area holds no real macro setter except the Yosys tests):
 - sets-oss-macro: only the three test-owned Yosys runs that put -DFES_*_OSS=1 in their own read_verilog line (sms:638, sg1000:579, megacart:63). These genuinely define the macro.
