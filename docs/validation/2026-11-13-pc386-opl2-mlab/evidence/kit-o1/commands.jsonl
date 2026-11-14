@@ -1,0 +1,21 @@
+{"op": "package", "path": "87f9a24f612fc8ee1389d291251ac061a7460dd285a705e472051ba602336dd9.fcore"}
+{"op": "load", "game": "opl2mlab-o1-main"}
+{"op": "sleep", "s": 45}
+{"op": "grab", "name": "o1-main-boot"}
+{"op": "audio_start", "name": "o1-main-u6"}
+{"op": "type", "text": "cd \\ultima6\nultima6\n"}
+{"op": "sleep", "s": 90}
+{"op": "audio_stop"}
+{"op": "grab", "name": "o1-main-end"}
+{"op": "stop"}
+{"op": "package", "path": "2c40b84979faaf812abf0a79158f32eb9ffb02c71df3f6f2f0205f34394a5092.fcore"}
+{"op": "load", "game": "opl2mlab-o1-s1"}
+{"op": "sleep", "s": 45}
+{"op": "grab", "name": "o1-s1-boot"}
+{"op": "audio_start", "name": "o1-s1-u6"}
+{"op": "type", "text": "cd \\ultima6\nultima6\n"}
+{"op": "sleep", "s": 90}
+{"op": "audio_stop"}
+{"op": "grab", "name": "o1-s1-end"}
+{"op": "stop"}
+{"op": "quit"}

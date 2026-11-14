@@ -52,7 +52,7 @@ These are measurements from the current tree, used below to choose priorities.
 | Per-core test surface | About 199 `sim-fes-*` and 34 `build-fes-*` Make targets, 17 `pcxt_*` and 5 `atari_st_*` parent scripts, hand-registered in `ci_simulations.py` and `affected.py`. |
 | Evidence weight | `scripts/` has about 14.8k lines of acceptance/evidence code against 11.3k of build code. `docs/validation/` is 404 dated records, 4,840 files, 142 MB in Git. |
 | Product | Tenfoot on the kit is the one UI and the kit is its own host. v1 scope is defined (ZX81, Spectrum, C64, Atari ST on DE10) with 17 open milestone issues. No update UI, Wi-Fi, volume, controller page or save states. Menu frames are CPU-rastered and copied, and miss their budget on DE10 (#318, #1743, #1770). |
-| Release | No tag, no release, no signing, and **no licence file on a public repository**. Proprietary ROM bytes remain inside a committed capture archive. |
+| Release | No tag, no release, no signing, and **no licence file on a public repository**. The capture archives that held the ZX81 and ZX80 ROMs are removed from the tip; the bytes remain in Git history, and the tip still holds the 512-byte ZX81 character set (see [v1: finish and ship](#v1-finish-and-ship-de10-nano-four-families)). |
 | Planning | No single roadmap. "Tier 1" is not defined anywhere in the repo. Two task-label systems are documented. 67 September plan/spec files are still carried. |
 
 ## Target architecture
@@ -447,6 +447,10 @@ is right. Do not widen it. What stands between the tree and a release:
   - [#1799](https://github.com/DeanoC/fes/pull/1799), merged 13 November,
     removed those four archives from the tip. That alone does not make the
     tip clean.
+  - The scan missed a fifth archive,
+    `pic-direct-events/board-capture.tar.gz`, whose nested source snapshots
+    hold the same ROM images. A multi-encoding sweep of every tracked file,
+    including nested archives, found it, and it was removed on 13 November.
   - The tip also held 512 bytes of the ZX81 character set, copied from
     the ROM, in `sources/misteross/cores/fes-zx81/expansions/qs_chrs.hex`
     and `qs_chrs_init.vh`, under a GPL label with no verified basis

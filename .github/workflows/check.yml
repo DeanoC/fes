@@ -333,7 +333,7 @@ jobs:
           bash scripts/ci_verilator.sh "$RUNNER_TEMP/fes-verilator" "$RUNNER_TEMP/fes-verilator-build"
       - name: Install PC/XT and PC386 image tools
         if: >-
-          matrix.target == 'sim-fes-pcxt-dos' || matrix.target == 'sim-fes-pc386-fesenv' ||
+          matrix.target == 'sim-fes-pcxt-dos' || matrix.target == 'sim-fes-pc386-fesenv' || matrix.target == 'sim-fes-pc386-mem' ||
           matrix.target == 'sim-fes-pc386-a20' || matrix.target == 'sim-fes-pc386-c2xx' ||
           matrix.target == 'sim-fes-pc386-wait' ||
           matrix.target == 'sim-fes-pc386-scroll' || matrix.target == 'sim-fes-pc386-speaker' ||

@@ -132,6 +132,7 @@ help:
 		"  sim-fes-apple2-mailbox  Replay the fes.computer golden exchanges against the shared endpoint" \
 		"  sim-fes-apple2-machine  Boot the open diagnostic and synthetic disk; compare every frame" \
 		"  sim-fes-apple2-board  Drive top.v through the mailbox: HID keys, live disk insert/eject, reset" \
+		"  sim-fes-apple2-cpu  Check IRQ, JSR and read-modify-write on the Apple II motherboard" \
 		"  sim-fes-spectrum  Test the Spectrum machine, tape pilot, probe sockets and board mailbox" \
 		"  build-fes-apple2  Seal FES Apple II (format 3 firmware map, four slot sockets) with HIP (CACHE_ROOT=)" \
 		"  build-fes-spectrum  Seal FES ZX Spectrum (format 3 firmware map, four edge sockets) with HIP (CACHE_ROOT=)" \
@@ -154,6 +155,7 @@ help:
 		"  sim-fes-pc386  Check pc386 devices, the fes.computer 1.1 exchanges, audio, OPL2, presenter and display plane on port 2" \
 		"  sim-fes-pc386-boot  Boot the Bochs BIOS and FreeDOS on the pc386 machine with the oracle CPU; replay its VGA trace" \
 		"  sim-fes-pc386-fesenv  Boot the games image and check FESENV sets BLASTER from CMOS" \
+		"  sim-fes-pc386-mem  Boot the games image and check MEM's largest executable program size" \
 		"  sim-fes-pc386-a20  Run A20TEST.COM on the boot and games images: A20 off at boot, the BIOS's A20 calls, HIMEMX's method" \
 		"  sim-fes-pc386-c2xx  Run C2TEST.COM: INT 15h C2xx mouse resets with key and aux bytes at the 8042, and while keys are typed" \
 		"  sim-fes-pc386-wait  Run WAITTEST.COM: INT 15h AH=86h waits return in their time (PIT counter 1 at 15.09 us)" \
@@ -1103,7 +1105,7 @@ APPLE2_RTL := cores/fes-apple2/rtl/apple2_machine.sv cores/fes-apple2/rtl/apple2
 	cores/fes-apple2/rtl/apple2_disk2_card.v cores/fes-apple2/rtl/apple2_disk2_drive.v \
 	cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v
 
-.PHONY: apple2-diagnostic sim-fes-apple2 sim-fes-apple2-mailbox sim-fes-apple2-machine sim-fes-apple2-board
+.PHONY: apple2-diagnostic sim-fes-apple2 sim-fes-apple2-mailbox sim-fes-apple2-machine sim-fes-apple2-board sim-fes-apple2-cpu
 apple2-diagnostic:
 	@mkdir -p $(APPLE2_DIAGNOSTIC)
 	$(PYTHON) cores/fes-apple2/diagnostic/font.py --verilog $(APPLE2_DIAGNOSTIC)/font.vh
@@ -1115,7 +1117,16 @@ apple2-diagnostic:
 	$(PYTHON) cores/fes-apple2/diagnostic/firmware.py --output-dir $(APPLE2_DIAGNOSTIC)
 	$(PYTHON) cores/fes-apple2/diagnostic/render.py --output-dir $(APPLE2_DIAGNOSTIC)
 
-sim-fes-apple2: sim-fes-apple2-mailbox sim-fes-apple2-machine sim-fes-apple2-board
+sim-fes-apple2: sim-fes-apple2-mailbox sim-fes-apple2-machine sim-fes-apple2-board sim-fes-apple2-cpu
+
+sim-fes-apple2-cpu:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-apple2-cpu/run
+	$(VERILATOR) --cc --exe --build -O2 --top-module apple2_cpu_sim_top $(APPLE2_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-apple2-cpu" \
+		cores/fes-apple2/sim/cpu_sim_top.sv $(APPLE2_RTL) \
+		"$(CURDIR)/cores/fes-apple2/sim/cpu_tb.cpp"
+	@cd build/sim/fes-apple2-cpu/run && ../Vapple2_cpu_sim_top
 
 sim-fes-apple2-mailbox:
 	$(require_local_sim)
@@ -2839,7 +2850,7 @@ sim-fes-pcxt-game:
 	@test -n "$(PCXT_DIGGER_EXE)" || { echo "Set PCXT_DIGGER_EXE to the separately acquired pinned executable" >&2; exit 1; }
 	$(PYTHON) scripts/sim_fes_pcxt_dos.py --scenario game --download --digger-exe "$(PCXT_DIGGER_EXE)" --verilator "$(VERILATOR)"
 
-.PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-fesenv sim-fes-pc386-a20 sim-fes-pc386-c2xx sim-fes-pc386-wait sim-fes-pc386-scroll sim-fes-pc386-speaker sim-fes-pc386-cpu-profile sim-fes-pc386-sound sim-fes-pc386-vga sim-fes-pc386-system synth-fes-pc386 build-fes-pc386-quartus
+.PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-fesenv sim-fes-pc386-mem sim-fes-pc386-a20 sim-fes-pc386-c2xx sim-fes-pc386-wait sim-fes-pc386-scroll sim-fes-pc386-speaker sim-fes-pc386-cpu-profile sim-fes-pc386-sound sim-fes-pc386-vga sim-fes-pc386-system synth-fes-pc386 build-fes-pc386-quartus
 sim-fes-pc386:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pc386.py --suite devices --verilator "$(VERILATOR)"
@@ -2856,6 +2867,11 @@ sim-fes-pc386-fesenv:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pc386.py --suite boot --image games --type 'set|' \
 		--expect 'BLASTER=A220 I7 D1 T3' --limit-seconds 10 --download --verilator "$(VERILATOR)"
+
+sim-fes-pc386-mem:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pc386.py --suite boot --image games --cpu oracle --type 'mem|' \
+		--expect 'Largest executable program size' --limit-seconds 10 --download --verilator "$(VERILATOR)"
 
 sim-fes-pc386-a20:
 	$(require_local_sim)
