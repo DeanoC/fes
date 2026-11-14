@@ -31,7 +31,7 @@ func loadSystemWorkbench(t *testing.T, svc Services, gameID, coreID string) *Ins
 
 func TestSystemWorkbenchEmptyLibrarySetsUpEveryPlayableModel(t *testing.T) {
 	r := loadSystemWorkbench(t, &fakeServices{}, "", "")
-	stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Set up system") })
+	stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Set up ZX81") })
 	families := [][]string{
 		{"fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500"},
 		{"fes.c64"},
@@ -39,7 +39,7 @@ func TestSystemWorkbenchEmptyLibrarySetsUpEveryPlayableModel(t *testing.T) {
 		{"fes.apple2"}, {"fes.atari-st"}, {"fes.coleco"}, {"fes.sms"}, {"fes.sg1000"},
 		{"fes.pong"}, {"fes.ramtest"}, {"fes.riscv"},
 	}
-	for _, variants := range families {
+	for familyIndex, variants := range families {
 		for i, id := range variants {
 			r.Activate("setup")
 			acts := r.TakeActions()
@@ -52,17 +52,37 @@ func TestSystemWorkbenchEmptyLibrarySetsUpEveryPlayableModel(t *testing.T) {
 			}
 			if i+1 < len(variants) {
 				r.Activate("variant")
-				stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Set up system") })
+				want := workbenchSetupLabel(variants[i+1])
+				stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), want) })
 			}
 		}
 		r.Activate("system")
-		stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Set up system") })
+		want := "Set up system"
+		if familyIndex == len(families)-1 {
+			want = "Set up TS1500" // The last selected Sinclair variant is retained.
+		}
+		stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), want) })
 	}
 	// Returning to a family restores its last browsed variant.
 	r.Activate("setup")
 	acts := r.TakeActions()
 	if len(acts) != 1 || acts[0].CoreID != "fes.ts1500" {
 		t.Fatalf("ZX81 family forgot its variant: %+v", acts)
+	}
+}
+
+func workbenchSetupLabel(coreID string) string {
+	switch coreID {
+	case "fes.zx81":
+		return "Set up ZX81"
+	case "fes.zx80":
+		return "Set up ZX80"
+	case "fes.ts1000":
+		return "Set up TS1000"
+	case "fes.ts1500":
+		return "Set up TS1500"
+	default:
+		return "Set up system"
 	}
 }
 
@@ -119,7 +139,7 @@ func TestSystemWorkbenchNamesSavedMediaByRole(t *testing.T) {
 			game.PackageID, game.MediaID, game.MediaRole = strings.Repeat("a", 64), strings.Repeat("b", 64), tc.role
 			r := loadSystemWorkbench(t, &fakeServices{games: []hostclient.Game{game}}, game.ID, tc.core)
 			want := tc.label + "  ·  " + game.MediaID[:8]
-			frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Saved machine") && frameHas(f, "Set up system") })
+			frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Saved machine") && frameHas(f, workbenchSetupLabel(tc.core)) })
 			if !frameHas(frame, want) {
 				t.Fatalf("saved %s media lacks its own label %q:\n%s", tc.role, want, frameText(frame))
 			}

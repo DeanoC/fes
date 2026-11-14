@@ -187,7 +187,14 @@ func TestFamilyVariantSelectionSurvivesRoomReopen(t *testing.T) {
 			return
 		}
 		reopened.Activate("system")
-		stepUntil(t, reopened, func(f Frame) bool { return strings.Contains(frameText(f), "Set up system") })
+		stepUntil(t, reopened, func(f Frame) bool {
+			for _, core := range []string{"fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500", "other"} {
+				if strings.Contains(frameText(f), workbenchSetupLabel(core)) {
+					return true
+				}
+			}
+			return false
+		})
 	}
 	t.Fatal("Spectrum family was not reachable after reopen")
 }
