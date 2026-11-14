@@ -112,3 +112,38 @@ within ±5.9%.**
 
 Nothing here is tuned afterwards: no frequency override is set in this work,
 and the band is not widened to admit a result.
+
+## Amendment, before the kit runs
+
+Three things in the plan above did not survive contact with the two machines.
+They are corrected here, before any kit capture, with the reasons.
+
+1. **Not one shared command file: one shared *measured block*.** The reference
+   is slower through Ultima VI's introduction than the kit is, so the kit's
+   fixed sleeps land in different places there, and the kit's single `Esc`
+   after the last story page quits the game on the reference. The path from a
+   cold boot to the start of play is therefore per side; everything that is
+   measured — the lute's notes and the walk — is the same command block on
+   both, and both reach the same place in the game.
+2. **A longer, four-legged walk, repeated three times.** The 10 November kit
+   capture holds 9 steps in 14 s with gaps from 11 to 134 frames, because
+   Ultima VI is turn-based and the start of a new game is a fight: each step
+   waits for the other turns. Six seconds of one direction cannot be judged
+   against a ±10% band. The measured block is now, three times over: five
+   single steps 3 s apart (which checks the step detector counts five), then
+   four held legs of 10 s — down, right, up, left — captured for 45 s. The
+   figures are the step rate over each leg set and the median step gap.
+3. **Ultima VII: what is captured, and what is derived from it.** The Black
+   Gate is mouse-driven and its save is reached through its menu, so the
+   measured block is three 30 s captures of the scene reached by "Journey
+   Onward" with no input, then the same clicks on both sides to clear the
+   conversation, then three more. The rate taken from them is the scene's
+   update rate — the new pictures a second the game draws — because The Black
+   Gate has no frame limiter, so that rate is the game loop that walks the
+   NPCs. The record says so where it gives the figure.
+
+**What had already been seen.** Before this amendment: the 10 November kit
+capture's step figures (above), the kit's lute notes from the same run (key
+`6` at 840.7 Hz, key `1` at 499.8 Hz), and that the reference plays Ultima
+VI's introduction more slowly than the kit. No reference walk or lute figure
+existed yet. The tolerance is unchanged.
