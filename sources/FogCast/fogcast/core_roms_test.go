@@ -833,6 +833,18 @@ func TestCartridgeROMRejectsMediaStartupContractBeforeLoad(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			_, err = s.CreateCoreMediaEntry(ctx, "Invalid creation", installed.PackageID, "cartridge", media.MediaID)
+			var creationErr *protocol.APIError
+			if !errors.As(err, &creationErr) || creationErr.Code != protocol.CodeUnsupportedOperation || creationErr.Phase != "compatibility" {
+				t.Fatalf("incompatible cartridge creation: %v", err)
+			}
+			entries, err := store.CoreEntries(ctx)
+			if err != nil || len(entries) != 1 {
+				t.Fatalf("failed creation changed catalog entries: %+v %v", entries, err)
+			}
+			// Creation performs target compatibility inspection; launch must not
+			// contact it again for this unsupported combination.
+			inspectionsAfterCreate := client.inspections
 			if _, err = s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, installed.Descriptor.ROM.ID, "", media.MediaID); err != nil {
 				t.Fatal(err)
 			}
@@ -848,7 +860,7 @@ func TestCartridgeROMRejectsMediaStartupContractBeforeLoad(t *testing.T) {
 			if !errors.As(err, &api) || api.Code != protocol.CodeUnsupportedOperation || api.Phase != "request" {
 				t.Fatalf("launch: %v", err)
 			}
-			if client.coreCalls != 0 || client.stopCalls != 0 || client.inspections != 0 {
+			if client.coreCalls != 0 || client.stopCalls != 0 || client.inspections != inspectionsAfterCreate {
 				t.Fatalf("target contacted: %+v", client)
 			}
 			descriptor := installed.Descriptor
