@@ -294,7 +294,7 @@ The include directory is new, so no reader has it on its path today, including r
 
 Readers that never reach the 14 files are left alone. The S8 census confirms which these are, and expects pong, `build_fes_slot.py`, the i386 oracle, the benchmark and lockstep among them.
 
-**Source closure.** The header joins `PINNED_INPUTS`/`INCLUDES` of every producer that reads a header-using file. It also joins the matching audited entries in `M/scripts/source_closures.json`, which are regenerated with `M/scripts/closure_tools/manifest.py`. Otherwise the read guard fails with "source open outside audited closure" (`compiler_read_audit.py:62-68`). The format-1 provenance fixtures (`M/tests/test_source_provenance.py:17-18,49-52`) pick it up through `PINNED_INPUTS`. After S8 the header is frozen: any edit reseals every core that reads it.
+**Source closure.** The header joins `PINNED_INPUTS`/`INCLUDES` of every producer that reads a header-using file. It also joins the matching audited entries in `M/scripts/source_closures.json`, which are regenerated with `M/scripts/closure_tools/manifest.py`. Otherwise the read guard fails with "source open outside audited closure" (`compiler_read_audit.py:62-68`). The format-1 provenance fixtures (`M/tests/test_source_provenance.py:17-18,50-52`) pick it up through `PINNED_INPUTS`. After S8 the header is frozen: any edit reseals every core that reads it.
 
 ### Lane per file set (the pc386 hybrid)
 
@@ -528,8 +528,8 @@ Each lane PR names its check. An i386-style lockstep is not assumed for any othe
 
 ### Close the yosys-lane gap first
 
-- **Lockstep before S4:** `read_verilog -sv; hierarchy -top fes_i386_cpu; proc -norom; flatten; opt -purge; write_verilog -noattr`, with the i386 lock's Yosys 0a7927bf (238eac9a before D2) and no `-I` or `-D` (lines 93-97 of `M/scripts/test_fes_i386_frontend.py` and lines 1-5 of `M/cores/fes-common/rtl/i386/toolchain.lock`, both at `97a589e89`).
-- **The seal before S4:** the pc386 lock's Yosys 0a7927bf on `pc386_system`, with `-chparam` rates, `flatten`, `opt -purge`, `memory_collect`, `memory_map`, `attrmap` and a Python identifier rewrite (`build_fes_pc386_quartus.py:85`; the Yosys program and the rewrite were lines 236-275 and 369-382 at `97a589e89`).
+- **Lockstep before S4:** `read_verilog -sv; hierarchy -top fes_i386_cpu; proc -norom; flatten; opt -purge; write_verilog -noattr`, with the i386 lock's Yosys 0a7927bf (238eac9a before D2) and no `-I` or `-D` (lines 93-97 of `M/scripts/test_fes_i386_frontend.py` and lines 1-5 of `M/cores/fes-common/rtl/i386/toolchain.lock`, both at `4d439f23c`, the last commit before S4).
+- **The seal before S4:** the pc386 lock's Yosys 0a7927bf on `pc386_system`, with `-chparam` rates, `flatten`, `opt -purge`, `memory_collect`, `memory_map`, `attrmap` and a Python identifier rewrite (`build_fes_pc386_quartus.py:85`, and lines 237-275 and 369-382 at `97a589e89`).
 - **Port trimming:** the sealed machine leaves the CPU's trace and arch ports unconnected (`M/cores/fes-pc386/rtl/pc386_system.sv:491-498`). So a whole-machine netlist cannot drive lockstep, and no CPU sub-netlist can be digested out of it.
 
 **Fix:** one function, `yosys_netlist(top, sources, lane, chparams, memory_policy, attr_mode, lock)`, in `M/scripts/yosys_netlist.py` (new). The pc386 sealer, `quartus_fes_pcxt.py`, `quartus_fes_i386.py`, `benchmark_fes_i386.py` and `test_fes_i386_frontend.synthesize_netlist` all call it.
