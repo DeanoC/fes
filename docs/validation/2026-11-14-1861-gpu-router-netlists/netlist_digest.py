@@ -23,10 +23,14 @@ import hashlib
 import importlib
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
 BUILD_ID = "0" * 32
+
+# Where each producer keeps the input list that decides its netlist.
+PINNED = ("PINNED_INPUTS", "INPUTS")
 
 
 def digest(path: Path) -> str:
@@ -35,6 +39,49 @@ def digest(path: Path) -> str:
         for block in iter(lambda: stream.read(1 << 20), b""):
             out.update(block)
     return out.hexdigest()
+
+
+def _git(tree: Path, *arguments: str) -> str:
+    return subprocess.run(("git", "-C", str(tree), *arguments),
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+
+def source_identity(tree: Path, producer, *, allow_dirty: bool) -> dict:
+    """Pin the bytes that were synthesised, not just the path they came from.
+
+    A worktree path is mutable and a branch advances, so a digest attributed to
+    a reviewed head has to carry the revision it was produced at. The pinned
+    input digest is stronger still: it covers the producer's own declared
+    inputs whatever git says.
+    """
+    revision = _git(tree, "rev-parse", "HEAD")
+    status = _git(tree, "status", "--porcelain")
+    inputs = None
+    for name in PINNED:
+        candidate = getattr(producer, name, None)
+        if candidate:
+            inputs = tuple(candidate)
+            break
+    if inputs is None and hasattr(producer, "inputs_for"):
+        inputs = tuple(producer.inputs_for(100))
+    if inputs is None:
+        raise SystemExit(f"{producer.__name__}: no pinned input list to hash")
+    listing = [[relative, digest(producer.ROOT / relative)] for relative in sorted(inputs)]
+    dirty = [line for line in status.splitlines() if line.strip()]
+    tracked = {relative for relative in inputs}
+    dirty_inputs = sorted(line[3:] for line in dirty
+                          if line[3:].removeprefix("sources/misteross/") in tracked)
+    if dirty_inputs and not allow_dirty:
+        raise SystemExit("refusing to record a netlist from modified pinned inputs: "
+                         + ", ".join(dirty_inputs))
+    return {
+        "revision": revision,
+        "tree_clean": not dirty,
+        "dirty_pinned_inputs": dirty_inputs,
+        "pinned_inputs_sha256": hashlib.sha256(
+            json.dumps(listing, separators=(",", ":")).encode()).hexdigest(),
+        "pinned_input_count": len(listing),
+    }
 
 
 def _load(tree: Path, module: str):
@@ -64,7 +111,7 @@ def synth_pong(tree: Path, cache_root: Path):
                            output_relative=producer.OUTPUT_RELATIVE)
     finally:
         invocation.close()
-    return output / "synth.json", {name: tool.identity for name, tool in authenticated.items()}
+    return output / "synth.json", {name: tool.identity for name, tool in authenticated.items()}, producer
 
 
 def _run_yosys(producer, authenticated, output, command, output_relative):
@@ -92,7 +139,7 @@ def synth_menu(tree: Path, cache_root: Path):
         BUILD_ID, {name: authenticated[name].path
                    for name in ("yosys", "nextpnr-mistral")})
     _run_yosys(producer, authenticated, output, yosys, producer.OUTPUT)
-    return output / "synth.json", {n: t.identity for n, t in authenticated.items()}
+    return output / "synth.json", {n: t.identity for n, t in authenticated.items()}, producer
 
 
 def synth_ramtest(tree: Path, cache_root: Path):
@@ -106,7 +153,7 @@ def synth_ramtest(tree: Path, cache_root: Path):
                                   for name in ("yosys", "nextpnr-mistral")},
         memory_mhz=100)
     _run_yosys(producer, authenticated, output, commands[0], relative)
-    return output / "synth.json", {n: t.identity for n, t in authenticated.items()}
+    return output / "synth.json", {n: t.identity for n, t in authenticated.items()}, producer
 
 
 def synth_riscv(tree: Path, cache_root: Path):
@@ -118,7 +165,7 @@ def synth_riscv(tree: Path, cache_root: Path):
         BUILD_ID, {name: authenticated[name].path
                    for name in ("yosys", "nextpnr-mistral")})
     _run_yosys(producer, authenticated, output, commands[0], producer.OUTPUT)
-    return output / "synth.json", {n: t.identity for n, t in authenticated.items()}
+    return output / "synth.json", {n: t.identity for n, t in authenticated.items()}, producer
 
 
 def _zx81_model(model: str):
@@ -134,12 +181,34 @@ def _zx81_model(model: str):
             {name: authenticated[name].path
              for name in ("yosys", "nextpnr-mistral")}, model=model)
         _run_yosys(producer, authenticated, output, yosys, relative)
-        return output / "synth.json", {n: t.identity for n, t in authenticated.items()}
+        return output / "synth.json", {n: t.identity for n, t in authenticated.items()}, producer
     return synth
+
+
+def _spectrum_model(model: str):
+    """Spectrum already has synth(): it pins the same BUILD_ID this program does."""
+    def synth(tree: Path, cache_root: Path):
+        producer = _load(tree, "build_fes_spectrum_oss")
+        evidence = producer.synth(producer.ROOT, cache_root=cache_root, model=model)
+        output = producer.ROOT / producer.model_for(model).output
+        return output / "synth.json", evidence["tools"], producer
+    return synth
+
+
+def synth_c64(tree: Path, cache_root: Path):
+    producer = _load(tree, "build_fes_c64_oss")
+    evidence = producer.synth(producer.ROOT, cache_root=cache_root)
+    output = producer.ROOT / producer.OUTPUT_RELATIVE
+    return output / "synth.json", evidence["tools"], producer
 
 
 CORES = {
     "fes.pong": synth_pong,
+    "fes.spectrum": _spectrum_model("48"),
+    "fes.spectrum128": _spectrum_model("128"),
+    "fes.spectrum-plus3": _spectrum_model("plus3"),
+    "fes.pentagon": _spectrum_model("pentagon"),
+    "fes.c64": synth_c64,
     "fes.menu": synth_menu,
     "fes.ramtest": synth_ramtest,
     "fes.riscv": synth_riscv,
@@ -158,15 +227,18 @@ def main(argv=None) -> int:
     parser.add_argument("--cache-root", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True,
                         help="directory to copy the netlist and its digest into")
+    parser.add_argument("--allow-dirty", action="store_true",
+                        help="record a run whose pinned inputs are modified (not evidence)")
     arguments = parser.parse_args(argv)
     tree = arguments.tree.resolve()
     out = arguments.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
-    netlist, tools = CORES[arguments.core](tree, arguments.cache_root.resolve())
+    netlist, tools, producer = CORES[arguments.core](tree, arguments.cache_root.resolve())
     copied = out / "synth.json"
     copied.write_bytes(netlist.read_bytes())
     record = {"core": arguments.core, "tree": str(tree), "build_id": BUILD_ID,
-              "netlist_sha256": digest(copied), "tools": tools}
+              "netlist_sha256": digest(copied), "tools": tools,
+              **source_identity(tree, producer, allow_dirty=arguments.allow_dirty)}
     (out / "netlist.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
     print(json.dumps(record, indent=2, sort_keys=True))
     return 0
