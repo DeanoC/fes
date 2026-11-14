@@ -98,12 +98,16 @@ reference's 1%, and the kit's figures are the same as the 10 November run's
 (840.7 and 499.8 Hz) on a different seal, so this is the machine and not the
 day.
 
-**This is two captures a side, not the three the method asked for**: one kit
-capture on this package (`g1`) with the 10 November capture on a different
-package behind it, and two reference captures. The method's reason for three
-was to show the spread is well inside the band, and it is — 0.05% on the kit
-and 1% on the reference against ±5.9% — but the shortfall is a deviation and
-is named here rather than left to be noticed.
+**This is two captures a side, not the three the method asked for**, and
+`pitch.json` names all four: one kit capture on this package (`g1`) with the 10
+November capture on package `650bc477` behind it, and two reference captures
+(`m3`, `m4`). A third reference run was made and its lute landed in character
+creation, so it holds no notes. The method's reason for three was to show the
+spread is well inside the band, and it is — 0.05% on the kit and 0.1% between
+the two reference runs, against ±5.9%, with the difference being measured 100
+times larger than either — but the shortfall is a deviation and is named here
+rather than left to be noticed. Three kit captures were queued for Kit B and
+not run, because the kit was held by another session.
 
 **What is not established is the cause.** The pc386 design document says
 Ultima VI's effects "toggle it in CPU-timed loops" and names the 720 ns `isa8`

@@ -1,56 +1,94 @@
 {
- "kit_g1": [
-  {
-   "n": 31,
-   "median": 840.72,
-   "min": 840.42,
-   "max": 840.9
+ "captures": {
+  "kit_g1": {
+   "side": "kit",
+   "run": "g1",
+   "package": "fc01c956",
+   "when": "2026-11-14 11:47",
+   "notes": [
+    {
+     "n": 31,
+     "median": 840.72,
+     "min": 840.42,
+     "max": 840.9
+    },
+    {
+     "n": 31,
+     "median": 499.79,
+     "min": 499.65,
+     "max": 499.87
+    }
+   ]
   },
-  {
-   "n": 31,
-   "median": 499.79,
-   "min": 499.65,
-   "max": 499.87
-  }
- ],
- "ref_m3": [
-  {
-   "n": 35,
-   "median": 962.29,
-   "min": 953.57,
-   "max": 971.53
+  "kit_t1": {
+   "side": "kit",
+   "run": "t1 (10 November rerun)",
+   "package": "650bc477",
+   "when": "2026-11-10 18:40",
+   "notes": [
+    {
+     "n": 31,
+     "median": 840.7,
+     "min": 840.31,
+     "max": 840.85
+    },
+    {
+     "n": 31,
+     "median": 499.78,
+     "min": 499.71,
+     "max": 499.83
+    }
+   ]
   },
-  {
-   "n": 32,
-   "median": 574.28,
-   "min": 567.6,
-   "max": 578.79
-  }
- ],
- "ref_m4": [
-  {
-   "n": 31,
-   "median": 963.23,
-   "min": 960.33,
-   "max": 964.21
+  "ref_m3": {
+   "side": "reference",
+   "run": "m3",
+   "when": "2026-11-14 11:43",
+   "notes": [
+    {
+     "n": 35,
+     "median": 962.29,
+     "min": 953.57,
+     "max": 971.53
+    },
+    {
+     "n": 32,
+     "median": 574.28,
+     "min": 567.6,
+     "max": 578.79
+    }
+   ]
   },
-  {
-   "n": 31,
-   "median": 573.54,
-   "min": 571.34,
-   "max": 576.7
+  "ref_m4": {
+   "side": "reference",
+   "run": "m4",
+   "when": "2026-11-14 11:58",
+   "notes": [
+    {
+     "n": 31,
+     "median": 963.23,
+     "min": 960.33,
+     "max": 964.21
+    },
+    {
+     "n": 31,
+     "median": 573.54,
+     "min": 571.34,
+     "max": 576.7
+    }
+   ]
   }
- ],
+ },
  "keys": [
   "6",
   "1"
  ],
+ "shortfall": "The method asked for three repeats a side. This is two a side: one kit capture on this package with the 10 November capture on package 650bc477 behind it, and two reference captures. A third reference run (m5) was attempted and its lute landed in character creation, so it holds no notes. The spreads below are far inside the band.",
  "comparison": [
   {
    "key": "6",
    "kit_hz": 840.72,
    "reference_hz": 962.76,
-   "kit_over_reference": 0.8732,
    "kit_below_reference_pct": 12.68,
    "semitones_flat": 2.35,
    "reference_scaled_to_12MHz_hz": 924.25,
@@ -63,7 +101,6 @@
    "key": "1",
    "kit_hz": 499.79,
    "reference_hz": 573.91,
-   "kit_over_reference": 0.8709,
    "kit_below_reference_pct": 12.91,
    "semitones_flat": 2.39,
    "reference_scaled_to_12MHz_hz": 550.95,
