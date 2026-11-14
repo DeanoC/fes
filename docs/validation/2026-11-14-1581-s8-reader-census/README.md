@@ -5,11 +5,24 @@ RTL files, of the bare `QUARTUS` macro, and of `FES_COLECO_OSS` / `FES_SMS_OSS` 
 Every reader found is in scope for the slice, so a reader missed here is one that breaks when the
 macros are deleted.
 
-Taken on 14 November against `deano/1581-s7-identity-fields` at `e2f090806`, two commits behind
-`main`. None of the files below is edited by this census.
+Taken on 14 November. None of the files below is edited by this census.
 
-**320 sites in 7 areas.** The inventory is [`census-tables.md`](census-tables.md); the DE25 board
-tree, which the design doc does not cover at all, is [`de25.md`](de25.md).
+**348 sites in 7 areas** — 320 in the six areas the parallel sweep covered, plus 28 in the DE25
+board tree, which the design record does not cover at all and which is inventoried separately. The
+six-area inventory is [`census-tables.md`](census-tables.md); DE25 is [`de25.md`](de25.md).
+
+**The base.** Every line number here is against this PR's base, `main` at `1b4601831`. The sweep
+itself ran against `deano/1581-s7-identity-fields` at `e2f090806`, which is not the same tree — that
+branch edits `build_fes_pcxt_quartus.py` and `quartus_fes_pcxt.py`, and `M/Makefile` differs by 11
+lines in its upper half. 286 of the 320 sites verified in place on this base; 33 were re-pointed and
+are marked as such in the inventory, resolved by searching each hit's recorded matched text, taking
+the candidate nearest its original line, and requiring a file's hits to keep their order. The last
+of the 320, `build_fes_zx81_oss.py:92`, is in place but could not be checked mechanically because
+the sweep abbreviated its long `RTL_SOURCES` tuple with an ellipsis; it was confirmed by hand. All 16
+DE25 citations verified in place, since that branch does not touch that part of the tree.
+
+Publishing stale exact sites would have repeated the very defect this census corrects in the record
+(correction 7 below). The gap was found by Codex review of the first push of this PR, not by me.
 
 | Area | Sites |
 | --- | --- |
@@ -19,7 +32,7 @@ tree, which the design doc does not cover at all, is [`de25.md`](de25.md).
 | C++ testbenches | 51 |
 | Tests, docs and READMEs | 99 |
 | Closures and pinned inputs | 73 |
-| `M/boards/de25nano` | 17 sites + 11 macro-invisible readers |
+| `M/boards/de25nano` | 17 sites + 11 macro-invisible readers = 28 |
 
 `M` = `sources/misteross`. Dated records (`docs/validation/` in both trees, dated plans) and the
 design record itself are excluded, as S8's acceptance specifies.
@@ -129,11 +142,21 @@ Confirmed present, with the line verified where noted:
 
 ## Two things to decide deliberately in S8b
 
-- **A lane asymmetry that is currently inherited by accident.** `M/Makefile:1720`
+- **A lane asymmetry that is currently inherited by accident.** `M/Makefile:1732`
   (`sim-fes-sg1000-rom-link`) passes `-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1` to Verilog but no
   matching `-CFLAGS`, so `sg1000/machine_tb.cpp` compiles its *non*-OSS arm against OSS
-  (registered-media) RTL. The same RTL-only pattern appears at `:630`, `:730`, `:770` and `:933`.
-  `FES_Z80_UNREGISTERED_SIM` has to resolve each of these one way or the other.
+  (registered-media) RTL. **Eight recipes do this**, not the five first reported here: `:733`,
+  `:773`, `:912`, `:936`, `:1732`, `:1768`, and `:633` and `:2086`, where the define sits inside a
+  `$(if …)` so the state follows the goal name. `:1732` is the only one missing two macros.
+  `FES_Z80_UNREGISTERED_SIM` has to resolve each of the eight one way or the other.
+
+  The set is derived rather than eyeballed, which is how it grew: group the Makefile into
+  backslash-continued recipes, collect each recipe's Verilog `-D` macros and its `-CFLAGS` macros,
+  and report the difference. Reading the hits one at a time had missed three recipes and cited the
+  rest loosely — the first report's `:1720` pointed at that recipe's `$(VERILATOR)` line rather than
+  its define one line below, which on the census tree was `:1721`. The claim itself holds: that
+  recipe's `-CFLAGS` carries only `-DFES_SG1000_ROM_LINK=1`, so both OSS macros reach the RTL and
+  neither reaches the C++.
 - **A path literal that will raise.** `sim_fes_coleco_quartus.py:50-52` indexes its source list by
   the literal string `cores/fes-common/rtl/coleco_video_dpram.v`, so if S8 moves or renames that
   path the `--baseline` mode raises `ValueError` rather than failing a check.
