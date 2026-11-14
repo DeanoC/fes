@@ -122,6 +122,32 @@ class CorrectionShapeTests(unittest.TestCase):
                      "-> :1732"),
             {"M/Makefile:1032", "M/Makefile:1034", "M/Makefile:1732"})
 
+    def test_destination_must_follow_its_arrow(self):
+        # `shards.py:62-69 -> the assertion is at :69` was not read as a
+        # correction at all, so the stale range was asserted beside the
+        # corrected line and counted as current.
+        self.assertEqual(
+            asserted("test_coleco_sim_shards.py:62-69 -> :69, the assertion "
+                     "rather than the whole range"),
+            {"test_coleco_sim_shards.py:69"})
+
+    def test_a_prose_delayed_destination_is_reported(self):
+        # Widening the arrow to reach across prose would let any `->` mask the
+        # citations before it, so the shape is reported, not guessed at.
+        stray = "test_coleco_sim_shards.py:62-69 -> the assertion is at :69"
+        self.assertEqual(list(verify_census.unreachable_destination(stray)),
+                         [stray])
+        self.assertEqual(
+            asserted(stray),
+            {"test_coleco_sim_shards.py:62", "test_coleco_sim_shards.py:69"},
+            "the unfixable reading is why this shape has to be reported")
+
+    def test_the_prose_arrow_clause_is_not_reported(self):
+        self.assertEqual(
+            list(verify_census.unreachable_destination(
+                "Verified mapping, hint -> real: M/Makefile:625-630 -> :633")),
+            [])
+
     def test_a_stale_source_is_never_asserted(self):
         # The failure this file exists to catch: a masking change that trades a
         # destination for a stale source leaves both totals unchanged, so only

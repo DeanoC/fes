@@ -286,6 +286,23 @@ def citations_of(text):
         yield match.group(0), match.group(1), numbers
 
 
+def unreachable_destination(text):
+    """Clauses that record a correction no destination number follows.
+
+    `current_only` only masks a stale source when a line number follows the
+    arrow, so `shards.py:62-69 -> the assertion is at :69` was not a correction
+    at all: both the stale range and the corrected line were asserted, and the
+    record's own output counted the stale one as current (DeanoC/fes#1829
+    review). Widening the arrow to reach across prose would let any `->` mask
+    the citations before it, which is how three earlier revisions lost
+    destinations. So the shape is reported instead of guessed at, and the
+    record writes the destination next to its arrow.
+    """
+    for clause in text.split(';'):
+        if '->' in clause and not ARROW.search(clause) and CITATION.search(clause):
+            yield clause.strip()
+
+
 def load_fingerprints():
     """The fingerprint file, or None when it is absent.
 
@@ -309,6 +326,12 @@ def check_citations(record=False):
     for doc in DOCS:
         path = os.path.join(HERE, doc)
         for row, line in enumerate(lines_of(path), 1):
+            for clause in unreachable_destination(line.replace('\\|', '|')):
+                problems.append(
+                    f'{doc}:{row}: no line number follows the arrow in '
+                    f'{clause[:60]!r}; write the destination next to it, as '
+                    '`a.py:1 -> :2`, or the stale source is checked as if it '
+                    'were current')
             for written, cited, numbers in citations_of(line.replace('\\|', '|')):
                 citations += 1
                 target = resolve(cited)
