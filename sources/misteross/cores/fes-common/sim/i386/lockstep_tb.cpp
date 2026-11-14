@@ -183,6 +183,13 @@ bool debug_programs = false;
 // joins the rule with the RTL's 387. Without it the lockstep is as before.
 bool x87_fitted = false;
 constexpr int UNBUILT_X87 = 387;
+// The 387's state is compared from this EIP on. A directed program's
+// prologue writes all eight registers and empties them, so that both sides
+// start its body with the same register contents; before that they differ,
+// because the bench restarts the CPU without re-initialising the unit's
+// register memory, which on a cold reset reads zero as Bochs's does. Zero
+// compares everything, which is what the corpus and random programs want.
+uint32_t x87_compare_from = 0;
 // The random programs' page directory and its four tables (Generator::pg_tables).
 constexpr uint32_t PG_PD = 0xf00000, PG_END = PG_PD + 0x5000, PG_ARENA = 0x200000;
 bool mixed = false;
@@ -2917,12 +2924,12 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // the next ESC holds in D until the unit is idle and no other
         // instruction touches the 387; a run that ends while it is working
         // is compared by its caller, where more cycles are harmless.
-        if (x87_fitted && std::getenv("FES_I386_X87DBG"))
+        if (x87_fitted && before.eip >= x87_compare_from && std::getenv("FES_I386_X87DBG"))
             std::fprintf(stderr, "x87dbg %s busy %d rtl ip %x op %x sw %x oracle ip %x op %x sw %x\n",
                          at.c_str(), int(rtl.top.trace_x87_busy), rtl.x87_state().pointers.ip,
                          rtl.x87_state().opcode, rtl.x87_state().status, oracle.x87_state().pointers.ip,
                          oracle.x87_state().opcode, oracle.x87_state().status);
-        if (x87_fitted && !rtl.top.trace_x87_busy) {
+        if (x87_fitted && before.eip >= x87_compare_from && !rtl.top.trace_x87_busy) {
             for (const std::string &field : fes_i386::x87_differences(oracle.x87_state(), rtl.x87_state()))
                 out.add(at + "x87." + field, 0, 1);
             ++summary.x87_compared;
@@ -10327,6 +10334,7 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
         a.op({0xdb, 0xe3});                                // FNINIT
         for (int n = 0; n < 8; ++n) a.esc(0xd9, 0, 0x100); // eight FLD m32
         a.op({0xdb, 0xe3});                                // FNINIT
+        x87_compare_from = CODE + uint32_t(a.b.size());    // the body, not the prologue
         c.body(a);
         a.op({0xf4});
         std::vector<std::pair<uint32_t, uint8_t>> image;
@@ -10429,6 +10437,7 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
         }
     }
     x87_fitted = was_fitted;
+    x87_compare_from = 0;
     oracle.set_at_coprocessor(was_fitted);
     return 0;
 }
