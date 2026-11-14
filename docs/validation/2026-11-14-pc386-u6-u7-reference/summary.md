@@ -53,10 +53,12 @@ higher CPU") and calls the kit's 286-12 preset a "classic 386 at 12.8 MHz".
 
 **Does the preset's own calibration make this verdict unsafe?** No, and the
 record says so rather than leaving it to be wondered about. The 286-12 preset
-benchmarks about 30% faster than real 286 boards of its clock
-([#1840](https://github.com/DeanoC/fes/issues/1840)), which is a CPU-throughput
-finding. It cuts the other way for pitch: a faster CPU would raise the note,
-and the kit's note is lower. It does, however, qualify the two checks still
+scores TopBench 33 where the AT-class real 286 boards of its clock score 21 to
+27 — 22% to 57% above them, and 43% above the emulated reference's 23
+([#1840](https://github.com/DeanoC/fes/issues/1840)). That is a CPU-throughput
+finding, and it cuts the other way for pitch: a faster CPU would raise the
+note, and the kit's note is lower. Whether the two have a common cause in the
+governor's clock table is open; they are not the same measurement. It does, however, qualify the two checks still
 open — a walking speed or an NPC pace measured against a preset that is itself
 30% fast would not mean what it appears to, whatever the measurement's own
 quality. That is said again where those checks are.
@@ -159,9 +161,10 @@ not run, because the kit was held by another session.
 [#1474's record](../2026-11-04-pc386-speaker-kit/summary.md) measured the same
 two keys on Kit B on 4 November, before and after #1453's ISA charges: 859.0
 and 511.8 Hz before, 839.0 and 501.5 Hz after. Against the reference measured
-here that is a shortfall of 12.08% and 12.14% *before* #1453, and 14.75% and
-14.44% after, so #1453 added about 2.3 points to roughly 10.8 that were already
-there. The kit's figures today are within 0.21% and 0.34% of 4 November's, ten
+here, and on this record's own convention of the kit below the reference, that
+is a shortfall of **10.78% and 10.82% *before* #1453**, and 12.85% and 12.62%
+after, against 12.68% and 12.91% today. So #1453 added about two points to
+roughly eleven that were already there. The kit's figures today are within 0.21% and 0.34% of 4 November's, ten
 days and several seals apart, which is the analyser's own resolution: nothing
 recent regressed, and what is new here is the reference.
 
@@ -183,14 +186,25 @@ and the pass costing a 386 a different number of clocks than a 286 whatever the
 table says. Nothing here separates them, and no lute capture at another preset
 exists to split them with (#1481 measured the lute at 286-12 only).
 
-The direction of the error is itself a clue, and a testable prediction. The
-kit's CPU benchmarks *faster* than the reference's — TopBench 33 against 23,
-which is [#1840](https://github.com/DeanoC/fes/issues/1840) — while its notes
-come out *lower*. Those only sit together if this loop's rate is set by its I/O
-cost rather than by instruction throughput, which is what #1453 moved. So
-sweeping the governor's ISA charges should move the pitch and changing CPU
-throughput should not; if that holds, the cause is the I/O charge model and the
-residual 10.8% says it was over-charging before #1453 too. The issue filed from
+The direction of the error says one thing for certain and suggests another.
+What it settles: the kit's CPU benchmarks *faster* than the reference's —
+TopBench 33 against 23, which is
+[#1840](https://github.com/DeanoC/fes/issues/1840) — while its notes come out
+*lower*, so **a uniform CPU speed-up is not the cause**.
+
+What it does not settle is what is: a hypothesis put by another session is
+that the loop is paced by its I/O cost rather than by instruction throughput,
+which would make the governor's ISA charges the cause. The model above does not
+support that on its own — before #1453 the pass carried no ISA charge at all,
+so the eleven points that predate it had nothing there to be over-charged, and
+nearly the whole pass is the delay loop. A delay loop whose instructions cost
+the kit's 386 a different number of clocks than a 286 fits the same evidence.
+
+A cheap test would separate them, and is named in #1837 rather than run here:
+play the lute at preset 1 under two different frequency overrides, which the
+machine record already takes. If the pitch follows the override, the loop is
+CPU-timed and the clock table is where to look; if it does not, the I/O charges
+are. The issue filed from
 this record asks for that.
 
 ## Ultima VI: walking speed
@@ -241,7 +255,8 @@ what moves will measure their own key timing unless they deal with it first.
 
 Even then, the figure would have to be read against
 [#1840](https://github.com/DeanoC/fes/issues/1840): the preset the walk is
-measured at is about 30% fast on CPU against real 286 boards of its clock, so
+measured at scores 22% to 57% above the AT-class real 286 boards of its clock,
+so
 matching the reference's walking speed at it would not mean the preset is
 right, and missing it would not say which of the two was wrong.
 

@@ -522,7 +522,7 @@ the 286-12 preset scores above all of them
   (840.72 and 499.79 Hz against 962.76 and 573.91), which fails
   ([#1837](https://github.com/DeanoC/fes/issues/1837)). The kit's notes are
   within 0.3% of 4 November's, so the condition is not new: #1453's ISA charges
-  added about 2.3 of the 12.5 points and the rest predates them;
+  added about two of the twelve-and-a-half points and the rest predates them;
 - Ultima VI walking speed at 286-12 is still open, and not for want of a
   reference: on the reference the turn rate follows how fast the keys are sent,
   and the step rate spreads 23% at one key rate where the band is ±10%, so
@@ -532,10 +532,11 @@ the 286-12 preset scores above all of them
   and the reference board for a 386DX-25 is not settled.
 
 Both of those also wait on [#1840](https://github.com/DeanoC/fes/issues/1840):
-the 286-12 preset benchmarks about 30% faster than real 286 boards of its
-clock, so a pace measured at a preset is qualified by how well that preset is
-calibrated. That is CPU throughput and the pitch failure is I/O-bound on the
-evidence, so they are not one defect.
+the 286-12 preset scores TopBench 33 where AT-class real 286 boards of its
+clock score 21 to 27, so a pace measured at a preset is qualified by how well
+that preset is calibrated. That is CPU throughput, and the pitch failure runs
+the other way, so they are not the same measurement; whether they share a cause
+in the governor's clock table is open.
 
 Launches with Serpent Isle's disk image sometimes show a black picture at
 the DOS prompt: 12 black DOS-prompt grabs in 400 launches on Kit B. Four of
