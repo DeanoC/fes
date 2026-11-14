@@ -1,0 +1,40 @@
+Replaying the floppy cases on pc386_fdc and Bochs's controller
+CASE registers MATCH
+CASE soft_reset_lock DIFFER LISTED
+CASE invalid MATCH
+CASE seek MATCH
+CASE seek_below_zero MATCH
+CASE recalibrate_no_drive MATCH
+CASE read_track MATCH
+CASE read_eot_no_tc MATCH
+CASE eot_no_step_pulse DIFFER LISTED
+CASE read_tc_mid_sector MATCH
+CASE write_read MATCH
+CASE read_id MATCH
+CASE errors MATCH
+CASE format MATCH
+CASE disk_change MATCH
+CASE media_360_in_12 MATCH
+CASE media_720_in_144 MATCH
+CASE media_dmf MATCH
+CASE media_288 MATCH
+CASE no_media MATCH
+CASE dsr_reset MATCH
+CASE dor_select DIFFER LISTED
+CASE dor_mismatch DIFFER LISTED
+CASE status_registers DIFFER LISTED
+CASE fm_read DIFFER LISTED
+CASE read_deleted DIFFER LISTED
+CASE write_deleted DIFFER LISTED
+CASE write_eot MATCH
+CASE write_tc_mid_sector DIFFER LISTED
+CASE write_protected DIFFER LISTED
+CASE unsupported DIFFER LISTED
+CASE format_bad_id DIFFER LISTED
+CASE insert_into_empty DIFFER LISTED
+CASE dma_gate DIFFER LISTED
+CASE pio_read_write RTL-ONLY
+CASE fence_and_swap RTL-ONLY
+CASE timing RTL-ONLY
+PASS fdc
+exit=0

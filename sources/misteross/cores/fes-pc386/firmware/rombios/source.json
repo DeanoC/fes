@@ -12,19 +12,20 @@
     "2026-11-03 rombios.c, rombios.h: POST programs PIT counter 2, the speaker timer, in the mode an AT BIOS's POST beep leaves it (binary, LSB then MSB, mode 3) with the IBM BIOS BEEP routine's count 0533h with port 61h's gate and speaker bits off, so games that write only a count to port 42h get mode 3; rombios.h names port 42h PORT_PIT_COUNTER2.",
     "2026-11-08 rombios.c: the ROM carries a BIOS identification line after the copyright, 'Compatible: IBM PC/AT 1984, FES pc386 BIOS.', in the shape of a period AT BIOS's copyright line (a 198x year, a separator, a capitalised name ending in a full stop). SpeedSys 4.78 finds the BIOS vendor by such a year; with none it leaves DS at F000h and its speed test sorts the VGA ROM for ever (#1557).",
     "2026-11-12 rombios.c: INT 13h AH=08h reports the highest cylinder below the AT's diagnostic cylinder, the parameter table's count less two, as the IBM PC/AT BIOS does; AH=15h already left that cylinder out of the size. Windows' WDCTRL compares the two and failed at phase 3 (#1719). A one-cylinder disk reserves no cylinder in either, where AH=08h would have underflowed and AH=15h reported no sectors.",
-    "2026-11-13 rombios.c: the INT 75h handler (IRQ 13, the coprocessor error) keeps AX and writes 00h to port F0h, as the IBM PC/AT BIOS's INT_287 does; it clobbered AX with the EOI value, and FreeDOS's interrupt-stack switcher, which keeps its stack size in AX across the handler, then moved its stack pool onto the MCB chain (#1768)."
+    "2026-11-13 rombios.c: the INT 75h handler (IRQ 13, the coprocessor error) keeps AX and writes 00h to port F0h, as the IBM PC/AT BIOS's INT_287 does; it clobbered AX with the EOI value, and FreeDOS's interrupt-stack switcher, which keeps its stack size in AX across the handler, then moved its stack pool onto the MCB chain (#1768).",
+    "2026-11-13 rombios.c, rombios.h: INT 13h AH=15h reports a change line (AH=02h) for a drive whose CMOS 10h type is 2-5, as the IBM PC/AT BIOS's DISK_TYPE returns CHGLN for an 80-track drive and NOCHGLN for a 40-track one, and AH=16h answers from the controller's DIR: it selects the drive and its motor as floppy_prepare_controller does, reads 3F7h bit 7, and on a change clears the drive's recalibration bit in 40:3E and the \"media type established\" bit of its media state at 40:90, then returns AH=06h with CF. Types 0 and 1 keep the old answers. Upstream always reported no change line, so DOS treated the drives as XT-style and assumed a change after two idle seconds. rombios.h names port 3F7h PORT_FD_DIR. floppy_drive_recal steps the head in one cylinder before the Recalibrate when the change line is active, because a drive clears that line only on a step pulse with a disk in it and RECALIBRATE issues step pulses only while TRK0 is low (82077SL datasheet 290410-001, RECALIBRATE; the 82077AA's superset), so a head already at cylinder 0 would leave the line set for ever. (fes#1694, removable media F2) The IBM PC/AT BIOS's own diskette listing (5170 BIOS source, DSKETTE.ASM) settles these: DISK_CHANGE reads 3F7h through READ_DSKCHNG, which turns the motor on, and answers 06h, 00h or a timeout for an absent drive, while MED_CHANGE resets the change signal with a seek to cylinder 1 and back to 0."
   ],
   "files": [
     {
       "path": "rombios.c",
       "upstream_path": "bochs/bios/rombios.c",
-      "sha256": "a74dd61114d4b85388aec74362b7d32b81fd5e5f35c8b2680f85694b9c91e5b5",
+      "sha256": "a35aa23e4a2d3c183c95897847108bf2291109094ac4b59846875a09937aefcc",
       "upstream_sha256": "1684aa54044872c8faf59dae2d6a465cb5fe1274f3c8ff0112f27e7eaea21703"
     },
     {
       "path": "rombios.h",
       "upstream_path": "bochs/bios/rombios.h",
-      "sha256": "321f7e7633e3c28f37d29d1fe41f016b6a5181f64e5749b4f1c229d1633a09bc",
+      "sha256": "e8372692b736210b7a7286b6c5290ac486db6908cd54d3f7e01b1195afa3828c",
       "upstream_sha256": "ef0eec27bfac0c88540182728220ca0df837ce9fb45a7291ca7791ef0bd17f5a"
     },
     {

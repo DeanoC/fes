@@ -147,6 +147,48 @@ PROFILES = {
     },
 }
 
+# The floppy fixtures the removable-media suites use (slice F2 of
+# docs/design/pc386-removable-media.md). Each is a raw image of one of the
+# formats the machine identifies by size: 'format' is mtools's -f size in KiB,
+# 'label' the volume label the test reads from the boot sector, and 'files'
+# the text files on it. A bootable floppy carries the kernel's FAT12 boot
+# sector, KERNEL.SYS and COMMAND.COM, as SYS installs them.
+FLOPPIES = {
+    'floppy-boot': {
+        'image': ROOT / 'build/sim/fes-pc386/freedos-floppy.img',
+        'format': 1440, 'label': 'FDBOOT', 'bootable': True,
+        'packages': ('kernel', 'freecom'),
+        'fdconfig': 'FILES=20\r\nBUFFERS=20\r\n' + SHELL.replace('C:', 'A:'),
+        'autoexec': '@ECHO OFF\r\nPROMPT $P$G\r\nPATH A:\\\r\nVER\r\n',
+        'files': {},
+    },
+    'floppy-a': {
+        'image': ROOT / 'build/sim/fes-pc386/floppy-a.img',
+        'format': 1440, 'label': 'DISK1', 'bootable': False, 'packages': (),
+        'files': {'DISK1.TXT': 'disk one\r\n'},
+    },
+    'floppy-a2': {
+        'image': ROOT / 'build/sim/fes-pc386/floppy-a2.img',
+        'format': 1440, 'label': 'DISK2', 'bootable': False, 'packages': (),
+        'files': {'DISK2.TXT': 'disk two\r\n'},
+    },
+    'floppy-b': {
+        'image': ROOT / 'build/sim/fes-pc386/floppy-b.img',
+        'format': 1200, 'label': 'BDISK', 'bootable': False, 'packages': (),
+        'files': {'BDISK.TXT': 'the drive B disk\r\n'},
+    },
+    'floppy-b360': {
+        'image': ROOT / 'build/sim/fes-pc386/floppy-b360.img',
+        'format': 360, 'label': 'DISK360', 'bootable': False, 'packages': (),
+        'files': {'B360.TXT': 'a 360K disk in the 1.2M drive\r\n'},
+    },
+}
+for _name, _spec in FLOPPIES.items():
+    _spec['bin'] = {}
+# Every fixture this builder makes. PROFILES stays the hard-disk images, so
+# the boot suite's --image offers only those.
+ALL_PROFILES = {**PROFILES, **FLOPPIES}
+
 
 class ImageError(RuntimeError):
     pass
@@ -162,7 +204,7 @@ def inputs_key(profile: str = 'boot') -> str:
     assembler version, and the source of each local program the image carries."""
     digest = hashlib.sha256(profile.encode() + b'\0')
     sources = [LOCK.resolve(), Path(__file__).resolve(), Path(test386.__file__).resolve()]
-    sources += [source.resolve() for source in PROFILES[profile]['bin'].values() if isinstance(source, Path)]
+    sources += [source.resolve() for source in ALL_PROFILES[profile]['bin'].values() if isinstance(source, Path)]
     for path in sources:
         digest.update(path.relative_to(ROOT).as_posix().encode())
         digest.update(b'\0')
@@ -174,7 +216,7 @@ def inputs_key(profile: str = 'boot') -> str:
 
 def image_is_current(profile: str = 'boot') -> bool:
     """Check both the fixture's input identity and the image bytes."""
-    image = PROFILES[profile]['image']
+    image = ALL_PROFILES[profile]['image']
     try:
         record = json.loads(image.with_suffix('.json').read_text())
         image_digest = hashlib.sha256(image.read_bytes()).hexdigest()
@@ -309,7 +351,7 @@ def system_disk(profile: str, cylinders: int, work: Path, download: bool = False
     first) as work/disk.img, and the lock's pins of the packages it took."""
     if not 1 <= cylinders <= MAX_CYLINDERS:
         raise ImageError(f'{cylinders} cylinders is outside 1-{MAX_CYLINDERS} (the 128 MiB ATA disk limit)')
-    spec = PROFILES[profile]
+    spec = ALL_PROFILES[profile]
     packages = {name: lock()['packages'][name] for name in spec['packages']}
     trees = {name: package(name, pins, download) for name, pins in packages.items()}
     nasm = test386.nasm(download, jobs)
@@ -373,8 +415,55 @@ def system_disk(profile: str, cylinders: int, work: Path, download: bool = False
     return disk, packages
 
 
+# A floppy fixture: one raw image of its format, formatted FAT12, with the
+# kernel's boot sector when it is bootable, and its files copied in.
+def system_floppy(profile: str, work: Path, download: bool = False, jobs: int = 4) -> tuple[Path, dict]:
+    spec = ALL_PROFILES[profile]
+    packages = {name: lock()['packages'][name] for name in spec['packages']}
+    trees = {name: package(name, pins, download) for name, pins in packages.items()}
+    shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True)
+    disk = work / 'floppy.img'
+    disk.write_bytes(bytes(spec['format'] * 1024))
+    env = dict(os.environ, MTOOLS_SKIP_CHECK='1', MTOOLSRC='/dev/null', SOURCE_DATE_EPOCH=str(FILE_TIME), TZ='UTC')
+    mtools('mformat', '-i', str(disk), '-f', str(spec['format']), '-N', f'{VOLUME_SERIAL:08x}',
+           '-v', spec['label'], '::', env=env)
+    if spec['bootable']:
+        nasm = test386.nasm(download, jobs)
+        data = bytearray(disk.read_bytes())
+        sector = bytearray(assemble(nasm, trees['kernel'] / packages['kernel']['boot_asm'],
+                                    work / 'fat12com.bin', '-dISFAT12',
+                                    f'-I{(trees["kernel"] / packages["kernel"]["boot_asm"]).parent}/'))
+        if len(sector) != 512 or sector[510:] != b'\x55\xaa':
+            raise ImageError('boot.asm did not assemble to a FAT12 boot sector')
+        sector[0x0b:0x3e] = data[0x0b:0x3e]     # the BPB mformat wrote
+        sector[0x24] = 0x00                     # BIOS drive number: the first floppy
+        if bytes(sector[0x36:0x3e]).rstrip() != b'FAT12':
+            raise ImageError('mformat did not make a FAT12 volume')
+        data[:512] = sector
+        disk.write_bytes(data)
+    staged = work / 'files'
+    staged.mkdir()
+    names = []
+    if spec['bootable']:
+        shutil.copyfile(trees['kernel'] / packages['kernel']['kernel_sys'], staged / 'KERNEL.SYS')
+        shutil.copyfile(trees['freecom'] / 'BIN/COMMAND.COM', staged / 'COMMAND.COM')
+        (staged / 'FDCONFIG.SYS').write_bytes(spec['fdconfig'].encode())
+        (staged / 'AUTOEXEC.BAT').write_bytes(spec['autoexec'].encode())
+        names = ['KERNEL.SYS', 'COMMAND.COM', 'FDCONFIG.SYS', 'AUTOEXEC.BAT']
+    for name, text in spec['files'].items():
+        (staged / name).write_bytes(text.encode())
+        names.append(name)
+    for name in names:
+        os.utime(staged / name, (FILE_TIME, FILE_TIME))
+        mtools('mcopy', '-m', '-i', str(disk), str(staged / name), '::' + name, env=env)
+    return disk, packages
+
+
 def build(download: bool = False, jobs: int = 4, profile: str = 'boot') -> Path:
-    spec = PROFILES[profile]
+    spec = ALL_PROFILES[profile]
+    if profile in FLOPPIES:
+        return build_floppy(download, jobs, profile)
     disk, packages = system_disk(profile, CYLINDERS, work_directory(profile), download, jobs)
     target = spec['image']
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -393,16 +482,37 @@ def build(download: bool = False, jobs: int = 4, profile: str = 'boot') -> Path:
     return target
 
 
+def build_floppy(download: bool, jobs: int, profile: str) -> Path:
+    spec = ALL_PROFILES[profile]
+    disk, packages = system_floppy(profile, work_directory(profile), download, jobs)
+    target = spec['image']
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(disk, target)
+    record = {
+        'image': str(target.relative_to(ROOT)),
+        'profile': profile,
+        'sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
+        'format': f'{spec["format"]}K', 'label': spec['label'], 'bootable': spec['bootable'],
+        'packages': {name: {'source': source(pins), 'version': pins['version'], 'license': pins['license']}
+                     for name, pins in packages.items()},
+        'distribution': 'test fixture only; never distributed',
+        'inputs': inputs_key(profile),
+    }
+    target.with_suffix('.json').write_text(json.dumps(record, indent=2) + '\n')
+    return target
+
+
 def image(download: bool = False, jobs: int = 4, profile: str = 'boot') -> Path:
     """A profile's image, rebuilt unless the one in build/ came from the current inputs."""
     if image_is_current(profile):
-        return PROFILES[profile]['image']
+        return ALL_PROFILES[profile]['image']
     return build(download, jobs, profile)
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--profile', choices=sorted(PROFILES), default='boot', help='which image to build')
+    parser.add_argument('--profile', choices=sorted(ALL_PROFILES), default='boot',
+                        help='which image or floppy fixture to build')
     parser.add_argument('--download', action='store_true', help='fetch the pinned packages and NASM if missing')
     parser.add_argument('--jobs', type=int, default=os.cpu_count() or 4)
     args = parser.parse_args(argv)

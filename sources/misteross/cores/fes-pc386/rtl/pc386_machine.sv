@@ -107,6 +107,7 @@ module pc386_machine #(
     // Floppy drives (pc386_fdc): the disks' geometry, the store fence and
     // the controller's port 2 traffic still in flight
     input wire [1:0][2:0] floppy_type,
+    input wire [1:0] boot_device,           // CMOS boot order: 0 hard disk, 1 A:, 2 CD
     input wire [1:0] floppy_present, floppy_write_protect, floppy_two_sided,
     input wire [1:0][6:0] floppy_cylinders,
     input wire [1:0][5:0] floppy_spt,
@@ -222,7 +223,8 @@ module pc386_machine #(
         .dirty_index(dirty_index), .dirty_word(dirty_word),
         .disk_frozen(disk_frozen), .disk_dirty_clear(disk_dirty_clear), .disk_dirty_clearing(disk_dirty_clearing),
         .disk_writer_busy(disk_writer_busy), .disk_fenced(disk_fenced), .disk_written(disk_written),
-        .floppy_type(floppy_type), .floppy_present(floppy_present), .floppy_write_protect(floppy_write_protect),
+        .floppy_type(floppy_type), .boot_device(boot_device),
+        .floppy_present(floppy_present), .floppy_write_protect(floppy_write_protect),
         .floppy_two_sided(floppy_two_sided), .floppy_cylinders(floppy_cylinders), .floppy_spt(floppy_spt),
         .fdc_address(fdc_address), .fdc_burstcount(fdc_burstcount), .fdc_read(fdc_read), .fdc_write(fdc_write),
         .fdc_writedata(fdc_writedata), .fdc_byteenable(fdc_byteenable), .fdc_waitrequest(fdc_waitrequest),

@@ -380,6 +380,12 @@ void seek(Guest &g, unsigned drive, unsigned head, unsigned cylinder) {
     g.sense();
 }
 
+void recalibrate(Guest &g, unsigned drive) {
+    g.command({0x07, uint8_t(drive)});
+    g.irq();
+    g.sense();
+}
+
 void read_back(Guest &g, unsigned drive, unsigned c, unsigned h, unsigned r, unsigned count, unsigned eot,
                const std::vector<uint8_t> &expect, const char *what) {
     seek(g, drive, h, c);
@@ -495,6 +501,38 @@ std::vector<Case> cases() {
         g.dma_in(3 * 512);
         auto r = g.results();
         g.check(r.size() == 7 && r[0] == 0x40 && r[1] == 0x80, "past EOT without TC: ST1 EN");
+    }});
+    // Past EOT the command's own C advances in the result phase. The
+    // controller issues no step pulse to go with it, so the drive's head, the
+    // unit's PCN and the disk-change line all stay where they were.
+    list.push_back({"eot_no_step_pulse", 4, 2, false, [](Guest &g) {
+        { const Disk boot_disk = A144; g.boot(&boot_disk); }
+        start(g);
+        g.f.eject(0); g.tick();
+        g.insert(0, A144);                                   // the change line is set
+        g.check((g.show(0x3f7) & 0x80) != 0, "the disk that arrived set the change line");
+        g.command(rw(0x46, 0, 0, 0, 1, 1));                  // the track's last sector
+        auto only = g.dma_in(512, 511);
+        auto r = g.results();
+        g.check(only == Guest::original(A144, 0, 0, 1), "the sector at EOT");
+        g.check(r.size() == 7 && r[3] == 0x01 && r[5] == 0x01,
+                "past EOT the result C is one on and R is back to 1");
+        // Dumpreg's PCN stayed on the cylinder the transfer read...
+        g.command({0x0e});
+        auto dump = g.results();
+        g.check(dump.size() == 10 && dump[0] == 0x00, "the PCN stays on the cylinder read");
+        // ...so does the drive's track-zero sensor, and so does the change
+        // line, which only a step pulse clears.
+        g.command({0x04, 0x00});
+        auto st3 = g.results();
+        g.check(st3.size() == 1 && (st3[0] & 0x10) != 0, "ST3 TRK0 stays set");
+        g.check((g.show(0x3f7) & 0x80) != 0, "the change line is still set");
+        // The next cylinder reads all the same: a transfer seeks to its own C.
+        g.command(rw(0x46, 0, 1, 0, 1, 18));
+        auto next = g.dma_in(512, 511);
+        g.results();
+        g.check(next == Guest::original(A144, 1, 0, 1), "the next cylinder reads through the implied seek");
+        g.check((g.show(0x3f7) & 0x80) == 0, "and its step pulses cleared the change line");
     }});
     list.push_back({"read_tc_mid_sector", 4, 2, false, [](Guest &g) {
         { const Disk boot_disk = A144; g.boot(&boot_disk); }
@@ -620,16 +658,130 @@ std::vector<Case> cases() {
         start(g);
         g.out(0x3f2, 0x3c);                                  // both motors, drive 0 selected
         g.f.eject(0); g.tick();                              // drive 0's change is set
+        g.check(g.show(0x3f7) == 0xff, "DIR: drive 0's change under DOR's drive 0");
         g.command({0x04, 0x01}); g.results();                // Sense Drive Status names drive 1
-        g.show(0x3f2);
+        g.check(g.show(0x3f2) == 0x3c, "DOR after Sense Drive Status");
+        seek(g, 1, 0, 2);                                    // a seek names drive 1
+        g.check(g.show(0x3f2) == 0x3c, "DOR after a seek that names the other drive");
+        // The step went to DOR's drive 0, which is empty, so its change
+        // line stands; Bochs moved DOR's select to drive 1, whose disk
+        // never left, so its DIR is clear.
         g.show(0x3f7);
-        seek(g, 1, 0, 2);                                    // a step clears drive 1's change
+        g.command({0x0e}); g.results();                      // Dumpreg: PCN per unit
         g.show(0x3f2);
-        g.show(0x3f7);
-        g.out(0x3f2, 0x3c);                                  // drive 0 again in Bochs
-        read_back(g, 1, 2, 0, 1, 1, 15, Guest::original(B12, 2, 0, 1, 1), "drive 1's read under DOR's drive 0");
-        g.show(0x3f2);
-        g.show(0x3f7);
+    }});
+    // Commands that name a drive DOR does not select. Both disks are in and
+    // both motors run, so Bochs completes each command on the drive it
+    // names while the RTL runs it on DOR's drive 0.
+    list.push_back({"dor_mismatch", 4, 2, false, [](Guest &g) {
+        { const Disk a = A144, b = B12; g.boot(&a, &b); }
+        start(g);
+        g.out(0x3f2, 0x3c);                                  // both motors, drive 0 selected
+        // Sense Drive Status names drive 1 (write-protected in Bochs's
+        // sense only if its disk is); ST3 reports the pins, so the RTL
+        // answers for drive 0.
+        g.command({0x04, 0x01});
+        auto st3 = g.results();
+        g.check(st3.size() == 1 && (st3[0] & 0x03) == 0x00, "ST3 drive select is DOR's drive");
+        g.check(st3.size() == 1 && (st3[0] & 0x10) != 0, "ST3 TRK0 of DOR's drive after recalibrate");
+        // A seek naming drive 1 steps DOR's drive 0; the unit's PCN is
+        // drive 1's, and Dumpreg shows both.
+        seek(g, 1, 0, 3);
+        g.command({0x0e});
+        auto dump = g.results();
+        g.check(dump.size() == 10 && dump[0] == 0x00 && dump[1] == 0x03,
+                "Dumpreg: PCN 0 for unit 0, 3 for the unit the seek named");
+        // A read naming drive 1 reads DOR's drive 0: the 1.44M disk's
+        // cylinder 3, not the 1.2M disk's.
+        g.command(rw(0xe6, 1, 3, 0, 1, 18));
+        auto bytes = g.dma_in(512, 511);
+        g.results();
+        g.check(bytes == Guest::original(A144, 3, 0, 1), "a read naming drive 1 reads DOR's drive 0");
+        g.check(bytes != Guest::original(B12, 3, 0, 1), "it is not the named drive's disk");
+        // That read's implied seek went nowhere, because unit 1's PCN and
+        // drive 0's head were both at 3. They come apart at the next seek:
+        // naming unit 0, whose PCN is still 0, steps drive 0 five further
+        // tracks, so its head stands on 8 while unit 0's PCN says 5.
+        seek(g, 0, 0, 5);
+        g.command({0x0e});
+        dump = g.results();
+        g.check(dump.size() == 10 && dump[0] == 0x05, "the named unit's PCN after the second seek");
+        // A read of cylinder 8 now asks for three more steps than the head
+        // needs, so it lands away from the cylinder it wants: no ID field
+        // there carries C=8, and the command ends with no data.
+        g.command(rw(0xe6, 0, 8, 0, 1, 18));
+        g.check(g.wait([&] { return g.f.drq() || (g.f.in(0x3f4) & 0xc0) == 0xc0; }, 2000000,
+                       "the read ends"),
+                "a read whose drive's head is not at its unit's PCN ends");
+        if (g.f.drq()) {
+            g.dma_in(512, 511);
+            g.results();
+            g.check(false, "a head away from its PCN exposes no other cylinder's sector");
+        } else {
+            auto away = g.results();
+            g.check(away.size() == 7 && away[0] == 0x40 && away[1] == 0x04,
+                    "a head away from its PCN reports ST0 IC=01 and ST1 ND");
+        }
+        // Recalibrate steps DOR's drive 0 back to its track-zero sensor and
+        // zeroes the named unit's PCN with it, so the two agree again and the
+        // same read reads the cylinder the implied seek reaches.
+        recalibrate(g, 0);
+        g.command({0x0e});
+        dump = g.results();
+        g.check(dump.size() == 10 && dump[0] == 0x00, "Recalibrate zeroes the named unit's PCN");
+        g.command(rw(0xe6, 0, 8, 0, 1, 18));
+        auto at_head = g.dma_in(512, 511);
+        g.results();
+        g.check(at_head == Guest::original(A144, 8, 0, 1), "and drive 0 reads cylinder 8");
+        // With DOR moved to drive 1, the same command reads drive 1.
+        g.out(0x3f2, 0x3d);
+        // Drive 1's own head never moved, so bring unit 1's PCN back to it.
+        recalibrate(g, 1);
+        seek(g, 1, 0, 3);
+        g.command(rw(0xe6, 1, 3, 0, 1, 15));
+        auto other = g.dma_in(512, 511);
+        g.results();
+        g.check(other == Guest::original(B12, 3, 0, 1), "the same read under DOR's drive 1");
+        // A head at the track-zero stop cannot step out past it, however far
+        // the mismatch asks. DOR back to drive 0 with its head recalibrated
+        // to 0, naming unit 1 whose PCN is 5 and asking for cylinder 0: the
+        // five steps out leave the head where it is, which is the cylinder
+        // the command wants, so the read works.
+        g.out(0x3f2, 0x3c);
+        recalibrate(g, 0);
+        g.command({0x0e});
+        dump = g.results();
+        g.check(dump.size() == 10 && dump[0] == 0x00 && dump[1] == 0x03,
+                "drive 0 at track zero, unit 1's PCN still 3");
+        seek(g, 1, 0, 5);                                    // steps drive 0 out to 5
+        recalibrate(g, 0);                                   // and back to the stop
+        g.command(rw(0xe6, 1, 0, 0, 1, 18));
+        auto floor_read = g.dma_in(512, 511);
+        g.results();
+        g.check(floor_read == Guest::original(A144, 0, 0, 1),
+                "a seek out past track zero stops there and the read of C=0 works");
+    }});
+    // The four Sense Interrupt Status responses a software reset leaves
+    // behind: each answers for the drive its ST0 names, with that drive's own
+    // PCN, and the two drives this machine does not have answer zero.
+    list.push_back({"reset_sense_pcn", 4, 2, false, [](Guest &g) {
+        { const Disk a = A144, b = B12; g.boot(&a, &b); }
+        start(g);
+        g.out(0x3f2, 0x1c);                                  // DOR's drive 0
+        seek(g, 0, 0, 2);
+        g.out(0x3f2, 0x2d);                                  // DOR's drive 1
+        seek(g, 1, 0, 5);
+        g.out(0x3f2, 0x1c);
+        g.out(0x3f2, 0x18); g.out(0x3f2, 0x1c);              // a software reset
+        g.irq();
+        std::vector<uint8_t> pcns;
+        for (int i = 0; i < 4; ++i) {
+            auto r = g.sense();
+            g.check(r.size() == 2 && r[0] == uint8_t(0xc0 + i), strf("reset sense %d names unit %d", i, i).c_str());
+            if (r.size() == 2) pcns.push_back(r[1]);
+        }
+        g.check(pcns == std::vector<uint8_t>{2, 5, 0, 0},
+                "each reset response carries its own unit's PCN");
     }});
     list.push_back({"status_registers", 4, 2, false, [](Guest &g) {
         g.check(g.show(0x3f0) == 0xff, "3F0h reads FFh");
@@ -898,6 +1050,7 @@ std::vector<Case> cases() {
             g.out(0x3f2, 0x1c);
             g.irq();
             for (int i = 0; i < 4; ++i) g.sense();
+            recalibrate(g, 0);
             read_back(g, 0, 8, 0, 1, 1, 1, sector,
                       strf("a sector finished %u clocks before a DOR reset", after).c_str());
         }
@@ -913,6 +1066,7 @@ std::vector<Case> cases() {
             g.irq();
             for (int i = 0; i < 4; ++i) g.sense();
             g.out(0x3f2, 0x1c);
+            recalibrate(g, 0);
             read_back(g, 0, 8, 0, 2, 1, 2, sector,
                       strf("a sector finished %u clocks before a DSR reset", after).c_str());
             g.command({0x4d, 0x00, 0x02, 18, 0x54, uint8_t(0xa0 + after)});
@@ -922,6 +1076,7 @@ std::vector<Case> cases() {
             g.out(0x3f2, 0x1c);
             g.irq();
             for (int i = 0; i < 4; ++i) g.sense();
+            recalibrate(g, 0);
             read_back(g, 0, 8, 0, 1, 1, 1, std::vector<uint8_t>(512, uint8_t(0xa0 + after)),
                       strf("a format ID finished %u clocks before a DOR reset", after).c_str());
         }
@@ -942,6 +1097,7 @@ std::vector<Case> cases() {
             });
             g.check(overlapped, "the second format reached its drive while the first's store ran");
             g.controller_reset(0x1c);
+            recalibrate(g, 0);
             read_back(g, 0, 8, 0, 1, 1, 1, std::vector<uint8_t>(512, 0xc1), "a store's fill byte across a new format");
         }
         // A TC on a write's fourth byte: the store's first word is the last

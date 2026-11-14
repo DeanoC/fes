@@ -7499,6 +7499,33 @@ floppy_drive_recal(drive)
 
   floppy_prepare_controller(drive);
 
+  // FES 2026-11-13: a drive resets its change line when it sees a step pulse
+  // with a disk in it, and RECALIBRATE issues step pulses only "as long as
+  // the TRKO pin is low" (82077SL datasheet 290410-001, RECALIBRATE; the
+  // 82077AA's superset). So a recalibration of a head already at cylinder 0
+  // leaves the line active, and every later access would be told the disk
+  // had changed again. Step the head in one cylinder first when the line is
+  // active; the Recalibrate below brings it back. INT 0Eh ends the seek with
+  // its own SENSE INTERRUPT STATUS, as it does for the Recalibrate.
+  if (inb(PORT_FD_DIR) & 0x80) {
+    outb(PORT_FD_DATA, 0x0f);  // 0f: Seek
+    outb(PORT_FD_DATA, drive);
+    outb(PORT_FD_DATA, 1);     // cylinder 1
+ASM_START
+    sti
+ASM_END
+    do {
+      val8 = (read_byte_DS(0x003e) & 0x80);
+    } while ( val8 == 0 );
+    val8 = 0; // separate asm from while() loop
+ASM_START
+    cli
+ASM_END
+    val8 = read_byte_DS(0x003e);
+    val8 &= 0x7f;
+    write_byte_DS(0x003e, val8);
+  }
+
   // send Recalibrate command (2 bytes) to controller
   outb(PORT_FD_DATA, 0x07);  // 07: Recalibrate
   outb(PORT_FD_DATA, drive); // 0=drive0, 1=drive1
@@ -8086,8 +8113,14 @@ BX_DEBUG_INT13_FL("floppy f15\n");
       if (drive_type==0) {
         SET_AH(0); // drive not present
       }
+      else if (drive_type==1) {
+        SET_AH(1); // 360K drive: present, no change line
+      }
       else {
-        SET_AH(1); // drive present, does not support change line
+        // FES 2026-11-13: a drive the CMOS gives a change line (types 2-5)
+        // reports one, as an AT BIOS does, so DOS reads the change line
+        // instead of assuming a change after two idle seconds.
+        SET_AH(2); // drive present with a change line
       }
 
       return;
@@ -8102,7 +8135,62 @@ BX_DEBUG_INT13_FL("floppy f16\n");
         return;
       }
 
-      SET_AH(0x06); // change line not supported
+      // FES 2026-11-13: a drive with a change line (CMOS type 2-5) answers
+      // from the controller's DIR, as the IBM PC/AT BIOS's DISK_CHANGE does
+      // (5170 BIOS source, DSKETTE.ASM): an 80-track drive calls
+      // READ_DSKCHNG, which turns the motor on and reads 3F7h; a drive
+      // without 80-track capability always reports a change, and an absent
+      // drive reports a timeout. Where the AT BIOS also calls MED_CHANGE at
+      // the start of every read, write and format, and fails that operation
+      // with 06h once, this BIOS leaves the change to AH=16h and lets the
+      // next access read the new disk, which is what the removable-media
+      // design asks for: the media state cleared here makes that access
+      // sense the medium again. The drive has to be
+      // selected for its DSKCHG to reach DIR, so this writes the DOR the way
+      // floppy_prepare_controller does and lets INT 08h stop the motor
+      // again. A change also clears this drive's recalibration bit and the
+      // "media type established" bit of its media state, so the next access
+      // senses the medium and rereads the disk. A 360K drive (type 1)
+      // always reports a change and an absent drive a timeout, as
+      // DISK_CHANGE does.
+      drive_type = inb_cmos(0x10);
+      if (drive == 0)
+        drive_type >>= 4;
+      else
+        drive_type &= 0x0f;
+      if (drive_type == 0) {
+        SET_AH(0x80); // no drive: a timeout, as DISK_CHANGE's DC_NON sets
+        set_diskette_ret_status(0x80);
+        SET_CF();
+        return;
+      }
+      if (drive_type >= 2) {
+        if (drive)
+          dor = 0x20;
+        else
+          dor = 0x10;
+        dor |= 0x0c;
+        dor |= drive;
+        outb(PORT_FD_DOR, dor);
+        write_byte_DS(0x40, BX_FLOPPY_ON_CNT);
+        val8 = inb(PORT_FD_DIR);
+        if ((val8 & 0x80) == 0) {
+          SET_AH(0x00); // no change
+          set_diskette_ret_status(0x00);
+          CLEAR_CF();
+          return;
+        }
+        val8 = read_byte_DS(0x003e);
+        if (drive)
+          val8 &= ~0x02;
+        else
+          val8 &= ~0x01;
+        write_byte_DS(0x003e, val8);
+        val8 = read_byte_DS(0x0090 + drive);
+        write_byte_DS(0x0090 + drive, val8 & 0x0f);
+      }
+
+      SET_AH(0x06); // change line active, or not supported
       set_diskette_ret_status(0x06);
       SET_CF();
       return;
