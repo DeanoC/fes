@@ -43,15 +43,19 @@ def checked_contract(identity,memory,contract):
     return validate_window_read(context,memory,identity['map_sha256'],contract)
 
 
-def check_route(take,require,*,owner,generation,reset,memory,with_gate,retained_reader=None):
+def check_route(take,require,*,owner,generation,reset,memory,with_gate,retained_reader=None,retained_source_generation=None):
     """Check the same sealed route for bounded probes and request services."""
     def owned(value,generation,reset):
         require(value['owner']==owner and value['generation']==generation and value['reset']==reset,
                 'window route changed owner, generation or reset')
     if retained_reader is not None:
         reader_route.checked_binding(retained_reader)
+        source=4 if retained_source_generation is None else retained_source_generation
+        require(type(source) is int and 4<=source<(1<<64)-3, 'bounded retained source generation required')
         require(memory['bytes']==0x800000 and memory['bus_base']==0x95000000 and
-                (generation,reset)==((5,13) if with_gate else (4,15)), 'retained reader is outside its first sealed MENU phase')
+                (generation,reset)==((source+1,13) if with_gate else (source,15)), 'retained reader is outside its sealed MENU phase')
+    else:
+        require(retained_source_generation is None,'source generation requires the sealed retained reader')
     translation=take('smmu')
     require(translation==dict(status=0,reads=26,idr0=0x080f7e3f,idr1=0x0e739d18,aidr=1,s_idr1=0x80000018,
         cr0=0,ack=0,gbpa=0x100000 if retained_reader is not None else 0,agbpa=0,s_cr0=0,s_ack=0,s_init=0,s_gbpa=0,s_agbpa=0,
@@ -75,7 +79,7 @@ def check_route(take,require,*,owner,generation,reset,memory,with_gate,retained_
         if retained_reader is not None:
             route=take('reader_route')
             require(route==dict(status=0,owner=owner,stream=1,secure=1,aruser=0x3e0,arprot=3,bank='secure',
-                    ns_abort=1,source_retained=1,source_generation=4,generation=generation,
+                    ns_abort=1,source_retained=1,source_generation=source,generation=generation,
                     binding=reader_route.digest(retained_reader)), 'sealed retained reader route proof differs')
         gate=take('gate');owned(gate,generation,reset)
         require(gate['status']==0 and gate['bytes']==memory['bytes'] and gate['permit']=='owned-read','window gate denied access')

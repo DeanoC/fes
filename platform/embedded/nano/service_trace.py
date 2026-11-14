@@ -89,7 +89,8 @@ def _records(data):
     return records
 
 
-def opening(data,configuration,owner,generation,previous):
+def opening(data,configuration,owner,generation,previous,*,retained_source=False):
+    require(type(retained_source) is bool,'explicit retained source observation required')
     parsed=extract_configuration(data,configuration,generation=generation,previous=previous,rearm=previous!=0,
                                  require_activation=True,require_programmed=False,expected_owner=owner)
     require(not parsed['errors'] and parsed['complete'],'incomplete or invalid configuration transfer')
@@ -112,6 +113,10 @@ def opening(data,configuration,owner,generation,previous):
     clear=identified and settled and not any(smmu[k] for k in ('cr0','gbpa','agbpa')) and (not secure or not any(smmu[k] for k in ('s_cr0','s_gbpa','s_agbpa')))
     require(smmu['status']==0 and smmu['reads']==(26 if secure else 16) and smmu['identified']==int(identified) and smmu['settled']==int(settled) and smmu['bypass_controls_clear']==int(clear),'SMMU interpretation differs')
     require(secure or not any(smmu[k] for k in ('s_cr0','s_ack','s_init','s_gbpa','s_agbpa')),'absent secure SMMU bank was accessed')
+    if retained_source:
+        require(smmu==dict(status=0,reads=26,idr0=0x080f7e3f,idr1=0x0e739d18,aidr=1,s_idr1=0x80000018,
+            cr0=0,ack=0,gbpa=0x100000,agbpa=0,s_cr0=0,s_ack=0,s_init=0,s_gbpa=0,s_agbpa=0,
+            identified=1,settled=1,bypass_controls_clear=0),'computer opening lost retired source containment')
     require(firewall==dict(status=0,owner=owner,generation=generation,reset=15,mpfe_reset=0,reads=66,enable=firewall['enable'],base=0x95000000,bytes=8192),'firewall scope differs')
     regions=values[4:12];known=not firewall['enable']&~255;covered=False
     for i,v in enumerate(regions):

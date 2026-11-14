@@ -1,0 +1,146 @@
+{
+  "format": 1,
+  "classification": "source-bound format15 and software observer; no matched boot image or hardware acceptance",
+  "base_commit": "3a4ceaf0c5e6891c38b2bd52f0cbf9560ff12c70",
+  "source_identity": "selected source hashes; subsequent commit must preserve these bytes",
+  "source_sha256": {
+    "platform/embedded/firmware/nano_sdm_rearm_profile.py": "5729547856ea39bf9908b44c516b89a925661ef63274006caf1910ec957c982e",
+    "platform/embedded/nano/sdm_trace/rearm_observation.py": "c2b1c13d66dde0c81047e28cae1f5c737585fa8cf3e9593df984c8744ee3fe3f",
+    "tests/test_nano_paired_source_rearm.py": "e2a24703fc7b5853b8253e0929e402674b80454be8ba20245ce940eb75b20416",
+    "tests/test_nano_sdm_rearm_profile.py": "8725470a9ce7a87fef5549d3592059aaeb61b6368f9257775aff69fcdb4d0316",
+    "tests/test_nano_sdm_rearm_trace.py": "3fb34dc79c5923190dd5bfc4ba2ceb3656e5021069cdfc295c7fc35faaf34887",
+    "platform/embedded/firmware/build_terasic.py": "0c5119d676cc91ec8ad4b969c9b61b0a033497df7d7cfa39a76710880ca7c0b2",
+    "platform/embedded/firmware/build_terasic_uboot.py": "a01deeb3c181822ce3e662a681c9671e5fd5102cb890f1915375209d7a4a7c2a",
+    "platform/embedded/firmware/nano_sdm_input_profile.py": "b51001ab75893d01843015d6aaa2aee692251726fdb25903f2569ff6c250a1e2",
+    "platform/embedded/firmware/nano_sdm_source_platform.inc": "90894c27f443aa2e946dee822ed3ce67e065b8b2ff087c1066d928a4a2182ea0",
+    "platform/embedded/nano/cold_profile.py": "8960016b4d7e0f9ff4c731005f8e9177459776f235707054cc20731830f47204",
+    "platform/embedded/nano/paired_firmware_trace.py": "b78ef8f838e917f37d822c98d5354046d2fa33cc3537f30e1b516e00e98f56c8",
+    "platform/embedded/nano/paired_tenfoot_trace.py": "f235f4a5d830a0d79f288636469fa80eec5504b0e24d06db55f8ba4ad485fd9e",
+    "platform/embedded/nano/prepare_uboot.py": "7b06fc089b6bdce64886880fb989d8b034c13b9fb625f7dd69a971fa9954ef58",
+    "platform/embedded/nano/sdm_trace/continuation_observation.py": "c7613733f4b3581028896616a8293385ecee285381c0eb970e9e1adf4c953a93",
+    "platform/embedded/nano/sdm_trace/input_observation.py": "e16131758197c1671152234c029fb0b3f135c87a82702bdb7bc7267f28b3a3ff",
+    "platform/embedded/nano/sdm_trace/queue_observation.py": "cda0bfc774e94cb2a6f43ed83917eadb2b089374c2cd26079c0168298dae74e5",
+    "platform/embedded/nano/sdm_trace/retire_observation.py": "5306fe1178b6d278ee7b447ca456a99a483ef59b4755df56612fc749422f533f",
+    "platform/embedded/nano/sdm_trace/timing_observation.py": "c7593cfeb61c3d315301674b3a58761d28d6d081287aed9375025234aabbcae9",
+    "platform/embedded/nano/service_trace.py": "2df6a1245ad964ef9b28ac9e795833cc32fd1d570dc1aa70202f13ba627c8a8e",
+    "platform/embedded/nano/window_trace.py": "9323fa9efdb5e2bf15da9067f70dae12fbfe50c59e39b6b229c180554b14488f"
+  },
+  "checks": {
+    "rearm-contract-qualified-focused": {
+      "result": {
+        "argv": [
+          "env",
+          "FES_NANO_SHA_REFERENCE=/home/deano/fes/out/dev/de25-embedded-os/out/terasic-git-restore-tfa/plat/intel/soc/common/lib/sha/sha.c",
+          "FES_NANO_TFA_ROOT=/home/deano/fes/out/dev/de25-embedded-os/out/terasic-git-restore-tfa",
+          "python3",
+          "-m",
+          "unittest",
+          "-v",
+          "test_nano_sdm_rearm_profile",
+          "test_nano_sdm_rearm_trace",
+          "test_nano_paired_source_rearm",
+          "test_nano_paired_retained_reader",
+          "test_nano_paired_tenfoot_trace",
+          "test_nano_installer_client",
+          "test_nano_sdm_input_observation",
+          "test_nano_sdm_retire_observation",
+          "test_nano_sdm_timing",
+          "test_nano_sdm_queue_observation",
+          "test_nano_sdm_continuation",
+          "test_nano_sdm_input_profile",
+          "test_nano_cold",
+          "test_nano_mixed_cold"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-source-release",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 67.25057705515064,
+        "log_sha256": "7fe47abf83b87442cb2e0b4e425c42e8e4ea08e134129c45a68e4bac89914880"
+      },
+      "result_sha256": "aaf1aad165a1a89d6fc9c09529a803bc935a0f76eb731e33db2fa14ee62c5592"
+    },
+    "rearm-contract-final-controls": {
+      "result": {
+        "argv": [
+          "env",
+          "FES_NANO_SHA_REFERENCE=/home/deano/fes/out/dev/de25-embedded-os/out/terasic-git-restore-tfa/plat/intel/soc/common/lib/sha/sha.c",
+          "FES_NANO_TFA_ROOT=/home/deano/fes/out/dev/de25-embedded-os/out/terasic-git-restore-tfa",
+          "python3",
+          "-m",
+          "unittest",
+          "-v",
+          "test_nano_sdm_rearm_profile",
+          "test_nano_sdm_rearm_trace",
+          "test_nano_paired_source_rearm",
+          "test_nano_source_retirement.SourceRetirementTests.test_real_service_and_supplier_rearm_between_menu_and_computer",
+          "test_nano_sdm_input_profile"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-source-release",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 6.605760358972475,
+        "log_sha256": "053dff8da4c0a3eae0f74e550c2ca7e7dcd466df105e009193cc33fa6f1a3531"
+      },
+      "result_sha256": "798b14b86f994629723a80d02fdf04a7a268293cf6bbf6d85912c703ef40e50b"
+    },
+    "rearm-paired-real-selection": {
+      "result": {
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "-v",
+          "test_nano_sdm_rearm_profile",
+          "test_nano_sdm_rearm_trace",
+          "test_nano_paired_source_rearm"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-source-release",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 0.4010280699003488,
+        "log_sha256": "d63b92731a0f9d9275c20d8881e973d166a81c39fa17d23db26464c29026333a"
+      },
+      "result_sha256": "d91ee02fb5e3de5c9b39c95fc942eb4cef730d6db39480f50e8005a2bc4bdd78"
+    },
+    "rearm-contract-consistency": {
+      "result": {
+        "argv": [
+          "env",
+          "PATH=/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin:/usr/local/bin:/usr/bin:/bin",
+          "make",
+          "PYTHON=/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+          "check"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-source-release",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 10.00599544099532,
+        "log_sha256": "12571985016edac45856ed9f907b9f59b5df2ac554eaabfd3cabc217e4e86829"
+      },
+      "result_sha256": "7f77c60c27042088c8b5a3e190a999a9aa865e7c7a296d2e9985f9965baad000"
+    }
+  },
+  "coverage": {
+    "focused_tests": 89,
+    "focused_skips": 0,
+    "paired_configurations": 7,
+    "paired_core_launches": 3,
+    "paired_returns": 3,
+    "paired_last_source_generation": 37,
+    "synthetic_source_generations": 13,
+    "boot_observation": "injected only in paired repeated-load model; boot codec and strong cold provider tested separately"
+  },
+  "default_source_release": false,
+  "explicit_source_rearm_supported": true,
+  "matched_build": false,
+  "hardware_actions": false,
+  "hardware_accepted": false,
+  "prior_head_affected": {
+    "head": "3a4ceaf0c5e6891c38b2bd52f0cbf9560ff12c70",
+    "phases": 11,
+    "parent_tests": 2699,
+    "parent_skips": 7,
+    "fpga_tests": 2181,
+    "fpga_skips": 88
+  }
+}

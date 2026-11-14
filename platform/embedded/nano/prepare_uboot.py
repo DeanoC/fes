@@ -85,14 +85,14 @@ def atf_source(text, *, firmware_ram=False, firmware_ocram=False):
     return '#include <nano_cold.h>\n'+('#include <nano_firmware_ram.h>\n' if firmware_ocram else '')+text
 
 
-def prepare(source, entry_build, bl31_sha256, bl31_size, *, firmware_ram=False, firmware_mmu=False, autoboot=False, capability_observe=False,sdm_arm_probe=False,sdm_fault64=False,sdm_input_transfer=False):
+def prepare(source, entry_build, bl31_sha256, bl31_size, *, firmware_ram=False, firmware_mmu=False, autoboot=False, capability_observe=False,sdm_arm_probe=False,sdm_fault64=False,sdm_input_transfer=False,sdm_source_rearm=False):
     atf_handoff=atf_descriptor(bl31_sha256,bl31_size)
     spec=importlib.util.spec_from_file_location('fes_nano_cold_profile', HERE/'cold_profile.py')
     cold=importlib.util.module_from_spec(spec);spec.loader.exec_module(cold)
     image, receipt_path=cold.entry(entry_build)
     startup_policy=startup.select(autoboot,json.loads(receipt_path.read_text()))
     profile=cold.selected_profile(json.loads(receipt_path.read_text()))
-    chain=cold.make(entry_build,firmware_ram=firmware_ram,firmware_mmu=firmware_mmu,capability_observe=capability_observe,sdm_arm_probe=sdm_arm_probe,sdm_fault64=sdm_fault64,sdm_input_transfer=sdm_input_transfer)
+    chain=cold.make(entry_build,firmware_ram=firmware_ram,firmware_mmu=firmware_mmu,capability_observe=capability_observe,sdm_arm_probe=sdm_arm_probe,sdm_fault64=sdm_fault64,sdm_input_transfer=sdm_input_transfer,sdm_source_rearm=sdm_source_rearm)
     if chain.get('firmware_ram') is not None:
         spec=importlib.util.spec_from_file_location('fes_affinity_call',HERE.parent/'firmware/nano_firmware_call.py')
         call=importlib.util.module_from_spec(spec);spec.loader.exec_module(call)

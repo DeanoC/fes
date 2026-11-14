@@ -91,13 +91,13 @@ def queue_errors(q, timing):
     if timing["retirement_verified"]:
         check((q["stage"], q["attempted"], q["initialized"], q["submitted"], q["failed"], q["error"], q["timed"], q["slots"], q["published"]) == (10, 1, 1, 1, 0, 0, 1, 6, 1), "successful queue state incomplete")
         check(q["completion_seen"] == 1, "successful queue lacks bounded completion sample")
-        check(0 < q["polls"] <= 128 and q["consumer_samples"] > 0 and q["consumer"] == 12, "successful queue consumer incomplete")
+        check(0 < q["polls"] <= 128 and q["consumer_samples"] > 0 and q["consumer"] == timing["retirement_observation"]["result"]["consumer"], "successful queue consumer incomplete")
         check(q["consumer_phase"] == 6 and q["consumer_stage"] == 10, "successful final consumer phase differs")
         check(q["last_us"] == q["observed_us"] and q["last_us"] - q["start_us"] <= (1000000 if q["policy"] == 1 else 100000), "successful queue clock invalid")
     return errors
 
 
-def decode(raw, *, boot, build, configuration, _terminal=None):
+def decode(raw, *, boot, build, configuration, _terminal=None, _expected=None):
     require(type(raw) is bytes and 0 < len(raw) <= 1 << 20 and raw.endswith(b"\n") and b"\0" not in raw, "complete bounded queue capture required")
     parts = raw.splitlines(keepends=True)
     lines = [re.sub(rb"^NOTICE:[ \t]+", b"", v.rstrip(b"\r\n")) for v in parts]
@@ -106,7 +106,7 @@ def decode(raw, *, boot, build, configuration, _terminal=None):
     at = rows[0]
     require(at >= 1 and at == len(parts) - 2 and lines[at - 1].startswith(b"FES_NANO_RETIRE_TIMING "), "queue must follow timing before final Park")
     q = parse_queue(lines[at])
-    timing = _timing.decode(b"".join(parts[:at] + parts[at + 1:]), boot=boot, build=build, configuration=configuration, _terminal=_terminal)
+    timing = _timing.decode(b"".join(parts[:at] + parts[at + 1:]), boot=boot, build=build, configuration=configuration, _terminal=_terminal, _expected=_expected)
     errors = queue_errors(q, timing)
     valid = timing["timing_validated"] and not errors
     return dict(timing, passed=timing["passed"] and valid, retirement_verified=timing["retirement_verified"] and valid,

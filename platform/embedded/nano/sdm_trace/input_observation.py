@@ -7,16 +7,25 @@ FIELDS=('build status detail proof owner epoch generation bytes accepted posted 
 HEX={'owner','epoch','bad_offset','bad_value'}
 SIGNED={'first_error','service_error'}
 TRANSFER=re.compile(r'FES_NANO_CORE_TRANSFER phase=(arm|start|write|poll|status|complete|FAIL) owner=([0-9a-f]+) generation=([0-9]+) completed=([0-9]+) pending=([0-9]+) total=([0-9]+) base=94800000 counter=([0-9a-f]+) hash_ticks=([0-9a-f]+)')
-ENGINE=re.compile(r'FES_NANO_CORE_ENGINE credits=([0-9]+) block_bytes=([0-9]+) next_job=0 owner=([0-9a-f]+) generation=4')
+ENGINE=re.compile(r'FES_NANO_CORE_ENGINE credits=(?P<credits>[0-9]+) block_bytes=(?P<block>[0-9]+) next_job=(?P<job>[0-9]+) owner=(?P<owner>[0-9a-f]+) generation=(?P<generation>[0-9]+)')
 START=re.compile(r'FES_NANO_START phase=([0-9]+) status=(-?[0-9]+)')
 PHASES=(0,1,2,3,4,12,13,14,5,6,7,8,9,10,11)
 def require(ok,message):
  if not ok:raise ValueError(message)
-def decode(raw,*,boot,build,configuration,_terminal=None):
+def decode(raw,*,boot,build,configuration,_terminal=None,_expected=None):
  require(type(raw) is bytes and 0<len(raw)<=1<<20 and raw.endswith(b'\n') and b'\0' not in raw,'complete bounded input capture required')
  require(boot.get('loader_ready') is True and boot.get('errors')==[],'independently checked native boot required')
  cap=boot.get('capability_observation') or {};require(cap.get('status')==0 and cap.get('reads')==26,'complete boot capability observation required')
  owner,epoch=cap.get('owner'),cap.get('epoch');require(all(type(v) is int and 0<v<1<<64 for v in (owner,epoch)),'checked owner/epoch required')
+ warm=_expected is not None
+ if warm:
+  require(type(_expected) is dict and set(_expected)=={'generation','arm_writes','next_job','retire_target'} and
+          all(type(v) is int for v in _expected.values()) and 4<_expected['generation']<(1<<64)-2 and
+          _expected['arm_writes']==4 and 0<=_expected['next_job']<14 and 0<=_expected['retire_target']<16,
+          'complete privately derived warm source expectation required')
+ generation=_expected['generation'] if warm else 4
+ arm_writes=4 if warm else 12
+ next_job=_expected['next_job'] if warm else 0
  require(type(configuration) is dict and type(configuration.get('core_size')) is int and type(configuration.get('chunk_bytes')) is int and re.fullmatch('[0-9a-f]{96}',configuration.get('core_sha384','')) is not None,'checked complete MENU configuration required')
  total,chunk=configuration['core_size'],configuration['chunk_bytes'];require(64<total<=0x7ff000 and total%4==0 and 64<=chunk<=0xffff0 and chunk%64==0,'bounded exact source layout required')
  lines=[re.sub(rb'^NOTICE:[ \t]+',b'',v) for v in raw.splitlines()]
@@ -39,8 +48,8 @@ def decode(raw,*,boot,build,configuration,_terminal=None):
  errors=[]
  def check(v,message):
   if not v:errors.append(message)
- check(r['build']==build,'source-bound build differs');check((r['owner'],r['epoch'],r['generation'])==(owner,epoch,4),'boot owner/epoch/generation differs')
- check(all(r[k]==v for k,v in dict(status=0,detail=0,proof=1,configured=1,failed=0,first_error=0,service_error=0,source_failed=0,scope_reason=0,bad_offset=0,bad_value=0,arm_writes=12,retained=1,activated=0,pending=0,outstanding=0).items()),'terminal firmware result not qualified')
+ check(r['build']==build,'source-bound build differs');check((r['owner'],r['epoch'],r['generation'])==(owner,epoch,generation),'boot owner/epoch/generation differs')
+ check(all(r[k]==v for k,v in dict(status=0,detail=0,proof=1,configured=1,failed=0,first_error=0,service_error=0,source_failed=0,scope_reason=0,bad_offset=0,bad_value=0,arm_writes=arm_writes,retained=1,activated=0,pending=0,outstanding=0).items()),'terminal firmware result not qualified')
  check(all(r[k]==total for k in ('bytes','accepted','posted','acknowledged','completed')),'exact full-byte prefixes differ')
  check(r['sha384']==configuration['core_sha384'],'source SHA384 differs');check(0<r['elapsed_us']<20000000,'transfer deadline differs')
  check(r['buffers']==(total+chunk-1)//chunk,'completed source buffer count differs')
@@ -54,18 +63,20 @@ def decode(raw,*,boot,build,configuration,_terminal=None):
   if b'FES_NANO_CORE_ENGINE' in v:
    m=ENGINE.fullmatch(v.decode('ascii'));require(m is not None,'malformed engine record');engines.append((i,m))
  require(tuple(v[1] for v in starts)==PHASES and all(v[2] in ((2,3) if v[1]==7 else (0,)) for v in starts),'exact successful START sequence required')
- require(len(engines)==1,'one initial engine required');engine_pos,engine=engines[0];credits,block=int(engine[1]),int(engine[2]);require(0<credits<=14 and block>0 and block%4==0 and int(engine[3],16)==owner,'negotiated engine differs')
- _,remap=_remap.extract(raw,required=True)
- require(remap['vendor_operand_subtraction_matches'] and remap['submission_starts_at_transformed_pointer'] and remap['stream_identity_stable'],'vendor source pointer/remap trace differs')
- values=[v['values'] for v in remap['records']];request=values[4]
- require(request['address']==0x14800000 and request['bytes']==min(total,chunk,block) and request['bypass']==0 and request['ar']==request['aw']==0x80000000 and remap['mailbox_status']==0,'first negotiated DATA intent/result differs')
- require(all(v['bypass']==0 for v in values[:5]) and values[0]['ar']==values[0]['aw']==0 and all(v['ar']==v['aw']==0x80000000 for v in values[1:5]),'unexpected remap transition')
+ require(len(engines)==1,'one initial engine required');engine_pos,engine=engines[0];credits,block=int(engine['credits']),int(engine['block']);require(0<credits<=14 and block>0 and block%4==0 and int(engine['owner'],16)==owner and int(engine['job'])==next_job and int(engine['generation'])==generation,'negotiated engine differs')
+ _,remap=_remap.extract(raw,required=not warm)
+ if warm:require(remap is None,'warm source repeated cold remap observations')
+ else:
+  require(remap['vendor_operand_subtraction_matches'] and remap['submission_starts_at_transformed_pointer'] and remap['stream_identity_stable'],'vendor source pointer/remap trace differs')
+  values=[v['values'] for v in remap['records']];request=values[4]
+  require(request['address']==0x14800000 and request['bytes']==min(total,chunk,block) and request['bypass']==0 and request['ar']==request['aw']==0x80000000 and remap['mailbox_status']==0,'first negotiated DATA intent/result differs')
+  require(all(v['bypass']==0 for v in values[:5]) and values[0]['ar']==values[0]['aw']==0 and all(v['ar']==v['aw']==0x80000000 for v in values[1:5]),'unexpected remap transition')
  expected_posts=sum((min(chunk,total-offset)+block-1)//block for offset in range(0,total,chunk))
  require(r['posts']==r['acks']==expected_posts,'exact submitted/acknowledged block count differs')
  require(len(transfers)>=5 and [m[1] for _,m in transfers[:2]]==['arm','start'] and transfers[-1][1][1]=='status','complete transfer phase sequence required')
  previous_completed=previous_submitted=0
  for i,m in transfers:
-  phase=m[1];completed,pending=int(m[4]),int(m[5]);require(int(m[2],16)==owner and int(m[3])==4 and int(m[6])==total,'transfer source identity differs')
+  phase=m[1];completed,pending=int(m[4]),int(m[5]);require(int(m[2],16)==owner and int(m[3])==generation and int(m[6])==total,'transfer source identity differs')
   require(previous_completed<=completed<=total and previous_submitted<=completed+pending<=total and pending<=chunk*4,'transfer byte prefixes differ')
   require((completed==total or completed%chunk==0) and (completed+pending==total or pending%chunk==0),'transfer chunk boundaries differ')
   require(phase not in ('complete','FAIL'),'outer completion/activation or failure in successful trace')

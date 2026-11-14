@@ -422,6 +422,14 @@ int fes_nano_sdm_source_prepare(struct nano_sdm_input_binding *output,
  if(warm)sdm_source_rearm_prepared();
  sdm_input_phase=1;
  if(sdm_source_owns(&sdm_arm_probe,&sdm_arm_probe.input)!=1)return -13;
+ if(warm){
+  char digest[97];static const char hex[]="0123456789abcdef";
+  for(unsigned n=0;n<48;n++){digest[n*2]=hex[input.digest384[n]>>4];digest[n*2+1]=hex[input.digest384[n]&15U];}digest[96]=0;
+  NOTICE("FES_NANO_SOURCE_REARM status=0 owner=%llx epoch=%llx previous=%llu generation=%llu baseline=%u producer=%u abort=%x bytes=%u sha384=%s start_us=%llu\n",
+   (unsigned long long)b.owner,(unsigned long long)b.epoch,(unsigned long long)sdm_rearm.previous_generation,
+   (unsigned long long)b.generation,sdm_arm_probe.queue_baseline,sdm_arm_probe.queue_target,sdm_arm_probe.abort,
+   input.bytes,digest,(unsigned long long)sdm_source_clock_start);
+ }
  *output=sdm_arm_probe.input;
  *transfer_io=(struct nano_sdm_transfer_io){&sdm_arm_probe,sdm_source_owns,sdm_source_time};
  *trusted_start_us=sdm_source_clock_start;

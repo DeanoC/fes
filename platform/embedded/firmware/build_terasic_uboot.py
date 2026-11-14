@@ -144,7 +144,9 @@ def main():
     parser.add_argument("--nano-sdm-arm-probe",action="store_true",help="terminal first-configuration SMMU arm-and-park diagnostic; submits no SDM data")
     parser.add_argument("--nano-sdm-fault64",action="store_true",help="explicit one-DATA-64 bounded fault capture; terminal diagnostic only")
     parser.add_argument("--nano-sdm-input-transfer",action="store_true",help="full verified source transfer, terminal before activation; retained diagnostic")
+    parser.add_argument("--nano-sdm-source-rearm",action="store_true",help="explicit matched repeated-load source-release/rearm prototype; requires --nano-sdm-input-transfer")
     args = parser.parse_args()
+    if args.nano_sdm_source_rearm and not args.nano_sdm_input_transfer:parser.error("source rearm requires selected SDM input transfer")
     if args.nano_sdm_input_transfer and (args.nano_sdm_fault64 or args.nano_sdm_arm_probe):parser.error("SDM diagnostic modes are mutually exclusive")
     if args.nano_sdm_input_transfer and (args.native_entry_build is None or not args.nano_firmware_mmu or not args.nano_capability_observe):
         parser.error("SDM input transfer requires the complete mapped capability diagnostic")
@@ -176,7 +178,7 @@ def main():
     if args.native_entry_build is not None:
         spec=importlib.util.spec_from_file_location('fes_nano_cold_profile',HERE.parent/'nano/cold_profile.py')
         cold=importlib.util.module_from_spec(spec);spec.loader.exec_module(cold)
-        cold_profile=cold.make(args.native_entry_build.absolute(),firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer)
+        cold_profile=cold.make(args.native_entry_build.absolute(),firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm)
     receipt_path, receipt_bytes, receipt, component, blob, sources, elf, image_elf, segments = checked_bl31(bl31_build,cold_profile)
     revision = git(repo, "rev-parse", "--verify", "HEAD^{commit}").decode().strip()
     if revision != UBOOT_REVISION or git(repo, "status", "--porcelain", "--untracked-files=all"):
@@ -253,7 +255,7 @@ def main():
         spec = importlib.util.spec_from_file_location("fes_nano_prepare", HERE.parent / "nano/prepare_uboot.py")
         nano_prepare = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(nano_prepare)
-        native = nano_prepare.prepare(build_repo, entry_build, hashlib.sha256(blob).hexdigest(), len(blob),firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,autoboot=args.native_autoboot,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer)
+        native = nano_prepare.prepare(build_repo, entry_build, hashlib.sha256(blob).hexdigest(), len(blob),firmware_ram=args.nano_firmware_ocram,firmware_mmu=args.nano_firmware_mmu,autoboot=args.native_autoboot,capability_observe=args.nano_capability_observe,sdm_arm_probe=args.nano_sdm_arm_probe,sdm_fault64=args.nano_sdm_fault64,sdm_input_transfer=args.nano_sdm_input_transfer,sdm_source_rearm=args.nano_sdm_source_rearm)
         if native['cold_boot_profile']!=cold_profile: raise ValueError('SPL and BL31 cold chain differ')
         (build/'fes-entry.img').write_bytes((entry_build/'entry.img').read_bytes())
     commands = []

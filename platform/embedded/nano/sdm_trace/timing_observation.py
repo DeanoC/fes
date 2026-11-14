@@ -58,13 +58,13 @@ def timing_errors(t,source,retirement,*,retirement_verified):
         check(retirement['elapsed_us']==t['last_us']-t['start_us'],'timing/retirement elapsed differs')
         check(t['writes']==5 and t['reads']>0 and t['polls']>=4,'successful timing operations incomplete')
     return errors
-def decode(raw,*,boot,build,configuration,_terminal=None):
+def decode(raw,*,boot,build,configuration,_terminal=None,_expected=None):
     require(type(raw) is bytes and 0<len(raw)<=1<<20 and raw.endswith(b'\n') and b'\0' not in raw,'complete bounded timing capture required')
     parts=raw.splitlines(keepends=True);lines=[re.sub(rb'^NOTICE:[ \t]+',b'',v.rstrip(b'\r\n')) for v in parts]
     rows=[i for i,v in enumerate(lines) if b'FES_NANO_RETIRE_TIMING' in v]
     require(len(rows)==1,'one timing record required');at=rows[0]
     require(at>=1 and at==len(parts)-2 and lines[at-1].startswith(b'FES_NANO_RETIRE_RESULT '),'timing must follow retirement before final Park')
-    t=parse_timing(lines[at]);joined=_retire.decode(b''.join(parts[:at]+parts[at+1:]),boot=boot,build=build,configuration=configuration,_terminal=_terminal)
+    t=parse_timing(lines[at]);joined=_retire.decode(b''.join(parts[:at]+parts[at+1:]),boot=boot,build=build,configuration=configuration,_terminal=_terminal,_expected=_expected)
     extra=timing_errors(t,joined['input_observation']['result'],joined['result'],retirement_verified=joined['retirement_verified'])
     valid=joined['source_flow_verified'] and not extra
     return dict(passed=joined['passed'] and valid,source_flow_verified=joined['source_flow_verified'],

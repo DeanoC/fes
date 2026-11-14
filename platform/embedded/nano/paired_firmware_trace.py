@@ -59,7 +59,7 @@ def configuration(data, descriptor, owner, source, previous):
     return parsed, Records(b'\n'.join(parsed['parts']))
 
 
-def menu_opening(data, descriptor, owner, source, previous, memory, *, retained_reader=None):
+def menu_opening(data, descriptor, owner, source, previous, memory, *, retained_reader=None,retained_source_generation=None):
     parsed, records = configuration(data, descriptor, owner, source, previous)
     # RULES currently matches the literal command/word count without captures.
     query = records.take('fpga_query')
@@ -73,7 +73,8 @@ def menu_opening(data, descriptor, owner, source, previous, memory, *, retained_
             'menu FPGA is not ready')
     def route(generation, reset, gate):
         check_route(records.take, require, owner=owner, generation=generation,
-                    reset=reset, memory=memory, with_gate=gate, retained_reader=retained_reader)
+                    reset=reset, memory=memory, with_gate=gate, retained_reader=retained_reader,
+                    retained_source_generation=retained_source_generation)
     route(source, 15, False)
     require(records.take('scope') == dict(phase='control', owner=owner, generation=source+1, reset=13),
             'menu control opening differs')

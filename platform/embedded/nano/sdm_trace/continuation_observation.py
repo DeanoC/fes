@@ -6,7 +6,7 @@ _queue=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(_queue)
 FIELDS='build owner epoch generation ready elapsed_us retained reuse activated'.split()
 def require(ok,message):
  if not ok:raise ValueError(message)
-def decode(raw,*,boot,build,configuration):
+def decode(raw,*,boot,build,configuration,_expected=None):
  require(type(raw) is bytes and 0<len(raw)<=1<<20 and raw.endswith(b'\n') and b'\0' not in raw,'complete bounded continuation capture required')
  lines=[re.sub(rb'^NOTICE:[ \t]+',b'',v) for v in raw.splitlines()]
  rows=[i for i,v in enumerate(lines) if b'FES_NANO_INPUT_CONTINUE' in v]
@@ -20,7 +20,7 @@ def decode(raw,*,boot,build,configuration):
   require(re.fullmatch(pattern,value) is not None,'bounded continuation field required')
   c[key]=value if key=='build' else int(value,16 if key in ('owner','epoch') else 10)
   if key!='build':require(0<=c[key]<1<<64,'continuation integer overflow')
- q=_queue.decode(raw,boot=boot,build=build,configuration=configuration,_terminal=terminal)
+ q=_queue.decode(raw,boot=boot,build=build,configuration=configuration,_terminal=terminal,_expected=_expected)
  r=q['retirement_observation']['result'];errors=list(q['errors'])
  for key in ('build','owner','epoch','generation'):
   if c[key]!=r[key]:errors.append('continuation/retirement '+key+' differs')

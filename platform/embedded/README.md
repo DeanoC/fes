@@ -83,9 +83,16 @@ The [repeated-source firmware prototype](../../docs/validation/2026-11-14-de25-s
 now connects the actual transfer service, release ledger and warm SMMU setup.
 Software tests pass twelve MENU/computer generations and forty failure cases,
 with changing source sizes, retained queue history and sticky errors. Real
-AArch64 vendor objects compile with that path manually enabled. Exported boot
-profiles keep source release disabled pending the matched repeated-load
-contract, SDK/auditor integration and a new hardware trial.
+AArch64 vendor objects compile with that path manually enabled. Its first-MENU
+boot selection keeps source release disabled; repeated loading requires the
+separate successor below and a new hardware trial.
+
+The [format-15 repeated-load contract and paired auditor](../../docs/validation/2026-11-14-de25-rearm-contract/README.md)
+now provide that separate opt-in through `--nano-sdm-source-rearm` in both boot
+builders. It requires the compiled CPU release/return paths and checks each
+source's release, warm preparation, transfer and retirement alongside the
+existing native lifecycle. Synthetic paired cycles pass; a new matched image,
+file admission and physical repeated-load trial remain required.
 
 This directory develops the Linux-free DE25-Nano base. QEMU supplies combined
 launcher integration, while bounded Nano CPU/SD/package diagnostics now run on

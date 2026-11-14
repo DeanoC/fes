@@ -117,8 +117,9 @@ def sources():
                             'build_terasic.py','build_terasic_uboot.py','verify.py')] + capability.inputs() + sdm_probe.inputs() + sdm_fault.inputs() + sdm_input.inputs()
 
 
-def make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_observe=False,sdm_arm_probe=False,sdm_fault64=False,sdm_input_transfer=False):
+def make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_observe=False,sdm_arm_probe=False,sdm_fault64=False,sdm_input_transfer=False,sdm_source_rearm=False):
     if type(sdm_input_transfer) is not bool:raise ValueError('explicit boolean SDM input selection required')
+    if type(sdm_source_rearm) is not bool or sdm_source_rearm and not sdm_input_transfer:raise ValueError('explicit source rearm requires SDM input transfer')
     if sdm_input_transfer and (sdm_fault64 or sdm_arm_probe):raise ValueError('SDM diagnostic modes are mutually exclusive')
     if type(sdm_fault64) is not bool:raise ValueError('explicit boolean SDM fault64 selection required')
     if sdm_arm_probe and sdm_fault64:raise ValueError('arm-only and fault64 modes are mutually exclusive')
@@ -132,6 +133,7 @@ def make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obse
     if sdm_arm_probe:mmu_args['sdm_arm_probe']=True
     if sdm_fault64:mmu_args['sdm_fault64']=True
     if sdm_input_transfer:mmu_args['sdm_input_transfer']=True
+    if sdm_source_rearm:mmu_args['sdm_source_rearm']=True
     record=json.loads((entry_build/'result.json').read_text())
     if record.get('hps_project') is None:
         return _make(entry_build,firmware_ram=firmware_ram,**mmu_args)
@@ -165,8 +167,9 @@ def make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obse
         return _make(entry_build,firmware_ram=firmware_ram,**mmu_args)
 
 
-def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_observe=False,sdm_arm_probe=False,sdm_fault64=False,sdm_input_transfer=False):
+def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_observe=False,sdm_arm_probe=False,sdm_fault64=False,sdm_input_transfer=False,sdm_source_rearm=False):
     if type(sdm_input_transfer) is not bool:raise ValueError('explicit boolean SDM input selection required')
+    if type(sdm_source_rearm) is not bool or sdm_source_rearm and not sdm_input_transfer:raise ValueError('explicit source rearm requires SDM input transfer')
     if sdm_input_transfer and (sdm_fault64 or sdm_arm_probe):raise ValueError('SDM diagnostic modes are mutually exclusive')
     if type(sdm_fault64) is not bool:raise ValueError('explicit boolean SDM fault64 selection required')
     if sdm_arm_probe and sdm_fault64:raise ValueError('arm-only and fault64 modes are mutually exclusive')
@@ -242,7 +245,8 @@ def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obs
     if fault is not None:identity['sdm_fault64']=fault
     if sdm_input_transfer:
         identity['sdm_reader_route']=sdm_input.reader.derive(build.get('hps_project'),build.get('hps_menu_project'),identity)
-    transfer=sdm_input.selected(identity,sdm_input_transfer)
+    if sdm_source_rearm:identity['sdm_cpu_rearm']=sdm_input.rearm.native_binding(build)
+    transfer=sdm_input.selected(identity,sdm_input_transfer,source_rearm=sdm_source_rearm)
     if transfer is not None:identity['sdm_input_transfer']=transfer
     identity['chain_sha256']=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
     identity['owner_seed']=int(identity['chain_sha256'][:16],16)|1

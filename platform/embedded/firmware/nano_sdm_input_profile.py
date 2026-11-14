@@ -1,4 +1,4 @@
-"""Explicit full-source SDM transfer and one retained native continuation."""
+"""Explicit retained-source transfer and separately bound repeated-load mode."""
 import hashlib,importlib.util,json
 from pathlib import Path
 HERE=Path(__file__).resolve().parent
@@ -35,7 +35,10 @@ CONTRACT.update(retirement_command_clock='fresh-counter-monotonic-source-and-ret
                 retirement_final_validation_bound_us=1000000,
                 retirement_final_validation_origin='unchanged-command-and-enclosing-retirement',
                 retirement_final_validation_policy='retained-final-snapshots-only')
-FILES=('nano_sdm_input_profile.py','sdm_input_vendor_service.c','sdm_input_vendor_mailbox.c','sdm_input_mailbox.h',
+_rearm_spec=importlib.util.spec_from_file_location('fes_source_rearm_profile',HERE/'nano_sdm_rearm_profile.py')
+rearm=importlib.util.module_from_spec(_rearm_spec);_rearm_spec.loader.exec_module(rearm)
+REARM_CONTRACT=rearm.contract(CONTRACT)
+FILES=('nano_sdm_input_profile.py','nano_sdm_rearm_profile.py','sdm_input_vendor_service.c','sdm_input_vendor_mailbox.c','sdm_input_mailbox.h',
  'nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','input_tables.c','input_tables.h','input_transfer.c','input_transfer.h',
  'input_transfer_service.c','input_transfer_service.h','sdm_input_probe_setup.c','sdm_input_probe_setup.h','command_queue.c','command_queue.h','source_retire.c','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc','nano_sdm_reader_profile.py','nano_sdm_reader.h','nano_sdm_reader.c','nano_sdm_reader_platform.inc','nano_sdm_release_platform.inc','nano_sdm_rearm_platform.inc')
 C_FILES=('input_tables.c','input_transfer.c','input_transfer_service.c','probe_setup.c','command_queue.c','source_retire.c','nano_sdm_reader.c')
@@ -48,8 +51,9 @@ INPUT_MAILBOX='bbfe0bff74a71977e204b36731557707c073e93d1a6f3b8b3dfbaef0b3c5ba1b'
 INPUT_HEADER='2657b7855b4dbdc586ee7459be67c602239ea1c555143f28bd3e40e9fabb84e3'
 def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def inputs():return [HERE/n for n in FILES]
-def selected(profile,enabled):
+def selected(profile,enabled,*,source_rearm=False):
  if type(enabled) is not bool:raise ValueError('explicit boolean SDM input transfer selection required')
+ if type(source_rearm) is not bool or source_rearm and not enabled:raise ValueError('explicit source rearm requires selected SDM input transfer')
  if not enabled:return None
  if not isinstance(profile,dict) or profile.get('sdm_arm_probe') is not None or profile.get('sdm_fault64') is not None:
   raise ValueError('SDM input, fault64 and arm-only modes are mutually exclusive')
@@ -62,17 +66,20 @@ def selected(profile,enabled):
   raise ValueError('SDM input transfer requires pinned heap/source/reader exclusions')
  fit.checked(profile.get('boot_fit'))
  reader.checked(profile)
- return json.loads(json.dumps(CONTRACT))
+ if source_rearm:rearm.checked_cpu_binding(profile)
+ return json.loads(json.dumps(REARM_CONTRACT if source_rearm else CONTRACT))
 def checked(profile):
  v=profile.get('sdm_input_transfer') if isinstance(profile,dict) else None
  if v is None:return None
- if json.dumps(v,sort_keys=True)!=json.dumps(CONTRACT,sort_keys=True):raise ValueError('unsupported SDM input transfer contract')
- return selected(profile,True)
+ warm=rearm.same(v,REARM_CONTRACT)
+ if not warm and not rearm.same(v,CONTRACT):raise ValueError('unsupported SDM input transfer contract')
+ if not warm and profile.get('sdm_cpu_rearm') is not None:raise ValueError('CPU rearm requires its repeated-load SDM contract')
+ return selected(profile,True,source_rearm=warm)
 def header(profile):
  if checked(profile) is None:return '#define FES_NANO_SDM_SOURCE_RELEASE 0\n#define FES_NANO_RETAINED_READER_ROUTE 0\n#define FES_NANO_SDM_INPUT_TRANSFER 0\n#define FES_NANO_SDM_SOURCE_LEASE 0\n#define FES_NANO_SDM_RETIRE_SOURCE 0\n#define FES_NANO_RETIRE_TIMING 0\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 0\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 0\n'
  chain=profile.get('chain_sha256','')
  if len(chain)!=64 or any(c not in '0123456789abcdef' for c in chain):raise ValueError('complete input transfer chain required')
- return ('#define FES_NANO_SDM_SOURCE_RELEASE 0\n#define FES_NANO_SDM_INPUT_TRANSFER 1\n#define FES_NANO_SDM_SOURCE_LEASE 1\n#define FES_NANO_SDM_RETIRE_SOURCE 1\n#define FES_NANO_RETIRE_TIMING 1\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 1\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 1\n#define FES_NANO_INPUT_BUILD "'+chain[:16]+'"\n'
+ return ('#define FES_NANO_SDM_SOURCE_RELEASE '+str(int(checked(profile)['format']==15))+'\n#define FES_NANO_SDM_INPUT_TRANSFER 1\n#define FES_NANO_SDM_SOURCE_LEASE 1\n#define FES_NANO_SDM_RETIRE_SOURCE 1\n#define FES_NANO_RETIRE_TIMING 1\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 1\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 1\n#define FES_NANO_INPUT_BUILD "'+chain[:16]+'"\n'
   '#define FES_NANO_RETAINED_READER_ROUTE 1\n#define FES_NANO_READER_ROUTE_SHA '+chr(34)+reader.digest(reader.checked(profile))+chr(34)+'\n'
   '#define FES_NANO_PROBE_HEAP_FIRST 0x84000000ULL\n#define FES_NANO_PROBE_HEAP_LAST 0x94000000ULL\n')
 def install(source,profile,start,mmu,ram,mailbox):
@@ -103,15 +110,15 @@ def install(source,profile,start,mmu,ram,mailbox):
  start['pre_sdm_input_mailbox_sha256']=start['mailbox_generated_sha256'];start['mailbox_generated_sha256']=sha(source/MAILBOX)
  mailbox['pre_sdm_input_generated_sha256']=mailbox['generated_sha256'];mailbox['generated_sha256']=sha(source/MAILBOX)
  mailbox['pre_sdm_input_header_sha256']=mailbox['header_sha256'];mailbox['header_sha256']=sha(source/MAILBOX_HEADER)
- return dict(contract=dict(CONTRACT),sources={n:sha(source/n) for n in NAMES})
+ return dict(contract=checked(profile),sources={n:sha(source/n) for n in NAMES})
 def verify_installed(source,binding,profile):
  if checked(profile) is None:
   if binding is not None:raise ValueError('unselected SDM input binding')
   return
- if not isinstance(binding,dict) or json.dumps(binding.get('contract'),sort_keys=True)!=json.dumps(CONTRACT,sort_keys=True) or set(binding.get('sources',{}))!=set(NAMES):raise ValueError('complete input binding required')
+ if not isinstance(binding,dict) or not rearm.same(binding.get('contract'),checked(profile)) or set(binding.get('sources',{}))!=set(NAMES):raise ValueError('complete input binding required')
  if any(sha(Path(source)/n)!=h for n,h in binding['sources'].items()):raise ValueError('input source changed')
  if header(profile) not in (Path(source)/HEADER).read_text():raise ValueError('input header changed')
-def private_function(image,name):
+def _function(image,name,expected_info):
  import struct
  if image[:6]!=b'\x7fELF\x02\x01':raise ValueError('ELF64 little-endian image required')
  offset=struct.unpack_from('<Q',image,40)[0];stride,count=struct.unpack_from('<HH',image,58)
@@ -129,19 +136,27 @@ def private_function(image,name):
    end=names.find(b'\0',n)
    if end<0:raise ValueError('terminated symbol name required')
    if names[n:end]!=name.encode():continue
-   if info!=2 or not 0<index<count or not address or not size or size%4:raise ValueError('local function identity required')
+   if info!=expected_info or not 0<index<count or not address or not size or size%4:raise ValueError('exact function binding required')
    owner=sections[index]
-   if owner[1]!=1 or not owner[2]&4 or not owner[3]<=address or address+size>owner[3]+owner[5]:raise ValueError('local helper must be bounded executable code')
+   if owner[1]!=1 or not owner[2]&4 or not owner[3]<=address or address+size>owner[3]+owner[5]:raise ValueError('helper must be bounded executable code')
    found.append(dict(address=address,bytes=size))
- if len(found)!=1:raise ValueError('one private final source-scope helper required')
+ if len(found)!=1:raise ValueError('one selected function required')
  return found[0]
+def private_function(image,name):return _function(image,name,2)
+def strong_function(image,name):return _function(image,name,0x12)
 def verify_image(image,profile):
  if checked(profile) is None:return None
  import nano_firmware_ram as ram
  symbols=ram.symbols(image);retire_scope=private_function(image,'retire_owned');retire_tables=private_function(image,'retire_valid');private_scope=private_function(image,'sdm_input_final_scope')
  fixed={'__FES_SMMU_PROBE_START__':0x94000000,'__FES_SMMU_STREAMS__':0x94000000,'__FES_SMMU_SDM_ROOT__':0x94004000,'__FES_SMMU_CMDQ__':0x94008000,'__FES_SMMU_EVTQ__':0x94009000,'__FES_SMMU_PROBE_END__':0x94010000}
  roots=('fes_nano_sdm_source_prepare','fes_nano_sdm_source_start_ready','fes_nano_sdm_source_validate','fes_nano_sdm_source_finish','fes_nano_sdm_transfer_result','nano_probe_arm','nano_sdm_transfer_before','nano_sdm_transfer_response','nano_sdm_transfer_status_result','mailbox_read_response_async_expected','nano_source_retire','nano_source_continue','nano_cmdq_submit','fes_nano_sdm_transfer_control_begin','fes_nano_sdm_transfer_control_finish','fes_nano_sdm_source_control_ready','fes_nano_sdm_control_mailbox_idle','fes_nano_sdm_source_reader_ready','fes_nano_sdm_transfer_reader_ready','nano_sdm_reader_observed')
+ if checked(profile)['format']==15:
+  roots+=('fes_nano_platform_release_source','fes_nano_sdm_transfer_release_source',
+          'fes_nano_sdm_transfer_source_released','fes_nano_sdm_vendor_source_idle','nano_probe_init_rearmed_input')
+  for name in roots[-5:]:strong_function(image,name)
+  if any(marker not in image for marker in (b'FES_NANO_SOURCE_RELEASE status=',b'FES_NANO_SOURCE_REARM status=')):
+   raise ValueError('repeated-load release/rearm implementation markers absent')
  if any(symbols.get(n,(0,))[0]!=v for n,v in fixed.items()) or any(n not in symbols for n in roots) or any(n in symbols for n in ('fes_nano_sdm_fault64_arm','fes_nano_sdm_probe_arm_park','fes_nano_sdm_input_arm_park')):
   raise ValueError('input arena/hooks absent or conflicting diagnostic installed')
  if any(marker not in image for marker in (profile['chain_sha256'][:16].encode(),b'FES_NANO_INPUT_RESULT build=',b'FES_NANO_RETIRE_RESULT build=',b'FES_NANO_RETIRE_TIMING build=',b'FES_NANO_RETIRE_QUEUE build=',b'FES_NANO_INPUT_CONTINUE build=',b'FES_NANO_INPUT_PARK retained=1 resume=0 activated=0')):raise ValueError('input build/terminal markers absent')
- return dict(contract=dict(CONTRACT),symbols=fixed,private_final_scope=private_scope,private_retire_scope=retire_scope,private_retire_tables=retire_tables,build_tag=profile['chain_sha256'][:16],image_sha256=hashlib.sha256(image).hexdigest(),hardware_accepted=False,physical_programming_admission=False)
+ return dict(contract=checked(profile),symbols=fixed,private_final_scope=private_scope,private_retire_scope=retire_scope,private_retire_tables=retire_tables,build_tag=profile['chain_sha256'][:16],image_sha256=hashlib.sha256(image).hexdigest(),hardware_accepted=False,physical_programming_admission=False)
