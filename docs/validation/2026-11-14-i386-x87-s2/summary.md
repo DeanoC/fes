@@ -23,10 +23,16 @@ lists them.
   path is unchanged**: the full run passes every bucket, including the 1,933
   no-387 directed cases, which matters because the shared FNSAVE and FRSTOR
   microcode and the sequencer's offsets changed.
-- **The identity-on path has not been run end to end yet.** The lockstep's
-  rule and its eight directed programs are in, but the first run of ESC
-  instructions through the CPU with a 387 fitted was still going when this
-  record was written. Until it passes, the slice is not mergeable.
+- **The identity-on path runs, and four of its eight programs pass.** The
+  first ESC instructions through the CPU with a 387 fitted found five more
+  faults, four of them in the unit's protocol and one a silent corruption
+  ([below](#what-the-identity-on-run-found)). The constants and the stack
+  moves, the loads with FXAM and FTST, the stores of every format, and the
+  control and status words now match the oracle's 387 at every retirement.
+  Four programs still differ, in two registers and the tag word, after a
+  run of eight pushes; the unit passes the same eight back to back in its
+  own bench, so the difference is in the CPU's issue. **Until they pass the
+  slice is not mergeable.**
 - **The register stack lands in M10K**, as the plan assumed: 4 blocks, two
   copies of eight 80-bit words, with the tag word read from the class bits
   each write stores rather than from the registers.
@@ -158,6 +164,20 @@ multi-part operand that faults part way leaves this unit partly updated, as
 the coprocessor bus's transfers leave a real 387, where Bochs applies its
 operand at once -- but exception 9 is not built yet, so that is a slice
 item, not an observed difference. An entry goes in when a run shows one.
+
+## What the identity-on run found
+
+The lockstep's own programs run no ESC at all, so these faults could only
+show once the slice's own directed programs went through the CPU. Each was
+fixed in the commit that found it.
+
+| What | Why it mattered |
+| --- | --- |
+| FNINIT and FNCLEX do not wait for BUSY#, so a following ESC was taken before FNINIT committed, and FNINIT's reset then wiped it | the first program's FLD1 lost its push; a new instruction's first uop now waits for a pending no-wait form, which is what a 387 does while FNINIT runs |
+| the flag that says the unit's instruction has issued its first uop was cleared in the branch that takes the instruction, and that branch ran later | a load form, which does not hold, takes and issues in one cycle, so the flag stayed clear and the next ESC issued un-taken |
+| WAIT took the ESC path, where its opcode is 9Bh's low bits and the byte after it | that usually decodes as a form no slice builds, which killed its hold; WAIT now waits for the latch and the unit's work and no more |
+| FLDENV and FRSTOR discarded the environment's pointer fields | the 387's state could not be restored; they are read back now, including the opcode, which only the real-mode and 32-bit protected layouts carry |
+| FINIT did not clear the x87 pointers | the 387 PRM's FINIT clears them with the words, and so does FNSAVE |
 
 ## Checks
 
