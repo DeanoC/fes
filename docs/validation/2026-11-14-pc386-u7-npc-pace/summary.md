@@ -190,104 +190,173 @@ The reference is therefore slower than the kit by a measured factor of
 **68/40 = 1.7**, and any CPU-bound pace figure will differ by about that much
 before anything about the core is in question.
 
-## Part 3 — the pace itself: not measured, and why
 
-**Not reached.** No NPC-pace figure was read on either machine, and no kit was
-claimed, because the reference could not be driven as far as a running game by
-a script. This section says exactly where it stops, so the next attempt starts
-from here rather than from the beginning.
+## Part 3 — the pace, measured: **fail, by 26%**
 
-### Where it stops
+**Measured on both sides, three windows each, against the band
+[`method.md`](method.md) fixed before any capture.** The figures are in
+[`pace.json`](pace.json) and the analyser that produced them is
+[`u7pace.py`](u7pace.py), committed with the record.
 
-The Black Gate's front end is mouse-only: the title screen's four items —
-VIEW INTRODUCTION, START NEW GAME, JOURNEY ONWARD, VIEW CREDITS — have no
-keyboard equivalent, so a script has to move a pointer and click. On the kit
-that is solved: the 14 November run's command file
-(`~/fes-scratch/u6ref/cmds/kit-u7-g1.jsonl`) drives it through the kit's own
-input stream and reaches a new game. On the 86Box reference, under Xvfb and
-`xdotool`, it is not.
+### The scene and the quantity
 
-**What does work, demonstrably.** One sequence selected a menu item exactly as
-intended, and the arithmetic came out right:
+A new game opens in Trinsic. Between the world first appearing and Iolo's
+opening conversation starting, no input is sent, and one townsperson paces a
+fixed beat on the right of the view. The quantity is **that character's walk
+cycle**: its beat is closed, so the autocorrelation of its position has a
+sharp first peak at the time it takes to walk the beat once, with harmonics at
+twice and three times that lag. It needs no pixel scale, so the two sides'
+different captures — 86Box's window at 15 fps through `x11grab`, the kit's
+HDMI at 60 fps through the capture card — cannot enter it.
+
+**The front end needs no mouse.** That is what made this measurable at all,
+and the earlier record's assumption to the contrary is what had stopped it:
+`Esc` leaves the introduction, `Down` and `Enter` work the title menu and the
+character screen, `Enter` pages the conversation, and **`Tab` selects a
+conversation keyword and `Enter` picks it**. The same command block drives
+both machines.
+
+### The figures
+
+| | reference, 86Box 386DX-25 | kit, preset 3 |
+| --- | --- | --- |
+| walk cycle | **11.733, 11.800, 11.867 s** | **8.733, 8.733, 8.733 s** |
+| mean | 11.800 s | 8.733 s |
+| spread between windows | 1.14% | 0.00% |
+| world to conversation | 46.67, 46.67, 46.60 s | 34.33, 34.35, 34.35 s |
+| TopBench, same runs | 40 | 68 |
+
+**The kit's cycle is 26.0% shorter than the reference's, against a ±10% band.
+That is a fail**, and the spread on each side is far inside the band — 1.1%
+and 0.0% — so the method decides it rather than leaving it open.
+
+A second quantity, measured the same way and never used for the verdict,
+agrees: the time from the world appearing to the conversation starting is
+34.34 s on the kit against 46.65 s on the reference, a ratio of **0.736**
+where the cycle's is **0.740**. Two independent timings of the same scene give
+the same answer to half a percent.
+
+**The displacement figure `method.md` first committed is not usable**, as its
+second amendment said before any kit capture: across the three reference
+windows it spreads 32% (0.043, 0.050, 0.059 heights/s) while the kit's three
+agree to 0.04%. It is in `pace.json` and nothing rests on it.
+
+### Reading the miss
+
+`method.md` fixed the classification before any figure was read: compare the
+pace ratio with *T*, the TopBench ratio. **That rule cannot be applied, and
+the reason is a finding about the reference, not about the kit.** Its premise
+is that the game's pace and TopBench move together. On the reference they do
+not:
+
+| 86Box 386DX, same board | TopBench | walk cycle |
+| --- | --- | --- |
+| 25.0 MHz | 40 | 11.800 s |
+| 33.3 MHz | 46 | 9.467 s |
+| 40.0 MHz | 48 | ≤ 8.467 s (the window failed the 100% gate, so the true cycle is shorter) |
+
+A 60% rise in clock moves TopBench by 20% and the game's pace by 39%. So the
+two are not proportional even within one machine, and the ratio of two
+machines' TopBench scores cannot be used to say what their pace ratio ought to
+be. The rule is reported as not applicable rather than applied anyway.
+
+**What the sweep does give is a sharper statement than the rule would have.**
+The kit's 8.733 s sits between the reference at 33.3 MHz (9.467 s) and at
+40 MHz (≤8.467 s):
+
+> **At the 386DX-25 preset the kit paces The Black Gate's world like an 86Box
+> 386DX at about 37 MHz — roughly 1.35× the pace of the 386DX-25 the preset
+> names.**
+
+That is the same shape as [#1840](https://github.com/DeanoC/fes/issues/1840)
+at 286-12 and as Part 2's benchmark reading, now measured in a game rather
+than in a benchmark, and it is a fault of the preset's pacing rather than of
+anything specific to this title. Two things keep it from being a complete
+account, and both are stated rather than glossed:
+
+- **The reference is at the slow end of its class.** Part 2 measured it at
+  TopBench 40 where AT-class real 386DXs scale to 31–78 with a median of 57.
+  A mid-range reference would narrow the gap; how far is not measured, and
+  86Box cannot be made to score 57 at any clock — 48 at 40 MHz is the most it
+  gives.
+- **The kit's TopBench of 68 is above every 86Box 386DX at any clock.** So the
+  kit is not simply "a faster 386DX" on both axes by the same factor: it
+  benchmarks 70% above the reference and paces this game 35% above it.
+
+### The kit runs
+
+Two claims of Kit B, both core-only on the baseline, both claimed and released
+through `~/fes-scratch/u6ref/kit/run-u6ref.sh` with the status file as the
+record, both with a final `quit` in the command file and no hand-run tail —
+the two things that wedged the kit on 14 November.
+
+- `u7pace` (23:20–23:40): window `p1`, plus the kit's `UMAP.COM` map and
+  `MEM /C`. **Its second and third windows are not at preset 3 and are not
+  used**: the governor `settings` call names a game, and the command file set
+  it for the first game only, so the later ones ran with no preset. TopBench
+  in that run read **303**, which is what gave it away. The lesson is in the
+  record because it would be easy to repeat: a preset is per game, not per
+  claim.
+- `u7pace2` (23:48–00:07): windows `q1`, `q2`, `q3`, each with its own
+  `settings` before its `load`, and TopBench at preset 3 reading **68** —
+  [#1486](https://github.com/DeanoC/fes/pull/1486)'s figure, re-measured on
+  this seal in the same claim as the pace windows, as `method.md` required.
+
+Both runs verified from `result.json` before any figure was trusted: no
+`error` on any command, every `load` reporting `state: active`, the staged
+disk digest matching, and the wrapper's own before/after listings agreeing.
+
+### The seal and the disk
+
+The package is `fc01c956…`, a Quartus 17.0.2 seal of main `1b4601831` — the
+same seal [#1838](https://github.com/DeanoC/fes/pull/1838)'s kit runs used, so
+the two records' kit figures are of the same build. It is **not** exact-head
+for main: `sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v` has
+changed since, so the figures above are for revision `1b4601831`.
+
+Both sides run the kit's own `u7bg-master.img` (SHA-256 `d9bfafd4…`) with
+`UMAP.COM` copied in, a fresh copy per run. The copies differ in exactly two
+bytes — the FAT directory entry's timestamp for `UMAP.COM`, in both copies of
+the table — and in nothing else; the reference's windows ran digests
+`cff7e4b0…` (m1, m2) and `41c7b9d8…` (m6 and the clock sweep), the kit's
+`41c7b9d8…`.
+
+### The memory map, side by side
+
+`UMAP.COM` on both machines, which is the Part 1 claim checked rather than
+asserted:
 
 ```
-xdotool mousemove 333 275      # pointer to the window centre, mouse not captured
-xdotool click 1                # 86Box captures the mouse
-xdotool mousemove_relative 0 60
-xdotool click 1                # -> VIEW INTRODUCTION runs
+reference           kit
+A000 ...........     A000 ................
+B000 ....WWWWWWWW    B000 ........WWWWWWWW
+C000 Rrrrr...WWWW…   C000 RrrrrrrrWWWWWWWW
+D000 WWWWWWWWWWWW…   D000 WWWWWWWWWWWWWWWW
+E000 ...........     E000 ................
+F000 rrrrrr-----r…   F000 rrrrrrrrrr--rr-r
 ```
 
-The game's cursor sits at (347, 275) in window pixels when the menu appears,
-VIEW INTRODUCTION is at y≈335, and +60 selected it: **one window pixel of
-pointer motion is one pixel of game cursor, with no acceleration**. So the
-emulated Microsoft serial mouse, CTMOUSE and the game are all working, and the
-mapping needed to aim at START NEW GAME (+92) is known.
-
-**What does not work is doing it twice.** Repeating the same sequence with
-+92, and every variant of it, left the game's cursor where it started. Across
-runs the same commanded motion produced the intended displacement, none at
-all, or a displacement of the wrong sign and several times the size. Both
-primitives behave this way: `mousemove_relative`, and absolute `mousemove` to
-a computed target. The pointer's own position, read back with
-`xdotool getmouselocation`, sometimes stays where it was warped to and
-sometimes comes back near the window's centre, which is how 86Box's own
-re-centring shows up, so the two warps race and the guest sees their
-difference rather than the one asked for.
-
-Two measurements bound the problem rather than guessing at it:
-
-- On a **bare Xvfb** with no client, `xdotool mousemove`,
-  `mousemove_relative`, `XTestFakeMotionEvent` and `XWarpPointer` all report
-  success and the pointer never moves. With 86Box running it does move. So the
-  pointer only exists for a client that is listening, and anything measured
-  without the emulator running says nothing.
-- The same Xvfb behaviour appears on **`chip-30x0-ai-dev`** as on Powerboat
-  (its Xvfb needs `-extension GLX` to start at all, against the NVIDIA EGL
-  libraries, and then behaves identically), so moving the rig to the quieter
-  host does not avoid it. `Xdummy` is present on Powerboat but has no `Xorg`
-  to wrap.
-
-A third thing makes scripting it harder: **the title screen times out into the
-introduction after about 20 seconds**, so a command file cannot grab a frame
-to check its aim before clicking. Every attempt that paused to look had the
-menu replaced underneath it.
-
-### What would measure it
-
-In rough order of how much they cost:
-
-1. **An X server whose pointer behaves deterministically** — Xephyr or a VNC
-   server rather than Xvfb, neither of which is installed on either host. This
-   is the direct fix: the mapping is already known (one window pixel to one
-   game pixel, menu cursor at (347, 275)), so a working pointer is the only
-   missing piece on the reference side.
-2. **Or 86Box's own input path instead of X's.** 86Box has a unit-tester
-   device and a command-line interface; if either can be made to deliver mouse
-   deltas, the race with its re-centring disappears. This was not investigated.
-3. Then: three 30-second windows a side in the scene a new game opens in, with
-   the validity gates [`method.md`](method.md) fixes, an analyser that tracks a
-   named NPC's sprite between frames, and the kit's TopBench score re-measured
-   in the same claim. The kit side already has a command file that reaches the
-   scene.
-
-### What this is not
-
-It is not a pc386 defect, and it is not the Ultima VI walk's kind of dead end.
-The walk could not be measured because the quantity depended on how the
-harness drove the game — a property of the game, which no better rig would
-fix. This is a rig limitation on one side of the comparison, with a known
-mapping behind it and named ways out. Nothing here says the NPC pace cannot be
-measured.
+C800–DFFF is 96 KiB of writable RAM on both, which is what the games image's
+UMB provider asks for. They differ above C500, where the reference reads open
+bus and the kit reads the body of its VGA BIOS, and in the BIOS at F000;
+neither is in the game's path. Free conventional memory is 595,312 bytes on
+the reference; the kit's `MEM /C` is in the run's `p1-mem.png`.
 
 ## What this record does not cover
 
-- **The NPC pace itself** (above): not measured on either machine.
-- **The kit side**: no kit was claimed in this work, so the kit's `UMAP.COM`
-  map, its `MEM /C` figures and a fresh TopBench score at preset 3 are all
-  still owed. The 68 quoted in Part 2 is #1486's, on an older seal.
-- **Whether the scene's redraw rate tracks NPC movement.** #1838's third
-  amendment assumed it; [`method.md`](method.md) declines to, and nothing here
-  settles it.
+- **Why the preset paces this game at about 37 MHz** rather than 25. The
+  measurement says it does; the cause is not traced here, and whether it
+  shares one with [#1840](https://github.com/DeanoC/fes/issues/1840) and
+  [#1837](https://github.com/DeanoC/fes/issues/1837) is open.
+- **A mid-range reference.** 86Box's 386DX scores 40 at 25 MHz and 48 at
+  40 MHz, so it cannot be brought to the real median of 57 by clock alone. How
+  much of the 26% a mid-range reference would absorb is not measured.
 - **Five 86Box 386DX boards** (Part 2) are unmeasured, not measured and equal.
-- The reference's DOS layout is like the kit's, not identical to it; the
-  comparison of the two `MEM /C` outputs is owed with the pace figures.
+- **The reference's emulation speed depends on Powerboat's load.** Three of
+  six 25 MHz windows failed the 100% gate and are excluded; their cycles
+  (12.067, 11.867, 11.867 s) are in `pace.json` and agree with the three that
+  passed, but they are not part of the verdict.
+- **The displacement metric** `method.md` first committed, which its second
+  amendment set aside before any kit capture.
+- The reference's DOS layout is like the kit's, not identical: `reference.md`
+  names every difference.

@@ -1,0 +1,210 @@
+{
+ "issue": 1853,
+ "what": "Ultima VII: The Black Gate NPC pace, kit preset 3 against an 86Box 386DX-25 reference",
+ "metric": "the paced townsperson's walk-cycle period in seconds, from the autocorrelation of its position; see method.md second amendment",
+ "band": "+/-10%",
+ "reference": {
+  "m1": {
+   "cycle_s": 11.733,
+   "cycle_correlation": 0.633,
+   "window_s": 46.67,
+   "world_s": 37.73,
+   "conversation_s": 84.4,
+   "pace_heights_per_s": 0.04306,
+   "motion_frames": 70,
+   "speed_readout_steady": true,
+   "fps": 15,
+   "picture": [
+    667,
+    400
+   ]
+  },
+  "m2": {
+   "cycle_s": 11.8,
+   "cycle_correlation": 0.591,
+   "window_s": 46.67,
+   "world_s": 37.67,
+   "conversation_s": 84.33,
+   "pace_heights_per_s": 0.0501,
+   "motion_frames": 72,
+   "speed_readout_steady": true,
+   "fps": 15,
+   "picture": [
+    667,
+    400
+   ]
+  },
+  "m3": {
+   "cycle_s": 12.067,
+   "cycle_correlation": 0.625,
+   "window_s": 47.6,
+   "world_s": 37.8,
+   "conversation_s": 85.4,
+   "pace_heights_per_s": 0.04413,
+   "motion_frames": 70,
+   "speed_readout_steady": false,
+   "fps": 15,
+   "picture": [
+    667,
+    400
+   ]
+  },
+  "m4": {
+   "cycle_s": 11.867,
+   "cycle_correlation": 0.704,
+   "window_s": 46.8,
+   "world_s": 37.93,
+   "conversation_s": 84.73,
+   "pace_heights_per_s": 0.06254,
+   "motion_frames": 74,
+   "speed_readout_steady": false,
+   "fps": 15,
+   "picture": [
+    667,
+    400
+   ]
+  },
+  "m5": {
+   "cycle_s": 11.867,
+   "cycle_correlation": 0.698,
+   "window_s": 46.93,
+   "world_s": 37.67,
+   "conversation_s": 84.6,
+   "pace_heights_per_s": 0.05058,
+   "motion_frames": 70,
+   "speed_readout_steady": false,
+   "fps": 15,
+   "picture": [
+    667,
+    400
+   ]
+  },
+  "m6": {
+   "cycle_s": 11.867,
+   "cycle_correlation": 0.706,
+   "window_s": 46.6,
+   "world_s": 37.67,
+   "conversation_s": 84.27,
+   "pace_heights_per_s": 0.05941,
+   "motion_frames": 72,
+   "speed_readout_steady": true,
+   "fps": 15,
+   "picture": [
+    667,
+    400
+   ]
+  }
+ },
+ "kit": {
+  "p1": {
+   "cycle_s": 8.733,
+   "cycle_correlation": 0.597,
+   "window_s": 34.35,
+   "world_s": 22.12,
+   "conversation_s": 56.47,
+   "pace_heights_per_s": 0.05573,
+   "motion_frames": 69,
+   "fps": 60,
+   "picture": [
+    480,
+    270
+   ],
+   "run": "u7pace"
+  },
+  "q1": {
+   "cycle_s": 8.733,
+   "cycle_correlation": 0.599,
+   "window_s": 34.33,
+   "world_s": 22.12,
+   "conversation_s": 56.45,
+   "pace_heights_per_s": 0.05571,
+   "motion_frames": 69,
+   "fps": 60,
+   "picture": [
+    480,
+    270
+   ],
+   "run": "u7pace2"
+  },
+  "q2": {
+   "cycle_s": 8.733,
+   "cycle_correlation": 0.596,
+   "window_s": 34.35,
+   "world_s": 22.07,
+   "conversation_s": 56.42,
+   "pace_heights_per_s": 0.05573,
+   "motion_frames": 69,
+   "fps": 60,
+   "picture": [
+    480,
+    270
+   ],
+   "run": "u7pace2"
+  },
+  "q3": {
+   "cycle_s": 8.733,
+   "cycle_correlation": 0.599,
+   "window_s": 34.35,
+   "world_s": 22.08,
+   "conversation_s": 56.43,
+   "pace_heights_per_s": 0.05571,
+   "motion_frames": 69,
+   "fps": 60,
+   "picture": [
+    480,
+    270
+   ],
+   "run": "u7pace2"
+  }
+ },
+ "reference_clock_sweep": {
+  "33MHz": {
+   "cycle_s": 9.467,
+   "cycle_correlation": 0.522,
+   "window_s": 37.73,
+   "world_s": 31.33,
+   "conversation_s": 69.07,
+   "speed_readout_steady": true
+  },
+  "40MHz": {
+   "cycle_s": 8.467,
+   "cycle_correlation": 0.606,
+   "window_s": 33.4,
+   "world_s": 28.07,
+   "conversation_s": 61.47,
+   "speed_readout_steady": false
+  }
+ },
+ "topbench": {
+  "reference_25MHz": 40,
+  "reference_25MHz_waitstates_0": 40,
+  "reference_25MHz_waitstates_1": 40,
+  "reference_33MHz": 46,
+  "reference_40MHz": 48,
+  "kit_preset3": 68,
+  "kit_no_preset": 303,
+  "note": "303 is the core with no governor preset applied -- the first kit run set settings for the first game only, which is why its second and third windows are not at preset 3"
+ },
+ "verdict": {
+  "reference_cycles_s": [
+   11.733,
+   11.8,
+   11.867
+  ],
+  "reference_cycle_mean_s": 11.8,
+  "reference_cycle_spread_pct": 1.14,
+  "kit_cycles_s": [
+   8.733,
+   8.733,
+   8.733
+  ],
+  "kit_cycle_mean_s": 8.733,
+  "kit_cycle_spread_pct": 0.0,
+  "kit_minus_reference_pct": -26.0,
+  "band_pct": 10,
+  "result": "FAIL",
+  "window_ratio_kit_over_reference": 0.7362,
+  "kit_scene_speed_vs_reference": 1.351,
+  "pace_equivalent_386dx_clock_mhz": "between 33.3 and 40, about 37 by interpolation"
+ }
+}
