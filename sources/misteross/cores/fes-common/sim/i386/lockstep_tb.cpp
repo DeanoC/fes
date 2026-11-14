@@ -10367,8 +10367,25 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
         // The program has halted, so waiting for the unit cannot run another
         // instruction: its last operation's state is compared here.
         rtl.settle_x87();
-        for (const std::string &field : fes_i386::x87_differences(oracle.x87_state(), rtl.x87_state()))
+        const fes_i386::X87State want = oracle.x87_state(), got = rtl.x87_state();
+        for (const std::string &field : fes_i386::x87_differences(want, got))
             out.add(std::string(c.label) + ".x87." + field, 0, 1);
+        // Both states in full on a failure: the fields differ in kind, so
+        // the mismatch list can only name them.
+        if (!out.items.empty()) {
+            auto show = [](const char *side, const fes_i386::X87State &s) {
+                std::cout << "  " << side << " cw " << hex(s.control) << " sw " << hex(s.status)
+                          << " tw " << hex(s.tag) << " op " << hex(s.opcode)
+                          << " ip " << hex(s.pointers.ip) << " cs " << hex(s.pointers.cs)
+                          << " dp " << hex(s.pointers.dp) << " ds " << hex(s.pointers.ds);
+                for (int n = 0; n < 8; ++n)
+                    std::cout << " r" << n << ' ' << hex(s.r[n].sign_exponent) << ':' << hex(s.r[n].significand);
+                std::cout << '\n';
+            };
+            std::cout << "x87:" << c.label << " states\n";
+            show("oracle", want);
+            show("rtl   ", got);
+        }
         end_run(bus, rtl, outcome.halted, out);
         summary.cycles += rtl.cycles;
         rtl.cycles = 0;
