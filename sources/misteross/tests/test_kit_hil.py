@@ -280,27 +280,72 @@ class CleanupGate(unittest.TestCase):
 class RefusedAdmission(unittest.TestCase):
     """Guard 3: a command the kit refused must fail the run."""
 
+    SCRIPT = [{'op': 'load', 'game': 'keen4'}, {'op': 'grab', 'name': 'f0'},
+              {'op': 'grab', 'name': 'f1'}, {'op': 'quit'}]
+
+    def drain(self, execute):
+        clock = Clock()
+        return kit_hil.drain(lambda: '\n'.join(json.dumps(op) for op in self.SCRIPT),
+                             execute, mode='batch', log=lambda *_: None,
+                             now=clock.now, sleep=clock.sleep)
+
     def test_a_refused_load_stops_the_script(self):
-        # The x87 run: `/v1/library/core/load` answered HTTP 422 INVALID_ARCHIVE,
-        # the driver recorded the error and ran the rest of the script anyway.
-        clock, ran = Clock(), []
-        script = [{'op': 'load', 'game': 'keen4'}, {'op': 'grab', 'name': 'f0'},
-                  {'op': 'grab', 'name': 'f1'}, {'op': 'quit'}]
+        # The x87 run: `/v1/library/core/load` answered HTTP 422
+        # INVALID_ARCHIVE. The ops raise — `call` turns any HTTP status over
+        # 300 into a KitError (hil_games.py:193) — and the driver caught that
+        # into its event and ran the rest of the script anyway.
+        ran = []
 
         def execute(op):
             ran.append(op)
             if op['op'] == 'load':
-                return {'error': 'KitError: /v1/library/core/load: HTTP 422 '
-                                 '{"code": "INVALID_ARCHIVE"}'}
+                raise kit.KitError('/v1/library/core/load: HTTP 422 '
+                                   '{"code": "INVALID_ARCHIVE"}', 422)
             return {'ok': True}
 
-        done, reasons = kit_hil.drain(lambda: '\n'.join(json.dumps(op) for op in script),
-                                      execute, mode='batch', log=lambda *_: None,
-                                      now=clock.now, sleep=clock.sleep)
+        done, reasons = self.drain(execute)
         self.assertEqual([op['op'] for op in ran], ['load'],
                          'no command may run over a core that was never loaded')
         self.assertEqual(len(reasons), 1)
         self.assertIn('INVALID_ARCHIVE', reasons[0])
+
+    def test_an_error_returned_rather_than_raised_also_stops_the_script(self):
+        ran = []
+
+        def execute(op):
+            ran.append(op)
+            return {'error': 'HTTP 422 INVALID_ARCHIVE'} if op['op'] == 'load' else {'ok': True}
+
+        done, reasons = self.drain(execute)
+        self.assertEqual([op['op'] for op in ran], ['load'])
+        self.assertIn('INVALID_ARCHIVE', reasons[0])
+
+    def test_an_unknown_command_stops_the_script(self):
+        # The drivers raise SystemExit for an op they do not know.
+        ran = []
+
+        def execute(op):
+            ran.append(op)
+            raise SystemExit(f'unknown command {op["op"]}')
+
+        done, reasons = self.drain(execute)
+        self.assertEqual(len(ran), 1)
+        self.assertIn('unknown command load', reasons[0])
+
+    def test_a_stop_answering_reboot_required_stops_the_script(self):
+        # A stop that reports recovery carries no error, and the drivers break
+        # their loop on it through their own `halted` key.
+        ran = []
+
+        def execute(op):
+            ran.append(op)
+            if op['op'] == 'load':
+                return {'state': 'active'}
+            return {'state': 'stopping', 'recovery': 'reboot_required'}
+
+        done, reasons = self.drain(execute)
+        self.assertEqual([op['op'] for op in ran], ['load', 'grab'])
+        self.assertIn('reboot_required', reasons[0])
 
     def test_a_refused_load_is_the_runs_verdict(self):
         result = {'events': [{'seq': 1, 'cmd': {'op': 'load'},

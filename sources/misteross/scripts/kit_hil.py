@@ -80,6 +80,29 @@ def error_in(value):
     return None
 
 
+def halting(result):
+    """Return why this command's result must end the run, or None.
+
+    An error is one reason. A `recovery` is the other: a `stop` that answers
+    `{"recovery": "reboot_required"}` reports no error, and the drivers break
+    their loop on it through their own `halted` key. Returning it here means an
+    adopter needs no second mechanism for it.
+    """
+
+    found = error_in(result)
+    if found is not None:
+        return found
+    if isinstance(result, dict):
+        for key in ('recovery', 'halted'):
+            value = result.get(key)
+            if value:
+                return f'{key}: {value}'
+            nested = result.get('stop') if key == 'recovery' else None
+            if isinstance(nested, dict) and nested.get('recovery'):
+                return f'recovery: {nested["recovery"]}'
+    return None
+
+
 def verdict(result):
     """Return the reasons this run failed. Empty means the run passed.
 
@@ -184,8 +207,14 @@ def drain(source, execute, *, mode='batch', idle_limit=IDLE_LIMIT, heartbeat=HEA
         if op.get('op') == 'quit':
             log(f'end of run: quit after {done - 1} commands')
             return done, reasons
-        result = execute(op)
-        found = error_in(result)
+        try:
+            result = execute(op)
+        except (Exception, SystemExit) as error:  # noqa: BLE001 - every failure is the run's
+            # The ops raise: `call` turns an HTTP 422 into a KitError, and an
+            # unknown command raises SystemExit. A driver may hand its own
+            # `run` straight in, so catch here rather than require a wrapper.
+            result = {'error': f'{type(error).__name__}: {error}'}
+        found = halting(result)
         if found is not None:
             reasons.append(f'command {done} {op.get("op")}: {found}')
             log(f'END OF RUN: {reasons[-1]} - the rest of the command file is NOT run; '
@@ -271,8 +300,16 @@ def client_for(config_path, target=None):
         raise kitlib.KitError(f'target {name!r} is not uniquely configured')
     if not chosen[0].get('enabled', False):
         raise kitlib.KitError(f'target {name!r} is disabled')
-    return kitlib.Client(os.environ.get('FOGCAST_BASE_URL') or chosen[0].get('address', ''),
-                         os.environ.get('FOGCAST_TOKEN') or chosen[0].get('agent', ''))
+    # A named target wins over the environment. A gate that passes for one kit
+    # while the tail removes on another is worse than no gate, so the
+    # environment may only fill in what the chosen target does not give.
+    address = chosen[0].get('address') or os.environ.get('FOGCAST_BASE_URL', '')
+    bearer = chosen[0].get('agent') or os.environ.get('FOGCAST_TOKEN', '')
+    if target and not chosen[0].get('address'):
+        raise kitlib.KitError(f'target {name!r} gives no address')
+    client = kitlib.Client(address, bearer)
+    client.target_name = name
+    return client
 
 
 def run_lock(path):
@@ -374,6 +411,14 @@ def program_pids(program, *, needle=None, pgrep='pgrep'):
     return pids
 
 
+def where(client):
+    """Which kit a gate answered about, for a message that must not mislead."""
+
+    if client is None:
+        return 'no target'
+    return f'{getattr(client, "target_name", None) or "selected"} at {client.url.hostname}'
+
+
 def parser():
     ask = argparse.ArgumentParser(description=__doc__,
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -414,16 +459,19 @@ def main(argv=None):
             return 1
         print(json.dumps(holder))
         return 0
+    client = None
     try:
         client = (client_for(args.config, args.target) if args.config
                   else kitlib.configuration(args))
         state = cleanup_gate(client, wait=args.wait)
     except CleanupRefused as error:
-        print(f'REFUSED: {error}', file=sys.stderr)
+        print(f'REFUSED ({where(client)}): {error}', file=sys.stderr)
         return 3
     except kitlib.KitError as error:
-        print(f'REFUSED: {error}', file=sys.stderr)
+        print(f'REFUSED ({where(client)}): {error}', file=sys.stderr)
         return 3
+    state['target'] = getattr(client, 'target_name', None) or args.target or 'selected'
+    state['host'] = client.url.hostname
     print(json.dumps(state))
     return 0
 

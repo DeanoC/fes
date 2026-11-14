@@ -83,6 +83,12 @@ client `kit.py` the session drivers already import, and are checked in
    back out of `result.json` (a refused command, a `halted`, a `close_error`,
    an error nested in a reply) and exits non-zero. The invariant: no run
    reports success with an error in its `result.json`.
+   `drain` catches what the ops raise as well as what they return: `call`
+   turns any HTTP status over 300 into a `KitError`
+   (`hil_games.py:193`) and an unknown op raises `SystemExit`, so a driver can
+   hand its own `run` straight in. A `stop` that answers
+   `{"recovery": "reboot_required"}` reports no error at all, and `halting`
+   ends the run on that too, which is what the drivers' own `halted` key did.
    *Prevents:* a refused admission reading as a pass.
 
 4. **Liveness.** `run_lock` is a per-run lock file, `kit-hil-run.lock`, that
@@ -104,9 +110,14 @@ commit `ddc1e3c21`, 1 failure and 21 errors. On that extraction the batch run
 with no `quit` exits through `no command for 30 minutes`; the refused `load`
 leaves the rest of the script running (`['load', 'grab', 'grab']` instead of
 `['load']`); and the cleanup gate, the verdict and the run lock do not exist.
-The guards are commit `2fc81f231`, after which all 22 pass:
+(The extraction catches `Exception` where the drivers catch
+`(Exception, SystemExit)`, so the unknown-command case errors there rather than
+failing; both are red.) The guards are commit `2fc81f231`, and the cases added
+after checking them against the real data are red on the extraction too. All of
+them pass on the branch head:
 
     cd sources/misteross && python3 -m unittest discover -s tests -p 'test_kit*.py'
+    # 45 tests, OK (30 of them this module's)
 
 The cleanup gate is also exercised against a real local HTTP agent replying in
 `protocol.Status`'s own shape (`state`, `game_id`, `core_package.package_id`,
@@ -116,8 +127,8 @@ breaks the test rather than the next kit run.
 ## The verdict against every kit run on this host
 
 `kit_hil.py verdict` was run over all 129 `result.json` files under
-`~/fes-scratch/*/runs/` and `~/fes-scratch/*/kit/runs/`. 118 exit 0 and 11 exit
-non-zero, and every one of the 11 names a real failed command, a halt or a
+`~/fes-scratch/*/runs/` and `~/fes-scratch/*/kit/runs/`. 120 exit 0 and 9 exit
+non-zero, and every one of the 9 names a real failed command, a halt or a
 failed release — no false positive from `error_in`'s depth search (an
 `audio_stop` reporting `{'levels': {'error': 'no wav'}}` is the kind of nested
 error it is meant to catch, and no run tripped on anything else).
@@ -127,7 +138,7 @@ The three incident runs are among them: `x87s2/kit/runs/x5b` (the
 (`close_error: target rejected request (HTTP 500)`) and `si1494/kit/runs/b3`
 (`halted: stop reported reboot_required`).
 
-The other eight are the finding: **seven of the eleven runs with a real command
+The other six are the finding: **seven of the nine runs with a real command
 error were logged as clean runs with `HIL rc=0` and the kit released.**
 
 | run | what `verdict` reports | what the wrapper logged |
@@ -189,6 +200,22 @@ of them, which is what guard 3 changes.
   keeps its overlay classification: the import graph reaches it from
   `pc386_wfw_kit_acceptance.py`, so that one is not a misclassification.
 
+## Repository gates run here
+
+| gate | result |
+| --- | --- |
+| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 45 tests, OK |
+| `tests/test_hil_plan.py` | 39 tests, OK |
+| `tests/test_affected.py`, `tests/test_test_changed.py` | 43 and 33 tests, OK |
+| `scripts/check_diff.py --base <main> --head HEAD` | exit 0 |
+| `scripts/check_doc_links.py` | exit 0 |
+| `scripts/parent_tests.py --video true --media false` | exit 0 |
+| `hil_plan classify --repo . --base-image-commit <main> --head <head>` | `NO_DEPLOY_CHANGE` |
+
+The fpga lane's per-core RTL simulations are left to CI: any
+`sources/misteross/scripts/` change selects all of them, as a `kit.py` change
+already did.
+
 ## Reach, and what is not done
 
 The drivers and wrappers on Powerboat are per-session copies that import
@@ -197,6 +224,13 @@ therefore protect a run only once its driver and wrapper call them; this PR
 changes no file under `~/fes-scratch`, and the live `u6ref` session's tree was
 not touched. Re-pointing the existing copies, and making the next session's
 driver a thin caller of `drain` instead of a 566-line copy, is follow-up work.
+
+`guard-idle` prints which target answered and names it in every refusal,
+because a gate that passes for one kit while the tail removes on another is
+worse than no gate. A named `--target` wins over `FOGCAST_BASE_URL` and
+`FOGCAST_TOKEN`; the environment can only fill in what that target omits.
+The live mode's five-minute wait is the `idle_limit` parameter, not a ceiling:
+a console session that will think for longer passes a larger one.
 
 No kit was used. All four guards are provable against a fake agent and a local
 HTTP server, which is why they are unit tests rather than a kit run; the

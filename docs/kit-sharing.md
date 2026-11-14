@@ -256,6 +256,9 @@ with "operator recovery required" — so the guards against them live in
   what read as a dead wrapper.
 - **The post-run tail.** Run `kit_hil.py guard-idle --config PRIVATE.toml`
   before a tail removes anything, and halt the wrapper if it refuses (exit 3).
+  Pass `--target dev` or `--target kit2` to name the kit rather than writing a
+  private copy of the host TOML with `selected_target` rewritten; the gate
+  prints which target answered and names it in every refusal.
   It fails closed: an unreachable agent, an agent that is not idle, a lease
   that is not free and a loaded core each refuse, naming what is loaded and who
   holds the lease. It waits out a `revoking` lease for 30 seconds, so a clean
@@ -268,7 +271,9 @@ with "operator recovery required" — so the guards against them live in
   while the driver's exit code stays 0. The invariant is that no run reports
   success with an error in its `result.json`, and `drain` stops the script at
   the first refused command so nothing runs over a core that never loaded —
-  in live mode as well, so a mistyped op on a console ends that run.
+  in live mode as well, so a mistyped op on a console ends that run. It stops
+  on what an op raises as well as what it returns, and on a `stop` that
+  answers `recovery: reboot_required`, which reports no error at all.
 - **Liveness.** `kit_hil.run_lock(runs/RUN/kit-hil-run.lock)` is held by the
   driver for the whole run and records its pid and command line;
   `kit_hil.py alive runs/RUN/kit-hil-run.lock` answers whether that driver is
