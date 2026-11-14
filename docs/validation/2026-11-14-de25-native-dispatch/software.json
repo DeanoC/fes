@@ -78,5 +78,13 @@
   "hardware_actions": false,
   "hardware_accepted": false,
   "existing_failed_trial_and_restoration_unchanged": true,
-  "programming_scan_and_program_callbacks_injected": true
+  "programming_scan_and_program_callbacks_injected": true,
+  "affected_checks": {
+    "status": "passed-all-seven-selected-phases",
+    "source_commit": "ceb1f311cbb07ef02390ab3871d578b9f0e5388e",
+    "parent_tests": 2719,
+    "parent_skips": 7,
+    "record": "full-regression.json",
+    "retention": "regression-retention.json"
+  }
 }
