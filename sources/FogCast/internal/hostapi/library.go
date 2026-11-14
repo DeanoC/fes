@@ -1011,6 +1011,8 @@ func enrichCompositions(ctx context.Context, service Service, games []gameResult
 		}
 		game.ROMRequired = comp.ROMRequired
 		game.ROMReady = comp.ROMReady
+		game.VideoRequired = comp.VideoRequired
+		game.VideoReady = comp.VideoReady
 		game.ROMID = comp.ROMID
 		game.ROMMediaID = comp.ROMMediaID
 		game.ROMRole = comp.ROMRole

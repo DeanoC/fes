@@ -753,6 +753,8 @@ func LaunchBlockCopy(game hostclient.Game) string {
 		return "Required machine firmware is missing. Import it before Play."
 	case hostclient.LaunchMissingROM:
 		return "Needs a cartridge"
+	case hostclient.LaunchMissingVideo:
+		return "Needs a matching video part"
 	case hostclient.LaunchDistant:
 		return "This title is not on this machine."
 	case hostclient.LaunchLeaseHeld:

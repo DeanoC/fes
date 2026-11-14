@@ -77,6 +77,8 @@ type gameResult struct {
 	ExpansionID      string              `json:"expansion_id,omitempty"`
 	ROMRequired      bool                `json:"rom_required,omitempty"`
 	ROMReady         bool                `json:"rom_ready,omitempty"`
+	VideoRequired    bool                `json:"video_required,omitempty"`
+	VideoReady       bool                `json:"video_ready,omitempty"`
 	ROMID            string              `json:"rom_id,omitempty"`
 	ROMMediaID       string              `json:"rom_media_id,omitempty"`
 	ROMRole          string              `json:"rom_role,omitempty"`

@@ -9,13 +9,15 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-// CoreCompositions reports title-level firmware readiness for catalog rows.
+// CoreCompositions reports title-level catalog readiness for library rows.
 func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[string]protocol.CoreComposition, error) {
 	out := make(map[string]protocol.CoreComposition, len(ids))
 	entries, ok := s.catalog.(coreEntryCatalog)
 	if !ok {
 		return out, nil
 	}
+	videoStore, _ := s.catalog.(coreVideoCatalog)
+	video := videoReadiness{store: videoStore, profile: s.LibrarySettings().VideoProfile}
 	for _, id := range ids {
 		entry, err := entries.CoreEntry(ctx, id)
 		if errors.Is(err, catalog.ErrCoreEntryNotFound) {
@@ -26,6 +28,14 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 		}
 		comp := protocol.CoreComposition{FirmwareRequired: entry.FirmwareRequired}
 		inspection, inspectErr := s.installedCoreInspection(ctx, entry.PackageID)
+		if inspectErr == nil && hasVideoSocket(inspection) {
+			comp.VideoRequired = true
+			var err error
+			comp.VideoReady, err = video.ready(ctx, inspection)
+			if err != nil {
+				return nil, err
+			}
+		}
 		if inspectErr == nil && inspection.Descriptor.Format == 5 && entry.FirmwareRequired {
 			// A household firmware object cannot fill a sealed static base.
 			out[id] = comp

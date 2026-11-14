@@ -199,18 +199,24 @@ func (s *Service) composeVideoCandidate(ctx context.Context, entry catalog.CoreE
 	return &bundle, nil
 }
 
-// videoEntryCandidate picks the next launch's video part. A missing profile
-// may fall back to direct; found is false for built-in direct output.
+// A missing profile may fall back to Direct, but an installed selected part
+// is never bypassed if it later fails admission.
+func chooseVideoCandidate(candidates map[string]catalog.CoreVideoPart, profile string) (catalog.CoreVideoPart, bool) {
+	candidate, found := candidates[profile]
+	if !found {
+		candidate, found = candidates["direct"]
+	}
+	return candidate, found
+}
+
+// videoEntryCandidate picks the next launch's video part; found is false for
+// built-in Direct output.
 func (s *Service) videoEntryCandidate(ctx context.Context, inspection corepackage.Inspection) (catalog.CoreVideoPart, bool, error) {
 	candidates, err := s.videoCandidates(ctx, inspection)
 	if err != nil {
 		return catalog.CoreVideoPart{}, false, err
 	}
-	profile := s.LibrarySettings().VideoProfile
-	candidate, found := candidates[profile]
-	if !found {
-		candidate, found = candidates["direct"]
-	}
+	candidate, found := chooseVideoCandidate(candidates, s.LibrarySettings().VideoProfile)
 	if !found && requiresVideoPart(inspection) {
 		return catalog.CoreVideoPart{}, false, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission", Message: missingDirectVideoPartMessage}
 	}

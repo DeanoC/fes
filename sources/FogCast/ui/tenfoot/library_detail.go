@@ -26,6 +26,8 @@ func libraryBlockTag(block hostclient.LaunchBlock) string {
 		return "Needs BIOS"
 	case hostclient.LaunchMissingROM:
 		return "Needs a cartridge"
+	case hostclient.LaunchMissingVideo:
+		return "Needs a video part"
 	case hostclient.LaunchMissingExpansion:
 		return "Needs an expansion"
 	case hostclient.LaunchLeaseHeld:

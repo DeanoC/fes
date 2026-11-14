@@ -30,6 +30,11 @@ type CoreComposition struct {
 	ExpansionReady   bool   `json:"expansion_ready,omitempty"`
 	FirmwareRequired bool   `json:"firmware_required"`
 	FirmwareReady    bool   `json:"firmware_ready"`
+	// VideoRequired is set when this shell has a selectable video output.
+	// VideoReady describes the current host catalog's selected output or its
+	// permitted fallback; launch still performs full composition admission.
+	VideoRequired bool `json:"video_required,omitempty"`
+	VideoReady    bool `json:"video_ready,omitempty"`
 	// SlotExpansions lists the cards a multi-socket shell title selects, in
 	// ascending slot order. Every card must be ready for the title to launch.
 	SlotExpansions []SlotExpansionStatus `json:"slot_expansions,omitempty"`

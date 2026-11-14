@@ -38,6 +38,8 @@ type Game struct {
 	ExpansionID    string `json:"expansion_id,omitempty"`
 	ROMRequired    bool   `json:"rom_required,omitempty"`
 	ROMReady       bool   `json:"rom_ready,omitempty"`
+	VideoRequired  bool   `json:"video_required,omitempty"`
+	VideoReady     bool   `json:"video_ready,omitempty"`
 	ROMID          string `json:"rom_id,omitempty"`
 	ROMMediaID     string `json:"rom_media_id,omitempty"`
 	ROMRole        string `json:"rom_role,omitempty"`
@@ -83,6 +85,7 @@ const (
 	LaunchMissingFirmware  LaunchBlock = "missing_firmware"
 	LaunchMissingExpansion LaunchBlock = "missing_expansion"
 	LaunchMissingROM       LaunchBlock = "missing_rom"
+	LaunchMissingVideo     LaunchBlock = "missing_video"
 	// Mesh blocks match meshcontent.Block. They are set only when
 	// ReadyHere is non-nil and false.
 	LaunchDistant        LaunchBlock = "distant"
@@ -156,6 +159,9 @@ func (g Game) catalogLaunchBlock() LaunchBlock {
 	}
 	if g.ROMRequired && !g.ROMReady {
 		return LaunchMissingROM
+	}
+	if g.VideoRequired && !g.VideoReady {
+		return LaunchMissingVideo
 	}
 	return ""
 }
