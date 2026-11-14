@@ -24,8 +24,8 @@ capture and each time saying what had been seen. The reference machines are in
 | Check | Result |
 | --- | --- |
 | **Ultima VI, PC speaker pitch at the 286-12 preset** | **Fail.** The kit's notes are 12.7–12.9% below the reference's, 2.35 and 2.39 semitones flat; 9.0–9.3% and about 1.7 semitones even after the reference is scaled from 12.5 to 12.0 MHz. The band is ±5.9%, one semitone. |
-| **Ultima VI, walking speed at the 286-12 preset** | **Not decided by this method**, and the method is the problem, not the kit: repeats of the same measurement on the reference alone spread about 40%, four times the band. The figures are below for whoever measures it next. |
-| **Ultima VII: The Black Gate, NPC pace at 386DX-25** | **Not done.** The reference reaches the game's memory check and stops there; see below. |
+| **Ultima VI, walking speed at the 286-12 preset** | **Not decided**, and the method is the problem, not the kit: on the reference the figure follows how fast the keys are sent, so it is not the game's rate. No kit window was run with it. The figures are below for whoever measures it next. |
+| **Ultima VII: The Black Gate, NPC pace at 386DX-25** | **Not done.** The game stops at its own memory check on the reference, and the reference board for a 386DX-25 is not settled; see below. |
 
 So **#1368's last box is not ticked and the issue stays open**, and pc386 does
 not reach tier 1 on this work. The pitch failure has its own issue.
@@ -94,8 +94,10 @@ this record asks for that.
 
 ## Ultima VI: walking speed
 
-What was measured, on both sides, from the same place in a new game, after
-passing turns until the opening fight in Lord British's throne room is over:
+What was measured **on the reference**, from the same place in a new game,
+after passing turns until the opening fight in Lord British's throne room is
+over. The matching kit windows were not run: the measurement did not survive
+its own checks, so no kit time was spent on it.
 
 - **steps a second**, counted as map-view scrolls while the Avatar is walked
   around a one-tile square (down, right, up, left) by taps at ten a second;
@@ -103,40 +105,51 @@ passing turns until the opening fight in Lord British's throne room is over:
   with the space bar, which cannot be blocked by anything in the way.
 
 The reference's own three repeats of each (`walk.json`), with the emulation
-holding 100% through all but one window:
+holding 100% through all but one window. Run 1 of each pair sent its keys at
+about 17 a second, runs 2 and 3 at 10:
 
 | | run 1 | run 2 | run 3 | range |
 | --- | --- | --- | --- | --- |
 | steps a second | 2.66 | 1.96 | 1.89 | 1.89–2.66 |
 | turns a second | 1.55 | 1.14 | 1.11 | 1.11–1.55 |
 
-**The spread between repeats on one machine is about 40%, four times the ±10%
-band**, so the band cannot be applied (`method.md`'s fourth amendment, written
-before the kit run that would have been compared with it). Ultima VI is
-turn-based, the party and the castle's people take their turns in the same
-loop, and a step is only taken when the game next looks at the keyboard, so
-how long a turn takes depends on what is in view and on when a key lands.
+**At the same key rate the repeats agree — 1.14 and 1.11 turns a second, 1.96
+and 1.89 steps — and at a higher key rate the same machine gives 1.55 and 2.66.
+The figure follows the input, so it is not the game's rate**, and nothing can
+be judged against the band with it. Ultima VI takes a step or a turn only when
+it next looks at the keyboard, and it drops what is queued, so the rate that
+comes out is the rate the keys arrive at, up to whatever the game can manage.
+A sound measurement would have to drive the keys from the guest's own timer, or
+find a figure inside the game that counts turns.
+
+That is `method.md`'s fourth amendment, written before the kit run that would
+have been compared with these numbers, and corrected there as it is here.
 
 For the record, the kit's own figures on this package, from run `g1`, which
 walked with a held key during the opening fight rather than after it: 11 steps
 in 45 s with a median gap of 1.57 s, which is the same as the 10 November
 run's 1.47 s. Those are not comparable with the reference's numbers above —
 different input, and a fight in progress — and they are not treated as a
-verdict.
+verdict. The kit's preset was read back from the machine record as preset 1,
+frequency override 0, turbo 0, before the game was loaded.
 
 **This check therefore stays open**, with a method that does not work and the
 figures that show why.
 
 ## Ultima VII: The Black Gate, NPC pace
 
-Not done. The Black Gate needs 561,144 bytes of DOS memory and says so and
-exits. On the reference it has 505 KiB, because the games image's UMB provider
-finds no RAM at C800 on a real 386 board — on the kit the machine has RAM
-there — so HIMEMX and the mouse driver load low. Moving the XT-IDE BIOS to
-C400h does not help: there is still no RAM behind C800–DFFF to make upper
-memory out of. The next thing to try is `DOS=HIGH` with MS-DOS 6.22's
-`HIMEM.SYS`, as Ultima VI's reference does, which the kit's own menu entry 2
-offers and which should clear the requirement; that was not reached today.
+Not done. The Black Gate prints "Ultima VII requires 561144 bytes of DOS
+memory!" on the reference and exits. The free figure itself was not read there,
+but the cause is plain from the boot: the games image's UMB provider reports
+"no RAM found at C800. Aborted!", because a real 386 board has nothing behind
+C800–DFFF where the kit's machine has RAM, so HIMEMX and the mouse driver load
+low instead of high. An attempt to move the XT-IDE BIOS to C400h was made by
+writing a `[PC/AT XTIDE]` section into the configuration; the POST banner was
+not read back, so it is not known whether it moved, and it would not have
+helped in any case, because there is still no RAM to make upper memory out of.
+The next thing to try is `DOS=HIGH` with MS-DOS 6.22's `HIMEM.SYS`, as Ultima
+VI's reference does and as the kit's own menu entry 2 offers; that was not
+reached today.
 
 The reference machine for it was also not settled. The board used for the
 benchmark above, a 1988 C&T 386/AT with no cache, scores 40 against the kit
@@ -153,6 +166,11 @@ one.
 - The reference runs Ultima VI with a different DOS kernel build and 548 KiB
   free against the kit's 573 KiB (`method.md`). Neither is in the game's
   timing path, but neither was varied to prove it.
-- One reference window in six dipped below 100% emulation speed; it is the one
-  that gives the highest pass rate (1.55 a second), and it is reported as
-  measured.
+- One reference window in six dipped below 100% emulation speed for 60 frames
+  of 1,350; it is the one that gives the highest pass rate (1.55 a second), and
+  it is reported as measured.
+- **TopBench validates the reference's CPU, not its I/O timing**, and the
+  note's frequency is set by how long each `OUT` to port 61h takes as much as
+  by the CPU. The kit is flat although its CPU benchmarks faster, so the
+  difference is not a CPU-speed difference, and the reference's standing
+  against real 286 boards does not by itself settle what the right note is.

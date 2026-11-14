@@ -239,3 +239,21 @@ admit a result.
 
 The pitch measurement is unaffected: its spread is 0.05% on the kit and 1% on
 the reference, both far inside ±5.9%.
+
+## Correction to the fourth amendment
+
+The fourth amendment said the walk could not be judged because repeats on one
+machine spread about 40%. On a closer look at those six windows that is not
+what they show, and the correction matters because it changes what a later
+measurement has to fix.
+
+The first window of each pair sent its keys at about 17 a second and the other
+two at 10. At the same key rate the repeats agree: 1.14 and 1.11 turns a
+second, 1.96 and 1.89 steps. At the higher key rate the same machine gives
+1.55 turns and 2.66 steps. **The figure follows the input rate, so it is not
+the game's rate**, and no band can be applied to it. Ultima VI takes a step or
+a turn only when it next looks at the keyboard and drops what is queued
+meanwhile, so what is being measured is partly the key timing.
+
+The conclusion stands — the walk is not decided and the kit windows were not
+run — but the reason is this, not the spread.
