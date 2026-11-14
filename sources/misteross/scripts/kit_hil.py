@@ -46,6 +46,10 @@ HEARTBEAT = 30.0
 GATE_WAIT = 30.0
 GATE_POLL = 1.0
 LOCK_NAME = 'kit-hil-run.lock'
+# The FogCast data directories a run's own trees appear under. A removal may
+# touch nothing else, whatever a run's list says.
+DATA_ROOTS = ('/media/fat/fogcast/disk-images', '/media/fat/fogcast/core-data',
+              '/media/fat/fogcast/saves')
 
 
 class RunFailed(Exception):
@@ -280,6 +284,107 @@ def cleanup_gate(client, *, wait=GATE_WAIT, poll=GATE_POLL, now=time.monotonic, 
         sleep(min(poll, max(0.0, deadline - now())))
 
 
+class KitShell:
+    """The kit's own ssh helper, as the wrappers invoke it."""
+
+    def __init__(self, ssh, timeout=180):
+        self.ssh, self.timeout = str(ssh), timeout
+
+    def run(self, command):
+        try:
+            done = subprocess.run([self.ssh, command], stdin=subprocess.DEVNULL,
+                                  capture_output=True, text=True, timeout=self.timeout)
+        except (OSError, subprocess.SubprocessError) as error:
+            raise CleanupRefused(f'the kit shell failed: {type(error).__name__}') from None
+        return done.returncode, done.stdout
+
+    def find(self, roots):
+        code, out = self.run('find ' + ' '.join(roots) + ' 2>/dev/null | sort')
+        if code != 0 and not out:
+            raise CleanupRefused('the kit listing failed, so what is there is unknown')
+        return [line for line in out.splitlines() if line]
+
+    def remove(self, path):
+        code, _ = self.run(f"rm -r -- '{path}'")
+        if code != 0:
+            raise CleanupRefused(f'rm -r {path} failed; nothing further removed')
+
+
+def check_removable(listed, created, *, roots=DATA_ROOTS, keep=()):
+    """Raise unless every listed tree is this run's own and inside the roots.
+
+    The wrappers build their list from a `find` diff, so a bad list is the
+    thing to catch: a path the run did not create, a path outside FogCast's
+    data directories, a shared artefact, a root itself, or a path that could
+    not survive the shell quoting a removal needs.
+    """
+
+    if not listed:
+        raise CleanupRefused('the run lists no trees to remove')
+    allowed = tuple(root.rstrip('/') + '/' for root in roots)
+    for path in listed:
+        if path != path.strip() or not path.startswith('/'):
+            raise CleanupRefused(f'{path!r} is not a plain absolute path')
+        if any(bad in path for bad in ("'", '"', '\\', '\n', '\r', '$', '`', '*', '?')):
+            raise CleanupRefused(f'{path!r} is not safe to pass to a shell')
+        if '/../' in path or path.endswith('/..') or '//' in path:
+            raise CleanupRefused(f'{path!r} is not a normalised path')
+        if not path.startswith(allowed):
+            raise CleanupRefused(f'{path!r} is outside {", ".join(roots)}')
+        if path.rstrip('/') in tuple(root.rstrip('/') for root in roots):
+            raise CleanupRefused(f'{path!r} is a data root, not a run\'s tree')
+        if any(item and item in path for item in keep):
+            raise CleanupRefused(f'{path!r} is kept and must not be removed')
+        if path not in created:
+            raise CleanupRefused(f'{path!r} is not in this run\'s own new paths')
+
+
+def clean(shell, listed, created, *, roots=DATA_ROOTS, keep=(), gate=None, apply=False,
+          log=print):
+    """Remove exactly the trees a run created, and only with the kit idle.
+
+    The gate comes first, because the removal is `rm -r` over ssh that the
+    agent never sees: that order is the whole point. Then the list is checked
+    against what the run created, every tree must still be there, and
+    afterwards the `find` diff must be exactly those trees with nothing
+    appeared — the checks `clean-r.sh` grew by hand, in one tested place.
+
+    `apply` must be set to remove anything; the default reports the plan.
+    """
+
+    if gate is not None:
+        state = gate()
+        log(f'gate: {json.dumps(state)}')
+    check_removable(listed, created, roots=roots, keep=keep)
+    before = shell.find(roots)
+    missing = [path for path in listed if path not in before]
+    if missing:
+        raise CleanupRefused(f'{missing[0]!r} is no longer on the kit')
+    expected = sorted(path for path in before
+                      if any(path == tree or path.startswith(tree + '/') for tree in listed))
+    plan = {'trees': len(listed), 'paths': len(expected), 'applied': bool(apply)}
+    if not apply:
+        log(f'plan (nothing removed): {json.dumps(plan)}')
+        return plan
+    for path in listed:
+        shell.remove(path)
+        log(f'removed {path}')
+    after = shell.find(roots)
+    appeared = [path for path in after if path not in before]
+    if appeared:
+        raise CleanupRefused(f'{len(appeared)} paths appeared during the removal, '
+                             f'first {appeared[0]!r}')
+    gone = sorted(path for path in before if path not in after)
+    if gone != expected:
+        raise CleanupRefused(f'the removal took {len(gone)} paths, not the '
+                             f'{len(expected)} the listed trees hold')
+    if gate is not None:
+        state = gate()
+        log(f'gate after: {json.dumps(state)}')
+    log(f'removed {json.dumps(plan)}')
+    return plan
+
+
 def client_for(config_path, target=None):
     """A client for one named target in the private host TOML.
 
@@ -411,6 +516,15 @@ def program_pids(program, *, needle=None, pgrep='pgrep'):
     return pids
 
 
+def read_lines(path):
+    """The non-empty lines of a run's own list, or a refusal if it is absent."""
+
+    try:
+        return [line.strip() for line in Path(path).read_text().splitlines() if line.strip()]
+    except OSError:
+        raise CleanupRefused(f'{path} is missing, so what the run left is unknown') from None
+
+
 def where(client):
     """Which kit a gate answered about, for a message that must not mislead."""
 
@@ -434,6 +548,21 @@ def parser():
     said.add_argument('result', type=Path)
     alive = commands.add_parser('alive', help='is the driver that holds this run lock alive?')
     alive.add_argument('lock', type=Path)
+    wipe = commands.add_parser('clean', help="remove exactly the trees a run left, gated")
+    wipe.add_argument('--config', type=Path, help='private FogCast host TOML')
+    wipe.add_argument('--url', help='target agent origin (or FOGCAST_BASE_URL)')
+    wipe.add_argument('--target', help="the config's target, e.g. dev or kit2")
+    wipe.add_argument('--wait', type=float, default=GATE_WAIT,
+                      help='seconds to wait out a revoking lease (default %(default)s)')
+    wipe.add_argument('--ssh', required=True, type=Path, help="the kit's ssh helper")
+    wipe.add_argument('--run-dir', required=True, type=Path,
+                      help='the run directory holding kit-new-tops.txt and kit-new-paths.txt')
+    wipe.add_argument('--root', action='append', dest='roots', default=None,
+                      help='a data root a removal may touch (default: FogCast\'s three)')
+    wipe.add_argument('--keep', action='append', default=[],
+                      help='a path or digest that must never be removed, repeatable')
+    wipe.add_argument('--apply', action='store_true',
+                      help='remove; without it the plan is reported and nothing is removed')
     return ask
 
 
@@ -463,6 +592,16 @@ def main(argv=None):
     try:
         client = (client_for(args.config, args.target) if args.config
                   else kitlib.configuration(args))
+        if args.command == 'clean':
+            listed = read_lines(args.run_dir / 'kit-new-tops.txt')
+            created = read_lines(args.run_dir / 'kit-new-paths.txt')
+            plan = clean(KitShell(args.ssh), listed, created,
+                         roots=tuple(args.roots) if args.roots else DATA_ROOTS,
+                         keep=tuple(args.keep), apply=args.apply,
+                         gate=lambda: cleanup_gate(client, wait=args.wait))
+            plan['target'] = getattr(client, 'target_name', None) or args.target or 'selected'
+            print(json.dumps(plan))
+            return 0
         state = cleanup_gate(client, wait=args.wait)
     except CleanupRefused as error:
         print(f'REFUSED ({where(client)}): {error}', file=sys.stderr)

@@ -67,8 +67,21 @@ client `kit.py` the session drivers already import, and are checked in
    out for 30 s rather than refused. The guard is a separate pre-check and not
    something the agent enforces, because the removal is `ssh rm -rf` against
    the kit's FogCast data directories: the agent never sees it.
+   The gate's only caller that removes anything is `kit_hil.py clean`, which
+   takes the step the wrappers each hand-rolled: it reads the run's own
+   `kit-new-tops.txt` and `kit-new-paths.txt`, gates, removes exactly those
+   trees, checks the `find` diff is exactly them with nothing appeared, and
+   gates again. It refuses a path the run did not create, a path outside
+   FogCast's three data directories, a data root itself, a path that would not
+   survive shell quoting (`'`, `$`, `*`, a `..` segment), a `--keep` path such
+   as the shared scrub image, an empty list, a tree already gone, and a diff
+   bigger than the listed trees. Without `--apply` it removes nothing. These
+   are the checks `clean-r.sh` grew by hand and the wrapper tails never got,
+   in one tested place; 19 cases cover them, each red before the command
+   existed.
    *Prevents:* a data-tree removal under a loaded core, the step that preceded
-   the blocked lease. The gate also refuses a kit whose status carries a
+   the blocked lease — and, now, the removal of anything the run did not
+   make. The gate also refuses a kit whose status carries a
    `recovery` (a `stop` that answered `reboot_required`, as run `b3`'s did),
    because that kit already needs attention. It does not refuse on
    `last_error`: whether the run passed is the verdict's question, not the
@@ -117,7 +130,7 @@ after checking them against the real data are red on the extraction too. All of
 them pass on the branch head:
 
     cd sources/misteross && python3 -m unittest discover -s tests -p 'test_kit*.py'
-    # 45 tests, OK (30 of them this module's)
+    # 58 tests, OK (43 of them this module's)
 
 The cleanup gate is also exercised against a real local HTTP agent replying in
 `protocol.Status`'s own shape (`state`, `game_id`, `core_package.package_id`,
@@ -240,7 +253,7 @@ trees under, which is the thing the guard exists to prevent.
 
 | gate | result |
 | --- | --- |
-| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 45 tests, OK |
+| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 58 tests, OK |
 | `tests/test_hil_plan.py` | 39 tests, OK |
 | `tests/test_affected.py`, `tests/test_test_changed.py` | 43 and 33 tests, OK |
 | `scripts/check_diff.py --base <main> --head HEAD` | exit 0 |
@@ -251,6 +264,23 @@ trees under, which is the thing the guard exists to prevent.
 The fpga lane's per-core RTL simulations are left to CI: any
 `sources/misteross/scripts/` change selects all of them, as a `kit.py` change
 already did.
+
+## Adoption, as far as it can go here
+
+The guards only help a run whose own driver and wrapper call them, and the
+copies on Powerboat belong to live sessions, so nothing under `~/fes-scratch`
+is touched here. What this PR can do instead is make the call a single tested
+command rather than a block each wrapper reimplements: with `clean` and
+`verdict`, a wrapper's tail is
+
+    python3 "$KH" clean --ssh "$SSH" --run-dir "$OUT" --config "$CFG" --target "$T" --apply || exit 5
+    python3 "$KH" verdict "$OUT/result.json" || rc=99
+
+in place of the `find`/`comm`/`ssh rm -rf` block and the `grep '"error"'` only
+`run-x87.sh` ever wrote. The per-session wiring, and the question of whether a
+shared thin driver should replace the 566-line copies at all, stay in issue
+#1852: a driver needs a kit's capture device, audio device and ssh helper, and
+proposing its shape without a kit run to validate it would be guesswork.
 
 ## Reach, and what is not done
 

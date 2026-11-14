@@ -390,6 +390,161 @@ class RefusedAdmission(unittest.TestCase):
             self.assertEqual(kit_hil.main(['verdict', str(Path(home) / 'absent.json')]), 2)
 
 
+class FakeKit:
+    """A kit's data directories, and what a removal actually did to them."""
+
+    def __init__(self, paths, appears=None, loses=()):
+        self.paths = list(paths)
+        self.appears, self.loses = appears or [], list(loses)
+        self.removed, self.failures = [], set()
+
+    def find(self, roots):
+        return sorted(self.paths)
+
+    def remove(self, path):
+        if path in self.failures:
+            raise kit_hil.CleanupRefused(f'rm -r {path} failed; nothing further removed')
+        self.removed.append(path)
+        self.paths = [p for p in self.paths
+                      if not (p == path or p.startswith(path + '/'))]
+        self.paths.extend(self.appears)
+        self.appears = []
+        for lost in self.loses:
+            if lost in self.paths:
+                self.paths.remove(lost)
+        self.loses = []
+
+
+DISKS = '/media/fat/fogcast/disk-images'
+DATA = '/media/fat/fogcast/core-data'
+RUN_TREE = f'{DATA}/games/' + 'a' * 64
+RUN_DISK = f'{DISKS}/' + 'b' * 64 + '.img'
+OLD_TREE = f'{DATA}/games/' + 'c' * 64
+SCRUB = f'{DISKS}/' + 'd' * 64 + '.img'
+KIT_BEFORE = [DISKS, DATA, f'{DATA}/games', RUN_TREE, f'{RUN_TREE}/record.json',
+              RUN_DISK, OLD_TREE, f'{OLD_TREE}/record.json', SCRUB]
+# What this run created, as its wrapper's find diff reports it: the earlier
+# run's tree and the shared image are not in it.
+CREATED = [RUN_TREE, f'{RUN_TREE}/record.json', RUN_DISK]
+
+
+class GuardedRemoval(unittest.TestCase):
+    """The tail's removal itself, which is what ran under a loaded core."""
+
+    LISTED = [RUN_TREE, RUN_DISK]
+
+    def setUp(self):
+        self.said = []
+
+    def gate_for(self, turn):
+        clock = Clock()
+        return lambda: kit_hil.cleanup_gate(FakeClient([turn]), wait=5,
+                                            now=clock.now, sleep=clock.sleep)
+
+    def test_a_loaded_core_removes_nothing(self):
+        kitfs = FakeKit(KIT_BEFORE)
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True,
+                          gate=self.gate_for(LOADED), log=self.said.append)
+        self.assertEqual(kitfs.removed, [], 'nothing may be removed under a loaded core')
+        self.assertEqual(sorted(kitfs.paths), sorted(KIT_BEFORE))
+        self.assertIn('fes.pc386', str(refused.exception))
+
+    def test_an_idle_kit_removes_exactly_the_runs_trees(self):
+        kitfs = FakeKit(KIT_BEFORE)
+        plan = kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True,
+                             gate=self.gate_for(IDLE), log=self.said.append)
+        self.assertEqual(kitfs.removed, self.LISTED)
+        self.assertEqual(plan, {'trees': 2, 'paths': 3, 'applied': True})
+        self.assertEqual(sorted(kitfs.paths),
+                         sorted([DISKS, DATA, f'{DATA}/games', OLD_TREE,
+                                 f'{OLD_TREE}/record.json', SCRUB]),
+                         'an earlier run\'s trees and the shared image stay')
+
+    def test_without_apply_nothing_is_removed(self):
+        kitfs = FakeKit(KIT_BEFORE)
+        plan = kit_hil.clean(kitfs, self.LISTED, CREATED,
+                             gate=self.gate_for(IDLE), log=self.said.append)
+        self.assertEqual(kitfs.removed, [])
+        self.assertFalse(plan['applied'])
+
+    def test_a_path_the_run_did_not_create_is_refused(self):
+        kitfs = FakeKit(KIT_BEFORE)
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            kit_hil.clean(kitfs, [OLD_TREE], CREATED, apply=True,
+                          gate=self.gate_for(IDLE), log=self.said.append)
+        self.assertEqual(kitfs.removed, [])
+        self.assertIn('not in this run', str(refused.exception))
+
+    def test_a_path_outside_the_data_roots_is_refused(self):
+        for path in ('/media/fat/fogcast/launcher.json', '/media/fat/linux/u-boot.txt',
+                     '/media/fat', DATA, f'{DATA}/../..'):
+            with self.subTest(path=path):
+                kitfs = FakeKit(KIT_BEFORE + [path])
+                with self.assertRaises(kit_hil.CleanupRefused):
+                    kit_hil.clean(kitfs, [path], CREATED + [path], apply=True,
+                                  gate=self.gate_for(IDLE), log=self.said.append)
+                self.assertEqual(kitfs.removed, [])
+
+    def test_a_shell_unsafe_path_is_refused(self):
+        for path in (f"{DATA}/games/x'y", f'{DATA}/games/$(reboot)', f'{DATA}/games/*'):
+            with self.subTest(path=path):
+                kitfs = FakeKit(KIT_BEFORE + [path])
+                with self.assertRaises(kit_hil.CleanupRefused):
+                    kit_hil.clean(kitfs, [path], CREATED + [path], apply=True,
+                                  gate=self.gate_for(IDLE), log=self.said.append)
+                self.assertEqual(kitfs.removed, [])
+
+    def test_a_kept_path_is_refused(self):
+        kitfs = FakeKit(KIT_BEFORE)
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            kit_hil.clean(kitfs, [SCRUB], CREATED + [SCRUB], apply=True, keep=('d' * 64,),
+                          gate=self.gate_for(IDLE), log=self.said.append)
+        self.assertEqual(kitfs.removed, [])
+        self.assertIn('kept', str(refused.exception))
+
+    def test_an_empty_list_is_refused(self):
+        with self.assertRaises(kit_hil.CleanupRefused):
+            kit_hil.clean(FakeKit(KIT_BEFORE), [], CREATED, apply=True,
+                          gate=self.gate_for(IDLE), log=self.said.append)
+
+    def test_a_tree_already_gone_is_refused_before_anything_is_removed(self):
+        kitfs = FakeKit([p for p in KIT_BEFORE if not p.startswith(RUN_TREE)])
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True,
+                          gate=self.gate_for(IDLE), log=self.said.append)
+        self.assertEqual(kitfs.removed, [], 'refuse before removing, not halfway')
+        self.assertIn('no longer on the kit', str(refused.exception))
+
+    def test_paths_appearing_during_the_removal_are_reported(self):
+        kitfs = FakeKit(KIT_BEFORE, appears=[f'{DATA}/games/new'])
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True,
+                          gate=self.gate_for(IDLE), log=self.said.append)
+        self.assertIn('appeared', str(refused.exception))
+
+    def test_taking_more_than_the_listed_trees_is_reported(self):
+        kitfs = FakeKit(KIT_BEFORE, loses=[f'{OLD_TREE}/record.json'])
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True,
+                          gate=self.gate_for(IDLE), log=self.said.append)
+        self.assertIn('not the', str(refused.exception))
+
+    def test_the_gate_runs_before_the_listing(self):
+        class Listless(FakeKit):
+            def find(self, roots):
+                raise AssertionError('the gate must refuse before the kit is listed')
+
+        with self.assertRaises(kit_hil.CleanupRefused):
+            kit_hil.clean(Listless(KIT_BEFORE), self.LISTED, CREATED, apply=True,
+                          gate=self.gate_for(LOADED), log=self.said.append)
+
+    def test_a_missing_run_list_is_refused(self):
+        with tempfile.TemporaryDirectory() as home:
+            with self.assertRaises(kit_hil.CleanupRefused):
+                kit_hil.read_lines(Path(home) / 'kit-new-tops.txt')
+
+
 class Liveness(unittest.TestCase):
     """The check that misled the #1368 session: `pgrep -f` matches the asker."""
 

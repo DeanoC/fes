@@ -265,6 +265,18 @@ with "operator recovery required" — so the guards against them live in
   close does not trip it. A removal under a loaded core preceded the stop/close
   that returned HTTP 500 and blocked the lease; the #1368 record calls that the
   likely cause without showing it, and the gate costs nothing either way.
+- **The removal itself.** `kit_hil.py clean --ssh <kit ssh helper> --run-dir
+  runs/RUN --config <host.toml> --target {dev,kit2} --apply` removes exactly
+  the trees the run created and nothing else, with the gate above run first
+  and again afterwards. It reads the run's own `kit-new-tops.txt` and
+  `kit-new-paths.txt`, and refuses: a path the run did not create, a path
+  outside FogCast's three data directories, a data root itself, a path that
+  could not survive shell quoting, anything named by `--keep` (a shared disk
+  image), an empty list, a tree already gone, any path that appears during the
+  removal, and a diff larger than the listed trees. Without `--apply` it
+  reports the plan and removes nothing. Prefer it to a hand-rolled
+  `ssh rm -rf`: every wrapper that rolled its own left out at least one of
+  those checks.
 - **The run's verdict.** Run `kit_hil.py verdict runs/RUN/result.json` and
   carry its exit code into the wrapper's own. A command the kit refused — an
   HTTP 422 `INVALID_ARCHIVE` at admission, say — is recorded in `result.json`
@@ -283,7 +295,16 @@ with "operator recovery required" — so the guards against them live in
   `pgrep -x` form for the cases a lock cannot cover.
 
 The drivers on Powerboat are per-session copies that import `kit.py` by path,
-so these guards reach a run only once its driver and wrapper call them.
+so these guards reach a run only once its driver and wrapper call them. A
+wrapper's tail becomes:
+
+```sh
+python3 "$KH" clean --ssh "$SSH" --run-dir "$OUT" --config "$CFG" --target "$T" --apply || exit 5
+python3 "$KH" verdict "$OUT/result.json" || rc=99
+```
+
+in place of the `find`/`comm`/`ssh rm -rf` block and the `grep '"error"'` each
+wrapper wrote for itself. Adoption per session is tracked in issue #1852.
 
 ## Validation
 
