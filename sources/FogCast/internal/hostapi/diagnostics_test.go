@@ -77,3 +77,23 @@ func TestSessionErrorSafeDiagnostics(t *testing.T) {
 		})
 	}
 }
+
+func TestSessionMissingDirectVideoPartIsActionable(t *testing.T) {
+	for _, tc := range []struct {
+		name, message, phase, want string
+	}{
+		{"missing part", "native video shell requires a matching Direct video part for this exact core package", "request", "Install a matching Direct video part for this core package before launch."},
+		{"unknown target message", "native video shell requires a matching Direct video part /private/secret", "request", "FogCast request is invalid"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			writeSessionError(w, &protocol.APIError{Code: protocol.CodeBadRequest, Message: tc.message, Phase: tc.phase})
+			if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), tc.want) || strings.Contains(w.Body.String(), "/private") {
+				t.Fatalf("status %d body %s", w.Code, w.Body.String())
+			}
+			if tc.name == "missing part" && !strings.Contains(w.Body.String(), `"phase":"admission"`) {
+				t.Fatalf("lost admission phase: %s", w.Body.String())
+			}
+		})
+	}
+}

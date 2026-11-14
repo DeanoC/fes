@@ -127,6 +127,12 @@ exit 0
         (source / ".git").mkdir(parents=True)
         if tool == "verilator":
             _write_executable(source / "configure", "#!/bin/sh\nexit 0\n")
+        if tool == "mistral":
+            # The Mistral install carries the database sources producers pin.
+            for relative in ("data/m10k-mux.txt", "libmistral/cvd-sx120f.cc", "libmistral/cyclonev.h"):
+                for path in (source / relative, toolchain / "install/share/mistral/source" / relative):
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(f"database {relative}\n")
         build = toolchain / "build" / tool
         build.mkdir(parents=True)
         (build / f".built-{commit}").write_text(f"commit={commit}\n")

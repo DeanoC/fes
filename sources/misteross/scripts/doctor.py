@@ -126,7 +126,15 @@ def _shared_cache_selected() -> bool:
 
 
 def _shared_toolchain() -> tuple[Any | None, str | None]:
-    """Resolve one authenticated shared slot without modifying the cache."""
+    """Resolve the lock's authenticated shared installs, holding each one.
+
+    The checks below execute binaries out of this resolution, so the installs
+    are held (shared locks, last use stamped) until the process exits rather
+    than merely verified. Verifying without holding let a concurrent
+    `toolchain-prune APPLY=1` rename an install between the check and the probe,
+    and doctor then reported a missing or unlaunchable tool that was in fact
+    fine. Probing a tool is a use, so stamping it is right as well.
+    """
 
     cache_text = os.environ.get("FES_TOOLCHAIN_CACHE_ROOT", "").strip()
     if not cache_text:
@@ -143,33 +151,32 @@ def _shared_toolchain() -> tuple[Any | None, str | None]:
             gpu_router=router,
             hip_architectures=architectures,
         )
-        manifest = toolchain_cache.verify_ready(request)
+        manifest = toolchain_cache.resolve_ready(request)
     except Exception as exc:  # noqa: BLE001 - doctor reports all readiness failures
         return None, f"shared toolchain cache verification failed: {exc}"
     return manifest, None
 
 
-def _resolve_shared_tool(command_name: str, manifest: Any) -> tuple[Path | None, str | None]:
+def _resolve_shared_tool(command_name: str, resolution: Any) -> tuple[Path | None, str | None]:
     tool_name = command_name_to_tool(command_name)
-    record = getattr(manifest, "tools", {}).get(tool_name)
-    if not isinstance(record, Mapping):
-        return None, f"shared manifest has no authenticated tool record for {command_name}"
-    binary_name = record.get("binary")
+    install = getattr(resolution, "tools", {}).get(tool_name)
+    if install is None:
+        return None, f"shared toolchain has no authenticated install for {command_name}"
+    binary_name = install.record.get("binary")
     if not isinstance(binary_name, str) or not binary_name.startswith("bin/"):
-        return None, f"shared manifest has an invalid binary path for {command_name}"
-    path = Path(manifest.install) / binary_name
+        return None, f"shared install has an invalid binary path for {command_name}"
+    path = Path(install.install) / binary_name
     try:
         resolved = path.resolve(strict=True)
-        install = Path(manifest.install).resolve(strict=True)
-        resolved.relative_to(install)
+        resolved.relative_to(Path(install.install).resolve(strict=True))
     except (OSError, ValueError) as exc:
-        return None, f"shared manifest tool path escapes its install for {command_name}: {exc}"
+        return None, f"shared install tool path escapes its install for {command_name}: {exc}"
     if not path.is_file():
-        return None, f"shared manifest tool is missing: {path}"
+        return None, f"shared install tool is missing: {path}"
     if not os.access(path, os.X_OK):
-        return None, f"shared manifest tool is not executable: {path}"
-    digest = record.get("sha256", "")
-    return path, f"shared cache key {manifest.key}; {path}; digest {digest}"
+        return None, f"shared install tool is not executable: {path}"
+    digest = install.record.get("sha256", "")
+    return path, f"shared install key {install.key}; {path}; digest {digest}"
 
 
 def _resolve_local_tool(
@@ -308,7 +315,8 @@ def oss_checks(
             make_check(
                 "Shared toolchain cache",
                 "OK",
-                f"verified key {manifest.key}; install {manifest.install}; evidence {manifest.evidence}",
+                "verified installs: " + "; ".join(
+                    f"{tool} {install.key}" for tool, install in sorted(manifest.tools.items())),
                 True,
             )
         )

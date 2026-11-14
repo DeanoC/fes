@@ -3,6 +3,7 @@ package gfx
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -108,6 +109,126 @@ func TestMenuDisplayProbeSameGenerationPresentsNothing(t *testing.T) {
 	waitMenuIdle(t, d, client, 1)
 	if client.statusCount() != statusBefore+1 {
 		t.Fatal("probed again before the next interval")
+	}
+}
+
+// An available status is not evidence that anything is on the wire: before
+// the runtime's idle health check nothing re-read the display after the
+// first confirmed present. A probe may only acknowledge an unchanged frame
+// while the live reads still describe this client's frame being scanned out.
+func TestMenuDisplayProbeAcceptsHealthyLiveState(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+	client.mu.Lock()
+	client.live = &menudisplay.Live{Enabled: true, DisplayedSequence: client.displayed}
+	client.mu.Unlock()
+
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	waitMenuIdle(t, d, client, 1)
+	if calls, _, _, _ := client.snapshot(); calls != 1 {
+		t.Fatalf("healthy live state forced a present, calls=%d", calls)
+	}
+	if err := d.LastError(); err != nil {
+		t.Fatalf("healthy probe reported %v", err)
+	}
+}
+
+func TestMenuDisplayProbeForcesPresentWhenScanoutIsLost(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		live *menudisplay.Live
+	}{
+		{"disabled", &menudisplay.Live{Enabled: false}},
+		{"faulted", &menudisplay.Live{Enabled: true, Faulted: true}},
+		{"quiesced", &menudisplay.Live{Enabled: true, Quiesced: true}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			d, client := newChangeDrivenMenu(t, 3, true)
+			clock := newMenuClock()
+			d.now = clock.Now
+			d.Clear(RGB(1, 2, 3))
+			presentMenu(t, d, client)
+			waitMenuIdle(t, d, client, 1)
+			client.mu.Lock()
+			client.live = test.live
+			client.mu.Unlock()
+
+			clock.Advance(menuProbeInterval)
+			d.Present()
+			waitMenuIdle(t, d, client, 2)
+			if calls, _, n, _ := client.snapshot(); calls != 2 || n != menudisplay.FrameBytes {
+				t.Fatalf("lost scanout was acknowledged, calls=%d bytes=%d", calls, n)
+			}
+		})
+	}
+}
+
+// The cached sequence is the only form of this loss an older runtime can
+// report: it has no live reads at all.
+func TestMenuDisplayProbeForcesPresentOnStaleDisplayedSequence(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+	client.mu.Lock()
+	client.displayed += 4
+	client.mu.Unlock()
+
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	waitMenuIdle(t, d, client, 2)
+	if calls, _, n, _ := client.snapshot(); calls != 2 || n != menudisplay.FrameBytes {
+		t.Fatalf("stale sequence was acknowledged, calls=%d bytes=%d", calls, n)
+	}
+}
+
+// A new runtime sets status.DisplayedSequence from the same value it
+// returned to this client's present, so the two can never disagree. The live
+// register read is the one that can, and the probe must prefer it: scanout
+// showing some other frame is a loss however healthy the cached field looks.
+func TestMenuDisplayProbeForcesPresentOnStaleLiveSequence(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+	client.mu.Lock()
+	// Healthy in every other respect, and the cached sequence still matches.
+	client.live = &menudisplay.Live{Enabled: true, DisplayedSequence: client.displayed + 4}
+	client.mu.Unlock()
+
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	waitMenuIdle(t, d, client, 2)
+	if calls, _, n, _ := client.snapshot(); calls != 2 || n != menudisplay.FrameBytes {
+		t.Fatalf("stale live sequence was acknowledged, calls=%d bytes=%d", calls, n)
+	}
+}
+
+// An old runtime measures nothing. Absent live reads mean "not measured",
+// never "healthy", so the probe keeps working from the cached sequence
+// instead of acknowledging anything it cannot see.
+func TestMenuDisplayProbeAcceptsAbsentLiveStateFromAnOlderRuntime(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	waitMenuIdle(t, d, client, 1)
+	if calls, _, _, _ := client.snapshot(); calls != 1 {
+		t.Fatalf("an older runtime's status forced a present, calls=%d", calls)
 	}
 }
 
@@ -368,7 +489,7 @@ func TestMenuDisplaySameEpochProbeResultApplies(t *testing.T) {
 	d.probeQueued = true
 	d.probeEpoch = epoch
 	d.mu.Unlock()
-	d.finishProbeLocked(frame, menudisplay.Status{Available: true, Generation: 12}, nil, true)
+	d.finishProbeLocked(frame, menudisplay.Status{Available: true, Generation: 12}, 7, nil, true)
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.probeQueued || !d.known || d.generation != 12 || !d.hasPresented || d.presentedGen != 12 || d.lastErr != nil || d.backoff != 0 || !d.backoffUntil.IsZero() {
@@ -744,6 +865,141 @@ func TestMenuDisplayDiscardKeepsInFlightProbe(t *testing.T) {
 	block.Store(false)
 }
 
+// The runtime gives a loss up after a reactivation that did not clear it, or
+// once its bounded budget is spent, and then deliberately leaves the display
+// alone. A probe that answered that sample with a complete present would
+// spend from the present path the very budget the runtime withheld, or clear
+// the menu package and drop the kit to splash. So the probe sends nothing
+// while the flag is set. It must not answer "not lost" in scanoutLostLocked
+// instead: that routes the probe into the fast path that acknowledges the
+// handoff. What it must not do either is pull managed readiness down, which
+// would restart the kit's software group every few minutes and reprogram the
+// same dead display on each restart -- the loop the runtime gave the loss up
+// to avoid.
+func TestMenuDisplayProbeSendsNothingWhileRecoveryIsAbandoned(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ready.json")
+	t.Setenv("FES_SOFTWARE_READY_FILE", path)
+	t.Setenv("FES_SOFTWARE_BUNDLE_ID", "bundle")
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+	requireSoftwareReady(t, path, true)
+
+	// Scanout is gone and the runtime has stopped trying to bring it back.
+	client.mu.Lock()
+	client.live = &menudisplay.Live{RecoveryAbandoned: true}
+	client.mu.Unlock()
+	for i := 0; i < 2; i++ {
+		statusBefore := client.statusCount()
+		clock.Advance(menuProbeInterval)
+		d.Present()
+		waitMenuIdle(t, d, client, 1)
+		if calls, _, _, _ := client.snapshot(); calls != 1 {
+			t.Fatalf("probe %d presented into an abandoned loss, calls=%d", i, calls)
+		}
+		if client.statusCount() != statusBefore+1 {
+			t.Fatalf("probe %d stopped reading status: %d, want %d", i, client.statusCount(), statusBefore+1)
+		}
+		// The frame the runtime acknowledged is still acknowledged, so the
+		// supervisor's marker stays exactly where it was.
+		requireSoftwareReady(t, path, true)
+	}
+
+	// The next budget window reopens: the loss is eligible for recovery
+	// again, the flag clears, and ordinary presenting resumes at once.
+	client.mu.Lock()
+	client.live = &menudisplay.Live{}
+	client.mu.Unlock()
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	presentMenuWait(t, client)
+	waitMenuIdle(t, d, client, 2)
+	if calls, _, n, _ := client.snapshot(); calls != 2 || n != menudisplay.FrameBytes {
+		t.Fatalf("cleared flag did not resume presenting, calls=%d bytes=%d", calls, n)
+	}
+}
+
+// An unchanged frame reaches the runtime as a probe only while no backoff is
+// armed. The present after a backoff expires is a whole frame, and the
+// failure that armed that backoff is also what can hide the abandoned verdict
+// from the launcher until the socket answers again -- so the verdict has to
+// be read from that present's own status, in the worker, rather than from
+// whatever the launcher last heard. Without that, a failing present re-arms
+// the backoff and the launcher sends the whole idle frame into the abandoned
+// loss once per backoff cap, forever.
+func TestMenuDisplayRecoveryPresentStopsAtAnAbandonedLoss(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+
+	// A socket hiccup fails the probe and arms the backoff. The launcher
+	// hears nothing about the display while it lasts.
+	client.mu.Lock()
+	client.statusErr = errors.New("socket missing")
+	client.mu.Unlock()
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	waitMenuIdle(t, d, client, 1)
+	d.mu.Lock()
+	until := d.backoffUntil
+	d.mu.Unlock()
+	if until.IsZero() {
+		t.Fatal("failed probe armed no backoff")
+	}
+
+	// The socket comes back, and by then the runtime has given the loss up.
+	client.mu.Lock()
+	client.statusErr = nil
+	client.live = &menudisplay.Live{RecoveryAbandoned: true}
+	client.mu.Unlock()
+	for i := 0; i < 3; i++ {
+		statusBefore := client.statusCount()
+		clock.Set(until)
+		d.Present()
+		// The whole frame is queued and the worker reads status for it; the
+		// refusal is this present's own verdict on that status, so wait for
+		// the read rather than for a submission count that does not move.
+		waitMenuStatus(t, d, client, statusBefore+1)
+		if calls, _, _, _ := client.snapshot(); calls != 1 {
+			t.Fatalf("recovery %d presented into an abandoned loss, calls=%d", i, calls)
+		}
+		if client.statusCount() != statusBefore+1 {
+			t.Fatalf("recovery %d read status %d times, want one", i, client.statusCount()-statusBefore)
+		}
+		// Refusing to send is not a failure, so nothing arms a new backoff:
+		// the launcher falls back to the probe interval it keeps running on.
+		d.mu.Lock()
+		armed, probeDue := !d.backoffUntil.IsZero(), d.probeDueLocked(clock.Now())
+		d.mu.Unlock()
+		if armed {
+			t.Fatalf("recovery %d armed a backoff", i)
+		}
+		if probeDue {
+			t.Fatalf("recovery %d left a probe due immediately", i)
+		}
+		until = clock.Now().Add(menuProbeInterval)
+	}
+
+	// The display comes back and ordinary presenting resumes with a complete
+	// frame, which is the only thing that was waiting on the flag.
+	client.mu.Lock()
+	client.live = &menudisplay.Live{}
+	client.mu.Unlock()
+	clock.Set(until)
+	d.Present()
+	presentMenuWait(t, client)
+	waitMenuIdle(t, d, client, 2)
+	if calls, _, n, _ := client.snapshot(); calls != 2 || n != menudisplay.FrameBytes {
+		t.Fatalf("cleared flag did not resume presenting, calls=%d bytes=%d", calls, n)
+	}
+}
+
 func TestMenuDisplayChangeDrivenOffIgnoresBackoff(t *testing.T) {
 	d, client := newChangeDrivenMenu(t, 3, false)
 	client.mu.Lock()
@@ -755,5 +1011,77 @@ func TestMenuDisplayChangeDrivenOffIgnoresBackoff(t *testing.T) {
 	waitMenuStatus(t, d, client, 2)
 	if calls, _, _, _ := client.snapshot(); calls != 0 {
 		t.Fatalf("present calls %d", calls)
+	}
+}
+
+// The live sample and this client's newest present describe two different
+// instants. The runtime reads the display about once a second; a present
+// happens whenever the UI changes, and it moves the committed frame on. So
+// the sample a probe reads after any present carries the sequence from
+// before it, and subtracting the two here called a perfectly healthy display
+// lost: the probe sent a complete frame to recover from it, that present
+// moved the sequence again, and the next probe was behind once more. One
+// ordinary UI change and the menu uploaded a whole frame every second for
+// the rest of the kit's uptime. The verdict is the runtime's, made where
+// both numbers are read together, and a present drops it rather than letting
+// a stale one speak for a frame it never saw. Three probes in a row, because
+// one proves nothing about a loop that feeds itself: each turn rebuilds the
+// sample from whatever is committed now, so a probe that did present would
+// leave the next one behind again.
+func TestMenuDisplayProbeDoesNotLoopOnAPrePresentLiveSample(t *testing.T) {
+	for _, verdict := range []string{menudisplay.ScanoutFrameUnknown, menudisplay.ScanoutFrameMatching} {
+		t.Run(verdict, func(t *testing.T) {
+			d, client := newChangeDrivenMenu(t, 3, true)
+			clock := newMenuClock()
+			d.now = clock.Now
+			d.Clear(RGB(1, 2, 3))
+			presentMenu(t, d, client)
+			waitMenuIdle(t, d, client, 1)
+
+			for probe := 0; probe < 3; probe++ {
+				client.mu.Lock()
+				// What the runtime published before the committed frame
+				// moved: the register as the last health check read it, one
+				// behind, and either no verdict for the frame now on the
+				// wire or the verdict that check made for the one before it.
+				client.live = &menudisplay.Live{Enabled: true,
+					DisplayedSequence: client.displayed - 1, ScanoutFrame: verdict}
+				client.mu.Unlock()
+
+				clock.Advance(menuProbeInterval)
+				d.Present()
+				// A present here would advance the sequence, leave the next
+				// turn's sample behind again, and never stop.
+				waitMenuIdle(t, d, client, 1)
+			}
+			if err := d.LastError(); err != nil {
+				t.Fatalf("a lagging sample reported %v", err)
+			}
+		})
+	}
+}
+
+// The verdict is still how a genuine loss reaches the launcher: scanout is
+// not showing the committed frame, the runtime says so, and the probe sends
+// a complete frame rather than acknowledging an unchanged one.
+func TestMenuDisplayProbeForcesPresentOnAMismatchedVerdict(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+	client.mu.Lock()
+	// Healthy in every other respect, and the sampled sequence even agrees
+	// with what this client's present returned. The verdict is the loss.
+	client.live = &menudisplay.Live{Enabled: true, DisplayedSequence: client.displayed,
+		ScanoutFrame: menudisplay.ScanoutFrameMismatched}
+	client.mu.Unlock()
+
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	waitMenuIdle(t, d, client, 2)
+	if calls, _, n, _ := client.snapshot(); calls != 2 || n != menudisplay.FrameBytes {
+		t.Fatalf("a mismatched verdict was acknowledged, calls=%d bytes=%d", calls, n)
 	}
 }

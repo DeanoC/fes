@@ -35,6 +35,7 @@ module lat_monitor #(
     localparam [2:0] S_RESULTS = 3'd4;
     localparam [2:0] S_CONVERT = 3'd5;
     localparam [2:0] S_NEXT = 3'd6;
+    localparam [2:0] S_SELECT = 3'd7;
 
     reg [2:0]  state = S_PICK;
     reg [1:0]  target = 2'd0;
@@ -64,6 +65,8 @@ module lat_monitor #(
     reg [2:0]  slot = 3'd0;
     reg [3:0]  step = 4'd0;
     reg [13:0] binary = 14'd0;
+    reg [13:0] selected_value;
+    reg [13:0] selected_cap;
     reg [15:0] bcd = 16'd0;
     wire [15:0] adjusted = {
         bcd[15:12] >= 4'd5 ? bcd[15:12] + 4'd3 : bcd[15:12],
@@ -100,14 +103,14 @@ module lat_monitor #(
                 taken <= 16'd0;
                 abandoned <= 1'b0;
                 if (enable && !stop) begin
-                    if (ready[target])
+                    if (ready[target] && !dead[target])
                         state <= S_START;
                     else
                         target <= target + 2'd1;
                 end
             end
             S_START: begin
-                if (stop || !ready[target]) begin
+                if (stop || !ready[target] || dead[target]) begin
                     abandoned <= 1'b1;
                     state <= S_FINISH;
                 end else if (stats_idle) begin
@@ -116,12 +119,14 @@ module lat_monitor #(
                 end
             end
             S_MEASURE: begin
-                if (sample[target]) begin
-                    taken <= taken + 16'd1;
-                    state <= taken == SAMPLES - 16'd1 ? S_FINISH : S_START;
-                end else if (dead[target]) begin
+                // An error may be reported with the final sample. Discard
+                // that window before accepting its last (invalid) sample.
+                if (dead[target]) begin
                     abandoned <= 1'b1;
                     state <= S_FINISH;
+                end else if (sample[target]) begin
+                    taken <= taken + 16'd1;
+                    state <= taken == SAMPLES - 16'd1 ? S_FINISH : S_START;
                 end
             end
             S_FINISH: begin
@@ -135,12 +140,20 @@ module lat_monitor #(
                 if (first_done) begin
                     slot <= 3'd0;
                     step <= 4'd0;
-                    state <= abandoned ? S_NEXT : S_CONVERT;
+                    state <= abandoned ? S_NEXT : S_SELECT;
                 end
+            end
+            // Separate the eight-way statistics mux from saturation's
+            // comparator. These clocks are between measurement windows;
+            // the recorded first/last response counts are unchanged.
+            S_SELECT: begin
+                selected_value <= value_of_slot;
+                selected_cap <= cap;
+                state <= S_CONVERT;
             end
             S_CONVERT: begin
                 if (step == 4'd0) begin
-                    binary <= value_of_slot > cap ? cap : value_of_slot;
+                    binary <= selected_value > selected_cap ? selected_cap : selected_value;
                     bcd <= 16'd0;
                     step <= 4'd14;
                 end else begin
@@ -149,8 +162,7 @@ module lat_monitor #(
                     if (step == 4'd1) begin
                         results[{target, slot, 4'd0} +: 16] <= {adjusted[14:0], binary[13]};
                         slot <= slot + 3'd1;
-                        if (slot == 3'd7)
-                            state <= S_NEXT;
+                        state <= slot == 3'd7 ? S_NEXT : S_SELECT;
                     end
                 end
             end

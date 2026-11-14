@@ -45,7 +45,8 @@ module mem_single_bank #(
     parameter DATA_WIDTH = 0,
     parameter DEPTH = 0,
     parameter OUTPUT_DELAY = 0, // 0, 1, or 2
-    parameter DEFAULT_VALUE = 0
+    parameter DEFAULT_VALUE = 0,
+    parameter RAMSTYLE_MLAB = 0 // OUTPUT_DELAY 0 only: see mem_simple_dual_port_async_read
 ) (
     input wire clk,
     input wire wea,
@@ -60,7 +61,8 @@ module mem_single_bank #(
         mem_simple_dual_port_async_read #(
             .DATA_WIDTH(DATA_WIDTH),
             .DEPTH(DEPTH),
-            .DEFAULT_VALUE(DEFAULT_VALUE)
+            .DEFAULT_VALUE(DEFAULT_VALUE),
+            .RAMSTYLE_MLAB(RAMSTYLE_MLAB)
         ) mem_bank (
             .clka(clk),
             .wea,

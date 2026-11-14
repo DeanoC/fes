@@ -397,6 +397,89 @@ func TestProtocol2StatusAcceptsMenuDisplayEvidenceForIdle(t *testing.T) {
 			t.Fatalf("nonboolean mapping lifetime accepted: %s, %v", value, err)
 		}
 	}
+	// The idle display's live re-read: optional, and with the transmitter
+	// reads carried as their own all-or-nothing object.
+	display := `,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":7,"recovery_abandoned":false}`
+	link := `,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":7,"recovery_abandoned":true,"transmitter":{"hot_plug":true,"rx_sense":true,"pll_lock":true,"vic":4}}`
+	for _, live := range []string{display, link} {
+		carried := strings.Replace(withMenu, `"underflows":0,"error"`, `"underflows":0`+live+`,"error"`, 1)
+		decoded, err := decodeProtocol2Response([]byte(carried))
+		if err != nil || decoded.MenuDisplay == nil || decoded.MenuDisplay.Live == nil ||
+			!decoded.MenuDisplay.Live.Enabled || decoded.MenuDisplay.Live.DisplayedSequence != 4 {
+			t.Fatalf("live display evidence lost: %#v, %v", decoded.MenuDisplay, err)
+		}
+		// The absolute counter is its own member: the per-present delta's
+		// one-scanline cap says nothing about it.
+		if decoded.MenuDisplay.Live.UnderflowsTotal != 7 || decoded.MenuDisplay.Underflows != 0 {
+			t.Fatalf("live counter confused with the present delta: %#v", decoded.MenuDisplay)
+		}
+		// Whether the runtime has stopped recovering this loss travels with
+		// the sample: a client must not present to force recovery it withheld.
+		if decoded.MenuDisplay.Live.RecoveryAbandoned != (live == link) {
+			t.Fatalf("abandoned recovery lost: %#v", decoded.MenuDisplay.Live)
+		}
+		if (decoded.MenuDisplay.Live.Transmitter != nil) != (live == link) {
+			t.Fatalf("transmitter reads mismatched their presence: %#v", decoded.MenuDisplay.Live)
+		}
+		if live == link && (!decoded.MenuDisplay.Live.Transmitter.PLLLock ||
+			decoded.MenuDisplay.Live.Transmitter.VIC != 4) {
+			t.Fatalf("transmitter reads lost: %#v", decoded.MenuDisplay.Live.Transmitter)
+		}
+		// Re-encoding a decoded response reproduces a response this same
+		// decoder accepts: presence is all-or-nothing on both sides.
+		encoded, err := json.Marshal(decoded)
+		if err != nil {
+			t.Fatalf("live display evidence does not re-encode: %v", err)
+		}
+		if _, err := decodeProtocol2Response(encoded); err != nil {
+			t.Fatalf("re-encoded live display evidence rejected: %s, %v", encoded, err)
+		}
+	}
+	// The runtime's verdict on whether scanout is showing the committed
+	// frame, made where both numbers are read in one breath. The sampled
+	// displayed_sequence beside it is a diagnostic, not the comparison. The
+	// verdict is optional: the two samples above carry none, as a runtime
+	// older than it does, and that must decode as "unsaid" rather than be
+	// refused or read as a loss.
+	for _, live := range []string{display, link} {
+		carried := strings.Replace(withMenu, `"underflows":0,"error"`, `"underflows":0`+live+`,"error"`, 1)
+		decoded, err := decodeProtocol2Response([]byte(carried))
+		if err != nil || decoded.MenuDisplay == nil || decoded.MenuDisplay.Live == nil ||
+			decoded.MenuDisplay.Live.ScanoutFrame != "" {
+			t.Fatalf("an absent verdict was not decoded as unsaid: %#v, %v", decoded.MenuDisplay, err)
+		}
+	}
+	for _, verdict := range []string{"unknown", "matching", "mismatched"} {
+		live := `,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,` +
+			`"scanout_frame":"` + verdict + `","underflows_total":7,"recovery_abandoned":false}`
+		carried := strings.Replace(withMenu, `"underflows":0,"error"`, `"underflows":0`+live+`,"error"`, 1)
+		decoded, err := decodeProtocol2Response([]byte(carried))
+		if err != nil || decoded.MenuDisplay == nil || decoded.MenuDisplay.Live == nil ||
+			decoded.MenuDisplay.Live.ScanoutFrame != verdict {
+			t.Fatalf("committed-frame verdict lost: %#v, %v", decoded.MenuDisplay, err)
+		}
+		encoded, err := json.Marshal(decoded)
+		if err != nil {
+			t.Fatalf("committed-frame verdict does not re-encode: %v", err)
+		}
+		if _, err := decodeProtocol2Response(encoded); err != nil {
+			t.Fatalf("re-encoded committed-frame verdict rejected: %s, %v", encoded, err)
+		}
+	}
+	for _, live := range []string{
+		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4}`,
+		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":0,"scanout_frame":true}`,
+		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":0,"scanout_frame":2}`,
+		`,"live":{"enabled":1,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":0}`,
+		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":0,"pll_lock":true}`,
+		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":0,"transmitter":{"hot_plug":true,"rx_sense":true,"pll_lock":true}}`,
+		`,"live":{"enabled":true,"faulted":false,"quiesced":false,"displayed_sequence":4,"underflows_total":0,"surprise":true}`,
+	} {
+		carried := strings.Replace(withMenu, `"underflows":0,"error"`, `"underflows":0`+live+`,"error"`, 1)
+		if _, err := decodeProtocol2Response([]byte(carried)); !errors.Is(err, errInvalidRuntimeResponse) {
+			t.Fatalf("malformed live display evidence accepted: %s, %v", live, err)
+		}
+	}
 	// Clients draw into granted slots; the staging format and damage
 	// capability of the copying runtime are no longer status fields.
 	for _, stale := range []string{

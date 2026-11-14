@@ -51,13 +51,13 @@ ADAPTERS = CORE / 'quartus/adapters.v'
 AUDIT = CORE / 'quartus/audit.tcl'
 MAILBOX = CORE / 'quartus/mailbox.sdc'
 AUDIO_SDC = CORE / 'quartus/audio.sdc'
-# audio.sdc binds each of these reset sources to exactly one register. The
-# Cyclone V router may still copy a high-fanout register for routability
-# (seed 2 of main 843d9fc2c copied the mailbox exec_reset), so Quartus is told
-# not to replicate them. The netlist is written with -noattr, so the attribute
-# is added to the exported declaration here.
+# audio.sdc binds these reset sources and the acknowledge launch register to
+# exactly one register each. The Cyclone V router can duplicate them, so keep
+# the singleton contract when the netlist is written with -noattr by adding
+# Quartus's replication protection to the exported declarations.
 AUDIO_SINGLE_REGISTERS = ('system_machine_reset', 'sys_reset',
-                          'fes_computer_runtime_pcxt_floppy_gp_mailbox_core_exec_reset')
+                          'fes_computer_runtime_pcxt_floppy_gp_mailbox_core_exec_reset',
+                          'speaker_output_audio_output_stage_acknowledge')
 PINS = CORE / 'constraints-board50.qsf'
 AUDIO_PINS = CORE / 'constraints-audio.qsf'
 PACKAGE_PINS = Path('cores/fes-ramtest/constraints.qsf')

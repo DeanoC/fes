@@ -42,8 +42,13 @@ type queuedMenuFrame struct {
 	known      bool
 	seq        uint64
 	probe      bool
-	binding    menuSessionBinding
-	epoch      uint64
+	// unchanged marks a frame whose pixels the runtime already has. Only the
+	// recovery present after a backoff sends one as a whole frame instead of
+	// a probe, and it is the one present that must stop when the runtime has
+	// given up recovering this display.
+	unchanged bool
+	binding   menuSessionBinding
+	epoch     uint64
 	// queuedAt and copyUS feed the frame trace.
 	queuedAt time.Time
 	copyUS   int64
@@ -188,8 +193,14 @@ type MenuDisplay struct {
 	// presentedSeq is the submission sequence last shown on this binding.
 	// Zero means none. A status probe may acknowledge only this sequence.
 	presentedSeq uint64
-	binding      menuSessionBinding
-	bindingEpoch uint64
+	// presentedDisplayed is the runtime's displayed sequence that the last
+	// present returned, and presentedDisplayedKnown whether one has. A probe
+	// that sees the runtime showing anything else is not looking at the
+	// frame this client put up, however healthy the rest of the status is.
+	presentedDisplayed      uint64
+	presentedDisplayedKnown bool
+	binding                 menuSessionBinding
+	bindingEpoch            uint64
 	// picture is the bound session's machine picture from its latest status.
 	picture image.Rectangle
 	// Change-driven worker shortcuts. statusCache is the runtime status as of
@@ -229,8 +240,9 @@ type MenuDisplay struct {
 }
 
 // MenuReadinessDiagnostic is a snapshot of the facts used by managed software
-// readiness. It is intended for startup diagnostics; it does not relax the
-// readiness predicate.
+// readiness, plus the one display fact that stops this client presenting
+// without stopping readiness. It is intended for startup diagnostics; it does
+// not relax the readiness predicate.
 type MenuReadinessDiagnostic struct {
 	HasPresented bool
 	Paused       bool
@@ -241,7 +253,12 @@ type MenuReadinessDiagnostic struct {
 	PresentedGen uint64
 	Underflows   uint64
 	LastErr      string
-	Ready        bool
+	// RecoveryAbandoned is the runtime's verdict that it has stopped
+	// recovering this display. Nothing is presented to it while it holds, so
+	// a diagnostic that showed only healthy facts would leave an operator
+	// with no sign of why the screen is black and nothing is retrying.
+	RecoveryAbandoned bool
+	Ready             bool
 }
 
 func NewMenuDisplay(socketPath string) (*MenuDisplay, error) {
@@ -297,6 +314,7 @@ func (d *MenuDisplay) setBindingLocked(binding menuSessionBinding) {
 	d.generation = 0
 	d.hasPresented = false
 	d.presentedSeq = 0
+	d.presentedDisplayed, d.presentedDisplayedKnown = 0, false
 	d.lastErr = nil
 	d.clearSettledLocked()
 	d.forgetSubmissionLocked()
@@ -368,7 +386,7 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 	if !isList {
 		pix = d.Software.Framebuffer().Pix
 	}
-	probe := false
+	probe, unchanged := false, false
 	if d.changeDriven {
 		now := d.clock()
 		if !d.backoffUntil.IsZero() && now.Before(d.backoffUntil) {
@@ -378,7 +396,6 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 		if recover {
 			d.backoffUntil = time.Time{}
 		}
-		unchanged := false
 		if previous := d.submitted; previous != nil && d.generation == previous.generation {
 			if revisionKnown && previous.revisionKnown {
 				unchanged = revision == previous.revision
@@ -423,7 +440,7 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 		buffer = d.takeFrameLocked()
 		copyUS = time.Since(copyStart).Microseconds()
 	}
-	frame := queuedMenuFrame{buffer: buffer, list: list, isList: isList, generation: d.generation, known: d.known, seq: seq, probe: probe, binding: d.binding, epoch: d.bindingEpoch, queuedAt: time.Now(), copyUS: copyUS}
+	frame := queuedMenuFrame{buffer: buffer, list: list, isList: isList, generation: d.generation, known: d.known, seq: seq, probe: probe, unchanged: unchanged, binding: d.binding, epoch: d.bindingEpoch, queuedAt: time.Now(), copyUS: copyUS}
 	if buffer != nil {
 		frame.pixels = buffer.pixels
 	}
@@ -640,6 +657,7 @@ func (d *MenuDisplay) run() {
 			var retryFromTiming menudisplay.Timing
 			var statusUS, presentUS int64
 			presented, genChanged, cached, retried, blitted := false, false, false, false, false
+			abandoned := false
 			statusSkipped := false
 			damageRects := 0
 			for attempt := 0; ; attempt++ {
@@ -662,6 +680,21 @@ func (d *MenuDisplay) run() {
 					d.mu.Unlock()
 				}
 				damaged := 0
+				if err == nil && frame.unchanged && recoveryAbandoned(status) {
+					// The recovery present after a backoff is the only
+					// unchanged frame that gets this far, and the runtime has
+					// deliberately stopped recovering this loss: sending it
+					// spends from the present path the reactivation the idle
+					// check withheld, or clears the menu package and drops
+					// the kit to splash. The verdict is read from this
+					// attempt's own status, not from an older one, because
+					// the failure that armed the backoff is also what can
+					// have hidden the verdict until now. An unchanged frame
+					// never reaches here on a cached status: the cache is
+					// dropped by the failure that arms a backoff.
+					abandoned = true
+					break
+				}
 				if err == nil && status.Available {
 					if status.Underflows > menudisplay.TransientUnderflowCap {
 						err = errors.New("menu scanout underflow")
@@ -704,16 +737,28 @@ func (d *MenuDisplay) run() {
 				d.mu.Unlock()
 				continue
 			}
-			d.lastErr = err
-			d.noteSettledLocked(presented, err)
-			if !presented {
-				d.forgetLocked(frame.seq)
+			if abandoned {
+				// Nothing was sent and nothing failed, so the acknowledged
+				// frame and the settled outcome both stand. The submission
+				// stays too, which keeps the next Present an unchanged frame
+				// that goes no further than a probe, and pacing comes from
+				// the probe interval rather than a backoff that would only
+				// count down to the same refusal.
+				d.lastProbe = d.clock()
 				d.dropShortcutsLocked()
+				d.reportSoftwareReadyLocked(status)
 			} else {
-				d.rememberShownLocked(frame, status, result, cached, blitted)
-			}
-			if d.changeDriven {
-				d.notePresentResultLocked(presented, genChanged, err, status, frame.seq)
+				d.lastErr = err
+				d.noteSettledLocked(presented, err)
+				if !presented {
+					d.forgetLocked(frame.seq)
+					d.dropShortcutsLocked()
+				} else {
+					d.rememberShownLocked(frame, status, result, cached, blitted)
+				}
+				if d.changeDriven {
+					d.notePresentResultLocked(presented, genChanged, err, status, frame.seq, result.DisplayedSequence)
+				}
 			}
 			d.releaseBufferLocked(frame.buffer)
 			d.pending--
@@ -736,16 +781,78 @@ func (d *MenuDisplay) run() {
 	}
 }
 
+// scanoutLostLocked reports whether the runtime's own live reads say this
+// client's frame is no longer on the wire. An available status is not
+// evidence of scanout: the runtime confirmed one present and, before the
+// idle health check, never looked again. Status without live fields is an
+// older runtime, where only the sequence is known.
+func (d *MenuDisplay) scanoutLostLocked(status menudisplay.Status) bool {
+	if live := status.Live; live != nil {
+		if !live.Enabled || live.Faulted || live.Quiesced {
+			return true
+		}
+		// Whether scanout is still showing the committed frame is the
+		// runtime's verdict, not this client's subtraction. The sample's own
+		// DisplayedSequence was read up to a probe interval ago and a present
+		// has moved the committed frame since, so comparing it with what that
+		// present returned straddles two instants: it reads as a loss after
+		// an ordinary present, sends a complete frame to "recover", and that
+		// present moves the sequence again. How often that repeats is timing
+		// nothing here controls -- the sample is refreshed only by the check
+		// that follows a status reply, paced to once a second -- so the cost
+		// is one unnecessary 3.7 MB upload per UI change where the phases
+		// miss, and one a second for as long as they line up. The verdict is
+		// made inside the health check, where both numbers are read together,
+		// and a present drops it rather than leaving a stale one to speak for
+		// a frame it never saw.
+		if live.ScanoutFrame != "" {
+			return live.ScanoutFrame == menudisplay.ScanoutFrameMismatched
+		}
+		// A runtime that measures the display but publishes no verdict is
+		// older than this comparison, and the sample is all it has to offer.
+		return d.presentedDisplayedKnown && live.DisplayedSequence != d.presentedDisplayed
+	}
+	// An older runtime measures nothing, leaving only the cached sequence.
+	return d.presentedDisplayedKnown && status.DisplayedSequence != d.presentedDisplayed
+}
+
+// recoveryAbandoned reports that the runtime has stopped trying to recover
+// the loss its live sample describes. An older runtime sends no live reads
+// at all, and a runtime that sends them without this flag is still willing
+// to reactivate, so both read as false and behave exactly as before.
+func recoveryAbandoned(status menudisplay.Status) bool {
+	return status.Live != nil && status.Live.RecoveryAbandoned
+}
+
 func (d *MenuDisplay) runProbe(frame queuedMenuFrame) {
 	status, err := d.client.Status(d.ctx)
 	if err != nil {
-		d.finishProbeLocked(frame, status, err, false)
+		d.finishProbeLocked(frame, status, 0, err, false)
 		return
 	}
 	d.mu.Lock()
 	err = d.acceptStatusLocked(frame, status)
+	if err == nil && recoveryAbandoned(status) {
+		// Presenting is the only recovery a probe has, and the runtime has
+		// deliberately stopped recovering this loss: a present here spends a
+		// reactivation it withheld, or clears the menu package and drops the
+		// kit to splash. So this probe ends with no frame, and it is also
+		// where the recovery present after a backoff ends up, since an
+		// unchanged frame only ever reaches the runtime as a probe. The
+		// interval keeps running, which is how the launcher sees the loss
+		// clear and resumes ordinary presenting. It does not touch the
+		// acknowledged frame or the settled outcome: the frame that was
+		// accepted stays accepted, and reportSoftwareReadyLocked keeps the
+		// supervisor's marker where it was rather than restarting the kit's
+		// software over a display nothing can fix.
+		d.clearProbeQueuedLocked(frame.epoch)
+		d.lastProbe = d.clock()
+		d.reportSoftwareReadyLocked(status)
+		d.mu.Unlock()
+		return
+	}
 	if err == nil && status.Available && status.Underflows <= menudisplay.TransientUnderflowCap &&
-		d.hasPresented && status.Generation == d.presentedGen {
+		d.hasPresented && status.Generation == d.presentedGen && !d.scanoutLostLocked(status) {
 		// Validate the binding and clear recovered pacing under one lock: an
 		// old probe must not clear an error after a new binding is installed.
 		// A healthy status at this generation only acknowledges the handoff
@@ -765,18 +872,20 @@ func (d *MenuDisplay) runProbe(frame queuedMenuFrame) {
 	}
 	d.mu.Unlock()
 	if err != nil {
-		d.finishProbeLocked(frame, status, err, false)
+		d.finishProbeLocked(frame, status, 0, err, false)
 		return
 	}
 	if !status.Available || status.Underflows > menudisplay.TransientUnderflowCap {
 		if status.Underflows > menudisplay.TransientUnderflowCap {
 			err = errors.New("menu scanout underflow")
 		}
-		d.finishProbeLocked(frame, status, err, false)
+		d.finishProbeLocked(frame, status, 0, err, false)
 		return
 	}
-	_, _, _, err = d.presentFrame(frame, status, false)
-	d.finishProbeLocked(frame, status, err, err == nil)
+	// Either the frame changed or the live state says scanout is gone. Both
+	// go up as a complete present, never as an acknowledgment.
+	result, _, _, err := d.presentFrame(frame, status, false)
+	d.finishProbeLocked(frame, status, result.DisplayedSequence, err, err == nil)
 }
 
 func (d *MenuDisplay) acceptStatusLocked(frame queuedMenuFrame, status menudisplay.Status) error {
@@ -822,7 +931,7 @@ func sessionPicture(status menudisplay.Status) image.Rectangle {
 	return picture
 }
 
-func (d *MenuDisplay) finishProbeLocked(frame queuedMenuFrame, status menudisplay.Status, err error, presented bool) {
+func (d *MenuDisplay) finishProbeLocked(frame queuedMenuFrame, status menudisplay.Status, displayed uint64, err error, presented bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if frame.epoch != d.bindingEpoch {
@@ -844,6 +953,7 @@ func (d *MenuDisplay) finishProbeLocked(frame queuedMenuFrame, status menudispla
 		d.hasPresented = true
 		d.presentedGen = status.Generation
 		d.presentedSeq = frame.seq
+		d.presentedDisplayed, d.presentedDisplayedKnown = displayed, true
 		d.lastProbe = d.clock()
 		d.resetBackoffLocked()
 		d.noteGenerationLocked(frame.seq, status.Generation)
@@ -887,6 +997,15 @@ func (d *MenuDisplay) reportSoftwareReadyLocked(status menudisplay.Status) {
 	if d.paused && d.keepReadyWhileLaunchPending {
 		return
 	}
+	// A display the runtime has given up recovering is deliberately not
+	// counted here, however black the screen is. This marker is what the kit
+	// software supervisor reads: withdrawing it leaves the group unready,
+	// which stops and restarts agent, runtime and launcher every few minutes
+	// and reprograms the same dead display on every restart, and it blocks
+	// the bundle activation that could ship a fix. That is the reprogram loop
+	// the runtime's policy gives the loss up to avoid. Readiness follows the
+	// acknowledged frame, as its own contract says; the runtime's kit log
+	// names the loss, and ReadinessDiagnostic carries it for the launcher's.
 	reportSoftwareReady(!d.paused && !d.closed && d.hasPresented && d.lastErr == nil && status.Available && status.Generation == d.presentedGen && status.Underflows <= menudisplay.TransientUnderflowCap)
 }
 
@@ -908,17 +1027,19 @@ func (d *MenuDisplay) ReadinessDiagnostic() MenuReadinessDiagnostic {
 		StatusKnown: d.statusKnown,
 		Available:   status.Available, Generation: status.Generation,
 		PresentedGen: d.presentedGen, Underflows: status.Underflows,
-		LastErr: lastErr,
-		Ready:   !d.paused && !d.closed && d.hasPresented && d.lastErr == nil && status.Available && status.Generation == d.presentedGen && status.Underflows <= menudisplay.TransientUnderflowCap,
+		LastErr:           lastErr,
+		RecoveryAbandoned: recoveryAbandoned(status),
+		Ready:             !d.paused && !d.closed && d.hasPresented && d.lastErr == nil && status.Available && status.Generation == d.presentedGen && status.Underflows <= menudisplay.TransientUnderflowCap,
 	}
 }
 
-func (d *MenuDisplay) notePresentResultLocked(presented, genChanged bool, err error, status menudisplay.Status, seq uint64) {
+func (d *MenuDisplay) notePresentResultLocked(presented, genChanged bool, err error, status menudisplay.Status, seq, displayed uint64) {
 	defer func() { d.reportSoftwareReadyLocked(status) }()
 	if presented {
 		d.hasPresented = true
 		d.presentedGen = status.Generation
 		d.presentedSeq = seq
+		d.presentedDisplayed, d.presentedDisplayedKnown = displayed, true
 		d.lastProbe = d.clock()
 		d.resetBackoffLocked()
 		return

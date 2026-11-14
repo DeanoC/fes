@@ -383,10 +383,11 @@ Every i386 simulation runner (`test_fes_i386_frontend.py`,
 `test_fes_i386_lockstep.py`, `test_fes_i386_latency.py`,
 `test_fes_i386_governor.py` and `test_fes_i386_test386.py --cpu rtl`) builds
 its testbenches with the Verilator that
-[`toolchain.lock`](../../rtl/i386/toolchain.lock) pins, taken from that lock's
-slot in the shared toolchain cache and authenticated there
+[`toolchain.lock`](../../rtl/i386/toolchain.lock) pins, taken from that
+Verilator's install in the shared toolchain cache and authenticated there
 (`scripts/i386_verilator.py`). None of them reads `verilator` from `PATH`.
-Provision the slot once per host with
+Every lock pinning the same Verilator commit shares that install.
+Provision it once per host with
 `make toolchain-fes-i386 CACHE_ROOT=/abs/out/cache/misteross-toolchains`. Then
 pass the runners `--cache-root`, or set `FES_TOOLCHAIN_CACHE_ROOT`, and the
 unit tests below read the same variable. Each report records the Verilator

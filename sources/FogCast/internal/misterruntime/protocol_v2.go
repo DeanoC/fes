@@ -37,6 +37,44 @@ type Protocol2Error struct {
 	Observed *string `json:"observed,omitempty"`
 }
 
+// Protocol2MenuDisplayLive is what the idle display and the ADV7513 last
+// reported about themselves, rather than what the last present set up.
+type Protocol2MenuDisplayLive struct {
+	Enabled  bool `json:"enabled"`
+	Faulted  bool `json:"faulted"`
+	Quiesced bool `json:"quiesced"`
+	// DisplayedSequence is the register as the check read it, kept for logs
+	// and diagnostics. A client does not compare it with the sequence its own
+	// present returned: those are two different instants. ScanoutFrame is the
+	// comparison, made where both numbers are read together.
+	DisplayedSequence uint64 `json:"displayed_sequence"`
+	// ScanoutFrame is the runtime's verdict on whether scanout shows the
+	// committed frame: "matching", "mismatched", or "unknown" when no
+	// measurement describes the frame now on the wire. Empty from a runtime
+	// that publishes no verdict.
+	ScanoutFrame string `json:"scanout_frame,omitempty"`
+	// UnderflowsTotal is the absolute hardware counter since the display was
+	// programmed, not the per-present delta the sibling Underflows carries.
+	UnderflowsTotal uint64 `json:"underflows_total"`
+	// RecoveryAbandoned says the runtime has stopped trying to recover the
+	// loss this sample describes, because a reactivation already failed for
+	// this reason or the bounded budget is spent. It is false on a healthy
+	// display and false while a loss may still be reactivated.
+	RecoveryAbandoned bool `json:"recovery_abandoned"`
+	// Transmitter is the ADV7513 reads, present only when the runtime owns
+	// the transmitter. The four arrive together or not at all, which a
+	// pointer keeps true on encode as well as on decode.
+	Transmitter *Protocol2MenuDisplayTransmitter `json:"transmitter,omitempty"`
+}
+
+// Protocol2MenuDisplayTransmitter is one all-or-nothing set of ADV7513 reads.
+type Protocol2MenuDisplayTransmitter struct {
+	HotPlug bool   `json:"hot_plug"`
+	RxSense bool   `json:"rx_sense"`
+	PLLLock bool   `json:"pll_lock"`
+	VIC     uint64 `json:"vic"`
+}
+
 type Protocol2MenuDisplay struct {
 	Available      bool   `json:"available"`
 	FrameMapping   bool   `json:"frame_mapping,omitempty"`
@@ -57,10 +95,13 @@ type Protocol2MenuDisplay struct {
 	SlotBytes  uint64     `json:"slot_bytes"`
 	Slots      uint64     `json:"slots"`
 	// Format is the pixel layout of the granted slots the client draws into.
-	Format            string          `json:"format"`
-	DisplayedSequence uint64          `json:"displayed_sequence"`
-	Underflows        uint64          `json:"underflows"`
-	Error             *Protocol2Error `json:"error"`
+	Format            string `json:"format"`
+	DisplayedSequence uint64 `json:"displayed_sequence"`
+	Underflows        uint64 `json:"underflows"`
+	// Live is the runtime's periodic re-read of the idle display and its
+	// HDMI transmitter. Absent from runtimes that perform no such read.
+	Live  *Protocol2MenuDisplayLive `json:"live,omitempty"`
+	Error *Protocol2Error           `json:"error"`
 }
 
 type Protocol2Response struct {
@@ -670,7 +711,7 @@ func validateProtocol2Shape(line []byte) error {
 }
 
 func validateMenuDisplayShape(raw json.RawMessage) error {
-	menu, err := exactRawObject(raw, []string{"available", "package_id", "generation", "width", "height", "stride", "byte_count", "slot_bytes", "slots", "format", "displayed_sequence", "underflows", "error"}, []string{"session", "core_generation", "focus", "picture", "frame_mapping"})
+	menu, err := exactRawObject(raw, []string{"available", "package_id", "generation", "width", "height", "stride", "byte_count", "slot_bytes", "slots", "format", "displayed_sequence", "underflows", "error"}, []string{"session", "core_generation", "focus", "picture", "frame_mapping", "live"})
 	if err != nil {
 		return err
 	}
@@ -714,6 +755,48 @@ func validateMenuDisplayShape(raw json.RawMessage) error {
 			json.Unmarshal(menu["height"], &height) != nil || picture[2] == 0 || picture[3] == 0 ||
 			uint64(picture[0])+uint64(picture[2]) > width || uint64(picture[1])+uint64(picture[3]) > height {
 			return errInvalidRuntimeResponse
+		}
+	}
+	if raw, present := menu["live"]; present {
+		// recovery_abandoned is optional: a runtime that measures the display
+		// but never says it gave up is read as still willing to recover.
+		// scanout_frame is optional for the same reason: a runtime older than
+		// the verdict publishes none, and must keep validating exactly as it
+		// does today rather than being refused for a member it never had. Any
+		// string passes the shape check; a reader acts only on "mismatched",
+		// so a name this client does not know costs a probe interval instead
+		// of manufacturing a loss.
+		live, err := exactRawObject(raw, []string{"enabled", "faulted", "quiesced", "displayed_sequence", "underflows_total"}, []string{"recovery_abandoned", "scanout_frame", "transmitter"})
+		if err != nil {
+			return err
+		}
+		if err := requireRawKinds(live, map[string]rawKind{
+			"enabled": rawBoolean, "faulted": rawBoolean, "quiesced": rawBoolean,
+			"displayed_sequence": rawUnsigned, "underflows_total": rawUnsigned,
+			"recovery_abandoned": rawBoolean,
+		}); err != nil {
+			return err
+		}
+		// Checked only when it is there: requireRawKinds also requires the
+		// member, and a runtime older than the verdict sends none.
+		if verdict, present := live["scanout_frame"]; present {
+			if err := requireRawKind(verdict, rawString); err != nil {
+				return err
+			}
+		}
+		// The transmitter reads arrive together or not at all, so they are
+		// their own object rather than four optional members that a re-encode
+		// could split.
+		if raw, present := live["transmitter"]; present {
+			reads, err := exactRawObject(raw, []string{"hot_plug", "rx_sense", "pll_lock", "vic"}, nil)
+			if err != nil {
+				return err
+			}
+			if err := requireRawKinds(reads, map[string]rawKind{
+				"hot_plug": rawBoolean, "rx_sense": rawBoolean, "pll_lock": rawBoolean, "vic": rawUnsigned,
+			}); err != nil {
+				return err
+			}
 		}
 	}
 	if !isNull(menu["error"]) {

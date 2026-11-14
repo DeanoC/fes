@@ -62,6 +62,8 @@ constexpr std::uint8_t kAudioInfoframeCc = 0x73;
 constexpr std::uint8_t kIntEnable0 = 0x94;
 constexpr std::uint8_t kInt0 = 0x96;
 constexpr std::uint8_t kInputClkDiv = 0x9d;
+constexpr std::uint8_t kVicDetected = 0x3e;
+constexpr std::uint8_t kPllStatus = 0x9e;
 constexpr std::uint8_t kHdmiPower = 0xa1;
 constexpr std::uint8_t kHdcpHdmiCfg = 0xaf;
 constexpr std::uint8_t kClockDelay = 0xba;
@@ -133,6 +135,12 @@ constexpr std::uint8_t kPowerUp = 0x10;
 constexpr std::uint8_t kStatusHpd = 1u << 6;
 constexpr std::uint8_t kStatusMonitorSense = 1u << 5;
 constexpr std::uint8_t kStatusLinkReady = kStatusHpd | kStatusMonitorSense;
+
+// 0x9E read-only. Bit 4 = 1 when the pixel PLL is locked to the input clock.
+constexpr std::uint8_t kPllLocked = 1u << 4;
+
+// 0x3E read-only VIC detected, in bits [7:2]. A 720p60 link reports VIC 4.
+constexpr std::uint8_t kVicShift = 2;
 
 // 0xD6 Power2 HPD source [7:6]: 11 = force HPD high (always connected).
 constexpr std::uint8_t kPower2HpdAlwaysHigh = 0xc0;

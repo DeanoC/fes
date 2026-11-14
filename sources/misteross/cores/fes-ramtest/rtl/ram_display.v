@@ -450,7 +450,6 @@ module ram_display (
     // port, first and last fault per port, failing bits per port, then the
     // MB/s of each port's last passes), latency 16-20, the byte-lane receipt
     // 21-22 and the SDRAM pattern table 23-29.
-    localparam [4:0] SDRAM_ROWS = 5'd4;
     localparam [4:0] BYTE_ROW = 5'd4;
     localparam [4:0] DDR_HEAD = 5'd5;
     localparam [4:0] DDR_SUMMARY = 5'd6;
@@ -700,7 +699,10 @@ module ram_display (
     reg [2:0] glyph_row_s = 3'd0;
     reg [2:0] glyph_col_s = 3'd0;
     reg active_s = 1'b0;
-    reg [7:0] sdram_ch_t = 8'h00;
+    reg [7:0] sdram0_ch_t = 8'h00;
+    reg [7:0] sdram1_ch_t = 8'h00;
+    reg [7:0] sdram2_ch_t = 8'h00;
+    reg [7:0] sdram3_ch_t = 8'h00;
     reg [7:0] ddr_ch_t = 8'h00;
     reg [7:0] byte_ch_t = 8'h00;
     reg [7:0] table_ch_t = 8'h00;
@@ -803,7 +805,15 @@ module ram_display (
         port_q <= port_now == 2'd0 ? ddr0_sync1 : (port_now == 2'd1 ? ddr1_sync1 : ddr2_sync1);
         lat_index_q <= lat_now[1:0];
         lat_q <= lat_sync1[lat_now[1:0] * 128 +: 128];
-        sdram_ch_t <= row_s < SDRAM_ROWS ? line_char(row_s, col_s, s_phase, s_reading, s_addr,
+        // Decode each SDRAM row in parallel so character selection does not
+        // put the whole four-row mux on the column-to-character path.
+        sdram0_ch_t <= row_s == 5'd0 ? line_char(5'd0, col_s, s_phase, s_reading, s_addr,
+            s_errors, s_fault, s_last, s_was, s_expect, s_got, s_mhz, s_stopped, s_pass, s_fail) : 8'h00;
+        sdram1_ch_t <= row_s == 5'd1 ? line_char(5'd1, col_s, s_phase, s_reading, s_addr,
+            s_errors, s_fault, s_last, s_was, s_expect, s_got, s_mhz, s_stopped, s_pass, s_fail) : 8'h00;
+        sdram2_ch_t <= row_s == 5'd2 ? line_char(5'd2, col_s, s_phase, s_reading, s_addr,
+            s_errors, s_fault, s_last, s_was, s_expect, s_got, s_mhz, s_stopped, s_pass, s_fail) : 8'h00;
+        sdram3_ch_t <= row_s == 5'd3 ? line_char(5'd3, col_s, s_phase, s_reading, s_addr,
             s_errors, s_fault, s_last, s_was, s_expect, s_got, s_mhz, s_stopped, s_pass, s_fail) : 8'h00;
         ddr_ch_t <= row_s >= DDR_HEAD && row_s <= DDR_RATES ? ddr_char(row_s, col_s) : 8'h00;
         lat_ch_t <= row_s >= LAT_HEAD && row_s < LAT_FIRST + 5'd4 ? lat_char(row_s, col_s) : 8'h00;
@@ -817,7 +827,8 @@ module ram_display (
         passed_t <= passed_now;
         halted_t <= halted_now;
         // At most one section decodes a character on any row.
-        ch_q <= sdram_ch_t | ddr_ch_t | lat_ch_t | table_ch_t | byte_ch_t;
+        ch_q <= sdram0_ch_t | sdram1_ch_t | sdram2_ch_t | sdram3_ch_t |
+            ddr_ch_t | lat_ch_t | table_ch_t | byte_ch_t;
         glyph_row_q <= glyph_row_t;
         glyph_col_q <= glyph_col_t;
         active_c <= active_t;

@@ -90,18 +90,17 @@ does not independently prove whole mapped-board equivalence. Native timing,
 the existing 105 unsupported obligations and physical acceptance remain separate.
 There is no evidence here to lower a clock or declare either rewrite a winner.
 
-`board-compare.py board` and `board-compare.py board-AP` reproduce the full
+`board-compare.py board` and `board-compare.py board-AP` reproduced the full
 selected-cone, resource, union and RAM/PLL inventory comparisons from retained
-bytes. `board-capture.tar.gz` includes both source archives, complete synthesis
+bytes. `board-capture.tar.gz` held both source archives, complete synthesis
 outputs/receipts, proof supplements and the two earlier complete standalone
-capture archives. `board-evidence.json` binds every member and the externally
-retained paired baseline; `board-readback.json` verifies all archive members
-and both 1,854-file source archives. Nested standalone/subset captures preserve
-all original source, proof fixtures, solver logs and actual counterexamples.
-The external baseline is already captured in the separate ADD diagnostic;
-this archive does not claim to contain that baseline or the tool executable.
-
-Archive-only verification needs no tool or baseline checkout: run
-`python3 readback-boards.py /path/to/capture`. It checks the exact member sets,
-all hashes, both nested proof archives, all synthesis receipts and both complete
-derived source archives. External baseline hashes remain explicitly external.
+capture archives. It was removed on 13 November 2026 because its source
+archives held the ZX81 and ZX80 ROM images (see the
+[README](README.md#removed-archive)); it remains in Git history.
+`board-evidence.json` still binds every member and the externally retained
+paired baseline, and `board-readback.json` records the readback of all archive
+members and both 1,854-file source archives made while the archive was
+present. None of it can be checked from this tree, and the archive-only
+verifier `readback-boards.py` was removed with it. The external baseline is
+already captured in the separate ADD diagnostic; the archive never contained
+that baseline or the tool executable.

@@ -21,7 +21,8 @@
 // 128-bit port, 4 on a 64-bit one) at a pseudo-random line of the span.
 // lat_sample then carries the cycles from the edge the read is taken to
 // the edges its first and last beats arrive. The beats are checked against
-// the ADDR pattern still in memory, like a scan read.
+// the ADDR pattern still in memory, like a scan read. The sample is delivered
+// after that check drains, so a failed last beat cannot publish a window.
 module ddr_channel #(
     parameter integer DATA_W = 64,
     parameter integer ADDR_W = 29,
@@ -59,6 +60,7 @@ module ddr_channel #(
     // Latency reads, one per lat_start while lat_ready.
     input  wire              lat_start,
     output wire              lat_ready,
+    output wire              lat_drained,
     output reg               lat_sample,
     output reg  [13:0]       lat_first,
     output reg  [13:0]       lat_last
@@ -95,6 +97,7 @@ module ddr_channel #(
     localparam [3:0] ST_STOP = 4'd6;
     localparam [3:0] ST_NACK = 4'd7;
     localparam [3:0] ST_LAT = 4'd8;
+    localparam [3:0] ST_LAT_DRAIN = 4'd9;
 
     function [7:0] burst_of;
         input [2:0] which;
@@ -173,6 +176,9 @@ module ddr_channel #(
     reg [31:0] read_next;
     reg [DATA_W-1:0] expected;
     reg [23:0] idle;
+    // Predict the saturating counter's equality one cycle ahead, keeping
+    // the wide timeout comparison off the command/control paths.
+    reg timed_out;
     reg [31:0] pass_cycles;
     reg [2:0]  drain;
     // Latency read: the line, its beats still due, and the count, which is
@@ -183,7 +189,8 @@ module ddr_channel #(
     reg [13:0] lat_count;
     // Spans are aligned to their size, so the line ORs into the base.
     wire [31:0] lat_line = BASE | {{(27 - LINE_BITS){1'b0}}, lat_lfsr[LINE_BITS-1:0], 5'd0};
-    assign lat_ready = state == ST_DONE && !stopped && !stop;
+    assign lat_drained = state == ST_DONE;
+    assign lat_ready = lat_drained && !stopped && !stop;
 
     // Compare pipeline: difference, grouped OR, then count.
     reg              diff_valid = 1'b0;
@@ -236,15 +243,20 @@ module ddr_channel #(
             read_cycles <= 32'd0;
             in_flight <= 12'd0;
             idle <= 24'd0;
+            timed_out <= TIMEOUT == 24'd0;
             diff_valid <= 1'b0;
             group_valid <= 1'b0;
         end else begin
             in_flight <= in_flight_after;
             pass_cycles <= pass_cycles + 32'd1;
-            if (progress || !waiting)
+            if (progress || !waiting) begin
                 idle <= 24'd0;
-            else if (idle != TIMEOUT)
+                timed_out <= TIMEOUT == 24'd0;
+            end else if (idle != TIMEOUT) begin
                 idle <= idle + 24'd1;
+                if (idle == TIMEOUT - 24'd1)
+                    timed_out <= 1'b1;
+            end
 
             // Returned beats: compare against the expected value, then
             // reduce the difference in groups of eight bits. A latency read
@@ -290,7 +302,7 @@ module ddr_channel #(
                     pass_cycles <= 32'd0;
                 end
                 ST_WRITE: begin
-                    if (idle == TIMEOUT) begin
+                    if (timed_out) begin
                         write <= 1'b0;
                         nack <= 1'b1;
                         state <= ST_NACK;
@@ -337,7 +349,7 @@ module ddr_channel #(
                     pass_cycles <= 32'd0;
                 end
                 ST_READ: begin
-                    if (idle == TIMEOUT) begin
+                    if (timed_out) begin
                         read <= 1'b0;
                         nack <= 1'b1;
                         state <= ST_NACK;
@@ -399,7 +411,7 @@ module ddr_channel #(
                     end
                 end
                 ST_LAT: begin
-                    if (idle == TIMEOUT) begin
+                    if (timed_out) begin
                         read <= 1'b0;
                         nack <= 1'b1;
                         state <= ST_NACK;
@@ -416,10 +428,17 @@ module ddr_channel #(
                                 lat_first <= lat_count;
                             if (lat_beats == 3'd1) begin
                                 lat_last <= lat_count;
-                                lat_sample <= 1'b1;
-                                state <= ST_DONE;
+                                state <= ST_LAT_DRAIN;
                             end
                         end
+                    end
+                end
+                ST_LAT_DRAIN: begin
+                    // The diff and group reductions trail the last beat.
+                    // Publish only once errors includes the entire line.
+                    if (!diff_valid && !group_valid) begin
+                        lat_sample <= 1'b1;
+                        state <= ST_DONE;
                     end
                 end
                 default: begin

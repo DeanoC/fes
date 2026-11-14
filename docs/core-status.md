@@ -517,22 +517,50 @@ Still open for the games ([#1368](https://github.com/DeanoC/fes/issues/1368)):
 - Ultima VI walking speed at 286-12, against a reference;
 - Ultima VII NPC pace, against a reference.
 
-Launches with Serpent Isle's disk image sometimes show a black picture at
-the DOS prompt: 12 black DOS-prompt grabs in 400 launches on Kit B. Four of
-those cases were also observed through gameplay (`k1`, `k3` twice, `k6`):
-Serpent Isle was started and ran underneath (its CPU, sound or VRAM
-progressed as in a lit launch). The other eight were prompt-only: `k8`'s
-six grabs stopped at the DOS prompt, before the game ran, and `k9`'s two
-were taken at the prompt; that run then started the game for audio checks
-with no later video grab. In the eight black
-prompt grabs on an instrumented scratch seal, the core still drove lit pixels
-onto the HDMI transmitter pins, so for those the fault is after the core.
-In two of them, the only ones checked, the ADV7513 was set up as in a lit
-launch and HDMI audio arrived. The candidates are the ADV7513's sampling of
-the pixel bus, its internal video path or TMDS video output, and the capture
-grabber's video path. The four earlier gameplay-observed black cases had no such probe
+Launches with Serpent Isle's disk image sometimes capture a black picture at
+the DOS prompt: 12 black DOS-prompt grabs in 400 launches on Kit B. For the
+eight of them that were probed, it is not pc386's; the other four are
+unclassified, and a probed recurrence belongs to
+[#1833](https://github.com/DeanoC/fes/issues/1833). In the eight black prompt
+grabs taken on an instrumented scratch seal the core still drove lit pixels onto the HDMI transmitter pins, with the
+picture present in DDR, and in the two that were checked the ADV7513 read
+powered, link-ready, PLL-locked and detecting 720p60 while HDMI audio arrived at
+full level. The four earlier black launches (main's seal and `d1`) had no
+presenter, plane or transmitter probe at all, so nothing is concluded about
+them. The same capture — a uniform RGB-0
+frame — also appears on Kit A through a different grabber and a different
+transmitter, and with no pc386 core loaded at all: it is the FES Home screen
+going black after a baseline restore in #1767's Kit A run, which that run itself
+classified `REAL_FAILURE` after a passing Home a minute earlier. So the stage
+that blackens the picture sits in the display or capture path that every core
+and the menu share. One pc386-side path is not excluded: those probes read
+logical presenter and plane values, not the electrical timing at the
+transmitter's pins, and no `HDMI_TX_*` output carries an output-delay
+constraint, so a pc386 HDMI egress fault that is sampled as blanking would look
+the same from inside the fabric. #1494 therefore stays open. It is the symptom
+[#1823](https://github.com/DeanoC/fes/issues/1823) tracks (fully black HDMI
+after an activation, every log reporting success) reached through a core load —
+both run the same `QuiesceAdv` power-down and `hdmi_verify` bring-up. Whether
+the cause is the same is not established: #1823's menu episodes have no
+FPGA-side reading. Which stage blackens the picture, the ADV7513's own video
+path or Powerboat's capture chain, is
+[#1833](https://github.com/DeanoC/fes/issues/1833); #1003's `0xBA` sweep and a
+capture restart during an episode are the cheapest shots at it. Deano has
+approved both for an episode only, and the pc386 kit driver implements them in
+that order; each can name a side only by recovering the picture, and an episode
+that survives both is inconclusive. 83 further Kit B launches produced no
+episode to spend them on; the probe-armed run of those ended early on an
+unclassified I2C bus fault that left the kit's transmitter unreadable until a
+power cycle, recorded with the rest
 ([#1494](https://github.com/DeanoC/fes/issues/1494),
-[record](validation/2026-11-10-pc386-si-reload-presets/summary.md)).
+[record](validation/2026-11-14-pc386-si-black-capture/summary.md)).
+
+The 10–20 s black main menu of run `v1` is a different shape — the picture came
+back inside that launch — and none of the 400 probed launches reproduced it.
+
+Serpent Isle's save and load themselves work: a save made blind through a black
+launch is listed back, and all 22 Journey Onward loads in lit launches put the
+party on the ship in 3–6 s, against about 5.5 s on the Bochs-oracle machine.
 
 The keyboard and mouse, the `fes.computer` 1.1 mailbox and the disk round
 trip with the runtime remain open.

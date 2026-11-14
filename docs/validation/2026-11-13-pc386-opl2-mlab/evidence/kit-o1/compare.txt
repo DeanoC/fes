@@ -1,0 +1,3 @@
+A DC -88.5 AC peak 1440 floor rms 0.0 onset s 0.0125 active s 88.6 mean rms after onset 382.3
+B DC -88.5 AC peak 1434 floor rms 0.1 onset s 0.0125 active s 88.6 mean rms after onset 382.4
+best lag s 0.0375 envelope corr 0.9759

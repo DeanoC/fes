@@ -78,7 +78,9 @@ module c64_d64_medium (
  reg valid;
  reg [5:0] build_track;
  wire [1:0] build_zone=zone(build_track);
- assign cache_ready=valid && disk_ready && build_track==selected_track;
+ // A D64 supplies only full tracks. Do not expose the lower track's cached
+ // flux while the head is between tracks; keep the cache for a return step.
+ assign cache_ready=valid && disk_ready && !halftrack[0] && build_track==selected_track;
  wire track_tail=debug_byte_addr>=track_length(selected_zone);
  assign flux=ref_ce && motor && cache_ready && bit_phase[selected_zone]==0 &&
              (track_tail ? bit_position[selected_zone][0] : cache_byte[7-bit_position[selected_zone][2:0]]);
@@ -97,7 +99,9 @@ module c64_d64_medium (
  reg [2:0] write_index;
  reg [39:0] packed_bits;
  always @(posedge clk)begin
-  if(reset || !disk_ready || build_track!=selected_track)begin
+  // Keep the cached integer track while the head is between tracks. Only
+  // reaching another full-track position selects and rebuilds a new track.
+  if(reset || !disk_ready || (!halftrack[0] && build_track!=selected_track))begin
    valid<=0;build_track<=selected_track;state<=ID_WAIT0;disk_addr<=18'd91554;
    write_addr<=0;sector<=0;sector_base<=track_start(selected_track);run_count<=0;
    raw_index<=0;pack_index<=0;write_index<=0;packed_bits<=0;checksum<=0;

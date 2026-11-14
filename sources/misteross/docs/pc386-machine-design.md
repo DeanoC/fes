@@ -501,8 +501,9 @@ inside the 8042 ahead of its PS/2 keyboard):
   transitions in the keyboard FIFO a 16-entry one; only the rows' last value is
   in flip-flops (#1768: the four 136-bit flip-flop vectors cost 1,399 ALMs
   alone, the tables' model 618). Pause's reported state is a flip-flop too:
-  its release has no bytes, so a silent release and its make's later
-  completion can both report it, and a clear restores the last of them. Two flags stand in for whole-vector compares
+  its release has no bytes, so it invalidates any earlier Pause makes still
+  in the FIFO. Their later completions cannot undo the release, while a newer
+  delivered make still commits. A clear restores this reported state. Two flags stand in for whole-vector compares
   and err only towards a diff that finds nothing: the rows changed since the
   snapshot, and the snapshot may differ from the projected state (after a
   clear, or a diff position passed while scanning was disabled). A typematic

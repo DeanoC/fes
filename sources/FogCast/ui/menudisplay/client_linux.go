@@ -78,7 +78,63 @@ type Status struct {
 	Underflows        uint64 `json:"underflows"`
 	// Picture is a session plane's machine picture as x, y, width and height.
 	Picture []int `json:"picture"`
+	// Live is the runtime's periodic re-read of the idle display, absent
+	// from runtimes that do not perform one.
+	Live *Live `json:"live"`
 }
+
+// The runtime's verdicts on whether scanout is showing the frame it has
+// committed. Only ScanoutFrameMismatched is a loss: ScanoutFrameUnknown
+// costs at most one more probe interval before the next health check speaks,
+// and that is the direction to err in, because the other direction is a
+// complete frame uploaded to recover a display that was never lost.
+const (
+	ScanoutFrameUnknown    = "unknown"
+	ScanoutFrameMatching   = "matching"
+	ScanoutFrameMismatched = "mismatched"
+)
+
+// Live is what the runtime last measured on the display registers and the
+// HDMI transmitter themselves, rather than what the last present set up. It
+// is absent when the runtime has measured nothing, which is not the same as
+// a healthy display.
+type Live struct {
+	Enabled  bool `json:"enabled"`
+	Faulted  bool `json:"faulted"`
+	Quiesced bool `json:"quiesced"`
+	// DisplayedSequence is the register as that check read it, for logs and
+	// diagnostics. It is a sample, not something to compare against the
+	// sequence this client's own present returned: the present happens after
+	// the check, so the two describe different instants and a healthy display
+	// would read as lost on every frame. ScanoutFrame is that comparison,
+	// made by the runtime where both numbers are read together.
+	DisplayedSequence uint64 `json:"displayed_sequence"`
+	// ScanoutFrame is the runtime's verdict on whether scanout is showing the
+	// committed frame: ScanoutFrameMatching, ScanoutFrameMismatched, or
+	// ScanoutFrameUnknown when no measurement describes the frame now on the
+	// wire, which every present makes true until the next check. Empty from a
+	// runtime that does not publish a verdict at all.
+	ScanoutFrame string `json:"scanout_frame"`
+	// UnderflowsTotal is the absolute hardware counter since the display was
+	// programmed. The per-present one-scanline cap does not apply to it.
+	UnderflowsTotal uint64 `json:"underflows_total"`
+	// RecoveryAbandoned says the runtime has given this loss up: a
+	// reactivation already failed for this reason, or its bounded budget is
+	// spent. Older runtimes never send it, so false also means "not said".
+	RecoveryAbandoned bool `json:"recovery_abandoned"`
+	// Transmitter is present only when the runtime owns the ADV7513, and
+	// carries all four reads or none.
+	Transmitter *Transmitter `json:"transmitter"`
+}
+
+// Transmitter is one set of ADV7513 reads taken by the same health check.
+type Transmitter struct {
+	HotPlug bool `json:"hot_plug"`
+	RxSense bool `json:"rx_sense"`
+	PLLLock bool `json:"pll_lock"`
+	VIC     int  `json:"vic"`
+}
+
 type Result struct {
 	Generation        uint64 `json:"generation"`
 	DisplayedSequence uint64 `json:"displayed_sequence"`
