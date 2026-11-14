@@ -23,15 +23,18 @@ lists them.
   path is unchanged**: the full run passes every bucket, including the 1,933
   no-387 directed cases, which matters because the shared FNSAVE and FRSTOR
   microcode and the sequencer's offsets changed.
-- **The identity-on path runs, and is being brought up.** The first ESC
-  instructions through the CPU with a 387 fitted, together with Codex's
-  review, found twelve more faults
+- **ESC instructions run through the CPU with a 387 fitted, and all eight
+  directed programs pass.** The 387's whole state -- the words, the tag
+  word, the opcode, the pointers and the eight registers -- matches the
+  oracle's at every retirement, across the constants and the stack moves,
+  the loads with FXAM and FTST, the stores of every format, the control and
+  status words, FNSTENV and FLDENV in both operand sizes, FNSAVE and FRSTOR
+  with TOP moved, the stack faults, and WAIT. Getting there, with Codex's
+  review, took twelve more faults
   ([below](#what-the-identity-on-run-found)), two of them edits of mine
   that had silently not applied: the pointer-clear pulse that was never
-  deassserted, which is why the instruction pointer read zero in every
+  deasserted, which is why the instruction pointer read zero in every
   program, and the CPU's ERROR# that never reached the slave PIC's IRQ 13.
-  The directed programs are not all passing yet. **Until they do the slice
-  is not mergeable.**
 - **The register stack lands in M10K**, as the plan assumed: 4 blocks, two
   copies of eight 80-bit words, with the tag word read from the class bits
   each write stores rather than from the registers.
@@ -194,6 +197,7 @@ fixed in the commit that found it.
 | the same with `--netlist` (the seal's Yosys netlist of the unit) | chip | 70 passed, 0 failed |
 | the lockstep with the identity off, the full run | chip | every bucket 0 fail, the 1,933 no-387 directed cases included; the unbuilt sweep 53,008 encodings, 0 wrong |
 | `tests.test_pc386_machine` (82 tests: the whole machine simulated with the unit in it) | Powerboat | OK |
+| the lockstep's x87 bucket, the identity on: eight directed programs of this slice's forms | chip | 8 passed, 0 failed, the 387's whole state compared at every retirement |
 | `tests.test_fes_i386_x87_unit`, `tests.test_fes_i386_ucode`, `tests.test_build_fes_pc386_quartus`, `tests.test_audit_fes_i386_case`, `tests.test_quartus_fes_i386` | Powerboat | OK |
 | Verilator `-Wall` lint (the lock's 5.054) | Powerboat and chip | clean |
 
@@ -201,8 +205,7 @@ Not run yet, and owed before this leaves draft:
 
 | Check | Why it is owed |
 | --- | --- |
-| the unit's bench on the netlist, and the full and netlist lockstep, on the frozen head | the runs above are of earlier heads; the netlist bench was 70 cases, before the five protocol faults and the pointer restore |
-| the lockstep's x87 bucket | the first ESC instructions through the CPU with the identity on |
+| the unit's bench on the netlist, and the full and netlist lockstep, on the frozen head | the runs above are of earlier heads; the netlist bench was 70 cases, before the protocol faults and the pointer restore |
 | the lockstep at a governor preset with `--same-as` the max run | the slice changes the issue condition, which the governor also holds |
 | test386 to POST FFh | the integer regression |
 | a Quartus 17.0.2 seal of the frozen head, and a kit run on it | the slice's own gates |
