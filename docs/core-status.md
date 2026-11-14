@@ -535,8 +535,9 @@ after an activation, every log reporting success) reached through a core load â€
 both run the same `QuiesceAdv` power-down and `hdmi_verify` bring-up. Whether
 the cause is the same is not established: #1823's menu episodes have no
 FPGA-side reading. Which stage blackens the picture, the ADV7513's own video
-path or Powerboat's capture chain, stays open on #1823; #1003's `0xBA` sweep and
-a capture restart during an episode are the tests that would separate them, and
+path or Powerboat's capture chain, is
+[#1833](https://github.com/DeanoC/fes/issues/1833); #1003's `0xBA` sweep and a
+capture restart during an episode are the tests that would separate them, and
 both need Deano's OK
 ([#1494](https://github.com/DeanoC/fes/issues/1494),
 [record](validation/2026-11-14-pc386-si-black-capture/summary.md)).

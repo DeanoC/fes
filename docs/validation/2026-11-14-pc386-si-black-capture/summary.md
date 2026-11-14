@@ -12,8 +12,9 @@ and a different transmitter, with no pc386 core loaded — it is the FES Home
 screen after a baseline restore in #1767's Kit A run, which that run itself
 classified a real failure. The stage that blackens the picture is in the display
 or capture path every core and the menu share, so #1494 is not a pc386 defect.
-Which of those stages it is stays open on
-[#1823](https://github.com/DeanoC/fes/issues/1823), and two cheap tests that
+Which of those stages it is stays open as
+[#1833](https://github.com/DeanoC/fes/issues/1833), split out of
+[#1823](https://github.com/DeanoC/fes/issues/1823), and the two cheap tests that
 would separate them need Deano's OK.** The evidence is below, all of it from
 runs already taken; a kit run of this record's own is still to come and is
 corroboration only.
@@ -224,8 +225,9 @@ locked link carrying black pixels are not separated by the recording.
   established: #1823's menu episodes have no FPGA-side reading, so its own
   hypothesis 2 (a `faulted` latch blanking scanout) is still open for them,
   while the `d2` probes rule that out for pc386's.
-- **Two cheap tests would separate what is left**, and both need Deano's
-  explicit OK:
+- **Two cheap tests would separate what is left**, both needing Deano's
+  explicit OK. They are [#1833](https://github.com/DeanoC/fes/issues/1833),
+  split out of #1823 so a `faulted` fix there cannot orphan them:
   1. #1003's sweep — during an episode, step the ADV7513's input clock delay
      `0xBA[7:5]` and count black frames per setting. A delay that clears the
      picture names the transmitter's input sampling. This is an I2C write, as it
