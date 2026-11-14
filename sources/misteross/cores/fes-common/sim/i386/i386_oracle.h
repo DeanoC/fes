@@ -121,6 +121,12 @@ struct StepResult {
     std::vector<Event> events; // in delivery order
     std::vector<Access> writes;
     std::vector<Access> reads;  // data reads, a read-modify-write's included, in the order made
+    // With the AT coprocessor coupling (Oracle::set_at_coprocessor): the CPU
+    // is held at an ESC or WAIT that waits for BUSY#, which the board's latch
+    // keeps active. Nothing retired; CS:EIP is that instruction's, which runs
+    // once OUT F0h clears the latch. An NMI or INTR (IF set) is taken while
+    // held, and its frame returns to the held instruction.
+    bool x87_held = false;
 };
 
 // The x87 pointers a 386 keeps for its coprocessor, which FNSTENV and FNSAVE
@@ -132,6 +138,46 @@ struct X87Pointers {
     uint16_t cs = 0;
     uint16_t ds = 0;
 };
+
+// A 387 register: the 64-bit significand and the sign and 15-bit exponent.
+struct X87Register {
+    uint64_t significand = 0;
+    uint16_t sign_exponent = 0;
+    bool operator==(const X87Register &o) const {
+        return significand == o.significand && sign_exponent == o.sign_exponent;
+    }
+};
+
+// A 387's state as FNSAVE stores it: the control word, the status word with
+// TOP in bits 13-11, the tag word with two bits per physical register (00
+// valid, 01 zero, 10 special, 11 empty) as FNSTENV computes it from the
+// registers, the last instruction's 11-bit opcode, the x87 pointers, and the
+// eight physical registers: ST(i) is r[(TOP + i) & 7].
+struct X87State {
+    uint16_t control = 0;
+    uint16_t status = 0;
+    uint16_t tag = 0;
+    uint16_t opcode = 0;
+    X87Pointers pointers;
+    X87Register r[8];
+};
+
+// The fields in which two X87States differ: control, status, tag, opcode,
+// fip, fcs, fdp, fds and r0-r7 (physical registers).
+inline std::vector<std::string> x87_differences(const X87State &a, const X87State &b) {
+    std::vector<std::string> out;
+    if (a.control != b.control) out.push_back("control");
+    if (a.status != b.status) out.push_back("status");
+    if (a.tag != b.tag) out.push_back("tag");
+    if (a.opcode != b.opcode) out.push_back("opcode");
+    if (a.pointers.ip != b.pointers.ip) out.push_back("fip");
+    if (a.pointers.cs != b.pointers.cs) out.push_back("fcs");
+    if (a.pointers.dp != b.pointers.dp) out.push_back("fdp");
+    if (a.pointers.ds != b.pointers.ds) out.push_back("fds");
+    for (int n = 0; n < 8; ++n)
+        if (!(a.r[n] == b.r[n])) out.push_back("r" + std::to_string(n));
+    return out;
+}
 
 // The oracle's decode of one instruction, without executing it.
 struct Decoded {
@@ -171,6 +217,28 @@ public:
     // word all ones when status is set, else clear, so that no exception is
     // pending. A step after this stores what a 386 with no 387 stores.
     virtual void empty_socket(bool status) = 0;
+    // The coprocessor's whole state (X87State).
+    virtual X87State x87_state() const = 0;
+    // A 387 fitted as on an AT board (the i386dx+387 identity), on or off;
+    // off by default and at construction, when the oracle behaves as before
+    // this existed. On:
+    //   - the CPU's ERROR# input is tied inactive, so no ESC or WAIT raises
+    //     exception 16 or waits for IGNNE#; the 387's ERROR# (its status
+    //     word's ES) is IRQ 13's level (x87_irq13), for the bench to drive
+    //     into the slave PIC;
+    //   - ERROR# going active latches BUSY# active. While latched, every ESC
+    //     except FNINIT and FNCLEX, and WAIT, holds before it runs
+    //     (StepResult::x87_held) unless it raises #NM first;
+    //   - a byte written to port F0h clears the latch, and one to F1h resets
+    //     the 387 (control word 037Eh, status word 8081h with B mirroring ES
+    //     and ERROR# active, every register empty) without setting it. Both
+    //     still reach the bus.
+    // reset() clears the latch. The sources are in the oracle README.
+    virtual void set_at_coprocessor(bool fitted) = 0;
+    // IRQ 13's level from the 387's ERROR#: false unless set_at_coprocessor.
+    virtual bool x87_irq13() const = 0;
+    // Whether the AT board's BUSY# latch is set.
+    virtual bool x87_busy_latched() const = 0;
 };
 
 // One oracle may exist per process (the backend keeps global CPU state).

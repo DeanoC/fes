@@ -39,7 +39,19 @@ type KitLease struct {
 	lost, closed              bool
 	localHost                 bool
 	cancel                    context.CancelFunc
+	// resumeSettled records that the agent answered a local resume with
+	// 403 KIT_LEASE_REQUIRED: it holds no local grant this host can
+	// recover. Observation then stops probing resume until the lease
+	// generation changes to a new local-owner grant or this client drops a
+	// grant it held. settledGeneration is the generation observed for that
+	// answer; settledObserved is false until an ownership read records it.
+	resumeSettled     bool
+	settledObserved   bool
+	settledGeneration string
 }
+
+// localKitOwner is the owner name of the agent-held kit-local grant.
+const localKitOwner = "fogcast@kit"
 
 func NewKitLease(base *url.URL, bearer string, client *http.Client, owner, purpose string) *KitLease {
 	return &KitLease{client: NewClient(base, bearer, client), owner: owner, purpose: purpose}
@@ -47,19 +59,24 @@ func NewKitLease(base *url.URL, bearer string, client *http.Client, owner, purpo
 
 // NewLocalKitLease uses the agent-owned kit-local grant, recoverable after a host restart.
 func NewLocalKitLease(base *url.URL, bearer string, client *http.Client) *KitLease {
-	l := NewKitLease(base, bearer, client, "fogcast@kit", "local host session")
+	l := NewKitLease(base, bearer, client, localKitOwner, "local host session")
 	l.localHost = true
 	return l
 }
 
 // resumeLocal recovers an existing local grant without claiming a free kit.
+// Resume exists for a grant the agent still holds after a host restart; the
+// agent revokes every grant when it starts. Status and AdoptEndpoint call this
+// before each observation, so an agent answering 403 KIT_LEASE_REQUIRED
+// latches "nothing to resume" until the lease generation changes (see
+// noteLocalOwnershipLocked) instead of being asked several times a second.
 func (l *KitLease) resumeLocal(ctx context.Context) error {
 	if l == nil || !l.localHost {
 		return nil
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.closed || l.lost || l.grant.Token != "" {
+	if l.closed || l.lost || l.grant.Token != "" || l.resumeSettled {
 		return nil
 	}
 	var grant kitLeaseGrant
@@ -67,6 +84,15 @@ func (l *KitLease) resumeLocal(ctx context.Context) error {
 	code, err := l.requestStatus(ctx, "/v1/kit/local/resume", "", &grant)
 	if err != nil {
 		if code == http.StatusForbidden {
+			// Only the lease manager's typed refusal proves there is no
+			// local grant. Any other 403, such as the loopback check's
+			// plain-text refusal, is not latched; status observation
+			// continues either way.
+			if kitLeaseRequired(err) {
+				l.resumeSettled = true
+				l.settledObserved = false
+				l.settledGeneration = ""
+			}
 			return nil
 		}
 		var apiErr *protocol.APIError
@@ -229,7 +255,36 @@ func validKitGrant(g kitLeaseGrant, requestStart time.Time) bool {
 		g.Status.ExpiresInMS > 0 && g.Status.ExpiresInMS <= int64((24*time.Hour)/time.Millisecond) &&
 		time.Now().Before(requestStart.Add(time.Duration(g.Status.ExpiresInMS)*time.Millisecond))
 }
+
+// noteLocalOwnershipLocked records the ownership observed while resume is
+// latched. The first read after the refusal records its generation. A later
+// read re-arms resume only for a grant held by the local owner under a
+// different generation. Caller holds l.mu.
+func (l *KitLease) noteLocalOwnershipLocked(ownership KitOwnership) {
+	if !l.localHost || !l.resumeSettled {
+		return
+	}
+	if !l.settledObserved {
+		l.settledObserved = true
+		l.settledGeneration = ownership.Generation
+		return
+	}
+	if ownership.State == "held" && ownership.Owner == localKitOwner && ownership.Generation != l.settledGeneration {
+		l.resumeSettled = false
+	}
+}
+
+// kitLeaseRequired reports the lease manager's typed KIT_LEASE_REQUIRED refusal.
+func kitLeaseRequired(err error) bool {
+	var api *protocol.APIError
+	return errors.As(err, &api) && api != nil && string(api.Code) == "KIT_LEASE_REQUIRED"
+}
+
 func (l *KitLease) invalidateLocked() {
+	if l.grant.Token != "" {
+		// Dropping a held grant re-arms resume: the agent may still hold it.
+		l.resumeSettled = false
+	}
 	l.lost = true
 	l.grant = kitLeaseGrant{}
 	if l.cancel != nil {
@@ -379,8 +434,7 @@ func kitGrantNotHeld(status int, err error) bool {
 	if status == http.StatusNotFound || status == http.StatusConflict {
 		return true
 	}
-	var api *protocol.APIError
-	return errors.As(err, &api) && api != nil && string(api.Code) == "KIT_LEASE_REQUIRED"
+	return kitLeaseRequired(err)
 }
 func (l *KitLease) Close(ctx context.Context) error {
 	if l == nil {

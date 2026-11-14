@@ -52,10 +52,22 @@ simulation, parent consistency, 805 parent regressions and 1268 misteross tests
 fewer combinational ALUTs. The first sandboxed parent test attempt failed on blocked local sockets;
 the unrestricted rerun passed those tests.
 
-`capture.tar.gz` retains both successful and failed artifacts. Verify member
-bytes with `manifest.json`; `cones.py` reproduces the mapped cone count and
-`analyse.py` extracts the final timing summaries. The scripts retain the exact
-local diagnostic invocation paths; these are not registered producers.
+`capture.tar.gz` retained both successful and failed artifacts. It has been
+removed (see [Removed archive](#removed-archive)), so this is now a partial
+record: `manifest.json` still lists the member hashes of that archive, but
+they cannot be checked from this tree. Inside it, `cones.py` reproduced the
+mapped cone count and `analyse.py` extracted the final timing summaries. The
+scripts retained the exact local diagnostic invocation paths; these were not
+registered producers.
 No hardware ran. Neither this candidate nor nextpnr PR266 is promoted by this
 record. Next work is the remaining storage and CPU control paths, followed by a
 complete paired routed check and the existing seed/producer/hardware gates.
+
+## Removed archive
+
+`capture.tar.gz` was removed from the repository on 13 November 2026. Its source export held the full ZX81 and ZX80 ROM images in `zx8x.hex` and `zx8x.mif`.
+FES has no verified permission to redistribute those ROMs (see the
+[v1 firmware licensing record](../../../../../docs/plans/v1-firmware-licensing.md#evidence), Z0). The removed file was
+11054008 bytes with SHA-256 `735086ccc42b20840cf1ee269ee95fdd4a135190988afd5c2c11804f0ceaa4fb`. Nothing else in this record changed, so
+hashes and member counts quoted here still describe the original archive,
+which can no longer be read back from this tree.

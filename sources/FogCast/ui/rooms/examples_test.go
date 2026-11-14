@@ -171,7 +171,7 @@ func TestDestinationPanelManifest(t *testing.T) {
 	}
 }
 
-func examplePack(t *testing.T, id string) Pack {
+func examplePack(t testing.TB, id string) Pack {
 	t.Helper()
 	for _, p := range Examples() {
 		if p.ID == id {

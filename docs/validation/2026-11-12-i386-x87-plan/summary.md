@@ -480,10 +480,11 @@ logic depth.
 
 **If it does not fit.** In order of preference:
 1. **Wins elsewhere first.** The audit's list: the HID keyboard's four
-   144-bit vectors (1,313 ALMs, up to about −650 if redesigned), the return
-   stack in MLAB (about −250), OPL2's register memories in MLAB (about
-   −150). Together up to about −1,050, which brings the lean x87 to about
-   38,150 (91%).
+   144-bit vectors (1,313 ALMs, up to about −650 if redesigned) and OPL2's
+   register memories in MLAB (about −150). Together up to about −800, which
+   brings the lean x87 to about 38,400 (91.6%). The audit's return stack in
+   MLAB (about −250) is not one of them: #1638 merged it on 10 November, so
+   the #1728 seal this estimate starts from already includes it.
 2. **A second core variant,** `fes.pc386` without the x87 and a
    `fes.pc386-387` with it, from one RTL with a parameter, each sealed. The
    387 variant can also drop what its titles do not need. It doubles the

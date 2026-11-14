@@ -49,7 +49,7 @@ Quartus 17.0.2.
 | [`firmware/`](firmware/) | Bochs ROM BIOS and LGPL VGABios sources, `source.json` manifests, `firmware.lock` |
 | [`sim/machine_tb.cpp`](sim/machine_tb.cpp) | `pc386_machine` with the Bochs oracle as CPU, guest memory and DDR models; records VGA traces and frames. `--cpu rtl` runs `fes_i386_cpu` instead |
 | [`sim/system_tb.cpp`](sim/system_tb.cpp) | `pc386_system` with all three DDR ports on one window model, and a host that launches and stops it as libmister-runtime does, through the mailbox and the window |
-| [`sim/rtl_stop_test.asm`](sim/rtl_stop_test.asm) | The stop test disk for `--cpu rtl`: what the RTL still stops on (LOADALL in real mode, far JMP through a call gate in protected mode and under paging from an aliased linear address) and the oracle's protected-mode stretches |
+| [`sim/rtl_stop_test.asm`](sim/rtl_stop_test.asm) | The stop test disk for `--cpu rtl`: what the RTL still stops on (#1721), LOADALL in real mode and a far JMP through a call gate in protected mode and under paging from an aliased linear address (#1722), whose bytes the bench reads through the page tables; also compares full-AX SMSW and the LAHF flags byte after BIOS and checks SMSW after a CR0 write (#1748) |
 | [`sim/devices_tb.cpp`](sim/devices_tb.cpp) | Directed checks of the AT core through its I/O port |
 | [`sim/ems_tb.cpp`](sim/ems_tb.cpp) | The EMS board alone on the port 2 model: directed cases, DMA cycles and a random run against a reference board (`benches` suite) |
 | [`sim/fesems.asm`](sim/fesems.asm) | FESEMS.SYS, the EMS board's LIM 4.0 driver ([EMS driver](#ems-driver)) |
@@ -114,7 +114,8 @@ python3 scripts/sim_fes_pc386.py --suite wfw --cpu rtl    # WfW 3.11 from the DO
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
 python3 scripts/sim_fes_pc386.py --suite system         # M5: FreeDOS to the prompt on pc386_system, about an hour
 make toolchain-fes-pc386 CACHE_ROOT=/abs/out/cache/misteross-toolchains GPU_ROUTER=HIP  # once per lock
-make build-fes-pc386-quartus CACHE_ROOT=/abs/out/cache/misteross-toolchains GPU_ROUTER=HIP  # seal fes.pc386 with Quartus 17.0.2 (SEED=)
+FES_TOOLCHAIN_CACHE_ROOT=/abs/out/cache/misteross-toolchains python3 scripts/test_fes_i386_lockstep.py --netlist  # the seal's lockstep report
+make build-fes-pc386-quartus CACHE_ROOT=/abs/out/cache/misteross-toolchains GPU_ROUTER=HIP LOCKSTEP_REPORT=$PWD/build/sim/fes-i386-lockstep/report.json  # seal fes.pc386 with Quartus 17.0.2 (SEED=)
 ```
 
 The boot suite runs the locked BIOS and VGA BIOS on `pc386_machine`, boots the
@@ -463,6 +464,17 @@ builds of pc386 are parked with [#1235](https://github.com/DeanoC/fes/issues/123
   `GPU_ROUTER` is unset or empty. Nothing routes on a GPU. The record's
   `gpu_backend` and `toolchain_configuration` name the slot, so HIP and CUDA
   seals of one commit have distinct BUILD_IDs.
+- The seal needs a lockstep report of this tree's CPU
+  (`LOCKSTEP_REPORT=`, `--lockstep-report`): `scripts/test_fes_i386_lockstep.py
+  --netlist`, the default suite over every in-scope file of a full corpus
+  download, with the same cache root and router. The
+  build refuses to seal unless the report passed and its Yosys program, CPU
+  source digest and Yosys (lock, lock digest, router, slot binary) are this
+  build's, its Verilator is the i386 lock's, and the CPU netlist this build's
+  Yosys writes through the seal's passes has the report's digest. The report
+  is copied into the output, and `build-summary.json` records it under
+  `lockstep` (#1581 S5). Lockstep needs the pinned Bochs and corpus, so it
+  runs on the sealing host.
 
 **M4.** The diagnostic package `fes.pc386-diag`, the machine with a bus master
 running commands from a DDR ring in the CPU's place, passed every program on
@@ -504,11 +516,13 @@ archives in `C:\FDOS\BIN`, pinned in [`sim/freedos.lock`](sim/freedos.lock).
   - **Entry 1, the default.** The kernel stays in conventional memory (below).
     `DOSDATA=UMB` moves its data, stacks and LASTDRIVE to upper memory, and
     `FILESHIGH=30`, `BUFFERSHIGH=16` and `SHELLHIGH` move the file handles,
-    buffers and FreeCOM there too. MEM shows 582K (595,808 bytes) free. That
+    buffers and FreeCOM there too. MEM shows a largest executable program size
+    of 582K (595,808 bytes). That
     is enough for Frontier: Elite 2 (about 594,000) and Serpent Isle's
     published 573K (586,752 bytes). `FILES=30` covers Strike Commander's 25
     (#1525). The games-image MEM simulation requires Serpent Isle's figure
-    plus 1,024 bytes, and Frontier's.
+    plus 1,024 bytes, and Frontier's. The full CI tier runs
+    `make sim-fes-pc386-mem`, using the Bochs oracle CPU and VGA replay.
   - **Entry 2, more memory.** `DOS=HIGH,UMB`, `FILES=30`, `BUFFERS=16`, for
     programs that need more conventional memory, such as Falcon 3.0
     (614,400 bytes). MEM shows 622K (637,152 bytes). It is not for Ultima

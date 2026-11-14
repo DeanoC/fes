@@ -182,7 +182,7 @@ class SimulationMatrixTests(unittest.TestCase):
         smoke = [row['target'] for row in simulation_matrix(['pc386'], 'smoke')['include']]
         full = [row['target'] for row in simulation_matrix(['pc386'], 'full')['include']]
         self.assertEqual(smoke, ['sim-fes-pc386', 'sim-fes-pc386-scroll'])
-        self.assertEqual(full, ['sim-fes-pc386', 'sim-fes-pc386-fesenv', 'sim-fes-pc386-a20',
+        self.assertEqual(full, ['sim-fes-pc386', 'sim-fes-pc386-fesenv', 'sim-fes-pc386-mem', 'sim-fes-pc386-a20',
                                 'sim-fes-pc386-c2xx', 'sim-fes-pc386-wait', 'sim-fes-pc386-scroll',
                                 'sim-fes-pc386-speaker', 'sim-fes-pc386-cpu-profile'])
 

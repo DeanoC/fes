@@ -163,6 +163,10 @@ def fpga_cores(path):
         return ('pcxt',), 'PC/XT ISA fabric consumer'
     if relative.as_posix() == 'cores/fes-common/generated/fes_display_plane.vh':
         return ('menu', 'zx81', 'spectrum', 'c64', 'coleco', 'pc386'), 'display-plane fabric consumers'
+    if relative.as_posix() in ('cores/fes-common/sim/hps_ddr_guard_tb.sv',
+                                'tests/test_fes_hps_ddr_guard.py',
+                                'tests/test_sim_fes_ramtest_hook.py'):
+        return ('ramtest',), 'shared HPS DDR guard simulation'
     if len(parts) >= 3 and parts[0] == 'cores':
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
                 'sim/gp_tb.cpp', 'sim/audio_tb.cpp', 'generated/exchanges.json',
@@ -189,8 +193,6 @@ def fpga_cores(path):
         if len(parts) >= 5 and parts[1:4] == ('fes-common', 'sim', 'i386'):
             return (), 'i386 oracle adapter, testbenches, timing spikes and divergence list; no core consumer'
         if len(parts) >= 5 and parts[1:4] == ('fes-common', 'rtl', 'i386'):
-            if relative.as_posix() == 'cores/fes-common/rtl/i386/toolchain.lock':
-                return (), 'i386 CPU toolchain lock; no pc386 producer consumer'
             return ('pc386',), 'i386 CPU RTL and its pc386 consumer'
         if parts[1] == 'fes-menu' and '/'.join(parts[2:]) in MENU_SESSION_INPUTS:
             # pc386 uses the plane's RTL with its own DDR model.

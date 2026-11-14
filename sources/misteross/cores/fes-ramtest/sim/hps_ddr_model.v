@@ -46,6 +46,10 @@ module cyclonev_hps_interface_fpga2sdram (
     // 0x30000000, 0x38000000 and 0x3c000000 select a region, and each
     // simulated span is at most 4 KiB.
     reg [63:0] mem [0:4095] /* verilator public_flat_rd */;
+    // Testbench-controlled corruption of a selected port's read data.
+    wire [2:0] inject_read_fault;
+    wire [2:0] inject_last_only;
+    wire [2:0] inject_read_pause;
     reg violation /* verilator public_flat_rd */;
     reg [31:0] accepted [0:2] /* verilator public_flat_rd */;
     // Write beats still owed per port.
@@ -171,7 +175,7 @@ module cyclonev_hps_interface_fpga2sdram (
             lanes = port == 0 ? 2 : 1;
             valid = 1'b0;
             data = 128'd0;
-            if (queue_head[port] != queue_tail[port]) begin
+            if (queue_head[port] != queue_tail[port] && !inject_read_pause[port]) begin
                 if (queue_delay[port] < 8'd6)
                     queue_delay[port] = queue_delay[port] + 8'd1;
                 else if (lfsr[port][4:3] != 2'b00) begin
@@ -179,6 +183,9 @@ module cyclonev_hps_interface_fpga2sdram (
                     data[63:0] = mem[slot(a)];
                     if (lanes == 2)
                         data[127:64] = mem[slot(a + 8)];
+                    if (inject_read_fault[port] &&
+                        (!inject_last_only[port] || queue_beats[port][queue_head[port]] == 8'd1))
+                        data[0] = ~data[0];
                     valid = 1'b1;
                     queue_addr[port][queue_head[port]] = a + lanes * 8;
                     queue_beats[port][queue_head[port]] = queue_beats[port][queue_head[port]] - 8'd1;

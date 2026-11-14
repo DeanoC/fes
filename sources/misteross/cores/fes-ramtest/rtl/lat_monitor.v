@@ -100,14 +100,14 @@ module lat_monitor #(
                 taken <= 16'd0;
                 abandoned <= 1'b0;
                 if (enable && !stop) begin
-                    if (ready[target])
+                    if (ready[target] && !dead[target])
                         state <= S_START;
                     else
                         target <= target + 2'd1;
                 end
             end
             S_START: begin
-                if (stop || !ready[target]) begin
+                if (stop || !ready[target] || dead[target]) begin
                     abandoned <= 1'b1;
                     state <= S_FINISH;
                 end else if (stats_idle) begin
@@ -116,12 +116,14 @@ module lat_monitor #(
                 end
             end
             S_MEASURE: begin
-                if (sample[target]) begin
-                    taken <= taken + 16'd1;
-                    state <= taken == SAMPLES - 16'd1 ? S_FINISH : S_START;
-                end else if (dead[target]) begin
+                // An error may be reported with the final sample. Discard
+                // that window before accepting its last (invalid) sample.
+                if (dead[target]) begin
                     abandoned <= 1'b1;
                     state <= S_FINISH;
+                end else if (sample[target]) begin
+                    taken <= taken + 16'd1;
+                    state <= taken == SAMPLES - 16'd1 ? S_FINISH : S_START;
                 end
             end
             S_FINISH: begin

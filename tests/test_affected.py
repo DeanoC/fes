@@ -142,6 +142,18 @@ class AffectedTests(unittest.TestCase):
             with self.subTest(paths=paths):
                 self.assertEqual(set(plan(paths)['cores']), set(CORES))
 
+    def test_shared_hps_ddr_guard_regression_selects_ramtest_simulation(self):
+        for relative in ('cores/fes-common/sim/hps_ddr_guard_tb.sv',
+                         'tests/test_fes_hps_ddr_guard.py',
+                         'tests/test_sim_fes_ramtest_hook.py'):
+            with self.subTest(relative=relative):
+                result = plan(['sources/misteross/' + relative])
+                self.assertEqual(result['cores'], ['ramtest'])
+        # Unknown shared RTL keeps the existing broad selection.
+        result = plan(['sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v'])
+        self.assertEqual(set(result['cores']), set(CORES))
+        self.assertIn('ramtest', result['cores'])
+
     def test_de25_board_metadata_and_diagnostic_have_no_existing_core_consumer(self):
         definition = 'sources/mister-packages/packages/board/de25_nano.yaml'
         board = 'sources/misteross/boards/de25nano/'
@@ -452,6 +464,8 @@ class AffectedTests(unittest.TestCase):
             'scripts/build_pc386_freedos_image.py': {'pc386'},
             'scripts/build_fes_pc386_quartus.py': {'pc386'},
             'scripts/yosys_netlist.py': {'pc386'},
+            # The pc386 sealer's lockstep gate pins it (#1581 S5).
+            'cores/fes-common/rtl/i386/toolchain.lock': {'pc386'},
             'cores/fes-common/sim/riscv/rv32_model.h': {'riscv'},
             'cores/fes-riscv/firmware/firmware.S': {'riscv'},
             'scripts/sim_fes_riscv.py': {'riscv'},
@@ -508,7 +522,6 @@ class AffectedTests(unittest.TestCase):
         for path in ('cores/fes-common/sim/i386/bochs_oracle.cpp', 'cores/fes-common/sim/i386/divergences.toml',
                      'cores/fes-common/sim/i386/bochs/instrument.h', 'cores/fes-common/sim/i386/frontend_tb.cpp',
                      'cores/fes-common/sim/i386/spike/spike_ag.sv', 'cores/fes-common/sim/i386/lockstep_tb.cpp',
-                     'cores/fes-common/rtl/i386/toolchain.lock',
                      'scripts/audit_fes_i386_case.py', 'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
                      'scripts/test_fes_i386_test386.py', 'scripts/test_fes_i386_frontend.py',
                      'scripts/test_fes_i386_lockstep.py', 'scripts/test_fes_i386_latency.py',

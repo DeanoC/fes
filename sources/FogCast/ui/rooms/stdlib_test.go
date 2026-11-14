@@ -2,6 +2,7 @@ package rooms
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -403,5 +404,94 @@ function draw() grid:draw{ focus_color = "#ffd200", marker_color = "#ffffff" } e
 	}
 	if ticks < 8 {
 		t.Fatalf("focused grid cell must have corner marks, got %d", ticks)
+	}
+}
+
+// TestFamiliesMeasureKeepsWeightsApart checks the remembered measure under
+// sizes gfx.measure rounds or clamps: a regular result must never answer a
+// bold one.
+func TestFamiliesMeasureKeepsWeightsApart(t *testing.T) {
+	src := `
+local F = require "families"
+ok = true
+function draw()
+  gfx.clear("#000000")
+  for _, size in ipairs({ -18, 0, 18, 18.5, 300, 256 }) do
+    for _, bold in ipairs({ false, true }) do
+      for _ = 1, 2 do
+        local w, h = F.measure("Ready", size, bold)
+        local ww, wh = gfx.measure("Ready", size, bold)
+        if w ~= ww or h ~= wh then ok = false end
+      end
+    end
+  end
+  local w, h = F.measure("Ready")
+  local ww, wh = gfx.measure("Ready")
+  if w ~= ww or h ~= wh then ok = false end
+end`
+	r := newRoom(t, memPack(t, "measure", src, nil), Options{})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	r.Step(time.Unix(1, 0))
+	if err := r.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.CheckGlobal(`ok`); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestFamiliesKeyboardMatchesRectByRect draws the keyboard motif the way it
+// was drawn before its keys were cached (#1770), one gfx.rect per key, then
+// the cached F.keyboard twice at the same place: all three must record the
+// same ops, at several sizes.
+func TestFamiliesKeyboardMatchesRectByRect(t *testing.T) {
+	src := `
+local F = require "families"
+local C = F.colors
+local function reference(x, y, w, h, key, ground)
+  local rows, cols = 4, 10
+  local gap = math.max(2, math.floor(w / 80))
+  local kw = (w - gap * (cols + 1)) / cols
+  local kh = (h - gap * (rows + 1)) / rows
+  gfx.rect(x, y, w, h, C.dark)
+  for r = 0, rows - 1 do
+    local inset = (r % 2) * kw / 3
+    for c = 0, cols - 1 do
+      local kx = x + gap + c * (kw + gap) + inset
+      if kx + kw <= x + w - gap then
+        gfx.rect(kx, y + gap + r * (kh + gap), kw, kh, key)
+      end
+    end
+  end
+  gfx.rect(x + w * 0.25, y + h - gap - kh, w * 0.5, kh, ground)
+end
+place = { 12.5, 30, 180, 61.25 }
+function draw()
+  local x, y, w, h = place[1], place[2], place[3], place[4]
+  reference(x, y, w, h, "#AABBCC", "#334455")
+  F.keyboard(x, y, w, h, "#AABBCC", "#334455")
+  F.keyboard(x, y, w, h, "#AABBCC", "#334455")
+end`
+	r := newRoom(t, memPack(t, "keyboard", src, nil), Options{})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	for i, place := range []string{"{ 12.5, 30, 180, 61.25 }", "{ 0, 0, 96, 40 }", "{ 301, 77.75, 412, 133 }", "{ 12.5, 30, 180, 61.25 }"} {
+		if err := r.CheckGlobal(`(function() place = ` + place + ` return true end)()`); err != nil {
+			t.Fatal(err)
+		}
+		f := r.Step(time.Unix(int64(i+1), 0))
+		if err := r.Err(); err != nil {
+			t.Fatal(err)
+		}
+		n := len(f.Ops) / 3
+		if n < 10 || len(f.Ops) != 3*n {
+			t.Fatalf("%s: %d ops", place, len(f.Ops))
+		}
+		if !reflect.DeepEqual(f.Ops[:n], f.Ops[n:2*n]) || !reflect.DeepEqual(f.Ops[:n], f.Ops[2*n:]) {
+			t.Fatalf("%s: cached keyboard ops differ from rect-by-rect ones", place)
+		}
 	}
 }

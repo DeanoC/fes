@@ -14,6 +14,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <functional>
 #include <map>
 #include <ostream>
@@ -154,6 +155,7 @@ public:
     const std::string &begin(const fes_i386::State &before, const std::string &site) {
         uint8_t bytes[15];
         pc386_census::fetch(before.cr0, before.cr3, before.seg[fes_i386::SEG_CS].base + before.eip, read_, bytes);
+        std::memcpy(bytes_, bytes, sizeof bytes_);
         stem_ = stem(bytes, 15, true);
         if (before.eflags & 0x20000) stem_ += ":v86";
         else if (before.cr0 & 1) stem_ += ":pm" + std::to_string(before.cpl);
@@ -271,6 +273,87 @@ public:
         last_cr3_ = after.cr3;
     }
 
+    // The x87 keys, for every step: ESC forms by mode, the control word each
+    // arithmetic class ran under, exception flags raised and unmasked, ES
+    // going high, steps held by the BUSY# latch, #NM and #MF with CR0's MP, EM,
+    // TS and bit 5, changes to those bits, WAIT, the emulator fixup interrupts (INT
+    // 34h-3Eh) and I/O to the AT's coprocessor ports F0h-FFh. before and
+    // after are the 387's state around the step.
+    void x87(const fes_i386::State &before, const fes_i386::State &after, const fes_i386::StepResult &result,
+             const fes_i386::X87State &before87, const fes_i386::X87State &after87) {
+        const uint16_t cw0 = before87.control, sw0 = before87.status, sw1 = after87.status;
+        const bool delivery = !result.events.empty() && (result.events[0].kind == fes_i386::EventKind::ExternalInterrupt ||
+                                                        result.events[0].kind == fes_i386::EventKind::Nmi);
+        const size_t colon = stem_.find(':');
+        const std::string mode = colon == std::string::npos ? std::string(":rm") : stem_.substr(colon);
+        for (const fes_i386::Event &event : result.events)
+            if (event.kind == fes_i386::EventKind::Exception && (event.vector == 7 || event.vector == 16))
+                count("x87ev:" + std::to_string(event.vector) + ":cr0=" + hex(before.cr0 & 0x2e, 2) + ':' + stem_);
+        if ((after.cr0 ^ before.cr0) & 0x2e)
+            count("x87cr0:" + hex(before.cr0 & 0x2e, 2) + '>' + hex(after.cr0 & 0x2e, 2) + ':' + stem_);
+        if (delivery) return;
+        unsigned at = 0;
+        while (at < 15 && (bytes_[at] == 0x66 || bytes_[at] == 0x67 || bytes_[at] == 0xf0 || bytes_[at] == 0xf2 ||
+                           bytes_[at] == 0xf3 || bytes_[at] == 0x26 || bytes_[at] == 0x2e || bytes_[at] == 0x36 ||
+                           bytes_[at] == 0x3e || bytes_[at] == 0x64 || bytes_[at] == 0x65))
+            ++at;
+        if (at >= 14) return;
+        const unsigned op = bytes_[at], modrm = bytes_[at + 1];
+        if (op == 0xcd && modrm >= 0x34 && modrm <= 0x3e) count("x87emuint:" + hex(modrm, 2) + mode);
+        unsigned port = 0x10000;
+        if (op >= 0xe4 && op <= 0xe7) port = modrm;
+        else if (op >= 0xec && op <= 0xef) port = before.gpr[fes_i386::REG_EDX] & 0xffff;
+        if (port >= 0xf0 && port <= 0xff) count("x87io:" + hex(port, 2) + ((op & 2) ? ":out" : ":in") + mode);
+        if (op == 0x9b) {
+            count(std::string(result.x87_held ? "x87held:9b" : "x87wait") + ((sw0 & 0x80) ? ":es" : "") + mode);
+            return;
+        }
+        if (op < 0xd8 || op > 0xdf) return;
+        const unsigned reg = (modrm >> 3) & 7;
+        // The form: the opcode, ".m<reg>" for a memory form, the whole ModRM
+        // for the register forms that need it, else ".r<reg>".
+        std::string form = hex(op, 2);
+        if ((modrm >> 6) != 3) form += ".m" + std::to_string(reg);
+        else if ((op == 0xd9 && reg >= 2) || (op == 0xdb && reg == 4) || (op == 0xde && reg == 3) ||
+                 (op == 0xdf && reg == 4) || (op == 0xda && reg == 5) || (op == 0xdd && reg >= 4))
+            form += hex(modrm, 2);
+        else form += ".r" + std::to_string(reg);
+        if (result.x87_held) {
+            count("x87held:" + form + mode);
+            return;
+        }
+        if (!result.retired) {
+            count("x87fault:" + form + mode +
+                  (result.events.empty() ? std::string() : ":v" + std::to_string(result.events[0].vector)));
+            return;
+        }
+        count("x87op:" + form + mode);
+        // The control word by class: precision control sets an iterative
+        // divider's and square root's latency.
+        // The arithmetic forms: D8 and DC both ways, DE's register forms and
+        // the integer memory forms DA and DE. DA's register forms (FUCOMPP;
+        // the P6's FCMOVcc) and DE D9 (FCOMPP) are not. The plan record's
+        // scratch patch counted DA's register forms as arithmetic and FPREM,
+        // FPREM1 and FSCALE as transcendental.
+        const bool memory = (modrm >> 6) != 3;
+        const bool arith = op == 0xd8 || op == 0xdc || op == 0xde || (op == 0xda && memory);
+        std::string cls = "other";
+        if (arith && reg >= 6) cls = "div";
+        else if (arith && reg == 1) cls = "mul";
+        else if (arith && (reg == 0 || reg == 4 || reg == 5)) cls = "add";
+        else if (op == 0xd9 && modrm == 0xfa) cls = "sqrt";
+        else if (op == 0xd9 && (modrm == 0xf0 || modrm == 0xf1 || modrm == 0xf2 || modrm == 0xf3 || modrm == 0xf9 ||
+                                modrm == 0xfb || modrm == 0xfe || modrm == 0xff))
+            cls = "trans";
+        count("x87cw:" + cls + ':' + hex(cw0 & 0x1f3f, 4));
+        const unsigned raised = sw1 & ~sw0 & 0x7f;
+        if (raised) count("x87exc:" + form + ":raised=" + hex(raised, 2) + ":unmasked=" + hex(raised & ~cw0 & 0x3f, 2));
+        // ne= is CR0 bit 5, a reserved bit on a 386, which Bochs at CPU level
+        // 3 reads as 1 once CR0 is written; kept so that rows compare with
+        // the plan record's.
+        if ((sw1 & 0x80) && !(sw0 & 0x80)) count("x87es:" + form + mode + ":ne=" + std::to_string((after.cr0 >> 5) & 1));
+    }
+
     void write(std::ostream &out) const {
         std::map<std::string, uint64_t> all = counts;
         all["paging:steps"] = paged_steps;
@@ -289,6 +372,7 @@ public:
 private:
     PhysicalByte read_;
     std::string stem_, site_;
+    uint8_t bytes_[15] = {};  // the bytes at CS:EIP before the step
     bool was_paged_ = false;
     uint32_t last_cr3_ = 0;
 

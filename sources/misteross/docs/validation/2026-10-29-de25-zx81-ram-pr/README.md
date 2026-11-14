@@ -119,3 +119,17 @@ internal timing and actual-payload composition. Physical acceptance is not run.
 The next gate on a DE25 is boot/firmware pairing, actual HPS bridge mapping and
 SDM empty/RAM/empty loads with freeze/reset/identity and BASIC sizing checks.
 No kit, image, boot configuration, flash or production admission changed.
+
+## Removed archives
+
+Two archives were removed from the repository on 13 November 2026 because
+each held the full ZX81 and ZX80 ROM images in `fes_link/zx8x.hex` and
+`fes_link/zx8x.mif`. FES has no verified permission to redistribute those
+ROMs (see the
+[v1 firmware licensing record](../../../../../docs/plans/v1-firmware-licensing.md#evidence),
+Z0). Nothing else in this record changed.
+
+| Removed file | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `failed/diagnostic-phase/sources.tar.gz` | 78762 | `93515cb85f210378ec264c194d6a4e1cdb503672a90a551544780a358cd2a6fa` |
+| `failed/late-read-response/sources.tar.gz` | 79613 | `ebf7fb1a6f3a0d139e0443192d550d006d8dbe851d6bd81b21c4f6da4d8f3f1e` |

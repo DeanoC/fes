@@ -1,6 +1,6 @@
 # pc386 removable media: floppy drives and a CD-ROM
 
-Status: design and slice plan, 11 November 2026. Refs [#1694](https://github.com/DeanoC/fes/issues/1694). Nothing here is implemented. Decisions are marked **D*n*** and listed at the end; Deano accepted every recommendation on 11 November 2026.
+Status: design and slice plan, 11 November 2026. Refs [#1694](https://github.com/DeanoC/fes/issues/1694). Slice F1 (`pc386_fdc` and its replay) is implemented; nothing else is. Decisions are marked **D*n*** and listed at the end; Deano accepted every recommendation on 11 November 2026.
 
 Path convention: `M/` is `sources/misteross/`, `MP/` is `sources/mister-packages/`, `RT/` is `sources/libmister-runtime/`, `FC/` is `sources/FogCast/`. `docs/`, `scripts/` and `AGENTS.md` are at the repo root.
 

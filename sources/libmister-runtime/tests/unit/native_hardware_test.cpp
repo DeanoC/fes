@@ -2591,13 +2591,18 @@ void TestIdleDisplayHealthDetectsLostScanoutWithinBudget()
  reactivate();
 
  // An unreadable transmitter is not evidence of anything: it degrades to a
- // display-only check and never reactivates on its own.
+ // failed sample and never reactivates on its own. Keep the last measured
+ // sample because an incomplete read cannot establish that the display is
+ // healthy.
  clock.now_+=kMenuHealthIntervalMs;
  i2c.detail_read_error={mister::ErrorCode::io_failed,"scripted ADV read failure"};
  const auto before_adv=fpga.calls;
+ const auto before_adv_live=hardware.menu_display().live;
  script.Info(3,0);
  assert(hardware.CheckIdleDisplayHealth().ok());
- assert(hardware.menu_display().live.read&&!hardware.menu_display().live.link);
+ assert(hardware.menu_display().live.read==before_adv_live.read);
+ assert(hardware.menu_display().live.link==before_adv_live.link);
+ assert(hardware.menu_display().live.displayed_sequence==before_adv_live.displayed_sequence);
  assert(hardware.menu_display().available&&fpga.calls==before_adv);
  // Repeated failures stay quiet rather than storming the reactivation path.
  for(unsigned i=0;i<4;++i) {
@@ -2638,8 +2643,25 @@ void TestIdleDisplayHealthDetectsLostScanoutWithinBudget()
  // not reprogrammed twice every ten minutes for the rest of the uptime.
  reactivate();
  const auto latched=fpga.calls;
+ // An ADV7513 read failure leaves the link state unknown. It must not take
+ // the healthy path and clear the same-loss reactivation latch.
+ clock.now_+=kMenuHealthIntervalMs;
+ i2c.detail_read_error={mister::ErrorCode::io_failed,"scripted ADV read failure"};
+ const auto before_unknown=hardware.menu_display().live;
+ script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.link==before_unknown.link);
+ assert(hardware.menu_display().live.recovery_abandoned==before_unknown.recovery_abandoned);
+ assert(fpga.calls==latched&&hardware.menu_display().available);
+ i2c.detail_read_error={};
+ // The persistent mode loss remains the same reason. A read failure between
+ // its confirming samples must not allow another reactivation.
  clock.now_+=kMenuHealthIntervalMs;script.Info(3,0);
  assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(fpga.calls==latched);
+ clock.now_+=kMenuHealthIntervalMs;script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.recovery_abandoned&&fpga.calls==latched);
  clock.now_+=kMenuHealthIntervalMs;script.Info(3,0);
  assert(hardware.CheckIdleDisplayHealth().ok());
  assert(fpga.calls==latched&&hardware.menu_display().available);

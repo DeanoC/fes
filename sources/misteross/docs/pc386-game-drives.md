@@ -175,7 +175,27 @@ titles each one unlocks.
 | `io-bitmap:<v86\|pm<CPL>>:<outcome>` | IN, OUT, INS and OUTS that read the TSS I/O bitmap: in V86, or at CPL above IOPL. |
 | `paging:steps`, `paging:page-cross` | Steps with paging on; data accesses that cross a page. |
 | `tlb:dtlb16:accesses`, `tlb:dtlb16:walks`, `tlb:itlb8:accesses`, `tlb:itlb8:walks` | The Phase 5 TLBs as fully associative LRU models: a 16-entry DTLB and an 8-entry ITLB. A miss is a walk. |
+| `x87op:<form>:<mode>` | Retired ESC instructions by form ([x87 keys](#x87-keys)). |
+| `x87cw:<class>:<cw>` | The control word (`cw & 1F3Fh`, four hex digits) each retired ESC ran under, by class: `add` (FADD, FSUB, FSUBR), `mul` (FMUL) and `div` (FDIV, FDIVR), each in its D8 and DC forms, DE's popping forms and the DA and DE integer memory forms; `sqrt`; `trans` (FSIN, FCOS, FPTAN, FPATAN, F2XM1, FYL2X, FYL2XP1, FSINCOS); or `other` (FUCOMPP, FCOMPP, FPREM, FPREM1, FSCALE among them). The x87 plan's rows counted DA's register forms as `add` and FPREM, FPREM1 and FSCALE as `trans`. |
+| `x87exc:<form>:raised=<flags>:unmasked=<flags>` | Retired ESC instructions that set exception flags (status bits 6-0) that were clear, with those of them the control word left unmasked. |
+| `x87es:<form>:<mode>:ne=<0\|1>` | Retired ESC instructions that set ES. `ne` is CR0 bit 5, reserved on a 386, which Bochs at CPU level 3 reads as 1 once CR0 is written; it stays for comparison with the [x87 plan](../../../docs/validation/2026-11-12-i386-x87-plan/summary.md)'s rows. |
+| `x87fault:<form>:<mode>[:v<vector>]` | ESC instructions that did not retire, with the step's first event. |
+| `x87held:<form\|9b>[:es]:<mode>` | Steps that ended held on the AT's BUSY# latch at an ESC or WAIT (`9b`), one per step held. |
+| `x87wait[:es]:<mode>` | Retired WAIT (9Bh), with `:es` when ES was set before it. |
+| `x87ev:<7\|16>:cr0=<bits>:<stem>` | #NM and #MF, with CR0's MP, EM, TS and bit 5 (`cr0 & 2Eh`) before the step. |
+| `x87cr0:<before>><after>:<stem>` | Changes to those CR0 bits. |
+| `x87emuint:<vector>:<mode>` | INT 34h-3Eh: the Borland and Microsoft emulator fixups. |
+| `x87io:<port>:<in\|out>:<mode>` | IN and OUT with an immediate or DX port F0h-FFh: the AT's coprocessor ports. |
 
+- <a id="x87-keys"></a>**x87 keys.** Counted on every oracle step, in real
+  mode too, against the oracle's 387, which machine_tb wires as on an AT
+  (IRQ 13, the BUSY# latch, ports F0h and F1h; #1768). `<mode>` is `rm`,
+  `pm<CPL>` or `v86`. `<form>` is the opcode in lowercase hex and, for a
+  memory form, `.m<reg>`; for the register forms D9 /2-/7, DB /4, DE /3,
+  DF /4, DA /5 and DD /4-/7 the whole ModRM byte (`d9fe` is FSIN, `dfe0` is
+  FNSTSW AX); for the others `.r<reg>`. A step that only delivers an INTR or
+  NMI counts no form. The [x87 plan](../../../docs/validation/2026-11-12-i386-x87-plan/summary.md)'s
+  rows were made from these keys.
 - **Outcomes.** `ok` (no event), `int` (INT n delivered through its gate),
   `gp=<error code>` (#GP: `gp=0000` for an IOPL fault, `gp=<vector × 8 + 2>`
   for INT n through a gate below DPL 3) or `exc<vector>=<error code>`.

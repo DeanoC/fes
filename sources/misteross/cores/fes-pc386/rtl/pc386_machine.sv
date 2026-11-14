@@ -7,7 +7,8 @@
 //
 //   port 1  VRAM: VGA planar writes and reads, scanout line prefetch
 //   port 2  plane reads (pc386_plane_bridge), presenter reads, capture writes,
-//           EMS board memory, the shell's reads and single beats (aux)
+//           EMS board memory, the shell's reads and single beats (aux), the
+//           floppy controller's sector reads and writes (pc386_fdc)
 //
 // port2_reset resets the port 2 arbiter alone, so the shell's aux master can
 // use the port while the shell holds the rest of the machine in reset: the
@@ -84,6 +85,7 @@ module pc386_machine #(
     input wire wall_valid,
     input wire [15:0] wall_year,
     input wire [7:0] wall_month, wall_day, wall_hour, wall_minute, wall_second, wall_weekday,
+    input wire x87_present,                 // the i386dx+387 identity: CMOS 14h bit 1
     input wire disk_present,
     input wire [31:0] disk_sectors,
     input wire [15:0] disk_cylinders,
@@ -102,6 +104,14 @@ module pc386_machine #(
     output wire disk_writer_busy,
     output wire disk_fenced,
     output wire disk_written,
+    // Floppy drives (pc386_fdc): the disks' geometry, the store fence and
+    // the controller's port 2 traffic still in flight
+    input wire [1:0][2:0] floppy_type,
+    input wire [1:0] floppy_present, floppy_write_protect, floppy_two_sided,
+    input wire [1:0][6:0] floppy_cylinders,
+    input wire [1:0][5:0] floppy_spt,
+    input wire fdc_frozen,
+    output wire fdc_busy, fdc_fenced,
     output wire record_write,
     output wire [6:0] record_index,
     output wire [7:0] record_byte,
@@ -171,6 +181,10 @@ module pc386_machine #(
     assign dma_wdata = at_dma_wdata;
     assign at_dma_done = dma_in_frame ? ems_dma_done : dma_done;
     assign at_dma_rdata = dma_in_frame ? ems_dma_rdata : dma_rdata;
+    wire [28:0] fdc_address;
+    wire [7:0] fdc_burstcount, fdc_byteenable;
+    wire fdc_read, fdc_write, fdc_waitrequest, fdc_readdatavalid;
+    wire [63:0] fdc_writedata;
     pc386_at_core #(
         .ISA_N(ISA_N), .ISA_D(ISA_D), .PIT_N(PIT_N), .PIT_D(PIT_D), .RTC_N(RTC_N), .RTC_D(RTC_D),
         .US_N(US_N), .US_D(US_D), .DMA_N(DMA_N), .DMA_D(DMA_D), .ATA_RESET_CLOCKS(ATA_RESET_CLOCKS)
@@ -198,7 +212,7 @@ module pc386_machine #(
         .base_kib(base_kib), .extended_kib(extended_kib), .above16m_64k(above16m_64k),
         .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma), .ems_pages(ems_pages),
         .ems_reg_write(ems_reg_write), .ems_reg_index(ems_reg_index), .ems_reg_wdata(ems_reg_wdata),
-        .cmos_busy(cmos_busy),
+        .cmos_busy(cmos_busy), .x87_present(x87_present),
         .wall_valid(wall_valid), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
         .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second), .wall_weekday(wall_weekday),
         .disk_present(disk_present), .disk_sectors(disk_sectors), .disk_cylinders(disk_cylinders),
@@ -208,6 +222,12 @@ module pc386_machine #(
         .dirty_index(dirty_index), .dirty_word(dirty_word),
         .disk_frozen(disk_frozen), .disk_dirty_clear(disk_dirty_clear), .disk_dirty_clearing(disk_dirty_clearing),
         .disk_writer_busy(disk_writer_busy), .disk_fenced(disk_fenced), .disk_written(disk_written),
+        .floppy_type(floppy_type), .floppy_present(floppy_present), .floppy_write_protect(floppy_write_protect),
+        .floppy_two_sided(floppy_two_sided), .floppy_cylinders(floppy_cylinders), .floppy_spt(floppy_spt),
+        .fdc_address(fdc_address), .fdc_burstcount(fdc_burstcount), .fdc_read(fdc_read), .fdc_write(fdc_write),
+        .fdc_writedata(fdc_writedata), .fdc_byteenable(fdc_byteenable), .fdc_waitrequest(fdc_waitrequest),
+        .fdc_readdatavalid(fdc_readdatavalid), .fdc_readdata(p2_readdata), .fdc_frozen(fdc_frozen),
+        .fdc_busy(fdc_busy), .fdc_fenced(fdc_fenced),
         .record_write(record_write), .record_index(record_index), .record_byte(record_byte),
         .record_load(record_load), .record_pair(record_pair), .record_word(record_word),
         .record_clock_index(record_clock_index), .record_clock_pair(record_clock_pair)
@@ -332,6 +352,9 @@ module pc386_machine #(
         .aux_address(aux_address), .aux_burstcount(aux_burstcount), .aux_read(aux_read), .aux_write(aux_write),
         .aux_writedata(aux_writedata),
         .aux_byteenable(aux_byteenable), .aux_waitrequest(aux_waitrequest), .aux_readdatavalid(aux_readdatavalid),
+        .fdc_address(fdc_address), .fdc_burstcount(fdc_burstcount), .fdc_read(fdc_read), .fdc_write(fdc_write),
+        .fdc_writedata(fdc_writedata), .fdc_byteenable(fdc_byteenable), .fdc_waitrequest(fdc_waitrequest),
+        .fdc_readdatavalid(fdc_readdatavalid),
         .address(p2_address), .burstcount(p2_burstcount), .read(p2_read), .write(p2_write),
         .writedata(p2_writedata), .byteenable(p2_byteenable), .waitrequest(p2_waitrequest),
         .readdatavalid(p2_readdatavalid)

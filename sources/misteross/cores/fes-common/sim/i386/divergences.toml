@@ -26,6 +26,12 @@
 # [[lockstep]]  The whole-CPU lockstep's rules (lockstep_tb.cpp) where the FES
 #   CPU follows the 386 and the oracle does not: the rule that adopts or checks
 #   the difference, the directed cases that show it, and the 386 source.
+#
+# [[x87]]  Where the oracle's 387, fitted as on an AT board by its adapter
+#   (Oracle::set_at_coprocessor in bochs_oracle.cpp), follows the 386, 387 and
+#   AT and Bochs does not: the adapter rule, the cases in x87_tb.cpp that show
+#   it, and the sources. "open" leaves Bochs's behaviour until a later slice
+#   or a real 386 and 387 decide.
 
 [[vectors]]
 id = "bit-test-of"
@@ -587,3 +593,53 @@ oracle = "Bochs at CPU level 3 raises #UD for 0F 24 and 0F 26 (MOV_RdTd and MOV_
 i386 = "The 386's decoder routes TR4-TR7 with a register or a memory ModRM to 391 (MOV TRn, r32) and 3B6 (MOV r32, TRn), which raise #GP(0) in protected mode at CPL above 0 and check no GD; TR0-TR3 to #UD. FES keeps what each is written (TR6's TLB test is not built, docs/i386-cpu-design.md). The testbench keeps the same four values for the oracle, and steps it on MOV r32, CR0 (#GP(0)) above CPL 0."
 source = "reenigne/x86_microcode 80386/decoder23.txt (MOV TRn rows), decode2.txt 49, 4B, 5D, 5F, microcode_notes.txt 391-397, 3B6-3BC; 80386 Programmer's Reference Manual 12.3 (TR6, TR7)."
 follow = "386"
+
+[[x87]]
+id = "at-error-path"
+title = "An unmasked x87 exception takes IRQ 13, not FERR# and IGNNE#"
+rule = "set_at_coprocessor"
+cases = ["if1", "held-nmi", "off"]
+oracle = "Bochs at CPU level 3 models a 486's MS-DOS compatibility path (cpu/fpu/ferr.cc): a waiting ESC with an error pending asserts FERR# and sleeps until IGNNE# or an interrupt. With its no-op FERR# device the machine never sees IRQ 13, and the sleep runs inside a step until an interrupt the bench raises only between steps, so the step never returns."
+i386 = "On an AT the CPU's ERROR# input is tied inactive; the 387's ERROR# drives IRQ 13 on the slave PIC and, going active, clocks a flip-flop that holds BUSY# active until software writes port F0h. The adapter drives x87_irq13 from the status word's ES, latches BUSY# on its rise, and holds a waiting ESC or WAIT before it runs while the latch is set; with it clear, an ESC runs on whatever ES says (IGNNE# held active), so there is no exception 16."
+source = "80387 Programmer's Reference Manual 231917-001, Appendix F.1-F.2; IBM PC AT Technical Reference 6183355, 'NMI and Coprocessor Controls' (1-38) and Section 2 (2-4, 2-5); 80386 Hardware Reference Manual (1987) 5.1."
+follow = "386"
+
+[[x87]]
+id = "held-esc-restarts"
+title = "The ESC that waits on the latch runs after the interrupt"
+rule = "set_at_coprocessor"
+cases = ["if1", "held-nmi", "no-wait", "nm-first"]
+oracle = "Bochs enters its wait from inside the ESC's handler, after the decode loop has advanced RIP past it, and commits that RIP when it longjmps out; after the wake the waiting instruction is skipped."
+i386 = "A 386 waiting for BUSY# has not started the ESC, and the AT design relies on the IRQ 13 handler running 'before any other 80287 instructions may begin': the interrupt's frame returns to the waiting ESC, which then runs. The adapter holds before the instruction's handler (fes_bx_before_execution), so the held step retires nothing and a frame taken while held returns to it."
+source = "80387 Programmer's Reference Manual 231917-001, Appendix F.1; 80386 Hardware Reference Manual 5.1 (BUSY# must be inactive before the 386 starts the coprocessor instruction)."
+follow = "386"
+
+[[x87]]
+id = "no-wait-forms-wait-busy"
+title = "FNSTSW, FNSTCW, FNSTENV and FNSAVE wait for BUSY#"
+rule = "set_at_coprocessor"
+cases = ["fnstsw", "fsetpm", "no-wait"]
+oracle = "Bochs's no-wait forms never wait (they skip FPU_check_pending_exceptions); FNINIT and FNCLEX likewise."
+i386 = "The 386 waits for BUSY# before every ESC but FNINIT and FNCLEX; the no-wait forms skip only the ERROR# check. So with the AT's latch set they hold too, and FNINIT and FNCLEX run (FNCLEX drops ERROR# and IRQ 13; the latch stays until F0h)."
+source = "80386 Hardware Reference Manual 5.1 ('When the 80386 encounters any coprocessor instruction except FNINIT and FNCLEX, the BUSY# input must be inactive'); 80387 Programmer's Reference Manual 231917-001, 6.1.1 and Appendix C (the 80387 treats FSETPM as FNOP). Appendix F.1's list of FINIT, FSETPM and FCLEX passing the latch is the 80286/80287 AT's, where FSETPM is a real 80287 instruction; on a 386 FSETPM is an ESC like any other and waits for BUSY#, so it holds on the latch."
+follow = "386"
+
+[[x87]]
+id = "f1-reset"
+title = "OUT F1h resets the 387"
+rule = "set_at_coprocessor"
+cases = ["f1-reset"]
+oracle = "Bochs has no port F1h."
+i386 = "An 8-bit OUT to F1h resets the coprocessor. A 387 after RESET is as after FNINIT but with the invalid-operation mask clear and IE and ES set, so ERROR# is active: control word 037Eh, status word 8081h with B mirroring ES, every tag empty. The 387 is not busy, so the latch does not set; IRQ 13 rises. The x87 pointers are the CPU's and stay."
+source = "IBM PC AT Technical Reference 6183355, 'NMI and Coprocessor Controls' (1-38); 80387 Programmer's Reference Manual 231917-001, 4.8.1 (FINIT) and Appendix C.1 (RESET and ERROR#)."
+follow = "386"
+
+[[x87]]
+id = "cpu-reset-387-state"
+title = "The 387's state after a CPU reset"
+rule = "reset"
+cases = []
+oracle = "Bochs's CPU reset leaves its 387 with control word 0040h, status word 0 and every tag valid (i387_t::reset), a later CPU's RESET state, and sets CR0.ET whenever the x87 is built."
+i386 = "A 387's own RESET gives 037Eh, 8081h and every tag empty with ERROR# active, with B mirroring ES, and the 386 sets ET from ERROR# after RESET. Whether an AT's CPU-only resets (8042, port 92h, shutdown) reach the 387 is the board's wiring, which the sources here do not settle; F1h is the AT's documented 387 reset. The adapter keeps Bochs's state at reset until the identity's slice decides."
+source = "80387 Programmer's Reference Manual 231917-001, Appendix C.1 and 6.2.2 (ET from ERROR# after RESET); 80386 Hardware Reference Manual 3.7.2 and 5.4.1.1."
+follow = "open"

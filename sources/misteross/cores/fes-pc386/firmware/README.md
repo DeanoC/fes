@@ -103,6 +103,13 @@ a modified library:
   the last cylinder: reads and writes check the drive's own geometry. A
   one-cylinder disk reserves none, in AH=08h and AH=15h alike; upstream's
   AH=15h reported it as empty.
+- `rombios.c`: the INT 75h handler (IRQ 13, the coprocessor's error) keeps
+  AX and writes 00h to port F0h, as the IBM PC/AT BIOS's `INT_287` does
+  (PUSH AX, OUT F0h, EOI to both PICs, POP AX, INT 02h). Upstream left the EOI
+  value in AL. FreeDOS's interrupt-stack switcher keeps its stack size in AX
+  across the handler it calls, so each IRQ 13 moved its stack pool by the
+  difference, onto the MCB chain
+  ([#1768](https://github.com/DeanoC/fes/issues/1768)).
 - `vgabios.c`: INT 10h AH=00h, the mode set, keeps every register but AL, as
   IBM's VGA BIOS does: the dispatcher saves ES, DS and the general registers
   around `biosfn_set_video_mode`. Upstream saved only DS, BX, CX and AX, so the
@@ -116,7 +123,8 @@ a modified library:
 
 The boot order and disk-only boot need no patch: the machine writes CMOS 2Dh,
 38h, 3Dh and 3Fh. The floppy POST and INT 13h floppy paths stay; CMOS 10h says
-no drives and the unclaimed controller ports read FFh. The Bochs debug ports
+no drives, so they never reach the floppy controller (`pc386_fdc`) that slice F1
+of [removable media](../../../../../docs/design/pc386-removable-media.md) fitted. The Bochs debug ports
 400h-403h and VGABios's 500h are the machine's debug sink.
 
 ## Licence obligations

@@ -2246,9 +2246,9 @@ void NativeHardware::SetSessionDisplayInputFocus(bool launcher_focus)
  }
 }
 // Reads the live display registers and, when the board owns the
-// transmitter, the ADV7513's link, PLL lock and detected mode. Returns
-// whether the display registers were read at all; a transmitter that cannot
-// be read leaves live->link false and is not evidence of anything.
+// transmitter, the ADV7513's link, PLL lock and detected mode. A board with
+// no transmitter has a valid display-only sample; a failed read from an owned
+// transmitter makes the sample incomplete.
 bool NativeHardware::ReadIdleDisplayLive(MenuDisplayLive* live)
 {
  const auto deadline=Deadline(clock_,timeouts_.core_io_ms);
@@ -2259,7 +2259,8 @@ bool NativeHardware::ReadIdleDisplayLive(MenuDisplayLive* live)
  live->faulted=info.faulted;live->quiesced=info.quiesced;
  live->displayed_sequence=info.displayed_sequence;live->underflows_total=info.underflows;
  VideoLinkHealth link;
- if(!game_video_.ReadLinkHealth(deadline,&link).ok())return true;
+ const Error link_error=game_video_.ReadLinkHealth(deadline,&link);
+ if(!link_error.ok())return link_error.code==ErrorCode::unsupported_interface;
  live->link=true;
  live->hot_plug=(link.status&adv7513::kStatusHpd)!=0;
  live->rx_sense=(link.status&adv7513::kStatusMonitorSense)!=0;
