@@ -21,6 +21,20 @@ then stops at the next source's independent warm preparation deadline. These
 provisional budgets do not yet qualify repeated loading. Software-controlled
 recovery remains unqualified.
 
+Expected table generation now uses the existing pure 32-word API within each
+unchanged preparation I/O block. The previous-table scan, new table writes and
+readback comparison still cover every word, with the same ownership/integrity
+guards, callbacks, unpublished-memory limits and one-second preparation origin.
+This removes repeated binding validation for individual expected words. The
+warm cost fixture generates the same 15,360 words in 480 calls; the retained
+previous source takes 15,360 calls and fails an injected-cost control that the
+new implementation completes. Excessive cost still expires before a register
+write, and the previous engine remains unchanged. All 34 source/retirement
+sanitizer tests pass, with a final portable fixture check and previous-source
+control. Vendor AArch64 compilation passes; individual table routine frames are
+1,376/1,344 bytes. This is off-board evidence, without a fresh linked image,
+whole-EL3 stack qualification or physical warm-loading result.
+
 The first complete link of that timing candidate exceeded the private OCRAM
 reservation by 128 bytes. The [compact-controller repair](../../../docs/validation/2026-11-14-de25-compact-command-state/README.md)
 stores bounded flags/stages in bytes and keeps counters, clocks and identities

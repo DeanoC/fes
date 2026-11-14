@@ -127,17 +127,28 @@ static uint64_t descriptor(unsigned word)
         (UINT64_C(1)<<51) | (UINT64_C(1)<<54) | (UINT64_C(1)<<58);
     return NANO_PROBE_BASE+NANO_PROBE_ROOT;
 }
-static uint64_t table_word(struct nano_probe_setup *s,uint32_t offset)
+static uint64_t table_word(uint32_t offset)
 {
-    if(s->input_selected){
-        uint64_t value=0;
-        int error=nano_sdm_input_words(&s->input,offset,&value,1);
-        if(error)fail(s,error);
-        return value;
-    }
-
     if (offset>=10*64 && offset<10*64+32) return descriptor((offset-10*64)/8);
     return offset<0x4000 && offset%64==0 ? 1U : 0U;
+}
+/* Pure expected-word generation, with no callbacks or hardware access. Keep
+ * the existing 32-word API limit: validate the binding once per such chunk,
+ * rather than once for every word inside the already guarded I/O block. */
+static int table_words(const struct nano_sdm_input_binding *input,uint32_t offset,
+    uint64_t *values,unsigned words)
+{
+    if(!input){
+        for(unsigned n=0;n<words;n++)values[n]=table_word(offset+n*8);
+        return 0;
+    }
+    for(unsigned n=0;n<words;n+=NANO_PROBE_MEMORY_WORDS){
+        unsigned count=words-n;
+        if(count>NANO_PROBE_MEMORY_WORDS)count=NANO_PROBE_MEMORY_WORDS;
+        int error=nano_sdm_input_words(input,offset+n*8,values+n,count);
+        if(error)return error;
+    }
+    return 0;
 }
 static int memory_block(struct nano_probe_setup *s,uint32_t offset,unsigned words,unsigned writing)
 {
@@ -152,8 +163,8 @@ static int memory_block(struct nano_probe_setup *s,uint32_t offset,unsigned word
     s->trusted_io.barrier(s->trusted_io.context);if(!integrity(s))return fail(s,-13);
     int result;
     if (writing) {
-        for (unsigned n=0;n<words;n++) values[n]=table_word(s,offset+n*8);
-        if(s->failed)return s->first_error;
+        result=table_words(s->input_selected ? &s->input:0,offset,values,words);
+        if(result)return fail(s,result);
         s->stores+=words;result=s->trusted_io.store_block(s->trusted_io.context,offset,values,words);
     } else {
         s->loads+=words;result=s->trusted_io.load_block(s->trusted_io.context,offset,values,words);
@@ -164,11 +175,16 @@ static int memory_block(struct nano_probe_setup *s,uint32_t offset,unsigned word
     s->trusted_io.barrier(s->trusted_io.context);if(!integrity(s))return fail(s,-13);
     if (result) return fail(s,result);
     if (guard(s)) return s->first_error;
-    if (!writing) for (unsigned n=0;n<words;n++) {
-        s->last_offset=offset+n*8;s->last_value=values[n];
-        uint64_t want=table_word(s,offset+n*8);
-        if(s->failed)return s->first_error;
-        if (values[n]!=want) return fail(s,-5);
+    if (!writing) for (unsigned first=0;first<words;first+=NANO_PROBE_MEMORY_WORDS) {
+        uint64_t expected[NANO_PROBE_MEMORY_WORDS];
+        unsigned count=words-first;
+        if(count>NANO_PROBE_MEMORY_WORDS)count=NANO_PROBE_MEMORY_WORDS;
+        result=table_words(s->input_selected ? &s->input:0,offset+first*8,expected,count);
+        if(result)return fail(s,result);
+        for(unsigned n=0;n<count;n++){
+            s->last_offset=offset+(first+n)*8;s->last_value=values[first+n];
+            if(values[first+n]!=expected[n])return fail(s,-5);
+        }
     }
     return 0;
 }
@@ -333,9 +349,13 @@ static int previous_tables(struct nano_probe_setup *s)
   s->trusted_io.barrier(s->trusted_io.context);if(!integrity(s))return fail(s,-13);
   if(error)return fail(s,error);
   if(guard(s))return s->first_error;
-  for(unsigned n=0;n<NANO_PROBE_SETUP_WORDS;n++){
-   uint64_t expected=0;
-   if(nano_sdm_input_words(&s->previous_snapshot.binding,at+n*8,&expected,1) || values[n]!=expected)return fail(s,-5);
+  for(unsigned first=0;first<NANO_PROBE_SETUP_WORDS;first+=NANO_PROBE_MEMORY_WORDS){
+   uint64_t expected[NANO_PROBE_MEMORY_WORDS];
+   unsigned count=NANO_PROBE_SETUP_WORDS-first;
+   if(count>NANO_PROBE_MEMORY_WORDS)count=NANO_PROBE_MEMORY_WORDS;
+   int expected_error=table_words(&s->previous_snapshot.binding,at+first*8,expected,count);
+   if(expected_error)return fail(s,expected_error);
+   for(unsigned n=0;n<count;n++)if(values[first+n]!=expected[n])return fail(s,-5);
   }
  }
  return 0;
