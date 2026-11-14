@@ -25,7 +25,8 @@ struct RotatingDisk {
         else if(delta==3 && halftrack>2)--halftrack;
     }
     bool flux(bool reference,bool motor) const {
-        if(!reference || !motor)return false;
+        // D64 contains integer tracks only: a half-track has no flux to read.
+        if(!reference || !motor || (halftrack&1))return false;
         unsigned track=halftrack/2;
         unsigned period=4*(16-zone(track));
         if(rotation%period)return false;

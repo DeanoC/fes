@@ -456,20 +456,21 @@ builds of pc386 are parked with [#1235](https://github.com/DeanoC/fes/issues/123
 - Every analysis must pass on every clock, and TimeQuest must analyse every
   clock, or the build publishes nothing. The build summary records the fit's
   ALMs, registers, RAM and DSP blocks.
-- The build authenticates the whole slot of the core's `toolchain.lock`,
-  whose nextpnr links a GPU runtime. For CUDA, pass `GPU_ROUTER=CUDA` to both
-  `make toolchain-fes-pc386` and `make build-fes-pc386-quartus`, or pass
-  `--gpu-router CUDA` directly to the build script. This selects the CUDA
-  slot, so a host with CUDA and no ROCm can seal; HIP remains the default when
-  `GPU_ROUTER` is unset or empty. Nothing routes on a GPU. The record's
-  `gpu_backend` and `toolchain_configuration` name the slot, so HIP and CUDA
-  seals of one commit have distinct BUILD_IDs.
+- The build authenticates every tool install the core's `toolchain.lock`
+  resolves to, and that lock's nextpnr links a GPU runtime. For CUDA, pass
+  `GPU_ROUTER=CUDA` to both `make toolchain-fes-pc386` and
+  `make build-fes-pc386-quartus`, or pass `--gpu-router CUDA` directly to the
+  build script. This selects the CUDA nextpnr install, so a host with CUDA and
+  no ROCm can seal; HIP remains the default when `GPU_ROUTER` is unset or
+  empty. Nothing routes on a GPU. The record's `gpu_backend` and
+  `toolchain_configuration` name the lane, so HIP and CUDA seals of one commit
+  have distinct BUILD_IDs.
 - The seal needs a lockstep report of this tree's CPU
   (`LOCKSTEP_REPORT=`, `--lockstep-report`): `scripts/test_fes_i386_lockstep.py
   --netlist`, the default suite over every in-scope file of a full corpus
   download, with the same cache root and router. The
   build refuses to seal unless the report passed and its Yosys program, CPU
-  source digest and Yosys (lock, lock digest, router, slot binary) are this
+  source digest and Yosys (lock, lock digest, router, install binary) are this
   build's, its Verilator is the i386 lock's, and the CPU netlist this build's
   Yosys writes through the seal's passes has the report's digest. The report
   is copied into the output, and `build-summary.json` records it under
@@ -516,11 +517,13 @@ archives in `C:\FDOS\BIN`, pinned in [`sim/freedos.lock`](sim/freedos.lock).
   - **Entry 1, the default.** The kernel stays in conventional memory (below).
     `DOSDATA=UMB` moves its data, stacks and LASTDRIVE to upper memory, and
     `FILESHIGH=30`, `BUFFERSHIGH=16` and `SHELLHIGH` move the file handles,
-    buffers and FreeCOM there too. MEM shows 582K (595,808 bytes) free. That
+    buffers and FreeCOM there too. MEM shows a largest executable program size
+    of 582K (595,808 bytes). That
     is enough for Frontier: Elite 2 (about 594,000) and Serpent Isle's
     published 573K (586,752 bytes). `FILES=30` covers Strike Commander's 25
     (#1525). The games-image MEM simulation requires Serpent Isle's figure
-    plus 1,024 bytes, and Frontier's.
+    plus 1,024 bytes, and Frontier's. The full CI tier runs
+    `make sim-fes-pc386-mem`, using the Bochs oracle CPU and VGA replay.
   - **Entry 2, more memory.** `DOS=HIGH,UMB`, `FILES=30`, `BUFFERS=16`, for
     programs that need more conventional memory, such as Falcon 3.0
     (614,400 bytes). MEM shows 622K (637,152 bytes). It is not for Ultima

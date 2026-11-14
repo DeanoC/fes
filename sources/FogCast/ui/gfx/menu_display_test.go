@@ -25,12 +25,18 @@ type testMenuClient struct {
 	fail           bool
 	unavailable    bool
 	statusErr      error
-	statusCalls    int
-	holdStatus     func()
-	ready          chan struct{}
-	statusSeen     chan uint64
-	presentBlock   <-chan struct{}
-	picture        []int
+	// displayed is the runtime's displayed sequence: each accepted present
+	// advances it, and status reports what is on screen now.
+	displayed uint64
+	// live is the runtime's re-read of the display itself, nil for a
+	// runtime that reports none.
+	live         *menudisplay.Live
+	statusCalls  int
+	holdStatus   func()
+	ready        chan struct{}
+	statusSeen   chan uint64
+	presentBlock <-chan struct{}
+	picture      []int
 }
 
 func (c *testMenuClient) Status(context.Context) (menudisplay.Status, error) {
@@ -43,6 +49,8 @@ func (c *testMenuClient) Status(context.Context) (menudisplay.Status, error) {
 	statusErr := c.statusErr
 	hold := c.holdStatus
 	picture := c.picture
+	displayed := c.displayed
+	live := c.live
 	c.mu.Unlock()
 	if hold != nil {
 		hold()
@@ -56,7 +64,7 @@ func (c *testMenuClient) Status(context.Context) (menudisplay.Status, error) {
 	if statusErr != nil {
 		return menudisplay.Status{}, statusErr
 	}
-	return menudisplay.Status{Available: !unavailable, Generation: generation, Session: session, PackageID: packageID, CoreGeneration: coreGeneration, Width: 1280, Height: 720, Stride: 5120, ByteCount: menudisplay.FrameBytes, SlotBytes: menudisplay.SlotBytes, Underflows: underflows, Picture: picture}, nil
+	return menudisplay.Status{Available: !unavailable, Generation: generation, Session: session, PackageID: packageID, CoreGeneration: coreGeneration, Width: 1280, Height: 720, Stride: 5120, ByteCount: menudisplay.FrameBytes, SlotBytes: menudisplay.SlotBytes, Underflows: underflows, Picture: picture, DisplayedSequence: displayed, Live: live}, nil
 }
 func (c *testMenuClient) Present(_ context.Context, generation uint64, pixels []byte) (menudisplay.Result, error) {
 	c.mu.Lock()
@@ -66,6 +74,11 @@ func (c *testMenuClient) Present(_ context.Context, generation uint64, pixels []
 	n := min(4, len(pixels))
 	c.pixels = append([]byte(nil), pixels[:n]...)
 	fail := c.fail
+	displayed := c.displayed
+	if !fail {
+		c.displayed++
+		displayed = c.displayed
+	}
 	c.mu.Unlock()
 	select {
 	case c.ready <- struct{}{}:
@@ -77,7 +90,7 @@ func (c *testMenuClient) Present(_ context.Context, generation uint64, pixels []
 	if fail {
 		return menudisplay.Result{}, errors.New("stale menu")
 	}
-	return menudisplay.Result{Generation: generation, DisplayedSequence: uint64(c.calls)}, nil
+	return menudisplay.Result{Generation: generation, DisplayedSequence: displayed}, nil
 }
 
 func TestMenuDisplayPauseDrainsInflightAndDropsQueuedFrames(t *testing.T) {

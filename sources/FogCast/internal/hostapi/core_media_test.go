@@ -150,6 +150,7 @@ func TestCoreMediaEntryCreateAndSelectShapes(t *testing.T) {
 	}{
 		{"legacy", "POST", "", `{"title":"Core","package_id":"` + pkg + `"}`, 201, nil},
 		{"create", "POST", "", `{"title":"Core","package_id":"` + pkg + `","media_role":"blob","media_id":"` + id + `"}`, 201, []string{"Core", pkg, "blob", id}},
+		{"create cartridge", "POST", "", `{"title":"Core","package_id":"` + pkg + `","media_role":"cartridge","media_id":"` + id + `"}`, 201, []string{"Core", pkg, "cartridge", id}},
 		{"set", "PUT", "/core-test/media", `{"expected_package_id":"` + pkg + `","expected_media_id":"","media_role":"blob","media_id":"` + id + `"}`, 200, []string{"core-test", pkg, "", "blob", id}},
 		{"clear", "PUT", "/core-test/media", `{"expected_package_id":"` + pkg + `","expected_media_id":"` + id + `","media_role":"","media_id":""}`, 200, []string{"core-test", pkg, id, "", ""}},
 	} {
@@ -216,7 +217,7 @@ func TestCoreMediaSelectionRejectsIncompleteOrMalformedCAS(t *testing.T) {
 	for _, body := range []string{
 		`{"package_id":"` + pkg + `","media_id":"` + id + `"}`,
 		`{"package_id":"` + pkg + `","media_role":"blob"}`,
-		`{"package_id":"` + pkg + `","media_role":"cartridge","media_id":"` + id + `"}`,
+		`{"package_id":"` + pkg + `","media_role":"cartridge","media_id":"bad"}`,
 		`{"package_id":"` + pkg + `","media_role":"blob","media_id":"bad"}`,
 	} {
 		s := &coreMediaAPIService{}

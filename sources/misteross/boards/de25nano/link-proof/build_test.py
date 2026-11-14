@@ -14,6 +14,15 @@ build = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(build)
 
 
+def _test_policy(root):
+    """scripts/test_policy.py, which owns the DE25 combined-proof capture set."""
+    spec = importlib.util.spec_from_file_location(
+        "fes_test_policy", Path(root) / "scripts/test_policy.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 class RecipeTests(unittest.TestCase):
     def test_package_identity_binds_only_committed_pre_generation_computer_inputs(self):
         previous = build.PROFILE
@@ -230,16 +239,9 @@ class RecipeTests(unittest.TestCase):
                          {name: build.sha(data) for name, data in frozen["files"].items()})
 
         self.assertTrue(receipt["test_source_committed"])
-        runtime = root / "sources/libmister-runtime"
-        hps_cosim = build.BOARD.parent / "zx81-hps/cosim"
-        paths = list(combined.glob("*.cpp")) + list(combined.glob("*.hpp"))
-        paths += [combined / "sim_top.v", combined / "proof.py"]
-        paths += list((runtime / "src/native").rglob("*.hpp"))
-        paths += list(hps_cosim.glob("*.hpp"))
-        paths += [runtime / "include/libmister-runtime/runtime.h",
-                  runtime / "src/native/de25_computer.cpp",
-                  runtime / "src/native/de25_pr_control.cpp",
-                  build.BOARD.parent / "zx81-hps/client_proof.py"]
+        # The capture set is declared once, in scripts/test_policy.py, so this
+        # assertion and the proof that produces the receipt cannot disagree.
+        paths = _test_policy(root).de25_combined_proof_paths(root)
         runtime_hashes = {path.relative_to(root).as_posix(): build.sha(path.read_bytes()) for path in paths}
         self.assertEqual(receipt["test_runtime_source_sha256"], runtime_hashes)
         self.assertEqual(len(receipt["results"]), 14)
