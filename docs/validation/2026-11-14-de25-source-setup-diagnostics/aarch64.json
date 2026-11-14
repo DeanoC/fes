@@ -1,0 +1,40 @@
+{
+  "status": "passed-selected-vendor-platform-aarch64-object",
+  "scope": "compile-only failure diagnostics; no image admission, linked BL31 or whole-EL3-stack qualification",
+  "base_receipt": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/rearm-start-boot/native-bl31/result.json",
+  "base_receipt_sha256": "5ae5b56bb70c529fe2268d351fc6f7a4ca84521d312c821704db65b3218b3ef8",
+  "changed_source_sha256": "51a4ed9c9e7948af17835c5d77c6d3fa70dd16d7c6e60cf832eef0410d8cb257",
+  "compiler": {
+    "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-gcc",
+    "sha256": "ea55f8b35f29e94d8bbf6cb6f4a2ed39f8e204e2a2080cf06ba7c1733da11d95"
+  },
+  "command": [
+    "/usr/bin/make",
+    "-j",
+    "2",
+    "PLAT=agilex5",
+    "BUILD_STRING=fes-nano-owned-unready-580dcb5c4e10",
+    "CROSS_COMPILE=/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+    "/home/deano/fes/out/dev/de25-dispatch-release/out/source-setup-aarch64-r3/source/build/agilex5/release/bl31/nano_cold_platform.o",
+    "SEPARATE_NOBITS_REGION=1",
+    "V=1"
+  ],
+  "object_path": "/home/deano/fes/out/dev/de25-dispatch-release/out/source-setup-aarch64-r3/source/build/agilex5/release/bl31/nano_cold_platform.o",
+  "object_sha256": "1f45b788977d66ba133588a79f7c772cab0390fe00d8c3f8ba51541ab8e0705a",
+  "symbol_sha256": "8caee6f27264cf4306ab7d2ca4f060821a25e9924c2081b37de61ec52defd3fc",
+  "stack_frames": {
+    "sdm_source_setup_failure": {
+      "bytes": 224,
+      "kind": "static"
+    },
+    "fes_nano_sdm_source_prepare": {
+      "bytes": 688,
+      "kind": "static"
+    }
+  },
+  "stack_sha256": "9745d793434d8c63426084e389aa2927c527124a76eee3d87248b4252e50c4a5",
+  "hardware_actions": false,
+  "full_receipt_path": "/home/deano/fes/out/dev/de25-dispatch-release/out/source-setup-aarch64-r3/result.json",
+  "full_receipt_sha256": "00633f8bb9b039b8041754ec30ad9489d9abd2cb20963ec39e170e398716e4cc",
+  "source_entries": 4969
+}
