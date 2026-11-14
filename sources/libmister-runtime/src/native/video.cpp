@@ -187,9 +187,21 @@ Error RequireLink(I2c& i2c, Clock& clock, std::uint64_t deadline,
 			// Recorded, never required, and read on its own account: a failure
 			// here must not disturb the PLL verdict above, or an unlocked PLL
 			// would be accepted because a diagnostic was unreadable.
-			if (i2c.ReadByte(adv7513::reg::kVicDetected, &vic, deadline).ok()) {
+			const Error vic_error = i2c.ReadByte(
+				adv7513::reg::kVicDetected, &vic, deadline);
+			if (vic_error.ok()) {
 				result->vic_status = vic;
 				result->vic_read = true;
+			} else if ((PllLocked(*result) || !seen_unlocked) &&
+				clock.NowMs() >= deadline) {
+				// The VIC is optional, but an exhausted caller budget is not:
+				// do not let a successful PLL sample turn a timed-out read into
+				// a successful bring-up. If this poll already measured an
+				// unlocked PLL and it remains unlocked, let that direct refusal
+				// keep precedence over the optional read's error.
+				return {ErrorCode::io_failed,
+					"VIC register 0x3e read failed: " + vic_error.message +
+					LinkSampleDetail(*result)};
 			}
 			if (!pll_error.ok()) {
 				if (clock.NowMs() >= deadline)

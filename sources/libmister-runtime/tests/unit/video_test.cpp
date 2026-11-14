@@ -10,7 +10,7 @@
 using namespace mister::native;
 const std::uint64_t kDeadline = 100;
 std::size_t scenarios = 0;
-const std::size_t kExpectedScenarios = 241;
+const std::size_t kExpectedScenarios = 243;
 class ClockFake final : public Clock {
 public: mutable std::uint64_t now = 0;
  std::uint64_t NowMs() const override { return now++; }
@@ -269,6 +269,22 @@ void TestLinkRequiresPllLockAndRecordsVic()
 			assert(result.error.ok() && result.phase == "hdmi_verify");
 			assert(Mentions(result.error.message, "pll_lock=1"));
 			assert(Mentions(result.error.message, "rx_sense=1"));
+			assert(Mentions(result.error.message, "vic=?"));
+			++scenarios;
+		}
+		// An optional VIC failure is harmless until its read exhausts the
+		// caller's budget. That deadline must remain fatal even after the PLL
+		// has locked and would otherwise finish the poll successfully.
+		{
+			Fixture spent_vic;
+			spent_vic.clock.now = kDeadline - 2;
+			spent_vic.i2c.vic_read_error =
+				{mister::ErrorCode::io_failed, "deadline exceeded"};
+			const auto result = bring_up(spent_vic);
+			assert(!result.error.ok() && result.phase == "hdmi_verify");
+			assert(Mentions(result.error.message,
+				"VIC register 0x3e read failed: deadline exceeded"));
+			assert(Mentions(result.error.message, "pll_lock=1"));
 			assert(Mentions(result.error.message, "vic=?"));
 			++scenarios;
 		}
