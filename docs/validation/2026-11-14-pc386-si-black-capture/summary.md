@@ -21,12 +21,16 @@ Which of those stages it is stays open as
 for an episode and wait for one; each can name a side only by recovering the
 picture, and an episode that survives both says nothing.** Most of the
 evidence below is from runs already taken, remeasured here. This record's own
-Kit B runs are `b1` (13 launches) and `b2` (30), both complete and both with no
-black launch. They
+Kit B runs are `b1` (13 launches), `b2` (30) and `b3` (40 of a planned 140), all
+three with no black launch. They
 contribute the timing and nonce evidence — each launch's blank window is dated
 and the grab lands 31 s or more after it closes — and no episode of their own.
-A third run carries the episode probe Deano has approved and is queued behind
-other sessions' kit work.
+`b3` carried the episode probe Deano has approved and found no episode to spend
+it on; it ended early when the stop of its last launch left the kit needing a
+recovery that is Deano's to authorise
+([the I²C collision](#an-ic-collision-ended-run-b3)). So the two approved tests
+are still unspent, and Kit B is logged in use and not usable until that
+recovery.
 
 ## What was already established
 
@@ -242,14 +246,14 @@ I²C silence is the FPGA reconfiguration itself, and the luma gap sits exactly o
 it. (#1823 separately measured 2.81 s and 3.07 s of an unreadable transmitter,
 but that was #1804's *recovery* reprogram, a different event.)
 
-Across all 43 launches of `b1` and `b2` the shape is the same and the margin is
-wide:
+Across all 83 launches of `b1`, `b2` and `b3` the shape is the same and the
+margin is wide:
 
 | | min | median | max |
 | --- | --- | --- | --- |
-| last second with no delivered frames | 15 s | 18 s | 24 s |
-| the grab, on the same clock | 47.2 s | 51.4 s | 62.6 s |
-| **margin between them** | **31.2 s** | **34.4 s** | **38.6 s** |
+| last second with no delivered frames | 15 s | 19 s | 25 s |
+| the grab, on the same clock | 47.2 s | 53.3 s | 62.6 s |
+| **margin between them** | **31.2 s** | **35.2 s** | **38.6 s** |
 
 In every launch the picture is lit in the very next second after the gap, and no
 launch has a single dark second after it. So the grab sits at least 31 s after
@@ -260,14 +264,18 @@ grabs.
 **The nonce renders.** The runs type `echo <nonce> ###…` with a bar of
 `3 + n mod 17` hashes, and the mean grey of the frame's top 120 rows rises
 monotonically with it (4.70 at 3 hashes, 5.95 at 7, 7.35 at 11, 8.46 at 15).
-All 43 prompt frames are distinct, where `k8`'s 101 launches shared 10 hashes. A
+All 83 prompt frames are distinct, where `k8`'s 101 launches shared 10 hashes. A
 frame left over from an earlier launch would show the wrong bar, so a stale
 frame can no longer pass as a live one.
 
-**No episode in 43 launches.** `b1` (13) and `b2` (30) saw no black grab at all,
-and not one dark second after any launch's gap. At the earlier rate of 12 in 400
-(3%), 43 clean launches in a row happen about one time in four, so this does not
-show the rate has changed; it does mean neither run caught an episode to probe.
+**No episode in 83 launches.** `b1` (13), `b2` (30) and `b3` (40) saw no black
+grab at all, and not one dark second after any launch's gap. At the earlier rate
+of 12 in 400 (3%), 83 clean launches in a row happen about one time in twelve,
+so this does not show the rate has changed; it does mean no run caught an
+episode to spend the approved probes on. `b3` was the probe-armed run and was
+planned for 140 launches; it stopped at 40 for a reason of its own, recorded
+under [an I²C collision ended run `b3`](#an-ic-collision-ended-run-b3), which
+says nothing about the episode either way.
 
 ## A bring-up outage and an episode do not look alike
 
@@ -354,11 +362,64 @@ minute clear of any bring-up — not the frame pattern.
   27 s (`k6` measured that stretch). The 10 November record marks that as not
   tested, and it stays untested here.
 
+## An I²C collision ended run `b3`
+
+Run `b3`, the probe-armed one, stopped after 40 of its 140 launches, and the
+kit was left needing a recovery that is Deano's to authorise. The cause is
+most likely the harness, not the core or the runtime, and the record keeps it
+separate from everything above.
+
+Launch 40's `stop` reported `{"state": "stopping", "recovery":
+"reboot_required"}`. Per [soft-restart Path B](../../soft-restart-path-b.md),
+`Runtime::Stop` publishes `reboot_required` when the cleanup `LoadIdle` fails,
+and that `LoadIdle` runs HDMI quiesce and driver quiesce before programming the
+FPGA. The wrapper halted without attempting recovery, as it is built to.
+
+What points at the harness is the kit's last `dmesg` line:
+
+```
+[179746.683404] i2c_designware ffc06000.i2c: i2c_dw_handle_tx_abort: lost arbitration
+```
+
+That is 0.3 s before the first read of this launch's own ADV7513 register poll
+(uptime 179746.98), and the poll was still running while the `stop` executed:
+15 reads returned healthy values (`0x41` `0x10`, `0x42` `0xf0`, `0x9E` `0x12`,
+`0x3E>>2` 4), and from about 179750 every read failed, 43 of them in a row,
+4.1 s apart — the `i2cget` timeout. Lost arbitration is two masters on one bus,
+and the two candidates are the runtime's quiesce and my poll. The ordering in
+the log is the simplest reading of it; this data cannot exclude the reverse,
+that the transmitter was already wedged and the poll only recorded it.
+
+Either way the lesson for the method is the same: these runs read ADV7513
+registers over the same I²C bus the runtime uses, and a poll that overlaps a
+core load or stop can collide with it. Earlier launches polled through bring-ups
+without a failure, so the collision is not reliable — which is what makes it
+easy to miss.
+
+Two things the stuck state shows that are worth keeping:
+
+- The ADV7513 kept transmitting. With `0x39` unreadable for over 90 minutes,
+  the 4KPRO still delivered a lit 256-colour picture of the pc386 core. An I²C
+  control path that is wedged does not by itself black the picture, which is
+  one more thing a black capture is not.
+- The board did not reboot and nothing drifted: `boot_id` 6626d877 unchanged
+  over 51 h of uptime, `fpga_manager` `operating`, image 179affbb good with no
+  pending, software 7ddb0bfb active, and Kit B's `usb-storage.quirks` line
+  intact.
+
+Nothing was attempted — no `recover_idle`, no development reboot, no service
+restart. Path B is HOLD-FOR-KIT-GO, and the one instance recorded there with
+`0x39` gone needed a hard power cycle, so the choice between the development
+reboot and a power cycle went to Deano. Until it is made, run `b3`'s 8 new
+paths and run `b2`'s 3 data trees are still on the kit and Kit B's status file
+says it is in use and not usable.
+
 ## Inputs and what was measured here
 
 Most of this record needed no kit: those numbers come from runs already taken on
-Powerboat, remeasured today. Runs `b1` and `b2` are this record's own kit runs,
-both complete.
+Powerboat, remeasured today. Runs `b1`, `b2` and `b3` are this record's own kit
+runs; `b1` and `b2` are complete, and `b3` stopped at 40 of 140 launches
+([the I²C collision](#an-ic-collision-ended-run-b3)).
 
 - **Captures read.** `~/fes-scratch/acc1368r/kit/runs/{k1..k9}` (#1494's own
   runs), `~/fes-scratch/census-p5/kit/runs/*` (433 census grabs, package
@@ -395,7 +456,16 @@ nonce's own rows, where `b1`'s 48-word sample at `k9`'s coordinates read all
 zeros on a lit prompt). Driver `~/fes-scratch/si1494/kit/si1494d.py`, data under
 `.../runs/b1` and `.../runs/b2`.
 
-**The probe a third run would carry.** Deano has approved, for an episode only,
+**Run `b3`** (Kit B, 11:53–12:31 EET, same kit conditions, package and disk as
+`b1` and `b2`, same alternating presets and per-launch nonce, same luma log and
+`0x41`/`0x42`/`0x9E`/`0x3E` poll). It is the run the approved probe was armed on
+(`SI1494_EPISODE_PROBE=1`), and its launch 0 ran the probe forced and dry on a
+lit prompt — the sweep path executed end to end with no register write, which is
+what showed the probe works before an episode had to pay for it. 40 launches, no
+black grab, then the stop of launch 40 failed and the run ended. Data under
+`.../runs/b3`.
+
+**The probe an episode will carry.** Deano has approved, for an episode only,
 #1003's `0xBA[7:5]` sweep and a restart of Powerboat's `fes-4kpro-fanout`
 (relayed 14 November). The driver now implements them in that order on a black
 launch: record the transmitter's registers, step `0xBA[7:5]` through its six

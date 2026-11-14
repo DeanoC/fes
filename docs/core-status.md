@@ -544,7 +544,7 @@ path or Powerboat's capture chain, is
 capture restart during an episode are the cheapest shots at it. Deano has
 approved both for an episode only, and the pc386 kit driver implements them in
 that order; each can name a side only by recovering the picture, and an episode
-that survives both is inconclusive. 43 further Kit B launches produced no
+that survives both is inconclusive. 83 further Kit B launches produced no
 episode to spend them on
 ([#1494](https://github.com/DeanoC/fes/issues/1494),
 [record](validation/2026-11-14-pc386-si-black-capture/summary.md)).
