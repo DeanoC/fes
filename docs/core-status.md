@@ -517,22 +517,32 @@ Still open for the games ([#1368](https://github.com/DeanoC/fes/issues/1368)):
 - Ultima VI walking speed at 286-12, against a reference;
 - Ultima VII NPC pace, against a reference.
 
-Launches with Serpent Isle's disk image sometimes show a black picture at
-the DOS prompt: 12 black DOS-prompt grabs in 400 launches on Kit B. Four of
-those cases were also observed through gameplay (`k1`, `k3` twice, `k6`):
-Serpent Isle was started and ran underneath (its CPU, sound or VRAM
-progressed as in a lit launch). The other eight were prompt-only: `k8`'s
-six grabs stopped at the DOS prompt, before the game ran, and `k9`'s two
-were taken at the prompt; that run then started the game for audio checks
-with no later video grab. In the eight black
-prompt grabs on an instrumented scratch seal, the core still drove lit pixels
-onto the HDMI transmitter pins, so for those the fault is after the core.
-In two of them, the only ones checked, the ADV7513 was set up as in a lit
-launch and HDMI audio arrived. The candidates are the ADV7513's sampling of
-the pixel bus, its internal video path or TMDS video output, and the capture
-grabber's video path. The four earlier gameplay-observed black cases had no such probe
+Launches with Serpent Isle's disk image sometimes capture a black picture at
+the DOS prompt: 12 black DOS-prompt grabs in 400 launches on Kit B. That is not
+a pc386 fault. In the eight black prompt grabs taken on an instrumented scratch
+seal the core still drove lit pixels onto the HDMI transmitter pins, with the
+picture present in DDR, and in the two that were checked the ADV7513 read
+powered, link-ready, PLL-locked and detecting 720p60 while HDMI audio arrived at
+full level. The same capture — a uniform RGB-0 frame, PNG
+`4c6d2c8d8bbb…` — also appears on Kit A through a different grabber and a
+different transmitter, and with no pc386 core loaded at all: it is the FES Home
+screen going black after a baseline restore in #1767's Kit A run, which that run
+itself classified `REAL_FAILURE` after a passing Home a minute earlier. A 6 s
+recording of one Kit B episode shows the capture locked and delivering 360
+black frames at 60 fps, so the sink is neither stalled nor holding a stale
+frame. So this is the shared display-path defect
+[#1823](https://github.com/DeanoC/fes/issues/1823) (fully black HDMI after an
+activation, every log reporting success), reached through a core load instead of
+an activation — both run the same `QuiesceAdv` power-down and `hdmi_verify`
+bring-up. Which stage blackens a locked stream, the ADV7513's own video path or
+the grabbers', stays open on #1823; #1003's `0xBA` sweep is the test that would
+separate them
 ([#1494](https://github.com/DeanoC/fes/issues/1494),
-[record](validation/2026-11-10-pc386-si-reload-presets/summary.md)).
+[record](validation/2026-11-14-pc386-si-black-capture/summary.md)).
+
+Serpent Isle's save and load themselves work: a save made blind through a black
+launch is listed back, and all 22 Journey Onward loads in lit launches put the
+party on the ship in 3–6 s, against about 5.5 s on the Bochs-oracle machine.
 
 The keyboard and mouse, the `fes.computer` 1.1 mailbox and the disk round
 trip with the runtime remain open.
