@@ -5,7 +5,7 @@ HERE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('fes_input_arena',HERE/'nano_sdm_probe_profile.py');arena=importlib.util.module_from_spec(spec);spec.loader.exec_module(arena)
 fit_spec=importlib.util.spec_from_file_location('fes_input_fit',HERE.parent/'nano/fit_layout.py');fit=importlib.util.module_from_spec(fit_spec);fit_spec.loader.exec_module(fit)
 reader_spec=importlib.util.spec_from_file_location('fes_sdm_reader_profile',HERE/'nano_sdm_reader_profile.py');reader=importlib.util.module_from_spec(reader_spec);reader_spec.loader.exec_module(reader)
-CONTRACT=dict(format=14,scope='nano-retained-source-secure-reader-v14',mode='input-transfer-retire-retained-continue',attempts=1,
+CONTRACT=dict(format=16,scope='nano-retained-source-publication-timing-v16',mode='input-transfer-retire-retained-continue',attempts=1,
  source_base=0x94800000,wire_base=0x14800000,payload_max=0x7ff000,page_bytes=4096,metadata_page=0x94fff000,
  arena_base=0x94000000,arena_bytes=0x10000,root_offset=0x4000,command_offset=0x8000,event_offset=0x9000,
  prepared_control=12,armed_control=13,source_stream=10,source_access='read-only-XN',other_streams='abort',
@@ -23,18 +23,22 @@ CONTRACT=dict(format=14,scope='nano-retained-source-secure-reader-v14',mode='inp
  control_bound='existing-vendor-bounded-sync-parser',control_DATA_reopen=False,reader_route=dict(reader.CONTRACT),
  continuation_scope='live-engine-and-fresh-final-view-under-original-retirement-bound',
  buffers='retained-on-every-outcome',mapping_retirement='abort-invalidate-disable-retained',automatic_reset=False,replay=False,
- physical_qualification=False,ordinary_runtime_activation=False,build_tag='cold-chain-prefix-16-hex',boot_fit=dict(fit.CONTRACT),compiler_stack_records='selected-units',final_counter_owner_scope='fresh-after-read',pretransfer_mailbox='vendor-parser-until-preparation-attempt',retirement_bound_us=1000000,retirement_controls=[13,12,8,0],retirement_queue_pointers=[6,12],retirement_abort=0x100000,retirement_allow_bypass=False,retirement_memory_reuse=False,retirement_timing='existing-guard-samples-v1',retirement_timing_phases=7,retirement_timing_added_clock_reads=0,retirement_register_batch_rows=24,retirement_table_guard_bytes=4096,retirement_fresh_prewrite_registers=24,retirement_command_snapshot='owned-fixed-24-register-superset',retirement_command_snapshot_rows=24)
+ physical_qualification=False,ordinary_runtime_activation=False,build_tag='cold-chain-prefix-16-hex',boot_fit=dict(fit.CONTRACT),compiler_stack_records='selected-units',final_counter_owner_scope='fresh-after-read',pretransfer_mailbox='vendor-parser-until-preparation-attempt',retirement_bound_us=4000000,retirement_controls=[13,12,8,0],retirement_queue_pointers=[6,12],retirement_abort=0x100000,retirement_allow_bypass=False,retirement_memory_reuse=False,retirement_timing='existing-guard-samples-v1',retirement_timing_phases=7,retirement_timing_added_clock_reads=0,retirement_register_batch_rows=24,retirement_table_guard_bytes=4096,retirement_fresh_prewrite_registers=24,retirement_command_snapshot='owned-fixed-24-register-superset',retirement_command_snapshot_rows=24)
 CONTRACT.update(retirement_command_clock='fresh-counter-monotonic-source-and-retirement-bounds',
                 retirement_command_ownership='fresh-before-and-after-fixed-register-view-and-binding',
                 retirement_command_progress='owned-fixed-register-view-then-fresh-consumer',
                 retirement_command_progress_rows=24,
-                retirement_command_observation='existing-counter-and-successful-raw-read-samples-v2-completion',
+                retirement_command_observation='accepted-prepublication-counter-and-raw-samples-v3',
                 retirement_command_observation_added_reads=0,
                 retirement_command_observation_stages=11,
-                retirement_command_bound_scope='original-origin-through-owned-valid-consumption',
-                retirement_final_validation_bound_us=1000000,
-                retirement_final_validation_origin='unchanged-command-and-enclosing-retirement',
-                retirement_final_validation_policy='retained-final-snapshots-only')
+                retirement_command_bound_scope='accepted-prepublication-counter-through-owned-valid-consumption',
+                retirement_command_staging_bound_us=2000000,
+                retirement_command_completion_bound_us=1000000,
+                retirement_command_policy=3,
+                retirement_command_publication='owned-prewrite-guard-counter-before-producer-write',
+                retirement_final_validation_bound_us=4000000,
+                retirement_final_validation_origin='original-command-and-enclosing-retirement',
+                retirement_final_validation_policy='publication-timed-retirement-final-snapshots')
 _rearm_spec=importlib.util.spec_from_file_location('fes_source_rearm_profile',HERE/'nano_sdm_rearm_profile.py')
 rearm=importlib.util.module_from_spec(_rearm_spec);_rearm_spec.loader.exec_module(rearm)
 REARM_CONTRACT=rearm.contract(CONTRACT)
@@ -79,7 +83,7 @@ def header(profile):
  if checked(profile) is None:return '#define FES_NANO_SDM_SOURCE_RELEASE 0\n#define FES_NANO_RETAINED_READER_ROUTE 0\n#define FES_NANO_SDM_INPUT_TRANSFER 0\n#define FES_NANO_SDM_SOURCE_LEASE 0\n#define FES_NANO_SDM_RETIRE_SOURCE 0\n#define FES_NANO_RETIRE_TIMING 0\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 0\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 0\n'
  chain=profile.get('chain_sha256','')
  if len(chain)!=64 or any(c not in '0123456789abcdef' for c in chain):raise ValueError('complete input transfer chain required')
- return ('#define FES_NANO_SDM_SOURCE_RELEASE '+str(int(checked(profile)['format']==15))+'\n#define FES_NANO_SDM_INPUT_TRANSFER 1\n#define FES_NANO_SDM_SOURCE_LEASE 1\n#define FES_NANO_SDM_RETIRE_SOURCE 1\n#define FES_NANO_RETIRE_TIMING 1\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 1\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 1\n#define FES_NANO_INPUT_BUILD "'+chain[:16]+'"\n'
+ return ('#define FES_NANO_SDM_SOURCE_RELEASE '+str(int(checked(profile)['format']==17))+'\n#define FES_NANO_SDM_INPUT_TRANSFER 1\n#define FES_NANO_SDM_SOURCE_LEASE 1\n#define FES_NANO_SDM_RETIRE_SOURCE 1\n#define FES_NANO_RETIRE_TIMING 1\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 1\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 1\n#define FES_NANO_INPUT_BUILD "'+chain[:16]+'"\n'
   '#define FES_NANO_RETAINED_READER_ROUTE 1\n#define FES_NANO_READER_ROUTE_SHA '+chr(34)+reader.digest(reader.checked(profile))+chr(34)+'\n'
   '#define FES_NANO_PROBE_HEAP_FIRST 0x84000000ULL\n#define FES_NANO_PROBE_HEAP_LAST 0x94000000ULL\n')
 def install(source,profile,start,mmu,ram,mailbox):
@@ -150,7 +154,7 @@ def verify_image(image,profile):
  symbols=ram.symbols(image);retire_scope=private_function(image,'retire_owned');retire_tables=private_function(image,'retire_valid');private_scope=private_function(image,'sdm_input_final_scope')
  fixed={'__FES_SMMU_PROBE_START__':0x94000000,'__FES_SMMU_STREAMS__':0x94000000,'__FES_SMMU_SDM_ROOT__':0x94004000,'__FES_SMMU_CMDQ__':0x94008000,'__FES_SMMU_EVTQ__':0x94009000,'__FES_SMMU_PROBE_END__':0x94010000}
  roots=('fes_nano_sdm_source_prepare','fes_nano_sdm_source_start_ready','fes_nano_sdm_source_validate','fes_nano_sdm_source_finish','fes_nano_sdm_transfer_result','nano_probe_arm','nano_sdm_transfer_before','nano_sdm_transfer_response','nano_sdm_transfer_status_result','mailbox_read_response_async_expected','nano_source_retire','nano_source_continue','nano_cmdq_submit','fes_nano_sdm_transfer_control_begin','fes_nano_sdm_transfer_control_finish','fes_nano_sdm_source_control_ready','fes_nano_sdm_control_mailbox_idle','fes_nano_sdm_source_reader_ready','fes_nano_sdm_transfer_reader_ready','nano_sdm_reader_observed')
- if checked(profile)['format']==15:
+ if checked(profile)['format']==17:
   roots+=('fes_nano_platform_release_source','fes_nano_sdm_transfer_release_source',
           'fes_nano_sdm_transfer_source_released','fes_nano_sdm_vendor_source_idle','nano_probe_init_rearmed_input')
   for name in roots[-5:]:strong_function(image,name)

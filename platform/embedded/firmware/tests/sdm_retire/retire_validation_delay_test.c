@@ -19,7 +19,7 @@ static int time_us(void *p,uint64_t *out)
 }
 int main(int argc,char **argv)
 {
- assert(argc==2);elapsed=strtoull(argv[1],0,10);assert(elapsed<=1000001);
+ assert(argc==2);elapsed=strtoull(argv[1],0,10);assert(elapsed<=NANO_RETIRE_US+1);
  struct model m;setup(&m);struct nano_retire s={0};m.current=&s;
  struct nano_retire_receipt r={0};struct nano_retire_io io={&m,owns,source,time_us,read32,write32,store,barrier,prepared_queue(),0};
  int error=nano_source_retire(&s,binding(),io,&r);

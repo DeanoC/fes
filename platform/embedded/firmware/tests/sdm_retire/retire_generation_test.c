@@ -111,7 +111,7 @@ int main(void)
   else if(kind==5)prepared->binding.baseline=16;
   else if(kind<=9){fault=kind;point=1;mutate(1);fault=point=injected=0;}
   else if(kind==10)prepared->completion_us=prepared->start+NANO_CMDQ_BOUND_US+1;
-  else if(kind==11)prepared->validation_policy=CMDQ_RETAINED_FINAL_VALIDATION;
+  else if(kind==11)prepared->validation_policy=CMDQ_RETIREMENT_PUBLICATION_BOUND;
   else if(kind==12)prepared->validation_policy=3;
   else if(kind==13){prepared->validation_policy=CMDQ_PREPARATION_FINAL_VALIDATION;prepared->last=prepared->start+NANO_CMDQ_FINAL_BOUND_US+1;}
   else if(kind==14){prepared->validation_policy=CMDQ_PREPARATION_FINAL_VALIDATION;prepared->completion_us=prepared->start+NANO_CMDQ_BOUND_US+1;prepared->last=prepared->completion_us;}

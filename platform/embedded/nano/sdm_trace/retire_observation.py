@@ -31,7 +31,7 @@ def decode(raw,*,boot,build,configuration,_terminal=None,_expected=None):
  target=_expected['retire_target'] if _expected is not None else 12
  expected=dict(status=0,phase=6,retired=1,first_error=0,writes=5,producer=target,consumer=target,control=0,abort=0x100000,bad_offset=0,bad_value=0,retained=1,reuse=0,activated=0)
  if any(r[k]!=v for k,v in expected.items()):errors.append('retirement control/result not qualified')
- if not 0<r['elapsed_us']<1000000:errors.append('retirement stage deadline differs')
+ if not 0<r['elapsed_us']<4000000:errors.append('retirement stage deadline differs')
  passed=source['passed'] and not errors
  return dict(passed=passed,errors=errors,source_flow_verified=source['source_flow_verified'],retirement_verified=passed,
   input_observation=source,result=r,recorded_DATA_requests=source.get('recorded_DATA_requests',0),recorded_DATA_bytes=source.get('recorded_DATA_bytes',0),

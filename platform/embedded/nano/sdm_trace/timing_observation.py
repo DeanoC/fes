@@ -54,7 +54,7 @@ def timing_errors(t,source,retirement,*,retirement_verified):
     if retirement_verified:
         check((t['phase'],t['timed'],mask)==(6,1,127),'retirement lacks complete timing phases')
         check(t['guards']==t['samples']==t['owners'] and t['sources']==t['validated']==5,'successful timing counts incomplete')
-        check(t['last_us']==t['observed_us'] and 0<t['observed_us']-t['start_us']<1000000,'successful retirement clock invalid')
+        check(t['last_us']==t['observed_us'] and 0<t['observed_us']-t['start_us']<4000000,'successful retirement clock invalid')
         check(retirement['elapsed_us']==t['last_us']-t['start_us'],'timing/retirement elapsed differs')
         check(t['writes']==5 and t['reads']>0 and t['polls']>=4,'successful timing operations incomplete')
     return errors

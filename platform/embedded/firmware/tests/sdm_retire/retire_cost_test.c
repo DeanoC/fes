@@ -15,11 +15,14 @@ static void retire_meter(unsigned kind)
  if(kind==0)ticks+=read_cost;
  if(kind==5)ticks+=counter_cost;
 }
-int main(int argc,char **argv)
+#ifndef FES_TEST_RETIRE_COST_MAIN
+#define FES_TEST_RETIRE_COST_MAIN main
+#endif
+int FES_TEST_RETIRE_COST_MAIN(int argc,char **argv)
 {
  assert(argc==3);
  read_cost=strtoul(argv[1],0,10);counter_cost=strtoul(argv[2],0,10);
- assert(read_cost<=1000 && counter_cost<=1000);
+ assert(read_cost<=1000 && counter_cost<=100000);
  trial_case=0;fixture_credits=4;joined_case();
  assert(!source_retirement.continued || (source_retirement.retired && !source_retirement.failed));
  if(source_retirement.failed && !source_retirement.retired){

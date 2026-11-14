@@ -25,7 +25,7 @@ def decode(raw,*,boot,build,configuration,_expected=None):
  for key in ('build','owner','epoch','generation'):
   if c[key]!=r[key]:errors.append('continuation/retirement '+key+' differs')
  if (c['ready'],c['retained'],c['reuse'],c['activated'])!=(1,1,0,0):errors.append('continuation authority differs')
- if not r['elapsed_us']<=c['elapsed_us']<1000000:errors.append('continuation original retirement deadline differs')
+ if not r['elapsed_us']<=c['elapsed_us']<4000000:errors.append('continuation original retirement deadline differs')
  passed=q['passed'] and q['retirement_verified'] and not errors
  return dict(passed=passed,continuation_verified=passed,continuation=c,retirement=q,errors=errors,
   native_activation_verified=False,memory_reuse_authorized=False,ordinary_runtime_activation=False)

@@ -18,6 +18,7 @@ static void mutate(struct model *m)
  case 6:m->queue.io.barrier=0;break;
  case 7:m->queue.io.snapshot=snapshot;break;
  case 8:m->queue.io.progress=poison;break;
+ case 9:m->queue.io.publish_timed=0;break;
  default:assert(0);
  }
 }
@@ -27,6 +28,8 @@ static int store_mutating(void *p,unsigned slot,const uint8_t bytes[16])
 {struct model *m=p;int e=store(p,slot,bytes);if(cut==4)mutate(m);return e;}
 static int write_mutating(void *p,uint32_t offset,uint32_t value)
 {struct model *m=p;int e=write32(p,offset,value);if(cut==7)mutate(m);return e;}
+static int publish_mutating(void *p,uint32_t target,uint64_t *issued)
+{struct model *m=p;*issued=m->queue.last;return write_mutating(p,0x98,target);}
 static void barrier_mutating(void *p)
 {
  struct model *m=p;barriers++;
@@ -38,10 +41,12 @@ static void barrier_mutating(void *p)
 int main(void)
 {
  unsigned cases=0;
- for(unsigned policy=0;policy<=2;policy++)for(cut=1;cut<=8;cut++)for(field=0;field<9;field++){
+ const unsigned policies[]={CMDQ_FULL_OPERATION_BOUND,CMDQ_PREPARATION_FINAL_VALIDATION,CMDQ_RETIREMENT_PUBLICATION_BOUND};
+ for(unsigned selected=0;selected<3;selected++)for(cut=1;cut<=8;cut++)for(field=0;field<10;field++){
+  unsigned policy=policies[selected];
   struct model m={.owned=1,.producer=6,.consumer=6};hit=barriers=0;
   struct nano_cmdq_binding b={17,7,4,0x94008000,6};
-  struct nano_cmdq_io io={&m,owns,clock_us,read_mutating,write_mutating,store_mutating,barrier_mutating,0,0};
+  struct nano_cmdq_io io={&m,owns,clock_us,read_mutating,write_mutating,store_mutating,barrier_mutating,0,0,publish_mutating};
   assert(!nano_cmdq_init(&m.queue,b,io));struct nano_cmdq_receipt r={0};
   assert(nano_cmdq_submit(&m.queue,&r,(enum nano_cmdq_validation_policy)policy));
   assert(hit && m.queue.failed && m.queue.first_error==-13 && !r.commands_completed);

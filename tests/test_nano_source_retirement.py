@@ -202,15 +202,33 @@ class SourceRetirementTests(unittest.TestCase):
     def test_command_completion_and_final_validation_policies(self):
         self.run_model("command_validation_test")
 
+    def test_retirement_staging_publication_completion_and_final_budgets(self):
+        result = self.run_model("command_publication_test")
+        self.assertEqual(result["cases"], 42)
+
+    def test_joined_retirement_publication_cost_and_expiry(self):
+        rows = {}
+        for cost in (0, 128, 224, 256, 288, 320, 384, 1000):
+            rows[cost] = self.run_model("retire_publication_cost_test", joined=True, arguments=(cost, 0))
+        for cost in (0, 128, 224, 256, 288):
+            self.assertEqual((rows[cost]["retired"], rows[cost]["continued"],
+                              rows[cost]["failed"], rows[cost]["first_error"]), (1, 1, 0, 0))
+        self.assertFalse(rows[1000]["continued"])
+        clocks = {cost: self.run_model("retire_publication_cost_test", joined=True, arguments=(0, cost))
+                  for cost in (1000, 100000)}
+        self.assertTrue(clocks[1000]["continued"])
+        self.assertFalse(clocks[100000]["continued"])
+        self.publication_cost_observations = dict(read_cost_cases=rows, clock_cost_cases=clocks)
+
     def test_callback_substitution_stops_before_next_operation(self):
         self.run_model("command_callback_test")
 
     def test_retirement_keeps_its_original_enclosing_deadline(self):
-        for delay in (0, 105704, 1000001):
+        for delay in (0, 105704, 1000001, 4000001):
             result = self.run_model("retire_validation_delay_test", arguments=(delay,))
-            self.assertEqual(bool(result["retired"]), delay < 1000000)
-            self.assertEqual(result["writes"], 5 if delay < 1000000 else 4)
-            self.assertEqual(result["first_error"], 0 if delay < 1000000 else -110)
+            self.assertEqual(bool(result["retired"]), delay < 4000000)
+            self.assertEqual(result["writes"], 5 if delay < 4000000 else 4)
+            self.assertEqual(result["first_error"], 0 if delay < 4000000 else -110)
 
     def test_command_snapshot_cost_and_unchanged_deadlines(self):
         baseline = json.loads((ROOT / "tests/fixtures/nano-sdm-input/retirement-cost-v6.json").read_text())
@@ -246,6 +264,8 @@ class SourceRetirementTests(unittest.TestCase):
         self.assertFalse(baseline["eight_us_read_cost_retired"])
         self.assertTrue(rows[8]["retired"])
         self.assertFalse(rows[1000]["retired"])
-        slow_clock = self.run_model("retire_cost_test", joined=True, arguments=(0, 1000))
+        finite_clock = self.run_model("retire_cost_test", joined=True, arguments=(0, 1000))
+        self.assertTrue(finite_clock["retired"])
+        slow_clock = self.run_model("retire_cost_test", joined=True, arguments=(0, 100000))
         self.assertFalse(slow_clock["retired"])
         self.cost_observations = {"read_cost_cases": rows, "slow_clock": slow_clock}

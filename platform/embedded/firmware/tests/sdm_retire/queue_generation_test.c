@@ -66,13 +66,15 @@ static int progress(void *p,uint32_t target,uint32_t *consumer)
 static void init(struct model *m,unsigned mode,unsigned baseline,uint64_t generation)
 {
  *m=(struct model){.producer=baseline,.consumer=baseline,.mode=mode,.expected={17,7,generation,0x94008000,baseline}};
- struct nano_cmdq_io io={m,owns,clock_us,read32,publish,store,barrier,mode ? snapshot:0,mode==2 ? progress:0};
+ struct nano_cmdq_io io={m,owns,clock_us,read32,publish,store,barrier,mode ? snapshot:0,mode==2 ? progress:0,0};
  assert(!nano_cmdq_init(&m->q,m->expected,io));
 }
 int main(void)
 {
  unsigned cases=0,wraps=0;
- for(unsigned mode=0;mode<3;mode++)for(unsigned policy=0;policy<2;policy++){
+ const unsigned policies[]={CMDQ_FULL_OPERATION_BOUND,CMDQ_PREPARATION_FINAL_VALIDATION};
+ for(unsigned mode=0;mode<3;mode++)for(unsigned selected=0;selected<2;selected++){
+  unsigned policy=policies[selected];
   unsigned baseline=0;
   for(unsigned generation=1;generation<=64;generation++){
    struct model m;init(&m,mode,baseline,generation);struct nano_cmdq_receipt r={0};

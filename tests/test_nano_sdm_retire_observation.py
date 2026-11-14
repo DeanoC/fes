@@ -14,7 +14,7 @@ class RetirementTests(unittest.TestCase):
   r=self.decode(WIRE);self.assertTrue(r['passed'] and r['source_flow_verified'] and r['retirement_verified']);self.assertEqual(r['result']['producer'],12);self.assertFalse(r['buffer_reuse_authority'] or r['ordinary_runtime_activation'] or r['independent_interconnect_drain'])
  def test_every_retirement_field_mutation_rejects(self):
   for key in FIELDS:
-   value='0'*16 if key=='build' else '0'*96 if key=='sha384' else '1000000' if key=='elapsed_us' else str(int(str(ROW[key]),16 if key in ('owner','epoch','abort','bad_offset','bad_value') else 10)+1)
+   value='0'*16 if key=='build' else '0'*96 if key=='sha384' else '4000000' if key=='elapsed_us' else str(int(str(ROW[key]),16 if key in ('owner','epoch','abort','bad_offset','bad_value') else 10)+1)
    altered=b' '.join((v.split(b'=',1)[0]+b'='+value.encode()) if v.startswith(key.encode()+b'=') else v for v in LINE.rstrip(b'\n').split())+b'\n'
    with self.subTest(field=key):
     try:self.assertFalse(self.decode(WIRE.replace(LINE,altered))['passed'])

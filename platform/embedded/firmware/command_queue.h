@@ -9,15 +9,20 @@
 #define NANO_CMDQ_POLLS 128U
 #define NANO_CMDQ_BOUND_US 100000U
 #define NANO_CMDQ_FINAL_BOUND_US 1000000U
+#define NANO_CMDQ_RETIRE_STAGE_US 2000000U
+#define NANO_CMDQ_RETIRE_COMPLETION_US 1000000U
+#define NANO_CMDQ_RETIRE_FINAL_US 4000000U
 enum nano_cmdq_validation_policy {
-    CMDQ_FULL_OPERATION_BOUND,
-    /* Only after owned progress/pointer/postguard accept the target. The
-     * retained caller must also enforce its enclosing retirement deadline. */
-    CMDQ_RETAINED_FINAL_VALIDATION,
+    CMDQ_FULL_OPERATION_BOUND=0,
     /* Input setup alone: completion still uses 100 ms. Its callbacks and
      * caller enforce the original one-second preparation origin throughout
      * both mandatory final snapshots and the final guard. */
-    CMDQ_PREPARATION_FINAL_VALIDATION
+    CMDQ_PREPARATION_FINAL_VALIDATION=2,
+    /* Retirement only: construction and prewrite checks have a finite
+     * staging budget. Owned completion must be observed within its separate
+     * budget from the accepted pre-publication sample. Final validation and
+     * the caller remain bounded by the original retirement origin. */
+    CMDQ_RETIREMENT_PUBLICATION_BOUND=3
 };
 struct nano_cmdq_binding {
     uint64_t owner,epoch,generation,queue;
@@ -45,6 +50,15 @@ struct nano_cmdq_io {
      * return a fresh consumer only after the bounded batch passes. This
      * cannot store, publish, acknowledge, reset or grant DMA. */
     int (*progress)(void *,uint32_t target,uint32_t *consumer);
+    /* Required by the retirement policy. Perform the same owned producer
+     * write and report the accepted counter from its final prewrite guard.
+     * This conservative sample precedes the guard's fresh ownership check
+     * and the write barrier; it is not a measured MMIO issue time.
+     * Its pinned context must
+     * reject a sample outside this queue's staging window before writing.
+     * All postwrite guards are
+     * still mandatory. Success alone grants no completion or memory reuse. */
+    int (*publish_timed)(void *,uint32_t target,uint64_t *issued_us);
 };
 struct nano_cmdq_receipt {
     uint64_t owner,epoch,generation;
@@ -70,6 +84,9 @@ struct nano_cmdq {
     unsigned clock_samples,stage;
     uint64_t completion_us;
     unsigned completion_seen,validation_policy;
+    /* Validated publication-clock observations, never policy authority. */
+    uint64_t publication_us;
+    unsigned publication_seen;
 };
 /* Owns no allocator/reset/queue-enable/table/SMMU-enable/error-ack interface.
  * A throwing or failed publish retains the reservation and forbids retry.

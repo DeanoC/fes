@@ -82,7 +82,7 @@ def source_wire(source=4, previous=None, descriptor=None, role='menu'):
             offset=start+1000000+100-1000
             for word in line.split()[1:]:
                 key,value=word.split('=',1)
-                if key in ('start_us','last_us','observed_us','completion_us'):
+                if key in ('start_us','last_us','observed_us','completion_us','publication_us'):
                     changes[key]=int(value)+offset
                 elif key in ('first_us','latest_us'):
                     changes[key]=','.join(format(int(v,16)+offset,'x') for v in value.split(','))

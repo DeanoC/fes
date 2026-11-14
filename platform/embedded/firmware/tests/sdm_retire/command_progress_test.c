@@ -42,7 +42,7 @@ int main(void)
   if(mode==10 && at!=3)continue;
   struct model m={.owned=1,.producer=6,.consumer=6};progress_mode=mode;progress_at=at;progress_calls=0;
   struct nano_cmdq_binding b={17,7,4,0x94008000,6};
-  struct nano_cmdq_io io={&m,owns,clock_us,read32,write32,store,barrier,snapshot,progress};
+  struct nano_cmdq_io io={&m,owns,clock_us,read32,write32,store,barrier,snapshot,progress,0};
   assert(!nano_cmdq_init(&m.queue,b,io));
   struct nano_cmdq_receipt r={0};int error=nano_cmdq_submit(&m.queue,&r,CMDQ_FULL_OPERATION_BOUND);
   if(!mode){assert(!error && progress_calls==3 && r.commands_completed && r.producer==12 && r.consumer==12 && m.snapshots==5);}

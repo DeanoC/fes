@@ -54,7 +54,7 @@ static struct nano_cmdq *prepared_queue_at(uint64_t generation,uint32_t before)
  struct setup_queue_model *m=&setup_queue;
  *m=(struct setup_queue_model){.binding={17,7,generation,0x94008000,before},.producer=before,.consumer=before};
  struct nano_cmdq_io io={m,setup_queue_owns,setup_queue_time,setup_queue_read,
-  setup_queue_write,setup_queue_store,setup_queue_barrier,0,0};
+  setup_queue_write,setup_queue_store,setup_queue_barrier,0,0,0};
  struct nano_cmdq_receipt out={0};
  assert(!nano_cmdq_init(&m->command,m->binding,io));
  assert(!nano_cmdq_submit(&m->command,&out,CMDQ_FULL_OPERATION_BOUND));

@@ -6,12 +6,12 @@ from pathlib import Path
 _spec = importlib.util.spec_from_file_location("queue_bound_timing", Path(__file__).with_name("timing_observation.py"))
 _timing = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_timing)
-FIELDS = """build owner epoch generation bytes sha384 phase stage policy completion_seen completion_us attempted initialized submitted
+FIELDS = """build owner epoch generation bytes sha384 phase stage policy publication_seen publication_us completion_seen completion_us attempted initialized submitted
 failed error timed start_us last_us observed_us samples slots published polls reads read_samples
 last_offset last_value consumer_samples consumer consumer_read consumer_phase consumer_stage
 consumer_poll retained reuse activated""".split()
 HEX = set("owner epoch last_offset last_value consumer".split())
-U64 = set("owner epoch generation start_us last_us observed_us completion_us".split())
+U64 = set("owner epoch generation start_us last_us observed_us publication_us completion_us".split())
 STAGES = ("idle", "initial-first", "initial-second", "store", "prepublication",
           "publication", "progress", "final-first", "final-second", "final-guard", "complete")
 
@@ -54,12 +54,18 @@ def queue_errors(q, timing):
         check(q[key] == source[key], "queue/source " + key + " differs")
     check(q["phase"] == t["phase"] and q["phase"] <= 6, "queue/retirement phase differs")
     check(q["stage"] < len(STAGES) and q["consumer_stage"] < len(STAGES), "queue stage invalid")
-    check(q["policy"] in (0, 1) and q["completion_seen"] in (0, 1), "queue completion policy invalid")
+    check(q["policy"] in (0, 3) and q["completion_seen"] in (0, 1) and q["publication_seen"] in (0, 1), "queue completion policy invalid")
     if q["submitted"]:
-        check(q["policy"] == 1, "retirement requires its explicit final-validation policy")
+        check(q["policy"] == 3, "retirement requires its explicit publication-timed policy")
+    if q["publication_seen"]:
+        check(q["published"] == q["timed"] == 1 and q["stage"] >= 5, "publication sample lacks owned write attempt")
+        check(q["start_us"] <= q["publication_us"] <= q["last_us"], "publication sample order invalid")
+        check(0 <= q["publication_us"] - q["start_us"] <= 2000000, "command staging exceeded bound")
+    else:
+        check(q["publication_us"] == 0, "unobserved publication has sample")
     if q["completion_seen"]:
-        check(q["stage"] >= 7 and q["timed"] == 1 and q["start_us"] <= q["completion_us"] <= q["last_us"], "completion sample order invalid")
-        check(q["completion_us"] - q["start_us"] <= 100000, "command consumption exceeded original bound")
+        check(q["publication_seen"] == 1 and q["stage"] >= 7 and q["timed"] == 1 and q["publication_us"] <= q["completion_us"] <= q["last_us"], "completion sample order invalid")
+        check(0 <= q["completion_us"] - q["publication_us"] <= 1000000, "command consumption exceeded publication bound")
     else:
         check(q["completion_us"] == 0 and q["stage"] <= 6, "unobserved completion has sample/stage")
     for key in ("attempted", "initialized", "submitted", "failed", "timed", "published"):
@@ -77,7 +83,7 @@ def queue_errors(q, timing):
     if not q["read_samples"]:
         check(q["last_offset"] == q["last_value"] == 0, "unsampled read has values")
     if not q["attempted"]:
-        check(all(q[k] == 0 for k in ("stage", "policy", "completion_seen", "completion_us", "initialized", "submitted", "failed", "error", "timed", "start_us", "last_us", "observed_us", "samples", "slots", "published", "polls", "reads")), "unattempted queue has activity")
+        check(all(q[k] == 0 for k in ("stage", "policy", "publication_seen", "publication_us", "completion_seen", "completion_us", "initialized", "submitted", "failed", "error", "timed", "start_us", "last_us", "observed_us", "samples", "slots", "published", "polls", "reads")), "unattempted queue has activity")
     if q["published"]:
         check(q["slots"] == 6 and q["stage"] >= 5, "publication lacks six slots")
     if q["polls"]:
@@ -93,7 +99,7 @@ def queue_errors(q, timing):
         check(q["completion_seen"] == 1, "successful queue lacks bounded completion sample")
         check(0 < q["polls"] <= 128 and q["consumer_samples"] > 0 and q["consumer"] == timing["retirement_observation"]["result"]["consumer"], "successful queue consumer incomplete")
         check(q["consumer_phase"] == 6 and q["consumer_stage"] == 10, "successful final consumer phase differs")
-        check(q["last_us"] == q["observed_us"] and q["last_us"] - q["start_us"] <= (1000000 if q["policy"] == 1 else 100000), "successful queue clock invalid")
+        check(q["last_us"] == q["observed_us"] and q["last_us"] - q["start_us"] <= 4000000, "successful queue clock invalid")
     return errors
 
 

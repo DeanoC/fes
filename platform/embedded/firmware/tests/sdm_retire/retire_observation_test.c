@@ -11,7 +11,7 @@ static int time_us(void *p,uint64_t *out)
 {
  struct model *m=p;
  if((mode==7 || mode==10) && m->current->commands.stage==CMDQ_FINAL_GUARD && injected!=2){
-  injected=2;m->now+=mode==10 ? NANO_RETIRE_US:NANO_CMDQ_BOUND_US+1;
+  injected=2;m->now+=mode==10 ? NANO_RETIRE_US:NANO_CMDQ_RETIRE_COMPLETION_US+1;
  }
  return fixture_time_us(p,out);
 }
@@ -23,7 +23,7 @@ static int read32(void *p,uint32_t offset,uint32_t *out)
   consumer_calls++;*out=consumer_calls==1 ? consumer:12;
   if(!injected){
    injected=1;
-   if(mode==1)m->now+=NANO_CMDQ_BOUND_US+1;
+   if(mode==1)m->now+=NANO_CMDQ_RETIRE_COMPLETION_US+1;
    if(mode==2)m->now+=NANO_RETIRE_US;
    if(mode==3){*out=0xdeadbeef;return -7;}
    if(mode==4)m->fail_owner=m->owners+1;
@@ -31,7 +31,7 @@ static int read32(void *p,uint32_t offset,uint32_t *out)
  }
  if(((mode==5 || mode==8) && s->commands.stage==CMDQ_FINAL_FIRST) ||
     ((mode==6 || mode==9) && s->commands.stage==CMDQ_FINAL_SECOND)){
-  if(!injected || injected==1){injected=2;m->now+=mode>=8 ? NANO_RETIRE_US:NANO_CMDQ_BOUND_US+1;}
+  if(!injected || injected==1){injected=2;m->now+=mode>=8 ? NANO_RETIRE_US:NANO_CMDQ_RETIRE_COMPLETION_US+1;}
  }
  return error;
 }
@@ -48,7 +48,7 @@ int main(void)
    assert(!error && s.retired && s.commands.stage==CMDQ_COMPLETE);
    assert(s.observed_consumer==12 && s.consumer_phase==RET_COMPLETE && s.consumer_stage==CMDQ_COMPLETE);
    assert(s.commands.observed==s.commands.last && m.written==5);
-   assert(s.commands.completion_seen && s.commands.completion_us-s.commands.start<=NANO_CMDQ_BOUND_US);
+   assert(s.commands.completion_seen && s.commands.publication_seen && s.commands.completion_us-s.commands.publication_us<=NANO_CMDQ_RETIRE_COMPLETION_US);
    if(mode>=5)assert(s.commands.last-s.commands.start>NANO_CMDQ_BOUND_US && s.commands.last-s.commands.start<NANO_RETIRE_US);
   }else{
    assert(error && s.failed && !r.translation_retired && r.memory_retained && !r.ordinary_activation && !r.source_reuse_authorized);

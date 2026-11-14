@@ -72,7 +72,7 @@ class InputProfileTests(unittest.TestCase):
         for name in ("FES_NANO_SDM_INPUT_TRANSFER", "FES_NANO_RETIRE_TIMING", "FES_NANO_RETIRE_QUEUE_OBSERVE", "FES_NANO_RETIRE_BATCHED_OBSERVE"):
             self.assertIn("#define " + name + " 0\n", mode.header(None))
             self.assertIn("#define " + name + " 1\n", mode.header(profile()))
-        self.assertEqual(mode.CONTRACT["retirement_bound_us"], 1000000)
+        self.assertEqual(mode.CONTRACT["retirement_bound_us"], 4000000)
         self.assertFalse(mode.CONTRACT["retirement_memory_reuse"])
 
     def test_previous_contracts_cannot_admit_queue_observation_candidate(self):
@@ -90,6 +90,24 @@ class InputProfileTests(unittest.TestCase):
             p["sdm_input_transfer"] = previous
             with self.subTest(version=version), self.assertRaisesRegex(ValueError, "unsupported SDM input"):
                 mode.checked(p)
+
+    def test_publication_timing_cannot_be_supplied_by_previous_contracts(self):
+        previous = json.loads((ROOT / "tests/fixtures/nano-sdm-input/previous-retirement-timing.json").read_text())
+        for name, version in (("base", 14), ("rearm", 15)):
+            old = previous[name]
+            self.assertEqual(old["format"], version)
+            for replacement in (version, 16, 17):
+                p = profile()
+                p["sdm_input_transfer"] = dict(old, format=replacement)
+                with self.subTest(name=name, replacement=replacement), self.assertRaisesRegex(ValueError, "unsupported SDM input"):
+                    mode.checked(p)
+        contract = mode.checked(profile())
+        self.assertEqual((contract["retirement_command_staging_bound_us"],
+                          contract["retirement_command_completion_bound_us"],
+                          contract["retirement_bound_us"]), (2000000, 1000000, 4000000))
+        # Preparation and transfer keep their independent existing budgets.
+        self.assertEqual((contract["command_bound_us"], contract["preparation_bound_us"],
+                          contract["transfer_bound_us"]), (100000, 1000000, 20000000))
 
     def fixture(self, path):
         names = (mode.SERVICE, mode.MAILBOX, mode.MAILBOX_HEADER, mode.PLATFORM,

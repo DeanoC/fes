@@ -15,7 +15,7 @@ class Tests(unittest.TestCase):
   r=self.decode(WIRE);self.assertTrue(r['continuation_verified'],r['errors'])
   self.assertFalse(r['native_activation_verified'] or r['memory_reuse_authorized'] or r['ordinary_runtime_activation'])
  def test_failed_retirement_or_changed_continuation_cannot_pass(self):
-  for before,after in [(b'owner=11',b'owner=12'),(b'epoch=7',b'epoch=8'),(b'generation=4',b'generation=5'),(b'ready=1',b'ready=0'),(b'elapsed_us=12000',b'elapsed_us=1000000'),(b'elapsed_us=12000',b'elapsed_us=1'),(b'retained=1',b'retained=0'),(b'reuse=0',b'reuse=1'),(b'activated=0',b'activated=1')]:
+  for before,after in [(b'owner=11',b'owner=12'),(b'epoch=7',b'epoch=8'),(b'generation=4',b'generation=5'),(b'ready=1',b'ready=0'),(b'elapsed_us=12000',b'elapsed_us=4000000'),(b'elapsed_us=12000',b'elapsed_us=1'),(b'retained=1',b'retained=0'),(b'reuse=0',b'reuse=1'),(b'activated=0',b'activated=1')]:
    with self.subTest(after=after):
     raw=WIRE.replace(LINE,LINE.replace(before,after));self.assertFalse(self.decode(raw)['passed'])
   bad=wire(row(failed=1,error=-3)).replace(PARK,LINE.rstrip(b'\n'))

@@ -369,7 +369,7 @@ int nano_probe_prepare(struct nano_probe_setup *s,struct nano_probe_receipt *out
         equal(s,0x94,0))) return s->first_error;
     if(control(s,8))return s->first_error;
     struct nano_cmdq_binding b={s->binding.owner,s->binding.epoch,s->binding.generation,NANO_PROBE_BASE+NANO_PROBE_CMDQ,s->queue_baseline};
-    struct nano_cmdq_io io={s,cmd_owns,cmd_time,cmd_read,cmd_write,cmd_store,cmd_barrier,0,0};
+    struct nano_cmdq_io io={s,cmd_owns,cmd_time,cmd_read,cmd_write,cmd_store,cmd_barrier,0,0,0};
     if (nano_cmdq_init(&s->command,b,io) || nano_cmdq_submit(&s->command,&s->command_receipt,CMDQ_PREPARATION_FINAL_VALIDATION)) return fail(s,-5);
     if (!s->warm && (wr(s,0xa0,(uint32_t)(NANO_PROBE_BASE+NANO_PROBE_EVTQ)|3U) || wr(s,0xa4,0)))return s->first_error;
     if (

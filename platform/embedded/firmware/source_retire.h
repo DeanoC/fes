@@ -3,7 +3,7 @@
 #define NANO_SOURCE_RETIRE_H
 #include "input_tables.h"
 #include "command_queue.h"
-#define NANO_RETIRE_US 1000000U
+#define NANO_RETIRE_US NANO_CMDQ_RETIRE_FINAL_US
 #define NANO_RETIRE_POLLS 128U
 #define NANO_RETIRE_OBSERVE_MAX 24U
 #define NANO_RETIRE_TABLE_GUARD_BYTES 4096U

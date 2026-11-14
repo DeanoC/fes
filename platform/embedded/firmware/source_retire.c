@@ -7,7 +7,7 @@
 #if !defined(FES_NANO_RETIRE_BATCHED_OBSERVE) || FES_NANO_RETIRE_BATCHED_OBSERVE != 1
 #error Explicit_bounded_read_batch_profile_required
 #endif
-_Static_assert(NANO_CMDQ_FINAL_BOUND_US==NANO_RETIRE_US,"same enclosing retirement bound required");
+_Static_assert(NANO_CMDQ_RETIRE_FINAL_US==NANO_RETIRE_US,"same enclosing retirement bound required");
 #define GBPA 0x44U
 #define ABORT 0x100000U
 #define UPDATE 0x80000000U
@@ -95,13 +95,17 @@ static int read32(struct nano_retire *s,uint32_t offset,uint32_t *value)
  return guard(s);
 }
 static int write_ready(struct nano_retire *,uint32_t,uint32_t);
-static int write32(struct nano_retire *s,uint32_t offset,uint32_t value)
+static int write32_timed(struct nano_retire *s,uint32_t offset,uint32_t value,uint64_t *issued)
 {
  const struct nano_retire_io io=s->io;
  const struct nano_sdm_input_binding binding=s->binding;
  if(guard(s) || write_ready(s,offset,value) || !unchanged(s,&io,&binding))return fail(s,-13);
  io.barrier(io.context);
  if(!unchanged(s,&io,&binding))return fail(s,-13);
+ if(issued){
+  if(s->last<s->commands.start || s->last-s->commands.start>NANO_CMDQ_RETIRE_STAGE_US)return fail(s,-110);
+  *issued=s->last;
+ }
  s->writes++;int e=io.write32(io.context,offset,value);
  if(!unchanged(s,&io,&binding))return fail(s,-13);
  io.barrier(io.context);
@@ -109,6 +113,8 @@ static int write32(struct nano_retire *s,uint32_t offset,uint32_t value)
  if(e)return fail(s,e);
  return guard(s);
 }
+static int write32(struct nano_retire *s,uint32_t offset,uint32_t value)
+{return write32_timed(s,offset,value,0);}
 static int source(struct nano_retire *s)
 {
  const struct nano_retire_io io=s->io;
@@ -248,6 +254,8 @@ static int cmd_read(void *context,uint32_t offset,uint32_t *value)
 {return read32(context,offset,value);}
 static int cmd_write(void *context,uint32_t offset,uint32_t value)
 {struct nano_retire *s=context;if(offset!=0x98 || value!=s->queue_target)return fail(s,-22);return write32(s,offset,value);}
+static int cmd_publish(void *context,uint32_t target,uint64_t *issued)
+{struct nano_retire *s=context;if(!issued || target!=s->queue_target)return fail(s,-22);return write32_timed(s,0x98,target,issued);}
 static int cmd_store(void *context,unsigned slot,const uint8_t data[16])
 {
  struct nano_retire *s=context;
@@ -315,8 +323,8 @@ int nano_source_retire(struct nano_retire *s,struct nano_sdm_input_binding bindi
  s->phase=RET_COMMAND_ONLY;if(initial_transition(s,12,8))return -1;
  s->phase=RET_INVALIDATE;
  struct nano_cmdq_binding cb={binding.owner,binding.epoch,binding.generation,0x94008000,s->queue_baseline};
- struct nano_cmdq_io ci={s,cmd_owns,cmd_time,cmd_read,cmd_write,cmd_store,cmd_barrier,cmd_snapshot,cmd_progress};
- if(nano_cmdq_init(&s->commands,cb,ci) || nano_cmdq_submit(&s->commands,&s->command_receipt,CMDQ_RETAINED_FINAL_VALIDATION))return fail(s,s->commands.first_error);
+ struct nano_cmdq_io ci={s,cmd_owns,cmd_time,cmd_read,cmd_write,cmd_store,cmd_barrier,cmd_snapshot,cmd_progress,cmd_publish};
+ if(nano_cmdq_init(&s->commands,cb,ci) || nano_cmdq_submit(&s->commands,&s->command_receipt,CMDQ_RETIREMENT_PUBLICATION_BOUND))return fail(s,s->commands.first_error);
  struct nano_cmdq_receipt *r=&s->command_receipt;
  if(r->owner!=binding.owner || r->epoch!=binding.epoch || r->generation!=binding.generation ||
     r->baseline!=s->queue_baseline || r->producer!=s->queue_target || r->consumer!=s->queue_target || r->commands_completed!=1 ||

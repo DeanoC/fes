@@ -3,6 +3,7 @@
  * This supplier never writes a table/register, clears an error or opens DATA.
  * Selection stays disabled until the fresh-generation rearm path is complete. */
 #if defined(FES_NANO_SDM_SOURCE_RELEASE) && FES_NANO_SDM_SOURCE_RELEASE == 1
+#define NANO_SOURCE_RELEASE_US 1000000U
 static struct {
  struct nano_sdm_input_binding binding;
  uint64_t target,start,last;
@@ -20,7 +21,7 @@ static int sdm_release_clock(void)
     configuration.source_release_source!=sdm_release.binding.generation ||
     configuration.source_release_generation!=sdm_release.target)return -13;
  uint64_t now=FES_PROBE_COUNTER()/400U;
- if(now<sdm_release.last || now-sdm_release.start>=NANO_RETIRE_US)return -110;
+ if(now<sdm_release.last || now-sdm_release.start>=NANO_SOURCE_RELEASE_US)return -110;
  sdm_release.last=now;return 0;
 }
 static int release_observer_owns(void *context)

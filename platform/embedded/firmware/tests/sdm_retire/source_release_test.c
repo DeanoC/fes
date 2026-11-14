@@ -56,9 +56,9 @@ static void release_meter(unsigned kind)
  }
  if(release_fault>=56 && release_fault<=58 && kind==5){
   mutation_seen=1;
-  if(release_fault==56)ticks=sdm_release.start+NANO_RETIRE_US-1;
+  if(release_fault==56)ticks=sdm_release.start+NANO_SOURCE_RELEASE_US-1;
   if(release_fault==57)ticks=sdm_release.last-2;
-  if(release_fault==58)ticks=sdm_release.start+NANO_RETIRE_US-100000;
+  if(release_fault==58)ticks=sdm_release.start+NANO_SOURCE_RELEASE_US-100000;
  }
  if(release_fault==59 && source_released && kind==5){mutation_seen=1;transfer.completed_buffer_bytes-=4;}
 }
@@ -131,7 +131,7 @@ static void release_case(unsigned fault)
   assert(source_released==1 && sdm_source_released==1 && sdm_release.released==1 && !sdm_release.failed);
   assert(fes_nano_sdm_transfer_source_released(&sdm_arm_probe.input)==1 && !fes_nano_sdm_transfer_reader_ready());
   fes_nano_sdm_transfer_result(&after);assert(!memcmp(&before,&after,sizeof(before)));
-  assert(!memcmp(&old_retirement,&source_retirement,sizeof(old_retirement)) && sdm_release.last-sdm_release.start<NANO_RETIRE_US);
+  assert(!memcmp(&old_retirement,&source_retirement,sizeof(old_retirement)) && sdm_release.last-sdm_release.start<NANO_SOURCE_RELEASE_US);
   assert(fes_nano_sdm_transfer_peek_header(0x11000000) && service_error); /* late DATA never reopens */
  }else{
   assert(r[0] && !r[2] && !r[3] && !sdm_source_released);
