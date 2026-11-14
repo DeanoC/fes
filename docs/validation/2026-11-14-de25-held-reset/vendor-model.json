@@ -1,0 +1,72 @@
+{
+  "status": "passed-real-cold-mailbox-dispatch-model",
+  "source_commit": "17b4675ed20a070a121f7fee44f81f2d4c90c63f",
+  "vendor_mailbox_source": "/home/deano/fes/out/dev/de25-publication-compact/out/publication-boot/native-bl31/source/plat/intel/soc/common/soc/socfpga_mailbox.c",
+  "vendor_mailbox_sha256": "c5b0a36f198f8494a069ad86cb6e8ca5cbd2a9fe48bd6caffd524f495d1114b2",
+  "cold_function_sha256": "78d4ba85888bd0d9ae9a0b48109802fa4b2e08b2ae8f40939517cd23454a5cad",
+  "inputs": {
+    "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/nano_bridge_platform.inc": "30cc046ee44f2768111ee05df434140aba1cb09d4e7c7e7dcd91b66f5af33ddf",
+    "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/nano_bridge_platform.h": "e6e0ad6db57497a17680b23f8d5e5fbd6ddda750bbf84cfaa60401b8fac8c046",
+    "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/prepare_nano_owned.py": "ff485ac89d006732e99639187663c6e36597447bfe49c5aa145bf1e365202ff6",
+    "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/nano_boot.c": "cc9e3567f05345e19be3aee00b0f09fb0d2cad2216f6cba1697da4c7fff2fcce",
+    "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/nano_bridges.c": "fc927e779ed319bca74e5a096df8bfad05eb0f4623f67d53d3ec09082cbd29b9",
+    "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/tests/nano_secure_reset_test.c": "900fbb9f686897670b7a73de33634503ed1e2ff9b1b6e48445a8da80ed60c77b"
+  },
+  "cases": 54,
+  "checks": [
+    {
+      "cache_flush": 0,
+      "command": [
+        "cc",
+        "-std=c11",
+        "-O1",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-sanitize-recover=all",
+        "-DFES_NANO_COLD_SERIAL=1",
+        "-DCACHE_FLUSH=0",
+        "-I/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware",
+        "-I/home/deano/fes/out/dev/de25-source-release/out/held-reset-vendor-model",
+        "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/nano_boot.c",
+        "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/nano_bridges.c",
+        "/home/deano/fes/out/dev/de25-source-release/out/held-reset-vendor-model/reset_vendor.c",
+        "-o",
+        "/home/deano/fes/out/dev/de25-source-release/out/held-reset-vendor-model/reset-0"
+      ],
+      "binary_sha256": "c30f4bb6f5fe03de10791457d6fb7c7721cf30fd6fac706356eb3cc0108384ff",
+      "model_output": "PASS 27 held-lock reset cases; injected cache and transport only\n",
+      "returncode": 0
+    },
+    {
+      "cache_flush": 1,
+      "command": [
+        "cc",
+        "-std=c11",
+        "-O1",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-sanitize-recover=all",
+        "-DFES_NANO_COLD_SERIAL=1",
+        "-DCACHE_FLUSH=1",
+        "-I/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware",
+        "-I/home/deano/fes/out/dev/de25-source-release/out/held-reset-vendor-model",
+        "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/nano_boot.c",
+        "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/nano_bridges.c",
+        "/home/deano/fes/out/dev/de25-source-release/out/held-reset-vendor-model/reset_vendor.c",
+        "-o",
+        "/home/deano/fes/out/dev/de25-source-release/out/held-reset-vendor-model/reset-1"
+      ],
+      "binary_sha256": "35a5a59688a2fb210f4a8ddee656eef06e294716956e787cad553bcfbb88576b",
+      "model_output": "PASS 27 held-lock reset cases; injected cache and transport only\n",
+      "returncode": 0
+    }
+  ],
+  "hardware_actions": false,
+  "classification": "actual controller/generated provider and pinned vendor cold function; injected lock, cache instructions and mailbox transport; not physical reset or post-reset admission"
+}

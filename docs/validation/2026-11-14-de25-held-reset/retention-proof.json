@@ -1,0 +1,268 @@
+{
+  "status": "passed-independent-held-reset-archive-readback",
+  "source_commit": "17b4675ed20a070a121f7fee44f81f2d4c90c63f",
+  "source_bundle_prerequisite": "1766527f64caf4ad2469052087afee42e92a98ee",
+  "archive": "/home/deano/fes-retained/de25-held-reset-20261114-r1/matched.tar.gz",
+  "archive_sha256": "e4b8e5a57fa7edf0a210ccc2587db60d2e917d9a0b217745452287e8689f178a",
+  "archive_bytes": 539905804,
+  "files": 46732,
+  "unique_regular_payloads": 43890,
+  "checks": {
+    "publication-projects": {
+      "argv": [
+        "python3",
+        "out/publication-boot/prepare.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-held-reset-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.6031824140809476,
+      "log_sha256": "2477a5d23bf5830b4c14f04b5bc164c73f0f725fb1c50fca1fb1d51288f6e131"
+    },
+    "publication-sdk": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/build-native.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-held-reset-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 97.25189100089483,
+      "log_sha256": "70d816fb7c91d04d79b3513f57d6434b0289dbe6d850b092130f32acfa4f09e4"
+    },
+    "publication-entry": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/build-chain.py",
+        "entry"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-held-reset-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 72.44106617500074,
+      "log_sha256": "703ed7c3d760646157beff2bcb8164b44725fbbc1ef61f14c8336cf124412a80"
+    },
+    "publication-bl31": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/build-chain.py",
+        "bl31"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-held-reset-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 49.629747012862936,
+      "log_sha256": "88499a90e2c9916e0edf03775a8255671fed3e2846e81b1873b0a04d0c565f05"
+    },
+    "publication-uboot": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/build-chain.py",
+        "uboot"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-held-reset-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 127.07090578204952,
+      "log_sha256": "9cec9c927ec0da1b14dafcfdf22e767add2fa56a025f3b1eaca88225c25ddd44"
+    },
+    "publication-compose": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/compose.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-held-reset-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 69.64021817501634,
+      "log_sha256": "572f9c933f9eb317e75d2000f8b3affb131548805c482214b43b5acfdbca7ca1"
+    },
+    "publication-matched": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/verify-chain.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-held-reset-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 53.830053381156176,
+      "log_sha256": "72554faf58cb2e49b72b70232603009317be5102eab9dccde016e0035191cf82"
+    },
+    "publication-matched-pipeline": {
+      "argv": [
+        "python3",
+        "out/publication/run-publication-matched.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-held-reset-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 470.26306196604855,
+      "log_sha256": "5190cfd06a955d18ab7b517c493ac9f2399a5c849114c0c7fb514081ce1ca085"
+    },
+    "held-reset-focused-r1": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "/home/deano/fes/out/dev/de25-setup-release/tests",
+        "-p",
+        "test_nano_secure_reset.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.8011731731239706,
+      "log_sha256": "67559b71bed734221f66e8d9d50215f5ad59cde910eae059277fd58c21015e25"
+    },
+    "held-reset-focused-final-r1": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "/home/deano/fes/out/dev/de25-setup-release/tests",
+        "-p",
+        "test_nano_secure_reset.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.8013737578876317,
+      "log_sha256": "29e6203e299b122e6beef8e606e5024695bc95b9654a6e94db4aca62ced311d4"
+    },
+    "held-reset-cold-r1": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "/home/deano/fes/out/dev/de25-setup-release/tests",
+        "-p",
+        "test_nano_cold.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 26.419632031116635,
+      "log_sha256": "78b53dc6f79970cf59e2523c564a6bfb541cd61a12852a5bdce6aa39631821b6"
+    },
+    "held-reset-owned-r1": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "/home/deano/fes/out/dev/de25-setup-release/tests",
+        "-p",
+        "test_nano_owned_sip.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20414472301490605,
+      "log_sha256": "e8cd4c3e8bb007a102cb37e13d72dcfa3038abd5b351304c3eb234fda792f739"
+    },
+    "held-reset-mac-r1": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "/home/deano/fes/out/dev/de25-setup-release/tests",
+        "-p",
+        "test_nano_mac_dispatch.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.001224386971444,
+      "log_sha256": "f9149ddd66e1e74fe70c73b69049455422a1bbc8534318f7d77eda87f0a7cfa9"
+    },
+    "held-reset-calltrace-r1": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "/home/deano/fes/out/dev/de25-setup-release/tests",
+        "-p",
+        "test_nano_call_trace.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20101007190532982,
+      "log_sha256": "980a675709475d58d82dc3640e528dea85c81f34a0da38a3a6b7601682c5e58c"
+    },
+    "held-reset-consistency-r1": {
+      "argv": [
+        "make",
+        "-C",
+        "/home/deano/fes/out/dev/de25-setup-release",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 9.607755049830303,
+      "log_sha256": "4ffe37a0582de7ca316571feada015e041e0fcc1e04f967bf1c719a8c98bc0bc"
+    },
+    "held-reset-vendor-model-r1": {
+      "argv": [
+        "python3",
+        "out/publication/model-held-reset-vendor.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.8007934631314129,
+      "log_sha256": "bff81f4af306ccc93f17d23d8725cb87dd16696962290cb40261221f51166ada"
+    }
+  },
+  "integration": {
+    "status": "passed-generated-source-and-object-checks",
+    "source_commit": "17b4675ed20a070a121f7fee44f81f2d4c90c63f",
+    "vendor_cold_function_sha256": "78d4ba85888bd0d9ae9a0b48109802fa4b2e08b2ae8f40939517cd23454a5cad",
+    "elf_sha256": "46fc893736af0192d8fad471e1ccaba142069c6f20416338ebc23db92a358e69",
+    "layout": {
+      "__NOBITS_START__": 327680,
+      "__NOBITS_END__": 393024,
+      "__STACKS_START__": 327680,
+      "__STACKS_END__": 360448,
+      "__BSS_END__": 393024
+    },
+    "private_limit": 393216,
+    "spare_bytes": 192,
+    "reset_objects": {
+      "fes_nano_platform_cold_reset_request": {
+        "object": "/home/deano/fes/out/dev/de25-held-reset-proof/out/publication-boot/native-bl31/source/build/agilex5/release/bl31/socfpga_psci.o",
+        "object_sha256": "b623be744b349664426e62b66a5c69713c783281855c72551bf78afec5472c8d",
+        "present_in_normal_elf": false
+      },
+      "fes_nano_bridge_platform_cold_reset_held": {
+        "object": "/home/deano/fes/out/dev/de25-held-reset-proof/out/publication-boot/native-bl31/source/build/agilex5/release/bl31/socfpga_reset_manager.o",
+        "object_sha256": "c335902d256d354b48470b07ebd84eb2d1f46c0abed5fbe2667cbe14b7db27bf",
+        "present_in_normal_elf": false
+      }
+    },
+    "recovery_policy_installed": false,
+    "physical_reset_qualified": false,
+    "whole_EL3_stack_qualified": false,
+    "hardware_actions": false
+  },
+  "hardware_actions": false,
+  "hardware_accepted": false
+}

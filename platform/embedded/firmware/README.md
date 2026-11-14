@@ -24,8 +24,19 @@ reservation by 128 bytes. The [compact-controller repair](../../../docs/validati
 stores bounded flags/stages in bytes and keeps counters, clocks and identities
 at their original widths. The region, stack allocation, checks and wire values
 remain unchanged. All 31 retirement/source models pass; an unadmitted vendor
-link preview fits with 192 bytes remaining. A fresh matched producer build is
-required before using this changed header.
+link preview fits with 192 bytes remaining. The subsequent
+[complete matched build](../../../docs/validation/2026-11-14-de25-publication-matched/README.md)
+passes normal SDK, entry, BL31, SPL/U-Boot, HPS-first composition and native
+file admission on source `0c8fd0d37`, confirming that same unchanged layout.
+
+The [held-lock recovery entry](../../../docs/validation/2026-11-14-de25-held-reset/README.md)
+separates trusted invalidation from the ordinary locking wrapper. It consumes
+one attempt, revokes ordinary authority, requires an independent live recovery
+scope and selects only the pinned cold mailbox provider. Sanitizer tests cover
+ownership drift, reentrancy, returning transport and retained reservations.
+Existing source profiles do not call this entry automatically; a terminal
+supplier, explicit diagnostic selection and fresh post-reset admission are
+still needed before it can replace a physical power cycle.
 
 The [transition-poll batching repair](../../../docs/validation/2026-11-14-de25-transition-poll-batches/README.md)
 kept each retirement transition's 22 register reads in one bounded read-only

@@ -1,0 +1,20 @@
+{
+  "status": "passed-final-consistency-and-retained-readback",
+  "implementation_source": "17b4675ed20a070a121f7fee44f81f2d4c90c63f",
+  "archive_directory": "/home/deano/fes-retained/de25-held-reset-20261114-r1/completed-checks",
+  "files": {
+    "held-reset-final-check-r1.log": {
+      "bytes": 276,
+      "sha256": "4ffe37a0582de7ca316571feada015e041e0fcc1e04f967bf1c719a8c98bc0bc"
+    },
+    "held-reset-final-check-r1-result.json": {
+      "bytes": 317,
+      "sha256": "3dcea0d6d02c1165ddfa8644875f428df996131358f5d07ce84bb56a843f4977"
+    },
+    "held-reset-final-check-r1-process.json": {
+      "bytes": 222,
+      "sha256": "08970a47c619472cbb73b27ff7f16b4d6da2062b3c6c04d7e4089e30dd9ef927"
+    }
+  },
+  "hardware_actions": false
+}

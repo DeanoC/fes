@@ -35,3 +35,38 @@ profiles do not invoke it automatically. The completed-source terminal supplier,
 an explicitly selected diagnostic, loader redelivery and fresh post-reset
 device/epoch admission remain to be connected and qualified. No hardware, card,
 QSPI, factory-card or bottom-kit operation is performed for this change.
+
+Source `17b4675ed20a070a121f7fee44f81f2d4c90c63f` also passes a fresh
+normal SDK, CPU-entry, BL31, SPL/U-Boot, HPS-first composition and complete
+native file-admission build in frozen `de25-held-reset-proof`. The chain is
+`e0a5d81c60828b7077261b4fdccb35267fa8e3a84de08eee87404f055671c04c`, boot tag
+`944bdea49a7f42d8`, FIT
+`a298840f42c297259ac5b08996e43b2176babeb1218b39edd9f9399be5d6f13a`
+(8,542,928 bytes). Core payloads remain unchanged. Composition holds the shared
+Quartus Pro lock and performs no synthesis, fitting or programming.
+[matched.json](matched.json) binds the full producer/file-admission checks.
+
+The actual installed controller/provider bodies match the new sources, and
+both AArch64 objects contain their reset entry. The normal linker discards
+these uncalled functions: this image has no installed recovery policy. Its
+NOBITS end remains `0x5ff40`, with 192 bytes spare and four unchanged 8 KiB
+stacks. This does not establish the footprint or whole-EL3 stack usage of a
+future image that actually selects the recovery entry.
+
+A separate [vendor-function model](vendor-model.json) repeats the 54 case
+executions with the actual pinned `mailbox_reset_cold()` body. It verifies the
+fixed job-15, command-`0x47`, zero-argument nonurgent request after revocation,
+including a returning failed transport. The primitive is independently checked
+against the freshly built vendor export. Mailbox transport, cache instructions
+and the lock remain injected; physical reset and post-reset admission remain
+unqualified.
+
+The complete matched outputs, source bundle, models and completed check logs
+are retained at
+`/home/deano/fes-retained/de25-held-reset-20261114-r1/matched.tar.gz`, SHA-256
+`e4b8e5a57fa7edf0a210ccc2587db60d2e917d9a0b217745452287e8689f178a`.
+All 46,732 archive entries are independently read back for bytes, hashes, modes
+and link targets. [retention-proof.json](retention-proof.json) records that
+verification and the actual object/layout checks. TRWU8CBL's last verified
+state remains the original native baseline at final Park; this checkpoint
+performs no hardware operations and does not qualify repeated loading.
