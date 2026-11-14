@@ -259,7 +259,7 @@
         "path": "sources/misteross/cores/fes-ramtest/toolchain.lock",
         "yosys": "3a5accbd",
         "mistral": "8fcc4cb4",
-        "nextpnr": "9128800f"
+        "nextpnr": "bec82e36"
       },
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-device` only; the authenticated toolchain sets the backend (misteross AGENTS.md).",
