@@ -657,7 +657,12 @@ module pc386_fdc #(
                             seek_up <= seek_direction_up;
                             steps <= seek_steps == 8'd0 ? 8'd1 : seek_steps;
                             if (seek_steps != 8'd0 && present[dsel]) changed[dsel] <= 0;
-                            pcn[command_drive] <= seek_target[7:0];
+                            // RECALIBRATE "clears the contents of the PCN
+                            // counter" and then steps to the sensor; the
+                            // seeks walk their PCN with the head, one step at
+                            // a time, so a reset that cuts a seek short
+                            // leaves it where the head stopped.
+                            if (op == 8'h07) pcn[command_drive] <= 0;
                             msr <= {6'd0, command_drive, !command_drive};
                             wait_us <= {8'd0, step_us};
                             ex <= X_STEP;
@@ -696,11 +701,23 @@ module pc386_fdc #(
                     endcase
                 end
                 X_STEP: if (waited) begin
+                    // One step pulse: the selected drive's head moves, and
+                    // the PCN of the unit a seek names counts with it. The
+                    // 82077AA compares NCN against PCN after each pulse
+                    // (5.2.3), so the two never stand apart mid-seek. The
+                    // head stops where the drive stops it; the register does
+                    // not, and wraps instead -- "the resulting PCN value is
+                    // thus (NCN + PCN) mod 256" (5.2.5, RELATIVE SEEK past
+                    // the last track).
                     if (moved) begin
                         if (seek_up) begin
                             if (physical_cyl[dsel] != 8'hff) physical_cyl[dsel] <= physical_cyl[dsel] + 8'd1;
-                        end else if (physical_cyl[dsel] != 8'd0)
-                            physical_cyl[dsel] <= physical_cyl[dsel] - 8'd1;
+                            if (!recalibrating) pcn[d] <= pcn[d] + 8'd1;
+                        end else begin
+                            if (physical_cyl[dsel] != 8'd0)
+                                physical_cyl[dsel] <= physical_cyl[dsel] - 8'd1;
+                            if (!recalibrating) pcn[d] <= pcn[d] - 8'd1;
+                        end
                     end
                     if (steps <= 8'd1) begin
                         wait_us <= moved ? 24'(SETTLE_US) : 24'd0;

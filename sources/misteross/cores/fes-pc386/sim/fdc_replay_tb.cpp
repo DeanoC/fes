@@ -783,6 +783,30 @@ std::vector<Case> cases() {
         g.check(pcns == std::vector<uint8_t>{2, 5, 0, 0},
                 "each reset response carries its own unit's PCN");
     }});
+    // A software reset in the middle of a seek: the PCN stands where the
+    // head stopped, not at the cylinder the seek was aiming for.
+    list.push_back({"reset_during_seek", 4, 2, false, [](Guest &g) {
+        { const Disk boot_disk = A144; g.boot(&boot_disk); }
+        start(g);
+        g.command({0x03, 0xdf, 0x02});                       // SRT 0Dh: 7.5 ms a step
+        g.out(0x3f2, 0x1c);
+        g.command({0x0f, 0x00, 20});                         // seek to 20: 150 ms away
+        g.tick(26000);                                       // about three steps in
+        g.out(0x3f2, 0x18); g.out(0x3f2, 0x1c);              // and reset on top of it
+        g.irq();
+        auto first = g.sense();
+        g.check(first.size() == 2 && first[0] == 0xc0, "the reset's first response");
+        uint8_t stopped = first.size() == 2 ? first[1] : 0xff;
+        g.note(strf("PCN after the cut seek: %u", stopped).c_str());
+        g.check(stopped > 0 && stopped < 20, "the PCN stopped short of the seek's target");
+        for (int i = 0; i < 3; ++i) g.sense();
+        // The head is where that PCN says, so a read of it finds its data.
+        g.command(rw(0xe6, 0, stopped, 0, 1, 18));
+        auto bytes = g.dma_in(512, 511);
+        g.results();
+        g.check(bytes == Guest::original(A144, stopped, 0, 1),
+                "a read of the cylinder the PCN names finds that cylinder");
+    }});
     list.push_back({"status_registers", 4, 2, false, [](Guest &g) {
         g.check(g.show(0x3f0) == 0xff, "3F0h reads FFh");
         g.check(g.show(0x3f1) == 0xff, "3F1h reads FFh");
