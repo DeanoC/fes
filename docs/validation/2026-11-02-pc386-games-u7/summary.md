@@ -106,7 +106,7 @@ combined #1373 + #1391 tree, and the kit runs on that package.
 
 The games profile now uses `BUFFERS=16` (down from 20). With the pinned
 Verilator 5.032 and Bochs oracle CPU, the games-image MEM boot reports 588,544
-free conventional bytes. Serpent Isle's published 573K requirement is
+bytes as the largest executable program size. Serpent Isle's published 573K requirement is
 586,752 bytes, leaving 1,792 bytes; the simulation check requires at least
 1,024 bytes of headroom. The exact report is
 [`boot-games-memory-report.json`](boot-games-memory-report.json). The VGA
