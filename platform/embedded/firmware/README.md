@@ -6,6 +6,21 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
+The [dispatch-aware repeated-loading trial](../../../docs/validation/2026-11-14-de25-dispatch-rearm-physical/README.md)
+programs and boots its candidate, then stops during the first source's SMMU
+preparation before SDM START or DATA. Its eight register-write intents do not
+identify the failed queue check or callback. On initialization, preparation or
+arming failure, the supplier now emits `FES_NANO_SOURCE_SETUP` and
+`FES_NANO_SOURCE_SETUP_QUEUE` from the retained probe and nested queue objects.
+The records preserve the original setup stage, error, last callback/register
+observation, accepted clock history and nested queue error before the outer
+service maps a failure to its generic result. They read no registers or timers,
+call no ownership/supplier hook, grant no access and never retry. Successful
+setup emits neither record. Sanitizer models distinguish several failures at
+the same eighth write and execute the observer with every callback poisoned.
+These new diagnostics require a new matched image before a future trial;
+the older failed image and its hardware evidence remain unchanged.
+
 The selected format-14 source-continuation prototype returns to the native
 configuration checks only after one successful retirement and a fresh live
 engine/source/table/disabled-register check under the original one-second

@@ -130,6 +130,12 @@ class SourceRetirementTests(unittest.TestCase):
         report = self.run_model("start_header_test", joined=True)
         self.assertEqual(report["cases"], 9)
 
+    def test_setup_failure_reports_retained_cause_without_live_callbacks(self):
+        report = self.run_model("setup_failure_test", joined=True)
+        self.assertEqual(report["cases"], 8)
+        self.assertEqual(report["eight_write_failures"], 3)
+        self.assertTrue(report["callbacks_poisoned"])
+
     def test_warm_probe_reuses_owned_queue_without_clearing_abort(self):
         report = self.run_model("warm_probe_test")
         self.assertEqual(report["completed_generations"], 64)

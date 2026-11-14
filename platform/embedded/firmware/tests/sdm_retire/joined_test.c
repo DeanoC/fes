@@ -337,7 +337,11 @@ static uint32_t probe_read(uint64_t address){
  if(mode==13 && smmu_reads==1)model.base.h.usb[8/4]|=1U<<5;
  if(address==0x1600009c && registers[0x98/4] && slots<6)registers[index]=++slots;
 #endif
+#ifdef FES_TEST_SETUP_READ
+ return FES_TEST_SETUP_READ(address,registers[index]);
+#else
  return registers[index];
+#endif
 }
 static void probe_write(uint64_t address,uint32_t value){
  unsigned index=smmu_index(address);smmu_writes++;registers[index]=value;

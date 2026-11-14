@@ -388,6 +388,34 @@ int fes_nano_sdm_source_validate(void)
  }
  return sdm_source_owns(&sdm_arm_probe,&sdm_arm_probe.input)==1 ? 0:-13;
 }
+/* Observe only already-retained failure state. No MMIO, counter sample,
+ * ownership callback or retry occurs here, including after a lost scope.
+ * stage: 1=initialization, 2=preparation, 3=arming. Queue failure remains
+ * distinct from the enclosing probe error, which may have mapped it to -5. */
+__attribute__((noinline)) static void sdm_source_setup_failure(unsigned stage,int status)
+{
+ (void)stage;(void)status;
+ NOTICE("FES_NANO_SOURCE_SETUP build=%s stage=%u status=%d owner=%llx epoch=%llx generation=%llu warm=%u attempted=%u initialized=%u preparing=%u prepared=%u arming=%u armed=%u failed=%u first_error=%d timed=%u start_us=%llu last_us=%llu reads=%u writes=%u clears=%u stores=%u loads=%u ack_polls=%u kind=%u offset=%x value=%llx callback=%d scope_reason=%u retained=1 grant=0\n",
+  FES_NANO_INPUT_BUILD,stage,status,
+  (unsigned long long)sdm_arm_probe.binding.owner,(unsigned long long)sdm_arm_probe.binding.epoch,
+  (unsigned long long)sdm_arm_probe.binding.generation,sdm_arm_probe.warm,
+  sdm_arm_probe.attempted,sdm_arm_probe.initialized,sdm_arm_probe.preparing,sdm_arm_probe.prepared,
+  sdm_arm_probe.arming,sdm_arm_probe.armed,sdm_arm_probe.failed,sdm_arm_probe.first_error,
+  sdm_arm_probe.timed,(unsigned long long)sdm_arm_probe.start,(unsigned long long)sdm_arm_probe.last,
+  sdm_arm_probe.reads,sdm_arm_probe.writes,sdm_arm_probe.clears,sdm_arm_probe.stores,
+  sdm_arm_probe.loads,sdm_arm_probe.ack_polls,sdm_arm_probe.last_kind,sdm_arm_probe.last_offset,
+  (unsigned long long)sdm_arm_probe.last_value,sdm_arm_probe.last_callback_status,sdm_probe_scope_reason);
+ NOTICE("FES_NANO_SOURCE_SETUP_QUEUE build=%s attempted=%u initialized=%u submitted=%u failed=%u error=%d stage=%u policy=%u baseline=%u target=%u timed=%u start_us=%llu last_us=%llu observed_us=%llu samples=%u slots=%u published=%u polls=%u reads=%u completion_seen=%u completion_us=%llu retained=1 grant=0\n",
+  FES_NANO_INPUT_BUILD,sdm_arm_probe.command.attempted,sdm_arm_probe.command.initialized,
+  sdm_arm_probe.command.submitted,sdm_arm_probe.command.failed,sdm_arm_probe.command.first_error,
+  sdm_arm_probe.command.stage,sdm_arm_probe.command.validation_policy,
+  sdm_arm_probe.queue_baseline,sdm_arm_probe.queue_target,sdm_arm_probe.command.timed,
+  (unsigned long long)sdm_arm_probe.command.start,(unsigned long long)sdm_arm_probe.command.last,
+  (unsigned long long)sdm_arm_probe.command.observed,sdm_arm_probe.command.clock_samples,
+  sdm_arm_probe.command.slots_attempted,sdm_arm_probe.command.publish_attempted,
+  sdm_arm_probe.command.polls,sdm_arm_probe.command.reads,sdm_arm_probe.command.completion_seen,
+  (unsigned long long)sdm_arm_probe.command.completion_us);
+}
 int fes_nano_sdm_source_prepare(struct nano_sdm_input_binding *output,
  struct nano_sdm_transfer_io *transfer_io,uint64_t *trusted_start_us)
 {
@@ -412,13 +440,14 @@ int fes_nano_sdm_source_prepare(struct nano_sdm_input_binding *output,
     configuration_check(&provider,FES_NANO_CONFIG_BASE,configuration.bytes,1))return sdm_source_stop(26),-13;
  uint64_t after_hash=0;
  if(sdm_source_time(&sdm_arm_probe,&after_hash))return -13;
+ unsigned setup_stage=1;
  int status=warm ? nano_probe_init_rearmed_input(&sdm_arm_probe,b,io,&input,sdm_input_source,
    sdm_source_previous_retirement(),sdm_source_rearm_scope) :
    nano_probe_init_input(&sdm_arm_probe,b,io,&input,sdm_input_source);
  struct nano_probe_receipt receipt;
- if(!status)status=nano_probe_prepare(&sdm_arm_probe,&receipt);
- if(!status)status=nano_probe_arm(&sdm_arm_probe,&receipt);
- if(status)return sdm_source_stop(27),status;
+ if(!status){setup_stage=2;status=nano_probe_prepare(&sdm_arm_probe,&receipt);}
+ if(!status){setup_stage=3;status=nano_probe_arm(&sdm_arm_probe,&receipt);}
+ if(status){sdm_source_setup_failure(setup_stage,status);return sdm_source_stop(27),status;}
  if(warm)sdm_source_rearm_prepared();
  sdm_input_phase=1;
  if(sdm_source_owns(&sdm_arm_probe,&sdm_arm_probe.input)!=1)return -13;
