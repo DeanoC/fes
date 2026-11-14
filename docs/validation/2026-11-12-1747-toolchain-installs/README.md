@@ -183,17 +183,16 @@ The registered native-video shell. Its record is in
 Everything above was measured against main `2d895034c`, which was the merge base
 when the campaign ran. The branch has since merged main `53681975f`.
 
-**The gap, stated as a gap.** D12's second condition is that a forced-BUILD_ID
-build reproduces main's `core.rbf` byte for byte. Every forced build here did
-that against `2d895034c`. **None of it has been verified at this head**, because
-the merge touches a closure file of every core in the table —
-`scripts/compiler_read_audit.py` reaches all fifteen OSS cores, and
-`cores/fes-common/generated/fes_application.vh` reaches most of them — so the
-BUILD_IDs recorded here are not the ones the post-merge tree produces. This
-record does not claim that condition is met at `02beac79b`, and it is not
-claiming the condition does not apply. Whether the campaign must be rerun
-against the new base before this PR merges is an open call, not something this
-record settles.
+**The gap, and how it was closed.** D12's second condition is that a
+forced-BUILD_ID build reproduces main's `core.rbf` byte for byte. Every forced
+build here did that against `2d895034c`, and none of it was verified at the
+post-merge head when this record was first written: the merge touches a closure
+file of every core in the table — `scripts/compiler_read_audit.py` reaches all
+fifteen OSS cores, and `cores/fes-common/generated/fes_application.vh` reaches
+most of them — so the BUILD_IDs recorded above are not the ones the post-merge
+tree produces. That gap is now closed, by re-measurement for the four cores
+whose compiled sources moved and by the carry-forward test for the thirteen
+whose did not. The sections below give both.
 
 **One core's comparison is void, not merely stale.** It would be convenient to
 argue that relocating an install changes nothing but file paths, so the evidence
@@ -227,24 +226,37 @@ in that window: the only candidates were two new `board = "de25-nano"` recipe
 entries, `cores/fes-pc386/toolchain.lock` and the i386 sub-lock, and
 `boards/de10nano/` is untouched.
 
-### First result: `fes.c64`
+### Condition 2 at the new base: four of four pass
 
-Measured against main `bb968862b`. **Both `core.rbf` are sha256
-`7c054cdd9f52500a58dbacb99ef31cce2b1715d4b4a190ea0bb4aaef6b28ae9a`** — main's
-reference and the forced build at main's BUILD_ID `dd50efd6b5247d785b7a4a543da0982e`,
-byte-identical. This was the core with a real logic change on main, so its old
-comparison was the most clearly void, and it now has a fresh one at the new
-base.
+Measured against main `bb968862b`. For every core, main's reference and the
+forced build at main's BUILD_ID produce the **same `core.rbf`, byte for byte**.
 
-It is also the cleanest demonstration of this PR's D12 amendment so far, because
-it is a measurement rather than an argument. The two **netlists differ** —
-`4f495eb4…` against `f7109721…` — and are identical once the tool prefix and the
-checkout root are collapsed, checked by substitution rather than assumed. So on
-a core with a genuine RTL change in play: paths reach the netlist text, and do
-not reach the RBF. That also confirms the two sides really were resolving tools
-from different prefixes, main's from its local hardlinked root and the forced
-build's from the shared per-tool cache, which is the isolation the campaign
-intended. sg1000, menu and riscv are still running.
+| core | main's BUILD_ID | `core.rbf` sha256, both sides | bytes |
+| --- | --- | --- | --- |
+| `fes.c64` | `dd50efd6b5247d785b7a4a543da0982e` | `7c054cdd9f52500a…` | 3,799,950 |
+| `fes.sg1000` | `86d3f8365140566088277b69623b602e` | `011bbf0e8de4d9a8…` | 2,509,696 |
+| `fes.menu` | `39baa2f28e85d3a50db66d4118153eb7` | `f0ccbe3d990612a3…` | 2,171,815 |
+| `fes.riscv` | `30ab3423b194bb198c18c5f0a489a282` | `d0845b6da9033e9d…` | 2,254,479 |
+
+Forced builds took 12m41s, 2m28s, 3m14s and 5m09s; the main references 11m45s
+and about two minutes each. First-pass found an early closing seed throughout.
+
+**The amendment is now measured, not argued, four times over.** On every one of
+the four the raw `synth.json` differs and is identical once the install prefix
+and the checkout root are collapsed, checked by substitution rather than
+assumed, while the RBF is byte-identical. The prefix reaches the netlist text
+and reaches nothing in the RBF. The four span a real logic change (`fes.c64`),
+an ABI migration (`fes.sg1000`) and two dangling-port removals (`fes.menu`,
+`fes.riscv`), so this is not one core's accident. It also confirms the two sides
+really were resolving tools from different prefixes — main's from its local
+hardlinked root, the forced build's from the shared per-tool cache — which is
+the isolation the campaign intended.
+
+**An RBF is not comparable across hosts.** Install paths land in generated cell
+names and the serials depend on path length, so the same binary and the same
+sources at 138 characters of prefix and at 47 produce different serials. Both
+sides of every comparison here ran on one host, and a future comparison must do
+the same.
 
 ## Re-measurement at `02beac79b`
 
@@ -305,7 +317,7 @@ re-derived — so **no claim is made here that the BUILD_ID constant is the only
 input that moved for `fes.pcxt-dos`.** What is established is that its own code
 and its board files are untouched.
 
-## Two sweep failures this branch did not cause
+## Three test failures this branch did not cause
 
 `scripts/test_changed.py --base origin/main` stops the fpga lane at its first
 failing command, so either of these leaves 25 RTL simulation lanes under
@@ -330,7 +342,25 @@ does. Both are worth recording because the next person will hit them.
   The helper arrived in #1786; this branch does not touch the file. Not fixed
   here, per one scope per PR.
 
-**The sweep is green once those two are accounted for.** All 37 commands in
+The third is in CI rather than a local sweep, and it is latent on main.
+
+- **`de25-combined-proof.json` is stale on main** (issue #1842). This PR's
+  `fpga-producer` job fails `test_combined_client_proof_receipt_matches_captured_sources`
+  and nothing else, 1 failure in 2203 tests. The fixture records a sha256 per
+  captured source; the key sets still match exactly, 61 entries each, and five
+  hashes differ — `include/libmister-runtime/runtime.h` and
+  `src/native/{adv7513,hardware,menu_underflow,video}.hpp`, which are exactly
+  the five captured files `ed410a1cb` (#1804) changed without regenerating the
+  fixture. Reproduced on `origin/main` alone in a clean detached worktree, with
+  no branch of this PR's in play, before attributing it. CI stayed green on main
+  because `ed410a1cb` touches only `sources/FogCast/` and
+  `sources/libmister-runtime/`, so impact analysis marked `fpga-producer` and
+  `fpga-simulation` `completed/skipped` — the lane that owns the test never ran.
+  It surfaces on the next PR whose diff does touch `sources/misteross/`, where it
+  reads as that PR's regression. This PR touches no `boards/de25nano` or
+  `libmister-runtime` file.
+
+**The sweep is green once the first two are accounted for.** All 37 commands in
 `test_changed.py --plan-only` pass: commands 0–11 at `19443449b`, where the
 `test_*.py` lane reports `OK (skipped=86)` over 2202 tests, and the 25 RTL
 simulation lanes that the early stop had left unstarted, run directly, 25 of 25
