@@ -549,7 +549,9 @@ capture restart during an episode are the cheapest shots at it. Deano has
 approved both for an episode only, and the pc386 kit driver implements them in
 that order; each can name a side only by recovering the picture, and an episode
 that survives both is inconclusive. 83 further Kit B launches produced no
-episode to spend them on
+episode to spend them on; the probe-armed run of those ended early on an
+unclassified I2C bus fault that left the kit's transmitter unreadable until a
+power cycle, recorded with the rest
 ([#1494](https://github.com/DeanoC/fes/issues/1494),
 [record](validation/2026-11-14-pc386-si-black-capture/summary.md)).
 

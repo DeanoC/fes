@@ -33,7 +33,7 @@ and the grab lands 31 s or more after it closes — and no episode of their own.
 `b3` carried the episode probe Deano has approved and found no episode to spend
 it on; it ended early when the stop of its last launch left the kit needing a
 recovery that is Deano's to authorise
-([the I²C bus fault](#an-ic-bus-fault-ended-run-b3)). So the two approved tests
+([the I2C bus fault](#an-i2c-bus-fault-ended-run-b3)). So the two approved tests
 are still unspent, and Kit B is logged in use and not usable until that
 recovery.
 
@@ -279,7 +279,7 @@ of 12 in 400 (3%), 83 clean launches in a row happen about one time in twelve,
 so this does not show the rate has changed; it does mean no run caught an
 episode to spend the approved probes on. `b3` was the probe-armed run and was
 planned for 140 launches; it stopped at 40 for a reason of its own, recorded
-under [an I²C bus fault ended run `b3`](#an-ic-bus-fault-ended-run-b3), which
+under [an I2C bus fault ended run `b3`](#an-i2c-bus-fault-ended-run-b3), which
 says nothing about the episode either way.
 
 ## A bring-up outage and an episode do not look alike
@@ -383,7 +383,7 @@ minute clear of any bring-up — not the frame pattern.
   27 s (`k6` measured that stretch). The 10 November record marks that as not
   tested, and it stays untested here.
 
-## An I²C bus fault ended run `b3`
+## An I2C bus fault ended run `b3`
 
 Run `b3`, the probe-armed one, stopped after 40 of its 140 launches, and the
 kit was left needing a recovery that is Deano's to authorise. The cause is
@@ -438,19 +438,42 @@ Two things the stuck state shows that are worth keeping:
   pending, software 7ddb0bfb active, and Kit B's `usb-storage.quirks` line
   intact.
 
-Nothing was attempted — no `recover_idle`, no development reboot, no service
-restart. Path B is HOLD-FOR-KIT-GO, and the one instance recorded there with
-`0x39` gone needed a hard power cycle, so the choice between the development
-reboot and a power cycle went to Deano. Until it is made, run `b3`'s 8 new
-paths and run `b2`'s 3 data trees are still on the kit and Kit B's status file
-says it is in use and not usable.
+This session attempted nothing — no `recover_idle`, no development reboot, no
+service restart. Path B is HOLD-FOR-KIT-GO, and the one instance recorded there
+with `0x39` gone needed a hard power cycle, so the choice between the development
+reboot and a power cycle went to Deano.
+
+**The recovery was a hard power cycle, performed by Deano**, not by this session.
+Everything came back on the baseline the status file names:
+
+| after the cycle | |
+| --- | --- |
+| ADV7513 at `0x39` | reads again: `0x41` `0x10` powered, `0x42` `0xf0` link, `0x9E` `0x12` (PLL locked), `0x3E>>2` 4 |
+| agent | idle, no core, lease free |
+| booted image | 179affbb = `state.good`, `state.pending` empty, `state.previous` cd284ca3 unchanged |
+| bundle | selected and active 7ddb0bfb, base 179affbb, no pending |
+| `fat_idle`, `launcher.json` | 64f1f16d…, 5d4ee551f9aa36be — both identical to the pre-incident probe |
+| `usb-storage.quirks=152d:0583:i` | present in `/proc/cmdline` and in `/media/fat/linux/u-boot.txt` |
+| `boot_id` | **new**: f70f34fb-07a7-4143-b15f-0fce27328cd4 |
+
+The new `boot_id` is the one thing the cycle spent. The unchanged 6626d877 and
+its 51 h of uptime were part of what showed nothing had drifted during the
+wedge, and that evidence ends here; two uptime samples 25 s apart on the new
+`boot_id` rule out a boot loop. So the bus fault left no trace in the kit's
+configuration, and nothing about it is reproducible from the kit as it now
+stands.
+
+Run `b3`'s data trees (its game and media records — the 8 new paths reduce to
+those two tops, the staged disk image having been created by `b2`) and run
+`b2`'s three were then removed under their own claims, and Kit B was released
+idle and lease-free with only the shared scrub image left in `disk-images`.
 
 ## Inputs and what was measured here
 
 Most of this record needed no kit: those numbers come from runs already taken on
 Powerboat, remeasured today. Runs `b1`, `b2` and `b3` are this record's own kit
 runs; `b1` and `b2` are complete, and `b3` stopped at 40 of 140 launches
-([the I²C bus fault](#an-ic-bus-fault-ended-run-b3)).
+([the I2C bus fault](#an-i2c-bus-fault-ended-run-b3)).
 
 - **Captures read.** `~/fes-scratch/acc1368r/kit/runs/{k1..k9}` (#1494's own
   runs), `~/fes-scratch/census-p5/kit/runs/*` (433 census grabs, package
@@ -527,6 +550,15 @@ reopened. So:
 So only recovery is evidence, and it is evidence for the capture chain as a
 whole. Non-recovery leaves both sides of #1833 standing and must not be written
 up as pointing at the transmitter.
+
+The sweep's own bus discipline, now that the `b3` fault has put I²C in the
+record: it writes `0xBA` through the same `/dev/i2c-*` path the runtime uses, so
+the kernel serialises it against the runtime's transfers rather than racing
+them, and it runs only while the core is up and the picture has already been
+black for a whole launch — never during a load or a stop. What it must not do is
+hold the adapter through long timeouts, which is what three minutes of failed
+reads did in `b3`: the sweep reads and writes single registers on a bus that is
+answering, and it stops if one does not answer.
 
 The sweep goes first for two reasons: a `0xBA` write changes what the
 transmitter sends and a cleared picture cannot be un-cleared, and the restart
