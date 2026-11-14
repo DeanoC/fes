@@ -134,6 +134,9 @@ module fes_i386_x87 (
     output logic [15:0] tw_o,
     output logic [10:0] opcode_o,
     output logic        busy_o,
+    // The sequencer's state, for the unit's own bench and the CPU's trace;
+    // nothing in the machine reads it, so the fit trims the wires.
+    output logic [3:0]  trace_seq,
     // FINIT clears the x87 pointers as well as the words (387 PRM, FINIT),
     // and the CPU keeps them, so the unit says when: in the cycle FNINIT
     // commits, or FNSAVE, which leaves the unit as FINIT does. It is in
@@ -320,6 +323,7 @@ module fes_i386_x87 (
     logic [10:0] cur_op_raw;    // its 387 opcode, which commit stores
     logic        cur_ctrl;      // ... and whether it is a control form
     assign busy_o = busy;
+    assign trace_seq = 4'(seq);
 
     // ---- The board's BUSY# latch (387 PRM Appendix F.2). ----
     // ERROR# going active latches BUSY#, which holds the next waiting ESC or
@@ -367,10 +371,16 @@ module fes_i386_x87 (
     // work at their own commit, so one behind an instruction the unit has
     // taken, or behind another of them, waits like any other ESC. A 387 is
     // busy while FNINIT runs (33 clocks, datasheet pp. 37-39).
+    //
+    // A first uop waits for the unit only while the unit has not taken it
+    // (`!started`): a store's own conversion makes the unit busy before its
+    // first uop issues, so testing `busy` alone would hold it for ever. Once
+    // its first uop has gone (`fired`), a first uop is a new instruction's
+    // and waits again.
     assign hold = present && iss && !unbuilt
                && (iss_nowait ? fired || busy || nw != 2'd0
                   : iss_wait ? latched || busy || nw != 2'd0
-                             : iss_first && (fired || busy || latched || nw != 2'd0)
+                             : iss_first && (fired || !started && (busy || latched || nw != 2'd0))
                               || val_form && seq != S_RDY
                               || iss_save_rd && iss_part[4:2] + top != ra_live);
     // FNINIT and FNCLEX wait for neither the latch nor the unit, so they are
@@ -660,15 +670,18 @@ module fes_i386_x87 (
     // CPU builds fields 3 to 6, the x87 pointers, itself); and a save
     // image's chunk of the register the unit has read.
     always_comb begin
-        if (iss_dec == X87_STCW) sval = {16'd0, cw};
-        else if (iss_dec == X87_STSW) sval = {16'd0, sw_o};
+        if (iss_dec == X87_STCW) sval = {16'hffff, cw};
+        else if (iss_dec == X87_STSW) sval = {16'hffff, sw_o};
         else if (iss_dec == X87_STENV || iss_dec == X87_SAVE) begin
             if (iss_part[5])
                 sval = iss_part[1:0] == 2'd0 ? ra_val[31:0]
                      : iss_part[1:0] == 2'd1 ? ra_val[63:32] : {16'd0, ra_val[79:64]};
             else
-                sval = iss_part[2:0] == 3'd0 ? {16'd0, cw}
-                     : iss_part[2:0] == 3'd1 ? {16'd0, sw_o} : {16'd0, tw_o};
+                // A 32-bit layout stores these as dwords whose upper halves
+                // are reserved and read all ones, as the empty socket's and
+                // the oracle's do; a 16-bit layout stores the word alone.
+                sval = iss_part[2:0] == 3'd0 ? {16'hffff, cw}
+                     : iss_part[2:0] == 3'd1 ? {16'hffff, sw_o} : {16'hffff, tw_o};
         end else
             sval = iss_part[1:0] == 2'd0 ? sres[31:0]
                  : iss_part[1:0] == 2'd1 ? sres[63:32] : {16'd0, sres[79:64]};

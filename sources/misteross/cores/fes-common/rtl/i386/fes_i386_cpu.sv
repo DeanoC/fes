@@ -269,6 +269,7 @@ module fes_i386_cpu #(
     // clear, as a program would after WAIT.
     output logic             trace_x87_busy,
     output logic             trace_x87_latched,  // ... and the board's BUSY# latch
+    output logic [3:0]       trace_x87_seq,      // ... and the unit's sequencer state
     output logic [15:0]      arch_x87_cw,
     output logic [15:0]      arch_x87_sw,
     output logic [15:0]      arch_x87_tw,
@@ -879,7 +880,7 @@ module fes_i386_cpu #(
         .wb_opcode_set(x87_ld_env && wb_s.x87_part[2:0] == 3'd4), .wb_opcode(x87_ld_opcode),
         .cw_o(arch_x87_cw), .sw_o(arch_x87_sw), .tw_o(arch_x87_tw), .opcode_o(arch_x87_opcode),
         .clr_pointers(x87_clr_pointers),
-        .busy_o(trace_x87_busy), .regs_o(arch_x87_regs)
+        .busy_o(trace_x87_busy), .trace_seq(trace_x87_seq), .regs_o(arch_x87_regs)
     );
     assign arch_x87_ip = fpu_ip;
     assign arch_x87_cs = fpu_cs;
@@ -1803,14 +1804,12 @@ module fes_i386_cpu #(
             // its value for a store, and the opcode in the field that
             // carries it. The layouts are otherwise the same.
             5'(fes_i386_pkg::SYS_RD_ONES): sys_val = x87_present ? x87_sval : 32'hffff_ffff;
-            5'(fes_i386_pkg::SYS_RD_FIP): sys_val = cr0_pe ? fpu_ip
-                                                 : {x87_present ? 16'd0 : 16'hffff, fpu_lip[15:0]};
+            5'(fes_i386_pkg::SYS_RD_FIP): sys_val = cr0_pe ? fpu_ip : {16'hffff, fpu_lip[15:0]};
             5'(fes_i386_pkg::SYS_RD_FCS): sys_val = cr0_pe ? {5'd0, x87_present ? arch_x87_opcode : 11'h7ff, fpu_cs}
                                                  : {4'd0, fpu_lip[31:16], 1'b0,
                                                     x87_present ? arch_x87_opcode : 11'h7ff};
-            5'(fes_i386_pkg::SYS_RD_FDP): sys_val = cr0_pe ? fpu_dp
-                                                 : {x87_present ? 16'd0 : 16'hffff, fpu_ldp[15:0]};
-            5'(fes_i386_pkg::SYS_RD_FDS): sys_val = cr0_pe ? {x87_present ? 16'd0 : 16'hffff, fpu_ds}
+            5'(fes_i386_pkg::SYS_RD_FDP): sys_val = cr0_pe ? fpu_dp : {16'hffff, fpu_ldp[15:0]};
+            5'(fes_i386_pkg::SYS_RD_FDS): sys_val = cr0_pe ? {16'hffff, fpu_ds}
                                                  : {4'd0, fpu_ldp[31:16], 12'd0};
             5'(fes_i386_pkg::SYS_RD_ARPL): sys_val = {16'd0, t1[15:2], t2[1:0]};
             5'(fes_i386_pkg::SYS_RD_DR0): sys_val = dr[0];

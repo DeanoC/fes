@@ -22,6 +22,7 @@ module spike_x87_unit #(
     logic         reset;
     logic [255:0] noise;
     logic         hold, nx, error, latched, busy_o, clr_pointers;
+    logic [3:0]   trace_seq;
     logic [31:0]  sval;
     logic [15:0]  cw_o, sw_o, tw_o;
     logic [10:0]  opcode_o;
@@ -38,10 +39,10 @@ module spike_x87_unit #(
         .wb(noise[29]), .wb_last(noise[30]), .wb_val(noise[62:31]), .wb_part(noise[68:63]),
         .flush(noise[69] && noise[70]),
         .wb_opcode_set(noise[71]), .wb_opcode(noise[82:72]),
-        .cw_o, .sw_o, .tw_o, .opcode_o, .busy_o, .clr_pointers, .regs_o
+        .cw_o, .sw_o, .tw_o, .opcode_o, .busy_o, .trace_seq, .clr_pointers, .regs_o
     );
     always_comb begin
-        fold = {sval, cw_o, sw_o} ^ {tw_o, opcode_o, 31'd0, hold, nx, error, latched, busy_o, clr_pointers};
+        fold = {sval, cw_o, sw_o} ^ {tw_o, opcode_o, 27'd0, trace_seq, hold, nx, error, latched, busy_o, clr_pointers};
         if (REGS != 0)
             for (int n = 0; n < 10; n++) fold = fold ^ regs_o[64*n +: 64];
     end

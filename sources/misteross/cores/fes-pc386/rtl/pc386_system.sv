@@ -469,7 +469,7 @@ module pc386_system #(
 
     fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D)) cpu (
         .clk(clk), .cold_reset(cpu_cold), .reset(cpu_reset),
-        .x87_present(x87_present), .x87_f0(x87_f0), .x87_f1(x87_f1), .x87_irq13(x87_irq13), .trace_x87_busy(), .trace_x87_latched(),
+        .x87_present(x87_present), .x87_f0(x87_f0), .x87_f1(x87_f1), .x87_irq13(x87_irq13), .trace_x87_busy(), .trace_x87_latched(), .trace_x87_seq(),
         .arch_x87_cw(), .arch_x87_sw(), .arch_x87_tw(), .arch_x87_opcode(), .arch_x87_regs(),
         .arch_x87_ip(), .arch_x87_cs(), .arch_x87_dp(), .arch_x87_ds(),
         // The reset state, Bochs's: CS F000h at FFFF0000h, EIP FFF0h, every

@@ -377,6 +377,44 @@ void bad(const std::string &name, const std::string &what) {
 // host's are no reference.
 uint16_t flags_of(uint16_t sw) { return uint16_t(sw & 0x02ff); }
 
+// FSTP m32 presented while the instruction before it commits: the unit must
+// take it and have its value ready, not hold for ever.
+void top_push_overlap_store(Unit &u) {
+    u.top.wb = 1;
+    u.top.wb_part = 0;
+    u.top.wb_val = 0;
+    u.top.wb_last = 1;
+    u.top.iss = 1;
+    u.top.iss_wait = 0;
+    u.top.iss_op = OP_FSTP_M32;
+    u.top.iss_fmt = FMT_F32;
+    u.top.iss_first = 1;
+    u.top.iss_last = 1;
+    u.top.iss_part = 0;
+    u.top.iss_fire = 0;
+    u.tick();
+    u.top.wb = u.top.wb_last = 0;
+    u.top.eval();
+    int n = 0;
+    for (; n < 64 && u.top.hold; ++n) {
+        if (std::getenv("X87_TB_DBG") && n < 12)
+            std::fprintf(stderr, "overlap.store n=%d hold=%d busy=%d seq=%d sw=%04x\n", n, int(u.top.hold),
+                         int(u.top.busy_o), int(u.top.trace_seq), unsigned(u.top.sw_o));
+        u.tick();
+    }
+    const uint32_t stored = u.top.sval;
+    u.top.iss_fire = 1;
+    u.top.eval();
+    u.tick();
+    u.top.iss = u.top.iss_first = u.top.iss_fire = 0;
+    u.top.eval();
+    u.commit(0, 0, true);
+    u.settle();
+    if (n >= 64) bad("overlap.store", "the store held for ever");
+    else if (stored != 0x3f800000u) bad("overlap.store", "stored " + hex(stored, 8));  // 1.0
+    else ok("overlap.store");
+}
+
 // Set the unit's rounding mode with FLDCW.
 void set_rc(Unit &u, unsigned rc) {
     const uint16_t cw = host_cw(rc);
@@ -963,6 +1001,17 @@ int main(int argc, char **argv) {
             else if (pushed && (u.tw() & 0xc000) == 0xc000)
                 bad(std::string("overlap.") + o.label, "tw=" + hex(u.tw(), 4));
             else ok(std::string("overlap.") + o.label);
+        }
+
+        // A store presented before the instruction before it commits, which
+        // is what the CPU does: the store must still take and answer.
+        u.clear_latch();
+        u.reg_form(OP_FNINIT);
+        u.load(OP_FLD_M80, FMT_F80, one);
+        {
+            // FLD ST(0) commits while FSTP m32 waits in D.
+            u.present(op_fld_st(0), 0, true, true, 0);
+            top_push_overlap_store(u);
         }
 
         // A control form leaves C1 and the other condition codes alone.
