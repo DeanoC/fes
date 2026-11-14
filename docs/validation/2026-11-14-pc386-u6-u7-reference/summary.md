@@ -88,12 +88,20 @@ of the reference.
   41,910 ALMs. Its lockstep report is the one this tree's lockstep produced
   (`--netlist`, default suite, complete corpus), run on the sealing host.
 - **Kit B**, core-only on its baseline (image `179affbb…`, software
-  `7ddb0bfb…`). Nothing installed, no reboot, no host change. The claim and
-  the restore are in Kit B's status file. The wrapper's own shell was killed
-  after it had claimed the kit (it was mistaken for a run still waiting for the
-  lock), so the run finished on its own and the restore check — remove the
-  run's data trees, snapshot, compare with the pre-run probe, release — was run
-  by hand from the same script's tail and logged as such at 11:53.
+  `7ddb0bfb…`) for all three runs. Nothing was installed and no image,
+  boot-config or host change was made in any of them. Each claim and restore is
+  in Kit B's status file.
+  - `g1`, the pitch and walk measurement: no reboot. The wrapper's own shell
+    was killed after it had claimed the kit (it was mistaken for a run still
+    waiting for the lock), so the run finished on its own and the restore check
+    — remove the run's data trees, snapshot, compare with the pre-run probe,
+    release — was run by hand from the same script's tail and logged at 11:53.
+  - `g3`, the three lute captures: no reboot, wrapper restore, released 15:56.
+  - `g4`, the walk run that measured nothing: **this one did need a reboot.**
+    It left the lease blocked with the core loaded, and a warm reboot cleared
+    it, at Deano's word. That is the one hardware action in this record beyond
+    loading cores, and the section on the walk gives the cause and the
+    verification that followed it.
 - **Disk.** `u6nm.img` (`e28bc5a2…`): the FreeDOS games image `e69194ec…`,
   built from `scripts/build_pc386_freedos_image.py --profile games` on 26
   October and carrying FreeDOS kernel 2043, where main's lock now pins 2046, plus Ultima VI
