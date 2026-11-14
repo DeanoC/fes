@@ -138,6 +138,7 @@ class DontReplicateTests(unittest.TestCase):
                '  reg system_machine_reset = 1\'h1;\n'
                '  reg [1:0] sys_reset = 2\'h3;\n'
                '  reg fes_computer_runtime_pcxt_floppy_gp_mailbox_core_exec_reset = 1\'h1;\n'
+               '  reg speaker_output_audio_output_stage_acknowledge = 1\'h0;\n'
                '  reg fes_computer_runtime_pcxt_floppy_gp_mailbox_core_exec_reset_q = 1\'h0;\n'
                '  assign x = system_machine_reset;\n'
                'endmodule\n')
@@ -149,14 +150,15 @@ class DontReplicateTests(unittest.TestCase):
         path.write_text(text)
         return path
 
-    def test_marks_each_audio_reset_source_once(self):
+    def test_marks_each_audio_singleton_source_once(self):
         path = self.netlist(self.NETLIST)
         marked = builder.mark_dont_replicate(path, builder.AUDIO_SINGLE_REGISTERS)
         self.assertEqual(marked, {name: 1 for name in builder.AUDIO_SINGLE_REGISTERS})
         text = path.read_text()
-        self.assertEqual(text.count('(* dont_replicate *)'), 3)
+        self.assertEqual(text.count('(* dont_replicate *)'), 4)
         self.assertIn('  (* dont_replicate *) reg [1:0] sys_reset = 2\'h3;\n', text)
         self.assertIn('  (* dont_replicate *) reg fes_computer_runtime_pcxt_floppy_gp_mailbox_core_exec_reset = ', text)
+        self.assertIn('  (* dont_replicate *) reg speaker_output_audio_output_stage_acknowledge = ', text)
         self.assertIn('  reg fes_computer_runtime_pcxt_floppy_gp_mailbox_core_exec_reset_q = ', text)
         self.assertIn('  assign x = system_machine_reset;\n', text)
 
@@ -164,6 +166,14 @@ class DontReplicateTests(unittest.TestCase):
         text = self.NETLIST.replace('  reg system_machine_reset = 1\'h1;\n', '')
         path = self.netlist(text)
         with self.assertRaisesRegex(ValueError, 'system_machine_reset: 0'):
+            builder.mark_dont_replicate(path, builder.AUDIO_SINGLE_REGISTERS)
+        self.assertEqual(path.read_text(), text)
+
+    def test_missing_acknowledge_rejects_and_leaves_the_netlist(self):
+        name = 'speaker_output_audio_output_stage_acknowledge'
+        text = self.NETLIST.replace(f'  reg {name} = 1\'h0;\n', '')
+        path = self.netlist(text)
+        with self.assertRaisesRegex(ValueError, f'{name}: 0'):
             builder.mark_dont_replicate(path, builder.AUDIO_SINGLE_REGISTERS)
         self.assertEqual(path.read_text(), text)
 

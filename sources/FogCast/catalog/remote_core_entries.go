@@ -49,7 +49,7 @@ func (s *Store) CreateRemoteCoreEntry(ctx context.Context, title, coreID, packag
 	if !validRemoteCoreOrigin(origin) {
 		return CoreEntry{}, ErrInvalidCoreEntry
 	}
-	return s.createCoreEntry(ctx, title, coreID, packageID, "", "", false, nil, &origin)
+	return s.createCoreEntry(ctx, title, coreID, packageID, "", "", false, nil, &origin, nil)
 }
 
 func scanRemoteCoreOrigin(scan func(...any) error) (RemoteCoreEntryOrigin, error) {

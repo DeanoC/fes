@@ -127,7 +127,7 @@ func registerCoreLibrary(mux *http.ServeMux, service Service) {
 			writeError(w, 400, "BAD_REQUEST", "package ID is invalid")
 			return
 		}
-		if !validCoreMediaPair(request.MediaRole, request.MediaID) {
+		if !validCoreMediaPair(request.MediaRole, request.MediaID) && !(request.MediaRole == "cartridge" && corePackageIDRE.MatchString(request.MediaID)) {
 			writeError(w, 400, "BAD_REQUEST", "media role and ID are invalid")
 			return
 		}

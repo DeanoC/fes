@@ -79,6 +79,7 @@ class V1FirmwareLicensingDocTests(unittest.TestCase):
         removed = (
             validation + "2026-10-22-pcxt-commit-timing/capture.tar.gz",
             validation + "2026-10-22-pcxt-pad-pipeline/rom-same-edge/host.tar.gz",
+            validation + "2026-10-22-pcxt-pad-pipeline/pic-direct-events/board-capture.tar.gz",
             validation + "2026-10-29-de25-zx81-ram-pr/failed/diagnostic-phase/sources.tar.gz",
             validation + "2026-10-29-de25-zx81-ram-pr/failed/late-read-response/sources.tar.gz",
             "docs/validation/2026-10-29-de25-zx81-pr-computer/compiler-reports.tar.gz",

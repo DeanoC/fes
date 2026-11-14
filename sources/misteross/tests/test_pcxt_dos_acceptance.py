@@ -238,7 +238,11 @@ import sim_fes_pcxt_dos as sim
 worker, marker, descendants, boundary, release, mode, cwd = sys.argv[2:]
 production_hook = sim.die_with_parent
 def gated_hook(*args):
-    open(boundary, 'w').write(str(os.getpid()))
+    # Publish the complete PID only after closing the temporary file; a
+    # reader must never observe the empty file created by open(..., 'w').
+    with open(boundary + '.tmp', 'w') as pid_file:
+        pid_file.write(str(os.getpid()))
+    os.replace(boundary + '.tmp', boundary)
     deadline = time.monotonic() + 10
     while not os.path.exists(release) and time.monotonic() < deadline:
         time.sleep(0.01)
@@ -286,9 +290,11 @@ sim.run_simulation([sys.executable, '-c', worker, marker, descendants], cwd, 'st
                     child_pid = None
                     child_pidfd = None
                     try:
-                        wait_for(lambda: boundary.exists() or runner.poll() is not None,
+                        wait_for(lambda: (boundary.exists() and boundary.stat().st_size > 0)
+                                 or runner.poll() is not None,
                                  'preexec boundary was not reached')
                         self.assertTrue(boundary.exists(), 'runner exited before startup boundary')
+                        self.assertGreater(boundary.stat().st_size, 0, 'startup boundary PID was empty')
                         child_pid = int(boundary.read_text())
                         child_pidfd = os.pidfd_open(child_pid)
                         self.assertIsNotNone(child_pidfd, 'could not bind startup child identity')

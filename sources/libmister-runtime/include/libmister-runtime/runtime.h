@@ -374,6 +374,68 @@ struct MenuDisplayInfo {
  // that drew it. Zero when not measured.
  std::uint32_t clean_us=0,blit_us=0,submit_us=0,scanout_wait_us=0;
 };
+// Whether scanout was found showing the frame the runtime has committed.
+// Both halves of that comparison are read in the same breath by the health
+// check, so it is the runtime's verdict and not something a client can
+// reconstruct from a sample it received up to a second late.
+// unknown is the honest answer whenever no measurement describes the frame
+// now on the wire -- before the first health check of a programming, and
+// after a present has moved the committed frame on. Only mismatched is a
+// loss; unknown costs at most one more second before the next check
+// re-establishes the verdict, and that is the direction to err in.
+enum class MenuScanoutFrame : std::uint8_t { unknown=0, matching=1, mismatched=2 };
+// The wire and log spelling of that verdict. One name for both, so a kit log
+// line and a status reply never disagree about which verdict was published.
+constexpr const char* MenuScanoutFrameName(MenuScanoutFrame frame)
+{
+ switch(frame) {
+  case MenuScanoutFrame::matching: return "matching";
+  case MenuScanoutFrame::mismatched: return "mismatched";
+  case MenuScanoutFrame::unknown: break;
+ }
+ return "unknown";
+}
+// What the idle display and its HDMI transmitter actually report, re-read
+// about once a second while the idle menu owns the screen. A confirmed
+// present is not evidence that scanout is still running: everything here is
+// measured after the fact, never cached from the present that set it up.
+struct MenuDisplayLive {
+ // read is true once a health check has read the display registers, and
+ // link once the ADV7513 reads of that check also succeeded. Both false
+ // means nothing was measured, not that the display is healthy.
+ bool read=false,link=false;
+ bool enabled=false,faulted=false,quiesced=false;
+ // underflows_total is the hardware's absolute counter since this image was
+ // programmed, not the per-present delta that MenuDisplayStatus::underflows
+ // carries. The one-scanline per-present cap does not apply to it.
+ // displayed_sequence is what the register read answered at that moment,
+ // kept for the log and for diagnostics. It is a sample: a client that
+ // compares it with the sequence its own present returned is comparing two
+ // different instants, and after every present it is one behind until the
+ // next check. scanout_frame is the comparison, made where both numbers are
+ // read together.
+ std::uint32_t displayed_sequence=0,underflows_total=0;
+ MenuScanoutFrame scanout_frame=MenuScanoutFrame::unknown;
+ // ADV7513 0x42 (HPD and Rx sense), 0x9e bit 4 (pixel PLL lock) and the
+ // detected VIC from 0x3e>>2. A 720p60 link reports VIC 4.
+ bool hot_plug=false,rx_sense=false,pll_lock=false;
+ std::uint8_t vic=0;
+ // recovery_abandoned says the runtime has stopped trying to recover the
+ // loss this sample describes: either a reactivation already ran for this
+ // reason and did not clear it, or the bounded reactivation budget is
+ // spent. It is false on a healthy display, false while a transmitter loss
+ // is still settling, and false while a loss is still eligible for a
+ // reactivation. A check that cannot read the registers at all leaves the
+ // verdict standing, because the latch behind it is still in force.
+ // A client that sees it must not present to force recovery the runtime has
+ // deliberately given up on. It must not pull a supervised readiness marker
+ // down over it either: that marker drives process and bundle supervision,
+ // so withdrawing it stops and restarts the kit's software group every few
+ // minutes, and each restart reprograms the same dead display -- the
+ // reprogram loop this whole policy exists to avoid. The kit log names the
+ // loss; the picture stays gone until the hardware changes.
+ bool recovery_abandoned=false;
+};
 struct MenuDisplayStatus {
  bool available=false;
  // A running-core plane binds both its independent display generation and
@@ -400,6 +462,8 @@ struct MenuDisplayStatus {
  // A list frame has run on this blitter grant. The grant takes CPU frames
  // until then and only lists after. Not reported.
  bool blitted=false;
+ // The last idle health check's live reads. Session planes never carry it.
+ MenuDisplayLive live;
  Error error;
 };
 constexpr std::size_t kMenuWrittenMaxRects=16;
@@ -512,6 +576,18 @@ public:
   return {{ErrorCode::unsupported_interface,"menu display unavailable"},false,""};
  }
  virtual MenuDisplayStatus menu_display() const {return {};}
+ // Re-reads the live idle display and its HDMI transmitter, at most about
+ // once a second, and records what they report in menu_display().live.
+ // A non-ok result is positive evidence that the idle menu is no longer
+ // being scanned out, and the caller reprograms it through LoadIdle. The
+ // implementation spends the bounded reactivation budget before reporting
+ // one, so an exhausted budget reports ok and leaves the display alone.
+ virtual Error CheckIdleDisplayHealth() {return {};}
+ // Whether CheckIdleDisplayHealth would read anything if called now. It
+ // takes no bus and no deadline, so the runtime can test it before claiming
+ // the mutation fence and refusing a menu frame for a read it would skip.
+ // Hardware that measures nothing answers false and is never fenced.
+ virtual bool IdleDisplayHealthDue() const {return false;}
  virtual Error SetSessionDisplay(bool,bool) {
   return {ErrorCode::unsupported_interface,"session display unavailable","menu"};
  }
@@ -747,6 +823,11 @@ public:
 	Error Stop();
 	// Programs idle again after reboot_required. Stop does not.
 	Error RecoverIdle();
+	// Re-reads the live idle display about once a second and reprograms the
+	// idle menu, within its existing bounded budget, when scanout is gone.
+	// Does nothing while a core session owns the display. Status requests
+	// pace it, so no menu frame pays for the reads.
+	Error CheckIdleDisplayHealth();
 
 private:
 	class Impl;

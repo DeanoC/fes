@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -65,7 +66,7 @@ func colecoNativeROMPackageFixture(t *testing.T) []byte {
 // part with the new cartridge.
 func TestColecoNativeROMLaunchLinksBIOSCartridgeAndVideoPart(t *testing.T) {
 	ctx := context.Background()
-	s, client, entry, inspection := newCoreEntryLaunchFixture(t, colecoNativeROMPackageFixture(t), "Coleco native", 2*time.Minute)
+	s, client, _, inspection := newCoreEntryLaunchFixture(t, colecoNativeROMPackageFixture(t), "Coleco native", 2*time.Minute)
 	s.targetClients[s.selectedTarget] = client
 	importMedia := func(fill byte, size int) string {
 		data := bytes.Repeat([]byte{fill}, size)
@@ -76,14 +77,17 @@ func TestColecoNativeROMLaunchLinksBIOSCartridgeAndVideoPart(t *testing.T) {
 		return media.MediaID
 	}
 	bios, cart, otherCart := importMedia(0x31, 8192), importMedia(0x55, 16384), importMedia(0x66, 16384)
+	entry, err := s.CreateCoreMediaEntry(ctx, "Coleco cartridge", inspection.PackageID, "cartridge", cart)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-bios", "", bios); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-cart", "", cart); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.Launch(ctx, entry.GameID, nil); err == nil || client.coreCalls != 0 {
-		t.Fatalf("native shell launched without a video part: %v", err)
+	_, err = s.Launch(ctx, entry.GameID, nil)
+	var admission *protocol.APIError
+	if !errors.As(err, &admission) || admission.Code != protocol.CodeBadRequest || admission.Phase != "request" || admission.Message != missingDirectVideoPartMessage || client.coreCalls != 0 {
+		t.Fatalf("native shell without a video part: %v, target calls=%d", err, client.coreCalls)
 	}
 	base := misterossROMFixture(t, "blank.rbf")
 	part, err := expansion.NewAsset(expansion.Manifest{CartSHA256: inspection.Descriptor.Payload.SHA256, CartSize: int64(len(base)), Device: expansion.Device, Format: 1,

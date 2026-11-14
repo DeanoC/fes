@@ -2,6 +2,7 @@
 """Simulate the RAM tester against the SDRAM addon and HPS DDR models."""
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -9,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / "cores" / "fes-ramtest"
 COMMON = ROOT / "cores" / "fes-common"
+VERILATOR = os.environ.get("VERILATOR", "verilator")
 
 
 def pattern_counts() -> None:
@@ -23,7 +25,7 @@ def pattern_counts() -> None:
     ]
     subprocess.run(
         [
-            "verilator", "--cc", "--exe", "--build", "--top-module", "pattern_count_bench",
+            VERILATOR, "--cc", "--exe", "--build", "--top-module", "pattern_count_bench",
             "-Wall", "-Wno-DECLFILENAME", "-Wno-PINCONNECTEMPTY",
             "-Wno-UNUSEDSIGNAL", "-Wno-UNUSEDPARAM", "-Wno-BLKSEQ",
             "-Mdir", str(output),
@@ -41,7 +43,7 @@ def latency_stats() -> None:
     output.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         [
-            "verilator", "--cc", "--exe", "--build", "--top-module", "lat_stats",
+            VERILATOR, "--cc", "--exe", "--build", "--top-module", "lat_stats",
             "-GSAMPLES=16'd100",
             "-Wall", "-Wno-DECLFILENAME", "-Wno-PINCONNECTEMPTY",
             "-Wno-UNUSEDSIGNAL", "-Wno-UNUSEDPARAM", "-Wno-BLKSEQ",
@@ -54,9 +56,31 @@ def latency_stats() -> None:
     subprocess.run([str(output / "sim")], check=True)
 
 
+def guard_regression() -> str:
+    """Run the shared guard test with stable tool paths and no silent skip."""
+    env = os.environ.copy()
+    # The unittest runs from ROOT; preserve relative PATH entries across chdir.
+    env["PATH"] = os.pathsep.join(str(Path(part or ".").resolve())
+                                  for part in env.get("PATH", "").split(os.pathsep))
+    configured = env.get("VERILATOR", "verilator")
+    resolved = shutil.which(configured, path=env["PATH"])
+    if not resolved:
+        raise SystemExit(f"simulation requires executable: {configured}")
+    for tool in ("make", "c++"):
+        if not shutil.which(tool, path=env["PATH"]):
+            raise SystemExit(f"simulation requires executable: {tool}")
+    env["VERILATOR"] = str(Path(resolved).resolve())
+    env["FES_HPS_DDR_GUARD_REQUIRED"] = "1"
+    subprocess.run([sys.executable, "-m", "unittest", "-v", "tests.test_fes_hps_ddr_guard"],
+                   cwd=ROOT, env=env, check=True)
+    return env["VERILATOR"]
+
+
 def main() -> None:
     if os.environ.get("FES_TOOLCHAIN_CACHE_ROOT"):
         raise SystemExit("simulation refuses a shared toolchain cache")
+    global VERILATOR
+    VERILATOR = guard_regression()
     pattern_counts()
     latency_stats()
     output = ROOT / "build" / "fes-ramtest-sim"
@@ -64,7 +88,7 @@ def main() -> None:
     byte_output = output / "byte"
     byte_output.mkdir(exist_ok=True)
     subprocess.run([
-        "verilator", "--cc", "--exe", "--build", "--top-module", "byte_bench",
+        VERILATOR, "--cc", "--exe", "--build", "--top-module", "byte_bench",
         "-Wall", "-Wno-DECLFILENAME", "-Wno-PINCONNECTEMPTY", "-Wno-UNUSEDSIGNAL",
         "-Wno-UNUSEDPARAM", "-Wno-BLKSEQ", "-Mdir", str(byte_output), "-o", "sim",
         *map(str, [CORE / "rtl" / "sdram_byte_lane.v", CORE / "rtl" / "sdram_addon_port.v",
@@ -128,7 +152,7 @@ def main() -> None:
             build_sources = [mutated if source == controller else source for source in sources]
         subprocess.run(
             [
-                "verilator", "--cc", "--exe", "--build", "--top-module", "bench",             "+define+SIM",
+                VERILATOR, "--cc", "--exe", "--build", "--top-module", "bench",             "+define+SIM",
                 *defines,
                 "-Wall", "-Wno-DECLFILENAME", "-Wno-PINCONNECTEMPTY",
                 "-Wno-UNUSEDSIGNAL", "-Wno-UNUSEDPARAM", "-Wno-BLKSEQ",

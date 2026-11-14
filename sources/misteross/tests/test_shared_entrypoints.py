@@ -295,17 +295,19 @@ class SharedEntrypointTests(unittest.TestCase):
         digest = hashlib.sha256(binary.read_bytes()).hexdigest()
         pin = doctor._load_pins()["verilator"]
         manifest = SimpleNamespace(
-            key="shared-key",
-            install=install,
-            evidence=self.fixture / "evidence",
             tools={
-                "verilator": {
-                    "binary": "bin/verilator",
-                    "path": "install/bin/verilator",
-                    "commit": pin.commit,
-                    "identity": "verilator shared fixture",
-                    "sha256": digest,
-                }
+                "verilator": SimpleNamespace(
+                    key="shared-key",
+                    install=install,
+                    evidence=self.fixture / "evidence",
+                    record={
+                        "binary": "bin/verilator",
+                        "path": "install/bin/verilator",
+                        "commit": pin.commit,
+                        "identity": "verilator shared fixture",
+                        "sha256": digest,
+                    },
+                )
             },
         )
         decoy = self.fixture / "decoy-verilator"
@@ -321,8 +323,10 @@ class SharedEntrypointTests(unittest.TestCase):
             "request_from_environment",
             return_value=SimpleNamespace(),
         ) as request_from_environment, mock.patch.object(
-            doctor.toolchain_cache, "verify_ready", return_value=manifest
-        ) as verify_ready, mock.patch.dict(os.environ, environment, clear=True):
+            # doctor resolves rather than merely verifies: it executes binaries
+            # out of this resolution, so each install is held for the process.
+            doctor.toolchain_cache, "resolve_ready", return_value=manifest
+        ) as resolve_ready, mock.patch.dict(os.environ, environment, clear=True):
             check = doctor.check_tool("verilator")
 
         self.assertEqual(check["status"], "OK", check)
@@ -330,7 +334,7 @@ class SharedEntrypointTests(unittest.TestCase):
         self.assertIn(str(binary), check["detail"])
         self.assertFalse(marker.exists())
         request_from_environment.assert_called_once()
-        verify_ready.assert_called_once()
+        resolve_ready.assert_called_once()
 
     def test_doctor_shared_manifest_failure_does_not_fall_back_to_local(self) -> None:
         marker = self.fixture / "decoy-used"

@@ -170,7 +170,8 @@ The drive's 16 MHz reference enable is predicted one system edge ahead into a
 register, as the motherboard does for Phi2, with the same pulse sequence.
 `c64_d64_medium` converts the selected D64 into one cached GCR track. It
 models nominal 300 rpm rotation, motor gating, halftrack stepping and the
-physical track's density zone. Rebuilding a track takes at most 29,705 system
+physical track's density zone. D64 contains no half-track flux, so the medium
+reports none between tracks while the spindle continues to rotate. Rebuilding a track takes at most 29,705 system
 clocks (0.569 ms); flux is unavailable during that interval. Media loading
 and ejection hide the disk without resetting either CPU, the head position or
 spindle angle. Disk writes, raw/protected tracks and analogue drive effects
