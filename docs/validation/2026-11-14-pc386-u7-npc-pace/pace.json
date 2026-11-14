@@ -203,10 +203,15 @@
   "kit_cycle_spread_pct": 0.0,
   "kit_minus_reference_pct": -26.0,
   "band_pct": 10,
-  "result": "FAIL",
+  "result": "MISS (26.0% against a +/-10% band), not a decided verdict for the committed check",
   "window_ratio_kit_over_reference": 0.7362,
   "kit_scene_speed_vs_reference": 1.351,
-  "pace_equivalent_386dx_clock_mhz": "between 33.3 and 40, about 37 by interpolation"
+  "pace_equivalent_386dx_clock_mhz": "between 33.3 and 40, about 37 by interpolation",
+  "status": "the walk cycle is a quantity method.md did not commit, fixed before any kit capture but adopted after the committed quantity failed its own spread rule; reported as a measurement, not as the committed check decided",
+  "quantisation_pct": {
+   "reference_15fps": 0.57,
+   "kit_60fps": 0.19
+  }
  },
  "kit_mem_c": {
   "free_conventional_bytes": 594272,
@@ -242,5 +247,23 @@
   "m4": "83-101%, 100% in 90%",
   "m5": "91-104%, 100% in 73%"
  },
- "kit_disk_sha256_staged": "41c7b9d8ed5dab75de2792b62fab448bab29d20bcc1837bf79c6c23b1389c34f"
+ "kit_disk_sha256_staged": "41c7b9d8ed5dab75de2792b62fab448bab29d20bcc1837bf79c6c23b1389c34f",
+ "committed_metric_outcome": {
+  "quantity": "displacement per second (heights/s), the quantity method.md committed",
+  "reference": [
+   0.04306,
+   0.0501,
+   0.05941
+  ],
+  "reference_spread_pct": 32.1,
+  "kit": [
+   0.05571,
+   0.05573,
+   0.05571
+  ],
+  "ratio_kit_over_reference": 1.096,
+  "band_pct": 10,
+  "result": "NOT DECIDED",
+  "why": "the reference spread is 32.1%, more than three times the band, which method.md's own rule leaves undecided; and the two captures ran at 15 and 60 fps against validity gate 3 while the figure is summed per frame, so it is capture-rate dependent -- it gives ratio 1.096 where the frame-rate-independent cycle gives 0.740"
+ }
 }

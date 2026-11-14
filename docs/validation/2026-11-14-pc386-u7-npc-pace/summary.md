@@ -194,12 +194,28 @@ ratio cannot be used that way. It is given here as what it is — a benchmark
 ratio — and Part 3 says why it does not carry over.
 
 
-## Part 3 — the pace, measured: **fail, by 26%**
+## Part 3 — the pace: **the committed check is not decided; the measurement that can be made misses by 26%**
 
-**Measured on both sides, three windows each, against the band
-[`method.md`](method.md) fixed before any capture.** The figures are in
+Both statements are needed and neither replaces the other. The figures are in
 [`pace.json`](pace.json) and the analyser that produced them is
 [`u7pace.py`](u7pace.py), committed with the record.
+
+**The check as committed is not decided.** [`method.md`](method.md) fixed the
+quantity as displacement per second and fixed the rule that a spread wider
+than the band leaves the check undecided. Across the three reference windows
+that passed the speed gate the displacement spreads **32.1%**, more than three
+times the ±10% band. Its captures also ran at 15 and 60 frames a second
+against the method's own validity gate, and the figure is summed per frame, so
+it depends on the capture rate: displacement gives a kit/reference ratio of
+**1.096** where the quantity below gives **0.740**. That is a rig figure, not
+a game figure, and `method.md`'s correction to its second amendment retracts
+the substitution that had let the verdict move off it.
+
+**The measurement that can be made is the character's walk cycle**, fixed
+before any kit capture — so it cannot have been chosen to make the kit pass or
+fail — but adopted after the committed quantity failed its own spread rule,
+which is the pattern this project retracts rather than endorses. Its figures
+follow, with the band applied for what that is worth.
 
 ### The scene and the quantity
 
@@ -229,9 +245,14 @@ both machines.
 | world to conversation | 46.67, 46.67, 46.60 s | 34.33, 34.35, 34.35 s |
 | TopBench | 40 | 68 |
 
-**The kit's cycle is 26.0% shorter than the reference's, against a ±10% band.
-That is a fail**, and the spread on each side is far inside the band — 1.1%
-and 0.0% — so the method decides it rather than leaving it open.
+**The kit's cycle is 26.0% shorter than the reference's**, with spreads of
+1.1% and 0.0% on the two sides and a quantisation of one frame — 0.57% of the
+figure at 15 fps, 0.19% at 60. Against a ±10% band that is a **miss, by a
+wide margin and with no overlap between the two sides' windows**. It is not
+`method.md`'s committed check decided; it is a quantity the method did not
+commit, measured well. Whoever wants the check decided should commit this
+quantity in advance and measure again — everything needed to do that is in
+this record.
 
 A second quantity, measured the same way and never used for the verdict,
 agrees: the time from the world appearing to the conversation starting is
@@ -242,10 +263,13 @@ on the kit, so the conversation fires after a fixed number of the character's
 cycles and the two figures are one timeline read twice. What it does show is
 that the detector found the same timeline on two different captures.
 
-**The displacement figure `method.md` first committed is not usable**, as its
-second amendment said before any kit capture: across the three reference
-windows it spreads 32% (0.043, 0.050, 0.059 heights/s) while the kit's three
-agree to 0.04%. It is in `pace.json` and nothing rests on it.
+**The displacement figure `method.md` committed** spreads 32.1% across the
+three reference windows (0.04306, 0.05010, 0.05941 heights/s) while the kit's
+three agree to 0.04% (0.05571, 0.05573, 0.05571). Its kit/reference ratio is
+**1.096**, against the cycle's 0.740 — the two disagree about which machine is
+faster, which is what a capture-rate-dependent figure does when the two
+captures run at different rates. It is in `pace.json`, it is the quantity the
+method committed, and the outcome it gives is **not decided**.
 
 ### Reading the miss
 

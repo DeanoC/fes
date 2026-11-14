@@ -311,3 +311,47 @@ and not only in the summary. Each item says what it is.
    501 window frames and 101% for 15, so it fails the gate as written; a
    fast second shortens a measured period, so its true cycle is at or just
    above the 8.467 s measured, and the summary says so where it uses it.
+
+## Correction to the second amendment
+
+The second amendment moved the verdict from the quantity this file committed —
+displacement per second — to the character's walk cycle, after seeing
+reference repeats whose displacement spread failed the precommitted
+spread rule. That is the move #1838's record was caught making and retracted:
+a precommitted gate was replaced after repeats failed it. It is corrected here
+in the same way, in place, and the correction is what to read.
+
+**The committed check is not decided.** The rule above says it plainly: "If
+the spread is not well inside the band, the check is not decided by this
+method and the record says so, with the figures." Across the three reference
+windows that passed the speed gate the displacement spreads **32.1%**, more
+than three times the ±10% band, so the outcome of the check as committed is
+**not decided by this method**, and no later quantity changes that. The
+figures are reported either way.
+
+There is a second, independent reason the committed quantity cannot carry a
+verdict here, and it is a measurement defect rather than noise: the two
+captures ran at **15 and 60 frames a second**, against validity gate 3, and
+displacement is summed per frame, so the number depends on the capture rate.
+Measured, the two quantities disagree outright — displacement gives a kit/
+reference ratio of **1.096** where the cycle gives **0.740**. A figure that
+turns over when the capture rate changes is of the rig, not of the game,
+which is the lesson #1838's record drew from Ultima VI's walk.
+
+**The walk cycle is therefore reported as a new quantity, not as a repaired
+gate for the old one.** What can be said for it, and what cannot:
+
+- It was fixed **before any kit capture**, so it cannot have been chosen to
+  make the kit pass or fail; the second amendment is dated and says what had
+  been seen.
+- It is a period in seconds from the autocorrelation of a position, so no
+  pixel scale and no capture rate enter it. Its quantisation is one frame —
+  0.57% of the figure on the reference at 15 fps, 0.19% on the kit at 60 —
+  far inside the band.
+- It is nevertheless a quantity **adopted after the committed one failed its
+  own spread rule**, and that is exactly the pattern this project retracts.
+  So its figures are reported as a measurement, with the band applied to them
+  for what that is worth, and **the check #1853 asks for is reported as not
+  decided by the method as committed**. Whoever wants it decided should
+  commit the cycle in advance and measure again; this record gives everything
+  needed to do that, including the analyser.
