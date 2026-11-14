@@ -335,6 +335,7 @@ def check_citations(record=False):
     """Check every citation, and its content where a fingerprint exists."""
     prints = {} if record else load_fingerprints()
     problems = []
+    cited_keys = set()
     citations = endpoints = checked = 0
     for doc in DOCS:
         path = os.path.join(HERE, doc)
@@ -374,6 +375,7 @@ def check_citations(record=False):
                         problems.append(f'{doc}:{row}: {cited}:{n} is blank')
                         continue
                     key = f'{cited}:{n}'
+                    cited_keys.add(key)
                     digest = hashlib.sha256(raw.encode()).hexdigest()
                     if record:
                         prints[key] = digest
@@ -387,6 +389,18 @@ def check_citations(record=False):
                             problems.append(
                                 f'{doc}:{row}: {cited}:{n} now holds {text[:60]!r}, '
                                 'which is not the text it was cited for')
+    if not record and prints is not None:
+        # An entry no citation uses is an entry that pins nothing, and it is
+        # not harmless: the file's own claim is one entry per cited line, and
+        # the count stated in README.md is this file's length. Re-pointing a
+        # citation onto an endpoint another citation already uses leaves the
+        # old key behind without any content check failing, so nothing else
+        # reports it (DeanoC/fes#1829 review). `--record-fingerprints` rebuilds
+        # the file from the current citations, so the fix is to re-record.
+        for key in sorted(set(prints) - cited_keys):
+            problems.append(
+                f'citation-fingerprints.json: {key} is not cited by this '
+                'record any more; re-record with --record-fingerprints')
     if record:
         with open(FINGERPRINTS, 'w') as handle:
             json.dump(prints, handle, indent=1, sort_keys=True)

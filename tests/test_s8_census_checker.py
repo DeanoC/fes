@@ -278,6 +278,28 @@ class FingerprintTests(unittest.TestCase):
         cls.prints = json.loads(
             (RECORD / "citation-fingerprints.json").read_text())
 
+    def test_every_entry_is_cited(self):
+        """One entry per cited line, in both directions.
+
+        Re-pointing a citation onto an endpoint another citation already uses
+        leaves the old key behind with no content check failing, and the count
+        the README states is this file's length, so the orphan is counted as
+        coverage (DeanoC/fes#1829 review).
+        """
+        cited = set()
+        for doc in verify_census.DOCS:
+            path = RECORD / doc
+            for line in verify_census.lines_of(str(path)):
+                for _, where, numbers in verify_census.citations_of(
+                        line.replace('\\|', '|')):
+                    cited.update(f'{where}:{n}' for n in numbers)
+        self.assertEqual(
+            sorted(set(self.prints) - cited), [],
+            'fingerprints no citation uses; re-record the file')
+        self.assertEqual(
+            sorted(cited - set(self.prints)), [],
+            'cited lines with no fingerprint; re-record the file')
+
     def test_digests_cover_leading_whitespace(self):
         indented = 0
         for key, digest in self.prints.items():
