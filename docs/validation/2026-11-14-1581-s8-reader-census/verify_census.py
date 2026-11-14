@@ -8,8 +8,21 @@ Two checks, both mechanical, and together they are what the record's
    for it (a row whose `Matched` cell was abbreviated with an ellipsis is
    matched up to the ellipsis, which is all the text the sweep kept);
 2. every `path:line` citation written inside a `What` cell, and inside the
-   prose of README.md and de25.md, resolves to a real file and a non-blank
-   line.
+   prose of README.md and de25.md, resolves to a real file and still holds the
+   text it held when the record was written.
+
+Check 2's content half works from `citation-fingerprints.json` beside this
+script: one entry per cited line, holding that line's text. Without it a
+citation could only be checked for existing and being non-blank, and a base
+edit that shifted a secondary reference onto another non-blank line would pass
+-- the very defect two earlier revisions of this record shipped (#1829 review).
+Regenerate the file deliberately, never to make a failure go away:
+
+    python3 .../verify_census.py --record-fingerprints
+
+What the fingerprints prove and what they do not: they pin what each cited
+line said when they were taken, so any later drift in the tree is reported.
+They are not a retroactive claim that every citation was apt when written.
 
 A range may legitimately cite a few lines from inside a longer call -- the
 lines that name a guarded file, not the whole statement -- so only the
@@ -35,6 +48,7 @@ against the repo root first, then against sources/misteross, then by basename
 if that is unique under sources/misteross -- a bare `Makefile:123` must not
 silently resolve to the repo-root Makefile.
 """
+import json
 import os
 import re
 import sys
@@ -43,10 +57,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
 M = os.path.join(ROOT, 'sources', 'misteross')
 DOCS = ('census-tables.md', 'de25.md', 'README.md')
+FINGERPRINTS = os.path.join(HERE, 'citation-fingerprints.json')
 
 UNESCAPED_PIPE = re.compile(r'(?<!\\)\|')
 CITATION = re.compile(
-    r'((?:[A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:py|v|sv|cpp|h|svh|md|json|sh|files|txt|lock|yml|toml))'
+    r'((?:[A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:py|v|sv|cpp|h|svh|md|json|sh|files|txt|lock|yml|toml|tcl))'
     r'|(?:[A-Za-z0-9_][A-Za-z0-9_./-]*/)?Makefile)'
     r':(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)*)')
 
@@ -151,9 +166,19 @@ def current_only(text):
     return ''.join(out)
 
 
-def check_citations():
+def load_fingerprints():
+    try:
+        with open(FINGERPRINTS) as handle:
+            return json.load(handle)
+    except FileNotFoundError:
+        return None
+
+
+def check_citations(record=False):
+    """Check every citation, and its content where a fingerprint exists."""
+    prints = {} if record else load_fingerprints()
     problems = []
-    citations = endpoints = 0
+    citations = endpoints = checked = 0
     for doc in DOCS:
         path = os.path.join(HERE, doc)
         for row, line in enumerate(lines_of(path), 1):
@@ -165,7 +190,6 @@ def check_citations():
                     problems.append(f'{doc}:{row}: {match.group(0)} does not resolve')
                     continue
                 body = lines_of(target)
-                ok = True
                 # A citation may be a comma list, `foo.py:12,34-36,40`. Every
                 # number after the first leans on the same path, and reading
                 # only the first is how two stale numbers in this record's own
@@ -180,20 +204,37 @@ def check_citations():
                     if not 1 <= n <= len(body):
                         problems.append(
                             f'{doc}:{row}: {cited}:{n} past end ({len(body)} lines)')
-                        ok = False
-                    elif not body[n - 1].strip():
+                        continue
+                    text = body[n - 1].strip()
+                    if not text:
                         problems.append(f'{doc}:{row}: {cited}:{n} is blank')
-                        ok = False
-                del ok
-    return citations, endpoints, problems
+                        continue
+                    key = f'{cited}:{n}'
+                    if record:
+                        prints[key] = text[:200]
+                    elif prints is not None and key in prints:
+                        checked += 1
+                        if text[:200] != prints[key]:
+                            problems.append(
+                                f'{doc}:{row}: {cited}:{n} now holds {text[:60]!r}, '
+                                f'not the {prints[key][:60]!r} it was cited for')
+    if record:
+        with open(FINGERPRINTS, 'w') as handle:
+            json.dump(prints, handle, indent=1, sort_keys=True)
+            handle.write('\n')
+        print(f'recorded {len(prints)} citation fingerprints')
+    return citations, endpoints, checked, problems
 
 
 def main():
+    record = '--record-fingerprints' in sys.argv[1:]
     total, primary = check_primary()
-    citations, endpoints, cited = check_citations()
+    citations, endpoints, checked, cited = check_citations(record=record)
     print(f'{total} inventory rows, {len(primary)} primary-line problems')
-    print(f'{citations} path:line citations ({endpoints} line endpoints), '
-          f'{len(cited)} problems')
+    note = (f', {checked} content-checked against citation-fingerprints.json'
+            if checked else ', content NOT checked (no fingerprint file)')
+    print(f'{citations} path:line citations ({endpoints} line endpoints'
+          f'{note}), {len(cited)} problems')
     for problem in primary + cited:
         print(f'  {problem}')
     return 1 if primary or cited else 0
