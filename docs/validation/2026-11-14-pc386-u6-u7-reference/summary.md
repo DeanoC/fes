@@ -59,9 +59,9 @@ scores TopBench 33 where the AT-class real 286 boards of its clock score 21 to
 finding, and it cuts the other way for pitch: a faster CPU would raise the
 note, and the kit's note is lower. Whether the two have a common cause in the
 governor's clock table is open; they are not the same measurement. It does, however, qualify the two checks still
-open — a walking speed or an NPC pace measured against a preset that is itself
-30% fast would not mean what it appears to, whatever the measurement's own
-quality. That is said again where those checks are.
+open — a walking speed or an NPC pace measured against a preset that is
+itself 22% to 57% above the real boards of its clock would not mean what it
+appears to, whatever the measurement's own quality. That is said again where those checks are.
 
 **Evidence class**, as `AGENTS.md` asks it be named: exact-artifact hardware
 acceptance for the kit side — the sealed package `fc01c956…` on Kit B, with
@@ -160,25 +160,26 @@ not run, because the kit was held by another session.
 **The condition is not new, and most of it predates #1453.**
 [#1474's record](../2026-11-04-pc386-speaker-kit/summary.md) measured the same
 two keys on Kit B on 4 November, before and after #1453's ISA charges: 859.0
-and 511.8 Hz before, 839.0 and 501.5 Hz after. Against the reference measured
-here, and on this record's own convention of the kit below the reference, that
-is a shortfall of **10.78% and 10.82% *before* #1453**, and 12.85% and 12.62%
-after, against 12.68% and 12.91% today. So #1453 added about two points (2.07 and 1.80) to
-roughly eleven that were already there.
+and 511.8 Hz before, 839.0 and 501.5 Hz after, and gives that step as a ratio
+measured with
+one estimator throughout: 0.9767 for key `6` and 0.9799 for key `1`. Applied to
+today's figures, the kit before #1453 would have been 860.8 and 510.0 Hz, a
+shortfall against this reference of **10.6% and 11.1%**, against 12.68% and
+12.91% today. So #1453 added about two points (2.1 and 1.8) to roughly eleven
+that were already there.
 
-**Those 4 November figures come from a different estimator**, `u6_tones.py`'s
-envelope pitch, where this record uses autocorrelation, so the sub-percent
-agreement with today's is not by itself evidence that the kit has not moved.
-What is, because it is the same analyser on both: this record's own two kit
-captures, four days and two seals apart, give **840.70 and 840.72 Hz** for key
-`6` and **499.78 and 499.79 Hz** for key `1`. The 4 November figures are used
-here only for the step across #1453, which was measured within that record by
-one estimator throughout. The kit's figures today are within 0.21% and 0.34% of 4 November's, ten
-days and several seals apart, which is the analyser's own resolution: nothing
-recent regressed, and what is new here is the reference.
+**4 November's absolute pitches are not comparable with this record's**: they
+come from `u6_tones.py`'s envelope estimator where this record uses
+autocorrelation, which is why only #1474's ratio is used above. Repeatability,
+same analyser on both, is this record's own two kit captures, four days and two
+seals apart: **840.70 and 840.72 Hz** for key `6`, **499.78 and 499.79** for
+key `1`. Nothing recent regressed, and what is new here is the reference.
 
 The two keys' shortfalls agree to 0.3% (ratios 1.1452 and 1.1483), which looks
-like one multiplier on a timebase rather than anything per-note — against
+like one multiplier on the loop's time per pass rather than anything per-note
+(it is not the PIT's input clock: #1472 measured the carrier at 18.5–20.2 kHz
+at divisor 60, where a clock slow enough to explain this would put it near
+17.3 kHz) — against
 which #1474 found #1453's own drop was *not* uniform, 2.01% at 512 Hz rising to
 2.59% at 1,265 Hz, and left that unexplained.
 
