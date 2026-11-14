@@ -56,7 +56,13 @@ lock serves main and branch.
 
 | Lock | Yosys | Mistral | nextpnr | Router |
 | --- | --- | --- | --- | --- |
-| `cores/fes-pong/toolchain.lock` | `3a5accbd` (`432db530…`) | `8fcc4cb4` (`0a5528a4…`) | `552ba246` (`912020d5…`) | HIP `gfx1100;gfx1201` |
+| `cores/fes-pong/toolchain.lock` | `3a5accbd` | `8fcc4cb4` | `552ba246` | HIP `gfx1100;gfx1201` |
+| `cores/fes-menu/toolchain.lock` | `3a5accbd` | `8fcc4cb4` | `1eecf877` | HIP `gfx1100;gfx1201` |
+| `cores/fes-zx81/toolchain.lock` | `3a5accbd` | `8fcc4cb4` | `1eecf877` | HIP `gfx1100;gfx1201` |
+
+Exact binary digests are in each run's `netlist.json`. Only nextpnr differs
+between these locks, and nextpnr routes nothing here; it is authenticated
+because the producers authenticate their whole slot before synthesising.
 
 ## Runs
 
@@ -65,14 +71,17 @@ digest and the authenticated tool identities. The netlists themselves are 3.3 MB
 each and are not committed; the digests and the command are the record D12 asks
 for.
 
-| Core | Changed files in its closure | Netlist sha256 (both sides) | Match |
-| --- | --- | --- | --- |
-| `fes.pong` | `build_fes_pong.py`, `fes_de10nano_evidence.py` | `e7948651bcc0cc2ffbbd3c52c8643c642bc6964826e2a0ae65d18e3fd90cf12b` | **byte-identical** |
+
+
+The table is rendered by `summarise.py` from `reports/`, so no digest in it is
+transcribed by hand.
 
 `fes.pong` is the strongest case in the set: both its own producer script and
 the shared helper changed. `cmp` reports the two 3,294,796-byte netlists
 identical, over a top module of 1,422 cells and 1,804 nets, from one Yosys
-binary. Nothing was normalised or excluded.
+binary. Nothing was normalised or excluded. `fes.menu` is the same kind of case
+through the package producer, and the ZX81 models stand for the ten cores whose
+closure picks up only the shared helper.
 
-Remaining cores are in progress; each needs its lock's nextpnr built before the
+Remaining cores are in progress; each needs its lock's nextpnr built before its
 producer will authenticate, even for a Yosys-only run.

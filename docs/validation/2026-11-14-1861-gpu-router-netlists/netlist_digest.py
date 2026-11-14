@@ -71,11 +71,13 @@ def _run_yosys(producer, authenticated, output, command, output_relative):
     """Each producer's own Yosys invocation, with its own audited environment."""
     from scripts.functional_execution import FunctionalInvocation
 
+    # Producers reach the shared runner either directly or through `board`.
+    run_tool = getattr(producer, "_run_tool", None) or producer.board._run_tool
     invocation = FunctionalInvocation(authenticated, 0)
     try:
-        producer._run_tool(command, producer.ROOT, output / "yosys.log",
-                           env=invocation.env, audit_source_root=producer.ROOT,
-                           output_relative=output_relative)
+        run_tool(command, producer.ROOT, output / "yosys.log",
+                 env=invocation.env, audit_source_root=producer.ROOT,
+                 output_relative=output_relative)
     finally:
         invocation.close()
 
