@@ -106,6 +106,25 @@ cannot satisfy.
   rollover all differ from it: the `eot-step-pulse` divergence names the new
   `eot_no_step_pulse` case, with `implied-seek` recording the EIS question
   beside it.
+- **A third round found two more, both in the split itself, and both real.**
+  The four Sense Interrupt Status responses a software reset leaves behind
+  each name a unit in ST0, so each must answer with that unit's PCN; the
+  first cut read the last command's. It had been invisible while `cyl` was
+  the PCN, because `soft_reset` zeroes `cyl` and all four read zero by
+  accident. Keeping the PCN across the reset is right, since no head moves,
+  so the result byte is indexed by ST0's unit instead, with zero for the two
+  units this machine does not have. Bochs zeroes `cylinder[0..3]` on a
+  software reset as well as a hardware one, which is the `reset-pcn`
+  divergence and its `reset_sense_pcn` case.
+- **And the implied seek now stops at the track-zero sensor.** The distance
+  from the named unit's PCN to the command's cylinder can take the selected
+  drive's head below zero under a DOR mismatch, which eight unsigned bits
+  wrapped to 251. A real head stands at the stop, which with a command of
+  C=0 is the cylinder it asked for, so that read should work. The step is
+  computed signed and saturated at both ends, and the transfer's gate asks
+  whether the head landed on the cylinder the command named rather than
+  whether it and the PCN began apart — the same question only while nothing
+  clamps. `dor_mismatch` ends by driving the head out past the stop.
 
 ## What settled the behaviour
 
@@ -147,7 +166,7 @@ Every suite ran on this branch, on the ROM the branch ends with
 | --- | --- |
 | `floppy` (new) | PASS: 24 checks, all ok, all four swaps made, and the pattern FLOPTEST.COM wrote to B: is in sector 2399 of the image the bench wrote back ([log](floppy-suite.log)) |
 | `floppy-boot` (new) | PASS: FreeDOS boots from the 1.44M floppy in A: with CMOS 2Dh, 38h and 3Dh set to an A: launch, reaches the `A:\>` prompt 5.90 simulated s in, and DIR shows the boot floppy's label FDBOOT |
-| `fdc` | PASS: 37 cases, 20 matching Bochs, 14 listed divergences (the new `dor_mismatch` and `eot_no_step_pulse` among them), 3 RTL-only ([log](fdc-suite.log)) |
+| `fdc` | PASS: 38 cases, 20 matching Bochs, 15 listed divergences (the new `dor_mismatch`, `eot_no_step_pulse` and `reset_sense_pcn` among them), 3 RTL-only ([log](fdc-suite.log)) |
 | `devices` | PASS, with three new CMOS cases: no drive, two drives with an A: launch, one 360K drive with a CD launch |
 | `boot` (oracle) | PASS, with the VGA replay clean (84,949 events, no mismatch) |
 | `a20` | PASS on the boot and games images |
@@ -156,7 +175,10 @@ Every suite ran on this branch, on the ROM the branch ends with
 
 **The RTL CPU**, which is the slice's lockstep check: the same scripts with
 `fes_i386_cpu` in the oracle's place, so the DMA-terminated INT 13h reads,
-DMA channel 2 and IRQ 6 are its.
+DMA channel 2 and IRQ 6 are its. Both ran again at `1b75a9750`, after the
+last two fixes, and retired the same counts as before them: the normal path
+is untouched, since a drive's head and its unit's PCN only part company
+under a DOR mismatch, which no guest makes.
 
 - **`floppy --cpu rtl`: PASS** ([log](floppy-rtl-suite.log)). The oracle boots
   and the RTL takes over at the prompt, as the `ems` suite does. All 24
@@ -182,7 +204,16 @@ the drives. The baseline was unchanged throughout (software `7ddb0bfb` on
 image `179affbb`, the same snapshot keys before and after, agent idle and
 lease free), and the run's four FogCast paths were removed afterwards.
 
-**The kit again, after the controller changed** (Kit A, run `a1`, 14 November
+**And once more, after the last two fixes** (Kit B, run `b1`, 14 November
+2026). The round-4 seal `f1ac9f9828da1850` launched on Kit B's baseline
+(software `7ddb0bfb` on image `179affbb`), core-only: FreeDOS boots to
+`C:\>` and DIR reports **the same 33,292,288 bytes free** again
+([grab](kitB-b1-dir.png)). Claimed only after the status file logged Kit B
+FREE on that baseline with its agent idle and lease free, released FREE once
+the post-run snapshot matched the probe, and the three FogCast trees the run
+created removed in a second claim.
+
+**The kit after the controller changed** (Kit A, run `a1`, 14 November
 2026). The round-3 seal `91a5f76453272d59` launched the same way on Kit A's
 baseline (software `a2756499` on image `179affbb`), core-only: no install, no
 image change, no reboot. FreeDOS boots to `C:\>` and DIR reports **the same
@@ -198,8 +229,9 @@ delta and the staged fixture image) were removed in a second claim.
 Quartus 17.0.2, seed 1, the CUDA slot on `chip-30x0-ai-dev`, from a clean
 worktree of the exact commit, with the lockstep `--netlist` report (#1782) in
 front of it (`lockstep exit=0`). Every analysis passes. The branch was sealed
-twice: once at its first head, and again at `41ecd7ef7` after the review
-rounds moved the controller. The branch's own merge base `53681975f` is
+three times: once at its first head, again at `41ecd7ef7` when the review
+moved the controller, and last at `1b75a9750`, which is the build the
+record's figures describe. The branch's own merge base `53681975f` is
 sealed the same way on the same host, so the slice can be measured against
 the tree it is a change to; the two mains of the two days are kept in the
 table as well, with what they do and do not show.
@@ -207,21 +239,27 @@ table as well, with what they do and do not show.
 | Build | ALMs | RAM blocks | DSP | Registers | Setup | Hold |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | **the branch's base `53681975f`** ([summary](base-r3-build-summary.json)) | 36,399 | 274 | 40 | 32,728 | +0.147 | +0.080 |
-| **F2 seal `41ecd7ef7`, 14 Nov** ([summary](seal-r3-build-summary.json)) | **36,594** | 274 | 40 | 32,716 | **+0.810** | **+0.082** |
-| **the slice** | **+195** | **0** | **0** | **−12** | | |
+| **F2 seal `1b75a9750`, 14 Nov** ([summary](seal-r4-build-summary.json)) | **36,635** | 274 | 40 | 33,004 | **+0.977** | **+0.098** |
+| **the slice** | **+236** | **0** | **0** | **+276** | | |
+| An earlier F2 head `41ecd7ef7` ([summary](seal-r3-build-summary.json)) | 36,594 | 274 | 40 | 32,716 | +0.810 | +0.082 |
 | The doc's F2 estimate | +150 | 0 | 0 | | | |
 | main `1b4601831`, 14 Nov ([summary](main-r3-build-summary.json)) | 36,189 | 274 | 40 | 32,226 | +0.468 | +0.090 |
 | main `8ab34380e`, 13 Nov ([summary](main-build-summary.json)) | 36,333 | 274 | 40 | 32,915 | +0.822 | +0.092 |
 | F2 seal `92ef982d6`, 13 Nov ([summary](seal-build-summary.json)) | 36,399 | 274 | 40 | 32,869 | +0.694 | +0.068 |
 | An earlier F2 head `18ccf4884` ([summary](earlier-seal-build-summary.json)) | 36,471 | 274 | 40 | 32,965 | +0.330 | +0.076 |
 
-- **+195 ALMs, +0 M10K, +0 DSP and 12 registers fewer**, measured against
-  the branch's own merge base `53681975f` sealed the same way on the same
-  host: the same tree with and without this slice, which is the only
-  comparison that isolates it. That is the figure to quote. At 87.3% of the
-  5CSEBA6 the device keeps its room, and the slice comes in close to the
-  doc's +150 estimate, inside the ±200 ALM fit noise the area audit
-  measures.
+- **+236 ALMs, +0 M10K and +0 DSP**, measured against the branch's own
+  merge base `53681975f` sealed the same way on the same host: the same tree
+  with and without this slice, which is the only comparison that isolates
+  it. That is the figure to quote. At **87.4%** of the 5CSEBA6 the device
+  keeps its room. The slice is over the doc's +150 estimate by about the
+  ±200 ALM fit noise the area audit measures, and the last round's two fixes
+  — the PCN indexed by ST0's unit, and the signed saturating step — account
+  for 41 ALMs of it against the previous head.
+- **The register count rose with the last round**, from 12 fewer than the
+  base to 276 more. The two fixes add no state of their own, so that is the
+  fit choosing differently — retiming and duplication around the wider
+  arithmetic — not new registers in the design.
 - **The main-of-the-day comparisons are noisier, and the record keeps them
   so nobody re-derives them.** The branch carries none of main's commits
   since `8ab34380e`, and main itself shed 144 ALMs and 689 registers over
@@ -245,15 +283,14 @@ table as well, with what they do and do not show.
   pays the rest when its endpoint drives those inputs, as slice F1's record
   says of the controller itself.
 - **Timing is met with room**, and more of it than the base had: setup
-  +0.810 ns against the merge base's +0.147, hold +0.082 ns, minimum pulse width
-  +1.122 ns, recovery +7.000 ns, removal +0.270 ns, on the 61.44 MHz system
-  clock with the 74.27 MHz pixel and 12.29 MHz audio clocks. Nothing was
-  relaxed.
+  +0.977 ns against the merge base's +0.147, hold +0.098 ns, minimum pulse
+  width +1.122 ns, recovery +6.546 ns, removal +0.495 ns, on the 61.44 MHz
+  system clock with the 74.27 MHz pixel and 12.29 MHz audio clocks. Nothing
+  was relaxed.
 - **The sealed commit is not the branch head**: everything committed after
-  `41ecd7ef7` is this record and the PR body. No RTL, firmware or other seal
-  input changed, and all 119 of the seal's recorded input digests match the
-  head's files.
-- Package `91a5f76453272d59…`, `BUILD_ID` `dd40e9922315367c5e3c421c952888bb`,
+  `1b75a9750` is this record. No RTL, firmware or other seal input changed,
+  and all 119 of the seal's recorded input digests match the head's files.
+- Package `f1ac9f9828da1850…`, `BUILD_ID` `2f2a3c7cad0bb922b4394a9bb6b07c39`,
   backend CUDA, device 5CSEBA6U23I7, status `pass`.
 
 ## Reproduce
