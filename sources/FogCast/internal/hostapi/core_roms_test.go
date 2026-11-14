@@ -16,13 +16,16 @@ import (
 
 type romAPIService struct {
 	coreLibraryAPIService
-	bound           []string
-	read            []string
-	selectionResult *catalog.CoreEntryROM
+	bound      []string
+	read       []string
+	readResult *catalog.CoreEntryROM
 }
 
 func (s *romAPIService) CoreEntryROM(_ context.Context, game, rom string) (catalog.CoreEntryROM, error) {
 	s.read = []string{game, rom}
+	if s.readResult != nil {
+		return *s.readResult, nil
+	}
 	return catalog.CoreEntryROM{GameID: game, ROMID: rom}, nil
 }
 
@@ -62,20 +65,22 @@ func TestROMAPIReadsExplicitNamedSelection(t *testing.T) {
 }
 func (s *romAPIService) SelectCoreEntryROM(_ context.Context, game, pkg, rom, expected, media string) (catalog.CoreEntryROM, error) {
 	s.bound = []string{game, pkg, rom, expected, media}
-	if s.selectionResult != nil {
-		return *s.selectionResult, nil
+	if media == "" {
+		// The catalog's clear operation returns its raw saved state. Any
+		// bundled default is derived by the subsequent CoreEntryROM read.
+		return catalog.CoreEntryROM{GameID: game}, nil
 	}
 	return catalog.CoreEntryROM{GameID: game, PackageID: pkg, ROMID: rom, MediaID: media}, nil
 }
 
-func TestROMAPIPutSeparatesBundledDefaultFromSavedSelection(t *testing.T) {
-	packageID, bundledID := strings.Repeat("a", 64), strings.Repeat("b", 64)
-	s := &romAPIService{selectionResult: &catalog.CoreEntryROM{
+func TestROMAPIPutReturnsBundledDefaultWhenClearingSavedSelection(t *testing.T) {
+	packageID, savedID, bundledID := strings.Repeat("a", 64), strings.Repeat("c", 64), strings.Repeat("b", 64)
+	s := &romAPIService{readResult: &catalog.CoreEntryROM{
 		GameID: "fpga-example", PackageID: packageID, ROMID: "machine-rom",
 		MediaID: bundledID, SourceSize: 8192, BundledDefault: true,
 	}}
 	handler := hostapi.New(s)
-	body := `{"package_id":"` + packageID + `","rom_id":"machine-rom","expected_media_id":"","media_id":""}`
+	body := `{"package_id":"` + packageID + `","rom_id":"machine-rom","expected_media_id":"` + savedID + `","media_id":""}`
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/library/core-entries/fpga-example/rom", strings.NewReader(body))
 	req.Host = "127.0.0.1"
 	req.Header.Set("Content-Type", "application/json")
@@ -83,6 +88,12 @@ func TestROMAPIPutSeparatesBundledDefaultFromSavedSelection(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PUT returned %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(s.bound) != 5 || s.bound[0] != "fpga-example" || s.bound[1] != packageID || s.bound[2] != "machine-rom" || s.bound[3] != savedID || s.bound[4] != "" {
+		t.Fatalf("PUT selection = %v, want clearing saved ROM", s.bound)
+	}
+	if len(s.read) != 2 || s.read[0] != "fpga-example" || s.read[1] != "machine-rom" {
+		t.Fatalf("PUT did not read back the effective selection: %v", s.read)
 	}
 	var got struct {
 		MediaID        *string `json:"media_id"`
@@ -93,7 +104,7 @@ func TestROMAPIPutSeparatesBundledDefaultFromSavedSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.MediaID == nil || *got.MediaID != "" || got.BundledMediaID != bundledID || !got.BundledDefault {
-		t.Fatalf("PUT returned a bundled default as a saved choice: %s", rec.Body.String())
+		t.Fatalf("PUT did not return the derived bundled default: %s", rec.Body.String())
 	}
 }
 

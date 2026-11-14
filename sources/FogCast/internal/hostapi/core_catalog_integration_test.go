@@ -272,6 +272,16 @@ func TestInstalledSetupReplacesOnlyUnsavedBundledFirmware(t *testing.T) {
 	if customBinding.MediaID != userROM.MediaID || customBinding.BundledDefault {
 		t.Fatalf("user ROM binding %+v", customBinding)
 	}
+	cleared, err := client.SelectCoreEntryROM(ctx, custom.GameID, inspection.PackageID, "spectrum-firmware", userROM.MediaID, "")
+	if err != nil {
+		t.Fatalf("clear saved ROM selection: %v", err)
+	}
+	if cleared.MediaID != "" || cleared.BundledMediaID != bundleID || !cleared.BundledDefault {
+		t.Fatalf("clearing the saved ROM returned %+v", cleared)
+	}
+	if got := getInstalledROMBinding(t, server.Client(), server.URL, custom.GameID, "spectrum-firmware"); got != cleared {
+		t.Fatalf("PUT ROM binding %+v differs from subsequent GET %+v", cleared, got)
+	}
 	if _, err := client.CreateInstalledCoreEntry(ctx, setup, "Spectrum with own firmware", map[string]string{"spectrum-firmware": strings.Repeat("c", 64)}, "", ""); err == nil {
 		t.Fatal("overwrote a saved ROM choice")
 	}
@@ -298,8 +308,8 @@ func TestInstalledSetupReplacesOnlyUnsavedBundledFirmware(t *testing.T) {
 	}
 	defer store.Close()
 	rawCustom, err := store.CoreEntryROM(ctx, custom.GameID, "spectrum-firmware")
-	if err != nil || rawCustom.MediaID != userROM.MediaID {
-		t.Fatalf("user ROM was not saved: %+v, err %v", rawCustom, err)
+	if err != nil || rawCustom.MediaID != "" {
+		t.Fatalf("cleared user ROM selection was not removed: %+v, err %v", rawCustom, err)
 	}
 	rawLegacy, err := store.CoreEntryROM(ctx, legacyEntry.GameID, "spectrum-firmware")
 	if err != nil || rawLegacy.MediaID != userROM.MediaID {

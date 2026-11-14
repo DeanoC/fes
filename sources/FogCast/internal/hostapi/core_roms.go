@@ -81,7 +81,13 @@ func registerCoreROMs(mux *http.ServeMux, service Service) {
 			writeError(w, 400, "BAD_REQUEST", "invalid ROM selection")
 			return
 		}
-		value, err := s.SelectCoreEntryROM(r.Context(), r.PathValue("game_id"), *request.PackageID, *request.ROMID, *request.Expected, *request.ID)
+		gameID, romID := r.PathValue("game_id"), *request.ROMID
+		_, err := s.SelectCoreEntryROM(r.Context(), gameID, *request.PackageID, romID, *request.Expected, *request.ID)
+		if err != nil {
+			writeCoreLibraryError(w, err)
+			return
+		}
+		value, err := s.CoreEntryROM(r.Context(), gameID, romID)
 		if err != nil {
 			writeCoreLibraryError(w, err)
 			return
