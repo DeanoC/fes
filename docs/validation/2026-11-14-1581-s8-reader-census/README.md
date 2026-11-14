@@ -33,13 +33,35 @@ the sweep was re-run against this base rather than patched: re-pointing derived 
 search had already collided once (`Makefile:1869` and `:1883` both sit nearest `:1880`, though the
 second belongs at `:1894`) and had left the line references *inside* the descriptions untouched.
 
-Verification of the re-run, performed here rather than taken on trust: 370 of the 371 primary lines
-re-checked by searching each row's recorded matched text on its stated line; the exception,
-`build_fes_zx81_oss.py:92`, holds a long `RTL_SOURCES` tuple the sweep abbreviated with an ellipsis
-and was confirmed by hand. All 456 `path:line` citations inside the cells resolve to a real file and
-a non-blank line, after one correction — a reference to `build_probe.sh:28`, one line past the end of
-a 27-line file, is now `:26`. All 16 DE25 citations verify unchanged, since neither branch touches
-that subtree.
+**Verification, and how to repeat it.** [`verify_census.py`](verify_census.py) re-checks this
+record against the tree it is read in, and is the evidence for every count below:
+
+    python3 docs/validation/2026-11-14-1581-s8-reader-census/verify_census.py
+
+It makes two claims. First, all **374** inventory rows hold, on their stated line, the `Matched`
+text recorded for them — the check that matters, because a line number can stay in range while
+pointing at the wrong line, and that is how two earlier revisions of this record went wrong. Second,
+all **532** `path:line` citations written in the prose and the `What` cells of these three files
+(**614** line endpoints, counting both ends of a range) resolve to a real file and a non-blank line.
+
+Both pass with no exceptions, which took eight corrections beyond re-pointing the base. The
+`Matched` cell of `build_fes_zx81_oss.py:92` abbreviates a long `RTL_SOURCES` tuple with an ellipsis,
+so the check matches it up to the ellipsis and the rest was read by hand. The script also decides
+two questions of notation that an earlier revision left to the reader: a citation the record quotes
+in order to call it *wrong* is written in prose, so that it asserts no location, and a `path:line`
+written to the left of a `->` in a correction clause is skipped for the same reason. A brace
+expansion is not a citation either, so all three `quartus_ram_tb.sv` paths are spelled out.
+
+What that second pass found, each verified by hand before the fix: the `build_probe.sh` compile line
+is 26, and the re-sweep had corrected only one of its two references; a citation of line 153 of
+`fes_computer_gp.v` named a basename the tree holds twice, and the one with the `coleco_dpram`
+instance is
+`cores/fes-common/rtl/fes_computer_gp.v`; the `reviewed-inputs.json` pins were spelled as
+line 103 of `zx81_dpram.v`, which reads as a line of the Verilog rather than of the JSON it is a
+line of;
+and four of the five DE25 byte-patch ranges were wrong at one end or both — two started on a blank
+line, one ran past its function into the next, and one stopped in the middle of the statement it
+meant to name.
 
 `M` = `sources/misteross`. Dated records (`docs/validation/` in both trees, dated plans) and the
 design record itself are excluded, as S8's acceptance specifies.
@@ -91,12 +113,15 @@ of reader the `rg` could not see: **DE25 reads that file as bytes and requires b
   Verified: `sed -n '60,102p' … | diff -u cores/fes-zx81/rtl/zx81_tape_store.v -` is empty.
 - `test_tape_store.py:32-33` asserts exactly that, raising *"board behavioral branch must contain the
   entire portable source verbatim"*.
-- `retarget_tape` (`zx81-hps/build.py:59-66`) asserts it again **and** requires the wrapper's
+- `retarget_tape` (`zx81-hps/build.py:59-68`, its contract check at `:64-66`) asserts it again
+  **and** requires the wrapper's
   QUARTUS arm to hold exactly one `` `ifdef `` and zero `` `endif ``, raising *"ZX81 tape RAM
   adaptation contract changed"*.
 - Three files are pinned by sha256 in
-  `M/boards/de25nano/link-proof/zx81-standard/reviewed-inputs.json` — `tape_store.v:68`,
-  `zx81_dpram.v:103`, `zx81_tape_store.v:109` — and the gate is enforced, not decorative:
+  `M/boards/de25nano/link-proof/zx81-standard/reviewed-inputs.json`, which pins
+  `boards/de25nano/zx81-hps/tape_store.v` at its line 68, `cores/fes-zx81/rtl/zx81_dpram.v` at
+  :103 and `cores/fes-zx81/rtl/zx81_tape_store.v` at :109 — those are lines of the JSON, not of
+  the Verilog. The gate is enforced, not decorative:
   `link-proof/zx81-standard/static_reference.py:83-84` requires every bound hash to match, and that
   file's own sha256 is bound at `:27`. (The DE25 census reported this file one directory up; the
   path above is the verified one.)
@@ -180,8 +205,10 @@ Confirmed present, with the line verified where noted:
 1. The acceptance `rg` pattern is incomplete (finding 1) and needs a companion criterion for
    macro-invisible readers.
 2. Site 10's reader list is wrong, and its risk rating with it (finding 2).
-3. The DE25 byte-patch inventory at `:231` cites `display/build.py:105-113` and
-   `combined/build.py:66-80` but misses `zx81/build.py:84-91`, `zx81-hps/build.py:59-66` and
+3. The DE25 byte-patch inventory at `:231` names two of five sites, and both of its ranges start
+   on a blank line: `retarget_menu_ram` is `display/build.py:106-114`, not `:105-113`, and
+   `derive_video` is `combined/build.py:67-81`, not `:66-80`. The three it misses are
+   `zx81/build.py:84-87` and `:90-92`, `zx81-hps/build.py:59-68` (contract check at `:64-66`) and
    `link-proof/zx81-ram/profile.py:68-70`.
 4. The Quartus Pro row at `:290` describes the header reaching DE25 as one copy site modelled on
    `display/build.py`; it is four routes across five projects, and `display/` has no guard at all.
@@ -206,13 +233,31 @@ Confirmed present, with the line verified where noted:
    through a shell script, `cores/fes-zx81/openrom-zx80/dev/build_probe.sh:26`, which no grep of the
    Makefile can see — another member of the macro-invisible class behind finding 1.
 9. The broadened acceptance pattern matches three comment lines the narrower one did not, and the
-   slice has to reword them: `cores/fes-{coleco,sms,sg1000}/sim/quartus_ram_tb.sv:3`, each reading
+   slice has to reword them: `cores/fes-coleco/sim/quartus_ram_tb.sv:3`,
+   `cores/fes-sms/sim/quartus_ram_tb.sv:3` and `cores/fes-sg1000/sim/quartus_ram_tb.sv:3`, each reading
    `// Run with QUARTUS and Intel's unmodified altera_mf.v, not a RAM stand-in.` These sit beside
    the C++ benches but are `*.sv`, and the C++ area swept `*.cpp` and `*.h` only, so no area owned
    them; they were added after the fact. The benches hold no guard, so nothing breaks at build time
    — the cost of missing them is that S8 fails its own acceptance grep on a comment. Codex review
    found them, which is the second time a gap in this census came from how the fan-out was cut
    rather than from any agent's search.
+10. The design record's own citation lists drift with the files they name, and four more are wrong
+    on this base. The docs-that-mention-the-macro list opens at line 1230 of
+    `M/docs/architecture.md` and gives four more numbers for a file whose macro lines are now `:1707`, `:1709`, `:1721-1722`, `:1797`,
+    `:1811`, `:2022` and `:2083` — seven, not five, since the content moved and grew; and
+    `M/cores/fes-sg1000/README.md` is `:181-183`, `:207-208`, not `:179-181`, `:205`. In the
+    testbench list, `vdp_machine_tb.cpp` is cited at `:35`, which is the `#else`; its guard is
+    `:33`. Two citations of `M/cores/fes-coleco/README.md` outside the S8 section point into the
+    same drift — the 186,906-node row is `:678`, not `:707`, and the Verilator `i_good_to_write`
+    note is `:639-640` and `:688`, not `:667-669` and `:717` — and are fixed here because the sweep
+    found them, though they belong to other sections.
+
+    **Not fixed, deliberately.** The same check over the whole design record flags about fifty more
+    citations in sections this slice does not touch, most of them in other slices' entries and some
+    pointing at files outside the repository (a Quartus install's `cyclonev_atoms.v`). Those are the
+    same class of defect and want the same treatment, but not in a PR scoped to the S8 census, so
+    they are filed as #1836 with the three kinds they fall into. The S8 section itself is clean: 43
+    citations, all resolving.
 
 ## Method and confidence
 
@@ -231,8 +276,9 @@ file, compared against the inventory, is what closes that class of gap; it is wo
 whenever the area cut changes.
 
 Checked mechanically here, over the whole inventory: every primary line against its recorded matched
-text (370 of 371; the one exception confirmed by hand), and every `path:line` citation inside the
-cells against the tree (456 of 456 after one correction). That check is what caught the wrong base,
+text (374 of 374, one of them matched up to the ellipsis its cell uses), and every `path:line`
+citation in these three files against the tree (532 of 532). Both are re-runnable as
+`verify_census.py`. That check is what caught the wrong base,
 once Codex had pointed at two instances of it, and it is cheap enough to repeat whenever the base
 moves.
 
@@ -240,7 +286,8 @@ Verified by hand: the four acceptance-pattern holes; the ramtest bare-`QUARTUS` 
 pattern's failure to match it; `quartus_x87_spike.py:341`; the three closure claims read straight
 from `source_closures.json`; the DE25 byte-identity diff; the `test_tape_store.py` and
 `retarget_tape` contracts; the three `reviewed-inputs.json` pins and their enforcement in
-`static_reference.py:83-84` with its self-binding at `:27`; the dead guard at `tape_store.v:80`; the
+`static_reference.py:83-84` with its self-binding at `:27`; the dead guard at line 80 of
+`M/boards/de25nano/zx81-hps/tape_store.v`; the
 single genuine lane asymmetry and the seven false candidates; the two pc386 citation errors and the
 absence of `chparam` from that file; and the three S11 producer ranges.
 

@@ -215,7 +215,7 @@ A simulation names the backend whose primitive forms it models. Today there are 
 
 The testbench C++ branches on the same state today through Verilator `-CFLAGS`:
 
-- `M/cores/fes-coleco/sim/machine_tb.cpp:40,54,65`, `gp_tb.cpp:96,102`, `expansion_tb.cpp:33,40`, `vdp_machine_tb.cpp:35`;
+- `M/cores/fes-coleco/sim/machine_tb.cpp:40,54,65`, `M/cores/fes-coleco/sim/gp_tb.cpp:96,102`, `M/cores/fes-coleco/sim/expansion_tb.cpp:33,40`, `M/cores/fes-coleco/sim/vdp_machine_tb.cpp:33`;
 - `M/cores/fes-sms/sim/machine_tb.cpp:116,128,139`;
 - `M/cores/fes-sg1000/sim/machine_tb.cpp:147,167,178`.
 
@@ -227,7 +227,7 @@ Today one Makefile target can set some of the three `FES_*_OSS` macros and not o
 
 - `FES_TC_QUARTUS` is defined when `FES_TC_QLITE` or `FES_TC_QPRO` is set. It means "Quartus reads this file directly", which the RAM Tester build-ID macro needs. The `.mif` init path follows the altsyncram form, so it keys on `FES_VENDOR_RAM` (site 15).
 - `FES_VENDOR_RAM` is defined when `FES_PNR_QUARTUS` is set and `FES_TC_YOSYS` is not. It means "Quartus maps this file's RAM itself, or a sim models that". It selects the altsyncram forms at sites 7–9. A Yosys run that feeds Quartus keeps the inferred form, so PC/XT's read of `coleco_video_dpram.v` keeps today's inferred `(* ramstyle = "M10K" *)` branch (`coleco_video_dpram.v:81-85`). It does not switch to the altsyncram blackbox.
-- RAM attributes are named by intent and keyed on backend and device, not on the raw tool string. The DE25 build already byte-patches M10K into M20K, at five sites: `display/build.py:105-113`, `combined/build.py:66-80`, `zx81/build.py:84-91` (`retarget_ram`, `retarget_video`), `zx81-hps/build.py:59-66` (`retarget_tape`) and `link-proof/zx81-ram/profile.py:68-70`. The Agilex 5 column below produces exactly what those patchers produce, so S11 makes all five superseded code to delete rather than keep beside the macros (#1828):
+- RAM attributes are named by intent and keyed on backend and device, not on the raw tool string. The DE25 build already byte-patches M10K into M20K, at five sites: `display/build.py:106-114` (`retarget_menu_ram`), `combined/build.py:67-81` (`derive_video`), `zx81/build.py:84-87` and `:90-92` (`retarget_ram` and `retarget_video`), `zx81-hps/build.py:59-68` (`retarget_tape`, whose contract check is `:64-66`) and `link-proof/zx81-ram/profile.py:68-70`. The Agilex 5 column below produces exactly what those patchers produce, so S11 makes all five superseded code to delete rather than keep beside the macros (#1828):
 
   | Macro | nextpnr (Cyclone V) | Quartus, Cyclone V | Quartus, Agilex 5 |
   | --- | --- | --- | --- |
@@ -340,7 +340,7 @@ These 18 sites are the ones under `M/cores`. The census (#1828) found six more `
 | 7 | `M/cores/fes-common/rtl/coleco_dpram.v:20` | altsyncram under `QUARTUS`; `m10k_tdp` under `FES_COLECO_OSS` (`:76-101`); otherwise an unregistered sim read | shared rule above | `fes_tdp_ram` (S11) |
 | 8 | `M/cores/fes-common/rtl/coleco_video_dpram.v:20` | altsyncram, or inferred `ramstyle = "M10K"` (`:81-85`) | `` `ifdef FES_VENDOR_RAM `` (PC/XT keeps inferred) | `fes_tdp_ram` |
 | 9 | `M/cores/fes-zx81/rtl/zx81_dpram.v:23` | altsyncram or inferred | `` `ifdef FES_VENDOR_RAM `` | `fes_tdp_ram` |
-| 10 | `M/cores/fes-zx81/rtl/zx81_tape_store.v:21` | `"M10K, no_rw_check"` or `"m10k_tdp"` | `` `FES_RAM_TDP ``. **The highest-risk site in S8a** (#1828): besides the ZX81 Quartus and OSS producers, DE25 reads this file *as bytes* and requires byte-identity. `M/boards/de25nano/zx81-hps/tape_store.v:60-102` is byte-identical to it; `test_tape_store.py:32-33` and `retarget_tape` (`zx81-hps/build.py:59-66`) both assert that, the latter also requiring the wrapper's QUARTUS arm to hold exactly one `` `ifdef `` and zero `` `endif ``; and `link-proof/zx81-standard/reviewed-inputs.json` pins this file, `zx81_dpram.v` and the wrapper by sha256, enforced at `link-proof/zx81-standard/static_reference.py:83-84` with its own hash bound at `:27`. So the wrapper is ported in the same commit — `` `ifdef FES_DEV_AGILEX5 `` keeps the required prefix shape, a nested or multi-arm guard does not — and the reviewed-input set is re-approved | `fes_tdp_ram` |
+| 10 | `M/cores/fes-zx81/rtl/zx81_tape_store.v:21` | `"M10K, no_rw_check"` or `"m10k_tdp"` | `` `FES_RAM_TDP ``. **The highest-risk site in S8a** (#1828): besides the ZX81 Quartus and OSS producers, DE25 reads this file *as bytes* and requires byte-identity. `M/boards/de25nano/zx81-hps/tape_store.v:60-102` is byte-identical to it; `test_tape_store.py:32-33` and `retarget_tape` (`zx81-hps/build.py:59-68`, contract check at `:64-66`) both assert that, the latter also requiring the wrapper's QUARTUS arm to hold exactly one `` `ifdef `` and zero `` `endif ``; and `link-proof/zx81-standard/reviewed-inputs.json` pins this file, `zx81_dpram.v` and the wrapper by sha256, enforced at `link-proof/zx81-standard/static_reference.py:83-84` with its own hash bound at `:27`. So the wrapper is ported in the same commit — `` `ifdef FES_DEV_AGILEX5 `` keeps the required prefix shape, a nested or multi-arm guard does not — and the reviewed-input set is re-approved | `fes_tdp_ram` |
 | 11 | `M/cores/fes-coleco/rtl/coleco_machine.sv:11` | `FES_COLECO_OSS` or `QUARTUS` → `FES_COLECO_REGISTERED_MEDIA` (`:9-13`) | Registered unless `FES_Z80_UNREGISTERED_SIM` | S11 makes registered unconditional and deletes the unregistered form |
 | 12 | `M/cores/fes-sms/rtl/sms_machine.sv:17` | same pattern | same | same |
 | 13 | `M/cores/fes-sg1000/rtl/sg1000_machine.sv:13` | same pattern | same | same |
@@ -360,9 +360,9 @@ The S8 census `rg` finds any others, and they move in the same PR.
 **Docs that describe `QUARTUS=1` or the `FES_*_OSS` scheme as current** move in the same PR:
 
 - `M/docs/cores.md:257-259`;
-- `M/docs/architecture.md:1230-1232`, `:1244-1245`, `:1321`, `:1335`, `:1540`;
+- `M/docs/architecture.md:1707`, `:1709`, `:1721-1722`, `:1797`, `:1811`, `:2022`, `:2083`;
 - `M/cores/fes-sms/README.md:183-184`, `:210`;
-- `M/cores/fes-sg1000/README.md:179-181`, `:205`;
+- `M/cores/fes-sg1000/README.md:181-183`, `:207-208`;
 - `M/cores/fes-coleco/README.md:375`, `:462`, `:707`, `:718`;
 - `M/cores/fes-pc386/README.md:446`.
 
@@ -477,14 +477,14 @@ Reads are registered. A read during a write returns the new data. `WORDS` is the
   - Otherwise: `FES_RAM_TDP`, inferred. On nextpnr that is `m10k_tdp`. On yosys→Quartus (PC/XT) it is `"M10K, no_rw_check"`, which S11 measures.
   - Selection order: `FES_VENDOR_RAM` first, then the inferred form. The Icarus Quartus sims set `FES_TC_SIM FES_PNR_QUARTUS`, so they get `FES_VENDOR_RAM` and keep the altsyncram model from `altera_mf.v`, as today. The inferred form is the registered behavioural model for every other sim, so the primitive has no separate `FES_TC_SIM` branch. S11 checks that each `quartus_ram_tb.sv` run still elaborates altsyncram.
   - Agilex 5 gets M20K through `FES_DEV_AGILEX5`.
-- **Why registered-only is required on Quartus:** an unregistered VDP VRAM under Quartus produced 186,906 combinational nodes and could not fit (`M/cores/fes-coleco/README.md:707`).
+- **Why registered-only is required on Quartus:** an unregistered VDP VRAM under Quartus produced 186,906 combinational nodes and could not fit (`M/cores/fes-coleco/README.md:678`).
 - **Measurement:** structural. For every producer that reads a converted wrapper, M10K count, ALMs and Fmax must equal today's, or any change is explained and measured.
 - **Instantiating modules** (every one must be converted before its wrapper is deleted):
 
   | Wrapper | Instantiated at |
   | --- | --- |
-  | `coleco_dpram` | `M/cores/fes-common/rtl/coleco_vdp.sv:414,429,444,459`; `fes-common/rtl/fes_computer_gp.v:153` (needs a `MEDIA_AW`/`MEDIA_WORDS` mapping); `fes-coleco/rtl/coleco_machine.sv:358,374,399`; `fes-coleco/rtl/coleco_application_gp.v:62`; `fes-sms/rtl/sms_vdp.sv:304`; `fes-sms/rtl/sms_machine.sv:262,278`; `fes-sg1000/rtl/sg1000_machine.sv:253,269`; `{fes-coleco,fes-sms,fes-sg1000}/sim/quartus_ram_tb.sv:11` |
-  | `coleco_video_dpram` | `fes-common/rtl/coleco_vdp.sv:355,372`; `fes-common/rtl/coleco_video_720p.v:53`; `fes-common/rtl/fes_native_video.v:58`; `fes-sms/rtl/sms_vdp.sv:319,336`; `fes-sms/rtl/sms_video_720p.v:49`; `fes-pcxt/rtl/pcxt_video.sv:141`; `{fes-coleco,fes-sms,fes-sg1000}/sim/quartus_ram_tb.sv:14` |
+  | `coleco_dpram` | `M/cores/fes-common/rtl/coleco_vdp.sv:414,429,444,459`; `fes-common/rtl/fes_computer_gp.v:153` (needs a `MEDIA_AW`/`MEDIA_WORDS` mapping); `fes-coleco/rtl/coleco_machine.sv:358,374,399`; `fes-coleco/rtl/coleco_application_gp.v:62`; `fes-sms/rtl/sms_vdp.sv:304`; `fes-sms/rtl/sms_machine.sv:262,278`; `fes-sg1000/rtl/sg1000_machine.sv:253,269`; `fes-coleco/sim/quartus_ram_tb.sv:11`, `fes-sms/sim/quartus_ram_tb.sv:11`, `fes-sg1000/sim/quartus_ram_tb.sv:11` |
+  | `coleco_video_dpram` | `fes-common/rtl/coleco_vdp.sv:355,372`; `fes-common/rtl/coleco_video_720p.v:53`; `fes-common/rtl/fes_native_video.v:58`; `fes-sms/rtl/sms_vdp.sv:319,336`; `fes-sms/rtl/sms_video_720p.v:49`; `fes-pcxt/rtl/pcxt_video.sv:141`; `fes-coleco/sim/quartus_ram_tb.sv:14`, `fes-sms/sim/quartus_ram_tb.sv:14`, `fes-sg1000/sim/quartus_ram_tb.sv:14` |
   | `zx81_dpram` | `fes-zx81/rtl/zx81_machine.sv:219,233,263,293`; `fes-zx81/rtl/zx81_ram_pack.v:45`; `fes-zx81/rtl/fes_computer_gp.v:127`; `fes-zx81/expansions/qs_chrs.v:57`; `fes-zx81/sim/rom_init_window.v:13` |
 
   The producers and sims behind each module come from the S8 reader census. They include the Z80 Quartus and OSS producers, PC/XT, `build_video_part.py`, the native video, socket and session sims, the ZX81 bus carts, and the Icarus Quartus sims (`sim_fes_coleco_quartus.py:53`, `sim_fes_sms_quartus.py:39`, `sim_fes_sg1000_quartus.py:39`). The Icarus benches' expected output changes. For example, `sim_fes_coleco_quartus.py:72` checks "unexpected read cycle".
@@ -555,7 +555,7 @@ Each lane PR names its check. An i386-style lockstep is not assumed for any othe
 2. Does Verilator 5.032 compile the atoms that are used, with or without `--timing`? Known obstacles:
    - 3 UDPs and 11 specify blocks in `cyclonev_atoms.v`;
    - a level-listed `always` with notifiers in `cyclonev_ff` (`cyclonev_atoms.v:394-566`);
-   - Verilator 5.051 already rejects the `altera_mf.v` model's `i_good_to_write_a2/b2` feedback constructs (`M/cores/fes-coleco/README.md:667-669`, `:717`).
+   - Verilator 5.051 already rejects the `altera_mf.v` model's `i_good_to_write_a2/b2` feedback constructs (`M/cores/fes-coleco/README.md:639-640`, `:688`).
 3. Does the netlist contain `cyclonev_mac`? It wraps an encrypted model (`cyclonev_atoms.v:4449`) that open tools cannot simulate. Quartus maps i386 stride multiplies to DSPs (`quartus_fes_i386.py:20-24`). This is D6.
 4. Is the CPU cycle-equivalent after `quartus_map`, with no retiming and no register duplication at map, so that trace hashes compare exactly? No retiming setting is written today, and the 17.0.2 defaults are not recorded.
 5. (Z80 leg) Can a `quartus_eda` `.vo` of one native-Lite Z80 top run through one existing machine suite? Those suites are Verilator C++ with M10K atoms in the netlist, or Icarus, and Icarus is not installed on this host.
@@ -787,7 +787,7 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
   - **Sims:** `sim_fes_coleco_native.py:21`, `sim_fes_zx81_session.py:31`, `sim_fes_native_video.py:23`, `synth_fes_native_video.py:14`, `sim_fes_native_socket.py:22`, `sim_fes_coleco_session.py:20`, `sim_fes_ramtest.py:75` (the only sim of `fes-ramtest/rtl/top.v`), the three Icarus Quartus sims, which both set `QUARTUS=1` and read guarded files through the `build_fes_*` source lists (`sim_fes_coleco_quartus.py:58` and `:32-33`, `sim_fes_sms_quartus.py:46`, `sim_fes_sg1000_quartus.py:46`), and the three PC/XT wrapper sims that reach `coleco_video_dpram.v` only through `sim.SYSTEM_SOURCES` and so match no macro pattern (`sim_fes_pcxt_dos.py:188`, `sim_fes_pcxt_media.py:39`, `sim_fes_pcxt_media_diag.py:17`). In `M/Makefile`, 26 lines define an `FES_*_OSS` macro across 15 recipes (`:633`, `:667`, `:733`, `:773`, `:877-878`, `:912`, `:936`, `:992-993`, `:1001-1002`, `:1011-1012`, `:1032`, `:1034`, `:1711-1712`, `:1732`, `:1768`, `:1880`, `:1894`, `:1906`, `:1918-1919`, `:2086`) and about 72 lines compile a guarded file; the Makefile sets `QUARTUS` on no line at all, since the Icarus Quartus sims are reached through the delegating script targets above. Two of the 26 put the define inside a `$(if $(filter %-oss,$@),…)`, at `:633` and `:667`, so the macro state depends on which name in a multi-target recipe was asked for.
   - **Testbenches:** `M/cores/fes-coleco/sim/{machine,gp,expansion,vdp_machine}_tb.cpp`, `M/cores/fes-sms/sim/machine_tb.cpp`, `M/cores/fes-sg1000/sim/machine_tb.cpp` — 14 `#ifdef` lines, and the census confirms there are no others in the tree. Two further C++ benches compile a guarded file without testing a macro, and must still build after the rewrite: `M/cores/fes-ramtest/sim/tb.cpp` (sites 5, 16 and 17, and it exercises site 17's `enable_bus_hold` spelling through `sim/altiobuf_model.v`) and `M/cores/fes-zx81/sim/zonx_firmware_tb.cpp`.
   - **Tests that run a real tool**, each spelling its own `-I` list, so each needs `M/cores/fes-common/include` added: `test_coleco_megacart_build.py:63`, `test_build_fes_sms.py:638`, `test_build_fes_sg1000.py:579`, `test_build_fes_zx81_oss.py:687` (Yosys), and `test_computer_memory_backend.py:33`, `test_zonx_firmware.py:38` (bare Verilator, no lane macro today). All four Yosys tests skip unless Yosys is on `PATH`, so a miss here passes locally and breaks wherever Yosys is installed.
-  - **Three `*.sv` sim benches**, `M/cores/fes-{coleco,sms,sg1000}/sim/quartus_ram_tb.sv:3`, each carrying `// Run with QUARTUS and Intel's unmodified altera_mf.v, not a RAM stand-in.` They hold no guard, so they compile either way and nothing breaks at build time, but the broadened acceptance pattern below matches the comment where the narrower one did not, so S8 must reword all three. `sim_fes_coleco_quartus.py:58`, `sim_fes_sms_quartus.py:46` and `sim_fes_sg1000_quartus.py:46` are what actually set the macro for them.
+  - **Three `*.sv` sim benches** — `M/cores/fes-coleco/sim/quartus_ram_tb.sv:3`, `M/cores/fes-sms/sim/quartus_ram_tb.sv:3` and `M/cores/fes-sg1000/sim/quartus_ram_tb.sv:3` — each carrying `// Run with QUARTUS and Intel's unmodified altera_mf.v, not a RAM stand-in.` They hold no guard, so they compile either way and nothing breaks at build time, but the broadened acceptance pattern below matches the comment where the narrower one did not, so S8 must reword all three. `sim_fes_coleco_quartus.py:58`, `sim_fes_sms_quartus.py:46` and `sim_fes_sg1000_quartus.py:46` are what actually set the macro for them.
   - **The DE25 board tree**, which this record did not previously cover at all: six more `QUARTUS` guards in five RTL files, seven producer sites, three test sites and eleven readers that set no macro. It has no `FES_*_OSS` exposure, so all of its work is S8a. See [`de25.md`](../validation/2026-11-14-1581-s8-reader-census/de25.md), and the dependency note below.
 - **Files:**
   - new `M/cores/fes-common/include/fes_toolchain.svh`, `M/scripts/fes_lanes.py` and `M/cores/fes-common/rtl/prim/fes_hdmi_i2c_pad.sv`;
@@ -889,7 +889,7 @@ Each half carries its own byte-identity and sim-diff acceptance from the list ab
   - widen the target check (`M/scripts/core_package.py:160-165`) and make `fes_build_common.TARGET` (`:21`) a parameter;
   - add the Pro executables to `quartus_execution_inputs`;
   - move `fes_menu_reader` to `FES_RAM_BLOCK`;
-  - delete the M10K→M20K byte patches (`display/build.py:105-113`, `combined/build.py:66-80`);
+  - delete the M10K→M20K byte patches (`display/build.py:106-114`, `combined/build.py:67-81`);
   - fold in S6b if it has not landed;
   - seal under the S9 helper.
 - **Device specialisation:** the first DE25 core lands the target-keyed recipe schema and its tests (Device specialisation, recipe schema), with its per-target parameter values recorded (rule 2).

@@ -1,0 +1,186 @@
+#!/usr/bin/env python3
+"""Re-check this census record against the tree it is read in.
+
+Two checks, both mechanical, and together they are what the record's
+"Verification" paragraph claims:
+
+1. every inventory row's primary line still holds the `Matched` text recorded
+   for it (a row whose `Matched` cell was abbreviated with an ellipsis is
+   matched up to the ellipsis, which is all the text the sweep kept);
+2. every `path:line` citation written inside a `What` cell, and inside the
+   prose of README.md and de25.md, resolves to a real file and a non-blank
+   line.
+
+A range may legitimately cite a few lines from inside a longer call -- the
+lines that name a guarded file, not the whole statement -- so only the
+endpoints are checked, not whether the span is a complete statement. A
+citation the record quotes in order to call it *wrong* is written in prose
+("lines 333-337 of x.py"), not as `x.py:333-337`, so that it asserts no
+location and this check does not read it as one.
+
+Citations that deliberately quote a *stale* number are skipped, and they are
+the ones to the left of a `->` in a clause that records a correction (`:1230
+-> :1707`). Those numbers are wrong on purpose: the point of the clause is
+that the design record carried them. The number to the right of the arrow is
+checked like any other.
+
+Check 1 is the one that matters: a line number can stay in range while
+pointing at the wrong line, and that is exactly how two earlier revisions of
+this record went wrong. Run from the repo root:
+
+    python3 docs/validation/2026-11-14-1581-s8-reader-census/verify_census.py
+
+Exit status is 0 when both checks pass, 1 otherwise. Paths are resolved
+against the repo root first, then against sources/misteross, then by basename
+if that is unique under sources/misteross -- a bare `Makefile:123` must not
+silently resolve to the repo-root Makefile.
+"""
+import os
+import re
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
+M = os.path.join(ROOT, 'sources', 'misteross')
+DOCS = ('census-tables.md', 'de25.md', 'README.md')
+
+UNESCAPED_PIPE = re.compile(r'(?<!\\)\|')
+CITATION = re.compile(
+    r'([A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:py|v|sv|cpp|h|svh|md|json|sh|files|txt))'
+    r':(\d+)(?:-(\d+))?')
+
+_index = {}
+for dirpath, dirnames, filenames in os.walk(M):
+    dirnames[:] = [d for d in dirnames if d not in ('build', 'out', '.git')]
+    for name in filenames:
+        _index.setdefault(name, []).append(os.path.join(dirpath, name))
+
+
+# Roots a citation may be written relative to. de25.md spells its paths
+# relative to boards/de25nano, and a few cells name a core README as
+# `fes-sms/README.md`, so both of those roots are tried before falling back to
+# a unique basename.
+ROOTS = (
+    ROOT,
+    M,
+    os.path.join(M, 'boards', 'de25nano'),
+    os.path.join(M, 'cores'),
+    os.path.join(M, 'scripts'),
+)
+
+
+def resolve(path):
+    if path.startswith('M/'):
+        path = path[2:]
+    for root in ROOTS:
+        candidate = os.path.join(root, path)
+        if os.path.isfile(candidate):
+            return candidate
+    hits = _index.get(os.path.basename(path), [])
+    return hits[0] if len(hits) == 1 else None
+
+
+def lines_of(path):
+    with open(path, errors='replace') as handle:
+        return handle.read().split('\n')
+
+
+def rows():
+    path = os.path.join(HERE, 'census-tables.md')
+    for number, line in enumerate(lines_of(path), 1):
+        if not line.startswith('| `'):
+            continue
+        cells = [c.strip() for c in UNESCAPED_PIPE.split(line.strip())[1:-1]]
+        if len(cells) < 5 or cells[1] in ('---', 'Line'):
+            continue
+        yield number, cells
+
+
+def check_primary():
+    problems = []
+    total = 0
+    for row, cells in rows():
+        total += 1
+        path, number = cells[0].strip('`'), cells[1]
+        matched = cells[3].strip('`').strip().replace('\\|', '|')
+        target = resolve(path)
+        if target is None:
+            problems.append(f'census-tables.md:{row}: {path} does not resolve')
+            continue
+        if not number.isdigit():
+            problems.append(f'census-tables.md:{row}: line {number!r} is not a number')
+            continue
+        body = lines_of(target)
+        n = int(number)
+        if not 1 <= n <= len(body):
+            problems.append(
+                f'census-tables.md:{row}: {path}:{n} past end ({len(body)} lines)')
+            continue
+        wanted = re.split(r'\.\.\.|…', matched)[0].strip()
+        if wanted and wanted not in body[n - 1]:
+            problems.append(
+                f'census-tables.md:{row}: {path}:{n} holds {body[n - 1].strip()[:60]!r}, '
+                f'not the recorded {matched[:60]!r}')
+    return total, problems
+
+
+def current_only(text):
+    """Blank out the stale side of every `old -> new` correction clause.
+
+    A clause is delimited by `;` or by the end of the cell. Where it holds an
+    arrow, everything before the last arrow is a number the record is
+    reporting as wrong, so it must not be checked against the tree.
+    """
+    out = []
+    for clause in re.split(r'(;)', text):
+        if '->' in clause:
+            head, _, tail = clause.rpartition('->')
+            clause = ' ' * len(head + '->') + tail
+        out.append(clause)
+    return ''.join(out)
+
+
+def check_citations():
+    problems = []
+    citations = endpoints = 0
+    for doc in DOCS:
+        path = os.path.join(HERE, doc)
+        for row, line in enumerate(lines_of(path), 1):
+            for match in CITATION.finditer(current_only(line.replace('\\|', '|'))):
+                cited = match.group(1)
+                citations += 1
+                target = resolve(cited)
+                if target is None:
+                    problems.append(f'{doc}:{row}: {match.group(0)} does not resolve')
+                    continue
+                body = lines_of(target)
+                ok = True
+                for group in (match.group(2), match.group(3)):
+                    if group is None:
+                        continue
+                    endpoints += 1
+                    n = int(group)
+                    if not 1 <= n <= len(body):
+                        problems.append(
+                            f'{doc}:{row}: {cited}:{n} past end ({len(body)} lines)')
+                        ok = False
+                    elif not body[n - 1].strip():
+                        problems.append(f'{doc}:{row}: {cited}:{n} is blank')
+                        ok = False
+                del ok
+    return citations, endpoints, problems
+
+
+def main():
+    total, primary = check_primary()
+    citations, endpoints, cited = check_citations()
+    print(f'{total} inventory rows, {len(primary)} primary-line problems')
+    print(f'{citations} path:line citations ({endpoints} line endpoints), '
+          f'{len(cited)} problems')
+    for problem in primary + cited:
+        print(f'  {problem}')
+    return 1 if primary or cited else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
