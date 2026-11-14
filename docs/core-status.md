@@ -541,8 +541,9 @@ the cause is the same is not established: #1823's menu episodes have no
 FPGA-side reading. Which stage blackens the picture, the ADV7513's own video
 path or Powerboat's capture chain, is
 [#1833](https://github.com/DeanoC/fes/issues/1833); #1003's `0xBA` sweep and a
-capture restart during an episode are the tests that would separate them, and
-both need Deano's OK
+capture restart during an episode are the tests that would separate them. Deano
+has approved both for an episode only, and the pc386 kit driver implements them
+in that order; 43 further Kit B launches produced no episode to spend them on
 ([#1494](https://github.com/DeanoC/fes/issues/1494),
 [record](validation/2026-11-14-pc386-si-black-capture/summary.md)).
 
