@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "classification": "actual pre-ledger vendor-parser rejection; hardware not run",
+  "base_commit": "c5c794535b7974eeb5d4a8b26ddc763e806b569a",
+  "source_sha256": {
+    "platform/embedded/firmware/input_transfer_service.c": "f8341cb0c2370c419f26a6a65f49f1526785d59d8034daca972d31901381a42e",
+    "platform/embedded/firmware/tests/sdm_retire/start_header_test.c": "4532df964c01cfb546a683a0713516590205722764d899e90926d5dd0a906cf8",
+    "tests/test_nano_source_retirement.py": "58ba3ae96fcc11cb222f9f92676308354ef10d8fbafb96635e9363358bda3cd5"
+  },
+  "checks": {
+    "rearm-start-final": {
+      "result": {
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "-v",
+          "test_nano_source_retirement.SourceRetirementTests.test_start_negotiation_rejects_foreign_and_late_data_headers",
+          "test_nano_source_retirement.SourceRetirementTests.test_joined_launch_retirement_failures",
+          "test_nano_source_retirement.SourceRetirementTests.test_real_service_and_supplier_rearm_between_menu_and_computer",
+          "test_nano_source_retirement.SourceRetirementTests.test_real_source_release_supplier_requires_returned_owned_source",
+          "test_nano_sdm_rearm_profile",
+          "test_nano_paired_source_rearm",
+          "test_nano_sdm_rearm_trace"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-source-release",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 23.615767081966624,
+        "log_sha256": "97e2a5a595519b1a69783785d21c1f43aaba8af976ae550a0ae22da05929963b"
+      },
+      "result_sha256": "3505927a076acea6a7861cf8d26d4b221c8201b642d522002f4b9580d291034d"
+    },
+    "rearm-start-parser-control": {
+      "result": {
+        "argv": [
+          "python3",
+          "out/publication/rearm-header-control.py"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-source-release",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 3.2035229140892625,
+        "log_sha256": "425a88d0f75547c6f6233073906712abbb3b99fefd4d6eff35edc14803d3c15c"
+      },
+      "result_sha256": "e0287e3f0e2042db347ff69c87bb519f0bf1436f2308845974f5e1ca42eaf595"
+    }
+  },
+  "parser_cases": 9,
+  "matched_control": "c5c794535b7974eeb5d4a8b26ddc763e806b569a",
+  "matched_control_not_for_deployment": true,
+  "hardware_actions": false,
+  "hardware_accepted": false
+}

@@ -126,6 +126,10 @@ class SourceRetirementTests(unittest.TestCase):
         self.assertEqual(report["completed_generations"], 12)
         self.assertEqual(report["negative_cases"], 40)
 
+    def test_start_negotiation_rejects_foreign_and_late_data_headers(self):
+        report = self.run_model("start_header_test", joined=True)
+        self.assertEqual(report["cases"], 9)
+
     def test_warm_probe_reuses_owned_queue_without_clearing_abort(self):
         report = self.run_model("warm_probe_test")
         self.assertEqual(report["completed_generations"], 64)

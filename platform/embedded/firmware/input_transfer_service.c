@@ -192,7 +192,14 @@ int fes_nano_sdm_transfer_peek_header(uint32_t header)
  /* START's synchronous control replies precede negotiation/ledger init.
   * DATA cannot post before begin; ordinary unrelated mailbox clients must
   * be excluded by the required platform configuration lock. */
- if(!transfer.initialized)return prepared ? 0:stop(-13);
+ if(!transfer.initialized){
+  /* START negotiates through the fixed synchronous ATF control job. A late
+   * DATA reply or another client cannot become startup traffic after source
+   * preparation, including the interval before the new ledger is initialized.
+   * The original vendor parser still bounds each control payload/status. */
+  if(!prepared || (header&UINT32_C(0xff000000))!=(NANO_SDM_CONTROL_HEADER&UINT32_C(0xff000000)))return stop(-13);
+  return 0;
+ }
  if(active())return service_error;
  int e=nano_sdm_transfer_header(&transfer,header);return e ? stop(e):0;
 }
