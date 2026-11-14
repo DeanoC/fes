@@ -17,8 +17,9 @@ earlier black launches had no probe of their own and stay unclassified, and a
 probed recurrence belongs to #1833.
 Which of those stages it is stays open as
 [#1833](https://github.com/DeanoC/fes/issues/1833), split out of
-[#1823](https://github.com/DeanoC/fes/issues/1823), and the two cheap tests that
-would separate them are approved for an episode and wait for one.** Most of the
+[#1823](https://github.com/DeanoC/fes/issues/1823). Two cheap tests are approved
+for an episode and wait for one; each can name a side only by recovering the
+picture, and an episode that survives both says nothing.** Most of the
 evidence below is from runs already taken, remeasured here. This record's own
 Kit B runs are `b1` (13 launches) and `b2` (30), both complete and both with no
 black launch. They
@@ -312,16 +313,22 @@ minute clear of any bring-up — not the frame pattern.
   established: #1823's menu episodes have no FPGA-side reading, so its own
   hypothesis 2 (a `faulted` latch blanking scanout) is still open for them,
   while the `d2` probes rule that out for pc386's.
-- **Two cheap tests would separate what is left**, both needing Deano's
-  explicit OK. They are [#1833](https://github.com/DeanoC/fes/issues/1833),
-  split out of #1823 so a `faulted` fix there cannot orphan them:
+- **Two cheap tests can each name a side, by recovering the picture.** Deano has
+  approved both for an episode only. They belong to
+  [#1833](https://github.com/DeanoC/fes/issues/1833), split out of #1823 so a
+  `faulted` fix there cannot orphan them:
   1. #1003's sweep — during an episode, step the ADV7513's input clock delay
      `0xBA[7:5]` and count black frames per setting. A delay that clears the
      picture names the transmitter's input sampling. This is an I2C write, as it
      was for #1003.
-  2. Restart `fes-4kpro-fanout` (or reopen the card) during an episode, without
-     touching the kit. A picture that comes back names Powerboat's capture
-     chain. This restarts a shared service that Deano's viewer also reads.
+  2. Restart `fes-4kpro-fanout` during an episode, without touching the kit. A
+     picture that comes back names Powerboat's capture chain, though not where
+     in it. This restarts a shared service that Deano's viewer also reads.
+
+  Neither is a test that must answer: an episode that survives the sweep and the
+  restart is inconclusive and leaves both stages standing, for the reasons under
+  [the probe](#inputs-and-what-was-measured-here). So these are the cheapest
+  shots available, not a method that resolves #1833 on the next episode.
 
 ## The report's other two symptoms
 
