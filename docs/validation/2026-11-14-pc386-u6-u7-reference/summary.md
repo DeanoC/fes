@@ -28,7 +28,7 @@ kit was measured. The reference machines are in
 
 | Check | Result |
 | --- | --- |
-| **Ultima VI, PC speaker pitch at the 286-12 preset** | **Fail**, on two captures a side where the method asked for three. The kit's notes are 12.7–12.9% below the reference's, 2.35 and 2.39 semitones flat. The band is ±5.9%, one semitone. Scaling the reference from its 12.5 MHz to the preset's nominal 12.0 leaves 9.0–9.3% and about 1.7 semitones, if the game keeps the same delay unit across that step. |
+| **Ultima VI, PC speaker pitch at the 286-12 preset** | **Fail**, on three kit captures and five reference ones. The kit's notes are 12.7–12.9% below the reference's, 2.35 and 2.38 semitones flat. The band is ±5.9%, one semitone. Scaling the reference from its 12.5 MHz to the preset's nominal 12.0 leaves 9.0–9.3% and about 1.7 semitones, if the game keeps the same delay unit across that step. |
 | **Ultima VI, walking speed at the 286-12 preset** | **Not decided**, and the method is the problem, not the kit: on the reference the turn rate follows how fast the keys are sent (56% higher at seventeen keys a second than at ten), and the step rate spreads 23% at one key rate where the band is ±10%. So no kit window was run with it. The figures are below for whoever measures it next. |
 | **Ultima VII: The Black Gate, NPC pace at 386DX-25** | **Not done.** A reference board must be settled first, by the rule that validated the 286 one. The game stops at its own memory check on the reference, and the reference board for a 386DX-25 is not settled; see below. |
 
@@ -184,7 +184,7 @@ that were already there.
 come from `u6_tones.py`'s envelope estimator where this record uses
 autocorrelation, which is why only #1474's ratio is used above. Repeatability,
 same analyser on both, is this record's own two kit captures, four days and two
-seals apart: **840.70 and 840.72 Hz** for key `6`, **499.78 and 499.79** for
+seals apart: **840.70 and 840.69 Hz** for key `6`, **499.78 and 499.78** for
 key `1`. Nothing recent regressed, and what is new here is the reference.
 
 The two keys' shortfalls agree to 0.2% (ratios 1.1454 and 1.1476), which looks
