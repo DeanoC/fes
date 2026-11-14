@@ -305,6 +305,13 @@ module top #(
         .pat50(pat50), .pat75(pat75), .pat100(pat100), .pat_ok(pat_ok)
     );
 
+    // Release the full-span scan only after the byte preflight passes.
+    // Register this phase boundary locally so preflight/reset fanout does
+    // not sit on the scan state and latency-control paths.
+    reg scan_reset = 1'b1;
+    always @(posedge mem_clk)
+        scan_reset <= mem_reset_sync[1] || !byte_pass;
+
     sdram_byte_lane byte_test (
         .clk(mem_clk), .reset(mem_reset_sync[1]), .stop(stop_sync[1]),
         .start(byte_start), .write(byte_write), .addr(byte_addr), .wdata(byte_wdata),
@@ -316,7 +323,7 @@ module top #(
     );
 
     mem_channel #(.ADDR_W(26), .WORDS(SDRAM_WORDS), .BASE(32'd0)) sdram_test (
-        .clk(mem_clk), .reset(mem_reset_sync[1] || !byte_pass), .stop(stop_sync[1]),
+        .clk(mem_clk), .reset(scan_reset), .stop(stop_sync[1]),
         .start(scan_start), .write(scan_write), .addr(scan_addr), .wdata(scan_wdata),
         .done(sdram_done), .rdata(sdram_rdata),
         .busy(), .pass(scan_pass), .fail(scan_fail), .stopped(scan_stopped),
