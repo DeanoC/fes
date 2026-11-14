@@ -120,5 +120,57 @@
    "w2-up-48.8/s": 0,
    "w3-left-48.8/s": 2
   }
+ },
+ "saturated_square_walk_reference": {
+  "run": "sq1",
+  "side": "reference",
+  "machine": "86Box award286 at 12.5 MHz, one wait state",
+  "window": "10 s of keys inside a 14 s capture at 30 fps; the Avatar walked round a one-tile square (down, right, up, left) so the route never runs out of floor",
+  "analyser": "scroll_events.py, threshold 2.0 mean absolute levels",
+  "gates": {
+   "out_of_combat": "w-fightcheck grab: no hostile in the map view, no wound message",
+   "emulation_speed": "100% for every frame of all six windows (speed_check.py: one distinct crop, 419-420 frames each)"
+  },
+  "windows": {
+   "25 keys/s": {
+    "rate_from_median_gap": [
+     2.143,
+     2.308,
+     1.765
+    ],
+    "rate_over_span": [
+     1.961,
+     2.366,
+     1.935
+    ]
+   },
+   "12.3 keys/s": {
+    "rate_from_median_gap": [
+     1.818,
+     2.143,
+     2.222
+    ],
+    "rate_over_span": [
+     1.759,
+     2.215,
+     2.323
+    ]
+   }
+  },
+  "mean_steps_per_s": 2.067,
+  "sd": 0.222,
+  "sem_pct": 4.4,
+  "saturation": {
+   "mean_at_25": 2.072,
+   "mean_at_12_3": 2.061,
+   "difference_pct": 0.53,
+   "reading": "A two-fold change in key rate moves the step rate by half a percent, so the input is saturated and the rate is the machine's, not the rig's."
+  }
+ },
+ "saturated_square_walk_kit": {
+  "run": "g4, Kit B, 14 November",
+  "verdict": "void: the game never started",
+  "why": "The command file inserted KEYPACE.COM before the game, but the kit image boots to a menu, not a DOS prompt, so the typing went into the menu and everything after it desynchronised: the grabs show COMMAND.COM answering \"Bad command or filename\" to the mangled lines, including \"ultima6\\\". All six windows are a static DOS prompt (no frame-to-frame change at all).",
+  "consequence": "The run also left Kit B with its lease blocked and the core loaded, because the command file was missing its final quit and the run's post-run tail was then run by hand too early. That is logged as an incident in ~/kit-status/kitB-STATUS.md and needs Deano."
  }
 }

@@ -414,3 +414,45 @@ not trusted; the crop it was given may not be the map view.
 **Gate 1 is restated** so it can be checked: no hostile figure in the map view
 and no combat message in the text panel, in a grab taken immediately before the
 window. Gate 2 is unchanged.
+
+## Seventh amendment: the step counter, and the route the walk uses
+
+Written after the reference's first valid windows were read and before any kit
+window was, because the kit run that followed measured nothing.
+
+**The route is a one-tile square, not a straight line.** The first saturated
+run walked each direction in turn for several seconds and ran out of floor: one
+leg found no wall and gave six steps, another gave none at all. The windows
+recorded earlier in this record used a square — down, right, up, left, over and
+over — and that is what the method uses, because a saturated walk crosses a
+room in seconds and a square never leaves one tile. `refbox.py`'s `burst` op
+takes a list of keys and cycles it; the kit's runner taps the same cycle at a
+matching rate.
+
+**The step counter is `scroll_events.py`, not `walk_rate.py`.** Both find the
+frames where the map view redraws and group consecutive ones into a step.
+`walk_rate.py` asks that a fifth of the view's pixels each move more than 40
+levels, which is too strict for a view that is mostly dark stone and misses
+steps once the map redraws on nearly every frame. `scroll_events.py` tests the
+whole view's mean absolute difference against a threshold of 2 levels. That is
+not a tuning knob: in these captures a quiet frame reads 0.0 and a redraw 3 to
+51, two orders of magnitude apart.
+
+**The reference's figures under this method, run `sq1`, six windows of 10 s:**
+
+| keys a second | steps a second, from the median gap |
+| --- | --- |
+| 25.0 | 2.143, 2.308, 1.765 |
+| 12.3 | 1.818, 2.143, 2.222 |
+
+Mean **2.07 steps a second**, standard error 4.4%, every window at 100%
+emulation speed and out of combat. The two over-rates differ by a factor of two
+and their means differ by **0.53%**, which is what the saturation design asked
+for: the step rate is the machine's and not the rig's. The spread within a rate
+is wider than the band, which is why the comparison is made on the mean of
+three windows a side and why the standard error is quoted with it.
+
+**What the band applies to** is therefore the mean of a side's windows, with
+its standard error stated. On the reference that is 2.07 ± 4.4%, comfortably
+inside a ±10% band; a kit mean further than 10% from 2.07 fails, and one
+inside it passes only if its own windows are as consistent.
