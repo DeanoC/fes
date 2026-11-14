@@ -92,7 +92,18 @@ now provide that separate opt-in through `--nano-sdm-source-rearm` in both boot
 builders. It requires the compiled CPU release/return paths and checks each
 source's release, warm preparation, transfer and retirement alongside the
 existing native lifecycle. Synthetic paired cycles pass; a new matched image,
-file admission and physical repeated-load trial remain required.
+file admission and physical repeated-load trial remain required. The later
+[matched repair and inventory stop](../../docs/validation/2026-11-14-de25-rearm-inventory-stop/README.md)
+passes the complete build and software checks, then stops before candidate
+programming when JTAG inventory reports a broken chain. It supplies no physical
+rearm acceptance.
+
+The [native programming-dispatch wrapper](../../docs/validation/2026-11-14-de25-native-dispatch/README.md)
+records execution inside the existing admitted programmer callback. Portable
+tests and injected copies of the actual transport/session distinguish a live
+inventory rejection from uncertain dispatch or a missing worker. The helper
+adds no programming or recovery authority; adoption requires a newly frozen
+operator. The consumed failed trial retains its original reset requirement.
 
 This directory develops the Linux-free DE25-Nano base. QEMU supplies combined
 launcher integration, while bounded Nano CPU/SD/package diagnostics now run on

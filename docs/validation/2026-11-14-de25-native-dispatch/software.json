@@ -1,0 +1,82 @@
+{
+  "scope": "native-program-dispatch-software-model-evidence",
+  "base_commit": "c19e095930f0affbcda344e0da3c3d5ccc6009ac",
+  "source_sha256": {
+    "platform/embedded/nano/native_program_dispatch.py": "c9707603d523ccd0880441305c4486f59c48918c0e42418b38d5f7d4f7e686c1",
+    "tests/test_nano_native_program_dispatch.py": "6d48562b6fb11702dbd076ac322462b0689afbe1f69f812d58bc9d93609d5357"
+  },
+  "checks": {
+    "native-dispatch-sticky-ownership": {
+      "result": {
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "-v",
+          "test_nano_native_program_dispatch",
+          "test_nano_jtag_programming",
+          "test_nano_jtag_scan"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-source-release",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 2.002280119108036,
+        "log_sha256": "47b450abf1b681f92cbe39b196c52c21b6c2d3e8c76db43a784c384d1038fc52"
+      },
+      "result_sha256": "08eea04fb46bd70f877e3d24c0e18ca8b09f69eb17fbbfa201cf36963a5b33bd"
+    },
+    "native-dispatch-worker-sticky-model": {
+      "result": {
+        "argv": [
+          "python3",
+          "out/native-dispatch-prototype/test_dispatch_adapter.py"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-source-release",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 0.6012824950739741,
+        "log_sha256": "3f4a989144d388e2955d8ad07a7e8daf0d155dac4c82611725acb9916cb373d7"
+      },
+      "result_sha256": "33867ba0d2f1d986795a176ef4d43487a2e04c280f5498632fc53dcfb035962c"
+    }
+  },
+  "focused_tests": 22,
+  "adapter_model_tests": 4,
+  "adapter_cases": [
+    "successful admitted dispatch",
+    "vendor inventory exception before dispatch",
+    "programmer exception after marker",
+    "early failure without dispatcher",
+    "missing worker result",
+    "actual worker-to-parent execution-state propagation"
+  ],
+  "prototype_sources": {
+    "out/native-dispatch-prototype/transport.py": "7c01959363ec00d26554fab3c8f3ae660aa1c66ff96370384b86e72bd8ae1d3b",
+    "out/native-dispatch-prototype/worker.py": "6eb466a63d0c956cc246923bae988e85bcba83e9ddfe898308830002d073f9f0",
+    "out/native-dispatch-prototype/test_dispatch_adapter.py": "a7ba57d27978a67455c10706f39c2e96ade2e76deef5eae5dad684cad76db063",
+    "out/native-dispatch-prototype/native_session.py": "48c8ec70c40d1b0377997ad1b4a4602181080c49aeb3cfd0de2fa8a34378c941",
+    "out/native-dispatch-prototype/rearm_session.py": "dbd06976664aef49c9743666051df5542f2d71e9a243b3b78cdd374464290578"
+  },
+  "prototype_original_sources": {
+    "native_session.py": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/rearm-trial/native_session.py",
+      "sha256": "48c8ec70c40d1b0377997ad1b4a4602181080c49aeb3cfd0de2fa8a34378c941"
+    },
+    "transport.py": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/rearm-trial/transport.py",
+      "sha256": "6fe92d57d18545ebd422a4dc33929b183884463fda165f91cc518999d87a25e8"
+    },
+    "rearm_session.py": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/rearm-trial/rearm_session.py",
+      "sha256": "cf56cf6c0ab8092dbf5f949489c508e42d529fe9f36034fbb6929eafb103000c"
+    },
+    "worker.py": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/rearm-trial/worker.py",
+      "sha256": "cc945cd280ad4a97b8ba062c811acf1c254a706d326ceb373fd772a11655ce56"
+    }
+  },
+  "hardware_actions": false,
+  "hardware_accepted": false,
+  "existing_failed_trial_and_restoration_unchanged": true,
+  "programming_scan_and_program_callbacks_injected": true
+}
