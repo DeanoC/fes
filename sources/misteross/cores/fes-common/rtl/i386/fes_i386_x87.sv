@@ -320,6 +320,7 @@ module fes_i386_x87 (
     logic        env_load;      // FLDENV or FRSTOR is loading, field by field
     logic        committed;     // the instruction in flight has retired
     logic [1:0]  nw;            // a no-wait form waiting to commit: 1 FNINIT, 2 FNCLEX
+    logic        nw_waiting;    // ... and its own uop has not issued yet
     logic [10:0] cur_op_raw;    // its 387 opcode, which commit stores
     logic        cur_ctrl;      // ... and whether it is a control form
     assign busy_o = busy;
@@ -376,9 +377,12 @@ module fes_i386_x87 (
     // (`!started`): a store's own conversion makes the unit busy before its
     // first uop issues, so testing `busy` alone would hold it for ever. Once
     // its first uop has gone (`fired`), a first uop is a new instruction's
-    // and waits again.
+    // and waits again. A no-wait form's slot (`nw`) is its own until its uop
+    // issues (`nw_waiting`), for the same reason: with the governor holding
+    // D it waits a cycle or more between being taken and issuing, and it
+    // must not wait on itself.
     assign hold = present && iss && !unbuilt
-               && (iss_nowait ? fired || busy || nw != 2'd0
+               && (iss_nowait ? fired || busy || nw != 2'd0 && !nw_waiting
                   : iss_wait ? latched || busy || nw != 2'd0
                              : iss_first && (fired || !started && (busy || latched || nw != 2'd0))
                               || val_form && seq != S_RDY
@@ -728,6 +732,7 @@ module fes_i386_x87 (
             fired <= 1'b0;
             committed <= 1'b0;
             nw <= 2'd0;
+            nw_waiting <= 1'b0;
             latched <= 1'b0;
             rw_en <= 1'b0;
             pnx <= 1'b0;
@@ -749,6 +754,7 @@ module fes_i386_x87 (
             fired <= 1'b0;
             committed <= 1'b0;
             nw <= 2'd0;
+            nw_waiting <= 1'b0;
             rw_en <= 1'b0;
             pnx <= 1'b0;
         end else begin
@@ -760,7 +766,10 @@ module fes_i386_x87 (
             // with BUSY# still active.
             // A wrong-path FNINIT or FNCLEX never commits, so its pending
             // apply goes with the flush whatever else is in flight.
-            if (flush) nw <= 2'd0;
+            if (flush) begin
+                nw <= 2'd0;
+                nw_waiting <= 1'b0;
+            end
             if (flush && started && !committed) begin
                 started <= 1'b0;
                 fired <= 1'b0;
@@ -768,7 +777,11 @@ module fes_i386_x87 (
                 pnx <= 1'b0;
                 seq <= S_IDLE;
             end else begin
-            if (take_nw) nw <= iss_dec == X87_INIT ? 2'd1 : 2'd2;
+            if (take_nw) begin
+                nw <= iss_dec == X87_INIT ? 2'd1 : 2'd2;
+                nw_waiting <= 1'b1;
+            end
+            if (iss && iss_fire && iss_nowait) nw_waiting <= 1'b0;
             if (wb && wb_last && started) committed <= 1'b1;
             // A load uop's value, and an environment's or a save image's
             // fields, as each commits.
@@ -1202,6 +1215,7 @@ module fes_i386_x87 (
             // so FNINIT's reset wins over an operation finishing with it.
             if (wb && wb_last && nw != 2'd0) begin
                 nw <= 2'd0;
+                nw_waiting <= 1'b0;
                 if (nw == 2'd1) begin
                     cw <= 16'h037f;
                     fl <= 6'd0;

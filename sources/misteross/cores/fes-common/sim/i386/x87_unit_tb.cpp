@@ -194,6 +194,29 @@ struct Unit {
         top.wb_last = 0;
         top.eval();
     }
+    // One uop presented for `held` cycles before it issues, as the speed
+    // governor holds D at an instruction's first uop. The unit must not
+    // wait on its own work while it waits there.
+    void present_held(unsigned op, unsigned fmt, unsigned held) {
+        top.iss = 1;
+        top.iss_wait = 0;
+        top.iss_op = op;
+        top.iss_fmt = fmt;
+        top.iss_first = 1;
+        top.iss_last = 1;
+        top.iss_part = 0;
+        top.iss_fire = 0;
+        top.eval();
+        for (unsigned n = 0; n < held; ++n) tick();
+        for (int n = 0; n < 64 && top.hold; ++n) tick();
+        top.iss_fire = 1;
+        top.eval();
+        tick();
+        top.iss = top.iss_first = top.iss_fire = 0;
+        top.eval();
+        commit(0, 0, true);
+        settle();
+    }
     // A write to port F0h, which clears the board's BUSY# latch.
     void clear_latch() {
         top.f0 = 1;
@@ -1015,6 +1038,23 @@ int main(int argc, char **argv) {
             u.present(op_fld_st(0), 0, true, true, 0);
             top_push_overlap_store(u);
         }
+
+        // The governor holds D at an instruction's first uop, so a form is
+        // presented for cycles before it issues: FNINIT and FNCLEX take a
+        // slot of their own when they are taken, and must not then wait on
+        // it. The lockstep at a governor preset deadlocked here.
+        u.clear_latch();
+        u.reg_form(OP_FNINIT);
+        u.load(OP_FLD_M80, FMT_F80, one);
+        u.present_held(OP_FNINIT, 0, 6);
+        if (u.cw() != 0x037f || u.sw() != 0 || u.tw() != 0xffff)
+            bad("held.fninit", "cw=" + hex(u.cw(), 4) + " sw=" + hex(u.sw(), 4) + " tw=" + hex(u.tw(), 4));
+        else ok("held.fninit");
+        u.load(OP_FLD_M80, FMT_F80, one);
+        u.present_held(OP_FNCLEX, 0, 4);
+        u.present_held(op_const(0), 0, 5);
+        if (((u.sw() >> 11) & 7) == 6) ok("held.forms");
+        else bad("held.forms", "top=" + hex((u.sw() >> 11) & 7, 1));
 
         // A control form leaves C1 and the other condition codes alone.
         u.clear_latch();
