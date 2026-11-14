@@ -352,10 +352,28 @@ def standalone(args, yosys, bin_dir: Path, env: dict, output: Path) -> tuple[Pat
     return project, top
 
 
+IDENTITY_OFF = "    wire x87_present = 1'b0;"
+
+
+def overlay_identity(text: str) -> str:
+    """pc386_system.sv with the i386dx+387 identity driven to 1, so the
+    fitter keeps the CPU's x87 unit (the package ties it to 0)."""
+    if text.count(IDENTITY_OFF) != 1:
+        raise SpikeError(f'pc386_system.sv no longer has exactly one {IDENTITY_OFF.strip()!r}')
+    return text.replace(IDENTITY_OFF, "    wire x87_present = 1'b1;")
+
+
 def machine(args, tools: dict, output: Path) -> tuple[Path, str]:
     project = sealer.write_project(ROOT, output, '0' * 32, args.seed)
     sealer.firmware_rom(ROOT)
     sources = list(sealer.MACHINE_SOURCES)
+    if args.identity_on:
+        overlay = output / 'overlay' / SYSTEM.name
+        overlay.parent.mkdir(parents=True, exist_ok=True)
+        overlay.write_text(overlay_identity((ROOT / SYSTEM).read_text()))
+        sources = [str(overlay) if source == SYSTEM.as_posix() else source for source in sources]
+        if str(overlay) not in sources:
+            raise SpikeError(f'{SYSTEM} is not among the sealer\'s machine sources')
     if args.variant != BASE:
         overlay = output / 'overlay' / SYSTEM.name
         overlay.parent.mkdir()
@@ -388,6 +406,11 @@ def main() -> int:
     parser.add_argument('--variant', choices=(*VARIANTS, *UNIT_VARIANTS, BASE), required=True)
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--hierarchy', action='store_true', help='keep the hierarchy for per-entity ALMs')
+    parser.add_argument('--identity-on', action='store_true',
+                        help="with --mode machine --variant base: overlay pc386_system's i386dx+387 identity to 1, "
+                             "so Quartus keeps the CPU's x87 unit. The package ties it to 0 until slice 5 of the "
+                             'x87 phase, which lets the fitter trim the unit away, so the delta between this fit '
+                             "and the same fit without the flag is the unit's cost inside the machine (#1768).")
     parser.add_argument('--output', type=Path, required=True, help='a new directory (absolute)')
     parser.add_argument('--keep', action='store_true', help="keep Quartus's databases")
     args = parser.parse_args()
@@ -398,6 +421,8 @@ def main() -> int:
             raise ValueError('--output must be a new absolute directory')
         if args.mode == 'standalone' and args.variant == BASE:
             raise ValueError('the base variant is the machine without the spike')
+        if args.identity_on and (args.mode != 'machine' or args.variant != BASE):
+            raise ValueError('--identity-on is for --mode machine --variant base')
         if args.mode == 'machine' and args.variant in UNIT_VARIANTS:
             raise ValueError('the unit variants fit standalone; the machine needs the CPU side')
         sealer._check_seed(args.seed)
@@ -431,7 +456,8 @@ def main() -> int:
             'created_utc': datetime.now(timezone.utc).isoformat(), 'quartus': version, 'mode': args.mode,
             'variant': args.variant,
             'parameters': VARIANTS.get(args.variant, UNIT_VARIANTS.get(args.variant, {})), 'seed': args.seed,
-            'hierarchy': args.hierarchy, 'gpu_router': args.gpu_router, 'device': sealer.board.TARGET,
+            'hierarchy': args.hierarchy, 'identity_on': args.identity_on,
+            'gpu_router': args.gpu_router, 'device': sealer.board.TARGET,
             'yosys': yosys_netlist.lock_record(ROOT, yosys, args.gpu_router, sealer.LOCK),
             'netlist': yosys_netlist.canonical(yosys_netlist.SEAL),
             'cpu_clock': {'name': clock, 'mhz': CPU_MHZ, **timing.get(clock, {})},
