@@ -67,7 +67,85 @@ def synth_pong(tree: Path, cache_root: Path):
     return output / "synth.json", {name: tool.identity for name, tool in authenticated.items()}
 
 
-CORES = {"fes.pong": synth_pong}
+def _run_yosys(producer, authenticated, output, command, output_relative):
+    """Each producer's own Yosys invocation, with its own audited environment."""
+    from scripts.functional_execution import FunctionalInvocation
+
+    invocation = FunctionalInvocation(authenticated, 0)
+    try:
+        producer._run_tool(command, producer.ROOT, output / "yosys.log",
+                           env=invocation.env, audit_source_root=producer.ROOT,
+                           output_relative=output_relative)
+    finally:
+        invocation.close()
+
+
+def synth_menu(tree: Path, cache_root: Path):
+    """fes.menu is the package producer, which is the one that carries BUILD_ID."""
+    producer = _load(tree, "build_fes_menu_package")
+    authenticated = producer._authenticate_tools(producer.ROOT, cache_root=cache_root)
+    output = producer.board._prepare_output(
+        producer.ROOT, relative=producer.OUTPUT, build_outputs=producer.OUTPUTS)
+    yosys, _route = producer.build_commands(
+        BUILD_ID, {name: authenticated[name].path
+                   for name in ("yosys", "nextpnr-mistral")})
+    _run_yosys(producer, authenticated, output, yosys, producer.OUTPUT)
+    return output / "synth.json", {n: t.identity for n, t in authenticated.items()}
+
+
+def synth_ramtest(tree: Path, cache_root: Path):
+    producer = _load(tree, "build_fes_ramtest")
+    authenticated = producer.authenticate_for(producer.ROOT, 100, cache_root)
+    relative = producer.output_for(100)
+    output = producer.board._prepare_output(
+        producer.ROOT, relative=relative, build_outputs=producer.BUILD_OUTPUTS)
+    commands = producer.build_commands(
+        producer.ROOT, BUILD_ID, {name: authenticated[name].path
+                                  for name in ("yosys", "nextpnr-mistral")},
+        memory_mhz=100)
+    _run_yosys(producer, authenticated, output, commands[0], relative)
+    return output / "synth.json", {n: t.identity for n, t in authenticated.items()}
+
+
+def synth_riscv(tree: Path, cache_root: Path):
+    producer = _load(tree, "build_fes_riscv")
+    authenticated = producer._authenticate_tools(producer.ROOT, cache_root=cache_root)
+    output = producer.board._prepare_output(
+        producer.ROOT, relative=producer.OUTPUT, build_outputs=producer.BUILD_OUTPUTS)
+    commands = producer.build_commands(
+        BUILD_ID, {name: authenticated[name].path
+                   for name in ("yosys", "nextpnr-mistral")})
+    _run_yosys(producer, authenticated, output, commands[0], producer.OUTPUT)
+    return output / "synth.json", {n: t.identity for n, t in authenticated.items()}
+
+
+def _zx81_model(model: str):
+    def synth(tree: Path, cache_root: Path):
+        producer = _load(tree, "build_fes_zx81_oss")
+        authenticated = producer._authenticate_tools(
+            producer.ROOT, cache_root=cache_root, gpu_router="HIP")
+        relative = producer.model_for(model).output
+        output = producer.ROOT / relative
+        output.mkdir(parents=True, exist_ok=True)
+        yosys, _route = producer.build_commands(
+            producer.ROOT, output, BUILD_ID,
+            {name: authenticated[name].path
+             for name in ("yosys", "nextpnr-mistral")}, model=model)
+        _run_yosys(producer, authenticated, output, yosys, relative)
+        return output / "synth.json", {n: t.identity for n, t in authenticated.items()}
+    return synth
+
+
+CORES = {
+    "fes.pong": synth_pong,
+    "fes.menu": synth_menu,
+    "fes.ramtest": synth_ramtest,
+    "fes.riscv": synth_riscv,
+    "fes.zx81": _zx81_model("zx81"),
+    "fes.zx80": _zx81_model("zx80"),
+    "fes.ts1000": _zx81_model("ts1000"),
+    "fes.ts1500": _zx81_model("ts1500"),
+}
 
 
 def main(argv=None) -> int:
