@@ -175,14 +175,14 @@ class GpuLeaseTests(unittest.TestCase):
             time.sleep(0.02)
         self.fail('condition not met: ' + repr(last))
 
-    def hold(self, *args, env=None, seconds=30):
+    def hold(self, *args, env=None, seconds=30, wait_timeout=5):
         proc = self.popen((*args, '--', '/bin/sleep', str(seconds)), env=env)
         def held():
             if proc.poll() is not None:
                 self.fail('holder exited %s: %s' % (proc.returncode, proc.stderr.read()))
             report = self.status(env)
             return any(gpu['state'] == 'held' and gpu.get('pid') == proc.pid for gpu in report['gpus'])
-        self.wait_for(held)
+        self.wait_for(held, timeout=wait_timeout)
         return proc
 
     def test_parsers_and_render_node_ids(self):
@@ -837,7 +837,7 @@ class GpuLeaseTests(unittest.TestCase):
         env = self.env(GPU_LEASE_MAX_PER_OWNER='1')
         # The holder is explicitly killed below and cleaned up on failure. It
         # must not expire while a loaded runner is still arranging the queue.
-        holder = self.hold('--no-wait', '--owner', 'alice', env=env, seconds=3600)
+        holder = self.hold('--no-wait', '--owner', 'alice', env=env, seconds=3600, wait_timeout=30)
         denied = self.run_tool(GPU_RUN, ['--no-wait', '--owner', 'alice', '--', '/bin/sleep', '1'], env=env)
         self.assertEqual(denied.returncode, 75, denied.stderr)
         too_many = self.run_tool(GPU_RUN, ['--no-wait', '--gpus', '2', '--owner', 'carol', '--', TRUE], env=env)
