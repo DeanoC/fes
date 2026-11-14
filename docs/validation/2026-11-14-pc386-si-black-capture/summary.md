@@ -137,10 +137,11 @@ for a whole launch with HDMI audio arriving at the lit level.
 #1494's runs `k7`–`k9` could not have seen a frozen frame either way. Every
 launch ended at the same DOS prompt, so a stale frame is indistinguishable from
 a live one: across `k8`'s 101 prompt grabs there are only 10 distinct frame
-hashes, each repeated 11–18 times (the prompt's blinking cursor). That hole is
-still open: the queued `b1` run types a per-launch nonce before the grab so that
-a stale frame cannot pass as a live one, and until it lands no kit evidence here
-distinguishes the two.
+hashes, each repeated 11–18 times (the prompt's blinking cursor). Run `b1` closes that hole for
+its own launches by typing a per-launch nonce before the grab (see below), but it
+saw no black launch in 13, so it has no episode of its own to say whether an
+episode's frame is live or stale. Run `b2` continues the hunt with the same
+nonce and a denser capture-buffer sample.
 
 ## The signature in data already taken
 
@@ -263,7 +264,7 @@ Three recordings now separate the two states, all reduced per frame here:
 | --- | --- | --- | --- |
 | `k1770/runs/kitB-20261113-112300/r0-timing.mkv` | #1823 episode, Kit B | 360 in 6.0 s at 60 fps | every frame's peak grey 0, no gap over 1 s |
 | `k1831-hil/runs/kitB-20261114-102055/restore0-home.mkv` | #1831's 14 November episode, Kit B | 359 in 6.0 s at 60 fps | the same |
-| `b1`'s luma log, launch `p0n000` | a normal pc386 core load, Kit B | 2,179 in 42 s | **no frames at all** from ~11.5 s to ~17 s, then the picture; 4 black frames at 22.1 s, which are the `cls` the run types |
+| `b1`'s luma log, launch `p0n000` | a normal pc386 core load, Kit B | 2,179 in 42 s | **no frames at all** from ~11.5 s to ~17 s, then the picture; 4 black frames at 22.1 s, at the guest's own boot transition |
 
 So a bring-up's own outage, as it happens, shows up in the capture as **missing
 frames**, while an episode shows up as a **full-rate stream of delivered black
