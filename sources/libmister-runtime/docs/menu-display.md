@@ -230,22 +230,30 @@ paced to one per second whoever asks for it, so a client whose own status
 stream is effectively the sole driver of the check measures before every
 present it provokes and can stay one behind indefinitely. Any other status
 traffic at another phase refreshes the sample after the present instead and
-ends it. A separate path has no phase condition at all: a check whose
-register reads fail consumes its pacing slot and deliberately publishes
-nothing, so the sample stays frozen while presents keep moving the committed
-sequence, and a client subtracting the two is wrong on every probe until the
-reads come back.
+ends it. A failing read can extend it, but not unconditionally: a check whose
+display-register read fails consumes its pacing slot and deliberately
+publishes nothing, so the sample stays frozen. For presents to keep moving the
+committed sequence meanwhile, those same reads have to be succeeding on the
+present path -- `PresentMenuSlot` commits the sequence only after its own
+`ReadInfo` succeeds -- so a frozen sample alongside advancing presents needs
+failures intermittent enough to hit the deferred checks and miss the presents
+between them. A failure of the transmitter reads alone does not freeze the
+sample at all: `ReadIdleDisplayLive` still publishes the display half.
 
-What was measured, on Kit B against image `179affbb`: two activations each of
-the pre-verdict head and this one, with a UI change driven by injected key
-presses and the committed sequence sampled once a second for twenty seconds
-either side. The one-behind sample is real and was observed directly on this
-head -- `live.displayed_sequence` 67 against a committed 68, converging on
-the next sample, with the verdict reading `unknown` at that moment. No extra
-presents appeared on the pre-verdict head in that configuration. That run
-does not bound the cost either way: a client sampling status is itself what
-drives the check, so the instrument is in the causal path and the measurement
-cannot say how often the phases line up on a kit nobody is polling.
+What was measured, on 2026-11-13 on Kit B against image
+`179affbbd949d38652742a35735acf5cc9754043ab70157aa51b6cc6a1eed018`: two
+activations each of runtime commit `b9f7052617b33b42067f5f9842af2add5132e0fa`
+(the pre-verdict head, kit-software bundle `0360cfc3`) and
+`1f5616b6b4e18232e2a5e5c85b4263b3dc1f56fd` (bundle `b765ee45`), with a UI
+change driven by injected key presses and the committed sequence sampled once
+a second for twenty seconds either side. The one-behind sample is real and was
+observed directly on `1f5616b6b` -- `live.displayed_sequence` 67 against a
+committed 68, converging on the next sample, with the verdict reading
+`unknown` at that moment. No extra presents appeared on `b9f705261` in that
+configuration. That run does not bound the cost either way: a client sampling
+status is itself what drives the check, so the instrument is in the causal
+path and the measurement cannot say how often the phases line up on a kit
+nobody is polling.
 
 `live.scanout_frame` is that comparison, made inside the check where
 `live.displayed_sequence` and the committed sequence are read in the same
@@ -275,7 +283,7 @@ loss the runtime gave up on.
 A client treats only `"mismatched"` as a loss: an unknown verdict costs at
 most one more probe interval before the next check speaks, and that is the
 direction to err in. That bound assumes the checks keep reading. A check whose
-register reads fail publishes nothing at all, deliberately, so that it cannot
+display-register read fails publishes nothing at all, deliberately, so that it cannot
 retract a give-up that is still in force, and the verdict then stands at
 whatever the last successful check or the last present left it for as long as
 the reads keep failing. The same failure fails presents, so a client learns of
