@@ -1,5 +1,7 @@
 # DE25 report drain before USB shutdown
 
+Later hardware state and candidate results are recorded in [USB recovery and warm preparation stop](../2026-11-14-de25-usb-recovered-warm-stop/README.md). Board-state statements below describe this earlier checkpoint.
+
 Source `fdf6ce1650a3f1b882042688eed81b9c05ca1116` closes a gap in native USB shutdown. Returning from the last core resumes report polling. Final USB Close previously went directly to firmware Stop, so an asynchronous DWC2 packet or unread receive status could still be pending.
 
 Close now revokes local polling and, when the driver exposes polling control, completes its existing bounded pause/drain before firmware Stop. The same source/client locks cover the drain and Stop. A stale receipt is rejected before driver access. An already-paused source is not drained twice, and an already-failed driver is never re-entered. Firmware still independently proves channel/PIO/master/reset state; a driver drain is not reset authority. Sources without asynchronous polling control retain their existing synchronous-report/firmware-stop contract.

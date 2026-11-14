@@ -1,5 +1,7 @@
 # DE25 baseline final USB failure and host-only reset
 
+Later hardware state and candidate results are recorded in [USB recovery and warm preparation stop](../2026-11-14-de25-usb-recovered-warm-stop/README.md). Board-state statements below describe this earlier checkpoint.
+
 Following the second fresh human-confirmed physical reset, read-only restoration `ac4945e957b76ce474ae436dedfbbffb0a4a40829a99ac7b6a5f2c8931b14bcd` verified all seventeen original files through independent nonce-bound saved-wire replay, with zero SD writes or network commands. Exact original FIT `d79a8e…` and its sealed native boot passed. The repaired expected-word image was not programmed.
 
 The native baseline issued 51 commands. Independent prefix replay verifies the first 50 and two core launches. The final Quit was issued, but USB Close failed with `usbcontrol: firmware status 4`, followed by a retained-ownership panic. The final menu drain appears in the trace; the full final application Park receipt is absent and is not inferred from that drain. No enclosing host deadline expired (487.083 seconds total).

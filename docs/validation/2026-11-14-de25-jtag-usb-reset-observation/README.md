@@ -1,5 +1,7 @@
 # DE25 volatile JTAG recovery after final USB Close failure
 
+Later hardware state and candidate results are recorded in [USB recovery and warm preparation stop](../2026-11-14-de25-usb-recovered-warm-stop/README.md). Board-state statements below describe this earlier checkpoint.
+
 One newly authorized probe `37f7d99a0b2da2780fa58b5cf59f1605f9d776f832eee2d2b76808a2f743ca01` reached a fresh recovery-loader prompt and observed USB0's module and packet-RAM reset bits held, without another physical power cycle after the failed original-baseline Quit. It completed in 86.565 seconds. This is a full volatile FPGA/HPS recovery reload through the existing admitted JTAG path; it is not an isolated USB peripheral toggle or recovery of the old runtime.
 
 The preceding host-adapter reset had returned but could not establish on-kit recovery. The new probe admitted only the archived original-FIT final USB Close failure: all seventeen files had passed read-only verification, fifty App commands and two core launches replayed, and final reader/master/menu closure was observed. It rejects the private SMMU/rearm/recovery failure class. The old failed procedure stayed consumed and was not retried.
