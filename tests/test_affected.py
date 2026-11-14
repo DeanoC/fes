@@ -144,7 +144,8 @@ class AffectedTests(unittest.TestCase):
 
     def test_shared_hps_ddr_guard_regression_selects_ramtest_simulation(self):
         for relative in ('cores/fes-common/sim/hps_ddr_guard_tb.sv',
-                         'tests/test_fes_hps_ddr_guard.py'):
+                         'tests/test_fes_hps_ddr_guard.py',
+                         'tests/test_sim_fes_ramtest_hook.py'):
             with self.subTest(relative=relative):
                 result = plan(['sources/misteross/' + relative])
                 self.assertEqual(result['cores'], ['ramtest'])

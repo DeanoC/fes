@@ -234,8 +234,6 @@ sim-pong:
 .PHONY: sim-fes-application sim-fes-splash build-fes-splash sim-fes-ramtest build-fes-ramtest-100 build-fes-ramtest-130 diagnose-fes-ramtest-timing build-fes-ramtest-quartus
 sim-fes-ramtest:
 	$(require_local_sim)
-	@command -v "$(VERILATOR)" >/dev/null || { echo "Verilator not found: $(VERILATOR)" >&2; exit 1; }
-	VERILATOR="$(VERILATOR)" $(PYTHON) -m unittest -v tests.test_fes_hps_ddr_guard
 	$(PYTHON) scripts/sim_fes_ramtest.py
 
 build-fes-ramtest-100:

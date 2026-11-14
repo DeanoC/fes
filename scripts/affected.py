@@ -164,7 +164,8 @@ def fpga_cores(path):
     if relative.as_posix() == 'cores/fes-common/generated/fes_display_plane.vh':
         return ('menu', 'zx81', 'spectrum', 'c64', 'coleco', 'pc386'), 'display-plane fabric consumers'
     if relative.as_posix() in ('cores/fes-common/sim/hps_ddr_guard_tb.sv',
-                                'tests/test_fes_hps_ddr_guard.py'):
+                                'tests/test_fes_hps_ddr_guard.py',
+                                'tests/test_sim_fes_ramtest_hook.py'):
         return ('ramtest',), 'shared HPS DDR guard simulation'
     if len(parts) >= 3 and parts[0] == 'cores':
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
