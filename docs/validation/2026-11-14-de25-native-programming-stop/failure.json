@@ -1,0 +1,83 @@
+{
+  "status": "retained-stopped-native-programming-failure",
+  "procedure_sha256": "8ec8372b6f829ea56a11c48119b0933e48c023911f9c915372d383787581d239",
+  "wrapper": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/terminal-recovery-trial/run_trial.py",
+      "--procedure-sha256",
+      "8ec8372b6f829ea56a11c48119b0933e48c023911f9c915372d383787581d239",
+      "--execute"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 1,
+    "timed_out": false,
+    "elapsed": 316.59940285701305,
+    "log_sha256": "4d8fdc56b78c10f0029f5b118c84d3b1becd1aa38672231dfbdac6b62adc86cf"
+  },
+  "flow": {
+    "physical_reset_required": true,
+    "recovery_safe": false,
+    "status": "stopped",
+    "diagnostic_verified": false,
+    "baseline_restored": false,
+    "rollback_attempted": false,
+    "fit_state": "candidate",
+    "ordinary_admission": false,
+    "hardware_acceptance": false,
+    "live_adapter_qualified": false,
+    "error": "bounded role stopped: native-diagnostic",
+    "roles_consumed": [
+      "recovery-before",
+      "native-diagnostic"
+    ],
+    "plan_sha256": "720a486651471fe588ffc7dacefff0521e6f5bf6505d5d0b63d5c63b28f6fab7"
+  },
+  "native_error": "programmer returned failure",
+  "program_sha256": "d62d91b959f37d43a3b640cfee641a786179146d49665f3135d2e155c358f5c5",
+  "native_boot_bytes": 0,
+  "native_SDM_DATA_observed": false,
+  "deadline_expired": false,
+  "UART_unheld": true,
+  "cleanup": [
+    {
+      "role": "recovery-before",
+      "cleanup": {
+        "transport_cleaned": true,
+        "clock_restored": true,
+        "owned_server_stopped": true,
+        "usb_permissions_restored": true,
+        "errors": []
+      },
+      "parameters": [
+        "1",
+        "15M"
+      ],
+      "USB_identity_inode_permissions_match": true
+    },
+    {
+      "role": "native-diagnostic",
+      "cleanup": {
+        "transport_cleaned": true,
+        "clock_restored": true,
+        "owned_server_stopped": true,
+        "usb_permissions_restored": true,
+        "errors": []
+      },
+      "parameters": [
+        "1",
+        "15M"
+      ],
+      "USB_identity_inode_permissions_match": true
+    }
+  ],
+  "original_FIT_restored": false,
+  "candidate_FIT_on_card": true,
+  "physical_reset_required": true,
+  "diagnostic_retry_authority": false,
+  "hardware_acceptance": false,
+  "owned_process_count": 10,
+  "source_sha256": "709be9453f18c350746f3444d698b05c9c41dc2c68f4db6ea48e8d2adf92832d"
+}

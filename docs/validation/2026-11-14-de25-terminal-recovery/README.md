@@ -83,8 +83,11 @@ Every result leaves reset completion, fresh boot admission, recovery safety,
 source reuse and ordinary resume false. This is UART telemetry, not permission
 to bypass the host's existing physical-reset stop after a native failure.
 
-The selected firmware has not been programmed. Physical cold reset, loader
+The [subsequent bounded trial](../2026-11-14-de25-native-programming-stop/README.md)
+installed the selected FIT, then stopped with a JTAG programming error before
+any native boot output. No successful selected-firmware programming/boot receipt
+exists; partial configuration is uncertain. Physical cold reset, loader
 redelivery, both SMMU banks, fresh device/boot-epoch admission and subsequent
 repeated core loading remain unqualified. No current source sequence may reuse
-memory or continue because a reset request was issued. TRWU8CBL is untouched;
-its last verified hardware state remains the original native baseline at Park.
+memory or continue because a reset request was issued. The linked trial record
+tracks restoration separately from this source-bound build evidence.

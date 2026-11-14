@@ -1,0 +1,14 @@
+{
+  "status": "passed-independent-stopped-trial-archive-readback",
+  "procedure_sha256": "8ec8372b6f829ea56a11c48119b0933e48c023911f9c915372d383787581d239",
+  "archive": "/home/deano/fes-retained/de25-terminal-trial-failed-physical-20261114-r2/physical-trial.tar.gz",
+  "archive_sha256": "55aa7ee8831ffd9b406f75af70b70f6301b828a7098627de08818a2cd301d2eb",
+  "archive_bytes": 760956,
+  "files": 143,
+  "records_stopped": 10,
+  "UART_unheld": true,
+  "clock_USB_cleanup_verified": true,
+  "physical_reset_required": true,
+  "original_FIT_restored": false,
+  "diagnostic_retry_authority": false
+}

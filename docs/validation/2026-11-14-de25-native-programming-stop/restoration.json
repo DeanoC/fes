@@ -1,0 +1,124 @@
+{
+  "status": "passed-original-FIT-and-baseline-restoration-after-terminal-native-programming-stop",
+  "restoration_procedure_sha256": "d9583648655d04ce54392b53b506503ea8a40aaa7cbcdd5f2564c9aa942bd36d",
+  "failed_trial_procedure_sha256": "8ec8372b6f829ea56a11c48119b0933e48c023911f9c915372d383787581d239",
+  "failed_trial_archive_sha256": "55aa7ee8831ffd9b406f75af70b70f6301b828a7098627de08818a2cd301d2eb",
+  "elapsed_seconds": 530.7247961428948,
+  "original_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+  "original_phase1_sha256": "c01c97dde2fe75ce7e6145ccce2a52b6fa8449f43731ba0bd2ce94cbfc3d91d4",
+  "original_FIT_verified_by_sealed_SPL": true,
+  "fresh_SD_file_readbacks_claimed": true,
+  "SD_refresh_attempted": true,
+  "exact_original_FIT_rollback": {
+    "status": "verified-reversible-fit-refresh",
+    "direction": "rollback",
+    "plan_sha256": "720a486651471fe588ffc7dacefff0521e6f5bf6505d5d0b63d5c63b28f6fab7",
+    "previous_boot_sha256": "3a70eb273cbdd3d2f01882f03e8b12c64ef2851d5ba56b4a4d7136e21d259a0c",
+    "boot_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+    "preserved_files": 16,
+    "readbacks_before": 17,
+    "readbacks_after": 17,
+    "session": "d93ce35f4bafca00af707fd151d0f706",
+    "physical_boot_accepted": false
+  },
+  "read_only_reset_gate": {
+    "status": "passed-read-only-NS-SMMU-reset-gate",
+    "commands": [
+      {
+        "command": "md.l 16000020 4",
+        "words": {
+          "369098784": 0,
+          "369098788": 0,
+          "369098792": 0,
+          "369098796": 4
+        }
+      },
+      {
+        "command": "md.l 16000044 2",
+        "words": {
+          "369098820": 0,
+          "369098824": 0
+        }
+      },
+      {
+        "command": "md.l 16000060 2",
+        "words": {
+          "369098848": 0,
+          "369098852": 0
+        }
+      },
+      {
+        "command": "md.l 16000080 3",
+        "words": {
+          "369098880": 0,
+          "369098884": 0,
+          "369098888": 0
+        }
+      },
+      {
+        "command": "md.l 16000090 4",
+        "words": {
+          "369098896": 0,
+          "369098900": 0,
+          "369098904": 0,
+          "369098908": 0
+        }
+      },
+      {
+        "command": "md.l 160000a0 2",
+        "words": {
+          "369098912": 0,
+          "369098916": 0
+        }
+      },
+      {
+        "command": "md.l 160100a8 2",
+        "words": {
+          "369164456": 0,
+          "369164460": 0
+        }
+      }
+    ],
+    "reads": 19,
+    "elapsed_seconds": 0.26496884995140135,
+    "register_writes": 0,
+    "network_commands": 0,
+    "SD_writes": 0,
+    "secure_bank_examined": false,
+    "reset_domain_qualified": false,
+    "DMA_authority": false
+  },
+  "baseline_boot_verified": true,
+  "baseline_cycle_commands": 51,
+  "baseline_exit_generation": 5,
+  "baseline_final_Park_verified": true,
+  "independent_saved_wire_replay": {
+    "status": "passed-saved-installer-wire-and-poll-times",
+    "discovered": true,
+    "commands": 51,
+    "polling_offers": 600,
+    "hardware_actions": false,
+    "live_authority": false,
+    "persistence_verified": false
+  },
+  "program_and_wire_witness": {
+    "boot_boundary_verified": true,
+    "console_sha256": "cd008c96cb8200bbbc07306087a08bb5470c3d2720b553181290890e55c67a38",
+    "all_wire_sha256": "76ddc38553b503fd6862d6fff2424f9e0f3abc1b7b4e8724cf3b1f329b5726d6",
+    "completed_program_epoch": "4078965:170506455"
+  },
+  "UART_closed_and_free": true,
+  "USB_identity_inode_permissions_restored": true,
+  "JTAG_auto_1_15M": true,
+  "after_fresh_human_confirmed_power_cycle": true,
+  "failed_candidate_retried": false,
+  "failed_candidate_native_menu_qualified": false,
+  "candidate_native_programming_previously_issued": true,
+  "baseline_drain_root_cause_fixed": false,
+  "last_verified_board_state": "original native baseline final Park",
+  "general_core_load_acceptance": false,
+  "permanent_QSPI_written": false,
+  "factory_card_changed": false,
+  "bottom_kit_touched": false,
+  "owned_process_count": 8
+}
