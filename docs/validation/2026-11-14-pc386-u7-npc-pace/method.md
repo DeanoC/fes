@@ -190,3 +190,32 @@ scores, taken in the same runs as the pace captures; the drive digests; the
 per-window figures and their validity gates; and, if no figure survives the
 gates, what would be needed to measure it, in the way #1838 recorded the
 Ultima VI walk's three dead ends.
+
+## Amendment, after scouting the reference and before any capture
+
+Written after the reference was scouted for a scene and before any pace
+window was captured on either side. **No pace figure of any kind had been
+read when this was written**, on either machine, and none was read
+afterwards; what had been seen is only the game's own front end on the
+reference, listed below. The band, the metric and the board are unchanged.
+
+1. **The route is START NEW GAME, not "Journey Onward" from the shipped
+   save.** `method.md` above says the scene is "reached by Journey Onward
+   from the save the game ships", inherited from #1838's third amendment.
+   Scouting shows the kit's own command file for this title
+   (`~/fes-scratch/u6ref/cmds/kit-u7-g1.jsonl`, written for the 14 November
+   kit run) takes START NEW GAME and types a character name, so a new game is
+   what the kit side is set up to reach and what both sides should use. A new
+   game is also the stronger choice: it needs no save file on the drive image,
+   so the two sides cannot differ by one.
+2. **The title screen times out into the introduction after about 20
+   seconds.** Every step between the menu appearing and the click has to fit
+   inside that, which rules out grabbing a frame to check the aim before
+   clicking. Any command file for this game must reach its click without a
+   verification grab in between.
+3. **The reference's emulation speed is not under this work's control.**
+   Powerboat carried a load average above 50 from other sessions throughout
+   the scouting, and 86Box's own readout fell as low as 17%. The validity
+   gate above (100% for the whole window) already covers this, but it means a
+   reference window can only be taken when the host is quiet, and the record
+   must give the readout for each window.
