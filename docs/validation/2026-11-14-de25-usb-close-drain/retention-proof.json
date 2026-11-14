@@ -1,0 +1,89 @@
+{
+  "status": "passed-independent-USB-close-drain-source-and-model-retention",
+  "source_commit": "fdf6ce1650a3f1b882042688eed81b9c05ca1116",
+  "source_bundle_prerequisite": "f595868d8a5c1bfc51edd19586840a8002d0506d",
+  "archive": "/home/deano/fes-retained/de25-usb-close-drain-models-20261114-r1/models.tar.gz",
+  "archive_sha256": "39e78237a44a61be1ff3e0e8a487801d8e80cdfb5f81747437e62a446cba8f00",
+  "files": 23,
+  "checks": {
+    "usb-close-drain-focused-r1": {
+      "argv": [
+        "bash",
+        "-c",
+        "cd /home/deano/fes/out/dev/de25-setup-release/platform/embedded/tamago && GOWORK=off go test -count=1 ./usbcontrol ./dwc2 -run \"Test(OwnedClose|CloseDrains)\" -v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.801528646145016,
+      "log_sha256": "b2be685c65a602cc0d10c6441a144d0ec32c775232a737b0e3eb916dbe0d8d62"
+    },
+    "usb-close-drain-counterexample-r1": {
+      "argv": [
+        "python3",
+        "out/publication/check-usb-close-drain-control.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.4164062321651727,
+      "log_sha256": "b1f06ea82b970d313ebddb63da7355e9891adda6d10139ca5d54f29adc03d4d8"
+    },
+    "usb-close-drain-race-r1": {
+      "argv": [
+        "bash",
+        "-c",
+        "cd /home/deano/fes/out/dev/de25-setup-release/platform/embedded/tamago && GOWORK=off go test -race -count=1 ./usbcontrol ./dwc2 ./nativefabric"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 231.9949160509277,
+      "log_sha256": "579ac5f6b0779e021807173d0bbb99dced109417c6788342eb33839257758987"
+    },
+    "usb-close-check-r1": {
+      "argv": [
+        "make",
+        "-C",
+        "/home/deano/fes/out/dev/de25-setup-release",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 18.039448032854125,
+      "log_sha256": "4ffe37a0582de7ca316571feada015e041e0fcc1e04f967bf1c719a8c98bc0bc"
+    }
+  },
+  "previous_source_counterexample": {
+    "status": "passed-exact-previous-source-counterexample",
+    "previous_commit": "f595868d8a5c1bfc51edd19586840a8002d0506d",
+    "previous_source_sha256": "39c60d0b7863f1c2f80629687feafd1256193145ca6c2bf1ebe346b40f48d32e",
+    "new_source_sha256": "0e25a6fbbaee1ec158d4389248aaeae849caf2b7078a5d562663ff09838cb50a",
+    "old_check_returncode": 1,
+    "expected_stop_before_drain_failures": 4,
+    "already_paused_cases_pass": 2,
+    "argv": [
+      "go",
+      "test",
+      "-count=1",
+      "-overlay",
+      "/home/deano/fes/out/dev/de25-source-release/out/usb-close-drain-control/overlay.json",
+      "./dwc2",
+      "-run",
+      "^TestOwnedCloseDrainsBeforeFirmwareStop$",
+      "-v"
+    ],
+    "elapsed_seconds": 1.1908108310308307,
+    "log_sha256": "02f3771db648b6d356c09b94967103c04c167124fdb61b4e62befe51cd7c08c4",
+    "hardware_actions": false
+  },
+  "source_sha256": {
+    "platform/embedded/tamago/dwc2/close_polling_test.go": "33bc9154710d835098eac60bab263fb5ab38cd07014fea83f759bfd16fb21a1a",
+    "platform/embedded/tamago/usbcontrol/README.md": "c9149fef23d6bd1789dfcd6f9deab60d6ab225f38ec777474869373fa64eb07c",
+    "platform/embedded/tamago/usbcontrol/close_polling_test.go": "5ff115802a6341617d3b74e6c3e63a7718f89c396e1a7e5e7fbae902af1bdc49",
+    "platform/embedded/tamago/usbcontrol/source.go": "0e25a6fbbaee1ec158d4389248aaeae849caf2b7078a5d562663ff09838cb50a"
+  },
+  "hardware_actions": false,
+  "hardware_accepted": false
+}

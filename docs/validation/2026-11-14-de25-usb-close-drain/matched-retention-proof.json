@@ -1,0 +1,205 @@
+{
+  "status": "passed-independent-USB-close-drain-matched-archive-readback",
+  "source_commit": "fdf6ce1650a3f1b882042688eed81b9c05ca1116",
+  "source_bundle_prerequisite": "f595868d8a5c1bfc51edd19586840a8002d0506d",
+  "archive": "/home/deano/fes-retained/de25-usb-close-drain-matched-20261114-r1/matched.tar.gz",
+  "archive_sha256": "aba8a644bf7aa04039e47843415b30f9d50248de691a7493f30796f50721e9df",
+  "archive_bytes": 539929747,
+  "files": 46720,
+  "unique_regular_payloads": 43877,
+  "checks": {
+    "publication-projects": {
+      "argv": [
+        "python3",
+        "out/publication-boot/prepare.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-usb-close-drain-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.004797078901902,
+      "log_sha256": "2477a5d23bf5830b4c14f04b5bc164c73f0f725fb1c50fca1fb1d51288f6e131"
+    },
+    "publication-sdk": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/build-native.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-usb-close-drain-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 227.72945748106577,
+      "log_sha256": "6a17c080b5d2f087ee88608fe01b102d3ce3e16db6c97535ce489e7afe2d7c8b"
+    },
+    "publication-entry": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/build-chain.py",
+        "entry"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-usb-close-drain-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 153.19218603079207,
+      "log_sha256": "b7b07afa5c7009b22b07f46325432438ce4b7b92ba0fd0f57af94e4f61614757"
+    },
+    "publication-bl31": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/build-chain.py",
+        "bl31"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-usb-close-drain-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 57.82890286389738,
+      "log_sha256": "d3e8549a53dff885da2ea6adba9426f921bec99bd59a9028b7c687a53566de1c"
+    },
+    "publication-uboot": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/build-chain.py",
+        "uboot"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-usb-close-drain-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 172.34930486092344,
+      "log_sha256": "8f42a2fedc544f7985fce22c9641e5469ba4452f664b2fd6c53948dd465831dc"
+    },
+    "publication-compose": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/compose.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-usb-close-drain-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 125.68465563119389,
+      "log_sha256": "cd035d8fc6d01adb417a9aed8f751eb66c40d289f6bf155ff4fb81a445820bff"
+    },
+    "publication-matched": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/verify-chain.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-usb-close-drain-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 78.86777120805345,
+      "log_sha256": "72554faf58cb2e49b72b70232603009317be5102eab9dccde016e0035191cf82"
+    },
+    "usb-close-matched-pipeline-r1": {
+      "argv": [
+        "python3",
+        "out/publication/run-publication-matched.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-usb-close-drain-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 816.0911626019515,
+      "log_sha256": "77940238cd5b1c015d4b9b10c0e6f97a669176fb21d24b378bc4ff76bda19b09"
+    },
+    "usb-close-drain-focused-r1": {
+      "argv": [
+        "bash",
+        "-c",
+        "cd /home/deano/fes/out/dev/de25-setup-release/platform/embedded/tamago && GOWORK=off go test -count=1 ./usbcontrol ./dwc2 -run \"Test(OwnedClose|CloseDrains)\" -v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.801528646145016,
+      "log_sha256": "b2be685c65a602cc0d10c6441a144d0ec32c775232a737b0e3eb916dbe0d8d62"
+    },
+    "usb-close-drain-counterexample-r1": {
+      "argv": [
+        "python3",
+        "out/publication/check-usb-close-drain-control.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.4164062321651727,
+      "log_sha256": "b1f06ea82b970d313ebddb63da7355e9891adda6d10139ca5d54f29adc03d4d8"
+    },
+    "usb-close-drain-race-r1": {
+      "argv": [
+        "bash",
+        "-c",
+        "cd /home/deano/fes/out/dev/de25-setup-release/platform/embedded/tamago && GOWORK=off go test -race -count=1 ./usbcontrol ./dwc2 ./nativefabric"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 231.9949160509277,
+      "log_sha256": "579ac5f6b0779e021807173d0bbb99dced109417c6788342eb33839257758987"
+    },
+    "usb-close-check-r1": {
+      "argv": [
+        "make",
+        "-C",
+        "/home/deano/fes/out/dev/de25-setup-release",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 18.039448032854125,
+      "log_sha256": "4ffe37a0582de7ca316571feada015e041e0fcc1e04f967bf1c719a8c98bc0bc"
+    }
+  },
+  "integration": {
+    "status": "passed-generated-source-and-object-checks",
+    "source_commit": "fdf6ce1650a3f1b882042688eed81b9c05ca1116",
+    "vendor_cold_function_sha256": "78d4ba85888bd0d9ae9a0b48109802fa4b2e08b2ae8f40939517cd23454a5cad",
+    "elf_sha256": "2b96fef09ce57c6222395ae5dd0a5aa985eab9f1088e7100ee23680bf442b114",
+    "layout": {
+      "__NOBITS_START__": 327680,
+      "__NOBITS_END__": 393024,
+      "__STACKS_START__": 327680,
+      "__STACKS_END__": 360448,
+      "__BSS_END__": 393024
+    },
+    "private_limit": 393216,
+    "spare_bytes": 192,
+    "reset_objects": {
+      "fes_nano_platform_cold_reset_request": {
+        "object": "/home/deano/fes/out/dev/de25-usb-close-drain-proof/out/publication-boot/native-bl31/source/build/agilex5/release/bl31/socfpga_psci.o",
+        "object_sha256": "b623be744b349664426e62b66a5c69713c783281855c72551bf78afec5472c8d",
+        "present_in_normal_elf": true
+      },
+      "fes_nano_bridge_platform_cold_reset_held": {
+        "object": "/home/deano/fes/out/dev/de25-usb-close-drain-proof/out/publication-boot/native-bl31/source/build/agilex5/release/bl31/socfpga_reset_manager.o",
+        "object_sha256": "c335902d256d354b48470b07ebd84eb2d1f46c0abed5fbe2667cbe14b7db27bf",
+        "present_in_normal_elf": true
+      },
+      "fes_nano_sdm_source_recover": {
+        "object": "/home/deano/fes/out/dev/de25-usb-close-drain-proof/out/publication-boot/native-bl31/source/build/agilex5/release/bl31/nano_cold_platform.o",
+        "object_sha256": "74734fc460c57a7623a8ec345fb1f9e35686451540866a6184e865c102b9919c",
+        "present_in_normal_elf": true
+      }
+    },
+    "compiler_stack_records": {
+      "build/agilex5/release/bl31/probe_setup.su": [
+        "plat/intel/soc/common/probe_setup.c:138:12:table_words\t64\tstatic",
+        "plat/intel/soc/common/probe_setup.c:153:12:memory_block\t1376\tstatic",
+        "plat/intel/soc/common/probe_setup.c:339:12:previous_tables\t1344\tstatic",
+        "plat/intel/soc/common/probe_setup.c:363:5:nano_probe_prepare\t320\tstatic"
+      ],
+      "build/agilex5/release/bl31/nano_cold_platform.su": [
+        "plat/intel/soc/common/include/nano_sdm_recovery_platform.inc:31:12:sdm_recovery_cached\t288\tstatic",
+        "plat/intel/soc/common/include/nano_sdm_recovery_platform.inc:49:12:sdm_recovery_scope\t96\tstatic",
+        "plat/intel/soc/common/include/nano_sdm_recovery_platform.inc:64:31:fes_nano_sdm_source_recover\t16\tstatic",
+        "plat/intel/soc/common/include/nano_sdm_input_finish.inc:24:5:fes_nano_sdm_source_finish\t1040\tstatic"
+      ]
+    },
+    "recovery_policy_installed": true,
+    "physical_reset_qualified": false,
+    "whole_EL3_stack_qualified": false,
+    "USB_close_source_sha256": "0e25a6fbbaee1ec158d4389248aaeae849caf2b7078a5d562663ff09838cb50a",
+    "USB_close_source_in_selected_SDK": true,
+    "hardware_actions": false
+  },
+  "hardware_actions": false,
+  "hardware_accepted": false
+}
