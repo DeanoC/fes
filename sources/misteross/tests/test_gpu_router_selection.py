@@ -28,6 +28,8 @@ from scripts import build_fes_ramtest as ramtest
 from scripts import build_fes_riscv as riscv
 from scripts import fes_build_common as board
 from scripts import fes_de10nano_evidence as board_evidence
+from tests.producer_fixture import EXECUTION
+from tests.test_build_fes_pong import BuildFesPongTests
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -198,6 +200,143 @@ class EvidenceBackendTests(unittest.TestCase):
                 parameters = inspect.signature(validator).parameters
                 self.assertEqual(parameters["gpu_backend"].default,
                                  board.FES_GPU_BACKEND)
+
+
+class AuthenticationLaneTests(unittest.TestCase):
+    """The lane each producer requests is the defect that broke CUDA hosts.
+
+    A HIP request on an NVIDIA-only host fails with "required host command is
+    missing: hipcc", so what matters is the configuration, router and
+    architectures each wrapper forwards to shared authentication.
+    """
+
+    def _forwarded(self, module, attribute, call, **kwargs):
+        with patch.object(module, attribute, return_value={}) as authenticate:
+            call(**kwargs)
+        return authenticate.call_args.kwargs
+
+    def test_cuda_requests_the_cuda_lane(self):
+        expected_configuration = board.cuda_toolchain_configuration()
+        cases = (
+            ("pong", pong, "_authenticate_default",
+             lambda **kw: pong._authenticate_tools(ROOT, **kw)),
+            ("ramtest", board, "_authenticate_tools",
+             lambda **kw: ramtest._authenticate_tools(ROOT, **kw)),
+            ("riscv", board, "_authenticate_tools",
+             lambda **kw: riscv._authenticate_tools(ROOT, **kw)),
+            ("menu", board, "_authenticate_tools",
+             lambda **kw: menu.authenticate(ROOT, None, "ddr", kw["gpu_router"])),
+            ("menu_package", board, "_authenticate_tools",
+             lambda **kw: menu_package._authenticate_tools(ROOT, **kw)),
+        )
+        for name, module, attribute, call in cases:
+            with self.subTest(producer=name):
+                forwarded = self._forwarded(module, attribute, call, gpu_router="CUDA")
+                self.assertEqual(forwarded["gpu_router"], "CUDA")
+                self.assertEqual(forwarded["hip_architectures"], "unused")
+                self.assertEqual(forwarded["expected_configuration"],
+                                 {"nextpnr": expected_configuration})
+
+    def test_default_requests_the_hip_lane_main_already_used(self):
+        cases = (
+            ("pong", pong, "_authenticate_default",
+             lambda: pong._authenticate_tools(ROOT)),
+            ("ramtest", board, "_authenticate_tools",
+             lambda: ramtest._authenticate_tools(ROOT)),
+            ("riscv", board, "_authenticate_tools",
+             lambda: riscv._authenticate_tools(ROOT)),
+            ("menu", board, "_authenticate_tools",
+             lambda: menu.authenticate(ROOT, None, "ddr")),
+            ("menu_package", board, "_authenticate_tools",
+             lambda: menu_package._authenticate_tools(ROOT)),
+        )
+        for name, module, attribute, call in cases:
+            with self.subTest(producer=name):
+                with patch.object(module, attribute, return_value={}) as authenticate:
+                    call()
+                forwarded = authenticate.call_args.kwargs
+                self.assertEqual(forwarded["gpu_router"], "HIP")
+                self.assertEqual(forwarded["hip_architectures"],
+                                 board.FES_GPU_ARCHITECTURES)
+                self.assertEqual(forwarded["expected_configuration"],
+                                 {"nextpnr": board.FES_TOOLCHAIN_CONFIGURATION})
+
+
+class CudaRecordTests(unittest.TestCase):
+    """Pong and the menu package must record the backend they selected."""
+
+    REPOSITORY = "https://github.com/DeanoC/misteross.git"
+
+    def _parameters(self, record):
+        import json
+
+        return json.loads(record)["parameters"]
+
+    def test_pong_record_follows_the_router(self):
+        identities = {"mistral": "commit=" + "b" * 40 + "; sha256=" + "1" * 64,
+                      "nextpnr-mistral": "commit=" + "c" * 40 + "; sha256=" + "2" * 64,
+                      "yosys": "commit=" + "d" * 40 + "; sha256=" + "3" * 64}
+        hip = pong.create_build_record(ROOT, self.REPOSITORY, "a" * 40, identities,
+                                       execution=EXECUTION)
+        cuda = pong.create_build_record(ROOT, self.REPOSITORY, "a" * 40, identities,
+                                        execution=EXECUTION, gpu_router="CUDA")
+        self.assertEqual(self._parameters(hip)["gpu_backend"], "hip")
+        self.assertEqual(self._parameters(hip)["gpu_architectures"],
+                         board.FES_GPU_ARCHITECTURES)
+        self.assertEqual(self._parameters(cuda)["gpu_backend"], "cuda")
+        self.assertEqual(self._parameters(cuda)["gpu_architectures"], "unused")
+
+    def test_menu_package_record_follows_the_router(self):
+        identities = {"mistral": "commit=" + "b" * 40 + "; sha256=" + "1" * 64,
+                      "nextpnr-mistral": "commit=" + "c" * 40 + "; sha256=" + "2" * 64,
+                      "yosys": "commit=" + "d" * 40 + "; sha256=" + "3" * 64}
+        hip = menu_package.create_build_record(ROOT, self.REPOSITORY, "a" * 40, identities,
+                                                execution=EXECUTION)
+        cuda = menu_package.create_build_record(ROOT, self.REPOSITORY, "a" * 40, identities,
+                                                 execution=EXECUTION, gpu_router="CUDA")
+        self.assertEqual(self._parameters(hip)["gpu_backend"], "hip")
+        self.assertEqual(self._parameters(cuda)["gpu_backend"], "cuda")
+        self.assertEqual(self._parameters(cuda)["gpu_architectures"], "unused")
+
+
+class RouteLogBackendTests(unittest.TestCase):
+    """A real evidence fixture, not a mock: the route log must prove the backend.
+
+    The passing-output fixture lives on Pong's own suite. Borrow the helper
+    rather than subclassing it, which would re-run that whole suite here.
+    """
+
+    def _write_passing_outputs(self, directory):
+        BuildFesPongTests._write_passing_outputs(self, directory)
+
+    def _cuda_output(self, directory):
+        self._write_passing_outputs(directory)
+        log = directory / "nextpnr.log"
+        text = log.read_text(encoding="utf-8")
+        self.assertIn("backend hip:", text)
+        log.write_text(text.replace("backend hip:", "backend cuda:"), encoding="utf-8")
+        return directory
+
+    def test_cuda_log_passes_under_cuda_and_fails_under_the_default(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temporary:
+            output = self._cuda_output(Path(temporary) / "out")
+            evidence = pong.validate_build_evidence(output, ROOT, gpu_backend="cuda")
+            self.assertEqual(evidence["route"]["gpu_backend"], "cuda")
+            with self.assertRaises(board.BuildError):
+                pong.validate_build_evidence(output, ROOT)
+
+    def test_hip_log_still_passes_under_the_default(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "out"
+            self._write_passing_outputs(output)
+            evidence = pong.validate_build_evidence(output, ROOT)
+            self.assertEqual(evidence["route"]["gpu_backend"], "hip")
+            with self.assertRaises(board.BuildError):
+                pong.validate_build_evidence(output, ROOT, gpu_backend="cuda")
 
 
 if __name__ == "__main__":
