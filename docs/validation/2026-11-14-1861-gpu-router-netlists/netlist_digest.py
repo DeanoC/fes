@@ -202,8 +202,22 @@ def synth_c64(tree: Path, cache_root: Path):
     return output / "synth.json", evidence["tools"], producer
 
 
+def synth_coleco(tree: Path, cache_root: Path):
+    producer = _load(tree, "build_fes_coleco_socket_v2")
+    authenticated = producer.authenticate_tools(producer.ROOT, cache_root)
+    relative = producer.OUTPUT_RELATIVE
+    output = producer._prepare_output(
+        producer.ROOT, relative=relative, build_outputs=producer.BUILD_OUTPUTS)
+    yosys, _route = producer.build_commands(
+        producer.ROOT, output, BUILD_ID,
+        {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")})
+    _run_yosys(producer, authenticated, output, yosys, relative)
+    return output / "synth.json", {n: t.identity for n, t in authenticated.items()}, producer
+
+
 CORES = {
     "fes.pong": synth_pong,
+    "fes.coleco": synth_coleco,
     "fes.spectrum": _spectrum_model("48"),
     "fes.spectrum128": _spectrum_model("128"),
     "fes.spectrum-plus3": _spectrum_model("plus3"),
