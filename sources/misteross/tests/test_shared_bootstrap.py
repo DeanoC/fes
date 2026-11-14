@@ -628,6 +628,61 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
                 self.assertIn(f"shared {tool} install hit", second.stdout)
             self.assertEqual(sum(len(paths) for paths in _ready_installs(cache).values()), len(TOOLS))
 
+    def test_a_hit_reclaims_build_trees_an_interrupted_publish_left(self):
+        """publish writes ready.json before removing src/ and build/.
+
+        A run killed between the two leaves both trees, and every later run
+        takes the hit path and returns, so nothing would remove them. For Yosys
+        or nextpnr that is gigabytes stranded against the 30 GiB floor.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "checkout"
+            log = base / "child-env.log"
+            fake_bin = _prepare_fixture(root, log)
+            cache = base / "cache"
+            env = {
+                "PATH": f"{fake_bin}:{os.environ['PATH']}",
+                "HOME": str(base),
+                "USER": "test",
+                "LANG": "C",
+                "LC_ALL": "C",
+                "FES_TOOLCHAIN_CACHE_ROOT": str(cache),
+            }
+            first = subprocess.run([str(root / "scripts" / "bootstrap.sh")], cwd=root, env=env,
+                                   text=True, capture_output=True)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            # _ready_installs yields each ready.json; the install is its parent.
+            installs = [path.parent for paths in _ready_installs(cache).values() for path in paths]
+            self.assertTrue(installs)
+            planted = []
+            for install in installs:
+                for name in ("src", "build"):
+                    tree = install / name / "deep"
+                    tree.mkdir(parents=True)
+                    (tree / "artifact").write_text("stranded" * 64, encoding="utf-8")
+                    planted.append(install / name)
+            # Read-only, the way a finished build leaves its tree.
+            for tree in planted:
+                for current, directories, files in os.walk(tree):
+                    for name in files:
+                        os.chmod(os.path.join(current, name), 0o444)
+                    os.chmod(current, 0o555)
+
+            second = subprocess.run([str(root / "scripts" / "bootstrap.sh")], cwd=root, env=env,
+                                    text=True, capture_output=True)
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertIn("build leftovers from an interrupted publish", second.stdout)
+            for tree in planted:
+                self.assertFalse(tree.exists(), f"{tree} survived the hit")
+            for tool in TOOLS:
+                self.assertIn(f"shared {tool} install hit", second.stdout)
+            # The installs themselves still authenticate afterwards.
+            third = subprocess.run([str(root / "scripts" / "bootstrap.sh")], cwd=root, env=env,
+                                   text=True, capture_output=True)
+            self.assertEqual(third.returncode, 0, third.stderr)
+            self.assertNotIn("build leftovers", third.stdout)
+
     def test_failed_shared_build_is_rebuilt_from_scratch(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)

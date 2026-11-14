@@ -699,6 +699,29 @@ shared_cache_verify_hit() {
     printf '==> shared %s install hit: %s\n' "$tool" "${CACHE_TOOL_KEY[$tool]}"
 }
 
+shared_cache_reclaim_leftovers() {
+    # publish() writes ready.json and only then removes src/ and build/. A run
+    # interrupted between the two leaves both trees behind, and every later run
+    # takes the hit path above and returns, so nothing would ever remove them.
+    # They are not in the manifest and nothing reads them, but a stranded Yosys
+    # or nextpnr build tree is gigabytes against the 30 GiB floor.
+    local tool="$1" directory="$2"
+    [[ -d "$directory/src" || -d "$directory/build" ]] || return 0
+    # The exclusive lock, so no concurrent bootstrap is building here. If it is
+    # not free, leaving the trees is the safe answer; the next run retries.
+    if ! flock -xn "$CACHE_LOCK_FD"; then
+        printf '==> leaving %s build leftovers: the install is in use\n' "$tool"
+        return 0
+    fi
+    printf '==> removing %s build leftovers from an interrupted publish\n' "$tool"
+    # Directories only. A build tree can hold hardlinks into the published
+    # install, and chmod follows the link to the shared inode, which breaks the
+    # install's own closure. rmtree needs write on directories, not files.
+    find "$directory/src" "$directory/build" -type d -exec chmod u+w {} + 2>/dev/null || true
+    rm -rf -- "$directory/src" "$directory/build"
+    flock -s "$CACHE_LOCK_FD" || die "cannot restore the shared cache lock: $directory"
+}
+
 shared_cache_tool() {
     local tool="$1"
     local key="${CACHE_TOOL_KEY[$tool]}"
@@ -715,6 +738,7 @@ shared_cache_tool() {
     touch -c -- "$lock"
     if [[ -e "$directory/ready.json" || -L "$directory/ready.json" ]]; then
         shared_cache_verify_hit "$tool"
+        shared_cache_reclaim_leftovers "$tool" "$directory"
         shared_cache_release
         return 0
     fi
@@ -722,6 +746,7 @@ shared_cache_tool() {
     if [[ -e "$directory/ready.json" || -L "$directory/ready.json" ]]; then
         # Another bootstrap published it while this one waited.
         shared_cache_verify_hit "$tool"
+        shared_cache_reclaim_leftovers "$tool" "$directory"
         shared_cache_release
         return 0
     fi
