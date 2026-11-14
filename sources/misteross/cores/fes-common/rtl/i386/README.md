@@ -1602,7 +1602,7 @@ as Bochs's `translate_linear_legacy` at CPU level 3.
 identity clear the CPU is the empty socket above and the fit trims the unit
 away; `pc386_system` ties it to `1'b0` until the x87 phase's last slice.
 What the phase's slice 2 builds, and what it does not, is in its record,
-[docs/validation/2026-11-14-i386-x87-s2](../../../../docs/validation/2026-11-14-i386-x87-s2/summary.md);
+[docs/validation/2026-11-14-i386-x87-s2](../../../../../../docs/validation/2026-11-14-i386-x87-s2/summary.md);
 the unit's own header comment carries the design. In short:
 
 - **The state.** Eight 80-bit registers in M10K with two read ports, the
