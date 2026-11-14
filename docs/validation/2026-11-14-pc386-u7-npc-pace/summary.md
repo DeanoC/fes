@@ -146,9 +146,10 @@ between.
 
 ### The reference does not meet it
 
-`asus3863364k` at 25 MHz, cached, scores TopBench **40** — fourth lowest of
-the nineteen, below the lower quartile, and in the gap between the two
-clusters rather than inside either. Three checks before concluding that:
+`asus3863364k` at 25 MHz, cached, scores TopBench **40**. Only three of the
+eighteen AT-class entries scale below it (31, 32 and 34, all IBM PS/2
+models), it is below the lower quartile of 47, and it falls in the gap
+between the two clusters rather than inside either. Three checks before concluding that:
 
 | setting | TopBench |
 | --- | --- |
@@ -172,8 +173,9 @@ against the throughput ratio.
 The kit's 386DX-25 preset scored TopBench 68 in
 [#1486](https://github.com/DeanoC/fes/pull/1486) — an older seal, so
 `method.md` requires it re-measured in the same claim as the pace captures.
-Taken at face value for now, 68 is above sixteen of the eighteen real entries,
-and above all fourteen once the M326's four are set aside. It beats every real
+Taken at face value for now, 68 is above fifteen of the eighteen real entries
+(the M326 scales to 68.2 at 33 MHz, 75.0 at 20 and 78.1 at 16), and above all
+fourteen once the M326's four are set aside. It beats every real
 386DX-20 in the database (maximum 60) and sits just under the slowest real
 386DX-33 (71).
 

@@ -80,8 +80,8 @@ configuration and the pace runs are the same machine.
 
 **It does not meet the rule, and that is reported rather than worked around.**
 It scores TopBench **40**, which is below the lower quartile of 47 and below
-every entry of the upper cluster — fourth lowest of the 19. It is not
-mid-range. Three things were checked before concluding that:
+every entry of the upper cluster: only three of the eighteen AT-class entries
+scale below it. It is not mid-range. Three things were checked before concluding that:
 
 - `cpu_waitstates = 0`, the preset's own definition, scores **40**, the same
   as the board default. Wait states do not explain it.
@@ -219,3 +219,49 @@ reference, listed below. The band, the metric and the board are unchanged.
    gate above (100% for the whole window) already covers this, but it means a
    reference window can only be taken when the host is quiet, and the record
    must give the readout for each window.
+
+## Second amendment: the walk cycle is the figure, after the reference's own repeats and before any kit capture
+
+Written after three reference windows and **before the kit was claimed**. No
+kit figure of any kind existed when this was written, and none could: the kit
+had not been touched in this work. It changes which of two quantities the
+verdict rests on, after seeing data, so it says exactly what was seen.
+
+**What was seen.** The scene a new game opens in — Trinsic, between the world
+appearing and the opening conversation starting, with no input sent — has one
+townsperson pacing a fixed beat on the right of the view. Three reference
+windows gave:
+
+| run | window, world to conversation | displacement | walk cycle | 86Box held 100% |
+| --- | --- | --- | --- | --- |
+| m1 | 46.67 s | 0.04306 heights/s | 11.733 s | yes |
+| m2 | 46.67 s | 0.05010 heights/s | 11.800 s | yes |
+| m3 | 47.60 s | 0.04413 heights/s | 12.067 s | **no** |
+
+m3 fails the validity gate above (86Box did not hold 100% for the whole
+window) and is therefore not a window; it is given because it was run, and a
+fourth was taken in its place.
+
+**What changes.** Of the two valid windows, the **displacement** figures
+differ by 16%, which is wider than the ±10% band, so the band cannot be
+applied to it — the same situation #1838's fourth amendment met with Ultima
+VI's walk, and the same answer: the figure is reported and the check is not
+decided by it. The reason is the measurement, not the game: displacement is
+summed from the centroid of changed pixels frame by frame, so it counts how
+often the character is redrawn as much as how far it goes.
+
+**The character's walk cycle does not have that problem.** Its beat is closed,
+so the autocorrelation of its position has a sharp first peak at the time it
+takes to walk the beat once, with harmonics at twice and three times that lag.
+It needs no pixel scale and no event counting, and the two valid windows agree
+to **0.6%**, sixteen times inside the band. So:
+
+> **The verdict rests on the walk cycle: the kit's cycle must be within ±10%
+> of the reference's.** The displacement figure and the window length are
+> reported beside it, for whoever measures this next, and the check is called
+> decided only if the cycle's own spread stays well inside the band on both
+> sides.
+
+The band itself does not move, the scene does not move, the validity gates do
+not move, and the classification rule for a miss does not move. Three windows
+a side still stand, and a window that fails a gate is not one.
