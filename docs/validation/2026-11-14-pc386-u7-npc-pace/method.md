@@ -222,6 +222,10 @@ reference, listed below. The band, the metric and the board are unchanged.
 
 ## Second amendment: the walk cycle is the figure, after the reference's own repeats and before any kit capture
 
+*(This amendment is retracted by "Correction to the second amendment" below,
+which is the one to read for what the verdict rests on. It stands here
+unedited because it is what was committed at the time.)*
+
 Written after three reference windows and **before the kit was claimed**. No
 kit figure of any kind existed when this was written, and none could: the kit
 had not been touched in this work. It changes which of two quantities the
