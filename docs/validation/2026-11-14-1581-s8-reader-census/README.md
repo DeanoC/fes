@@ -30,8 +30,8 @@ base, `main` at `1b4601831`. The first revision of this record published numbers
 −16 across the Coleco block, −7 across SG-1000, +8 and +9 across SMS and the tail. Codex review
 caught it. That would have shipped the exact defect correction 7 below calls out in the record, so
 the sweep was re-run against this base rather than patched: re-pointing derived numbers by text
-search had already collided once (`Makefile:1869` and `:1883` both sit nearest `:1880`, though the
-second belongs at `:1894`) and had left the line references *inside* the descriptions untouched.
+search had already collided once (lines 1869 and 1883 of `M/Makefile` both sat nearest 1880, though
+the second belongs at 1894) and had left the line references *inside* the descriptions untouched.
 
 **Verification, and how to repeat it.** [`verify_census.py`](verify_census.py) re-checks this
 record against the tree it is read in, and is the evidence for every count below:
@@ -41,8 +41,9 @@ record against the tree it is read in, and is the evidence for every count below
 It makes two claims. First, all **374** inventory rows hold, on their stated line, the `Matched`
 text recorded for them — the check that matters, because a line number can stay in range while
 pointing at the wrong line, and that is how two earlier revisions of this record went wrong. Second,
-all **532** `path:line` citations written in the prose and the `What` cells of these three files
-(**614** line endpoints, counting both ends of a range) resolve to a real file and a non-blank line.
+all **706** `path:line` citations written in the prose and the `What` cells of these three files
+(**826** line endpoints, counting every number of a comma list and both ends of a range) resolve to a
+real file and a non-blank line.
 
 Both pass with no exceptions, which took eight corrections beyond re-pointing the base. The
 `Matched` cell of `build_fes_zx81_oss.py:92` abbreviates a long `RTL_SOURCES` tuple with an ellipsis,
@@ -258,6 +259,28 @@ Confirmed present, with the line verified where noted:
     same class of defect and want the same treatment, but not in a PR scoped to the S8 census, so
     they are filed as #1836 with the three kinds they fall into. The S8 section itself is clean: 43
     citations, all resolving.
+11. Three more defects in the checker itself, found by [#1839](https://github.com/DeanoC/fes/pull/1839)
+    re-pointing it at the design record, and fixed here. Its citation pattern needed a `path:line`,
+    so it read only the **first** number of a comma list: a citation written `foo.py` colon 12,34,40
+    counted as one, not three, and `Makefile`, `.lock`, `.yml` and `.toml` were not in its extension list at all.
+    Covering those raises the record's own checked citations from 532 to 704. Its resolver stripped a
+    leading `M/` and then tried the repository root first, so `M/AGENTS.md:82` resolved to the *root*
+    `AGENTS.md` and passed — the exact substitution the roots list exists to prevent, and the one the
+    docstring promised against. `M/` now resolves under `sources/misteross` and nowhere else, and a
+    bare basename that exists at both roots, `Makefile` being the one that matters, is reported as
+    ambiguous rather than guessed: six such citations in the inventory are now spelled.
+
+    What the wider pattern then caught in this record: the ZX81 Verilator block is
+    `M/Makefile:333-492`, not `:333-493`, whose last line is blank.
+
+12. Two stale citations in the design record that this record's own sweep could not see, because
+    they hid behind the same comma: lines 358, 374 and 399 of `fes-coleco/rtl/coleco_machine.sv` and
+    lines 253 and 269 of `fes-sg1000/rtl/sg1000_machine.sv`. The `coleco_dpram` instantiations are
+    `:354`, `:370` and `:395`, and `:254` and `:270`; the numbers cited were `.clock(clk_sys)` lines, a
+    `) reset_rom_block (`, an `` `endif `` and a blank. #1839 reported both. Checking the whole row
+    by content rather than only the two found a third: line 62 of `coleco_application_gp.v` is an
+    `` `endif ``, and its instantiation is `:56`. The sibling `coleco_video_dpram` row, nine
+    citations across six files, is correct in every one.
 
 ## Method and confidence
 
@@ -277,7 +300,7 @@ whenever the area cut changes.
 
 Checked mechanically here, over the whole inventory: every primary line against its recorded matched
 text (374 of 374, one of them matched up to the ellipsis its cell uses), and every `path:line`
-citation in these three files against the tree (532 of 532). Both are re-runnable as
+citation in these three files against the tree (706 of 706). Both are re-runnable as
 `verify_census.py`. That check is what caught the wrong base,
 once Codex had pointed at two instances of it, and it is cheap enough to repeat whenever the base
 moves.

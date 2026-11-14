@@ -483,7 +483,7 @@ Reads are registered. A read during a write returns the new data. `WORDS` is the
 
   | Wrapper | Instantiated at |
   | --- | --- |
-  | `coleco_dpram` | `M/cores/fes-common/rtl/coleco_vdp.sv:414,429,444,459`; `fes-common/rtl/fes_computer_gp.v:153` (needs a `MEDIA_AW`/`MEDIA_WORDS` mapping); `fes-coleco/rtl/coleco_machine.sv:358,374,399`; `fes-coleco/rtl/coleco_application_gp.v:62`; `fes-sms/rtl/sms_vdp.sv:304`; `fes-sms/rtl/sms_machine.sv:262,278`; `fes-sg1000/rtl/sg1000_machine.sv:253,269`; `fes-coleco/sim/quartus_ram_tb.sv:11`, `fes-sms/sim/quartus_ram_tb.sv:11`, `fes-sg1000/sim/quartus_ram_tb.sv:11` |
+  | `coleco_dpram` | `M/cores/fes-common/rtl/coleco_vdp.sv:414,429,444,459`; `fes-common/rtl/fes_computer_gp.v:153` (needs a `MEDIA_AW`/`MEDIA_WORDS` mapping); `fes-coleco/rtl/coleco_machine.sv:354,370,395`; `fes-coleco/rtl/coleco_application_gp.v:56`; `fes-sms/rtl/sms_vdp.sv:304`; `fes-sms/rtl/sms_machine.sv:262,278`; `fes-sg1000/rtl/sg1000_machine.sv:254,270`; `fes-coleco/sim/quartus_ram_tb.sv:11`, `fes-sms/sim/quartus_ram_tb.sv:11`, `fes-sg1000/sim/quartus_ram_tb.sv:11` |
   | `coleco_video_dpram` | `fes-common/rtl/coleco_vdp.sv:355,372`; `fes-common/rtl/coleco_video_720p.v:53`; `fes-common/rtl/fes_native_video.v:58`; `fes-sms/rtl/sms_vdp.sv:319,336`; `fes-sms/rtl/sms_video_720p.v:49`; `fes-pcxt/rtl/pcxt_video.sv:141`; `fes-coleco/sim/quartus_ram_tb.sv:14`, `fes-sms/sim/quartus_ram_tb.sv:14`, `fes-sg1000/sim/quartus_ram_tb.sv:14` |
   | `zx81_dpram` | `fes-zx81/rtl/zx81_machine.sv:219,233,263,293`; `fes-zx81/rtl/zx81_ram_pack.v:45`; `fes-zx81/rtl/fes_computer_gp.v:127`; `fes-zx81/expansions/qs_chrs.v:57`; `fes-zx81/sim/rom_init_window.v:13` |
 

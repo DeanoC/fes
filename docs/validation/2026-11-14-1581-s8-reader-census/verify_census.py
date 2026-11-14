@@ -46,8 +46,9 @@ DOCS = ('census-tables.md', 'de25.md', 'README.md')
 
 UNESCAPED_PIPE = re.compile(r'(?<!\\)\|')
 CITATION = re.compile(
-    r'([A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:py|v|sv|cpp|h|svh|md|json|sh|files|txt))'
-    r':(\d+)(?:-(\d+))?')
+    r'((?:[A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:py|v|sv|cpp|h|svh|md|json|sh|files|txt|lock|yml|toml))'
+    r'|(?:[A-Za-z0-9_][A-Za-z0-9_./-]*/)?Makefile)'
+    r':(\d+)(?:-(\d+))?((?:,\d+(?:-\d+)?)*)')
 
 _index = {}
 for dirpath, dirnames, filenames in os.walk(M):
@@ -70,8 +71,18 @@ ROOTS = (
 
 
 def resolve(path):
+    # `M/` is this record's spelling of sources/misteross, so an `M/` path must
+    # resolve there and nowhere else. Falling through to the repository root
+    # made `M/AGENTS.md:82` resolve to the root AGENTS.md and pass, which is
+    # the very substitution the roots list exists to prevent (DeanoC/fes#1839).
     if path.startswith('M/'):
-        path = path[2:]
+        candidate = os.path.join(M, path[2:])
+        return candidate if os.path.isfile(candidate) else None
+    if os.sep not in path and os.path.isfile(os.path.join(ROOT, path)) \
+            and os.path.isfile(os.path.join(M, path)):
+        # Two files of this name, one at each root: `Makefile:123` cannot be
+        # resolved without being told which, so it is reported, not guessed.
+        return None
     for root in ROOTS:
         candidate = os.path.join(root, path)
         if os.path.isfile(candidate):
@@ -155,7 +166,13 @@ def check_citations():
                     continue
                 body = lines_of(target)
                 ok = True
-                for group in (match.group(2), match.group(3)):
+                # A citation may be a comma list, `foo.py:12,34-36,40`. Every
+                # number after the first leans on the same path, and reading
+                # only the first is how two stale numbers in this record's own
+                # text survived three review rounds (DeanoC/fes#1839).
+                tail = [n for part in (match.group(4) or '').split(',') if part
+                        for n in part.split('-')]
+                for group in (match.group(2), match.group(3), *tail):
                     if group is None:
                         continue
                     endpoints += 1
