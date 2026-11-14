@@ -372,4 +372,3 @@ per-frame HDMI luma log across stop → load → prompt; and a read-only
 episodes can only be placed after the capture buffers, not after the core's
 pins: `27f478e0` carries no presenter or display-plane probe. Driver
 `~/fes-scratch/si1494/kit/si1494d.py`, data under `.../runs/b1`.
-
