@@ -523,12 +523,13 @@ the 286-12 preset scores above all of them
   ([#1837](https://github.com/DeanoC/fes/issues/1837)). The condition is not
   new: on #1474's own ratio across #1453, its ISA charges added about two of the
   twelve-and-a-half points and the rest predates them;
-- Ultima VI walking speed at 286-12 is still open, one kit run short. Keying
-  the game faster than it can step settles the objection that sank the earlier
-  windows: at 25 and at 12.3 keys a second the reference walks at 2.07 steps a
-  second, the two rates agreeing to 0.53%, so the figure is the machine's and
-  not the harness's. The kit run that would have matched it never reached the
-  game;
+- Ultima VI walking speed at 286-12 is **not measurable** by sending keys and
+  counting what moves, which is the record's result rather than a number: the
+  game steps when it next polls the keyboard and drops what is queued, so the
+  rate follows how the keys arrive and not monotonically — the reference walks
+  at 2.94 steps a second keyed at 10 a second and at 2.06 and 2.07 keyed at
+  12.3 and 25, so there is no plateau. Settling it needs a count the game keeps
+  itself, read from memory on each side;
 - Ultima VII NPC pace is still open: The Black Gate stops at its own memory
   check on the reference, which has no RAM behind C800-DFFF to put drivers in,
   and the reference board for a 386DX-25 is not settled.

@@ -383,8 +383,9 @@ with the hold and the tap loop from run `kp3` and the bursts from `kp4`:
 | burst of 60, 20 ms apart | 60 | **48.8/s** | 24.4/s |
 
 The corrected burst rates are the nominal 1000/delay exactly, so the burst op
-has no per-key overhead of its own; it is the tap loop, one `xdotool` process
-per key, that costs about 0.19 s a key. The kit's input path at
+has no per-key overhead of its own. The tap loop's 0.44 s a key is mostly its
+own command file: a 0.25 s gap and `tap`'s default 0.05 s hold and 0.1 s gap,
+leaving about 0.04 s for the `xdotool` process itself. The kit's input path at
 `hold` = `gap` = 0.02 s delivers about 25 keys a second, which matches the
 40 ms burst, not the 20 ms one.
 
@@ -395,21 +396,16 @@ what a space press prints, and ninety had just been sent. The grab shows no
 hostile on screen and no wound message, where the discarded `bw2`'s shows both.
 
 What the grabs do show is that the measurement did not survive, for a different
-reason. Between `w4-before` and `w4-after` the Avatar crosses out of the throne
-room and down into the next room — far more than the **6** steps
-`walk_rate.py` counted for that window. That analyser counts a run of changed
-frames as one step, which is sound at the three steps a second the earlier
-windows ran at and not at a saturated walk, where the map scrolls on almost
-every frame. **So the step counter, not the game, is what fails under
-saturating input**, and no rate can be read from `bw3` either way.
+reason: **the route ran out of floor.** Each leg walked one direction for
+several seconds, and a saturated walk crosses a room in seconds. Between
+`w4-before` and `w4-after` the Avatar leaves the throne room for the next room;
+`w6` found a wall at once and gave no steps at all. The seventh amendment
+replaces the route with the one-tile square the earlier windows used.
 
-That leaves the saturation design intact and its analyser missing. Counting
-steps has to be replaced by measuring displacement — the whole-pixel shift of
-the map view between consecutive frames, summed and divided by Ultima VI's
-16-pixel tile — and that analyser has to be shown to agree with `walk_rate.py`
-on a slow window before any fast one is read with it. A first attempt
-(`scroll_shift.py` in the scratch tree) finds no shift at all on `w4` and is
-not trusted; the crop it was given may not be the map view.
+(An earlier version of this correction blamed the step counter for merging fast
+steps. The counts do not support that: on `w4` a mean-absolute-difference test
+finds 8 events where `walk_rate.py` found 6, which is a strict threshold, not a
+merge.)
 
 **Gate 1 is restated** so it can be checked: no hostile figure in the map view
 and no combat message in the text panel, in a grab taken immediately before the
@@ -456,3 +452,43 @@ three windows a side and why the standard error is quoted with it.
 its standard error stated. On the reference that is 2.07 ± 4.4%, comfortably
 inside a ±10% band; a kit mean further than 10% from 2.07 fails, and one
 inside it passes only if its own windows are as consistent.
+
+## Correction to the seventh amendment: there is no plateau, and the walk is not measurable this way
+
+The seventh amendment read the two over-rates agreeing as saturation. The check
+it required — that the new counter agrees with the old one on a slow window —
+was run afterwards, and it does agree, which is what makes the rest of this
+correction unavoidable.
+
+`scroll_events.py` on the three slow windows recorded earlier in this record,
+against `walk_rate.py`'s figures for the same captures:
+
+| window | `walk_rate.py` | `scroll_events.py` | keys a second |
+| --- | --- | --- | --- |
+| t1 | 3.00 | 3.33 | 10 |
+| t2 | 3.00 | 3.00 | 10 |
+| t3 | 2.31 | 2.50 | 10 |
+
+The two counters agree to within one frame of median gap, so the analyser is
+sound. But that puts the same machine, on the same route, at about **3 steps a
+second when keyed at 10 a second** and at **2.07 when keyed at 12.3 and 25**.
+The rate falls as the key rate rises. A plateau cannot sit below a rate the
+game has already reached, so what the seventh amendment called saturation is
+not saturation: the two over-rates agreeing with each other says only that
+they agree, and both differ from the slower one.
+
+**The honest outcome is that Ultima VI's walking speed is not measurable by
+sending keys and counting what moves.** The game steps when it next looks at
+the keyboard and drops what is queued meanwhile, and the rate that comes out
+depends on how the keys arrive in a way that is not a simple saturation — it is
+not monotonic, so there is no rate fast enough to key it at and no plateau to
+read. Three different approaches have now failed on the same cause: a held key
+(which reaches the two sides differently), a matched tap rate (which measures
+the tap rate), and over-keying (no plateau).
+
+**What would be needed instead** is a measurement that does not go through the
+keyboard at all: a count the game itself keeps — its own turn counter in
+memory, read from the machine on each side — or an instrumented build. Neither
+is available here. This record therefore reports the walk as **not measurable
+this way** rather than quoting a number, and the figures above are what that
+conclusion rests on.

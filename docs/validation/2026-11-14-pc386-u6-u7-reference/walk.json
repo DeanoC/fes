@@ -106,9 +106,9 @@
   "rate_formula": "(n-1)/(last-first) over the tick list the program prints; SPAN includes the priming tap that starts the timing and must not be used as the denominator."
  },
  "burst_walk_bw3": {
-  "verdict": "void: the step counter cannot measure a saturated walk",
-  "why": "walk_rate.py counts a run of changed frames as one step, so it merges steps once the map scrolls on almost every frame. It counted 0 to 6 steps per 8 s window, while the grabs on either side of w4 show the Avatar crossing out of the throne room into the next room. The party was out of combat: no hostile in view and no wound message, unlike the earlier bw2.",
-  "what_is_needed": "an analyser that measures the map view's displacement per frame and divides by Ultima VI's 16-pixel tile, checked against walk_rate.py on a slow window first",
+  "verdict": "void: the route ran out of floor",
+  "why": "Each leg walked one direction for several seconds. A saturated walk crosses a room in seconds: w4 took the Avatar out of the throne room into the next room, w6 found a wall at once and gave no steps. An earlier reading blamed the step counter for merging fast steps; the counts do not support it (8 events against walk_rate.py's 6 on w4).",
+  "what_is_needed": "the one-tile square route the earlier windows used, which never leaves a tile",
   "speed_gate": "the four windows keyed at 25/s held 100% for all 240 frames; the four at 48.8/s ran at 71-101% under other work on the shared host and would have failed it",
   "steps_counted_per_window": {
    "w4-down-25/s": 6,
@@ -163,14 +163,31 @@
   "saturation": {
    "mean_at_25": 2.072,
    "mean_at_12_3": 2.061,
-   "difference_pct": 0.53,
-   "reading": "A two-fold change in key rate moves the step rate by half a percent, so the input is saturated and the rate is the machine's, not the rig's."
-  }
+   "mean_at_10_earlier_windows": 2.944,
+   "reading": "Not saturation. The two over-rates agree with each other but both sit below what the same machine on the same route gave when keyed at 10 a second, and a plateau cannot sit below a rate the game has already reached. The rate falls as the key rate rises."
+  },
+  "verdict": "no plateau; the walk is not measurable by sending keys and counting what moves"
  },
  "saturated_square_walk_kit": {
   "run": "g4, Kit B, 14 November",
   "verdict": "void: the game never started",
   "why": "The command file inserted KEYPACE.COM before the game, but the kit image boots to a menu, not a DOS prompt, so the typing went into the menu and everything after it desynchronised: the grabs show COMMAND.COM answering \"Bad command or filename\" to the mangled lines, including \"ultima6\\\". All six windows are a static DOS prompt (no frame-to-frame change at all).",
-  "consequence": "The run also left Kit B with its lease blocked and the core loaded, because the command file was missing its final quit and the run's post-run tail was then run by hand too early. That is logged as an incident in ~/kit-status/kitB-STATUS.md and needs Deano."
+  "consequence": "The run also left Kit B with its lease blocked and the core loaded: the command file was missing its final quit, so the runner sat in its idle wait, and the run's post-run tail was then run by hand too early. The agent's cleanup then failed with HTTP 500, most likely because of that early removal, though that is not shown. Logged as an incident in ~/kit-status/kitB-STATUS.md; the agent reports 'operator recovery required', so it is Deano's to clear and nothing was attempted."
+ },
+ "slow_windows_both_counters": {
+  "note": "method.md's correction to the seventh amendment: the two counters agree, which is what rules out saturation",
+  "t1": {
+   "walk_rate": 3.0,
+   "scroll_events": 3.333
+  },
+  "t2": {
+   "walk_rate": 3.0,
+   "scroll_events": 3.0
+  },
+  "t3": {
+   "walk_rate": 2.308,
+   "scroll_events": 2.5
+  },
+  "keys_per_s": 10
  }
 }
