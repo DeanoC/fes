@@ -8,14 +8,14 @@
 #define NANO_CMDQ_BYTES 128U
 #define NANO_CMDQ_POLLS 128U
 #define NANO_CMDQ_BOUND_US 100000U
-#define NANO_CMDQ_FINAL_BOUND_US 1000000U
+#define NANO_CMDQ_FINAL_BOUND_US 4000000U
 #define NANO_CMDQ_RETIRE_STAGE_US 2000000U
 #define NANO_CMDQ_RETIRE_COMPLETION_US 1000000U
 #define NANO_CMDQ_RETIRE_FINAL_US 4000000U
 enum nano_cmdq_validation_policy {
     CMDQ_FULL_OPERATION_BOUND=0,
     /* Input setup alone: completion still uses 100 ms. Its callbacks and
-     * caller enforce the original one-second preparation origin throughout
+     * caller enforce the original four-second preparation origin throughout
      * both mandatory final snapshots and the final guard. */
     CMDQ_PREPARATION_FINAL_VALIDATION=2,
     /* Retirement only: construction and prewrite checks have a finite

@@ -12,7 +12,9 @@
 #define NANO_PROBE_ROOT 0x4000U
 #define NANO_PROBE_CMDQ 0x8000U
 #define NANO_PROBE_EVTQ 0x9000U
-#define NANO_PROBE_BOUND_US 1000000U
+/* Startup work only: includes the pre-preparation source digest. The
+ * parent clock also bounds nested final verification and the later arm. */
+#define NANO_PROBE_BOUND_US 4000000U
 struct nano_probe_binding { uint64_t owner,epoch,generation; };
 struct nano_probe_io {
     void *context;

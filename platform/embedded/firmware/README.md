@@ -6,13 +6,28 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
+The four-second preparation budget is a software startup bound, selected after
+physical warm preparation completed 5,120 loads and 2,816 stores before the
+previous one-second cutoff. It does not govern the core's real-time work.
+The same clock begins before the extra source digest and covers table work,
+nested final validation and arm; none of these stages can restart it. Command
+construction/consumption remains 100 ms, source release one second, retirement
+staging/consumption/final validation two/one/four seconds and transfer twenty
+seconds. The arm-only and fault-only producers retain their one-second setup.
+Old formats 16/17/18 and partial budget/version replacements are rejected.
+Cold/warm cost tests exercise complete preparation beyond one second, include
+prior digest cost, and retain the previous source on expiry before queue
+submission. This budget change requires a new matched build and physical trial;
+it grants no acceptance to the previously stopped artifact.
+
 The [publication-timed retirement contract](../../../docs/validation/2026-11-14-de25-publication-timing/README.md)
 separates command construction from completion observation: staging has two
 seconds, owned consumption has one second from the accepted prewrite-guard
 counter, and retirement plus continuation share four seconds from the original
 retirement origin. Every existing ownership, register, table and prewrite check
-remains. Input preparation and source release retain their independent
-one-second budgets. Profiles 16/17 and the new publication-clock record reject
+remains. Input preparation now has four seconds from its original pre-digest origin;
+source release retains its independent one-second budget. Profiles 19/20/21
+reject the previous one-second preparation contracts as well as
 the superseded timing contracts. Joined cost models now complete retirement
 and continuation at the previously failing injected costs; nine vendor
 AArch64 objects compile. A selected format-18 descendant now passes initial MENU retirement and
@@ -24,7 +39,8 @@ recovery remains unqualified.
 Expected table generation now uses the existing pure 32-word API within each
 unchanged preparation I/O block. The previous-table scan, new table writes and
 readback comparison still cover every word, with the same ownership/integrity
-guards, callbacks, unpublished-memory limits and one-second preparation origin.
+guards, callbacks and unpublished-memory limits. The preparation origin remains
+before the source digest, with a four-second budget.
 This removes repeated binding validation for individual expected words. The
 warm cost fixture generates the same 15,360 words in 480 calls; the retained
 previous source takes 15,360 calls and fails an injected-cost control that the
@@ -50,9 +66,9 @@ separates trusted invalidation from the ordinary locking wrapper. It consumes
 one attempt, revokes ordinary authority, requires an independent live recovery
 scope and selects only the pinned cold mailbox provider. Sanitizer tests cover
 ownership drift, reentrancy, returning transport and retained reservations.
-Formats 16/17 keep this entry inactive. The
+Formats 19/20 keep this entry inactive. The
 [selected terminal supplier](../../../docs/validation/2026-11-14-de25-terminal-recovery/README.md)
-uses format 18 and requires `--nano-sdm-source-recovery` in both matched boot
+now uses format 21 and requires `--nano-sdm-source-recovery` in both matched boot
 producers, alongside source rearm. It validates the actual completed source,
 revoked private binding and fresh CPU/device containment before one request.
 Cold and warm failure models pass, and recovery markers end the old trace
@@ -89,8 +105,8 @@ identifies completion at 79.457 ms and failure of the second final snapshot at
 100.672 ms, with preparation still within its original one-second lifetime.
 Input preparation now selects its own final-validation policy: all publication
 and completion observations retain the 100 ms deadline; both final snapshots
-and the final guard remain mandatory under the original one-second preparation
-origin. The callbacks still reject an expired parent or lost ownership, and
+and the final guard remain mandatory under the original preparation
+origin, now bounded to four seconds. The callbacks still reject an expired parent or lost ownership, and
 later arm cannot establish a new origin. Arm-only setup keeps its full-operation
 policy. Retirement accepts only a timely completed setup with its selected
 finite validation history; a retirement-policy record cannot stand in for it.

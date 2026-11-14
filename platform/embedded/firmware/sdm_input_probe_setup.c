@@ -220,7 +220,7 @@ static int cmd_time(void *context,uint64_t *value)
     if(!integrity(s))return fail(s,-13);
     /* The nested queue's first clock sample must belong to its parent's
      * already-started monotonic lifetime. Never silently establish a fresh
-     * clock origin after a backwards observation or outside the1s bound. */
+     * clock origin after a backwards observation or outside the preparation bound. */
     if(s->timed && *value<s->last)return -5;
     if(s->timed && *value-s->start>NANO_PROBE_BOUND_US)return -110;
     return 0;

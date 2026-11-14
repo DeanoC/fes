@@ -54,11 +54,11 @@ class RearmProfileTests(unittest.TestCase):
             with self.subTest(edits=edits),self.assertRaises(ValueError):mode.strong_function(image(**edits),name)
 
     def test_rearm_is_separate_from_the_retained_first_menu(self):
-        self.assertEqual(mode.checked(profile())['format'], 16)
+        self.assertEqual(mode.checked(profile())['format'], 19)
         self.assertIn('FES_NANO_SDM_SOURCE_RELEASE 0\n', mode.header(profile()))
         p = warm_profile()
         self.assertEqual(mode.checked(p), mode.REARM_CONTRACT)
-        self.assertEqual(mode.checked(p)['format'], 17)
+        self.assertEqual(mode.checked(p)['format'], 20)
         self.assertIn('FES_NANO_SDM_SOURCE_RELEASE 1\n', mode.header(p))
         self.assertFalse(mode.checked(p)['retirement_memory_reuse'])
         for flag in (None, 1, {}, 'yes'):

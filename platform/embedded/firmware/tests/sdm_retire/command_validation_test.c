@@ -41,7 +41,7 @@ static int progress_observed(void *p,uint32_t target,uint32_t *consumer)
 int main(void)
 {
  unsigned cases=0;const unsigned points[]={CMDQ_PROGRESS,CMDQ_FINAL_FIRST,CMDQ_FINAL_SECOND,CMDQ_FINAL_GUARD};
- const uint64_t times[]={80000,100001,105704,900000,1000001};
+ const uint64_t times[]={80000,100001,105704,900000,1000001,3000000,4000001};
  const unsigned policies[]={CMDQ_FULL_OPERATION_BOUND,CMDQ_PREPARATION_FINAL_VALIDATION};
  for(unsigned selected=0;selected<2;selected++)for(fallback=0;fallback<=1;fallback++)
  for(unsigned n=0;n<4;n++)for(unsigned t=0;t<sizeof(times)/sizeof(times[0]);t++)for(mutation=0;mutation<=5;mutation++){

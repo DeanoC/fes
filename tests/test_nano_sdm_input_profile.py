@@ -105,9 +105,27 @@ class InputProfileTests(unittest.TestCase):
         self.assertEqual((contract["retirement_command_staging_bound_us"],
                           contract["retirement_command_completion_bound_us"],
                           contract["retirement_bound_us"]), (2000000, 1000000, 4000000))
-        # Preparation and transfer keep their independent existing budgets.
+        # Preparation has its explicit startup budget; other phases remain separate.
         self.assertEqual((contract["command_bound_us"], contract["preparation_bound_us"],
-                          contract["transfer_bound_us"]), (100000, 1000000, 20000000))
+                          contract["transfer_bound_us"]), (100000, 4000000, 20000000))
+
+    def test_one_second_profiles_cannot_admit_the_four_second_candidate(self):
+        # Exact prior contracts, and hybrids with either the new version or
+        # new duration alone, must not be mistaken for this candidate.
+        for current, old_version, old_scope in (
+                (mode.CONTRACT, 16, "nano-retained-source-publication-timing-v16"),
+                (mode.REARM_CONTRACT, 17, "nano-owned-source-release-rearm-v17"),
+                (mode.RECOVERY_CONTRACT, 18, "nano-source-rearm-terminal-cold-recovery-v18")):
+            old = copy.deepcopy(current)
+            old.update(format=old_version, scope=old_scope, preparation_bound_us=1000000)
+            for change in ({}, {"format": current["format"]},
+                           {"preparation_bound_us": 4000000},
+                           {"format": current["format"], "scope": current["scope"]}):
+                p = profile()
+                p["sdm_input_transfer"] = dict(old, **change)
+                with self.subTest(version=old_version, change=change), self.assertRaisesRegex(
+                        ValueError, "unsupported SDM input"):
+                    mode.checked(p)
 
     def fixture(self, path):
         names = (mode.SERVICE, mode.MAILBOX, mode.MAILBOX_HEADER, mode.PLATFORM,

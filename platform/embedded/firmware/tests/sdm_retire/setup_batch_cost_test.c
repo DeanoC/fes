@@ -59,6 +59,7 @@ static void initialize(unsigned warm)
   struct nano_probe_binding b={17,7,4};assert(!nano_probe_init_input(&m.probes[0],b,cost_io(),&m.input,source));
  }
 }
+#ifndef NANO_SETUP_BATCH_LIBRARY
 int main(void)
 {
  unsigned cases=0;
@@ -88,3 +89,4 @@ int main(void)
  }
  printf("{\"status\":\"passed\",\"cases\":%u,\"max_words\":%u,\"hardware_actions\":false}\n",cases,NANO_PROBE_SETUP_WORDS);
 }
+#endif

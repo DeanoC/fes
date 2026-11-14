@@ -5,11 +5,11 @@ HERE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('fes_input_arena',HERE/'nano_sdm_probe_profile.py');arena=importlib.util.module_from_spec(spec);spec.loader.exec_module(arena)
 fit_spec=importlib.util.spec_from_file_location('fes_input_fit',HERE.parent/'nano/fit_layout.py');fit=importlib.util.module_from_spec(fit_spec);fit_spec.loader.exec_module(fit)
 reader_spec=importlib.util.spec_from_file_location('fes_sdm_reader_profile',HERE/'nano_sdm_reader_profile.py');reader=importlib.util.module_from_spec(reader_spec);reader_spec.loader.exec_module(reader)
-CONTRACT=dict(format=16,scope='nano-retained-source-publication-timing-v16',mode='input-transfer-retire-retained-continue',attempts=1,
+CONTRACT=dict(format=19,scope='nano-retained-source-preparation-budget-v19',mode='input-transfer-retire-retained-continue',attempts=1,
  source_base=0x94800000,wire_base=0x14800000,payload_max=0x7ff000,page_bytes=4096,metadata_page=0x94fff000,
  arena_base=0x94000000,arena_bytes=0x10000,root_offset=0x4000,command_offset=0x8000,event_offset=0x9000,
  prepared_control=12,armed_control=13,source_stream=10,source_access='read-only-XN',other_streams='abort',
- transfer_bound_us=20000000,preparation_bound_us=1000000,command_bound_us=100000,
+ transfer_bound_us=20000000,preparation_bound_us=4000000,command_bound_us=100000,
  clock_origin='before-additional-source-SHA384',table_recheck_words=5120,callback_bytes=256,
  source_digest='full-SHA384-before-preparation-and-existing-SMC-chunk-full-checks',
  reply_selection='fixed-ATF-expected-submission-job',DATA_reply_words=0,job_ids=14,
@@ -43,7 +43,7 @@ _rearm_spec=importlib.util.spec_from_file_location('fes_source_rearm_profile',HE
 rearm=importlib.util.module_from_spec(_rearm_spec);_rearm_spec.loader.exec_module(rearm)
 REARM_CONTRACT=rearm.contract(CONTRACT)
 RECOVERY_CONTRACT=json.loads(json.dumps(REARM_CONTRACT))
-RECOVERY_CONTRACT.update(format=18,scope='nano-source-rearm-terminal-cold-recovery-v18',automatic_reset=True,
+RECOVERY_CONTRACT.update(format=21,scope='nano-source-rearm-terminal-cold-recovery-v21',automatic_reset=True,
  terminal_recovery=dict(attempts=1,trigger='completed-source-retirement-or-continuation-failure',
   ownership='revoked-boot-private-binding-and-fresh-cold-CPU-USB-PIO-containment',
   scope_bound_us=1000000,clock_origin='fresh-terminal-recovery-entry',
@@ -93,7 +93,7 @@ def header(profile):
  if checked(profile) is None:return '#define FES_NANO_SDM_SOURCE_RELEASE 0\n#define FES_NANO_SDM_COLD_RECOVERY 0\n#define FES_NANO_RETAINED_READER_ROUTE 0\n#define FES_NANO_SDM_INPUT_TRANSFER 0\n#define FES_NANO_SDM_SOURCE_LEASE 0\n#define FES_NANO_SDM_RETIRE_SOURCE 0\n#define FES_NANO_RETIRE_TIMING 0\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 0\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 0\n'
  chain=profile.get('chain_sha256','')
  if len(chain)!=64 or any(c not in '0123456789abcdef' for c in chain):raise ValueError('complete input transfer chain required')
- return ('#define FES_NANO_SDM_SOURCE_RELEASE '+str(int(checked(profile)['format'] in (17,18)))+'\n#define FES_NANO_SDM_COLD_RECOVERY '+str(int(checked(profile)['format']==18))+'\n#define FES_NANO_SDM_INPUT_TRANSFER 1\n#define FES_NANO_SDM_SOURCE_LEASE 1\n#define FES_NANO_SDM_RETIRE_SOURCE 1\n#define FES_NANO_RETIRE_TIMING 1\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 1\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 1\n#define FES_NANO_INPUT_BUILD "'+chain[:16]+'"\n'
+ return ('#define FES_NANO_SDM_SOURCE_RELEASE '+str(int(checked(profile)['format'] in (20,21)))+'\n#define FES_NANO_SDM_COLD_RECOVERY '+str(int(checked(profile)['format']==21))+'\n#define FES_NANO_SDM_INPUT_TRANSFER 1\n#define FES_NANO_SDM_SOURCE_LEASE 1\n#define FES_NANO_SDM_RETIRE_SOURCE 1\n#define FES_NANO_RETIRE_TIMING 1\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 1\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 1\n#define FES_NANO_INPUT_BUILD "'+chain[:16]+'"\n'
   '#define FES_NANO_RETAINED_READER_ROUTE 1\n#define FES_NANO_READER_ROUTE_SHA '+chr(34)+reader.digest(reader.checked(profile))+chr(34)+'\n'
   '#define FES_NANO_PROBE_HEAP_FIRST 0x84000000ULL\n#define FES_NANO_PROBE_HEAP_LAST 0x94000000ULL\n')
 def install(source,profile,start,mmu,ram,mailbox):
@@ -164,13 +164,13 @@ def verify_image(image,profile):
  symbols=ram.symbols(image);retire_scope=private_function(image,'retire_owned');retire_tables=private_function(image,'retire_valid');private_scope=private_function(image,'sdm_input_final_scope')
  fixed={'__FES_SMMU_PROBE_START__':0x94000000,'__FES_SMMU_STREAMS__':0x94000000,'__FES_SMMU_SDM_ROOT__':0x94004000,'__FES_SMMU_CMDQ__':0x94008000,'__FES_SMMU_EVTQ__':0x94009000,'__FES_SMMU_PROBE_END__':0x94010000}
  roots=('fes_nano_sdm_source_prepare','fes_nano_sdm_source_start_ready','fes_nano_sdm_source_validate','fes_nano_sdm_source_finish','fes_nano_sdm_transfer_result','nano_probe_arm','nano_sdm_transfer_before','nano_sdm_transfer_response','nano_sdm_transfer_status_result','mailbox_read_response_async_expected','nano_source_retire','nano_source_continue','nano_cmdq_submit','fes_nano_sdm_transfer_control_begin','fes_nano_sdm_transfer_control_finish','fes_nano_sdm_source_control_ready','fes_nano_sdm_control_mailbox_idle','fes_nano_sdm_source_reader_ready','fes_nano_sdm_transfer_reader_ready','nano_sdm_reader_observed')
- if checked(profile)['format'] in (17,18):
+ if checked(profile)['format'] in (20,21):
   roots+=('fes_nano_platform_release_source','fes_nano_sdm_transfer_release_source',
           'fes_nano_sdm_transfer_source_released','fes_nano_sdm_vendor_source_idle','nano_probe_init_rearmed_input')
   for name in roots[-5:]:strong_function(image,name)
   if any(marker not in image for marker in (b'FES_NANO_SOURCE_RELEASE status=',b'FES_NANO_SOURCE_REARM status=')):
    raise ValueError('repeated-load release/rearm implementation markers absent')
- if checked(profile)['format']==18:
+ if checked(profile)['format']==21:
   roots+=('fes_nano_sdm_source_recover','fes_nano_bridge_platform_cold_reset_held','fes_nano_platform_cold_reset_request')
   for name in roots[-3:]:strong_function(image,name)
   private_function(image,'sdm_recovery_scope')

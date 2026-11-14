@@ -80,7 +80,7 @@ class SourceRetirementTests(unittest.TestCase):
     def run_model(self, name, joined=False, arguments=()):
         binary = self.output / name
         sources = [FIXTURE / (name + ".c"), FW / "source_retire.c", FW / "command_queue.c", FW / "input_tables.c"]
-        if name in ("warm_probe_test", "setup_validation_test", "setup_batch_cost_test"):
+        if name in ("warm_probe_test", "setup_validation_test", "setup_batch_cost_test", "setup_preparation_budget_test"):
             sources += [self.output / "probe_setup.c"]
         if name == "setup_word_cost_test":
             measured = self.output / "expected_words_probe.c"
@@ -161,16 +161,22 @@ class SourceRetirementTests(unittest.TestCase):
 
     def test_warm_expected_table_generation_uses_bounded_chunks_and_keeps_parent_deadline(self):
         rows = {cost: self.run_model("setup_word_cost_test", arguments=(cost,))
-                for cost in (0, 80, 140, 256, 1024, 4096)}
-        for cost in (0, 80, 140, 256, 1024):
+                for cost in (0, 80, 140, 256, 1024, 4096, 16384)}
+        for cost in (0, 80, 140, 256, 1024, 4096):
             row = rows[cost]
             self.assertEqual((row["prepared"], row["error"], row["calls"], row["words"], row["largest"]),
                              (1, 0, 480, 15360, 32))
             self.assertTrue(row["previous_unchanged"])
-            self.assertLessEqual(row["elapsed_us"], 1000000)
-        self.assertEqual((rows[4096]["prepared"], rows[4096]["error"], rows[4096]["register_writes"]),
+            self.assertLessEqual(row["elapsed_us"], 4000000)
+        self.assertEqual((rows[16384]["prepared"], rows[16384]["error"], rows[16384]["register_writes"]),
                          (0, -110, 0))
         self.expected_word_cost_observations = rows
+
+    def test_measured_scale_preparation_has_room_but_hash_and_io_expiry_still_stop(self):
+        report = self.run_model("setup_preparation_budget_test")
+        self.assertEqual(report["cases"], 8)
+        self.assertGreater(report["slowest_prepared_us"], 1000000)
+        self.assertLessEqual(report["slowest_prepared_us"], 4000000)
 
     def test_private_table_batches_cover_all_words_with_finite_cold_and_warm_cost(self):
         report = self.run_model("setup_batch_cost_test")
