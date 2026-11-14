@@ -322,6 +322,13 @@ def feature_union(ids: list[str]) -> str:
     return ', '.join(chosen) if chosen else '—'
 
 
+# The tool that elaborates a core's logic, and the Quartus edition and device
+# family it requires. scripts/recipes.py holds the same table for the registry.
+FRONT_ENDS = {'yosys': ('lite', 'cyclonev'),
+              'quartus-lite': ('lite', 'cyclonev'),
+              'quartus-pro': ('pro', 'agilex5')}
+
+
 def _pins(path: Path) -> dict:
     data = tomllib.loads(path.read_text())
     tools = data['tool']
@@ -391,9 +398,18 @@ def validate(root: Path, data: dict) -> list[str]:
         if recorded.get('path') != str(Path('sources/misteross') / recipe['lock_path']):
             errors.append(f'{core_id} lock path does not match config/core-recipes.toml')
         elif lock.is_file() and recipe.get('toolchain') == 'quartus':
-            descriptor = tomllib.loads(lock.read_text())
-            if descriptor.get('quartus', {}).get('version') != recipe['quartus']['version']:
+            descriptor = tomllib.loads(lock.read_text()).get('quartus', {})
+            if descriptor.get('version') != recipe['quartus']['version']:
                 errors.append(f'{core_id} Quartus version differs from its lock')
+            # The front end selects the edition and device family, and the lock
+            # holds the pair the installed Quartus is authenticated against.
+            for field in ('edition', 'device_family'):
+                if descriptor.get(field) != recipe['quartus'].get(field):
+                    errors.append(f'{core_id} Quartus {field} differs from its lock')
+            front_end = recipe.get('front_end')
+            pair = (recipe['quartus'].get('edition'), recipe['quartus'].get('device_family'))
+            if not isinstance(front_end, str) or FRONT_ENDS.get(front_end) != pair:
+                errors.append(f'{core_id} front end does not match its Quartus edition and device family')
         elif lock.is_file():
             pins = _pins(lock)
             for name, pin in pins.items():

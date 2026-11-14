@@ -1,0 +1,20 @@
+changed under sources/misteross: 5
+    scripts/build_fes_pcxt_quartus.py
+    scripts/export_core_package.py
+    scripts/quartus_fes_pcxt.py
+    tests/test_build_fes_pcxt_quartus.py
+    tests/test_export_core_package.py
+closures holding at least one of them: 13 of 13
+    build_fes_apple2_oss: scripts/export_core_package.py
+    build_fes_atari_st_oss: scripts/export_core_package.py
+    build_fes_c64_oss: scripts/export_core_package.py
+    build_fes_coleco_socket_v2: scripts/export_core_package.py
+    build_fes_menu_package: scripts/export_core_package.py
+    build_fes_pong: scripts/export_core_package.py
+    build_fes_ramtest: scripts/export_core_package.py
+    build_fes_riscv: scripts/export_core_package.py
+    build_fes_sg1000_oss: scripts/export_core_package.py
+    build_fes_sms_oss: scripts/export_core_package.py
+    build_fes_spectrum_oss: scripts/export_core_package.py
+    build_fes_zx81_oss: scripts/export_core_package.py
+    fes.pcxt: scripts/build_fes_pcxt_quartus.py, scripts/export_core_package.py, scripts/quartus_fes_pcxt.py

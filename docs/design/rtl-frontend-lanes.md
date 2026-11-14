@@ -6,11 +6,12 @@ Path convention: `M/` means `sources/misteross/`. These are at the repo root: `s
 
 ## Implementation status
 
-As of 11 November 2026:
+As of 13 November 2026:
 
 - S1a–S1d have validation records: [parse census](../validation/2026-11-10-1581-parse-census/README.md) ([#1632](https://github.com/DeanoC/fes/pull/1632)), [Pro probe](../validation/2026-11-10-1581-pro-probe/README.md) ([#1628](https://github.com/DeanoC/fes/pull/1628)), [Quartus-netlist simulation feasibility](../validation/2026-11-10-1581-netlist-sim/README.md) ([#1633](https://github.com/DeanoC/fes/pull/1633)) and [MLAB inference](../validation/2026-11-10-1581-mlab-inference/README.md) ([#1630](https://github.com/DeanoC/fes/pull/1630)). These records report each spike's results and limits; their completion does not by itself approve a native lane.
 - S2's return-stack change landed in [#1638](https://github.com/DeanoC/fes/pull/1638). S3's i386 simulation Verilator lock landed in [#1653](https://github.com/DeanoC/fes/pull/1653); the separate pc386 lock update is open in [#1680](https://github.com/DeanoC/fes/pull/1680).
 - S6a's per-core Quartus Lite locks landed in [#1652](https://github.com/DeanoC/fes/pull/1652). D2's i386 Yosys lock change landed in [#1664](https://github.com/DeanoC/fes/pull/1664).
+- S4's shared Yosys netlist helper landed in [#1758](https://github.com/DeanoC/fes/pull/1758), and S5's pc386 lockstep producer gate in [#1782](https://github.com/DeanoC/fes/pull/1782). S6b's DE25 Pro lock is on main.
 - D12's closure-only BUILD_ID rule landed in [#1649](https://github.com/DeanoC/fes/pull/1649). The binding rule and required evidence are in [AGENTS.md](../../AGENTS.md#hard-rules).
 
 ## Summary
@@ -763,11 +764,12 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
 - **Files:**
   - `scripts/recipes.py` and `config/core-recipes.toml` (`front_end`, `edition`, `device_family`, pair checks);
   - `M/scripts/export_core_package.py` (cross-check);
+  - `M/scripts/quartus_fes_pcxt.py` (the canonical QSF and Yosys program, and the check that the compiled project is the recorded one);
   - every format-2 Quartus producer (PC/XT today) writes `front_end`, `device_family`, `quartus_qsf_sha256` and, on the yosys front end, `front_end_program_sha256`. The format-1 producers gain them when they move to format 2 (S9b–S9f, S10); the native `quartus-lite` ones never write `front_end_program_sha256`;
   - the seal-summary fields;
   - `docs/support-matrix.py:383-384`.
 - **Tests:**
-  - updated: `test_build_fes_pcxt_quartus.py:215-230`, `test_export_core_package.py:238`, `test_pnr_recipes.py:239-242`, `tests/test_recipes.py:152-155`;
+  - updated: `test_quartus_has_a_distinct_functional_identity_without_gpu_inputs` in `test_build_fes_pcxt_quartus.py`, and the DE25 Quartus-table assertion in `tests/test_recipes.py`;
   - new: every seed's final QSF minus its BUILD_ID and `SEED` lines hashes to the recorded `quartus_qsf_sha256`; each executed Yosys program (signoff and repeat), with its roots replaced by the placeholders and its BUILD_ID zeroed, hashes to the recorded `front_end_program_sha256`; two builds that differ only in BUILD_ID record the same digest and program; records that differ only in `front_end` get different BUILD_IDs and functional keys; an OSS record's field set and functional projection are byte-identical for identical inputs; illegal pairs are rejected; a format-1 record that carries `front_end` is rejected; a `quartus-lite` record that carries `front_end_program_sha256` is rejected, and a `yosys` Quartus record without it is rejected.
 - **Acceptance:** the tests pass. The PR states D12's answer. If D12 needs a reseal, the PR includes the generated list of every core whose closure contains an S7-changed file, and S7r is opened with it.
 - **Dependencies:** S6a merged. **Kit:** none in S7 itself.

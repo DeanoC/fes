@@ -86,6 +86,80 @@ class ExportCorePackageTests(unittest.TestCase):
         self.fields = fields
         self.manifest = encode_manifest(fields)
 
+    def _quartus_fields(self, **parameters):
+        """A format-2 Quartus record, the shape S7 validates (#1581)."""
+        fields = dict(self.record_fields, format=2, toolchain="quartus", source_path=".",
+                      source_roots=["abi", "scripts"],
+                      source_inputs={"scripts/build.py": self.record_fields["recipe_sha256"],
+                                     "abi/fes-gp.json": self.record_fields["abi_definition_sha256"]},
+                      tools={"quartus": "pinned quartus", "yosys": "pinned yosys"})
+        fields["parameters"] = dict(self.record_fields["parameters"],
+                                    front_end="yosys", device_family="cyclonev",
+                                    front_end_program_sha256="a" * 64, quartus_qsf_sha256="b" * 64)
+        fields["parameters"].update(parameters)
+        for name, value in list(fields["parameters"].items()):
+            if value is None:
+                del fields["parameters"][name]
+        return fields
+
+    def test_quartus_record_names_its_front_end_and_that_front_end_s_digests(self):
+        encode_build_record(self._quartus_fields())
+        native = self._quartus_fields(front_end="quartus-lite", front_end_program_sha256=None)
+        native["tools"] = {"quartus": "pinned quartus"}
+        encode_build_record(native)
+
+    def test_a_record_that_misstates_its_front_end_is_rejected(self):
+        cases = [
+            # A Quartus record names a front end this build system knows.
+            ("known front end", self._quartus_fields(front_end="quartus-standard")),
+            ("known front end", self._quartus_fields(front_end=None)),
+            # Pro is the only front end on Agilex 5, and Lite the only one on Cyclone V.
+            ("device family", self._quartus_fields(device_family="agilex5")),
+            # Yosys is recorded exactly where it elaborates the logic.
+            ("exactly when Yosys", self._quartus_fields(front_end="quartus-lite")),
+            ("canonical QSF", self._quartus_fields(quartus_qsf_sha256=None)),
+            ("hexadecimal", self._quartus_fields(quartus_qsf_sha256="not a digest")),
+        ]
+        for index, (message, fields) in enumerate(cases):
+            with self.subTest(case=index, message=message):
+                with self.assertRaisesRegex(PackageExportError, message):
+                    encode_build_record(fields)
+        yosys_without_program = self._quartus_fields(front_end_program_sha256=None)
+        with self.assertRaisesRegex(PackageExportError, "exactly when Yosys"):
+            encode_build_record(yosys_without_program)
+        native_with_program = self._quartus_fields(front_end="quartus-lite")
+        native_with_program["tools"] = {"quartus": "pinned quartus"}
+        with self.assertRaisesRegex(PackageExportError, "exactly when Yosys"):
+            encode_build_record(native_with_program)
+
+    def test_only_a_quartus_record_carries_the_front_end_fields(self):
+        # Format 1 has no validated Quartus discriminator, so it carries none of
+        # them until its producer moves to format 2 (#1581 S9b-S9f, S10).
+        for name in export_core_package.FRONT_END_PARAMETERS:
+            with self.subTest(parameter=name):
+                fields = dict(self.record_fields)
+                fields["parameters"] = dict(fields["parameters"], **{name: "yosys"})
+                with self.assertRaisesRegex(PackageExportError, "format-2 Quartus record"):
+                    encode_build_record(fields)
+        oss = self._quartus_fields()
+        oss.pop("toolchain")
+        with self.assertRaisesRegex(PackageExportError, "format-2 Quartus record"):
+            encode_build_record(oss)
+
+    def test_the_front_end_separates_two_otherwise_identical_builds(self):
+        yosys = self._quartus_fields()
+        native = self._quartus_fields(front_end="quartus-lite", front_end_program_sha256=None)
+        native["tools"] = {"quartus": "pinned quartus"}
+        self.assertNotEqual(build_identity(encode_build_record(yosys)),
+                            build_identity(encode_build_record(native)))
+
+    def test_an_oss_record_is_unchanged_by_the_front_end_rules(self):
+        # S7 adds no field to an OSS record, so identical inputs still encode to
+        # the same bytes and the same identity.
+        first = encode_build_record(dict(self.record_fields))
+        self.assertEqual(first, self.record)
+        self.assertEqual(build_identity(first), build_identity(self.record))
+
     def test_opt_in_rom_export_is_sealed_reusable_and_identity_bound(self):
         fixture_root = ROOT / "tests" / "fixtures" / "core-bundle-v3"
         mapping = (fixture_root / "maps" / "valid-basic.json").read_bytes()

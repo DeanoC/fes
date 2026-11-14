@@ -1,5 +1,6 @@
 """Quartus package gates must preserve timing failures and artifact identity."""
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,7 @@ import unittest
 from unittest import mock
 from scripts import build_fes_pcxt_quartus as producer
 from scripts.quartus_tools import QuartusLock, load_quartus_lock
+from scripts import export_core_package as export
 from scripts.export_core_package import build_identity, encode_build_record, _validate_build_record
 
 
@@ -280,11 +282,85 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertTrue(fields['parameters']['enable_pcxt_media'])
         self.assertFalse(fields['parameters']['enable_pcxt_floppy_write'])
         before = build_identity(record)
-        fields.pop('toolchain')
-        self.assertNotEqual(build_identity(encode_build_record(fields)), before)
+        without_quartus = dict(fields, parameters={
+            name: value for name, value in fields['parameters'].items()
+            if name not in export.FRONT_END_PARAMETERS})
+        without_quartus.pop('toolchain')
+        self.assertNotEqual(build_identity(encode_build_record(without_quartus)), before)
         fields['toolchain'] = 'oss'
         with self.assertRaisesRegex(ValueError, 'toolchain'):
             _validate_build_record(fields)
+
+    def test_one_qsf_digest_covers_every_seed(self):
+        # The recorded QSF leaves out the SEED line, so a signoff's per-seed
+        # QSFs all reduce to the one digest the record carries (#1581 S7).
+        canonical = producer.board.canonical_project_qsf(producer.ROOT, 2)
+        self.assertNotIn(producer.board.SEED_ASSIGNMENT, canonical)
+        for seed in (1, 2, 3):
+            with self.subTest(seed=seed):
+                qsf = producer.board.project_qsf(producer.ROOT, seed, 2, package_profile=True,
+                                                 video_mailbox_contract=True)
+                self.assertIn(f'{producer.board.SEED_ASSIGNMENT}{seed}', qsf)
+                self.assertEqual(producer.board.without_seed(qsf), canonical)
+        with self.assertRaisesRegex(ValueError, 'exactly one SEED'):
+            producer.board.without_seed(canonical)
+
+    def test_one_program_digest_covers_both_runs_and_every_build_id(self):
+        # The recorded program places $SOURCE, $WORK and $YOSYS_LIB and a zeroed
+        # BUILD_ID, so the signoff and repeat runs, whose work trees differ,
+        # share one digest and the digest does not depend on the ID it derives.
+        canonical = producer.board.canonical_elaboration()
+        for root in (producer.board.SOURCE_ROOT, producer.board.WORK_ROOT, producer.board.LIBRARY_ROOT):
+            self.assertIn(root, canonical)
+        self.assertIn("128'h" + producer.board.CANONICAL_BUILD_ID, canonical)
+        library = Path('/opt/yosys/share/yosys/intel_alm/common/megafunction_bb.v')
+        for name in ('signoff', 'repeat'):
+            for build_id in ('0' * 31 + '1', 'f' * 32):
+                with self.subTest(run=name, build_id=build_id):
+                    source = Path(f'/tmp/attempt-xyz/{name}/source')
+                    work = Path(f'/tmp/attempt-xyz/{name}/elaboration')
+                    program = producer.board.executed_elaboration(
+                        source, work, library, build_id=build_id)
+                    self.assertIn("128'h" + build_id, program)
+                    self.assertNotIn(producer.board.SOURCE_ROOT, program)
+                    self.assertEqual(program, producer.board.elaboration(
+                        source, work, library, package_profile=True, build_id=build_id))
+
+    def test_an_elaboration_that_leaves_the_canonical_form_is_refused(self):
+        with mock.patch.object(producer.board, 'canonical_elaboration', return_value='read_verilog x\n'):
+            with self.assertRaisesRegex(ValueError, 'canonical form'):
+                producer.board.executed_elaboration(Path('/s'), Path('/w'), Path('/l'), build_id='a' * 32)
+
+    def test_the_record_binds_the_front_end_its_device_family_and_its_digests(self):
+        execution = {'toolchain': 'quartus', 'files': {}}
+        records = {}
+        for dos_profile in (False, True):
+            fields = json.loads(producer.create_build_record(
+                producer.ROOT, 'https://github.com/DeanoC/fes.git', 'a' * 40,
+                {'quartus': 'pinned quartus', 'yosys': 'pinned yosys'},
+                execution=execution, dos_profile=dos_profile))
+            parameters = fields['parameters']
+            self.assertEqual(parameters['front_end'], 'yosys')
+            self.assertEqual(parameters['device_family'], 'cyclonev')
+            self.assertEqual(parameters['front_end_program_sha256'], hashlib.sha256(
+                producer.board.canonical_elaboration(dos_profile=dos_profile).encode()).hexdigest())
+            self.assertEqual(parameters['quartus_qsf_sha256'], hashlib.sha256(
+                producer.board.canonical_project_qsf(
+                    producer.ROOT, 2, dos_profile=dos_profile).encode()).hexdigest())
+            records[dos_profile] = parameters
+        # The two profiles elaborate different sources and fit different pins.
+        self.assertNotEqual(records[False]['front_end_program_sha256'],
+                            records[True]['front_end_program_sha256'])
+        self.assertNotEqual(records[False]['quartus_qsf_sha256'], records[True]['quartus_qsf_sha256'])
+
+    def test_a_compiled_project_that_differs_from_the_record_is_refused(self):
+        identity = {'front_end': 'yosys', 'front_end_program_sha256': 'a' * 64,
+                    'quartus_qsf_sha256': 'b' * 64}
+        for name in identity:
+            with self.subTest(field=name):
+                summary = dict(identity, **{name: 'c' * 64}, status='diagnostic-captured')
+                with self.assertRaisesRegex(producer.BuildError, 'differs from the build record'):
+                    producer.require_timing(summary, [1], identity=identity)
 
     def test_package_uses_common_clock_pad_constraints_not_board50_packing(self):
         qsf = producer.board.project_qsf(producer.ROOT, 1, 2, package_profile=True)

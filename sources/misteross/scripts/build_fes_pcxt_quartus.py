@@ -217,6 +217,15 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
     top = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=root, text=True).strip())
     roots = source_roots(root)
     entry = selected_recipe(root, core_id)
+    # The front end, its edition and its device family are declared twice: in
+    # the recipe the BUILD_ID hashes, and in the lock the installed Quartus is
+    # authenticated against. They must agree, and the record takes the lock's.
+    lock = load_quartus_lock(root, LOCK)
+    quartus = entry['quartus']
+    if entry.get('front_end') != board.FRONT_END:
+        raise BuildError('the PC/XT recipe must elaborate with Yosys')
+    if (quartus['edition'], quartus['device_family']) != (lock.edition, lock.device_family):
+        raise BuildError('PC/XT recipe edition or device family differs from the lock')
     parameters = {'device': board.DEVICE, 'core_id': core_id,
                   'hardware_dos': dos_profile,
                   'half_rate_board': False, 'phased_hdmi_clock': True,
@@ -229,7 +238,12 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
                   'system_clock_hz': 100000000, 'pixel_clock_hz': 74250000,
                   'hdmi_phase_ps': 8979,
                   'quartus_recipe_sha256': hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest(),
-                  'execution_sha256': execution_digest(execution)}
+                  'execution_sha256': execution_digest(execution),
+                  'front_end': board.FRONT_END, 'device_family': lock.device_family,
+                  'front_end_program_sha256': hashlib.sha256(
+                      board.canonical_elaboration(dos_profile=dos_profile).encode()).hexdigest(),
+                  'quartus_qsf_sha256': hashlib.sha256(board.canonical_project_qsf(
+                      root, quartus['threads'], dos_profile=dos_profile).encode()).hexdigest()}
     if dos_profile:
         metadata, font = dos_assets(root)
         parameters.update(glabios_rom_sha256=metadata['bios']['sha256'],
@@ -243,7 +257,12 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
     return encode_build_record(fields)
 
 
-def require_timing(summary, seeds, *, dos_profile=False):
+def require_timing(summary, seeds, *, dos_profile=False, identity=None):
+    # The compiled project must be the one the record names: the board script
+    # recomputes both canonical digests from what it actually ran.
+    if identity is not None and any(summary.get(name) != identity[name]
+                                    for name in ('front_end', 'front_end_program_sha256', 'quartus_qsf_sha256')):
+        raise BuildError('the compiled front-end program or QSF differs from the build record')
     if (summary.get('status') != 'diagnostic-captured' or summary.get('seeds') != seeds
             or not summary.get('video_mailbox_contract')
             or summary.get('profile', {}).get('HALF_RATE_BOARD') != 0
@@ -356,7 +375,7 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
                 command.extend(('--seed', str(seed)))
             subprocess.run(command, cwd=root, env=env, check=True)
             summary = json.loads((output / name / 'summary.json').read_text())
-            require_timing(summary, seeds, dos_profile=dos_profile)
+            require_timing(summary, seeds, dos_profile=dos_profile, identity=json.loads(record)['parameters'])
             summaries.append(summary)
         payload = output / 'core.rbf'
         original = output / 'signoff' / f'seed-{recipe["seeds"][0]}' / 'output_files/top.rbf'
@@ -372,10 +391,18 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
         metadata = dos_assets(root)[0] if dos_profile else None
         encoded = manifest(record, payload, dos_profile=dos_profile, metadata=metadata)
         (output / 'manifest.toml').write_bytes(encoded)
+        # The canonical forms the record's digests cover, so a reader can check
+        # them by hand beside the summary that names them.
+        lock = load_quartus_lock(root, LOCK)
+        (output / 'front-end-program.ys').write_text(board.canonical_elaboration(dos_profile=dos_profile))
+        (output / 'quartus-project.qsf').write_text(
+            board.canonical_project_qsf(root, recipe['threads'], dos_profile=dos_profile))
         (output / 'build-summary.json').write_text(json.dumps({
             'classification': 'installable-quartus-hardware-dos-package' if dos_profile else 'installable-quartus-diagnostic-package',
             'build_id': build_id, 'revision': revision, 'seeds': recipe['seeds'],
             'core_id': core_id, 'hardware_dos': dos_profile,
+            'front_end': board.FRONT_END, 'toolchain': 'quartus',
+            'quartus_edition': lock.edition, 'quartus_version': lock.version,
             'internal_timing_pass': True, 'repeat_rbf_sha256': sha(repeated),
             'whole_board_qualified': False, 'hardware_acceptance': False,
             'limits': build_limits(dos_profile)}, indent=2) + '\n')

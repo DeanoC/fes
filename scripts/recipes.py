@@ -96,6 +96,7 @@ class Format2Recipe:
     video_profiles: tuple[str, ...] = ()
     optional: bool = False
     toolchain: str = "oss"
+    front_end: str = "yosys"
     quartus: dict | None = None
     hil_check: str | None = None
     hil_kits: tuple[str, ...] = ()
@@ -104,8 +105,14 @@ class Format2Recipe:
 
 REGISTRY_PATH = Path(__file__).resolve().parents[1] / "config/core-recipes.toml"
 _OPTIONAL_RECIPE_FIELDS = frozenset({
-    "producer_arguments", "producer_options", "video_profiles", "optional", "toolchain", "quartus",
-    "hil_check", "hil_kits", "board"})
+    "producer_arguments", "producer_options", "video_profiles", "optional", "toolchain", "front_end",
+    "quartus", "hil_check", "hil_kits", "board"})
+# The tool that elaborates a core's logic, and the Quartus edition and device
+# family it requires. An OSS row elaborates with Yosys and says so by omission.
+# Yosys on Pro/Agilex 5 is design decision D3 and is rejected until it is taken.
+FRONT_ENDS = {"yosys": ("lite", "cyclonev"),
+              "quartus-lite": ("lite", "cyclonev"),
+              "quartus-pro": ("pro", "agilex5")}
 _VIDEO_ARGUMENT = {
     "--native-video-socket": ("native_video", True),
     "--video-socket": ("video_socket", True),
@@ -170,20 +177,33 @@ def load_recipes(path=REGISTRY_PATH, *, board=DEFAULT_BOARD):
         if selected_board == "de25-nano" and lane != "quartus":
             raise ValueError("DE25 recipes require the Quartus toolchain")
         required = _RECIPE_FIELDS - ({"gpu_router", "hip_architectures", "pnr"} if lane == "quartus" else set())
+        if lane == "quartus":
+            required = required | {"front_end"}
         if (not isinstance(entry, dict) or not required <= set(entry)
                 or set(entry) - required - _OPTIONAL_RECIPE_FIELDS):
             raise ValueError("recipe fields must exactly match the selected toolchain schema")
         if lane == "quartus":
             q = entry.get("quartus")
-            if (not isinstance(q, dict) or set(q) != {"version", "seeds", "threads"}
+            if (not isinstance(q, dict) or set(q) != {"version", "seeds", "threads", "edition", "device_family"}
                     or not isinstance(q["version"], str) or not q["version"]
                     or not isinstance(q["seeds"], list) or not q["seeds"]
                     or any(type(n) is not int or n < 1 for n in q["seeds"])
                     or len(q["seeds"]) != len(set(q["seeds"]))
                     or type(q["threads"]) is not int or q["threads"] < 1):
                 raise ValueError("invalid Quartus recipe")
-        elif "quartus" in entry:
-            raise ValueError("OSS recipe cannot declare a Quartus descriptor")
+            # The front end selects the edition and device family; the core's
+            # quartus.lock holds the same pair and a producer checks them against it.
+            # front_end is optional in the schema, so the string check at the
+            # end of this block does not reach it.
+            if not isinstance(entry.get("front_end"), str) or entry["front_end"] not in FRONT_ENDS:
+                raise ValueError("unknown recipe front end")
+            if FRONT_ENDS[entry["front_end"]] != (q["edition"], q["device_family"]):
+                raise ValueError("front end, Quartus edition and device family disagree")
+        else:
+            if "quartus" in entry:
+                raise ValueError("OSS recipe cannot declare a Quartus descriptor")
+            if "front_end" in entry:
+                raise ValueError("OSS recipes elaborate with Yosys and cannot name a front end")
         if type(entry.get("identity_version")) is not int or entry["identity_version"] != 2:
             raise ValueError("identity_version must be explicitly 2")
         if any(not isinstance(value, str) or not value.strip()
