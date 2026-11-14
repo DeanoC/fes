@@ -121,6 +121,13 @@ module fes_i386_x87 (
     input  logic [31:0] wb_val,
     input  logic [5:0]  wb_part,
     input  logic        flush,
+    // FLDENV and FRSTOR load the last instruction's opcode out of the
+    // environment, where the CPU finds it: the real-mode layouts carry it
+    // beside the instruction pointer's high bits and the 32-bit protected
+    // one beside the code selector, while the 16-bit protected layout has
+    // no room for it and leaves it zero (387 PRM, the FLDENV layouts).
+    input  logic        wb_opcode_set,
+    input  logic [10:0] wb_opcode,
     // The state the CPU and the bench read.
     output logic [15:0] cw_o,
     output logic [15:0] sw_o,
@@ -751,7 +758,10 @@ module fes_i386_x87 (
                                 top <= wb_val[13:11];
                             end
                             3'd2: for (int n = 0; n < 8; n++) empty[n] <= wb_val[2*n +: 2] == 2'b11;
-                            default: ;  // the x87 pointers, which the CPU keeps
+                            default:
+                                // The x87 pointers, which the CPU keeps; it
+                                // hands back the opcode beside them.
+                                if (wb_opcode_set) opcode <= wb_opcode;
                         endcase
                     end else begin
                         // FRSTOR's register image, a register's three chunks

@@ -850,6 +850,23 @@ module fes_i386_cpu #(
     logic        x87_hold, x87_nx, x87_iss, x87_clr_pointers;
     logic [31:0] x87_sval;
     assign x87_iss = cur_valid && dc.x87;
+    // FLDENV and FRSTOR load the environment's fields 3 to 6 back into the
+    // x87 pointers and the opcode, the inverse of the words SYS_RD_FIP to
+    // SYS_RD_FDS store. In real mode the layouts hold one linear address a
+    // pointer, with the opcode beside its high bits and no selector, so the
+    // selector reads back zero, as Bochs's FLDENV leaves it; in protected
+    // mode they hold the offset and the selector, and only the 32-bit
+    // layout has room for the opcode (387 PRM, the FLDENV layouts;
+    // bochs/cpu/fpu/fpu.cc's FLDENV).
+    logic        x87_ld_env;
+    logic [15:0] x87_ld_hi;      // a real-mode pointer's high half
+    logic [10:0] x87_ld_opcode;
+    assign x87_ld_env = wb_commit && wb_s.x87 && wb_s.uop.mem.kind == fes_i386_pkg::MEM_LOAD
+                     && !wb_s.x87_part[5] && wb_s.x87_part[2:0] >= 3'd3;
+    assign x87_ld_hi = wb_s.uop.size == fes_i386_pkg::SIZE_32 ? wb_s.result[27:12]
+                                                              : {12'd0, wb_s.result[15:12]};
+    assign x87_ld_opcode = !cr0_pe ? wb_s.result[10:0]
+                         : wb_s.uop.size == fes_i386_pkg::SIZE_32 ? wb_s.result[26:16] : 11'd0;
     fes_i386_x87 x87 (
         .clk, .reset, .present(x87_present), .f0(x87_f0), .f1(x87_f1),
         .error(x87_irq13), .latched(trace_x87_latched),
@@ -859,6 +876,7 @@ module fes_i386_cpu #(
         .hold(x87_hold), .sval(x87_sval), .nx(x87_nx),
         .wb(wb_commit && wb_s.x87), .wb_last(wb_commit && wb_s.x87 && wb_s.uop.ctl.end_of_instruction),
         .wb_val(wb_s.result), .wb_part(wb_s.x87_part), .flush(wb_flush),
+        .wb_opcode_set(x87_ld_env && wb_s.x87_part[2:0] == 3'd4), .wb_opcode(x87_ld_opcode),
         .cw_o(arch_x87_cw), .sw_o(arch_x87_sw), .tw_o(arch_x87_tw), .opcode_o(arch_x87_opcode),
         .clr_pointers(x87_clr_pointers),
         .busy_o(trace_x87_busy), .regs_o(arch_x87_regs)
@@ -3427,6 +3445,27 @@ module fes_i386_cpu #(
                     fpu_dp <= wb_fdp;
                     fpu_ds <= seg_sel[wb_s.uop.mem.seg];
                     fpu_ldp <= {12'd0, seg_sel[wb_s.uop.mem.seg], 4'd0} + wb_fdp;
+                end
+                // FLDENV's and FRSTOR's fields 3 to 6.
+                if (x87_ld_env) begin
+                    case (wb_s.x87_part[2:0])
+                        3'd3: if (cr0_pe) fpu_ip <= wb_s.result;
+                              else fpu_lip[15:0] <= wb_s.result[15:0];
+                        3'd4: if (cr0_pe) fpu_cs <= wb_s.result[15:0];
+                              else begin
+                                  fpu_lip[31:16] <= x87_ld_hi;
+                                  fpu_ip <= {x87_ld_hi, fpu_lip[15:0]};
+                                  fpu_cs <= 16'd0;
+                              end
+                        3'd5: if (cr0_pe) fpu_dp <= wb_s.result;
+                              else fpu_ldp[15:0] <= wb_s.result[15:0];
+                        default: if (cr0_pe) fpu_ds <= wb_s.result[15:0];
+                                 else begin
+                                     fpu_ldp[31:16] <= x87_ld_hi;
+                                     fpu_dp <= {x87_ld_hi, fpu_ldp[15:0]};
+                                     fpu_ds <= 16'd0;
+                                 end
+                    endcase
                 end
                 // FINIT clears the pointers with the words (387 PRM, FINIT),
                 // and FNSAVE leaves the unit as FINIT does: the unit pulses

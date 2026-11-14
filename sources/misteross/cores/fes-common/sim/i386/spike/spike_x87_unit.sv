@@ -37,6 +37,7 @@ module spike_x87_unit #(
         .hold, .sval, .nx,
         .wb(noise[29]), .wb_last(noise[30]), .wb_val(noise[62:31]), .wb_part(noise[68:63]),
         .flush(noise[69] && noise[70]),
+        .wb_opcode_set(noise[71]), .wb_opcode(noise[82:72]),
         .cw_o, .sw_o, .tw_o, .opcode_o, .busy_o, .clr_pointers, .regs_o
     );
     always_comb begin

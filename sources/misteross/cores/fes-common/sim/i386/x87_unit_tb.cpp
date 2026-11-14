@@ -144,7 +144,8 @@ struct Unit {
         top.iss_op = 0;
         top.iss_fmt = 0;
         top.iss_part = 0;
-        top.wb = top.wb_last = top.flush = 0;
+        top.wb = top.wb_last = top.flush = top.wb_opcode_set = 0;
+        top.wb_opcode = 0;
         top.wb_val = 0;
         top.wb_part = 0;
         for (int n = 0; n < 4; ++n) tick();
