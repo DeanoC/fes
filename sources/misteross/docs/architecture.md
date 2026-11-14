@@ -1006,7 +1006,10 @@ compiler model nor supplies external board requirements or hardware acceptance.
 `cores/fes-common/rtl/fes_hps_ddr.v` is the shared `fes.memory.hps-ddr` port
 module: the fpga2sdram cell in the generated layout (a 128-bit port and two
 64-bit Avalon-MM ports) with a registered guard per port
-(`fes_hps_ddr_guard.v`). The core's execution reset holds the ports; the guard
+(`fes_hps_ddr_guard.v`). Its two command banks capture accepted payloads
+independently of controller readiness. The controller advances a registered
+head pointer instead of enabling the whole payload register bank; a full
+queue applies backpressure until a command retires. The core's execution reset holds the ports; the guard
 then finishes a write burst the core started, with byte enables cleared, and
 hides read data issued before the hold, because the controller cannot recover
 a burst stopped midway. The endpoint parameter `ENABLE_HPS_DDR` advertises
