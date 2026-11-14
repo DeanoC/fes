@@ -247,15 +247,30 @@ re-derived — so **no claim is made here that the BUILD_ID constant is the only
 input that moved for `fes.pcxt-dos`.** What is established is that its own code
 and its board files are untouched.
 
-## A test timeout set too tight
+## Two sweep failures this branch did not cause
 
-Not caused by this branch, which does not touch `boards/de25nano` at all, but
-the next person will hit it: `test_de25nano_scanout` failed in a local sweep
-because `Vfes_de25_scanout` exceeded the 30 s `subprocess.run` timeout in
-`boards/de25nano/scanout/sim.py`. Verilation had succeeded. Re-run alone, with
-nothing else of mine in flight but a loadavg of 13.9 on 24 cores, the same three
-sims take 67.6 s of wall clock and exit 0 — so the limit sits below the honest
-runtime whenever the host is busy.
+`scripts/test_changed.py --base origin/main` stops the fpga lane at its first
+failing command, so either of these leaves 25 RTL simulation lanes under
+`not_started` and a sweep that hits one proves much less than it looks like it
+does. Both are worth recording because the next person will hit them.
+
+- **A timeout set too tight.** `test_de25nano_scanout` failed because
+  `Vfes_de25_scanout` exceeded the 30 s `subprocess.run` timeout in
+  `boards/de25nano/scanout/sim.py`. Verilation had succeeded. Re-run alone, with
+  nothing else of mine in flight but a loadavg of 13.9 on 24 cores, the same
+  three sims take 67.6 s of wall clock and exit 0 — the limit sits below the
+  honest runtime whenever the host is busy. This branch does not touch
+  `boards/de25nano` at all.
+- **A race in a test helper** (issue #1830).
+  `test_quartus_x87_spike`'s `state()` catches only `FileNotFoundError`, but
+  reading `/proc/<pid>/stat` for a just-reaped task raises `ProcessLookupError`
+  (ESRCH, errno 3), and the two classes are unrelated. So
+  `test_stop_kills_a_child_that_ignores_term_after_the_leader_exits` errors on
+  the outcome it is asserting: the child was killed, and the throw comes from
+  the loop waiting to observe it. The window is narrow — the test passed 5/5 in
+  isolation at loadavg 28 — so the traceback is better evidence than a repro.
+  The helper arrived in #1786; this branch does not touch the file. Not fixed
+  here, per one scope per PR.
 
 ## Why CI appeared not to run on this branch
 
