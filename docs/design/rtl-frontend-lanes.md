@@ -350,8 +350,8 @@ S8 shows this with per-target diffs. It is not assumed.
 
 **Tests that assert the old text** and move in the same PR:
 
-- `QUARTUS` text: `M/tests/test_build_fes_pc386_quartus.py:155`, `test_build_fes_coleco.py:424,401,440`, `test_build_fes_sms.py:269`, `test_build_fes_sg1000.py:377`, `test_build_fes_zx81.py:256`, `test_fes_ramtest.py:144`, `test_build_fes_zx81_oss.py:446`.
-- `FES_*_OSS` text: `test_build_fes_coleco.py:290-291,275,390`; `test_build_fes_sg1000.py:125-127,101-102,147,150,401,535`; `test_build_fes_sms.py:140,117-119,162,165,341,602`; `test_coleco_sim_shards.py:62-69`, which pins the `-oss` lane flag and becomes a check of the new lane mapping; `test_coleco_megacart_build.py:63`.
+- `QUARTUS` text: `M/tests/test_build_fes_pc386_quartus.py:155`, `test_build_fes_coleco.py:424,438,477`, `test_build_fes_sms.py:269`, `test_build_fes_sg1000.py:377`, `test_build_fes_zx81.py:256`, `test_fes_ramtest.py:144`, `test_build_fes_zx81_oss.py:446`.
+- `FES_*_OSS` text: `test_build_fes_coleco.py:290-291,312,427`; `test_build_fes_sg1000.py:125-127,138-139,184,187,446,579`; `test_build_fes_sms.py:140,154-156,199,202,378,638`; `test_coleco_sim_shards.py:62-69`, which pins the `-oss` lane flag and becomes a check of the new lane mapping; `test_coleco_megacart_build.py:63`.
 
 The S8 census `rg` finds any others, and they move in the same PR.
 
