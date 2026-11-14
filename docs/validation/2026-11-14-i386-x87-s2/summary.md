@@ -245,19 +245,22 @@ fixed in the commit that found it.
 
 ## Checks
 
-Every gate below is of **`06c324ac0`**, the branch's frozen head: one run,
-in the order the seal needs, on `chip-30x0-ai-dev` with CUDA
-(`/data/x87-s2-fits/gates5.log`). The only commit after it is this record,
-which is Markdown, so there are no RTL, recipe, firmware source or ABI
-header changes after the sealed revision and the seal and the kit run stand
-for the branch head. Two earlier heads had a full run and a seal of their
-own and both are superseded. `bf581e303` (seal `25ba71ce`) was superseded
-when Codex's review of it found three real RTL faults, and `641f06583`
-(seal `ff11f812`) when a review thread on `e440a62d`, which had gone
-unanswered, turned out to name a real fourth one: the FLDCW latch. Each
-time every gate, the seal and the kit run were redone from the start on the
-new head; the pc386 reseal exemption does not cover an i386 seal. The
-`ff11f812` seal never got a valid kit run — see the kit section.
+Every gate below is of **`f28ac42f2`**, the branch's frozen head: one run,
+in the order the seal needs, on `chip-30x0-ai-dev` with CUDA, from a clean
+checkout of that commit (`/data/x87-s2-fits/gates6.log`). The only commit
+after it is this record, which is Markdown, so there are no RTL, recipe,
+firmware source or ABI header changes after the sealed revision and the seal
+and the kit run stand for the branch head. Three earlier heads had a full
+run and a seal of their own and all three are superseded. `bf581e303`
+(seal `25ba71ce`) went when Codex's review of it found three real RTL
+faults; `641f06583` (seal `ff11f812`) when a review thread on `e440a62d`,
+which had gone unanswered, turned out to name a real fourth one, the FLDCW
+latch; and `06c324ac0` (seal `81ab96a1`) when Codex's review of
+`d3a6c53d2` found the stale no-wait comments above, which are in a sealed
+input. Each time every gate, the seal and the kit run were redone from the
+start on the new head; the pc386 reseal exemption does not cover an i386
+seal. Of the three, `ff11f812` never got a valid kit run — see the kit
+section — and `81ab96a1` did.
 
 | Check | Where | Result |
 | --- | --- | --- |
@@ -267,7 +270,7 @@ new head; the pc386 reseal exemption does not cover an i386 seal. The
 | the lockstep on the locked-Yosys netlist, the same buckets | chip | **0 fail**, the same counts |
 | the lockstep at governor preset 3, `--same-as` the max run | chip | **0 fail**, 16 retirements compared; every bucket agrees with the max run |
 | `test386.asm` on the RTL | chip | POST 00 … E0 EE **FF**, 79,641,629 steps, no EE difference |
-| the Quartus 17.0.2 seal of the frozen head | chip, CUDA | **passed**, package `81ab96a1`, below |
+| the Quartus 17.0.2 seal of the frozen head | chip, CUDA | **passed**, package `d15c3438`, below |
 | the two machine analysis fits, the identity overlaid on and left off | chip | below |
 | a kit run on that seal | Kit B | below |
 | `tests.test_pc386_machine` (82 tests: the whole machine simulated with the unit in it) | Powerboat | OK |
@@ -285,8 +288,9 @@ governor preset 3 deadlocked at FNINIT: a no-wait control form took the one
 no-wait slot and then waited on it, and only its own commit clears it. Without
 the governor it issued in the same cycle, so nothing showed. `bf581e303`'s
 `nw_waiting` is the fix, and every gate was re-run from the start on it. The
-three review fixes forced the same thing again on `641f06583`, and the FLDCW
-fix once more on `06c324ac0`, which is the head sealed here.
+three review fixes forced the same thing again on `641f06583`, the FLDCW
+fix once more on `06c324ac0`, and the comment sweep once more on
+`f28ac42f2`, which is the head sealed here.
 
 ## Area and timing
 
@@ -331,21 +335,45 @@ multiplicand, 9 levels.
 
 ### The seal
 
-The Quartus 17.0.2 seal of `06c324ac0`, built on `chip-30x0-ai-dev` from a
+The Quartus 17.0.2 seal of `f28ac42f2`, built on `chip-30x0-ai-dev` from a
 clean checkout of that commit with `--gpu-router CUDA` and the full lockstep
 `--netlist` report in front of it, as #1782 requires:
 
 | | |
 | --- | --- |
-| package | `81ab96a11ba3d8969fadf19306856c78e77642f5229ec9ef1b47412671d22b45` |
-| `BUILD_ID` | `9a960e227f2200d681051b280f4e8264` |
-| `core.rbf` | `6b58880a8b892f745ad967d19cc2fcfdc5fda329425228f0ae79d81635bd7361` |
-| ALMs | 36,323 of 41,910 (86.7%) |
-| DSP / M10K / registers | 40 / 274 / 32,883 |
-| system clock | 61.44 MHz, setup **+0.752 ns**, hold +0.072, recovery +6.618, removal +2.463, minimum pulse width +1.162 |
-| pixel / audio clocks | 74.27 MHz setup +1.273, hold +0.077, pulse width +1.122 / 12.29 MHz setup +11.798, hold +0.181, removal +0.510 |
+| package | `d15c3438431b045fea85fecf97c8c60c32c300b7efc2585eae9e7f8bec1d2722` |
+| `BUILD_ID` | `5355d282912060a9f36e3cf8b54c02df` |
+| `core.rbf` | `e8de26c1a0d35566a45aefa4c2c1c2adbacc55c9a3e59330b45fa568ffa370f7` |
+| ALMs | 36,298 of 41,910 (86.6%) |
+| DSP / M10K / registers | 40 / 274 / 32,903 |
+| system clock | 61.44 MHz, setup **+0.672 ns**, hold +0.120, recovery +7.731, removal +2.083, minimum pulse width +1.162 |
+| pixel / audio clocks | 74.27 MHz setup +1.523, hold +0.051, pulse width +1.122 / 12.29 MHz setup +9.143, hold +0.185, removal +0.519 |
 | every analysis | the worst slack of each clock over all four corners (Slow and Fast, 100C and -40C), every one positive, 0 ns TNS throughout |
-| the lockstep report it carries | netlist `9270e41d`, report `d242bf47`, Verilator 5.054 of the i386 lock, Yosys `e240a465` |
+| the lockstep report it carries | netlist `a50e6ec8`, report `b9b0a540`, Verilator 5.054 of the i386 lock, Yosys `e240a465` |
+
+**A comment in a sealed source is not free, and this reseal measured how
+much it costs.** `f28ac42f2` changes only comments: with comments stripped
+the file is byte-identical to `8e771cd7d`'s. The seal still moved — 36,323
+to **36,298 ALMs**, setup +0.752 to **+0.672 ns**, and a different
+`core.rbf` of a different size. The cause was checked rather than guessed.
+Building the CPU netlist from both heads with the same Yosys program
+(`scripts/yosys_netlist.py cpu`, `/data/x87-s2-fits/netcmp`) gives two files
+of **exactly the same length, 79,154 lines and 3,423,649 bytes, with the
+same counts of every statement kind** — and **1,752 lines, 2.2%, differ**,
+all of them declarations in Yosys's auto-generated `_NNNNN_` namespace.
+Comments move source positions, Yosys's internal numbering follows, and
+Quartus then fits a differently labelled netlist. So:
+
+- A seal is reproducible from its own revision, not across a comment edit.
+  The identity-on machine fit reproduced **exactly** (38,233 ALMs, +0.603 ns
+  on both heads) while the identity-off fit moved 74 ALMs and the seal moved
+  25, which is the same flow-level spread this record quotes elsewhere.
+- It is why Deano's call was to redo the gates rather than carry the
+  inconsistency: there is no "comments only, the seal still stands" case to
+  appeal to, and the gates all pass on the new netlist anyway (87/0 on it,
+  and every lockstep bucket).
+- Worth an issue of its own if anyone wants reseals to be cheaper, but
+  nothing here depends on it.
 
 Main's last pc386 seal is 36,803 ALMs, but it was taken before the
 keyboard's M10K win (#1802, −796) landed, so it is not this seal's
@@ -366,18 +394,18 @@ measured rather than estimated:
 | The machine | ALMs | % of device | vs the 92% ceiling | DSP | M10K | CPU setup (ns) | CPU hold (ns) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `origin/main` (`53681975f`), the same flow | 36,625 | 87.4% | −1,932 | 40 | 274 | **+0.435** | +0.074 |
-| this branch, the identity clear, as the package has it | 36,434 | 86.9% | −2,123 | 40 | 274 | **+0.532** | +0.106 |
+| this branch, the identity clear, as the package has it | 36,360 | 86.8% | −2,197 | 40 | 274 | **+0.630** | +0.074 |
 | this branch, the identity set, so the unit is kept | 38,233 | 91.2% | **−324** | 49 | 278 | **+0.603** | +0.076 |
 
 - **Against main the unit costs +1,608 ALMs, 9 DSP blocks and 4 M10K**, and
   the machine meets the clock in all three fits.
-- **With the identity clear this branch fits 191 ALMs smaller than main**, a
+- **With the identity clear this branch fits 265 ALMs smaller than main**, a
   negative delta, so tying the identity to `1'b0` really does remove the
   unit and the changes that are not behind it — the shared FNSAVE and FRSTOR
   microcode, the sequencer's offsets, the wider part field — cost nothing
   measurable. How small a difference means nothing here is worth stating:
   the seal and this fit are the same RTL at the same seed through two flows
-  and differ by 111 ALMs (36,323 against 36,434), so a hundred either way is
+  and differ by 62 ALMs (36,298 against 36,360), so a hundred either way is
   below this measurement's resolution. The 92% ceiling is a device figure
   (38,557 of 41,910) and applies to both, but 38,233 is a fit-flow number,
   so read the 324 with that 111 in mind.
@@ -432,7 +460,7 @@ missed; the slack is the worst of that clock over all four corners.
 - **What this is, and is not.** It is an analysis fit through the sealer's
   own project, firmware and Yosys program, at the seal's settings, with the
   identity overlaid to `1'b1`; its timing is reported rather than gated. It
-  is **not** a seal. The sealed package in this PR is 36,323 ALMs, 86.7%,
+  is **not** a seal. The sealed package in this PR is 36,298 ALMs, 86.6%,
   which is below the audit's tested 88%, and it met every analysis in the
   sealer's own gate.
 - **Where the onset probably is.** The fit spike measured a machine with its
@@ -521,8 +549,10 @@ per entity (`quartus_x87_spike.py --hierarchy`), Quartus 17.0.2, seed 1.
 Its fits are of `bf581e303`, the head the audit was asked for. The three
 review fixes in `641f06583` move the machine by +41 ALMs with the identity
 on and −37 with it off, and the FLDCW latch in `06c324ac0` by a further +74
-and −61; both are inside this flow's spread, and neither adds a module or a
-path, so the breakdown stands.
+and −61. The comment sweep in `f28ac42f2` moves it again, 0 with the
+identity on and −74 with it off, which is the point the seal section makes
+about comments and Yosys's naming. All of those are inside this flow's
+spread, and none adds a module or a path, so the breakdown stands.
 
 **In the machine**, the identity overlaid on against off, the whole
 difference is three rows; every other module moves by less than 40 ALMs,
@@ -613,11 +643,13 @@ propagation works.
 
 ### The kit run
 
-Kit B, on the sealed package `81ab96a1` itself, core-only: nothing
+Kit A, on the sealed package `d15c3438` itself, core-only: nothing
 installed, no image or boot-config change, the baseline claimed in
-`~/kit-status/kitB-STATUS.md` before the run and verified restored after it
-(bundle `7ddb0bfb` active, image `179affbb`, boot id unchanged, the run's
-three FogCast data trees removed, kit logged free). The driver is
+`~/kit-status/kitA-STATUS.md` before the run and verified restored after it
+(bundle `a2756499` active, image `179affbb`, boot id unchanged, the run's
+three FogCast data trees removed, kit logged free). Kit A rather than Kit B
+only because B was busy; the two are interchangeable test kits and the
+wrapper takes whichever is free, never one that is claimed. The driver is
 `~/fes-scratch/x87s2/kit/run-x87.sh` around `hil_x87.py`, a copy of the
 keyboard slice's, on the user-supplied FreeDOS drive `a6977555` (never
 committed). **The identity is clear in this package**, so the run is a
@@ -626,25 +658,29 @@ the 387's own behaviour is the unit's bench and the lockstep.
 
 | Pass | What it did | Result |
 | --- | --- | --- |
-| x6b | boot FreeDOS from the sealed package, type at the prompt, launch Wolfenstein 3D, step through its menus, then move and turn in the game | **FreeDOS boots to `C:\>` with HimemX, µXMS and CuteMouse loaded; Wolfenstein reaches Floor 1 at health 100% and ammo 8, and the view both moves forward and turns** |
+| x7a | boot FreeDOS from the sealed package, type at the prompt, launch Wolfenstein 3D, step through its menus, then move and turn in the game | **FreeDOS boots to `C:\>`; Wolfenstein reaches Floor 1 at health 100% and ammo 8, and the view both moves forward and turns** |
 
 The admission of the package was checked rather than assumed: `result.json`
 carries no `error`, the `package` command returned the package id, the load
 went `active` with `fes.pc386.machine 1.0` among its interfaces, and every
-grab returned `ok`. The frames are in `~/fes-scratch/x87s2/kit/runs/x6b/fr`.
+grab returned `ok`. The frames are in `~/fes-scratch/x87s2/kit/runs/x7a/fr`.
 
-Two earlier kit sessions are superseded and are recorded only so the kit log
-reads straight. Passes x1 to x4 ran the same way on the `25ba71ce` seal of
+Three earlier kit sessions are superseded and are recorded so the kit logs
+read straight. Passes x1 to x4 ran the same way on the `25ba71ce` seal of
 `bf581e303` — four boots, Keen 4 and Wolfenstein both played, the keyboard
-right at the prompt and in both games — and pass x5b, on the `ff11f812` seal,
-was **void**: it was packed with a plain `tar cf`, which is not the canonical
-`.fcore` layout, so the kit refused it at admission with
+right at the prompt and in both games. Pass x6b ran on the `81ab96a1` seal
+of `06c324ac0` and passed the same check this one did. Pass x5b, on the
+`ff11f812` seal, was **void**: it was packed with a plain `tar cf`, which is
+not the canonical `.fcore` layout, so the kit refused it at admission with
 `HTTP 422 INVALID_ARCHIVE` while the driver still reported `rc=0` and ran
 the rest of its script, whose frames therefore say nothing about that seal.
-Nothing was installed and the kit never left its baseline. The runner now fails the run
-when `result.json` holds an `error`, and the packer builds the archive with
-`scripts/core_package.py`'s own USTAR header so the package id matches the
-store digest before anything is sent.
+Nothing was installed and the kit never left its baseline. The runner now
+fails the run when `result.json` holds an `error`, and the packer builds the
+archive with `scripts/core_package.py`'s own USTAR header so the package id
+matches the store digest before anything is sent. The x6b claim line also
+carried a stale head and game list from the run template; that is corrected
+in `~/kit-status/kitB-STATUS.md`, and the template now takes both from the
+run.
 
 ## The CPU and the machine
 
