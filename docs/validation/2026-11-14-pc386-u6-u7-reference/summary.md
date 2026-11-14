@@ -15,10 +15,10 @@ left them open. This record names one, checks it against real hardware, and
 measures what it can with it.
 
 The method and the pass rule were fixed before any kit capture, in
-[`method.md`](method.md). It was then amended four times and corrected twice.
-The first two amendments came before the only kit run that measured anything,
-`g1`; the rest came after it, as the reference's own repeats were understood,
-and no kit capture followed them. Each says what had been seen when it was
+[`method.md`](method.md). It was then amended six times and corrected four
+times. The first two amendments came before the only kit run that measured
+anything, `g1`; the rest came after it, as the reference's own repeats were
+understood and the rig itself was measured, and no kit capture followed them. Each says what had been seen when it was
 written. **The lute block, the pitch analyser and the ±5.9% band are as first
 committed**, so the pitch verdict does not rest on anything written after the
 kit was measured. The reference machines are in
