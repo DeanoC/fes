@@ -66,39 +66,52 @@ below, which states the gap. For every one of them, at `2d895034c`:
 | `fes.zx80` | `dd94d35c798acf4da7f9f26a387ab5c3` | `ec8fe32d78467575…` | `4c9fe524cdb43d6035e50b19e75edc68` | 1/100 | system 52.30 / 52.22 |
 | `fes.zx81` | `d664831dabef0eca18cefc1ac15fe492` | `6422d68ba1db9736…` | `f9f078f5d40c863e3750dae40f629fdb` | 1/300 | system 52.40 / 52.22 |
 
-Two cores do not clear the third condition, and neither failure is caused by
-this PR's code:
+Two cores did not clear the third condition **at `2d895034c`**, and neither
+failure was caused by this PR's code:
 
-- **`fes.ts1500`** (issue #1803): forced matches main byte for byte, but the own
+- **`fes.ts1500`** (issue #1803): forced matched main byte for byte, but the own
   build met no placement (best seed 10, weight 2000, worst ratio 0.9630) across
   all fifteen seed/weight attempts — none was lost to a route timeout. At the
-  previous head this same core's own build passed with a 0.01% margin
-  (52.230 MHz against a 52.2248 MHz constraint). Its closure is unchanged by
+  head before that, this same core's own build passed with a 0.01% margin
+  (52.230 MHz against a 52.2248 MHz constraint). Its closure was unchanged by
   this PR; only the BUILD_ID moved, and that was enough.
 - **`fes.ramtest`** (issue #1803): main's own producer also fails on this host,
   so there is no main reference and no forced build. See below.
 
+Both of them close at `02beac79b`, as does `fes.pcxt-dos`. See
+[re-measurement at this head](#re-measurement-at-02beac79b). That answers the
+third condition only; it leaves the byte-for-byte condition where the gap
+section puts it.
+
 ## fes.ramtest remains a merge gate
 
-This head has no timing-closing replacement artifact or exact-artifact HIL for
-`fes.ramtest`. D12 does not apply because the candidate does not pass its normal
-timing and seal gates. The main package remains the existing artifact; none of
-the attempts below supplies a qualified replacement. Do not treat this record as
-clearing the RAM Tester hardware gate.
+This head has no exact-artifact HIL for `fes.ramtest`, and no valid D12
+comparison in either direction. The own build does close at `02beac79b` (see
+[below](#re-measurement-at-02beac79b)), so the gate is no longer a timing miss —
+it is the missing comparison and the missing HIL. The main package remains the
+existing artifact; nothing in this record supplies a qualified replacement. Do
+not treat it as clearing the RAM Tester hardware gate.
 
 | Code | nextpnr | BUILD_ID | Result |
 | --- | --- | --- | --- |
 | main `2d895034c` | `9128800f` (main lock) | new | no placement met timing, best seed 8, worst ratio 0.9714 |
-| this PR | `9128800f` | own | no placement met timing, best seed 7, worst ratio 0.9987 |
+| this PR at `2d895034c` | `9128800f` | own | no placement met timing, best seed 7, worst ratio 0.9987 |
 | PR #1788 head | `bec82e36` | own | **passed**, seed 7, memory 101.698 / 100 MHz |
 | this PR, with #1788 folded in | `bec82e36` | own | no placement met timing, best seed 7, worst ratio 0.9702 |
+| this PR at `02beac79b` | `9128800f` | `cc6eca8e8d73cbc7b5bf069b1ca2ed09` | **passed**, seed 7, worst ratio 1.0021 |
 
-All eight seeds completed in each run; none was lost to a route timeout. The one
-pass had about 1.7% margin, which is inside placer noise, so moving the lock
-forward is not a fix. That fold has been reverted out of this PR: #1752 does not
-touch `fes.ramtest`, and #1788 stays open on its own. Timing repair, a sealed
-replacement and exact-artifact HIL are required before the RAM Tester artifact
-is qualified on this head.
+All eight seeds completed in each run; none was lost to a route timeout. The
+margins on both passes are inside placer noise — 1.7% for the #1788 head and
+0.21% at this head — so neither is evidence that anything was repaired, and
+moving the lock forward is not a fix. The #1788 fold has been reverted out of
+this PR: #1752 does not touch `fes.ramtest`, and #1788 stays open on its own.
+
+**Why there is no comparison to be had.** Main commit `090144ced` (#1767)
+changed this core's RTL, so the pre-#1767 forced-build reference is void, not
+merely stale; and main's own producer does not close on this host, so a fresh
+reference cannot be built here either. The `02beac79b` row is therefore a bare
+own-build result. No D12 comparison is constructed from it, and none should be
+read into it.
 
 ## fes.pcxt and fes.pcxt-dos (Quartus)
 
@@ -112,7 +125,7 @@ candidate found".
 | Profile | main = forced BUILD_ID | main = forced repeat RBF sha256 | own BUILD_ID | own result |
 | --- | --- | --- | --- | --- |
 | `fes.pcxt` (diagnostic) | `f1a07fda62bdc50c76e7994fbc6a7de9` | `55614ec1156ad80c…` | `a2e52a8f8fbfe80dd426facbb5f0598c` | pass, seeds 1–3 plus the repeat build |
-| `fes.pcxt-dos` | `e162041bf1ed5fbe1a54ff08b3f84e55` | `9db8fb89a0c25940…` | `1385062da52b2d69a32e7d6b281cfbe6` | **fails an audio seal check** |
+| `fes.pcxt-dos` | `e162041bf1ed5fbe1a54ff08b3f84e55` | `9db8fb89a0c25940…` | `1385062da52b2d69a32e7d6b281cfbe6` | **failed an audio seal check** at `2d895034c`; closes at `02beac79b` |
 
 Against `2d895034c`, both profiles met the netlist and RBF conditions: the
 forced builds reproduced main's RBF byte for byte, and the Yosys netlists are
@@ -122,8 +135,8 @@ embed the absolute build directory mangled into identifiers, so that
 normalization covers `…/build/fes-pcxt-quartus/<build-id>/attempt-<id>/` as well
 as the checkout and install paths.)
 
-`fes.pcxt` meets the third condition too. `fes.pcxt-dos` does not: its own build
-stops at
+`fes.pcxt` meets the third condition too. At `2d895034c`, `fes.pcxt-dos` did
+not: its own build stopped at
 
 ```
 Error (332000): Audio endpoint binding failed: speaker_output_audio_output_stage_acknowledge: 2
@@ -133,10 +146,10 @@ The conclusion is stronger than "pre-existing failure", and it is worth stating
 precisely. Main's tree passes at main's BUILD_ID `e162041b…` and fails at
 `1385062d…`; this PR's tree does the same. Both trees pass and both trees fail,
 decided by nothing but which BUILD_ID constant is compiled in. Main is not
-broken, and this PR does not break it — **the BUILD_ID constant alone decides
-whether this fit closes.** That control is recorded on issue #1611, and it is
-the same single cause as #1803 on a different core and a different toolchain.
-No seal or timing check was relaxed.
+broken, and this PR does not break it — **in that controlled pair, the BUILD_ID
+constant alone decides whether this fit closes.** That control is recorded on
+issue #1611, and it is the same single cause as #1803 on a different core and a
+different toolchain. No seal or timing check was relaxed.
 
 ## fes.coleco
 
@@ -171,9 +184,78 @@ on its own terms rather than out of date. Any core the next merge touches can go
 the same way, so the argument cannot be assumed to carry across merges — it has
 to be checked per merge.
 
-The three non-closing cores below were also measured on the pre-merge tree.
-Their closures moved, so their placement outcomes have been rerolled, in either
-direction, and they are being re-measured at `02beac79b`.
+The three non-closing cores were also measured on the pre-merge tree. Their
+closures moved, so their placement outcomes were rerolled; the next section is
+that re-measurement.
+
+## Re-measurement at `02beac79b`
+
+Run 14 Nov on Powerboat in a clean checkout at
+`02beac79b5fe2caa7939aefbbe860a79c466e9e0`. **All three cores that did not close
+at `2d895034c` close here.** These are own builds under each producer's normal
+gates — no seed hunting beyond the recipe's own list, no lock moves, and no
+forced-BUILD_ID build was run for any of them.
+
+**This answers D12's third condition only.** The byte-for-byte condition is
+still unverified at this head, for these three as for every core in the table
+above, and whether evidence measured against the merge base counts for this PR
+is an open call. Nothing below closes either question.
+
+| core | BUILD_ID | seed/weight | binding clock | achieved / constraint MHz | worst_ratio |
+| --- | --- | --- | --- | --- | --- |
+| `fes.ts1500` | `95fcfb5dd8ac25942ce37776f9b6aac8` | 1/1000 | `clk_sys` | 52.9156 / 52.22477 | 1.0132 |
+| `fes.ramtest` | `cc6eca8e8d73cbc7b5bf069b1ca2ed09` | 7/10 | `ram_clock.clocks[0]` | 100.2104 / 100.0 | 1.0021 |
+
+`fes.ts1500` also passes `display.control.clk` at 90.098 / 74.250 and
+`audio_clk` at 237.586 / 12.288. `fes.ramtest` also passes `display.pixel_clk`
+at 81.619 / 74.250 and `ram_clock.clocks[1]` at 281.849 / 100.0.
+
+Both margins are thin, and `fes.ramtest`'s 0.21% is thinner than the 1.7% this
+record already calls placer noise — its next three seeds failed at 0.9981,
+0.9951 and 0.9814. Issue #1803 tracks why margins this thin move with the
+BUILD_ID alone; this record does not analyse it.
+
+`fes.ramtest` here is a bare own-build result with no valid D12 comparison from
+any direction, for the reasons in [its own
+section](#fesramtest-remains-a-merge-gate). None is constructed from it.
+
+**`fes.pcxt-dos`.** The Quartus sealer has no nextpnr `worst_ratio`; per-seed
+TimeQuest slack is the equivalent number. BUILD_ID
+`59d28f98637177c0d739a6fb47c9ff30`, `internal_timing_pass: true`, signoff seeds
+1–3 plus a repeat of seed 1. Every path class reports 0 violated in all four
+compiles, and each audit carries exactly one `AUDIO_CONTRACT` line — five
+asynchronous source pairs, bounded held payload, max delay 81.387 ns — with no
+`Error (332000)`.
+
+| run | worst setup slack ns | worst hold slack ns |
+| --- | --- | --- |
+| signoff seed 1 | 0.997 | 0.127 |
+| signoff seed 2 | 0.747 | 0.122 |
+| signoff seed 3 | 0.332 | 0.126 |
+| repeat of seed 1 | 0.997 | 0.127 |
+
+`repeat_rbf_sha256` `b1932849a5c3…` equals the packaged `core.rbf` sha256, so
+the repeat compile reproduced the signoff RBF. The
+`speaker_output_audio_output_stage_acknowledge: 2` seal failure does not recur
+at this BUILD_ID.
+
+Main changed nothing under `cores/fes-pcxt`, and every board file it changed is
+under `boards/de25nano` while this core targets de10_nano. But main did change
+shared files, `cores/fes-common/generated/fes_application.vh` and
+`rtl/fes_application_gp.v` among them, and this core's closure has not been
+re-derived — so **no claim is made here that the BUILD_ID constant is the only
+input that moved for `fes.pcxt-dos`.** What is established is that its own code
+and its board files are untouched.
+
+## A test timeout set too tight
+
+Not caused by this branch, which does not touch `boards/de25nano` at all, but
+the next person will hit it: `test_de25nano_scanout` failed in a local sweep
+because `Vfes_de25_scanout` exceeded the 30 s `subprocess.run` timeout in
+`boards/de25nano/scanout/sim.py`. Verilation had succeeded. Re-run alone, with
+nothing else of mine in flight but a loadavg of 13.9 on 24 cores, the same three
+sims take 67.6 s of wall clock and exit 0 — so the limit sits below the honest
+runtime whenever the host is busy.
 
 ## Why CI appeared not to run on this branch
 
