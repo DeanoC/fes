@@ -10366,6 +10366,8 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
         if (outcome.exception >= 0) out.add(std::string(c.label) + ".exception", 0xff, uint32_t(outcome.exception));
         // The program has halted, so waiting for the unit cannot run another
         // instruction: its last operation's state is compared here.
+        const uint32_t ip_before_settle = rtl.x87_state().pointers.ip;
+        const bool busy_before_settle = rtl.top.trace_x87_busy;
         rtl.settle_x87();
         const fes_i386::X87State want = oracle.x87_state(), got = rtl.x87_state();
         for (const std::string &field : fes_i386::x87_differences(want, got))
@@ -10382,7 +10384,8 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
                     std::cout << " r" << n << ' ' << hex(s.r[n].sign_exponent) << ':' << hex(s.r[n].significand);
                 std::cout << '\n';
             };
-            std::cout << "x87:" << c.label << " states\n";
+            std::cout << "x87:" << c.label << " states (ip before settling " << hex(ip_before_settle)
+                      << ", busy " << busy_before_settle << ")\n";
             show("oracle", want);
             show("rtl   ", got);
         }
