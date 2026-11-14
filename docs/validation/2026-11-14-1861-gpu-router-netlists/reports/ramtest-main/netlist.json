@@ -1,0 +1,11 @@
+{
+  "build_id": "00000000000000000000000000000000",
+  "core": "fes.ramtest",
+  "netlist_sha256": "0d59db94f2352a40c9b0e57ab69c6626ff5a3f7b33f5843ae9507e9bf3bf6c7a",
+  "tools": {
+    "mistral": "commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=0a5528a4e8154aeb27109ff89a9cbde252502482d592ca7412fd391ad5ce7566",
+    "nextpnr-mistral": "commit=bec82e36d436acec7cbeb248725acfde72b8f220; sha256=fbd217c569c3708eca41d6b230f14543d0f07bd9a3c2479121bf07a7889e58e5; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+    "yosys": "commit=3a5accbd78c526ab7bae32640044a2e062a3cfc9; sha256=432db5309258ff6d58b56736f11de52aef2d134810422f86cc7902964cfd2b83"
+  },
+  "tree": "/data/fes1861-netlist/mainref/sources/misteross"
+}

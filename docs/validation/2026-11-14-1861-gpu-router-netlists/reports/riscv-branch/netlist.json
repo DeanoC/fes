@@ -1,0 +1,11 @@
+{
+  "build_id": "00000000000000000000000000000000",
+  "core": "fes.riscv",
+  "netlist_sha256": "e8db4d58afb81e7766d7e21c9ce6d1d18736196badb9dbc23fb742d8c4549be8",
+  "tools": {
+    "mistral": "commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=0a5528a4e8154aeb27109ff89a9cbde252502482d592ca7412fd391ad5ce7566",
+    "nextpnr-mistral": "commit=8f453ebc7420ad619dfe94818d869ea76dd2585f; sha256=6f89c59399820beec298e139b942b58daead9bf2acba348253c3f8af041deb1b; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+    "yosys": "commit=3a5accbd78c526ab7bae32640044a2e062a3cfc9; sha256=432db5309258ff6d58b56736f11de52aef2d134810422f86cc7902964cfd2b83"
+  },
+  "tree": "/home/deano/fes/.claude/worktrees/gpu-router-default/sources/misteross"
+}
