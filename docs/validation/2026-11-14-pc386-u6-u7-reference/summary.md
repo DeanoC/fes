@@ -28,7 +28,7 @@ kit was measured. The reference machines are in
 
 | Check | Result |
 | --- | --- |
-| **Ultima VI, PC speaker pitch at the 286-12 preset** | **Fail.** The kit's notes are 12.7–12.9% below the reference's, 2.35 and 2.39 semitones flat; 9.0–9.3% and about 1.7 semitones even after the reference is scaled from 12.5 to 12.0 MHz. The band is ±5.9%, one semitone. |
+| **Ultima VI, PC speaker pitch at the 286-12 preset** | **Fail.** The kit's notes are 12.7–12.9% below the reference's, 2.35 and 2.39 semitones flat. The band is ±5.9%, one semitone. Scaling the reference from its 12.5 MHz to the preset's nominal 12.0 leaves 9.0–9.3% and about 1.7 semitones, if the game keeps the same delay unit across that step. |
 | **Ultima VI, walking speed at the 286-12 preset** | **Not decided**, and the method is the problem, not the kit: on the reference the turn rate follows how fast the keys are sent, and the step rate has a window out by 40% at the same key rate. Neither is the game's rate, so no kit window was run with it. The figures are below for whoever measures it next. |
 | **Ultima VII: The Black Gate, NPC pace at 386DX-25** | **Not done.** The game stops at its own memory check on the reference, and the reference board for a 386DX-25 is not settled; see below. |
 
@@ -50,6 +50,11 @@ preset scores **33**, above every real 286 of that clock in the database and
 level with its 16 MHz boards (33, 36, 42), which is the difference these checks
 are about: the preset is a 386 core paced to a table, not a 286. CHKCPU refuses to run on the reference at all ("requires a 386 or
 higher CPU") and calls the kit's 286-12 preset a "classic 386 at 12.8 MHz".
+
+**Evidence class**, as `AGENTS.md` asks it be named: exact-artifact hardware
+acceptance for the kit side — the sealed package `fc01c956…` on Kit B, with
+the load read back from the run's own record — beside a host-only measurement
+of the reference.
 
 ## Package and kit
 
@@ -120,7 +125,10 @@ and the reference's memory.
 | kit below the reference | | **12.68% and 12.91%** (2.35 and 2.39 semitones) | **9.04% and 9.29%** (1.64 and 1.69 semitones) |
 
 **Verdict: fail.** The band is ±5.9%, one semitone, and the kit is outside it
-on both notes however the reference's 4.2% clock offset is treated. The
+on both notes against the reference as measured, at 12.5 MHz. It is still
+outside it against the reference scaled to the preset's nominal 12.0 MHz,
+which holds while the game's delay unit does not change across that step (see
+below). The
 measurement is far finer than the band: the kit's notes spread 0.05% and the
 reference's 1%, and the kit's figures are the same as the 10 November run's
 (840.7 and 499.8 Hz) on a different seal, so this is the machine and not the
