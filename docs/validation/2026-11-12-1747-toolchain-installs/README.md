@@ -480,6 +480,25 @@ The third is in CI rather than a local sweep, and it is latent on main.
   order, though #1843 first avoids turning a latent failure into a visible one
   with no fix available.
 
+  **The mechanism then recurred the same afternoon, which settles which of the
+  two PRs matters.** Main `e2a39aebb` (#1831) changed
+  `libmister-runtime/src/native/video.hpp`, another captured file, about two
+  hours after #1843's receipt was generated. Of the 61 keys in that fresh
+  receipt exactly one no longer matched, and it was that file. #1831 touches no
+  `sources/misteross/` file either, so `fpga-producer` and `fpga-simulation`
+  were `completed/skipped` on main again, and the failure landed on the next PR
+  to touch `sources/misteross/` — which this time was #1843 itself. Two
+  independent instances from different commits in one afternoon, the second
+  arriving while the fix for the first was in review.
+
+  So #1843 regenerates a receipt that the next captured-file change will stale
+  again; it is not a fix, it is a turn of the treadmill. #1846 is the fix, and
+  not because it stops the receipt going stale — it does not. It makes the
+  staleness land on the commit that causes it, at the moment it causes it,
+  instead of on a stranger's PR hours later. Both instances would have selected
+  the fpga lane under its predicate, so both would have been caught by their own
+  author.
+
   **What #1846 does not close, and it is the same shape.** The capture set is now
   derived from disk in all three places rather than copied, so a new captured
   *file* is picked up everywhere — which is what #1842 was. The capture
