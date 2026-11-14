@@ -98,9 +98,10 @@ within ±5.9%.**
 
 - The band has to be wider than the measurement's own spread. Three repeats
   run on each side and the record gives the spread; if it is not well inside
-  the band, the check is not decided and says so. *(For pitch this was two
-  captures a side, not three; see the record's pitch section, which says so and
-  gives the spreads.)*
+  the band, the check is not decided and says so. *(An exception noted here
+  while pitch stood at two captures a side is now obsolete and removed: run
+  `g3` took three kit captures, so pitch meets this gate on both sides — three
+  kit and five reference, spreading 0.006% and 0.18% against a ±5.9% band.)*
 - It has to be wider than the reference's 4.2% clock offset (above).
 - It has to be narrower than the step between presets, or it would pass a
   machine running at the wrong one. The governor's table
