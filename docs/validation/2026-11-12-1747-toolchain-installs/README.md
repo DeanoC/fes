@@ -281,6 +281,27 @@ decision turned on whether the change could reach the netlist. Nothing here
 widens the clause, and a future case wants its own answer rather than this one
 read across.
 
+**The derivation has since been measured, so the eight no longer rest on it.**
+Synthesising main at both bases with one Yosys install and `BUILD_ID` forced
+identical leaves the checkout root as the only legitimate difference, and that
+discriminates cleanly:
+
+| core | main at `2d895034c` | main at `bb968862b` | |
+| --- | --- | --- | --- |
+| `fes.spectrum`, one of the eight | 24,842,631 bytes | 24,842,631 bytes | **byte-identical** |
+| `fes.coleco` | 281,690 lines, 8,382 cells | 279,113 lines, 8,330 cells | **differs** |
+
+Main's netlist for Spectrum is the same artifact at both bases, so the recorded
+comparison describes the current one and the argument is confirmed rather than
+trusted. Coleco's netlist moved in the same test, which is consistent with its
+RBF having moved, so the test refuses the case that should be refused.
+
+That is a third answer to "accept the derivation or re-measure", and a cheaper
+one than either: two Yosys runs per core, no place-and-route and no GPU lease,
+against eight full forced builds. It is worth knowing independently of whether
+the clause ever changes, because it converts a question that was being argued
+into one that can be run.
+
 `fes.coleco` is not in that position. Main changed its own compiled RTL —
 `rtl/{coleco_application_gp.v,coleco_machine.sv,top.v}`, five of the 43 sources
 its producer lists — so no derivation rescues it and its comparison is void on
