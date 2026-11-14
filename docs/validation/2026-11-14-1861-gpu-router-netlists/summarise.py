@@ -59,10 +59,16 @@ def table() -> str:
         cell = f"`{shown}`" if same else shown
         rows.append(f"| `{core}` | {CHANGED.get(core, HELPER_ONLY)} | {inputs} | {cell} "
                     f"| {verdict} |")
-    revisions = {(r["revision"][:9]) for found in sides.values()
-                 for r in found.values() if r.get("revision")}
+    per_side: dict[str, set[str]] = {"main": set(), "branch": set()}
+    for found in sides.values():
+        for side, record in found.items():
+            if record.get("revision"):
+                per_side[side].add(record["revision"][:9])
     rows.append("")
-    rows.append("Revisions measured: " + ", ".join(f"`{r}`" for r in sorted(revisions)) + ".")
+    for side in ("main", "branch"):
+        if per_side[side]:
+            rows.append(f"Revisions measured on {side}: "
+                        + ", ".join(f"`{r}`" for r in sorted(per_side[side])) + ".")
     rows.append("Each row's pinned inputs were unmodified at the revision shown; "
                 "`summarise.py` refuses to render a record with no revision or with a "
                 "modified pinned input, and the driver refuses to write one.")

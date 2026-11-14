@@ -1,11 +1,16 @@
 {
   "build_id": "00000000000000000000000000000000",
   "core": "fes.pong",
+  "dirty_pinned_inputs": [],
   "netlist_sha256": "e7948651bcc0cc2ffbbd3c52c8643c642bc6964826e2a0ae65d18e3fd90cf12b",
+  "pinned_input_count": 15,
+  "pinned_inputs_sha256": "15134095fa1409d7483774ed224fb3fdc30b22d9e16a82bf9acf55a8a0c9ab25",
+  "revision": "b5d3ae2323fac52e54fd3ac584f449686a9a946d",
   "tools": {
     "mistral": "commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=0a5528a4e8154aeb27109ff89a9cbde252502482d592ca7412fd391ad5ce7566",
     "nextpnr-mistral": "commit=552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b; sha256=912020d5d361c39dd3d7135bf72576de928b9f8c2c84ce0a8c6d8f5e14c46764; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
     "yosys": "commit=3a5accbd78c526ab7bae32640044a2e062a3cfc9; sha256=432db5309258ff6d58b56736f11de52aef2d134810422f86cc7902964cfd2b83"
   },
-  "tree": "/home/deano/fes/.claude/worktrees/gpu-router-default/sources/misteross"
+  "tree": "/home/deano/fes/.claude/worktrees/gpu-router-default/sources/misteross",
+  "tree_clean": false
 }

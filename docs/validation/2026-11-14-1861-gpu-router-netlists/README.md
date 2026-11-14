@@ -53,8 +53,19 @@ pins a result. Each run records the tree's `HEAD`, that the tree was clean, and
 a digest over the producer's own pinned input list, which covers the bytes that
 decide the netlist whatever git says. A run whose pinned inputs are modified is
 refused rather than recorded, and `summarise.py` refuses to render a record
-that has no revision or was taken from a modified tree. The revisions actually
-measured are listed under the results table.
+that has no revision or a modified pinned input. The revisions actually measured
+are listed under the results table.
+
+The branch side spans more than one revision, because the sweep ran while this
+evidence directory was still being committed. Those revisions differ only inside
+`docs/validation/2026-11-14-1861-gpu-router-netlists/`, so every branch run
+synthesised the same producer sources, which each record's
+`pinned_inputs_sha256` attests independently of git:
+
+```
+$ git diff --name-only b5d3ae232 cf8ec7bec -- sources/misteross/ | wc -l
+0
+```
 
 ## Tool installs
 
