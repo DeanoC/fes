@@ -257,3 +257,35 @@ locked link carrying black pixels are not separated by the recording.
   return to the introduction while the black-grab probes held it idle for about
   27 s (`k6` measured that stretch). The 10 November record marks that as not
   tested, and it stays untested here.
+
+## Inputs and what was measured here
+
+Nothing in this record needed a kit claim: every number comes from runs already
+taken on Powerboat, remeasured today.
+
+- **Captures read.** `~/fes-scratch/acc1368r/kit/runs/{k1..k9}` (#1494's own
+  runs), `~/fes-scratch/census-p5/kit/runs/*` (433 census grabs, package
+  `27f478e0`, both kits), `~/fes-hil/k1770/runs/*` and
+  `~/fes-hil/k1767-hil/runs/*` (345 grabs, #1823's and #1767's runs). Frame
+  measurements are `magick -format '%k %[fx:maxima*255]'` (colour count and peak)
+  and `ffmpeg -vf scale=64:36,format=gray` for the runs' own grey reduction; the
+  recording was reduced with `signalstats` per frame. No game or menu frame is
+  committed.
+- **Registers.** `k9`'s 101 ADV7513 main-map dumps, re-parsed for `0x41`,
+  `0x42`, `0x9E` bit 4 and `0x3E`.
+- **Code.** `QuiesceAdv` and the `hdmi_verify` phase in
+  `sources/libmister-runtime/src/native/video.cpp`; the mode writes in
+  `adv7513.hpp`; `git diff 5a16b14d8 2320f64da -- sources/libmister-runtime/`
+  (empty) for the two kits' bundles.
+- **Grey-scale reconciliation.** The runs' "black grab: mean 6.6, peak 7" and
+  this record's "all pixels RGB 0" are the same frame: `ffmpeg`'s RGB-to-grey
+  reduction maps that uniform field to mean 6.61, peak 7, where a lit DOS prompt
+  reduces to mean 16.25, peak 73.
+
+A kit run of this record's own (`b1`, Kit B, core-only on its baseline, package
+`27f478e0`) is queued behind other sessions' work. It adds a per-launch nonce so
+a stale frame cannot pass as a live one, a per-frame HDMI luma log across the
+load, and a read-only `0x41`/`0x42`/`0x9E`/`0x3E` poll at about 20 Hz through
+each bring-up. It can only corroborate: `27f478e0` carries no presenter or
+display-plane probe, so its episodes would be placed after the capture buffers,
+not after the core's pins.
