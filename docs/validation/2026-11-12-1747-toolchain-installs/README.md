@@ -210,6 +210,42 @@ The three non-closing cores were also measured on the pre-merge tree. Their
 closures moved, so their placement outcomes were rerolled; the next section is
 that re-measurement.
 
+**The call since made.** Condition 2 is being re-measured against main
+`bb968862b` for four cores and not all seventeen (Deano, 14 Nov). Condition 1
+was re-measured for fourteen of the seventeen and passed throughout, and
+thirteen cores have no change in their compiled source set between
+`2d895034c` and `bb968862b`, so their recorded comparison is against the same
+netlist it always was. Four cores are different because main changed RTL they
+synthesise: `fes.c64` (`c64_d64_medium.sv`, a `!halftrack[0]` term on
+`cache_ready` and the same gating on the track-rebuild reset), `fes.sg1000`
+(`c0deb8e39`, #1755, moved it to the application controller ABI), and
+`fes.menu` and `fes.riscv`, whose `fes_application_gp` instantiations lost four
+empty firmware port connections — a logical no-op that nonetheless moved riscv
+from 3,923 to 3,912 cells and menu from 9,665 to 9,664, so their recorded main
+RBF is a different artifact. Nothing route-deciding moved for any campaign core
+in that window: the only candidates were two new `board = "de25-nano"` recipe
+entries, `cores/fes-pc386/toolchain.lock` and the i386 sub-lock, and
+`boards/de10nano/` is untouched.
+
+### First result: `fes.c64`
+
+Measured against main `bb968862b`. **Both `core.rbf` are sha256
+`7c054cdd9f52500a58dbacb99ef31cce2b1715d4b4a190ea0bb4aaef6b28ae9a`** — main's
+reference and the forced build at main's BUILD_ID `dd50efd6b5247d785b7a4a543da0982e`,
+byte-identical. This was the core with a real logic change on main, so its old
+comparison was the most clearly void, and it now has a fresh one at the new
+base.
+
+It is also the cleanest demonstration of this PR's D12 amendment so far, because
+it is a measurement rather than an argument. The two **netlists differ** —
+`4f495eb4…` against `f7109721…` — and are identical once the tool prefix and the
+checkout root are collapsed, checked by substitution rather than assumed. So on
+a core with a genuine RTL change in play: paths reach the netlist text, and do
+not reach the RBF. That also confirms the two sides really were resolving tools
+from different prefixes, main's from its local hardlinked root and the forced
+build's from the shared per-tool cache, which is the isolation the campaign
+intended. sg1000, menu and riscv are still running.
+
 ## Re-measurement at `02beac79b`
 
 Run 14 Nov on Powerboat in a clean checkout at
