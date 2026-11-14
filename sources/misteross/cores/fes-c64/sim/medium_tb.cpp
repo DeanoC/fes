@@ -49,7 +49,12 @@ int main(int argc,char**argv){
  auto pulses_before=fluxes;for(unsigned i=0;i<100000;++i)tick();
  if(fluxes==pulses_before)throw std::runtime_error("full-track flux did not resume");
  step(1);step(1);if(expected.halftrack!=38)throw std::runtime_error("next full-track seek failed");
- build();step(-1);step(-1);build();
+ build();
+ // Enter the same half-track from the higher integer track and return there;
+ // its cached track must survive the blank position without rebuilding.
+ step(-1);if(expected.halftrack!=37 || t.cache_ready || t.flux)throw std::runtime_error("higher-side half-track not blank");
+ step(1);if(expected.halftrack!=38 || !t.cache_ready)throw std::runtime_error("higher-side cache not restored");
+ step(-1);step(-1);build();
  for(unsigned track=1;track<=35;++track){
   seek(track);revolution();
   std::printf("track%02u zone%u complete revolution passed at angle%u\n",track,RotatingDisk::zone(track),t.rotation);

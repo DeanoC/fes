@@ -99,7 +99,9 @@ module c64_d64_medium (
  reg [2:0] write_index;
  reg [39:0] packed_bits;
  always @(posedge clk)begin
-  if(reset || !disk_ready || build_track!=selected_track)begin
+  // Keep the cached integer track while the head is between tracks. Only
+  // reaching another full-track position selects and rebuilds a new track.
+  if(reset || !disk_ready || (!halftrack[0] && build_track!=selected_track))begin
    valid<=0;build_track<=selected_track;state<=ID_WAIT0;disk_addr<=18'd91554;
    write_addr<=0;sector<=0;sector_base<=track_start(selected_track);run_count<=0;
    raw_index<=0;pack_index<=0;write_index<=0;packed_bits<=0;checksum<=0;
