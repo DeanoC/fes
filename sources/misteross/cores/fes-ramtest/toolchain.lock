@@ -14,7 +14,7 @@ rationale = "DeanoC fork master 8fcc4cb4 (squash merge of #11: cyclonev sets eve
 repo = "https://github.com/DeanoC/nextpnr.git"
 commit = "bec82e36d436acec7cbeb248725acfde72b8f220"
 order = 30
-rationale = "RAM tester banked-DDR optimization candidate: frozen-netlist CPU diagnostics close the 100 MHz memory and 74.25 MHz pixel clocks on seeds 3 and 2 with bec82e36. The newer 6162fcaa misses the pixel or memory clock on those same seeds. Production sealing and hardware acceptance remain required. Includes the independent opt-in harmonic-clock and routed-placement improvements; recipe defaults remain unchanged. Paired with Yosys 3a5accbd and Mistral 8fcc4cb4."
+rationale = "RAM tester banked-DDR optimization candidate: frozen-netlist CPU diagnostics close the 100 MHz memory and 74.25 MHz pixel clocks on seeds 3 and 2 with bec82e36. The newer 6162fcaa misses the pixel or memory clock on those same seeds. Production sealing and hardware acceptance remain required. Includes the independent opt-in harmonic-clock and flip-flop reset-reference options; recipe defaults remain unchanged. Paired with Yosys 3a5accbd and Mistral 8fcc4cb4."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
