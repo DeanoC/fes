@@ -168,7 +168,7 @@ module fes_i386_x87 (
     // 7 ES, 6 SF, 5-0 PE UE OE ZE DE IE (387 PRM section 2.4).
     logic [15:0] cw;
     logic [5:0]  fl;      // the six exception flags, PE UE OE ZE DE IE
-    logic        sf, es;
+    logic        sf;
     logic [3:0]  cc;      // C3 C2 C1 C0
     logic [2:0]  top;
     logic [10:0] opcode;
@@ -176,9 +176,18 @@ module fes_i386_x87 (
     logic [1:0]  rc, pc;  // the control word's rounding and precision fields
     assign rc = cw[11:10];
     assign pc = cw[9:8];
-    // ES is set when an unmasked exception happens and stays set until
-    // FNCLEX, FNINIT or the F1h reset clears it; B mirrors it on a 387
-    // (Appendix C.1, where RESET leaves both set).
+    // ES is the exception summary: any flag that is not masked. It is not a
+    // bit of its own, so it follows every change to the flags and to the
+    // control word -- an exception sets it, FNCLEX and FNINIT clear it with
+    // the flags, FLDCW, FLDENV and FRSTOR recompute it, and FNSTENV clears
+    // it by masking everything. That is how the oracle has it: Bochs
+    // re-evaluates `status & ~control & exceptions` at each of those and
+    // sets or clears ES and B together (`clear_unmasked_fpu_exception`,
+    // called from its FLDENV, FNINIT, FNCLEX and FNSTENV). B mirrors ES on
+    // a 387 (387 PRM Appendix C.1, where RESET leaves both set, with IM
+    // clear and IE set).
+    logic es;
+    assign es = |(fl & ~cw[5:0]);
     assign sw_o = {es, cc[3], top, cc[2], cc[1], cc[0], es, sf, fl};
     assign cw_o = cw;
     assign opcode_o = opcode;
@@ -291,6 +300,7 @@ module fes_i386_x87 (
     logic        pnx;           // an unmasked exception: make no access
     logic [2:0]  save_reg;      // the register FNSAVE or FRSTOR is moving
     logic        busy;
+    logic        es_q;          // ES a cycle ago, for the board's latch
     logic        committed;     // the instruction in flight has retired
     logic [1:0]  nw;            // a no-wait form waiting to commit: 1 FNINIT, 2 FNCLEX
     logic [10:0] cur_op_raw;    // its 387 opcode, which commit stores
@@ -666,7 +676,7 @@ module fes_i386_x87 (
             cw <= 16'h037f;
             fl <= 6'd0;
             sf <= 1'b0;
-            es <= 1'b0;
+            es_q <= 1'b0;
             cc <= 4'd0;
             top <= 3'd0;
             opcode <= 11'd0;
@@ -687,7 +697,7 @@ module fes_i386_x87 (
             cw <= 16'h037e;
             fl <= 6'b000001;
             sf <= 1'b0;
-            es <= 1'b1;
+            es_q <= 1'b1;   // ES is already active, so the latch sees no edge
             cc <= 4'd0;
             top <= 3'd0;
             opcode <= 11'd0;
@@ -700,9 +710,8 @@ module fes_i386_x87 (
             rw_en <= 1'b0;
             pnx <= 1'b0;
         end else begin
-            logic es_now;   // ES goes active this cycle, which latches BUSY#
-            es_now = 1'b0;
             rw_en <= 1'b0;
+            es_q <= es;
             if (f0) latched <= 1'b0;
             // A squashed instruction leaves nothing behind, but one that has
             // retired runs on: its work finishes after it, as a 387's does
@@ -732,8 +741,8 @@ module fes_i386_x87 (
                                 // a loaded ES raises ERROR# again.
                                 fl <= wb_val[5:0];
                                 sf <= wb_val[6];
-                                es <= wb_val[7];
-                                if (wb_val[7]) es_now = 1'b1;
+                                // ES and B come from the flags and the
+                                // control word, not from the image.
                                 cc <= {wb_val[14], wb_val[10], wb_val[9], wb_val[8]};
                                 top <= wb_val[13:11];
                             end
@@ -1055,7 +1064,6 @@ module fes_i386_x87 (
                             cw <= 16'h037f;
                             fl <= 6'd0;
                             sf <= 1'b0;
-                            es <= 1'b0;
                             cc <= 4'd0;
                             top <= 3'd0;
                             empty <= 8'hff;
@@ -1067,15 +1075,8 @@ module fes_i386_x87 (
                             // TOP (387 PRM, FCLEX).
                             fl <= 6'd0;
                             sf <= 1'b0;
-                            es <= 1'b0;
                         end
-                        X87_LDCW: begin
-                            cw <= mval[15:0];
-                            // Unmasking an exception that is already pending
-                            // makes it due at the next waiting ESC, so ES
-                            // goes active now.
-                            if (unmasked(fl, mval[15:0])) es <= 1'b1;
-                        end
+                        X87_LDCW: cw <= mval[15:0];
                         X87_STENV: cw[5:0] <= 6'h3f;  // FNSTENV masks every exception
                         X87_ST_M, X87_STP_M: pop = cur_pop;
                         default: ;  // FNOP, FNSTCW, FNSTSW, FLDENV, FRSTOR
@@ -1086,10 +1087,7 @@ module fes_i386_x87 (
                     if (cur != X87_INIT && cur != X87_SAVE && cur != X87_CLEX) begin
                         fl <= fl | f;
                         if (stk) sf <= 1'b1;
-                        if (um) begin
-                            es <= 1'b1;
-                            es_now = 1'b1;
-                        end
+
                         if (c1_wr) cc[1] <= c1;
                         if (ccw) cc <= {nc[3], nc[2], c1, nc[0]};
                     end
@@ -1152,7 +1150,6 @@ module fes_i386_x87 (
                     cw <= 16'h037f;
                     fl <= 6'd0;
                     sf <= 1'b0;
-                    es <= 1'b0;
                     cc <= 4'd0;
                     top <= 3'd0;
                     empty <= 8'hff;
@@ -1164,11 +1161,10 @@ module fes_i386_x87 (
                 end else begin
                     fl <= 6'd0;
                     sf <= 1'b0;
-                    es <= 1'b0;
                 end
             end
             end
-            if (es_now && !es) latched <= 1'b1;
+            if (es && !es_q) latched <= 1'b1;
         end
     end
 endmodule
