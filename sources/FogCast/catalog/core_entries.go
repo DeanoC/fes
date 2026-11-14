@@ -157,12 +157,21 @@ func (s *Store) CreateCoreEntry(ctx context.Context, title, coreID, packageID st
 
 // CreateCoreMediaEntry atomically creates a title with an explicit media selection.
 func (s *Store) CreateCoreMediaEntry(ctx context.Context, title, coreID, packageID, mediaRole, mediaID string) (CoreEntry, error) {
-	return s.createCoreEntry(ctx, title, coreID, packageID, mediaRole, mediaID, false, nil, nil)
+	return s.createCoreEntry(ctx, title, coreID, packageID, mediaRole, mediaID, false, nil, nil, nil)
 }
 
 // CreateFirmwareRequiredEntry creates a title that requires firmware to become Ready.
 func (s *Store) CreateFirmwareRequiredEntry(ctx context.Context, title, coreID, packageID, mediaRole, mediaID string) (CoreEntry, error) {
-	return s.createCoreEntry(ctx, title, coreID, packageID, mediaRole, mediaID, true, nil, nil)
+	return s.createCoreEntry(ctx, title, coreID, packageID, mediaRole, mediaID, true, nil, nil, nil)
+}
+
+// CreateCoreROMEntry creates a title and its named ROM selection in one transaction.
+func (s *Store) CreateCoreROMEntry(ctx context.Context, title, coreID, packageID, romID string, sourceSize int64, mediaID string, firmwareRequired bool) (CoreEntry, error) {
+	if strings.TrimSpace(romID) == "" || protocol.ValidateDigest(mediaID) != nil || sourceSize < 1 || sourceSize > MaxCoreMediaBytes {
+		return CoreEntry{}, ErrInvalidCoreROM
+	}
+	rom := &CoreEntryROM{ROMID: romID, MediaID: mediaID, SourceSize: sourceSize}
+	return s.createCoreEntry(ctx, title, coreID, packageID, "", "", firmwareRequired, nil, nil, rom)
 }
 
 type KitHostEntryIdentity struct {
@@ -184,10 +193,10 @@ func (s *Store) CreateKitHostEntry(ctx context.Context, title, coreID, packageID
 	if identity.ROMID == "" && (identity.ROMMediaID != "" || identity.ROMSourceSize != 0) {
 		return CoreEntry{}, ErrInvalidCoreROM
 	}
-	return s.createCoreEntry(ctx, title, coreID, packageID, role, mediaID, false, &identity, nil)
+	return s.createCoreEntry(ctx, title, coreID, packageID, role, mediaID, false, &identity, nil, nil)
 }
 
-func (s *Store) createCoreEntry(ctx context.Context, title, coreID, packageID, mediaRole, mediaID string, firmwareRequired bool, kit *KitHostEntryIdentity, remote *RemoteCoreEntryOrigin) (CoreEntry, error) {
+func (s *Store) createCoreEntry(ctx context.Context, title, coreID, packageID, mediaRole, mediaID string, firmwareRequired bool, kit *KitHostEntryIdentity, remote *RemoteCoreEntryOrigin, initialROM *CoreEntryROM) (CoreEntry, error) {
 	title = strings.TrimSpace(title)
 	if err := validateCoreEntry(title, coreID, packageID); err != nil {
 		return CoreEntry{}, err
@@ -298,6 +307,18 @@ func (s *Store) createCoreEntry(ctx context.Context, title, coreID, packageID, m
 	if remote != nil {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO remote_core_entries(game_id, source_id, source_game_id, package_id, media_id, media_name) VALUES (?, ?, ?, ?, ?, ?)`, gameID, remote.SourceID, remote.SourceGameID, packageID, remote.MediaID, remote.MediaName); err != nil {
 			return CoreEntry{}, fmt.Errorf("insert remote core origin: %w", err)
+		}
+	}
+	if initialROM != nil {
+		media, err := verifyCoreMedia(ctx, tx, initialROM.MediaID, io.Discard)
+		if err != nil {
+			return CoreEntry{}, err
+		}
+		if media.Size != initialROM.SourceSize {
+			return CoreEntry{}, ErrInvalidCoreROM
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO core_entry_roms(game_id,package_id,rom_id,media_id,source_size) VALUES(?,?,?,?,?)`, gameID, packageID, initialROM.ROMID, initialROM.MediaID, initialROM.SourceSize); err != nil {
+			return CoreEntry{}, err
 		}
 	}
 	if kit != nil {

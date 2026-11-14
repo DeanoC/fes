@@ -42,7 +42,7 @@ LOCK_SHA256 = {
     "fes.spectrum-plus3": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
     "fes.pentagon": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
     "fes.riscv": "2669044d4d481c94cf6ba7127614077480fd65ba730a784ac26f747764e472cf",
-    "fes.ramtest": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.ramtest": "1ae44b7bcabce41501c623528724fdd46e7b91179492f9cc9e9dd7369f8e3221",
     "fes.atari-st": "e4a11eac287674e473ab33ae356595245d564d32623be5b90472740d02aaecdb",
 }
 # Source-derived hashes of the complete CLI option-name sets from nextpnr's

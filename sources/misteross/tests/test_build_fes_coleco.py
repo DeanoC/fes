@@ -164,7 +164,7 @@ class BuildFesColecoTests(unittest.TestCase):
             self.assertEqual(request.gpu_router, COLECO_GPU_ROUTER)
             self.assertEqual(request.hip_architectures, COLECO_GPU_ARCHITECTURES)
             self.assertEqual(
-                manifest.configuration,
+                manifest.tools["nextpnr"].configuration,
                 {"gpu-router": COLECO_GPU_ROUTER, "hip-architectures": COLECO_GPU_ARCHITECTURES},
             )
             with patch.dict(
@@ -184,10 +184,10 @@ class BuildFesColecoTests(unittest.TestCase):
                     ROOT, cache_root=request.cache_root
                 )
 
-            self.assertEqual(authenticated["yosys"].path, manifest.install / "bin/yosys")
+            self.assertEqual(authenticated["yosys"].path, manifest.tools["yosys"].install / "bin/yosys")
             self.assertEqual(
                 authenticated["nextpnr-mistral"].path,
-                manifest.install / "bin/nextpnr-mistral",
+                manifest.tools["nextpnr"].install / "bin/nextpnr-mistral",
             )
             self.assertIn(COLECO_TOOLCHAIN_CONFIGURATION, authenticated["nextpnr-mistral"].identity)
 
@@ -200,15 +200,15 @@ class BuildFesColecoTests(unittest.TestCase):
                 gpu_router=COLECO_GPU_ROUTER,
                 hip_architectures=COLECO_GPU_ARCHITECTURES,
             )
-            commit = manifest.tools["nextpnr"]["commit"]
-            configuration_path = manifest.evidence / "nextpnr" / f".config-{commit}.txt"
+            commit = manifest.tools["nextpnr"].record["commit"]
+            configuration_path = manifest.tools["nextpnr"].evidence / f".config-{commit}.txt"
             configuration_path.chmod(0o644)
             configuration_path.write_text("gpu-router=OFF; hip-architectures=unused\n", encoding="utf-8")
             configuration_path.chmod(0o444)
-            ready = toolchain_cache.ready_path(request)
+            ready = toolchain_cache.ready_path(request, "nextpnr")
             ready.chmod(0o644)
             data = json.loads(ready.read_text(encoding="utf-8"))
-            entry = data["files"][f"evidence/nextpnr/{configuration_path.name}"]
+            entry = data["files"][f"evidence/{configuration_path.name}"]
             entry["sha256"] = hashlib.sha256(configuration_path.read_bytes()).hexdigest()
             entry["size"] = configuration_path.stat().st_size
             ready.write_text(json.dumps(data, sort_keys=True) + "\n", encoding="utf-8")
