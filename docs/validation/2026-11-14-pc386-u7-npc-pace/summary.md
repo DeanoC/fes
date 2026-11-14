@@ -187,3 +187,105 @@ evidence it does not warrant its own issue.
 The reference is therefore slower than the kit by a measured factor of
 **68/40 = 1.7**, and any CPU-bound pace figure will differ by about that much
 before anything about the core is in question.
+
+## Part 3 — the pace itself: not measured, and why
+
+**Not reached.** No NPC-pace figure was read on either machine, and no kit was
+claimed, because the reference could not be driven as far as a running game by
+a script. This section says exactly where it stops, so the next attempt starts
+from here rather than from the beginning.
+
+### Where it stops
+
+The Black Gate's front end is mouse-only: the title screen's four items —
+VIEW INTRODUCTION, START NEW GAME, JOURNEY ONWARD, VIEW CREDITS — have no
+keyboard equivalent, so a script has to move a pointer and click. On the kit
+that is solved: the 14 November run's command file
+(`~/fes-scratch/u6ref/cmds/kit-u7-g1.jsonl`) drives it through the kit's own
+input stream and reaches a new game. On the 86Box reference, under Xvfb and
+`xdotool`, it is not.
+
+**What does work, demonstrably.** One sequence selected a menu item exactly as
+intended, and the arithmetic came out right:
+
+```
+xdotool mousemove 333 275      # pointer to the window centre, mouse not captured
+xdotool click 1                # 86Box captures the mouse
+xdotool mousemove_relative 0 60
+xdotool click 1                # -> VIEW INTRODUCTION runs
+```
+
+The game's cursor sits at (347, 275) in window pixels when the menu appears,
+VIEW INTRODUCTION is at y≈335, and +60 selected it: **one window pixel of
+pointer motion is one pixel of game cursor, with no acceleration**. So the
+emulated Microsoft serial mouse, CTMOUSE and the game are all working, and the
+mapping needed to aim at START NEW GAME (+92) is known.
+
+**What does not work is doing it twice.** Repeating the same sequence with
++92, and every variant of it, left the game's cursor where it started. Across
+runs the same commanded motion produced the intended displacement, none at
+all, or a displacement of the wrong sign and several times the size. Both
+primitives behave this way: `mousemove_relative`, and absolute `mousemove` to
+a computed target. The pointer's own position, read back with
+`xdotool getmouselocation`, sometimes stays where it was warped to and
+sometimes comes back near the window's centre, which is how 86Box's own
+re-centring shows up, so the two warps race and the guest sees their
+difference rather than the one asked for.
+
+Two measurements bound the problem rather than guessing at it:
+
+- On a **bare Xvfb** with no client, `xdotool mousemove`,
+  `mousemove_relative`, `XTestFakeMotionEvent` and `XWarpPointer` all report
+  success and the pointer never moves. With 86Box running it does move. So the
+  pointer only exists for a client that is listening, and anything measured
+  without the emulator running says nothing.
+- The same Xvfb behaviour appears on **`chip-30x0-ai-dev`** as on Powerboat
+  (its Xvfb needs `-extension GLX` to start at all, against the NVIDIA EGL
+  libraries, and then behaves identically), so moving the rig to the quieter
+  host does not avoid it. `Xdummy` is present on Powerboat but has no `Xorg`
+  to wrap.
+
+A third thing makes scripting it harder: **the title screen times out into the
+introduction after about 20 seconds**, so a command file cannot grab a frame
+to check its aim before clicking. Every attempt that paused to look had the
+menu replaced underneath it.
+
+### What would measure it
+
+In rough order of how much they cost:
+
+1. **An X server whose pointer behaves deterministically** — Xephyr or a VNC
+   server rather than Xvfb, neither of which is installed on either host. This
+   is the direct fix: the mapping is already known (one window pixel to one
+   game pixel, menu cursor at (347, 275)), so a working pointer is the only
+   missing piece on the reference side.
+2. **Or 86Box's own input path instead of X's.** 86Box has a unit-tester
+   device and a command-line interface; if either can be made to deliver mouse
+   deltas, the race with its re-centring disappears. This was not investigated.
+3. Then: three 30-second windows a side in the scene a new game opens in, with
+   the validity gates [`method.md`](method.md) fixes, an analyser that tracks a
+   named NPC's sprite between frames, and the kit's TopBench score re-measured
+   in the same claim. The kit side already has a command file that reaches the
+   scene.
+
+### What this is not
+
+It is not a pc386 defect, and it is not the Ultima VI walk's kind of dead end.
+The walk could not be measured because the quantity depended on how the
+harness drove the game — a property of the game, which no better rig would
+fix. This is a rig limitation on one side of the comparison, with a known
+mapping behind it and named ways out. Nothing here says the NPC pace cannot be
+measured.
+
+## What this record does not cover
+
+- **The NPC pace itself** (above): not measured on either machine.
+- **The kit side**: no kit was claimed in this work, so the kit's `UMAP.COM`
+  map, its `MEM /C` figures and a fresh TopBench score at preset 3 are all
+  still owed. The 68 quoted in Part 2 is #1486's, on an older seal.
+- **Whether the scene's redraw rate tracks NPC movement.** #1838's third
+  amendment assumed it; [`method.md`](method.md) declines to, and nothing here
+  settles it.
+- **Five 86Box 386DX boards** (Part 2) are unmeasured, not measured and equal.
+- The reference's DOS layout is like the kit's, not identical to it; the
+  comparison of the two `MEM /C` outputs is owed with the pace figures.
