@@ -11,9 +11,9 @@ except ImportError:
     from hil_plan import GO_SOURCE_SUFFIXES
 
 try:
-    from scripts.test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION, DE25_PR_CONTROL_DEFINITION, select_test_modes, validate_test_modes
+    from scripts.test_policy import de25_combined_proof_captures, DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION, DE25_PR_CONTROL_DEFINITION, select_test_modes, validate_test_modes
 except ImportError:
-    from test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION, DE25_PR_CONTROL_DEFINITION, select_test_modes, validate_test_modes
+    from test_policy import de25_combined_proof_captures, DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION, DE25_PR_CONTROL_DEFINITION, select_test_modes, validate_test_modes
 
 # Logical module names survive the monorepo move; update only these roots.
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
@@ -282,32 +282,20 @@ def runtime_test_source(path):
 def de25_combined_proof_source(path):
     """Captured inputs of the DE25 combined client proof receipt.
 
-    `boards/de25nano/link-proof/build_test.py` hashes these into
-    `tests/fixtures/de25-combined-proof.json` and asserts the receipt still
-    matches them, so changing one without refreshing the receipt breaks that
-    test. The test belongs to the fpga lane while these files belong to the
-    runtime module, so without this the lane that checks them is not selected:
-    the break stays latent on main and surfaces on the next pull request whose
-    diff does reach `sources/misteross/`, where it reads as that PR's
-    regression (DeanoC/fes#1842, and #1804 which caused it).
+    `boards/de25nano/link-proof/build_test.py` asserts that
+    `tests/fixtures/de25-combined-proof.json` still matches these files, and
+    that test belongs to the fpga lane while most of the files belong to the
+    runtime module. Without this the lane that checks them is not selected: the
+    break stays latent on main and surfaces on the next pull request whose diff
+    does reach `sources/misteross/`, where it reads as that PR's regression
+    (DeanoC/fes#1842, and #1804 which caused it).
 
-    The patterns mirror the test's own capture: every `src/native/**/*.hpp`,
-    plus `include/libmister-runtime/runtime.h` and the two named `.cpp` files.
-    `tests/test_affected.py` derives the live capture set the way the test does
-    and asserts each entry selects this lane, so adding a captured file that
-    this predicate misses fails there rather than months later.
+    The set is not restated here. `scripts/test_policy.py` declares it once and
+    the proof, this planner and that test all derive from the declaration, so a
+    new capture line cannot reach one reader and miss another.
     """
-    prefix = MODULE_ROOTS['runtime'] + '/'
-    if Path(path).as_posix() != path or '..' in Path(path).parts:
-        return False
-    if not path.startswith(prefix):
-        return False
-    relative = path[len(prefix):]
-    if relative.startswith('src/native/') and relative.endswith('.hpp'):
-        return True
-    return relative in ('include/libmister-runtime/runtime.h',
-                        'src/native/de25_computer.cpp',
-                        'src/native/de25_pr_control.cpp')
+    return (path.startswith(MODULE_ROOTS['runtime'] + '/') and
+            de25_combined_proof_captures(path))
 
 
 def contract_package_software(path):
