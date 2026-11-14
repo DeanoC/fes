@@ -214,3 +214,28 @@ existed, because of exactly that.
 
 The metrics and the band do not move: each rate within ±10% of the
 reference's, each note within ±5.9%.
+
+## Fourth amendment: the band cannot be applied to the walk
+
+Written after the reference's own repeats, before the kit run that would be
+compared with them, and it changes a rule after seeing data, so it says exactly
+what was seen and why.
+
+With the opening fight passed off and the same input on every repeat, the
+reference's three walk windows gave 2.66, 1.96 and 1.89 steps a second, and
+three windows of continuous passing gave 1.55, 1.14 and 1.11 turns a second.
+The emulation held 100% through all but one of them. **The spread between
+repeats of the same measurement on the same machine is about 40%, four times
+the ±10% band.** Ultima VI is turn-based and the party and the castle's people
+share the turn with the Avatar, so how long a turn takes depends on what else
+is in view, and a step is only taken when the game next looks at the keyboard.
+
+So the band stays as it is, and the walk is reported against it only if it can
+be: **the kit's three windows and the reference's three are given in full, and
+the comparison is called decided only where the two ranges do not overlap.**
+Where they overlap, the record says the check is not decided by this method and
+why, and the figures stand for whoever measures it next. Nothing is widened to
+admit a result.
+
+The pitch measurement is unaffected: its spread is 0.05% on the kit and 1% on
+the reference, both far inside ±5.9%.
