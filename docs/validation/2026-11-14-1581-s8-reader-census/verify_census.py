@@ -12,10 +12,21 @@ Two checks, both mechanical, and together they are what the record's
    text it held when the record was written.
 
 Check 2's content half works from `citation-fingerprints.json` beside this
-script: one entry per cited line, holding that line's text. Without it a
-citation could only be checked for existing and being non-blank, and a base
-edit that shifted a secondary reference onto another non-blank line would pass
--- the very defect two earlier revisions of this record shipped (#1829 review).
+script: one entry per cited line, holding the sha256 of that line's whole
+text. Without it a citation could only be checked for existing and being
+non-blank, and a base edit that shifted a secondary reference onto another
+non-blank line would pass -- the very defect two earlier revisions of this
+record shipped (#1829 review).
+
+Two properties of that file are load-bearing, and an earlier revision had
+neither. The hash covers the *whole* line, where it used to store the first
+200 characters: ten cited lines are longer than that, `build_fes_zx81_oss.py`
+line 92 being 1,059 characters, so drift past column 200 passed unseen while
+the file claimed every cited line still held its text. And a citation the file
+has no entry for is *reported*, not skipped -- skipping it let the check pass
+while silently covering fewer citations than it claimed, which is the same
+shape of false clean as the rest of this record's history.
+
 Regenerate the file deliberately, never to make a failure go away:
 
     python3 .../verify_census.py --record-fingerprints
@@ -48,6 +59,7 @@ against the repo root first, then against sources/misteross, then by basename
 if that is unique under sources/misteross -- a bare `Makefile:123` must not
 silently resolve to the repo-root Makefile.
 """
+import hashlib
 import json
 import os
 import re
@@ -210,14 +222,19 @@ def check_citations(record=False):
                         problems.append(f'{doc}:{row}: {cited}:{n} is blank')
                         continue
                     key = f'{cited}:{n}'
+                    digest = hashlib.sha256(text.encode()).hexdigest()
                     if record:
-                        prints[key] = text[:200]
-                    elif prints is not None and key in prints:
+                        prints[key] = digest
+                    elif prints is not None:
                         checked += 1
-                        if text[:200] != prints[key]:
+                        if key not in prints:
+                            problems.append(
+                                f'{doc}:{row}: {cited}:{n} has no fingerprint; '
+                                're-record with --record-fingerprints')
+                        elif digest != prints[key]:
                             problems.append(
                                 f'{doc}:{row}: {cited}:{n} now holds {text[:60]!r}, '
-                                f'not the {prints[key][:60]!r} it was cited for')
+                                'which is not the text it was cited for')
     if record:
         with open(FINGERPRINTS, 'w') as handle:
             json.dump(prints, handle, indent=1, sort_keys=True)
