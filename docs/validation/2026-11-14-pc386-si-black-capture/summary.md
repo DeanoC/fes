@@ -12,9 +12,14 @@ and a different transmitter, with no pc386 core loaded — it is the FES Home
 screen after a baseline restore in #1767's Kit A run, which that run itself
 classified a real failure. The stage that blackens the picture is in the display
 or capture path every core and the menu share, so #1494's symptom is not a pc386
-defect. That is concluded for the eight episodes with pin-level probes; the four
-earlier black launches had no probe of their own and stay unclassified, and a
-probed recurrence belongs to #1833.
+defect. That holds for the stages the Kit A instance implicates, and it is the
+best reading of the eight episodes with FPGA-side probes; it is not a complete
+exoneration, because those probes read logical values and not the electrical
+timing at the transmitter's pins, so a pc386 HDMI egress fault with the same
+signature stays open (see
+[what this says about #1494](#what-this-says-about-1494)). The four earlier
+black launches had no probe of their own and stay unclassified, and a probed
+recurrence belongs to #1833. So this record does not itself close #1494.
 Which of those stages it is stays open as
 [#1833](https://github.com/DeanoC/fes/issues/1833), split out of
 [#1823](https://github.com/DeanoC/fes/issues/1823). Two cheap tests are approved
@@ -28,7 +33,7 @@ and the grab lands 31 s or more after it closes — and no episode of their own.
 `b3` carried the episode probe Deano has approved and found no episode to spend
 it on; it ended early when the stop of its last launch left the kit needing a
 recovery that is Deano's to authorise
-([the I²C collision](#an-ic-collision-ended-run-b3)). So the two approved tests
+([the I²C bus fault](#an-ic-bus-fault-ended-run-b3)). So the two approved tests
 are still unspent, and Kit B is logged in use and not usable until that
 recovery.
 
@@ -274,7 +279,7 @@ of 12 in 400 (3%), 83 clean launches in a row happen about one time in twelve,
 so this does not show the rate has changed; it does mean no run caught an
 episode to spend the approved probes on. `b3` was the probe-armed run and was
 planned for 140 launches; it stopped at 40 for a reason of its own, recorded
-under [an I²C collision ended run `b3`](#an-ic-collision-ended-run-b3), which
+under [an I²C bus fault ended run `b3`](#an-ic-bus-fault-ended-run-b3), which
 says nothing about the episode either way.
 
 ## A bring-up outage and an episode do not look alike
@@ -313,7 +318,23 @@ minute clear of any bring-up — not the frame pattern.
 - **The remaining stages are shared by every core and the menu**: the ADV7513's
   own video path — its sampling of an external DE (`0x17 = 0x62`, DE generator
   off), its internal video processing, its TMDS video output — and the capture
-  chain, the grabber and Powerboat's fan-out together. None of them is pc386's.
+  chain, the grabber and Powerboat's fan-out together. None of those stages is
+  pc386's.
+- **One pc386-side path is not excluded, and it is why this record does not
+  close #1494 on its own.** The `d2` taps read logical values inside the fabric:
+  the presenter's RGB and DE, and the plane. They do not measure the
+  *electrical* relationship at the ADV7513's pins, and #1003's closing note says
+  no `HDMI_TX_*` output carries an output-delay constraint, so that relationship
+  is set by placement and is a property of each sealed build — pc386's included.
+  A DE edge from the pc386 core sampled low at the transmitter would show lit
+  pixels on every internal tap and a uniform black field downstream. The Kit A
+  instance proves a mechanism exists that needs no pc386 core; it does not prove
+  the eight pc386 episodes shared that mechanism rather than a pc386-specific
+  one with the same signature. What argues against it is that #1003's marginal
+  sampling dropped the link 14-15 times in 20 s while these episodes hold the
+  link up with audio at full level for a whole launch — an argument, not a
+  measurement. Settling it needs a probed episode (the two tests below) or a
+  pin-level timing check of pc386's HDMI egress, which no run here has done.
 - **It is the same symptom #1823 tracks** ("Intermittent fully-black HDMI after
   a kit-software activation, with every log reporting success"), reached through
   a core load instead of an activation; both run the same `QuiesceAdv`
@@ -362,12 +383,11 @@ minute clear of any bring-up — not the frame pattern.
   27 s (`k6` measured that stretch). The 10 November record marks that as not
   tested, and it stays untested here.
 
-## An I²C collision ended run `b3`
+## An I²C bus fault ended run `b3`
 
 Run `b3`, the probe-armed one, stopped after 40 of its 140 launches, and the
 kit was left needing a recovery that is Deano's to authorise. The cause is
-most likely the harness, not the core or the runtime, and the record keeps it
-separate from everything above.
+**not classified**, and the record keeps it separate from everything above.
 
 Launch 40's `stop` reported `{"state": "stopping", "recovery":
 "reboot_required"}`. Per [soft-restart Path B](../../soft-restart-path-b.md),
@@ -375,30 +395,41 @@ Launch 40's `stop` reported `{"state": "stopping", "recovery":
 and that `LoadIdle` runs HDMI quiesce and driver quiesce before programming the
 FPGA. The wrapper halted without attempting recovery, as it is built to.
 
-What points at the harness is the kit's last `dmesg` line:
+The kit's last `dmesg` line is a bus-level fault:
 
 ```
 [179746.683404] i2c_designware ffc06000.i2c: i2c_dw_handle_tx_abort: lost arbitration
 ```
 
-That is 0.3 s before the first read of this launch's own ADV7513 register poll
-(uptime 179746.98), and the poll was still running while the `stop` executed:
-15 reads returned healthy values (`0x41` `0x10`, `0x42` `0xf0`, `0x9E` `0x12`,
-`0x3E>>2` 4), and from about 179750 every read failed, 43 of them in a row,
-4.1 s apart — the `i2cget` timeout. Lost arbitration is two masters on one bus,
-and the two candidates are the runtime's quiesce and my poll. The ordering in
-the log is the simplest reading of it; this data cannot exclude the reverse,
-that the transmitter was already wedged and the poll only recorded it.
+Around it, this launch's own ADV7513 register poll was running: its first read
+was 0.3 s *after* that line, at uptime 179746.98, and 15 reads returned healthy
+values (`0x41` `0x10`, `0x42` `0xf0`, `0x9E` `0x12`, `0x3E>>2` 4); from about
+179750 every read failed, 43 of them in a row, 4.1 s apart — the `i2cget`
+timeout. Nothing has appeared in `dmesg` since.
 
-Either way the lesson for the method is the same: these runs read ADV7513
-registers over the same I²C bus the runtime uses, and a poll that overlaps a
-core load or stop can collide with it. Earlier launches polled through bring-ups
-without a failure, so the collision is not reliable — which is what makes it
-easy to miss.
+**The poll is not the other master.** Both sides reach the transmitter the same
+way: the runtime opens `/dev/i2c-*` and issues `I2C_SLAVE` and SMBus ioctls
+([`native/linux/i2c.cpp`](../../../sources/libmister-runtime/src/native/linux/i2c.cpp)),
+exactly as `i2cget` does, and the kernel locks the adapter around each transfer.
+Two i2c-dev clients of one DesignWare controller are therefore serialised, not
+rival masters, and they cannot lose arbitration to each other however their
+calls overlap. An arbitration abort means the controller lost the physical bus
+or hit a bus fault — another master on those lines, or something electrical.
+The log order says the same thing: the abort precedes the poll's first read,
+and that read succeeded.
+
+So what wedged the bus is not established. The FPGA reprogram inside `LoadIdle`
+is the event the permanent failure sits on (reads were still healthy 3 s
+before it), which makes reconfiguration disturbing those lines a candidate, but
+this data does not show it. One harness-side effect is worth naming without
+claiming it caused the fault: 43 consecutive 4 s read timeouts hold the adapter
+lock for about three minutes, which would have delayed any I²C the runtime
+tried in that window. Keeping register polls outside load and stop windows is
+prudence about that, not a lesson derived from this failure.
 
 Two things the stuck state shows that are worth keeping:
 
-- The ADV7513 kept transmitting. With `0x39` unreadable for over 90 minutes,
+- The ADV7513 kept transmitting. With `0x39` unreadable for over 95 minutes,
   the 4KPRO still delivered a lit 256-colour picture of the pc386 core. An I²C
   control path that is wedged does not by itself black the picture, which is
   one more thing a black capture is not.
@@ -419,7 +450,7 @@ says it is in use and not usable.
 Most of this record needed no kit: those numbers come from runs already taken on
 Powerboat, remeasured today. Runs `b1`, `b2` and `b3` are this record's own kit
 runs; `b1` and `b2` are complete, and `b3` stopped at 40 of 140 launches
-([the I²C collision](#an-ic-collision-ended-run-b3)).
+([the I²C bus fault](#an-ic-bus-fault-ended-run-b3)).
 
 - **Captures read.** `~/fes-scratch/acc1368r/kit/runs/{k1..k9}` (#1494's own
   runs), `~/fes-scratch/census-p5/kit/runs/*` (433 census grabs, package

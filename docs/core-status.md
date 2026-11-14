@@ -533,7 +533,11 @@ transmitter, and with no pc386 core loaded at all: it is the FES Home screen
 going black after a baseline restore in #1767's Kit A run, which that run itself
 classified `REAL_FAILURE` after a passing Home a minute earlier. So the stage
 that blackens the picture sits in the display or capture path that every core
-and the menu share, and it is the symptom
+and the menu share. One pc386-side path is not excluded: those probes read
+logical presenter and plane values, not the electrical timing at the
+transmitter's pins, and no `HDMI_TX_*` output carries an output-delay
+constraint, so a pc386 HDMI egress fault that is sampled as blanking would look
+the same from inside the fabric. #1494 therefore stays open. It is the symptom
 [#1823](https://github.com/DeanoC/fes/issues/1823) tracks (fully black HDMI
 after an activation, every log reporting success) reached through a core load —
 both run the same `QuiesceAdv` power-down and `hdmi_verify` bring-up. Whether
