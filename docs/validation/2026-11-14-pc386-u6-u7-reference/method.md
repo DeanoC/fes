@@ -147,3 +147,31 @@ capture's step figures (above), the kit's lute notes from the same run (key
 `6` at 840.7 Hz, key `1` at 499.8 Hz), and that the reference plays Ultima
 VI's introduction more slowly than the kit. No reference walk or lute figure
 existed yet. The tolerance is unchanged.
+
+## Second amendment, still before the kit runs
+
+**The reference needs an XMS driver to run Ultima VI at all.** On the 286 the
+games image leaves 505 KiB free, against 573 KiB on the kit, because FreeCOM
+0.86 cannot swap itself out without XMS and the image's HIMEMX is 386-only.
+Ultima VI's introduction then plays to its end and `GAME.EXE` drops straight
+back to the prompt. The reference disk therefore also carries **MS-DOS 6.22's
+`HIMEM.SYS`** (29,136 bytes, taken from the `wfw-msdos` drive in
+`~/fes-drives/pc386`, never committed) with `DOS=HIGH`, which gives 591 KiB
+free — 18 KiB more than the kit, not less. Memory does not pace the game; this
+only lets it start.
+
+So the reference disk differs from the kit's `u6nm.img` in five files:
+`KERNEL.SYS` (kernel 2046's 8086 build in place of its 386 build),
+`HIMEM.SYS` (added), `FDCONFIG.SYS`, `AUTOEXEC.BAT`, and nothing else.
+`ULTIMA6\` is byte-identical.
+
+**The reference is checked against real 286 machines.** TopBench's own
+database, on the benchmark drive, holds real 286 boards at 12 and 12.5 MHz
+scoring 21, 22, 22, 23, 25 and 27. The 86Box reference scores **23**, in the
+middle of them, so `cpu_waitstates = 1` and the rest of the board's defaults
+are period-typical. (The kit's 286-12 preset scores 33, which is above every
+real 286 at that clock in the database; that is the thing being measured, not
+a fault of the reference.) For the 386 the reference board, a 1988 C&T 386/AT
+with no cache and shadow RAM off, scores **40** where the database's real
+386DX/SX machines at 20–25 MHz score 25 to 60, so it sits inside the range but
+on the slow side; the record says so where it gives The Black Gate's figure.
