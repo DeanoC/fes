@@ -204,14 +204,22 @@ fixed in the commit that found it.
 | `tests.test_fes_i386_x87_unit`, `tests.test_fes_i386_ucode`, `tests.test_build_fes_pc386_quartus`, `tests.test_audit_fes_i386_case`, `tests.test_quartus_fes_i386` | Powerboat | OK |
 | Verilator `-Wall` lint (the lock's 5.054) | Powerboat and chip | clean |
 
-Not run yet, and owed before this leaves draft:
+On `bb7b10c0c`, the head before the governor fix, every gate but one passed:
 
-| Check | Why it is owed |
+| Check | Result |
 | --- | --- |
-| the unit's bench on the netlist, and the full and netlist lockstep, on the frozen head | the runs above are of earlier heads; the netlist bench was 70 cases, before the protocol faults and the pointer restore |
-| the lockstep at a governor preset with `--same-as` the max run | the slice changes the issue condition, which the governor also holds |
-| test386 to POST FFh | the integer regression |
-| a Quartus 17.0.2 seal of the frozen head, and a kit run on it | the slice's own gates |
+| the unit's bench, RTL and the seal's Yosys netlist | 82 passed, 0 failed each |
+| the lockstep on the RTL: every bucket, the 1,933 no-387 directed cases and the 8 identity-on programs among them | passed |
+| the lockstep on the locked-Yosys netlist, the same buckets | passed |
+| test386.asm on the RTL | POST 00 … E0 EE **FF** |
+| the two machine fits | above |
+| the Quartus 17.0.2 seal | **passed**, package `fd12bda5` |
+| the lockstep at governor preset 3, `--same-as` the max run | **failed**: the x87 bucket deadlocked at FNINIT |
+
+The preset run is why the slice is not mergeable on that head, and the fix
+is the last row of the table above. Everything is running again on the head
+that carries it; a seal of the frozen RTL and a kit run on it are what is
+left.
 
 The identity-off run is the regression this slice turns on: with the
 identity clear the CPU must be the empty socket it was, and the short run
