@@ -44,8 +44,9 @@ is not a timing waiver.
 
 The `fes.pcxt-dos` recipe selects `HARDWARE_DOS` and keeps the diagnostic
 profile unchanged. It includes GLaBIOS, a host HID keyboard frontend and the XT
-keyboard reset response. Its CGA character ROM is the locked public-domain
-CP437 8×8 font in `firmware/cga-font-8x8.bin`, all 256 characters, so games
+keyboard reset response. Its CGA character ROM is the locked CP437 8×8 font
+in `firmware/cga-font-8x8.bin` (CC-BY-SA-4.0; provenance in
+`firmware/THIRD-PARTY-NOTICES.md`), all 256 characters, so games
 that draw with box, shade and symbol characters 80h–FFh render them (#1537).
 A 360 KiB raw floppy is delivered at
 runtime through `fes.media.pcxt-floppy` and the complete ordered image is
