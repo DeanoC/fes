@@ -293,6 +293,33 @@ exit 0. The plan at `19443449b` is byte-identical in command set and argv to the
 plan that produced those 25 results, so the documentation commits between them
 change nothing about what runs.
 
+## Reproducing these runs
+
+Three traps, each of which cost a launch when this campaign's condition 2 was
+re-measured against the new base.
+
+- **Filling main's roots is not reproducible across time, and failing silently
+  makes the experiment weaker rather than broken.** The populator resolved each
+  install through *this PR's* `request_from_environment`, so what it hardlinks
+  depends on `bootstrap.sh` at the moment it runs. On 12 Nov that returned the
+  recipe-`20685ac5…` installs (Yosys `20740ef0…`, Mistral `ef4a2753…`); after
+  `bootstrap.sh` changed it returns the recipe-`75baea6d…` ones (`a17b4c8a…`,
+  `33d473e1…`). Re-running it today therefore puts the *PR's* binaries on main's
+  side, which holds the tooling constant and tests only the code — not condition
+  2, and weaker than what this record already contains. To reproduce the
+  campaign, pin main's side to the older-recipe install per tool rather than
+  resolving it.
+- **The producer must not be wrapped in `gpu-run`.** `fes_build_common` raises
+  `invoke the producer outside gpu-run; GPU nextpnr calls acquire their own
+  lease` when `GPU_RUN_DEVICE` or `GPU_LEASE_FD` is set, because an outer lease
+  would be held across synthesis. GPU work still goes through `gpu-run`: each
+  nextpnr call takes its own lease, with phase leases where the pinned nextpnr
+  supports them. The guard fires on the first GPU-routed call, so a wrapped run
+  fails only after synthesis has already completed.
+- **`build_fes_menu_package.py` writes to `build/oss/fes-menu-package`**, not
+  `build/fes-menu-package` as its siblings do. A runner that globs
+  `build/**/build-summary.json` will not notice; one that joins a path will.
+
 ## Why CI appeared not to run on this branch
 
 Worth its own line, because it cost two hours. For a `pull_request` event GitHub
