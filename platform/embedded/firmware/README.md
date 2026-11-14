@@ -40,8 +40,9 @@ recovery remains unqualified.
 Expected table generation now uses the existing pure 32-word API within each
 unchanged preparation I/O block. The previous-table scan, new table writes and
 readback comparison still cover every word, with the same ownership/integrity
-guards, callbacks and unpublished-memory limits. The preparation origin remains
-before the source digest, with a four-second budget.
+guards, callbacks and unpublished-memory limits. Preparation keeps its first-guard
+origin, with a four-second budget; the overall transfer clock starts before the
+source digest.
 This removes repeated binding validation for individual expected words. The
 warm cost fixture generates the same 15,360 words in 480 calls; the retained
 previous source takes 15,360 calls and fails an injected-cost control that the

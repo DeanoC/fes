@@ -1,0 +1,1 @@
+{"status": "passed-unchanged-boot-producer-sources-after-runner-preparation", "matched_source_commit": "5c5a9a5b48470c45dc450fb1834540209c333891", "source_files_checked": 674, "generated_build_inputs_checked": 2, "external_inputs_checked": 0, "firmware_README_is_not_a_compiled_input": true, "CPU_or_firmware_source_changed": false, "hardware_actions": false}
