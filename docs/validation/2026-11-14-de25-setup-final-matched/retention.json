@@ -1,0 +1,11 @@
+{
+  "status": "independently-retained-and-read-back",
+  "source_commit": "bfdac3256789536dacfdf5a38d83a1d1ead99903",
+  "classification": "matched preparation final-validation repair; file admission only, hardware pending",
+  "archive": "/home/deano/fes-retained/de25-setup-final-matched-20261114-r1/matched-chain.tar.gz",
+  "archive_sha256": "f5cd58aab99cf23c6a81dd927124946890fa5ec659c4b13970b0ae89503e0ea8",
+  "archive_bytes": 189196966,
+  "files": 41752,
+  "hardware_actions": false,
+  "hardware_accepted": false
+}
