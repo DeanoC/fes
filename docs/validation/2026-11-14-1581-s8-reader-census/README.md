@@ -23,8 +23,12 @@ inventoried separately. The inventory is [`census-tables.md`](census-tables.md);
 | SystemVerilog sim benches | 3 |
 | `M/boards/de25nano` | 17 sites + 11 macro-invisible readers = 28 |
 
-**The base, and how this record was got wrong once.** Every line number here is against this PR's
-base, `main` at `1b4601831`. The first revision of this record published numbers from
+**The base, and how this record was got wrong once.** The sweep ran against `main` at
+`1b4601831`, and every line number was recorded against that tree. Main has moved twice since, so
+the numbers are carried forward to this branch's own tree rather than left at the sweep base: a
+checkout of *this branch* is the tree they are verified against, `verify_census.py` is what
+verifies them, and CI runs it on every change. Checking out `1b4601831` no longer reproduces them.
+The sweep base is named here as provenance, not as the tree to check against. The first revision of this record published numbers from
 `deano/1581-s7-identity-fields` instead — a tree that edits `build_fes_pcxt_quartus.py` and
 `quartus_fes_pcxt.py`, and whose `M/Makefile` differs from this base by a *non-constant* offset:
 −16 across the Coleco block, −7 across SG-1000, +8 and +9 across SMS and the tail. Codex review

@@ -1,9 +1,10 @@
 # #1581 S8 census: site inventory
 
 374 sites in seven swept areas: 371 from the six parallel sweeps, plus the three
-`*.sv` bench comments below that no area covered. Every line number is against this PR's base,
-`main` at `1b4601831`, and the sweep ran against that tree rather than against a
-neighbouring branch, as the first revision of this record mistakenly did.
+`*.sv` bench comments below that no area covered. Every line number is against this branch's tree and is
+checked against it by `verify_census.py`; they are carried forward as main moves. The sweep itself
+ran against `main` at `1b4601831` rather than against a neighbouring branch, as the first revision
+of this record mistakenly did.
 
 Each citation inside a `What` cell is spelled `path:line`, never a bare `:123`
 whose file the reader has to infer, because this inventory is the exact-site
