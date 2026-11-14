@@ -356,6 +356,100 @@ This is the plan's "stop and report" case.
   (`fes.pc386-387`), or a seal above 92%. Nothing here trims the
   architecture to make room.
 
+### Where the ALMs go (the per-module audit)
+
+Deano asked for this before slices 3-5 are re-planned. It changes no RTL.
+The method is the [area audit's](../2026-11-08-i386-area-audit/summary.md):
+the producer's Yosys program without `flatten`, so the fit report lists ALMs
+per entity (`quartus_x87_spike.py --hierarchy`), Quartus 17.0.2, seed 1.
+
+**In the machine**, the identity overlaid on against off, the whole
+difference is three rows; every other module moves by less than 40 ALMs,
+which is this flow's noise:
+
+| Entity | identity on | identity off | delta |
+| --- | ---: | ---: | ---: |
+| `fes_i386_x87`, its own logic | 1,413.6 | 0 | **+1,414** |
+| `fes_i386_x87_mul` | 177.6 | 0 | **+178** |
+| `fes_i386_cpu`, its own logic | 9,409.0 | 9,266.2 | **+143** |
+| the whole machine | 38,170 | 36,529 | +1,641 |
+
+So the CPU-side cost of having a 387 at all — the issue and hold
+conditions, the unit's words substituted into the environment and save
+layouts, the `arch_x87_*` readout — is **143 ALMs**, and the rest is the
+unit. (This flow's delta is 1,641 where the flattened one gives 1,586 and
+the comparison against main gives 1,493; the three differ by about the
+noise stated above.)
+
+**There is no untrimmable residual.** With the identity off both entities
+are 0.0 ALMs in the table. The ~520 ALMs this audit was asked to explain
+were an artefact of comparing a fit against an estimated baseline; measured
+against a fit of main, the identity-off machine is 93 ALMs *smaller*. The
+unit's ERROR# reaching the slave PIC costs nothing when `present` is
+constant 0.
+
+**Inside the unit**, by forcing an output constant so its driver chain
+trims (scratch edits on a worktree of the frozen head, never committed;
+standalone `unit-noregs`, hierarchy kept):
+
+| Fit | `fes_i386_x87` own | registers | M10K | `_mul` | DSP |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| as built | 1,491.7 | 1,248 | 4 | 179.4 | 9 |
+| the register stack's write data forced constant | 1,062.8 | 1,051 | 2 | 179.1 | 9 |
+| the value the CPU stores forced constant | 1,405.5 | 1,262 | 4 | 187.4 | 9 |
+| both | 791.1 | 958 | 2 | 176.1 | 9 |
+
+- **The load result path is about 429 ALMs**: unpack and classify, the
+  normalising shift's control, the rounding, and the pack into 80 bits.
+- **The store-only logic and the environment and save image mux is about
+  86 ALMs**, which is small because the store reuses the load's shifter and
+  rounding rather than carrying its own.
+- **About 186 ALMs are shared between the two directions** — they survive
+  either ablation alone and go only when both do (429 + 86 = 515 against the
+  701 the two together remove).
+- **The floor is about 967 ALMs** (791 of the unit plus the multiplier's
+  176) and it is not idle logic: it is the eight registers' control, the
+  tag, class, control and status words, TOP, the BUSY# latch and the board's
+  error path, the issue, hold and no-wait interlocks, the sequencer — **and
+  the conversion machinery itself**, because the exception flags IE, DE, OE,
+  UE and PE are derived from it and they drive ES, ERROR# and IRQ 13. A unit
+  that reports exceptions cannot gate its arithmetic away, so the shifter
+  and its nine DSPs survive even with both results dead. That is why the
+  DSPs cannot be attributed to one direction.
+
+**What the DSPs and M10K are, in a slice with no arithmetic.**
+- The **9 DSPs** are all in `fes_i386_x87_mul`: nine 22x22 products forming
+  the 64x64 multiply. They are not arithmetic for the program -- they are
+  the **shifter**. Option A has no barrel shifter, so every normalising and
+  denormalising shift is a multiply by a one-hot constant. 178 ALMs is the
+  logic wrapping them.
+- The **4 M10K** are the register stack: two copies of the eight 80-bit
+  registers, one per read port, and each copy takes two blocks because an
+  M10K port is at most 40 bits wide. The derived tag word is what keeps it
+  at two ports rather than three. Forcing the writes constant drops it to
+  two blocks, which is the measurement's own confirmation that both copies
+  are live.
+
+**What looks dear, and what is inherent.** Nothing in the breakdown is
+idle: the three largest pieces are the conversions (429 + 186 shared), the
+state and interface, and the shift-as-multiply wrapper. The 1,248 registers
+are mostly 80-bit datapath stages added in the two rounds that closed the
+clock, and those rounds cut ALMs as well as time, so they are not the place
+to look. What the numbers say for slices 3-5 is simply that the interface,
+the state and the conversions are **not** a small base on which arithmetic
+adds its own cost: at 1,414 + 178 they are already most of what the fit
+spike projected for the whole of option A. This record does not propose a
+way out; the options are the spike's
+[open questions](../2026-11-12-i386-x87-fit-spike/summary.md#open-questions-for-deano).
+
+**A method note worth keeping.** Ablating at the decode — making
+`x87_decode` return `X87_UNIMPL` for a group of forms — measures nothing:
+three such fits all landed within 8 ALMs of the unmodified unit. The op
+reaches the datapath through a register (`cur <= iss_dec`), and neither
+Yosys nor Quartus reasons about which values a state register can hold, so
+nothing is proved dead. Ablations have to cut at an output, where constant
+propagation works.
+
 ### The kit run
 
 Kit B, on the sealed package `25ba71ce` itself, core-only: nothing installed,
