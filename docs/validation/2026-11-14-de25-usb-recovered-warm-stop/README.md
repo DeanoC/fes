@@ -1,5 +1,7 @@
 # USB recovery and subsequent warm preparation stop
 
+The later [four-second preparation candidate](../2026-11-14-de25-preparation-budget/README.md) is built and admitted off-board; the stopped hardware state described here is unchanged.
+
 The requested host-side reset followed by volatile JTAG recovery restored the top kit without another physical power cycle after the original USB Close panic. This fresh candidate boot subsequently detected the USB boot keyboard. The host reset alone did not establish runtime recovery, and the JTAG operation reloaded the FPGA/HPS recovery image rather than toggling only USB0.
 
 One candidate-only trial `f998f7ba2e2fbee3905bcccad3d8851553378a06b86db752f525ff5436cd319f` selected source `fdf6ce1650a3f1b882042688eed81b9c05ca1116`, chain `e29470c44b581055f7874380236b60d7cf5ff08289150518203ea12c8290f567` and FIT `4831f267f89c66513c608c07ab720827f4f6df46a5d480c5fc5b4b82c179c7a4`. Recovery, all seventeen protected before/after file checks, FIT write/readback, sealed boot and keyboard enumeration passed. Independent raw replay verifies the initial MENU transfer of 1,708,032 bytes, two posts/two acknowledgements, retirement and continuation. The initial transfer took 11,548,828 microseconds.
