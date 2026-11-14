@@ -25,3 +25,9 @@ under CC-BY-SA-4.0. See `LICENSE-GLaBIOS.txt` and
 `12d978bd86fe88ee6b8620b0f1e91c7fb81bc2e6`), whose header credits the fonts to
 Joseph Gil's fntcol16 collection and states that the individual fonts are public
 domain. Its characters 00h–7Fh are byte-identical to the GLaBIOS graphics table.
+
+The glyphs are the IBM CGA 8x8 character set: 252 of the 256 characters match
+the double-dot font in the IBM CGA character ROM (5788005); only 05h, 06h, 0Fh
+and 53h differ. FES credits the bitmaps as GLaBIOS does: font bitmaps by
+"VileR" ([The Oldschool PC Font Resource](https://int10h.org/oldschool-pc-fonts/readme/#legal_stuff)),
+licensed CC-BY-SA-4.0; see `LICENSE-CC-BY-SA-4.0.txt`.
