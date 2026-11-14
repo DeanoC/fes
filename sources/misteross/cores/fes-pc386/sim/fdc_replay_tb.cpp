@@ -380,6 +380,12 @@ void seek(Guest &g, unsigned drive, unsigned head, unsigned cylinder) {
     g.sense();
 }
 
+void recalibrate(Guest &g, unsigned drive) {
+    g.command({0x07, uint8_t(drive)});
+    g.irq();
+    g.sense();
+}
+
 void read_back(Guest &g, unsigned drive, unsigned c, unsigned h, unsigned r, unsigned count, unsigned eot,
                const std::vector<uint8_t> &expect, const char *what) {
     seek(g, drive, h, c);
@@ -660,8 +666,41 @@ std::vector<Case> cases() {
         g.results();
         g.check(bytes == Guest::original(A144, 3, 0, 1), "a read naming drive 1 reads DOR's drive 0");
         g.check(bytes != Guest::original(B12, 3, 0, 1), "it is not the named drive's disk");
+        // The command unit's PCN can now differ from DOR drive 0's physical
+        // track: unit 1's earlier seek left its PCN at 3 and stepped drive 0
+        // to 3. Seeking unit 0 from PCN 0 to 5 steps drive 0 five more
+        // tracks, to cylinder 8, while unit 1's PCN remains 3.
+        seek(g, 0, 0, 5);
+        g.command(rw(0xe6, 0, 8, 0, 1, 18));
+        bool at_head_ready = g.wait([&] {
+            return g.f.drq() || (g.f.in(0x3f4) & 0xc0) == 0xc0;
+        }, 2000000, "physical cylinder 8");
+        g.check(at_head_ready && g.f.drq(), "DOR drive 0 finds physical cylinder 8");
+        if (g.f.drq()) {
+            auto at_head = g.dma_in(512, 511);
+            g.results();
+            g.check(at_head == Guest::original(A144, 8, 0, 1), "DOR drive 0 reads cylinder 8");
+        } else g.results();
+        g.command(rw(0xe6, 1, 3, 0, 1, 18));
+        bool terminal = g.wait([&] {
+            return g.f.drq() || (g.f.in(0x3f4) & 0xc0) == 0xc0;
+        }, 2000000, "mismatched physical cylinder");
+        g.check(terminal, "a read at a different physical cylinder completes with an error");
+        if (g.f.drq()) {
+            g.dma_in(512, 511);
+            g.results();
+            g.check(false, "a C mismatch does not expose data from any cylinder");
+        } else {
+            auto mismatch = g.results();
+            g.check(mismatch.size() == 7 && mismatch[0] == 0x41 && mismatch[1] == 0x04,
+                    "a mismatched C field reports no data");
+        }
         // With DOR moved to drive 1, the same command reads drive 1.
         g.out(0x3f2, 0x3d);
+        // Unit 1's PCN changed during the mismatched seek, but drive 1 itself
+        // stayed at track 0. Recalibrate it before seeking and reading its C3.
+        g.command({0x07, 0x01}); g.irq(); g.sense();
+        seek(g, 1, 0, 3);
         g.command(rw(0xe6, 1, 3, 0, 1, 15));
         auto other = g.dma_in(512, 511);
         g.results();
@@ -934,6 +973,7 @@ std::vector<Case> cases() {
             g.out(0x3f2, 0x1c);
             g.irq();
             for (int i = 0; i < 4; ++i) g.sense();
+            recalibrate(g, 0);
             read_back(g, 0, 8, 0, 1, 1, 1, sector,
                       strf("a sector finished %u clocks before a DOR reset", after).c_str());
         }
@@ -949,6 +989,7 @@ std::vector<Case> cases() {
             g.irq();
             for (int i = 0; i < 4; ++i) g.sense();
             g.out(0x3f2, 0x1c);
+            recalibrate(g, 0);
             read_back(g, 0, 8, 0, 2, 1, 2, sector,
                       strf("a sector finished %u clocks before a DSR reset", after).c_str());
             g.command({0x4d, 0x00, 0x02, 18, 0x54, uint8_t(0xa0 + after)});
@@ -958,6 +999,7 @@ std::vector<Case> cases() {
             g.out(0x3f2, 0x1c);
             g.irq();
             for (int i = 0; i < 4; ++i) g.sense();
+            recalibrate(g, 0);
             read_back(g, 0, 8, 0, 1, 1, 1, std::vector<uint8_t>(512, uint8_t(0xa0 + after)),
                       strf("a format ID finished %u clocks before a DOR reset", after).c_str());
         }
@@ -978,6 +1020,7 @@ std::vector<Case> cases() {
             });
             g.check(overlapped, "the second format reached its drive while the first's store ran");
             g.controller_reset(0x1c);
+            recalibrate(g, 0);
             read_back(g, 0, 8, 0, 1, 1, 1, std::vector<uint8_t>(512, 0xc1), "a store's fill byte across a new format");
         }
         // A TC on a write's fourth byte: the store's first word is the last

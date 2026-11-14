@@ -192,7 +192,8 @@ Anything else is invalid (ST0 80h), as the 82077 answers.
 
 **Drives.** Two drives: DOR's select bits 0–1 for drives 0 and 1, with motor bits 4 and 5. Drives 2 and 3 are absent. Each drive has:
 
-- its own cylinder;
+- an internal PCN updated for the drive named by Seek or Recalibrate;
+- a separate physical cylinder, advanced by each step pulse on the DOR-selected drive. A mismatched command can leave its unit's PCN and the selected drive's physical position apart. Read and Write Data require the command's C field to match that physical cylinder, and the image address uses the physical position;
 - a disk-change latch, set by eject and insert and cleared by a step pulse with a disk present, as on a real drive;
 - motor spin-up time (500 ms on 3.5", 400 ms on 5.25");
 - a type from configuration (**D4**).
@@ -680,7 +681,7 @@ Each slice is one PR with its own `Closes` issue under the tracker, [#1694](http
 ### F2. Floppy in the machine: CMOS, BIOS patch, `machine_tb` units (RTL + firmware, sim)
 
 - **Builds:** CMOS rows from configuration inputs, driven by `machine_tb` until F3 adds the record words; the INT 13h AH=15h/16h patch; file-backed units and `--swap` in `machine_tb`; the `floppy` and `floppy-boot` suites; FLOPTEST.COM.
-- **Built as well:** the drive select a command names runs on the drive DOR selects ([#1796](https://github.com/DeanoC/fes/issues/1796)), with the Bochs and QEMU behaviour recorded as the `dor-mismatch` divergence and its replay case. The BIOS also steps the head once in `floppy_drive_recal` when the change line is active, because a drive clears that line only on a step pulse and Recalibrate issues none at cylinder 0.
+- **Built as well:** the drive select a command names runs on the drive DOR selects ([#1796](https://github.com/DeanoC/fes/issues/1796)), with the Bochs and QEMU behaviour recorded as the `dor-mismatch` divergence and its replay case. PCN and physical position are separate: the replay makes them diverge, reads from the selected head's cylinder, and checks that a C field from the other unit's PCN cannot select another cylinder. The BIOS also steps the head once in `floppy_drive_recal` when the change line is active, because a drive clears that line only on a step pulse and Recalibrate issues none at cylinder 0.
 - **Gates:**
   - both suites on the oracle and `--cpu rtl`;
   - the lockstep check;
