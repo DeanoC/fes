@@ -142,6 +142,18 @@ class AffectedTests(unittest.TestCase):
             with self.subTest(paths=paths):
                 self.assertEqual(set(plan(paths)['cores']), set(CORES))
 
+    def test_shared_hps_ddr_guard_regression_selects_ramtest_simulation(self):
+        for relative in ('cores/fes-common/sim/hps_ddr_guard_tb.sv',
+                         'tests/test_fes_hps_ddr_guard.py',
+                         'tests/test_sim_fes_ramtest_hook.py'):
+            with self.subTest(relative=relative):
+                result = plan(['sources/misteross/' + relative])
+                self.assertEqual(result['cores'], ['ramtest'])
+        # Unknown shared RTL keeps the existing broad selection.
+        result = plan(['sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v'])
+        self.assertEqual(set(result['cores']), set(CORES))
+        self.assertIn('ramtest', result['cores'])
+
     def test_de25_board_metadata_and_diagnostic_have_no_existing_core_consumer(self):
         definition = 'sources/mister-packages/packages/board/de25_nano.yaml'
         board = 'sources/misteross/boards/de25nano/'
