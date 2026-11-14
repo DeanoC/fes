@@ -286,3 +286,27 @@ three pass windows give 1.67, 1.11 and 1.03 turns a second. Both conclusions
 stand: the pass rate follows the key rate, and the walk's spread at one key
 rate is more than twice the band. `walk.json` now carries both figures per
 capture.
+
+## Fifth amendment: how The Black Gate's reference board is chosen
+
+Written before its TopBench figure was read, because the board choice would
+otherwise decide the verdict: an uncached 1988 chipset scores 40 against the
+kit preset's 68, and a cached board of the same clock scores much more.
+
+**The rule comes from what the preset says it is, not from what the kit
+scores.** `sources/misteross/docs/i386-cpu-design.md`'s preset table defines
+386DX-25 as the Intel386 timing table at 25 MHz with **zero wait states per
+memory bus cycle and a 32-bit bus** (286-12, for comparison, is the 80286
+table at 12 MHz with one wait state and a 16-bit bus — which is why the 286
+reference runs `cpu_waitstates = 1`). A real 386DX at 25 MHz only reaches zero
+wait states with a cache or with memory fast enough to stand in for one, so
+the reference board must be a **cached 386DX at 25 MHz**, and the 1988 C&T
+386/AT used for the first benchmark — no cache, shadow RAM off — is the wrong
+class however it scores.
+
+So: an 86Box 386DX board at 25 MHz with its cache enabled, and the POST's
+cache line recorded with the score. TopBench's database holds no 386DX at
+25 MHz at all, so it cannot place that board the way it placed the 286 one;
+the record says so, gives the board's score beside the database's nearest
+real machines, and treats the comparison as decided only if it comes out the
+same on both boards — the cached one and the uncached `ecs386`.
