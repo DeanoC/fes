@@ -1304,7 +1304,10 @@ void TestMenuBlitterGrantTakesCpuCommitsUntilAList()
   assert(SendFrame(socket,MenuRequest("menu_frame_begin",generation),-1,deadline).ok());
   ReceivedFrame begun;assert(ReceiveFrame(socket,deadline,&begun).ok());Contains(begun.line,"\"ok\":true");
   assert(SendFrame(socket,commit(SlotOf(begun.line)),-1,deadline).ok());
-  ReceivedFrame done;assert(ReceiveFrame(socket,deadline,&done).ok());close(socket);
+  ReceivedFrame done;assert(ReceiveFrame(socket,deadline,&done).ok());
+  // EOF follows destruction of the server's MenuFrame. A response alone can
+  // arrive while its preparation is still held by the connection handler.
+  assert(ReadToEof(socket).empty());assert(close(socket)==0);
   return done.line;
  };
  const auto whole=[&](unsigned slot){return MenuCommit(generation,slot);};
