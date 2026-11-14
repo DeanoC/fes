@@ -208,7 +208,7 @@ in the order the seal needs, on `chip-30x0-ai-dev` with CUDA
 | the two machine analysis fits, the identity overlaid on and left off | chip | below |
 | a kit run on that seal | Kit B | below |
 | `tests.test_pc386_machine` (82 tests: the whole machine simulated with the unit in it) | Powerboat | OK |
-| `tests.test_fes_i386_x87_unit`, `tests.test_fes_i386_ucode`, `tests.test_build_fes_pc386_quartus`, `tests.test_audit_fes_i386_case`, `tests.test_quartus_fes_i386` | Powerboat | OK |
+| `tests.test_fes_i386_x87_unit`, `tests.test_fes_i386_ucode`, `tests.test_build_fes_pc386_quartus`, `tests.test_audit_fes_i386_case`, `tests.test_quartus_fes_i386` | Powerboat | OK, 145 tests with the machine's |
 | Verilator `-Wall` lint (the lock's 5.054) | Powerboat and chip | clean |
 
 The identity-off lockstep is the regression this slice turns on: with the
@@ -281,12 +281,10 @@ clean checkout of that commit with `--gpu-router CUDA` and the full lockstep
 | pixel / audio clocks | 74.27 MHz / 12.29 MHz, both met |
 | the lockstep report it carries | netlist `39f9a82b`, report `d8324c44`, Verilator 5.054 of the i386 lock, Yosys `e240a465` |
 
-Main's last pc386 seal is 36,803 ALMs, taken before the keyboard's M10K win
-(#1802, −796), so main's baseline today is about **36,007**. The sealed core
-is **about 399 ALMs above that** with the identity clear: tying the identity
-to `1'b0` does not remove everything, because the unit's ERROR# reaches the
-slave PIC and its words feed the AT core's ports. It meets every analysis
-with margin to spare, and nothing was relaxed for it.
+Main's last pc386 seal is 36,803 ALMs, but it was taken before the
+keyboard's M10K win (#1802, −796) landed, so it is not this seal's
+counterpart. The like-for-like comparison is the pair of analysis fits
+below, which run main and this branch through one flow.
 
 ### The machine, measured
 
@@ -295,22 +293,26 @@ until slice 5, so Quartus trims most of the unit out and the seal's delta
 against main says little. The measurement is the pair of machine analysis
 fits, with the identity overlaid to `1'b1` and left at `1'b0`
 (`quartus_x87_spike.py --mode machine --variant base [--identity-on]`),
-Quartus 17.0.2 at the seal's settings, seed 1:
+Quartus 17.0.2 at the seal's settings, seed 1. `origin/main` is fitted
+through the same flow in a clean worktree, so the cost against main is
+measured rather than estimated:
 
 | The machine | ALMs | % of device | vs the 92% ceiling | DSP | M10K | CPU setup (ns) | CPU hold (ns) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| the identity clear, as the package has it | 36,532 | 87.2% | −2,025 | 40 | 274 | **+0.558** | +0.090 |
-| the identity set, so the unit is kept | 38,118 | 91.0% | **−439** | 49 | 278 | **+0.804** | +0.072 |
+| `origin/main` (`53681975f`), the same flow | 36,625 | 87.4% | −1,932 | 40 | 274 | **+0.435** | +0.074 |
+| this branch, the identity clear, as the package has it | 36,532 | 87.2% | −2,025 | 40 | 274 | **+0.558** | +0.090 |
+| this branch, the identity set, so the unit is kept | 38,118 | 91.0% | **−439** | 49 | 278 | **+0.804** | +0.072 |
 
-- **The unit costs +1,586 ALMs, 9 DSP blocks and 4 M10K inside the machine**,
-  and the machine meets the clock either way.
-- With the identity clear the machine is still about **520 ALMs and 2 DSP
-  above** main with the keyboard win (about 36,007): tying the identity off
-  does not remove everything, because the unit's ERROR# reaches the slave
-  PIC and its words feed it.
+- **Against main the unit costs +1,493 ALMs, 9 DSP blocks and 4 M10K**, and
+  the machine meets the clock in all three fits.
+- **With the identity clear this branch is 93 ALMs smaller than main**, which
+  is inside the flow's own seed-to-seed spread: tying the identity to `1'b0`
+  really does remove the unit, and the changes that are not behind it — the
+  shared FNSAVE and FRSTOR microcode, the sequencer's offsets, the wider
+  part field — cost nothing measurable.
 - At 38,118 the machine with a 387 fitted is **439 ALMs under the 92%
-  ceiling**, and its margin is +0.804 ns against the baseline's +0.58 to
-  +0.86.
+  ceiling**, and its margin is +0.804 ns against main's +0.435 in the same
+  flow.
 
 ### What this says about the budget
 
@@ -325,17 +327,17 @@ This is the plan's "stop and report" case.
   dispatch, constant and seed ROMs held a hash of the address and its
   conversions were structural. The real conversions, their rounding and the
   environment and save layouts are what the difference buys.
-- The machine fits put it beyond doubt: this slice alone adds **+1,586**
-  ALMs, where the spike predicted **+1,687** for the whole of option A,
-  slow path and all.
+- The machine fits put it beyond doubt: against main, this slice alone adds
+  **+1,493** ALMs, where the spike predicted **+1,687** for the whole of
+  option A, slow path and all.
 - So slices 3 to 5 — the 68-bit add and subtract, compare, the Goldschmidt
   divide and square root with their seed ROMs, FPREM, and the
   transcendentals with their microcode ROM and constants — have **439 ALMs**
   of headroom under the ceiling, and the spike's own standalone figures put
   the slow path alone above that.
-- Against the ceiling: main's last pc386 seal is 36,803 ALMs less the
-  keyboard's 796 (#1802), about **36,007**; the 92% working ceiling is
-  38,557. OPL2's MLAB win
+- Against the ceiling: main fits at **36,625** in this flow and the 92%
+  working ceiling is 38,557, so main itself has 1,932 ALMs of room and this
+  slice takes 1,493 of them. OPL2's MLAB win
   ([#1795](https://github.com/DeanoC/fes/pull/1795), about −160) is not
   merged yet and would buy a little of it back.
 - What to do about it is Deano's call, and the spike's own
@@ -343,6 +345,30 @@ This is the plan's "stop and report" case.
   list the options: the audit's remaining wins, a second core variant
   (`fes.pc386-387`), or a seal above 92%. Nothing here trims the
   architecture to make room.
+
+### The kit run
+
+Kit B, on the sealed package `25ba71ce` itself, core-only: nothing installed,
+no image or boot-config change, the baseline claimed in
+`~/kit-status/kitB-STATUS.md` before each pass and verified restored after it
+(bundle `7ddb0bfb` active, image `179affbb`, boot id unchanged, the run's
+FogCast data trees removed). The driver is
+`~/fes-scratch/x87s2/kit/run-x87.sh` around `hil_x87.py`, a copy of the
+keyboard slice's, on the user-supplied FreeDOS drive `a6977555` (never
+committed). **The identity is clear in this package**, so the run is a
+no-regression check of the machine around the unit, not a check of the 387;
+the 387's own behaviour is the unit's bench and the lockstep.
+
+| Pass | What it did | Result |
+| --- | --- | --- |
+| x1 | boot, `echo X87:Ok! [1@#]`, a held key's typematic, Keen 4 | FreeDOS boots, the prompt echoes every character including the shifted ones, Keen 4 launches and its menus take input; the game itself was not reached, the sequence stayed in the menus |
+| x2 | the same, then Keen 4 played, then a second boot for Wolfenstein 3D | Keen 4 reaches the world map and Keen moves; Wolfenstein's Options menu takes input |
+| x3 | Wolfenstein 3D from a fresh boot | its episode and difficulty screens take input |
+| x4 | Wolfenstein 3D from a fresh boot, a grab at every menu step | **Floor 1, health 100%, and the view moves and turns** |
+
+Four boots of FreeDOS, two games played, the keyboard right at the DOS
+prompt and in both games, and the kit logged free on its baseline after
+every pass. The frames are in `~/fes-scratch/x87s2/kit/runs/x1..x4/fr`.
 
 ## The CPU and the machine
 
@@ -377,20 +403,22 @@ empty socket's exactly as before.
 
 ## What is left
 
-- **The lockstep needs x87 programs.** The 387-present rule is in (the
-  state accessor, the wait on BUSY#, the per-form not-built rule and the
-  comparison at every retirement), but the lockstep's random programs
-  contain no ESC instruction, as slice 0's record notes, so with the
-  identity on the comparison runs over programs that leave the 387 alone.
-  The coverage has to come from the generator emitting the slice's forms,
-  or from the no-387 directed cases (`run_no387_cases`) run again with the
-  identity on, where the expectation comes from the oracle rather than the
-  socket's hand-computed image. Two things come with it: the 387's state
-  after a CPU reset, which is the open `cpu-reset-387-state` divergence
-  (Bochs leaves CW 0040h with every tag valid; this unit resets as FINIT
-  does, 037Fh with every tag empty), so either the bench starts each
-  program with FNINIT on both sides or it adopts one side's reset state;
-  and TestFloat's conversion vectors, which the plan's gate names.
+- **The lockstep's 387 coverage is the eight directed programs.** The rule
+  is in and they pass, but the generator still emits no ESC instruction, as
+  slice 0's record notes, so with the identity on everything outside those
+  programs leaves the 387 alone. Wider coverage comes from the generator
+  emitting the slice's forms, or from the no-387 directed cases
+  (`run_no387_cases`) run again with the identity on, where the expectation
+  comes from the oracle rather than the socket's hand-computed image. Doing
+  that pulls in the 387's state after a CPU reset, the open
+  `cpu-reset-387-state` divergence (Bochs leaves CW 0040h with every tag
+  valid; this unit resets as FINIT does, 037Fh with every tag empty): either
+  the bench starts each program with FNINIT on both sides, as these eight
+  do, or it adopts one side's reset state. **TestFloat's conversion vectors**,
+  which the plan's gate names, are the other piece: the conversions here are
+  checked against an x86-64 host's own x87 over the PRM's operand classes,
+  random bits and all four rounding modes, which is the same oracle, but the
+  vectors as guest programs are a scope of their own.
 - **The identity's record word and FogCast setting**, which slice 0 left to
   this slice. It is not in this PR on purpose: the setting words 0-6 are a
   seven-decimal wire format in `FogCast/protocol/pc386.go` with generated
@@ -400,14 +428,19 @@ empty socket's exactly as before.
   lands a kit can only run the sealed package with the identity off, which
   is what this slice's kit run checks; the 387's own behaviour is covered
   by the unit's bench and, once it has programs, the lockstep.
-- exception 9, for a coprocessor operand whose middle part crosses into a
-  protected or not-present page or segment;
-- CR0.ET following the identity at reset;
-- the lockstep's 387-present rule on the RTL and on the netlist, with the
-  plan's directed cases, and test386 to POST FFh;
-- a Quartus 17.0.2 seal of the head with every analysis met, and its area
-  against main;
-- a kit run on that seal.
+- **Exception 9 is not built, and it is in this slice's scope.** It is
+  raised when a coprocessor operand's middle part crosses into a
+  not-present or protected page or segment: the transfer has begun, so the
+  387 is partly updated and the fault cannot be restarted. Nothing this
+  slice runs reaches it — the lockstep's x87 programs use flat, present
+  memory, and the bench drives the unit's interface rather than the memory
+  path — so it is stated here rather than built blind. What it needs is a
+  directed lockstep case that straddles a page boundary with the second
+  page absent, and a decision on what the unit leaves behind when it faults
+  part way, which is also the `divergences.toml` entry that case would
+  settle (a real 387 keeps what the bus transferred; Bochs applies the
+  operand at once). It is the one named piece of the slice that is not in
+  the PR.
 
 ## Reproducing
 
