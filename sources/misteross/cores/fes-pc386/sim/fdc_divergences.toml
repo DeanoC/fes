@@ -60,6 +60,15 @@ deciding = "The locked BIOS sends no SEEK of its own before a transfer (`rombios
 follow = "both"
 
 [[divergence]]
+id = "reset-pcn"
+title = "The PCN across a software reset"
+cases = ["reset_sense_pcn"]
+reference = "reset() zeroes cylinder[0..3] for a software reset as well as a hardware one, so the four Sense Interrupt Status responses it leaves behind all read a present cylinder of zero whatever the drives were seeked to, and a seek issued after the reset counts its steps from zero."
+rtl = "A software reset moves no head, so each drive keeps its PCN and each of the four responses carries the PCN of the unit its ST0 names (zero for the two units this machine does not have). A seek after the reset counts its steps from where the head really is."
+deciding = "The 82077AA names the two things that clear a PCN, and a software reset is neither: RECALIBRATE, which \"clears the contents of the PCN counter\" while stepping to the track-zero sensor (290166-007, 5.2.2), and leaving POWERDOWN, where \"the 82077AA clears the PCN value and the status information to zero\" (5.2.3). A reset that zeroed the PCN without moving the head would leave every later seek short by where the head stood, which is why the IBM PC/AT BIOS recalibrates each drive after a controller reset rather than trusting either value (5170 BIOS `DSKETTE.ASM`). No guest reads a PCN across a reset without recalibrating first."
+follow = "rtl"
+
+[[divergence]]
 id = "status-registers"
 title = "3F0h, 3F1h and 3F3h"
 cases = ["status_registers"]

@@ -343,7 +343,11 @@ module pc386_fdc #(
     always @* begin
         case (result_kind)
             R_ST3: result_byte = st3;
-            R_SENSE: result_byte = result_index == 4'd0 ? st0 : pcn[d];
+            // The PCN belongs to the unit ST0 names, which is the command's
+            // drive for an ordinary seek and each of the four in turn while a
+            // software reset's responses drain. Units 2 and 3 do not exist.
+            R_SENSE: result_byte = result_index == 4'd0 ? st0 :
+                                   st0[1] ? 8'd0 : pcn[st0[0]];
             R_RW, R_FORMAT:
                 case (result_index)
                     4'd0: result_byte = st0;
@@ -446,13 +450,21 @@ module pc386_fdc #(
         end
     endtask
 
+    // Where a transfer's implied seek leaves the selected drive: it steps
+    // by the distance from the named unit's PCN to the command's cylinder,
+    // and the head stops at the track-zero sensor however many more steps
+    // out are asked for, as it stops at the last track going in.
+    wire signed [10:0] implied_step = $signed({3'd0, command[2]}) - $signed({3'd0, pcn[d]});
+    wire signed [10:0] implied_target = $signed({3'd0, physical_cyl[dsel]}) + implied_step;
+    wire [7:0] implied_cyl = implied_target < 11'sd0 ? 8'd0 :
+                             implied_target > 11'sd255 ? 8'd255 : 8'(implied_target);
+
     // The seek a read or write makes before its transfer: the controller
-    // steps the selected drive by the distance from the named unit's PCN to
-    // the command's cylinder and takes that PCN with it, and those step
-    // pulses clear the drive's disk-change line.
+    // steps the selected drive there and takes the named unit's PCN with it,
+    // and those step pulses clear the drive's disk-change line.
     task automatic implied_seek;
         begin
-            physical_cyl[dsel] <= 8'(physical_cyl[dsel] + command[2] - pcn[d]);
+            physical_cyl[dsel] <= implied_cyl;
             pcn[d] <= command[2];
             if (command[2] != pcn[d] && present[dsel]) changed[dsel] <= 0;
         end
@@ -746,9 +758,9 @@ module pc386_fdc #(
                         implied_seek();
                         // The implied seek steps the drive DOR selects by the
                         // named unit's own distance, so a command that names
-                        // another drive leaves that head short of the
+                        // another drive can leave that head away from the
                         // cylinder it asked for: no ID field there carries it.
-                        if (physical_cyl[dsel] != pcn[d]) fail(R_RW, command[3][0], 8'h04);
+                        if (implied_cyl != command[2]) fail(R_RW, command[3][0], 8'h04);
                         else if (writing && write_protect[dsel]) fail(R_RW, command[3][0], 8'h02);
                         else if (writing) begin
                             wait_us <= byte_wait;

@@ -742,6 +742,46 @@ std::vector<Case> cases() {
         auto other = g.dma_in(512, 511);
         g.results();
         g.check(other == Guest::original(B12, 3, 0, 1), "the same read under DOR's drive 1");
+        // A head at the track-zero stop cannot step out past it, however far
+        // the mismatch asks. DOR back to drive 0 with its head recalibrated
+        // to 0, naming unit 1 whose PCN is 5 and asking for cylinder 0: the
+        // five steps out leave the head where it is, which is the cylinder
+        // the command wants, so the read works.
+        g.out(0x3f2, 0x3c);
+        recalibrate(g, 0);
+        g.command({0x0e});
+        dump = g.results();
+        g.check(dump.size() == 10 && dump[0] == 0x00 && dump[1] == 0x03,
+                "drive 0 at track zero, unit 1's PCN still 3");
+        seek(g, 1, 0, 5);                                    // steps drive 0 out to 5
+        recalibrate(g, 0);                                   // and back to the stop
+        g.command(rw(0xe6, 1, 0, 0, 1, 18));
+        auto floor_read = g.dma_in(512, 511);
+        g.results();
+        g.check(floor_read == Guest::original(A144, 0, 0, 1),
+                "a seek out past track zero stops there and the read of C=0 works");
+    }});
+    // The four Sense Interrupt Status responses a software reset leaves
+    // behind: each answers for the drive its ST0 names, with that drive's own
+    // PCN, and the two drives this machine does not have answer zero.
+    list.push_back({"reset_sense_pcn", 4, 2, false, [](Guest &g) {
+        { const Disk a = A144, b = B12; g.boot(&a, &b); }
+        start(g);
+        g.out(0x3f2, 0x1c);                                  // DOR's drive 0
+        seek(g, 0, 0, 2);
+        g.out(0x3f2, 0x2d);                                  // DOR's drive 1
+        seek(g, 1, 0, 5);
+        g.out(0x3f2, 0x1c);
+        g.out(0x3f2, 0x18); g.out(0x3f2, 0x1c);              // a software reset
+        g.irq();
+        std::vector<uint8_t> pcns;
+        for (int i = 0; i < 4; ++i) {
+            auto r = g.sense();
+            g.check(r.size() == 2 && r[0] == uint8_t(0xc0 + i), strf("reset sense %d names unit %d", i, i).c_str());
+            if (r.size() == 2) pcns.push_back(r[1]);
+        }
+        g.check(pcns == std::vector<uint8_t>{2, 5, 0, 0},
+                "each reset response carries its own unit's PCN");
     }});
     list.push_back({"status_registers", 4, 2, false, [](Guest &g) {
         g.check(g.show(0x3f0) == 0xff, "3F0h reads FFh");
