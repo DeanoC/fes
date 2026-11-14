@@ -943,6 +943,36 @@ func TestPrepareSkipsSymlinksAndDoesNotFollowThem(t *testing.T) {
 	}
 }
 
+// Staged drive images are bulk data and must not stay on the 1 GiB FAT, where
+// they crowd out /fogcast/releases until no image can be staged (#1844).
+func TestPrepareMovesStagedDiskImagesToP3(t *testing.T) {
+	t.Parallel()
+	mounter := newRecordingMounter()
+	cfg := testConfig(t, mounter)
+	fatImages := filepath.Join(cfg.FATRoot, "disk-images")
+	if err := os.MkdirAll(fatImages, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	staged := filepath.Join(fatImages, "b4be6e29.img")
+	if err := os.WriteFile(staged, []byte("drive"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Prepare(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(result.Bound, "disk-images") {
+		t.Fatalf("disk-images was not bound: %v", result.Bound)
+	}
+	moved := filepath.Join(cfg.MountPoint, "disk-images", "b4be6e29.img")
+	if body, err := os.ReadFile(moved); err != nil || string(body) != "drive" {
+		t.Fatalf("staged disk image was not copied to p3: %q %v", body, err)
+	}
+	if got := mounter.mounted[fatImages]; got != filepath.Join(cfg.MountPoint, "disk-images") {
+		t.Fatalf("disk-images bind = %q", got)
+	}
+}
+
 func TestPrepareRejectsProtectedBindNames(t *testing.T) {
 	t.Parallel()
 	mounter := newRecordingMounter()
@@ -1062,7 +1092,7 @@ func TestProductionBindNamesStayOnMutableData(t *testing.T) {
 	if err := validateConfig(cfg); err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Join(cfg.BindNames, ","); got != "cache,saves,core-data,launcher-cache,evidence" {
+	if got := strings.Join(cfg.BindNames, ","); got != "cache,saves,core-data,launcher-cache,evidence,disk-images" {
 		t.Fatalf("bind names = %s", got)
 	}
 	if cfg.FATRoot != DefaultFATRoot || cfg.Label != DefaultLabel {

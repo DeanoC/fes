@@ -49,7 +49,15 @@ const gamesFallbackMarker = ".fes-games-fallback-v1"
 // DefaultBindNames are the FogCast trees that live on p3 after a successful
 // bind. The game library tree is mounted separately from /media/fat/games.
 // Releases, agent.toml, launcher.json and target-id stay on FAT.
-var DefaultBindNames = []string{"cache", "saves", "core-data", "launcher-cache", "evidence"}
+//
+// disk-images belongs here with core-data: a staged drive is bulk data whose
+// base media already lives on p3, and each one is a sizeable fraction of the
+// 1 GiB FAT (pc386 hard-disk images run to 128 MiB). Left on FAT they crowd
+// out /fogcast/releases, which has no other home, until no image can be
+// staged at all. They are also reconstructible -- the host re-stages whenever
+// /v1/library/disk-images/probe reports a digest absent -- so unlike the game
+// tree they need no FAT fallback.
+var DefaultBindNames = []string{"cache", "saves", "core-data", "launcher-cache", "evidence", "disk-images"}
 
 var forbiddenBindNames = map[string]struct{}{
 	"releases":      {},
