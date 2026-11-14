@@ -10,7 +10,7 @@
 using namespace mister::native;
 const std::uint64_t kDeadline = 100;
 std::size_t scenarios = 0;
-const std::size_t kExpectedScenarios = 243;
+const std::size_t kExpectedScenarios = 247;
 class ClockFake final : public Clock {
 public: mutable std::uint64_t now = 0;
  std::uint64_t NowMs() const override { return now++; }
@@ -188,6 +188,46 @@ void TestLinkRequiresPllLockAndRecordsVic()
 				if (call.address == 0x9e) tried_pll = true;
 			}
 			assert(read_link && tried_pll);
+			++scenarios;
+		}
+		// The same spent budget, reported by 0x9e while 0x3e still answers.
+		// `spent` above no longer reaches the guard it was written for: when
+		// the VIC read fails on the same exhausted budget, the branch that
+		// refuses a timed-out optional read gets there first, and every one
+		// of that fixture's assertions still passes. So this is the only
+		// test of the path that stops an unreadable 0x9e past the deadline
+		// from being returned as a successful bring-up. Deleting that guard
+		// must break a test, not go unnoticed.
+		{
+			Fixture spent_pll;
+			spent_pll.clock.now = kDeadline - 2;
+			spent_pll.i2c.pll_read_error =
+				{mister::ErrorCode::io_failed, "deadline exceeded"};
+			const auto result = bring_up(spent_pll);
+			assert(!result.error.ok() && result.phase == "hdmi_verify");
+			assert(Mentions(result.error.message, "deadline exceeded"));
+			assert(Mentions(result.error.message, "pll_lock=?"));
+			// 0x3e answered, so the optional register is not what failed and
+			// must not be named as the cause.
+			assert(Mentions(result.error.message, "vic=4"));
+			assert(!Mentions(result.error.message, "VIC register 0x3e"));
+			++scenarios;
+		}
+		// A PLL measured unlocked and then unreadable, with the budget going
+		// at that moment. The refusal has to carry the measurement and not
+		// just the transport error: that it was seen unlocked is the whole
+		// finding, on the one line a black screen gets diagnosed from.
+		{
+			Fixture unlocked_then_unreadable;
+			unlocked_then_unreadable.clock.now = kDeadline - 3;
+			unlocked_then_unreadable.i2c.pll_status = 0x02;
+			unlocked_then_unreadable.i2c.fail_detail_read_index = 2;
+			const auto result = bring_up(unlocked_then_unreadable);
+			assert(!result.error.ok() && result.phase == "hdmi_verify");
+			assert(Mentions(result.error.message,
+				"pixel PLL did not lock behind a ready link and "
+				"became unreadable"));
+			assert(Mentions(result.error.message, "pll_lock=?"));
 			++scenarios;
 		}
 		// A PLL once read as unlocked stays refused. The second sample's
