@@ -94,7 +94,10 @@ and changes host timing, so a traced run is diagnostic evidence. Eleven injected
 model tests cover identity/ownership/attachment/deadline/output/cleanup faults.
 A real host-only disposable-process fixture checks ioctl capture, normal detach
 and survival after abrupt tracer death; its vendor identity is injected and
-it opens no USB device. Physical private-server tracing remains unqualified.
+it opens no USB device. The [bounded physical trial](../../../docs/validation/2026-11-14-de25-warm-prepare-stop/README.md)
+subsequently captures and closes both recovery/native private-server traces.
+This is diagnostic qualification only: URB completion contents remain opaque,
+USB health and the earlier JTAG failure's root cause remain unqualified.
 
 `jtag_enumeration.cpp` is a separate scan-only diagnostic for the installed
 programmer's two-pass automatic enumeration: count zero/null list/automatic

@@ -15,9 +15,11 @@ remains. Input preparation and source release retain their independent
 one-second budgets. Profiles 16/17 and the new publication-clock record reject
 the superseded timing contracts. Joined cost models now complete retirement
 and continuation at the previously failing injected costs; nine vendor
-AArch64 objects compile. These provisional software budgets need matched-image
-and hardware timing checks. Software-controlled recovery is still unqualified,
-and this change has not been loaded on the kit.
+AArch64 objects compile. A selected format-18 descendant now passes initial MENU retirement and
+continuation in the [traced physical trial](../../../docs/validation/2026-11-14-de25-warm-prepare-stop/README.md),
+then stops at the next source's independent warm preparation deadline. These
+provisional budgets do not yet qualify repeated loading. Software-controlled
+recovery remains unqualified.
 
 The first complete link of that timing candidate exceeded the private OCRAM
 reservation by 128 bytes. The [compact-controller repair](../../../docs/validation/2026-11-14-de25-compact-command-state/README.md)

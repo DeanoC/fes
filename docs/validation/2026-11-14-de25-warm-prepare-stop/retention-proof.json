@@ -1,0 +1,18 @@
+{
+  "status": "passed-independent-warm-prepare-stop-retention",
+  "procedure_sha256": "e2bae5dd7ffd03fbfe5c67c9c6a5198e318a25f03c4678e461bde6a5086c9319",
+  "archive": "/home/deano/fes-retained/de25-server-traced-warm-prepare-stop-physical-20261114-r1/physical-trial.tar.gz",
+  "archive_sha256": "f367d5b6e0aedaabef0a43ccaa1fd81f13f001741d5963229fe83b80df034f29",
+  "archive_bytes": 1225081,
+  "files": 177,
+  "initial_MENU_source_and_continuation_verified": true,
+  "first_release_verified": true,
+  "warm_prepare_stopped": true,
+  "processes_stopped": 12,
+  "UART_unheld": true,
+  "clock_USB_cleanup_verified": true,
+  "physical_reset_required": true,
+  "original_FIT_restored": false,
+  "diagnostic_retry_authority": false,
+  "hardware_acceptance": false
+}
