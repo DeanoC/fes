@@ -279,6 +279,37 @@ def runtime_test_source(path):
                 for area in ('unit', 'integration', 'support')))
 
 
+def de25_combined_proof_source(path):
+    """Captured inputs of the DE25 combined client proof receipt.
+
+    `boards/de25nano/link-proof/build_test.py` hashes these into
+    `tests/fixtures/de25-combined-proof.json` and asserts the receipt still
+    matches them, so changing one without refreshing the receipt breaks that
+    test. The test belongs to the fpga lane while these files belong to the
+    runtime module, so without this the lane that checks them is not selected:
+    the break stays latent on main and surfaces on the next pull request whose
+    diff does reach `sources/misteross/`, where it reads as that PR's
+    regression (DeanoC/fes#1842, and #1804 which caused it).
+
+    The patterns mirror the test's own capture: every `src/native/**/*.hpp`,
+    plus `include/libmister-runtime/runtime.h` and the two named `.cpp` files.
+    `tests/test_affected.py` derives the live capture set the way the test does
+    and asserts each entry selects this lane, so adding a captured file that
+    this predicate misses fails there rather than months later.
+    """
+    prefix = MODULE_ROOTS['runtime'] + '/'
+    if Path(path).as_posix() != path or '..' in Path(path).parts:
+        return False
+    if not path.startswith(prefix):
+        return False
+    relative = path[len(prefix):]
+    if relative.startswith('src/native/') and relative.endswith('.hpp'):
+        return True
+    return relative in ('include/libmister-runtime/runtime.h',
+                        'src/native/de25_computer.cpp',
+                        'src/native/de25_pr_control.cpp')
+
+
 def contract_package_software(path):
     """Closed package schemas/fixtures have no generated or simulated RTL input."""
     prefix = MODULE_ROOTS['contracts'] + '/'
@@ -408,6 +439,12 @@ def plan(paths):
             consumers, reason = fpga_cores(path)
             cores.update(consumers)
             reasons.append(f'{path}: {reason}')
+        elif owner == 'runtime' and de25_combined_proof_source(path):
+            selected.update(('parent', 'host', 'runtime', 'fpga'))
+            cores.update(('menu', 'zx81'))
+            reasons.append(f'{path}: captured input of the DE25 combined client '
+                           'proof receipt; runtime, host protocol consumers and '
+                           'the fpga lane that checks the receipt')
         elif owner == 'runtime' and runtime_test_source(path):
             selected.update(('parent', 'runtime'))
             reasons.append(f'{path}: native runtime tests and parent integration; host inputs unchanged')
