@@ -23,14 +23,15 @@ under CC-BY-SA-4.0. See `LICENSE-GLaBIOS.txt` and
 `vgafont8` table of the LGPL VGABios 0.9d `vgafonts.h`
 ([`bochs-emu/VGABIOS`](https://github.com/bochs-emu/VGABIOS) at
 `12d978bd86fe88ee6b8620b0f1e91c7fb81bc2e6`), whose header credits the fonts to
-Joseph Gil's fntcol16 collection and calls the individual fonts public domain.
-Its characters 00h–7Fh are byte-identical to the GLaBIOS graphics table.
+Joseph Gil's fntcol16 collection and states that the fonts are public domain.
+The raw table is distributed with that upstream provenance and status; it is
+not assigned VileR's CC-BY-SA-4.0 licence. The first 128 characters are
+byte-identical to the GLaBIOS graphics table.
 
-The glyphs are the IBM CGA 8x8 character set: 252 of the 256 characters match
-the double-dot font in the IBM CGA character ROM (5788005); only 05h, 06h, 0Fh
-and 53h differ. FES does not rely on that public-domain statement. It
-distributes the file under CC-BY-SA-4.0 and credits the bitmaps as GLaBIOS
-does: font bitmaps by "VileR"
-([The Oldschool PC Font Resource](https://int10h.org/oldschool-pc-fonts/readme/#legal_stuff)),
-licensed CC-BY-SA-4.0; see `LICENSE-CC-BY-SA-4.0.txt`. `hardware-dos.json` and
-the core README give the same licence.
+The table has an IBM CGA relationship: 252 of its 256 characters match the
+double-dot font in the IBM CGA character ROM (5788005); only 05h, 06h, 0Fh and
+53h differ. This is not an exact dump of that IBM table. VileR's terms for
+[The Oldschool PC Font Resource](https://int10h.org/oldschool-pc-fonts/readme/#legal_stuff)
+cover the author's TTF/FON remakes and enhancements, while the author
+disclaims rights to the original raster data. That licence is not applied to
+this VGABIOS raster table.

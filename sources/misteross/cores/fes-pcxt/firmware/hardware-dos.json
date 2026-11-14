@@ -34,6 +34,6 @@
     "sha256": "75c79a7e7fa423dda67ec6d6d76cec86b63f85677726368750c75b0920ddf319",
     "url": "https://github.com/bochs-emu/VGABIOS/blob/12d978bd86fe88ee6b8620b0f1e91c7fb81bc2e6/vgabios/vgafonts.h",
     "source": "vgafont8 in LGPL VGABios 0.9d vgafonts.h (sha256 c5605521efeac3ae9c9568b9d314a1f4b443b1d298b479dad25d5dcefeeca0b4), from Joseph Gil's fntcol16 collection",
-    "license": "CC-BY-SA-4.0; font bitmaps by VileR, credited as GLaBIOS does"
+    "license": "Public domain"
   }
 }
