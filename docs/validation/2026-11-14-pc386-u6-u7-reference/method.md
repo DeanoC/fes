@@ -175,3 +175,42 @@ a fault of the reference.) For the 386 the reference board, a 1988 C&T 386/AT
 with no cache and shadow RAM off, scores **40** where the database's real
 386DX/SX machines at 20–25 MHz score 25 to 60, so it sits inside the range but
 on the slow side; the record says so where it gives The Black Gate's figure.
+
+## Third amendment: the route, and the reference's memory as it finally stands
+
+Written after the first kit run (`g1`, 11:38–11:50, which measured the lute and
+a held walk) and before the kit run the walk verdict rests on. What had been
+seen by then: `g1`'s lute notes (840.7 and 499.8 Hz, the same as 10 November),
+the reference's lute notes from run `m3` (962 and 574 Hz), and that a held key
+steps once on the reference and repeatedly on the kit. No reference walk rate
+existed, because of exactly that.
+
+1. **Taps, not a held key, on both sides.** 86Box's keyboard does not repeat a
+   key held with the host's own auto-repeat off, so a 10 s held leg stepped
+   once. The kit's keyboard does repeat, at the BIOS typematic rate. Both sides
+   therefore tap the key about 6.7 times a second, which is far above the rate
+   either machine can take a step at (under one a second), so what is measured
+   is the game's step time and not the input path. `g1`'s held walk stays in
+   the record as a cross-check.
+2. **A one-tile square, not four long legs.** Ten seconds in one direction ends
+   against a wall in Lord British's throne room, where a new game starts: in
+   `m3` and `g1` whole legs stalled and some loops counted one step. The route
+   is now down, right, up, left, repeated, which returns to the same tile, so
+   nothing is ever walked into. The calibration is now five single steps that
+   alternate down and up, 3 s apart, for the same reason.
+3. **The reference's memory, as it finally stands.** MS-DOS 6.22's `HIMEM.SYS`
+   **without** `DOS=HIGH`, which leaves **548 KiB** free against the kit's
+   573 KiB. `DOS=HIGH` leaves 591 KiB and then `GAME.EXE`, which is EXEPACKed,
+   fails with "Packed file is corrupt", the known EXEPACK fault when a packed
+   program loads too low; and the image's own layout leaves 505 KiB, where
+   `GAME.EXE` quits to the prompt without a word.
+4. **Four files differ on the reference disk**, not five: `KERNEL.SYS`,
+   `HIMEM.SYS` (added), `FDCONFIG.SYS` and `AUTOEXEC.BAT`. The image carries
+   FreeDOS kernel **2043**'s 386 FAT16 build (46,256 bytes, SHA-256
+   `932c0c15…`); the reference carries kernel **2046**'s 8086 FAT16 build
+   (46,298 bytes, SHA-256 `00962622…`), because no 8086 build of 2043 was to
+   hand and the DOS kernel is not in the game's timing path. `ULTIMA6\` is
+   byte-identical on both.
+
+The metrics and the band do not move: each rate within ±10% of the
+reference's, each note within ±5.9%.
