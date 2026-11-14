@@ -259,16 +259,29 @@ The second's ran from the same output through the class decode, the
 exponent subtract and the shift amount into the multiplier's one-hot
 multiplicand, 9 levels.
 
-### A seal cannot measure this
+### The machine, measured
 
-The package ties the identity to `1'b0` until slice 5, so Quartus trims the
-whole unit out of the machine: a seal of this branch has about main's area,
-and its delta says nothing about the slice. The measurement is a machine
-analysis fit with the identity overlaid to `1'b1`
-(`quartus_x87_spike.py --mode machine --variant base --identity-on`) against
-the same fit without the flag; that pair is owed with the gates. The figures
-below are the standalone unit's, and the machine number in them is an
-extrapolation at the slice-1 spike's standalone-to-machine ratio.
+A seal cannot measure this slice: the package ties the identity to `1'b0`
+until slice 5, so Quartus trims most of the unit out and the seal's delta
+against main says little. The measurement is the pair of machine analysis
+fits, with the identity overlaid to `1'b1` and left at `1'b0`
+(`quartus_x87_spike.py --mode machine --variant base [--identity-on]`),
+Quartus 17.0.2 at the seal's settings, seed 1:
+
+| The machine | ALMs | % of device | vs the 92% ceiling | DSP | M10K | CPU setup (ns) | CPU hold (ns) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| the identity clear, as the package has it | 36,530 | 87.2% | −2,027 | 40 | 274 | **+0.238** | +0.099 |
+| the identity set, so the unit is kept | 38,175 | 91.1% | **−382** | 49 | 278 | **+0.526** | +0.038 |
+
+- **The unit costs +1,645 ALMs, 9 DSP blocks and 4 M10K inside the machine**,
+  and the machine meets the clock either way.
+- With the identity clear the machine is still about **520 ALMs and 2 DSP
+  above** main with the keyboard win (about 36,007): tying the identity off
+  does not remove everything, because the unit's ERROR# reaches the slave
+  PIC and its words feed it.
+- At 38,175 the machine with a 387 fitted is **382 ALMs under the 92%
+  ceiling**, and its margin is +0.526 ns against the baseline's +0.58 to
+  +0.86.
 
 ### What this says about the budget
 
@@ -283,18 +296,19 @@ This is the plan's "stop and report" case.
   dispatch, constant and seed ROMs held a hash of the address and its
   conversions were structural. The real conversions, their rounding and the
   environment and save layouts are what the difference buys.
+- The machine fits put it beyond doubt: this slice alone adds **+1,645**
+  ALMs, where the spike predicted **+1,687** for the whole of option A,
+  slow path and all.
 - So slices 3 to 5 — the 68-bit add and subtract, compare, the Goldschmidt
   divide and square root with their seed ROMs, FPREM, and the
-  transcendentals with their microcode ROM and constants — land on top of
-  1,733 rather than inside 2,134, and option A will not fit the spike's
-  **+1,687** estimate.
+  transcendentals with their microcode ROM and constants — have **382 ALMs**
+  of headroom under the ceiling, and the spike's own standalone figures put
+  the slow path alone above that.
 - Against the ceiling: main's last pc386 seal is 36,803 ALMs less the
   keyboard's 796 (#1802), about **36,007**; the 92% working ceiling is
-  38,557, so about **2,550** are free, and OPL2's MLAB win
+  38,557. OPL2's MLAB win
   ([#1795](https://github.com/DeanoC/fes/pull/1795), about −160) is not
-  merged yet. This slice alone, at the spike's standalone-to-machine ratio
-  (1,687/2,045, about 0.82), extrapolates to roughly **1,400** of them. The
-  machine fit above replaces that extrapolation with a measurement.
+  merged yet and would buy a little of it back.
 - What to do about it is Deano's call, and the spike's own
   [open questions](../2026-11-12-i386-x87-fit-spike/summary.md#open-questions-for-deano)
   list the options: the audit's remaining wins, a second core variant
