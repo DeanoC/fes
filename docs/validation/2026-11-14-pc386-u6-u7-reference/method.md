@@ -275,3 +275,14 @@ the walk has an outlier at the same key rate that nothing here explains, while
 the passes follow the key rate (1.55 at about seventeen a second, 1.14 and 1.11
 at ten). Both faults have to be fixed before the band can be applied; neither
 changes the conclusion that the walk is not decided here.
+
+## Correction to the walk figures
+
+Codex caught that the walk figures first recorded here were `(count − 1) /
+span`, not the rate from the median gap that this method fixed. On the method's
+own figure the three walk windows give 3.00, 3.00 and 2.31 steps a second —
+two identical and one 23% low — rather than one window out by 40%, and the
+three pass windows give 1.67, 1.11 and 1.03 turns a second. Both conclusions
+stand: the pass rate follows the key rate, and the walk's spread at one key
+rate is more than twice the band. `walk.json` now carries both figures per
+capture.

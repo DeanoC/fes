@@ -5,25 +5,28 @@
     "capture": "t1",
     "steps": 116,
     "span_s": 43.2,
-    "steps_per_s": 2.66,
     "median_gap_frames": 10,
-    "keys_per_s_nominal": 10
+    "keys_per_s_nominal": 10,
+    "rate_from_median_gap": 3.0,
+    "rate_over_span": 2.66
    },
    {
     "capture": "t2",
     "steps": 82,
     "span_s": 41.3,
-    "steps_per_s": 1.961,
     "median_gap_frames": 10,
-    "keys_per_s_nominal": 10
+    "keys_per_s_nominal": 10,
+    "rate_from_median_gap": 3.0,
+    "rate_over_span": 1.961
    },
    {
     "capture": "t3",
     "steps": 83,
     "span_s": 43.4,
-    "steps_per_s": 1.889,
     "median_gap_frames": 13.0,
-    "keys_per_s_nominal": 10
+    "keys_per_s_nominal": 10,
+    "rate_from_median_gap": 2.308,
+    "rate_over_span": 1.889
    }
   ],
   "pass": [
@@ -31,35 +34,38 @@
     "capture": "p1",
     "turns": 70,
     "span_s": 44.4,
-    "turns_per_s": 1.553,
     "median_gap_frames": 18,
-    "keys_per_s_nominal": 17
+    "keys_per_s_nominal": 17,
+    "rate_from_median_gap": 1.667,
+    "rate_over_span": 1.553
    },
    {
     "capture": "p2",
     "turns": 51,
     "span_s": 43.7,
-    "turns_per_s": 1.143,
     "median_gap_frames": 27.0,
-    "keys_per_s_nominal": 10
+    "keys_per_s_nominal": 10,
+    "rate_from_median_gap": 1.111,
+    "rate_over_span": 1.143
    },
    {
     "capture": "p3",
     "turns": 48,
     "span_s": 42.6,
-    "turns_per_s": 1.104,
     "median_gap_frames": 29,
-    "keys_per_s_nominal": 10
+    "keys_per_s_nominal": 10,
+    "rate_from_median_gap": 1.034,
+    "rate_over_span": 1.104
    }
   ],
-  "walk_range": [
-   1.889,
-   2.66
+  "walk_range_from_median_gap": [
+   2.308,
+   3.0
   ],
-  "pass_range": [
-   1.104,
-   1.553
+  "pass_range_from_median_gap": [
+   1.034,
+   1.667
   ]
  },
- "note": "Every capture is 45 s of the reference window at 30 fps. keys_per_s_nominal is how fast the driving loop sent keys: the three walk windows all used the same loop at a nominal ten a second, so t1's 2.66 against 1.96 and 1.89 is an outlier at the same rate and is not explained here; the pass windows differ, p1 at about seventeen a second against ten for p2 and p3, and their figures follow that."
+ "note": "Every capture is 45 s of the reference window at 30 fps. rate_from_median_gap is the figure method.md fixed - steps or turns a second from the median gap between them - and rate_over_span is (count-1)/span for comparison. keys_per_s_nominal is how fast the driving loop sent keys: the three walk windows all used the same loop at a nominal ten a second; the pass windows differ, p1 at about seventeen against ten for p2 and p3."
 }

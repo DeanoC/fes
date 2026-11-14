@@ -29,7 +29,7 @@ kit was measured. The reference machines are in
 | Check | Result |
 | --- | --- |
 | **Ultima VI, PC speaker pitch at the 286-12 preset** | **Fail.** The kit's notes are 12.7–12.9% below the reference's, 2.35 and 2.39 semitones flat. The band is ±5.9%, one semitone. Scaling the reference from its 12.5 MHz to the preset's nominal 12.0 leaves 9.0–9.3% and about 1.7 semitones, if the game keeps the same delay unit across that step. |
-| **Ultima VI, walking speed at the 286-12 preset** | **Not decided**, and the method is the problem, not the kit: on the reference the turn rate follows how fast the keys are sent, and the step rate has a window out by 40% at the same key rate. Neither is the game's rate, so no kit window was run with it. The figures are below for whoever measures it next. |
+| **Ultima VI, walking speed at the 286-12 preset** | **Not decided**, and the method is the problem, not the kit: on the reference the turn rate follows how fast the keys are sent (56% higher at seventeen keys a second than at ten), and the step rate spreads 23% at one key rate where the band is ±10%. So no kit window was run with it. The figures are below for whoever measures it next. |
 | **Ultima VII: The Black Gate, NPC pace at 386DX-25** | **Not done.** The game stops at its own memory check on the reference, and the reference board for a 386DX-25 is not settled; see below. |
 
 So **#1368's last box is not ticked and the issue stays open**, and pc386 does
@@ -176,22 +176,26 @@ holding 100% through all but one window. The three walk windows all used the
 same loop, at a nominal ten keys a second; of the pass windows, the first sent
 its keys at about seventeen a second and the other two at ten:
 
+All figures are the method's own: the rate from the median gap between steps or
+turns. `walk.json` gives `(count − 1) / span` beside each for comparison.
+
 | | run 1 | run 2 | run 3 | range |
 | --- | --- | --- | --- | --- |
-| steps a second | 2.66 | 1.96 | 1.89 | 1.89–2.66 |
-| turns a second | 1.55 | 1.14 | 1.11 | 1.11–1.55 |
+| steps a second | 3.00 | 3.00 | 2.31 | 2.31–3.00 |
+| turns a second | 1.67 | 1.11 | 1.03 | 1.03–1.67 |
 
 Two things are wrong with this, and both have to be fixed before anything can
 be judged against a ±10% band:
 
 - **The pass figure follows the key rate.** At ten keys a second the two
-  windows agree, 1.14 and 1.11 turns a second; at about seventeen the same
-  machine gives 1.55. Ultima VI takes a turn only when it next looks at the
-  keyboard and drops what is queued meanwhile, so what comes out is partly the
-  rate the keys arrive at.
-- **The walk has an outlier at the same key rate.** All three windows used the
-  same loop, and gave 2.66, 1.96 and 1.89 steps a second. The last two agree to
-  4%; the first does not, and nothing here says why.
+  windows agree to 7%, 1.11 and 1.03 turns a second; at about seventeen the
+  same machine gives 1.67, 56% higher. Ultima VI takes a turn only when it next
+  looks at the keyboard and drops what is queued meanwhile, so what comes out
+  is partly the rate the keys arrive at.
+- **The walk's own spread is still twice the band.** All three windows used the
+  same key loop: two give exactly 3.00 steps a second and the third 2.31, a
+  23% spread where the band is ±10%, and nothing here says what makes the
+  difference.
 
 A sound measurement would have to drive the keys from the guest's own timer, or
 find a figure inside the game that counts turns.
