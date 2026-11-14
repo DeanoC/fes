@@ -98,7 +98,9 @@ within ±5.9%.**
 
 - The band has to be wider than the measurement's own spread. Three repeats
   run on each side and the record gives the spread; if it is not well inside
-  the band, the check is not decided and says so.
+  the band, the check is not decided and says so. *(For pitch this was two
+  captures a side, not three; see the record's pitch section, which says so and
+  gives the spreads.)*
 - It has to be wider than the reference's 4.2% clock offset (above).
 - It has to be narrower than the step between presets, or it would pass a
   machine running at the wrong one. The governor's table
@@ -241,6 +243,9 @@ The pitch measurement is unaffected: its spread is 0.05% on the kit and 1% on
 the reference, both far inside ±5.9%.
 
 ## Correction to the fourth amendment
+
+*(This correction is itself corrected by the next section, which is the one to
+read for the walk's key rates.)*
 
 The fourth amendment said the walk could not be judged because repeats on one
 machine spread about 40%. On a closer look at those six windows that is not

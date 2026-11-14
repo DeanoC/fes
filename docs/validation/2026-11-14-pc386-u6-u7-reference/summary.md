@@ -87,6 +87,13 @@ reference's 1%, and the kit's figures are the same as the 10 November run's
 (840.7 and 499.8 Hz) on a different seal, so this is the machine and not the
 day.
 
+**This is two captures a side, not the three the method asked for**: one kit
+capture on this package (`g1`) with the 10 November capture on a different
+package behind it, and two reference captures. The method's reason for three
+was to show the spread is well inside the band, and it is — 0.05% on the kit
+and 1% on the reference against ±5.9% — but the shortfall is a deviation and
+is named here rather than left to be noticed.
+
 **What is not established is the cause.** The pc386 design document says
 Ultima VI's effects "toggle it in CPU-timed loops" and names the 720 ns `isa8`
 charge on each `OUT` as "one reason for the 286-class preset", so the I/O
@@ -171,7 +178,9 @@ one.
 ## What this does not cover
 
 - **The cause of the pitch failure** (above).
-- **Walking speed**, for want of a measurement that repeats (above).
+- **Walking speed**, for want of a measurement that is of the game rather than
+  of the key timing, and with one window unexplained at the same key rate
+  (above).
 - **NPC pace** (above).
 - The reference runs Ultima VI with a different DOS kernel build and 548 KiB
   free against the kit's 573 KiB (`method.md`). Neither is in the game's
