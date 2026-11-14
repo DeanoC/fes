@@ -110,6 +110,36 @@ def locate(cache_root: Path | None) -> LockedVerilator:
     return LockedVerilator(path=path, commit=commit, sha256=record['sha256'], version=version, install=install.key)
 
 
+def locate_yosys(cache_root: Path | None) -> Path:
+    """The i386 lock's Yosys from its authenticated install under cache_root.
+
+    Resolved through the cache API, like the Verilator above, so the install is
+    verified and held for this process. Consumers must not build a path into the
+    cache themselves: the per-tool layout has no stable directory a caller can
+    assemble, and an unheld path can be pruned mid-run.
+    """
+    if cache_root is None:
+        raise VerilatorError(f'no toolchain cache: pass --cache-root or set {CACHE_ENVIRONMENT}; provision the '
+                             'install with `make toolchain-fes-i386 CACHE_ROOT=...`')
+    if not cache_root.is_absolute():
+        raise VerilatorError('--cache-root must be absolute')
+    lock_path = ROOT / LOCK
+    try:
+        commit = lockfile.load_lock(lock_path)['yosys'].commit
+        request = toolchain_cache.request_from_environment(ROOT, lock_path, cache_root=cache_root,
+                                                           gpu_router=GPU_ROUTER)
+        install = toolchain_cache.resolve_install(request, 'yosys')
+    except (OSError, lockfile.LockfileError, toolchain_cache.CacheError) as error:
+        raise VerilatorError(f"the i386 lock's Yosys install is not ready: {error}; provision it with "
+                             '`make toolchain-fes-i386 CACHE_ROOT=...`') from error
+    if install.record['commit'] != commit:
+        raise VerilatorError(f'install Yosys commit {install.record["commit"]}, lock {commit}')
+    path = install.binary
+    if path.is_symlink() or not path.is_file() or not os.access(path, os.X_OK):
+        raise VerilatorError(f'install Yosys is not a regular executable: {path}')
+    return path
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     add_argument(parser)
