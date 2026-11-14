@@ -47,8 +47,8 @@ help:
 		"  toolchain  Build or locate the pinned repository-local OSS tools" \
 		"  toolchain-fes  Build the repository-local HIP toolchain from toolchain.lock" \
 		"  toolchain-fes-pcxt  Provision the PC/XT diagnostic toolchain (PCXT_GPU_ROUTER=HIP or CUDA)" \
-		"  toolchain-fes-menu  Provision the FES menu HIP toolchain (per-core lock)" \
-		"  toolchain-fes-pong  Provision the FES Pong HIP toolchain (per-core lock)" \
+		"  toolchain-fes-menu  Provision the FES menu toolchain (per-core lock, GPU_ROUTER=HIP|CUDA)" \
+		"  toolchain-fes-pong  Provision the FES Pong toolchain (per-core lock, GPU_ROUTER=HIP|CUDA)" \
 		"  toolchain-fes-zx81  Build the repository-local HIP toolchain for the standard FES ZX81 socket" \
 		"  toolchain-fes-coleco  Build the Coleco v2 SGM toolchain" \
 		"  toolchain-fes-sms  Provision the FES SMS HIP toolchain (per-core lock)" \
@@ -56,7 +56,7 @@ help:
 		"  toolchain-fes-apple2  Provision the FES Apple II HIP toolchain (per-core lock)" \
 		"  toolchain-fes-c64  Provision the FES C64 HIP toolchain (per-core lock)" \
 		"  toolchain-fes-spectrum  Provision the FES Spectrum HIP toolchain (per-core lock)" \
-		"  toolchain-fes-riscv  Provision the FES RISC-V HIP toolchain (per-core lock)" \
+		"  toolchain-fes-riscv  Provision the FES RISC-V toolchain (per-core lock, GPU_ROUTER=HIP|CUDA)" \
 		"  toolchain-fes-pc386  Provision the pc386 toolchain (per-core lock, GPU_ROUTER=HIP|CUDA)" \
 		"  toolchain-fes-i386  Provision the i386 lock's shared slot, OFF lane, whose Verilator the i386 sims use (needs CACHE_ROOT)" \
 		"  doctor     Report host, toolchain, optional Quartus, and hardware readiness" \
@@ -71,7 +71,7 @@ help:
 		"  build-fes-ramtest-100  Seal the OSS 100 MHz SDRAM and HPS DDR tester (GPU_ROUTER=HIP|CUDA, default HIP)" \
 		"  build-fes-ramtest-130  Seal the OSS 130 MHz SDRAM and HPS DDR tester (GPU_ROUTER=HIP|CUDA, default HIP)" \
 		"  diagnose-fes-ramtest-timing  Measure the 130 MHz RAM tester on the shared toolchain" \
-		"  toolchain-fes-ramtest  Provision the FES RAM Tester HIP toolchain (per-core lock)" \
+		"  toolchain-fes-ramtest  Provision the FES RAM Tester toolchain (per-core lock, GPU_ROUTER=HIP|CUDA)" \
 		"  toolchain-fes-atari-st  Provision the Atari ST OSS toolchain (per-core lock)" \
 		"  build-fes-ramtest-quartus  Quartus (cores/fes-ramtest/quartus.lock) SDRAM and HPS DDR tester at 130 MHz (RAMTEST_MHZ=100 for 100 MHz)" \
 		"  sim-fes-splash  Test HDMI splash logo, motion and ADV7513 I2C board path" \
@@ -1958,12 +1958,12 @@ toolchain-fes:
 
 toolchain-fes-menu:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-menu/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-menu") \
-	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_GPU_ROUTER=$(if $(strip $(GPU_ROUTER)),$(GPU_ROUTER),HIP) \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-fes-pong:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-pong/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-pong") \
-	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_GPU_ROUTER=$(if $(strip $(GPU_ROUTER)),$(GPU_ROUTER),HIP) \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 .PHONY: toolchain-fes-atari-st
@@ -1975,7 +1975,7 @@ toolchain-fes-atari-st:
 .PHONY: toolchain-fes-ramtest
 toolchain-fes-ramtest:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-ramtest/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-ramtest") \
-	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_GPU_ROUTER=$(if $(strip $(GPU_ROUTER)),$(GPU_ROUTER),HIP) \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-fes-zx81: toolchain-zx81-expansion
@@ -2021,7 +2021,7 @@ toolchain-fes-sms:
 
 toolchain-fes-riscv:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-riscv/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-riscv") \
-	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_GPU_ROUTER=$(if $(strip $(GPU_ROUTER)),$(GPU_ROUTER),HIP) \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-fes-pc386:
