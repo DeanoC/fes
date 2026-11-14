@@ -16,6 +16,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -187,6 +188,51 @@ class CleanupGate(unittest.TestCase):
             kit_hil.cleanup_gate(FakeClient([blocked]), wait=5, now=clock.now, sleep=clock.sleep)
         self.assertIn('operator recovery', str(refused.exception))
 
+    def test_a_pending_recovery_refuses(self):
+        clock = Clock()
+        recovering = {'status': {'state': 'idle', 'game_id': None,
+                                 'recovery': 'reboot_required'},
+                      'lease': {'state': 'free'}}
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            kit_hil.cleanup_gate(FakeClient([recovering]), wait=5,
+                                 now=clock.now, sleep=clock.sleep)
+        self.assertIn('reboot_required', str(refused.exception))
+
+    def test_an_idle_agent_after_a_failed_command_still_passes(self):
+        # A run whose load was refused leaves last_error set. The gate asks
+        # whether a removal is safe, not whether the run passed: that is the
+        # verdict's question.
+        clock = Clock()
+        after = {'status': {'state': 'idle', 'game_id': None,
+                            'last_error': {'code': 'INVALID_ARCHIVE'}},
+                 'lease': {'state': 'free'}}
+        self.assertEqual(kit_hil.cleanup_gate(FakeClient([after]), wait=5,
+                                              now=clock.now, sleep=clock.sleep),
+                         {'state': 'idle', 'lease': 'free'})
+
+    def test_a_named_target_is_reached_without_rewriting_the_host_config(self):
+        with tempfile.TemporaryDirectory() as home:
+            config = Path(home) / 'config.toml'
+            config.write_text("selected_target = 'dev'\n\n"
+                              "[[targets]]\nname = 'dev'\nenabled = true\n"
+                              "address = 'http://10.0.0.1:8789'\nagent = 'bearer-a'\n\n"
+                              "[[targets]]\nname = 'kit2'\nenabled = true\n"
+                              "address = 'http://10.0.0.2:8789'\nagent = 'bearer-b'\n")
+            self.assertEqual(kit_hil.client_for(config).url.hostname, '10.0.0.1')
+            self.assertEqual(kit_hil.client_for(config, 'kit2').url.hostname, '10.0.0.2')
+            with self.assertRaises(kit.KitError):
+                kit_hil.client_for(config, 'kit9')
+            self.assertEqual(config.read_text().count("selected_target = 'dev'"), 1,
+                             'the host config must not be rewritten to ask about a kit')
+
+    def test_a_disabled_target_is_refused(self):
+        with tempfile.TemporaryDirectory() as home:
+            config = Path(home) / 'config.toml'
+            config.write_text("[[targets]]\nname = 'kit2'\nenabled = false\n"
+                              "address = 'http://10.0.0.2:8789'\nagent = 'b'\n")
+            with self.assertRaises(kit.KitError):
+                kit_hil.client_for(config, 'kit2')
+
     def test_an_unreachable_agent_fails_closed(self):
         clock = Clock()
         client = FakeClient([IDLE], error=kit.KitError('target request failed'))
@@ -303,12 +349,34 @@ class Liveness(unittest.TestCase):
     """The check that misled the #1368 session: `pgrep -f` matches the asker."""
 
     def test_pgrep_f_matches_the_asking_shell_but_program_pids_does_not(self):
+        if shutil.which('pgrep') is None:
+            self.skipTest('pgrep is not installed')
         name = 'kit-hil-run-liveness-probe.sh'
         asking = subprocess.run(['bash', '-c', f'pgrep -f {name} || true'],
                                 capture_output=True, text=True, timeout=30)
         self.assertTrue(asking.stdout.strip(),
                         'pgrep -f matches its own shell, so it cannot answer this question')
         self.assertEqual(kit_hil.program_pids('definitely-no-such-program-kit-hil'), [])
+
+    def test_program_pids_finds_a_live_child_and_never_the_asker(self):
+        if shutil.which('pgrep') is None:
+            self.skipTest('pgrep is not installed')
+        marker = 'kit-hil-program-pids-marker'
+        program = Path(sys.executable).name
+        child = subprocess.Popen([sys.executable, '-c',
+                                  f'import sys, time; sys.argv.append({marker!r}); '
+                                  'print("up", flush=True); time.sleep(120)', marker],
+                                 stdout=subprocess.PIPE, text=True)
+        try:
+            self.assertEqual(child.stdout.readline().strip(), 'up')
+            found = kit_hil.program_pids(program, needle=marker)
+            self.assertIn(child.pid, found, 'a live process must be found by name and argument')
+            self.assertNotIn(os.getpid(), found, 'never report the asking process')
+            self.assertEqual(kit_hil.program_pids(program, needle='kit-hil-no-such-marker'), [])
+        finally:
+            child.kill()
+            child.wait(timeout=30)
+        self.assertNotIn(child.pid, kit_hil.program_pids(program, needle=marker))
 
     def test_a_held_run_lock_names_its_live_holder(self):
         with tempfile.TemporaryDirectory() as home:

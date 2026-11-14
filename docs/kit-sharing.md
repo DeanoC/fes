@@ -259,14 +259,16 @@ with "operator recovery required" — so the guards against them live in
   It fails closed: an unreachable agent, an agent that is not idle, a lease
   that is not free and a loaded core each refuse, naming what is loaded and who
   holds the lease. It waits out a `revoking` lease for 30 seconds, so a clean
-  close does not trip it. Removing a run's data trees under a loaded core is
-  what returned HTTP 500 from stop/close and blocked the lease.
+  close does not trip it. A removal under a loaded core preceded the stop/close
+  that returned HTTP 500 and blocked the lease; the #1368 record calls that the
+  likely cause without showing it, and the gate costs nothing either way.
 - **The run's verdict.** Run `kit_hil.py verdict runs/RUN/result.json` and
   carry its exit code into the wrapper's own. A command the kit refused — an
   HTTP 422 `INVALID_ARCHIVE` at admission, say — is recorded in `result.json`
   while the driver's exit code stays 0. The invariant is that no run reports
   success with an error in its `result.json`, and `drain` stops the script at
-  the first refused command so nothing runs over a core that never loaded.
+  the first refused command so nothing runs over a core that never loaded —
+  in live mode as well, so a mistyped op on a console ends that run.
 - **Liveness.** `kit_hil.run_lock(runs/RUN/kit-hil-run.lock)` is held by the
   driver for the whole run and records its pid and command line;
   `kit_hil.py alive runs/RUN/kit-hil-run.lock` answers whether that driver is

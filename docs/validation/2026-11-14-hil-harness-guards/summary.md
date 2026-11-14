@@ -13,22 +13,31 @@ not to be true.
 | # | Incident | What it cost |
 | --- | --- | --- |
 | 1 | The #1368 session's command file had no final `{"op": "quit"}`, so the driver sat in its silent 30-minute idle wait after the last command. Read as a dead wrapper. | Nothing by itself — but it led straight to 2. |
-| 2 | Reading the wrapper as dead, the session ran the wrapper's post-run tail by hand while the pc386 core was still loaded. The original wrapper had been alive throughout. | The agent's stop/close returned HTTP 500 and the lease went `blocked` with "kit cleanup failed or agent shutting down; operator recovery required". Second Kit B operator recovery that day. |
+| 2 | Reading the wrapper as dead, the session ran the wrapper's post-run tail by hand while the pc386 core was still loaded. The original wrapper had been alive throughout. | The agent's own cleanup then failed with HTTP 500 and the lease went `blocked` with "kit cleanup failed or agent shutting down; operator recovery required". Second Kit B operator recovery that day. The [#1368 record](https://github.com/DeanoC/fes/pull/1838) calls the early removal the likely cause of that HTTP 500 and says it is not shown; this record keeps that distinction. |
 | 3 | The i386 x87 slice 2 run packed its `.fcore` with a plain `tar cf`. The kit refused it at admission (HTTP 422 `INVALID_ARCHIVE`), but the driver recorded the error and ran the rest of the command script. | A void kit run that read as a pass: plausible frames, `rc=0`, nothing of the new core ever loaded. Only `runs/<run>/result.json` showed it. |
 
-The first Kit B recovery that day was the #1494 session's read-only ADV7513
-register poll overlapping the runtime's HDMI quiesce during a core stop; it is
-recorded in
+The first Kit B recovery that day is not one of these three, and the shape it
+was first given does not survive its own record. The `b3` run's last `stop`
+reported `recovery: reboot_required` and the ADV7513 became unreadable, with
+that session's register poll running around it — but
 [the Serpent Isle black capture record](../2026-11-14-pc386-si-black-capture/summary.md)
-and is not one of these three. Its cause is open and it is out of this PR's
-scope: it is a contention between two readers of the same bus, not a harness
-sequencing mistake, and the runtime uses the same `/dev/i2c` SMBus path, so the
-I²C-arbitration attribution it was first given does not hold.
+establishes that the poll cannot be the other master (both it and the runtime
+go through `/dev/i2c` SMBus ioctls, which the kernel serialises per adapter),
+and that the `lost arbitration` line *precedes* the poll's first read, which
+succeeded. The cause is **not classified** there, and nothing in it is a
+harness sequencing mistake, so no guard here addresses it. The one harness-side
+effect that record does name — 43 consecutive 4 s read timeouts holding the
+adapter lock for about three minutes — it offers as prudence about polls during
+load and stop windows, explicitly not as a lesson derived from the failure.
 
 The two records that are not on `main` are cited by PR, since their paths are
-on their own branches: the #1368 U6/U7 reference record on
-[PR #1838](https://github.com/DeanoC/fes/pull/1838) and the x87 slice 2 record
-on [PR #1821](https://github.com/DeanoC/fes/pull/1821).
+on their own branches, both verified with `git branch -r --contains`:
+`docs/validation/2026-11-14-pc386-u6-u7-reference/` on
+`origin/deano/blissful-maxwell-b9ef1e`
+([PR #1838](https://github.com/DeanoC/fes/pull/1838)) and
+`docs/validation/2026-11-14-i386-x87-s2/summary.md` on
+`origin/deano/i386-x87-s2`
+([PR #1821](https://github.com/DeanoC/fes/pull/1821)).
 
 ## The guards, and what each refuses
 
@@ -58,8 +67,12 @@ client `kit.py` the session drivers already import, and are checked in
    out for 30 s rather than refused. The guard is a separate pre-check and not
    something the agent enforces, because the removal is `ssh rm -rf` against
    the kit's FogCast data directories: the agent never sees it.
-   *Prevents:* a data-tree removal under a loaded core, which is what blocked
-   the lease.
+   *Prevents:* a data-tree removal under a loaded core, the step that preceded
+   the blocked lease. The gate also refuses a kit whose status carries a
+   `recovery` (a `stop` that answered `reboot_required`, as run `b3`'s did),
+   because that kit already needs attention. It does not refuse on
+   `last_error`: whether the run passed is the verdict's question, not the
+   gate's.
 
 3. **The run's verdict.** `drain` stops the command script at the first command
    whose result carries an error, so nothing runs over a core that never
@@ -100,31 +113,74 @@ The cleanup gate is also exercised against a real local HTTP agent replying in
 `core_package.core_id`), not only against a fake client, so a wire-shape change
 breaks the test rather than the next kit run.
 
+## The verdict against every kit run on this host
+
+`kit_hil.py verdict` was run over all 129 `result.json` files under
+`~/fes-scratch/*/runs/` and `~/fes-scratch/*/kit/runs/`. 118 exit 0 and 11 exit
+non-zero, and every one of the 11 names a real failed command, a halt or a
+failed release — no false positive from `error_in`'s depth search (an
+`audio_stop` reporting `{'levels': {'error': 'no wav'}}` is the kind of nested
+error it is meant to catch, and no run tripped on anything else).
+
+The three incident runs are among them: `x87s2/kit/runs/x5b` (the
+`INVALID_ARCHIVE` admission refusal), `u6ref/kit/runs/g4`
+(`close_error: target rejected request (HTTP 500)`) and `si1494/kit/runs/b3`
+(`halted: stop reported reboot_required`).
+
+The other eight are the finding: **seven of the eleven runs with a real command
+error were logged as clean runs with `HIL rc=0` and the kit released.**
+
+| run | what `verdict` reports | what the wrapper logged |
+| --- | --- | --- |
+| `x87s2/.../x5b` | command 2 `load`: HTTP 422 `INVALID_ARCHIVE` | `HIL rc=0`, RELEASED |
+| `p5dbg/.../k2` | command 63 `load`: `BrokenPipeError` | `HIL rc=0`, RELEASED |
+| `p5dbg/.../k3` | commands 3 and 33 `load`: `BrokenPipeError` | `HIL rc=0`, RELEASED |
+| `p5dbg/.../k4` | command 3 `load`: `BrokenPipeError` | `HIL rc=0`, RELEASED |
+| `p5v86/.../k2` | command 63 `load`: `BrokenPipeError` | `HIL rc=0`, RELEASED |
+| `ring3/.../r1` | commands 1 and 28 `load`: `BrokenPipeError` | `HIL rc=0`, RELEASED |
+| `si1494/.../t1` | command 3 `load`: HTTP 400 `BAD_REQUEST` (hard-disk media) | `HIL rc=0`, RELEASED |
+| `si1494/.../b3` | `halted: reboot_required` | `HIL rc=0`, then HALTED |
+| `u6ref/.../g4` | `close_error`: HTTP 500 | `HIL rc=0`, then HALTED |
+
+`p5dbg/k2` is typical: a `load` failed at command 63 of 91, 28 further commands
+ran, and the wrapper released the kit on `rc=0`. Whether each of those runs'
+conclusions depended on the failed load is for its own session to say; what
+this shows is that the driver's exit code never carried the information, on any
+of them, which is what guard 3 changes.
+
 ## What the incidents implied that turned out not to be true
 
 - **"The x87 session's fix covers the driver."** It does not. The fix is in
   that session's own wrapper (`~/fes-scratch/x87s2/kit/run-x87.sh`, which
   greps `result.json` for `"error"` and sets `rc=99`). Its driver,
   `hil_x87.py`, is byte-identical to `hil_games.py` in the loop that swallows a
-  command error and carries on, and neither `kit.py` nor anything else in the
-  repository changed. Nothing here duplicates that work; this PR is the first
+  command error and carries on, and the `scripts/` diff of
+  `origin/deano/i386-x87-s2` against `main` touches no HIL driver or lease
+  client. Nothing here duplicates that work; this PR is the first
   repository-side guard.
-- **"The post-run tail had no idea the kit might be busy."** The standalone
-  housekeeping script `clean-r.sh` does check that the status file logs the kit
-  FREE and that the agent is idle with a free lease before it removes anything.
-  The hand-run tail `post-g1.sh` goes straight to `ssh rm -rf` and probes the
-  lease only afterwards. So the guard existed in one copy of the pair and not
-  the other, which is exactly why it belongs in a shared, tested place. Neither
-  copy checks for a loaded core specifically; the new gate does.
-- **"A blocked lease needs an operator because it is persisted."** The lease
-  state is in memory only: `kitlease.New` starts at `State: "free"`
-  (`sources/FogCast/internal/kitlease/manager.go:79`) and nothing in that
-  package reads a persisted lease status back, so restarting the agent clears a
-  blocked lease. Maintenance reservations are the exception — they are
-  persisted by `maintenance_store.go`, and `idle_maintenance.go` requires the
-  caller to reinstall intent after a restart. The reason strings distinguish
-  the two cases: `manager.go:468` for cleanup failure against `:441` and
-  `:459` for maintenance. Verified, as the brief asked.
+- **"Only the hand-run tail was unguarded."** It is worse than the incident
+  implies. The standalone housekeeping script `clean-r.sh` does check that the
+  status file logs the kit FREE and that the agent is idle with a free lease
+  before it removes anything. But the tail *inside* the wrappers is not
+  guarded either: `run-u6ref.sh:42-51` and `run-x87.sh` both run
+  `ssh rm -rf` on the run's new trees as soon as the driver exits — before any
+  lease or agent probe, and whatever the driver's exit code was. The hand-run
+  `post-g1.sh` is a copy of that same unguarded tail, so running it by hand
+  was not what made it unguarded. (`run-games.sh`'s tail only lists.) Neither
+  copy checks for a loaded core; the new gate does, which is why guard 2
+  belongs in the wrapper tail and not only in the hand-run scripts.
+- **"Restarting the agent clears a blocked lease."** Only when the cleanup
+  succeeds. The state is indeed in memory only: `kitlease.New` starts at
+  `State: "free"` (`sources/FogCast/internal/kitlease/manager.go:79`) and
+  nothing in that package reads a persisted lease status back. But `New` then
+  calls `revokeLocked("agent startup reconciliation")` (`:405`), which runs the
+  same `cleanup` callback, and on failure sets the same `blocked` state and the
+  same reason at `:468`. So a restart re-runs the reconciliation rather than
+  skipping it: it clears a lease blocked by a cleanup that now succeeds, and
+  re-blocks one whose cleanup still fails. Maintenance reservations are the
+  separate, persisted case (`maintenance_store.go`), and
+  `idle_maintenance.go:8` requires the caller to reinstall intent after a
+  restart; their reasons are `:441` and `:459`, distinct from `:468`.
 - **Not implied by the incidents, found while fixing them:** a new file under
   `sources/misteross/scripts/` falls to the `sources/misteross/scripts/**`
   rule and asks for an `OVERLAY core:ALL` HIL — an overlay run of every core —

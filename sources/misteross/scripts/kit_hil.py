@@ -10,8 +10,8 @@ instead, where the test suite holds them:
   `{"op": "quit"}` ends the run instead of idling silently, and a live console
   that does wait says, over and over, exactly what it waits for.
 * `cleanup_gate` refuses a post-run tail while the kit still has a core loaded.
-  Removing a run's data trees under a loaded core is what left Kit B's lease
-  `blocked` with "operator recovery required".
+  A removal under a loaded core preceded the stop/close that returned HTTP 500
+  and left Kit B's lease `blocked` with "operator recovery required".
 * `verdict` makes a command error the run's own verdict. A `load` the kit
   refused at admission (HTTP 422 `INVALID_ARCHIVE`) must not leave `rc=0`.
 
@@ -33,6 +33,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import tomllib
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import kit as kitlib  # noqa: E402
@@ -133,7 +134,10 @@ def drain(source, execute, *, mode='batch', idle_limit=IDLE_LIMIT, heartbeat=HEA
 
     A command whose result carries an error ends the run here, through the
     caller's own stop and release: `reasons` is how the run reports it, so the
-    remaining commands never run over a core that was never loaded.
+    remaining commands never run over a core that was never loaded. That holds
+    in live mode too, so a mistyped op on a console ends that run: a refused
+    command is the moment to stop and look rather than keep driving a kit, and
+    the run ends through the ordinary stop and release either way.
     """
 
     if mode not in ('batch', 'live'):
@@ -208,9 +212,12 @@ def cleanup_gate(client, *, wait=GATE_WAIT, poll=GATE_POLL, now=time.monotonic, 
     """Return the kit's state, or refuse: nothing may be removed under a core.
 
     Fails closed. An unreachable agent, a lease that is not free, an agent that
-    is not idle and a loaded core all refuse, because each of them means a
-    removal would race the runtime. A lease reads `revoking` for a few seconds
-    after a clean close, so that one is waited out.
+    is not idle, a loaded core and a pending recovery all refuse, because each
+    of them means a removal would race the runtime or touch a kit that already
+    needs attention. A lease reads `revoking` for a few seconds after a clean
+    close, so that one is waited out. An idle agent carries no `core_package`:
+    a Stop sets a fresh `protocol.Status{State: StateIdle}`
+    (`sources/FogCast/internal/agent/coordinator.go:508`).
     """
 
     deadline = now() + wait
@@ -222,13 +229,17 @@ def cleanup_gate(client, *, wait=GATE_WAIT, poll=GATE_POLL, now=time.monotonic, 
             raise CleanupRefused(f'the kit agent did not answer, so its state is unknown: {error}') from None
         core = loaded_core(status)
         state, lease_state = status.get('state'), lease.get('state')
-        if core is None and state == 'idle' and lease_state == 'free':
+        recovery = status.get('recovery') or ''
+        if core is None and not recovery and state == 'idle' and lease_state == 'free':
             return {'state': state, 'lease': lease_state}
         held = {key: lease[key] for key in ('state', 'owner', 'purpose', 'reason') if key in lease}
         if core is not None:
-            refusal = (f'the kit has {core} loaded (agent {state}); removing a run\'s data trees '
-                       f'under a loaded core is what left the lease blocked on 14 November 2026. '
-                       f'Stop the core first. Lease: {json.dumps(held)}')
+            refusal = (f'the kit has {core} loaded (agent {state}); a removal under a loaded '
+                       f'core preceded the stop/close that blocked this lease on 14 November '
+                       f'2026. Stop the core first. Lease: {json.dumps(held)}')
+        elif recovery:
+            refusal = (f'the kit agent reports recovery {recovery!r} (state {state}); it needs that '
+                       f'recovery before anything else touches it. Lease: {json.dumps(held)}')
         elif lease_state == 'revoking' and now() < deadline:
             sleep(min(poll, max(0.0, deadline - now())))
             continue
@@ -238,6 +249,30 @@ def cleanup_gate(client, *, wait=GATE_WAIT, poll=GATE_POLL, now=time.monotonic, 
         if now() >= deadline:
             raise CleanupRefused(refusal)
         sleep(min(poll, max(0.0, deadline - now())))
+
+
+def client_for(config_path, target=None):
+    """A client for one named target in the private host TOML.
+
+    `kit.configuration` reads only the config's own `selected_target`, so every
+    session reaching the other kit writes a private copy of the host TOML with
+    that line rewritten. Name the target instead: nothing copies the host's
+    bearer token to a second file to ask one read-only question.
+    """
+
+    try:
+        with open(config_path, 'rb') as source:
+            config = tomllib.load(source)
+    except (OSError, ValueError):
+        raise kitlib.KitError('the host configuration could not be read') from None
+    name = target or config.get('selected_target')
+    chosen = [entry for entry in config.get('targets', []) if entry.get('name') == name]
+    if len(chosen) != 1:
+        raise kitlib.KitError(f'target {name!r} is not uniquely configured')
+    if not chosen[0].get('enabled', False):
+        raise kitlib.KitError(f'target {name!r} is disabled')
+    return kitlib.Client(os.environ.get('FOGCAST_BASE_URL') or chosen[0].get('address', ''),
+                         os.environ.get('FOGCAST_TOKEN') or chosen[0].get('agent', ''))
 
 
 def run_lock(path):
@@ -346,6 +381,8 @@ def parser():
     gate = commands.add_parser('guard-idle', help='refuse a post-run tail unless the kit is idle')
     gate.add_argument('--config', type=Path, help='private FogCast host TOML')
     gate.add_argument('--url', help='target agent origin (or FOGCAST_BASE_URL)')
+    gate.add_argument('--target', help="the config's target to ask, e.g. dev or kit2 "
+                                       "(default: its selected_target)")
     gate.add_argument('--wait', type=float, default=GATE_WAIT,
                       help='seconds to wait out a revoking lease (default %(default)s)')
     said = commands.add_parser('verdict', help="a run's own verdict from its result.json")
@@ -378,7 +415,8 @@ def main(argv=None):
         print(json.dumps(holder))
         return 0
     try:
-        client = kitlib.configuration(args)
+        client = (client_for(args.config, args.target) if args.config
+                  else kitlib.configuration(args))
         state = cleanup_gate(client, wait=args.wait)
     except CleanupRefused as error:
         print(f'REFUSED: {error}', file=sys.stderr)
