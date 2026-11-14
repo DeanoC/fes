@@ -230,6 +230,50 @@ in that window: the only candidates were two new `board = "de25-nano"` recipe
 entries, `cores/fes-pc386/toolchain.lock` and the i386 sub-lock, and
 `boards/de10nano/` is untouched.
 
+### The four-core partition missed eight, and why they survive anyway
+
+The partition above was derived from what main changed under each core's own
+directory. That misses a shared header. `cores/fes-common/generated/fes_application.vh`
+changed between `2d895034c` and `bb968862b`, and it reaches cores that never
+name it, through `` `include ``:
+
+| core | how the change reaches it | in the four? |
+| --- | --- | --- |
+| `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon` | `cores/fes-spectrum/rtl/top.v` includes it, and is compiled | no |
+| `fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500` | compiled `fes_display_plane.v` and `fes_hps_ddr.v` include it | no |
+| `fes.c64`, `fes.menu`, `fes.riscv`, `fes.sg1000` | same, plus their own RTL | yes |
+| `fes.coleco` | `cores/fes-coleco/rtl/top.v` includes it, plus three of its own RTL files | no — see below |
+
+So eight more cores had a compiled source change between the two bases, and the
+carry-forward clause does not license them as written. `fes.ramtest` compiles
+both the header and `fes_application_gp.v`, which also changed, but it has no
+comparison in either direction anyway.
+
+**They survive on a derivation, which is not the same as the clause.** The whole
+of the header's change is the removal of ten `` `define ``s, all of them
+firmware-mailbox constants from #1714:
+`FES_APPLICATION_OPCODE_FIRMWARE_{BEGIN,DATA,COMMIT}`,
+`FES_APPLICATION_FIRMWARE_{BYTES,DATA_PAIR_INDEX,DATA_TAIL_INDEX}` and the four
+`FES_APPLICATION_INTERFACE_FIRMWARE_BLOB_*`. **No core references any of them** —
+checked by grepping every name across `cores/`, excluding simulation, with no
+hit. Removing an unreferenced `` `define `` cannot move a netlist, so main's
+netlist and main's RBF for those eight are the same at both bases and the
+recorded comparison still describes the current one. Condition 1 passing at the
+new base for all seventeen is consistent with that.
+
+That argument is sound but it is **not** what D12 now says. The clause asks
+whether the compiled source set is unchanged, and for these eight it is not. Two
+honest ways to close it: accept this derivation explicitly, or re-measure
+condition 2 for the eight. It is recorded here rather than resolved, because the
+difference between "the rule licenses it" and "an argument rescues it" is the
+distinction this whole record exists to keep.
+
+`fes.coleco` is not in that position. Main changed its own compiled RTL —
+`rtl/{coleco_application_gp.v,coleco_machine.sv,top.v}`, five of the 43 sources
+its producer lists — so no derivation rescues it and its comparison is void on
+its own terms. Codex raised this as a P1 on `coleco.md`, correctly. It is being
+re-measured.
+
 ### Condition 2 at the new base: four of four pass
 
 Measured against main `bb968862b`. For every core, main's reference and the
