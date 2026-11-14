@@ -45,8 +45,16 @@ python3 netlist_digest.py --tree <tree>/sources/misteross --core fes.pong \
 
 | Side | Tree | Commit |
 | --- | --- | --- |
-| main | `/data/fes1861-netlist/mainref` | `72d2fc4da` (the PR's merge base) |
-| branch | `/home/deano/fes/.claude/worktrees/gpu-router-default` | see `reports/*/netlist.json` |
+| main | `/data/fes1861-netlist/mainref` | `72d2fc4da`, the PR's merge base |
+| branch | `/home/deano/fes/.claude/worktrees/gpu-router-default` | recorded per run |
+
+A tree path is mutable and a branch advances, so the path above is not what
+pins a result. Each run records the tree's `HEAD`, that the tree was clean, and
+a digest over the producer's own pinned input list, which covers the bytes that
+decide the netlist whatever git says. A run whose pinned inputs are modified is
+refused rather than recorded, and `summarise.py` refuses to render a record
+that has no revision or was taken from a modified tree. The revisions actually
+measured are listed under the results table.
 
 ## Tool installs
 

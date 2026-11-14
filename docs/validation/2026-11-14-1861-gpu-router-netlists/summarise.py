@@ -32,20 +32,40 @@ def table() -> str:
         record = json.load(open(path))
         side = "main" if os.path.basename(os.path.dirname(path)).endswith("-main") else "branch"
         sides[record["core"]][side] = record
-    rows = ["| Core | Changed files in its closure | Netlist sha256 | Match |",
-            "| --- | --- | --- | --- |"]
+    rows = ["| Core | Changed files in its closure | Pinned inputs | Netlist sha256 | Match |",
+            "| --- | --- | --- | --- | --- |"]
     for core, found in sorted(sides.items()):
         main_record, branch = found.get("main"), found.get("branch")
         if not (main_record and branch):
-            rows.append(f"| `{core}` | {CHANGED.get(core, HELPER_ONLY)} | — | one side only |")
+            rows.append(f"| `{core}` | {CHANGED.get(core, HELPER_ONLY)} | — | — | one side only |")
             continue
+        for side, record in (("main", main_record), ("branch", branch)):
+            if not record.get("revision"):
+                raise SystemExit(f"{core} {side}: record has no revision; re-run it")
+            # Only the pinned inputs decide the netlist, so an edit elsewhere in
+            # the tree (a doc, this very file) does not invalidate a run. A
+            # modified pinned input does, and the driver refuses those outright.
+            if record.get("dirty_pinned_inputs"):
+                raise SystemExit(f"{core} {side}: recorded from modified pinned inputs: "
+                                 + ", ".join(record["dirty_pinned_inputs"]))
+        # The inputs are expected to differ: that is why BUILD_ID moves at all.
+        inputs = ("differ" if main_record["pinned_inputs_sha256"]
+                  != branch["pinned_inputs_sha256"] else "**identical**")
         same = main_record["netlist_sha256"] == branch["netlist_sha256"]
         shown = main_record["netlist_sha256"] if same else (
             f"main `{main_record['netlist_sha256'][:16]}…` vs "
             f"branch `{branch['netlist_sha256'][:16]}…`")
         verdict = "**byte-identical**" if same else "**DIFFERS**"
         cell = f"`{shown}`" if same else shown
-        rows.append(f"| `{core}` | {CHANGED.get(core, HELPER_ONLY)} | {cell} | {verdict} |")
+        rows.append(f"| `{core}` | {CHANGED.get(core, HELPER_ONLY)} | {inputs} | {cell} "
+                    f"| {verdict} |")
+    revisions = {(r["revision"][:9]) for found in sides.values()
+                 for r in found.values() if r.get("revision")}
+    rows.append("")
+    rows.append("Revisions measured: " + ", ".join(f"`{r}`" for r in sorted(revisions)) + ".")
+    rows.append("Each row's pinned inputs were unmodified at the revision shown; "
+                "`summarise.py` refuses to render a record with no revision or with a "
+                "modified pinned input, and the driver refuses to write one.")
     return "\n".join(rows)
 
 
