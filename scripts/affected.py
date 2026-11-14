@@ -11,9 +11,9 @@ except ImportError:
     from hil_plan import GO_SOURCE_SUFFIXES
 
 try:
-    from scripts.test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION, DE25_PR_CONTROL_DEFINITION, select_test_modes, validate_test_modes
+    from scripts.test_policy import de25_combined_proof_captures, DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION, DE25_PR_CONTROL_DEFINITION, select_test_modes, validate_test_modes
 except ImportError:
-    from test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION, DE25_PR_CONTROL_DEFINITION, select_test_modes, validate_test_modes
+    from test_policy import de25_combined_proof_captures, DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION, DE25_PR_CONTROL_DEFINITION, select_test_modes, validate_test_modes
 
 # Logical module names survive the monorepo move; update only these roots.
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
@@ -279,6 +279,25 @@ def runtime_test_source(path):
                 for area in ('unit', 'integration', 'support')))
 
 
+def de25_combined_proof_source(path):
+    """Captured inputs of the DE25 combined client proof receipt.
+
+    `boards/de25nano/link-proof/build_test.py` asserts that
+    `tests/fixtures/de25-combined-proof.json` still matches these files, and
+    that test belongs to the fpga lane while most of the files belong to the
+    runtime module. Without this the lane that checks them is not selected: the
+    break stays latent on main and surfaces on the next pull request whose diff
+    does reach `sources/misteross/`, where it reads as that PR's regression
+    (DeanoC/fes#1842, and #1804 which caused it).
+
+    The set is not restated here. `scripts/test_policy.py` declares it once and
+    the proof, this planner and that test all derive from the declaration, so a
+    new capture line cannot reach one reader and miss another.
+    """
+    return (path.startswith(MODULE_ROOTS['runtime'] + '/') and
+            de25_combined_proof_captures(path))
+
+
 def contract_package_software(path):
     """Closed package schemas/fixtures have no generated or simulated RTL input."""
     prefix = MODULE_ROOTS['contracts'] + '/'
@@ -408,6 +427,12 @@ def plan(paths):
             consumers, reason = fpga_cores(path)
             cores.update(consumers)
             reasons.append(f'{path}: {reason}')
+        elif owner == 'runtime' and de25_combined_proof_source(path):
+            selected.update(('parent', 'host', 'runtime', 'fpga'))
+            cores.update(('menu', 'zx81'))
+            reasons.append(f'{path}: captured input of the DE25 combined client '
+                           'proof receipt; runtime, host protocol consumers and '
+                           'the fpga lane that checks the receipt')
         elif owner == 'runtime' and runtime_test_source(path):
             selected.update(('parent', 'runtime'))
             reasons.append(f'{path}: native runtime tests and parent integration; host inputs unchanged')
