@@ -31,11 +31,11 @@ three with no black launch. They
 contribute the timing and nonce evidence — each launch's blank window is dated
 and the grab lands 31 s or more after it closes — and no episode of their own.
 `b3` carried the episode probe Deano has approved and found no episode to spend
-it on; it ended early when the stop of its last launch left the kit needing a
-recovery that is Deano's to authorise
-([the I2C bus fault](#an-i2c-bus-fault-ended-run-b3)). So the two approved tests
-are still unspent, and Kit B is logged in use and not usable until that
-recovery.
+it on; it ended early when the stop of its last launch wedged the kit's I²C bus
+([the I2C bus fault](#an-i2c-bus-fault-ended-run-b3)). Deano power-cycled Kit B,
+which brought it back on its named baseline with the transmitter readable again;
+its data trees were removed and it is released idle and lease-free. So the two
+approved tests are still unspent, and the kit is available for the next run.
 
 ## What was already established
 
