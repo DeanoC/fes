@@ -195,7 +195,10 @@ be judged against a ±10% band:
 - **The walk's own spread is still twice the band.** All three windows used the
   same key loop: two give exactly 3.00 steps a second and the third 2.31, a
   23% spread where the band is ±10%, and nothing here says what makes the
-  difference.
+  difference. Two of them reading *exactly* the same is quantisation, not
+  agreement: at 30 fps a 10-frame median gap moves 10% — the whole band — for
+  one frame either way, and the 23% is three frames. Whoever measures this next
+  should capture at 60 fps, which Kit A's path and the reference both allow.
 
 A sound measurement would have to drive the keys from the guest's own timer, or
 find a figure inside the game that counts turns.
@@ -205,8 +208,7 @@ have been compared with these numbers, and corrected there as it is here.
 
 For the record, the kit's own figures on this package, from run `g1`, which
 walked with a held key during the opening fight rather than after it: 11 steps
-in 45 s with a median gap of 1.57 s, which is the same as the 10 November
-run's 1.47 s. Those are not comparable with the reference's numbers above —
+in 45 s with a median gap of 1.57 s, close to the 10 November run's 1.47 s. Those are not comparable with the reference's numbers above —
 different input, and a fight in progress — and they are not treated as a
 verdict. The kit's preset was read back from the machine record as preset 1,
 frequency override 0, turbo 0, before the game was loaded.
@@ -247,8 +249,10 @@ one.
   free against the kit's 573 KiB (`method.md`). Neither is in the game's
   timing path, but neither was varied to prove it.
 - One reference window in six dipped below 100% emulation speed for 60 frames
-  of 1,350; it is the one that gives the highest pass rate (1.55 a second), and
-  it is reported as measured.
+  of 1,350; it is `p1`, the one that gives the highest pass rate (1.67 a
+  second), and it is reported as measured. `p1` also differs from the other two
+  in more than its key rate: its keys went in bursts of four from one `xdotool`
+  call, where `p2` and `p3` sent them singly.
 - **TopBench validates the reference's CPU, not its I/O timing**, and the
   note's frequency is set by how long each `OUT` to port 61h takes as much as
   by the CPU. The kit is flat although its CPU benchmarks faster, so the

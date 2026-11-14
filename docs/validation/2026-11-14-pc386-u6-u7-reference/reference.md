@@ -4,7 +4,7 @@
 86Box ROM set. Neither is committed; both live in `~/fes-scratch/u6ref` on
 Powerboat with the game drives.
 
-| | Ultima VI | Ultima VII: The Black Gate |
+| | Ultima VI | a 386DX-25 board, used for the benchmark only |
 | --- | --- | --- |
 | `machine` | `award286` — a SCAT 286 board, Award 286 Modular BIOS B3.11.03 | `ecs386` — ECS 386/32, a C&T 386/AT board, AMI 386 BIOS (03/03/89) |
 | `cpu_family`, `cpu_speed` | `286`, 12,500,000 Hz | `i386dx`, 25,000,000 Hz |
@@ -40,7 +40,7 @@ the same benchmark drive the kit's presets were measured on
 | Real 286s at 12–12.5 MHz in TopBench's database | 16, 21, 22, 22, 23, 25, 27 |
 | Real 286s at 16 MHz in the same database | 33, 36, 42 |
 | pc386 at the 286-12 preset (#1486) | 33 |
-| **86Box 386DX at 25 MHz (the Black Gate reference)** | **40** |
+| **86Box 386DX at 25 MHz (`ecs386`, benchmarked only)** | **40** |
 | Real 386DX/SX machines at 20–25 MHz in the database | 25, 26, 39, 40, 41, 46, 46, 47, 47, 49, 60 |
 | pc386 at the 386DX-25 preset (#1486) | 68 |
 
@@ -58,3 +58,10 @@ CHKCPU 1.25 reports the 386 reference as a "classic 386" at 26.3 MHz, against
 ("requires a 386 or higher CPU"), which is itself the difference these checks
 are about: the kit's 286-class preset is a 386 core paced to a table, not a
 286.
+
+**The 386 board is not a settled reference.** `ecs386` was set up to see
+whether The Black Gate would run and to put a figure beside the kit's
+386DX-25 preset. The Black Gate never ran on it, and a board for that
+comparison should be chosen the way the 286 one was — mid-range among real
+machines of its class in TopBench's database — before any NPC-pace verdict
+rests on it.
