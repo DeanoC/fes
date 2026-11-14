@@ -70,10 +70,22 @@ this record.
 
 ## Remaining work
 
+The 100 ms queue and one-second retirement budgets are software policies,
+not DE25 hardware limits. This isolated batching change keeps them unchanged;
+that does not establish that they are appropriate for the complete operation.
 Command construction and published-command completion need separately defined
-bounds with explicit owned callback contracts, rather than a blanket timeout
-increase or skipping guards based on mutable diagnostic fields. The cost
+bounds with explicit owned callback contracts and measured margins. A larger
+finite software budget remains an option where the required work justifies
+it. Mutable diagnostic fields cannot select which checks execute. The cost
 experiments have not established an acceptable complete implementation.
+
+The broader host-hook verifier's initial 180-second outer cap was too short
+for its sequential 90-second test groups. Three groups completed before that
+supervisor timed out in a later group. The four unfinished groups were then
+executed separately, all passing with their original 90-second Go test limits
+and source/fixture hashes pinned around the run. Completed earlier groups were
+not rerun. The original verifier remains classified as timed out; these
+completed group logs and the separate remaining-group receipt accompany it.
 
 Software-controlled recovery also remains unqualified. Inspection of the
 matched Agilex 5 U-Boot reset driver shows that it selects warm/cold reset from
