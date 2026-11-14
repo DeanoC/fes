@@ -23,6 +23,8 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 import importlib.util
+import json
+import re
 import unittest
 
 RECORD = (Path(__file__).resolve().parents[1]
@@ -96,6 +98,29 @@ class CorrectionShapeTests(unittest.TestCase):
         self.assertEqual(asserted("lines 333-337 of build.py are stale"),
                          set())
 
+    def test_prose_arrow_is_not_a_correction(self):
+        # The record's own sentence reads "Verified mapping, hint -> real:".
+        # Reading that as a correction made the mapping that follows it look
+        # like a destination, so its stale source was asserted against the
+        # tree. An arrow is a correction only with a number on both sides.
+        self.assertEqual(
+            asserted("Verified mapping, hint -> real: M/Makefile:625-630 "
+                     "-> :633"),
+            {"M/Makefile:633"})
+
+    def test_arrow_without_numbers_leaves_the_clause_alone(self):
+        self.assertEqual(asserted("hint -> real, as at a.py:1"), {"a.py:1"})
+
+    def test_a_mapping_list_asserts_only_its_destinations(self):
+        # census-tables.md:236 maps eighteen stale Makefile hints to their real
+        # lines. Written without a path the destinations were extracted by
+        # nothing, so the whole verified mapping was unchecked.
+        self.assertEqual(
+            asserted("M/Makefile:1048-1050 -> :1032,:1034 (two lines, not "
+                     "three; line 1033 is a -Wno- line); M/Makefile:1739 "
+                     "-> :1732"),
+            {"M/Makefile:1032", "M/Makefile:1034", "M/Makefile:1732"})
+
     def test_a_stale_source_is_never_asserted(self):
         # The failure this file exists to catch: a masking change that trades a
         # destination for a stale source leaves both totals unchanged, so only
@@ -110,6 +135,47 @@ class CorrectionShapeTests(unittest.TestCase):
                       "test_build_fes_sms.py:117",
                       "test_build_fes_sms.py:119"):
             self.assertNotIn(stale, asserted(shape))
+
+
+class ClaimedCountTests(unittest.TestCase):
+    """The README states its coverage as numbers; keep them true.
+
+    The record stated 723 citations and 954 endpoints while the script
+    reported 728 and 961, which is the same staleness the census exists to
+    correct, in the paragraph that asks the reader not to take it on trust
+    (DeanoC/fes#1829 review). Stating them is worth keeping -- a reader should
+    see the size of the claim without running anything -- so they are asserted
+    here instead of being removed.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.readme = (RECORD / "README.md").read_text()
+        cls.rows, _ = verify_census.check_primary()
+        cls.citations, cls.endpoints, _, _ = verify_census.check_citations()
+
+    def claimed(self, pattern):
+        found = re.search(pattern, self.readme)
+        self.assertIsNotNone(found, f"README.md no longer states {pattern!r}")
+        return int(found.group(1))
+
+    def test_row_count_is_current(self):
+        self.assertEqual(self.claimed(r"all \*\*(\d+)\*\* inventory rows"),
+                         self.rows)
+
+    def test_citation_count_is_current(self):
+        self.assertEqual(
+            self.claimed(r"all \*\*(\d+)\*\* `path:line` citations"),
+            self.citations)
+
+    def test_endpoint_count_is_current(self):
+        self.assertEqual(self.claimed(r"\(\*\*(\d+)\*\* line endpoints"),
+                         self.endpoints)
+
+    def test_fingerprint_count_is_current(self):
+        self.assertEqual(self.claimed(r"(\d+) entries holding the sha256"),
+                         len(json.loads(
+                             (RECORD / "citation-fingerprints.json").read_text())))
 
 
 class RecordTests(unittest.TestCase):

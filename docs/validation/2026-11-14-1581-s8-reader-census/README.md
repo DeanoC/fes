@@ -41,15 +41,15 @@ record against the tree it is read in, and is the evidence for every count below
 It makes two claims. First, all **374** inventory rows hold, on their stated line, the `Matched`
 text recorded for them — the check that matters, because a line number can stay in range while
 pointing at the wrong line, and that is how two earlier revisions of this record went wrong. Second,
-all **723** `path:line` citations written in the prose and the `What` cells of these three files
-(**954** line endpoints, counting every number of a comma list and both ends of a range) resolve to a
+all **746** `path:line` citations written in the prose and the `What` cells of these three files
+(**987** line endpoints, counting every number of a comma list and both ends of a range) resolve to a
 real file **and still hold the text they held when the record was written**.
 
 That second half is the part a reader should not take on trust, because until the #1829 review it was
 not true. A secondary citation was checked only for existing and being non-blank, so a base edit that
 shifted one onto another non-blank line passed — the exact defect two earlier revisions of this record
 shipped. The content check works from [`citation-fingerprints.json`](citation-fingerprints.json),
-729 entries holding the sha256 of each cited line's **whole** text, regenerated only
+760 entries holding the sha256 of each cited line's **whole** text, regenerated only
 deliberately:
 
     python3 docs/validation/2026-11-14-1581-s8-reader-census/verify_census.py --record-fingerprints

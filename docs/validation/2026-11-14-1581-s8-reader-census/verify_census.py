@@ -178,6 +178,15 @@ def check_primary():
 
 
 STALE_NUMBERS = re.compile(r':\d+(?:-\d+)?(?:,\s*:?\d+(?:-\d+)?)*')
+# An arrow is a correction only when a line number follows it. The record's own
+# prose says "Verified mapping, hint -> real:", and reading that as a correction
+# made the first mapping after it look like a destination, so its stale source
+# was asserted against the tree (DeanoC/fes#1829 review). The test is on the
+# destination alone and not on both sides, because a destination is routinely
+# introduced by words rather than by a number -- `zx81.py:155 -> :68 (and the
+# QSF cite -> :256)` corrects two locations, and requiring a number to the left
+# of the arrow dropped the second.
+ARROW = re.compile(r'\s*->\s*(?=:?\d)')
 PATH_TOKEN = re.compile(r'[A-Za-z0-9_][A-Za-z0-9_./-]*'
                         r'\.(?:py|v|sv|cpp|h|svh|md|json|sh|files|txt|lock|yml|toml|tcl)'
                         r'|(?:[A-Za-z0-9_][A-Za-z0-9_./-]*/)?Makefile')
@@ -232,10 +241,10 @@ def current_only(text):
     """
     out = []
     for clause in re.split(r'(;)', text):
-        if '->' not in clause:
+        segments = ARROW.split(clause)
+        if len(segments) == 1:
             out.append(clause)
             continue
-        segments = clause.split('->')
         rebuilt = []
         path = None
         for index, segment in enumerate(segments):
@@ -251,7 +260,7 @@ def current_only(text):
                                else keep_first_run(segment))
             if written:
                 path = written[-1]
-        out.append('->'.join(rebuilt))
+        out.append(' -> '.join(rebuilt))
     return ''.join(out)
 
 
