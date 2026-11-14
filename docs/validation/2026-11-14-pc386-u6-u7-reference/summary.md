@@ -58,7 +58,9 @@ scores TopBench 33 where the AT-class real 286 boards of its clock score 21 to
 ([#1840](https://github.com/DeanoC/fes/issues/1840)). That is a CPU-throughput
 finding, and it cuts the other way for pitch: a faster CPU would raise the
 note, and the kit's note is lower. Whether the two have a common cause in the
-governor's clock table is open; they are not the same measurement. It does, however, qualify the two checks still
+governor's clock table is open; they are not the same measurement. It is the
+286-12 preset's figure, so it bears on Ultima VI; The Black Gate runs at
+preset 3 and has its own question, below. It does, however, qualify the two checks still
 open — a walking speed or an NPC pace measured against a preset that is
 itself 22% to 57% above the real boards of its clock would not mean what it
 appears to, whatever the measurement's own quality. That is said again where those checks are.
@@ -84,8 +86,9 @@ of the reference.
   lock), so the run finished on its own and the restore check — remove the
   run's data trees, snapshot, compare with the pre-run probe, release — was run
   by hand from the same script's tail and logged as such at 11:53.
-- **Disk.** `u6nm.img` (`e28bc5a2…`): main's FreeDOS games image (`e69194ec…`,
-  from `scripts/build_pc386_freedos_image.py --profile games`) plus Ultima VI
+- **Disk.** `u6nm.img` (`e28bc5a2…`): the FreeDOS games image `e69194ec…`,
+  built from `scripts/build_pc386_freedos_image.py --profile games` on 26
+  October and carrying FreeDOS kernel 2043, where main's lock now pins 2046, plus Ultima VI
   from Deano's eXoDOS copy with its music off, put together by the 10 November
   run's own `make_games_disk.py`; it is the disk that run used. The reference's copy differs in four files, listed in
   `method.md`; `ULTIMA6\` is byte-identical.
@@ -188,7 +191,7 @@ loop: [#1472's record](../2026-11-04-pc386-speaker-kit/summary.md) puts one
 pass of the routine's loop at about 89 clocks plus about 475 for each of the
 game's own delay units, so #1453's ISA charges — 14 clocks on the pass's port
 61h `IN` and `OUT` — drop the pitch 2.42% at one delay unit, which is what was
-measured then (1.99, 2.34 and 2.59% over three keys). That accounts for **at
+measured then (2.01, 2.33 and 2.59% over three keys). That accounts for **at
 most** two and a half points of the twelve and a half here, and only on the
 kit: what the reference pays for the same two port accesses was not measured.
 So most of the difference is elsewhere: the governor's pacing of the rest of the pass,
@@ -264,9 +267,9 @@ the finding**: anyone measuring Ultima VI's pace by sending keys and counting
 what moves will measure their own key timing unless they deal with it first.
 
 Even then, the figure would have to be read against
-[#1840](https://github.com/DeanoC/fes/issues/1840): the preset the walk is
-measured at scores 22% to 57% above the AT-class real 286 boards of its clock,
-so
+[#1840](https://github.com/DeanoC/fes/issues/1840): the 286-12 preset the walk
+would be measured at scores 22% to 57% above the AT-class real 286 boards of
+its clock, so
 matching the reference's walking speed at it would not mean the preset is
 right, and missing it would not say which of the two was wrong.
 
@@ -303,9 +306,16 @@ benchmark above, a 1988 C&T 386/AT with no cache, scores 40 against the kit
 preset's 68, where TopBench's database has real 20–25 MHz 386 machines from 25
 to 60. A verdict on NPC pace should not rest on a board chosen after the fact,
 so the board has to be fixed first, by the same rule that validated the 286
-one: mid-range among that database's real machines of the class. And as with
-the walk, the figure would then have to be read against
-[#1840](https://github.com/DeanoC/fes/issues/1840).
+one: mid-range among that database's real machines of the class. That rule is
+harder to apply here — the database has no 386DX at 25 MHz at all, its 386DX
+and 386SX machines at 20–25 MHz score 25 to 60, and its one 25 MHz entry with
+on-chip cache (an IBM 386SLC) scores 96.
+
+The 386DX-25 preset has the same question as
+[#1840](https://github.com/DeanoC/fes/issues/1840) asks of 286-12 — it scores
+68 ([#1486](https://github.com/DeanoC/fes/pull/1486)) — but on weaker evidence,
+because of that gap in the database. It is not filed, and settling the board
+would be the first step towards being able to.
 
 ## What this does not cover
 

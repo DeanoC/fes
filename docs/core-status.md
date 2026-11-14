@@ -531,12 +531,13 @@ the 286-12 preset scores above all of them
   check on the reference, which has no RAM behind C800-DFFF to put drivers in,
   and the reference board for a 386DX-25 is not settled.
 
-Both of those also wait on [#1840](https://github.com/DeanoC/fes/issues/1840):
-the 286-12 preset scores TopBench 33 where AT-class real 286 boards of its
-clock score 21 to 27, so a pace measured at a preset is qualified by how well
-that preset is calibrated. That is CPU throughput, and the pitch failure runs
-the other way, so they are not the same measurement; whether they share a cause
-in the governor's clock table is open.
+The walk also waits on [#1840](https://github.com/DeanoC/fes/issues/1840): the
+286-12 preset scores TopBench 33 where AT-class real 286 boards of its clock
+score 21 to 27, so a pace measured at a preset is qualified by how well that
+preset is calibrated. That is CPU throughput, and the pitch failure runs the
+other way, so they are not the same measurement; whether they share a cause in
+the governor's clock table is open. The Black Gate runs at preset 3, which has
+the same question on weaker evidence and is not filed.
 
 Launches with Serpent Isle's disk image sometimes show a black picture at
 the DOS prompt: 12 black DOS-prompt grabs in 400 launches on Kit B. Four of
