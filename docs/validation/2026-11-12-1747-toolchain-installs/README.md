@@ -305,10 +305,25 @@ re-measured against the new base.
   recipe-`20685ac5…` installs (Yosys `20740ef0…`, Mistral `ef4a2753…`); after
   `bootstrap.sh` changed it returns the recipe-`75baea6d…` ones (`a17b4c8a…`,
   `33d473e1…`). Re-running it today therefore puts the *PR's* binaries on main's
-  side, which holds the tooling constant and tests only the code — not condition
-  2, and weaker than what this record already contains. To reproduce the
+  side, which holds the tooling constant and tests only the code. That is not
+  condition 2 and does not support what this record claims. To reproduce the
   campaign, pin main's side to the older-recipe install per tool rather than
   resolving it.
+
+  **Keep that variant in mind for a failure, though, because it is not merely a
+  weaker run.** Three shapes answer three different questions, and only the
+  first is condition 2:
+
+  | shape | code | binaries | isolates |
+  | --- | --- | --- | --- |
+  | the campaign | varies | varies | nothing; the strongest single claim |
+  | main's side on the PR's installs | varies | constant | the producer and helper edits |
+  | forced BUILD_ID, same sources | constant | varies | the install |
+
+  If a forced RBF ever does differ from main's, re-running the campaign's own
+  shape narrows nothing — it only reproduces the difference. The second shape is
+  what says whether the cause was the producer and helper edits; the third,
+  whether it was the install. Reach for one of those, not for a repeat.
 - **The producer must not be wrapped in `gpu-run`.** `fes_build_common` raises
   `invoke the producer outside gpu-run; GPU nextpnr calls acquire their own
   lease` when `GPU_RUN_DEVICE` or `GPU_LEASE_FD` is set, because an outer lease
