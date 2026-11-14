@@ -319,6 +319,16 @@ re-measured against the new base.
 - **`build_fes_menu_package.py` writes to `build/oss/fes-menu-package`**, not
   `build/fes-menu-package` as its siblings do. A runner that globs
   `build/**/build-summary.json` will not notice; one that joins a path will.
+- **`config/core-recipes.toml` is no longer one entry per core.** `fes.menu` and
+  `fes.zx81` now have two `[[recipes]]` entries each, the second
+  `board = "de25-nano"`, added in the window this record spans (38 insertions,
+  no deletions). An ad-hoc parser that keys on `core_id` alone merges the pair
+  and can report a route input as unchanged when it is not. Filter on
+  `toolchain` and `board`, as `scripts/pnr_recipe.py` does — it `continue`s past
+  `toolchain == "quartus"` before its own duplicate check, so the registry it
+  builds stays unambiguous, and a genuine collision between two OSS entries
+  raises `duplicate P&R recipe for <core>` rather than picking one. The hazard
+  is in reading the file by hand, not in the repository's reader.
 
 ## Why CI appeared not to run on this branch
 
