@@ -469,11 +469,11 @@ inside it passes only if its own windows are as consistent.
 > error rule, *after* seeing repeats that fail the original: 1.765 to 2.308 at
 > one key rate. Relaxing a gate to fit the numbers it just failed is exactly
 > what this record is not allowed to do. The original gate stands, `sq1`'s
-> repeats fail it, and the walk is reported below as not measurable rather than
-> rescued by a looser rule. No future kit result may be judged against 2.07.
+> repeats fail it, and the walk is reported below as not measurable *by the
+> methods tried* rather than rescued by a looser rule. No future kit result may be judged against 2.07.
 
 
-## Correction to the seventh amendment: there is no plateau, and the walk is not measurable this way
+## Correction to the seventh amendment: the over-keyed rate is suppressed, not a plateau
 
 The seventh amendment read the two over-rates agreeing as saturation. The check
 it required — that the new counter agrees with the old one on a slow window —

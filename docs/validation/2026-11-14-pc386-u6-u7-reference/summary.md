@@ -33,8 +33,9 @@ kit was measured. The reference machines are in
 | **Ultima VII: The Black Gate, NPC pace at 386DX-25** | **Not established**, and **not** for want of a method: no pace was ever measured, because the game does not start on the reference. It stops at its own memory check, which is a configuration problem with a named cause and routes left to try. Carried forward as [#1853](https://github.com/DeanoC/fes/issues/1853). |
 
 **These three are different outcomes and should not be read as one.** The pitch
-is a measured verdict. The walk is a documented dead end: three methods, each
-tried and each shown to measure the harness rather than the machine. Ultima VII
+is a measured verdict. The walk is a dead end for all three methods tried, each
+shown to measure the harness rather than the machine — the check itself stays
+open, with two routes named below. Ultima VII
 is neither — nothing about it was measured, and what blocks it is a memory map,
 not a measurement limit.
 
