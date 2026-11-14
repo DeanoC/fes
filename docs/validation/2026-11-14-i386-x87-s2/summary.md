@@ -16,8 +16,17 @@ lists them.
 - **The unit is built and checked against a real 80-bit FPU.** An x86-64
   host's FPU is the same 80-bit unit a 387 is, so the bench drives the unit's
   CPU interface and compares every result and status word with the host's own
-  instruction. **70 cases pass on the RTL and on the seal's Yosys netlist of
-  the unit.** The bench found twelve faults, each fixed.
+  instruction. **75 cases pass on the RTL**, and the 70 cases the bench had
+  at the time passed on the seal's Yosys netlist of the unit as well. The
+  bench found twenty faults, each fixed in the commit that found it.
+- **The CPU and the machine are in, and the lockstep says the identity-off
+  path is unchanged**: the full run passes every bucket, including the 1,933
+  no-387 directed cases, which matters because the shared FNSAVE and FRSTOR
+  microcode and the sequencer's offsets changed.
+- **The identity-on path has not been run end to end yet.** The lockstep's
+  rule and its eight directed programs are in, but the first run of ESC
+  instructions through the CPU with a 387 fitted was still going when this
+  record was written. Until it passes, the slice is not mergeable.
 - **The register stack lands in M10K**, as the plan assumed: 4 blocks, two
   copies of eight 80-bit words, with the tag word read from the class bits
   each write stores rather than from the registers.
@@ -156,9 +165,20 @@ item, not an observed difference. An entry goes in when a run shows one.
 | --- | --- | --- |
 | `test_fes_i386_x87_unit.py` (70 cases: loads, stores, FXAM, FTST, the constants, the state forms, the protocol) | chip, lock's Verilator | 70 passed, 0 failed |
 | the same with `--netlist` (the seal's Yosys netlist of the unit) | chip | 70 passed, 0 failed |
-| the lockstep with the identity off, a short run (16 x 40 random, 16 x 500 protected-mode, 16 x 250 task, debug and undefined programs) | chip | every bucket 0 fail; the unbuilt sweep 53,008 encodings, 0 wrong |
-| `tests.test_fes_i386_x87_unit`, `tests.test_fes_i386_ucode` | Powerboat | OK |
+| the lockstep with the identity off, the full run | chip | every bucket 0 fail, the 1,933 no-387 directed cases included; the unbuilt sweep 53,008 encodings, 0 wrong |
+| `tests.test_pc386_machine` (82 tests: the whole machine simulated with the unit in it) | Powerboat | OK |
+| `tests.test_fes_i386_x87_unit`, `tests.test_fes_i386_ucode`, `tests.test_build_fes_pc386_quartus`, `tests.test_audit_fes_i386_case`, `tests.test_quartus_fes_i386` | Powerboat | OK |
 | Verilator `-Wall` lint (the lock's 5.054) | Powerboat and chip | clean |
+
+Not run yet, and owed before this leaves draft:
+
+| Check | Why it is owed |
+| --- | --- |
+| the unit's bench on the netlist, and the full and netlist lockstep, on the frozen head | the runs above are of earlier heads; the netlist bench was 70 cases, before the five protocol faults and the pointer restore |
+| the lockstep's x87 bucket | the first ESC instructions through the CPU with the identity on |
+| the lockstep at a governor preset with `--same-as` the max run | the slice changes the issue condition, which the governor also holds |
+| test386 to POST FFh | the integer regression |
+| a Quartus 17.0.2 seal of the frozen head, and a kit run on it | the slice's own gates |
 
 The identity-off run is the regression this slice turns on: with the
 identity clear the CPU must be the empty socket it was, and the short run
@@ -178,6 +198,10 @@ seal's settings, 61.44 MHz. The envelope's stimulus and signature are about
 | `unit` | 2 | 1,889 | 4.5% | 9 | 4 | **+1.226** | +0.063 |
 | `unit-noregs` | 1 | 1,733 | 4.1% | 9 | 4 | **+1.754** | +0.049 |
 | `unit-noregs` | 2 | 1,734 | 4.1% | 9 | 4 | **+1.639** | +0.040 |
+
+These fits are of the head that closed the clock, before the five protocol
+faults and the pointer restore; the figures are the unit's shape rather than
+its final size, and a fit of the frozen head is owed with the rest.
 
 Both variants meet the clock on both seeds, with +1.2 to +1.8 ns, which is
 the margin the slice-1 spike's option A had standalone (+1.7 to +1.9).
@@ -202,6 +226,17 @@ The second's ran from the same output through the class decode, the
 exponent subtract and the shift amount into the multiplier's one-hot
 multiplicand, 9 levels.
 
+### A seal cannot measure this
+
+The package ties the identity to `1'b0` until slice 5, so Quartus trims the
+whole unit out of the machine: a seal of this branch has about main's area,
+and its delta says nothing about the slice. The measurement is a machine
+analysis fit with the identity overlaid to `1'b1`
+(`quartus_x87_spike.py --mode machine --variant base --identity-on`) against
+the same fit without the flag; that pair is owed with the gates. The figures
+below are the standalone unit's, and the machine number in them is an
+extrapolation at the slice-1 spike's standalone-to-machine ratio.
+
 ### What this says about the budget
 
 This is the plan's "stop and report" case.
@@ -225,7 +260,8 @@ This is the plan's "stop and report" case.
   38,557, so about **2,550** are free, and OPL2's MLAB win
   ([#1795](https://github.com/DeanoC/fes/pull/1795), about −160) is not
   merged yet. This slice alone, at the spike's standalone-to-machine ratio
-  (1,687/2,045, about 0.82), is roughly **1,400** of them.
+  (1,687/2,045, about 0.82), extrapolates to roughly **1,400** of them. The
+  machine fit above replaces that extrapolation with a measurement.
 - What to do about it is Deano's call, and the spike's own
   [open questions](../2026-11-12-i386-x87-fit-spike/summary.md#open-questions-for-deano)
   list the options: the audit's remaining wins, a second core variant
