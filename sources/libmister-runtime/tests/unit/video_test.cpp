@@ -10,7 +10,7 @@
 using namespace mister::native;
 const std::uint64_t kDeadline = 100;
 std::size_t scenarios = 0;
-const std::size_t kExpectedScenarios = 239;
+const std::size_t kExpectedScenarios = 241;
 class ClockFake final : public Clock {
 public: mutable std::uint64_t now = 0;
  std::uint64_t NowMs() const override { return now++; }
@@ -201,6 +201,20 @@ void TestLinkRequiresPllLockAndRecordsVic()
 			const auto result = bring_up(blip);
 			assert(!result.error.ok() && result.phase == "hdmi_verify");
 			assert(Mentions(result.error.message, "pixel PLL did not lock"));
+			++scenarios;
+		}
+		// Unlocked, then unreadable, then locked. The stickiness must refuse
+		// only while nothing newer has measured a lock: this is the sequence
+		// a tighter reading of it would turn into a refused activation, so it
+		// is pinned rather than left to the next person's judgement.
+		{
+			Fixture recovers;
+			recovers.i2c.pll_statuses = {0x02, 0x12};
+			recovers.i2c.fail_detail_read_index = 2;
+			const auto result = bring_up(recovers);
+			assert(result.error.ok() && result.phase == "hdmi_verify");
+			assert(Mentions(result.error.message, "pll_lock=1"));
+			assert(recovers.i2c.pll_statuses.empty());
 			++scenarios;
 		}
 		// Reporting stays per sample even so. A link that goes down after an

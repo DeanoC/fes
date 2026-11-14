@@ -193,7 +193,13 @@ Error RequireLink(I2c& i2c, Clock& clock, std::uint64_t deadline,
 			}
 			if (!pll_error.ok()) {
 				if (clock.NowMs() >= deadline)
-					return {ErrorCode::io_failed,
+					// Say what was measured, not only what failed last. A
+					// PLL read unlocked and then unreadable is the whole
+					// finding; the transport message alone loses it, on the
+					// one line a black screen gets diagnosed from.
+					return {ErrorCode::io_failed, (seen_unlocked ?
+						"pixel PLL did not lock behind a ready link and "
+						"became unreadable: " : "") +
 						pll_error.message + LinkSampleDetail(*result)};
 				// An unreadable 0x9e leaves the requirement unenforced, but
 				// only while nothing has measured it unlocked.
