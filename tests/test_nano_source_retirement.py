@@ -38,6 +38,14 @@ class SourceRetirementTests(unittest.TestCase):
         for suffix in ("c", "h"):
             shutil.copyfile(FW / ("sdm_input_probe_setup." + suffix), cls.output / ("probe_setup." + suffix))
         shutil.copyfile(FW / "nano_sdm_source_platform.inc", cls.output / "nano_sdm_source_platform.inc")
+        import importlib.util
+        spec=importlib.util.spec_from_file_location('fes_recovery_extract',FW/'verify.py')
+        extractor=importlib.util.module_from_spec(spec);spec.loader.exec_module(extractor)
+        platform=(FW/'nano_bridge_platform.inc').read_text()
+        (cls.output/'held_reset_body.inc').write_text(''.join(extractor.function(platform,name) for name in (
+            'fes_nano_bridge_platform_lock','fes_nano_bridge_platform_unlock',
+            'fes_nano_bridge_platform_invalidate_held','fes_nano_bridge_platform_invalidate',
+            'fes_nano_reset_binding','fes_nano_bridge_platform_cold_reset_held')))
         # Compile the real readiness caller, not only configuration_after's
         # completion callback: that was the missing boundary in format 12.
         source = (FW / "nano_cold_platform.c").read_text()
@@ -120,6 +128,16 @@ class SourceRetirementTests(unittest.TestCase):
         report = self.run_model("source_release_test", joined=True)
         self.assertEqual(report["cases"], 66)
         self.assertTrue(report["actual_source_release_supplier"])
+
+    def test_terminal_cold_recovery_uses_live_revoked_scope(self):
+        report=self.run_model('terminal_recovery_test',joined=True)
+        self.assertEqual(report['cases'],33)
+        self.assertTrue(report['actual_terminal_supplier'])
+
+    def test_terminal_warm_recovery_preserves_previous_source(self):
+        report=self.run_model('terminal_warm_recovery_test',joined=True)
+        self.assertEqual(report['cases'],2)
+        self.assertTrue(report['actual_warm_terminal_supplier'])
 
     def test_real_service_and_supplier_rearm_between_menu_and_computer(self):
         report = self.run_model("warm_service_test", joined=True)

@@ -213,17 +213,35 @@ int fes_nano_boot_bind_usb_pio(struct fes_nano_boot *s,struct fes_nano_bridges *
     if (ops.snapshot) {s->snapshot_policy=ops;b->observe_state=retained_state;}
     return fes_nano_bridges_observe(b,&state) ? failed(s,-1) : 0;
 }
-int fes_nano_boot_usb_pio_matches(const struct fes_nano_bridges *b,void *context,
+static int usb_pio_policy_matches(const struct fes_nano_bridges *b,void *context,
     int (*observe)(void *,uint64_t,uint64_t,uint32_t *),
     int (*quiesce)(void *,uint32_t),int (*quiescent)(void *,uint32_t *),
     int (*snapshot)(void *,uint64_t,uint64_t,uint32_t *,uint32_t *,uint32_t *,uint32_t *))
 {
-    if (!b || !b->initialized || b->failed || b->ops.owns!=owns || !b->ops.context) return 0;
+    if (!b || !b->initialized || b->ops.owns!=owns || !b->ops.context) return 0;
     const struct fes_nano_boot *s=b->ops.context;
-    return s->attempted && !s->failed && s->retained_bound &&
+    return s->attempted && s->retained_bound &&
         b->observe_state==(s->retained.snapshot ? retained_state : 0) &&
         s->owner==b->state.owner && s->epoch==b->epoch &&
         s->retained.context==context && s->retained.observe==observe &&
         s->retained.quiesce==quiesce && s->retained.quiescent==quiescent &&
         s->retained.snapshot==snapshot;
+}
+int fes_nano_boot_usb_pio_matches(const struct fes_nano_bridges *b,void *context,
+    int (*observe)(void *,uint64_t,uint64_t,uint32_t *),
+    int (*quiesce)(void *,uint32_t),int (*quiescent)(void *,uint32_t *),
+    int (*snapshot)(void *,uint64_t,uint64_t,uint32_t *,uint32_t *,uint32_t *,uint32_t *))
+{
+    return b && b->initialized && !b->failed && b->ops.owns==owns && b->ops.context &&
+        !((const struct fes_nano_boot *)b->ops.context)->failed &&
+        usb_pio_policy_matches(b,context,observe,quiesce,quiescent,snapshot);
+}
+int fes_nano_boot_usb_pio_recovery_matches(const struct fes_nano_bridges *b,void *context,
+    int (*observe)(void *,uint64_t,uint64_t,uint32_t *),
+    int (*quiesce)(void *,uint32_t),int (*quiescent)(void *,uint32_t *),
+    int (*snapshot)(void *,uint64_t,uint64_t,uint32_t *,uint32_t *,uint32_t *,uint32_t *))
+{
+    return b && b->initialized && b->failed==1 && b->ops.owns==owns && b->ops.context &&
+        ((const struct fes_nano_boot *)b->ops.context)->failed==1 &&
+        usb_pio_policy_matches(b,context,observe,quiesce,quiescent,snapshot);
 }

@@ -42,11 +42,19 @@ CONTRACT.update(retirement_command_clock='fresh-counter-monotonic-source-and-ret
 _rearm_spec=importlib.util.spec_from_file_location('fes_source_rearm_profile',HERE/'nano_sdm_rearm_profile.py')
 rearm=importlib.util.module_from_spec(_rearm_spec);_rearm_spec.loader.exec_module(rearm)
 REARM_CONTRACT=rearm.contract(CONTRACT)
+RECOVERY_CONTRACT=json.loads(json.dumps(REARM_CONTRACT))
+RECOVERY_CONTRACT.update(format=18,scope='nano-source-rearm-terminal-cold-recovery-v18',automatic_reset=True,
+ terminal_recovery=dict(attempts=1,trigger='completed-source-retirement-or-continuation-failure',
+  ownership='revoked-boot-private-binding-and-fresh-cold-CPU-USB-PIO-containment',
+  scope_bound_us=1000000,clock_origin='fresh-terminal-recovery-entry',
+  request='fixed-vendor-cold-job15-command0x47-zero-args',
+  source='retained-on-all-outcomes',resume=False,replay=False,reset_completion=False,
+  post_reset_admission='fresh-boot-loader-devices-epoch-required',physical_qualification=False))
 FILES=('nano_sdm_input_profile.py','nano_sdm_rearm_profile.py','sdm_input_vendor_service.c','sdm_input_vendor_mailbox.c','sdm_input_mailbox.h',
  'nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','input_tables.c','input_tables.h','input_transfer.c','input_transfer.h',
- 'input_transfer_service.c','input_transfer_service.h','sdm_input_probe_setup.c','sdm_input_probe_setup.h','command_queue.c','command_queue.h','source_retire.c','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc','nano_sdm_reader_profile.py','nano_sdm_reader.h','nano_sdm_reader.c','nano_sdm_reader_platform.inc','nano_sdm_release_platform.inc','nano_sdm_rearm_platform.inc')
+ 'input_transfer_service.c','input_transfer_service.h','sdm_input_probe_setup.c','sdm_input_probe_setup.h','command_queue.c','command_queue.h','source_retire.c','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc','nano_sdm_reader_profile.py','nano_sdm_reader.h','nano_sdm_reader.c','nano_sdm_reader_platform.inc','nano_sdm_release_platform.inc','nano_sdm_rearm_platform.inc','nano_sdm_recovery_platform.inc')
 C_FILES=('input_tables.c','input_transfer.c','input_transfer_service.c','probe_setup.c','command_queue.c','source_retire.c','nano_sdm_reader.c')
-H_FILES=('input_tables.h','input_transfer.h','input_transfer_service.h','probe_setup.h','command_queue.h','nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc','nano_sdm_reader.h','nano_sdm_reader_platform.inc','nano_sdm_release_platform.inc','nano_sdm_rearm_platform.inc')
+H_FILES=('input_tables.h','input_transfer.h','input_transfer_service.h','probe_setup.h','command_queue.h','nano_sdm_source_platform.inc','nano_sdm_input_finish.inc','source_retire.h','nano_sdm_retire_platform.inc','nano_sdm_control_platform.inc','nano_sdm_control_mailbox.inc','nano_sdm_reader.h','nano_sdm_reader_platform.inc','nano_sdm_release_platform.inc','nano_sdm_rearm_platform.inc','nano_sdm_recovery_platform.inc')
 SERVICE=Path('plat/intel/soc/common/socfpga_sip_svc.c');MAILBOX=Path('plat/intel/soc/common/soc/socfpga_mailbox.c');MAILBOX_HEADER=Path('plat/intel/soc/common/include/socfpga_mailbox.h')
 PLATFORM=Path('plat/intel/soc/common/nano_cold_platform.c');LD=Path('bl31/bl31.ld.S');MK=Path('plat/intel/soc/agilex5/platform.mk');HEADER=Path('plat/intel/soc/common/include/fes_nano_cold_profile.h')
 NAMES=tuple('plat/intel/soc/common/'+n for n in C_FILES)+tuple('plat/intel/soc/common/include/'+n for n in H_FILES)+tuple(map(str,(SERVICE,MAILBOX,MAILBOX_HEADER,PLATFORM,LD,MK,HEADER)))
@@ -55,9 +63,10 @@ INPUT_MAILBOX='bbfe0bff74a71977e204b36731557707c073e93d1a6f3b8b3dfbaef0b3c5ba1b'
 INPUT_HEADER='2657b7855b4dbdc586ee7459be67c602239ea1c555143f28bd3e40e9fabb84e3'
 def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def inputs():return [HERE/n for n in FILES]
-def selected(profile,enabled,*,source_rearm=False):
+def selected(profile,enabled,*,source_rearm=False,source_recovery=False):
  if type(enabled) is not bool:raise ValueError('explicit boolean SDM input transfer selection required')
  if type(source_rearm) is not bool or source_rearm and not enabled:raise ValueError('explicit source rearm requires selected SDM input transfer')
+ if type(source_recovery) is not bool or source_recovery and not source_rearm:raise ValueError('terminal cold recovery requires explicit source rearm')
  if not enabled:return None
  if not isinstance(profile,dict) or profile.get('sdm_arm_probe') is not None or profile.get('sdm_fault64') is not None:
   raise ValueError('SDM input, fault64 and arm-only modes are mutually exclusive')
@@ -71,19 +80,20 @@ def selected(profile,enabled,*,source_rearm=False):
  fit.checked(profile.get('boot_fit'))
  reader.checked(profile)
  if source_rearm:rearm.checked_cpu_binding(profile)
- return json.loads(json.dumps(REARM_CONTRACT if source_rearm else CONTRACT))
+ return json.loads(json.dumps(RECOVERY_CONTRACT if source_recovery else REARM_CONTRACT if source_rearm else CONTRACT))
 def checked(profile):
  v=profile.get('sdm_input_transfer') if isinstance(profile,dict) else None
  if v is None:return None
- warm=rearm.same(v,REARM_CONTRACT)
+ recovery=rearm.same(v,RECOVERY_CONTRACT)
+ warm=recovery or rearm.same(v,REARM_CONTRACT)
  if not warm and not rearm.same(v,CONTRACT):raise ValueError('unsupported SDM input transfer contract')
  if not warm and profile.get('sdm_cpu_rearm') is not None:raise ValueError('CPU rearm requires its repeated-load SDM contract')
- return selected(profile,True,source_rearm=warm)
+ return selected(profile,True,source_rearm=warm,source_recovery=recovery)
 def header(profile):
- if checked(profile) is None:return '#define FES_NANO_SDM_SOURCE_RELEASE 0\n#define FES_NANO_RETAINED_READER_ROUTE 0\n#define FES_NANO_SDM_INPUT_TRANSFER 0\n#define FES_NANO_SDM_SOURCE_LEASE 0\n#define FES_NANO_SDM_RETIRE_SOURCE 0\n#define FES_NANO_RETIRE_TIMING 0\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 0\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 0\n'
+ if checked(profile) is None:return '#define FES_NANO_SDM_SOURCE_RELEASE 0\n#define FES_NANO_SDM_COLD_RECOVERY 0\n#define FES_NANO_RETAINED_READER_ROUTE 0\n#define FES_NANO_SDM_INPUT_TRANSFER 0\n#define FES_NANO_SDM_SOURCE_LEASE 0\n#define FES_NANO_SDM_RETIRE_SOURCE 0\n#define FES_NANO_RETIRE_TIMING 0\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 0\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 0\n'
  chain=profile.get('chain_sha256','')
  if len(chain)!=64 or any(c not in '0123456789abcdef' for c in chain):raise ValueError('complete input transfer chain required')
- return ('#define FES_NANO_SDM_SOURCE_RELEASE '+str(int(checked(profile)['format']==17))+'\n#define FES_NANO_SDM_INPUT_TRANSFER 1\n#define FES_NANO_SDM_SOURCE_LEASE 1\n#define FES_NANO_SDM_RETIRE_SOURCE 1\n#define FES_NANO_RETIRE_TIMING 1\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 1\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 1\n#define FES_NANO_INPUT_BUILD "'+chain[:16]+'"\n'
+ return ('#define FES_NANO_SDM_SOURCE_RELEASE '+str(int(checked(profile)['format'] in (17,18)))+'\n#define FES_NANO_SDM_COLD_RECOVERY '+str(int(checked(profile)['format']==18))+'\n#define FES_NANO_SDM_INPUT_TRANSFER 1\n#define FES_NANO_SDM_SOURCE_LEASE 1\n#define FES_NANO_SDM_RETIRE_SOURCE 1\n#define FES_NANO_RETIRE_TIMING 1\n#define FES_NANO_RETIRE_QUEUE_OBSERVE 1\n#define FES_NANO_RETIRE_BATCHED_OBSERVE 1\n#define FES_NANO_INPUT_BUILD "'+chain[:16]+'"\n'
   '#define FES_NANO_RETAINED_READER_ROUTE 1\n#define FES_NANO_READER_ROUTE_SHA '+chr(34)+reader.digest(reader.checked(profile))+chr(34)+'\n'
   '#define FES_NANO_PROBE_HEAP_FIRST 0x84000000ULL\n#define FES_NANO_PROBE_HEAP_LAST 0x94000000ULL\n')
 def install(source,profile,start,mmu,ram,mailbox):
@@ -154,12 +164,18 @@ def verify_image(image,profile):
  symbols=ram.symbols(image);retire_scope=private_function(image,'retire_owned');retire_tables=private_function(image,'retire_valid');private_scope=private_function(image,'sdm_input_final_scope')
  fixed={'__FES_SMMU_PROBE_START__':0x94000000,'__FES_SMMU_STREAMS__':0x94000000,'__FES_SMMU_SDM_ROOT__':0x94004000,'__FES_SMMU_CMDQ__':0x94008000,'__FES_SMMU_EVTQ__':0x94009000,'__FES_SMMU_PROBE_END__':0x94010000}
  roots=('fes_nano_sdm_source_prepare','fes_nano_sdm_source_start_ready','fes_nano_sdm_source_validate','fes_nano_sdm_source_finish','fes_nano_sdm_transfer_result','nano_probe_arm','nano_sdm_transfer_before','nano_sdm_transfer_response','nano_sdm_transfer_status_result','mailbox_read_response_async_expected','nano_source_retire','nano_source_continue','nano_cmdq_submit','fes_nano_sdm_transfer_control_begin','fes_nano_sdm_transfer_control_finish','fes_nano_sdm_source_control_ready','fes_nano_sdm_control_mailbox_idle','fes_nano_sdm_source_reader_ready','fes_nano_sdm_transfer_reader_ready','nano_sdm_reader_observed')
- if checked(profile)['format']==17:
+ if checked(profile)['format'] in (17,18):
   roots+=('fes_nano_platform_release_source','fes_nano_sdm_transfer_release_source',
           'fes_nano_sdm_transfer_source_released','fes_nano_sdm_vendor_source_idle','nano_probe_init_rearmed_input')
   for name in roots[-5:]:strong_function(image,name)
   if any(marker not in image for marker in (b'FES_NANO_SOURCE_RELEASE status=',b'FES_NANO_SOURCE_REARM status=')):
    raise ValueError('repeated-load release/rearm implementation markers absent')
+ if checked(profile)['format']==18:
+  roots+=('fes_nano_sdm_source_recover','fes_nano_bridge_platform_cold_reset_held','fes_nano_platform_cold_reset_request')
+  for name in roots[-3:]:strong_function(image,name)
+  private_function(image,'sdm_recovery_scope')
+  if any(marker not in image for marker in (b'FES_NANO_RECOVERY_ATTEMPT build=',b'FES_NANO_RECOVERY_RETURN build=')):
+   raise ValueError('selected terminal recovery implementation absent')
  if any(symbols.get(n,(0,))[0]!=v for n,v in fixed.items()) or any(n not in symbols for n in roots) or any(n in symbols for n in ('fes_nano_sdm_fault64_arm','fes_nano_sdm_probe_arm_park','fes_nano_sdm_input_arm_park')):
   raise ValueError('input arena/hooks absent or conflicting diagnostic installed')
  if any(marker not in image for marker in (profile['chain_sha256'][:16].encode(),b'FES_NANO_INPUT_RESULT build=',b'FES_NANO_RETIRE_RESULT build=',b'FES_NANO_RETIRE_TIMING build=',b'FES_NANO_RETIRE_QUEUE build=',b'FES_NANO_INPUT_CONTINUE build=',b'FES_NANO_INPUT_PARK retained=1 resume=0 activated=0')):raise ValueError('input build/terminal markers absent')

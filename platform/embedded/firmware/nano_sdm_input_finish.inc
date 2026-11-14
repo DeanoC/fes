@@ -9,6 +9,9 @@
 #endif
 /* SPDX-License-Identifier: BSD-3-Clause */
 #include "nano_sdm_retire_platform.inc"
+#if defined(FES_NANO_SDM_COLD_RECOVERY) && FES_NANO_SDM_COLD_RECOVERY == 1
+#include "nano_sdm_recovery_platform.inc"
+#endif
 #ifndef FES_NANO_INPUT_BUILD
 #error Explicit_sealed_input_transfer_build_required
 #endif
@@ -87,5 +90,12 @@ int fes_nano_sdm_source_finish(uint32_t status,uint32_t detail)
    (unsigned long long)source_retirement.continuation_observed,
    source_retirement.bad_offset,source_retirement.bad_value);
  NOTICE("FES_NANO_INPUT_PARK retained=1 resume=0 activated=0\n");
+#if defined(FES_NANO_SDM_COLD_RECOVERY) && FES_NANO_SDM_COLD_RECOVERY == 1
+ if(proof && source_retirement.failed){
+  NOTICE("FES_NANO_RECOVERY_ATTEMPT build=%s retained=1 reuse=0 activated=0\n",FES_NANO_INPUT_BUILD);
+  int recovery=fes_nano_sdm_source_recover();
+  NOTICE("FES_NANO_RECOVERY_RETURN build=%s error=%d retained=1 resume=0 reuse=0 activated=0\n",FES_NANO_INPUT_BUILD,recovery);
+ }
+#endif
  for(;;)FES_PROBE_WAIT();
 }

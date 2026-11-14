@@ -91,6 +91,21 @@ def source_wire(source=4, previous=None, descriptor=None, role='menu'):
 
 
 class SourceSequenceTests(unittest.TestCase):
+    def test_selected_recovery_never_continues_the_old_sequence(self):
+        def selected():
+            p=warm_profile();p['chain_sha256']=BUILD+'1'*48
+            p['sdm_input_transfer']=mode.selected(p,True,source_rearm=True,source_recovery=True)
+            native=dict(p,program='fpgaload',sources=copy.deepcopy(p['sdm_cpu_rearm']['sources']))
+            return SourceSequence(p,native,p['sdm_reader_route'],BOOT)
+        clean=selected();clean.observe(source_wire(),CONFIG,4,0,'menu')
+        self.assertFalse(clean.failed)
+        for marker in (b'FES_NANO_RECOVERY_ATTEMPT',b'FES_NANO_RECOVERY_RETURN'):
+            sequence=selected()
+            with self.subTest(marker=marker),self.assertRaises(ValueError):
+                sequence.observe(source_wire()+marker+b' retained=1\n',CONFIG,4,0,'menu')
+            self.assertTrue(sequence.failed)
+            with self.assertRaises(ValueError):sequence.observe(source_wire(),CONFIG,4,0,'menu')
+
     def test_twelve_changing_sources_wrap_queues_and_jobs(self):
         sequence=model()
         source,previous=4,0

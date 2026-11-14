@@ -172,7 +172,10 @@ static void fault_case(unsigned fault)
  assert(fes_nano_sdm_transfer_prepare() && smmu_reads==reads_after && cb_stores==stores_after && smmu_writes==writes_before);
  assert(!mbox_db_lock && !mbox_read_lock && !mbox_write_lock);
 }
-int main(void)
+#ifndef FES_TEST_WARM_SERVICE_MAIN
+#define FES_TEST_WARM_SERVICE_MAIN main
+#endif
+int FES_TEST_WARM_SERVICE_MAIN(void)
 {
  for(unsigned n=0;n<=40;n++){
   pid_t child=fork();assert(child>=0);

@@ -101,6 +101,13 @@ int fes_nano_boot_usb_pio_matches(const struct fes_nano_bridges *,void *context,
     int (*observe)(void *,uint64_t,uint64_t,uint32_t *),
     int (*quiesce)(void *,uint32_t),int (*quiescent)(void *,uint32_t *),
     int (*snapshot)(void *,uint64_t,uint64_t,uint32_t *,uint32_t *,uint32_t *,uint32_t *));
+/* Cached callback identity only for trusted terminal recovery after BOTH
+ * bridge and boot authority have been revoked. Never ordinary ownership,
+ * containment, reset completion or permission to use a device. */
+int fes_nano_boot_usb_pio_recovery_matches(const struct fes_nano_bridges *,void *context,
+    int (*observe)(void *,uint64_t,uint64_t,uint32_t *),
+    int (*quiesce)(void *,uint32_t),int (*quiescent)(void *,uint32_t *),
+    int (*snapshot)(void *,uint64_t,uint64_t,uint32_t *,uint32_t *,uint32_t *,uint32_t *));
 #ifdef __cplusplus
 }
 #endif

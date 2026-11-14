@@ -170,7 +170,7 @@ int fes_nano_usb_master_binding_matches(struct fes_nano_usb_master *m,const stru
 {
     return fes_nano_boot_usb_pio_matches(b,m,master_observe,master_stop,master_quiet,master_snapshot);
 }
-static inline __attribute__((always_inline)) int shared_valid(void *context,const struct fes_nano_bridges *b,const struct fes_nano_usb_platform *p)
+static inline __attribute__((always_inline)) int shared_valid_mode(void *context,const struct fes_nano_bridges *b,const struct fes_nano_usb_platform *p,unsigned recovery)
 {
     struct fes_nano_usb_master *m=context;
     if (!m || !m->initialized || m->failed || !m->composition || !b || !p || !producer_policy(m)) return 0;
@@ -179,7 +179,8 @@ static inline __attribute__((always_inline)) int shared_valid(void *context,cons
         m->owner!=s->owner || m->epoch!=s->epoch ||
         s->cold->devices.context!=s || !s->cold->devices_bound ||
         s->cold->devices.snapshot!=snapshot || s->cold->devices.usb_contained!=observe_usb_contained ||
-        !fes_nano_usb_master_binding_matches(m,b)) return 0;
+        !(recovery ? fes_nano_boot_usb_pio_recovery_matches(b,m,master_observe,master_stop,master_quiet,master_snapshot) :
+                      fes_nano_usb_master_binding_matches(m,b))) return 0;
     uint32_t released;
     if (snapshot(s,&released)!=1 || b->device_lease!=s->sd->active ||
         s->owner!=b->state.owner || s->epoch!=b->epoch ||
@@ -192,6 +193,11 @@ static inline __attribute__((always_inline)) int shared_valid(void *context,cons
     if (p->active && !p->confirmed && reset!=FES_NANO_BRIDGES_ALL) return 0;
     return 1;
 }
+static inline __attribute__((always_inline)) int shared_valid(void *context,const struct fes_nano_bridges *b,const struct fes_nano_usb_platform *p)
+{return shared_valid_mode(context,b,p,0);}
+int fes_nano_usb_master_recovery_binding(struct fes_nano_usb_master *m,const struct fes_nano_bridges *b,
+    const struct fes_nano_usb_platform *p)
+{return shared_valid_mode(m,b,p,1);}
 int fes_nano_usb_master_service_valid(struct fes_nano_usb_master *m,const struct fes_nano_bridges *b,
     const struct fes_nano_usb_platform *p)
 {

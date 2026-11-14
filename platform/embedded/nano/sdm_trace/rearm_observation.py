@@ -52,7 +52,7 @@ def record(line, prefix, fields):
 
 class SourceSequence:
     def __init__(self, profile, build_record, retained_reader_route, boot):
-        require(mode.checked(profile) == mode.REARM_CONTRACT, 'explicit repeated-load boot contract required')
+        require(mode.checked(profile) in (mode.REARM_CONTRACT,mode.RECOVERY_CONTRACT), 'explicit repeated-load boot contract required')
         native = dict(build_record,
                       native_program=build_record.get('native_program', build_record.get('program')),
                       native_build_sources=build_record.get('native_build_sources', build_record.get('source_sha256',build_record.get('sources'))))
@@ -86,6 +86,8 @@ class SourceSequence:
     def _observe(self, data, descriptor, source, previous, role):
         require(type(data) is bytes and 0 < len(data) <= 1 << 20 and data.endswith(b'\n') and b'\0' not in data,
                 'complete bounded per-load firmware capture required')
+        require(b'FES_NANO_RECOVERY_' not in data,
+                'terminal recovery ends this source sequence; fresh boot admission required')
         require(role in ('menu', 'computer') and type(source) is int and 0 < source < (1 << 64)-2,
                 'explicit source generation and compiled role required')
         warm = self.last is not None

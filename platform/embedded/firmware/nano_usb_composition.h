@@ -52,4 +52,8 @@ struct fes_nano_usb_shared_ops fes_nano_usb_master_service_ops(struct fes_nano_u
 int fes_nano_usb_master_binding_matches(struct fes_nano_usb_master *,const struct fes_nano_bridges *);
 int fes_nano_usb_master_service_valid(struct fes_nano_usb_master *,const struct fes_nano_bridges *,
     const struct fes_nano_usb_platform *);
+/* Trusted terminal recovery: cached identity and reservation checks after
+ * revocation. No device access or live containment/ordinary ownership grant. */
+int fes_nano_usb_master_recovery_binding(struct fes_nano_usb_master *,const struct fes_nano_bridges *,
+    const struct fes_nano_usb_platform *);
 #endif
