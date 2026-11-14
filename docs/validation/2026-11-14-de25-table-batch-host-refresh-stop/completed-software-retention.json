@@ -1,0 +1,11 @@
+{
+  "status": "passed-exact-completed-table-batch-checks-retention",
+  "source_head": "5764c9495b6597da306546879194100021986a37",
+  "archive": "/home/deano/fes-retained/de25-table-batch-completed-checks-20261114-r1/checks.tar.gz",
+  "archive_sha256": "4f0e0f14e073d132e48f394c80efa0b0ee74f0ad2f00a4af06ae5cf1c408493d",
+  "all_eleven_selected_phases_passed": true,
+  "native_modules_completed": 30,
+  "native_outer_wrapper_passed": true,
+  "CI_assessed": false,
+  "batch_hardware_not_executed_due_host_refresh_timeout": true
+}
