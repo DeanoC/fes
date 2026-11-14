@@ -411,6 +411,15 @@ merge.)
 and no combat message in the text panel, in a grab taken immediately before the
 window. Gate 2 is unchanged.
 
+**On the step counter and adjacent steps.** `scroll_events.py` groups a run of
+consecutive changed frames into one event, so it would merge two steps that
+redrew on adjacent frames. In the windows actually read that does not arise:
+the events are one or two frames long and the median gap between them is 13 to
+17 frames at 30 fps. Merging would need steps about an order of magnitude
+faster than anything measured here, and it is a real limit only for a capture
+whose gaps approach its event lengths — which is a reason to check the gaps
+before trusting a figure, not a correction to these.
+
 ## Seventh amendment: the step counter, and the route the walk uses
 
 Written after the reference's first valid windows were read and before any kit
@@ -452,6 +461,16 @@ three windows a side and why the standard error is quoted with it.
 its standard error stated. On the reference that is 2.07 ± 4.4%, comfortably
 inside a ±10% band; a kit mean further than 10% from 2.07 fails, and one
 inside it passes only if its own windows are as consistent.
+
+> **Retracted by the correction below, and it should not have been written.**
+> This paragraph replaced the precommitted repeat-spread gate — "undecided
+> unless the repeats' spread is well inside the band" — with a mean-and-standard-
+> error rule, *after* seeing repeats that fail the original: 1.765 to 2.308 at
+> one key rate. Relaxing a gate to fit the numbers it just failed is exactly
+> what this record is not allowed to do. The original gate stands, `sq1`'s
+> repeats fail it, and the walk is reported below as not measurable rather than
+> rescued by a looser rule. No future kit result may be judged against 2.07.
+
 
 ## Correction to the seventh amendment: there is no plateau, and the walk is not measurable this way
 

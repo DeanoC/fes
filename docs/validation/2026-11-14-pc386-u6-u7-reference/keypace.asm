@@ -11,8 +11,17 @@
 ; first key to the last is what the rate is taken from: over ten seconds the
 ; mean interval is good to about half a percent.
 ;
+; **The first key starts the clock and is not counted.** Timing has to begin at
+; a key, not at the program's start, or the span would include however long the
+; driver took to get going. So a run sends one priming tap, then the sequence
+; under test, and KEYS is the count *after* the primer: 60 bursts behind one
+; priming tap print KEYS=60, and a ten-second hold behind one prints KEYS=1. A
+; run that sends N taps with no primer prints N-1, which is the tool's own
+; arithmetic and not a dropped key — send the primer and the two cannot be
+; confused.
+;
 ; Run it, let the driver send its taps, then press q. It prints
-;   KEYPACE KEYS=<n> SPAN=<ticks>
+;   KEYPACE KEYS=<n, excluding the priming key> SPAN=<ticks>
 ;   <tick of key 1> <tick of key 2> ...        (hex, relative to key 1, 8/line)
 ; and stops on q, on 64 keys, or after 1092 ticks (60 s) from the first key.
 ; Assemble: nasm -f bin -o KEYPACE.COM keypace.asm.
@@ -26,9 +35,9 @@ TIMEOUT equ 1092                        ; ticks from the first key
 start:  cld
         mov si, txt_banner
         call puts
-        xor bp, bp                      ; keys recorded
+        xor bp, bp                      ; keys recorded, excluding the priming key below
 
-.first: mov ah, 0x01                    ; wait for the first key
+.first: mov ah, 0x01                    ; the priming key: starts the clock, not counted
         int 0x16
         jz .first
         mov ah, 0x00

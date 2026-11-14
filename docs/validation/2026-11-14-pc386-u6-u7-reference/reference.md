@@ -51,8 +51,11 @@ in that row is an accelerator card in an IBM PC/XT, not an AT-class board.) The
 kit's 286-12 preset, at 33, scores where that database's real 16 MHz 286 boards
 do. The 386
 reference sits inside the real range but on the slow side of it, which is what
-a 1988 chipset with no cache and shadow RAM off should do; a cached 386DX-25
-of 1990 would score higher.
+a 1988 chipset with no cache and shadow RAM off should do. The obvious
+explanation — that a cached 386DX-25 of 1990 would score higher — **is not
+borne out here**: the cached `asus3863364k` was benchmarked for exactly that
+comparison and scores the same 40. Whatever holds this score down is not the
+cache, and no follow-up should assume that difference.
 
 CHKCPU 1.25 reports the 386 reference as a "classic 386" at 26.3 MHz, against
 26.4 MHz for the kit's 386DX-25 preset. It refuses to run on the 286 reference
