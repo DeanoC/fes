@@ -1,6 +1,7 @@
 """Fixed DE10-Nano video/audio evidence with caller-owned resource expectations."""
 from __future__ import annotations
 
+import json
 import math
 import re
 from pathlib import Path
@@ -110,9 +111,36 @@ def hps_ddr_layout_evidence(design: dict, label: str, source_root: Path, *, idle
     return {"interface": "fes.memory.hps-ddr", "major": 1, "minor": 0, "cfg": observed, "idle": idle}
 
 
+# nextpnr's CellPinState (mistral/archdefs.h): PIN_0 = 1 and PIN_1 = 2.
+_PINMAP_CONSTANTS = {1: "0", 2: "1"}
+
+
+def _pinmap_states(cell: dict) -> dict[str, int]:
+    """Return a routed cell's FES_PINMAP_V1 pin states, or none if it has no map."""
+    encoded = cell.get("attributes", {}).get("FES_PINMAP_V1")
+    if encoded is None:
+        return {}
+    try:
+        pins = json.loads(bytes.fromhex(encoded).decode("utf-8"))["pins"]
+    except (TypeError, ValueError, KeyError, UnicodeDecodeError) as exc:
+        raise BuildError("fpga2sdram FES_PINMAP_V1 is not a valid pin map") from exc
+    if not isinstance(pins, dict):
+        raise BuildError("fpga2sdram FES_PINMAP_V1 is not a valid pin map")
+    states = {}
+    for name, data in pins.items():
+        if not isinstance(data, list) or not data or type(data[0]) is not int:
+            raise BuildError("fpga2sdram FES_PINMAP_V1 is not a valid pin map")
+        states[name] = data[0]
+    return states
+
+
 def layout_graph_with_constants(graph: dict) -> dict:
     # nextpnr packs static cfg bits onto MISTRAL_CONST nets. Resolve only its
     # explicit zero/one cells; arbitrary signals remain nonconstant and fail.
+    # Since nextpnr #327 the packer instead disconnects a constant HPS input
+    # and bitgen programs it from the pin's PIN_0/PIN_1 state, so a cfg bit on
+    # a net nothing drives resolves from the cell's own pin map. A driven net,
+    # or a pin in any other state, stays nonconstant and fails.
     cells = graph["modules"]["top"]["cells"]
     constants = {}
     for cell in cells.values():
@@ -125,15 +153,33 @@ def layout_graph_with_constants(graph: dict) -> dict:
             if q[0] in constants:
                 raise BuildError("multiple constant drivers on DDR configuration net")
             constants[q[0]] = str(int(lut, 2))
+    driven = set(constants)
+    for cell in cells.values():
+        directions = cell.get("port_directions", {})
+        for port, bits in cell.get("connections", {}).items():
+            if directions.get(port) != "input" and isinstance(bits, list):
+                driven.update(bit for bit in bits if type(bit) is int)
+    for port in graph["modules"]["top"].get("ports", {}).values():
+        if port.get("direction") != "output":
+            driven.update(bit for bit in port.get("bits", ()) if type(bit) is int)
     normalized = dict(cells)
     for name, cell in cells.items():
         if cell.get("type") != "cyclonev_hps_interface_fpga2sdram":
             continue
+        states = _pinmap_states(cell)
         connections = dict(cell.get("connections", {}))
         for port in HPS_DDR_CFG_PORTS:
             bits = connections.get(port)
-            if isinstance(bits, list):
-                connections[port] = [constants.get(bit, bit) if type(bit) is int else bit for bit in bits]
+            if not isinstance(bits, list):
+                continue
+            resolved = []
+            for index, bit in enumerate(bits):
+                if type(bit) is int and bit in constants:
+                    bit = constants[bit]
+                elif type(bit) is int and bit not in driven:
+                    bit = _PINMAP_CONSTANTS.get(states.get(f"{port}[{index}]"), bit)
+                resolved.append(bit)
+            connections[port] = resolved
         normalized[name] = {**cell, "connections": connections}
     return {"modules": {"top": {**graph["modules"]["top"], "cells": normalized}}}
 
