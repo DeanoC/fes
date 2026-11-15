@@ -125,11 +125,28 @@ figures are derived rather than transcribed:
 re-measured here.
 
 **The swing is measurable, and it is bigger than some of these margins.** The
-same `ramtest` 100 MHz package was built at two identities a few commits apart:
-`ram_clock.clocks[0]` achieved 103.670 MHz here and 100.980 MHz at
-DeanoC/fes#1881's head — 2.7 percentage points of margin, from a change that
-compiles to no RTL. Earlier runs of that core recorded 102.38 and 101.44, so the
-figure drifts with identity rather than tracking anything functional.
+same `ramtest` 100 MHz package, `ram_clock.clocks[0]` against a 100.0
+constraint, across four identities:
+
+| identity | achieved | margin |
+| --- | ---: | ---: |
+| DeanoC/fes#1881 head | 100.97950 | +0.98% |
+| (earlier) | 101.44046 | +1.44% |
+| (earlier) | 102.37511 | +2.38% |
+| this record's head | 103.67000 | +3.67% |
+
+2.69 percentage points of spread on one package, from changes that compile to no
+RTL. The figure drifts with identity rather than tracking anything functional.
+The three lower readings are DeanoC/fes#1881's measurements, not re-derived here.
+
+**Two ways to say which cores this bites, and they agree.** By the swing above,
+anything inside about 2.7pp of its constraint can flip. The DeanoC/fes#1881 work
+offers the blunter version, a binding clock sitting within roughly a megahertz of
+its constraint, and on this table both pick out the same core: `sms` clears by
+**0.843 MHz** (53.067 against 52.225), and nothing else among these is close. The
+corollary matters more than the rule: for a core in that band, **a condition-3
+pass at a neighbouring commit is worth nothing**, because the identity it was
+measured under is not the identity that ships.
 
 So `sms`, at +1.61%, is **inside** that band: it passed this time and could fail
 on the next identity move, exactly as `coleco_v2` did. That is the concrete case
