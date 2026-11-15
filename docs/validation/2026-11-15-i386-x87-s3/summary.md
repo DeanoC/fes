@@ -245,6 +245,59 @@ mismatch of its own -- which reads as a program that simply did not halt. All
 six programs failed that way until it was extended, and the diagnostic the
 record's reproduction prints now names `unbuilt` for that reason.
 
+## Area and timing
+
+Every figure here is Quartus 17.0.2 at the seal's settings, seed 1, through
+**the chip host's CUDA toolchain slot**, and the fits were run on
+`3dcc08cc037c91d666e2b3283ecf64c4ca389ae0` — whose RTL is byte-identical to
+the frozen head's, the only differences between them being two testbench
+files that no fit reads. The merge-base tree's pc386 firmware was copied from
+the branch tree's after its own build failed for want of `gperf` on that
+host; the two trees change no firmware source, and the copy validates with
+the same ROM and VGA BIOS digests, so it is the same artefact and not a
+substitute.
+
+Why one slot for all of them: the HIP and CUDA slots' Yosys binaries differ,
+so their netlists are the same logic with different net numbering and Quartus
+fits them differently — 36,055 against 36,069 ALMs and setup +0.594 against
++0.410 on identical RTL, which is the size of the deltas this slice reports.
+That is also why none of these are differenced against slice 2's published
+figures, which were HIP.
+
+### The unit on its own
+
+| Fit | ALMs | DSP | M10K | CPU setup (ns) | CPU hold (ns) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| slice 2's `unit`, seed 1 (its record) | 1,888 | 9 | 4 | +0.656 | +0.085 |
+| this slice's `unit`, seed 1 | **4,076** | 9 | 4 | **+0.570** | +0.053 |
+
+So the arithmetic is about **+2,188 ALMs standalone**, and it **meets the
+clock**: the datapath closes in isolation with +0.57 ns. The **DSP and M10K
+counts have not moved** — all of it came out of logic, and none out of the
+device's multipliers or memories, which is where slice 4's seed tables will
+go. These two are through different slots (slice 2's CUDA, this one's HIP on
+Powerboat), so read +2,188 as indicative; the machine fits below are the
+within-slot measurement.
+
+For scale, slice 1's fit spike measured the *whole* of option A — slow path
+and transcendentals included — at 2,134 ALMs standalone. The arithmetic alone
+is as large as the spike's figure for all of it. The spike fitted a bare
+datapath with no CPU interface, no register file, no conversions and no
+exception plumbing, which is why it also under-counted slice 2 by about the
+same margin; the cost is in what a sketch of an algorithm leaves out — the
+alignment and normalisation paths, the PC-aware rounder, the operand
+classification and NaN rules, the exception sequencing, and the sequencer
+that drives four passes of one multiplier.
+
+### The machine
+
+| Fit | ALMs | % of device | DSP | M10K | CPU setup (ns) | CPU hold (ns) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| this branch, identity off (as the package ships) | **36,392** | 86.8% | 40 | 282 | **+0.576** | +0.055 |
+| this branch, identity on | (pending) | | | | | |
+| the merge-base, identity off | (pending) | | | | | |
+| the merge-base, identity on | (pending) | | | | | |
+
 ## What is left
 
 - **TestFloat's extF80 vectors, which the plan names as this slice's gate,
