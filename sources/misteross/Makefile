@@ -95,6 +95,7 @@ help:
 		"  sim-fes-coleco-session  Test the Coleco mailbox, native part raster and live DDR session display" \
 		"  synth-fes-native-video  Diagnostic locked synthesis, requires CACHE_ROOT; no route/seal" \
 		"  sim-fes-z80  Test original NMOS and documented fast Z80 RTL" \
+		"  sim-fes-de25-x87  Check the standalone DE25 x87 arithmetic pipeline against host x87" \
 		"  sim-fes-riscv  Test the original RV32I CPU, the fes.riscv system and its board shell" \
 		"  build-fes-riscv  Seal FES RISC-V with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
 		"  sim-fes-tms9918-timing  Check the shared ~60 Hz NTSC raster enable across Coleco clock rates" \
@@ -251,6 +252,11 @@ build-fes-ramtest-quartus:
 sim-fes-application:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_application.py --verilator "$(VERILATOR)"
+
+.PHONY: sim-fes-de25-x87
+sim-fes-de25-x87:
+	$(require_local_sim)
+	$(PYTHON) boards/de25nano/x87/run.py --verilator "$(VERILATOR)"
 
 .PHONY: sim-fes-video-parts build-fes-coleco-video build-fes-video-part
 sim-fes-video-parts:
