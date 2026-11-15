@@ -583,6 +583,18 @@ The load's eleven active interfaces are exactly the manifest's, **`fes.pc386.mac
 among them**, which is the check that the kit ran this package and not a
 cached core.
 
+**The check that the kit got the sealed bits was specified wrongly first,
+and the right one is in the repository.** The plan was to compare the
+`.fcore`'s sha256 with its filename before loading it. That failed, because
+a package id is not the tar's hash: `scripts/core_package.py`'s
+`package_identity` hashes `FES-CORE-PACKAGE-2\n`, then the manifest and the
+payload each with a length prefix. Recomputing *that* over the transferred
+file reproduces `48717256…` exactly, and the payload inside it hashes to
+`926271cf…`, the `rbf.sha256` in the seal's own build summary. So the copy
+is provably the sealed artefact. The failed check was not a gate the
+artefact failed -- it was a gate written against a guessed format, and the
+fix was to read the packager rather than to invent a second check.
+
 **What this run is evidence of, and what it is not.** The identity is off in
 this package, so the run exercises **none** of this slice's arithmetic: it
 is a regression check that the machine around the unit still boots and plays
