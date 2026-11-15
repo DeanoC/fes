@@ -319,3 +319,23 @@ each point early. **Committed now, before the run:** key `6` at
 840.72 × 769/736 = **875.4 Hz**, from the measured pass rates alone, and the
 check is ±3%, the same margin as the reproduction gate. Analysed by
 `notes_pitch.py`, the same autocorrelation PR #1838 used.
+
+## Correction, 15 November, while run `h1` was in flight and before any of its
+## audio was opened
+
+Two corrections to the amendment above, neither of which changes a rule.
+
+1. **The committed lute figure was an arithmetic slip.**
+   840.72 × 769/736 is **878.4 Hz**, not the 875.4 written above; the ±3%
+   window is **852.1 to 904.8 Hz**. (The prediction table near the top of this
+   file, computed from the charges rather than the measured pass rates, gave
+   ≈877 Hz, which is the same number.) No `h1` audio had been opened when this
+   was written; the run was still playing.
+2. **"The same class" was wrong about the `cmp` pair.** `cmp word [m], imm` is
+   class `test_m` and `cmp ax, [m]` is class `cmp_load`. They are *different*
+   classes that the 286 column happens to give the same cost, 6. So the kit
+   charging them alike is a table *value*, not a structural impossibility, and
+   a table can be made to separate them. The structural claim in the second
+   amendment stands only for what it actually says — the governor's ports
+   carry no instruction address or length — and the right word throughout is
+   **does not**, not *cannot*.
