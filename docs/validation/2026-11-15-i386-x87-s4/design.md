@@ -325,3 +325,31 @@ counts the cases that exercise it. That is what catches the RTL diverging from
 this model — the model's own value class normalises more freely than the RTL's
 registers will, which is exactly the kind of difference an assertion finds and
 a comparison of results does not.
+
+## How the remainder is actually formed, which the model does not show
+
+The model computes `rem = A·2^(65+s) - C0·B` in Python's unbounded integers.
+Both terms are about 2^129; only their difference is small. The RTL cannot
+materialise a 131-bit subtract, and it does not have to: because
+`|rem| < 2·E·B`, the remainder is **exactly represented by the low bits** of a
+modular subtraction, with the sign in the top bit.
+
+So the RTL keeps a **96-bit** remainder and forms it modularly:
+
+- `A·2^(65+s) mod 2^96` is `A[30-s:0] << (65+s)` — only A's low 31 bits reach
+  below bit 96, so the big shift is a wire selection and not a shifter;
+- `C0·B mod 2^96` is `mul_p[95:0]` plus `((C0[66:64] · B)[31:0] << 64)`, since
+  `C0` is 67 bits: the 64×64 product the multiplier already computes, plus
+  three shifted adds of `B[31:0]` for the candidate's bits above 63;
+- the restoring steps subtract `B << i` for `i < k`, at most 71 bits, which
+  fits;
+- the sticky bit is `rem != 0` over the whole 96 bits, which is exact because
+  the true remainder is in range.
+
+**So the register is 96 bits in the RTL, not the 74 the model's value bound
+gives.** That is an inferred figure from the modular construction, not a
+measured one, and the fit is what will price it. It is recorded here because
+the 74 is the *value's* width and the 96 is the *representation's*, and
+quoting the model's number as the hardware's would be the same mistake this
+record has already made twice. The 74 remains the right figure for how wide
+the remainder's value ever gets; nothing in the slice needs a 131-bit adder.
