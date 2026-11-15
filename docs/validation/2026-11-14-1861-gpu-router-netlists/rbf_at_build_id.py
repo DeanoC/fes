@@ -73,7 +73,62 @@ def route_menu(tree: Path, cache_root: Path, build_id: str):
         invocation.close()
 
 
-CORES = {"fes.menu": route_menu}
+def _zx81_model(model: str):
+    """ZX81-family route: a generated socket QSF and a netlist transform first.
+
+    Mirrors build_fes_zx81_oss.build() between _prepare_output and
+    route_after_synth: the shell QSF written into the output, Yosys, then
+    prepare_shell_netlist, then the search with the socket accept hook. Each
+    step matters, which is why the control run on main has to reproduce the
+    producer's own RBF before any of this is trusted.
+    """
+    def route(tree: Path, cache_root: Path, build_id: str):
+        producer = _load(tree, "build_fes_zx81_oss")
+        from scripts.functional_execution import FunctionalInvocation
+        from scripts.search_placer_qor import route_after_synth
+        from scripts import zx81_expansion
+
+        machine = producer.model_for(model)
+        qor_mode = "first-pass-paired"
+        qor_weights, qor_budget = producer.placement_policy(qor_mode)
+        authenticated = producer._authenticate_tools(
+            producer.ROOT, cache_root=cache_root, gpu_router="HIP")
+        invocation = FunctionalInvocation(authenticated, 0)
+        try:
+            output = producer._prepare_output(producer.ROOT, machine.output)
+            (output / "socket.qsf").write_text(
+                zx81_expansion.shell_qsf((producer.ROOT / producer.QSF).read_text()))
+            yosys, _route = producer.build_commands(
+                producer.ROOT, output, build_id,
+                {n: authenticated[n].path for n in ("yosys", "nextpnr-mistral")},
+                model=model)
+            producer._run_tool(yosys, producer.ROOT, output / "yosys.log",
+                               output_relative=machine.output,
+                               env=invocation.env, audit_source_root=producer.ROOT)
+            if not (output / "synth.json").is_file():
+                raise SystemExit("Yosys produced no synthesis evidence")
+            zx81_expansion.prepare_shell_netlist(output / "synth.json")
+            winner = route_after_synth(
+                nextpnr=authenticated["nextpnr-mistral"].path,
+                fixture=output / "synth.json", dest=output, device=producer.TARGET,
+                qsf=output / "socket.qsf", sdc=producer.ROOT / producer.SDC,
+                freq=producer.PNR["freq"], seeds=producer.PLACER_SEEDS,
+                weights=qor_weights, critexp=producer.PLACER_CRITICALITY_EXPONENT,
+                budget=qor_budget, mode=qor_mode, extra=(),
+                required=producer.PLACER_QOR_CLOCKS, timeout=producer.PNR["timeout_s"],
+                gpu_devices=(invocation.gpu_device,),
+                accept=zx81_expansion.accept_socket_route, core_id=machine.core_id,
+                env=invocation.env, audit_source_root=producer.ROOT)
+            return output, {n: t.identity for n, t in authenticated.items()}, winner
+        finally:
+            invocation.close()
+    return route
+
+
+CORES = {
+    "fes.menu": route_menu,
+    "fes.zx81": _zx81_model("zx81"),
+}
 
 
 def main(argv=None) -> int:
