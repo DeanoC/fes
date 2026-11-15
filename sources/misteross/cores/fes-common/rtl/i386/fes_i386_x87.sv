@@ -397,6 +397,11 @@ module fes_i386_x87 (
     logic [6:0]  pr_n;           // ... how many quotient bits it consumed
     logic        pr_part;        // ... and whether it is a partial step
     logic        pr_one;         // the form is FPREM1, so the quotient rounds
+    logic [95:0] dv_sub;          // the tail's subtrahend, held and shifted one
+                                  // place a step rather than formed by a
+                                  // variable shift (see D_TAIL)
+    logic [95:0] dv_pow;          // ... and 2^(2i), which the square root's
+                                  // trial needs and which halves twice a step
     logic [6:0]  dv_dr;           // the scale the candidate is formed at: the
                                   // precision's drop for a divide or a square
                                   // root, and 65 + s - n for a remainder step
@@ -2544,29 +2549,62 @@ module fes_i386_x87 (
                 // the candidate's bits above 63 contribute three shifted adds.
                 D_REM: if (mul_done) begin
                     logic [31:0] chi;
+                    logic [3:0]  k;
                     chi = mul3(dv_c[66:64], ob_m[31:0]);
+                    k = cur == X87_PREM ? 4'd8 : dv_steps(wprec);
                     dv_rem <= (96'(oa_m) << (7'd65 + 7'(dv_s) - dv_dr))
                             - (mul_p[95:0] + {chi, 64'd0});
+                    // The tail's first subtrahend: B << (k - 1), where k is
+                    // one of three constants, so this is a mux and not a
+                    // shifter.
+                    dv_sub <= {32'd0, ob_m} << (k - 4'd1);
+                    dv_pow <= 96'd0;
                     seq <= D_TAIL;
                 end
                 // The restoring compare-subtract steps, one a clock, a fixed
                 // count per precision: this is not an early-exit search, so a
                 // divide's latency does not depend on its operands.
+                // The restoring steps, with the subtrahend **held and shifted
+                // one place a step** rather than formed by a variable shift.
+                // Option A has no barrel shifter, and forming
+                // `B << i` or `(C << (i+1)) + 2^(2i)` from a counter put two
+                // 96-bit variable shifters on this path. Both recurrences are
+                // exact:
+                //
+                //   divide       S(i) = B * 2^i,  so S(i-1) = S(i) / 2.
+                //   square root  S(i) = C(i) * 2^(i+1) + 2^(2i), and with
+                //                P(i) = 2^(2i),
+                //                  taken      S(i-1) = S/2 + P/2 + P/4
+                //                  not taken  S(i-1) = S/2 - P/2 + P/4
+                //                because taking the step moves C by 2^i.
+                //
+                // Every shift there is by one or two places, and the step
+                // count is still fixed by precision control, so the latency
+                // does not move.
                 D_TAIL: begin
-                    logic [95:0] trial, sub;
+                    logic [95:0] trial, nsub;
                     logic [3:0]  i;
                     i = dv_k - 4'd1;
-                    // The divide subtracts the divisor shifted; the square
-                    // root subtracts (C + 2^i)^2 - C^2, which is
-                    // (C << (i+1)) + 2^(2i) -- two shifts and an add, so the
-                    // square root's tail needs no multiply at all.
-                    sub = cur == X87_SQRT ? ((96'(dv_c) << (i + 4'd1)) + (96'd1 << (i + i)))
-                                          : ({32'd0, ob_m} << i);
-                    trial = dv_rem - sub;
+                    trial = dv_rem - dv_sub;
+                    nsub = (dv_sub >> 1) + (dv_pow >> 2);
                     if (!trial[95]) begin
                         dv_rem <= trial;
                         dv_c <= dv_c + (67'd1 << i);
-                    end
+                        if (cur == X87_SQRT) nsub = nsub + (dv_pow >> 1);
+                    end else if (cur == X87_SQRT)
+                        nsub = nsub - (dv_pow >> 1);
+                    dv_sub <= cur == X87_SQRT ? nsub : (dv_sub >> 1);
+                    dv_pow <= dv_pow >> 2;
+`ifndef SYNTHESIS
+                    // The recurrence against the closed form it replaces, so
+                    // a drift is caught by a check rather than by a result.
+                    if (cur == X87_SQRT) begin
+                        if (dv_sub != ((96'(dv_c) << (i + 4'd1)) + (96'd1 << (i + i))))
+                            $error("x87 sqrt tail subtrahend %h != closed form %h at i=%0d",
+                                   dv_sub, (96'(dv_c) << (i + 4'd1)) + (96'd1 << (i + i)), i);
+                    end else if (dv_sub != ({32'd0, ob_m} << i))
+                        $error("x87 divide tail subtrahend %h != B<<%0d", dv_sub, i);
+`endif
                     if (dv_k > 4'd1) dv_k <= dv_k - 4'd1;
                     else seq <= cur == X87_SQRT ? Q_FIN
                               : cur == X87_PREM ? P_FIN : D_FIN;
@@ -2702,6 +2740,11 @@ module fes_i386_x87 (
                     dv_rem <= rad - (mul_p[95:0] + {chi, 64'd0} + {chi, 64'd0});
                     dv_lost <= qsh >= 9'sd0 ? 1'b0
                              : |(oa_m & ((64'd1 << (-qsh)) - 64'd1));
+                    // S(k-1) = C0 * 2^k + 2^(2k-2) and P(k-1) = 2^(2k-2),
+                    // both at one of three constant positions.
+                    dv_sub <= (96'(dv_c) << sq_steps(wprec))
+                            + (96'd1 << (2 * sq_steps(wprec) - 4'd2));
+                    dv_pow <= 96'd1 << (2 * sq_steps(wprec) - 4'd2);
                     seq <= D_TAIL;
                 end
                 Q_FIN: begin
