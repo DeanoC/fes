@@ -2,7 +2,7 @@
 
 fes#1837. The method, with every prediction and pass rule, is in
 [`method.md`](method.md), committed before any capture and amended and
-corrected five times, each entry dated and saying what had been seen. One
+corrected six times, each entry dated and saying what had been seen. One
 rule committed there is reported **falsified**; it was not replaced.
 
 **The cause.** The game times its own delay loop against the BIOS tick at
@@ -59,8 +59,9 @@ ISA charges.
 That also reconciles #1837 with **#1840**, which has the same preset
 benchmarking 22-57% *above* real 286 boards of its clock. A machine that is
 uniformly too fast calibrates to a proportionally larger delay unit and plays
-the note at the same pitch. The two findings are not in tension and, on this
-evidence, do not share a cause; see "What this does not settle" below.
+the note at the same pitch. The two findings are not in tension. Whether they
+share a cause is neither claimed nor excluded here; see "What this does not
+settle".
 
 ## What the game does
 
@@ -83,7 +84,8 @@ accumulator: a compare, an `in`/`out` of port 61h that gates the carrier, and
 
 ## The probe
 
-`u6cal.asm` → `U6CAL.COM`, 678 bytes, NASM 2.16.03. It reports `C` (five
+`u6cal.asm` → `U6CAL.COM`, 786 bytes, NASM 2.16.03. All three sources
+committed here reassemble, with that NASM, to exactly the binaries that ran. It reports `C` (five
 repeats), the game's own integer `CAL` and `N`, and block counts over 64
 ticks for the delay loop (`BD`), that loop with five `nop`s (`BP`), with
 `cmp word [m],0` in front (`B5`), with `cmp ax,[m]` in front (`B4`), and for
@@ -108,8 +110,11 @@ also carries `BE`, `BQ` and `BR`.
 | `c1cal` | Kit A, preset 1, sealed package `fc01c956…` | the probe at word 1 = 0, 80, 120, 160; three repeats each |
 | `h1` | the same kit and package | Ultima VI's lute at word 1 = 160 |
 
-The reference is PR #1838's own VM (`vm/u6ref-286`), unchanged but for the
-drive, which is that record's reference image plus `U6CAL.COM`. The kit ran
+The reference is a copy of PR #1838's own VM (`vm/u6ref-286` → `vm/u6cal-286`),
+unchanged but for the drive, which is that record's `drv/u6ref-master.img`
+plus `U6CAL.COM`. Run `c1`'s directory name collided with a run of 14
+November; what that cost is declared in the scratch README, and `c1`'s
+figures are superseded by `c3` in any case. The kit ran
 core-only on its baseline software `c9ae79e2` and image `179affbb…`, claimed
 and released in `kitA-STATUS.md`, with no install, image change or reboot.
 Every kit load was verified from `runs/c1cal/result.json` and `acks.jsonl`.
@@ -183,7 +188,8 @@ at 8, 12 and 16 MHz; the kit gave **679, 736, 769**. The pass rate rises
 the override, and that was predicted before the run from the calibration,
 with no fault anywhere needed to explain it.
 
-**Separation gate — passed.** At word 1 = 120:
+**Separation gate — passed for the issue's three candidates; one pair of
+*mechanisms* is left unseparated.** At word 1 = 120:
 
 | | reference | kit | excess |
 | --- | ---: | ---: | ---: |
@@ -192,10 +198,22 @@ with no fault anywhere needed to explain it.
 | of which everything else in the pass | 8.312 | 9.444 | **+1.132 µs** |
 
 The pitch deficit the probe reproduces is 13.10%, split **10.74 points to the
-calibrated delay** and **2.37 points to the rest of the pass**. The gate asked
-for one hypothesis to carry at least 9 points and the others under 3 each,
-and that is what the split gives: the two loops' *relative* charge, not the
-ISA charges and not a uniform speed error.
+calibrated delay** and **2.37 points to the rest of the pass**. **Against fes#1837's own three candidates** the gate is met: its "governor's
+ISA charges" has 2.4 points, its "governor's pacing of the delay loop" has
+10.7, and its "the loop costing the kit's 386 a different number of clocks
+than the table says" is excluded outright, because the kit is paced exactly
+as it is charged at every frequency. One candidate carries more than 9 points
+and the others under 3 each.
+
+**Against the three hypotheses `method.md` named** the gate's "otherwise"
+clause applies instead, and the record says so: H2 (the ISA charges) has its
+2.4 points, but H1 (a missing fetch term) and H3 (table entries) *share* the
+10.7 and are not separated from each other. The first amendment proposed that
+the five-byte `cmp` costing more than the four-byte one would decide it for
+H1; after seeing that result the record **declines that claim**, because the
+two forms are different cost classes and a table can give them different
+numbers. Declining a claim the evidence does not carry is the only direction
+that move may go, and `method.md` records it under the same date.
 
 The 2.37 points are the per-pass overhead. #1453's ISA charge on port 61h is
 14 clocks, 1.167 µs at 12 MHz, which is the same size as the whole 1.132 µs
@@ -209,8 +227,10 @@ The probe stands in for the lute; it does not replace it. Run `h1` played
 Ultima VI's lute at preset 1 with word 1 = **160** through PR #1838's own
 command flow (160 rather than 80 because that flow's fixed sleeps were timed
 at 12 MHz, and a faster machine can only reach each point early). The
-`u6-used` grab shows `Use-lute`, so the keys landed; `result.json` shows the
-package active with `fes.pc386.machine`, and the run ended `HIL rc=0`.
+`u6-used` grab shows `Use-lute`, so the keys landed; `hil.log`'s `load` result shows the package
+active with `fes.pc386.machine` among its interfaces, `acks.jsonl` holds no
+`error` for any command, and the run ended `HIL rc=0` with Kit A released and
+its baseline re-verified read-only afterwards.
 
 **Committed before the run, from the measured pass rates alone:** key `6` at
 840.72 × 769/736 = **878.4 Hz**, checked at ±3%, so 852.1 to 904.8.
@@ -220,9 +240,12 @@ package active with `fes.pc386.machine`, and the run ended `HIL rc=0`.
 | key `6` | 878.4 Hz | **873.59 Hz** | **−0.55%** |
 | key `1` | 522.20 Hz | **521.40 Hz** | −0.15% |
 
-**Passed.** The game's own note at a frequency it had never been played at is
-predicted to better than 1% by a model fitted to nothing but the probe's
-block counts — and it is still about 9% below the reference's 962.76 Hz,
+(32 notes in each band: the 30 presses plus the two that the closing `1`-`0`
+scale contributes to each. The medians are over all 32.)
+
+**Passed.** The prediction is the kit's own 840.72 Hz at 12 MHz scaled by the
+probe's two pass rates, 769/736, and nothing else. The game's own note at a
+frequency it had never been played at comes out within 1% of it — and it is still about 9% below the reference's 962.76 Hz,
 because raising the clock cannot fix a calibrated delay.
 
 Notes in [`h1-lute-f160.json`](h1-lute-f160.json), from `notes_pitch.py`, the
@@ -267,8 +290,8 @@ still fails #1368's band.**
 
 Both entries are *undercharges*, which is also fes#1840's direction.
 
-Intel's own 286 data sheet gives `CMP mem, immediate` and `CMP reg, mem` the
-same 6 clocks, and the table follows it. The reference does not: 9.00 against
+`governor.toml` gives `test_m` and `cmp_load` the same 6 clocks in the 286
+column, from the compiled data-sheet table its header cites. The reference does not: 9.00 against
 7.00. So this is not the table departing from its stated source — it is the
 stated source departing from the machine the acceptance contract names.
 
@@ -278,10 +301,14 @@ stated source departing from the machine the acceptance contract names.
 9.00 clocks for the five-byte immediate form, 7.00 for the four-byte register
 form, same class of work and same accesses — is *consistent with* the model
 having no instruction-fetch term, which it has not: the governor's ports
-(`fes_i386_governor.sv:47-76`) carry the instruction's class, its memory
-accesses, its I/O and its MMIO, and no instruction address and no instruction
-length, though `decoded_t` does carry `length` beside `gov`
-(`fes_i386_pkg.sv:602-604`). The nearest thing to a fetch term the model has
+(`fes_i386_governor.sv:47-76`) carry its retirement flags, its `gov_t`, its
+memory accesses and its I/O and MMIO. `gov_t` is
+`{two, op[7:0], mreg[2:0], rm_reg, o32, rep, ea3}`
+(`fes_i386_pkg.sv:589-597`): the opcode, the ModRM fields, the operand size,
+a REP prefix and whether the address has base, index and displacement —
+**no instruction address and no instruction length**, though `decoded_t`
+carries `length` right beside `gov` (`fes_i386_pkg.sv:601-604`), so this is
+*does not*, not *cannot*. The nearest thing to a fetch term the model has
 is the data sheets' `m`, which `governor.toml` takes as one throughout.
 
 But it is **not separated from a table entry**, and the two tests that would

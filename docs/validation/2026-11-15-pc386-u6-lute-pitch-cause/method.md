@@ -339,3 +339,18 @@ Two corrections to the amendment above, neither of which changes a rule.
    amendment stands only for what it actually says — the governor's ports
    carry no instruction address or length — and the right word throughout is
    **does not**, not *cannot*.
+
+## Correction, 15 November, after run `h1`
+
+The first amendment said that if the five-byte `cmp` form cost materially
+more than the four-byte one on the reference, that would decide the question
+for H1, a missing fetch term. It did cost more — 9.00 against 7.00 — and the
+record **declines the claim anyway**, because the two forms are different
+cost classes (`test_m` and `cmp_load`) that the 286 column happens to give
+the same number, so a table can separate them and the result does not
+discriminate. H1 and H3 therefore share the 10.7 points and are **not
+separated**; H2 keeps its 2.4. Against fes#1837's own three candidates the
+separation gate is met, and the record says which mapping it is using.
+
+Declining a claim after seeing the result is the only direction this may go.
+No gate was loosened and no new instrument was admitted.
