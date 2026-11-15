@@ -654,14 +654,15 @@ def client_for(config_path, target=None):
         raise kitlib.KitError(f'target {name!r} is not uniquely configured')
     if not chosen[0].get('enabled', False):
         raise kitlib.KitError(f'target {name!r} is disabled')
-    # A named target wins over the environment. A gate that passes for one kit
-    # while the tail removes on another is worse than no gate, so the
-    # environment may only fill in what the chosen target does not give.
-    address = chosen[0].get('address') or os.environ.get('FOGCAST_BASE_URL', '')
-    bearer = chosen[0].get('agent') or os.environ.get('FOGCAST_TOKEN', '')
-    if target and not chosen[0].get('address'):
-        raise kitlib.KitError(f'target {name!r} gives no address')
-    client = kitlib.Client(address, bearer)
+    # The chosen target is authoritative and must be complete. Filling a gap
+    # from FOGCAST_BASE_URL/FOGCAST_TOKEN would mean reporting about one kit
+    # under another's name, which is the failure this is here to avoid; the
+    # environment belongs to the `--url` path, where it is what was asked for.
+    for field in ('address', 'agent'):
+        if not chosen[0].get(field):
+            raise kitlib.KitError(f'target {name!r} gives no {field}, so the kit it means '
+                                  f'cannot be established from this configuration')
+    client = kitlib.Client(chosen[0]['address'], chosen[0]['agent'])
     client.target_name = name
     return client
 
@@ -800,10 +801,18 @@ def parser():
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = ask.add_subparsers(dest='command', required=True)
     gate = commands.add_parser('guard-idle', help='refuse a post-run tail unless the kit is idle')
-    gate.add_argument('--config', type=Path, help='private FogCast host TOML')
-    gate.add_argument('--url', help='target agent origin (or FOGCAST_BASE_URL)')
+    # Which kit is asked about must have exactly one source. A guard that
+    # reports success about a different kit from the one the caller meant is
+    # worse than no guard, so these are alternatives rather than layers.
+    # Not required: with neither, FOGCAST_BASE_URL and FOGCAST_TOKEN are the
+    # source, which is still exactly one.
+    whose = gate.add_mutually_exclusive_group()
+    whose.add_argument('--config', type=Path,
+                       help='private FogCast host TOML (with --target, or its selected_target)')
+    whose.add_argument('--url', help='target agent origin directly, instead of --config; '
+                                     'with neither, FOGCAST_BASE_URL and FOGCAST_TOKEN')
     gate.add_argument('--target', help="the config's target to ask, e.g. dev or kit2 "
-                                       "(default: its selected_target)")
+                                       "(default: its selected_target). Needs --config")
     gate.add_argument('--wait', type=float, default=GATE_WAIT,
                       help='seconds to wait out a revoking lease (default %(default)s)')
     said = commands.add_parser('verdict', help="a run's own verdict from its result.json")
@@ -814,7 +823,11 @@ def parser():
 
 
 def main(argv=None):
-    args = parser().parse_args(argv)
+    ask = parser()
+    args = ask.parse_args(argv)
+    if args.command == 'guard-idle' and args.target and not args.config:
+        ask.error('--target names a target inside a --config file; with --url there is no '
+                  'config to name one in, and the kit asked about would not be the one meant')
     if args.command == 'verdict':
         try:
             result = json.loads(args.result.read_text())

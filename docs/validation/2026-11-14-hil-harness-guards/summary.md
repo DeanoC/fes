@@ -155,7 +155,7 @@ after checking them against the real data are red on the extraction too. All of
 them pass on the branch head:
 
     cd sources/misteross && python3 -m unittest discover -s tests -p 'test_kit*.py'
-    # 86 tests, OK (71 of them this module's)
+    # 90 tests, OK (75 of them this module's)
 
 The cleanup gate is also exercised against a real local HTTP agent replying in
 `protocol.Status`'s own shape (`state`, `game_id`, `core_package.package_id`,
@@ -493,7 +493,7 @@ trees under, which is the thing the guard exists to prevent.
 
 | gate | result |
 | --- | --- |
-| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 86 tests, OK |
+| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 90 tests, OK |
 | `tests/test_hil_plan.py` | 39 tests, OK |
 | `tests/test_affected.py`, `tests/test_test_changed.py` | 43 and 33 tests, OK |
 | `scripts/check_diff.py --base <main> --head HEAD` | exit 0 |
@@ -526,6 +526,21 @@ proposing its shape without a kit run to validate it would be guesswork.
 
 ## What these guards do not cover: a broken check
 
+**The assumption that needs testing hardest is that these checks are
+themselves right, and the sharpest evidence for that is a defect found in this
+module's own gate.** `loaded_core` inferred "nothing is loaded" from failing to
+find a `core_package` field, so a renamed field would have made a loaded kit
+read as idle — a check that silently cannot fail, sitting in the very guard
+built to stop a cleanup running under a loaded core. It was found by applying
+another session's lesson to this code rather than by a review or an incident.
+Two more of the same class followed, both in how a guard identifies what it is
+reporting about: a verdict narrower than the shell `grep` it replaced, and
+`guard-idle` accepting `--config` and `--url` together while silently dropping
+the url, so it could report success about a *different kit* than the caller
+named. The first could call a loaded kit idle; the last could call another kit
+idle. Both end with a caller acting on a kit that is not in the state they
+were told it was in.
+
 Every guard here assumes its own readiness and verdict checks are themselves
 correct. Nothing in it defends against a check that is simply wrong, and that
 class is real rather than hypothetical. The x87 slice 3 session validated its
@@ -550,10 +565,18 @@ unresolved. A guard built on a guessed schema, or on an endpoint that has
 moved, fails open or closed without telling anyone, and no amount of lease
 discipline helps.
 
-Two things were done here in that spirit rather than left to the next review.
-The verdict now validates the shape of what it reads, so a payload it cannot
-judge gives the no-verdict exit code instead of a pass or a crash. And the
-gate no longer infers "nothing is loaded" from failing to find a core: it
+Three things were done here in that spirit rather than left to the next
+review. The verdict validates the shape of what it reads, so a payload it
+cannot judge gives the no-verdict exit code instead of a pass or a crash.
+`guard-idle` now takes exactly one source for which kit it is asking about —
+`--config` (with an optional `--target`) or `--url`, or neither and then the
+environment — and rejects any combination of them rather than picking one
+silently; `--target` without `--config` is rejected too, since there is then no
+configuration for the target to name, which was the same silent drop that
+nobody had reported. A target inside a configuration must also be complete:
+filling a missing address or token from `FOGCAST_BASE_URL`/`FOGCAST_TOKEN`
+would report about one kit under another's name. And the gate no longer infers
+"nothing is loaded" from failing to find a core: it
 refuses a status it does not recognise — `protocol.Status` always serialises
 `state` and `game_id`, so a payload without them is not that status — and
 reads three independent signals (the core package's identity, a non-null

@@ -262,7 +262,11 @@ with "operator recovery required" — so the guards against them live in
   files must hold the lease instead — see `clean` below.
   Pass `--target dev` or `--target kit2` to name the kit rather than writing a
   private copy of the host TOML with `selected_target` rewritten; the gate
-  prints which target answered and names it in every refusal.
+  prints which target answered and names it in every refusal. Exactly one
+  source says which kit it asks about — `--config` (with an optional
+  `--target`) or `--url`, or neither and then `FOGCAST_BASE_URL` — and any
+  combination is rejected rather than one being picked silently, because a
+  guard reporting success about a different kit is worse than no guard.
   It fails closed: an unreachable agent, an agent that is not idle, a lease
   that is not free and a loaded core each refuse, naming what is loaded and who
   holds the lease. It waits out a `revoking` lease for 30 seconds, so a clean

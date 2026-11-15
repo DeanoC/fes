@@ -12,7 +12,9 @@ Each case is one of the incidents in issue #1849:
 The fourth case is the liveness check that misled the first: `pgrep -f` matches
 the asking shell's own command line.
 """
+import contextlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -23,6 +25,7 @@ import tempfile
 import time
 import threading
 import unittest
+import unittest.mock
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
@@ -229,6 +232,62 @@ class CleanupGate(unittest.TestCase):
                 kit_hil.client_for(config, 'kit9')
             self.assertEqual(config.read_text().count("selected_target = 'dev'"), 1,
                              'the host config must not be rewritten to ask about a kit')
+
+    def test_naming_two_sources_for_the_kit_is_refused(self):
+        """A guard that reports success about the wrong kit is worse than none.
+
+        `--config` and `--url` together silently dropped the url and answered
+        about the config's selected target, so the caller could be told a
+        different kit was idle than the one they named. `--target` with
+        `--url` is the same drop: there is no config for the target to name.
+        """
+
+        for argv in (['guard-idle', '--config', '/tmp/x.toml', '--url', 'http://10.0.0.9:8789'],
+                     ['guard-idle', '--url', 'http://10.0.0.9:8789', '--target', 'kit2'],
+                     ['guard-idle', '--url', 'http://10.0.0.9:8789', '--config', '/tmp/x.toml']):
+            with self.subTest(argv=argv):
+                with self.assertRaises(SystemExit) as exit:
+                    with contextlib.redirect_stderr(io.StringIO()):
+                        kit_hil.main(argv)
+                self.assertEqual(exit.exception.code, 2, 'reject it, never pick one silently')
+
+    def test_one_source_each_is_accepted_by_the_parser(self):
+        for argv in (['guard-idle', '--config', '/tmp/x.toml'],
+                     ['guard-idle', '--config', '/tmp/x.toml', '--target', 'kit2'],
+                     ['guard-idle', '--url', 'http://10.0.0.9:8789'],
+                     ['guard-idle']):
+            with self.subTest(argv=argv):
+                args = kit_hil.parser().parse_args(argv)
+                self.assertEqual(args.command, 'guard-idle')
+
+    def test_a_config_target_must_be_complete_rather_than_filled_from_the_environment(self):
+        # Filling a gap from FOGCAST_BASE_URL would report about one kit under
+        # another's name, which is the same failure in a quieter form.
+        with tempfile.TemporaryDirectory() as home:
+            config = Path(home) / 'config.toml'
+            for body in ("[[targets]]\nname = 'kit2'\nenabled = true\nagent = 'b'\n",
+                         "[[targets]]\nname = 'kit2'\nenabled = true\n"
+                         "address = 'http://10.0.0.2:8789'\n"):
+                with self.subTest(body=body):
+                    config.write_text(body)
+                    with unittest.mock.patch.dict(
+                            os.environ, {'FOGCAST_BASE_URL': 'http://10.9.9.9:8789',
+                                         'FOGCAST_TOKEN': 'from-the-environment'}):
+                        with self.assertRaises(kit.KitError) as refused:
+                            kit_hil.client_for(config, 'kit2')
+                    self.assertIn('cannot be established', str(refused.exception))
+
+    def test_the_environment_cannot_redirect_a_complete_config_target(self):
+        with tempfile.TemporaryDirectory() as home:
+            config = Path(home) / 'config.toml'
+            config.write_text("[[targets]]\nname = 'kit2'\nenabled = true\n"
+                              "address = 'http://10.0.0.2:8789'\nagent = 'b'\n")
+            with unittest.mock.patch.dict(
+                    os.environ, {'FOGCAST_BASE_URL': 'http://10.9.9.9:8789',
+                                 'FOGCAST_TOKEN': 'from-the-environment'}):
+                client = kit_hil.client_for(config, 'kit2')
+            self.assertEqual(client.url.hostname, '10.0.0.2')
+            self.assertEqual(client.bearer, 'b')
 
     def test_a_disabled_target_is_refused(self):
         with tempfile.TemporaryDirectory() as home:
