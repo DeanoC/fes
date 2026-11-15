@@ -1,0 +1,97 @@
+{
+  "board_revision": "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+  "build_id": "bbd1f3f2ef57ba3daf137036665a9fe2",
+  "classification": "generated DE25 diagnostic Avalon RTL and native adapter in host simulation",
+  "command": [
+    "/usr/bin/verilator",
+    "--cc",
+    "--exe",
+    "--build",
+    "--top-module",
+    "fes_de25_embedded",
+    "-Wall",
+    "-Wno-UNUSEDSIGNAL",
+    "--Mdir",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-ddr-reader-handoff-20261102/model-onchip/obj",
+    "-I/home/deano/fes/out/dev/de25-embedded-os/out/nano-ddr-reader-handoff-20261102/project-onchip/board/hps/project/fes_mailbox/generated",
+    "-DFES_DE25_COMPUTER_BUILD_ID=128'hbbd1f3f2ef57ba3daf137036665a9fe2",
+    "-CFLAGS",
+    "-std=c++17 -O2",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-ddr-reader-handoff-20261102/project-onchip/board/hps/project/fes_mailbox/fes_embedded_control.sv",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-ddr-reader-handoff-20261102/project-onchip/board/hps/project/fes_mailbox/fes_de25_embedded.sv",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-ddr-reader-handoff-20261102/model-onchip/probe.cpp"
+  ],
+  "control_abi": 270544960,
+  "ddr_model_result_sha256": "d2f3a07969a5a7db88429d8354c165f4dd5fa3eba6b8c2aea0051044319d2772",
+  "generated_routes": {
+    "clock_hz": 100000000,
+    "cpu_physical_address": "not-established",
+    "instance": "subsys_periph.fes_embedded",
+    "maps": {
+      "jtag": {
+        "base": 1115136,
+        "name": "subsys_periph.fes_embedded.avs",
+        "span": 256
+      },
+      "lw": {
+        "base": 66560,
+        "name": "subsys_periph.fes_embedded.avs",
+        "span": 256
+      }
+    },
+    "physical_ddr": "not-connected",
+    "reader_memory": {
+      "backend": "onchip",
+      "bus_base": 0,
+      "bytes": 0
+    }
+  },
+  "generation_sha256": "0142b5187223a6ceb6c0593e014bf5b594068f840941a9fc86f16171f64a6723",
+  "go_sha256": "8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9",
+  "limitations": [
+    "host simulation only; no physical CPU MMIO or DDR path",
+    "board source/vendor fingerprint is not a sealed FES package",
+    "on-chip responder tests one reader; other FPGA masters are not contained"
+  ],
+  "logs_sha256": {
+    "build": "fe0e18830ae60fa8a83953e0f04bd18d29eb5d696b63de9153aed75b52593c67",
+    "jtag-model": "49fb3e7ba2af5c17837c48d042b7374a07f8d6a92b0543be58ee87fd90c49a7e",
+    "jtag-wrong-id": "e32095f7391e7efcc69303fb06a6ffb68baa1cfffb3517fe6128173dd9c76c23",
+    "model": "27cc9a79b13fb4fa9dad2a3fd4ceca600e1e1fb6b79fa78a84a8d1d333ab9a65",
+    "native": "a9a17ee7a36975820a4392629fbc7c329364a9bfb5ceea6e19285e364f4603ec",
+    "wrong-abi": "9c61f74831d45d1ac59b668dd5aa09935db521c0ff311356e29758f9543bb768",
+    "wrong-id": "646b7525656e2a9db37cde5da6ab1725741d84aab30b84480e255699a500d170"
+  },
+  "model_sha256": "256733ce646c00fb45d6d959e7a1dc786c0c9d37b2b896d8d3c31a76148463ad",
+  "observed": {
+    "build_id": "bbd1f3f2ef57ba3daf137036665a9fe2",
+    "control_abi": 270544960,
+    "fault": true,
+    "held_address": true,
+    "partial_drain": true,
+    "status": "passed"
+  },
+  "overlay_revision": "17fb4b05cdc4998f4bd71a26358936c56444689f",
+  "overlay_source_state": "committed",
+  "probe_source_sha256": "f70be3f53cf9e5a4725f76ecf91ec64f90158c1c4bfd9104c6b20dc06fca4584",
+  "project_inputs_sha256": "48554c65b611a6d928543c432049aa24c63747e6e2ca43eb505c04d5328ee91b",
+  "source_sha256": {
+    "definition": "20e1f042865b54a4cc6a7334b874fedc9f95aa87deb2757ce04a35cc023fc597",
+    "endpoint": "95bc4ef8f470612d71dfa2737e96a988e8a8508e5db56857455bf294654667f3",
+    "wrapper": "1b7f40731fab096b75f7ed67877ee9e83680398c2d0df45be37bb29b9942d298"
+  },
+  "status": "passed",
+  "tcl_sha256": "7ef5786ef770c0f28248dbd4b022feb580db67fa81bf7999158897f97c3644b1",
+  "tcl_source_sha256": {
+    "hardware.tcl": "c15e55c7ad403f2b8dcba669823926e2a4674638defaf18984db0e89ce1742db",
+    "sim_jtag.tcl": "1dd402ff4d013c5015171f04dc67c0527e9cbd74654e2daedb785ae2b2a91210"
+  },
+  "tools": {
+    "cxx": "/usr/bin/g++ | g++ (Debian 14.2.0-19) 14.2.0 | sha256:6b3696e4dcb85e1c949c732a02befa50e3983ecf94ce7e8e58d9d503b954b79d",
+    "make": "/usr/bin/make | GNU Make 4.4.1 | sha256:8a229baf64671988cfb5af43ba3070c6ce7214cf32bcf96155115559d1466fa7",
+    "python": "/usr/bin/python3.13 | Python 3.13.5 | sha256:17b78e0a93175e86f9ac03141924fd7a7f0c0c52e66b34bfa0de20ffef989df1",
+    "verilator": "/usr/bin/verilator | Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2) | sha256:672a1ccf3468902f66387049f001b04f254bbcece7d5e816e3861715889bf252",
+    "verilator-bin": "/usr/bin/verilator_bin | Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2) | sha256:619464a17a8c212219abceeeee23f529b72801ef594814ae32f4b9747fd38703",
+    "verilator-support": "/usr/share/verilator/include | sha256:af3b6c1dce07e7d1f7568bfeaff49163239a8bd472c5f76765c0d4a0a5f9c83c"
+  }
+}

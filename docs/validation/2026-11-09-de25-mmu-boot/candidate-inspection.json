@@ -1,0 +1,69 @@
+{
+  "status": "passed",
+  "scope": "source-installed and linked matched MMU candidate; no hardware",
+  "native_boot_id": "e4ecad3bc8a33357",
+  "proof": {
+    "format": 1,
+    "scope": "experimental-el3-static-private-cache-v1",
+    "granule": 4096,
+    "va_bits": 32,
+    "pa_bits": 32,
+    "mair": 4456703,
+    "tcr": 2155885856,
+    "table_bytes": 24576,
+    "ddr_limit": 3221225472,
+    "firmware_limit": 2149580800,
+    "runtime_enabled": false,
+    "hardware_authority": false,
+    "status": "static-table-layout-verified",
+    "layout": {
+      "ro_end": 2147733504,
+      "tables_start": 2147733504,
+      "tables_end": 2147758080,
+      "data_start": 2147758080,
+      "data_end": 2147758405,
+      "image_end": 2147762176,
+      "tables": {
+        "root": 2147733504,
+        "low": 2147737600,
+        "ocram": 2147741696,
+        "gic": 2147745792,
+        "ddr": 2147749888,
+        "firmware": 2147753984
+      }
+    },
+    "table_sha256": {
+      "root": "34ea79cc3fd33712f59f4fed05d46a2889342ca6de5a9cfbc67d9a24da41f1e9",
+      "low": "3d9b24c7307c6ad513c094288847e27cd7914c79161b42c97da2f3817c184b22",
+      "ocram": "e05bd8cec4a650a47ed983fd4b7dbb11703e04c719e64a6a8b7371c1742ecd3a",
+      "gic": "2eb3cc769aac8aa9c3d23f4940e43087907d28e403f725680d22788085a27ed6",
+      "ddr": "0491172cac4336a71756375500f0791a6fbe931c873ded279424f8057996e418",
+      "firmware": "7837ddde6f9067bf11f6fda2962d8ca4770583bc41c222fbd6a882162270e3ea"
+    },
+    "image_sha256": "bf5a6ec2620b8b2c28923df877db19cd064bef7f083439e18d6e7bb23091ae70",
+    "chain_sha256": "fdb91d45a4abf05cfc94dc36b87909c27e4042d1196a0f23e26be6265ebefe90",
+    "core_load_accepted": false,
+    "selected_policy": {
+      "format": 1,
+      "scope": "matched-cold-el3-private-cache-v1",
+      "mair": 4456703,
+      "tcr": 2155885856,
+      "table_bytes": 24576,
+      "granule": 4096,
+      "va_bits": 32,
+      "pa_bits": 32,
+      "memory_probe": "private-line-clean-invalidate-reread-v1",
+      "enable_phase": "after-startup-cache-maintenance-before-el3-exit",
+      "single_cpu": "a55-cpu0-release-locked",
+      "hardware_authority": false
+    },
+    "witness": 385984,
+    "witness_bytes": 64
+  },
+  "bss_end": 386048,
+  "disassembly_sha256": "fa085064d97b687be8acc12661596f3a5370972c4c1b2575a2c9192594dfa1ec",
+  "linked_late_enable": true,
+  "linked_required_memory_maintenance": true,
+  "compiled_cmo_not_conditionally_skipped": true,
+  "hardware_actions": false
+}

@@ -1,0 +1,99 @@
+{
+  "status": "passed-independent-archive-readback",
+  "candidate_commit": "0df346135ce1ddbbc66262ef7eaa3e058410f631",
+  "archive": "/home/deano/fes-retained/de25-retirement-publication-timing-20261114-r1/software.tar.gz",
+  "archive_sha256": "cec79a946192a3b5f793435e8cb088712b2f497a81180ab35d08f42d5f687af4",
+  "archive_bytes": 14025951,
+  "files": 5374,
+  "source_bundle_prerequisite": "3fc738a18c1e268c992f83d276f49653ccd43e77",
+  "checks": {
+    "retire-publication-final-model-suite": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "/home/deano/fes/out/dev/de25-setup-release/tests",
+        "-p",
+        "test_nano_source_retirement.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 105.66357209417038,
+      "log_sha256": "3f9587a550d52542c668bf322fd08b890268ee381455accad54d66c554154be2"
+    },
+    "retire-publication-trace-boundaries": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "/home/deano/fes/out/dev/de25-setup-release/tests",
+        "-p",
+        "test_nano_sdm_*.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.6075979380402714,
+      "log_sha256": "504bd381124abfd05f419d3ef01296c0b408e8f0b40ab8088ad41ba49f510a06"
+    },
+    "retire-publication-final-cost-proof": {
+      "argv": [
+        "python3",
+        "out/publication/check-retire-publication-cost.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 10.407008182024583,
+      "log_sha256": "9981a02451abeed58dd7a77c06a1a4e1131f26b2e0d16baf5ccae0267c715177"
+    },
+    "retire-publication-vendor-compile": {
+      "argv": [
+        "python3",
+        "out/publication/compile-retire-publication-vendor.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.6024467339739203,
+      "log_sha256": "dbe438702047a335ec9068b3faea939f03eb24a10f0e5aeb5228992ba2880026"
+    },
+    "retire-publication-firmware-rtl": {
+      "argv": [
+        "python3",
+        "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/verify.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.203475438058376,
+      "log_sha256": "1b51c28a06be5018540c6a3b2b9f74ce3015718d5c8631692c357def5b3d24eb"
+    },
+    "retire-publication-committed-check": {
+      "argv": [
+        "make",
+        "-C",
+        "/home/deano/fes/out/dev/de25-setup-release",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 11.00624887784943,
+      "log_sha256": "4ffe37a0582de7ca316571feada015e041e0fcc1e04f967bf1c719a8c98bc0bc"
+    }
+  },
+  "classification": "off-board models, source/profile/trace checks and manually enabled vendor objects; no linked boot image or hardware qualification",
+  "hardware_actions": false,
+  "matched_image": false,
+  "hardware_accepted": false,
+  "scope": "31 sanitized firmware tests; 50 profile/trace tests; 42 publication boundary cases; nine vendor AArch64 objects",
+  "failed_harness_evidence": "initial extra cost fixture failed to compile because of a main macro collision; retained separately from passing final checks"
+}

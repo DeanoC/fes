@@ -1,0 +1,15 @@
+{
+  "status": "passed",
+  "classification": "off-board helper and transport cleanup checks; no device opened",
+  "tests": 5,
+  "undefined_global_names": [],
+  "helper_sha256": {
+    "common.py": "43a231330d369e0485a88b9240df04e551ea0663aef959a97345327b238c8672",
+    "experiment.py": "4e42ea0bb146670c5c93a60ee98f739d30f2b4b2854a3f2d25f2e23e901a3361",
+    "native.py": "e286fd3da9be0cf3d6e23e40dd4c4c63b0637d169ea3a6af2ca9ff099adf95b4",
+    "preflight.py": "bebabad599488e28746890b2eed1f0492382fcd66eb6628b3e695575f3fc1a90",
+    "private_jtag.py": "e9979de505d409a7b723bc47aa962384e4b8b664f37c6011059f056e2471f23d",
+    "recovery.py": "1b963f9e095f9e75a57b02e2ecbc13705f220c977df401a3bfcf8ecc8c3625f8",
+    "upload_trial.py": "fe00cfa0119283ba8c94e7e1f168d02575685dbf096e2c17631747343737349e"
+  }
+}

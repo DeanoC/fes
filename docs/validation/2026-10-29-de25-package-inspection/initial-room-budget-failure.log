@@ -1,0 +1,3 @@
+rooms: room example.fes-cores: draw callback: script exceeded 48ms budget (elapsed 52.36ms; script run 52.33ms: thread cpu 10.14ms, 3 voluntary/7 involuntary switches)
+--- FAIL: TestHomeKeepsWorkingWhenStateDirIsUnwritable (0.12s)
+    home_state_test.go:246: room failed: room example.fes-cores: draw callback: script exceeded 48ms budget (elapsed 52.36ms; script run 52.33ms: thread cpu 10.14ms, 3 voluntary/7 involuntary switches)

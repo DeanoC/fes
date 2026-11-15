@@ -1,0 +1,24 @@
+{
+  "status": "passed",
+  "source": "25dd9a6dad7cdafbfa3a3bb0532439c34e48b71f",
+  "native_source": "b7b2c86e74af1d099b6d6e6938d7d52eeacddf9c",
+  "hardware_result": "failed-first-launch",
+  "hardware_attempts": 1,
+  "hardware_retries": 0,
+  "archive_sha256": "2e69f70dea39bdc27c53a6c36c34f0028d406fdeed2088b1e3b70be8de9ba7f7",
+  "archive_bytes": 222171,
+  "regular_files_verified": 123,
+  "prior_candidate_retention": {
+    "/home/deano/fes-retained/de25-master-clock-scope-20261105-r1/publication.bundle": "1bdfa56141a769e4e2510c7d2016a5941f9a5de578ac1314bdc4b611cb5c1073",
+    "/home/deano/fes-retained/de25-master-clock-scope-20261105-r1/software-and-chain-evidence.tar.gz": "27a21e07e35c8da71a1209e085e18381928796d207b4480d0977ca75662f5ef9",
+    "/home/deano/fes-retained/de25-master-clock-scope-20261105-r1/SHA256SUMS": "bb24087d953f2a05b334035f553f9b633397f16908c6de27dc94b805159a906c",
+    "/home/deano/fes-retained/de25-master-clock-scope-20261105-r1/source-update.bundle": "3887c4f884af832b59f80f8d8524490d046e90cb1d6032859ffc8412b2e5f364",
+    "/home/deano/fes-retained/de25-master-clock-scope-20261105-r1/publication-verification.json": "2704621f2ea79ec52cec5babf78780d35719325f4ce74b2a2e5489238475ff8b",
+    "/home/deano/fes-retained/de25-master-clock-scope-20261105-r1/retention.json": "1e19373bdb72f09529c71741b66b9c1110cded8ebc79995c08cee5a1339ddc7b"
+  },
+  "source_restore": "Candidate source, publication and operator-publication bundles already independently restored and strictly checked",
+  "cleanup_verified": true,
+  "ordinary_admission": false,
+  "core_loading_readiness": false,
+  "working_artifacts_removed": false
+}

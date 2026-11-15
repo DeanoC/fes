@@ -1,0 +1,71 @@
+{
+  "status": "passed",
+  "classification": "host serial-App observer and synthetic state/captured firmware fixtures; no hardware acceptance",
+  "base": "f76e5733c",
+  "unchanged_native_source": "e225ea89b002fcc53a90c743f66c592d1f8d35ff",
+  "source_sha256": {
+    "platform/embedded/nano/tenfoot_trace.py": "eee14513ed0e8e843b554bcf06a24e5e20e69d2896dd5a31696d1341791e5f19",
+    "tests/test_nano_tenfoot_trace.py": "dd8a685da1972e3afb5247515caf7f3aeec3fe6d63a2adce444934b3858d40b6"
+  },
+  "checks": {
+    "observer-tests2": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_tenfoot_trace.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20057602494489402,
+      "log_sha256": "ab722169bcf69e2ee82da7136e4e7eb3c9c2ff9e7dd370b54b76845c56432685"
+    },
+    "observer-startup-tests": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_tenfoot_trace.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20082825794816017,
+      "log_sha256": "9264bf67923e1d54f1f623bd477125df541037af9d7a84e6d021145d6d29ceef"
+    },
+    "affected": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "PATH=/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "f76e5733c",
+        "--jobs",
+        "2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 263.792478275951,
+      "log_sha256": "741b6ef3a1b2ada48d858306564fac62f6588a37c1ca257159466e9649b492e2"
+    }
+  },
+  "hardware_actions": false,
+  "ordinary_admission": false
+}

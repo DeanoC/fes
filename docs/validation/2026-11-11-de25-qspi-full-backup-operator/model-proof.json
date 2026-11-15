@@ -1,0 +1,20 @@
+{
+  "status": "passed",
+  "hardware_actions": false,
+  "actual_vendor_Tcl": "8.0",
+  "full_model_bytes": 16777216,
+  "full_model_chunks": 4096,
+  "independent_stream_replay": true,
+  "reader_cases": 18,
+  "guard_cases": 9,
+  "first_middle_final_word_corruption_rejected": true,
+  "missing_final_byte_rejected": true,
+  "missing_complete_and_extra_tail_rejected": true,
+  "restricted_UID_staging": true,
+  "full_model_elapsed_seconds": 102.2836622421164,
+  "proof_sha256": {
+    "full-reader-model-proof.json": "393f977cb53393a6079c752a2468684f76fb392cac80986c7fb6eaf492b42146",
+    "full-model-replay.json": "ae47516f4571d21dba404259ce8a017f82e94ece4115aa2480f31848367179fc",
+    "verifier-model-proof.json": "ace05d875cee26d5017b5113ac8125f56b3138ba04aedc6cc8adf66edf3dcf10"
+  }
+}

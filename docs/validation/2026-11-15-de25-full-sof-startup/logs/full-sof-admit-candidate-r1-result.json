@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "python3",
+    "out/full-sof-loading-trial/admission.py",
+    "prepare",
+    "native-diagnostic"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 77.8948505029548,
+  "log_sha256": "09ef94b5e81976bbb6bbadc43ce1b1792ebc7ed2eebfabd4f3fa8c49f767dc9e"
+}

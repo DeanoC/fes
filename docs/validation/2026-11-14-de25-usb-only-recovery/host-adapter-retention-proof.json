@@ -1,0 +1,31 @@
+{
+  "status": "passed-top-adapter-USB-reset-independent-retention",
+  "archive": "/home/deano/fes-retained/de25-top-adapter-usb-reset-20261114-r1/adapter-reset.tar.gz",
+  "archive_sha256": "20685e9f65b69cabaf967ff0be194890ffb3ea7eb198e483c3e87de5876a4b06",
+  "files": 16,
+  "plan_sha256": "32b1c1d59912826253dc634f1757f1114b4880aa1b4ee10eabae81bdf41ef3c5",
+  "host_adapter_reset_verified": true,
+  "bottom_kit_USB_identity_inode_unchanged": true,
+  "HPS_USB_controller_reset": false,
+  "board_recovery_proven": false,
+  "FPGA_programmed": false,
+  "SD_written": false,
+  "firmware_resume_authority": false,
+  "all_our_hardware_handles_closed": true,
+  "wrapper": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/usb-link-reset-prototype/reset_top_adapter.py",
+      "execute",
+      "--plan-sha256",
+      "32b1c1d59912826253dc634f1757f1114b4880aa1b4ee10eabae81bdf41ef3c5"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 20.61355537106283,
+    "log_sha256": "f51855a0d43cf39389b385b146258d428f076519eb44f48c0a23c96ab99eb99d"
+  }
+}

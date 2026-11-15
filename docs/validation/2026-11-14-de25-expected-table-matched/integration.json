@@ -1,0 +1,50 @@
+{
+  "status": "passed-generated-source-and-object-checks",
+  "source_commit": "c9f5f9ad42bf549af55e0b5e1b3e21c66863ef89",
+  "vendor_cold_function_sha256": "78d4ba85888bd0d9ae9a0b48109802fa4b2e08b2ae8f40939517cd23454a5cad",
+  "elf_sha256": "72c6e8a18dac45307354b950a44fb97f8cc57af39f3b7b0e72d1769158af9fea",
+  "layout": {
+    "__NOBITS_START__": 327680,
+    "__NOBITS_END__": 393024,
+    "__STACKS_START__": 327680,
+    "__STACKS_END__": 360448,
+    "__BSS_END__": 393024
+  },
+  "private_limit": 393216,
+  "spare_bytes": 192,
+  "reset_objects": {
+    "fes_nano_platform_cold_reset_request": {
+      "object": "/home/deano/fes/out/dev/de25-warm-word-proof/out/publication-boot/native-bl31/source/build/agilex5/release/bl31/socfpga_psci.o",
+      "object_sha256": "b623be744b349664426e62b66a5c69713c783281855c72551bf78afec5472c8d",
+      "present_in_normal_elf": true
+    },
+    "fes_nano_bridge_platform_cold_reset_held": {
+      "object": "/home/deano/fes/out/dev/de25-warm-word-proof/out/publication-boot/native-bl31/source/build/agilex5/release/bl31/socfpga_reset_manager.o",
+      "object_sha256": "c335902d256d354b48470b07ebd84eb2d1f46c0abed5fbe2667cbe14b7db27bf",
+      "present_in_normal_elf": true
+    },
+    "fes_nano_sdm_source_recover": {
+      "object": "/home/deano/fes/out/dev/de25-warm-word-proof/out/publication-boot/native-bl31/source/build/agilex5/release/bl31/nano_cold_platform.o",
+      "object_sha256": "7046b80200d0633c7a18411bea91c49f49bc2d47f77cb4d256464669dde93612",
+      "present_in_normal_elf": true
+    }
+  },
+  "compiler_stack_records": {
+    "build/agilex5/release/bl31/probe_setup.su": [
+      "plat/intel/soc/common/probe_setup.c:138:12:table_words\t64\tstatic",
+      "plat/intel/soc/common/probe_setup.c:153:12:memory_block\t1376\tstatic",
+      "plat/intel/soc/common/probe_setup.c:339:12:previous_tables\t1344\tstatic",
+      "plat/intel/soc/common/probe_setup.c:363:5:nano_probe_prepare\t320\tstatic"
+    ],
+    "build/agilex5/release/bl31/nano_cold_platform.su": [
+      "plat/intel/soc/common/include/nano_sdm_recovery_platform.inc:31:12:sdm_recovery_cached\t288\tstatic",
+      "plat/intel/soc/common/include/nano_sdm_recovery_platform.inc:49:12:sdm_recovery_scope\t96\tstatic",
+      "plat/intel/soc/common/include/nano_sdm_recovery_platform.inc:64:31:fes_nano_sdm_source_recover\t16\tstatic",
+      "plat/intel/soc/common/include/nano_sdm_input_finish.inc:24:5:fes_nano_sdm_source_finish\t1040\tstatic"
+    ]
+  },
+  "recovery_policy_installed": true,
+  "physical_reset_qualified": false,
+  "whole_EL3_stack_qualified": false,
+  "hardware_actions": false
+}

@@ -1,0 +1,44 @@
+{
+  "status": "prepared-not-implemented",
+  "next": "Add bounded source-pinned call-boundary diagnostics after owned platform setup and through runtime/nonsecure handoff, preserving original vendor flow",
+  "consumed_firmware": "0cab5df0cca95f7181c177847514a5193a160c63",
+  "consumed_operator": "7126320b44281ac4e0200ba4982b56a7c64525bb",
+  "physical_result_sha256": "c81c551022aa148e8f5ef89d388648f7cc235e9ac4247d5ae1a43de7de6840db",
+  "last_physical_line": "NOTICE:  FES_NANO_SD_PLATFORM setup=1 ready=1",
+  "static_next_calls": [
+    "return from fes_nano_bridge_platform_setup",
+    "gicv3_driver_init",
+    "gicv3_distif_init",
+    "gicv3_rdistif_init",
+    "gicv3_cpuif_enable",
+    "mailbox_init if SIP_SVC_V3",
+    "mailbox_hps_stage_notify",
+    "bl31_lib_init",
+    "runtime_svc_init",
+    "bl31_prepare_next_image_entry",
+    "bl31_plat_runtime_setup",
+    "console flush/state switch",
+    "EL3 exit to nonsecure image"
+  ],
+  "uncertainty": "Static source order only. No one call is identified as the physical stop; later faults may use vendor vectors rather than the early private handler.",
+  "pinned_source_sha256": {
+    "out/nano-setway-20261106/native-bl31-final/source/plat/intel/soc/agilex5/bl31_plat_setup.c": "aa66cc9cd230b4be5a7b28444ed83a802db03a282399b5a5131069ba03dd86e6",
+    "out/nano-setway-20261106/native-bl31-final/source/bl31/bl31_main.c": "ef7585cdfc725ea3f668fe162d1434f0afa92f2260db3f123c37cc2f56c2d30b",
+    "out/nano-setway-20261106/native-bl31-final/source/drivers/arm/gic/v3/gicv3_main.c": "8a57c3a85b56542f8462d8f16280b42b177dfad77b696a3f74c9203bde4e655f",
+    "platform/embedded/firmware/nano_bridge_platform.inc": "c228250f27341fafe84667c5b47d747f90a2b52a5fb42638165449b2297927ec"
+  },
+  "requirements": [
+    "No rerun of consumed input",
+    "Pin actual vendor C and entry source and prove inverse transformation preserves original calls/order/arguments/conditional branches",
+    "Use bounded early UART diagnostic primitive with register/stack/call-lifetime review, no unbounded print recursion",
+    "Gate new diagnostics to the matched cold profile; preserve warm entry, existing cache policy, memory exclusion and ownership semantics",
+    "Require exact ordered progress in decoder; incomplete/failure markers never grant boot",
+    "Test real emitted diagnostics and injected stage failures off board; audit actual linked source/call/return and vector coverage",
+    "Rebuild matched BL31/SPL/U-Boot/composition and bind reused native/FPGA bytes; shared normal-user Quartus lock",
+    "Fresh frozen operator/live recovery/card admission for one new trial, no retries or fallback",
+    "Keep prompt50/startup100/launch100/config20/control5/native450/child480/work740/host850, passive2s/1MiB, ROM16-byte/400M-tick/64-poll unchanged",
+    "Retain claimed board/spare; factory restore waived; host cleanup is not CPU/FPGA halt proof"
+  ],
+  "hardware_actions": false,
+  "core_load_acceptance": false
+}

@@ -1,0 +1,61 @@
+{
+  "scope": "one fresh recovery boot and verified FIT upload; one contained core transfer and reclosed live identity; restore15M",
+  "ddr_traffic_requested": true,
+  "data_release_requested": true,
+  "core_load_acceptance": false,
+  "source_commit": "82c410cc8a5af4fa2c77d535b3bd22eb7a19fa19",
+  "native_build_source_commit": "05006009e5a27deedd804e8711aa9bdecd3546b9",
+  "native_sof_sha256": "66ea5efe3b34ce705881412e9c3d2c562f7668d283cb03b9d365751a707fcde0",
+  "target_clock": "6M",
+  "clock_change_attempted": true,
+  "pass": false,
+  "sd_write_commands_sent": true,
+  "started_utc": "2026-11-02T10:39:18.226191+00:00",
+  "stages": [
+    {
+      "clock_operation": "clock-before",
+      "returncode": 0,
+      "output": "15M"
+    },
+    {
+      "clock_operation": "clock-set-6M",
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "clock_operation": "clock-confirm-6M",
+      "returncode": 0,
+      "output": "6M"
+    },
+    {
+      "phase": "recovery-boot",
+      "returncode": 0
+    },
+    {
+      "phase": "upload-boot",
+      "returncode": 0
+    },
+    {
+      "phase": "recovery-package",
+      "returncode": 1
+    },
+    {
+      "clock_operation": "clock-restore",
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "clock_operation": "clock-restored-readback",
+      "returncode": 0,
+      "output": "15M"
+    }
+  ],
+  "original_clock": "15M",
+  "stage": "recovery-package",
+  "error": "phase stopped: recovery-package",
+  "restored_clock": "15M",
+  "original_clock_restored": true,
+  "private_server_stopped": true,
+  "usb_permissions_restored": true,
+  "finished_utc": "2026-11-02T10:40:42.157212+00:00"
+}

@@ -1,0 +1,15 @@
+{
+  "status": "retained-two-independent-scan-only-diagnostics",
+  "source_head": "bd2738c5862c3420174a15b85357ce273c8712d1",
+  "files": 126,
+  "archive_sha256": "a00ce3fcf81709991d904edb3cd79164b2770464d7a3653d5132a017e1204714",
+  "source_bundle_sha256": "d85d01111152ba239e0de722127a1b652b38d204aa2fa65c65b2d8c6a305c112",
+  "source_base_bundle": "/home/deano/fes-retained/de25-menu-return-observation-20261110-r1/source.bundle",
+  "source_base_bundle_sha256": "d7166cde75bd88ea7f9d14ac4a5706b55c74cd215cc4f375abd1a5d6661a17d0",
+  "archive_readback_and_modes_verified": true,
+  "independent_source_restore_verified": true,
+  "strict_fsck_and_pack_checks_passed": true,
+  "programming_attempted": false,
+  "native_boot_verified": false,
+  "transport_fix_established": false
+}

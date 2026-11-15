@@ -1,0 +1,33 @@
+{
+  "status": "remaining-system-manager-bridge-and-secure-smmu-views-need-review",
+  "native_boot_id": "e3de630956f0c154",
+  "configuration_complete": true,
+  "post_configuration_stop_exact_instruction_unproven": true,
+  "actual_descriptors": {
+    "system-manager": {
+      "address": 2147775536,
+      "value": 18014398790501989,
+      "physical": 282140672,
+      "device": true,
+      "nonsecure": true,
+      "execute_never": true
+    },
+    "smmu-secure-bank": {
+      "address": 2147775872,
+      "value": 18014398878582373,
+      "physical": 369131520,
+      "device": true,
+      "nonsecure": true,
+      "execute_never": true
+    }
+  },
+  "evidence": [
+    "The original control-opening sequence calls configured(), which prints CONFIG_STATUS and SMMU/firewall reports, then opens the control bridge. No subsequent control-opening checkpoint is present.",
+    "The current remapper repair changes only its three accesses. Other vendor System Manager bridge accesses still use their original physical addresses under the NS EL3 peripheral mapping.",
+    "The raw control bridge enable path includes System Manager FPGA_BRIDGE_CTRL at0x10d1205c. The selected private secure page already covers that register, but the raw bridge driver does not select that alias.",
+    "The current SMMU observation reads secure-bank S_IDR1 as0. Its unchanged later DDR/window gate requires secure_implemented and exact0x80000018, so this observation cannot satisfy that gate. The gate itself is not observed in this trace."
+  ],
+  "next_step": "Audit a selected System Manager address contract for all existing EL3 bridge/control users, including the one raw cold boot-kind read, using the existing one-page alias. Also supply a fixed read-only secure view for the existing SMMU secure-bank reads. Preserve original calls, values, offset allowlists, ownership checks, namespace behavior before MMU activation and every deadline. Remove the superseded remapper-only selector rather than keeping two competing address paths. Add precise post-configuration control boundaries if needed; do not label the exact stalled instruction or waive secure-bank checks.",
+  "hardware_actions": false,
+  "ordinary_core_load_acceptance": false
+}

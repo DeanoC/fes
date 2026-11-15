@@ -1,0 +1,78 @@
+{
+  "status": "verified-completed-nine-native-modules-after-outer-wrapper-exit",
+  "source_head": "bfdac3256789536dacfdf5a38d83a1d1ead99903",
+  "checks": {
+    "status": "passed-all-explicit-native-integration-controls",
+    "checks": [
+      {
+        "module": "test_nano_configuration.py",
+        "tests": 4,
+        "log_sha256": "eb80e83bae6836792d885b7ab0402a5e50674b10c44a61713afaff46ec0aa746"
+      },
+      {
+        "module": "test_nano_mailbox.py",
+        "tests": 2,
+        "log_sha256": "cabcd051ec017ce621dc46992c0960da6a1e397ab7b92b2b372919fe16999880"
+      },
+      {
+        "module": "test_nano_mixed_cold.py",
+        "tests": 4,
+        "log_sha256": "123ab013a0665db3b6a401b1baf6525a7c73064a46cd52460ea9de3c0e30134f"
+      },
+      {
+        "module": "test_nano_secure_mailbox.py",
+        "tests": 3,
+        "log_sha256": "90ae5dfd3d5204a3ae895e15611786098aa30a36c37a0bc3821c3611fc76d7c1"
+      },
+      {
+        "module": "test_nano_secure_mmio.py",
+        "tests": 3,
+        "log_sha256": "3541b0a114d105c73668f0458edffac714a4b00bbf1a42f083026dc216c34c69"
+      },
+      {
+        "module": "test_nano_start_trace.py",
+        "tests": 5,
+        "log_sha256": "683528cfb8243c1775af9682e33e8631ef5f5c6ade88132cc0fd2a7441471495"
+      },
+      {
+        "module": "test_nano_transport.py",
+        "tests": 1,
+        "log_sha256": "f6de17c38584d7d679377909369229a6e608b32ac2ca123952051eef3cea08e6"
+      },
+      {
+        "module": "test_nano_rom_build.py",
+        "tests": 1,
+        "log_sha256": "635d003876927b738d3e2ad95d904e5cacf538734e773dc55aadbd46882c9b22"
+      },
+      {
+        "module": "test_nano_startup.py",
+        "tests": 7,
+        "log_sha256": "c800fbb20a77b8b8be4ff6151cabdbffd8ea9538319d8294bb556f7977da702a"
+      }
+    ],
+    "tests": 30,
+    "skips": 0,
+    "pinned_vendor_root": "/home/deano/fes/out/dev/de25-embedded-os/out/terasic-git-restore-tfa",
+    "host_go": "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+    "hardware_actions": false
+  },
+  "checks_proof_sha256": "c352c5bddf885b315e45410aabba56bd4a876d81ead75d77ab92120100fd33ff",
+  "recipe_sha256": "b6031db8819ee5d4fccb663027a9d473cea80a0a3a8fdc5b674fe6cc05adb689",
+  "original_process": {
+    "pid": 353102,
+    "process_start_ticks": "167971779",
+    "cap_seconds": 500,
+    "start_monotonic": 1679717.7946249,
+    "argv": [
+      "python3",
+      "out/publication/close-setup-final-skips.py"
+    ]
+  },
+  "original_session_terminal": true,
+  "outer_tool_exit_code": 143,
+  "outer_supervisor_result_missing": true,
+  "outer_supervisor_passed": false,
+  "outer_termination_cause": "unattributed; not inferred from module results",
+  "tests_restarted": false,
+  "hardware_actions": false
+}

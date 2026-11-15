@@ -1,0 +1,13 @@
+{
+  "status": "passed-two-source-and-retained-tape-counterexample-retention",
+  "archive": "/home/deano/fes-retained/de25-publication-loading-analysis-20261115-r1/analysis.tar.gz",
+  "archive_sha256": "76dc77cac29e8eebe04cb88c33051c35c960a6b164127fe7fc30bf8c8e0de9e0",
+  "files": 15,
+  "physical_archive_sha256": "618b5f4bd3fdf76acf933892a01f54ebf62acb7702d00617313a36aeaf320a41",
+  "initial_MENU_verified": true,
+  "warm_ZX81_transfer_retirement_continuation_verified": true,
+  "initial_tape_rejection_reproduced_without_firmware_call": true,
+  "full_launch_return_cycle_verified": false,
+  "hardware_actions": false,
+  "hardware_acceptance": false
+}

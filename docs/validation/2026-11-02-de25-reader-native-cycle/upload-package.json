@@ -1,0 +1,254 @@
+{
+  "format": 1,
+  "status": "verified",
+  "purpose": "package",
+  "classification": "fixed package upload/readback under encompassing diagnostic claim",
+  "board_serial": "TRWU8CBL",
+  "source_commit": "b08fc1143ddd3e6909ad31a3aced3d89bba31429",
+  "payload_bytes": 2030592,
+  "payload_sha256": "c75abfe867e7f20e4fba527a53db157df3f524465084871936acbe24addcf2ff",
+  "commands": [
+    {
+      "command": "version",
+      "output": "version; echo FES_UPLOAD_ae326afd8247=$?\r\nU-Boot 2025.01-fes-nano-recovery-ksz9031-gd0f8813fd6bf (Jun 27 2025 - 01:40:35 +0000)socfpga_agilex5\r\n\r\nFES_UPLOAD_ae326afd8247=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "bdinfo",
+      "output": "bdinfo; echo FES_UPLOAD_b2ae64303d02=$?\r\nboot_params = 0x0000000080000100\r\nDRAM bank   = 0x0000000000000000\r\n-> start    = 0x0000000080000000\r\n-> size     = 0x0000000040000000\r\nflashstart  = 0x0000000000000000\r\nflashsize   = 0x0000000000000000\r\nflashoffset = 0x0000000000000000\r\nbaudrate    = 115200 bps\r\nrelocaddr   = 0x00000000bfef6000\r\nreloc off   = 0x000000003fcf6000\r\nBuild       = 64-bit\r\n\r\nError: ethernet@10810000 No valid MAC address found.\r\n\r\nError: ethernet@10810000 No valid MAC address found.\r\n\r\nError: ethernet@10810000 No valid MAC address found.\r\n\r\nError: ethernet@10810000 No valid MAC address found.\r\ncurrent eth = unknown\r\neth-1addr   = (not set)\r\nIP addr     = <NULL>\r\nfdt_blob    = 0x00000000bfaed7d0\r\nlmb_dump_all:\r\n memory.count = 0x1\r\n memory[0]\t[0x80000000-0xbfffffff], 0x40000000 bytes, flags: none\r\n reserved.count = 0x2\r\n reserved[0]\t[0x0-0xffffff], 0x1000000 bytes, flags: no-map\r\n reserved[1]\t[0xbeaebff0-0xbfffffff], 0x1514010 bytes, flags: no-overwrite\r\ndevicetree  = separate\r\nserial addr = 0x0000000010c02100\r\n width      = 0x0000000000000004\r\n shift      = 0x0000000000000002\r\n offset     = 0x0000000000000000\r\n clock      = 0x0000000005f5e100\r\narch_number = 0x0000000000000000\r\nTLB addr    = 0x00000000bffe0000\r\nirq_sp      = 0x00000000bfaebff0\r\nsp start    = 0x00000000bfaebff0\r\nEarly malloc usage: 1780 / 2000\r\nFES_UPLOAD_b2ae64303d02=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mmc dev 0",
+      "output": "mmc dev 0; echo FES_UPLOAD_514c41f50abc=$?\r\nswitch to partitions #0, OK\r\nmmc0 is current device\r\nFES_UPLOAD_514c41f50abc=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mmcinfo",
+      "output": "mmcinfo; echo FES_UPLOAD_41854c0d79cf=$?\r\nDevice: mmc0@10808000\r\nManufacturer ID: 27\r\nOEM: 5048\r\nName: SD04G \r\nBus Speed: 50000000\r\nRd Block Len: 512\r\nSD version 3.0\r\nHigh Capacity: Yes\r\nCapacity: 3.7 GiB\r\nBus Width: 4-bit\r\nErase Group Size: 512 Bytes\r\nFES_UPLOAD_41854c0d79cf=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mmc part",
+      "output": "mmc part; echo FES_UPLOAD_4020e18fcf9d=$?\r\n\r\nPartition Map for mmc device 0  --   Partition Type: DOS\r\n\r\nPart\tStart Sector\tNum Sectors\tUUID\t\tType\r\n  1\t32768     \t262144    \t00000000-01\t0c\r\nFES_UPLOAD_4020e18fcf9d=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mmc read 83000000 0 8000",
+      "output": "mmc read 83000000 0 8000; echo FES_UPLOAD_71c5a3d1e148=$?\r\nMMC read: dev # 0, block # 0, count 32768 ... 32768 blocks read: OK\r\nFES_UPLOAD_71c5a3d1e148=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "hash sha256 83000000 1000000",
+      "output": "hash sha256 83000000 1000000; echo FES_UPLOAD_b9587b681343=$?\r\nsha256 for 83000000 ... 83ffffff ==> 6fa416c1654915f5cbc45f3092accd2ae5408e15f3ef6e93b20ead4494cfb4b7\r\nFES_UPLOAD_b9587b681343=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "fatload mmc 0:1 83000000 u-boot.itb",
+      "output": "fatload mmc 0:1 83000000 u-boot.itb; echo FES_UPLOAD_a22262eb6f37=$?\r\n952312 bytes read in 89 ms (10.2 MiB/s)\r\nFES_UPLOAD_a22262eb6f37=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "hash sha256 83000000 e87f8",
+      "output": "hash sha256 83000000 e87f8; echo FES_UPLOAD_a5d4b8a3ff22=$?\r\nsha256 for 83000000 ... 830e87f7 ==> 25ebdf98d253e41f51e4b55b78314ffe6e03d346825af8582268eacef1d25f90\r\nFES_UPLOAD_a5d4b8a3ff22=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "fatload mmc 0:1 82000000 FES/RECOVERY.JSON",
+      "output": "fatload mmc 0:1 82000000 FES/RECOVERY.JSON; echo FES_UPLOAD_134bec1e7d5f=$?\r\n1249 bytes read in 21 ms (57.6 KiB/s)\r\nFES_UPLOAD_134bec1e7d5f=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "hash sha256 82000000 4e1",
+      "output": "hash sha256 82000000 4e1; echo FES_UPLOAD_caf352703880=$?\r\nsha256 for 82000000 ... 820004e0 ==> 56102162f328d0a4325cd7c827159f9612c3f81c95fe6df9d5ad147b343b1539\r\nFES_UPLOAD_caf352703880=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "setenv autoload no",
+      "output": "setenv autoload no; echo FES_UPLOAD_56f8e0ab6b27=$?\r\nFES_UPLOAD_56f8e0ab6b27=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "setenv netretry no",
+      "output": "setenv netretry no; echo FES_UPLOAD_881c4f19d8c5=$?\r\nFES_UPLOAD_881c4f19d8c5=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "setenv bootpretryperiod 10000",
+      "output": "setenv bootpretryperiod 10000; echo FES_UPLOAD_92edb56cb998=$?\r\nFES_UPLOAD_92edb56cb998=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "setenv tftptimeout 1000",
+      "output": "setenv tftptimeout 1000; echo FES_UPLOAD_98bc4ee2cf5d=$?\r\nFES_UPLOAD_98bc4ee2cf5d=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "setenv tftptimeoutcountmax 3",
+      "output": "setenv tftptimeoutcountmax 3; echo FES_UPLOAD_244fd8a0a3f9=$?\r\nFES_UPLOAD_244fd8a0a3f9=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "echo FES_UPLOAD_ETHADDR=${ethaddr}",
+      "output": "echo FES_UPLOAD_ETHADDR=${ethaddr}; echo FES_UPLOAD_2fcd656306a7=$?\r\nFES_UPLOAD_ETHADDR=\r\nFES_UPLOAD_2fcd656306a7=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "setenv ethaddr 02:fe:25:08:cb:01",
+      "output": "setenv ethaddr 02:fe:25:08:cb:01; echo FES_UPLOAD_80c152c50ef9=$?\r\nFES_UPLOAD_80c152c50ef9=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "echo FES_UPLOAD_ETHADDR=${ethaddr}",
+      "output": "echo FES_UPLOAD_ETHADDR=${ethaddr}; echo FES_UPLOAD_7fa4c2f91bcf=$?\r\nFES_UPLOAD_ETHADDR=02:fe:25:08:cb:01\r\nFES_UPLOAD_7fa4c2f91bcf=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "net list",
+      "output": "net list; echo FES_UPLOAD_1a8404ba7434=$?\r\n\r\nWarning: ethernet@10810000 MAC addresses don't match:\r\nAddress in DT is\t\tff:ff:ff:ff:ff:ff\r\nAddress in environment is\t02:fe:25:08:cb:01\r\neth0 : ethernet@10810000 02:fe:25:08:cb:01 active\r\nFES_UPLOAD_1a8404ba7434=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 2",
+      "output": "mii read 1 2; echo FES_UPLOAD_80ea00644bef=$?\r\n0022\r\nFES_UPLOAD_80ea00644bef=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 3",
+      "output": "mii read 1 3; echo FES_UPLOAD_bf1327530a95=$?\r\n1622\r\nFES_UPLOAD_bf1327530a95=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_3bbacdfff1d6=$?\r\n7949\r\nFES_UPLOAD_3bbacdfff1d6=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_53e70a1505f7=$?\r\n7949\r\nFES_UPLOAD_53e70a1505f7=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_32aa0ad86d87=$?\r\n7949\r\nFES_UPLOAD_32aa0ad86d87=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_c212c9edf31e=$?\r\n7949\r\nFES_UPLOAD_c212c9edf31e=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_1418e8431872=$?\r\n7949\r\nFES_UPLOAD_1418e8431872=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_c1e3d80374e0=$?\r\n7949\r\nFES_UPLOAD_c1e3d80374e0=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_0caed080fde7=$?\r\n7949\r\nFES_UPLOAD_0caed080fde7=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_798908462a7d=$?\r\n7949\r\nFES_UPLOAD_798908462a7d=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_be7b005b20a6=$?\r\n7949\r\nFES_UPLOAD_be7b005b20a6=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_471f29e5d88a=$?\r\n7949\r\nFES_UPLOAD_471f29e5d88a=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_46534edc103e=$?\r\n7949\r\nFES_UPLOAD_46534edc103e=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_b0c587fba14a=$?\r\n7949\r\nFES_UPLOAD_b0c587fba14a=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_d6aba311bf49=$?\r\n7949\r\nFES_UPLOAD_d6aba311bf49=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_419e2ff92677=$?\r\n796D\r\nFES_UPLOAD_419e2ff92677=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_75c9944fe583=$?\r\n796D\r\nFES_UPLOAD_75c9944fe583=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "dhcp",
+      "output": "dhcp; echo FES_UPLOAD_d8743630f6b8=$?\r\nethernet@10810000 Waiting for PHY auto negotiation to complete..... done\r\nBOOTP broadcast 1\r\nDHCP client bound to address 192.168.10.211 (5 ms)\r\nFES_UPLOAD_d8743630f6b8=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "setenv serverip 192.168.10.202",
+      "output": "setenv serverip 192.168.10.202; echo FES_UPLOAD_1ba8a7e0b2a1=$?\r\nFES_UPLOAD_1ba8a7e0b2a1=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "tftpboot 82000000 U90F0F7.BIN",
+      "output": "tftpboot 82000000 U90F0F7.BIN; echo FES_UPLOAD_8da828ed4690=$?\r\nUsing ethernet@10810000 device\r\nTFTP from server 192.168.10.202; our IP address is 192.168.10.211\r\nFilename 'U90F0F7.BIN'.\r\nLoad address: 0x82000000\r\nLoading: *\b#################################################################\r\n\t #################################################################\r\n\t #########\r\n\t 12.3 MiB/s\r\ndone\r\nBytes transferred = 2030592 (1efc00 hex)\r\nFES_UPLOAD_8da828ed4690=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "hash sha256 82000000 1efc00",
+      "output": "hash sha256 82000000 1efc00; echo FES_UPLOAD_ae49c48f9bcc=$?\r\nsha256 for 82000000 ... 821efbff ==> c75abfe867e7f20e4fba527a53db157df3f524465084871936acbe24addcf2ff\r\nFES_UPLOAD_ae49c48f9bcc=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "fatwrite mmc 0:1 82000000 FES/PKGTEST.BIN 1efc00",
+      "output": "fatwrite mmc 0:1 82000000 FES/PKGTEST.BIN 1efc00; echo FES_UPLOAD_cfd5dc18316a=$?\r\n2030592 bytes written in 491 ms (3.9 MiB/s)\r\nFES_UPLOAD_cfd5dc18316a=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mw.b 82800000 a5 1efc00",
+      "output": "mw.b 82800000 a5 1efc00; echo FES_UPLOAD_80a7147f282f=$?\r\nFES_UPLOAD_80a7147f282f=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "fatload mmc 0:1 82800000 FES/PKGTEST.BIN",
+      "output": "fatload mmc 0:1 82800000 FES/PKGTEST.BIN; echo FES_UPLOAD_c8cc858b21f3=$?\r\n2030592 bytes read in 190 ms (10.2 MiB/s)\r\nFES_UPLOAD_c8cc858b21f3=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "hash sha256 82800000 1efc00",
+      "output": "hash sha256 82800000 1efc00; echo FES_UPLOAD_7bccac20e586=$?\r\nsha256 for 82800000 ... 829efbff ==> c75abfe867e7f20e4fba527a53db157df3f524465084871936acbe24addcf2ff\r\nFES_UPLOAD_7bccac20e586=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "cmp.b 82000000 82800000 1efc00",
+      "output": "cmp.b 82000000 82800000 1efc00; echo FES_UPLOAD_91f9ffd84cbc=$?\r\nTotal of 2030592 byte(s) were the same\r\nFES_UPLOAD_91f9ffd84cbc=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mmc read 83000000 0 8000",
+      "output": "mmc read 83000000 0 8000; echo FES_UPLOAD_6b47fbd62664=$?\r\nMMC read: dev # 0, block # 0, count 32768 ... 32768 blocks read: OK\r\nFES_UPLOAD_6b47fbd62664=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "hash sha256 83000000 1000000",
+      "output": "hash sha256 83000000 1000000; echo FES_UPLOAD_b6ccab07b702=$?\r\nsha256 for 83000000 ... 83ffffff ==> 6fa416c1654915f5cbc45f3092accd2ae5408e15f3ef6e93b20ead4494cfb4b7\r\nFES_UPLOAD_b6ccab07b702=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "fatload mmc 0:1 83000000 u-boot.itb",
+      "output": "fatload mmc 0:1 83000000 u-boot.itb; echo FES_UPLOAD_5cae59eef2a3=$?\r\n952312 bytes read in 89 ms (10.2 MiB/s)\r\nFES_UPLOAD_5cae59eef2a3=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "hash sha256 83000000 e87f8",
+      "output": "hash sha256 83000000 e87f8; echo FES_UPLOAD_1dbef4f0fb9d=$?\r\nsha256 for 83000000 ... 830e87f7 ==> 25ebdf98d253e41f51e4b55b78314ffe6e03d346825af8582268eacef1d25f90\r\nFES_UPLOAD_1dbef4f0fb9d=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "fatload mmc 0:1 83000000 FES/RECOVERY.JSON",
+      "output": "fatload mmc 0:1 83000000 FES/RECOVERY.JSON; echo FES_UPLOAD_d22b39917c55=$?\r\n1249 bytes read in 21 ms (57.6 KiB/s)\r\nFES_UPLOAD_d22b39917c55=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "hash sha256 83000000 4e1",
+      "output": "hash sha256 83000000 4e1; echo FES_UPLOAD_aca63a9c2629=$?\r\nsha256 for 83000000 ... 830004e0 ==> 56102162f328d0a4325cd7c827159f9612c3f81c95fe6df9d5ad147b343b1539\r\nFES_UPLOAD_aca63a9c2629=0\r\nSOCFPGA_AGILEX5 # "
+    }
+  ],
+  "sd_write_attempted": true,
+  "activation": false,
+  "recovery_receipt_sha256": "1e87b15848eb306a3f07a7600e72f091b00e34ffdfb3f3e2f160d09d7c78919e",
+  "started_utc": "2026-11-02T02:48:15.053204+00:00",
+  "stage": "complete",
+  "card_verified": true,
+  "recovery_mac": "02:fe:25:08:cb:01",
+  "phy_id": 2233890,
+  "phy_samples": [
+    31049,
+    31049,
+    31049,
+    31049,
+    31049,
+    31049,
+    31049,
+    31049,
+    31049,
+    31049,
+    31049,
+    31049,
+    31049,
+    31085,
+    31085
+  ],
+  "phy_link_verified": true,
+  "client_ip": "192.168.10.211",
+  "download_verified": true,
+  "sd_readback_verified": true,
+  "boot_files_unchanged": true,
+  "destination": "FES/PKGTEST.BIN",
+  "recovery_manifest_unchanged": true,
+  "prompt_parked": true,
+  "finished_utc": "2026-11-02T02:48:27.779696+00:00"
+}

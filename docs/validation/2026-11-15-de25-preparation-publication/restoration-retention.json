@@ -1,0 +1,12 @@
+{
+  "status": "passed-independent-original-file-restoration-retention",
+  "procedure_sha256": "c34868fb09ff76d083e985960acd8b5073ebe08c4572c1e288e8ce67ee446dbf",
+  "archive": "/home/deano/fes-retained/de25-full-sof-warm-original-files-restored-20261115-r1/restoration.tar.gz",
+  "archive_sha256": "bff6358f4f26b15343d9122e1ad44587a4f78ebc1556a1da630470d496303ca1",
+  "files": 79,
+  "original_FIT_restored": true,
+  "original_native_runtime_booted": false,
+  "all_hardware_handles_closed": true,
+  "diagnostic_retry": false,
+  "hardware_acceptance": false
+}

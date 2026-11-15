@@ -1,0 +1,8 @@
+{
+  "status": "retained-and-independently-read-back",
+  "archive": "/home/deano/fes-retained/de25-command-snapshot-with-cause-20261113-r1/matched-chain.tar.gz",
+  "archive_sha256": "2ca4c09c8ab9b8ddbb048129c59f06d37df95ad61ae9c22be1fca47f808a8ddd",
+  "archive_bytes": 117171721,
+  "hardware_actions": false,
+  "hardware_accepted": false
+}

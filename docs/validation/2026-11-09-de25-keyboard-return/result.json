@@ -1,0 +1,16 @@
+{
+  "status": "software-passed-hardware-pending",
+  "base_commit": "03c82f2ff0a43913170b4f913d609d15a2772f95",
+  "source_sha256": {
+    "platform/embedded/tamago/nativefabric/program_input.go": "24ee68844bf593bbbd9f1f8311a3a1c1b63a45bb43c4b5b232e006a92ad59bc3",
+    "platform/embedded/tamago/nativefabric/program_input_test.go": "58bd1b97a199ad8a80318012c94d4c2fffdc29e523b449bb99b9ab4828e7e24d"
+  },
+  "required_affected_checks": 7,
+  "baseline_negative_cases": 4,
+  "actual_tenfoot_usb_return_cycles": 3,
+  "hardware_actions": false,
+  "physical_keyboard_return_verified": false,
+  "ordinary_core_load_acceptance": false,
+  "raw_affected_log": "out/nano-keyboard-return-20261109/affected.log",
+  "raw_affected_log_sha256": "787b9575429f3da361219bf5a08c59b9f5d3de2fa7a99847692bc87c659f86b0"
+}

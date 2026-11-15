@@ -1,0 +1,12 @@
+test_actual_early_capture_provider_and_owned_wire (test_nano_cold.NanoColdTests.test_actual_early_capture_provider_and_owned_wire) ... ok
+test_actual_spl_handoff_reports_saved_failure_before_reject (test_nano_cold.NanoColdTests.test_actual_spl_handoff_reports_saved_failure_before_reject) ... ok
+test_actual_spl_seal_rejects_before_parse_and_reads_verified_ram (test_nano_cold.NanoColdTests.test_actual_spl_seal_rejects_before_parse_and_reads_verified_ram)
+Exercise the shipped SPL functions with FAT and SHA API substitutes. ... ok
+test_cold_producer_consumer_and_failures (test_nano_cold.NanoColdTests.test_cold_producer_consumer_and_failures) ... PASS 269 read-only SMMU cases; no writes or bridge authority
+ok
+test_produced_psci_denies_secondary_release_without_retiring_owner (test_nano_cold.NanoColdTests.test_produced_psci_denies_secondary_release_without_retiring_owner) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 4.480s
+
+OK

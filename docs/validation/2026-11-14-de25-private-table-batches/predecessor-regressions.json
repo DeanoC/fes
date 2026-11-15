@@ -1,0 +1,87 @@
+{
+  "status": "passed-all-eleven-selected-affected-phases",
+  "source_head": "bfdac3256789536dacfdf5a38d83a1d1ead99903",
+  "base": "87352ad4576308fb2139f9dbb80c7b5691de31e4",
+  "outer": {
+    "argv": [
+      "make",
+      "test-changed",
+      "TEST_CHANGED_ARGS=--base=87352ad4576308fb2139f9dbb80c7b5691de31e4"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-setup-final-verification",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 2159.433584525017,
+    "log_sha256": "16474dda7f3385dfa8c0317055a1128ddcdcfb9fac90ba8a2adf3e8c238c0553"
+  },
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "Go command inventory",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "native runtime firmware and FPGA launch integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded producer identity and native control integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded firmware and identity/drain RTL integration",
+      "lane": "fpga",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "parent_tests": 2715,
+  "parent_skips": 15,
+  "FPGA_software_tests": 2181,
+  "FPGA_software_skips": 88,
+  "completed_native_controls": 30,
+  "native_control_skips": 0,
+  "native_control_outer_wrapper_passed": false,
+  "native_control_proof_sha256": "4386483a2f622b5327e1fb9f9cf0e462d6926287b19a68520342d6b4aca54903",
+  "generated_consumers": 69,
+  "fixtures": 45,
+  "CI_assessed": false,
+  "hardware_repair_accepted": false,
+  "current_parent_preparation_failure_still_open": true
+}

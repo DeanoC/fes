@@ -1,0 +1,210 @@
+{
+  "bl31_guard_prefix_bytes": 1428,
+  "chain_sha256": "4f00fed484771c51413454983f6f1681e4950915b9cb6aa1fe1ed0543142051c",
+  "classification": "bounded private early EL3 exceptions and matched rebuilt file chain; no physical boot",
+  "cold_arm_cases": 16,
+  "core_load_acceptance": false,
+  "diagnostic_calls": 0,
+  "diagnostic_stack_accesses": 0,
+  "evidence": {
+    "out/nano-early-exception-20261106/audit_bl31.py": "380b5529182556a3b7d0bcc3789a906491bea6ba4b47acb8c4af168462d3d298",
+    "out/nano-early-exception-20261106/audit_chain.py": "0883ee86b53905fb1af9db05d85afb638862a80647ea0c108d274fdddde3d66f",
+    "out/nano-early-exception-20261106/audit_fault.py": "a304f600595d1a04a0dc39df902b5253641cc95bf4ca7ca7b1e16a85854e6c8c",
+    "out/nano-early-exception-20261106/audit_vendor.py": "c18b381c116ef246ff925b3ad7c04d2513174a83fffffdd0c90bcfac3785c932",
+    "out/nano-early-exception-20261106/bl31-audit-result.json": "51f9f863142ad7c1ba729f1e2a529e2d67dd39bc850d2293e8b5c2f55f52c991",
+    "out/nano-early-exception-20261106/bl31-audit.json": "76df6673df76c7336f6ce55d22e30cfe3451b0c451c13629fe8e80c3eb7ef5bc",
+    "out/nano-early-exception-20261106/bl31-selected-result.json": "2ac9fd7208d6d04534f976c749f8fbcd55989d3131458cd44f82c8aa40fcd78e",
+    "out/nano-early-exception-20261106/bl31-selected-v2-result.json": "ccb946013bdf711117acec6efab72597430b1f1506c311f84c5f31cbad5de12b",
+    "out/nano-early-exception-20261106/build-plan.json": "e9d277a2affa2a93201d89d5ad5dd87b2480bf3a81bf115fbd138a1dde13bd62",
+    "out/nano-early-exception-20261106/catalogue-result.json": "a580f6f0bb1efaf18cc10ce136f7ca2cbf75f02840195a23cdb4e90a4ead3378",
+    "out/nano-early-exception-20261106/catalogue-reuse.json": "fe517b0bb7db7dbea40f7f3a63e15c8b3b1565ff08fde32bbcc9de6b1c089a87",
+    "out/nano-early-exception-20261106/chain-audit-result.json": "74110fb5a55f0574b33307cffe6f89c14a10e4c9a2462b273403a9e63eda28e6",
+    "out/nano-early-exception-20261106/chain-audit.json": "fceda2e8209cb4a52b14564f9c98653b05f9b6f013d53a5c773f2052bbc73fe6",
+    "out/nano-early-exception-20261106/changed-checks-result.json": "5bcfc7b4be87d3c9eaea78f0e8a5cec6f79810960ab6272b9d47ecfbad87523b",
+    "out/nano-early-exception-20261106/changed-checks-v2-result.json": "18ce9747d30f0e0a0a33bbe5eeb5e75fc9708d9c81e05d1f68f277e53268ef3a",
+    "out/nano-early-exception-20261106/cold-cases-v2/result.json": "ea9379944a708131c46179fd5331a8e918f0d37e7ff013a83abc337e6aff1a14",
+    "out/nano-early-exception-20261106/cold-cases-v3/result.json": "d09e90be8d20f0bdb5389a4d0fe3d265853e96a6766a66c9a1f0a9bb75d52477",
+    "out/nano-early-exception-20261106/cold-model-result.json": "bf1594b03568f799347a7c73a139ccc84bb81785fad5d5fc3ccd7b4c71671038",
+    "out/nano-early-exception-20261106/cold-model-v2-result.json": "d9fb141094e20bbd2a20a95f5a3fa064a8c7da14791dbedab27e85f93bd5eb9a",
+    "out/nano-early-exception-20261106/cold-model-v3-result.json": "74177e5c8ee8d56767461fb5021e8ab66d50963f7af58008a82430908ec1e873",
+    "out/nano-early-exception-20261106/composition-result.json": "188d547fb97d5fe255658ef551079756223d04e5de101316fe52cbccd0236329",
+    "out/nano-early-exception-20261106/entry-cases-v2/result.json": "be878865f36e91f6c4d7c67b027f390fcf88d8231ef96f22b8f4193a618ae16e",
+    "out/nano-early-exception-20261106/entry-faults-v2/result.json": "390573a9072cb1adac7f893eec890e9d4ede0d1bae4c07e41b87625ca4311328",
+    "out/nano-early-exception-20261106/entry_check.py": "101b5ead3a1a3ec3763206d7008ac1f87361a9435cc8fde8ac80cc737755fd96",
+    "out/nano-early-exception-20261106/fault-audit.json": "679285b8448004dc40cc79bee56e636214e1225146c39a93260e3290db6a3dd2",
+    "out/nano-early-exception-20261106/fault-cases-v2/result.json": "d1630f9a60ca81bc319bf20539e416a2add627e397ed4bca2907da5786e7afd0",
+    "out/nano-early-exception-20261106/fault-cases-v3/result.json": "3774514619e4d03acb00251956c01ffb05d955d347dad92dd8867ca45df813ab",
+    "out/nano-early-exception-20261106/fault-cases-v4/result.json": "006f4e7711db1ae99f07e4dfe3a3679ba33b637d33b43426b19900d92d9b2607",
+    "out/nano-early-exception-20261106/fault-model-result.json": "fc9e0b908a15cefc2b7f7753b839881a11f38d63b767c8811c37e5ff2df52976",
+    "out/nano-early-exception-20261106/fault-model-v2-result.json": "8be2868e9e687725fa39d73a5a3e56b33eba6dfc978b77b0165035d59d06bc48",
+    "out/nano-early-exception-20261106/fault-model-v3-result.json": "4c8ed2eb5fd9558601a2f808c264d9c77f0d19d38469ad37e58712dfe587d370",
+    "out/nano-early-exception-20261106/fault-model-v4-result.json": "344ff1a1024b338ef25ede9871a857f9070636b54b37b5169eea05c6658e5a3e",
+    "out/nano-early-exception-20261106/fault_check-before-section-fix.py": "6ca7469fd4d7f3d6c578988b5f84c5a0438de625f3aed5032489e4256534bffc",
+    "out/nano-early-exception-20261106/fault_check-v1.py": "e2128e41d8c8cc093fc562effe4bdc9dea1a8a0565115e1fb69a04698cdf34c8",
+    "out/nano-early-exception-20261106/fault_check-v2.py": "5064c75e44bc604d1a2b46f6ed9a6b8339b502c1db18d14230ff0f4cc5c58a10",
+    "out/nano-early-exception-20261106/fault_check.py": "c6663c65651985cf4ed0dbf4d2abfec319657eb2231bbe18d69ab5bc9e7f83a9",
+    "out/nano-early-exception-20261106/guard-faults-result.json": "f9ae54a5fc1c4e4838cc24f59342479cbf807846f9308e8b641864e111f5e583",
+    "out/nano-early-exception-20261106/guard-faults-v2-result.json": "7b7f8f788f4ef650d7820ebbb0710f792c3ada364e29fc959ff73396071cecac",
+    "out/nano-early-exception-20261106/guard-regression-result.json": "0743bd0deedb2e01afcac10e575c1069fbe71387c41d7c9b6e8cd296515d78e8",
+    "out/nano-early-exception-20261106/guard-regression-v2-result.json": "94cc79b2eb556cafcbbcbdc7c5e55d64e92461e3c2412cdb9772471fe4a71cfa",
+    "out/nano-early-exception-20261106/native-bl31-v2/result.json": "cb75af469b39c81200027ce7ebb7895d6378c8b8e772efe6c3def86b66dfc83a",
+    "out/nano-early-exception-20261106/native-composition/result.json": "25b974c518a213f93aacd73150a2243a09babb9de70f7180f26afe6e348f382a",
+    "out/nano-early-exception-20261106/native-reuse-check.json": "42068b276b12cf604f92ade6dfb43f54ffdf97ffa94c1fc0bf1252a8d52802c8",
+    "out/nano-early-exception-20261106/native-uboot/result.json": "9a17ff324412aab46b236ee88154e52f5ace8ec3d9136596cca249fcfe4e2087",
+    "out/nano-early-exception-20261106/retain.py": "6c70ea3a0256754944779c9545ba92aa9563c9f8ae8585eee4e1ca3f194a9175",
+    "out/nano-early-exception-20261106/run.py": "8dea93a99adab57fd4721de0379fa6fbbcd75877d64f4d7e8ed80a041df6ed3c",
+    "out/nano-early-exception-20261106/selection-budget-result.json": "92b4966207dd32085dca742ffb06d3bc4a1739ce0db9302f90bb8075aa1a4eb1",
+    "out/nano-early-exception-20261106/selection-focused-result.json": "df19f96def956de5f16aa1a9153d14d0feaba2c688eafe71529fde7746b587b3",
+    "out/nano-early-exception-20261106/spl-final-branch.disassembly": "22f8594c55da8c5a29901758158372e02cdf6cb1286be5626359f6d446fdf367",
+    "out/nano-early-exception-20261106/spl-live-guard.disassembly": "9a9eec6bd3754232c2d33037a3f4d47f81e7a9c7767138f2f936d9a3930201ff",
+    "out/nano-early-exception-20261106/summarize.py": "4e40ab726ede2535ce58dfa8db70ca599cb80d3ec1f2e722e78e6ca9b1621f43",
+    "out/nano-early-exception-20261106/uboot-selected-result.json": "8e452e7ceeef35e557b6455068a9a4ab668b960982726903d71cc63a082699c8",
+    "out/nano-early-exception-20261106/vendor-audit.json": "187797da32b45fd9e08602791d86b12234f070b69ebcbe6b03a9024732ab247f",
+    "out/nano-early-exception-20261106/vendor_check-before-section-fix.py": "081e640b39ed4dc5700081ac872a2b9a3285bafc629982a89e07589de5010c7d",
+    "out/nano-early-exception-20261106/vendor_check-v1.py": "33e42d2eaa7a2731b24c55c7bd6f363ac451e2e1ec0257dcfda7646b8d0e6cca",
+    "out/nano-early-exception-20261106/vendor_check.py": "abd48e9dbe360cf8627eb3201bc28ff96ec1fc6bd875546d5f17c258f12e58d2"
+  },
+  "fault_arm_cases": 42,
+  "fit_bytes": 8110080,
+  "focused_tests": 76,
+  "format": 1,
+  "global_exception_byte_budget": 384,
+  "hardware_actions": false,
+  "implementation_source": "acca40b3c77602ca15006b09360ec2c65e760a8c",
+  "implementation_sources": {
+    "platform/embedded/firmware/README.md": "10a5ea7bdd605f894183da7c25808603e5ff249ca5f92e0c34a83db80e2705f7",
+    "platform/embedded/firmware/build_terasic.py": "4e52af512c337b68f932dd8cfe1b2646501ba3f353a502521f6da5746265880f",
+    "platform/embedded/firmware/nano_firmware_entry.inc": "32067f2dca42c755343d5c893f42e58e7887b493a7400f96cc7c265e88de1436",
+    "platform/embedded/firmware/nano_firmware_fault.inc": "0250b3f11ec55b6b3a9bf7691780b8f72c4ff434f2161b506a3ff8ad46521a2f",
+    "platform/embedded/firmware/nano_firmware_ram.py": "a64d0f4fdcd1a6c39ebd323e56562d47a408f07869c2409849e1e1ace89259c5",
+    "platform/embedded/nano/cold_profile.py": "6d23f2b5b334eec5fd275349a074ca7cacb59a6857da4fc893b9e2c18b37963f",
+    "platform/embedded/nano/native_trace.py": "b921118c34cc1b020168c7ce4a3952508e401b10cf664037f058e0c7694ded97",
+    "tests/test_nano_firmware_selection.py": "2945d6e677e8dfcf94f0dd4c833e4fe1189e28f24d4deabb8af34dba096cb8e2",
+    "tests/test_nano_native_trace.py": "09b7c4dd2e0ad8d4df6eb75f347bd7b58691659e8f4bc68daeab081f610e9620"
+  },
+  "integration_base": "ac4cd266cebc4c48787870efe16379b34d5947f3",
+  "integration_results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "native runtime firmware and FPGA launch integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded producer identity and native control integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded firmware and identity/drain RTL integration",
+      "lane": "fpga",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "matched_boot_chain_built": true,
+  "native_application_reused_byte_exact": true,
+  "native_application_source": "31d716957759c3dede3330877dac2ce7bcd2d643",
+  "ordinary_admission": false,
+  "original_vendor_macros_unchanged": true,
+  "original_vendor_vectors_restored": true,
+  "permission_to_program": false,
+  "physical_ram_reservation_verified": false,
+  "predecessor_early_guard_passed": true,
+  "predecessor_physical_stop": "docs/validation/2026-11-06-de25-vendor-startup-trace-trial/physical-result.json",
+  "predecessor_vendor_startup_completed": false,
+  "private_macro_inverse_identity": true,
+  "real_c_producer_guard_cases": 262,
+  "recursive_fault_containment": true,
+  "status": "passed",
+  "total_arm_cases": 320,
+  "uart_message_bytes": 384,
+  "uart_poll_bound": 100000,
+  "vendor_calls": [
+    {
+      "callee": "reset_handler",
+      "pc": 2147485344,
+      "phase": "reset"
+    },
+    {
+      "callee": "init_cpu_data_ptr",
+      "pc": 2147485608,
+      "phase": "cpu-data"
+    },
+    {
+      "callee": "inv_dcache_range",
+      "pc": 2147485948,
+      "phase": "rw-cache"
+    },
+    {
+      "callee": "inv_dcache_range",
+      "pc": 2147486212,
+      "phase": "nobits-cache"
+    },
+    {
+      "callee": "zeromem",
+      "pc": 2147486476,
+      "phase": "bss"
+    },
+    {
+      "callee": "plat_set_my_stack",
+      "pc": 2147486724,
+      "phase": "stack"
+    },
+    {
+      "callee": "bl31_setup",
+      "pc": 2147486996,
+      "phase": "setup"
+    }
+  ],
+  "vendor_phases": [
+    "enter",
+    "reset-before",
+    "reset-after",
+    "cpu-data-before",
+    "cpu-data-after",
+    "rw-cache-before",
+    "rw-cache-after",
+    "nobits-cache-before",
+    "nobits-cache-after",
+    "bss-before",
+    "bss-after",
+    "stack-before",
+    "stack-after",
+    "setup-before",
+    "setup-after"
+  ]
+}

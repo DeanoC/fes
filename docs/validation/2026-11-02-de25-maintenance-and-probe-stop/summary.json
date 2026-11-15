@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "status": "passed",
+  "classification": "source/generation and software models; no hardware access, physical DDR grant or core admission",
+  "base": "4534d74bad19203851f4617c29546dc810b80742",
+  "producer_source_head": "97d31dc534c4f0bcd429aa895c5c2462bee6f8ae",
+  "final_source_head": "e5aa8d617f9879587f00bc01d903a9848a3f2b3b",
+  "generated_variants": 2,
+  "ddr_handoff_rejections": 17,
+  "onchip_handoff_rejections": 4,
+  "probe_stop_cases": 129,
+  "probe_stop_read_failure_points": 108,
+  "generated_control_reads_with_maintenance_reset_held": 3,
+  "generated_control_writes_with_maintenance_reset_held": 3,
+  "parent_tests": 1265,
+  "parent_skipped": 2,
+  "fpga_tests_reused": 1576,
+  "fpga_skipped": 75,
+  "software_commands": 11,
+  "software_commands_reused": 1,
+  "maintenance_masters_held": [
+    "fpga_m",
+    "hps_f2sdram",
+    "hps_m"
+  ],
+  "ddr_bus_window": {
+    "base": 2499805184,
+    "bytes": 8192,
+    "cpu_mapping": "not-qualified",
+    "reservation": "not-established"
+  },
+  "hardware_access": false,
+  "new_sof_or_rbf": false,
+  "production_runtime_admission": false
+}

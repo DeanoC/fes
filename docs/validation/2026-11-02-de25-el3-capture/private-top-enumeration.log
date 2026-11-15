@@ -1,0 +1,4 @@
+[ Environment variable QUARTUS_JTAG_CLIENT_CONFIG=/home/deano/fes/out/dev/de25-embedded-os/out/nano-el3-capture-20261102/trial/private-client.conf is in effect ]
+1) DE25-Nano on localhost:43039 [3-11.1-iface0]
+  4362C0DD   A5E(A013BB23B|B013BB23BCS)/..
+

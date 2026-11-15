@@ -1,0 +1,187 @@
+{
+  "status": "retained-read-only-original-baseline-final-USB-stop",
+  "restoration_procedure_sha256": "ac4945e957b76ce474ae436dedfbbffb0a4a40829a99ac7b6a5f2c8931b14bcd",
+  "elapsed_seconds": 487.08317165705375,
+  "original_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+  "all17files_read_only_wire_verified": true,
+  "SD_writes": 0,
+  "network_commands": 0,
+  "sealed_original_boot_verified": true,
+  "read_only_file_proof": {
+    "status": "verified-read-only-original-files",
+    "files": 17,
+    "original_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+    "SD_writes": 0,
+    "network_commands": 0,
+    "activation": false,
+    "native_boot_verified": false
+  },
+  "read_only_file_wire": {
+    "status": "passed-actual-nonce-bound-read-only-original-file-wire",
+    "files": [
+      {
+        "key": "6581aab8a5b415a8dceac77198cbb104d76108f9ae38a34ba45f164a630c891d",
+        "destination": "FES/INSTALLED/6581aab8a5b415a8dceac77198cbb104d76108f9ae38a34ba45f164a630c891d.JSN",
+        "sha256": "6581aab8a5b415a8dceac77198cbb104d76108f9ae38a34ba45f164a630c891d",
+        "bytes": 754
+      },
+      {
+        "key": "3667b4b5af2f1540e4f8bd53e577e17b99d22255569c2b8f83b1e0f2092fef8f",
+        "destination": "FES/INSTALLED/3667b4b5af2f1540e4f8bd53e577e17b99d22255569c2b8f83b1e0f2092fef8f.JSN",
+        "sha256": "3667b4b5af2f1540e4f8bd53e577e17b99d22255569c2b8f83b1e0f2092fef8f",
+        "bytes": 940
+      },
+      {
+        "key": "ed7a3e61d7fc989187b4932f239ed59fec64d527ebe396365cc0739e7aa75a85",
+        "destination": "FES/INSTALLED/ed7a3e61d7fc989187b4932f239ed59fec64d527ebe396365cc0739e7aa75a85.JSN",
+        "sha256": "ed7a3e61d7fc989187b4932f239ed59fec64d527ebe396365cc0739e7aa75a85",
+        "bytes": 754
+      },
+      {
+        "key": "boot",
+        "destination": "FES/UPLOAD.BIN",
+        "sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+        "bytes": 8379072
+      },
+      {
+        "key": "package",
+        "destination": "FES/PKGTEST.BIN",
+        "sha256": "191f63a663d2ce12a83bc499e2a6f89332732a260b2bb3e0c8daf2ff71ecd5b7",
+        "bytes": 1659392
+      },
+      {
+        "key": "metadata",
+        "destination": "FES/PROGRAM.JSN",
+        "sha256": "f03276391ec2ff380cc1be67633bed840b4908520a3dd4a84394ccedba00c26c",
+        "bytes": 3269
+      },
+      {
+        "key": "firmware",
+        "destination": "FES/FIRMWARE.BIN",
+        "sha256": "14ad84f4243efcd41587ff46ab932d11087043e8d455a1ed2a227b9657828dfa",
+        "bytes": 8192
+      },
+      {
+        "key": "package-alt",
+        "destination": "FES/PKGALT.BIN",
+        "sha256": "b46b3af120e9ef853220a9404b2fa5a9607df660c5a76e94e86031ea08d5e042",
+        "bytes": 1663488
+      },
+      {
+        "key": "metadata-alt",
+        "destination": "FES/PROGALT.JSN",
+        "sha256": "223955a3ec1bc9c148775a00eac598c81a037bc9f10c4944f8336fadc5673820",
+        "bytes": 3269
+      },
+      {
+        "key": "firmware-alt",
+        "destination": "FES/FIRMALT.BIN",
+        "sha256": "9374711cb6a5fd53c1c98d1d20ecb444d01d621a322f3d066ef216d515ac5161",
+        "bytes": 4096
+      },
+      {
+        "key": "tape",
+        "destination": "FES/GAME.P",
+        "sha256": "3664f171999bf597cc284754ac8f7ad2071bafd78fb1cd48c330d82dfbebaabb",
+        "bytes": 917
+      },
+      {
+        "key": "menu-package",
+        "destination": "FES/MENU.FCP",
+        "sha256": "8be58f92484c004da30cbf66c1beccf86252b0b1c2483d8384defc16a833c9b1",
+        "bytes": 1711104
+      },
+      {
+        "key": "menu-metadata",
+        "destination": "FES/MENU.JSN",
+        "sha256": "c751e4160e7ac440284e76672c849a23113d8422621a0a1f0fc64c1976e145c9",
+        "bytes": 2676
+      },
+      {
+        "key": "menu-selection",
+        "destination": "FES/MENUSEL.JSN",
+        "sha256": "03e353539c17319e89bf457d81624a32c5aedd28a19fd79828013c888d7e0365",
+        "bytes": 282
+      },
+      {
+        "key": "selection",
+        "destination": "FES/CORESEL.JSN",
+        "sha256": "b003ab10e32b3bb3121d910557bdfb9d1083c77cc05e933beaed67eb6d4ae09a",
+        "bytes": 63
+      },
+      {
+        "key": "ui-catalog",
+        "destination": "FES/UI.JSON",
+        "sha256": "3dd321e5e3af4ed77e2051f4c5c1e8e7cf049bc40e113afca00d3494eaacb1b0",
+        "bytes": 60
+      },
+      {
+        "key": "install-manifest",
+        "destination": "FES/INSTALL.JSN",
+        "sha256": "9cb348531e8d756312aad0a136611d874aeeccde525ef12419ac421c4f254dc0",
+        "bytes": 1817
+      }
+    ],
+    "raw_sha256": "47398b79cb239dd0cda199df89107a89d9757873ed00d860dc081327ed85bd05",
+    "raw_bytes": 118293,
+    "raw_commands": 383,
+    "file_receipt_commands": 376,
+    "SD_writes": 0,
+    "network_commands": 0,
+    "activation": false,
+    "native_boot_verified": false
+  },
+  "program_and_wire_witness": {
+    "boot_boundary_verified": true,
+    "console_sha256": "469b72b723def07d19d9abd4280593c12b39cfa63e4bf204f8d6fc591d7f7465",
+    "all_wire_sha256": "dc647be10367b8d33d4f1a51a02ad5700337186d203a56c47fd22f027ee0f31c",
+    "completed_program_epoch": "1467082:171257411"
+  },
+  "completed_prefix": {
+    "status": "passed-independent-50-command-prefix-replay",
+    "commands_verified": 50,
+    "last_Quit_issued_but_unverified": true,
+    "successful_core_launches": 2,
+    "polling_offers": 379,
+    "final_Park_verified": false,
+    "hardware_actions": false
+  },
+  "final_Quit_error": "usbcontrol firmware status 4",
+  "final_Park_verified": false,
+  "all_hardware_handles_closed": true,
+  "owned_processes_stopped": 8,
+  "UART_unheld": true,
+  "cleanup": [
+    {
+      "role": "recovery-rollback",
+      "cleanup": {
+        "transport_cleaned": true,
+        "clock_restored": true,
+        "owned_server_stopped": true,
+        "usb_permissions_restored": true,
+        "errors": []
+      },
+      "USB_identity_inode_permissions_restored": true,
+      "JTAG_auto_1_15M": true
+    },
+    {
+      "role": "native-baseline",
+      "cleanup": {
+        "transport_cleaned": true,
+        "clock_restored": true,
+        "owned_server_stopped": true,
+        "usb_permissions_restored": true,
+        "errors": []
+      },
+      "USB_identity_inode_permissions_restored": true,
+      "JTAG_auto_1_15M": true
+    }
+  ],
+  "host_deadline_expired": false,
+  "failed_diagnostic_retried": false,
+  "repaired_image_programmed": false,
+  "original_FIT_on_card": true,
+  "physical_reset_qualified": false,
+  "USB_only_recovery_not_yet_tested": true,
+  "general_core_load_acceptance": false
+}

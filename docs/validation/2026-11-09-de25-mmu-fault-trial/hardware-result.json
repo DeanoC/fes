@@ -1,0 +1,185 @@
+{
+  "status": "physical-mmu-enabled-then-asynchronous-serror",
+  "source_commit": "96a184a72c65a9eb27e816f1b46e085d055ed5cb",
+  "compiled_firmware_source": "a475be5b2449ed88efb0592ef0b4c72ca0ac0f78",
+  "native_boot_id": "07e1efeab6cc2b0d",
+  "provider_passed": true,
+  "verified_uploads": 13,
+  "fresh_sd_reads": 13,
+  "native_programming_passed": true,
+  "mmu_trace": {
+    "records": [
+      {
+        "el": 12,
+        "midr": 1093652560,
+        "mpidr": 2164260864,
+        "mmfr0": 1052962,
+        "daif": 704,
+        "scr": 568,
+        "sctlr": 12916794,
+        "tcr": 0,
+        "root": 2147733504,
+        "mair": 4963046916272786084,
+        "witness": 385984,
+        "phase": "before",
+        "line": 111,
+        "writes": 0,
+        "memory": 0
+      }
+    ],
+    "steps": [
+      {
+        "phase": "admit-before",
+        "operation": 0,
+        "line": 112
+      },
+      {
+        "phase": "admit-after",
+        "operation": 0,
+        "line": 113
+      },
+      {
+        "phase": "barrier-before",
+        "operation": 0,
+        "line": 114
+      },
+      {
+        "phase": "barrier-after",
+        "operation": 0,
+        "line": 115
+      },
+      {
+        "phase": "write-before",
+        "operation": 0,
+        "line": 116
+      },
+      {
+        "phase": "write-after",
+        "operation": 0,
+        "line": 117
+      },
+      {
+        "phase": "write-before",
+        "operation": 1,
+        "line": 118
+      },
+      {
+        "phase": "write-after",
+        "operation": 1,
+        "line": 119
+      },
+      {
+        "phase": "write-before",
+        "operation": 2,
+        "line": 120
+      },
+      {
+        "phase": "write-after",
+        "operation": 2,
+        "line": 121
+      },
+      {
+        "phase": "barrier-before",
+        "operation": 1,
+        "line": 122
+      },
+      {
+        "phase": "barrier-after",
+        "operation": 1,
+        "line": 123
+      },
+      {
+        "phase": "admit-before",
+        "operation": 0,
+        "line": 124
+      },
+      {
+        "phase": "admit-after",
+        "operation": 0,
+        "line": 125
+      },
+      {
+        "phase": "write-before",
+        "operation": 3,
+        "line": 126
+      }
+    ],
+    "transitions": [
+      {
+        "phase": "enabled",
+        "sctlr": 13441087,
+        "vbar": 2147497984,
+        "line": 127
+      }
+    ],
+    "faults": [
+      {
+        "esr": 3187671057,
+        "elr": 2147578008,
+        "far": 378752,
+        "spsr": 716,
+        "sp": 360448,
+        "sctlr": 13441087,
+        "tcr": 2155885856,
+        "root": 2147741696,
+        "mair": 4456703,
+        "scr": 568,
+        "vbar": 2147497984,
+        "line": 128,
+        "ec": 47
+      }
+    ],
+    "valid": false,
+    "complete": false,
+    "hardware_authority": false
+  },
+  "mmu_and_cache_enable_observed": true,
+  "normal_vector_restoration_observed": false,
+  "private_memory_probe_entered": false,
+  "delivered_exception": {
+    "ec": 47,
+    "class_name": "SError",
+    "iss": 17,
+    "dfsc": 17,
+    "elr_symbol": "tf_log",
+    "elr_symbol_offset": 36,
+    "instruction_word": "f9004fe7",
+    "instruction": "str x7,[sp,#152]",
+    "underlying_failing_access_unknown": true,
+    "far_is_unqualified_for_this_asynchronous_exception": true,
+    "sp_is_handler_sp_el3": true,
+    "interrupted_sp_el0_not_captured": true
+  },
+  "fesboot_sent": false,
+  "launcher_started": false,
+  "tape_attempted": false,
+  "error": "native boot trace rejected: ['terminal EL3 MMU transition fault']",
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "retention": {
+    "status": "passed",
+    "source_head": "96a184a72c65a9eb27e816f1b46e085d055ed5cb",
+    "operator_source": "96a184a72c65a9eb27e816f1b46e085d055ed5cb",
+    "path": "/home/deano/fes-retained/de25-mmu-fault-trial-hardware-20261109-r1",
+    "files": 88574,
+    "full_archive_readback": true,
+    "bundle_import_and_pack_verified": true,
+    "hardware_actions": false
+  },
+  "consumed_image_retired": true,
+  "core_load_acceptance": false,
+  "logs": {
+    "out/nano-mmu-fault-trial-20261109/trial/native-console.log": "0a9a6cb2bf944d2acc6167c3746b84dd89a53dcb2b7ec9c6db74a5318c25a8d0",
+    "out/nano-mmu-fault-trial-20261109/trial/native-result.json": "8af6ae684572e96e55f1667e84f4cc961a03c1d9be4cd73325670802e00d2575",
+    "out/nano-mmu-fault-trial-20261109/trial/experiment-result.json": "748ce26b6fd4f16657e492c10eec7b4cd34b3f0c955199ee7a78ee0be4431d29"
+  },
+  "pass": false
+}

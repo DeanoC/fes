@@ -1,0 +1,154 @@
+{
+  "base_commit": "4f559cc68d387dfb807bb7ab351ac6fe331bf89b",
+  "bl31": {
+    "bl31_bin_sha256": "c7c9d9a472c84c1ad92841a41df99fe90cfd704118480705d87d4026ac141ba9",
+    "bl31_bin_size": 45117,
+    "bl31_elf_sha256": "4583fea6a6f0cfd6db9a141191f7cce53354fe354ebe8a3c0396951540225359",
+    "bridge_mode": "owned-unready",
+    "reference_revision": "580dcb5c4e10aa7daff2bf69d493c076a6d3e665"
+  },
+  "bl31_result_sha256": "15295043bcd0aef6fa0162a1463eea6b51d12bb756bf014d27b3030c81ec34a9",
+  "checks": {
+    "bl31-owned-unready": {
+      "argv": [
+        "python3",
+        "platform/embedded/firmware/build_terasic.py",
+        "--reference-repo",
+        "out/terasic-git-restore-tfa",
+        "--cross-prefix",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+        "--nano-owned-bridges",
+        "--output",
+        "out/nano-sd-lease-owned-bl31-20261101",
+        "--jobs",
+        "2"
+      ],
+      "elapsed": 5.8045734339393675,
+      "log_sha256": "7c2a5605dcd81baa6ec276d7614f559a2fc598084fa06804540ffb9587248228",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "focused-parents-fixed": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano*.py",
+        "-v"
+      ],
+      "elapsed": 3.001968350028619,
+      "log_sha256": "2287e7f2c24c7bd7be2ba9c44cd6370dae4333d6837c08a489dea1db11ecbace",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "generate": {
+      "argv": [
+        "make",
+        "generate"
+      ],
+      "elapsed": 4.2024356899783015,
+      "log_sha256": "402b0c83a9040dc54bb32806e53b737bd5d5fb0212722d7b78a2a37a343579d3",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "owned-native": {
+      "argv": [
+        "python3",
+        "platform/embedded/tamago/nativefabric/verify.py",
+        "--reference",
+        "out/terasic-git-restore-tfa/plat/intel/soc/common/socfpga_sip_svc.c",
+        "--reset-reference",
+        "out/terasic-git-restore-tfa/plat/intel/soc/common/soc/socfpga_reset_manager.c",
+        "--nano-bridge-service",
+        "--output",
+        "out/nano-sd-lease-owned-native-20261101"
+      ],
+      "elapsed": 32.62084810505621,
+      "log_sha256": "df59659db4452c8ff1a68dbafeb5486f185747abc2523cd1ee8e620c11508702",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "planner-tests": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test*affected.py",
+        "-v"
+      ],
+      "elapsed": 2.203032209072262,
+      "log_sha256": "df8ad4e2500fd494afa577a1718e15603934835612c7e7dd4752a8b96d7b238c",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "sd-go-readback": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-timeout",
+        "90s",
+        "-v",
+        "./sdcontrol",
+        "./sdhci",
+        "./fat"
+      ],
+      "elapsed": 1.601604167954065,
+      "log_sha256": "aa6a632d5ae3ccc73328bb2969a249892c38d90941f0489cacd169a3053c1bd1",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "sd-sdk-readback": {
+      "argv": [
+        "python3",
+        "out/nano-sd-lease-sdk-final-20261101/sdk_build.py"
+      ],
+      "elapsed": 0.40079802996478975,
+      "log_sha256": "d4c3b8fc9e18062ff64f6856bace47db2f21a76052a94102d0e54e410e45366b",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "selection-tests": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "elapsed": 0.8009778358973563,
+      "log_sha256": "bcf6fd21ab5625ddb6bbf2014c2f1c774d0a34dc02d1e4f4d21f7ae0b1d98888",
+      "returncode": 0,
+      "timed_out": false
+    }
+  },
+  "classification": "Host C/Go SD lease/PIO tests and ARM64 component builds; no new board operation or physical SD/core acceptance",
+  "core_load_acceptance": false,
+  "native_sd_acceptance": false,
+  "owned_native_classification": "host native lifecycle/tenfoot with C Nano bridge service, actual pinned vendor bridge functions, prepared TF-A functions and Verilated FPGA RTL; injected registers, ownership, memory and SDM; no physical acceptance",
+  "owned_native_result_sha256": "f4122f67c1360c1c320d8f390310d565a60209a6a5879580dcb8461c7448720c",
+  "sdk": {
+    "archive_sha256": "d1e6d9473331d89828c0ff606b620b02d5597781f657b665cfa21e255674b0a8",
+    "archive_size": 142214,
+    "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368"
+  },
+  "sdk_result_sha256": "4d9348698f1423d18bc5df5f490cc3cd641f4680d435cf55cdd3778f2789610e",
+  "sdk_source_count": 555,
+  "shared_contract": "fes.fabric.embedded.sd 1.0; C and Go generated together"
+}

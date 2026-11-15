@@ -1,0 +1,259 @@
+{
+  "status": "tenfoot-menu-core-service-software-and-matched-build-passed",
+  "validation_complete": true,
+  "implementation_source": "5246bae7e7a03b15405d806dabbb9ebd2dd93306",
+  "base": "95ef748cf06d537448472c1dea630209cf44f6a1",
+  "observed_utc": "2026-11-07T20:35:13.449766+00:00",
+  "classification": "actual Tenfoot/App/backend/service and real retained package admission with injected platform I/O; native matched compile/source/layout proof; no physical acceptance",
+  "checks": [
+    {
+      "label": "software-0",
+      "receipt": "out/nano-tenfoot-menu-20261107/software-0-result.json",
+      "sha256": "6463a857cc8a8292d07959698b925bd154ae8eb234d7af2852ecea44da870f01",
+      "elapsed_seconds": 0.20061079994775355
+    },
+    {
+      "label": "software-1",
+      "receipt": "out/nano-tenfoot-menu-20261107/software-1-result.json",
+      "sha256": "7b015f4d420e6bf33d94bed61a570bc6cf1d9548a784dbccb02883e190dc77d5",
+      "elapsed_seconds": 1.200955699197948
+    },
+    {
+      "label": "software-2-final",
+      "receipt": "out/nano-tenfoot-menu-20261107/software-2-final-result.json",
+      "sha256": "b42ad5924a04800514d6865e6f02505f7622be16eb23fb39bdea5e841ae0cf86",
+      "elapsed_seconds": 0.2003991468809545
+    },
+    {
+      "label": "software-3",
+      "receipt": "out/nano-tenfoot-menu-20261107/software-3-result.json",
+      "sha256": "f62c1a12b58577032c2dd5d06dc74de20c8b7840f626df3afa46c9eb7c4ef5f0",
+      "elapsed_seconds": 0.20061790710315108
+    },
+    {
+      "label": "software-4-final",
+      "receipt": "out/nano-tenfoot-menu-20261107/software-4-final-result.json",
+      "sha256": "b7877a8580029e5a12e717629c07918b668e07ff78dc1e3967d500a4e6e11b06",
+      "elapsed_seconds": 297.5591712249443
+    },
+    {
+      "label": "software-5",
+      "receipt": "out/nano-tenfoot-menu-20261107/software-5-result.json",
+      "sha256": "b38279a8b5d5d3466dce7c74f04bbcd99f9a6db188df0b24121fdf2f038e4abd",
+      "elapsed_seconds": 5.202526445966214
+    },
+    {
+      "label": "software-6",
+      "receipt": "out/nano-tenfoot-menu-20261107/software-6-result.json",
+      "sha256": "489ff7c66e73a3789b7389b9ead145b9ab06ee2a45f88f8fa1fe0c95cdbfa8c8",
+      "elapsed_seconds": 129.0762817740906
+    },
+    {
+      "label": "menu-upload",
+      "receipt": "out/nano-tenfoot-menu-20261107/menu-upload-result.json",
+      "sha256": "cbcb181ca6051dacf1a3f07abd008ceeebba18503d6399e19dbace7ef2b2e29d",
+      "elapsed_seconds": 15.210134885041043
+    },
+    {
+      "label": "actual-package-preflight",
+      "receipt": "out/nano-tenfoot-menu-20261107/actual-package-preflight-result.json",
+      "sha256": "3995de22aa9727fb860c6884b2e877335185ec1aab6b479cf9f13844143e9194",
+      "elapsed_seconds": 1.2011389720719308
+    },
+    {
+      "label": "native-sdk-final",
+      "receipt": "out/nano-tenfoot-menu-20261107/native-sdk-final-result.json",
+      "sha256": "7ad19b40206a1c1f22a767749e4c8bee59fd1faf8364a32de1fb6e6709a0debe",
+      "elapsed_seconds": 82.04538257000968
+    },
+    {
+      "label": "native-entry-final",
+      "receipt": "out/nano-tenfoot-menu-20261107/native-entry-final-result.json",
+      "sha256": "ab924b6035a7ca97e387467c7c6d26705d6601c08ccc4c83ff6c1828bb078864",
+      "elapsed_seconds": 68.05102072400041
+    },
+    {
+      "label": "bl31-final",
+      "receipt": "out/nano-tenfoot-menu-20261107/bl31-final-result.json",
+      "sha256": "b0cc1e52014fb10101d477efd0becbc156c85724a8277f777536f234b2397911",
+      "elapsed_seconds": 228.316779587185
+    },
+    {
+      "label": "uboot-final",
+      "receipt": "out/nano-tenfoot-menu-20261107/uboot-final-result.json",
+      "sha256": "d69b5aa1ffbc7a0c2a4919f1e4585a0aebd14bdbb2401c59b9a3d1e612aa8c4c",
+      "elapsed_seconds": 312.1769206461031
+    },
+    {
+      "label": "chain-proof-final",
+      "receipt": "out/nano-tenfoot-menu-20261107/chain-proof-final-result.json",
+      "sha256": "72efc45402bc354aa30e957af24bfc9a33122515f96906fa199bd4814fb50217",
+      "elapsed_seconds": 0.20069992588832974
+    }
+  ],
+  "parent_tests": 1648,
+  "parent_skips": 3,
+  "source_sha256": {
+    "platform/embedded/nano/README.md": "f9aabb580838ff7976a8a56264d0b8d4cff851a72f7f04fe3cfc2fca065d0201",
+    "platform/embedded/nano/hps_context.py": "85a249ed4de6b21921fb79a9208fe2001729229906b552a4e491cf7e6aa554bd",
+    "platform/embedded/nano/upload.py": "bc4c48292a3a0a5434f1cd9ee1e6657983a24ca78320904112ade3fc08d6adde",
+    "platform/embedded/tamago/build.py": "447a6516e47f6ce02d274038ca74e3660924af3143ec1c3080ba4bdb3a41017f",
+    "platform/embedded/tamago/cmd/fpgaload/tenfoot.go": "5a6af99e55726843a2d6a672d46a2115bd0b3488ec6679220093e41262f220e6",
+    "platform/embedded/tamago/nativefabric/README.md": "eb4c315c453abdda7899c9d3a851dc90926fa2b395e6c1b1a9b1595cb5f517c9",
+    "platform/embedded/tamago/nativefabric/menusession.go": "06f7b120b748d5f1a499c9ed43cdbab8400bd9a18bdda9058c39b53a02ebb236",
+    "platform/embedded/tamago/nativefabric/program_menu.go": "14bdb8e385754e2428d3658962320926836927cc351d60f216701e922c09ffdf",
+    "platform/embedded/tamago/nativefabric/program_menu_platform.go": "86a2edb286fdb0c50a8c4e267b6d278e376e6306af4f7fec258eeaa1ac5fdc75",
+    "platform/embedded/tamago/nativefabric/program_menu_platform_test.go": "f8e5495b726d962e1f2c2486128a9f0faf41db2b9258aaf53f8444021706935f",
+    "platform/embedded/tamago/nativefabric/program_menu_test.go": "d70460fe5664310c272308ff2e9292fdf09d362e6d941f3d8484bb96e9cfdc05",
+    "platform/embedded/tamago/nativefabric/program_service.go": "97fa6c0da0c9059f285786633f377f4f59537f7b3a3e5e421a79e8a3f28248b1",
+    "platform/embedded/tamago/nativefabric/rom_program_test.go": "ddd5388c96970c9bbe7e63c0adda8e9b9e609329e9eddb425f1ca778c0adba66",
+    "platform/embedded/tamago/nativefabric/selected_menu.go": "b49b5b229904a3acad13b5667b533b614cfa975eadd2a33b58973d19b60c16b4",
+    "tests/test_nano_combined_program.py": "60d09620d4e22fb0964a2b36d819c292331e5c68dee625eb47859dfab25f5fe5",
+    "tests/test_nano_upload.py": "e372b757301c6ed7dee02d2cd84908e61241073aa9fc682aaacbe6515cbf3804"
+  },
+  "chain": {
+    "status": "passed",
+    "scope": "matched compile/source/memory proof only; no physical boot or display acceptance",
+    "inputs": {
+      "out/nano-tenfoot-menu-20261107/native-sdk-final/result.json": "73e5a45434b97c154018f17a24a762d549bd289c2dc5794310e44cddc54d768f",
+      "out/nano-tenfoot-menu-20261107/native-entry-final/result.json": "b847e2cee8f9baf96c3a6b2e9e52a7193218db4fa61ea29001b44198805c79b5",
+      "out/nano-tenfoot-menu-20261107/native-bl31-final/result.json": "bcf652da4ed8fa93520f202f2dbdaf68f95a9677ed4718fa6a44c7a28ff8e3ea",
+      "out/nano-tenfoot-menu-20261107/native-uboot-final/result.json": "98c3d88b6f906769de164d4a9b462ba0fdf82154d37ec31e860722a444d59333"
+    },
+    "artifacts": {
+      "sdk": {
+        "path": "out/nano-tenfoot-menu-20261107/native-sdk-final/fpgaload.elf",
+        "sha256": "6ea5562f2acd38850ed5f1fbb925bcff07bbe23be904c2eb5095366c352dbae0",
+        "bytes": 15691951
+      },
+      "entry": {
+        "path": "out/nano-tenfoot-menu-20261107/native-entry-final/entry.img",
+        "sha256": "aab68d7872f7e8767441a87dd22c768860a958be974c1859b548bfca878129be",
+        "bytes": 7593984
+      },
+      "BL31": {
+        "path": "out/nano-tenfoot-menu-20261107/native-bl31-final/source/build/agilex5/release/bl31.bin",
+        "sha256": "751126ce65c1b0a8e8ef5494cbfc66825a782c997396e4f48329119d95bc12eb",
+        "bytes": 229701
+      },
+      "FIT": {
+        "path": "out/nano-tenfoot-menu-20261107/native-uboot-final/build/u-boot.itb",
+        "sha256": "f7c950c6ce3183cc13970af02769e1f3238c5d0b87af34a063eecdf10ebbd44d",
+        "bytes": 8280624
+      },
+      "SPL": {
+        "path": "out/nano-tenfoot-menu-20261107/native-uboot-final/build/spl/u-boot-spl-dtb.hex",
+        "sha256": "d50551c4cd1cde3aff5ee7a2337a2c6d4ae5720d705fc32965778fee123f45f2",
+        "bytes": 461189
+      }
+    },
+    "boot_anchor_unchanged": true,
+    "union_reader_bytes": 8388608,
+    "original_computer_arena_bytes": 2097152,
+    "bl31_loaded_ocram_end": 384512,
+    "ocram_limit": 393216,
+    "FIT_bytes": 8280624,
+    "FIT_limit": 8388608,
+    "FIT_remaining_bytes": 107984,
+    "hardware_actions": false,
+    "goal_complete": false,
+    "menu_assets": {
+      "MENU.FCP": {
+        "sha256": "739ca97d2f1cc751dd9d0be61ead5f47fbbdedcd4d0342bfe397d41f8302691f",
+        "size": 1715200
+      },
+      "MENU.JSN": {
+        "sha256": "5a3ffa6132bdd0a8a3d1064483b3a414d3350f98198fa9529d002e5624c8d0e6",
+        "size": 2676
+      },
+      "MENUSEL.JSN": {
+        "sha256": "01e120fac81b875ab8311485712b4a4f464e98d9678a79e6e16f1507273209e0",
+        "size": 282
+      }
+    },
+    "implementation_source": "5246bae7e7a03b15405d806dabbb9ebd2dd93306"
+  },
+  "native_service_implementation": "e89ef9781c32e4f43405effef5180de2f9806b6c",
+  "native_poll_pacing": "a19002ecc",
+  "menu_upload_extension": "5246bae7e",
+  "tested_behaviors": [
+    "actual App pixels reach modeled menu arena",
+    "initial displayed menu before Ready",
+    "repeated menu/computer Run/return/menu with immutable boot and single pinned arena",
+    "content rejection and cancelled launch restore cached menu without logical generation consumption",
+    "stale and busy requests, invalid frames and running-frame suppression",
+    "configuration, identity, menu stop, computer close and restoration failure retirement without replay",
+    "terminal display and UART failures close known sessions once",
+    "parked menu leaves SD contained",
+    "fixed menu upload destinations, bounds, SD readback, repeated session and changed-file retirement"
+  ],
+  "actual_package_preflight": "real menu/ZX81/ZX80 inputs; compiled companion identical in final SDK; zero firmware calls or SD containment",
+  "prepared_card_files": {
+    "scope": "prepared files only; no card writes",
+    "files": {
+      "FES/FIRMALT.BIN": {
+        "bytes": 4096,
+        "sha256": "9374711cb6a5fd53c1c98d1d20ecb444d01d621a322f3d066ef216d515ac5161"
+      },
+      "FES/UI.JSON": {
+        "bytes": 149,
+        "sha256": "af2491f23dc9540d31d02c3123b715ff1abacf633a95312255a9c8075cfbdbba"
+      },
+      "FES/PROGRAM.JSN": {
+        "bytes": 3269,
+        "sha256": "f03276391ec2ff380cc1be67633bed840b4908520a3dd4a84394ccedba00c26c"
+      },
+      "FES/CORESEL.JSN": {
+        "bytes": 988,
+        "sha256": "50b183e619ebbecf3fd359bd142818a2557bcf900d8704c42950051cd271e8d0"
+      },
+      "FES/FIRMWARE.BIN": {
+        "bytes": 8192,
+        "sha256": "14ad84f4243efcd41587ff46ab932d11087043e8d455a1ed2a227b9657828dfa"
+      },
+      "FES/MENU.FCP": {
+        "bytes": 1715200,
+        "sha256": "739ca97d2f1cc751dd9d0be61ead5f47fbbdedcd4d0342bfe397d41f8302691f"
+      },
+      "FES/PROGALT.JSN": {
+        "bytes": 3269,
+        "sha256": "223955a3ec1bc9c148775a00eac598c81a037bc9f10c4944f8336fadc5673820"
+      },
+      "FES/MENU.JSN": {
+        "bytes": 2676,
+        "sha256": "5a3ffa6132bdd0a8a3d1064483b3a414d3350f98198fa9529d002e5624c8d0e6"
+      },
+      "FES/PKGTEST.BIN": {
+        "bytes": 1659392,
+        "sha256": "191f63a663d2ce12a83bc499e2a6f89332732a260b2bb3e0c8daf2ff71ecd5b7"
+      },
+      "FES/MENUSEL.JSN": {
+        "bytes": 282,
+        "sha256": "01e120fac81b875ab8311485712b4a4f464e98d9678a79e6e16f1507273209e0"
+      },
+      "FES/PKGALT.BIN": {
+        "bytes": 1663488,
+        "sha256": "b46b3af120e9ef853220a9404b2fa5a9607df660c5a76e94e86031ea08d5e042"
+      }
+    }
+  },
+  "superseded": {
+    "status": "superseded before hardware",
+    "reason": "Native frontend menu polling must use a paced millisecond yield; previous native SDK/entry and in-flight firmware are not hardware candidates. Stop only this task process group; preserve outputs and rebuild fresh.",
+    "implementation_source": "e89ef9781c32e4f43405effef5180de2f9806b6c",
+    "stopped_pid": 2617253,
+    "hardware_actions": false
+  },
+  "retained": "/home/deano/fes-retained/de25-tenfoot-menu-20261107-r1",
+  "remaining": [
+    "strong shared confirmed USB PIO composition with menu DDR and role transitions",
+    "source-bound menu frame/return observations and paired bounded trace/operator",
+    "actual fixed menu upload/readbacks through recovery loader",
+    "matched HPS composition under shared Quartus lock and exact board trial",
+    "broader core/media/audio/network/appliance acceptance"
+  ],
+  "hardware_actions": false,
+  "goal_complete": false,
+  "subagents_used": false,
+  "live_jobs": []
+}

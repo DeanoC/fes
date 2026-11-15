@@ -1,0 +1,341 @@
+{
+  "format": 1,
+  "status": "stopped-native-worker-bound-final-return",
+  "classification": "original failed bounded trial; verified partial native cycles, final Park unproven",
+  "operator_source": "d7e9c7337af6f80831746614892f9a83c642a5de",
+  "compiled_source": "f8653867fea0dfab330a54358ddfd0ef97aadb42",
+  "native_boot_id": "aa11ddf99761b275",
+  "procedure_consumed": true,
+  "attempts_on_procedure": 1,
+  "prior_compiled_image_attempts": 2,
+  "total_compiled_image_attempts": 3,
+  "max_compiled_image_attempts": 3,
+  "original_attempt_passed": false,
+  "hardware_elapsed_seconds": 589.4687942902092,
+  "native_worker_limit_seconds": 480,
+  "collector_alarm_limit_seconds": 450,
+  "outer_wrapper_timed_out": false,
+  "stop_reason": "native bound",
+  "native_error": "bounded phase terminated",
+  "native_programming_completed": true,
+  "matched_native_boot_verified": true,
+  "twelve_uploads_and_fresh_reads_verified": true,
+  "initial_menu_verified": true,
+  "verified_computer_launches": 3,
+  "verified_menu_returns": 2,
+  "verified_configuration_activations": 6,
+  "final_quit_issued": true,
+  "final_park_verified": false,
+  "full_cycle_verified": false,
+  "ordinary_admission": false,
+  "core_load_acceptance": false,
+  "physical_display_verified": false,
+  "physical_input_controls_verified": false,
+  "continuing_claim_retained": true,
+  "factory_restored": false,
+  "post_failure_board_commands": false,
+  "one_use_live_admission": {
+    "recovery": {
+      "mapped_client_libraries": [
+        "/data/altera_pro/26.3/quartus/linux64/libjtag_client.so",
+        "/data/altera_pro/26.3/quartus/linux64/libjtag_client_dcrt.so"
+      ],
+      "grant_sha256": "0a7973682f083cd9ebcc823f762e99cb97bb4fba8a3ab02c458824c6acb72e87",
+      "capture_sha256": "0819cc47f460dae4d7df2ba1a97e3b26d1af1874a9bb84f27a6ba910756d85e6",
+      "trace_sha256": "c96e5e10848169069412673352200965ce922eec84962bfd0182998f469f9eaa",
+      "trace_bytes": 475657
+    },
+    "native": {
+      "mapped_client_libraries": [
+        "/data/altera_pro/26.3/quartus/linux64/libjtag_client.so",
+        "/data/altera_pro/26.3/quartus/linux64/libjtag_client_dcrt.so"
+      ],
+      "grant_sha256": "2c8acbd41173171b3c84f66d61c5f71a7c07751bc8d020164ef7bc8026480e01",
+      "capture_sha256": "0819cc47f460dae4d7df2ba1a97e3b26d1af1874a9bb84f27a6ba910756d85e6",
+      "trace_sha256": "71cf7ab6fb77f3d95033d2be71bf351cd498f10ce1faa47c4c61cef0933b17b7",
+      "trace_bytes": 498442
+    }
+  },
+  "launches": [
+    {
+      "selection": 0,
+      "generation": 1,
+      "identity": {
+        "PackageID": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+        "CoreID": "fes.zx81",
+        "ABI": "fes.computer",
+        "BuildID": "0792e51a2e51512bfb8fe44e93a69ddd",
+        "Platform": "de25_nano",
+        "Device": "A5EB013BB23BE4SCS",
+        "ProgrammingProfile": "de25-native-computer-v1",
+        "ActivationReceiptSHA256": "5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c",
+        "ProgrammedSHA256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+        "Major": 1,
+        "Minor": 0
+      },
+      "elapsed_seconds": 54.04464116715826,
+      "fetch": {
+        "scope": "nano-computer-fetch-v1",
+        "owner": 9351217957319672855,
+        "generation": 1,
+        "package_id": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+        "build_id": "0792e51a2e51512bfb8fe44e93a69ddd",
+        "before": {
+          "Cycles": 0,
+          "Address": 0
+        },
+        "held": {
+          "Cycles": 0,
+          "Address": 0
+        },
+        "running": {
+          "Cycles": 16692,
+          "Address": 979
+        },
+        "delta": 16692,
+        "polls": 1,
+        "elapsed_ns": 106906963,
+        "limit_ns": 1000000000
+      },
+      "shared_usb": {
+        "before": {
+          "phase": "pause",
+          "state": "ready",
+          "native_generation": 0,
+          "owner": 9351217957319672855,
+          "generation": 2,
+          "reports": 319
+        },
+        "after": {
+          "phase": "resume",
+          "state": "running",
+          "native_generation": 1,
+          "owner": 9351217957319672855,
+          "generation": 2,
+          "reports": 319
+        },
+        "reports_observed_since_previous_boundary": 319
+      }
+    },
+    {
+      "selection": 1,
+      "generation": 3,
+      "identity": {
+        "PackageID": "b32ce70af93f2ae4ff665490246e5c52fbb4d76eadb5445949e5c2b4434fba86",
+        "CoreID": "fes.zx80",
+        "ABI": "fes.computer",
+        "BuildID": "ea02ee8a9026deb05317a3e7d024adde",
+        "Platform": "de25_nano",
+        "Device": "A5EB013BB23BE4SCS",
+        "ProgrammingProfile": "de25-native-computer-v1",
+        "ActivationReceiptSHA256": "ac0cfb45e61b3ee1b6dd65868943539845b7ea8a142191dedb38888e1373bb30",
+        "ProgrammedSHA256": "826aaac1cd524136079e0b10d20a34ad75af631e5fef04f4b153849cde092e1a",
+        "Major": 1,
+        "Minor": 0
+      },
+      "elapsed_seconds": 53.539981620851904,
+      "fetch": {
+        "scope": "nano-computer-fetch-v1",
+        "owner": 9351217957319672855,
+        "generation": 3,
+        "package_id": "b32ce70af93f2ae4ff665490246e5c52fbb4d76eadb5445949e5c2b4434fba86",
+        "build_id": "ea02ee8a9026deb05317a3e7d024adde",
+        "before": {
+          "Cycles": 0,
+          "Address": 0
+        },
+        "held": {
+          "Cycles": 0,
+          "Address": 0
+        },
+        "running": {
+          "Cycles": 16836,
+          "Address": 612
+        },
+        "delta": 16836,
+        "polls": 1,
+        "elapsed_ns": 113117577,
+        "limit_ns": 1000000000
+      },
+      "shared_usb": {
+        "before": {
+          "phase": "pause",
+          "state": "ready",
+          "native_generation": 2,
+          "owner": 9351217957319672855,
+          "generation": 2,
+          "reports": 852
+        },
+        "after": {
+          "phase": "resume",
+          "state": "running",
+          "native_generation": 3,
+          "owner": 9351217957319672855,
+          "generation": 2,
+          "reports": 852
+        },
+        "reports_observed_since_previous_boundary": 526
+      }
+    },
+    {
+      "selection": 0,
+      "generation": 5,
+      "identity": {
+        "PackageID": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+        "CoreID": "fes.zx81",
+        "ABI": "fes.computer",
+        "BuildID": "0792e51a2e51512bfb8fe44e93a69ddd",
+        "Platform": "de25_nano",
+        "Device": "A5EB013BB23BE4SCS",
+        "ProgrammingProfile": "de25-native-computer-v1",
+        "ActivationReceiptSHA256": "5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c",
+        "ProgrammedSHA256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+        "Major": 1,
+        "Minor": 0
+      },
+      "elapsed_seconds": 54.04268722003326,
+      "fetch": {
+        "scope": "nano-computer-fetch-v1",
+        "owner": 9351217957319672855,
+        "generation": 5,
+        "package_id": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+        "build_id": "0792e51a2e51512bfb8fe44e93a69ddd",
+        "before": {
+          "Cycles": 0,
+          "Address": 0
+        },
+        "held": {
+          "Cycles": 0,
+          "Address": 0
+        },
+        "running": {
+          "Cycles": 16796,
+          "Address": 979
+        },
+        "delta": 16796,
+        "polls": 1,
+        "elapsed_ns": 107810540,
+        "limit_ns": 1000000000
+      },
+      "shared_usb": {
+        "before": {
+          "phase": "pause",
+          "state": "ready",
+          "native_generation": 4,
+          "owner": 9351217957319672855,
+          "generation": 2,
+          "reports": 1382
+        },
+        "after": {
+          "phase": "resume",
+          "state": "running",
+          "native_generation": 5,
+          "owner": 9351217957319672855,
+          "generation": 2,
+          "reports": 1382
+        },
+        "reports_observed_since_previous_boundary": 524
+      }
+    }
+  ],
+  "command_windows": [
+    {
+      "request_hex": "0d",
+      "start": 50223,
+      "end": 60501,
+      "bound_seconds": 100,
+      "status": "received",
+      "elapsed_seconds": 54.04464116715826
+    },
+    {
+      "request_hex": "73",
+      "start": 60501,
+      "end": 73571,
+      "bound_seconds": 105,
+      "status": "received",
+      "elapsed_seconds": 56.66775907203555
+    },
+    {
+      "request_hex": "1b5b43",
+      "start": 73571,
+      "end": 76854,
+      "bound_seconds": 5,
+      "status": "received",
+      "elapsed_seconds": 2.7017237080726773
+    },
+    {
+      "request_hex": "0d",
+      "start": 76854,
+      "end": 87147,
+      "bound_seconds": 100,
+      "status": "received",
+      "elapsed_seconds": 53.539981620851904
+    },
+    {
+      "request_hex": "73",
+      "start": 87147,
+      "end": 100221,
+      "bound_seconds": 105,
+      "status": "received",
+      "elapsed_seconds": 56.686342047993094
+    },
+    {
+      "request_hex": "1b5b44",
+      "start": 100221,
+      "end": 103504,
+      "bound_seconds": 5,
+      "status": "received",
+      "elapsed_seconds": 2.6844440640415996
+    },
+    {
+      "request_hex": "0d",
+      "start": 103504,
+      "end": 113799,
+      "bound_seconds": 100,
+      "status": "received",
+      "elapsed_seconds": 54.04268722003326
+    },
+    {
+      "request_hex": "71",
+      "start": 113799,
+      "end": null,
+      "bound_seconds": 110,
+      "status": "issued"
+    }
+  ],
+  "timing": {
+    "upload_completion_to_native_collector_start_seconds": 95.730715,
+    "native_collector_including_failure_tail_seconds": 386.584678,
+    "startup_seconds": 61.66110363206826,
+    "per_request_bound_failure_observed": false,
+    "host_prefix_profile_pending": false,
+    "host_prefix_replay_seconds": 100.77867413312197,
+    "host_prefix_worker_calls": 45
+  },
+  "independent_host_cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "evidence_sha256": {
+    "out/nano-live-admission-trial-20261108/hardware-result.json": "6a53e3df731378fa88ac6d5c44447936244ff27aac681e3232a52e1e6e7c7adb",
+    "out/nano-live-admission-trial-20261108/hardware.log": "a339de0629c0e328a95fba5722839db1ab04396632e38c2994fbde7e12e94668",
+    "out/nano-live-admission-trial-20261108/cleanup-evidence.json": "7fecd92dbf5fcf639e54b7c9e3b602b1171d67c1e9529f2bf67e1ce82aedfe8c",
+    "out/nano-live-admission-trial-20261108/trial/native-result.json": "2c394a20796fd1b261ea99e49cc5c4b321e4c0b96c0ade158f259c3942915b25",
+    "out/nano-live-admission-trial-20261108/trial/native-console.log": "246dea5676ab09a34eff707d597f8e49ad2b6cbdfade1cd03b5dca5130acc734",
+    "out/nano-live-admission-trial-20261108/trial/experiment-result.json": "935a976bd5d0a6718069d90a3c4f8df6e33a1da9a2e08d1f53853da1594dbb7b",
+    "out/nano-live-admission-trial-20261108/trial/recovery-boot-result.json": "bc306cc2d91e416568a3c994a88b3ff7e3f31d8952ea50c4ef9a8acae9af661f",
+    "out/nano-live-admission-trial-20261108/trial/uploads/result.json": "81dd4c72df447acecebc5ece8fc92095f561617f4eea5a9d9dc48f48baced11f",
+    "out/nano-live-admission-trial-20261108/trial/preflight.json": "a5b0b6d311d4bc628b92d5a17094fc44be7c4662a1e7d01bb58d02d6b0f7d7e1",
+    "out/nano-live-admission-trial-20261108/analyse_stop.py": "afda542a253b500ea8095649d1af3111d08a3dc9179d9d20052fefc698b783e8",
+    "out/nano-live-admission-trial-20261108/native-prefix-profile.json": "a42dfda9356e09aa097942f0f129b17e1e0e2b11c5272c2aad41f8e75cf0bbf3",
+    "out/nano-live-admission-trial-20261108/native-prefix-cumulative.txt": "eaa6c337608cac57d77a595bbc6ec2280243bc286502008e1b1ec6a750dd348f",
+    "out/nano-live-admission-trial-20261108/profile_native_prefix.py": "bb39bfa3d8303c90b97de2e4e4c9b717cd9987acd2540912cb7e0ea44b884338"
+  },
+  "goal_complete": false
+}

@@ -1,0 +1,31 @@
+{
+  "automatic_writes": false,
+  "manual_prompt": true,
+  "native_handoff": false,
+  "phy": {
+    "address": 1,
+    "aneg_timeout_ms": 4000,
+    "driver": "Micrel ksz9031",
+    "id": 2233890,
+    "prepare_before_link": true,
+    "prepare_command": "fesphy"
+  },
+  "phy_driver_linked": true,
+  "phy_sources": {
+    "originals": {
+      "cmd/Makefile": "7352588e2d55075e6a3c749256e2a8112f246c860349c5e7696d1132a9dae2a3",
+      "drivers/net/dwc_eth_xgmac.c": "0e22fd3acb1cfd3806f9fbc0abc2cb0f527c395cdc394a747a5a6e56f1d6aed7",
+      "drivers/net/dwc_eth_xgmac.h": "fa38d452898cefc79c35ee209e2213da672566f640ddd3d4fd5d5bf2da2c1ca8"
+    },
+    "prepared": {
+      "cmd/Makefile": "ed3b75f9c42f2fcbbe005f38d8c2b820fd2bd5fcd0f9155996dfa33c6b87ef34",
+      "cmd/fes_nano_phy.c": "c7ae8ec07304688f4c2c9a747ec0d60d3a21234a2d985e5f7091f871009514ca",
+      "drivers/net/dwc_eth_xgmac.c": "b218457648a285165c88873eba16cc770ba1f16055b9aed1355224c7a1ecbe47",
+      "drivers/net/dwc_eth_xgmac.h": "6a078052945d3106cabc4c141c274307844442b0aea75101bda411d30306386b"
+    },
+    "scope": "recovery-explicit-phy-before-link-v1"
+  },
+  "profile_sha256": "2a417ec53b64b20c9003385138cbbc5d3d943b64b074a968ee5f013c0045f413",
+  "random_mac": false,
+  "sd_dma": false
+}

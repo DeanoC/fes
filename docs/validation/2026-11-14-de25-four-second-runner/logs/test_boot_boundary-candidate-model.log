@@ -1,0 +1,13 @@
+test_all_banner_split_points_retain_prefix_and_exact_fresh_bytes (test_boot_boundary.BoundaryTests.test_all_banner_split_points_retain_prefix_and_exact_fresh_bytes) ... ok
+test_all_bytes_bounded_including_preboot (test_boot_boundary.BoundaryTests.test_all_bytes_bounded_including_preboot) ... ok
+test_foreign_phase_image_state_and_lost_guard_are_rejected (test_boot_boundary.BoundaryTests.test_foreign_phase_image_state_and_lost_guard_are_rejected) ... ok
+test_split_unicode_stays_valid_but_invalid_continuation_fails (test_boot_boundary.BoundaryTests.test_split_unicode_stays_valid_but_invalid_continuation_fails) ... ok
+test_stale_saved_boot_or_consumed_grant_does_not_qualify (test_boot_boundary.BoundaryTests.test_stale_saved_boot_or_consumed_grant_does_not_qualify) ... ok
+test_wrong_duplicate_truncated_banner_and_post_boundary_corruption (test_boot_boundary.BoundaryTests.test_wrong_duplicate_truncated_banner_and_post_boundary_corruption) ... ok
+test_actual_transport_records_completion_only_after_checked_success (test_boot_boundary.CompletionTests.test_actual_transport_records_completion_only_after_checked_success) ... ok
+test_failed_or_ambiguous_program_output_never_produces_witness (test_boot_boundary.CompletionTests.test_failed_or_ambiguous_program_output_never_produces_witness) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.004s
+
+OK

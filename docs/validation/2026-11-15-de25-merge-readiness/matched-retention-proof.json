@@ -1,0 +1,163 @@
+{
+  "status": "passed-independent-tape-matched-archive-readback",
+  "source_commit": "e04af2f8a55263644422a412bd02ba69dea58b1c",
+  "source_bundle_prerequisite": "65c97bf1ad7b4f2c0d6a8e8a4c431f0586d76c4c",
+  "archive": "/home/deano/fes-retained/de25-independent-tape-matched-20261115-r1/matched.tar.gz",
+  "archive_sha256": "071bd84fa873d6a4f939269bfb32575435a0e788341b3836d8f0350126a99b7a",
+  "archive_bytes": 540281011,
+  "files": 46704,
+  "unique_regular_payloads": 43862,
+  "checks": {
+    "wired-tape-build-prepare-r1": {
+      "argv": [
+        "python3",
+        "out/publication/prepare-wired-tape-build.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.202494783094153,
+      "log_sha256": "45d902b7d871b07930126e8849f5b5f39ecb80417b72f845bdd3608b536a92d7"
+    },
+    "wired-tape-sdk-r1": {
+      "argv": [
+        "python3",
+        "out/publication/run-wired-tape-build.py",
+        "sdk"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 102.46378105692565,
+      "log_sha256": "207e8414496450af7c0a8c2a8854294ad216008f7f797254c9b0d592464241e7"
+    },
+    "wired-tape-entry-r1": {
+      "argv": [
+        "python3",
+        "out/publication/run-wired-tape-build.py",
+        "entry"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 68.43863995699212,
+      "log_sha256": "3ab6ed216a66cd5b7a676c77de28ab4d6542b95d82e42cbedde4f906a5044eea"
+    },
+    "wired-tape-bl31-r1": {
+      "argv": [
+        "python3",
+        "out/publication/run-wired-tape-build.py",
+        "bl31"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 50.62781171291135,
+      "log_sha256": "61122600739342f7b779f3da78401169b8f6a77c8f2e9037046263be92883bfe"
+    },
+    "wired-tape-uboot-r1": {
+      "argv": [
+        "python3",
+        "out/publication/run-wired-tape-build.py",
+        "uboot"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 129.0763989170082,
+      "log_sha256": "7934979d35674947d62e6d97df15e2ca39e9b5c394dc8469f83c5a7bf1fb26d0"
+    },
+    "wired-tape-compose-r1": {
+      "argv": [
+        "python3",
+        "out/publication/run-wired-tape-build.py",
+        "compose"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 73.43952311505564,
+      "log_sha256": "4b2873edce756e2b1658957c05023a67a4c3a319d7b1109ed72f83b736f5c7a0"
+    },
+    "wired-tape-matched-r1": {
+      "argv": [
+        "python3",
+        "out/publication/run-wired-tape-build.py",
+        "verify"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 60.03555518086068,
+      "log_sha256": "72554faf58cb2e49b72b70232603009317be5102eab9dccde016e0035191cf82"
+    }
+  },
+  "integration": {
+    "status": "passed-generated-source-and-object-checks",
+    "source_commit": "e04af2f8a55263644422a412bd02ba69dea58b1c",
+    "vendor_cold_function_sha256": "78d4ba85888bd0d9ae9a0b48109802fa4b2e08b2ae8f40939517cd23454a5cad",
+    "elf_sha256": "68e2e3bf127f216d15a32c62dae15ab0f70d7359974360d05f576302a8e0dddf",
+    "layout": {
+      "__NOBITS_START__": 327680,
+      "__NOBITS_END__": 393024,
+      "__STACKS_START__": 327680,
+      "__STACKS_END__": 360448,
+      "__BSS_END__": 393024
+    },
+    "private_limit": 393216,
+    "spare_bytes": 192,
+    "reset_objects": {
+      "fes_nano_platform_cold_reset_request": {
+        "object": "/home/deano/fes/out/dev/de25-setup-release/out/wired-tape-boot/native-bl31/source/build/agilex5/release/bl31/socfpga_psci.o",
+        "object_sha256": "b623be744b349664426e62b66a5c69713c783281855c72551bf78afec5472c8d",
+        "present_in_normal_elf": true
+      },
+      "fes_nano_bridge_platform_cold_reset_held": {
+        "object": "/home/deano/fes/out/dev/de25-setup-release/out/wired-tape-boot/native-bl31/source/build/agilex5/release/bl31/socfpga_reset_manager.o",
+        "object_sha256": "c335902d256d354b48470b07ebd84eb2d1f46c0abed5fbe2667cbe14b7db27bf",
+        "present_in_normal_elf": true
+      },
+      "fes_nano_sdm_source_recover": {
+        "object": "/home/deano/fes/out/dev/de25-setup-release/out/wired-tape-boot/native-bl31/source/build/agilex5/release/bl31/nano_cold_platform.o",
+        "object_sha256": "4306c3fab1e84db9832aa977c3dadfdecbacb834bfd5462ce31f79cf0e7ccde8",
+        "present_in_normal_elf": true
+      }
+    },
+    "compiler_stack_records": {
+      "build/agilex5/release/bl31/probe_setup.su": [
+        "plat/intel/soc/common/probe_setup.c:138:12:table_words\t64\tstatic",
+        "plat/intel/soc/common/probe_setup.c:153:12:memory_block\t1376\tstatic",
+        "plat/intel/soc/common/probe_setup.c:355:12:previous_tables\t1344\tstatic",
+        "plat/intel/soc/common/probe_setup.c:379:5:nano_probe_prepare\t320\tstatic"
+      ],
+      "build/agilex5/release/bl31/nano_cold_platform.su": [
+        "plat/intel/soc/common/include/nano_sdm_recovery_platform.inc:31:12:sdm_recovery_cached\t288\tstatic",
+        "plat/intel/soc/common/include/nano_sdm_recovery_platform.inc:49:12:sdm_recovery_scope\t96\tstatic",
+        "plat/intel/soc/common/include/nano_sdm_recovery_platform.inc:64:31:fes_nano_sdm_source_recover\t16\tstatic",
+        "plat/intel/soc/common/include/nano_sdm_input_finish.inc:24:5:fes_nano_sdm_source_finish\t1040\tstatic"
+      ]
+    },
+    "recovery_policy_installed": true,
+    "physical_reset_qualified": false,
+    "whole_EL3_stack_qualified": false,
+    "initial_tape_memory": {
+      "base": 2508193792,
+      "bytes": 2097152,
+      "configuration_reused": false,
+      "format": 1,
+      "lifetime": "pinned-until-reboot",
+      "mapping": "normal-uncached-XN",
+      "metadata_base": 2510286848,
+      "metadata_bytes": 4096,
+      "payload_bytes": 16384,
+      "physical_authority": false,
+      "scope": "nano-independent-initial-tape-memory-v1"
+    },
+    "independent_tape_supplier": true,
+    "USB_close_source_sha256": "0e25a6fbbaee1ec158d4389248aaeae849caf2b7078a5d562663ff09838cb50a",
+    "USB_close_source_in_selected_SDK": true,
+    "hardware_actions": false
+  },
+  "hardware_actions": false,
+  "hardware_accepted": false
+}

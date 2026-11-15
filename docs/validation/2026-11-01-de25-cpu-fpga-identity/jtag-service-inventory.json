@@ -1,0 +1,16 @@
+{
+  "board_serial": "TRWU8CBL",
+  "scope": "metadata service discovery; no claimed FPGA master, register access, programming or clock change",
+  "source_commit": "359b07bbd29c4a65720a380239876fcc3ca70f67",
+  "sof_sha256": "60305d3539c089a0364edbd4c2debe8a76365764c12c4314d0265cec59de81b0",
+  "started_utc": "2026-11-01T20:22:03.395173+00:00",
+  "returncode": 0,
+  "log_sha256": "3838a4cd1058a737d43571877db2aa0ee6ccac93414ebfee93ffa76da1befbde",
+  "script_execution_proven": true,
+  "top_devices": [
+    "/devices/A5E(A013BB23B|B013BB23BCS)|..@1#3-11.1-iface0#DE25-Nano"
+  ],
+  "top_masters": [],
+  "usb_permissions_restored": true,
+  "finished_utc": "2026-11-01T20:22:11.140518+00:00"
+}

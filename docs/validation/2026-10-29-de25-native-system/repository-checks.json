@@ -1,0 +1,51 @@
+{
+  "command": "make test-changed TEST_CHANGED_ARGS=\"--base d95277daa9d5a6befbe7487945cc4865c7684b69\"",
+  "exit_code": 0,
+  "parent_tests": 1065,
+  "source_log": "out/native-system-checks/test-changed.log",
+  "source_log_sha256": "7b9106452751dabcb356dd068e9dbac8e81a0e00480aae806b8cf8e414d8ffd9",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "host Go and UI tests",
+      "lane": "host",
+      "returncode": 0
+    }
+  ],
+  "make_deadcode": {
+    "exit_code": 0,
+    "lanes": [
+      "linux/amd64",
+      "linux/arm"
+    ]
+  }
+}

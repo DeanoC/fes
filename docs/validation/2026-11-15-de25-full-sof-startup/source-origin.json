@@ -1,0 +1,9 @@
+{
+  "scope": "full-SOF-native-startup-and-source-rearm",
+  "previous_failed_procedure_sha256": "dfef7b983d4d9df1b57206d973b912a3eabc3af6e9bf5eafc9e0f9476f00d4d9",
+  "restoration_procedure_sha256": "f9f0b77cd1e82901f2b45f2239214ee46501ed819440462a198f870defd47cf3",
+  "restoration_archive_sha256": "9ffdfd84adf45ea186c120afd14935a79e14ccad8ed245302977d854c7b76e1e",
+  "candidate_firmware_unchanged": true,
+  "explicit_native_image_kind": "matched-native-sof",
+  "previous_attempt_or_approval_copied": false
+}

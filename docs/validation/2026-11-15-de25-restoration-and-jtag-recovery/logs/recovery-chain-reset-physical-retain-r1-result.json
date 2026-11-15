@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/publication/retain-recovery-chain-reset-physical.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 1.201331484830007,
+  "log_sha256": "fad150bf224fb217850788e8e52e5c8f127ac095cbd2609b778434f1a4a00273"
+}

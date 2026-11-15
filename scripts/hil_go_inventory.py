@@ -22,6 +22,7 @@ FOGCAST_ROLES = {
     'target-image-lock': 'builder', 'mister-bridge': 'standalone',
     'fes-parts': 'standalone', 'fes-spectrum-disk': 'simulation',
     'fes-spectrum-restore': 'simulation',
+    'fogcast-embedded-host': 'standalone',
 }
 PLATFORM_ROLES = {'fes-boot': 'image', 'fes-kit-software': 'image',
                   'fes-bluetooth': 'image'}

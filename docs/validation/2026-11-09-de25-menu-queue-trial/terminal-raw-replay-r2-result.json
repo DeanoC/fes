@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/nano-menu-queue-trial-20261109/hardware-replay.py.txt"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+  "returncode": 1,
+  "timed_out": false,
+  "elapsed": 0.20083025097846985,
+  "log_sha256": "214a2fbc0f788963c78ee0b12a2bff6e09d3d7dc613069c685dab090b4304e8a"
+}

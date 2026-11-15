@@ -1,0 +1,9 @@
+{
+  "classification": "diagnostic summary only; no endpoint coverage or whole-board timing signoff",
+  "rows": 46,
+  "minimum_slack_ns": 0.0,
+  "negative_rows": 0,
+  "task_count": 10,
+  "maximum_task_seconds": 106.55562866397668,
+  "compile_processors": 16
+}

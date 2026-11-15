@@ -1,0 +1,92 @@
+--- before/flow.py
++++ after/flow.py
+@@ -6,6 +6,7 @@
+ import json,math,os,re,time
+ from pathlib import Path
+ from fit_swap import Bundle,require,member,validate_swap
++REFRESH_SECONDS=420
+ ROLES=('recovery-before','native-diagnostic','recovery-rollback','native-baseline')
+ class OperationFailure(RuntimeError):
+  def __init__(self,message,*,cleanup_verified=False,may_have_written=False,recovery_safe=False):
+@@ -22,7 +23,7 @@
+   self.retired=False;self.used=set();self.epochs=set();self.start=None;self.last=None;self.leg_start=None;self.sequence=0
+   specs=bundle.plan['roles'];require(tuple(r['role'] for r in specs)==ROLES,'fixed four-role order required')
+   require(bundle.plan['transaction_bound_seconds']==1800 and bundle.plan['leg_bound_seconds']==800 and
+-   bundle.plan['refresh_bound_seconds']==300,'fixed phase/transaction bounds required')
++   bundle.plan['refresh_bound_seconds']==REFRESH_SECONDS,'fixed phase/transaction bounds required')
+   for row in specs:
+    image=row['image'];member(image)
+    require(image['volatile'] is True and image['flash_operation'] is False and
+@@ -79,7 +80,7 @@
+   began=self.last
+   receipt=self.hooks.refresh(direction,epoch,self.bundle)
+   self.guard()
+-  if self.last-began>300:
++  if self.last-began>REFRESH_SECONDS:
+    raise OperationFailure('refresh deadline exceeded',cleanup_verified=isinstance(receipt,dict) and receipt.get('session_closed') is True,
+     may_have_written=isinstance(receipt,dict) and receipt.get('sd_write_attempted') is True)
+   proof=validate_swap(self.bundle,direction,receipt)
+--- before/hooks.py
++++ after/hooks.py
+@@ -5,7 +5,7 @@
+ from transport import durable,require,sha
+ from supervise import run,stop_orphan
+ from context import restore_original_usb
+-from flow import OperationFailure
++from flow import OperationFailure,REFRESH_SECONDS
+ class Hooks:
+  def __init__(self,procedure,directory,*,launch=run):
+   self.procedure,self.directory,self.launch=procedure,Path(directory),launch;self.roles={};self.used_refresh=set()
+@@ -45,12 +45,13 @@
+  def native(self,role,spec,plan_sha256):
+   require(role in ('native-diagnostic','native-baseline'),'native role required');return self.epoch(role,spec,plan_sha256)
+  def refresh(self,direction,epoch,bundle):
++  require(bundle.plan['refresh_bound_seconds']==REFRESH_SECONDS,'refresh budget differs')
+   require(direction in ('forward','rollback') and direction not in self.used_refresh,'refresh already consumed')
+   self.used_refresh.add(direction);role='recovery-before' if direction=='forward' else 'recovery-rollback'
+   require(self.roles.get(role)==epoch and epoch.get('status')=='verified' and epoch.get('transport_cleaned') is True,
+    'refresh requires its fresh completed recovery epoch')
+   require(bundle.sha256==self.procedure.bundle.sha256,'refresh plan differs')
+-  directory,supervised,detached=self.invoke(direction,300)
++  directory,supervised,detached=self.invoke(direction,REFRESH_SECONDS)
+   path=directory/'refresh-result.json';r=json.loads(path.read_text()) if path.exists() else {};receipt=r.get('bundle',{})
+   if (supervised['status']!='passed' or r.get('status')!='verified' or r.get('console_closed') is not True or
+    r.get('smmu_reset_gate',{}).get('status')!='passed-read-only-NS-SMMU-reset-gate'):
+--- before/worker.py
++++ after/worker.py
+@@ -9,6 +9,7 @@
+ from recovery_session import RecoverySession
+ from refresh_session import refresh
+ from fit_swap import validate_swap
++from flow import REFRESH_SECONDS
+ 
+ def main():
+  p=argparse.ArgumentParser();p.add_argument('role',choices=('recovery-before','native-diagnostic','recovery-rollback','native-baseline','forward','rollback'))
+@@ -22,6 +23,7 @@
+  start=json.loads((attempt/'worker-context.json').read_text());require(start['procedure_sha256']==procedure.sha256,'worker context differs')
+  procedure.initial_identity=tuple(start['identity']);procedure.prerequisite_sha256=start['prerequisite_sha256'];procedure.guard()
+  signal.signal(signal.SIGTERM,lambda *_:(_ for _ in ()).throw(TimeoutError('bounded worker terminated')))
++ if args.role in ('forward','rollback'):require(procedure.bundle.plan['refresh_bound_seconds']==REFRESH_SECONDS,'refresh budget differs')
+  if args.role=='forward':
+   from native_preflight import check
+   check(procedure,directory/'native-input-preflight',guard=procedure.guard)
+@@ -31,7 +33,7 @@
+   require(recovery['role']==prior and recovery['plan_sha256']==procedure.bundle.sha256 and recovery['status']=='verified' and
+    recovery['transport_cleaned'] is recovery['claim_verified'] is recovery['session_result']['pass'] is
+    recovery['session_result']['prompt_verified'] is recovery['session_result']['UART_closed'] is True,'fresh recovery prerequisite absent')
+-  signal.signal(signal.SIGALRM,lambda *_:(_ for _ in ()).throw(TimeoutError('refresh300s bound')));signal.alarm(300)
++  signal.signal(signal.SIGALRM,lambda *_:(_ for _ in ()).throw(TimeoutError('refresh420s bound')));signal.alarm(REFRESH_SECONDS)
+   try:result=refresh(procedure.bundle,args.role,directory,procedure.guard)
+   finally:signal.alarm(0)
+   return 0 if result['status']=='verified' else 1
+--- before/test_flow.py
++++ after/test_flow.py
+@@ -42,7 +42,7 @@
+   if self.fault in ('forward-timeout','forward-partial') and direction=='forward':m.fault='write-timeout'
+   if self.fault=='rollback-prewrite' and direction=='rollback':m.files['FES/UPLOAD.BIN']=b'unknown'
+   proof,r,error=SwapTests().invoke(bundle,m,s,direction);self.files=dict(m.files)
+-  if self.fault=='slow-forward' and direction=='forward':self.clock+=301
++  if self.fault=='slow-forward' and direction=='forward':self.clock+=421
+   if self.fault=='forward-partial' and direction=='forward':self.files['FES/UPLOAD.BIN']=b'partially-written'
+   if error:raise OperationFailure(str(error),cleanup_verified=r.get('session_closed',False),may_have_written=r.get('sd_write_attempted',False))
+   return r

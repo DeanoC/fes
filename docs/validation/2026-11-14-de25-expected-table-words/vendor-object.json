@@ -1,0 +1,143 @@
+{
+  "status": "passed-real-vendor-aarch64-expected-word-object",
+  "source_sha256": "32be42ec3bbbc148b6a28b10f12882253603fe41cd356ee467eba62d38b077db",
+  "base_firmware_head": "8394acfa52b1cbd898010e33d8e70aa380dd632d",
+  "base_receipt_sha256": "91c2cf60e8fbd7b90c33dfff0a1215f7b7794f85e7e09691b9ec260a06f23a96",
+  "compiler": {
+    "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-gcc",
+    "sha256": "ea55f8b35f29e94d8bbf6cb6f4a2ed39f8e204e2a2080cf06ba7c1733da11d95"
+  },
+  "object_sha256": "441a09396b67c5fbc8cab8819e8531b055d7020c9d623971dac5d2a003f8f89e",
+  "command": [
+    "/usr/bin/make",
+    "-j",
+    "2",
+    "PLAT=agilex5",
+    "BUILD_STRING=fes-nano-owned-unready-580dcb5c4e10",
+    "CROSS_COMPILE=/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+    "SEPARATE_NOBITS_REGION=1",
+    "V=1",
+    "/home/deano/fes/out/dev/de25-source-release/out/warm-word-vendor-object-r2/source/build/agilex5/release/bl31/probe_setup.o"
+  ],
+  "individual_frames": {
+    "separate": {
+      "bytes": 0,
+      "kind": "static"
+    },
+    "receipt": {
+      "bytes": 80,
+      "kind": "static"
+    },
+    "initialize": {
+      "bytes": 80,
+      "kind": "static"
+    },
+    "integrity": {
+      "bytes": 32,
+      "kind": "static"
+    },
+    "cmd_context": {
+      "bytes": 32,
+      "kind": "static"
+    },
+    "cmd_store": {
+      "bytes": 112,
+      "kind": "static"
+    },
+    "cmd_write": {
+      "bytes": 48,
+      "kind": "static"
+    },
+    "cmd_read": {
+      "bytes": 48,
+      "kind": "static"
+    },
+    "cmd_time": {
+      "bytes": 48,
+      "kind": "static"
+    },
+    "guard": {
+      "bytes": 64,
+      "kind": "static"
+    },
+    "cmd_owns": {
+      "bytes": 32,
+      "kind": "static"
+    },
+    "table_words": {
+      "bytes": 64,
+      "kind": "static"
+    },
+    "memory_block": {
+      "bytes": 1376,
+      "kind": "static"
+    },
+    "previous_tables": {
+      "bytes": 1344,
+      "kind": "static"
+    },
+    "rd": {
+      "bytes": 48,
+      "kind": "static"
+    },
+    "equal": {
+      "bytes": 48,
+      "kind": "static"
+    },
+    "identity": {
+      "bytes": 32,
+      "kind": "static"
+    },
+    "controls": {
+      "bytes": 32,
+      "kind": "static"
+    },
+    "layout": {
+      "bytes": 48,
+      "kind": "static"
+    },
+    "configured": {
+      "bytes": 0,
+      "kind": "static"
+    },
+    "wr": {
+      "bytes": 48,
+      "kind": "static"
+    },
+    "control": {
+      "bytes": 80,
+      "kind": "static"
+    },
+    "clear": {
+      "bytes": 48,
+      "kind": "static"
+    },
+    "cmd_barrier": {
+      "bytes": 32,
+      "kind": "static"
+    },
+    "nano_probe_init": {
+      "bytes": 160,
+      "kind": "static"
+    },
+    "nano_probe_init_input": {
+      "bytes": 176,
+      "kind": "static"
+    },
+    "nano_probe_init_rearmed_input": {
+      "bytes": 192,
+      "kind": "static"
+    },
+    "nano_probe_prepare": {
+      "bytes": 320,
+      "kind": "static"
+    },
+    "nano_probe_arm": {
+      "bytes": 48,
+      "kind": "static"
+    }
+  },
+  "linked_BL31": false,
+  "whole_EL3_stack_qualified": false,
+  "hardware_actions": false
+}

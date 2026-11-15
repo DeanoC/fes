@@ -1,0 +1,47 @@
+{
+  "status": "passed",
+  "source_capture_sha256": "9e7a76fd5c2ef187dec81f3a59f373bebef6d0f34a660ade1f6561299411b957",
+  "observer_sha256": "8d86c8211b1aca1add5d24da5cce79dacd6085efdd76d652a6deab452501c7be",
+  "results": [
+    {
+      "case": "normal",
+      "commands": 4,
+      "error": null,
+      "partial_sequence_only": true
+    },
+    {
+      "case": "legacy-index-check",
+      "commands": 4,
+      "error": "JP ROM fetch address differs; no next command",
+      "partial_sequence_only": true
+    },
+    {
+      "case": "explicit-zero",
+      "commands": 4,
+      "error": "selected fetch address differs",
+      "partial_sequence_only": true
+    },
+    {
+      "case": "foreign-fetch",
+      "commands": 4,
+      "error": "App published wrong retained identity",
+      "partial_sequence_only": true
+    },
+    {
+      "case": "missing-fetch",
+      "commands": 4,
+      "error": "launch requires one held/run fetch observation",
+      "partial_sequence_only": true
+    }
+  ],
+  "normal_replay_commands": 4,
+  "normal_replay_launches": 2,
+  "normal_replay_completed_returns": 1,
+  "actual_ZX80_address": 612,
+  "legacy_failure_reproduced": true,
+  "explicit_loop_address_still_enforced": true,
+  "no_hardware_IO": true,
+  "complete_three_cycles_verified": false,
+  "board_park_verified": false,
+  "core_load_acceptance": false
+}

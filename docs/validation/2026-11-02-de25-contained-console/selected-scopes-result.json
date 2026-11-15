@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "python3",
+    "out/nano-contained-console-20261102/run_software.py"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 348.50215556903277,
+  "log_sha256": "1a498ef6d0e04969e19f8cd0f15a6bd6175c0331b6c7b5b60692c5dd1399a38b"
+}

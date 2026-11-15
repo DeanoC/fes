@@ -1,0 +1,118 @@
+{
+  "status": "menu-diagnostic-built-reply-net-constraint-invalid",
+  "source": "f6134935abc9402361fd2b7dca2b67366d87e6d2",
+  "package_id": "27082c1d6b796dbb21849c35efe51822a9edafd49f5d6682cd5208c637ee6dcd",
+  "build_id": "24c3b523a8c191a85092a31fa0878246",
+  "phase_seconds": {
+    "dni_ipgenerate": 4.105025991098955,
+    "dni_elaboration": 52.14475165004842,
+    "dni_synthesis": 37.332560391165316,
+    "fitter_plan": 85.47749112709425,
+    "fitter_place": 139.53030856186524,
+    "fitter_route": 94.58688298217021,
+    "fitter_retime": 58.6519724058453,
+    "fitter_finalize": 64.75482479087077,
+    "sta_signoff": 13.813188072992489,
+    "assembler": 19.820260858163238
+  },
+  "limits_seconds": {
+    "dni_ipgenerate": 120,
+    "dni_elaboration": 120,
+    "dni_synthesis": 120,
+    "fitter_plan": 120,
+    "fitter_place": 180,
+    "fitter_route": 120,
+    "fitter_retime": 120,
+    "fitter_finalize": 120,
+    "sta_signoff": 120,
+    "assembler": 120
+  },
+  "unwaived_signoff_findings": [
+    {
+      "rule": "TMC-20012 - Missing Output Delay Constraint",
+      "severity": "High",
+      "violations": 3,
+      "waived": "0"
+    },
+    {
+      "rule": "TMC-20011 - Missing Input Delay Constraint",
+      "severity": "High",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "TMC-20023 - Invalid Set Net Delay Assignment",
+      "severity": "High",
+      "violations": 1,
+      "waived": "0"
+    },
+    {
+      "rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+      "severity": "Medium",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+      "severity": "Low",
+      "violations": 2,
+      "waived": "0"
+    }
+  ],
+  "unconstrained": {
+    "Illegal Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Input Ports": [
+      1,
+      1
+    ],
+    "Paths from Unconstrained Input Ports (Pairs-Only)": [
+      3,
+      3
+    ],
+    "Unconstrained Output Ports": [
+      2,
+      2
+    ],
+    "Paths to Unconstrained Output Ports (Pairs-Only)": [
+      10,
+      10
+    ]
+  },
+  "timing_signoff": false,
+  "native_menu_chain_built": false,
+  "hardware_actions": false,
+  "core_load_acceptance": false,
+  "goal_complete": false,
+  "raw_evidence": "out/nano-menu-final-build-20261107",
+  "menu_model": {
+    "scope": "actual sealed generated project and build ID, 12 CDC cases, 640 exact packets, 3 Tenfoot frames, 2 broken negative controls rejected",
+    "result": "out/nano-menu-final-build-20261107/artifact-menu-model/result.json"
+  },
+  "actual_maps": "out/nano-menu-final-build-20261107/actual-maps/result.json",
+  "HDMI_model": "out/nano-menu-hdmi-model-20261107/result.json",
+  "measured_placement_seconds": 139.47065300494432,
+  "constrained_slack_ns": {
+    "setup": 1.685,
+    "hold": 0.001,
+    "recovery": 6.749,
+    "removal": 0.042,
+    "minimum_pulse_width": 0.22
+  },
+  "reply_net_constraint_issue": "TMC-20023: local zero/error writes place combinational logic between response_packet and reply_packet; complete-data/skew/max/min reports do not validate this inapplicable direct-net assignment",
+  "repair": "select local retirement error outside the captured reply bank; keep the entire timing constraint file unchanged; source model and fresh routed build required",
+  "next": "verify the repair through a fresh sealed compile; then connect menu maps to native boot and the existing menu/core/menu lifecycle",
+  "hardware_evidence_class": "off-board source/model/Quartus diagnostic only",
+  "repair_model": {
+    "directory": "out/nano-menu-direct-reply-model-20261107",
+    "result_sha256": "de8c6a8b5bdd9e9401ef388ac131146b9b431a3952e1a574b4f4097b6afb33fe",
+    "scope": "working-tree repaired source, 12 CDC cases / 640 packets / 3 Tenfoot frames and both negative controls passed; fresh routed verification remains pending",
+    "source_inputs_checked": 482
+  }
+}

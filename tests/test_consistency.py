@@ -93,7 +93,16 @@ class ConsistencyTest(unittest.TestCase):
             ('emit-go', 'packages/abi/fes_computer.yaml', 'FogCast',
              'corepackage/internal/generated/fes_computer.go'), self.module.GENERATED)
         self.assertEqual({source for command, source in self.calls if command == 'validate'}, {
+            'packages/fabric/fes_fabric_embedded_mac.yaml',
+            'packages/fabric/fes_fabric_embedded_bridges.yaml',
+            'packages/fabric/fes_fabric_embedded_sd.yaml',
+            'packages/fabric/fes_fabric_embedded_tape.yaml',
+            'packages/fabric/fes_fabric_embedded_rom.yaml',
+            'packages/fabric/fes_fabric_embedded_usb.yaml',
+            'packages/fabric/fes_fabric_embedded_control.yaml',
+            'packages/fabric/fes_fabric_embedded_computer.yaml',
             'packages/fabric/fes_fabric_de25_hps_mailbox.yaml',
+            'packages/fabric/fes_fabric_de25_computer.yaml',
             'packages/fabric/fes_fabric_de25_ddr_probe.yaml',
             'packages/fabric/fes_fabric_de25_scanout.yaml',
             'packages/fabric/fes_fabric_de25_computer.yaml',
@@ -108,7 +117,7 @@ class ConsistencyTest(unittest.TestCase):
             'packages/board/de25_nano.yaml',
             'packages/abi/fes_simple_game.yaml', 'packages/abi/fes_simple_computer.yaml',
             'packages/abi/fes_application.yaml', 'packages/abi/fes_computer.yaml',
-            'packages/programming/de10_nano.yaml', 'packages/programming/de25_nano.yaml'})
+            'packages/programming/de10_nano.yaml', 'packages/programming/de25_nano.yaml', 'packages/programming/de25_embedded.yaml'})
 
     def test_shared_fixture_copy_drift(self):
         fixture_copies = [(component, destination, None)

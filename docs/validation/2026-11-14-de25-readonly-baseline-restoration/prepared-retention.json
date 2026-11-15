@@ -1,0 +1,16 @@
+{
+  "status": "retained-read-only-original-files-and-baseline-restoration-procedure",
+  "procedure_sha256": "f73e1395331417f348dd832f2665d333be57f5c1f8d9b63c2a1707d5b8f24f12",
+  "archive": "/home/deano/fes-retained/de25-table-readonly-restoration-prepared-20261114-r1/prepared-procedure.tar.gz",
+  "archive_sha256": "bd9923f1b107b98c283e9539c040e084120212b8aa6ff3654854dc2765d33d23",
+  "archive_bytes": 92362261,
+  "reused_archive": "/home/deano/fes-retained/de25-command-snapshot-procedure-prepared-20261113-r1/prepared-procedure.tar.gz",
+  "reused_archive_sha256": "1b5b82ea534a6af428682a59cad431042173292d3269735fc3b8215dff1bc793",
+  "reused_blobs_verified": 5361,
+  "new_blobs_verified": 722,
+  "both_archives_required": true,
+  "human_reset_confirmed": true,
+  "attempt_created": false,
+  "hardware_actions": false,
+  "diagnostic_authority": false
+}

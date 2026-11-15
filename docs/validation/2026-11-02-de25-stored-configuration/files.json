@@ -1,0 +1,84 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 5125,
+      "sha256": "99aceff8ee01b208be501cc76ad405b403999065628adfcb1476abd6959f0d10"
+    },
+    {
+      "path": "boot-fixtures.json",
+      "bytes": 3704,
+      "sha256": "553bb3e5cdbeb559eb207ae3a6fca439e12dda885f5e0d3d4bc9fce98a0f4fb4"
+    },
+    {
+      "path": "build-retention.json",
+      "bytes": 1626,
+      "sha256": "f544262a799c1074c49509fb3d020cd02bafc26be61588be6a77d623a2250743"
+    },
+    {
+      "path": "cleanup.json",
+      "bytes": 26573,
+      "sha256": "e766473fcc55835b8ba34e16e3512ccd0b6a0285ef339606808f88edfddd8be9"
+    },
+    {
+      "path": "evidence.json",
+      "bytes": 3406,
+      "sha256": "e860e60aaa7c5f88fd68a18cb61e57477ae3b342cc1999ee738eeaea0dd6255c"
+    },
+    {
+      "path": "experiment.json",
+      "bytes": 1712,
+      "sha256": "5fc0da446e07439bbedb20fff29b79114aa84e7e6eb19d5f3bfa2e692c6e00c6"
+    },
+    {
+      "path": "native-console.log",
+      "bytes": 12415,
+      "sha256": "705d0557d0941d08590666556f2dad8d430151d124facafd7d539695004a4a52"
+    },
+    {
+      "path": "native.json",
+      "bytes": 31234,
+      "sha256": "b520c1058025261128772f3b07489b8676d45c634d4abe36f6f4612729d8f8a2"
+    },
+    {
+      "path": "orchestration-fixtures.json",
+      "bytes": 6912,
+      "sha256": "83d0a729dcf5677caa7a7f3e664bb4fff8b637d16f6cb4b415f2e200a7b89279"
+    },
+    {
+      "path": "package-artifact.json",
+      "bytes": 398,
+      "sha256": "9ae1cf228bd0304a4434044b2a4dfa420aed352d6c7d90515b85e577d77ce26b"
+    },
+    {
+      "path": "preflight.json",
+      "bytes": 5878,
+      "sha256": "0275a03635a216935f8caa649c57156bfc41cd50efcd3e20cd9aa529545299c5"
+    },
+    {
+      "path": "recovery-boot.json",
+      "bytes": 1521,
+      "sha256": "8aa3bbcc0ac19b22ce5a8b0696ed8d3230ed350322f2e8dbfa2f2ec6350fe20f"
+    },
+    {
+      "path": "recovery-package.json",
+      "bytes": 1527,
+      "sha256": "6af7d8c0f8174710abc0cdaa8eca50323a09c1160dab9aba58b6d753dba8bf86"
+    },
+    {
+      "path": "retirement-fixtures.json",
+      "bytes": 5128,
+      "sha256": "f225fdbfef48c7c53e8608a1e407e9c49e0329638c63d88d382e3b3cb5a9a5a5"
+    },
+    {
+      "path": "upload-boot.json",
+      "bytes": 12681,
+      "sha256": "589d4ed7376c1afd619e949603ff5846ec8810ed41ecba983c3f15851f6ef1bd"
+    },
+    {
+      "path": "upload-package.json",
+      "bytes": 12358,
+      "sha256": "56dbe88b582bcfa311d1a534aeba29d21c47da9a9310bb2df602efad5ea3cf70"
+    }
+  ]
+}

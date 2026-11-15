@@ -1,0 +1,19 @@
+{
+  "status": "passed",
+  "scope": "native ARM64 launcher cross-build with existing read-only Nano selection",
+  "source_commit": "b22b2fe0c2ba3e9b6ca06ab33aca8017eb8530ce",
+  "elf_sha256": "c4eec1d24fe579da417e53ad13d6b0a0c649bb98db77ad28fcb7dadcf9484e96",
+  "sdk_receipt_sha256": "8b54877254fba4fdeb03cedf4ec2fc6b6ad3a76b427818f7ca309d9bec483663",
+  "all_recorded_source_bytes_current": true,
+  "changed_sd_sources_match_committed_bytes": true,
+  "changed_sd_source_sha256": {
+    "platform/embedded/tamago/sdhci/sdhci.go": "f79ccbf06cf3483212e6a05197a7b7a5a9316b14b5427c150fd98a3f0195a672",
+    "platform/embedded/tamago/sdcontrol/session.go": "0434882043432083dd6344171755a26eaafd9c98bf2069c57f9af6d33c8153ac",
+    "platform/embedded/tamago/board/de25nano/storage.go": "eed7efee09515bd5324f3d86c7eb00a990b5b21236060a43685ae073f9d2d710"
+  },
+  "current_nano_board_access": "read-only",
+  "writes_selected_in_native_image": false,
+  "hardware_actions": false,
+  "physical_write_qualification": false,
+  "matched_boot_chain_built": false
+}

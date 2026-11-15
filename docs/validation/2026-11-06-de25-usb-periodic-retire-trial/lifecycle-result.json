@@ -1,0 +1,293 @@
+{
+  "USB_stop_generation": 3,
+  "actual_DTE_halt_first_branch_observed": false,
+  "attempts": 1,
+  "classification": "one exact-artifact physical diagnostic completes three serial Tenfoot selected-program launch/return cycles with retained shared USB; ordinary admission remains closed",
+  "core_load_acceptance": false,
+  "cycles": [
+    {
+      "launch_generation": 1,
+      "return_generation": 2,
+      "selection": 0
+    },
+    {
+      "launch_generation": 3,
+      "return_generation": 4,
+      "selection": 1
+    },
+    {
+      "launch_generation": 5,
+      "return_generation": 6,
+      "selection": 0
+    }
+  ],
+  "evidence_sha256": {
+    "docs/validation/2026-11-06-de25-usb-periodic-retire-build/result.json": "1a38d8bf72bf74e70c0ae224d35b388f541339909401c77c8e6625d868eeb757",
+    "docs/validation/2026-11-06-de25-usb-periodic-retire-trial/operator-source.json": "ad6657806f6aac37f4453a7806e918beef1aaa5b5c7d169b0b5406297b13b090",
+    "out/nano-usb-periodic-retire-board-20261106/audit_lifecycle.py": "d89f229d4e64c4f7d9dbd8a37149e14ea405dfce8d710cbca35068bf75bf920b",
+    "out/nano-usb-periodic-retire-board-20261106/cleanup-evidence.json": "7fecd92dbf5fcf639e54b7c9e3b602b1171d67c1e9529f2bf67e1ce82aedfe8c",
+    "out/nano-usb-periodic-retire-board-20261106/hardware-result.json": "b1c804c2d96b5dfe751d6e1edb93e180ce6c3cd10ed37dd7f6a72aab3bc7b2be",
+    "out/nano-usb-periodic-retire-board-20261106/physical-result.json": "102c75f2a923e2bad45b32b91239885079da40c3a00ac39978689b2f2efb35c6",
+    "out/nano-usb-periodic-retire-board-20261106/trial/native-console.log": "80b83ce1f9892e47aaf4be043f82a5b79edc963ca11f6d61b3097f9ee28a13e2",
+    "out/nano-usb-periodic-retire-board-20261106/trial/native-result.json": "b9171e5ffacb1e1ab4255b68bf7db6926f920fdd08fe3e7fbec770513ae6712f"
+  },
+  "firmware_source": "0d7556334156bc70450a90c4e6434d2c7ff80695",
+  "fresh_SD_readbacks": 8,
+  "hardware_actions": false,
+  "host_cleanup_passed": true,
+  "independent_raw_replay_matched": true,
+  "launch_metrics": [
+    {
+      "activation_receipt": "039398a5bf1aface990249f03b60f34b0ce949d14c244e0196ddac80b7b31dee",
+      "configuration_hash_interval_seconds": 8.818582205,
+      "configuration_interval_seconds": 11.99840629,
+      "fetch": {
+        "before": {
+          "Address": 0,
+          "Cycles": 0
+        },
+        "build_id": "edafcc95c494b73f59492f3a060bf095",
+        "delta": 20404,
+        "elapsed_ns": 124731817,
+        "generation": 1,
+        "held": {
+          "Address": 0,
+          "Cycles": 0
+        },
+        "limit_ns": 1000000000,
+        "owner": 7288744982292438737,
+        "package_id": "7f1d138774d7f0a0212f80184a6349d726f885095c86d6360e380817cedae566",
+        "polls": 1,
+        "running": {
+          "Address": 979,
+          "Cycles": 20404
+        },
+        "scope": "nano-computer-fetch-v1"
+      },
+      "outer_launch_seconds": 73.1771485300269,
+      "selection": 0
+    },
+    {
+      "activation_receipt": "52eb4c1ee8eb8774bf2b42fd5313bf28cecab5eb29c0a1d1ee7df965cac682c8",
+      "configuration_hash_interval_seconds": 8.818068175,
+      "configuration_interval_seconds": 11.9998795825,
+      "fetch": {
+        "before": {
+          "Address": 0,
+          "Cycles": 0
+        },
+        "build_id": "edafcc95c494b73f59492f3a060bf095",
+        "delta": 15318,
+        "elapsed_ns": 123343975,
+        "generation": 3,
+        "held": {
+          "Address": 0,
+          "Cycles": 0
+        },
+        "limit_ns": 1000000000,
+        "owner": 7288744982292438737,
+        "package_id": "7f1d138774d7f0a0212f80184a6349d726f885095c86d6360e380817cedae566",
+        "polls": 1,
+        "running": {
+          "Address": 0,
+          "Cycles": 15318
+        },
+        "scope": "nano-computer-fetch-v1"
+      },
+      "outer_launch_seconds": 73.11047563201282,
+      "selection": 1
+    },
+    {
+      "activation_receipt": "039398a5bf1aface990249f03b60f34b0ce949d14c244e0196ddac80b7b31dee",
+      "configuration_hash_interval_seconds": 8.8182764375,
+      "configuration_interval_seconds": 12.0011148575,
+      "fetch": {
+        "before": {
+          "Address": 0,
+          "Cycles": 0
+        },
+        "build_id": "edafcc95c494b73f59492f3a060bf095",
+        "delta": 19130,
+        "elapsed_ns": 130243963,
+        "generation": 5,
+        "held": {
+          "Address": 0,
+          "Cycles": 0
+        },
+        "limit_ns": 1000000000,
+        "owner": 7288744982292438737,
+        "package_id": "7f1d138774d7f0a0212f80184a6349d726f885095c86d6360e380817cedae566",
+        "polls": 1,
+        "running": {
+          "Address": 978,
+          "Cycles": 19130
+        },
+        "scope": "nano-computer-fetch-v1"
+      },
+      "outer_launch_seconds": 73.2534052830888,
+      "selection": 0
+    }
+  ],
+  "master_stop_returns": [
+    {
+      "cancel": 0,
+      "complete": 1,
+      "disable": 0,
+      "generation": 5,
+      "owner": 7288744982292438737,
+      "physical_ddr_drain_qualified": false,
+      "probe_polls": 2,
+      "reader_polls": 1,
+      "reader_reads": 88,
+      "reset": 13,
+      "status": 0
+    },
+    {
+      "cancel": 0,
+      "complete": 1,
+      "disable": 0,
+      "generation": 10,
+      "owner": 7288744982292438737,
+      "physical_ddr_drain_qualified": false,
+      "probe_polls": 2,
+      "reader_polls": 1,
+      "reader_reads": 88,
+      "reset": 13,
+      "status": 0
+    },
+    {
+      "cancel": 0,
+      "complete": 1,
+      "disable": 0,
+      "generation": 15,
+      "owner": 7288744982292438737,
+      "physical_ddr_drain_qualified": false,
+      "probe_polls": 2,
+      "reader_polls": 1,
+      "reader_reads": 88,
+      "reset": 13,
+      "status": 0
+    }
+  ],
+  "native_Ethernet_verified": false,
+  "native_source": "0d7556334156bc70450a90c4e6434d2c7ff80695",
+  "native_startup_seconds": 5.084315330022946,
+  "operator_source": "ec69ae2512b7a16dbe7543c73eb182ac2b388ac3",
+  "ordinary_admission": false,
+  "original_bounds_preserved": true,
+  "owned_quit_verified": true,
+  "physical_CPU_halt_proven": false,
+  "physical_DDR_drain_qualified": false,
+  "physical_HDMI_verified": false,
+  "physical_controls_exercised": false,
+  "physical_wire_frame_or_fault_cause_proven": false,
+  "raw_USB_halt_register_receipt_available": false,
+  "remaining": "Ordinary package admission and general core loading, native network, physical input/video acceptance and launch performance remain open. The observed full launch takes about73s; configuration itself is about12s. No DTE-specific branch or wire fault cause is inferred from the successful interface receipts.",
+  "replayed": false,
+  "retained_controller_generation": 2,
+  "shared_USB_input_events": [
+    {
+      "native_generation": 0,
+      "owner": 7288744982292438737,
+      "phase": "pause",
+      "reports": 7,
+      "state": "ready",
+      "usb_generation": 2
+    },
+    {
+      "native_generation": 1,
+      "owner": 7288744982292438737,
+      "phase": "resume",
+      "reports": 7,
+      "state": "running",
+      "usb_generation": 2
+    },
+    {
+      "native_generation": 1,
+      "owner": 7288744982292438737,
+      "phase": "pause",
+      "reports": 14,
+      "state": "running",
+      "usb_generation": 2
+    },
+    {
+      "native_generation": 2,
+      "owner": 7288744982292438737,
+      "phase": "resume",
+      "reports": 14,
+      "state": "ready",
+      "usb_generation": 2
+    },
+    {
+      "native_generation": 2,
+      "owner": 7288744982292438737,
+      "phase": "pause",
+      "reports": 22,
+      "state": "ready",
+      "usb_generation": 2
+    },
+    {
+      "native_generation": 3,
+      "owner": 7288744982292438737,
+      "phase": "resume",
+      "reports": 22,
+      "state": "running",
+      "usb_generation": 2
+    },
+    {
+      "native_generation": 3,
+      "owner": 7288744982292438737,
+      "phase": "pause",
+      "reports": 28,
+      "state": "running",
+      "usb_generation": 2
+    },
+    {
+      "native_generation": 4,
+      "owner": 7288744982292438737,
+      "phase": "resume",
+      "reports": 28,
+      "state": "ready",
+      "usb_generation": 2
+    },
+    {
+      "native_generation": 4,
+      "owner": 7288744982292438737,
+      "phase": "pause",
+      "reports": 36,
+      "state": "ready",
+      "usb_generation": 2
+    },
+    {
+      "native_generation": 5,
+      "owner": 7288744982292438737,
+      "phase": "resume",
+      "reports": 36,
+      "state": "running",
+      "usb_generation": 2
+    },
+    {
+      "native_generation": 5,
+      "owner": 7288744982292438737,
+      "phase": "pause",
+      "reports": 44,
+      "state": "running",
+      "usb_generation": 2
+    },
+    {
+      "native_generation": 6,
+      "owner": 7288744982292438737,
+      "phase": "resume",
+      "reports": 44,
+      "state": "ready",
+      "usb_generation": 2
+    }
+  ],
+  "shared_USB_ready_records": 1,
+  "shared_USB_reports": 44,
+  "shared_USB_stop_records": 1,
+  "source_bound_USB_pause_resume_gate_passed": true,
+  "status": "PASS",
+  "total_seconds": 360.4371446840232,
+  "verified_uploads": 8
+}

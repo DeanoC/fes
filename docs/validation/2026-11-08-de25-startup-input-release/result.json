@@ -1,0 +1,52 @@
+{
+  "status": "software-fix-verified-boot-chain-incomplete",
+  "compiled_source": "7b30e31ccc229c5c8fb20ad252b3c0e5b634dab7",
+  "base": "6bc4bd94b38df9f981d2fdc7c21d24ded45553e6",
+  "change": "initial typed-input neutral fence and real100ms Nano boot-keyboard idle reports",
+  "hardware_image4489_consumed": true,
+  "hardware_image4489_replayed": false,
+  "parent_tests": 1734,
+  "parent_skips": 2,
+  "focused_race_native_and_USB_passed": true,
+  "all_selected_software_checks_passed": true,
+  "new_SDK_and_entry_built": true,
+  "firmware_compile_log_reports_completion": true,
+  "firmware_producer_receipt_missing": true,
+  "BL31_build_timed_out_seconds": 360,
+  "partial_ELF_check": {
+    "status": "passed",
+    "scope": "independent partial ELF memory check only; firmware producer receipt and matched boot chain incomplete",
+    "ELF_entry": 2147483648,
+    "load_segments": [
+      [
+        327680,
+        385728
+      ],
+      [
+        2147483648,
+        2147721541
+      ]
+    ],
+    "ocram_remaining_bytes": 7488,
+    "physical_admission": false
+  },
+  "cold_derivation_profile": {
+    "status": "passed",
+    "hardware_actions": false,
+    "producer_sources_modified": false,
+    "profile_only": true,
+    "chain_sha256": "07214c965102f3c7e93c3c602628ad0e5c9d22854f52a15d8d96126272f74f1a",
+    "elapsed_seconds": 201.88166101207025
+  },
+  "cold_derivation_worker_calls": 102,
+  "cold_derivation_worker_seconds": 201.196,
+  "hardware_operations_after_stopped4489": false,
+  "matched_chain_complete": false,
+  "new_image_attempts": 0,
+  "ordinary_admission": false,
+  "goal_complete": false,
+  "checks_summary_sha256": "6555c8508faf32d4d34c0c50daecfe7a5efbc780518b06daccc96c71f7a50b0e",
+  "reproduction_inputs_sha256": "cd61c24125bf950a663857a9b342548ad5e3cd245d0cd4a1c007609fc51fe060",
+  "retention_target": "/home/deano/fes-retained/de25-startup-input-release-source-partial-build-20261108-r1",
+  "next": "reduce repeated off-board context derivations while retaining complete current-source checks and existing build bounds; keep all live hardware ownership checks unchanged"
+}

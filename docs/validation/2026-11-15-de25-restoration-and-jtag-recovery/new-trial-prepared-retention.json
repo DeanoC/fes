@@ -1,0 +1,17 @@
+{
+  "status": "passed-self-contained-selected-trial-retention",
+  "procedure_sha256": "dfef7b983d4d9df1b57206d973b912a3eabc3af6e9bf5eafc9e0f9476f00d4d9",
+  "archive": "/home/deano/fes-retained/de25-four-second-after-usb-reset-prepared-20261115-r1/prepared-procedure.tar.gz",
+  "archive_sha256": "3fcc3088a17e7f2ea028e7797ceca4c181b3889e40a7caa437c8b7937407d339",
+  "archive_bytes": 279440657,
+  "logical_files": 10950,
+  "verified_unique_blobs": 5065,
+  "hardware_actions": false,
+  "attempt_reserved": false,
+  "execution_approval_created": false,
+  "terminal_telemetry_grants_recovery": false,
+  "native_baseline_dispatch": false,
+  "baseline_final_Park_prerequisite_claimed": false,
+  "files_only_original_restoration_prerequisite": true,
+  "baseline_native_boot_forbidden": true
+}

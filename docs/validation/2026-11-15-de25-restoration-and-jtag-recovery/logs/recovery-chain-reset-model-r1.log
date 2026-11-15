@@ -1,0 +1,9 @@
+test_actual_archived_start (__main__.Tests.test_actual_archived_start) ... ok
+test_non_recovery_roles_reject_before_procedure (__main__.Tests.test_non_recovery_roles_reject_before_procedure) ... ok
+test_other_states_rejected (__main__.Tests.test_other_states_rejected) ... ok
+test_reset_readback_pair (__main__.Tests.test_reset_readback_pair) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.023s
+
+OK
