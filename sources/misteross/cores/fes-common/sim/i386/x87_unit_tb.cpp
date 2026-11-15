@@ -52,6 +52,11 @@ std::string hex80(const uint8_t *b) {
 // was found. The exception flags stay masked, so every result is the masked
 // one, which is what this slice's masked cases compare against.
 uint16_t host_cw(unsigned rc) { return uint16_t(0x037f | (rc << 10)); }
+// ... and with the precision field as well: PC 00 is 24 bits, 10 is 53 and
+// 11 is the extended format, which 037Fh already holds.
+uint16_t cw_of(unsigned rc, unsigned pc) {
+    return uint16_t((0x037f & ~0x0300) | (pc << 8) | (rc << 10));
+}
 
 struct Ext { uint8_t b[10]; };
 
@@ -480,6 +485,8 @@ class StubPage {
         if (page_) munmap(page_, 4096);
     }
     // Build and return a stub for one form. `ops` is the instruction's bytes.
+    // The operands are a 16-byte-strided array at %rsi, and they are pushed
+    // from the last to the first so that operand 0 ends up as ST(0).
     Stub build(unsigned pushes, const uint8_t *ops, unsigned nops) {
         if (!page_) return nullptr;
         if (mprotect(page_, 4096, PROT_READ | PROT_WRITE) != 0) return nullptr;
@@ -489,8 +496,8 @@ class StubPage {
         };
         emit({0xdb, 0xe3});                     // fninit
         emit({0xd9, 0x2f});                     // fldcw (%rdi)
-        if (pushes > 1) emit({0xdb, 0x2e});     // fldt (%rsi): the ST(1) operand
-        if (pushes > 0) emit({0xdb, 0x2a});     // fldt (%rdx): the ST(0) operand
+        for (unsigned n = pushes; n-- > 0;)
+            emit({0xdb, 0x6e, uint8_t(16 * n)});  // fldt 16n(%rsi)
         for (unsigned n = 0; n < nops; ++n) code.push_back(ops[n]);
         emit({0xdf, 0xe0});                     // fnstsw %ax, before anything clears it
         emit({0x41, 0xdd, 0x30});               // fnsave (%r8), which is no-wait
@@ -514,15 +521,15 @@ void image_of(const uint8_t *raw, uint16_t sw, Image &out) {
     for (int n = 0; n < 8; ++n) std::memcpy(out.reg[n], raw + 28 + 10 * n, 10);
 }
 
-bool host_form(StubPage &page, uint16_t cw, const uint8_t *st1, const uint8_t *st0,
-               const void *mem, unsigned pushes, const uint8_t *ops, unsigned nops, Image &out) {
+// `stack` holds the operands ST(0) first, 10 bytes each.
+bool host_form(StubPage &page, uint16_t cw, const uint8_t (*stack)[10], unsigned pushes,
+               const void *mem, const uint8_t *ops, unsigned nops, Image &out) {
     alignas(16) uint8_t raw[128] = {0};
-    alignas(16) uint8_t a[16] = {0}, b[16] = {0};
-    if (st0) std::memcpy(a, st0, 10);
-    if (st1) std::memcpy(b, st1, 10);
+    alignas(16) uint8_t operands[8][16] = {};
+    for (unsigned n = 0; n < pushes && n < 8; ++n) std::memcpy(operands[n], stack[n], 10);
     Stub stub = page.build(pushes, ops, nops);
     if (!stub) return false;
-    const unsigned sw = stub(&cw, b, a, mem, raw);
+    const unsigned sw = stub(&cw, operands, nullptr, mem, raw);
     image_of(raw, uint16_t(sw), out);
     return true;
 }
@@ -530,15 +537,14 @@ bool host_form(StubPage &page, uint16_t cw, const uint8_t *st1, const uint8_t *s
 // The same form on the unit: the control word, the pushes as FLD m80 (a bit
 // copy, so it raises nothing either side), the form itself, then the unit's
 // own FNSAVE.
-void unit_form(Unit &u, uint16_t cw, const uint8_t *st1, const uint8_t *st0,
-               const uint8_t *mem, unsigned pushes, unsigned op, unsigned fmt, Image &out) {
+void unit_form(Unit &u, uint16_t cw, const uint8_t (*stack)[10], unsigned pushes,
+               const uint8_t *mem, unsigned op, unsigned fmt, Image &out) {
     u.clear_latch();
     u.reg_form(OP_FNINIT);
     u.present(OP_FLDCW, FMT_I16, true, true, 0);
     u.commit(0, cw, true);
     u.settle();
-    if (pushes > 1) u.load(OP_FLD_M80, FMT_F80, st1);
-    if (pushes > 0) u.load(OP_FLD_M80, FMT_F80, st0);
+    for (unsigned n = pushes; n-- > 0;) u.load(OP_FLD_M80, FMT_F80, stack[n]);
     if (fmt == 0) u.reg_form(op);
     else u.load(op, fmt, mem);
     out.cw = u.cw();
@@ -1367,11 +1373,14 @@ int main(int argc, char **argv) {
                     const uint8_t *a = ext[pr.first].data();   // ST(0)
                     const uint8_t *b = ext[pr.second].data();  // ST(1)
                     Image want{}, got{};
-                    if (!host_form(page, cw, b, a, nullptr, f.pushes, ops, 2, want)) {
+                    uint8_t stack[2][10];
+                    std::memcpy(stack[0], a, 10);
+                    std::memcpy(stack[1], b, 10);
+                    if (!host_form(page, cw, stack, f.pushes, nullptr, ops, 2, want)) {
                         bad(std::string(f.name) + "-rc" + std::to_string(rc), "no stub page");
                         break;
                     }
-                    unit_form(u, cw, b, a, nullptr, f.pushes, (f.esc << 8) | f.modrm, f.fmt, got);
+                    unit_form(u, cw, stack, f.pushes, nullptr, (f.esc << 8) | f.modrm, f.fmt, got);
                     ++ran;
                     if (!same_state(want, got, f.swmask)) {
                         const std::string what = "st0=" + hex80(a) + " st1=" + hex80(b) +
@@ -1387,6 +1396,185 @@ int main(int argc, char **argv) {
                     }
                 }
                 const std::string name = std::string(f.name) + "-rc" + std::to_string(rc);
+                if (diffs) bad(name, std::to_string(diffs) + " of " + std::to_string(ran) + " " + first);
+                else ok(name);
+            }
+        }
+    }
+
+
+    // ---- Precision control. ----
+    // PC applies to add, subtract and multiply and to nothing else
+    // (387 PRM section 2.3.2), so FRNDINT, FSCALE, FXTRACT and the compares
+    // run here too: the point is that their results do not change with it.
+    {
+        StubPage page;
+        const uint16_t ARITH_SW = 0xfaff;
+        struct PForm { const char *name; unsigned esc, modrm, pushes; uint16_t swmask; };
+        const PForm pforms[] = {
+            {"fadd",    0x0, 0xc1, 2, ARITH_SW}, {"fmul",   0x0, 0xc9, 2, ARITH_SW},
+            {"fsub",    0x0, 0xe1, 2, ARITH_SW}, {"fsubr",  0x0, 0xe9, 2, ARITH_SW},
+            {"fsub.p",  0x6, 0xe1, 2, ARITH_SW}, {"fcom",   0x0, 0xd1, 2, 0xffff},
+            {"frndint", 0x1, 0xfc, 1, ARITH_SW}, {"fscale", 0x1, 0xfd, 2, ARITH_SW},
+            {"fxtract", 0x1, 0xf4, 1, ARITH_SW},
+        };
+        const size_t named = 22;
+        for (unsigned pc = 0; pc < 3; ++pc) {
+            const unsigned pcbits = pc == 0 ? 0 : pc == 1 ? 2 : 3;   // 24, 53, 64 bits
+            for (const PForm &f : pforms) {
+                for (unsigned rc = 0; rc < 4; ++rc) {
+                    const uint16_t cw = cw_of(rc, pcbits);
+                    const uint8_t ops[2] = {uint8_t(0xd8 | f.esc), uint8_t(f.modrm)};
+                    int diffs = 0, ran = 0;
+                    std::string first;
+                    Unit u;
+                    for (size_t ia = 0; ia < named && ia < ext.size(); ++ia)
+                        for (size_t ib = 0; ib < named && ib < ext.size(); ++ib) {
+                            uint8_t stack[2][10];
+                            std::memcpy(stack[0], ext[ia].data(), 10);
+                            std::memcpy(stack[1], ext[ib].data(), 10);
+                            Image want{}, got{};
+                            if (!host_form(page, cw, stack, f.pushes, nullptr, ops, 2, want)) break;
+                            unit_form(u, cw, stack, f.pushes, nullptr, (f.esc << 8) | f.modrm, 0, got);
+                            ++ran;
+                            if (!same_state(want, got, f.swmask)) {
+                                if (!diffs)
+                                    first = "st0=" + hex80(stack[0]) + " st1=" + hex80(stack[1]) +
+                                            " got " + state_str(got, f.swmask) +
+                                            " want " + state_str(want, f.swmask);
+                                ++diffs;
+                            }
+                        }
+                    const std::string name = std::string("pc") + (pc == 0 ? "24" : pc == 1 ? "53" : "64") +
+                                             "-" + f.name + "-rc" + std::to_string(rc);
+                    if (diffs) bad(name, std::to_string(diffs) + " of " + std::to_string(ran) + " " + first);
+                    else ok(name);
+                }
+            }
+        }
+    }
+
+    // ---- The memory forms. ----
+    // D8 and DC take a 32- or 64-bit real, DA and DE a 32- or 16-bit integer,
+    // and reg fields 0 to 5 are add, multiply, compare, compare-and-pop,
+    // subtract and reverse subtract. The operand goes through the same load
+    // conversion as FLD and FILD, so a denormal real raises the denormal
+    // exception before the arithmetic sees it.
+    {
+        StubPage page;
+        const uint16_t ARITH_SW = 0xfaff;
+        struct MForm { const char *name; unsigned esc, fmt, bytes; };
+        const MForm mforms[] = {
+            {"m32",  0x0, FMT_F32, 4}, {"m64", 0x4, FMT_F64, 8},
+            {"m32i", 0x2, FMT_I32, 4}, {"m16i", 0x6, FMT_I16, 2},
+        };
+        const char *rfname[6] = {"add", "mul", "com", "comp", "sub", "subr"};
+        for (const MForm &m : mforms) {
+            for (unsigned rf = 0; rf < 6; ++rf) {
+                for (unsigned rc = 0; rc < 4; ++rc) {
+                    const uint16_t cw = host_cw(rc);
+                    // The host addresses the operand through %rcx, so its
+                    // ModRM byte is mod 00 rm 001; the unit never looks at
+                    // the rm field, and takes the same reg field.
+                    const uint8_t ops[2] = {uint8_t(0xd8 | m.esc), uint8_t((rf << 3) | 0x01)};
+                    const unsigned uop = (m.esc << 8) | (rf << 3) | 0x05;
+                    const uint16_t swmask = (rf == 2 || rf == 3) ? 0xffff : ARITH_SW;
+                    int diffs = 0, ran = 0;
+                    std::string first;
+                    Unit u;
+                    for (size_t ia = 0; ia < 22 && ia < ext.size(); ++ia) {
+                        // The memory operands: the patterns the load section
+                        // uses for this format, then random bits.
+                        std::vector<uint64_t> mem;
+                        if (m.fmt == FMT_F32) for (uint32_t v : f32s) mem.push_back(v);
+                        else if (m.fmt == FMT_F64) for (uint64_t v : f64s) mem.push_back(v);
+                        else for (int64_t v : ints) mem.push_back(uint64_t(v));
+                        for (int n = 0; n < 6; ++n) mem.push_back(rng());
+                        for (uint64_t raw : mem) {
+                            uint8_t stack[1][10];
+                            std::memcpy(stack[0], ext[ia].data(), 10);
+                            alignas(8) uint8_t mbytes[8] = {0};
+                            std::memcpy(mbytes, &raw, m.bytes);
+                            Image want{}, got{};
+                            if (!host_form(page, cw, stack, 1, mbytes, ops, 2, want)) break;
+                            unit_form(u, cw, stack, 1, mbytes, uop, m.fmt, got);
+                            ++ran;
+                            if (!same_state(want, got, swmask)) {
+                                if (!diffs)
+                                    first = "st0=" + hex80(stack[0]) + " mem=" + hex(raw, 2 * m.bytes) +
+                                            " got " + state_str(got, swmask) +
+                                            " want " + state_str(want, swmask);
+                                ++diffs;
+                            }
+                        }
+                    }
+                    const std::string name = std::string("mem-") + rfname[rf] + "-" + m.name +
+                                             "-rc" + std::to_string(rc);
+                    if (diffs) bad(name, std::to_string(diffs) + " of " + std::to_string(ran) + " " + first);
+                    else ok(name);
+                }
+            }
+        }
+    }
+
+    // ---- ST(i) for every i. ----
+    // Eight distinct registers on the stack, so each ST(i) is its own value,
+    // and the forms that name one are run for all eight. ST(0) as the other
+    // operand is the case where the destination and the source are the same
+    // register, and for the popping forms the one where the register written
+    // is the one popped.
+    {
+        StubPage page;
+        const uint16_t ARITH_SW = 0xfaff;
+        struct IForm { const char *name; unsigned esc, base; uint16_t swmask; };
+        const IForm iforms[] = {
+            {"fadd.st0",  0x0, 0xc0, ARITH_SW}, {"fmul.st0",  0x0, 0xc8, ARITH_SW},
+            {"fsub.st0",  0x0, 0xe0, ARITH_SW}, {"fsubr.st0", 0x0, 0xe8, ARITH_SW},
+            {"fadd.sti",  0x4, 0xc0, ARITH_SW}, {"fsub.sti",  0x4, 0xe0, ARITH_SW},
+            {"fsubr.sti", 0x4, 0xe8, ARITH_SW}, {"fmul.sti",  0x4, 0xc8, ARITH_SW},
+            {"faddp",     0x6, 0xc0, ARITH_SW}, {"fsubp",     0x6, 0xe0, ARITH_SW},
+            {"fsubrp",    0x6, 0xe8, ARITH_SW}, {"fmulp",     0x6, 0xc8, ARITH_SW},
+            {"fcom",      0x0, 0xd0, 0xffff},   {"fcomp",     0x0, 0xd8, 0xffff},
+            {"fucom",     0x5, 0xe0, 0xffff},   {"fucomp",    0x5, 0xe8, 0xffff},
+        };
+        // Eight values that are all different and none of them special, plus
+        // a run with a NaN and a denormal among them.
+        uint8_t stacks[2][8][10];
+        for (unsigned which = 0; which < 2; ++which)
+            for (unsigned n = 0; n < 8; ++n) {
+                const uint64_t sig = 0x8000000000000000ull | (uint64_t(n + 1) << 40);
+                const uint16_t se = uint16_t(0x3fff + n);
+                std::memcpy(stacks[which][n], &sig, 8);
+                std::memcpy(stacks[which][n] + 8, &se, 2);
+            }
+        {
+            const uint64_t nan = 0xc000000000000000ull, den = 0x0000000000000003ull;
+            const uint16_t snan = 0x7fff, zero = 0x0000;
+            std::memcpy(stacks[1][3], &nan, 8);
+            std::memcpy(stacks[1][3] + 8, &snan, 2);
+            std::memcpy(stacks[1][5], &den, 8);
+            std::memcpy(stacks[1][5] + 8, &zero, 2);
+        }
+        for (unsigned which = 0; which < 2; ++which) {
+            for (const IForm &f : iforms) {
+                int diffs = 0, ran = 0;
+                std::string first;
+                Unit u;
+                for (unsigned i = 0; i < 8; ++i) {
+                    const uint8_t ops[2] = {uint8_t(0xd8 | f.esc), uint8_t(f.base + i)};
+                    Image want{}, got{};
+                    if (!host_form(page, host_cw(0), stacks[which], 8, nullptr, ops, 2, want)) break;
+                    unit_form(u, host_cw(0), stacks[which], 8, nullptr,
+                              (f.esc << 8) | (f.base + i), 0, got);
+                    ++ran;
+                    if (!same_state(want, got, f.swmask)) {
+                        if (!diffs)
+                            first = "i=" + std::to_string(i) + " got " + state_str(got, f.swmask) +
+                                    " want " + state_str(want, f.swmask);
+                        ++diffs;
+                    }
+                }
+                const std::string name = std::string("sti-") + f.name + (which ? "-mixed" : "");
                 if (diffs) bad(name, std::to_string(diffs) + " of " + std::to_string(ran) + " " + first);
                 else ok(name);
             }

@@ -540,9 +540,16 @@ module fes_i386_x87 (
                     ld_expb = 17'd16297;
                     ld_fl = 6'b000010;
                 end else if (e32 == 8'hff) begin
+                    // FLD quiets a signalling NaN and raises invalid. An
+                    // arithmetic or compare form does neither here: the NaN
+                    // reaches the operation still signalling, so the 387's
+                    // NaN rule can tell it from a quiet one -- it delivers
+                    // the quiet operand where the other signals -- and the
+                    // operation raises the invalid itself.
                     ld_v = f32 == 23'd0 ? {mval[31], 15'h7fff, 1'b1, 63'd0}
-                                        : {mval[31], 15'h7fff, 1'b1, f32[22] ? f32 : {1'b1, f32[21:0]}, 40'd0};
-                    if (f32 != 23'd0 && !f32[22]) ld_fl = 6'b000001;  // a signalling NaN: invalid, quieted
+                                        : {mval[31], 15'h7fff, 1'b1,
+                                           f32[22] || a_mem ? f32 : {1'b1, f32[21:0]}, 40'd0};
+                    if (f32 != 23'd0 && !f32[22] && !a_mem) ld_fl = 6'b000001;
                 end else
                     ld_v = {mval[31], 15'(17'(e32) + 17'd16256), 1'b1, f32, 40'd0};
             end
@@ -556,8 +563,9 @@ module fes_i386_x87 (
                     ld_fl = 6'b000010;
                 end else if (e64 == 11'h7ff) begin
                     ld_v = f64 == 52'd0 ? {mval[63], 15'h7fff, 1'b1, 63'd0}
-                                        : {mval[63], 15'h7fff, 1'b1, f64[51] ? f64 : {1'b1, f64[50:0]}, 11'd0};
-                    if (f64 != 52'd0 && !f64[51]) ld_fl = 6'b000001;
+                                        : {mval[63], 15'h7fff, 1'b1,
+                                           f64[51] || a_mem ? f64 : {1'b1, f64[50:0]}, 11'd0};
+                    if (f64 != 52'd0 && !f64[51] && !a_mem) ld_fl = 6'b000001;
                 end else
                     ld_v = {mval[63], 15'(17'(e64) + 17'd15360), 1'b1, f64, 11'd0};
             end
@@ -868,6 +876,12 @@ module fes_i386_x87 (
     logic [79:0] sp_v;
     logic [5:0]  sp_fl;
     logic        sp_sf;
+    // An operand that is empty, an unsupported format or a NaN: the result
+    // and the flags are that operand's alone, so a denormal the memory
+    // conversion already reported is dropped along with it.
+    logic        sp_bad;
+    assign sp_bad = ca == C_EMPTY || cb == C_EMPTY || ca == C_UNSUP || cb == C_UNSUP
+                 || ca == C_QNAN || cb == C_QNAN || ca == C_SNAN || cb == C_SNAN;
     always_comb begin
         logic nan_a, nan_b, pick_a;
         sp_hit = 1'b1;
@@ -889,9 +903,15 @@ module fes_i386_x87 (
             // significand, and a signalling operand raises invalid. The
             // delivered NaN keeps its own sign, so a subtract's flip does not
             // reach it.
-            if (nan_a && nan_b)
-                pick_a = pa[62:0] > pb[62:0] ? 1'b1 : pa[62:0] < pb[62:0] ? 1'b0 : 1'b1;
-            else
+            if (nan_a && nan_b) begin
+                // A quiet operand beats a signalling one, and otherwise the
+                // larger significand wins (Intel's NaN rules; the host bench
+                // settles it, where a quiet ST(0) beats a signalling memory
+                // operand whose payload is larger).
+                if (ca == C_SNAN && cb == C_QNAN) pick_a = 1'b0;
+                else if (ca == C_QNAN && cb == C_SNAN) pick_a = 1'b1;
+                else pick_a = pa[62:0] >= pb[62:0];
+            end else
                 pick_a = nan_a;
             sp_v = pick_a ? {pa[79:64], 2'b11, pa[61:0]} : {pb[79:64], 2'b11, pb[61:0]};
             if (ca == C_SNAN || cb == C_SNAN) sp_fl = 6'b000001;
@@ -924,9 +944,7 @@ module fes_i386_x87 (
         // plus zero back with DE alone -- but not beside an operand that is
         // empty, unsupported or a NaN, where the 387 reports that operand's
         // own exception or none at all. The host bench found both halves.
-        if (ca != C_EMPTY && cb != C_EMPTY && ca != C_UNSUP && cb != C_UNSUP
-            && ca != C_QNAN && cb != C_QNAN && ca != C_SNAN && cb != C_SNAN
-            && (ca == C_DEN || cb == C_DEN)) sp_fl[1] = 1'b1;
+        if (!sp_bad && (ca == C_DEN || cb == C_DEN)) sp_fl[1] = 1'b1;
     end
 
     // ---- The compares (387 PRM, the FCOM and FUCOM entries). ----
@@ -1349,7 +1367,7 @@ module fes_i386_x87 (
                     if (cur == X87_CMP) begin
                         // A compare writes the condition codes and nothing
                         // else, and needs no rounding.
-                        pfl <= pfl | cmp_fl;
+                        pfl <= sp_bad ? cmp_fl : pfl | cmp_fl;
                         psf <= cmp_sf;
                         pc1 <= 1'b0;
                         pcc <= cmp_cc;
@@ -1416,7 +1434,7 @@ module fes_i386_x87 (
                             ares <= INDEFINITE;
                             seq <= S_APPLY;
                         end else if (ca == C_QNAN || ca == C_SNAN || cb == C_QNAN || cb == C_SNAN) begin
-                            pfl <= pfl | sp_fl;
+                            pfl <= sp_fl;
                             ares <= sp_v;
                             seq <= S_APPLY;
                         end else if (cb == C_INF) begin
@@ -1454,7 +1472,7 @@ module fes_i386_x87 (
                         // An empty register, an unsupported format, a NaN,
                         // an infinity or a pair of zeros: the result is the
                         // operand classes' and the datapath never runs.
-                        pfl <= pfl | sp_fl;
+                        pfl <= sp_bad ? sp_fl : pfl | sp_fl;
                         psf <= sp_sf;
                         pc1 <= sp_sf && ca != C_EMPTY && cb != C_EMPTY;
                         ares <= sp_v;
