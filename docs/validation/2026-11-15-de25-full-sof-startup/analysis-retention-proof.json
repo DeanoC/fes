@@ -1,0 +1,11 @@
+{
+  "status": "passed-independent-full-SOF-warm-staging-analysis-retention",
+  "archive": "/home/deano/fes-retained/de25-full-sof-warm-stop-analysis-20261115-r1/analysis.tar.gz",
+  "archive_sha256": "6d0f69e1d95f654fb1edebb17aa0a97586afb0906fd3ad06a5e3e12f2b1af1cc",
+  "files": 14,
+  "physical_archive_sha256": "bce8f6f856a6ed5f213ecdf7f23dd4ffa89a136ad2cda5c33a6d6d5aa483e71a",
+  "source_release_verified": true,
+  "initial_MENU_verified": true,
+  "nested_prepublication_expiry_verified": true,
+  "hardware_acceptance": false
+}

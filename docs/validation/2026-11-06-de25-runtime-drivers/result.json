@@ -1,0 +1,184 @@
+{
+  "format": 1,
+  "status": "passed",
+  "base": "7711a051b7b2ca49f8628b973aa52f6ffed6e12c",
+  "implementation_source": "81aef659a58646b1ac6d2e17fb2c0a5f985916c9",
+  "classification": "Host race/model and AArch64 QEMU admission checks; no hardware actions or ordinary Nano registration",
+  "hardware_actions": false,
+  "ordinary_Nano_profile_registered": false,
+  "core_load_acceptance": false,
+  "immutable_driver_inventory": true,
+  "independent_semantic_profile_registry": true,
+  "diagnostic_only_registry_preserved": true,
+  "required_interface_check_before_SD_containment": true,
+  "missing_interface_no_firmware_calls": true,
+  "source_inputs": {
+    "platform/embedded/tamago/admissioncheck/checks.go": "3bf51ed99096bbaa8a77ee2557cd01060b6b5fe1b6f4569ebecc32ba6da687fe",
+    "platform/embedded/tamago/admissioncheck/linked.go": "6bad91b6f716edcf3e398de87bfb5467efb50d8b2fd0af09ebf6871983a6b00d",
+    "platform/embedded/tamago/nativefabric/README.md": "f03261720ee83a77301bf291d4121f6f6fcee6d88379174b683c64ab2c6d0db3",
+    "platform/embedded/tamago/nativefabric/selected_program.go": "1fa5c8ad689d095cfabb2aa45fad083802541e078757f853f7353f778263e07a",
+    "platform/embedded/tamago/nativefabric/selected_program_test.go": "4487af87731ab9099341e0a181a0d8acbe38fd4ccebf0ab6e56cea23a7f78cce",
+    "platform/embedded/tamago/runtimeadmission/README.md": "adcda4782ce47abe7a4c02819069e2556aab04cfd7b8c90b89158898ec59d887",
+    "platform/embedded/tamago/runtimeadmission/admission.go": "5e0b18432093824a89189491b7327e71dd5048e6aad6a6e139f68602ed89e706",
+    "platform/embedded/tamago/runtimeadmission/drivers.go": "261928c1f7ab084b1b309970e38232fa1d64bfe60bc68cfbc804e0f1fe82154a",
+    "platform/embedded/tamago/runtimeadmission/drivers_test.go": "5730df741b387ef3b473a2f5c00f2b7826aa197266fe9c61f220bad6c8da8b45"
+  },
+  "source_audits": {
+    "out/native-fabric-hooks-51fe74ddae9648988fdcd0965d6661e3/result.json": {
+      "sha256": "5754b9370816f6c07e6e266a6b35697a690dc1c944a07230d5c587f07ff18807",
+      "changed_since_test": [
+        "platform/embedded/tamago/admission_fixtures.py"
+      ]
+    },
+    "out/native-compatibility-d71e769b0b3e41d589efeef986075592/result.json": {
+      "sha256": "444fef6c580caf713a9a77dad1b9860ed5448651572944e13039f010cb427fe9",
+      "changed_since_test": [
+        "platform/embedded/tamago/admission_fixtures.py"
+      ]
+    },
+    "out/nano-runtime-drivers-20261106/qemu-admission-fixed/result.json": {
+      "sha256": "a7a2b9420781f88ef2ce7d1404fa20e59e8eb715f8afb084651476d8d759d92b",
+      "changed_since_test": []
+    }
+  },
+  "wrapper_results": {
+    "focused-fixed": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=120s",
+        "./runtimeadmission",
+        "./nativefabric"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 71.56129543599673,
+      "log_sha256": "0eac8afc8a9fd4919bffb38f4540a0859ab1ff4fb8eddfe11fe10b55376a4f7e"
+    },
+    "contract-tests": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=120s",
+        "./runtimeadmission",
+        "./admissioncheck",
+        "./nativefabric"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 74.37454665696714,
+      "log_sha256": "5d97df154158eff08d8c7c6d55d6912b770ebe72408cec80b7cae39597fbf72c"
+    },
+    "affected": {
+      "argv": [
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "7711a051b7b2ca49f8628b973aa52f6ffed6e12c"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 551.645505064982,
+      "log_sha256": "03dbedcc56273fab0d8ffc83d64eea2100c177fa830810cafa56393384824312"
+    },
+    "corrected-host-corpus": {
+      "argv": [
+        "env",
+        "FES_ADMISSION_FIXTURES=/home/deano/fes/out/dev/de25-embedded-os/out/nano-runtime-drivers-20261106/corrected-fixtures",
+        "GOWORK=off",
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-run",
+        "^TestRuntimeOracleCorpus$",
+        "./admissioncheck"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.6010942510329187,
+      "log_sha256": "2702a91078755e8c021eee01d6d6d0f8c564d3a0e7d8f4993c1a27faa1152f6e"
+    },
+    "native-admission-fixed": {
+      "argv": [
+        "env",
+        "LD_LIBRARY_PATH=/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/root/usr/lib/x86_64-linux-gnu",
+        "python3",
+        "platform/embedded/tamago/run.py",
+        "admission",
+        "--compiler",
+        "out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+        "--qemu",
+        "out/bootchain-tools/root/usr/bin/qemu-system-aarch64",
+        "--output",
+        "out/nano-runtime-drivers-20261106/qemu-admission-fixed"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 17.209244007011876,
+      "log_sha256": "8dc4de8922a005161267a81776b8dde24750b3afa02df68ccb6ea714ebf21e9d"
+    },
+    "final-host-corpus": {
+      "argv": [
+        "env",
+        "FES_ADMISSION_FIXTURES=/home/deano/fes/out/dev/de25-embedded-os/out/nano-runtime-drivers-20261106/qemu-admission-fixed/package-fixtures",
+        "GOWORK=off",
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=90s",
+        "./admissioncheck"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 7.6043341889744624,
+      "log_sha256": "eca8081841e79ee934d8282dae5acff46ed301f1b6a9d41cc6a3893277d99f87"
+    }
+  },
+  "affected_steps": 8,
+  "parent_tests": 1568,
+  "parent_skips": 3,
+  "cpp_go_contract_decisions": 657,
+  "qemu_admission_cases": 19,
+  "qemu_retained_ROM_cases": 3,
+  "qemu_elf_sha256": "a2b6e648c4de1d9510587891358ff2bf309ba8081380e262698aeff4bc460faf",
+  "fixture_only_correction": [
+    {
+      "name": "v3/valid-nano-4096",
+      "before": "unsupported_abi",
+      "after": "unsupported_target"
+    },
+    {
+      "name": "v3/valid-nano-8192",
+      "before": "unsupported_abi",
+      "after": "unsupported_target"
+    }
+  ],
+  "previous_source_failure_reproduced": true,
+  "affected_pipeline_scope": "Passed before the fixture-only correction; all tested Go inputs unchanged. Final correction verified by fresh full QEMU admission and host corpus, including all three ROM cases.",
+  "hardware_revalidation_required": "The last physical PASS belongs to its older compiled input; rebuild a matched chain before any next test. Power interruption has only been followed by USB enumeration, not boot/runtime qualification.",
+  "next_integration": "Supply an ordinary Nano producer/profile and standard ABI drivers, enforce this combined gate before the native lifecycle, then bind its boot and firmware scope and validate the exact rebuilt artifacts physically."
+}

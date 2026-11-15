@@ -1,0 +1,74 @@
+{
+  "status": "PASS",
+  "classification": "physical packet timeout before new drain snapshot; pinned primary-source comparison identifies a bounded continuation difference, not a hardware repair",
+  "native_startup_seconds": 5.094273344031535,
+  "native_launches": 0,
+  "normal_return_completed": false,
+  "drain_snapshot_reached": false,
+  "packet_address": 1,
+  "endpoint": 1,
+  "PID": 2,
+  "split": false,
+  "polls": 10,
+  "toggle_RX_notifications": 1,
+  "toggle_IRQ_notifications": 1,
+  "continuations": 0,
+  "actual_RX_payload_received": false,
+  "pre_containment_channel": 3764291592,
+  "pre_containment_channel_interrupts": 1024,
+  "pre_containment_transfer": 1074266120,
+  "pre_containment_frame": 3263955428,
+  "pre_containment_RX_peek": 655360,
+  "pre_containment_RX_pop": 655360,
+  "current_packet_only_recorded_write_before_snapshot": {
+    "seq": 229,
+    "packet": 40,
+    "reason": "arm",
+    "value": 2690549768
+  },
+  "software_disable_write_before_first_snapshot": false,
+  "last_continuation_samples_mask": 15,
+  "last_continuation_channel": 3764291592,
+  "last_continuation_transfer_and_frame_not_sampled": true,
+  "channel_halt_proven": false,
+  "first_snapshot_command_ring_is_software_history": true,
+  "precise_physical_disable_cause_proven": false,
+  "primary_PIO_continuation_clears_raw_CHDIS": true,
+  "primary_scheduler_refuses_software_pending_halt": true,
+  "primary_continuation_does_not_reprogram_HCTSIZ": true,
+  "current_driver_waits_on_raw_CHDIS_before_sampling_remaining_transfer": true,
+  "next": "Prototype qualified continuation of the same owned direct-IN packet after an observed toggle notification, comparing the pinned PIO reference. Model the captured CHDIS state, require real expected-PID data/completion/retirement, preserve HCTSIZ/PID/deadline and keep software-halt/cancel/foreign-DMA/RX/completion/error/queue/empty-transfer exclusions. Do not clear arbitrary disable state, restart a transfer, extend bounds, release uncertain USB, replay the consumed17b chain or claim the physical cause proved. Review eligibility in the model before selecting a new matched build.",
+  "primary_references": {
+    "source": "Linux v6.12 DWC2; read-only reference, no driver linked",
+    "files": {
+      "hcd.c": {
+        "url": "https://api.github.com/repos/torvalds/linux/contents/drivers/usb/dwc2/hcd.c?ref=v6.12",
+        "web_url": "https://github.com/torvalds/linux/blob/v6.12/drivers/usb/dwc2/hcd.c",
+        "git_blob_sha1": "cb54390e7de488344e97658c8d9cea8fbaa56632",
+        "sha256": "3dd34e3dffdf5c4e8560f0db95b5b4adfd9106ced54e7e3ebb964effb587b801",
+        "bytes": 168198
+      },
+      "hcd_intr.c": {
+        "url": "https://api.github.com/repos/torvalds/linux/contents/drivers/usb/dwc2/hcd_intr.c?ref=v6.12",
+        "web_url": "https://github.com/torvalds/linux/blob/v6.12/drivers/usb/dwc2/hcd_intr.c",
+        "git_blob_sha1": "5c7538d498dd1194d9d328511f583b40c557cd5e",
+        "sha256": "cc998509cc806c4ea7beb6b5228a963158329643677d94436d1fac7aa3261f35",
+        "bytes": 66996
+      }
+    }
+  },
+  "panic": "panic: dwc2: packet address=1 endpoint=1 in=true pid=2 split=false complete_split=false received=false done=false nak=false halting=false polls=10 toggle_rx=1 toggle_irqs=1 ack_irqs=0 continuations=0 interval=10ms last_continue={reason=channel sampled=0xf queue_reg=0x410 queue=0x100040 irq=0x5200029 status=0x0 channel=0xe05e8808 transfer=0x0 frame=0x0 wait_ns=0}: dwc2: packet timeout; first toggle observation: dwc2: IN data-toggle notification; RX snapshot irq=0x7200039 peek=0xa0000 pop=0xa0000 after=0x7200029 channel=0xe05e8808 interrupts=0x400 transfer=0x40080008 port=0x4180f reset=0x80000400 nonperiodic=0x1080040 periodic=0x100040 frame=0xc28c01e4 software_channel_commands={seq=222 packet=37 reason=continue value=0x80528008 pid=2 done=false nak=false received=false halting=false; seq=223 packet=37 reason=continue value=0x80528008 pid=2 done=false nak=false received=false halting=false; seq=224 packet=37 reason=continue value=0x80528008 pid=2 done=false nak=false received=false halting=false; seq=225 packet=37 reason=continue value=0x80528008 pid=2 done=false nak=false received=false halting=false; seq=226 packet=37 reason=continue value=0x80528008 pid=2 done=false nak=false received=false halting=false; seq=227 packet=38 reason=arm value=0x80520008 pid=2 done=false nak=false received=false halting=false; seq=228 packet=39 reason=arm value=0xa05e8808 pid=0 done=false nak=false received=false halting=false; seq=229 packet=40 reason=arm value=0xa05e8808 pid=2 done=false nak=false received=false halting=false}; channel_commands={seq=222 packet=37 reason=continue value=0x80528008 pid=2 done=false nak=false received=false halting=false; seq=223 packet=37 reason=continue value=0x80528008 pid=2 done=false nak=false received=false halting=false; seq=224 packet=37 reason=continue value=0x80528008 pid=2 done=false nak=false received=false halting=false; seq=225 packet=37 reason=continue value=0x80528008 pid=2 done=false nak=false received=false halting=false; seq=226 packet=37 reason=continue value=0x80528008 pid=2 done=false nak=false received=false halting=false; seq=227 packet=38 reason=arm value=0x80520008 pid=2 done=false nak=false received=false halting=false; seq=228 packet=39 reason=arm value=0xa05e8808 pid=0 done=false nak=false received=false halting=false; seq=229 packet=40 reason=arm value=0xa05e8808 pid=2 done=false nak=false received=false halting=false}; containment: dwc2: register wait exhausted address=0x500 value=0xe05e8808 mask=0x80000000 want=0x0 elapsed=500.000485ms; channel_commands={seq=223 packet=37 reason=continue value=0x80528008 pid=2 done=false nak=false received=false halting=false; seq=224 packet=37 reason=continue value=0x80528008 pid=2 done=false nak=false received=false halting=false; seq=225 packet=37 reason=continue value=0x80528008 pid=2 done=false nak=false received=false halting=false; seq=226 packet=37 reason=continue value=0x80528008 pid=2 done=false nak=false received=false halting=false; seq=227 packet=38 reason=arm value=0x80520008 pid=2 done=false nak=false received=false halting=false; seq=228 packet=39 reason=arm value=0xa05e8808 pid=0 done=false nak=false received=false halting=false; seq=229 packet=40 reason=arm value=0xa05e8808 pid=2 done=false nak=false received=false halting=false; seq=230 packet=40 reason=containment value=0xe05e8808 pid=2 done=false nak=false received=false halting=false}",
+  "hardware_actions": false,
+  "core_load_acceptance": false,
+  "evidence_sha256": {
+    "out/nano-usb-drain-board-20261106/physical-result.json": "fac88a9abea146de0b6590042f38c684a2a518524cf8f8a87c07fbc5c88ea584",
+    "out/nano-usb-drain-board-20261106/trial/native-result.json": "36095b5dc9e77e88a1dd6aaaefec18182b283619e3e3a63957ae274ab2e50042",
+    "out/nano-usb-drain-board-20261106/trial/native-console.log": "5b7372319ff6151b993bbe4ba0a0eacd76f194c0162c84d204dbb0b4ecd8fd37",
+    "platform/embedded/tamago/dwc2/continuation.go": "000d0457e28381db68b447082d93301e542f731a609334b2001bbc2651dc492d",
+    "platform/embedded/tamago/dwc2/host.go": "a64dbabe15bfae7efc294bb3f7617485715d4e3ffd9da2324ed376c5fa0a5400",
+    "out/nano-usb-drain-board-20261106/reference/hcd.c": "3dd34e3dffdf5c4e8560f0db95b5b4adfd9106ced54e7e3ebb964effb587b801",
+    "out/nano-usb-drain-board-20261106/reference/hcd_intr.c": "cc998509cc806c4ea7beb6b5228a963158329643677d94436d1fac7aa3261f35",
+    "out/nano-usb-drain-board-20261106/reference/source.json": "7d39e15a25c59290b123ff2f9f9832a82eab0b9dece3c114c52b5926371deb13",
+    "out/nano-usb-drain-board-20261106/audit_packet.py": "8f8dc6f999cda85076f1d5de083c71a88bf1dee245c786d39f68819e4c837360"
+  }
+}

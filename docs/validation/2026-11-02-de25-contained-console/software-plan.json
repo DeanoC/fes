@@ -1,0 +1,182 @@
+{
+  "format": 1,
+  "root": "/home/deano/fes/out/dev/de25-embedded-os",
+  "base": "10398247dfc3e842961557e37eea6ea19142468d",
+  "head": "6dd356157dac111852b0f943ca4c0c799adb5de1",
+  "checkout_head": "6dd356157dac111852b0f943ca4c0c799adb5de1",
+  "merge_base": "10398247dfc3e842961557e37eea6ea19142468d",
+  "local_paths": [],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": false,
+      "runtime": false,
+      "contracts": false,
+      "fpga": false
+    },
+    "skipped": [
+      "host",
+      "runtime",
+      "contracts",
+      "fpga"
+    ],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": false,
+      "full_race": false
+    },
+    "paths": [
+      "platform/embedded/nano/README.md",
+      "platform/embedded/nano/cold_profile.py",
+      "platform/embedded/nano/prepare_uboot.py",
+      "platform/embedded/nano/spl_cold.c",
+      "platform/embedded/nano/spl_console.inc",
+      "tests/test_nano_cold.py"
+    ],
+    "reasons": [
+      "platform/embedded/nano/cold_profile.py: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/nano/prepare_uboot.py: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/nano/spl_cold.c: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/nano/spl_console.inc: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_nano_cold.py: parent orchestration/tests/assembly; component sources unchanged"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "10398247dfc3e842961557e37eea6ea19142468d",
+        "--head",
+        "6dd356157dac111852b0f943ca4c0c799adb5de1"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/nano/README.md\", \"platform/embedded/nano/cold_profile.py\", \"platform/embedded/nano/prepare_uboot.py\", \"platform/embedded/nano/spl_cold.c\", \"platform/embedded/nano/spl_console.inc\", \"tests/test_nano_cold.py\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "planned"
+}

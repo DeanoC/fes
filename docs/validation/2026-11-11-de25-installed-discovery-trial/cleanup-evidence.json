@@ -1,0 +1,31 @@
+{
+  "status": "passed",
+  "board": "TRWU8CBL",
+  "roles": {
+    "recovery": {
+      "private_server_absent": true,
+      "archive_hashes_verified": true,
+      "clock_readback": {
+        "auto_adjust": 1,
+        "clock": "15M"
+      }
+    },
+    "native": {
+      "private_server_absent": true,
+      "archive_hashes_verified": true,
+      "clock_readback": {
+        "auto_adjust": 1,
+        "clock": "15M"
+      }
+    }
+  },
+  "restored_parameters": {
+    "JtagClockAutoAdjust": 1,
+    "JtagClock": "15M"
+  },
+  "exact_usb_permissions_restored": true,
+  "uart_owners": [],
+  "processes_inventoried": 494,
+  "hardware_commands_sent": 0,
+  "original_factory_card_touched": false
+}

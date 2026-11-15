@@ -1,0 +1,55 @@
+{
+  "status": "passed-all-explicit-native-integration-controls",
+  "checks": [
+    {
+      "module": "test_nano_configuration.py",
+      "tests": 4,
+      "log_sha256": "fa9542174c503c59e0d84e51db4d8305f0305744d811a11564e499c5c4f52b49"
+    },
+    {
+      "module": "test_nano_mailbox.py",
+      "tests": 2,
+      "log_sha256": "ca25a3fb420d22efe9a1463aa5b801d879aadbb5c831d82ee004428ec407b6d9"
+    },
+    {
+      "module": "test_nano_mixed_cold.py",
+      "tests": 4,
+      "log_sha256": "99cb9ade5bc642f37715a7c75a7361c5cc7569bb474f4d111cf1e20815e306d6"
+    },
+    {
+      "module": "test_nano_secure_mailbox.py",
+      "tests": 3,
+      "log_sha256": "130b553b30513cc3643352170c34f02c52c5d4973e3a0ea3aa752c2ae4aa8bbe"
+    },
+    {
+      "module": "test_nano_secure_mmio.py",
+      "tests": 3,
+      "log_sha256": "a376735357e92886cedd7f629530eeacf9c932625bbc3c204bff59119e79bb63"
+    },
+    {
+      "module": "test_nano_start_trace.py",
+      "tests": 5,
+      "log_sha256": "38069ef3518b2de7dbe529be19b4265db5bb088fd5096b5c1ae98d7ad626fa42"
+    },
+    {
+      "module": "test_nano_transport.py",
+      "tests": 1,
+      "log_sha256": "42020c691000e2869e6a1b37c7513c958c7ea66bbdefe589ee03c00490e400af"
+    },
+    {
+      "module": "test_nano_rom_build.py",
+      "tests": 1,
+      "log_sha256": "625bc31ea5f30f5dad62b7e2202793236f0778d6212b67c8ef297c78d5752331"
+    },
+    {
+      "module": "test_nano_startup.py",
+      "tests": 7,
+      "log_sha256": "e796d2c704a627982296a2a1fcdaa470b6bfe10c10e5731cea11d5359a4d38e5"
+    }
+  ],
+  "tests": 30,
+  "skips": 0,
+  "pinned_vendor_root": "/home/deano/fes/out/dev/de25-embedded-os/out/terasic-git-restore-tfa",
+  "host_go": "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+  "hardware_actions": false
+}

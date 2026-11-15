@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "scope": "independent read-only bounded-procedure host cleanup",
+  "clock_readback": "15M",
+  "exact_usb_permissions_restored": true,
+  "private_JTAG_process_gone": true,
+  "UART_free": true,
+  "claim_retained": true,
+  "hardware_retry": false,
+  "factory_restore": false,
+  "original_factory_card_untouched": true
+}

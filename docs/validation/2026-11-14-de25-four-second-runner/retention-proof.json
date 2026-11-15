@@ -1,0 +1,106 @@
+{
+  "status": "passed-prepared-four-second-operator-plan-retention-not-executable",
+  "model_tests": 76,
+  "unique_test_ids": 76,
+  "checks": {
+    "preparation-candidate-prepare-r1": {
+      "argv": [
+        "python3",
+        "out/publication/prepare-preparation-budget-candidate.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4014319679699838,
+      "log_sha256": "26c4db0c0d1e731ec0a920864eab45eb9095d89aca591a935378a469850a7b60"
+    },
+    "preparation-candidate-models-r2": {
+      "argv": [
+        "python3",
+        "out/publication/check-preparation-candidate-models.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 20.61454057483934,
+      "log_sha256": "51121753b5403b38d526831a0c9cd49bdb272651d24b47aa6fd78361c0eff0ef"
+    },
+    "preparation-candidate-missing-gate-r1": {
+      "argv": [
+        "python3",
+        "out/publication/check-preparation-prerequisite-missing.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20105983200483024,
+      "log_sha256": "02c8bd0e4acfb5a18368407b167433f5eac4cc4d67ea7560b25e5b523bcd1f79"
+    },
+    "preparation-candidate-admit-native-r1": {
+      "argv": [
+        "python3",
+        "out/preparation-budget-candidate-trial/admission.py",
+        "prepare",
+        "native-diagnostic"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 70.44013672880828,
+      "log_sha256": "09ef94b5e81976bbb6bbadc43ce1b1792ebc7ed2eebfabd4f3fa8c49f767dc9e"
+    },
+    "preparation-candidate-admit-original-files-r1": {
+      "argv": [
+        "python3",
+        "out/preparation-budget-candidate-trial/admission.py",
+        "prepare",
+        "native-baseline"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 87.25982463196851,
+      "log_sha256": "a4639c6eec8af1edf5fb5cf39addff10dff75c17011cb48aa28daafd3e66c5b3"
+    },
+    "preparation-candidate-collector-pending-r1": {
+      "argv": [
+        "python3",
+        "out/publication/check-files-collector-pending.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20143524603918195,
+      "log_sha256": "6811d3576965c097b0329280d574e309aad7fb1862aadd7b603bb97e2263a3da"
+    }
+  },
+  "admissions": {
+    "native-diagnostic": {
+      "path": "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/preparation-budget-candidate-admissions/native-diagnostic-native-files-final.json",
+      "sha256": "f637e050bd0a524f0f92997e6c40f040711474219f0436e49e647e17b53be80e",
+      "root": "/home/deano/fes/out/dev/de25-preparation-clock-proof",
+      "scope": "file-only"
+    },
+    "native-baseline": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/preparation-budget-candidate-admissions/native-baseline-native-files-final.json",
+      "sha256": "406ddd882c86617e1b5a1d1fd6729588928ab49994678eda87f7e72af8977b39",
+      "root": "/home/deano/fes/out/dev/de25-embedded-os",
+      "scope": "file-only"
+    }
+  },
+  "archive": "/home/deano/fes-retained/de25-four-second-candidate-plan-20261114-r1/prepared-plan.tar.gz",
+  "archive_sha256": "5b7a4768fcb4ed31f96f93e0f80c9cc24dcd9867183be973ebf2b798a23add81",
+  "archive_bytes": 3284939,
+  "files": 1296,
+  "unique_regular_payloads": 1287,
+  "required_matched_archive": "/home/deano/fes-retained/de25-preparation-clock-matched-20261114-r1/matched.tar.gz",
+  "required_matched_archive_sha256": "090097ea3fcc8613ca49bc0050df7d0a5c768db6e1f915b3a608ef3c85c0ab6c",
+  "boot_artifacts_and_legacy_factory_inputs_referenced_not_duplicated": true,
+  "physical_reset_confirmation_present": false,
+  "original_FIT_restoration_proven": false,
+  "procedure_frozen": false,
+  "execution_approval_created": false,
+  "attempt_reserved": false,
+  "hardware_actions": false,
+  "hardware_accepted": false
+}

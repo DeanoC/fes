@@ -1,0 +1,148 @@
+=== RUN   TestHPSContextUsesCompiledBytesAndRemainsSeparateFromLiveBootAdmission
+--- PASS: TestHPSContextUsesCompiledBytesAndRemainsSeparateFromLiveBootAdmission (0.00s)
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/transport-before
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/unready
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/open
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/masters
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/missing-context
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/legacy-tag
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/wrong-part0
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/wrong-part1
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/transport-part1
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/owner
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/generation
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/capability
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/zero
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/digest
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/transport-after
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/reserved-part
+=== RUN   TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/busy
+--- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry (0.01s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/transport-before (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/unready (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/open (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/masters (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/missing-context (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/legacy-tag (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/wrong-part0 (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/wrong-part1 (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/transport-part1 (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/owner (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/generation (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/capability (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/zero (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/digest (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/transport-after (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/reserved-part (0.00s)
+    --- PASS: TestHPSContextRejectsChangedScopePartialRepliesAndDigestWithoutRetry/busy (0.00s)
+=== RUN   TestHPSContextRejectsWrongPackageAndUnqualifiedDescriptorBeforeFirmware
+--- PASS: TestHPSContextRejectsWrongPackageAndUnqualifiedDescriptorBeforeFirmware (0.00s)
+=== RUN   TestReaderMemoryReservationKeepsBootPinnedPatternAndClosedOwner
+--- PASS: TestReaderMemoryReservationKeepsBootPinnedPatternAndClosedOwner (0.00s)
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/allocation-error
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/nil
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/address
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/size
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/pattern
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/late-bytes
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/owner
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/generation
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/open
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/active
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/late-owner
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/0
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/1
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/2
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/3
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/4
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/5
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/6
+=== RUN   TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/7
+--- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays (0.03s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/allocation-error (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/nil (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/address (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/size (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/pattern (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/late-bytes (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/owner (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/generation (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/open (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/active (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/late-owner (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/0 (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/1 (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/2 (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/3 (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/4 (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/5 (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/6 (0.00s)
+    --- PASS: TestReaderMemoryReservationRetainsFailedAllocationsAndNeverReplays/7 (0.00s)
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/fpga_addressing
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/format
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/package_id
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/arena_bytes
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/pattern
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/extra
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/build_id
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/arena_base
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/cpu_attributes
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/cpu_base
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/bus_base
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/pattern_sha256
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/scope
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/bytes
+=== RUN   TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/lifetime
+--- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission (0.01s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/fpga_addressing (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/format (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/package_id (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/arena_bytes (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/pattern (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/extra (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/build_id (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/arena_base (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/cpu_attributes (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/cpu_base (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/bus_base (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/pattern_sha256 (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/scope (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/bytes (0.00s)
+    --- PASS: TestReaderMemoryMapRejectsChangedAddressLifetimeIdentityAndAdmission/lifetime (0.00s)
+=== RUN   TestReaderProbeBindsDedicatedOperationAndReclosedStorageGeneration
+--- PASS: TestReaderProbeBindsDedicatedOperationAndReclosedStorageGeneration (0.00s)
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/unready
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/partial-unready
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/busy
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/transport
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/identity-only-tag
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/abi
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/build
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-owner
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-generation
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-mask
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-masters
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-transport
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/not-cold
+=== RUN   TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/overflow
+--- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry (0.01s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/unready (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/partial-unready (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/busy (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/transport (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/identity-only-tag (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/abi (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/build (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-owner (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-generation (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-mask (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-masters (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/late-transport (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/not-cold (0.00s)
+    --- PASS: TestReaderProbeRejectsIdentityOnlyReplyAndChangedOwnershipWithoutRetry/overflow (0.00s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/nativefabric	1.069s

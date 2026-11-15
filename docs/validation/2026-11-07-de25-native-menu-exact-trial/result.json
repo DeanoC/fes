@@ -1,0 +1,86 @@
+{
+  "status": "physical-cold-menu-and-secure-return-passed",
+  "operator_source": "1fe9875d6221f16f84ea9c2257a55188060a45ae",
+  "attempts": 1,
+  "attempt_consumed": true,
+  "replay_allowed": false,
+  "first_failure_terminal": true,
+  "experiment_sha256": "7cb0b6d9947aa86b4501f99680048601aff067f86b72e6198fc654198b688ab3",
+  "native_result_sha256": "6efa0e5f44f73669869947d18de370803c1bffcc32c73d5588271243d828676d",
+  "last_stage": "native",
+  "error": null,
+  "native_error": null,
+  "sd_write_commands_sent": true,
+  "sd_write_outcome_unknown": false,
+  "upload_group_status": "verified",
+  "verified_uploads": 2,
+  "fresh_readbacks": 2,
+  "native_fesboot_sent": true,
+  "native_programming_attempted": true,
+  "last_native_checkpoint": "menu_present_closed",
+  "menu_observation": {
+    "frames": 3,
+    "slots": [
+      0,
+      1,
+      0
+    ],
+    "closed_generation": 7,
+    "owner": 17611442462081898113,
+    "hardware_drained": 8,
+    "configuration_seconds": 10.399193755,
+    "memory_released": false,
+    "hdmi_qualified": false,
+    "runtime_admission": false,
+    "menu_core_menu_qualified": false
+  },
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "hardware_actions": true,
+  "core_load_acceptance": false,
+  "native_menu_core_menu": false,
+  "physical_HDMI_qualified": false,
+  "physical_DDR_drain_qualified": false,
+  "timing_signoff": false,
+  "original_factory_card_touched": false,
+  "bottom_kit_touched": false,
+  "factory_restoration_requested": false,
+  "claim_retained": true,
+  "goal_complete": false,
+  "next": "Retain the correct-but-slower direct comparison; prototype fresh uncached reads into a private32KiB scratch followed by exact cached comparison, or retain previous hashing control if not faster. Preserve all ownership and byte coverage. Then continue actual App/core display ownership integration.",
+  "implementation_source": "49619ceb02e3e2c537ebb07a589aacbfb6a2e63d",
+  "frame_present_microseconds": [
+    1628907,
+    1732192,
+    1732351
+  ],
+  "frame_render_microseconds": [
+    19537,
+    52777,
+    48047
+  ],
+  "menu_open_to_closed_microseconds": 7003414,
+  "comparison": {
+    "baseline_source": "d7e3ee198e7eb33ce607b1f8908faea6ab0bed46",
+    "baseline_operator": "da816d6a50569924bc10e4043f87b1a1ce774e57",
+    "baseline_frame_present_microseconds": [
+      1250953,
+      1325775,
+      1325714
+    ],
+    "mean_speedup": 0.7661687068686254,
+    "baseline_menu_open_to_closed_microseconds": 5571470,
+    "scope": "exact bounded serial sequence; no general performance or HDMI qualification"
+  },
+  "last_board_state": "returned native diagnostic with frames1/2/3 slots0/1/0 underflows0; local drain and independent closuregen7/resetf; boot arena retained; independent host cleanup passed",
+  "performance_regression": true,
+  "candidate_selected_for_performance": false
+}

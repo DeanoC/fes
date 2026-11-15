@@ -1,0 +1,9 @@
+{
+  "scope": "top-TRWU8CBL-physical-power-cycle-for-fresh420-retirement-restoration-only",
+  "completed": true,
+  "original_procedure_sha256": "9e773e7a65445427841ae5d39e64e68cdaafa3e0662916da2a27d9f8e48b3619",
+  "failure_archive_sha256": "c6d18f87365e49795c575c0abfa37881f2b0951f3933278f5ba9463c64ce3fee",
+  "human_quote": "TRWU8CBL power-cycled; test card stays in",
+  "confirmation_question_id": "call_003970e47ed142339d41a803e458caab",
+  "recorded_utc": "2026-11-14T11:59:51.914606+00:00"
+}

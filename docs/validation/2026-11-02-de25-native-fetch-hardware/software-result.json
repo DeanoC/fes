@@ -1,0 +1,125 @@
+{
+  "status": "passed",
+  "head": "fa27960da8e52b6ef754bfc830b20544d1058826",
+  "base": "79c74f8f7ddff79b512ba796b8c42aa70ac0aaf4",
+  "plan_sha256": "db627b02311b3215e4f1d99ca783268ee9ff1498cd216dc373caa4fd53bd92de",
+  "results": [
+    {
+      "index": 0,
+      "label": "test_affected.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "log": "software-0.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20048900099936873,
+      "log_sha256": "0cfe0fb8ccdd691073da736b904a9342a24d7383a0f034a520d9aac1efbd7a32",
+      "child_receipt_sha256": "4bb6483ba9261c095a8ff6053605ae5d715943114ebf4df75728c4c42ef21758"
+    },
+    {
+      "index": 1,
+      "label": "test_test_changed.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "log": "software-1.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.800834832014516,
+      "log_sha256": "00a2df1e3d41a2e44d92790e4114dacd3862ea4abba20341c1e9e2b81d7fe4c4",
+      "child_receipt_sha256": "820e92623347332a04b9040640d546e8f89a80e9b7e2d4a1e54d3b134ec6396f"
+    },
+    {
+      "index": 2,
+      "label": "committed whitespace",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "79c74f8f7ddff79b512ba796b8c42aa70ac0aaf4",
+        "--head",
+        "fa27960da8e52b6ef754bfc830b20544d1058826"
+      ],
+      "log": "software-2.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20041778101585805,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "eb135768447f0bc2ac84956754ebb9ac5fff314b5d4a8907c6eaa6aa41b19ace"
+    },
+    {
+      "index": 3,
+      "label": "working whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "log": "software-3.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2009085089666769,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "a5aa65bd772a7edc76322d2a76a729f1215d8f394a0f1f73b9a6c7e36861c0cf"
+    },
+    {
+      "index": 4,
+      "label": "parent Python regressions",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-upload-session-20261102/parent_partitions.py"
+      ],
+      "log": "software-4.log",
+      "planned_argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/nano/README.md\", \"platform/embedded/nano/upload.py\", \"platform/embedded/nano/upload_memory.py\", \"tests/fixtures/nano_upload_lmb.json\", \"tests/test_nano_upload.py\"]"
+      ],
+      "verification_mode": "same-selected-suite-partitioned-by-module",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 284.51107643998694,
+      "log_sha256": "797d2ecc2d6df4be2fa3204dd4426f5fd0466a1896af1f9983fe61e44bd7a2e2",
+      "child_receipt_sha256": "150f029e519b53be16d9c165e73dda6c77fd3b225273c984b765eb60eb71f6b3"
+    },
+    {
+      "index": 5,
+      "label": "working-tree generated consumer consistency",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "log": "software-5.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.60333711700514,
+      "log_sha256": "b0978554f9c0798b39bc46ad45737d2b26a1e2a982b713a8b45824e376c3604a",
+      "child_receipt_sha256": "5f4a0fdc71bd98ebd54fc9c998f0c12e5fcde8cdbca32739584adfd8ed87623c"
+    }
+  ]
+}

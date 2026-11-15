@@ -1,0 +1,11 @@
+{
+  "status": "passed",
+  "usb_node_unchanged": true,
+  "usb_permissions_exact": true,
+  "clock_readback": "15M",
+  "auto_adjust_readback": 1,
+  "owned_private_server_gone": true,
+  "uart_owners": [],
+  "board_operations": false,
+  "native_rom_acceptance": false
+}

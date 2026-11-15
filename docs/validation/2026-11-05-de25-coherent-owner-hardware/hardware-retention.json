@@ -1,0 +1,23 @@
+{
+  "status": "passed",
+  "source": "1ab54ed1759c2a58362fdd92130e1672cdb67825",
+  "native_source": "7f3cfa92c87963238162e208b5aac909a64c8e13",
+  "hardware_result": "three-diagnostic-launch-return-cycles-passed",
+  "hardware_attempts": 1,
+  "hardware_retries": 0,
+  "archive_sha256": "2d46859dec07399f0a41524f77a2650a3313cd9749423745209790d7ab1a4cae",
+  "archive_bytes": 226287,
+  "regular_files_verified": 122,
+  "prior_candidate_retention": {
+    "/home/deano/fes-retained/de25-coherent-owner-20261105-r1/publication.bundle": "cacf686f8675958f123550983c3ad22c6ff42f63d4e2d3919f802d48e63e905e",
+    "/home/deano/fes-retained/de25-coherent-owner-20261105-r1/software-and-chain-evidence.tar.gz": "5ba68003df6391bb22741d8e89a330e1ed929ab0468bf6350b907721534ab0a5",
+    "/home/deano/fes-retained/de25-coherent-owner-20261105-r1/SHA256SUMS": "7114b221a5a2b6cbf7e5e226579b05d7cddb774d302d2ed611e7988acec07d14",
+    "/home/deano/fes-retained/de25-coherent-owner-20261105-r1/source-update.bundle": "7957f4282355c1dcc1cb3472023a27a1ae653cc69a569a4a92bfed06d39b83cc",
+    "/home/deano/fes-retained/de25-coherent-owner-20261105-r1/publication-verification.json": "da46ca0331bd79a6332442f9f94e93a9c97939b89996b93f5d2f48dbcdf20591",
+    "/home/deano/fes-retained/de25-coherent-owner-20261105-r1/retention.json": "2c284e4ea277b0a37a05367af8c7e1754a65bd25abdfea06de955d8346a4b48b"
+  },
+  "cleanup_verified": true,
+  "ordinary_admission": false,
+  "core_loading_readiness": false,
+  "working_artifacts_removed": false
+}

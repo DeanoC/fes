@@ -1,0 +1,114 @@
+{
+  "status": "passed",
+  "checks": {
+    "programming-fixed": {
+      "receipt_sha256": "1ed23d0781737a94ccdde2d1cb73bf016eae4b5032a993a09e48ddfb8aa4108b",
+      "argv": [
+        "python3",
+        "out/nano-secure-mailbox-trial-20261109/operator_programming_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.200800672871992,
+      "log_sha256": "a1898e0d52ebd38d7d21eef9f50263ca27140ace24d2835b5f35e9c804e09cf7"
+    },
+    "serial-fixed": {
+      "receipt_sha256": "2e72a342232ccaa5c2de0987aea922cf3648f6bdae53e21865cfed481b6bcb9c",
+      "argv": [
+        "python3",
+        "out/nano-secure-mailbox-trial-20261109/operator_transport_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.40090565104037523,
+      "log_sha256": "2e2902741d820076466b0fb61b92e22d641d189ba438290b80a30154cb9adb88"
+    },
+    "paired-receipts": {
+      "receipt_sha256": "2894eb2f52ff0a33d3ae709b8adc11d544d3bf128a2e0a501f3ffa4a0b04ec18",
+      "argv": [
+        "python3",
+        "out/nano-secure-mailbox-trial-20261109/paired_receipt_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20101383095607162,
+      "log_sha256": "7d4046745b62edbfe83e2b78539e709f443e365f8ce84dc3f23abe468307abc5"
+    },
+    "startup-input": {
+      "receipt_sha256": "f59af67091acff85e77c22966e2769af6a6687535583578a6af69e433a56c263",
+      "argv": [
+        "python3",
+        "out/nano-secure-mailbox-trial-20261109/startup_input_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20089414808899164,
+      "log_sha256": "cb4b0893c1ad095466f5a4fff264cb5c39aa41cb3196ed219c998fc981e85d18"
+    },
+    "mmu-consumers": {
+      "receipt_sha256": "09aefba771465de93b272fbc1babcb60347ac49b5395889f6997ce7a91842f2b",
+      "argv": [
+        "python3",
+        "out/nano-secure-mailbox-trial-20261109/mmu_operator_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20088717015460134,
+      "log_sha256": "46df4f0edcf4a6f9a32504da3478dd3a1a7db82b7890d0c616cbb1a0a9b16b2a"
+    },
+    "failure-decoder": {
+      "receipt_sha256": "4ec4f4e06f4c5d7ad6a2e4c4a5371e5b136affe00f3a4deff3aebea4a70f9cce",
+      "argv": [
+        "python3",
+        "out/nano-secure-mailbox-trial-20261109/profile_decode_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2010706919245422,
+      "log_sha256": "65378dcad145da2497120819bebfc3c46534dce9714ce064b3d809a56654aca2"
+    },
+    "clock-glue": {
+      "receipt_sha256": "8d73a109d00eeba80d58cc5c3624a1d9d4e5273adab8bcbd3409b5caed77326f",
+      "argv": [
+        "python3",
+        "out/nano-secure-mailbox-trial-20261109/clock_glue_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20094030001200736,
+      "log_sha256": "f165ca3af9e162928344667698dab40c859c3e0e84487021290cba1984d96d8d"
+    },
+    "file-admission-final": {
+      "receipt_sha256": "b9bbb7dbe387b45d6e1662b64dae51c155d257a579dd192b67c233edd8aa884c",
+      "argv": [
+        "python3",
+        "out/nano-secure-mailbox-trial-20261109/prepare_final_admission.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 69.23704311484471,
+      "log_sha256": "8248b7846d408dae9fbf2af2a86b59211a52ec1a7db1526b32e9f78287ca1f1a"
+    },
+    "usb-stability": {
+      "receipt_sha256": "21d7a89a7f7d8d33e0c39d7beae41dd72420938c0d122f9698d4d06c4e130779",
+      "argv": [
+        "python3",
+        "out/nano-secure-mailbox-trial-20261109/usb_stability.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 60.230183544103056,
+      "log_sha256": "3370512c3830b423386bc87e3a864d938d551f9c25a9e2ed79ab2ce51ca6f102"
+    }
+  },
+  "hardware_actions": false
+}

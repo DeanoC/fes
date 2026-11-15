@@ -12,7 +12,7 @@ import (
 )
 
 func TestDE25FabricConstantsMatchTheHardwareDefinition(t *testing.T) {
-	fabric, err := pack.LoadFabric("../../packages/fabric/fes_fabric_de25_computer.yaml")
+	fabric, err := pack.LoadFabric("../../packages/fabric/fes_fabric_embedded_computer.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}

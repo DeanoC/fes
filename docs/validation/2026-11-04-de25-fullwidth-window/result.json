@@ -1,0 +1,127 @@
+{
+  "status": "passed",
+  "classification": "one bounded native full-width frame read, drain and bridge closure; ordinary admission unavailable",
+  "board": "TRWU8CBL",
+  "started_utc": "2026-11-03T22:06:15.452522+00:00",
+  "finished_utc": "2026-11-03T22:14:43.949997+00:00",
+  "fpga_producer_commit": "df234b524d0e1340b343df411c841bd1dc553817",
+  "native_sdk_entry_and_firmware_commit": "74ef8736a1139f3de66e80337e6c6211fea6fa80",
+  "native_boot_id": "d5aecf5deacf127c",
+  "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+  "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+  "artifacts": {
+    "fit_bytes": 7931892,
+    "fit_sha256": "a2ceac58ba582e18e1d30c04d4ce61f8359286396f3b3c3bb79a0a0c16af1c82",
+    "native_sof_sha256": "b8dee3ea89e8e9924480758b3e6ac3e756b8ab56f7508289e7db5fd30e64c995",
+    "spl_sha256": "ff4aea121888a8dce8aaff414d1c7eb18db02770cb131fd4bcde570f214e9d46",
+    "entry_sha256": "ebc99cafef02c3dd0d0db7f9fdecd5e7cd95c7615aee870969c319227c239d32",
+    "native_elf_sha256": "35b5c8261a0499d1ec5f1ddd47cf6f5df9c25ce828443f75922dd79fda8beb8d",
+    "package_sha256": "e64660b2bc7873cd58859c74255df08c6634044cced34ac28f3df7f31788469a",
+    "rbf_sha256": "0fe6a32134066bf7b87473afd12e4e6903bdff82458be523f4d6ff46a86c266a"
+  },
+  "observation": {
+    "read_bytes": 3686400,
+    "arena_bytes": 4194304,
+    "reader_generation": 1,
+    "cookie": 1,
+    "crc32": "f7429b0e",
+    "frame_sha256": "a58b682bcf4749139141601be2b1f655c1019c627befc941a511c27b388a856d",
+    "owner": 12913662324972005131,
+    "closed_generation": 7,
+    "bridge_reset": 15,
+    "hardware_drained": 8,
+    "configuration_seconds": 13.6098266475,
+    "memory_released": false,
+    "runtime_admission": false,
+    "hdmi_qualified": false
+  },
+  "master_stop": {
+    "status": 0,
+    "owner": 12913662324972005131,
+    "generation": 6,
+    "reset": 5,
+    "reader_reads": 132,
+    "reader_polls": 2,
+    "disable": 1,
+    "probe_polls": 2,
+    "cancel": 0,
+    "complete": 1
+  },
+  "bridge_closure": {
+    "owner": 12913662324972005131,
+    "generation": 7,
+    "reset": 15,
+    "hardware_drained": 8,
+    "data_remained_contained": 0,
+    "producers_quiescent": 1,
+    "fabric_acknowledged": 0
+  },
+  "storage_seconds": 62.48922880098689,
+  "configuration_seconds": 13.6098266475,
+  "bounds": {
+    "prompt_seconds": 50,
+    "storage_seconds": 100,
+    "configuration_seconds": 20,
+    "probe_seconds": 45,
+    "native_seconds": 240,
+    "outer_seconds": 800
+  },
+  "uploads": {
+    "purposes": [
+      "boot",
+      "package"
+    ],
+    "fresh_readbacks_verified": true,
+    "recovery_files_preserved": true,
+    "native_sd_writes": false
+  },
+  "host_cleanup": {
+    "passed": true,
+    "clock": "15M",
+    "clock_restored_and_read_back": true,
+    "exact_usb_permissions_restored": true,
+    "private_jtag_stopped": true,
+    "uart_free": true,
+    "continuing_claim_retained": true,
+    "factory_restore": false
+  },
+  "attempts": {
+    "previous_narrow_width_physical_failures": 1,
+    "new_full_width_attempts": 1,
+    "new_full_width_failures": 0,
+    "retries": 0
+  },
+  "software": {
+    "planned_checks_completed": 11,
+    "tested_commits": [
+      "df234b524d0e1340b343df411c841bd1dc553817",
+      "b9960aa514f44b5c345da43ed5003e0735b91a70"
+    ],
+    "generated_interconnect_cases": 5,
+    "generated_handoff_negative_cases": 29,
+    "independent_capture_rejections": 6,
+    "original_make_invocation": "failed on old success marker; failed and unstarted scopes completed after correction"
+  },
+  "limits": {
+    "arena_pinned_until_reboot": true,
+    "frames_observed": 1,
+    "host_native_pixel_identity_qualified": false,
+    "hdmi_qualified": false,
+    "buffer_reuse_qualified": false,
+    "usb_hub_input_qualified": false,
+    "native_networking_qualified": false,
+    "ordinary_runtime_admission": false
+  },
+  "capture": {
+    "path": "native-console.log",
+    "bytes": 13280,
+    "sha256": "a1115c552045dd351a81276da14d68278ec56275add40fbcf2da580301b47784",
+    "matches_original": true
+  },
+  "replay": {
+    "path": "replay.json",
+    "sha256": "2c90e97b689537db4d0c6d344df6685905775d80ee16ee010b53fae2265a0371",
+    "matches_original": true
+  },
+  "private_evidence_root": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-fullwidth-20261103"
+}

@@ -14,6 +14,7 @@ func fillAlphaSIMD(pix []byte, stride, x0, y0, x1, y1 int, c Color) bool {
 	source := [8]uint16{r + 1, g + 1, b + 1, alpha + 1, r + 1, g + 1, b + 1, alpha + 1}
 	inv := uint32(255 - c.A)
 	for y := y0; y < y1; y++ {
+		rasterRow(y - y0)
 		row := pix[y*stride+x0*4 : y*stride+x1*4]
 		n := len(row) &^ 31
 		fillAlphaNEON(row[:n], &source, inv)

@@ -1,0 +1,90 @@
+{
+  "status": "passed-new-fixed-writer-preparation",
+  "base_commit": "aa0d94a11",
+  "production_software_source": "a5d6027e9e8697b58f2c06be452995648fa5eb75",
+  "operator_models": {
+    "status": "passed",
+    "scope": "host fixtures only; no file admitted for hardware and no device action",
+    "private_decoder_positive": true,
+    "private_decoder_malformed_and_missing_final_pass_reject": true,
+    "single_upload_positive": true,
+    "negative_receipts": [
+      "foreign-boot-bytes",
+      "wrong-recovery",
+      "different-live-session",
+      "fresh-wrote-card",
+      "fresh-not-readonly",
+      "protection-failed",
+      "wrong-destination",
+      "not-closed",
+      "missing-admit-boundary"
+    ],
+    "source_sha256": {
+      "out/nano-sd-fixed-write-trial-20261110/trial/upload_checks.py": "9c81863cec82045a4d03a63bea1c9987c7b6c10409b63a6f7825dc70ad2d3c3f",
+      "out/nano-sd-fixed-write-trial-20261110/trial/native.py": "b2dc5c5dae6cc0d667689a61cc98f2c5311bd37434dc3c4fc1334ea20107b813",
+      "out/nano-sd-fixed-write-trial-20261110/operator_models.py": "3c5abf820e110b1e9867669103ef878af67c10d3df8b4cb5379f49e9d9b7f52f"
+    },
+    "live_authority": false
+  },
+  "gate_models": {
+    "status": "passed",
+    "scope": "host models only; no hardware, scan, claim, live preflight or grant",
+    "native_and_recovery_negative_cases": [
+      "source_commit",
+      "phase",
+      "sof_sha256",
+      "decoder_sha256",
+      "pass",
+      "secure_cold_boot_verified",
+      "fesboot_sent",
+      "final_sd_contained",
+      "native_sd_writes_verified",
+      "native_write_outcome_unknown",
+      "native_sd_write_possible",
+      "boot_trace.complete",
+      "boot_trace.errors",
+      "boot_trace.scratch_write_observation.expected_plan",
+      "boot_trace.scratch_write_observation.final_sd_contained",
+      "boot_trace.scratch_write_observation.complete",
+      "scratch_plan",
+      "recovery.source_commit",
+      "recovery.phase",
+      "recovery.sof_sha256",
+      "recovery.programming_complete",
+      "recovery.prompt_verified",
+      "recovery.usb_permissions_restored",
+      "recovery.prior_native_receipt_sha256",
+      "recovery.pass"
+    ],
+    "three_program_namespaces": [
+      [
+        "recovery-program-consumed.json",
+        "recovery",
+        "x"
+      ],
+      [
+        "native-program-consumed.json",
+        "native",
+        "x"
+      ],
+      [
+        "readback-program-consumed.json",
+        "recovery",
+        "x"
+      ]
+    ],
+    "script_sha256": {
+      "out/nano-sd-fixed-write-trial-20261110/gate_models.py": "2a13d7791a1fdaf40dd3351ad382f31a99bc14f439a2b2f9ca020353c4a2eafb",
+      "out/nano-sd-fixed-write-trial-20261110/trial/write_gates.py": "8aebf19ee3474c17d1706cd1c4a02981d0817e40d992f3e4136a1a9dfa63efea",
+      "out/nano-sd-fixed-write-trial-20261110/trial/program_gate.py": "dd6b54e7aa56709bb4ba80de5559aa0e68599058ee2f2b531eb15f776e4f6582"
+    },
+    "live_authority": false
+  },
+  "reused_eight_checks": "docs/validation/2026-11-10-de25-sd-write-protect/software-result.json",
+  "fresh_plan_review": "docs/validation/2026-11-10-de25-sd-postwrite-inspection/real-plan-review.json",
+  "frozen_files": 2409,
+  "native_programming_calls_this_image": 0,
+  "hardware_attempted": false,
+  "ordinary_admission": false,
+  "live_authority": false
+}

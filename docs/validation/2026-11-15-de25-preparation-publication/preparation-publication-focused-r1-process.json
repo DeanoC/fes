@@ -1,0 +1,10 @@
+{
+  "pid": 860523,
+  "process_start_ticks": "176816925",
+  "cap_seconds": 600,
+  "start_monotonic": 1768169.252936402,
+  "argv": [
+    "python3",
+    "out/publication/run-preparation-publication-focused.py"
+  ]
+}

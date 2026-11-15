@@ -1,0 +1,688 @@
+{
+  "status": "passed",
+  "classification": "bounded native repeated-frame read/local-drain and secure return; no HDMI or ordinary admission",
+  "board": "TRWU8CBL",
+  "started_utc": "2026-11-04T01:22:58.593052+00:00",
+  "finished_utc": "2026-11-04T01:32:16.596912+00:00",
+  "fpga_producer_commit": "df234b524d0e1340b343df411c841bd1dc553817",
+  "native_sdk_entry_and_firmware_commit": "26dbec9cefcbbce6cff5bcd44076608a9e4ee404",
+  "native_boot_id": "0add3667ab08c90f",
+  "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+  "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+  "artifacts": {
+    "native_elf": {
+      "bytes": 7397551,
+      "sha256": "e90d886368d48c8a5e6455481096c07d89a1c660c03ddcfd0f6475d2c385ffa5"
+    },
+    "entry": {
+      "bytes": 7419905,
+      "sha256": "dda46ce8605a41e492c47d56c219a17eaf920b8cdc87273113ad269baedf95a6"
+    },
+    "fit": {
+      "bytes": 7964660,
+      "sha256": "8c99af1e07cdcf1059da12d4819032cd010c63fd1e3bc53655fa73be649f2392"
+    },
+    "sof": {
+      "bytes": 1597639,
+      "sha256": "655386bdf75a17869bc710ff1bc8c83ff61b400e76883fe90439a6dbc1d56bbc"
+    },
+    "core": {
+      "bytes": 1683456,
+      "sha256": "0fe6a32134066bf7b87473afd12e4e6903bdff82458be523f4d6ff46a86c266a"
+    }
+  },
+  "observation": {
+    "frames": 12,
+    "read_bytes": 3686400,
+    "total_frame_read_bytes": 44236800,
+    "arena_bytes": 4194304,
+    "reader_generation": 13,
+    "cookie": 1,
+    "final_drain_cookie": 13,
+    "crc32": "e2578030",
+    "frame_sha256": "0c3993f08059326535cd43fe2643f8abe26f36e7eefaf6057f390fb8abe952d5",
+    "owner": 3999376763935618413,
+    "closed_generation": 7,
+    "bridge_reset": 15,
+    "hardware_drained": 8,
+    "configuration_seconds": 13.609906065,
+    "memory_released": false,
+    "runtime_admission": false,
+    "hdmi_qualified": false
+  },
+  "presentations": [
+    {
+      "index": 1,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 3999376763935618413,
+      "source_generation": 4,
+      "reader_generation": 2,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 4148337422,
+      "read_crc32": 4148337422,
+      "frame_sha256": "a58b682bcf4749139141601be2b1f655c1019c627befc941a511c27b388a856d",
+      "drain_generation": 2,
+      "drain_cookie": 2
+    },
+    {
+      "index": 2,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 3999376763935618413,
+      "source_generation": 4,
+      "reader_generation": 3,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 4209919473,
+      "read_crc32": 4209919473,
+      "frame_sha256": "96a6d5419d6be7e68057be53ca12b29f2914c0e4adf14ea99b3057a58c3aab2b",
+      "drain_generation": 3,
+      "drain_cookie": 3
+    },
+    {
+      "index": 3,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 3999376763935618413,
+      "source_generation": 4,
+      "reader_generation": 4,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 128149066,
+      "read_crc32": 128149066,
+      "frame_sha256": "00b6bf41c8b33f2906195406663b2877496f9646330b5ee9bcd5640afd27c770",
+      "drain_generation": 4,
+      "drain_cookie": 4
+    },
+    {
+      "index": 4,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 3999376763935618413,
+      "source_generation": 4,
+      "reader_generation": 5,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 894428982,
+      "read_crc32": 894428982,
+      "frame_sha256": "951132fd954cdf896ab4bec7b52a23142cbdf9819fbad1dc25c55b7311cfe04b",
+      "drain_generation": 5,
+      "drain_cookie": 5
+    },
+    {
+      "index": 5,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 3999376763935618413,
+      "source_generation": 4,
+      "reader_generation": 6,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 2534370391,
+      "read_crc32": 2534370391,
+      "frame_sha256": "82c411678c805e4767abd531329a0a59e353c2d4f435f0cf83a8ce050e1aa08e",
+      "drain_generation": 6,
+      "drain_cookie": 6
+    },
+    {
+      "index": 6,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 3999376763935618413,
+      "source_generation": 4,
+      "reader_generation": 7,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 1038669522,
+      "read_crc32": 1038669522,
+      "frame_sha256": "bae2a20edb57f2ccb7893485cbdb3d9d0bc915371f230c54d657d75b8fa8104e",
+      "drain_generation": 7,
+      "drain_cookie": 7
+    },
+    {
+      "index": 7,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 3999376763935618413,
+      "source_generation": 4,
+      "reader_generation": 8,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 1043051426,
+      "read_crc32": 1043051426,
+      "frame_sha256": "820978364cf1b83a060e735231b360dc2511a96db489bc95dffc4e0d9f7da6a5",
+      "drain_generation": 8,
+      "drain_cookie": 8
+    },
+    {
+      "index": 8,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 3999376763935618413,
+      "source_generation": 4,
+      "reader_generation": 9,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 3934276884,
+      "read_crc32": 3934276884,
+      "frame_sha256": "dc2495ad56d8076202a0ddb828d404318d8fbf24c9af3033719cd0aefc407214",
+      "drain_generation": 9,
+      "drain_cookie": 9
+    },
+    {
+      "index": 9,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 3999376763935618413,
+      "source_generation": 4,
+      "reader_generation": 10,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 2621311459,
+      "read_crc32": 2621311459,
+      "frame_sha256": "10e628940b4b0d8225ac05efd677ab79271dd9a72726a63826c91998a58e2b84",
+      "drain_generation": 10,
+      "drain_cookie": 10
+    },
+    {
+      "index": 10,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 3999376763935618413,
+      "source_generation": 4,
+      "reader_generation": 11,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 3861130227,
+      "read_crc32": 3861130227,
+      "frame_sha256": "4abc5ed4abcc8e797f6c1005a9acb4c03a2d917a813fa4c8cfcdfbc8f7db7476",
+      "drain_generation": 11,
+      "drain_cookie": 11
+    },
+    {
+      "index": 11,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 3999376763935618413,
+      "source_generation": 4,
+      "reader_generation": 12,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 554473973,
+      "read_crc32": 554473973,
+      "frame_sha256": "52092290753a18b6f8e789325069e32539ed0d9ae26a055ce574e2a578adac77",
+      "drain_generation": 12,
+      "drain_cookie": 12
+    },
+    {
+      "index": 12,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 3999376763935618413,
+      "source_generation": 4,
+      "reader_generation": 13,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 3797385264,
+      "read_crc32": 3797385264,
+      "frame_sha256": "0c3993f08059326535cd43fe2643f8abe26f36e7eefaf6057f390fb8abe952d5",
+      "drain_generation": 13,
+      "drain_cookie": 13
+    }
+  ],
+  "progress": [
+    {
+      "index": 1,
+      "phase": "render_begin",
+      "elapsed_us": 3473
+    },
+    {
+      "index": 1,
+      "phase": "render_end",
+      "elapsed_us": 19451
+    },
+    {
+      "index": 1,
+      "phase": "present_begin",
+      "elapsed_us": 26058
+    },
+    {
+      "index": 1,
+      "phase": "present_end",
+      "elapsed_us": 2120289
+    },
+    {
+      "index": 2,
+      "phase": "render_begin",
+      "elapsed_us": 2127279
+    },
+    {
+      "index": 2,
+      "phase": "render_end",
+      "elapsed_us": 2142327
+    },
+    {
+      "index": 2,
+      "phase": "present_begin",
+      "elapsed_us": 2149113
+    },
+    {
+      "index": 2,
+      "phase": "present_end",
+      "elapsed_us": 4221669
+    },
+    {
+      "index": 3,
+      "phase": "render_begin",
+      "elapsed_us": 4228660
+    },
+    {
+      "index": 3,
+      "phase": "render_end",
+      "elapsed_us": 4243533
+    },
+    {
+      "index": 3,
+      "phase": "present_begin",
+      "elapsed_us": 4250319
+    },
+    {
+      "index": 3,
+      "phase": "present_end",
+      "elapsed_us": 6321631
+    },
+    {
+      "index": 4,
+      "phase": "render_begin",
+      "elapsed_us": 6328622
+    },
+    {
+      "index": 4,
+      "phase": "render_end",
+      "elapsed_us": 6343471
+    },
+    {
+      "index": 4,
+      "phase": "present_begin",
+      "elapsed_us": 6350255
+    },
+    {
+      "index": 4,
+      "phase": "present_end",
+      "elapsed_us": 8422504
+    },
+    {
+      "index": 5,
+      "phase": "render_begin",
+      "elapsed_us": 8429495
+    },
+    {
+      "index": 5,
+      "phase": "render_end",
+      "elapsed_us": 8444357
+    },
+    {
+      "index": 5,
+      "phase": "present_begin",
+      "elapsed_us": 8451141
+    },
+    {
+      "index": 5,
+      "phase": "present_end",
+      "elapsed_us": 10523648
+    },
+    {
+      "index": 6,
+      "phase": "render_begin",
+      "elapsed_us": 10530725
+    },
+    {
+      "index": 6,
+      "phase": "render_end",
+      "elapsed_us": 10545715
+    },
+    {
+      "index": 6,
+      "phase": "present_begin",
+      "elapsed_us": 10552587
+    },
+    {
+      "index": 6,
+      "phase": "present_end",
+      "elapsed_us": 12625189
+    },
+    {
+      "index": 7,
+      "phase": "render_begin",
+      "elapsed_us": 12632266
+    },
+    {
+      "index": 7,
+      "phase": "render_end",
+      "elapsed_us": 12647258
+    },
+    {
+      "index": 7,
+      "phase": "present_begin",
+      "elapsed_us": 12654127
+    },
+    {
+      "index": 7,
+      "phase": "present_end",
+      "elapsed_us": 14727037
+    },
+    {
+      "index": 8,
+      "phase": "render_begin",
+      "elapsed_us": 14734113
+    },
+    {
+      "index": 8,
+      "phase": "render_end",
+      "elapsed_us": 14749026
+    },
+    {
+      "index": 8,
+      "phase": "present_begin",
+      "elapsed_us": 14755899
+    },
+    {
+      "index": 8,
+      "phase": "present_end",
+      "elapsed_us": 16828441
+    },
+    {
+      "index": 9,
+      "phase": "render_begin",
+      "elapsed_us": 16835518
+    },
+    {
+      "index": 9,
+      "phase": "render_end",
+      "elapsed_us": 16850368
+    },
+    {
+      "index": 9,
+      "phase": "present_begin",
+      "elapsed_us": 16857238
+    },
+    {
+      "index": 9,
+      "phase": "present_end",
+      "elapsed_us": 18930411
+    },
+    {
+      "index": 10,
+      "phase": "render_begin",
+      "elapsed_us": 18937488
+    },
+    {
+      "index": 10,
+      "phase": "render_end",
+      "elapsed_us": 18952513
+    },
+    {
+      "index": 10,
+      "phase": "present_begin",
+      "elapsed_us": 18959469
+    },
+    {
+      "index": 10,
+      "phase": "present_end",
+      "elapsed_us": 21032211
+    },
+    {
+      "index": 11,
+      "phase": "render_begin",
+      "elapsed_us": 21039374
+    },
+    {
+      "index": 11,
+      "phase": "render_end",
+      "elapsed_us": 21054514
+    },
+    {
+      "index": 11,
+      "phase": "present_begin",
+      "elapsed_us": 21061473
+    },
+    {
+      "index": 11,
+      "phase": "present_end",
+      "elapsed_us": 23134820
+    },
+    {
+      "index": 12,
+      "phase": "render_begin",
+      "elapsed_us": 23141984
+    },
+    {
+      "index": 12,
+      "phase": "render_end",
+      "elapsed_us": 23156955
+    },
+    {
+      "index": 12,
+      "phase": "present_begin",
+      "elapsed_us": 23163915
+    },
+    {
+      "index": 12,
+      "phase": "present_end",
+      "elapsed_us": 25236894
+    },
+    {
+      "index": 13,
+      "phase": "return_begin",
+      "elapsed_us": 25244088
+    },
+    {
+      "index": 13,
+      "phase": "return_end",
+      "elapsed_us": 25722774
+    }
+  ],
+  "frame_timings": [
+    {
+      "frame": 1,
+      "render_us": 15978,
+      "present_us": 2094231
+    },
+    {
+      "frame": 2,
+      "render_us": 15048,
+      "present_us": 2072556
+    },
+    {
+      "frame": 3,
+      "render_us": 14873,
+      "present_us": 2071312
+    },
+    {
+      "frame": 4,
+      "render_us": 14849,
+      "present_us": 2072249
+    },
+    {
+      "frame": 5,
+      "render_us": 14862,
+      "present_us": 2072507
+    },
+    {
+      "frame": 6,
+      "render_us": 14990,
+      "present_us": 2072602
+    },
+    {
+      "frame": 7,
+      "render_us": 14992,
+      "present_us": 2072910
+    },
+    {
+      "frame": 8,
+      "render_us": 14913,
+      "present_us": 2072542
+    },
+    {
+      "frame": 9,
+      "render_us": 14850,
+      "present_us": 2073173
+    },
+    {
+      "frame": 10,
+      "render_us": 15025,
+      "present_us": 2072742
+    },
+    {
+      "frame": 11,
+      "render_us": 15140,
+      "present_us": 2073347
+    },
+    {
+      "frame": 12,
+      "render_us": 14971,
+      "present_us": 2072979
+    }
+  ],
+  "performance_comparison": {
+    "prior_source": "c814590156ec6f6f8a5b8ed33e881f17e09743f9",
+    "prior_complete_frames": 9,
+    "prior_average_present_us": 2957897,
+    "current_average_present_us": 2074429,
+    "prior_attempt_remains_failed": true,
+    "same_transfer_read_return_bound_seconds": 45
+  },
+  "final_receipt": {
+    "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+    "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+    "owner": 3999376763935618413,
+    "source_generation": 4,
+    "closed_generation": 7,
+    "frames": 12,
+    "last_reader_generation": 13,
+    "last_cookie": 1,
+    "bytes": 3686400,
+    "crc32": 3797385264,
+    "frame_sha256": "0c3993f08059326535cd43fe2643f8abe26f36e7eefaf6057f390fb8abe952d5",
+    "access_map_sha256": "e9b4f9f3c82a44e0a457245843d3ad9f9a9ea42522548eac764c31fb8d5e5e27"
+  },
+  "firmware_reader_drain": {
+    "owner": 3999376763935618413,
+    "generation": 6,
+    "reset": 5,
+    "reader_generation": 13,
+    "request_generation": 13,
+    "cookie": 13,
+    "ack_generation": 13,
+    "ack_cookie": 13,
+    "status": 4,
+    "pending": 0
+  },
+  "master_stop": {
+    "status": 0,
+    "owner": 3999376763935618413,
+    "generation": 6,
+    "reset": 5,
+    "reader_reads": 88,
+    "reader_polls": 1,
+    "disable": 0,
+    "probe_polls": 2,
+    "cancel": 0,
+    "complete": 1
+  },
+  "bridge_closure": {
+    "owner": 3999376763935618413,
+    "generation": 7,
+    "reset": 15,
+    "hardware_drained": 8,
+    "data_remained_contained": 0,
+    "producers_quiescent": 1,
+    "fabric_acknowledged": 0
+  },
+  "storage_seconds": 62.430173181928694,
+  "configuration_seconds": 13.609906065,
+  "bounds": {
+    "prompt_seconds": 50,
+    "storage_seconds": 100,
+    "configuration_seconds": 20,
+    "probe_seconds": 45,
+    "native_seconds": 240,
+    "outer_seconds": 800
+  },
+  "uploads": {
+    "boot": "verified",
+    "package": "verified"
+  },
+  "host_cleanup": {
+    "host_cleanup_passed": true,
+    "original_jtag_clock": "15M",
+    "exact_usb_permissions_restored": true,
+    "private_server_gone": true,
+    "uart_free": true,
+    "exclusive_claim_retained": true,
+    "spare_card_retained": true,
+    "factory_restore_performed": false
+  },
+  "attempts": {
+    "prior_window_procedure_failures": 3,
+    "new_physical_attempts": 1,
+    "new_physical_failures": 0,
+    "retries": 0
+  },
+  "software": {
+    "affected_commands": 7,
+    "affected_status": "passed",
+    "current_source": "26dbec9cefcbbce6cff5bcd44076608a9e4ee404",
+    "fpga_evidence_reused_from": "df234b524d0e1340b343df411c841bd1dc553817",
+    "upload_runner_cases": 26,
+    "receipt_corruption_cases": 99,
+    "controller_cases": 59,
+    "native_helper_cases": 10
+  },
+  "limits": {
+    "ordinary_runtime_admission": false,
+    "hdmi_qualified": false,
+    "usb_hub_qualified": false,
+    "native_network_qualified": false,
+    "memory_released": false,
+    "continuous_scanout_qualified": false,
+    "full_ui_input_handler_selected": false
+  },
+  "capture": {
+    "bytes": 22705,
+    "sha256": "f3f2a0a4f041d19bf5ebea77fba8dadfc001b9d7a0f144f27ae860f7dd5db516"
+  },
+  "replay": {
+    "status": "passed",
+    "rejected_captures": 20
+  },
+  "private_evidence_root": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-present-buffered-20261104",
+  "retention": {
+    "status": "passed",
+    "source_commit": "26dbec9cefcbbce6cff5bcd44076608a9e4ee404",
+    "source_bundle": "/home/deano/fes-retained/de25-buffered-window-20261104/source.bundle",
+    "source_bundle_sha256": "94f67220a4453dd6c84aa857363a2cd6d9fbbd42afd039899cdb554277178cc9",
+    "independent_source_restore": true,
+    "strict_fsck": true,
+    "alternates": false,
+    "verification_copy_removed": true,
+    "archive": "/home/deano/fes-retained/de25-buffered-window-20261104/matched-native-chain.tar.gz",
+    "archive_sha256": "b6beee6c35c310ea101596b2db403cf4e9a7f64d3aa9e0150fa86b6bf4946993",
+    "archive_bytes": 143046442,
+    "verified_members": 45195,
+    "hardware_acceptance": false,
+    "selected_sources_verified_from_exact_git_commit": true,
+    "unpublished_validation_documents": [
+      "?? docs/validation/2026-11-04-de25-buffered-window/README.md",
+      "?? docs/validation/2026-11-04-de25-buffered-window/native-console.log",
+      "?? docs/validation/2026-11-04-de25-buffered-window/replay.json",
+      "?? docs/validation/2026-11-04-de25-buffered-window/result.json"
+    ],
+    "diagnostic_hardware_evidence_retained": true,
+    "prior_failures_retained_separately": true,
+    "host_cleanup_retained": true,
+    "expanded_files_removed": false
+  }
+}

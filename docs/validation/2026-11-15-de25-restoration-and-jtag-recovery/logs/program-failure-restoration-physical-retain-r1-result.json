@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/publication/retain-program-failure-restoration-physical.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 1.8021627850830555,
+  "log_sha256": "f6f5bb1a2a4743daeae8e2b20642e64d99ec35a146a54320286c5c9e09fd7887"
+}

@@ -1,0 +1,15 @@
+{
+  "pid": 880413,
+  "process_start_ticks": "176850707",
+  "cap_seconds": 1400,
+  "start_monotonic": 1768507.079154214,
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/full-sof-warm-files-restoration/run_restoration.py",
+    "--procedure-sha256",
+    "c34868fb09ff76d083e985960acd8b5073ebe08c4572c1e288e8ce67ee446dbf",
+    "--execute"
+  ]
+}

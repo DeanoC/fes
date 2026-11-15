@@ -1,0 +1,81 @@
+{
+  "format": 1,
+  "status": "source-frozen-return-recovery-operator",
+  "host_control_source": "d0abab607ee1db69fdbe88c63789894adede288b",
+  "compiled_trace_source": "dfd4863c02f571c0875cd5c30b5163d9f58a6eef",
+  "attempt_limit": 1,
+  "first_failure_terminal": true,
+  "replay_allowed": false,
+  "native_activation": false,
+  "hardware_actions": false,
+  "bounds": {
+    "prompt_seconds": 50,
+    "boot_seconds": 240,
+    "upgrade_seconds": 330,
+    "UART_seconds": 150,
+    "UART_control_seconds": 5,
+    "uploads_seconds": 300,
+    "outer_seconds": 740,
+    "host_seconds": 850,
+    "console_bytes": 1048576
+  },
+  "phases": [
+    "old-recovery",
+    "UART-upgrade",
+    "trace-recovery",
+    "8uploads-and8freshreadbacks"
+  ],
+  "unchanged_qualified_helpers": [
+    "private_jtag.py",
+    "clock_policy.py",
+    "upload_checks.py",
+    "recovery_pin.py"
+  ],
+  "source_sha256": {
+    "out/nano-recovery-return-board-20261107/audit_cleanup.py": "319804470838b2ccf3c94654989afa2c704e2c37423c3e237d16c9c6992502d0",
+    "out/nano-recovery-return-board-20261107/bootstrap_fixtures.py": "50c033ec578794a0fabf326dce325aeb7a0f2e8d1820797bbf9a52409dd3cb1d",
+    "out/nano-recovery-return-board-20261107/clock_fixtures.py": "27f41a8a1f880641c7cf9015c4adca219b1c33d3e679fe78a16c035684e1d112",
+    "out/nano-recovery-return-board-20261107/device_admission_fixtures.py": "735e52571c80508a22ad5b4385fa17ad981ab3f6b75aaa74ca55cf0e512c2856",
+    "out/nano-recovery-return-board-20261107/freeze_operator.py": "4119b302a93ccbe29fa8b534a1f9029b54da66619f803a658dc8347ea4d647c2",
+    "out/nano-recovery-return-board-20261107/lifecycle_fixtures.py": "02717d29f70bbdbde685a5b29bc71b0124afa756f7ac69c36c6e269e7093fb92",
+    "out/nano-recovery-return-board-20261107/preflight.py": "df92a97757af91df05748160f055f604a8eeb7f5622b13d9380cb43a1cb60dca",
+    "out/nano-recovery-return-board-20261107/recovery-validator/platform/embedded/firmware/build_terasic_uboot.py": "e32c299b00d8d5a3d55289d5387ffda2e99880b188a0b60bf776a09c56af4324",
+    "out/nano-recovery-return-board-20261107/recovery-validator/platform/embedded/nano/recovery.py": "8cd45a8db47566c80d3f0e3da3c99a1deec4483e317a6b1a34af2e2e6b5b224d",
+    "out/nano-recovery-return-board-20261107/recovery-validator/platform/embedded/nano/recovery_package.py": "9cbeab21ea7217fed74e3daff794beca3641fcfeaa519c5cc0c94541b01f6211",
+    "out/nano-recovery-return-board-20261107/run.py": "8dea93a99adab57fd4721de0379fa6fbbcd75877d64f4d7e8ed80a041df6ed3c",
+    "out/nano-recovery-return-board-20261107/source_fixtures.py": "11bd7b29f2dfaecce11bff6cbf971d28eaed1bd9fc203238d09ef92839f91ae5",
+    "out/nano-recovery-return-board-20261107/trial/bootstrap.py": "cd8fbcbd56aec9b27810e1f0abd47107b0f7a4f8aae838fcee0fe6b8677daa0a",
+    "out/nano-recovery-return-board-20261107/trial/bounded_log.py": "e1d72926fed47296b2f0c65f4dc3dc81b7a9ad7b2b5e0ae1f0c0982cef8dda4c",
+    "out/nano-recovery-return-board-20261107/trial/clock_policy.py": "082ea1a2646bf9dbfecf0b378274801576600265282827cce48bbbaea8a6c4f5",
+    "out/nano-recovery-return-board-20261107/trial/common.py": "abe2a1d6eb346311fd06c7137a49929ae70d1744eafddee7d06c6e50e92ec67a",
+    "out/nano-recovery-return-board-20261107/trial/experiment.py": "b5a8417ce098e8965a58472dc84eb6ca190a6f2d2fe6a132e57c8ab0359cabc4",
+    "out/nano-recovery-return-board-20261107/trial/private_jtag.py": "c9b36356faf133d4a734d46743bf586eb0c74006c535a869e6a1fb36856e4023",
+    "out/nano-recovery-return-board-20261107/trial/recovery.py": "1171c8a6c87139bb075189d198dae571f961f267ee96ac8549a2ca246878b2bd",
+    "out/nano-recovery-return-board-20261107/trial/recovery_pin.py": "20e169fe043d7d0d9d1073112577a7a95f1b077c8c4fd6af32ef20289b807f88",
+    "out/nano-recovery-return-board-20261107/trial/transport_guards.py": "021900ce7d4e0f024adabf1033867ca8e148ec77408fceca7a503ec2240fcc2d",
+    "out/nano-recovery-return-board-20261107/trial/trial_inputs.py": "57beff46de57de5986d295ada4f867bc6ebfc718ca717fcfe8cfdf96518e7c7d",
+    "out/nano-recovery-return-board-20261107/trial/upgrade_checks.py": "884aa70632380959200a7058b214c3fa2c66d8bee2b0ca6b70c34eb97d108cd8",
+    "out/nano-recovery-return-board-20261107/trial/upload_both.py": "72c5a5cdc1dd1385d1bafeff92120992d08e73de477d97dc34504f9ac1be232f",
+    "out/nano-recovery-return-board-20261107/trial/upload_checks.py": "497636cad5390e8f6820d11d18c698efd7d8af3883a714b6dd112a6014e61fa3",
+    "out/nano-recovery-return-board-20261107/upload_both_fixtures.py": "d821f87fe9c71ce5bf8c683af878cb92e68701d25047f549e393354bccd48e35"
+  },
+  "input_sha256": {
+    "out/nano-recovery-return-board-20261107/uart-plan.json": "91df51a00af2388f334e97858df6472f85cd5b611dd1aaf9d7102bd7dbb48ff8",
+    "out/nano-recovery-return-board-20261107/upload-plan.json": "2d36c85e4d962a4c8623f389cc7fe4303a0201e839336b97efdec5c74eeedb93",
+    "out/nano-recovery-return-board-20261107/recovery-source-pin.json": "3af590f4e06f1094ca5193cb70c714a94f16e4c62258447b2e87e40427438800",
+    "out/nano-recovery-return-board-20261107/bootstrap-fixtures.json": "f34692564ba660b96d23e1ce81a0d39d2fe2a5aed0b6a625846c9cefdb2df379",
+    "out/nano-recovery-return-board-20261107/lifecycle-fixtures.json": "db053993eda066578c736a2a409d8f844bb192b0fccd04ee3e616174a10e26a1",
+    "out/nano-recovery-return-board-20261107/source-fixtures.json": "192363651def7ce6c4abbbded59cccc4f98a7cacb9ede712ba6425045a05f514",
+    "out/nano-recovery-return-board-20261107/transport-fixtures.json": "22014bd255e5cafd3dc1de733bc4ef0983c1253b54394506cebf3b26f7f21525",
+    "out/nano-recovery-return-board-20261107/device-admission-fixtures.json": "14b5bfcd2cb8056d594df1a52a5b8db4535d62408e8dc27e8180da176e7bdfda",
+    "out/nano-recovery-return-board-20261107/upload-both-fixtures.json": "22bf094042b7e5031ea418c7ac45784617d90a8993cdf06adf60b7b0bc618816",
+    "out/nano-recovery-return-board-20261107/upgrade-positive.json": "2d65c5c8cdcd7530b84d4c2195e278070123c18ecbf82978a4f8bbfe24a6bacb"
+  },
+  "fixture_receipts": {
+    "bootstrap-fixtures": "2391d956083302b958fc3113efaed05c0d7deca4f473d2d9f1670a94dc1e5e41",
+    "clock-fixtures-v2": "5d7512cbb5899e9929820375491d439f1d43a45c40a9e932729f885feb4bd1ac",
+    "source-fixtures": "615794cb99fb10c4f3ee49a62836af8aa9e9ef66ea33dc3fbb0dc42961d9e74b",
+    "lifecycle-fixtures": "2a41a03e6ba0cae327ed54bfb9bd3619573cae2207d3be9d8f34b9764b28e93c",
+    "uploader-fixtures-v2": "a5fc07bf3322d98967ffb5fdb0f6404409dbb136df4bcffc14d9f4fe8d848fb3"
+  }
+}

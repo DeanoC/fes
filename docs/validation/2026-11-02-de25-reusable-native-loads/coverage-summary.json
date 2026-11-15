@@ -1,0 +1,58 @@
+{
+  "source_commit": "6a600b94c8679a5ade45ad4320b56df79a54ee1a",
+  "status": "passed",
+  "hardware_run": false,
+  "quartus_compile": false,
+  "parent_selected": 1303,
+  "parent_skipped": [
+    [
+      "test_media_inputs.UbootDerivationTest.test_locked_upstream_derives_locked_uboot",
+      "locked upstream uboot.img cache is absent"
+    ],
+    [
+      "test_gpu_lease.GpuLeaseTests.test_macos_statfs_reports_the_lease_filesystem",
+      "statfs(2) layout is the macOS one"
+    ]
+  ],
+  "parent_partitions": [
+    {
+      "tests": 435,
+      "elapsed_seconds": 144.77884835202713,
+      "cap_seconds": 300,
+      "log_sha256": "8cf202eb24b32da88a473ed9a603ab4c6b678e51f9b94d7597f2a90d91913ab4"
+    },
+    {
+      "tests": 434,
+      "elapsed_seconds": 35.23663134500384,
+      "cap_seconds": 300,
+      "log_sha256": "2f1f3f630793b47a671485ca2a8c528683ca4670267ee7ba472e9d4a44b8c5a2"
+    },
+    {
+      "tests": 434,
+      "elapsed_seconds": 43.635344799025916,
+      "cap_seconds": 300,
+      "log_sha256": "0d4017a3ddc0fc594e59e5cd082ed1d51fdc27658fcbedfe678ea64ef7a121c9"
+    }
+  ],
+  "fpga_software_selected": 1577,
+  "fpga_software_skipped": 75,
+  "fpga_skip_reasons": {
+    "FES_I386_YOSYS names no Yosys": 2,
+    "Verilator or the pinned Bochs checkout is absent": 1,
+    "Verilator, the pinned Bochs checkout or the corpus is absent": 2,
+    "Yosys is required to check the Apple II M10K netlist": 1,
+    "Yosys is required to check the C64 M10K netlist": 2,
+    "Yosys is required to check the MegaCart M10K netlist": 1,
+    "Yosys is required to check the SG-1000 M10K netlist": 1,
+    "Yosys is required to check the SMS M10K netlist": 1,
+    "Yosys is required to check the ZX81 M10K netlist": 1,
+    "pinned Bochs not fetched (run a runner with --download)": 1,
+    "requires Yosys": 20,
+    "requires Yosys and patch; set YOSYS to the locked executable": 1,
+    "requires Yosys for the real elaboration path": 1,
+    "requires Yosys; set YOSYS to the locked executable": 22,
+    "requires pinned Yosys and nextpnr-mistral": 6,
+    "requires pinned Yosys and yosys-abc": 11,
+    "set FES_ROM_ORACLE_MISTRAL and FES_ROM_ORACLE_SOURCE for host oracle": 1
+  }
+}

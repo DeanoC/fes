@@ -1,0 +1,22 @@
+{
+  "argv": [
+    "python3",
+    "platform/embedded/nano/package.py",
+    "--uboot-build",
+    "out/nano-smmu-observe-20261102/serial-uboot",
+    "--entry-build",
+    "out/nano-smmu-observe-20261102/serial-entry",
+    "--recovery-kit",
+    "out/nano-recovery-phy-20261101/recovery-kit",
+    "--vendor-sof",
+    "/home/deano/fes-retained/de25-top-recovery-inventory-20261031/golden_top_hps.sof",
+    "--quartus-pfg",
+    "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+    "--output",
+    "out/nano-smmu-observe-20261102/serial-kit"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 3.002743848017417,
+  "log_sha256": "642f151c729f43d6b50c2422b1b0c8ac9faf0a4ecf447ac45fd3aeef2bea2f2a"
+}

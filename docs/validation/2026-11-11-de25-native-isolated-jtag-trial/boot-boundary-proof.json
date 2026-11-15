@@ -1,0 +1,10 @@
+{
+  "status": "passed-complete-firmware-boot-trace-with-app-usb-stop",
+  "firmware_ram_and_mmu_trace_validated": true,
+  "affinity_and_loader_sequences_validated": true,
+  "go_source_matches_compiled_input": true,
+  "application_startup_complete": false,
+  "native_sd_open_reached": false,
+  "installer_reached": false,
+  "hardware_actions": false
+}

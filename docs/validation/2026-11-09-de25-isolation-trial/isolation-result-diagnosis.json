@@ -1,0 +1,99 @@
+{
+  "status": "source-bound-raw-mailbox-timeout-code-captured",
+  "native_boot_id": "3922907326631f8d",
+  "records": [
+    {
+      "phase": 0,
+      "name": "configuration-before",
+      "status": 0,
+      "line": 640
+    },
+    {
+      "phase": 1,
+      "name": "bridge-precheck",
+      "status": 0,
+      "line": 641
+    },
+    {
+      "phase": 2,
+      "name": "vendor-entry",
+      "status": 0,
+      "line": 642
+    },
+    {
+      "phase": 3,
+      "name": "bridge-disable",
+      "status": 0,
+      "line": 643
+    },
+    {
+      "phase": 4,
+      "name": "configuration-complete",
+      "status": -1,
+      "line": 645
+    },
+    {
+      "phase": 9,
+      "name": "vendor-return",
+      "status": 4,
+      "line": 646
+    },
+    {
+      "phase": 10,
+      "name": "configuration-before-after",
+      "status": 4,
+      "line": 647
+    },
+    {
+      "phase": 11,
+      "name": "configuration-after",
+      "status": 4,
+      "line": 649
+    }
+  ],
+  "isolation": [
+    {
+      "status": -2047,
+      "line": 644
+    }
+  ],
+  "configuration_before_passed": true,
+  "closed_bridge_precheck_passed": true,
+  "sticky_transport_status_zero": true,
+  "vendor_bridge_guard_passed": true,
+  "isolation_helper": "mailbox_send_fpga_config_comp",
+  "command": "MBOX_CMD_FPGA_CONFIG_COMP",
+  "command_opcode": 69,
+  "helper_return": -1,
+  "raw_mailbox_return": -2047,
+  "raw_value_matches": "MBOX_TIMEOUT",
+  "exact_return_branch_proven": false,
+  "SDM_response_proven": false,
+  "command_consumption_proven": false,
+  "ambiguity": "The same integer can originate in FIFO-fill timeout, response-wait timeout, or negated 11-bit SDM error 0x7ff. Raw status alone does not select a return branch.",
+  "cancel_called": false,
+  "reconfigure_called": false,
+  "bitstream_write_called": false,
+  "public_START_return": [
+    4,
+    0,
+    0,
+    0
+  ],
+  "all_prior_transport_programming_failures_preserved": 2,
+  "new_programming_failures": 0,
+  "mmu_faults": [],
+  "terminal_first_failure": true,
+  "source_functions": {
+    "isolation": "int mailbox_send_fpga_config_comp(void)\n{\n\tint ret;\n\n\tret = mailbox_send_cmd(MBOX_JOB_ID, MBOX_CMD_FPGA_CONFIG_COMP, NULL, 0U,\n\t\t\t\t CMD_CASUAL, NULL, NULL);\n\tNOTICE(\"FES_NANO_ISOLATION status=%d\\n\", ret);\n\n\tif (ret != 0) {\n\t\tINFO(\"SOCFPGA: FPGA configuration complete response, Return Code: 0x%x\\n\",\n\t\t\tMBOX_RESP_ERR(-ret));\n\t\treturn MBOX_RET_ERROR;\n\t}\n\n\treturn MBOX_RET_OK;\n}\n",
+    "send": "int mailbox_send_cmd(uint32_t job_id, uint32_t cmd, uint32_t *args,\n\t\t\tunsigned int len, uint32_t urgent, uint32_t *response,\n\t\t\tunsigned int *resp_len)\n{\n\tint status = 0;\n\n\tif (urgent != 0U) {\n\t\turgent |= mmio_read_32(MBOX_OFFSET + MBOX_STATUS) &\n\t\t\t\t\tMBOX_STATUS_UA_MASK;\n\t\tmmio_write_32(MBOX_OFFSET + MBOX_URG, cmd);\n\t\tmmio_write_32(MBOX_OFFSET + MBOX_DOORBELL_TO_SDM, 1U);\n\t} else {\n\t\tstatus = fill_mailbox_circular_buffer(\n\t\t\tMBOX_CLIENT_ID_CMD(MBOX_ATF_CLIENT_ID) |\n\t\t\tMBOX_JOB_ID_CMD(job_id) |\n\t\t\tMBOX_CMD_LEN_CMD(len) |\n\t\t\tcmd, args, len);\n\t}\n\n\tif (status != 0) {\n\t\treturn status;\n\t}\n\n\tstatus = mailbox_poll_response(job_id, urgent, response, resp_len);\n\n\treturn status;\n}\n",
+    "poll": "static int mailbox_poll_response_v3(uint8_t client_id, uint8_t job_id,\n\t\t\t\t    uint32_t *resp, unsigned int *resp_len,\n\t\t\t\t    uint32_t urgent)\n{\n\tunsigned int timeout = 40U;\n\tunsigned int sdm_loop = 255U;\n\tbool is_cmd_desc_fill = false;\n\tuint8_t di = 0U;\n\tsdm_response_t *resp_desc = NULL;\n\tsdm_command_t *cmd_desc = NULL;\n\n\twhile (sdm_loop != 0U) {\n\t\tdo {\n\t\t\tif (mmio_read_32(MBOX_OFFSET + MBOX_DOORBELL_FROM_SDM)\n\t\t\t\t== 1U) {\n\t\t\t\tbreak;\n\t\t\t}\n\t\t\tmdelay(10U);\n\t\t} while (--timeout != 0U);\n\n\t\tif (timeout == 0U) {\n\t\t\tINFO(\"%s: Timed out waiting for SDM intr\\n\", __func__);\n\t\t\tbreak;\n\t\t}\n\n\t\tmmio_write_32(MBOX_OFFSET + MBOX_DOORBELL_FROM_SDM, 0U);\n\n\t\tif ((urgent & 1U) != 0U) {\n\t\t\tmdelay(5U);\n\t\t\tif ((mmio_read_32(MBOX_OFFSET + MBOX_STATUS) &\n\t\t\t\tMBOX_STATUS_UA_MASK) ^\n\t\t\t\t(urgent & MBOX_STATUS_UA_MASK)) {\n\t\t\t\tmmio_write_32(MBOX_OFFSET + MBOX_URG, 0U);\n\t\t\t\treturn MBOX_RET_OK;\n\t\t\t}\n\n\t\t\tmmio_write_32(MBOX_OFFSET + MBOX_URG, 0U);\n\t\t\tERROR(\"MBOX: Mailbox did not get UA\");\n\t\t\treturn MBOX_RET_ERROR;\n\t\t}\n\n\t\t/* Fill the command descriptor index and get the same. */\n\t\tif (!is_cmd_desc_fill) {\n\t\t\tif (mailbox_fill_cmd_desc(client_id, job_id, resp) != MBOX_RET_OK)\n\t\t\t\treturn MBOX_BUFFER_FULL;\n\n\t\t\tcmd_desc = mailbox_get_cmd_desc(client_id, job_id);\n\t\t\tis_cmd_desc_fill = true;\n\t\t}\n\n\t\t/* Since it is sync call, will try to read till it time out */\n\t\t(void)mailbox_response_handler_fsm();\n\n\t\t/* Check the response queue with the given client ID and job ID */\n\t\tresp_desc = mailbox_get_resp_desc(client_id, job_id, &di);\n\t\tif (resp_desc) {\n\t\t\tVERBOSE(\"%s: Resp received for cid %d, jid %d\\n\",\n\t\t\t\t__func__, resp_desc->client_id, resp_desc->job_id);\n\n\t\t\tuint16_t header = resp_desc->header;\n\n\t\t\t/* Update the return response length */\n\t\t\tif (resp_len)\n\t\t\t\t*resp_len = resp_desc->rcvd_resp_len;\n\n\t\t\t/* Free the response and command descriptor */\n\t\t\tmailbox_free_resp_desc(di);\n\t\t\tmailbox_free_cmd_desc(cmd_desc);\n\n\t\t\tif (MBOX_RESP_ERR(header) > 0U) {\n\t\t\t\tINFO(\"%s: SDM err code: 0x%x\\n\", __func__,\n\t\t\t\t\tMBOX_RESP_ERR(header));\n\t\t\t\treturn -MBOX_RESP_ERR(header);\n\t\t\t}\n\n\t\t\tVERBOSE(\"%s: MBOX_RET_OK\\n\", __func__);\n\t\t\treturn MBOX_RET_OK;\n\t\t}\n\t\tsdm_loop--;\n\t}\n\n\tINFO(\"%s: Timed out waiting for SDM\\n\", __func__);\n\treturn MBOX_TIMEOUT;\n}\n",
+    "fill": "static int fill_mailbox_circular_buffer(uint32_t header_cmd, uint32_t *args,\n\t\t\t\t\tunsigned int len)\n{\n\tuint32_t sdm_read_offset, cmd_free_offset;\n\tunsigned int i;\n\tint ret;\n\tbool is_doorbell_triggered = false;\n\n#if SIP_SVC_V3\n\tspin_lock(&mbox_write_lock);\n#endif\n\n\tcmd_free_offset = mmio_read_32(MBOX_OFFSET + MBOX_CIN);\n\tsdm_read_offset = mmio_read_32(MBOX_OFFSET + MBOX_COUT);\n\n\t/* Write the command header here */\n\tret = write_mailbox_cmd_buffer(&cmd_free_offset, sdm_read_offset,\n\t\t\t\t       header_cmd, &is_doorbell_triggered);\n\tif (ret != 0) {\n\t\tgoto restart_mailbox;\n\t}\n\n\t/* Write the payload here w.r.to args and its len - one by one. */\n\tfor (i = 0U; i < len; i++) {\n\t\tis_doorbell_triggered = false;\n\t\tret = write_mailbox_cmd_buffer(&cmd_free_offset,\n\t\t\t\t\t       sdm_read_offset, args[i],\n\t\t\t\t\t       &is_doorbell_triggered);\n\t\tif (ret != 0) {\n\t\t\tgoto restart_mailbox;\n\t\t}\n\t}\n\n\tmmio_write_32(MBOX_OFFSET + MBOX_DOORBELL_TO_SDM, 1U);\n\n#if SIP_SVC_V3\n\tspin_unlock(&mbox_write_lock);\n#endif\n\treturn MBOX_RET_OK;\n\nrestart_mailbox:\n\t/*\n\t * Attempt to restart mailbox if the driver not able to write\n\t * into mailbox command buffer\n\t */\n\tif (MBOX_CMD_MASK(header_cmd) != MBOX_CMD_RESTART) {\n\t\tINFO(\"Mailbox timed out: Attempting mailbox reset\\n\");\n\t\tret = mailbox_init();\n\n\t\tif (ret == MBOX_TIMEOUT) {\n\t\t\tINFO(\"Error: Mailbox fail to restart\\n\");\n\t\t}\n\t}\n\n#if SIP_SVC_V3\n\tspin_unlock(&mbox_write_lock);\n#endif\n\treturn MBOX_TIMEOUT;\n}\n"
+  },
+  "mailbox_source_sha256": "6e2e8842d6f6b7cf8bc72b3fd4fd50d2b820cee8cb635ff255d09ffc1a0c2f0a",
+  "mailbox_header_sha256": "a7a3e8dccc604fb6f9285572d5977bc00f36ba56417e1308cf0c8b16989db24f",
+  "raw_console_sha256": "858a23a25f1ad28827ae55e1c1d4a20822f5d7d48123043cbb52523cf151a40d",
+  "next_step": "Distinguish existing FIFO-fill and response-poll branches and retain bounded mailbox queue observations without new commands, retries, acknowledgements, mapping changes or deadline changes.",
+  "hardware_actions": false,
+  "ordinary_core_load_acceptance": false
+}

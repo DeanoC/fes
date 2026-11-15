@@ -1,0 +1,19 @@
+{
+  "status": "retained-physical-first-install-launch-return-pass",
+  "source_head": "bbbdaf733e6e860dc4acf7838fa5fb44ab54582e",
+  "compiled_source": "da33a94cc56ca7a975eb275ce04d1d3cf30c0890",
+  "native_boot_id": "b3ed4389ad43d91b",
+  "files": 196,
+  "archive_sha256": "dabeb7841eae8a310118358bb08886d9de73cb2ec0a85b79ef8f55581c23aeab",
+  "source_bundle_sha256": "b012fe4f084cfc9deb0af8aac5f4d9b0bde55a385e6c432f39797fb11d0cb893",
+  "base_bundle": "/home/deano/fes-retained/de25-menu-return-observation-20261110-r1/source.bundle",
+  "base_bundle_sha256": "d7166cde75bd88ea7f9d14ac4a5706b55c74cd215cc4f375abd1a5d6661a17d0",
+  "source_restore_fsck_pack_verified": true,
+  "archive_readback_modes_verified": true,
+  "cleanup_independently_verified": true,
+  "physical_installation_verified": true,
+  "core_launch_and_return_verified": true,
+  "persistence_verified": false,
+  "ordinary_core_load_acceptance": false,
+  "candidate_dependency": "/home/deano/fes-retained/de25-usb-startup-chain-prepared-20261111-r1"
+}

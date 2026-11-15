@@ -1,0 +1,160 @@
+{
+  "format": 1,
+  "status": "two-signoff-findings-cleared-not-qualified",
+  "base_source": "3160327a847604a3d521b3adcda65b9ea6226a96",
+  "implementation_source": "a90d2e2f4480eb3aa2fabbd4457003714bd41626",
+  "compiled_source": "66c852f9c7f63c3535d86766ea451bb5a93200b3",
+  "native_source_closure_fix": "78e1a9e8030a597f708e462952262aad52c977bc",
+  "package_id": "dae4d85197e72feb06715915842d5cf4bd779748792a18112220179aeb042547",
+  "build_id": "60ca6b4faa763d56e6232eed59a95e9e",
+  "ROM_receipt": "0b7b6d1458c5f5a81de0d91c383a5af9a1c69638d22ed4baddc795e92318e908",
+  "payload_bytes": 1650688,
+  "payload_sha256": "afb8e783c60c826015faf6bddc551e5de86d169247f9e50f37aac97329d17eb3",
+  "source_inputs_checked": 194,
+  "generated_SDCS_checked": 4,
+  "clock_inventory_unchanged": true,
+  "multicorner_before": [
+    2.002,
+    0.002,
+    7.07,
+    0.021,
+    0.22
+  ],
+  "multicorner_after": [
+    1.969,
+    0.0,
+    7.827,
+    0.049,
+    0.22
+  ],
+  "multicorner_fields": [
+    "setup",
+    "hold",
+    "recovery",
+    "removal",
+    "minimum_pulse_width"
+  ],
+  "all_reported_TNS_zero": true,
+  "minimum_hold_rounds_to_zero": true,
+  "cleared_signoff_rules": [
+    "TMC-20026",
+    "LNT-30023"
+  ],
+  "remaining_signoff_findings": [
+    {
+      "rule": "TMC-20012 - Missing Output Delay Constraint",
+      "severity": "High",
+      "violations": 30,
+      "waived": "0"
+    },
+    {
+      "rule": "TMC-20011 - Missing Input Delay Constraint",
+      "severity": "High",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+      "severity": "Medium",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+      "severity": "Low",
+      "violations": 3,
+      "waived": "0"
+    }
+  ],
+  "unconstrained_input_ports": 2,
+  "unconstrained_output_ports": 30,
+  "timing_signoff": false,
+  "hardware_actions": false,
+  "core_load_acceptance": false,
+  "physical_activation": false,
+  "native_chain_for_new_package_built": false,
+  "qualified_recovery_unchanged": true,
+  "source_capture_equivalence": {
+    "unbounded_writer_control": true,
+    "returned_bank_token_is_arbitrary": true,
+    "uninitialised_memory_and_metastability_not_proved": true,
+    "negative_control_rejected": true,
+    "paired_dual_clock_ticks": 40204224,
+    "byte_writes": 55148,
+    "publications": 5,
+    "acknowledgements": 4,
+    "raster_boundaries": 4
+  },
+  "parent_tests": 1425,
+  "parent_skips": 2,
+  "FPGA_tests": 1584,
+  "FPGA_skips": 75,
+  "corrected_compiler_runner_cases": 6,
+  "focused_source_tests": 9,
+  "native_source_closure_tests": 37,
+  "software_aggregate_green": false,
+  "software_status": "The complete affected run had only two bounded-compiler test fixture errors: they lacked the now-required generated JTAG SDC. All six corrected compiler-runner cases pass separately. Parent, generated-consumer and DE25 native/Avalon integration lanes pass. The prior Coleco golden failure did not recur; no Coleco code or golden was changed.",
+  "remote_failed_attempt": {
+    "source": "a90d2e2f4480eb3aa2fabbd4457003714bd41626",
+    "phase": "fitter_place",
+    "phase_limit_seconds": 120,
+    "total_elapsed": 396.04893880407326,
+    "global_timeout": false,
+    "workers": 4,
+    "CPU_load_observed": "16.04 12.17 8.78 17/771 3514699\n",
+    "owned_workers_remaining": false
+  },
+  "successful_local_attempt": {
+    "source": "66c852f9c7f63c3535d86766ea451bb5a93200b3",
+    "workers": 8,
+    "total_elapsed": 498.2406618220266,
+    "phase_limit_seconds": 120,
+    "placement_seconds": 88.25,
+    "classification": "fresh source-bound build on a different host and worker setting; not a paired QoR benchmark"
+  },
+  "integration_evidence_directories": [
+    "out/de25-video-equivalence-01f9bcac35ff49f8956ff37e191950e6",
+    "out/de25-board-control-check-188c716b96c746efa016e84e28b736d8",
+    "out/nano-fabric-stop-8c4e38d66bb24b758beb79d304292ec5"
+  ],
+  "evidence_sha256": {
+    "out/nano-timing-audit-20261106/focused-tests-result.json": "e12e7a705c25d9c4d8274568b0fabc8fa5030bbab98305978dd2a6606ace2a6f",
+    "out/nano-timing-audit-20261106/rom-model-result.json": "4c14c1af711ae66faf342a67b8dd24502021e2baed339c532fbf699f2d185a3a",
+    "out/nano-timing-audit-20261106/compiler-fixture-fix-result.json": "4ed759bca2a799e00b2c224322932213e91ab7dcd91ba178f00e3f60a37fdbf7",
+    "out/nano-timing-audit-20261106/native-source-closure-tests-result.json": "8362677d6d32b458beae38bdfc4a56d3bd3a59e8de3119be18990b3a00328f0f",
+    "out/nano-timing-audit-20261106/candidate-analysis-result.json": "37bb9ddfeec035e6b3b2f46fa4024861ebedb0b5e98b72e1cc4fc1b8ecc0ea11",
+    "out/nano-timing-audit-20261106/export-actual-fixture-result.json": "0959e2b062c13c66c1feba833e138ac83cee90f3f485a4546d4adee2a9856fa6",
+    "out/nano-timing-audit-20261106/actual-native-preflight-result.json": "fcb50f407fc0780ed87e47dbadbc56d493523917d5ce3bd48355be097b873463",
+    "out/nano-timing-audit-20261106/preserve-failed-build-result.json": "4bcfef247efa2f66a5c2e5f4f4fc3b9a21bcd0e149f48995a4072b92a7ea3045",
+    "out/nano-timing-audit-20261106/affected-result.json": "ad6be27752dcc891bf9f9431df541f1e60c8816df98c4fe34b9c3bf0a122819a",
+    "out/nano-timing-audit-20261106/affected.log": "8723a473033e83d9e398b8752dc3fe7b9550aa769a412e71e0a26528d762c6fa",
+    "out/nano-timing-audit-20261106/candidate-analysis.json": "25d3b5e1de33493ce08702758677fd72cbc594d487a97b6c37b64c56de762604",
+    "out/nano-timing-audit-20261106/local-run/result.json": "627b38ad504c5bcbc8d1b1662a3c289b0f48616cd7b71455a1bb24ba6e112ede",
+    "out/nano-timing-audit-20261106/failed-remote-evidence/result.json": "18a893b3120f113959e2fe49deb324033fc532918a6e610cc72472c2c3d3fe2c",
+    "out/nano-timing-audit-20261106/failed-remote-evidence/build.log": "a3254dc723f7214a1c6080c9bfea11d489175e09ad493e17344ee0a5130e5d32",
+    "out/nano-timing-audit-20261106/post-failure-host.json": "9e950dd9deafe31fae862b76cecd97ed0bbfc19fa677db13e115a6bff15d8353",
+    "out/nano-timing-audit-20261106/nodes.txt": "0be4e22e21016d3500102361b39e0b6780ce468c66f548532662e7ce4b7645b5",
+    "out/nano-timing-audit-20261106/input-identity.json": "0eb2880a22272eaf40e2544d70cd9b6ca02f580664810bf328cfee03f4a60457",
+    "out/nano-timing-audit-20261106/original-netlist-unchanged.json": "fad559f0baf783f7233aed5a98df60bd9d368a17741d61bd1eab3eb945963182",
+    "out/nano-timing-audit-20261106/recovery-pin-check.json": "945582593e2cd7705882e6dda6738ebea62cdc785cf4faf2d9e3e1c28a5fe4cd",
+    "out/de25-video-equivalence-01f9bcac35ff49f8956ff37e191950e6/result.json": "13754d10dbb0d3bb30ee973776a56b7217df7b79c18424b4854fa3602d697f73",
+    "out/de25-video-equivalence-01f9bcac35ff49f8956ff37e191950e6/formal.log": "a09ea11338ce2145741e274be5d72133e8047a69fbaaf820b97cf0d64dbb1a6d",
+    "out/de25-video-equivalence-01f9bcac35ff49f8956ff37e191950e6/formal-negative.log": "179fd0b62c255a3f454a131de5036b3f8d1a4879012378097c965006e0af536c",
+    "out/de25-video-equivalence-01f9bcac35ff49f8956ff37e191950e6/execute.log": "ae9a3757c7d5443d89d466a19275297327445b84227fc044063fb315f4423ddb",
+    "out/nano-timing-audit-20261106/rom-model/result.json": "550397f155ba8ab53fc41463a271bc3cc97a24b79d2bb8f5692fe3fcdb095967",
+    "out/nano-timing-audit-20261106/actual-fixture/rom-selection.json": "8b18693c0ffb7ed17bd72526d6de0b7f2a08a194bfb4a1f54fb4f800a66d64c3",
+    "out/nano-timing-audit-20261106/local-project/board/hps/project/output_files/golden_top.sta.rpt": "1bbea2d593c13163f3d08ee19550b5ea588202f512859922c0309cd0817f8dbd",
+    "out/nano-timing-audit-20261106/local-project/board/hps/build.json": "158c29b8bc2cfd44b12ce85d5cf898b59d1f4006b112162c19b879c601b84980",
+    "out/nano-timing-audit-20261106/local-project/board/hps/seal-result.json": "fb9243a2d2fbf7a52e2ab285be6c6c28676854c5d8142b2caed53dc5b69b9fc5",
+    "out/nano-timing-audit-20261106/local-project/board/hps/build-inputs.json": "c0e4197c3ba17fe41da85cd8e8cfca1dc2432005dc95bbf16117fda7017e146b",
+    "out/nano-timing-audit-20261106/local-project/board/hps/inputs.json": "81e4fa135c7926ebd7d6791773a1e7a7802e392959c0cbda095df7a5d0fb82dc",
+    "out/nano-timing-audit-20261106/local-project/board/hps/generation.json": "63c14849be5d2379f51cb9107f9e6f839a21542f85f20a1e910b86ec6407d727",
+    "out/nano-timing-audit-20261106/local-project/board/hps/packages/dae4d85197e72feb06715915842d5cf4bd779748792a18112220179aeb042547.fcore": "ebe82d0f0b77e1892a3093dadbf0a00070dfa4bf622e768213efedf3f579b20b"
+  },
+  "next_steps": [
+    "Consolidate or otherwise prove the independently releasing reset fan-out cones, preserving asynchronous assertion with clocks stopped; do not waive the outstanding reset findings.",
+    "Establish explicit HDMI pixel/clock and I2C/interrupt pin timing from the selected board, transmitter settings and physical flight-time budget; add no invented delays.",
+    "After producer qualification, prepare a newly matched boot chain and bounded operator, requalify TRWU8CBL after its power interruption, and test native core load/ROM/input/return.",
+    "Continue physical display/menu-to-core transitions, media/input and native networking toward full DE10 behavior."
+  ]
+}

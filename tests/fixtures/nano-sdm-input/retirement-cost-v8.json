@@ -1,0 +1,73 @@
+{
+  "status": "passed",
+  "hardware_actions": false,
+  "retired": 1,
+  "phase": 6,
+  "first_error": 0,
+  "writes": 5,
+  "publish_attempted": 1,
+  "phase_counts": [
+    [
+      524,
+      0,
+      5120,
+      0,
+      10840,
+      6
+    ],
+    [
+      250,
+      1,
+      0,
+      0,
+      310,
+      12
+    ],
+    [
+      774,
+      1,
+      5120,
+      0,
+      11150,
+      18
+    ],
+    [
+      774,
+      1,
+      5120,
+      0,
+      11150,
+      18
+    ],
+    [
+      5514,
+      1,
+      0,
+      12,
+      7572,
+      293
+    ],
+    [
+      774,
+      1,
+      5120,
+      0,
+      11150,
+      18
+    ],
+    [
+      898,
+      0,
+      5120,
+      0,
+      11564,
+      7
+    ]
+  ],
+  "source_commit": "86c6e0edb037e9c9616b2c372ec791ad4b67affc",
+  "source_sha256": {
+    "platform/embedded/firmware/source_retire.c": "87640886bc66447aa5f9f5f65a567083b581a614fa0c9f8263ab48220a962cc9",
+    "platform/embedded/firmware/command_queue.c": "301d3879ff999c96528358ca79a1ffb89fe32720a4d9b904968ece87f26bd458",
+    "platform/embedded/firmware/command_queue.h": "c7777382f48742501c86b5d31fb2018243940a5abd162f205d9a2693cc2ed1bf"
+  }
+}

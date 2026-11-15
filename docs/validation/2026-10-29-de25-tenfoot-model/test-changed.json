@@ -1,0 +1,244 @@
+{
+  "format": 1,
+  "root": "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os",
+  "base": "70d7b2d1954ae8b9a824b22e3d9b30e757558c7a",
+  "head": "70d7b2d1954ae8b9a824b22e3d9b30e757558c7a",
+  "checkout_head": "70d7b2d1954ae8b9a824b22e3d9b30e757558c7a",
+  "merge_base": "70d7b2d1954ae8b9a824b22e3d9b30e757558c7a",
+  "local_paths": [
+    "platform/embedded/README.md",
+    "platform/embedded/tamago/README.md",
+    "platform/embedded/tamago/cmd/session-fixtures/main.go",
+    "platform/embedded/tamago/cmd/tenfoot/main.go",
+    "platform/embedded/tamago/go.mod",
+    "platform/embedded/tamago/go.sum",
+    "platform/embedded/tamago/host_support.py",
+    "platform/embedded/tamago/modelbackend/README.md",
+    "platform/embedded/tamago/modelbackend/backend.go",
+    "platform/embedded/tamago/modelbackend/backend_test.go",
+    "platform/embedded/tamago/modelbackend/transport.go",
+    "platform/embedded/tamago/play_support.py",
+    "platform/embedded/tamago/run.py",
+    "tests/test_embedded_qmp.py"
+  ],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": false,
+      "runtime": false,
+      "contracts": false,
+      "fpga": false
+    },
+    "skipped": [
+      "host",
+      "runtime",
+      "contracts",
+      "fpga"
+    ],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": true,
+      "full_race": false
+    },
+    "paths": [
+      "platform/embedded/README.md",
+      "platform/embedded/tamago/README.md",
+      "platform/embedded/tamago/cmd/session-fixtures/main.go",
+      "platform/embedded/tamago/cmd/tenfoot/main.go",
+      "platform/embedded/tamago/go.mod",
+      "platform/embedded/tamago/go.sum",
+      "platform/embedded/tamago/host_support.py",
+      "platform/embedded/tamago/modelbackend/README.md",
+      "platform/embedded/tamago/modelbackend/backend.go",
+      "platform/embedded/tamago/modelbackend/backend_test.go",
+      "platform/embedded/tamago/modelbackend/transport.go",
+      "platform/embedded/tamago/play_support.py",
+      "platform/embedded/tamago/run.py",
+      "tests/test_embedded_qmp.py"
+    ],
+    "reasons": [
+      "platform/embedded/tamago/cmd/session-fixtures/main.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/cmd/tenfoot/main.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/go.mod: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/go.sum: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/host_support.py: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/modelbackend/backend.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/modelbackend/backend_test.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/modelbackend/transport.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/play_support.py: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/run.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_embedded_qmp.py: parent orchestration/tests/assembly; component sources unchanged"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "70d7b2d1954ae8b9a824b22e3d9b30e757558c7a",
+        "--head",
+        "70d7b2d1954ae8b9a824b22e3d9b30e757558c7a"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "true",
+        "--paths-json",
+        "[\"platform/embedded/README.md\", \"platform/embedded/tamago/README.md\", \"platform/embedded/tamago/cmd/session-fixtures/main.go\", \"platform/embedded/tamago/cmd/tenfoot/main.go\", \"platform/embedded/tamago/go.mod\", \"platform/embedded/tamago/go.sum\", \"platform/embedded/tamago/host_support.py\", \"platform/embedded/tamago/modelbackend/README.md\", \"platform/embedded/tamago/modelbackend/backend.go\", \"platform/embedded/tamago/modelbackend/backend_test.go\", \"platform/embedded/tamago/modelbackend/transport.go\", \"platform/embedded/tamago/play_support.py\", \"platform/embedded/tamago/run.py\", \"tests/test_embedded_qmp.py\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "docker",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "passed",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    }
+  ]
+}

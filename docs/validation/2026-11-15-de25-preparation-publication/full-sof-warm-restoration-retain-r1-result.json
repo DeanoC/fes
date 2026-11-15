@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/publication/retain-full-sof-warm-restoration-physical.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 2.002195172943175,
+  "log_sha256": "87bd88a69896607f0ab555ffe20ed400d1cbb67ecb8fce740fe1eb5521df811e"
+}

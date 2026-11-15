@@ -1,0 +1,168 @@
+{
+  "status": "retained-initial-recovery-programming-chain-broken",
+  "procedure_sha256": "f39c1a04a59680865e2b686295af04c66e3c71b1befe00aa83ccf53855c60772",
+  "plan_sha256": "0a004f479abfbceee046a450b0c4310e44e4a58376a8c3c5baa3d36cf49bc6f2",
+  "wrapper": {
+    "argv": [
+      "sudo",
+      "-n",
+      "/usr/bin/python3",
+      "out/preparation-budget-candidate-trial/run_trial.py",
+      "--procedure-sha256",
+      "f39c1a04a59680865e2b686295af04c66e3c71b1befe00aa83ccf53855c60772",
+      "--execute"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 1,
+    "timed_out": false,
+    "elapsed": 74.64754268690012,
+    "log_sha256": "5e76dafa6446ea7c0404ec41155eb08d32cc4b17d181e1bed7ea26d657815bde"
+  },
+  "flow_as_recorded": {
+    "status": "stopped",
+    "fit_state": "baseline",
+    "candidate_cycle_Park_verified": false,
+    "candidate_left_installed": false,
+    "original_FIT_restored": false,
+    "old_native_baseline_dispatched": false,
+    "rollback_attempted": false,
+    "physical_reset_required": false,
+    "ordinary_admission": false,
+    "hardware_acceptance": false,
+    "error": "bounded role stopped: recovery-before",
+    "recovery_safe": true,
+    "roles_consumed": [
+      "recovery-before"
+    ],
+    "plan_sha256": "0a004f479abfbceee046a450b0c4310e44e4a58376a8c3c5baa3d36cf49bc6f2"
+  },
+  "independent_classification": {
+    "programmer_started": true,
+    "programmer_succeeded": false,
+    "volatile_board_state": "unknown-after-started-failed-recovery-programming",
+    "recovery_prompt_verified": false,
+    "candidate_FIT_installed": false,
+    "candidate_firmware_executed": false,
+    "SD_write_commands_sent": false,
+    "last_verified_card_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+    "last_verified_card_archive_sha256": "282885a6d5b998b87e6f07fa7c686b5d5362548c484f645ba3c4ff3116cca4a1",
+    "post_failure_card_readback_performed": false,
+    "generic_flow_recovery_safe_is_not_hardware_recovery_evidence": true,
+    "fresh_recovery_required": true,
+    "diagnostic_retry_authority": false,
+    "hardware_acceptance": false,
+    "general_core_load_acceptance": false
+  },
+  "role_result": {
+    "native_execution_attempted": false,
+    "status": "failed",
+    "role": "recovery-before",
+    "plan_sha256": "0a004f479abfbceee046a450b0c4310e44e4a58376a8c3c5baa3d36cf49bc6f2",
+    "serial": "TRWU8CBL",
+    "transport_cleaned": true,
+    "claim_verified": true,
+    "transport_epoch": "4056464:176151053",
+    "image_sha256": "ce143f50e05c9895381047f921be4a0c38d9a7eacfa75b3c0709be4ff7eafe75",
+    "error": "boot/cycle/UART completion failed",
+    "session_result": {
+      "prompt_verified": false,
+      "UART_closed": true,
+      "sd_write_commands_sent": false,
+      "pass": false,
+      "error": "programmer returned failure",
+      "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "cleanup": {
+      "transport_cleaned": true,
+      "clock_restored": true,
+      "owned_server_stopped": true,
+      "usb_permissions_restored": true,
+      "errors": []
+    }
+  },
+  "supervisor": {
+    "argv": [
+      "/usr/bin/python3",
+      "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/worker.py",
+      "recovery-before",
+      "--procedure-sha256",
+      "f39c1a04a59680865e2b686295af04c66e3c71b1befe00aa83ccf53855c60772"
+    ],
+    "cap_seconds": 270,
+    "status": "failed",
+    "timed_out": false,
+    "guard_failed": false,
+    "worker_stopped": true,
+    "returncode": 1,
+    "elapsed_seconds": 9.24798407801427,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "live_scan_sha256": "c236c9ce2e83b5ea03923e041cc6863c06d57bb6701169f9050f1793b2241969",
+  "programmer_log_sha256": "2406af93016368773f13ecb165ed96253e42fb83430586adaaabfd4fe1012107",
+  "root_process_scan": {
+    "status": "passed-root-full-owned-process-record-scan",
+    "records": [
+      {
+        "record": "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/attempt/recovery-before/transport.json",
+        "record_sha256": "45ccc939408c7238f0f4053c898fe4d7832ce5b758f6cafba92b6a5e79b22250",
+        "pid": 4056464,
+        "start_ticks": "176151053",
+        "original_process_stopped": true
+      },
+      {
+        "record": "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/attempt/recovery-before/owned-worker.json",
+        "record_sha256": "09a2193dfac6a138baa758bc9f9f9556e72471dde7b0183f28a6e46371832074",
+        "pid": 4056197,
+        "start_ticks": "176150959",
+        "original_process_stopped": true
+      },
+      {
+        "record": "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/attempt/recovery-before/owned-programmer.json",
+        "record_sha256": "8358a2e671d1121a94ecb45a8019df04e51882d02adb92e163c6b84cf1db0a33",
+        "pid": 4057732,
+        "start_ticks": "176151456",
+        "original_process_stopped": true
+      },
+      {
+        "record": "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/preflight-checks/check-tn4vdwrq/native-baseline/owned-worker.json",
+        "record_sha256": "2c6d9e4b6a1fde824ef8ecc1bbda0dc20c1a96782d4b50cf5748f0998dda1d47",
+        "pid": 4047063,
+        "start_ticks": "176144695",
+        "original_process_stopped": true
+      },
+      {
+        "record": "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/preflight-checks/check-tn4vdwrq/native-diagnostic/owned-worker.json",
+        "record_sha256": "176c163bf1eae5b47e80e564f9e1f2f20b5a583a83e2b60322c70368889282d9",
+        "pid": 4047017,
+        "start_ticks": "176144613",
+        "original_process_stopped": true
+      },
+      {
+        "record": "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/preflight-checks/check-1wfvpdus/native-baseline/owned-worker.json",
+        "record_sha256": "38be36ee057a7a9b8d2c91e4ca097df1bca328c77bbafe459db17119d64d9125",
+        "pid": 3991901,
+        "start_ticks": "176111664",
+        "original_process_stopped": true
+      },
+      {
+        "record": "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/preflight-checks/check-1wfvpdus/native-diagnostic/owned-worker.json",
+        "record_sha256": "9ed26152eee0af7c7994de3a67c637ddfc89d487c317faa5a77d09e4681597ac",
+        "pid": 3991723,
+        "start_ticks": "176111581",
+        "original_process_stopped": true
+      }
+    ],
+    "root_only_preflight_directories_included": true,
+    "device_opened": false,
+    "processes_signalled": false
+  },
+  "root_UART_scan": {
+    "status": "passed-root-process-FD-scan-UART-free",
+    "device": "/dev/ttyUSB0",
+    "open_handles": [],
+    "processes_scanned": 549,
+    "device_opened": false
+  },
+  "USB_identity_inode_permissions_restored": true,
+  "JTAG_auto_1_15M_restored": true
+}

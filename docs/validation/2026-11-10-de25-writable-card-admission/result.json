@@ -1,0 +1,118 @@
+{
+  "status": "passed-software-checks-after-test-phase-repair",
+  "base_commit": "b75db33eb4e794fc647b6a3ba58ad460f7309573",
+  "test_phase_repair_commit": "39cf2b9e6551bf991affe8d7dfa811965dddc54e",
+  "source_sha256": {
+    "platform/embedded/tamago/sdcontrol/session.go": "5441f38e214b6336902485f57946e3d57ceb7c97dfb3f76491aaf59de368f3aa",
+    "platform/embedded/tamago/sdcontrol/session_test.go": "d59edb45f9828cee2caf6b37fa5c47c7e84dd33dbeb0d0d75970aba562a79350",
+    "platform/embedded/tamago/sdcontrol/write_test.go": "c3d1c44945c262ea98fc79b58deffc08001ea13e5ec3c526cb0acef33ff71f9f",
+    "platform/embedded/tamago/board/de25nano/storage.go": "d0b10f4042dd23eac959b02e768ac7f569d6fe7f0a29f0039a5a7c38a2d818a7",
+    "platform/embedded/tamago/nativefabric/verify.py": "f35c3bf2af26012711e5b129c84ef24672d20982da345999315550d50d67a2ef",
+    "tests/test_nativefabric_phases.py": "008c996e37e9fae3628b90de92d80008a4c13fbb575eabe381ee90c96eda65df"
+  },
+  "checks": {
+    "focused": {
+      "result": "out/nano-writable-card-admission-20261110/focused-result.json",
+      "sha256": "3cc809e7a4f1c5403559306afb772bd0810c47baa8fd6b806fddbb42ed157584",
+      "command": [
+        "bash",
+        "-c",
+        "cd platform/embedded/tamago && go test -race -count=1 -timeout 90s ./sdcontrol ./sdhci ./fat"
+      ],
+      "elapsed_seconds": 3.2044208659790456
+    },
+    "crossbuild": {
+      "result": "out/nano-writable-card-admission-20261110/crossbuild-result.json",
+      "sha256": "801e06fb0b92a280f5380a00f1627f1cb48ab5ab5ede5b222ce4c4adf9e4a883",
+      "command": [
+        "python3",
+        "platform/embedded/tamago/run.py",
+        "storage",
+        "--board",
+        "de25-nano",
+        "--profile",
+        "platform/embedded/nano/sd-profile.json",
+        "--compiler",
+        "out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+        "--output",
+        "out/nano-writable-card-admission-20261110/storage-build"
+      ],
+      "elapsed_seconds": 3.4214802379719913
+    },
+    "phase-coverage-isolated": {
+      "result": "out/nano-writable-card-admission-20261110/phase-coverage-isolated-result.json",
+      "sha256": "25f6f9fcf2a58350032319b041da168a6316f8e8c17e00f407432105445e9b1d",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nativefabric_phases.py",
+        "-v"
+      ],
+      "elapsed_seconds": 0.20082282205112278
+    },
+    "integration-phased": {
+      "result": "out/nano-writable-card-admission-20261110/integration-phased-result.json",
+      "sha256": "14a63519f1791602d20ded320ce6673d6ade88bba4dcdab2a478f96bb171fe1d",
+      "command": [
+        "python3",
+        "platform/embedded/tamago/nativefabric/verify.py",
+        "--output",
+        "out/nano-writable-card-admission-20261110/integration-phased"
+      ],
+      "elapsed_seconds": 320.0583105927799
+    }
+  },
+  "parent_regressions": {
+    "tests": 1851,
+    "skipped": 3,
+    "passed": true,
+    "log": "out/nano-writable-card-admission-20261110/affected.log",
+    "log_sha256": "978990168b109f320bcc6fabd7d9a485a15a9b948ad04b66955e1d9daaf24339",
+    "generated_files": 54,
+    "fixture_copies": 37
+  },
+  "initial_affected_run": {
+    "passed": false,
+    "completed_checks": 7,
+    "failed_check": "native runtime firmware and FPGA launch integration",
+    "cause": "cumulative 90-second nativefabric package timeout; baseline also times out",
+    "result": "out/nano-writable-card-admission-20261110/affected-result.json",
+    "result_sha256": "2824edecb51cbe1361414bdf4afc9c3c5dd49776a1c2f7169983d88a9ec3defa",
+    "native_log": "out/native-fabric-hooks-f5b94953575442f6b83b833fef280392/native-tests.log",
+    "native_log_sha256": "d79808f72561fc316779cf39c9b4a21ad16b1077bcf9ee425eda7834f6d6ea0f"
+  },
+  "baseline_control": {
+    "kind": "all changed Go files overlaid from b75db33eb; unchanged firmware, FPGA RPC and fixtures reused",
+    "outcome": "same cumulative 90-second package timeout",
+    "result": "out/nano-writable-card-admission-20261110/baseline-runtime-result.json",
+    "log_sha256": "1996a02078ffd5382ed5fd75baafbffbfd02ca7b3450a76ff4ef9166176dcd50",
+    "overlay_sha256": "017e218865944436ef48c5d67fd2e25d0a9bd6a9e263fa2bef29d09387ca9291",
+    "earlier_setup_failure_retained": "out/nano-writable-card-admission-20261110/baseline-control-result.json"
+  },
+  "replacement_integration": {
+    "passed": true,
+    "result": "out/nano-writable-card-admission-20261110/integration-phased/result.json",
+    "sha256": "0c0e9064f3b3ff6bb296f4c0d96cad25a18a3fdd765ea43fa4554550fc940049",
+    "all_native_phase_deadlines_seconds": 90,
+    "test_partition_coverage_passed": true,
+    "classification": "actual prepared C firmware and Verilated FPGA RTL with injected hardware; host software evidence"
+  },
+  "nano_storage_crossbuild": {
+    "status": "cross-built",
+    "program": "storage",
+    "writes_enabled": false,
+    "elf_sha256": "0b8252ca692377d239c479149c2ecc4a42b13a9fe9060907517646b32a99fc7c",
+    "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
+    "report_sha256": "568e17e759269700acdd39835e12c3113a6844b5ae494d2565a360ef9358cbc7",
+    "hardware_executed": false
+  },
+  "hardware_operations": false,
+  "physical_native_sd_writes_qualified": false,
+  "ordinary_admission": false,
+  "full_appliance_acceptance": false
+}

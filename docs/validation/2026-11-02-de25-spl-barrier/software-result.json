@@ -1,0 +1,127 @@
+{
+  "status": "passed",
+  "head": "eb52a604b37ba571bdfe0db18ca645653cb73f29",
+  "base": "6109e1e2a7043805cf04a7917a83004f3836a8ac",
+  "plan_sha256": "6ded0cedae9d844689b26ce39bab0dd7180177b76cb107e18209724033ef3654",
+  "wrapper_receipt_sha256": "375336c67b9d3d4d35ef324ffc1cf0dadf54f00c886c89194ce4fe8d7ff64d90",
+  "classification": "summary reconstructed from exact successful child receipts after wrapper/report filename collision; no tests rerun",
+  "results": [
+    {
+      "index": 0,
+      "label": "test_affected.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "log": "software-0.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4006227860227227,
+      "log_sha256": "4852c446fbc8bdc7f7e107539a49d1beb2977d1d6cab596a22248004be776a27",
+      "child_receipt_sha256": "b91edfcbf100031773deb6cf68c6e3f7164f7a67630f2c68e287cafce8754b79"
+    },
+    {
+      "index": 1,
+      "label": "test_test_changed.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "log": "software-1.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.4047320230165496,
+      "log_sha256": "64980ca66c64505b4fa035293f19c339ce09583a7ceed09c725eb8ec991cd16f",
+      "child_receipt_sha256": "29fc83715da6a5e3dd9fd0cfc75f3fede3218a1d2df593a6d6d26ca4dcd013bb"
+    },
+    {
+      "index": 2,
+      "label": "committed whitespace",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "6109e1e2a7043805cf04a7917a83004f3836a8ac",
+        "--head",
+        "eb52a604b37ba571bdfe0db18ca645653cb73f29"
+      ],
+      "log": "software-2.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20063160709105432,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "d2739cbf62ebaac3fbefe97b126566171ddb076a371fb8d6914b53cf4754d7b0"
+    },
+    {
+      "index": 3,
+      "label": "working whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "log": "software-3.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20074590400326997,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "d621e5c80ed32b3a66240a7be26ef80ef5a7cdb6bb7a3437a284b15ca64e8471"
+    },
+    {
+      "index": 4,
+      "label": "parent Python regressions",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-spl-barrier-20261102/parent_partitions.py"
+      ],
+      "log": "software-4.log",
+      "planned_argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/nano/README.md\", \"platform/embedded/nano/native_trace.py\", \"platform/embedded/nano/prepare_uboot.py\", \"platform/embedded/nano/spl_cold.c\", \"tests/test_nano_cold.py\", \"tests/test_nano_native_trace.py\"]"
+      ],
+      "verification_mode": "same-selected-suite-partitioned-by-module",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 247.22256368305534,
+      "log_sha256": "a3283d4a2cabe471391f46446fdbcf6168a5bb515f6b83a07b347912b6cd2365",
+      "child_receipt_sha256": "c463fd706a70489a74148fadd76ba2ebb3bcd862dec9ef917934603aa234b3e9"
+    },
+    {
+      "index": 5,
+      "label": "working-tree generated consumer consistency",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "log": "software-5.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.44220456504263,
+      "log_sha256": "a27a95cb58aa34d9c8e98e59f0255fc7fe461ff37727a511ae8796a8303622c9",
+      "child_receipt_sha256": "b2214c7163dde8ef71740e44b543aab749d51aed975ce8aaea18b1ee6c942b3f"
+    }
+  ]
+}

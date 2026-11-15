@@ -1,0 +1,99 @@
+{
+  "status": "passed-off-board-complete-matched-chain",
+  "checks": {
+    "command-guard-sdk": {
+      "argv": [
+        "python3",
+        "out/command-guard-boot/build-native.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 119.6262899870053,
+      "log_sha256": "d45531f35f6b9ec6f1cee3a08bb55341c1ca8141d887f9390ffb5c0be73ec497"
+    },
+    "command-guard-entry": {
+      "argv": [
+        "python3",
+        "out/command-guard-boot/build-chain.py",
+        "entry"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 75.25043703219853,
+      "log_sha256": "293915c64088ac96a2d289cad947a3c73beb601c8feeaf02fd2b272d6af4c79a"
+    },
+    "command-guard-bl31": {
+      "argv": [
+        "python3",
+        "out/command-guard-boot/build-chain.py",
+        "bl31"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 64.5032939570956,
+      "log_sha256": "2282ec8bb58e260db7a8b4d5eb33ddbf263536fb4362a4af2f97339bb00426d2"
+    },
+    "command-guard-uboot": {
+      "argv": [
+        "python3",
+        "out/command-guard-boot/build-chain.py",
+        "uboot"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 155.4258776588831,
+      "log_sha256": "e3a039ba8802e9e371504f3eca7efa80826dad1cba3eac91e09406e20be65140"
+    },
+    "command-guard-composition": {
+      "argv": [
+        "python3",
+        "out/command-guard-boot/compose.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 83.27504399907775,
+      "log_sha256": "6d7e7bce1525097c678ffef6c0d157a136ba59d2aaa0c4b6ac29d195e2b0fd52"
+    },
+    "command-guard-complete-admission": {
+      "argv": [
+        "python3",
+        "out/command-guard-boot/verify-chain.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 69.69671684317291,
+      "log_sha256": "72554faf58cb2e49b72b70232603009317be5102eab9dccde016e0035191cf82"
+    },
+    "command-guard-retention": {
+      "argv": [
+        "python3",
+        "out/command-guard-boot/retain.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 8.006676163058728,
+      "log_sha256": "baf8065f6b3b716c02176d4a9bb32f81036f6e468e5accbc57183bc771618d4d"
+    },
+    "command-guard-post-retention-snapshot": {
+      "argv": [
+        "python3",
+        "-c",
+        "import json,sys; from pathlib import Path; sys.path.insert(0,\"platform/embedded/nano\"); import native_admission; r=Path.cwd(); b=r/\"out/command-guard-boot\"; p=json.loads((b/\"native-admission.json\").read_text()); assert native_admission.snapshot(r,b/\"native-uboot\",b/\"native-entry\")==p[\"inputs\"]; print(\"PASS complete selected native file/tree closure unchanged after retention; no live authority\")"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.8015409191139042,
+      "log_sha256": "b02ce873aac93a0b1c468bc5cacf812de9aa3ee1635a84a5f90a56d6f2f9de85"
+    }
+  },
+  "hardware_actions": false,
+  "hardware_acceptance": false
+}

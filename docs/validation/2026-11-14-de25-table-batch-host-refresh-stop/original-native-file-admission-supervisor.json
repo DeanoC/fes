@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "python3",
+    "out/table-batch-readonly-restoration/admission.py",
+    "prepare",
+    "native-baseline"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 78.92739223502576,
+  "log_sha256": "a4639c6eec8af1edf5fb5cf39addff10dff75c17011cb48aa28daafd3e66c5b3"
+}

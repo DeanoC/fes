@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_nano_paired_tenfoot_trace.py",
+    "-v"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.8010025538969785,
+  "log_sha256": "951396102961fc800d7e9a18b7f94bef96e04eeb41f6391bd6622dec73eccf3e"
+}

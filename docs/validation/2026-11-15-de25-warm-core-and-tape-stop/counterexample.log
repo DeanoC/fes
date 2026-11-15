@@ -1,0 +1,5 @@
+=== RUN   TestRetainedSourceCannotSupplyInitialTapePublication
+    retained_source_tape_counterexample_test.go:26: reproduced completed retained configuration -> tape rejection; zero barriers/SMC calls; entire source and metadata unchanged
+--- PASS: TestRetainedSourceCannotSupplyInitialTapePublication (0.02s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/nativefabric	1.037s

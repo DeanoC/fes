@@ -1,0 +1,7 @@
+test_preparation_publication_timestamp_and_completion_boundaries (test_nano_source_retirement.SourceRetirementTests.test_preparation_publication_timestamp_and_completion_boundaries) ... ok
+test_retirement_staging_publication_completion_and_final_budgets (test_nano_source_retirement.SourceRetirementTests.test_retirement_staging_publication_completion_and_final_budgets) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 1.130s
+
+OK

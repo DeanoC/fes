@@ -1,0 +1,63 @@
+{
+  "status": "passed-file-only-matched-native-full-SOF-selection",
+  "source_commit": "5c5a9a5b48470c45dc450fb1834540209c333891",
+  "matched_result_sha256": "2a1a0275cc9b089204b5d4f72b4d902428804d504e6573c291079c98a90b6ed3",
+  "selected_image": {
+    "path": "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-composition/native-hps-first.sof",
+    "sha256": "ced3df3c0f3ba94b09f4732c8e95f17aa3abb8aac660fb04dbb9257d496d7e21",
+    "bytes": 1578912,
+    "kind": "matched-native-sof",
+    "operation": "p;/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-composition/native-hps-first.sof@1",
+    "volatile": true,
+    "flash_operation": false
+  },
+  "preceding_phase1_sha256": "c3b518b695649d33b14f7857f5a499f121283521ed2214fa47b62f832ff904fd",
+  "unchanged_FIT_sha256": "8d6aa12358f19ce4932eecc39b9dbb5c97bb733613d848a4b1ae04a8baffde4a",
+  "unchanged_SPL_sha256": "fa1e6735f95e47e0658e5761caa6132247a070ae2c1663fa2653f22b2c5f1cca",
+  "embedded_SPL": {
+    "format": "nano-sof-gzip-hps-literals",
+    "spl_bytes": 164001,
+    "spl_binary_sha256": "c91cdf83c5885c7ea8366678fe55553eb386d9dd7db974728603740477c4b6fb",
+    "spl_hex_sha256": "fa1e6735f95e47e0658e5761caa6132247a070ae2c1663fa2653f22b2c5f1cca",
+    "chunks": [
+      {
+        "address": 0,
+        "size": 65536
+      },
+      {
+        "address": 65536,
+        "size": 65536
+      },
+      {
+        "address": 131072,
+        "size": 32929
+      }
+    ],
+    "preserved_sections": 11,
+    "security_hash_and_configuration_crc_verified": false,
+    "hardware_programming_or_boot_acceptance": false
+  },
+  "negative_controls": [
+    {
+      "control": "phase1-is-not-full-SOF",
+      "rejected": true,
+      "error": "requires bounded gzip SOF"
+    },
+    {
+      "control": "different-valid-SPL",
+      "rejected": true,
+      "error": "embedded SPL payload differs from sealed Intel HEX"
+    },
+    {
+      "control": "different-FPGA-reference",
+      "rejected": true,
+      "error": "changed reference FPGA/configuration sections"
+    }
+  ],
+  "all_composition_inputs_rechecked": 26,
+  "hardware_actions": false,
+  "programming_authority": false,
+  "recovery_authority": false,
+  "hardware_acceptance": false,
+  "reason": "Prepare a complete matched SOF alternative to the failed phase1-only programming transition; hardware behavior remains untested."
+}

@@ -1,0 +1,51 @@
+{
+  "header_aware_completion": true,
+  "header_read_api_linked": true,
+  "mailbox_queue_observer_linked": true,
+  "mailbox_observer_policy": {
+    "generated_sha256": "15721d3385614554d1776f5eeb284f5b41863b7a1a63e3dd3522cadcfae2c3ca",
+    "header_sha256": "a7a3e8dccc604fb6f9285572d5977bc00f36ba56417e1308cf0c8b16989db24f",
+    "mailbox_commands_added": false,
+    "mailbox_register_writes_added": false,
+    "mode": "pinned-mailbox-v3-readonly-observer-v1",
+    "observer_header_sha256": "107aa4e4aa0223b9c18ffb8303b91f609a4390848f6f327c49dd13ca44b444fb",
+    "observer_sha256": "2e6a44c50a77995425b268ed3e8cf7a36ccb1bfb91bf4f2b7bfff541f0a47afb",
+    "reference_sha256": "e68ded43ea82299ccee284c971dcabeeab811de33358123c70b994c73ed74834"
+  },
+  "transport_failure_latch_linked": true,
+  "transport_diagnostics_linked": true,
+  "specialized_digest_verified": true,
+  "digest_policy": {
+    "algorithm_changed": false,
+    "cache_state_changed": false,
+    "flags": "-O3",
+    "generated_sha256": "29d00b767bf40349e7074283db6037c725288ef64d767385f693d2cfbd6d501d",
+    "header_sha256": "76a51a6aba59f84f754d9b8102394ff12ce0cdad1fb89cec61130543b73f66fb",
+    "loop_unroll": [
+      10,
+      16,
+      16
+    ],
+    "mode": "pinned-sha384-scalar-unroll-v1",
+    "reference_sha256": "b0e8cb2095a77957741a70f62b42443eaa8e4dfd502aef87bdd3b16f62785d58"
+  },
+  "transform_instruction_words": 2912,
+  "matched_offboard_object_code": true,
+  "passed": true,
+  "elf": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-header-response-20261101/bl31-build-final/source/build/agilex5/release/bl31/bl31.elf",
+  "elf_sha256": "1e2bbcfa1dc2fe03ac9cda20d4f05335c79f8e1c4d6da187f1a11d577a6b289d",
+  "strong_symbols": {
+    "fes_nano_platform_configuration": "00000000800085e0 T fes_nano_platform_configuration",
+    "fes_nano_platform_configuration_setup": "00000000800085ec T fes_nano_platform_configuration_setup",
+    "fes_nano_configuration_before": "0000000080008a34 T fes_nano_configuration_before",
+    "fes_nano_configuration_after": "0000000080008c14 T fes_nano_configuration_after",
+    "sha384_init": "00000000800001a0 T sha384_init",
+    "sha384_update": "0000000080002fc0 T sha384_update",
+    "sha384_finish": "0000000080003200 T sha384_finish",
+    "fes_nano_mailbox_observe": "000000008000a8a8 T fes_nano_mailbox_observe"
+  },
+  "header_sha256": "9193bc923285614213288c652cbb5f5bb9290880e50bf862f9d49afcfa329be9",
+  "configuration_enabled": true,
+  "bounded_core_bytes": 2027520,
+  "counter_and_digest_trace_linked": true
+}

@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/publication/close-table-batch-skips.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-table-batch-proof",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 81.03960476792417,
+  "log_sha256": "e982e46f98e9b1a2a03db899bd621b38d51e640a5c9277ba8fe2b93c13db37e0"
+}

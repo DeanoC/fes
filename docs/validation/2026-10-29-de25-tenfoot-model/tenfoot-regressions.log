@@ -1,0 +1,22 @@
+=== RUN   TestUSBKeyboardBrowseDetailSearchAndLaunch
+--- PASS: TestUSBKeyboardBrowseDetailSearchAndLaunch (0.03s)
+=== RUN   TestRunPlatformRendersAndNavigatesRealApp
+--- PASS: TestRunPlatformRendersAndNavigatesRealApp (0.02s)
+=== RUN   TestRunPlatformRejectsMissingTime
+--- PASS: TestRunPlatformRejectsMissingTime (0.00s)
+=== RUN   TestRunPlatformExitPathsStopAppAndKeepDevice
+=== RUN   TestRunPlatformExitPathsStopAppAndKeepDevice/next_failure
+=== RUN   TestRunPlatformExitPathsStopAppAndKeepDevice/present_failure
+=== RUN   TestRunPlatformExitPathsStopAppAndKeepDevice/quit
+=== RUN   TestRunPlatformExitPathsStopAppAndKeepDevice/cancelled
+--- PASS: TestRunPlatformExitPathsStopAppAndKeepDevice (0.01s)
+    --- PASS: TestRunPlatformExitPathsStopAppAndKeepDevice/next_failure (0.00s)
+    --- PASS: TestRunPlatformExitPathsStopAppAndKeepDevice/present_failure (0.00s)
+    --- PASS: TestRunPlatformExitPathsStopAppAndKeepDevice/quit (0.00s)
+    --- PASS: TestRunPlatformExitPathsStopAppAndKeepDevice/cancelled (0.00s)
+=== RUN   TestRunPlatformRejectsRegressingTimeBeforeSecondPresent
+--- PASS: TestRunPlatformRejectsRegressingTimeBeforeSecondPresent (0.01s)
+=== RUN   TestAppPollsSessionParksAndStops
+--- PASS: TestAppPollsSessionParksAndStops (0.04s)
+PASS
+ok  	github.com/DeanoC/FogCast/ui/tenfoot	1.178s

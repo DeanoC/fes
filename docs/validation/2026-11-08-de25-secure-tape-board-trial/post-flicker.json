@@ -1,0 +1,33 @@
+{
+  "status": "passive-capture-complete",
+  "board": "TRWU8CBL",
+  "identity": {
+    "serial": "TRWU8CBL",
+    "idVendor": "09fb",
+    "idProduct": "6026",
+    "busnum": "3",
+    "devnum": "71"
+  },
+  "uart_initial_owners": [],
+  "exclusive_read_only_open": true,
+  "serial_bytes_transmitted": 0,
+  "bytes_captured": 0,
+  "elapsed_seconds": 12.001988088944927,
+  "termios_restored": true,
+  "descriptor_closed": true,
+  "jtag_accessed": false,
+  "sd_writes": false,
+  "reset_or_reprogramming": false,
+  "current_board_state": "unproven unless captured output independently establishes it",
+  "continuing_claim_retained": true,
+  "finished_utc": "2026-11-08T08:29:15.412950+00:00",
+  "native_attempt_finished_utc": "2026-11-08T08:19:21.797760+00:00",
+  "later_host_hub_reconnect_cluster_started_utc": "2026-11-08T08:21:33+00:00",
+  "observation": "Native attempt finished before the logged later host-hub reconnect cluster. Passive UART capture was quiet and does not establish current boot/application state or the cause of the earlier root-port failure.",
+  "source_sha256": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-post-flicker-readonly-20261108/capture.py": "90d78a614b029ffad137dc7e9eb0ed194d1ce4418ffd59bd46b2763fec989914",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-post-flicker-readonly-20261108/console.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-post-flicker-readonly-20261108/usb-events.log": "5bceb48a236805c488cd57658a9ed60d96ac67cb6ce5af89c76b99250a9147e3",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-post-flicker-readonly-20261108/result.json": "cba9652d2a9a05139bdc9d0d64c7b91a266add6d42e537fbcf4737a5669b0b20"
+  }
+}

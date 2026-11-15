@@ -86,3 +86,44 @@ func TestGenerateDE25FabricRejectsMacroCollisions(t *testing.T) {
 		})
 	}
 }
+
+func TestComputerABIConstantsCompileWithoutMetadataCollisions(t *testing.T) {
+	abi, err := pack.LoadABI("../../packages/abi/fes_computer.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, err := GenerateABI(abi)
+	if err != nil {
+		t.Fatal(err)
+	}
+	macros := regexp.MustCompile(`(?m)^#define [A-Z0-9_]+ 0x[0-9a-f]{8}U$`).FindAllString(generated, -1)
+	if len(macros) != len(abi.Constants) {
+		t.Fatal("ABI constant coverage differs", len(macros), len(abi.Constants))
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "computer.h"), []byte(generated), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cc, err := exec.LookPath("cc")
+	if err != nil {
+		t.Skip("C compiler unavailable for freestanding ABI header check")
+	}
+	command := exec.Command(cc, "-std=c11", "-ffreestanding", "-nostdinc", "-Wall", "-Werror", "-fsyntax-only", "-I", dir, "-x", "c", "-")
+	command.Stdin = strings.NewReader(`#include "computer.h"
+#include "computer.h"
+_Static_assert(FES_COMPUTER_ABI_TAG == 4, "ABI tag");
+_Static_assert(FES_COMPUTER_OPCODE_MEDIA_DATA == 8, "media framing");
+_Static_assert(FES_COMPUTER_MEDIA_CHUNK_MAX_BYTES == 512, "chunk bound");
+_Static_assert(FES_COMPUTER_REQUEST_MASK == 0x80000000U, "request bit");
+`)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("ABI header failed to compile: %v\n%s", err, output)
+	}
+	for _, name := range []string{"FesComputerConstantsV1H", "FesComputerAbiTag"} {
+		copy := *abi
+		copy.Constants = append(append([]pack.ABIConstant(nil), abi.Constants...), pack.ABIConstant{Name: name, Value: 1})
+		if _, err := GenerateABI(&copy); err == nil {
+			t.Fatal("accepted colliding ABI macro", name)
+		}
+	}
+}

@@ -1,0 +1,131 @@
+{
+  "status": "actual-RTL-ready-write-hazard-and-queue-prototype-checked",
+  "checks": {
+    "baseline-rtl": {
+      "expected_returncode": 0,
+      "receipt_sha256": "c7307224e75e891df9ed2f496a57ee29b5346da1eed8d99d6c37e1874ad6d22e",
+      "argv": [
+        "python3",
+        "sources/misteross/prototypes/embedded_control/verify_menu.py",
+        "--output",
+        "out/nano-menu-receipt-timing-20261109/baseline-rtl"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 38.02884983085096,
+      "log_sha256": "15a0bd0be4f6e46eaa95207f630a626c3ca0bbb7d1c4dda92a5931cde47fdfe4"
+    },
+    "ready-race": {
+      "expected_returncode": 0,
+      "receipt_sha256": "a5d0df207d7d1cb4077d929f97968738545aa83fb441da0c46076d1a6fda4516",
+      "argv": [
+        "env",
+        "FES_MENU_CSR_DIR=/home/deano/fes/out/dev/de25-embedded-os/out/nano-menu-receipt-timing-20261109/baseline-rtl/native-csr",
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-overlay=/home/deano/fes/out/dev/de25-embedded-os/out/nano-menu-receipt-timing-20261109/overlay.json",
+        "./scanout",
+        "-run",
+        "^TestMenuReadyWriteRaceActualRTL$",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.0023643490858376,
+      "log_sha256": "0e985ceaddebb8d31fd452b36c41e452b964c91377dc1b73c129f1f6cdd31c5e"
+    },
+    "queued-old-control": {
+      "expected_returncode": 1,
+      "receipt_sha256": "38503ef2423e3887afa57d2f6976de3c859f0677e31e73d117eae60dbd27bfc8",
+      "argv": [
+        "env",
+        "FES_MENU_CSR_DIR=/home/deano/fes/out/dev/de25-embedded-os/out/nano-menu-receipt-timing-20261109/baseline-rtl/native-csr",
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-overlay=/home/deano/fes/out/dev/de25-embedded-os/out/nano-menu-receipt-timing-20261109/queued-overlay.json",
+        "./scanout",
+        "-run",
+        "^TestMenuQueuedCapacityActualRTL$",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 1,
+      "timed_out": false,
+      "elapsed": 1.2016623511444777,
+      "log_sha256": "c6b79cc9219b36ed40b929523708df89ae445daba4af3661ac5bd5375df2329e"
+    },
+    "prototype-build": {
+      "expected_returncode": 0,
+      "receipt_sha256": "5357ea8cf1e777bd87a70bf25f075d90a8641b304da17a6f50aba0b794a56f36",
+      "argv": [
+        "python3",
+        "out/nano-menu-receipt-timing-20261109/prototype/build.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.2020724948961288,
+      "log_sha256": "3fee658c6efd5d163bd485af0e4ad4fd1cf2adb9255441e9da94a17123223508"
+    },
+    "queued-prototype": {
+      "expected_returncode": 0,
+      "receipt_sha256": "117d76a86d51f7302333fa638bb7e0694281eabb648fbda6b4357072042f27cb",
+      "argv": [
+        "env",
+        "FES_MENU_CSR_DIR=/home/deano/fes/out/dev/de25-embedded-os/out/nano-menu-receipt-timing-20261109/prototype",
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "120s",
+        "-overlay=/home/deano/fes/out/dev/de25-embedded-os/out/nano-menu-receipt-timing-20261109/queued-overlay.json",
+        "./scanout",
+        "-run",
+        "^TestMenu(ActualRTL|QueuedCapacityActualRTL)$",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 26.619000473059714,
+      "log_sha256": "9c870650cd5c8e21870469a7a372eb21c4a0215e20c0a76f3149bb493d7c0c47"
+    },
+    "selected-rtl": {
+      "expected_returncode": 0,
+      "receipt_sha256": "9c22cc2e65d4c117be0af3c6d81853b3923d75c62780671b33c92004d872988c",
+      "argv": [
+        "python3",
+        "sources/misteross/prototypes/embedded_control/verify_menu.py",
+        "--allow-dirty",
+        "--output",
+        "out/nano-menu-receipt-timing-20261109/selected-rtl"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 37.82729069702327,
+      "log_sha256": "a8549471ec40b7130715bd0d06f773bcd71a4bdf551fb1d871048df639dfe4af"
+    }
+  },
+  "board_failure": "docs/validation/2026-11-09-de25-channel-fault-trial/hardware-result.json",
+  "board_root_cause_proven": false,
+  "posted_store_response_assumption_explicit": true,
+  "production_queue_selected": true,
+  "new_fpga_artifact_built": false,
+  "new_hardware_trial_started": false,
+  "ordinary_core_load_acceptance": false,
+  "goal_complete": false
+}

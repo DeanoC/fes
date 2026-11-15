@@ -1,0 +1,33 @@
+{
+  "status": "verified",
+  "source_commit": "82c410cc8a5af4fa2c77d535b3bd22eb7a19fa19",
+  "board_serial": "TRWU8CBL",
+  "carried_forward_upload_receipt_sha256": "dbdb79aac73b1ae8744cb7e0da48947e97f00c09d02a6741ec42a2014259b353",
+  "recovery_receipt_sha256": "5e7076d890788a3b170697f879a3ee5d2f1abaa9bfc56d2209d6f80fcbbe0d6e",
+  "read_only": true,
+  "fresh_readback": true,
+  "sd_write_attempted": false,
+  "purpose": "boot",
+  "commands": [
+    {
+      "command": "fatload mmc 0:1 83000000 FES/UPLOAD.BIN",
+      "output": "fatload mmc 0:1 83000000 FES/UPLOAD.BIN; echo FES_UPLOAD_0b8aced51862=$?\r\n6499492 bytes read in 546 ms (11.4 MiB/s)\r\nFES_UPLOAD_0b8aced51862=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "hash sha256 83000000 632ca4",
+      "output": "hash sha256 83000000 632ca4; echo FES_UPLOAD_1925398bd7d5=$?\r\nsha256 for 83000000 ... 83632ca3 ==> d3c12590eb79340d783dcddf06edd694848fac23f6612ccdfc975f3ba7c345ee\r\nFES_UPLOAD_1925398bd7d5=0\r\nSOCFPGA_AGILEX5 # "
+    }
+  ],
+  "sd_readback_verified": true,
+  "prompt_parked": true,
+  "payload_sha256": "d3c12590eb79340d783dcddf06edd694848fac23f6612ccdfc975f3ba7c345ee",
+  "payload_bytes": 6499492,
+  "card_verified": true,
+  "boot_files_unchanged": true,
+  "recovery_manifest_unchanged": true,
+  "phy_link_verified": true,
+  "recovery_mac": "02:fe:25:08:cb:01",
+  "phy_id": 2233890,
+  "package_receipt_sha256": "802b398752ef061e4dc8bf21671f3eebb19fd8161daf9cb480d2c146e34cece6",
+  "finished_utc": "2026-11-02T10:57:34.488555+00:00"
+}

@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/publication/retain-publication-loading-analysis.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.20077381213195622,
+  "log_sha256": "a92f1736b0d582e54e48ef3b8e28c1cc0d38b82767fb38f66cfe15a5f4b71fdc"
+}

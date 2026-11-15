@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "native_build_source_commit": "4b62ea3234f6d9ae427327d80033594a1100d4b8",
+  "current_source_commit": "7b05f14719cd5ef5733f9f5a78e69e4f54347c0c",
+  "native_selected_git_blobs": 110,
+  "selected_pinned_module_cache_files": 472,
+  "selected_compiler_sdk_sources": 826,
+  "selected_bytes_match_compiled_receipt": true,
+  "native_selected_blobs_match_compiled_source": true,
+  "selection_proof_sha256": "6c7c201a089aa7535ee0240198ec7f02f4bb2af06422202fe20ec741f327f5dd",
+  "fixture_only_followup": "platform/embedded/firmware/tests/nano_sd_rpc.c",
+  "runtime_admission": false
+}

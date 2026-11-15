@@ -1,0 +1,38 @@
+{
+  "verification_status": "passed",
+  "hardware_result": "sender-exit-before-uart-queue-drain",
+  "checkout_commit": "7d93bacb1fc228777c3f6d50befdb8fc785c8dd0",
+  "implementation_source_commit": "35f4d552971f724235249da965e92423dda245d1",
+  "hardware_failures_on_implementation": 2,
+  "sender_returncode": 0,
+  "generated_bytes": 1358,
+  "transmitted_bytes": 1356,
+  "unsent_bytes": 2,
+  "unsent_hex": "0d0a",
+  "ram_probe_verified": false,
+  "sd_write_attempted": false,
+  "native_boot_attempted": false,
+  "cleanup": {
+    "known_old_recovery_prompt_restored": true,
+    "original_clock_restored": true,
+    "usb_permissions_restored": true,
+    "private_server_stopped": true,
+    "uart_free": true,
+    "claim_retained": true
+  },
+  "input_sha256": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-probe-20261103/preflight.json": "16198def49c392eab7ac444b5d94929ca9edeefb52ecdd7ef73173f6988b8c0a",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-probe-20261103/probe-result.json": "a10602359b897859e5eb74e1f173bddb8f6a78d8ec7fefe5212cc5ed6e88451f",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-probe-20261103/sender.log.json": "aa16f5687b88b7d9a70f6e089dbc6a2677a003278a9be7b42ec5921d7a15f8b2",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-probe-20261103/sender.log.wire/sender-stdout.bin": "e167ac39e8e7789a43404488a634c6a1d3233919d3c4cffdde33ce6bd40e65c2",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-probe-20261103/sender.log.wire/host.bin": "baaa6c38b633f4ca39457526fb32cebe5178b965eeb0fcd5df715c502214d16e",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-probe-20261103/sender.log.wire/target.bin": "9acd562817caf1639ea9b74cecb882f607d3d3a8bc23a20d02d5429719ff4885",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-probe-20261103/sender.log.wire/gkermit.debug": "4f15b0889537425c79e30df04f9ba23fb23d6e7b140d6212ddd676fce86a5ac7",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-probe-20261103/hardware-result.json": "c553116bc62dadd9387f50a17a130f03e3206a56c3a96dcd0aa8f1f2b23b3ad1",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-probe-20261103/recovery-cleanup/experiment-result.json": "00319ef785fdf1f533447154fe40f63c2deeb0eb389ca62f9fbb18baf18eb099",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-probe-20261103/recovery-cleanup/recovery-old-result.json": "67b8da09528065d5cc100638fcf930ac090f4e27c68b90b7fb1be0e9473b1885",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-probe-20261103/recovery-cleanup/recovery-old-console.log": "d7dd3ad888c404a08521c97d711a715b0129656f1ca7017b3b73bdc350c4a803",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-probe-20261103/recovery-cleanup/transport.json": "f0ef5d472336023149e17dc43664b46bb2ae9d9fbf8f15e304b7b279a3871d6f",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-probe-20261103/recovery-cleanup/clock-restored-readback.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18"
+  }
+}

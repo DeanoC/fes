@@ -1,0 +1,181 @@
+{
+  "head": "fff77d0ce6d70a753ad3350e0ee53be03203d818",
+  "base": "207e8d619f2cab5bb2f34a7fc90f5c50cea3ca82",
+  "status": "failed",
+  "results": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ],
+      "index": 0,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": null,
+      "cap_seconds": 300,
+      "log": "software-00.log",
+      "log_sha256": "390dbee607dca4ac82f927b39e19a479be3f1774ded7a54c1968bd222b76a178",
+      "receipt_recovered_from_completed_orchestrator_log": true
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ],
+      "index": 1,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": null,
+      "cap_seconds": 300,
+      "log": "software-01.log",
+      "log_sha256": "0b5fa249741c3af37838f03b1bd0e17c58739353d29b1e56c1e53428f30b971b",
+      "receipt_recovered_from_completed_orchestrator_log": true
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "207e8d619f2cab5bb2f34a7fc90f5c50cea3ca82",
+        "--head",
+        "fff77d0ce6d70a753ad3350e0ee53be03203d818"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [],
+      "index": 2,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": null,
+      "cap_seconds": 300,
+      "log": "software-02.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_recovered_from_completed_orchestrator_log": true
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": [],
+      "index": 3,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": null,
+      "cap_seconds": 300,
+      "log": "software-03.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receipt_recovered_from_completed_orchestrator_log": true
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/generated/fes_embedded_bridges.h\", \"platform/embedded/firmware/nano_cold_platform.c\", \"platform/embedded/firmware/nano_identity.c\", \"platform/embedded/firmware/nano_identity.h\", \"platform/embedded/firmware/nano_owned_sip.inc\", \"platform/embedded/firmware/tests/nano_cold_platform_test.c\", \"platform/embedded/firmware/tests/nano_reader_rtl_test.cpp\", \"platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_bridges.go\", \"platform/embedded/tamago/nativefabric/README.md\", \"platform/embedded/tamago/nativefabric/controlprobe.go\", \"platform/embedded/tamago/nativefabric/controlprobe_test.go\", \"platform/embedded/tamago/nativefabric/readerprobe_test.go\", \"sources/mister-packages/docs/embedded-bridges.md\", \"sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml\", \"sources/mister-packages/testdata/oracles/fes-embedded-bridges.json\", \"tests/test_nano_configuration.py\", \"tests/test_nano_identity.py\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ],
+      "index": 4,
+      "returncode": 1,
+      "timed_out": false,
+      "elapsed": null,
+      "cap_seconds": 300,
+      "log": "software-04.log",
+      "log_sha256": "7814a4572e01b69ca4537b2fabbd97d3d633e6beb6ade637670a1cfecefd6cea",
+      "receipt_recovered_from_completed_orchestrator_log": true
+    },
+    {
+      "lane": "fpga",
+      "label": "test_*.py",
+      "cwd": "sources/misteross",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "strace"
+      ],
+      "files": [
+        "tests/test_*.py"
+      ],
+      "index": 11,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": null,
+      "cap_seconds": 840,
+      "log": "software-11.log",
+      "log_sha256": "3627bc192b2bb41e38caaef98c624549f28ee7759350392212ac8753526fe774",
+      "receipt_recovered_from_completed_orchestrator_log": true
+    }
+  ],
+  "recovery_note": "The outer wrapper used the same result filename and replaced the inner summary. Phase outcomes and exact log hashes are recovered from the complete saved terminal orchestration log; individual elapsed values are unavailable.",
+  "outer_receipt_sha256": "0436a8761e384c236c456ce512230a75b896f37b30a90deb8e55b323be9ec025",
+  "completed_orchestrator_log_sha256": "fcbe6d736cd2c5046d6932b1095c7b96bdbac58387048042de01166610c824fa"
+}

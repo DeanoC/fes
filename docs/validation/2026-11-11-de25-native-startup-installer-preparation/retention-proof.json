@@ -1,0 +1,23 @@
+{
+  "status": "retained-offboard-installer-controller",
+  "source_head": "e9c7a63f83c30c6540ec86aece935a1cce81962c",
+  "compiled_source": "da33a94cc56ca7a975eb275ce04d1d3cf30c0890",
+  "native_boot_id": "b3ed4389ad43d91b",
+  "files": 80,
+  "archive_sha256": "67baea548a3a0cd600b85d316f454acc3e477b4bdf794e89bca2d29fe10674c6",
+  "source_bundle_sha256": "7fdcf84f4c558f41a5cb9973fdd2645d577cdb2441afd6397d9c77f16a781d89",
+  "base_bundle": "/home/deano/fes-retained/de25-menu-return-observation-20261110-r1/source.bundle",
+  "base_bundle_sha256": "d7166cde75bd88ea7f9d14ac4a5706b55c74cd215cc4f375abd1a5d6661a17d0",
+  "source_restore_fsck_pack_verified": true,
+  "archive_readback_modes_verified": true,
+  "candidate_dependency": {
+    "path": "/home/deano/fes-retained/de25-usb-startup-chain-prepared-20261111-r1",
+    "manifest_sha256": "5603f9b3fd957a036481994ebf6c76f030bc500297664a51778f375e01f5c225",
+    "archive_sha256": "7939b4800636b238dad7e52728f762f8589329c01445ad75f8915e815302916d"
+  },
+  "live_admission": false,
+  "hardware_actions": false,
+  "keyboard_connection_confirmation_pending": true,
+  "physical_installation_verified": false,
+  "persistence_verified": false
+}

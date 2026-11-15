@@ -1,0 +1,28 @@
+{
+  "serial": "TRWU8CBL",
+  "source_commit": "3b38d09b67fc7c9d6b153583855b6eaf15d85d95",
+  "phase": "recovery-boot",
+  "sof_sha256": "07cdad09617584c454fe3d54d3d2b8afd83327e1fa39607cd8ebc634363e7a6b",
+  "initial_card_image_sha256": "42ac2e14fcb224fb8f39c38b0f26e7999b31c800180bd22489619fdc39f4bacf",
+  "card_reference_scope": "historical preparation only; live file verification is in the new upload receipt",
+  "fit_sha256": "25ebdf98d253e41f51e4b55b78314ffe6e03d346825af8582268eacef1d25f90",
+  "started_utc": "2026-11-02T15:06:09.269060+00:00",
+  "stage": "exact cable and FPGA query",
+  "programming_attempted": false,
+  "fesboot_sent": false,
+  "pass": false,
+  "sd_write_commands_sent": false,
+  "runner_sha256": "e9397cce8c635ee18c732d46d53e63c347f17cdc353170e800617213de1d1422",
+  "clock_checks": [
+    {
+      "clock": "6M",
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    }
+  ],
+  "error": "JTAG chain query rejected",
+  "usb_permissions_restored": true,
+  "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "finished_utc": "2026-11-02T15:06:18.472845+00:00",
+  "native_admission": false,
+  "decoder_sha256": "d06445c269a8d8c1043186c10204eb0eeaad0aef57de7dc4224805c91c2ce29a"
+}

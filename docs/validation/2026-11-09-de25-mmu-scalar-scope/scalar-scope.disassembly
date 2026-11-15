@@ -1,0 +1,15 @@
+
+/home/deano/fes/out/dev/de25-embedded-os/out/nano-mmu-scalar-scope-20261109/native-bl31-r3/source/build/agilex5/release/bl31/bl31.elf:     file format elf64-littleaarch64
+
+
+Disassembly of section .ro:
+
+0000000080023a18 <fes_nano_mmu_platform_scope>:
+    80023a18:	90000003 	adrp	x3, 80023000 <expected.isra.0+0x12c>
+    80023a1c:	d2800002 	mov	x2, #0x0                   	// #0
+    80023a20:	9122d063 	add	x3, x3, #0x8b4
+    80023a24:	90000061 	adrp	x1, 8002f000 <hps_io_registers+0x738>
+    80023a28:	b0c001c0 	adrp	x0, 5c000 <hps_io+0x170>
+    80023a2c:	91030021 	add	x1, x1, #0xc0
+    80023a30:	911e0000 	add	x0, x0, #0x780
+    80023a34:	17fffe5c 	b	800233a4 <fes_nano_mmu_scope>

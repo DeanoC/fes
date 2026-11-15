@@ -1,0 +1,218 @@
+{
+  "allocation_audit": {
+    "allocations": {
+      "candidate": [
+        327680,
+        393216
+      ],
+      "firmware_bss": [
+        360448,
+        384704
+      ],
+      "firmware_stacks": [
+        327680,
+        360448
+      ],
+      "full_uboot_initial_stack": 2150629376,
+      "lifetime": "SPL stack/data/allocators excluded before branch; selected BL31 owns stack/BSS after guarded entry; native stage-1 mappings exclude the region; remaining hardware/latency acceptance requires a bounded trial",
+      "native_go_ram": [
+        2214592512,
+        2483027968
+      ],
+      "spl_bss": [
+        3220176896,
+        3220177592
+      ],
+      "spl_cold_record": [
+        139296,
+        139520
+      ],
+      "spl_early_heap": [
+        454656,
+        462848
+      ],
+      "spl_loaded_image": [
+        0,
+        152640
+      ],
+      "spl_main_heap": [
+        3214934016,
+        3220176896
+      ],
+      "spl_stack_floor": 397312,
+      "spl_stack_top": 462848,
+      "vendor_bl2_mmc_scratch": [
+        512000,
+        520192
+      ],
+      "vendor_handoff": [
+        520192,
+        524288
+      ],
+      "warm_scratch": [
+        520176,
+        520192
+      ]
+    },
+    "chain_sha256": "c458b757b73dc1e8967c79d0892b32b5592cabc62b09cc48665f85db307ef92b",
+    "classification": "matched experimental file chain with compiled branch and allocation checks; no hardware boot",
+    "evidence": {
+      "out/nano-firmware-ocram-20261106/audit_chain.py": "e2313e40c9400b0749a3b3a122806fa3c054bf4c2964bfc6e4aea12aa523ad30",
+      "out/nano-firmware-ocram-20261106/native-bl31/result.json": "b50d42a2b5583116328f4bf62c5cebfdec94c71eeb19e448fc0d782856bd4a96",
+      "out/nano-firmware-ocram-20261106/native-composition/result.json": "a29e1064a984e3bc107f904de48b566f23d8f321a33ff5a84d08e6d19137ccf6",
+      "out/nano-firmware-ocram-20261106/native-uboot/result.json": "75f5192579cc3a84b26391a856f8b0b6764488ad67737794d0dc1b224053809b",
+      "out/nano-firmware-ocram-20261106/spl-final-branch.disassembly": "28357bc3de6761124b8056fd8971e78f55acebee028edb8cccfb8dab9e36d753",
+      "out/nano-firmware-ocram-20261106/spl-live-guard.disassembly": "b1e3310aa8c1ca148bac2a71779788f22be1dc1bf753d8f519723a9116bbade4"
+    },
+    "firmware_ram": {
+      "base": 327680,
+      "cookie": 5066077071256584193,
+      "format": 1,
+      "limit": 393216,
+      "scope": "matched-spl-el3-ocram-nobits-v1",
+      "stack_end": 360448
+    },
+    "fit_bytes": 8097792,
+    "hardware_actions": false,
+    "native_source_reuse": "31d716957759c3dede3330877dac2ce7bcd2d643 byte-exact retained native application/entry",
+    "ordinary_admission": false,
+    "permission_to_program": false,
+    "spl_cookies": {
+      "x3": 5066060512865812482,
+      "x4": 5066077071256584193
+    },
+    "spl_guard_leaf": true,
+    "status": "PASS",
+    "success_branch_stack_writes": false
+  },
+  "classification": "selected matched OCRAM firmware file chain and off-board execution; physical acceptance pending",
+  "core_load_acceptance": false,
+  "evidence": {
+    "out/nano-firmware-ocram-20261106/audit_bl31-v1.py": "520e3d4d642b13def7eca2cb2e970f288384192b347a871cf733ef08848efc7a",
+    "out/nano-firmware-ocram-20261106/audit_bl31.py": "10782f1c115c4931880c1c6f2c4339af3c88b7040993c1b8f884b4347b6f5de2",
+    "out/nano-firmware-ocram-20261106/audit_chain.py": "e2313e40c9400b0749a3b3a122806fa3c054bf4c2964bfc6e4aea12aa523ad30",
+    "out/nano-firmware-ocram-20261106/bl31-audit-result.json": "aeef274e6fe19f147197a7509caa687155208f78ba17eb5eedf92f2c8fd42813",
+    "out/nano-firmware-ocram-20261106/bl31-audit-v2-result.json": "c5579d4cfa47e911045a32e40b6d807ec918b4e3668421d91507688755f8fb28",
+    "out/nano-firmware-ocram-20261106/bl31-audit.json": "c71cdc8c834bef62f40c9f00808bd8d8d3ab01c15cd08154b07eb71a6a53ab70",
+    "out/nano-firmware-ocram-20261106/bl31-selected-result.json": "123e1c7823098bb035849e0093873573195c180c1b3d695e60bb024b7511b013",
+    "out/nano-firmware-ocram-20261106/build-plan.json": "187bbf71d5f9222152bce26fcb31ad2bac564e906924870e3b347677a65c7151",
+    "out/nano-firmware-ocram-20261106/chain-audit-result.json": "c228ffc9ba947410ca648e7de5068a930a9cd3d58f9db4734b23aa37eecb1015",
+    "out/nano-firmware-ocram-20261106/chain-audit.json": "af4624fde4ba851b4a99c086f2a9b23ff2da92100648942f54e308a76a234d97",
+    "out/nano-firmware-ocram-20261106/changed-checks-result.json": "ebd4cfecfaca7deb42574198d1544c5b654628971c3e89a488a6e81e4dfdbbe6",
+    "out/nano-firmware-ocram-20261106/composition-result.json": "1bb0ccb12688034de9bfdc9232f35eb288bc17db7c45d8b5a6745464e0bbeaab",
+    "out/nano-firmware-ocram-20261106/entry-cases-result.json": "508736b3386d458ce71e4d3ad6475c09362bed2b9d6e7fe046952c5a88935aea",
+    "out/nano-firmware-ocram-20261106/entry-cases/result.json": "8139886b57dc8fef9e195f0814fbe5a460c74811e2b24f98856acbe7a37e6ded",
+    "out/nano-firmware-ocram-20261106/entry-faults-result.json": "23556b88a853e94eaa0d2652a30cdfccb1f62904717eb8b646957c98f88115ed",
+    "out/nano-firmware-ocram-20261106/entry-faults-v2-result.json": "daf84336baa0e2d2838db8844e03e18d4feddf5710445c2935d646977206665d",
+    "out/nano-firmware-ocram-20261106/entry-faults-v2/result.json": "cbbd6c8bea0d40c8da345e2fd0e89538d29c2cfc219a1c90d50b5ea66fe3ecba",
+    "out/nano-firmware-ocram-20261106/entry-pilot-result.json": "66091fa839d3eacb0bba4aa3791da74ea534867eb4ece9f08724fadfb49deed6",
+    "out/nano-firmware-ocram-20261106/entry-pilot-v2-result.json": "ffde7730c647530af549210414cc77385a347d92eecea6dad4fd5589e75057cc",
+    "out/nano-firmware-ocram-20261106/entry-pilot-v2/result.json": "218ad8275cb2e29d58e78f94c34fb3a08268ee0fad479149053699093174e724",
+    "out/nano-firmware-ocram-20261106/entry_check.py": "b78d647c31d769c7f371023de98f43d0fd76a7609437452d5473f4a976add28d",
+    "out/nano-firmware-ocram-20261106/first-tests-result.json": "ad67d81184e4f07b2ece5a43e09f943a123dc714d5ebc4e831e88f351bb7c14b",
+    "out/nano-firmware-ocram-20261106/native-bl31/result.json": "b50d42a2b5583116328f4bf62c5cebfdec94c71eeb19e448fc0d782856bd4a96",
+    "out/nano-firmware-ocram-20261106/native-composition/result.json": "a29e1064a984e3bc107f904de48b566f23d8f321a33ff5a84d08e6d19137ccf6",
+    "out/nano-firmware-ocram-20261106/native-uboot/result.json": "75f5192579cc3a84b26391a856f8b0b6764488ad67737794d0dc1b224053809b",
+    "out/nano-firmware-ocram-20261106/publication-check-result.json": "aabbdb79a0713c4585fb0b19c44d8e7b3407a704b8eadbc2780c9db6df3e1be7",
+    "out/nano-firmware-ocram-20261106/retain.py": "6647f4adab34309f1b126c8b3929b0ac2f444431800a3a3a9db5bc5e1adffc43",
+    "out/nano-firmware-ocram-20261106/run.py": "8dea93a99adab57fd4721de0379fa6fbbcd75877d64f4d7e8ed80a041df6ed3c",
+    "out/nano-firmware-ocram-20261106/selection-final-result.json": "4c2d283142352e2f2ba4bd01786dd5e45af76e06be9f3f88ebf2dc8c064c2a95",
+    "out/nano-firmware-ocram-20261106/selection-tests-result.json": "1b0c84d17f88e5957d7bb7954525eedb91181be8eb08d1b5214712d4a4f806fb",
+    "out/nano-firmware-ocram-20261106/selection-tests-v2-result.json": "7af2fe40fc8fcf8c39e929adcc6f738f429d6157fcec776bb42180eab4fcde80",
+    "out/nano-firmware-ocram-20261106/spl-final-branch.disassembly": "28357bc3de6761124b8056fd8971e78f55acebee028edb8cccfb8dab9e36d753",
+    "out/nano-firmware-ocram-20261106/spl-live-guard.disassembly": "b1e3310aa8c1ca148bac2a71779788f22be1dc1bf753d8f519723a9116bbade4",
+    "out/nano-firmware-ocram-20261106/uboot-selected-result.json": "dbcae4ff487809f6ca674fc360625df73bd79bf855224c79afde640d4a2efb45"
+  },
+  "firmware_binary_sha256": "05bfbf5c88749e4701bfbd41540892dc401beb6a46ea6a829f9730ad38be8e70",
+  "format": 1,
+  "hardware_actions": false,
+  "implementation_source": "b642fc3c9cc1c8d2b7d7f7af24507110932ef01b",
+  "implementation_sources": {
+    "platform/embedded/firmware/README.md": "6cf7bbd6e2d85b5ecc67c88a563cd3112cf08180b6459a45f83c15eba33df0ca",
+    "platform/embedded/firmware/build_terasic.py": "2bde599296e0bd67c7f7b94e828a57c590981df91d4e51ee46965c0f99d9b61b",
+    "platform/embedded/firmware/build_terasic_uboot.py": "d49cc52b9b4409c00f3d95d7ba2aed09c6705d8cc05da3b7bb5c90a43f11f073",
+    "platform/embedded/firmware/nano_firmware_entry.inc": "c7e8886b623c8fbb8bb614f0254909b5601460ad1691cb4e86c552fbef5fa742",
+    "platform/embedded/firmware/nano_firmware_ram.h": "5ebcc9b2269382799863a022613db0a3323f98bbe3241fe0834ac1291de64845",
+    "platform/embedded/firmware/nano_firmware_ram.py": "ca666656e374a7be289bf5318de66451f7f6e07592569d97ea2e7aacbd33ce99",
+    "platform/embedded/firmware/prepare_nano_owned.py": "aa377258bf7d956122eb543d3479d1b79b27859fc6e67316b2003e032d634d6b",
+    "platform/embedded/nano/cold_profile.py": "cc5ac1d4d52d6af0d06ec642a640a93f24a7b2fe47fe008a6f786b424273efff",
+    "platform/embedded/nano/prepare_uboot.py": "7e108fe62a4a17763734f8acdcd237b00d6580a2fb3f58237fdf49c20b876cc0",
+    "tests/test_embedded_firmware.py": "442b2a3e41c968029170c6e58cec54d9e4917747e2b2fb75b94344c34bf8d4f4"
+  },
+  "integration_base": "7112a67b6f76dfb2d993e2bcdb301063232f738e",
+  "integration_results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "native runtime firmware and FPGA launch integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded producer identity and native control integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "DE25 Avalon control and native integration",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "embedded firmware and identity/drain RTL integration",
+      "lane": "fpga",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "matched_boot_chain_built": true,
+  "native_application_reused_byte_exact": true,
+  "native_application_source": "31d716957759c3dede3330877dac2ce7bcd2d643",
+  "native_prerequisite": "/home/deano/fes-retained/de25-native-firmware-exclusion-20261106-r1",
+  "ordinary_admission": false,
+  "parent_tests": 1504,
+  "permission_to_program": false,
+  "physical_ram_reservation_verified": false,
+  "producer_tests": 1581,
+  "qemu_boots": 251,
+  "qemu_live_and_binding_cases": 26,
+  "qemu_record_mutation_cases": 225,
+  "selected_firmware_elf_admission_changed": true,
+  "source_binding_note": "implementation_sources match the tested b642 commit; supplemental test-only assertions were added after the build and passed in selection-final",
+  "status": "passed",
+  "supplemental_test_sources": {
+    "tests/test_nano_firmware_selection.py": "ae4e8aa82cd07bed4b757f64a09c84840f54cb911b3d28ea68e4c8cfddf84946"
+  }
+}
