@@ -200,7 +200,7 @@ if task=='assembler':
                 with self.assertRaises(subprocess.CalledProcessError):build.compile_project(output,tool)
             pid=int((project/'worker.pid').read_text());status=Path('/proc')/str(pid)/'stat'
             until=time.monotonic()+1
-            while status.exists():
+            while True:
                 try:state=status.read_text().split(') ',1)[1][0]
                 except (FileNotFoundError,ProcessLookupError):break
                 if state=='Z':break
