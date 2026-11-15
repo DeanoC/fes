@@ -340,8 +340,9 @@ mailbox uses.
 The Atari ST producer selects `cores/fes-atari-st/toolchain.lock`
 (Yosys `3a5accbd`, nextpnr `5fe55f3d`). The factory recipe stays HIP.
 A CUDA route is a separate package. RAM Tester uses the repository-level
-lock's pins, while menu's lock pins nextpnr `1eecf877`. The
-Quartus RAM Tester timing comparison uses the RAM Tester lock.
+lock's pins, while menu's lock pins nextpnr `1eecf877`. The Quartus
+RAM Tester timing comparison authenticates its own
+`cores/fes-ramtest/quartus.lock`, not the OSS `toolchain.lock`.
 The [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
 qualifies the earlier private pin and its read-only shell; it does not
 qualify the current `5fe55f3d` pin. The October kit notes do not accept
