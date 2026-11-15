@@ -205,7 +205,9 @@ with no fault anywhere needed to explain it.
 | of which everything else in the pass | 8.312 | 9.444 | **+1.132 µs** |
 
 The pitch deficit the probe reproduces is 13.10%, split **10.74 points to the
-calibrated delay** and **2.37 points to the rest of the pass**. **Against fes#1837's own three candidates** the gate is met: its "governor's
+calibrated delay** and **2.37 points to the rest of the pass**.
+
+**Against fes#1837's own three candidates** the gate is met: its "governor's
 ISA charges" has 2.4 points, its "governor's pacing of the delay loop" has
 10.7, and its "the loop costing the kit's 386 a different number of clocks
 than the table says" is excluded outright, because the kit is paced exactly
