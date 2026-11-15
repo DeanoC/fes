@@ -133,8 +133,18 @@ QUALITY_TIER_IDS = {
 QUALITY_TIER_FULL = frozenset({'1', '1-pending'})
 CHECK_LEVELS = frozenset({'full', 'reduced', 'via-consumer', 'none'})
 CHECK_PROPOSED = 'proposed'
-CHECK_HEADING = 'Quality tier and checks (proposed)'
+CHECK_ACCEPTED = 'accepted'
+CHECK_STATUSES = frozenset({CHECK_PROPOSED, CHECK_ACCEPTED})
+CHECK_HEADINGS = {
+    CHECK_PROPOSED: 'Quality tier and checks (proposed)',
+    CHECK_ACCEPTED: 'Quality tier and checks',
+}
 CHECK_NOT_IN_FORCE = 'Proposed, not in force.'
+CHECK_IN_FORCE = 'In force.'
+# The obligation itself lives in AGENTS.md. While the matrix says accepted,
+# that rule has to be there: this is the phrase it is written with.
+AGENTS = Path('AGENTS.md')
+AGENTS_RULE = '`check_level: reduced`'
 AS_OF = '2026-10-29'
 # Main's first-parent tip at the end of AS_OF. Keep the history snapshot fixed
 # so later merges with backdated author dates cannot change the matrix.
@@ -371,7 +381,8 @@ def render(data: dict) -> str:
 def render_check_policy(data: dict) -> list[str]:
     """The quality ladder and the proposed per-change evidence level."""
     policy = data['check_policy']
-    lines = ['', f'## {CHECK_HEADING}', '']
+    heading = CHECK_HEADINGS[policy['status']]
+    lines = ['', f'## {heading}', '']
     lines += [paragraph for note in policy['note'] for paragraph in (cell(note), '')]
     lines += [
         '| Quality tier | Meaning |',
@@ -811,10 +822,24 @@ def validate_check_policy(root: Path, data: dict, by_id: dict, rendered: str | N
                 )
     if policy.get('ladder_source') != str(FORWARD_PLAN):
         errors.append(f'check_policy ladder_source must be {FORWARD_PLAN}')
-    if policy.get('status') != CHECK_PROPOSED:
-        errors.append('check_policy status is not proposed; accepting it needs its own change, with Deano named in decided_by')
-    elif policy.get('decided_by'):
+    status = policy.get('status')
+    if status not in CHECK_STATUSES:
+        errors.append(f'check_policy status {status!r} is not one of {sorted(CHECK_STATUSES)}')
+    elif status == CHECK_PROPOSED and policy.get('decided_by'):
         errors.append('check_policy is proposed but records a decided_by')
+    elif status == CHECK_ACCEPTED:
+        # Accepted means a rule exists in AGENTS.md. Without it the levels on
+        # this page would claim an obligation nothing carries.
+        if not str(policy.get('decided_by') or '').strip():
+            errors.append('check_policy is accepted but does not say who decided it')
+        agents = root / AGENTS
+        if not agents.is_file():
+            errors.append(f'{AGENTS} is missing, so the accepted check policy has no rule')
+        elif AGENTS_RULE not in agents.read_text():
+            errors.append(
+                f'{AGENTS} does not carry the {AGENTS_RULE} rule; the check policy cannot '
+                'say accepted while nothing states the obligation'
+            )
     level_ids = [item['id'] for item in policy.get('levels') or []]
     if set(level_ids) != CHECK_LEVELS or len(level_ids) != len(CHECK_LEVELS):
         errors.append(f'check_policy levels {sorted(level_ids)} != {sorted(CHECK_LEVELS)}')
@@ -858,10 +883,16 @@ def validate_check_policy(root: Path, data: dict, by_id: dict, rendered: str | N
         if derive_tier(shifted) != derive_tier(row) or effective_tier(shifted) != effective_tier(row):
             errors.append(f'{cid} freshness tier changes when the quality tier or check level changes')
     if rendered is not None:
-        if CHECK_HEADING not in rendered:
-            errors.append(f'human page is missing the {CHECK_HEADING!r} section')
-        if policy.get('status') == CHECK_PROPOSED and CHECK_NOT_IN_FORCE not in rendered:
+        heading = CHECK_HEADINGS.get(status)
+        if heading and f'## {heading}\n' not in rendered:
+            errors.append(f'human page is missing the {heading!r} section')
+        if status == CHECK_PROPOSED and CHECK_NOT_IN_FORCE not in rendered:
             errors.append(f'human page must say {CHECK_NOT_IN_FORCE!r} while the check policy is proposed')
+        if status == CHECK_ACCEPTED:
+            if CHECK_NOT_IN_FORCE in rendered:
+                errors.append('human page still calls the accepted check policy a proposal')
+            if CHECK_IN_FORCE not in rendered:
+                errors.append(f'human page must say {CHECK_IN_FORCE!r} once the check policy is accepted')
     return errors
 
 

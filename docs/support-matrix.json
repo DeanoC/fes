@@ -4,7 +4,7 @@
     "This page is the board and toolchain matrix. It is taken from `config/core-recipes.toml`, `config/core-library.toml`, `profiles/native-integration-dev.toml`, the per-core `toolchain.lock` files, the misteross producers, and the docs those files point at. A cell that is not in those sources is marked unverified or TBD.",
     "The bootstrap image installs `fes.menu` and the pinned splash bitstream. Every playable core is a catalog install. Library standing `supported` is not a claim that the current bitstream has kit acceptance. Dated notes under `docs/validation/` accept only the artifact they name.",
     "Tiers are derived from the tier role, owned RTL dates and media generation; kit notes are recorded but do not set a tier. Catalog standing is stored on each row as a weak signal and is not an input. The owned-RTL activity snapshot is as of 2026-10-29; role, media and dated kit notes may be updated later. The recent cutoff is 2026-10-16. The window starts 2026-08-30. A tier_override with reason Deano 2026-10-29 replaces the derived tier.",
-    "`quality_tier` on each row records the quality ladder that [the forward plan](plans/forward-plan.md) already decided for DE10-Nano cells. It is not the freshness `tier`, and it is not release scope. `check_level` is a proposal about how much per-change evidence each row is expected to carry; it is not in force until Deano accepts it, and nothing on this page relaxes a seal or a timing check."
+    "`quality_tier` on each row records the quality ladder that [the forward plan](plans/forward-plan.md) already decided for DE10-Nano cells. It is not the freshness `tier`, and it is not release scope. `check_level` says how much per-change evidence each row is expected to carry, under the hard rule beside D12 in [AGENTS.md](../AGENTS.md) that Deano accepted on 2026-11-15. It never lowers a gate on work being done to a core."
   ],
   "tiers": [
     {
@@ -2030,7 +2030,7 @@
     "Spectrum and Atari ST derive to current. The same override confirms that tier. Their kit HIL pass on the latest RTL is pending and expected soon.",
     "C64 NTSC and Atari STE have no package. Their override tier is bring-up-queued.",
     "Spectrum +2 is a ROM variant of fes.spectrum128 (kind rom). It is the same core and the same model, with a different ROM. Deano 2026-10-29.",
-    "quality_tier and check_level are not inputs to the tier rule. quality_tier cites the forward plan's ladder; check_level is derived from it, from tier_role and from the bring-up-queued tier, which is the one place a tier feeds the check level. check_level is a proposal (2026-11-15), not a recorded decision."
+    "quality_tier and check_level are not inputs to the tier rule. quality_tier cites the forward plan's ladder; check_level is derived from it, from tier_role and from the bring-up-queued tier, which is the one place a tier feeds the check level. check_level carries the hard rule beside D12 in AGENTS.md, accepted by Deano 2026-11-15."
   ],
   "needs_deano": [
     "SMS and SG-1000 are outside the first-party catalog; their development recipes remain registered. Tier aging uses owned RTL on 2026-10-06 and kit diagnostics on 2026-09-29. The catalog flag was not used.",
@@ -2038,7 +2038,6 @@
     "ZX80, TS1000 and TS1500 share the ZX81 shell. Kit notes name fes.zx81 (2026-10-22), not those three. The 2026-10-25 model commit is after that note.",
     "Apple II kit diagnostic is 2026-09-27. Owned RTL is 2026-10-06 (#549). No later kit note was found.",
     "Open issues on each row are title matches, not a full blocker audit.",
-    "The check_level proposal needs a yes or no. It is recorded as proposed, not in force: accepting it means a sentence beside the D12 rule in AGENTS.md, which is Deano's wording.",
     "ColecoVision is check_level reduced by the ladder (2-pending) while being under active work. Reduced exempts only sweeps it is not about, but if Coleco should carry full evidence for every sweep as well, the ladder has to place it rather than name its condition.",
     "RAM Tester is outside the ladder as a utility and is under active timing work (#1832, #1767). The same question as Coleco: reduced for sweeps, or full because the memory path is shared.",
     "SG-1000's newest owned RTL is an ABI migration (#1755) and Apple II's is the original-glyph campaign (#1819). The owned-RTL rule counts both as core activity, so the freshness tier cannot be read as development activity on either row.",
@@ -2070,16 +2069,16 @@
     }
   ],
   "check_policy": {
-    "status": "proposed",
+    "status": "accepted",
     "proposed_on": "2026-11-15",
-    "decided_by": null,
+    "decided_by": "Deano 2026-11-15",
     "ladder_source": "docs/plans/forward-plan.md",
     "note": [
-      "Proposed, not in force. Until Deano accepts it, every row keeps the evidence the hard rules in [AGENTS.md](../AGENTS.md) already require of it. This page records a proposal; it does not relax a seal, a timing check or a HIL gate, and the D12 rule in AGENTS.md still reads as written.",
+      "In force. Deano accepted it on 2026-11-15, and the rule itself is the hard rule beside D12 in [AGENTS.md](../AGENTS.md): a core at `check_level: reduced` owes a closure sweep only D12's netlist comparison, which is still measured and recorded, and not the RBF reproduction, the timing and seal gate or the HIL. This page is where the levels are listed; AGENTS.md is where the obligation is written. Neither lowers a gate on work being done to a core.",
       "`quality_tier` cites a decision rather than inventing a taxonomy: the ladder, its bars, the tier 1 set, the two pending placements and the utilities outside it are all decided in [the forward plan](plans/forward-plan.md) (tiers apply per (core, board) cell; DE10-Nano is the tier 1 board). Where the plan names a condition rather than a tier, this page records the condition: pc386 is `1-pending` and not tier 2, and Coleco, SMS, SG-1000 and Apple II are `2-pending`, because the plan names no tier for any of them before their condition is met. The freshness `tier` on each row answers a different question and stays derived from dates, so a tier 1 cell can be Aging and a row off the ladder can have RTL from this week.",
-      "`check_level` is the proposal, and the D12 conditions are what it is about. `full`: every change that moves the core's `BUILD_ID` carries that core's own evidence, as it does today. `reduced`: on a change that does not touch the core's own RTL, programs, lock or placement recipe, the netlist comparison (D12's first condition, which needs no GPU route) is still expected, and the RBF reproduction, the timing and seal gate and the HIL (its second and third, and the reseal the rule falls back to) are not. If that comparison fails, the core counts as touched and keeps every gate, which is what D12 already says. A change aimed at the core, and any change that ships it, keeps every gate it has today. `via-consumer`: the row is RTL, not a package, so its evidence rides with the packages that embed it. `none`: there is no built artifact to carry evidence for yet.",
-      "The cost this answers is a closure sweep, which is what D12 covers: a change with no RTL that moves a core's `BUILD_ID` through its build record or source closure. As of this proposal, PR #1862 edits five producer scripts and one shared helper, touches no RTL, QSF, SDC, lock or placement recipe, and moves the `BUILD_ID` of all 14 cores whose producers import a changed file, so D12 applies to each of them. Its first condition was measured for all 14; Deano scoped the route-based second and third on 2026-11-15 to the firmware plus one representative per affected machine family, leaving `fes.pong`, `fes.ramtest`, `fes.coleco` and `fes.riscv` unmeasured because they are not shipped. This proposal is close to that call but not the same one: it would drop the same two conditions for the same held-back cores by rule, while it keeps the sibling variants that call also dropped (zx80, ts1000, ts1500, spectrum128, spectrum-plus3, pentagon) at full. Whether the representative scoping should be a rule too is a separate question.",
-      "Accepting this needs a sentence beside the D12 rule in [AGENTS.md](../AGENTS.md), which is Deano's wording to write. No agent should read `reduced` here as permission to skip a gate before then."
+      "`check_level` says what a change owes each row, and the D12 conditions are what it is about. `full`: every change that moves the core's `BUILD_ID` carries that core's own evidence, all three D12 conditions included. `reduced`: on a change that does not touch the core's own RTL, programs, lock or placement recipe, the netlist comparison (D12's first condition, which needs no GPU route) is still expected, and the RBF reproduction, the timing and seal gate and the HIL (its second and third, and the reseal the rule falls back to) are not. If that comparison fails, the core counts as touched and keeps every gate, which is what D12 already says. A change aimed at the core, and any change that ships it, keeps every gate. `via-consumer`: the row is RTL, not a package, so its evidence rides with the packages that embed it. `none`: there is no built artifact to carry evidence for yet.",
+      "The cost this answers is a closure sweep, which is what D12 covers: a change with no RTL that moves a core's `BUILD_ID` through its build record or source closure. As of 2026-11-15, PR #1862 edits five producer scripts and one shared helper, touches no RTL, QSF, SDC, lock or placement recipe, and moves the `BUILD_ID` of all 14 cores whose producers import a changed file, so D12 applies to each of them. Its first condition was measured for all 14; Deano scoped the route-based second and third on 2026-11-15 to the firmware plus one representative per affected machine family, leaving `fes.pong`, `fes.ramtest`, `fes.coleco` and `fes.riscv` unmeasured because they are not shipped. This rule is close to that call but not the same one: it drops the same two conditions for the same held-back cores by rule, while it keeps at full the sibling variants that call also dropped (zx80, ts1000, ts1500, spectrum128, spectrum-plus3, pentagon). Whether the representative scoping should be a rule too is a separate question.",
+      "The levels never lower a gate on work being done to a core: a netlist that is not byte-identical, a change that touches the core's own RTL, programs, lock or placement recipe, and any change that ships it, all put that core back under the full rule. AGENTS.md's hard rule against relaxing a timing or seal check stands above this one and is unchanged."
     ],
     "levels": [
       {
@@ -2124,6 +2123,8 @@
         "label": "Outside the ladder",
         "meaning": "Utilities and demos: Pong, RAM Tester and RISC-V."
       }
-    ]
+    ],
+    "decided_on": "2026-11-15",
+    "rule": "AGENTS.md, the hard rule beside D12"
   }
 }

@@ -105,8 +105,8 @@ class SupportMatrixTests(unittest.TestCase):
         data = SUPPORT_MATRIX.load_json(ROOT)
         self.assertEqual([], SUPPORT_MATRIX.validate(ROOT, data))
         by_id = {row['id']: row for row in data['cores']}
-        self.assertEqual('proposed', data['check_policy']['status'])
-        self.assertIsNone(data['check_policy']['decided_by'])
+        self.assertEqual('accepted', data['check_policy']['status'])
+        self.assertEqual('Deano 2026-11-15', data['check_policy']['decided_by'])
         # Tier 1 and tier 2 cells carry full evidence; the rest carry it only
         # for changes aimed at them.
         self.assertEqual('full', by_id['fes.pcxt-dos']['check_level'])
@@ -122,7 +122,8 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertEqual('via-consumer', by_id['i386']['check_level'])
         self.assertEqual('none', by_id['fes.c64-ntsc']['check_level'])
         self.assertIn('- **Reduced checks:** `fes.pong`', SUPPORT_MATRIX.render(data))
-        self.assertIn(SUPPORT_MATRIX.CHECK_NOT_IN_FORCE, SUPPORT_MATRIX.render(data))
+        self.assertIn(SUPPORT_MATRIX.CHECK_IN_FORCE, SUPPORT_MATRIX.render(data))
+        self.assertNotIn(SUPPORT_MATRIX.CHECK_NOT_IN_FORCE, SUPPORT_MATRIX.render(data))
 
     def test_a_hand_set_check_level_or_quality_tier_is_rejected(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
@@ -147,12 +148,41 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertIn("fes.sms is release 'v1' and cannot be reduced", errors)
         self.assertIn('fes.riscv is in the bootstrap image and cannot be reduced', errors)
 
-    def test_the_check_policy_cannot_claim_to_be_accepted_on_its_own(self):
+    def test_an_accepted_check_policy_needs_its_rule_in_agents_md(self):
+        """Accepted means AGENTS.md carries the obligation. Without that rule the
+        levels on this page would claim something nothing states."""
         data = SUPPORT_MATRIX.load_json(ROOT)
-        data['check_policy']['status'] = 'accepted'
-        errors = SUPPORT_MATRIX.validate(ROOT, data)
+        by_id = {row['id']: row for row in data['cores']}
+        plan = (ROOT / SUPPORT_MATRIX.FORWARD_PLAN).read_text()
+        agents = (ROOT / SUPPORT_MATRIX.AGENTS).read_text()
+        self.assertIn(SUPPORT_MATRIX.AGENTS_RULE, agents)
+        for label, text in (('rule gone', agents.replace(SUPPORT_MATRIX.AGENTS_RULE, '`nothing`')),
+                            ('file gone', None)):
+            with self.subTest(label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                (root / 'docs' / 'plans').mkdir(parents=True)
+                (root / 'docs' / 'plans' / 'forward-plan.md').write_text(plan)
+                if text is not None:
+                    (root / 'AGENTS.md').write_text(text)
+                errors = SUPPORT_MATRIX.validate_check_policy(root, data, by_id, None)
+                self.assertTrue(
+                    any('AGENTS.md' in error for error in errors), (label, errors)
+                )
+
+    def test_an_accepted_check_policy_names_who_decided_it(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        by_id = {row['id']: row for row in data['cores']}
+        data['check_policy']['decided_by'] = None
+        errors = SUPPORT_MATRIX.validate_check_policy(ROOT, data, by_id, None)
+        self.assertIn('check_policy is accepted but does not say who decided it', errors)
+
+    def test_an_unknown_check_policy_status_is_rejected(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        by_id = {row['id']: row for row in data['cores']}
+        data['check_policy']['status'] = 'in review'
+        errors = SUPPORT_MATRIX.validate_check_policy(ROOT, data, by_id, None)
         self.assertTrue(
-            any('check_policy status is not proposed' in error for error in errors), errors
+            any("status 'in review' is not one of" in error for error in errors), errors
         )
 
     def test_the_quality_ladder_citation_must_still_be_in_the_forward_plan(self):
