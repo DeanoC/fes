@@ -377,8 +377,9 @@ assert not missing, 'owned firmware omitted from boot identity: '+str(sorted(mis
                          ['probe', '--board', 'de25-nano', '--profile', str(NANO/'probe-profile.json'),
                           '--hps-first-project', 'absent']):
                 with self.subTest(args=args):
-                    result = subprocess.run(common+args, capture_output=True, text=True, timeout=10)
+                    result = subprocess.run(common+args, env=dict(os.environ,FES_EXPERIMENTAL_DE25_EMBEDDED="1"), capture_output=True, text=True, timeout=10)
                     self.assertEqual(result.returncode, 2, result.stderr)
+                    self.assertNotIn("FES_EXPERIMENTAL_DE25_EMBEDDED", result.stderr)
                     self.assertFalse(output.exists())
 
     def test_invalid_project_cannot_change_a_callers_firmware_imports(self):

@@ -2,6 +2,7 @@
 import base64
 import copy
 import json
+import os
 import re
 from pathlib import Path
 import subprocess
@@ -112,8 +113,9 @@ class MenuBootTests(unittest.TestCase):
                 ['fpgaload','--board','de25-nano','--profile',str(ROOT/'platform/embedded/nano/sd-profile.json'),
                  '--menu-present','--window-memory']):
             run=subprocess.run(['python3','platform/embedded/tamago/run.py',*options,'--compiler','/absent',
-                '--output',str(output)],cwd=ROOT,capture_output=True,text=True,timeout=15)
+                '--output',str(output)],cwd=ROOT,env=dict(os.environ,FES_EXPERIMENTAL_DE25_EMBEDDED="1"),capture_output=True,text=True,timeout=15)
             self.assertNotEqual(run.returncode,0,run.stdout+run.stderr)
+            self.assertNotIn("FES_EXPERIMENTAL_DE25_EMBEDDED",run.stderr)
             self.assertFalse(output.exists())
 
     def test_menu_ocram_requires_complete_descriptors_and_unchanged_exclusion(self):

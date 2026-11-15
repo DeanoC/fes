@@ -26,6 +26,8 @@ from host_support import Guest, frames, network_catalog
 
 APP = Path(__file__).resolve().parent
 ROOT = APP.parents[2]
+sys.path.insert(0, str(APP.parent))
+from experiment import require_experiment
 LAYOUT_NEXT = {"grid": "shelf", "shelf": "list", "list": "grid"}
 
 
@@ -110,6 +112,10 @@ def main():
     parser.add_argument("--timeout", type=float, default=90,
                         help="startup or per-action deadline, seconds (not interactive runtime)")
     args = parser.parse_args()
+    try:
+        require_experiment()
+    except ValueError as error:
+        parser.error(str(error))
     if args.program=="programfetch":
         if args.board!="qemu" or args.export_root is None or not args.program_id:
             parser.error('programfetch requires QEMU, --export-root and --program-id')

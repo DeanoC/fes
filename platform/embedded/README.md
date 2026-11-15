@@ -4,7 +4,10 @@ The latest [preservation checkpoint](../../docs/validation/2026-11-15-de25-merge
 
 
 **Opt-in experiment.** Set `FES_EXPERIMENTAL_DE25_EMBEDDED=1` when building
-native Go, the CPU entry, BL31 or SPL/U-Boot. For the QEMU integration entry:
+native Go, the CPU entry, BL31 or SPL/U-Boot. The direct
+`python3 platform/embedded/tamago/run.py ...` runner enforces the same opt-in for
+both QEMU and Nano builds before invoking a compiler or creating output.
+`--help` remains available without selecting the experiment. For the QEMU integration entry:
 
 ```sh
 FES_EXPERIMENTAL_DE25_EMBEDDED=1 make embedded EMBEDDED_ARGS="--help"

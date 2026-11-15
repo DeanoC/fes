@@ -1,5 +1,6 @@
 """The optional EL1 CPU overlay rejects unknown inputs before publication."""
 import importlib.util
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -60,7 +61,7 @@ class CPUFeatureOverlayTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=ROOT/'out',prefix='cpu-option-test-') as name:
             output=Path(name)/'not-created'
             result=subprocess.run(['python3',str(ROOT/'platform/embedded/tamago/run.py'),'probe',
-                '--arm64-features','--compiler','/not/a/compiler','--output',str(output)],capture_output=True,text=True)
+                '--arm64-features','--compiler','/not/a/compiler','--output',str(output)],env=dict(os.environ,FES_EXPERIMENTAL_DE25_EMBEDDED="1"),capture_output=True,text=True)
             self.assertEqual(result.returncode,2)
             self.assertIn('--arm64-features requires --board de25-nano',result.stderr)
             self.assertFalse(output.exists())
