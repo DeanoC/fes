@@ -457,7 +457,7 @@
       },
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
-      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. No `make build-fes-ts1000-quartus` target was found. Whether the ZX81 Quartus script covers this model is unverified.",
+      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-zx81-quartus MODEL=ts1000` builds it with the family's Quartus Lite producer (`scripts/build_fes_zx81_quartus.py`).",
       "features": "Media: format-3 linked `ts1000-firmware`, tape and tape-write. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through the session display plane. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Same tree and lock as ZX81. Experimental: NTSC, 8 KiB ROM, 2 KiB RAM. Not in the bootstrap image.",
       "evidence": [
@@ -518,7 +518,7 @@
       },
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
-      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. No `make build-fes-ts1500-quartus` target was found. Whether the ZX81 Quartus script covers this model is unverified.",
+      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-zx81-quartus MODEL=ts1500` builds it with the family's Quartus Lite producer (`scripts/build_fes_zx81_quartus.py`).",
       "features": "Media: format-3 linked `ts1500-firmware`, tape and tape-write. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through the session display plane. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Same tree and lock as ZX81. Experimental: NTSC, 8 KiB ROM, 16 KiB RAM. Not in the bootstrap image.",
       "evidence": [
@@ -1907,11 +1907,6 @@
     }
   ],
   "unverified": [
-    {
-      "where": "ZX80, TS1000, TS1500",
-      "cell": "Quartus oracle",
-      "detail": "Their recipes say `bring-up/check oracle`, and the only Quartus make target found for that shell is `build-fes-zx81-quartus`. Coverage of the other three models is unverified."
-    },
     {
       "where": "Every row with a pad or keyboard",
       "cell": "Bluetooth",

@@ -258,6 +258,43 @@ class JobTests(unittest.TestCase):
                 os.kill(pid, 9)
                 self.fail("the step's child outlived the time cap")
 
+    def test_sigterm_kills_the_step_children(self) -> None:
+        import os
+        import signal
+        import subprocess
+        import tempfile
+        import time
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            child = work / "child.pid"
+            program = (
+                "import sys; sys.path.insert(0, '.'); from pathlib import Path\n"
+                "from scripts import build_fes_zx81_quartus as p\n"
+                "p.install_termination_handler()\n"
+                "try:\n"
+                f"    p._run(['/bin/bash', '-c', 'sleep 30 & echo $! > {child}; wait'], Path({str(work)!r}),\n"
+                "           {'PATH': '/usr/bin:/bin'}, Path(" + repr(str(work / "t.log")) + "))\n"
+                "except p.Terminated as stop:\n"
+                "    sys.exit(128 + stop.signum)\n")
+            producer_process = subprocess.Popen([sys.executable, "-I", "-c", program], cwd=ROOT,
+                                                stdout=subprocess.DEVNULL)
+            for _ in range(100):
+                if child.exists() and child.read_text().strip():
+                    break
+                time.sleep(0.05)
+            pid = int(child.read_text())
+            producer_process.send_signal(signal.SIGTERM)
+            self.assertEqual(producer_process.wait(timeout=10), 128 + signal.SIGTERM)
+            for _ in range(50):
+                try:
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.05)
+            else:
+                os.kill(pid, 9)
+                self.fail("the step's child outlived SIGTERM to the producer")
+
     def test_disk_preflight(self) -> None:
         from unittest.mock import patch
         import collections

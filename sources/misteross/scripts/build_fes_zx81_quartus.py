@@ -396,6 +396,26 @@ def require_disk(path: Path) -> None:
         raise BuildError(f'only {free / 1e9:.1f} GB free under {path}; Quartus jobs need {MIN_FREE_BYTES / 1e9:.0f} GB')
 
 
+class Terminated(BaseException):
+    """SIGTERM or SIGHUP reached the producer; carries the signal number."""
+
+    def __init__(self, signum: int):
+        super().__init__(f'terminated by signal {signum}')
+        self.signum = signum
+
+
+def install_termination_handler() -> None:
+    """Turn SIGTERM and SIGHUP into Terminated, so a running step's cleanup runs.
+
+    Python's default SIGTERM action exits without unwinding. Raising instead
+    lets _run kill and reap the step's process group before the producer exits.
+    """
+    def terminate(signum, _frame):
+        raise Terminated(signum)
+    for signum in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(signum, terminate)
+
+
 def _kill_step(process: subprocess.Popen) -> None:
     """Kill the step's own process group (its session, started by _run) and reap the leader."""
     try:
@@ -686,9 +706,13 @@ def main(argv=None):
     parser.add_argument('--identity-version', type=int, choices=(2,), default=2)
     parser.add_argument('--model', choices=tuple(MODELS), default='zx81', help='zx81, zx80, ts1000 or ts1500')
     args = parser.parse_args(argv)
+    install_termination_handler()
     try:
         package = build(args.root, package_output=args.package_output, cache_root=args.cache_root,
                         identity_version=args.identity_version, model=args.model)
+    except Terminated as stop:
+        print(f'build-fes-zx81-quartus: FAILED {args.model}: {stop}', file=sys.stderr, flush=True)
+        return 128 + stop.signum
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
         print(f'build-fes-zx81-quartus: FAILED {args.model}: {error}', file=sys.stderr, flush=True)
         return 1

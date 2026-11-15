@@ -200,9 +200,9 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 | `fes.menu` | `python3 scripts/sim_fes_menu.py` | `make build-fes-menu-package` | none | image idle display, not a playable core |
 | `fes.pong` | `make sim-fes-pong` | `make build-fes-pong` | none on the product path | library, supported |
 | `fes.zx81` | `make sim-fes-zx81` (includes live session display) | `make build-fes-zx81` | `make build-fes-zx81-quartus` | library, supported |
-| `fes.zx80` | `make sim-fes-zx81` | `make build-fes-zx80` | none | library, experimental, package-only |
-| `fes.ts1000` | `make sim-fes-zx81` | `make build-fes-ts1000` | none | library, experimental, package-only |
-| `fes.ts1500` | `make sim-fes-zx81` | `make build-fes-ts1500` | none | library, experimental, package-only |
+| `fes.zx80` | `make sim-fes-zx81` | `make build-fes-zx80` | `make build-fes-zx81-quartus MODEL=zx80` | library, experimental, package-only |
+| `fes.ts1000` | `make sim-fes-zx81` | `make build-fes-ts1000` | `make build-fes-zx81-quartus MODEL=ts1000` | library, experimental, package-only |
+| `fes.ts1500` | `make sim-fes-zx81` | `make build-fes-ts1500` | `make build-fes-zx81-quartus MODEL=ts1500` | library, experimental, package-only |
 | `fes.coleco` | `make sim-fes-coleco` | `make build-fes-coleco` | `make build-fes-coleco-quartus` | library, supported |
 | `fes.sms` | `make sim-fes-sms` and `make sim-fes-sms-oss` | `make build-fes-sms` | `make build-fes-sms-quartus` | development; outside first-party catalog |
 | `fes.sg1000` | `make sim-fes-sg1000-rom-link` (plus `make sim-fes-sg1000` and `make sim-fes-sg1000-oss` diagnostics) | `make build-fes-sg1000` | `make build-fes-sg1000-quartus` | development; outside first-party catalog |
