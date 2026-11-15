@@ -4,7 +4,6 @@ import argparse
 import hashlib
 import json
 import os
-import re
 from pathlib import Path
 import subprocess
 import sys
@@ -32,8 +31,6 @@ def functional_manifest_sha256(text):
         raise ValueError('sealed manifest has no build provenance')
     for field in PROVENANCE_FIELDS:
         del build[field]
-    if isinstance(build.get('toolchain'), str):
-        build['toolchain'] = re.sub(r'; record-sha256 [0-9a-f]{64}$', '', build['toolchain'])
     encoded = json.dumps(manifest, sort_keys=True, separators=(',', ':'), default=str)
     return hashlib.sha256(encoded.encode()).hexdigest()
 

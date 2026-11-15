@@ -316,7 +316,20 @@ def _matching_package_candidates(source, record, recipe=None, *, store_override=
         if candidate_record != record:
             if artifact_cache.functional_key(candidate_record) != artifact_cache.functional_key(record):
                 continue
-        identity = sidecar.name.removesuffix(".build-inputs.json") if store_override is None else sidecar.parent.name
+        candidate_fields = json.loads(candidate_record)
+        if store_override is None:
+            identity, separator, evidence_id = sidecar.name.removesuffix('.build-inputs.json').partition('.')
+            if separator and evidence_id != candidate_fields.get('identities', {}).get('record'):
+                raise ValueError('package evidence filename differs from its record digest')
+        elif 'identities' in candidate_fields:
+            if sidecar.parent.name != candidate_fields['identities']['record']:
+                raise ValueError('cache evidence directory differs from its record digest')
+            members = [path for path in sidecar.parent.iterdir() if path.name != 'build-inputs.json']
+            if len(members) != 1:
+                raise ValueError('cache evidence must name exactly one package')
+            identity = members[0].name
+        else:
+            identity = sidecar.parent.name
         if HEX64.fullmatch(identity) is None:
             raise ValueError("matching package evidence has an invalid package ID filename")
         package = store / identity if store_override is None else sidecar.parent / identity

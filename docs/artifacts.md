@@ -58,8 +58,9 @@ Core design-v1 records distinguish the embedded design `BUILD_ID` from the
 recorded toolchain and full recording digests. A design may retain its accepted
 package while a newer compiler is available. Exact artifact identity remains
 the content-derived package ID and RBF/map hashes; expansion and video parts
-still require that exact shell. The manifest's toolchain description binds the
-full record digest, and original records are never rewritten on cache reuse.
+still require that exact shell. Recording provenance is retained in separate
+immutable attestations; it does not change the artifact key, and original
+records are never rewritten on cache reuse.
 See [functional input identity](../sources/misteross/docs/architecture.md#functional-input-identity).
 
 ## On-wire identity

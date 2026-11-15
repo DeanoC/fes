@@ -92,15 +92,17 @@ class InputIdentityTests(unittest.TestCase):
         legacy = fields()
         self.assertNotEqual(functional_key(legacy), functional_key(with_identities(legacy)))
 
-    def test_manifest_binds_each_exact_record_even_with_identical_design_and_tools(self):
+    def test_recording_provenance_does_not_change_manifest_toolchain(self):
         before = self.record()
         after = copy.deepcopy(before)
         after['revision'] = 'e' * 40
+        after['repository'] = 'https://example.invalid/another-origin'
+        after['source_path'] = 'another/checkout'
         after = with_identities(after)
         self.assertEqual(before['identities']['design'], after['identities']['design'])
         self.assertEqual(before['identities']['toolchain'], after['identities']['toolchain'])
-        self.assertNotEqual(manifest_toolchain(before), manifest_toolchain(after))
-        self.assertTrue(manifest_toolchain(before).endswith(before['identities']['record']))
+        self.assertEqual(manifest_toolchain(before), manifest_toolchain(after))
+        self.assertNotEqual(before['identities']['record'], after['identities']['record'])
 
 
 if __name__ == '__main__':

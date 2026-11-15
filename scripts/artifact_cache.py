@@ -59,7 +59,9 @@ def publish(root, record_path, package):
     plain(store, directory=True)
     # A single package entry is a directory with a sidecar inside it, published
     # in one rename. A cache reader never sees a half-published record/package.
-    target = store / package.name
+    fields = json.loads(record)
+    evidence_id = fields.get('identities', {}).get('record', package.name)
+    target = store / evidence_id
     lock = store / '.publish.lock'
     if lock.exists() or lock.is_symlink():
         plain(lock)

@@ -125,15 +125,6 @@ def functional_key(fields):
 
 
 def manifest_toolchain(record):
-    """Bind exact recording provenance using the manifest's existing text field.
-
-    Different execution/recording inputs can yield identical RBFs and design
-    IDs. The record tag prevents their immutable evidence sidecars colliding
-    at one content-addressed package path, without changing the wire schema.
-    """
+    """Describe the tools; recording location and provenance do not enter it."""
     fields = json.loads(record) if isinstance(record, bytes) else record
-    label = '; '.join(f'{name} {value}' for name, value in sorted(fields['tools'].items()))
-    if 'identities' in fields:
-        validate_identities(fields)
-        label += '; record-sha256 ' + fields['identities']['record']
-    return label
+    return '; '.join(f'{name} {value}' for name, value in sorted(fields['tools'].items()))

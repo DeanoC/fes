@@ -459,7 +459,7 @@ def _verify_build_evidence(payload: Path, record: bytes, fields: dict, manifest_
     if build["id"] != build_identity(record):
         raise PackageExportError("manifest build.id does not match canonical build-input record")
     if "identities" in fields and build["toolchain"] != manifest_toolchain(fields):
-        raise PackageExportError("manifest toolchain does not bind the complete build record")
+        raise PackageExportError("manifest toolchain differs from recorded tools")
 
     recipe = _checked_input(root, fields["recipe"], "recipe")
     abi_definition = _checked_input(root, fields["abi_definition"], "ABI definition")
@@ -523,7 +523,7 @@ def _is_read_only(path: Path) -> bool:
     return stat.S_IMODE(path.stat().st_mode) & 0o222 == 0
 
 
-def _reuse_existing(directory: Path, archive: Path, evidence: Path, manifest: bytes, payload: bytes, archive_bytes: bytes, record: bytes, rom_map: bytes | None = None) -> Path:
+def _reuse_existing(directory: Path, archive: Path, evidence: Path, manifest: bytes, payload: bytes, archive_bytes: bytes, record: bytes, rom_map: bytes | None = None, *, root: Path | None = None) -> Path:
     if not all(path.exists() and not path.is_symlink() for path in (directory, archive, evidence)):
         raise PackageExportError("existing package export is incomplete or contains a symlink")
     if not all(_is_read_only(path) for path in (directory, archive, evidence)):
@@ -538,9 +538,56 @@ def _reuse_existing(directory: Path, archive: Path, evidence: Path, manifest: by
         raise PackageExportError("existing package directory differs")
     if _snapshot_regular(archive, MAX_ARCHIVE_SIZE_V3 if rom_map is not None else 33 * 1024 * 1024, "existing archive") != archive_bytes:
         raise PackageExportError("existing package archive differs")
-    if _snapshot_regular(evidence, MAX_BUILD_RECORD_SIZE, "existing build evidence") != record:
-        raise PackageExportError("existing package build evidence differs")
+    original = _snapshot_regular(evidence, MAX_BUILD_RECORD_SIZE, "existing build evidence")
+    current = _decode_build_record(record)
+    if original != record:
+        previous = _decode_build_record(original)
+        build = package.fields['build']
+        if (root is None or 'identities' not in current or 'identities' not in previous
+                or previous['parameters'].get('selection_only')
+                or build_identity(original) != build['id']
+                or any(previous[key] != build[key] for key in ('repository', 'revision', 'recipe_sha256'))
+                or manifest_toolchain(previous) != build['toolchain']):
+            raise PackageExportError("existing package build evidence differs")
+        verify_record_source_at_revision(root, original)
+    if 'identities' in current:
+        created = _publish_record_evidence(directory, record)
+        try:
+            _verify_source_unchanged(root, current)
+        except Exception:
+            if created:
+                _record_evidence_path(directory, current).unlink()
+            raise
     return directory
+
+
+
+def _verify_source_unchanged(root: Path, fields: dict) -> None:
+    _require_clean_repository(root, fields["revision"], repository=fields["repository"],
+                              **({"allow_subdirectory": True} if fields["format"] == 2 else {}))
+    if fields["format"] == 2 and source_input_closure(root, fields["source_roots"], policy=fields["parameters"].get("source_closure_policy")) != fields["source_inputs"]:
+        raise PackageExportError("source closure changed during export")
+    for relative, revision in fields["dependencies"].items():
+        _require_clean_repository(root.joinpath(*PurePosixPath(relative).parts), revision)
+
+
+def _record_evidence_path(directory: Path, fields: dict) -> Path:
+    return directory.with_name(directory.name + '.' + fields['identities']['record'] + '.build-inputs.json')
+
+
+def _publish_record_evidence(directory: Path, record: bytes) -> bool:
+    """Retain independent immutable attestations without changing package bytes."""
+    evidence = _record_evidence_path(directory, _decode_build_record(record))
+    if evidence.exists() or evidence.is_symlink():
+        if (evidence.is_symlink() or not _is_read_only(evidence)
+                or _snapshot_regular(evidence, MAX_BUILD_RECORD_SIZE, 'record evidence') != record):
+            raise PackageExportError('existing record evidence differs or is writable')
+        return False
+    with tempfile.TemporaryDirectory(prefix='.export-record-', dir=directory.parent) as temporary:
+        staged = Path(temporary) / 'record.json'
+        _write_sealed(staged, record)
+        _publish_no_replace(staged, evidence)
+    return True
 
 
 def export_package(manifest: bytes, payload: Path, destination: Path, *,
@@ -589,7 +636,7 @@ def export_package(manifest: bytes, payload: Path, destination: Path, *,
     evidence = directory.with_suffix(".build-inputs.json")
     archive_data = _archive_bytes(manifest, snapshot, map_snapshot)
     if any(path.exists() or path.is_symlink() for path in (directory, archive, evidence)):
-        return _reuse_existing(directory, archive, evidence, manifest, snapshot, archive_data, record, map_snapshot)
+        return _reuse_existing(directory, archive, evidence, manifest, snapshot, archive_data, record, map_snapshot, root=root)
 
     staging = Path(tempfile.mkdtemp(prefix=".export-files-", dir=store))
     staged_directory = Path(tempfile.mkdtemp(prefix=".export-package-", dir=store))
@@ -604,7 +651,13 @@ def export_package(manifest: bytes, payload: Path, destination: Path, *,
         staged_directory.chmod(0o555)
         _write_sealed(staged_archive, archive_data)
         _write_sealed(staged_evidence, record)
-        for source, final in ((staged_archive, archive), (staged_evidence, evidence), (staged_directory, directory)):
+        members = [(staged_archive, archive), (staged_evidence, evidence)]
+        if 'identities' in record_fields:
+            keyed = staging / 'record-evidence.json'
+            _write_sealed(keyed, record)
+            members.append((keyed, _record_evidence_path(directory, record_fields)))
+        members.append((staged_directory, directory))
+        for source, final in members:
             _publish_no_replace(source, final)
             published.append(final)
         store_fd = os.open(store, os.O_RDONLY | os.O_DIRECTORY)
@@ -612,12 +665,7 @@ def export_package(manifest: bytes, payload: Path, destination: Path, *,
             os.fsync(store_fd)
         finally:
             os.close(store_fd)
-        _require_clean_repository(root, record_fields["revision"], repository=record_fields["repository"],
-                                  **({"allow_subdirectory": True} if record_fields["format"] == 2 else {}))
-        if record_fields["format"] == 2 and source_input_closure(root, record_fields["source_roots"], policy=record_fields["parameters"].get("source_closure_policy")) != record_fields["source_inputs"]:
-            raise PackageExportError("source closure changed during export")
-        for relative, revision in record_fields["dependencies"].items():
-            _require_clean_repository(root.joinpath(*PurePosixPath(relative).parts), revision)
+        _verify_source_unchanged(root, record_fields)
     except Exception:
         for path in reversed(published):
             try:

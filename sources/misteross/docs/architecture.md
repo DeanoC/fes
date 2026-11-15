@@ -678,11 +678,14 @@ to bind their exact bytes into provenance.
 The full original closure remains recorded and is verified against Git history
 on every cache hit. Packaging edits therefore change recording provenance
 without requiring a rebuild. They reuse an original sealed package, rather
-than relabelling its manifest or sidecar. `build.toolchain` retains the tool
-labels and appends `; record-sha256 <record digest>` for design-v1 artifacts.
-This binds complete recording identity into the existing manifest text field,
-so two executions/records yielding identical RBF bytes still have independent
-content-addressed packages and evidence. Package wire formats are unchanged.
+than relabelling its manifest or sidecar. Recording location and provenance do
+not enter the design/toolchain projections or the manifest's toolchain label.
+The exporter retains the original primary sidecar and writes additional
+`<package-id>.<record-digest>.build-inputs.json` attestations independently.
+The cache indexes the design and stores each immutable record separately by
+its digest, containing the unchanged content-addressed package. Thus identical
+package bytes can have multiple valid records without a provenance collision.
+Package wire formats and artifact keys are unchanged by recording metadata.
 Exact-shell composition continues to bind the package ID and payload SHA256 as
 well as BUILD_ID; a shared design ID does not make different routed artifacts
 interchangeable. Runtime identity checks still correlate the loaded core with
@@ -698,8 +701,8 @@ the design key again, builds, and runs the normal timing/seal gates. A forced
 build must select its exact new execution record and cannot fall back to an
 older toolchain's artifact. Different outcomes claiming the same design and
 toolchain identity fail closed. Nightly paired checks require equal execution
-identities and normalize only the manifest's recording tag and Git provenance;
-they still compare RBF, ROM map and all other manifest bytes.
+identities and normalize only manifest Git provenance; they still compare RBF,
+ROM map and all other manifest bytes.
 
 `python3 tools/identity.py /absolute/build-inputs.json` reports the identities.
 Add `--source /absolute/committed/sources/misteross --core fes.zx81` (and

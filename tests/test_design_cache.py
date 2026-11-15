@@ -202,3 +202,33 @@ print(package)
         namespace.symlink_to(self.cache / 'saved', target_is_directory=True)
         with self.assertRaises(ValueError):
             self.resolve()
+
+    def test_recording_changes_keep_package_bytes_and_independent_evidence(self):
+        program = '''
+import json,sys
+from pathlib import Path
+from scripts.export_core_package import encode_build_record,export_package
+from scripts.input_identity import with_identities
+root=Path.cwd(); output=root/'build/fixture'
+original=(output/'build-inputs.json').read_bytes(); fields=json.loads(original)
+# Redundant enumeration describes the same source set through different roots.
+fields['source_roots']=sorted(fields['source_roots']+['scripts/core_package.py'])
+record=encode_build_record(with_identities(fields))
+(output/'build-inputs.json').write_bytes(record)
+package=export_package(Path(sys.argv[1]).read_bytes(),output/'core.rbf',root/'build/fixture-store')
+print(json.dumps({'package':str(package),'record':json.loads(record)['identities']['record']}))
+'''
+        result = json.loads(subprocess.check_output([sys.executable, '-c', program,
+            str(self.cached / 'manifest.toml')], cwd=self.source, text=True))
+        package = Path(result['package'])
+        new_evidence = package.with_name(package.name + '.' + result['record'] + '.build-inputs.json')
+        self.assertEqual(package.name, self.cached.name)
+        self.assertEqual((package / 'manifest.toml').read_bytes(), (self.cached / 'manifest.toml').read_bytes())
+        self.assertEqual(package.with_suffix('.build-inputs.json').read_bytes(), self.record)
+        self.assertNotEqual(new_evidence.read_bytes(), self.record)
+        original_key = bundle.artifact_cache.functional_key(self.record)
+        self.assertEqual(bundle.artifact_cache.functional_key(new_evidence.read_bytes()), original_key)
+        second = bundle.artifact_cache.publish(self.cache, new_evidence, package)
+        self.assertEqual(second.name, self.cached.name)
+        self.assertNotEqual(second.parent, self.cached.parent)
+        self.assertEqual((self.cached.parent / 'build-inputs.json').read_bytes(), self.record)
