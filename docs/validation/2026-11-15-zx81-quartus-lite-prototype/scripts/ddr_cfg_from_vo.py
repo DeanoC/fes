@@ -1,6 +1,8 @@
 """Read the fpga2sdram cfg_* constants from a Quartus post-fit .vo and compare
-them with the generated HPS DDR layout header. Run from sources/misteross:
-  quartus_eda top -c top --simulation --tool=modelsim --format=verilog
+them with the generated HPS DDR layout header. Write the netlist with
+eda_netlist.sh, which runs quartus_eda through run_quartus_job.sh, then run
+this from sources/misteross:
+  eda_netlist.sh <project>
   python3 -I ddr_cfg_from_vo.py <project>/simulation/modelsim/top.vo
 """
 import re, sys

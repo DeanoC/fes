@@ -89,7 +89,8 @@ clock.
 
 ## HPS DDR layout
 
-`quartus_eda --simulation --tool=modelsim --format=verilog` writes a post-fit
+`scripts/eda_netlist.sh` runs `quartus_eda --simulation --tool=modelsim
+--format=verilog` through `run_quartus_job.sh`, and writes a post-fit
 `.vo` netlist. Its `cyclonev_hps_interface_fpga2sdram` instance shows every
 `cfg_*` port as `gnd`/`vcc` constants. It also shows `cmd_valid_1..5` and
 `wr_valid_0..3` tied to `gnd`. `scripts/ddr_cfg_from_vo.py` compares the
@@ -116,8 +117,8 @@ python3 -I ../../docs/validation/2026-11-15-zx81-quartus-lite-prototype/scripts/
 ```
 
 For the compressed case, pass `compressed` after `pin`. Every Quartus step
-(`zx81q_fit.sh`, and the `quartus_cdb` and `quartus_asm` steps of
-`mif_selftest.sh`) runs through `run_quartus_job.sh`. That runner refuses to
+(`zx81q_fit.sh`, the `quartus_cdb` and `quartus_asm` steps of
+`mif_selftest.sh`, and `eda_netlist.sh`) runs through `run_quartus_job.sh`. That runner refuses to
 start with under 30 GB free, caps the step at one hour, prints a heartbeat
 every minute, and ends with a FINISHED or FAILED line. It exits with the
 step's status, which is 124 if the cap expires. `ddr_cfg_from_vo.py` accepts
