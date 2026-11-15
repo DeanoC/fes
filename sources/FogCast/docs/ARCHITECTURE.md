@@ -1899,8 +1899,8 @@ on FAT outside every rootfs. Replacing the system image does not wipe
 
 When leftover card capacity has already been formatted as partition 3 with
 label `FESDATA3`, agent startup bind-mounts that ext4 volume over
-`/media/fat/fogcast/{cache,saves,core-data,launcher-cache,evidence}` and
-`/media/fat/games`. Existing FAT files in these trees are copied onto p3 only
+`/media/fat/fogcast/{cache,saves,core-data,launcher-cache,evidence,disk-images}`
+and `/media/fat/games`. Existing FAT files in these trees are copied onto p3 only
 when the p3 destination is absent; each copied file is published only after a
 complete same-directory temporary has been written and closed, and existing
 p3 files are preserved. The game library is imported once, with a completion
@@ -4220,11 +4220,14 @@ A format-3 title whose firmware ROM has no selection gets the host's
 [bundled firmware](../../../docs/bundled-firmware.md) for that core, ROM ID and
 exact size, when the host loaded one from its `[firmware] bundled_dir`. The
 host derives that default for reads and launches without saving it as a user
-selection, so a later bundle update changes the effective default. An explicit
-selection is preserved. Catalog setup also leaves a selected bundled default
+selection, so a later bundle update changes the effective default. A saved
+selection is preserved. Older setups may have saved the then-bundled ZX81 ROM
+as their selection; if that media still exists, they keep it and may remain
+ready after the host default is removed.
+Catalog setup also leaves a selected bundled default
 unsaved. `GET /api/v1/library/core-entries/{game_id}/rom?rom_id={rom_id}` returns an empty
 `media_id` for that unsaved default, with its digest in `bundled_media_id` and
-`bundled_default: true`. Installed setup can use that digest as the
+`bundled_default: true`. PUT responses use the same separation. Installed setup can use that digest as the
 compare-and-swap expectation when replacing it. Library readiness uses the
 validated bundled-object metadata rather than rehashing the image for every
 title; launch still verifies the stored bytes. ZX81-family firmware is not

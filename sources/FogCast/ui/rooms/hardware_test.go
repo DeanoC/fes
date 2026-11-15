@@ -301,7 +301,7 @@ func TestSinclairWorkshopAsksForTheZX81FamilyFirmwareCard(t *testing.T) {
 		strings.Join(req.CoreIDs, ",") != "fes.zx81,fes.zx80,fes.ts1000,fes.ts1500" {
 		t.Fatalf("first-use request %+v %v", req, ok)
 	}
-	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Firmware") })
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Firmware") && frameHas(f, "Set up TS1000") })
 	r.Activate("firmware")
 	acts := r.TakeActions()
 	if len(acts) != 1 || acts[0].Kind != ActionFirmwareInfo || acts[0].FirstUse || acts[0].FamilyID != "zx81" {

@@ -164,7 +164,11 @@ func (s *setupCreateAPIService) CreateCoreEntry(ctx context.Context, title, id s
 
 func (s *setupCreateAPIService) CoreEntryROM(_ context.Context, game, rom string) (catalog.CoreEntryROM, error) {
 	s.romReads++
-	return catalog.CoreEntryROM{GameID: game, ROMID: rom}, nil
+	result := catalog.CoreEntryROM{GameID: game, PackageID: s.packageID, ROMID: rom}
+	if len(s.romWrite) == 5 && s.romWrite[0] == game && s.romWrite[2] == rom {
+		result.MediaID = s.romWrite[4]
+	}
+	return result, nil
 }
 
 func (s *setupCreateAPIService) SelectCoreEntryROM(_ context.Context, game, pkg, rom, expected, media string) (catalog.CoreEntryROM, error) {
@@ -197,7 +201,7 @@ func TestLauncherAdmitsSetupRoomCoreEntryPost(t *testing.T) {
 	if service.title != "My Zx81" || service.packageID != pkg || service.target != "kit-b" {
 		t.Fatalf("forwarded create title=%q package=%q target=%q", service.title, service.packageID, service.target)
 	}
-	if service.romReads != 1 || len(service.romWrite) != 5 || service.romWrite[0] != "my-zx81" || service.romWrite[1] != pkg || service.romWrite[2] != "machine-rom" || service.romWrite[3] != "" || service.romWrite[4] != rom {
+	if service.romReads != 2 || len(service.romWrite) != 5 || service.romWrite[0] != "my-zx81" || service.romWrite[1] != pkg || service.romWrite[2] != "machine-rom" || service.romWrite[3] != "" || service.romWrite[4] != rom {
 		t.Fatalf("rom read=%d write=%v", service.romReads, service.romWrite)
 	}
 

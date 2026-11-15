@@ -248,6 +248,7 @@ def plan_extra_partition(layout, card_bytes=SYNTHETIC_CARD_BYTES):
             '/media/fat/fogcast/core-data',
             '/media/fat/fogcast/launcher-cache',
             '/media/fat/fogcast/evidence',
+            '/media/fat/fogcast/disk-images',
         ],
         'notes': [
             'Cyclone V ROM still finds type 0xA2 as partition 2; U-Boot mmcroot stays p1.',

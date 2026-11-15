@@ -175,14 +175,14 @@ class GpuLeaseTests(unittest.TestCase):
             time.sleep(0.02)
         self.fail('condition not met: ' + repr(last))
 
-    def hold(self, *args, env=None, seconds=30):
+    def hold(self, *args, env=None, seconds=30, wait_timeout=5):
         proc = self.popen((*args, '--', '/bin/sleep', str(seconds)), env=env)
         def held():
             if proc.poll() is not None:
                 self.fail('holder exited %s: %s' % (proc.returncode, proc.stderr.read()))
             report = self.status(env)
             return any(gpu['state'] == 'held' and gpu.get('pid') == proc.pid for gpu in report['gpus'])
-        self.wait_for(held)
+        self.wait_for(held, timeout=wait_timeout)
         return proc
 
     def test_parsers_and_render_node_ids(self):
@@ -835,17 +835,22 @@ class GpuLeaseTests(unittest.TestCase):
 
     def test_owner_cap_and_a_blocked_owner_does_not_stall_the_queue(self):
         env = self.env(GPU_LEASE_MAX_PER_OWNER='1')
-        holder = self.hold('--no-wait', '--owner', 'alice', env=env)
+        # The holder is explicitly killed below and cleaned up on failure. It
+        # must not expire while a loaded runner is still arranging the queue.
+        holder = self.hold('--no-wait', '--owner', 'alice', env=env, seconds=3600, wait_timeout=30)
         denied = self.run_tool(GPU_RUN, ['--no-wait', '--owner', 'alice', '--', '/bin/sleep', '1'], env=env)
         self.assertEqual(denied.returncode, 75, denied.stderr)
         too_many = self.run_tool(GPU_RUN, ['--no-wait', '--gpus', '2', '--owner', 'carol', '--', TRUE], env=env)
         self.assertEqual(too_many.returncode, 2, too_many.stderr)
         marker = self.root / 'alice2'
-        alice = self.popen(['--wait', '--timeout', '8', '--owner', 'alice', '--',
+        # This test checks queue ordering, not the lease timeout. Bound the
+        # completion after releasing the holder rather than starting a timer
+        # while the other commands and queue assertions are still running.
+        alice = self.popen(['--wait', '--owner', 'alice', '--',
                             sys.executable, '-c',
                             'import os,sys; open(sys.argv[1],"w").write(os.environ["FES_GPU_IDS"])',
                             str(marker)], env=env)
-        self.wait_for(lambda: any(item['pid'] == alice.pid for item in self.status(env)['queue']))
+        self.wait_for(lambda: any(item['pid'] == alice.pid for item in self.status(env)['queue']), timeout=30)
         bob = self.run_tool(GPU_RUN, ['--no-wait', '--owner', 'bob', '--', sys.executable, '-c',
                                       'import os; print(os.environ["FES_GPU_IDS"])'], env=env)
         self.assertEqual(bob.returncode, 0, bob.stderr)
@@ -854,7 +859,7 @@ class GpuLeaseTests(unittest.TestCase):
         self.assertFalse(marker.exists())
         os.kill(holder.pid, signal.SIGKILL)
         holder.wait(timeout=5)
-        out, err = alice.communicate(timeout=8)
+        out, err = alice.communicate(timeout=30)
         self.assertEqual(alice.returncode, 0, err)
         self.assertEqual(marker.read_text(), '0')
         self.assertEqual(out, '')
