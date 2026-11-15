@@ -95,6 +95,8 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                          '140a2d0a507f7452790e73416dd4dab2c66a89e09a71e26b2ca8f95d1f3c5e5c')
         self.assertEqual([source['license'] for source in metadata['floppy']['sources']],
                          ['GPL-2.0-or-later', 'GPL-2.0'])
+        self.assertEqual(metadata['font']['license'], 'Public domain')
+        self.assertIn("Joseph Gil's fntcol16", metadata['font']['source'])
         self.assertEqual(len(font), 4096)
         record = producer.create_build_record(
             producer.ROOT, 'https://github.com/DeanoC/fes.git', 'a' * 40,

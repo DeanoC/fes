@@ -90,7 +90,7 @@ func firmwareCardModelForCore(coreID, label string) firmwareCardModel {
 
 // firmwareCardCopy builds the card for a family from the host's bundled
 // list. ok is false when the family has no firmware to explain.
-func firmwareCardCopy(familyLabel string, models []firmwareCardModel, bundled []protocol.BundledFirmware, firstUse bool) (firmwareCardContent, bool) {
+func firmwareCardCopy(familyLabel, selectedCoreID string, models []firmwareCardModel, bundled []protocol.BundledFirmware, firstUse bool) (firmwareCardContent, bool) {
 	var builtIn []protocol.BundledFirmware
 	var builtInLabels, needs []string
 	for _, m := range models {
@@ -120,10 +120,10 @@ func firmwareCardCopy(familyLabel string, models []firmwareCardModel, bundled []
 		c.Body = append(c.Body, "Every "+familyLabel+" model here starts with firmware that comes with FES, so there is nothing to add: "+strings.Join(builtInLabels, ", ")+".")
 	case len(builtIn) == 0:
 		c.Title = "The " + familyLabel + " needs your firmware"
-		c.Body = append(c.Body, "FES can't include this firmware. Put your own file on a USB drive or the SD card, then choose it in "+familyLabel+" › "+firmwareSetupAction(familyLabel)+".")
+		c.Body = append(c.Body, "FES can't include this firmware. Put your own file on a USB drive or the SD card, then choose it in "+familyLabel+" › "+firmwareSetupAction(selectedCoreID)+".")
 	default:
 		c.Title = "Built-in firmware for most models"
-		c.Body = append(c.Body, "Firmware for "+strings.Join(builtInLabels, ", ")+" comes with FES. FES can't include the rest; choose your own file for them in "+familyLabel+" › "+firmwareSetupAction(familyLabel)+".")
+		c.Body = append(c.Body, "Firmware for "+strings.Join(builtInLabels, ", ")+" comes with FES. FES can't include the rest; choose your own file for them in "+familyLabel+" › "+firmwareSetupAction(selectedCoreID)+".")
 	}
 	c.Body = append(c.Body, needs...)
 	seen := map[string]bool{}
@@ -144,9 +144,9 @@ func firmwareCardCopy(familyLabel string, models []firmwareCardModel, bundled []
 	}
 	if len(builtIn) > 0 {
 		c.Secondary = "Licence"
-		c.Footnote = append(c.Footnote, "Prefer your own firmware? Choose it in "+familyLabel+" › "+firmwareSetupAction(familyLabel)+".")
+		c.Footnote = append(c.Footnote, "Prefer your own firmware? Choose it in "+familyLabel+" › "+firmwareSetupAction(selectedCoreID)+".")
 	} else {
-		c.Secondary = firmwareSetupAction(familyLabel)
+		c.Secondary = firmwareSetupAction(selectedCoreID)
 	}
 	if firstUse {
 		c.Footnote = append(c.Footnote, "Shown once. Open it again with Firmware in the "+familyLabel+" workbench.")
@@ -166,11 +166,19 @@ func bundledForModel(list []protocol.BundledFirmware, model firmwareCardModel) (
 	return protocol.BundledFirmware{}, false
 }
 
-func firmwareSetupAction(familyLabel string) string {
-	if strings.TrimSpace(familyLabel) == "ZX81" {
+func firmwareSetupAction(coreID string) string {
+	switch coreID {
+	case "fes.zx81":
 		return "Set up ZX81"
+	case "fes.zx80":
+		return "Set up ZX80"
+	case "fes.ts1000":
+		return "Set up TS1000"
+	case "fes.ts1500":
+		return "Set up TS1500"
+	default:
+		return "Set up system"
 	}
-	return "Set up system"
 }
 
 // openFirmwareCardLocked handles a workbench's firmware_info request. A
@@ -226,7 +234,7 @@ func (a *App) openFirmwareCardLocked(action rooms.Action) {
 			}
 			return
 		}
-		content, ok := firmwareCardCopy(label, models, bundled, action.FirstUse)
+		content, ok := firmwareCardCopy(label, action.CoreID, models, bundled, action.FirstUse)
 		if !ok {
 			if !action.FirstUse {
 				a.status = label + " needs no firmware."

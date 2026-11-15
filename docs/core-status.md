@@ -513,9 +513,45 @@ Manager ([Windows corpus](../sources/misteross/docs/pc386-windows-corpus.md)).
 Its first kit runs are in the
 [corpus record](validation/2026-11-12-pc386-windows-corpus/summary.md).
 
-Still open for the games ([#1368](https://github.com/DeanoC/fes/issues/1368)):
-- Ultima VI walking speed at 286-12, against a reference;
-- Ultima VII NPC pace, against a reference.
+Still open for the games ([#1368](https://github.com/DeanoC/fes/issues/1368)).
+An 86Box 286 at 12.5 MHz is now named as Ultima VI's reference, and scores in
+the middle of real 286 boards of that clock in TopBench's own database, where
+the 286-12 preset scores above all of them
+([record](validation/2026-11-14-pc386-u6-u7-reference/summary.md)):
+- Ultima VI's speaker effects play about 2.4 semitones flat against it
+  (840.69 and 499.78 Hz against 962.95 and 573.56), which fails
+  ([#1837](https://github.com/DeanoC/fes/issues/1837)). The condition is not
+  new: on #1474's own ratio across #1453, its ISA charges added about two of the
+  twelve-and-a-half points and the rest predates them;
+- Ultima VI walking speed at 286-12 is **not measurable by any method tried**,
+  and the record names all three rather than quoting a number: the game steps
+  when it next polls the keyboard and drops what is queued, so the rate follows
+  how the keys arrive, and keying harder makes it walk slower — the reference
+  gives 2.94 steps a second at 10 keys a second and 2.06 and 2.07 at 12.3 and
+  25, a steady figure but a suppressed one, not a plateau. Two routes stay
+  open, and the record keeps both: the game's own step count rather than
+  motion counted in frames, which is the surer one, and a sweep of the
+  unsampled key rates below 12.3 a second on both machines
+  ([`method.md`](validation/2026-11-14-pc386-u6-u7-reference/method.md) under
+  its correction to the seventh amendment, and
+  [`summary.md`](validation/2026-11-14-pc386-u6-u7-reference/summary.md) under
+  the walk);
+- Ultima VII NPC pace is **not established**, which is not the same as the
+  walk above: no pace was measured, and nothing says it cannot be. The Black
+  Gate does not start on the reference at all — it stops at its own memory
+  check, because a real 386 board has no RAM behind C800-DFFF for the games
+  image's UMB provider where the kit's machine does. The routes left are an
+  86Box ISA memory board there, and settling the 386DX-25 reference board;
+  both are work not reached, not dead ends, and both are carried forward as
+  [#1853](https://github.com/DeanoC/fes/issues/1853).
+
+The walk also waits on [#1840](https://github.com/DeanoC/fes/issues/1840): the
+286-12 preset scores TopBench 33 where AT-class real 286 boards of its clock
+score 21 to 27, so a pace measured at a preset is qualified by how well that
+preset is calibrated. That is CPU throughput, and the pitch failure runs the
+other way, so they are not the same measurement; whether they share a cause in
+the governor's clock table is open. The Black Gate runs at preset 3, which has
+the same question on weaker evidence and is not filed.
 
 Launches with Serpent Isle's disk image sometimes capture a black picture at
 the DOS prompt: 12 black DOS-prompt grabs in 400 launches on Kit B. For the
