@@ -29,6 +29,13 @@ The first of those two is in the game's calibration loop and not in its delay
 loop. (They are different cost classes, `test_m` and `cmp_load`, which the
 286 column happens to give the same number, so a table *can* separate them.)
 
+**The prediction that confirms it.** Before run `h1` the record committed
+key `6` at **878.4 Hz** for a word-1 override of 160 — the kit's own 840.72 Hz
+at 12 MHz scaled by the probe's two pass rates, 769/736, and nothing else.
+The kit then played it at **873.59 Hz**: **−0.55%**, with key `1` at −0.15%,
+at a frequency the game had never been played at. The prediction was
+committed, and then measured, in that order.
+
 **What is not settled.** Whether the reference's extra cost is
 instruction-fetch time — which would also act on **fes#1840** — or simply
 different table entries. Both tests that would have separated them came back
@@ -306,9 +313,15 @@ memory accesses and its I/O and MMIO. `gov_t` is
 `{two, op[7:0], mreg[2:0], rm_reg, o32, rep, ea3}`
 (`fes_i386_pkg.sv:589-597`): the opcode, the ModRM fields, the operand size,
 a REP prefix and whether the address has base, index and displacement —
-**no instruction address and no instruction length**, though `decoded_t`
-carries `length` right beside `gov` (`fes_i386_pkg.sv:601-604`), so this is
-*does not*, not *cannot*. The nearest thing to a fetch term the model has
+**no instruction address and no instruction length**.
+
+But `decoded_t` carries `logic [3:0] length` immediately after its `gov_t`
+(`fes_i386_pkg.sv:601-604`), so the length exists one level up and is simply
+not passed down. **The governor is not given the length, though the length is
+available where its `gov_t` is built.** Giving the cost model a fetch term is
+therefore a one-field interface extension, not an architectural limit — a
+wire, not a redesign — which is worth knowing to anyone weighing whether to
+fund it. The right word is *does not*, not *cannot*. The nearest thing to a fetch term the model has
 is the data sheets' `m`, which `governor.toml` takes as one throughout.
 
 But it is **not separated from a table entry**, and the two tests that would
