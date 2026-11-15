@@ -126,7 +126,10 @@ the bad variant three times.
   build is present on the host under another key; the installed Quartus matches its own pin exactly.
   Satisfying it locally would mean editing the lock, which relaxes a seal, or forcing the cache to
   serve an install other than the one resolution selected, which defeats the digest pin. Filed as
-  DeanoC/fes#1868.
+  DeanoC/fes#1868. Deano's decision is that this PR merges with that reseal to follow rather
+  than waiting for it; the obligation is DeanoC/fes#1869, so it does not rest on anyone
+  remembering. Note that #1868 blocks sealing this core on Powerboat at all until it is
+  settled, which bears on when #1869 can be done.
 
   What *is* measured for these two is supporting, not sufficient: their canonical QSF is
   byte-identical between the base and this branch for **all eight** combinations of
