@@ -476,10 +476,13 @@ NO387_CASES = 1933
 def run_x87(testbench: str, env: dict) -> dict:
     """The directed cases of the ESC instructions with a 387 fitted
     (lockstep_tb.cpp's run_x87_cases), the i386dx+387 identity on: the forms
-    slice 2 of the x87 phase builds, run through the CPU against the oracle's
-    387, with the 387's whole state compared at every retirement. The random
-    and corpus programs run no ESC, so these are what exercises the unit
-    inside the CPU."""
+    slices 2 and 3 of the x87 phase build, run through the CPU against the
+    oracle's 387, with the 387's whole state compared at every retirement.
+    The random and corpus programs run no ESC, so these are what exercises
+    the unit inside the CPU -- and the only thing that exercises the decode's
+    uops for the arithmetic forms, the x87 pointers and the opcode they
+    leave, and the issue interlock, none of which the unit's own bench
+    reaches."""
     env = dict(env, FES_I386_MODE='x87', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
@@ -490,7 +493,7 @@ def run_x87(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-X87_CASES = 8
+X87_CASES = 14
 
 
 def divergence_table(entries: list[dict], path: Path) -> None:
