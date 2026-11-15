@@ -381,9 +381,15 @@ subtraction on the setup column gives −0.209 ns (+0.385 to +0.176), **and
 that one does not carry**: it is one seed against one seed, and the sweep
 below spreads identical RTL across 0.75 ns of slack. The area delta is a
 measurement; the slack delta is a coincidence of two placements.
-**With the identity off -- which is what ships -- the slice costs +138
-ALMs**, 36,254 to 36,392, because the identity ties the arithmetic off and
-Quartus removes nearly all of it. That row also makes the point about the
+**With the identity off -- which is what ships -- the slice costs about
++138 ALMs**, 36,254 to 36,392. Read that as "small", not as 138: the
+identity-on sweep moves ALMs by 114 across seeds on identical RTL, so a
+single seed pair cannot resolve a difference this size. What the row does
+establish is the mechanism, and that part is not a seed artefact: with the
+identity off the fit drops from 49 DSPs and 286 M10Ks to **40 and 282**, the
+nine multiplier DSPs and four memories of the arithmetic, so the identity
+really is letting Quartus remove the unit rather than merely tying its
+output off. That row also makes the point about the
 slack column on its own: the merge-base closes at **+0.382** and this
 branch, with 138 ALMs *more* logic, closes at **+0.576**. A slice cannot
 add logic and gain slack; what moved is the placement. Any slack figure in
@@ -451,6 +457,12 @@ fit is not a machine prediction.
 
 Slice 2 established nine-of-nine closure at 91.2% of the device, and set the
 question for this slice: does that hold as utilisation rises? It does not.
+One caveat on that comparison before the numbers: slice 2's nine seeds were
+run through the **HIP** slot and these through CUDA, so it is a cross-slot
+comparison of *closure*, not of slack. The within-slot control -- a
+merge-base sweep on this slot -- has not been run, and running one is a call
+for Deano rather than this session. What follows stands on its own either
+way, because every row in it is the same slot.
 Same flow, same settings, same CUDA slot, identity on, seeds 1 to 9 (5 to 9
 still running as this is written):
 
