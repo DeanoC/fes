@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/preparation-after-usb-reset-trial/freeze_selected.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 1,
+  "timed_out": false,
+  "elapsed": 1.0012238072231412,
+  "log_sha256": "15f7a5a3e5b9d08a70f1cc4ea8fb274a6faeb7b71e5150293a030e4d3a672f0d"
+}

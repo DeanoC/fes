@@ -284,8 +284,8 @@ remain in each task's disposable snapshots. Cache contents are not independent
 provenance or acceptance evidence.
 
 Do not copy authenticated compiler installations to another path and assume
-that their qualification survives relocation. Authenticate/build a new slot
-when changing the cache location. Inspect a failing cache slot and the recorded
+that their qualification survives relocation. Build and authenticate new
+installs when changing the cache location. Inspect a failing install and the recorded
 path before any targeted repair; never remove all of `out/`, which may contain
 other worktrees and uncommitted work.
 
@@ -470,7 +470,10 @@ Canonical package definitions and runtime fixtures remain owner-maintained input
 Compiler caches and functional core artifacts use the primary Git checkout's
 `out/cache/`, shared across its worktrees. `FES_CACHE_ROOT=/absolute/path` selects
 another stable cache explicitly. Relocating an authenticated compiler installation
-is not supported by merely copying its directory; build/authenticate a new slot.
+is not supported by merely copying its directory; build/authenticate new installs.
+`make -C sources/misteross toolchain-prune CACHE_ROOT=…` reports the compiler
+installs no lock on `origin/main` pins and nobody used recently, and
+removes them with `APPLY=1`; never delete installs by hand.
 Mutable source builds stay in individual snapshots. Cached packages retain their
 original manifests and records; a separate `.provenance.json` selection receipt
 identifies selected versus original source and the exact payload digest.
@@ -510,11 +513,11 @@ builds include explicit `development-only` provenance there. Cold host readers
 validate this sidecar when present and reject diagnostic output. Historical
 ordinary receipts without the sidecar remain readable.
 
-For a missing authenticated compiler slot, use the recipe-specific command
+For a missing authenticated compiler install, use the recipe-specific command
 printed by FES, then rerun the original build. It includes the selected shared
 cache, lock and HIP settings. See [compiler provisioning](core-packages.md)
 for clean-module provisioning commands. A plain `make toolchain` without those
-settings can populate a different slot. Manual provisioning inherits shell
+settings can build a different nextpnr lane. Manual provisioning inherits shell
 compiler overrides that FES normally removes for producer execution.
 
 ## Compatible kit software updates

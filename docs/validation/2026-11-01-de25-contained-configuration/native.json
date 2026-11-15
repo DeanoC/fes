@@ -1,0 +1,733 @@
+{
+  "serial": "TRWU8CBL",
+  "source_commit": "283d91acfd62f29643107064d1044624ab6b3385",
+  "phase": "native",
+  "native_build_source_commit": "283d91acfd62f29643107064d1044624ab6b3385",
+  "sof_sha256": "bde5fa27120029b494ce3253b3cde121ee256f32e76c85093660a0e69ea9b3e8",
+  "initial_card_image_sha256": "42ac2e14fcb224fb8f39c38b0f26e7999b31c800180bd22489619fdc39f4bacf",
+  "card_reference_scope": "historical preparation only; live file verification is in the new upload receipt",
+  "fit_sha256": "0527f520628b6185d24e2101199d1d1ca3489b65dc1e7b9ee123e4c01439cf38",
+  "started_utc": "2026-11-01T21:53:16.754594+00:00",
+  "stage": "one fesboot",
+  "programming_attempted": true,
+  "fesboot_sent": true,
+  "pass": false,
+  "sd_write_commands_sent": false,
+  "qualified_recovery_receipt_sha256": "b5637232887e636b1ea4e86245b8132592de2c52524e460710b71d489a20321f",
+  "live_card_receipt_sha256": "f7cea2c8ec2cf97aac751942837d059e4378e90e6c3714abc458bbb988291e46",
+  "prior_stop_receipt_sha256": "2ef5cb6a0a5bfde0d344519acdf721300010893b3a94dcba62e4480a124f0c40",
+  "runner_sha256": "6367d3a41e973f706fe489410509c716ac66119143058e1570d2e1748e8165df",
+  "clock_checks": [
+    {
+      "clock": "6M",
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    }
+  ],
+  "jtag_id": "4362C0DD",
+  "boot_trace": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "6bf7a619b72b8bca"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 1503528696588614835,
+          "epoch": 5955141951,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 41,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 45,
+        "values": {
+          "id": "6bf7a619b72b8bca"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 49,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 61,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 62,
+        "values": {
+          "id": "6bf7a619b72b8bca"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 63,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216373888,
+          "malloc_start": 3216408576,
+          "malloc_end": 3220611072,
+          "reloc": 3220611072,
+          "fdt": 3216383136
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 70,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 1503528696588614835,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 79,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 1503528696588614835,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 80,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 81,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 82,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 83,
+        "values": {}
+      },
+      {
+        "stage": "hps_context",
+        "line": 84,
+        "values": {
+          "sha256": "94da3557f175eae05144d70937c3afceda20c6c9f9ca9d25155535da3e0814fc",
+          "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+          "build_id": "e25bb65a1d14a2bbbddf4c770ea033e5",
+          "owner": 1503528696588614835,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "configuration_arm",
+        "line": 85,
+        "values": {
+          "phase": "arm",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 0,
+          "pending": 0,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_start",
+        "line": 86,
+        "values": {
+          "phase": "start",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 0,
+          "pending": 0,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 87,
+        "values": {
+          "phase": "write",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 0,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 88,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 0,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 89,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 0,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 90,
+        "values": {
+          "phase": "write",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 65536,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 91,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 65536,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 92,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 65536,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 93,
+        "values": {
+          "phase": "write",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 131072,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 94,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 131072,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 95,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 131072,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 96,
+        "values": {
+          "phase": "write",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 196608,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 97,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 196608,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 98,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 196608,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 99,
+        "values": {
+          "phase": "write",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 262144,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 100,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 262144,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 101,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 262144,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 102,
+        "values": {
+          "phase": "write",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 327680,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 103,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 327680,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 104,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 327680,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 105,
+        "values": {
+          "phase": "write",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 393216,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 106,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 393216,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 107,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 393216,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 108,
+        "values": {
+          "phase": "write",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 458752,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 109,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 458752,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 110,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 458752,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 111,
+        "values": {
+          "phase": "write",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 524288,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 112,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 524288,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 113,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 524288,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 114,
+        "values": {
+          "phase": "write",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 589824,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 115,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 589824,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 116,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 589824,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 117,
+        "values": {
+          "phase": "write",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 655360,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 118,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 655360,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 119,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 655360,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 120,
+        "values": {
+          "phase": "write",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 720896,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 121,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 720896,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 122,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 720896,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 123,
+        "values": {
+          "phase": "write",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 124,
+        "values": {
+          "phase": "poll",
+          "owner": 1503528696588614835,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576
+        }
+      }
+    ],
+    "errors": [
+      "failure marker at line 125"
+    ],
+    "loader_ready": false,
+    "complete": false,
+    "last_checkpoint": "configuration_poll",
+    "core_load_acceptance": false,
+    "configuration_transfer": {
+      "complete": false,
+      "completed_bytes": 786432,
+      "core_sha256": "415cc2d68955755d2de406b233e34fa2cd6cce755089ba842f10f62e6945320c",
+      "arena_base": 2491416576,
+      "arena_size": 8388608
+    }
+  },
+  "programming_complete": true,
+  "build_id": "6bf7a619b72b8bca",
+  "secure_cold_boot_verified": true,
+  "error": "native handoff/probe trace rejected: ['failure marker at line 125']",
+  "usb_permissions_restored": true,
+  "console_sha256": "d1dac810685bee771c86e21d8fcb26fe20f42361d423fbed88aecb2730c6893a",
+  "finished_utc": "2026-11-01T21:54:11.703312+00:00",
+  "decoder_sha256": "01013ba818fc3f838952c617043f53b2c6b4ed0fffd785763e8c04bea610fcc6"
+}

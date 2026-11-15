@@ -1,0 +1,22 @@
+{
+  "argv": [
+    "env",
+    "GOWORK=off",
+    "GOTOOLCHAIN=local",
+    "GOPROXY=off",
+    "GOSUMDB=off",
+    "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+    "-C",
+    "platform/embedded/tamago",
+    "test",
+    "-race",
+    "-count=1",
+    "-timeout=90s",
+    "./nativefabric",
+    "./modelbackend"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 2.802043077070266,
+  "log_sha256": "d2969eba15011a4960fe2c9b125a8c9c9ce2a849e663e6b9c3a33a12fe7fbc3c"
+}

@@ -1,0 +1,28 @@
+{
+  "status": "passed",
+  "source_commit": "35f4d552971f724235249da965e92423dda245d1",
+  "native_build_source_commit": "1bf9fe81404f130e914b4ff801e836a2864760a0",
+  "native_sdk_source_commit": "20ebc7cf58dcec7b21957da020f9e096d3e9efb5",
+  "input_receipt_sha256": "2e5a73b0074647f178b5c10cbda396a060a2362ab7dec2ee9566a32e2b9686e0",
+  "selected_git_blobs": 115,
+  "selected_module_sdk_files": 1298,
+  "native_uncompiled_difference": [
+    "docs/validation/2026-11-03-de25-recovery-phy-prepare/README.md",
+    "docs/validation/2026-11-03-de25-recovery-phy-prepare/hardware-evidence.json",
+    "docs/validation/2026-11-03-de25-recovery-phy-prepare/kermit-model.json",
+    "docs/validation/2026-11-03-de25-recovery-phy-prepare/phy-build-selection.json",
+    "docs/validation/2026-11-03-de25-recovery-phy-prepare/recovery-spl-identity.json",
+    "docs/validation/2026-11-03-de25-recovery-phy-prepare/selected-inputs.json",
+    "docs/validation/2026-11-03-de25-recovery-phy-prepare/serial-upgrade-model.json",
+    "docs/validation/2026-11-03-de25-recovery-phy-prepare/software-summary.json",
+    "docs/validation/2026-11-03-de25-recovery-phy-prepare/uart-controller-model.json",
+    "platform/embedded/nano/README.md",
+    "platform/embedded/nano/recovery.py",
+    "platform/embedded/nano/upload.py",
+    "tests/fixtures/nano-recovery-version.txt",
+    "tests/test_nano_recovery.py",
+    "tests/test_nano_upload.py"
+  ],
+  "native_image_rebuilt": false,
+  "hardware_acceptance": false
+}

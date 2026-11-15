@@ -1,0 +1,108 @@
+{
+  "status": "passed",
+  "program": "probe",
+  "classification": "QEMU-only native Go bare metal; not DE25 hardware",
+  "commands": [
+    [
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+      "version"
+    ],
+    [
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64",
+      "--version"
+    ],
+    [
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+      "list",
+      "-deps",
+      "-json",
+      "-mod=readonly",
+      "./cmd/probe"
+    ],
+    [
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+      "build",
+      "-mod=readonly",
+      "-trimpath",
+      "-ldflags",
+      "-T 0x40010000 -R 0x1000",
+      "-o",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/tamago-native-probe-platform-tags/probe.elf",
+      "./cmd/probe"
+    ],
+    [
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+      "version",
+      "-m",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/tamago-native-probe-platform-tags/probe.elf"
+    ],
+    [
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64",
+      "-machine",
+      "virt,gic-version=3",
+      "-cpu",
+      "cortex-a53",
+      "-m",
+      "256M",
+      "-smp",
+      "1",
+      "-nographic",
+      "-monitor",
+      "none",
+      "-net",
+      "none",
+      "-kernel",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/tamago-native-probe-platform-tags/probe.elf"
+    ]
+  ],
+  "environment": {
+    "GOOS": "tamago",
+    "GOARCH": "arm64",
+    "CGO_ENABLED": "0",
+    "GOOSPKG": "github.com/usbarmory/tamago",
+    "GOTOOLCHAIN": "local",
+    "GOENV": "off",
+    "GOWORK": "off",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOMODCACHE": "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/mod",
+    "GOCACHE": "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/cache"
+  },
+  "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
+  "compiler_version": "go version go1.26.5 linux/amd64",
+  "qemu_sha256": "abab52b9e084e176b047d698dcc9dc9c3a38e33cd6dc04cbe3792d2080cfdb45",
+  "qemu_version": "QEMU emulator version 10.0.2 (v10.0.2-19-gfe132ed0c9-dirty)\nCopyright (c) 2003-2025 Fabrice Bellard and the QEMU Project developers",
+  "modules": {
+    "github.com/usbarmory/tamago": {
+      "Path": "github.com/usbarmory/tamago",
+      "Version": "v1.26.5",
+      "Time": "2026-06-26T12:55:50Z",
+      "GoVersion": "1.26.4",
+      "Sum": "h1:k21IAFiXGmibfPn3SYx0XLNXdqDrAgXiIgKSbI5LZ1k=",
+      "GoModSum": "h1:HZkb+ZkzFl8aCxAuF7exsKX+XaNM0mYG9Iv7ooX1WDY="
+    },
+    "github.com/DeanoC/fes/platform/embedded/tamago": {
+      "Path": "github.com/DeanoC/fes/platform/embedded/tamago",
+      "Main": true,
+      "GoVersion": "1.26.5"
+    }
+  },
+  "source_sha256": {
+    "platform/embedded/tamago/board/qemuvirt/board.go": "ed613786593c1d5a4cecaf121e5edb607445cfee4788a7892df630c7259171b7",
+    "platform/embedded/tamago/board/qemuvirt/board.s": "63a81ff1258aec670024281f5313aed717a7c73c93288a3bf02ba9c49a0c0ded",
+    "platform/embedded/tamago/cmd/probe/main.go": "6604030ea75d36a14a5fa39d9ba3ceacbe975b458a85830855e9d3c0c3342666",
+    "platform/embedded/tamago/go.mod": "1c18f1cccaec1632bb6f68b1583f9260133035a4fdc53fd1688124f2a32b0063",
+    "platform/embedded/tamago/go.sum": "99426264f6792429c01533cc5de39bc9689c5adbd12c0529f65131b3e67882c5",
+    "platform/embedded/tamago/run.py": "56203ccb9607293b339b306d2f51bef9087a05bb57455d91382c67e9804a7583",
+    "platform/embedded/tamago/toolchain.lock.toml": "0cc292cca0b16f33e90056a6b3d7dbddb3defbd9861ebb1f1ee91009b50057b2"
+  },
+  "elf_sha256": "cfff5013524bd4576499f583fa215f2bb5a4ff533ea58a0c187bf1d5a868760a",
+  "elf_bytes": 2277479,
+  "elf_machine": "AArch64",
+  "elf_interpreter": null,
+  "elapsed_seconds": 0.1287736429949291,
+  "termination": "runner stopped its emulator after guest completion marker",
+  "complete_receipt_sha256": "f9b7b446fee3a2ade03d2deb768ff23fc4dc2dfb2550aad4ec63928ac955e091",
+  "complete_receipt_path": "out/tamago-native-probe-platform-tags/result.json",
+  "source_scope": "Project inputs retained; complete receipt additionally hashes toolchain/module-cache source files."
+}

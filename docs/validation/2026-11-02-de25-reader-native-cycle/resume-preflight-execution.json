@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/nano-reader-native-resume-trial-20261102/preflight.py"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 10.605623467941768,
+  "log_sha256": "c10753c6fc7b5bd4e61083514f04d8b6c4aad11d07f8d7d3058aa957e90853ec"
+}

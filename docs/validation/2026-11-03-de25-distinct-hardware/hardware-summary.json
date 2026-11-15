@@ -1,0 +1,113 @@
+{
+  "status": "bounded diagnostic hardware pass",
+  "source_commit": "869d5c3b2f2ba64670463bd823ecb331cea40216",
+  "native_build_source_commit": "bde52b56470ddcbd5934b3d208270d11d1011162",
+  "fpga_producer_commits": [
+    "c272cb2b320740220fc2b7bb1c8dfd92a0ffe6f6",
+    "afdabcae299ad698634972e3cb9514f2021b5a4a"
+  ],
+  "native_boot_id": "13c81622014c34cb",
+  "launches": [
+    {
+      "index": 0,
+      "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+      "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+      "launch_seconds": 73.33665707695764,
+      "configuration_seconds": 13.30655482
+    },
+    {
+      "index": 1,
+      "package_id": "79f27adbfea04a3276965cb9a427049e12bf9fd6ea2b9d275df2d11e70e8b964",
+      "build_id": "90f763a6040701d3c254567d1cc01511",
+      "launch_seconds": 73.99232088308781,
+      "configuration_seconds": 13.306738305
+    },
+    {
+      "index": 0,
+      "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+      "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+      "launch_seconds": 73.33385661407374,
+      "configuration_seconds": 13.3083325375
+    }
+  ],
+  "returns": [
+    {
+      "op": "return",
+      "seconds": 0.2622496470576152,
+      "master_stop_generation": 5
+    },
+    {
+      "op": "return",
+      "seconds": 0.27343895204830915,
+      "master_stop_generation": 10
+    },
+    {
+      "op": "park",
+      "seconds": 0.22948495601303875,
+      "master_stop_generation": 15
+    }
+  ],
+  "elapsed_seconds": 533.1749980819877,
+  "outer_bound_seconds": 800,
+  "wrapper_bound_seconds": 900,
+  "raw_console_bytes": 31084,
+  "raw_console_sha256": "32568a2220d135c7899da78f1907dff18e6c320f92260a7d9e901480c043b784",
+  "damaged_actual_captures_rejected": 58,
+  "command_count": 44,
+  "rejected_invalid_or_stale_commands": 8,
+  "upload_purposes": [
+    "boot",
+    "package",
+    "metadata",
+    "package-alt",
+    "metadata-alt",
+    "selection"
+  ],
+  "fresh_file_count": 6,
+  "model_checks": {
+    "upload-both-fixtures.json": 69,
+    "upload-checks-fixtures.json": 271,
+    "runner-fixtures.json": 13,
+    "audit-fixtures.json": 14,
+    "controller": 67
+  },
+  "helper_tests": 7,
+  "final_state": {
+    "scope": "nano-contained-program-service-v1",
+    "op": "park",
+    "ok": true,
+    "state": "parked",
+    "owner": "f2eb5f6a4d769b81",
+    "generation": 6,
+    "held": true
+  },
+  "configuration_generations": [
+    4,
+    9,
+    14
+  ],
+  "data_held": true,
+  "sd_contained": true,
+  "different_physical_packages": true,
+  "ordinary_runtime_admission": false,
+  "physical_ddr_drain_qualified": false,
+  "native_tenfoot": false,
+  "physical_usb_input": false,
+  "video_capture": false,
+  "native_ethernet": false,
+  "factory_card_restored": false,
+  "spare_retained": true,
+  "claim_retained": true,
+  "legacy_label_note": "The frozen preflight descriptive scope retained four-file prose; its enforced purpose list, actual six writes and six fresh reads are authoritative.",
+  "next_step": "qualify the real FPGA-to-HPS DDR path and drain with the existing bounded reader, then native presentation/input and ordinary FES package admission",
+  "evidence_sha256": {
+    "hardware-evidence.json": "1587884faa525c7ba0e196dc3ecda89ba91016751e039aadd48ba50c83b3e481",
+    "hardware-result.json": "1b62aafa7c15c986987baa8f499e9de274799b885561298afee6a30e137fb178",
+    "audit-result.json": "7f80f6bd25b6edce402ab5e4ff94fdae6481e38282494f4a11ae73256db549d1",
+    "trial/preflight.json": "839eeb30462d87c23d9d5171bbc27be7ebf03dd70928fc12e60b9eb24e61291d",
+    "trial/native-console.log": "32568a2220d135c7899da78f1907dff18e6c320f92260a7d9e901480c043b784",
+    "trial/native-result.json": "df0eac120136eccac38374c57835b14f86cbae62ed96b3b242bda698bde55a68",
+    "trial/experiment-result.json": "c50426700c12b158f0ccee8d19fb9476c022aba9b52323a4d2f724ed7701ea65",
+    "trial/transport.json": "47c7d75bce467ca12b1ee54a146a856e59e9e94e073809463e1316b32dc73da9"
+  }
+}

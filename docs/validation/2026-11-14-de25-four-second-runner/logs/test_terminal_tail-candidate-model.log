@@ -1,0 +1,6 @@
+test_park_captures_attempt_return_without_resuming_or_promoting_reset (test_terminal_tail.TerminalTailTests.test_park_captures_attempt_return_without_resuming_or_promoting_reset) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.159s
+
+OK

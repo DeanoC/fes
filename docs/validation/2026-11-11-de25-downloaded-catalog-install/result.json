@@ -1,0 +1,21 @@
+{
+  "status": "passed-software-and-native-sdk-cross-build",
+  "base": "883213b60",
+  "native_integration": "patched TF-A C and Verilated FPGA RTL with simulated bridges, memory and SDM; race-enabled Go tests",
+  "parent_tests": 1935,
+  "parent_skips": 3,
+  "selected_gates_passed": 7,
+  "sdk_source_hash_count": 2131,
+  "integration_source_hash_count": 469,
+  "elf_sha256": "6799b88706797837ab1142d1880acda2ea00774c0da75acb705cd8fa00d447f3",
+  "hardware_actions": false,
+  "native_ethernet_enabled": false,
+  "matched_boot_chain_built": false,
+  "single_retained_source_slot": true,
+  "artifacts": "out/nano-download-catalog-20261111",
+  "retention": "/home/deano/fes-retained/de25-downloaded-catalog-install-20261111-r1",
+  "changed_source_sha256": {
+    "platform/embedded/tamago/nativefabric/program_staged_catalog.go": "6e4c28a200dcd91ff4e58aa1de1690fff772c761330a57322cdec5b21869d18e",
+    "platform/embedded/tamago/nativefabric/program_download_test.go": "adc742955d03fa4e17311f7f2a4442a4eae5a58aae847c8b7f31d6d8dde22e5f"
+  }
+}

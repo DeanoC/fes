@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "/usr/bin/python3",
+    "out/preparation-budget-candidate-trial/run_trial.py",
+    "--procedure-sha256",
+    "f39c1a04a59680865e2b686295af04c66e3c71b1befe00aa83ccf53855c60772",
+    "--execute"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 1,
+  "timed_out": false,
+  "elapsed": 74.64754268690012,
+  "log_sha256": "5e76dafa6446ea7c0404ec41155eb08d32cc4b17d181e1bed7ea26d657815bde"
+}

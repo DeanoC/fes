@@ -78,7 +78,8 @@ Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and m
 ### Hard rules
 - No rebase, force-push or amend.
 - Never relax timing or seal checks.
-- A change that moves a core's `BUILD_ID` only through its build record or source closure (a producer script, lock or helper edit, with no RTL change) needs no reseal or HIL when the PR shows all of: the core's Yosys netlist (for a native Quartus front end, its QSF) is byte-identical to main apart from the `BUILD_ID` constant; a build with the PR's tooling and main's `BUILD_ID` reproduces main's RBF byte for byte; and the PR's own build passes the core's normal timing and seal gates. Quartus maps a different `BUILD_ID` constant differently, so resource counts and the RBF may differ; that alone does not need a reseal. Any other difference needs the core's normal reseal and HIL. (#1581, D12)
+- For design-v1 records, audited packaging/recording edits do not move `BUILD_ID` and require no rebuild, reseal or HIL when the original sealed package and record are reused unchanged. Toolchain drift is advisory for reuse; rebuilding with a different execution needs fresh timing/seal checks and applicable exact-artifact HIL. A design ID alone is never exact artifact acceptance. The following measured D12 exception still applies to legacy records, the one-time design-ID migration, and design-generating producer changes without RTL edits.
+- A change that moves a core's `BUILD_ID` only through its build record or source closure (a producer script, lock or helper edit, with no RTL change) needs no reseal or HIL when the PR shows all of: the core's Yosys netlist (for a native Quartus front end, its QSF) is byte-identical to main apart from the `BUILD_ID` constant and from file paths in `src` attributes (the checkout and the tool install directory: a toolchain at the same commit is the same toolchain wherever it is installed); a build with the PR's tooling and main's `BUILD_ID` reproduces main's RBF byte for byte; and the PR's own build passes the core's normal timing and seal gates. "Main" in those comparisons means the PR's current merge base. Merging main forward does not by itself void recorded evidence: a comparison still holds for a core whose compiled source set is unchanged between the old base and the new one and whose route-deciding inputs are unchanged too — its toolchain lock, its timing and pin constraints, and its placement recipe. Where any of those moved, the RBF comparison must be re-measured for that core even where its netlist is byte-identical, because a different router, constraint or seed list places the same netlist differently. A core whose compiled source set did change still keeps its recorded comparison where main's own netlist is byte-identical at the old base and the new one, apart from the `BUILD_ID` constant and the paths this rule already exempts. Run both sides with one tool install, and in the same checkout path where that is possible, so the comparison is byte-identical with nothing normalised away. Record both digests, and the command that produced them, in the PR's validation record. That measurement is the only thing that carries: that a change looks inert is not evidence that it is. Where the netlist moved, the comparison is re-measured however small the source change was. Quartus maps a different `BUILD_ID` constant differently, so resource counts and the RBF may differ; that alone does not need a reseal. Any other difference needs the core's normal reseal and HIL. (#1581, D12)
 - Do not close PRs without Deano's OK.
 
 ### Ops
@@ -196,7 +197,7 @@ never infer persistence from a display name, package path or raw RBF.
 
 ## Toolchain pin bump checklist
 
-- A toolchain pin bump must build every core it touches before merging.
+- A committed toolchain pin bump is deliberate adoption and must force-build every core it touches before merging; a design-cache hit does not satisfy this check. A newer available compiler alone is advisory and does not require moving a lock.
 
 ## Pre-release development and review
 
@@ -282,9 +283,10 @@ equivalence only; production builds, promotion and seal evidence still require a
 authenticated live HIP or CUDA backend as producer validators require, and they do
 not accept Metal yet. Registered producers reject CPU-reference fallback
 (`NEXTPNR_REQUIRE_GPU=1`), so CPU replays can inform experiments only. HIP, CUDA
-and Metal builds keep distinct `BUILD_ID`s and artifact identities because backend
-is part of functional execution identity, even though their timing and route
-evidence is interchangeable. Among current core
+and Metal builds share a design-v1 `BUILD_ID` when their design inputs match;
+backend remains part of toolchain and recording identity. Exact artifacts are
+identified by package/payload hashes, and hardware acceptance follows those
+exact bytes even though timing and route evidence is interchangeable. Historical combined identities are unchanged. Among current core
 package producers, Apple II, Atari ST, C64, Coleco socket-v2, SG-1000, SMS,
 Spectrum and ZX81 accept `--gpu-router {HIP,CUDA}`. The pc386 Quartus sealer
 accepts it too, but only to select which toolchain slot it authenticates; it

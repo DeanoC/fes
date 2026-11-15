@@ -1,0 +1,232 @@
+{
+  "pass": true,
+  "source_commit": "c93ae266c46c8996a7a64073172d6563999aed91",
+  "native_build_source_commit": "c93ae266c46c8996a7a64073172d6563999aed91",
+  "hardware_evidence": "one read-only SDM configuration-status query; all bridges closed",
+  "console_sha256": "66872b6504bf919ec1aa4170e617c82f49eea9e6b7af13550562a1ad32c60397",
+  "configured": false,
+  "sdm_configuration_status": {
+    "status": 0,
+    "words": 6,
+    "state": 0,
+    "version": 1704704,
+    "pins": 3221225609,
+    "soft": 1,
+    "error_location": 0,
+    "error_details": 15,
+    "ready": 0
+  },
+  "owner": 6697396214834163159,
+  "generation": 1,
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "usb_node": "/dev/bus/usb/003/061",
+  "uart_free": true,
+  "claim_retained": true,
+  "factory_restore_requested": false,
+  "programming_permission": false,
+  "native_sd_access": false,
+  "native_fpga_mmio": false,
+  "native_fpga_writes": false,
+  "bridge_open_requested": false,
+  "core_load_acceptance": false,
+  "trace": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "447cbedd1ea129a9"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 6697396214834163159,
+          "epoch": 4404355723,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 41,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 45,
+        "values": {
+          "id": "447cbedd1ea129a9"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 49,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 61,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 62,
+        "values": {
+          "id": "447cbedd1ea129a9"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 63,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216373888,
+          "malloc_start": 3216408576,
+          "malloc_end": 3220611072,
+          "reloc": 3220611072,
+          "fdt": 3216383136
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 70,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 6697396214834163159,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 79,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 6697396214834163159,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 80,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 81,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 82,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 83,
+        "values": {}
+      },
+      {
+        "stage": "hps_context",
+        "line": 84,
+        "values": {
+          "sha256": "94da3557f175eae05144d70937c3afceda20c6c9f9ca9d25155535da3e0814fc",
+          "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+          "build_id": "e25bb65a1d14a2bbbddf4c770ea033e5",
+          "owner": 6697396214834163159,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "fpga_query",
+        "line": 85,
+        "values": {}
+      },
+      {
+        "stage": "fpga_status",
+        "line": 86,
+        "values": {
+          "status": 0,
+          "words": 6,
+          "state": 0,
+          "version": 1704704,
+          "pins": 3221225609,
+          "soft": 1,
+          "error_location": 0,
+          "error_details": 15,
+          "ready": 0
+        }
+      },
+      {
+        "stage": "fpga_status_closed",
+        "line": 87,
+        "values": {
+          "ready": 0,
+          "owner": 6697396214834163159,
+          "generation": 1
+        }
+      }
+    ],
+    "errors": [],
+    "loader_ready": true,
+    "complete": true,
+    "last_checkpoint": "fpga_status_closed",
+    "core_load_acceptance": false
+  },
+  "finished_utc": "2026-11-01T21:00:45.893291+00:00"
+}

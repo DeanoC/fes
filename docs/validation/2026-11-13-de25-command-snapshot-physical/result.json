@@ -1,0 +1,168 @@
+{
+  "status": "failed-command-deadline-and-warm-USB-baseline-with-exact-FIT-restored",
+  "procedure_sha256": "e2b0a6aefbe48a269f473c5d18bb25c65e685f3194a623e330aa725046c71883",
+  "elapsed_seconds": 657.0431772700977,
+  "source_commit": "cd75ba13370232b0c11ef4b9690b5ac700d3994c",
+  "chain_sha256": "78d9472a2d7218dbdfbfbc3bc8aea3ea432f789c6436937fef649ca5a28b1c20",
+  "original_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+  "exact_original_FIT_restored_and_read_back": true,
+  "forward_and_rollback": {
+    "forward": {
+      "status": "verified-reversible-fit-refresh",
+      "direction": "forward",
+      "plan_sha256": "0568bd78de6628be5d59a35592dbef8b8b2187f09c00043d5a4e61c79579dacf",
+      "previous_boot_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+      "boot_sha256": "5176ea7b074dd15e1414df0a39296f3b3c4579507b9a71f08e465b0584cb2486",
+      "preserved_files": 16,
+      "readbacks_before": 17,
+      "readbacks_after": 17,
+      "session": "68e26437cc07bf8d3bb70be70748ce49",
+      "physical_boot_accepted": false
+    },
+    "rollback": {
+      "status": "verified-reversible-fit-refresh",
+      "direction": "rollback",
+      "plan_sha256": "0568bd78de6628be5d59a35592dbef8b8b2187f09c00043d5a4e61c79579dacf",
+      "previous_boot_sha256": "5176ea7b074dd15e1414df0a39296f3b3c4579507b9a71f08e465b0584cb2486",
+      "boot_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+      "preserved_files": 16,
+      "readbacks_before": 17,
+      "readbacks_after": 17,
+      "session": "43f2aeaaf35de250f846ec5424daac63",
+      "physical_boot_accepted": false
+    }
+  },
+  "diagnostic_full_source_transfer_verified": true,
+  "diagnostic_bytes": 1708032,
+  "diagnostic_posts": 2,
+  "diagnostic_acks": 2,
+  "source_transfer_elapsed_us": 11659771,
+  "diagnostic_mapping_retirement_verified": false,
+  "retirement_phase": 4,
+  "retirement_first_error": -3,
+  "retirement_control_writes": 3,
+  "retirement_observed_elapsed_us": 290724,
+  "command_phase_observed_us": 111443,
+  "baseline_boot_verified": true,
+  "baseline_cycle_commands_completed": 0,
+  "baseline_final_Park_verified": false,
+  "baseline_restored": false,
+  "warm_baseline_error": "DWC2 interrupt packet failure, exact cause truncated by collector",
+  "independent_firmware_master_stop": "NOTICE:  FES_NANO_MASTER_STOP status=0 owner=a9ff1c2e81f63481 generation=6 reset=5 reader_reads=88 reader_polls=1 disable=0 probe_polls=2 cancel=0 complete=1 data=active",
+  "independent_firmware_reader_drain": "NOTICE:  FES_NANO_WINDOW_READER_DRAIN owner=a9ff1c2e81f63481 generation=6 reset=5 reader_generation=1 request_generation=1 cookie=1 ack_generation=1 ack_cookie=1 status=4 pending=0",
+  "independent_firmware_bridge_closure": "NOTICE:  FES_NANO_WINDOW_CLOSURE owner=a9ff1c2e81f63481 generation=7 reset=f hardware_drained=8 data_remained_contained=0 producers_quiescent=1 fabric_acknowledged=0",
+  "roles": {
+    "recovery-before": {
+      "image_sha256": "ce143f50e05c9895381047f921be4a0c38d9a7eacfa75b3c0709be4ff7eafe75",
+      "epoch": "1272414:159878232",
+      "cleanup_verified": true,
+      "role_result_sha256": "9831b03b96f4065703e7bdce0eb6a129d36d4be5d8015ab6458b98760d652dba"
+    },
+    "native-diagnostic": {
+      "image_sha256": "b97cc318c2f00d4adcd71c44138689e8226cbb8ee979c8b5e6f964657cdffa6a",
+      "epoch": "1282943:159901714",
+      "cleanup_verified": true,
+      "role_result_sha256": "bb4bc246a410a26af2f538d64a349439d420e2b0d8269e794363be262fb395d5"
+    },
+    "recovery-rollback": {
+      "image_sha256": "ce143f50e05c9895381047f921be4a0c38d9a7eacfa75b3c0709be4ff7eafe75",
+      "epoch": "1285102:159908067",
+      "cleanup_verified": true,
+      "role_result_sha256": "f431c9a34d12af038f491ca47e4a9076d3d089d4a13fd21f94d3ff9a99cf8ae1"
+    },
+    "native-baseline": {
+      "image_sha256": "c01c97dde2fe75ce7e6145ccce2a52b6fa8449f43731ba0bd2ce94cbfc3d91d4",
+      "epoch": "1293262:159930803",
+      "cleanup_verified": true,
+      "role_result_sha256": "afa78e48782e1504ab6411b0437286be5baaf682534db390403d8129aa826ab7"
+    }
+  },
+  "wire_proofs": {
+    "native-diagnostic": {
+      "boot_boundary_verified": true,
+      "console_sha256": "f6ed63381ff91277997b9e12d5e3ab62dd7c5d8eebafdde2bc078b9598acb0bf",
+      "all_wire_sha256": "15bde643c82053f9dbdf23d7f371eb5af623cef48cd66d1a05dc99f17a369c88",
+      "completed_program_epoch": "1282943:159901714"
+    },
+    "native-baseline": {
+      "boot_boundary_verified": true,
+      "console_sha256": "9f297d3c379c3acb60cee1e15974ea40773f21627a73d5ef4dd4d31106015674",
+      "all_wire_sha256": "38b7b2bfb872293abe00b3861d2fe8c3dee37ff5df400e774cb9088ac87f57d9",
+      "completed_program_epoch": "1293262:159930803"
+    }
+  },
+  "UART_closed_and_free": true,
+  "JTAG_auto_1_15M": true,
+  "USB_identity_inode_permissions_restored": true,
+  "read_only_panic_tail": {
+    "scope": "single-read-only-panic-tail-after-failed-and-closed-capture",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "elapsed_seconds": 3.05168475699611,
+    "error": null,
+    "UART_closed": true,
+    "UART_bytes_written": 0,
+    "termios_configuration_changed": false,
+    "JTAG_operations": 0,
+    "SD_writes": 0,
+    "boot_operations": 0,
+    "prior_completed_programming_epoch": "1293262:159930803",
+    "continuity_with_closed_capture_unproven": true,
+    "baseline_restoration_accepted": false,
+    "diagnostic_retried": false
+  },
+  "board_volatile_state": "original native baseline panic; reboot required; resources retained",
+  "diagnostic_retried": false,
+  "memory_reuse_authorized": false,
+  "ordinary_runtime_activation": false,
+  "general_core_load_acceptance": false,
+  "permanent_QSPI_written": false,
+  "factory_card_changed": false,
+  "bottom_kit_touched": false,
+  "original_report_sha256": "c20512e537549a292c4dabffa7c365de2bd87652bd5b34947a87b4d6f55778ff",
+  "retirement_timing": {
+    "build": "78d9472a2d7218db",
+    "owner": 8708069607706222477,
+    "epoch": 6774212439,
+    "generation": 4,
+    "bytes": 1708032,
+    "sha384": "faef83bbdc549d5a117cf09ecda3007150b45156cbb13ed7d138d0ab048c28a92964d0e9f8d1cafee563b202e0a0e606",
+    "phase": 4,
+    "timed": 1,
+    "mask": 31,
+    "start_us": 50244799,
+    "last_us": 50535523,
+    "observed_us": 50535523,
+    "guards": 134,
+    "samples": 134,
+    "owners": 134,
+    "sources": 3,
+    "validated": 3,
+    "reads": 682,
+    "writes": 3,
+    "polls": 3,
+    "first_us": [
+      50244799,
+      50287867,
+      50304543,
+      50364272,
+      50424080,
+      0,
+      0
+    ],
+    "latest_us": [
+      50286520,
+      50303195,
+      50362924,
+      50422656,
+      50535523,
+      0,
+      0
+    ],
+    "retained": 1,
+    "reuse": 0,
+    "activated": 0
+  },
+  "failure_archive_sha256": "45dc2a12dd713ef92cd56b7c54eef9e670b03dcd12139c7f0dba6218b2eb694d",
+  "failure_archive_bytes": 2257231
+}

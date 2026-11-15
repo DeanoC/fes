@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/publication/prepare-full-sof-loading.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 1.0012089249212295,
+  "log_sha256": "2e75f8bf8bfe54c183d5e41ece11f90e6a103e322040a4b07060e93f8deaad05"
+}

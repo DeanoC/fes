@@ -1,0 +1,19 @@
+{
+  "status": "retained-software-only-discovery-template",
+  "source_head": "d47639349e48c6828f0aaa47a243bd111f2cd911",
+  "files": 67,
+  "archive_sha256": "46b262474af4faf6308738f567dc9bb5f6040d73cfea62fb8f4e8aae66fffebc",
+  "source_bundle_sha256": "f340b5db186a1cc076f00eceb8c6e20c199d051541a2d1eae433b7a454c0c12f",
+  "source_prerequisites": {
+    "/home/deano/fes-retained/de25-menu-return-observation-20261110-r1/source.bundle": "d7166cde75bd88ea7f9d14ac4a5706b55c74cd215cc4f375abd1a5d6661a17d0",
+    "/home/deano/fes-retained/de25-native-isolated-jtag-usb-stop-20261111-r1/source.bundle": "b0a45c4f1d1bf10af6a509868e143ac71d22f7f8af313ebd452674645aa0bcd6"
+  },
+  "independent_source_restore_verified": true,
+  "strict_fsck_verified": true,
+  "archive_readback_verified": true,
+  "native_candidate_dependency": "/home/deano/fes-retained/de25-native-installer-ui-prepared-20261110-r1",
+  "hardware_actions": false,
+  "live_admission": false,
+  "physical_installation_verified": false,
+  "persistence_verified": false
+}

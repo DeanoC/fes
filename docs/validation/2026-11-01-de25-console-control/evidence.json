@@ -1,0 +1,142 @@
+{
+  "affected_checks": 6,
+  "artifact": {
+    "config_sha256": "cfbdaa4b25604ba796464da53d9cfaf2286a10353a515ea43da3f9e8667b1453",
+    "sof_sha256": "aaba7d33e1098c0b497bf40be39dbe3b7755cb5fdb3e56126c1d9bb74c9ad34e",
+    "spl_elf_sha256": "c934f81e58c20b10e7ed7f9da075c53d7d93e43094e81eb3f90c27eddd96bcf7",
+    "spl_sha256": "bef8bc65f6994b41ec9c158200f806c2a140fbf5aa48b0de3db1f7e4f5621d96"
+  },
+  "candidate_replayed": false,
+  "classification": "hardware diagnostic inconclusive; no native admission",
+  "diagnostic_id": "12d8fdacd1c23b7d",
+  "focused_tests": 4,
+  "kit_state": "control diagnostic retained; factory card inserted; execution and park unconfirmed; claim held; no factory restoration",
+  "limitations": [
+    "UART silence does not identify a failing instruction",
+    "HPS DAP disabled in reference and diagnostic SOF",
+    "Old OCRAM checkpoint dump unavailable",
+    "Post-console samples would not replace an initial trusted proof"
+  ],
+  "native_admission_gate_changed": false,
+  "post_trial_jtag": {
+    "finished_utc": "2026-11-01T08:50:43.851529+00:00",
+    "helper_sha256": "ad8bfff3c367c05e607e7ab0a5edd3d04858aa3146e7568b45e33ea9ecb67dbe",
+    "jtag_id": "4362C0DD",
+    "jtag_id_observed": true,
+    "returncode": 0,
+    "scope": "one read-only exact-cable identity query; diagnostic image retained",
+    "serial": "TRWU8CBL",
+    "started_utc": "2026-11-01T08:50:43.149313+00:00",
+    "usb_node": "/dev/bus/usb/003/061",
+    "usb_permissions_restored": true
+  },
+  "readback": {
+    "board": "TRWU8CBL",
+    "clock_before": "15M",
+    "clock_restored": true,
+    "commands": [
+      [
+        "/data/altera_pro/26.3/quartus/bin/jtagconfig",
+        "--getparam",
+        "DE25-Nano [3-11.1-iface0]",
+        "JtagClock"
+      ],
+      [
+        "/data/altera_pro/26.3/quartus/bin/jtagconfig",
+        "--setparam",
+        "DE25-Nano [3-11.1-iface0]",
+        "JtagClock",
+        "6M"
+      ],
+      [
+        "/data/altera_pro/26.3/quartus/bin/openocd",
+        "-f",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-debug-20261101/read-trace.cfg"
+      ],
+      [
+        "/data/altera_pro/26.3/quartus/bin/jtagconfig",
+        "--setparam",
+        "DE25-Nano [3-11.1-iface0]",
+        "JtagClock",
+        "15M"
+      ]
+    ],
+    "config_sha256": "c26285ec3451bfb322a97ace8e72f097e797665dc8e8628b032b9e63373acdb0",
+    "error": "HPS readback not completed; inspect OpenOCD log",
+    "finished_utc": "2026-11-01T08:28:37.374498+00:00",
+    "openocd_returncode": 1,
+    "read_succeeded": false,
+    "scope": "ADIv6 AXI-AP OCRAM reads; no CPU targets/halt/reset, no reload or target memory writes",
+    "started_utc": "2026-11-01T08:28:36.362910+00:00",
+    "usb_permissions_restored": true
+  },
+  "receipts": {
+    "out/nano-console-control-trial-20261101/cpu-result.json": "084925bfabd3a84765d44db21590808755555d17b5f5b133fb6b709faa56bbc0",
+    "out/nano-console-control-trial-20261101/preflight.json": "5237b71122fc1bff80a4d3f815c0f912109f9cf4b0c0e6000357e726c252be0a",
+    "out/nano-console-control-trial-20261101/retained-jtag-result.json": "7f98aa970c0eda5bf0c199135969a22553886280b8dc81163467111d75ea29b4",
+    "out/nano-hps-debug-20261101/checks-result.json": "d20d7680112b9ba916a502f54b6ea38eb82ed4a67030dfff07d7914bc835edbd",
+    "out/nano-hps-debug-20261101/console-control-v1/result.json": "eab92cb71eeee6a4538235fb5d0279d3e397c7297850c9d4a92d0409bc01a5bc",
+    "out/nano-hps-debug-20261101/openocd-read.log": "ab6301cc82ce32d674d820f55651dbc84603db1362dc1d9ed855f35728b97b30"
+  },
+  "retention": "/home/deano/fes-retained/de25-nano-console-control-20261101/",
+  "software_checks": [
+    {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_cpu_diagnostic.py",
+        "-v"
+      ],
+      "label": "focused",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "fdf5b6d31"
+      ],
+      "label": "affected",
+      "returncode": 0
+    }
+  ],
+  "source_commit": "6a2bb09ac0fcb1857d9cea29c7530d3b60ef248d",
+  "trial": {
+    "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostic_id": "12d8fdacd1c23b7d",
+    "error": "expected serial observation absent",
+    "factory_card_retained": true,
+    "fesboot_sent": false,
+    "finished_utc": "2026-11-01T08:50:14.602210+00:00",
+    "initial_proof_attempted": false,
+    "jtag_id": "4362C0DD",
+    "native_admission": false,
+    "pass": false,
+    "phase": "cpu",
+    "preflight_sha256": "5237b71122fc1bff80a4d3f815c0f912109f9cf4b0c0e6000357e726c252be0a",
+    "programming_attempted": true,
+    "programming_complete": true,
+    "runner_sha256": "4b95ca6be7e2e26bde316f1c7df91b941ae4c4f6011fa19bcf839002596f8a5c",
+    "sd_write_commands_sent": false,
+    "serial": "TRWU8CBL",
+    "sof_sha256": "aaba7d33e1098c0b497bf40be39dbe3b7755cb5fdb3e56126c1d9bb74c9ad34e",
+    "source_commit": "6a2bb09ac0fcb1857d9cea29c7530d3b60ef248d",
+    "stage": "serial observation",
+    "started_utc": "2026-11-01T08:49:26.523462+00:00",
+    "trace": {
+      "complete": false,
+      "identity_mismatch": false,
+      "last_checkpoint": null,
+      "native_admission": false,
+      "records": [],
+      "sequence_valid": false
+    },
+    "usb_permissions_restored": true
+  }
+}

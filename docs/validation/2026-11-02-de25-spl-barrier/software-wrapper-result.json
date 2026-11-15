@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "python3",
+    "out/nano-spl-barrier-20261102/run_software.py"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 255.43905484990682,
+  "log_sha256": "effb42d35077213876d41da557816b57bf49516a4ff5894aa2de3b2b501d641a"
+}

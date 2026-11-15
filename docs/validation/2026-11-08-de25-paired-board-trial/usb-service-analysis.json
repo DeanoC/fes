@@ -1,0 +1,26 @@
+{
+  "status": "matching-first-poll-timeout-reproduced-with-service-gap",
+  "hardware_source": "c3cfb88bfb78532796a48086fc78174753794877",
+  "current_source": "9f1841ab95c8d3e767b488ba6d4bd20244c3ebde",
+  "production_sources_unchanged": true,
+  "method": "Go overlay adds one host test over the real DWC2 driver and existing register/clock model; no production edits",
+  "pending_packet_deadline_ms": 500,
+  "injected_no_service_ms": 600,
+  "polls_on_timeout": 1,
+  "failed_host_never_polled_again": true,
+  "exclusive_physical_cause_proven": false,
+  "physical_trace_has_matching_first_poll_timeout": true,
+  "source_sha256": {
+    "platform/embedded/tamago/dwc2/host.go": "3576706c5129354ab9abd3596146172f584fc2d3ee072f32a413a97963155276",
+    "platform/embedded/tamago/dwc2/polling.go": "5e29b68518ee0641309a71e1bc9103f60e5d3333ff6a07b31abdc09675a277e0",
+    "platform/embedded/tamago/dwc2/periodic_model_test.go": "d94484572c9303fef32ddc1217ce684438dddfdab0ee77f15950b1477ff4a8c7",
+    "platform/embedded/tamago/nativefabric/program_input.go": "7f908614d95eb8b97c5225981359fe3da813c3c472b8cf5ce793ab8d22e5dae6",
+    "platform/embedded/tamago/nativefabric/program_menu_platform.go": "86a2edb286fdb0c50a8c4e267b6d278e376e6306af4f7fec258eeaa1ac5fdc75",
+    "platform/embedded/tamago/nativefabric/menusession.go": "06f7b120b748d5f1a499c9ed43cdbab8400bd9a18bdda9058c39b53a02ebb236"
+  },
+  "overlay_sha256": "ddc4ba1a2636753a2c74f6fe3ccbbeea815df8762015b85f2a996e8de3c3d6be",
+  "test_sha256": "6e445bbc99ff5fccc968c8214091019d5e00c0ce7e6932d648ad3e4d2deff118",
+  "test_receipt_sha256": "1b848a416330c208eb6ecb7dac7a156e54b11b65fffd216a42a577bdee70ebac",
+  "hardware_operations": false,
+  "next": "Provide bounded USB servicing while the paired menu path blocks; keep packet deadlines and real USB, then rebuild native SDK/entry/matched firmware before another board attempt."
+}

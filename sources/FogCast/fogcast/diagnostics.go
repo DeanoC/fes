@@ -27,6 +27,10 @@ func SafeTargetDiagnostic(remote *protocol.APIError) (message, phase string) {
 		phase = remote.Phase
 	}
 	switch remote.Code {
+	case protocol.CodeBadRequest:
+		if (remote.Phase == "request" || remote.Phase == "admission") && remote.Message == missingDirectVideoPartMessage {
+			return "Install a matching Direct video part for this core package before launch.", "admission"
+		}
 	case protocol.CodeUnsupportedOperation:
 		if remote.Phase == "admission" && (remote.Message == "legacy native core artifact is unavailable on this target" || remote.Message == "legacy native core is unavailable on the selected target; choose an installed FPGA package") {
 			return "Legacy core is unavailable on this target; choose an installed FPGA package.", "admission"

@@ -1,0 +1,743 @@
+{
+  "status": "stopped",
+  "classification": "failed 45s transfer/read/return observer bound; complete saved capture is offline evidence only",
+  "native_source_commit": "02ece2cd57c2ae0e4c2cdd6ced8809c5939a32d0",
+  "fpga_source_commit": "df234b524d0e1340b343df411c841bd1dc553817",
+  "native_hardware_acceptance": false,
+  "observer_error": "phase stopped: native",
+  "native_error": "native contained FPGA transfer/identity deadline",
+  "prior_window_procedure_failures": 6,
+  "attempts_this_head": 1,
+  "failures_this_head": 1,
+  "retries": 0,
+  "startup": {
+    "records": [
+      {
+        "line": 91,
+        "phase": "loader_begin",
+        "ticks": 6950495958,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818219056
+      },
+      {
+        "line": 92,
+        "phase": "decode_begin",
+        "ticks": 6978195493,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 93,
+        "phase": "inflate_end",
+        "ticks": 7440097308,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 94,
+        "phase": "checksum_end",
+        "ticks": 7447482391,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 95,
+        "phase": "decode_end",
+        "ticks": 7451011215,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 96,
+        "phase": "copy_end",
+        "ticks": 7457289688,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 97,
+        "phase": "handoff",
+        "ticks": 7475103069,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818219056
+      },
+      {
+        "line": 99,
+        "phase": "go_hwinit",
+        "ticks": 7484473840,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 100,
+        "phase": "go_vectors",
+        "ticks": 7487901307,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 101,
+        "phase": "go_main",
+        "ticks": 7495004764,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 102,
+        "phase": "verifier_ready",
+        "ticks": 7499343231,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 103,
+        "phase": "sd_open_begin",
+        "ticks": 7502940948,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 104,
+        "phase": "sd_open_end",
+        "ticks": 7519025598,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 105,
+        "phase": "fat_mount_end",
+        "ticks": 7531598296,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 106,
+        "phase": "retain_begin",
+        "ticks": 7535163775,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 107,
+        "phase": "retain_end",
+        "ticks": 29666465224,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      }
+    ],
+    "errors": [],
+    "complete": true,
+    "rejected": false,
+    "last_checkpoint": "retain_end",
+    "timings_us": {
+      "loader_begin": 0,
+      "decode_begin": 69248,
+      "inflate_end": 1224003,
+      "checksum_end": 1242466,
+      "decode_end": 1251288,
+      "copy_end": 1266984,
+      "handoff": 1311517,
+      "go_hwinit": 1334944,
+      "go_vectors": 1343513,
+      "go_main": 1361272,
+      "verifier_ready": 1372118,
+      "sd_open_begin": 1381112,
+      "sd_open_end": 1421324,
+      "fat_mount_end": 1452755,
+      "retain_begin": 1461669,
+      "retain_end": 56789923
+    },
+    "core_load_acceptance": false
+  },
+  "intervals_us": {
+    "map_prepare_us": 69248,
+    "inflate_us": 1154755,
+    "checksum_us": 18463,
+    "elf_plan_copy_zero_us": 15696,
+    "cache_clean_restore_us": 44533,
+    "loader_to_handoff_us": 1311517,
+    "handoff_to_main_us": 49755,
+    "sd_open_us": 40212,
+    "retain_us": 55328254,
+    "loader_to_retained_us": 56789923
+  },
+  "timing_scope": "inclusive CPU-counter samples include UART output; one physical sample on each source",
+  "bounds": {
+    "prompt_seconds": 50,
+    "storage_seconds": 100,
+    "configuration_seconds": 20,
+    "probe_seconds": 45,
+    "native_seconds": 240,
+    "outer_seconds": 800
+  },
+  "storage_observation_seconds": 57.30075551697519,
+  "storage_bound_seconds": 100,
+  "transfer_read_return_bound_seconds": 45,
+  "built_in_passive_tail_seconds": 2,
+  "separate_passive_followup": false,
+  "late_capture_upgrades_deadline": false,
+  "complete_final_capture_replayed": true,
+  "received_complete_frames": 12,
+  "frame_presentations": [
+    {
+      "index": 1,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 15841687290155407663,
+      "source_generation": 4,
+      "reader_generation": 2,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 4148337422,
+      "read_crc32": 4148337422,
+      "frame_sha256": "a58b682bcf4749139141601be2b1f655c1019c627befc941a511c27b388a856d",
+      "drain_generation": 2,
+      "drain_cookie": 2
+    },
+    {
+      "index": 2,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 15841687290155407663,
+      "source_generation": 4,
+      "reader_generation": 3,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 1389424270,
+      "read_crc32": 1389424270,
+      "frame_sha256": "e99aa33ec6300751647d36d21cda9bc84786a501dee69c97e9dc46aa3f3b8837",
+      "drain_generation": 3,
+      "drain_cookie": 3
+    },
+    {
+      "index": 3,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 15841687290155407663,
+      "source_generation": 4,
+      "reader_generation": 4,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 4090557860,
+      "read_crc32": 4090557860,
+      "frame_sha256": "a5dc69cecd8ac1dd0f68a6dec6064653ae71df93346847a089180d101b54d9dd",
+      "drain_generation": 4,
+      "drain_cookie": 4
+    },
+    {
+      "index": 4,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 15841687290155407663,
+      "source_generation": 4,
+      "reader_generation": 5,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 3144184335,
+      "read_crc32": 3144184335,
+      "frame_sha256": "ba0ce800a2a175c19587bfe180dbb231fe56751bb1774615e68463eacef37cc7",
+      "drain_generation": 5,
+      "drain_cookie": 5
+    },
+    {
+      "index": 5,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 15841687290155407663,
+      "source_generation": 4,
+      "reader_generation": 6,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 3312639711,
+      "read_crc32": 3312639711,
+      "frame_sha256": "cc9897f942f776d7c96169e45225a41843b65ced421e67b76474da8ccaada809",
+      "drain_generation": 6,
+      "drain_cookie": 6
+    },
+    {
+      "index": 6,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 15841687290155407663,
+      "source_generation": 4,
+      "reader_generation": 7,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 3191110898,
+      "read_crc32": 3191110898,
+      "frame_sha256": "23f1d5db151ae1ba0c642564e3500564bdfa2273a7a45148ddb136d94a9ff6f5",
+      "drain_generation": 7,
+      "drain_cookie": 7
+    },
+    {
+      "index": 7,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 15841687290155407663,
+      "source_generation": 4,
+      "reader_generation": 8,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 1312985274,
+      "read_crc32": 1312985274,
+      "frame_sha256": "f7fa91ad03bc9ee3989d7b03b5c2cdd7cc3aefa457dc46acc6e8c4324cd19548",
+      "drain_generation": 8,
+      "drain_cookie": 8
+    },
+    {
+      "index": 8,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 15841687290155407663,
+      "source_generation": 4,
+      "reader_generation": 9,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 1450680310,
+      "read_crc32": 1450680310,
+      "frame_sha256": "36f3a367cc00dc14bf17bd28fbaa6f4c002a9ea259b01342585a7d4b29258e41",
+      "drain_generation": 9,
+      "drain_cookie": 9
+    },
+    {
+      "index": 9,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 15841687290155407663,
+      "source_generation": 4,
+      "reader_generation": 10,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 2325596855,
+      "read_crc32": 2325596855,
+      "frame_sha256": "0b1f25d6cc01cad05ba891b0822a2165693d3b3b616c9b06c06bc5b279c8acaf",
+      "drain_generation": 10,
+      "drain_cookie": 10
+    },
+    {
+      "index": 10,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 15841687290155407663,
+      "source_generation": 4,
+      "reader_generation": 11,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 729778559,
+      "read_crc32": 729778559,
+      "frame_sha256": "6fa095564c583f5bf891f613e08f62ad03575b7eee56d737032bac487fb79fc6",
+      "drain_generation": 11,
+      "drain_cookie": 11
+    },
+    {
+      "index": 11,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 15841687290155407663,
+      "source_generation": 4,
+      "reader_generation": 12,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 1961832266,
+      "read_crc32": 1961832266,
+      "frame_sha256": "a83e70d0e2d8aa89fb557cfdfbccd89c020edd545be08f6624e9770aba1c2375",
+      "drain_generation": 12,
+      "drain_cookie": 12
+    },
+    {
+      "index": 12,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+      "owner": 15841687290155407663,
+      "source_generation": 4,
+      "reader_generation": 13,
+      "cookie": 1,
+      "bytes": 3686400,
+      "published_crc32": 1096205613,
+      "read_crc32": 1096205613,
+      "frame_sha256": "1a5494e29641f42e61d7e25ed40099a07a7abce5968f1ebe26fef1881a02922c",
+      "drain_generation": 13,
+      "drain_cookie": 13
+    }
+  ],
+  "frame_progress": [
+    {
+      "index": 1,
+      "phase": "render_begin",
+      "elapsed_us": 3893
+    },
+    {
+      "index": 1,
+      "phase": "render_end",
+      "elapsed_us": 19949
+    },
+    {
+      "index": 1,
+      "phase": "present_begin",
+      "elapsed_us": 26556
+    },
+    {
+      "index": 1,
+      "phase": "present_end",
+      "elapsed_us": 2121466
+    },
+    {
+      "index": 2,
+      "phase": "render_begin",
+      "elapsed_us": 2128458
+    },
+    {
+      "index": 2,
+      "phase": "render_end",
+      "elapsed_us": 2181059
+    },
+    {
+      "index": 2,
+      "phase": "present_begin",
+      "elapsed_us": 2187844
+    },
+    {
+      "index": 2,
+      "phase": "present_end",
+      "elapsed_us": 4260891
+    },
+    {
+      "index": 3,
+      "phase": "render_begin",
+      "elapsed_us": 4267883
+    },
+    {
+      "index": 3,
+      "phase": "render_end",
+      "elapsed_us": 4316103
+    },
+    {
+      "index": 3,
+      "phase": "present_begin",
+      "elapsed_us": 4322890
+    },
+    {
+      "index": 3,
+      "phase": "present_end",
+      "elapsed_us": 6396775
+    },
+    {
+      "index": 4,
+      "phase": "render_begin",
+      "elapsed_us": 6403767
+    },
+    {
+      "index": 4,
+      "phase": "render_end",
+      "elapsed_us": 6451994
+    },
+    {
+      "index": 4,
+      "phase": "present_begin",
+      "elapsed_us": 6458779
+    },
+    {
+      "index": 4,
+      "phase": "present_end",
+      "elapsed_us": 8531955
+    },
+    {
+      "index": 5,
+      "phase": "render_begin",
+      "elapsed_us": 8538946
+    },
+    {
+      "index": 5,
+      "phase": "render_end",
+      "elapsed_us": 8587140
+    },
+    {
+      "index": 5,
+      "phase": "present_begin",
+      "elapsed_us": 8593924
+    },
+    {
+      "index": 5,
+      "phase": "present_end",
+      "elapsed_us": 10667050
+    },
+    {
+      "index": 6,
+      "phase": "render_begin",
+      "elapsed_us": 10674129
+    },
+    {
+      "index": 6,
+      "phase": "render_end",
+      "elapsed_us": 10722595
+    },
+    {
+      "index": 6,
+      "phase": "present_begin",
+      "elapsed_us": 10729466
+    },
+    {
+      "index": 6,
+      "phase": "present_end",
+      "elapsed_us": 12803327
+    },
+    {
+      "index": 7,
+      "phase": "render_begin",
+      "elapsed_us": 12810405
+    },
+    {
+      "index": 7,
+      "phase": "render_end",
+      "elapsed_us": 12858858
+    },
+    {
+      "index": 7,
+      "phase": "present_begin",
+      "elapsed_us": 12865730
+    },
+    {
+      "index": 7,
+      "phase": "present_end",
+      "elapsed_us": 14938942
+    },
+    {
+      "index": 8,
+      "phase": "render_begin",
+      "elapsed_us": 14946020
+    },
+    {
+      "index": 8,
+      "phase": "render_end",
+      "elapsed_us": 14994592
+    },
+    {
+      "index": 8,
+      "phase": "present_begin",
+      "elapsed_us": 15001462
+    },
+    {
+      "index": 8,
+      "phase": "present_end",
+      "elapsed_us": 17074566
+    },
+    {
+      "index": 9,
+      "phase": "render_begin",
+      "elapsed_us": 17081645
+    },
+    {
+      "index": 9,
+      "phase": "render_end",
+      "elapsed_us": 17130057
+    },
+    {
+      "index": 9,
+      "phase": "present_begin",
+      "elapsed_us": 17136929
+    },
+    {
+      "index": 9,
+      "phase": "present_end",
+      "elapsed_us": 19210556
+    },
+    {
+      "index": 10,
+      "phase": "render_begin",
+      "elapsed_us": 19217635
+    },
+    {
+      "index": 10,
+      "phase": "render_end",
+      "elapsed_us": 19266468
+    },
+    {
+      "index": 10,
+      "phase": "present_begin",
+      "elapsed_us": 19273428
+    },
+    {
+      "index": 10,
+      "phase": "present_end",
+      "elapsed_us": 21347415
+    },
+    {
+      "index": 11,
+      "phase": "render_begin",
+      "elapsed_us": 21354579
+    },
+    {
+      "index": 11,
+      "phase": "render_end",
+      "elapsed_us": 21403629
+    },
+    {
+      "index": 11,
+      "phase": "present_begin",
+      "elapsed_us": 21410587
+    },
+    {
+      "index": 11,
+      "phase": "present_end",
+      "elapsed_us": 23484157
+    },
+    {
+      "index": 12,
+      "phase": "render_begin",
+      "elapsed_us": 23491322
+    },
+    {
+      "index": 12,
+      "phase": "render_end",
+      "elapsed_us": 23540261
+    },
+    {
+      "index": 12,
+      "phase": "present_begin",
+      "elapsed_us": 23547219
+    },
+    {
+      "index": 12,
+      "phase": "present_end",
+      "elapsed_us": 25629210
+    },
+    {
+      "index": 13,
+      "phase": "return_begin",
+      "elapsed_us": 25636460
+    },
+    {
+      "index": 13,
+      "phase": "return_end",
+      "elapsed_us": 26113966
+    }
+  ],
+  "configuration_timing": {
+    "counter_frequency": 400000000,
+    "first_counter": 31132674391,
+    "last_counter": 36593688253,
+    "hash_ticks": 4244994345,
+    "interval_ticks": 5461013862,
+    "interval_hash_ticks": 3859864758
+  },
+  "firmware_reader_drain": {
+    "owner": 15841687290155407663,
+    "generation": 6,
+    "reset": 5,
+    "reader_generation": 13,
+    "request_generation": 13,
+    "cookie": 13,
+    "ack_generation": 13,
+    "ack_cookie": 13,
+    "status": 4,
+    "pending": 0
+  },
+  "master_stop": {
+    "status": 0,
+    "owner": 15841687290155407663,
+    "generation": 6,
+    "reset": 5,
+    "reader_reads": 88,
+    "reader_polls": 1,
+    "disable": 0,
+    "probe_polls": 2,
+    "cancel": 0,
+    "complete": 1
+  },
+  "hardware_closure": {
+    "owner": 15841687290155407663,
+    "generation": 7,
+    "reset": 15,
+    "hardware_drained": 8,
+    "data_remained_contained": 0,
+    "producers_quiescent": 1,
+    "fabric_acknowledged": 0
+  },
+  "final_bridge_state": "closed and producer quiescence observed in complete saved trace; procedure missed acceptance deadline",
+  "memory_lifetime": "until reboot",
+  "package_retention_observed": true,
+  "ordinary_runtime_admission": false,
+  "hdmi_qualified": false,
+  "hub_input_qualified": false,
+  "native_network_qualified": false,
+  "normal_ui_loop_invoked": false,
+  "host_cleanup": {
+    "host_cleanup_passed": true,
+    "original_jtag_clock": "15M",
+    "exact_usb_permissions_restored": true,
+    "private_server_gone": true,
+    "uart_free": true,
+    "exclusive_claim_retained": true,
+    "spare_card_retained": true,
+    "factory_restore_performed": false
+  },
+  "full_goal": "active; ordinary core admission and complete native UI launch/return remain open",
+  "files": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-entry-cached-20261104/trial/native-result.json": "4a3a415f12283438e916bf52bbfc82b17a7ef8095613d991ade1af5d92f9e9a5",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-entry-cached-20261104/trial/native-console.log": "c74164ca32322d028204e6697cad6c7b2545d3c3ee31968c728920bd8934590f",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-entry-cached-20261104/trial/experiment-result.json": "7bbbdde8f1d66f766fdd534c517433b0e075f718a8243e0583c514b54b5a3253",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-entry-cached-20261104/hardware-evidence.json": "1df1359dd2a04c7c1ceecabc39aea269b62fa0f6822980acfafc0c8d39647223",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-entry-cached-20261104/stopped-capture-replay.json": "a3a7b9be67b88a5c77d521a93afffe78a688c01d2c0ce88a21a1d330d7764aa7",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-entry-cached-20261104/bounded-owned-cache-trial-result.json": "162ad67cc6e5dbed1c032f110b6bfb56c2015c2ec82b51a4b2dbed0ea4c784a7",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-entry-cached-20261104/native-entry/result.json": "fe793d9470a1742dacb19f84645221cc94f12d29a088f582b87ef99706622aaa",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-entry-cached-20261104/native-composition/result.json": "e9721665d44aa9cd649f27369a1864f104ba871fab1f60058a236095bd333472",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-entry-cached-20261104/validation-summary.json": "6658115f2698be04fb1a809ea70a340b0aa3cdceacccc81aa5eaab62516776f8",
+    "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/entry/startup.py": "1d1ad0534233e301785a411fb372b13b92815b701b3c04230199dd749ef4053d",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-entry-cached-20261104/trial/native.py": "25840209b91a3c9633b68d79cc712e8c14317e4a40d53bf574873cd3ea1fc069"
+  },
+  "retention": {
+    "status": "passed",
+    "source_commit": "02ece2cd57c2ae0e4c2cdd6ced8809c5939a32d0",
+    "source_bundle": "/home/deano/fes-retained/de25-entry-cached-20261104-stopped/source.bundle",
+    "source_bundle_sha256": "ced595946a6c1e6c4f39476f3c6b50f989ff2a14cc861c16b9c45bd7045f2705",
+    "independent_source_restore": true,
+    "strict_fsck": true,
+    "alternates": false,
+    "verification_copy_removed": true,
+    "archive": "/home/deano/fes-retained/de25-entry-cached-20261104-stopped/stopped-native-chain.tar.gz",
+    "archive_sha256": "81986d9429b0636c1d164fd3664e2b709e55d157ce30bf9fea2b3b0b74962af7",
+    "archive_bytes": 617797363,
+    "verified_members": 45988,
+    "hardware_acceptance": false,
+    "selected_sources_verified_from_exact_git_commit": true,
+    "unpublished_validation_documents": [],
+    "diagnostic_hardware_evidence_retained": true,
+    "prior_failures_retained_separately": true,
+    "host_cleanup_retained": true,
+    "expanded_files_removed": false
+  },
+  "software": {
+    "status": "passed",
+    "affected_checks": 6,
+    "focused_tests": 20,
+    "qemu_cases": 14,
+    "model_launch_return_failure": "passed",
+    "normal_ui_loop_invoked": false
+  },
+  "entry_bytes": 7303168,
+  "raw_elf_bytes": 14921903,
+  "fit_bytes": 7847928,
+  "temporary_cache": {
+    "temporary_cache": "owned-el2-identity-v1",
+    "cache_map_address": 2517131264,
+    "cache_map_bytes": 90112,
+    "cache_map_crc32": 830768482,
+    "cache_map_sha256": "eeaeb4174bf9863056d13c5a994a963e1e7e4cc9e7248821c10afebd0df87ed0"
+  }
+}

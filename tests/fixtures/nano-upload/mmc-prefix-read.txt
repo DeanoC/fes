@@ -1,0 +1,1 @@
+MMC read: dev # 0, block # 0, count 32768 ... 32768 blocks read: OK

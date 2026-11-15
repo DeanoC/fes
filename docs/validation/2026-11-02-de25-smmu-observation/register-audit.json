@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "scope": "fixed SMMUv3 offsets match pinned Terasic sources; not a live address/firewall grant",
+  "offsets": {
+    "IDR0": 0,
+    "IDR1": 4,
+    "AIDR": 28,
+    "CR0": 32,
+    "CR0ACK": 36,
+    "GBPA": 68,
+    "AGBPA": 72,
+    "S_IDR1": 32772,
+    "S_CR0": 32800,
+    "S_CR0ACK": 32804,
+    "S_INIT": 32828,
+    "S_GBPA": 32836,
+    "S_AGBPA": 32840
+  },
+  "sources": {
+    "out/terasic-git-restore-uboot/arch/arm/mach-socfpga/smmuv3_dv.c": "8082235c0de1f8fe9825f6090dc694876f42ad658ae8c62e0c710e8904dfc2bc",
+    "out/terasic-git-restore-tfa/include/drivers/arm/smmu_v3.h": "f5674f1a64ec85d3910bfa1cdb239b8b43533ab9290dc28b05aac0e79e99252b",
+    "out/terasic-git-restore-uboot/arch/arm/mach-socfpga/include/mach/base_addr_soc64.h": "27c2835dd6001ef46bd5a86fa4b6721cb3b0322d8c48ba214db943be8bb1cbd8"
+  },
+  "uboot_pin": "d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413",
+  "tfa_pin": "580dcb5c4e10aa7daff2bf69d493c076a6d3e665"
+}

@@ -1,0 +1,9 @@
+{
+  "status": "passed-production-vendor-parser-byte-membership",
+  "functions": {
+    "mailbox_response_parser": "1936bf02d3225f7e159dce329587397911d9f1b1dde850cc87bd3062c41b496e",
+    "mailbox_response_handler_fsm": "cee175b85e6396ebda311b0fa07a59b3c213d82aa8cd8b5b98a823dbc816d240",
+    "mailbox_poll_response_v3": "8c9c2790367feaf73a80ebc919a63c2696c6f6be315d07ec060240e2bf3968e7"
+  },
+  "hardware_actions": false
+}

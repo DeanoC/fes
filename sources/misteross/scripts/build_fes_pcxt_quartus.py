@@ -8,6 +8,7 @@ qualification and exact-artifact hardware acceptance remain separate gates.
 from __future__ import annotations
 
 import argparse
+
 from dataclasses import dataclass
 import hashlib
 import json
@@ -26,17 +27,20 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import quartus_fes_pcxt as board
+from scripts.input_identity import with_identities
 from scripts.export_core_package import (build_identity, encode_build_record,
     export_package, source_input_closure)
 from scripts.core_package import encode_manifest
 from scripts.fes_build_common import BuildError, _require_clean_source as require_clean_source
 from scripts.functional_execution import execution_digest, execution_environment
 from scripts.quartus_tools import load_quartus_lock, locate_quartus
+from scripts import toolchain_cache
 from scripts.sim_fes_pcxt import cga_font
 
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = 'scripts/build_fes_pcxt_quartus.py'
 LOCK = 'cores/fes-pcxt/quartus.lock'
+TOOLCHAIN_LOCK = 'cores/fes-pcxt/toolchain.lock'
 ABI = 'cores/fes-common/generated/fes_computer.vh'
 REGISTRY = ROOT.parents[1] / 'config/core-recipes.toml'
 
@@ -54,6 +58,18 @@ def selected_recipe(root=ROOT, core_id='fes.pcxt'):
     return entry
 
 
+def quartus_recipe_parameters(recipe):
+    """Separate artifact choices from compiler and execution metadata."""
+    design_recipe = {key: value for key, value in recipe.items()
+                     if key not in ('version', 'threads')}
+    return {
+        'quartus_recipe_sha256': hashlib.sha256(
+            json.dumps(design_recipe, sort_keys=True).encode()).hexdigest(),
+        'quartus_version': recipe['version'],
+        'quartus_threads': recipe['threads'],
+    }
+
+
 def source_roots(root):
     # Keep the complete core and vendor directories, including documentation.
     # Outside them capture every board input and the producer's Python helpers.
@@ -61,6 +77,7 @@ def source_roots(root):
              'cores/fes-common/vendor/kf8253'}
     paths = [str(p) for p in board.input_paths(Path(root))]
     paths += [RECIPE, 'scripts/core_package.py', 'scripts/export_core_package.py',
+              'scripts/input_identity.py',
               'scripts/fes_build_common.py', 'scripts/functional_execution.py',
               'scripts/compiler_read_audit.py', 'scripts/source_provenance.py',
               'scripts/source_repository.py', ABI]
@@ -90,8 +107,26 @@ def authenticate_tools(root, *, cache_root=None, core_id='fes.pcxt'):
     _, quartus, version = locate_quartus(os.environ.get('QUARTUS_ROOTDIR', ''), root, lock)
     if selected_recipe(root, core_id)['quartus']['version'] != version:
         raise BuildError('Quartus version differs from the PC/XT lock/recipe')
-    candidates = ([Path(os.environ['FES_PCXT_YOSYS'])] if os.environ.get('FES_PCXT_YOSYS') else
-                  sorted(Path(cache_root).glob('slots/*/install/bin/yosys')) if cache_root else [])
+    if os.environ.get('FES_PCXT_YOSYS'):
+        candidates = [Path(os.environ['FES_PCXT_YOSYS'])]
+    elif cache_root:
+        # The Yosys install toolchain.lock pins, verified and held (shared
+        # lock, last use stamped) for this process, so a prune cannot remove
+        # it during the build.
+        try:
+            request = toolchain_cache.request_from_environment(
+                root, root / TOOLCHAIN_LOCK, cache_root=Path(cache_root),
+                gpu_router='OFF', tool='yosys')
+            installed = toolchain_cache.resolve_install(request, 'yosys').binary
+        except toolchain_cache.CacheError as error:
+            raise BuildError(f'the PC/XT Yosys install is not ready: {error}; provision it with '
+                             '`make toolchain-fes-pcxt CACHE_ROOT=...`') from error
+        if sha(installed) != lock.yosys_sha256:
+            raise BuildError(f'the PC/XT Yosys install {installed} has sha256 {sha(installed)}, '
+                             f'but quartus.lock pins {lock.yosys_sha256}')
+        candidates = [installed]
+    else:
+        candidates = []
     yosys = next((p for p in candidates if p.is_file() and not p.is_symlink()
                   and sha(p) == lock.yosys_sha256), None)
     if yosys is None:
@@ -228,8 +263,8 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
                   'video_mailbox_contract': True,
                   'system_clock_hz': 100000000, 'pixel_clock_hz': 74250000,
                   'hdmi_phase_ps': 8979,
-                  'quartus_recipe_sha256': hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest(),
                   'execution_sha256': execution_digest(execution)}
+    parameters.update(quartus_recipe_parameters(entry['quartus']))
     if dos_profile:
         metadata, font = dos_assets(root)
         parameters.update(glabios_rom_sha256=metadata['bios']['sha256'],
@@ -240,7 +275,9 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
               'recipe': RECIPE, 'recipe_sha256': sha(root / RECIPE),
               'abi_definition': ABI, 'abi_definition_sha256': sha(root / ABI),
               'dependencies': {}, 'tools': dict(tool_identities), 'parameters': parameters}
-    return encode_build_record(fields)
+    if execution.get("selection_only"):
+        fields["parameters"]["selection_only"] = True
+    return encode_build_record(with_identities(fields, root=root))
 
 
 def require_timing(summary, seeds, *, dos_profile=False):

@@ -1,0 +1,11 @@
+{
+  "scope": "Exact returned command from the retained failed readback; no reconstructed success",
+  "command": {
+    "command": "mmc read 83000000 0 8000",
+    "status": "returned",
+    "output": "mmc read 83000000 0 8000; echo FES_UPLOAD_2a9ed0cb5b6e=$?\r\nMMC read: dev # 0, block # 0, count 32768 ... 32768 blocks read: OK\r\nFES_UPLOAD_2a9ed0cb5b6e=0\r\nSOCFPGA_AGILEX5 # "
+  },
+  "original_error": "raw SD read incomplete",
+  "original_native_write_verified": true,
+  "original_independent_readback_complete": false
+}

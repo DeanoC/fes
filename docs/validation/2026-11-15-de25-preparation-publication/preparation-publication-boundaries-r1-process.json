@@ -1,0 +1,10 @@
+{
+  "pid": 934997,
+  "process_start_ticks": "176885245",
+  "cap_seconds": 120,
+  "start_monotonic": 1768852.457242832,
+  "argv": [
+    "python3",
+    "out/publication/run-preparation-publication-boundaries.py"
+  ]
+}

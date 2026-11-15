@@ -1,0 +1,212 @@
+{
+  "status": "passed-independent-preparation-publication-matched-archive-readback",
+  "source_commit": "82e607abffa26a182c02ffad82d1056f210b380e",
+  "source_bundle_prerequisite": "65c97bf1ad7b4f2c0d6a8e8a4c431f0586d76c4c",
+  "archive": "/home/deano/fes-retained/de25-preparation-publication-matched-20261115-r1/matched.tar.gz",
+  "archive_sha256": "5cb62f0626d29b5bad63f4b1f0299743c0b4c7977a67757b3df18864464502d6",
+  "archive_bytes": 540439926,
+  "files": 46726,
+  "unique_regular_payloads": 43883,
+  "checks": {
+    "publication-projects": {
+      "argv": [
+        "python3",
+        "out/publication-boot/prepare.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-preparation-publication-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.803895609918982,
+      "log_sha256": "2477a5d23bf5830b4c14f04b5bc164c73f0f725fb1c50fca1fb1d51288f6e131"
+    },
+    "publication-sdk": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/build-native.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-preparation-publication-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 107.50794101716019,
+      "log_sha256": "127ed08f70b2104d1bba6f333100d54aea60fb9d90b608eb3a19c938a991ea0f"
+    },
+    "publication-entry": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/build-chain.py",
+        "entry"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-preparation-publication-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 85.33222832600586,
+      "log_sha256": "e69ce8ddca32d3795f7fc1df3ca2dcca7b558432293eaedf497370b4c182ff2e"
+    },
+    "publication-bl31": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/build-chain.py",
+        "bl31"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-preparation-publication-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 48.82894423510879,
+      "log_sha256": "02ef2dc93feb3a116d819e323e0f8572a637c1fdbdd3cd7fd1dfe466a241d43c"
+    },
+    "publication-uboot": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/build-chain.py",
+        "uboot"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-preparation-publication-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 131.33458622312173,
+      "log_sha256": "4eb98a355fe10a3a8ea782c727fb2e63c18d435412fa82618c7ffc585ec0baa2"
+    },
+    "publication-compose": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/compose.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-preparation-publication-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 64.83555549196899,
+      "log_sha256": "9b40f8051680d37bb0c98e5fa9e10eabe238b62209e0b9495437a59b735b90d2"
+    },
+    "publication-matched": {
+      "argv": [
+        "/usr/bin/python3",
+        "out/publication-boot/verify-chain.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-preparation-publication-proof",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 55.83427261398174,
+      "log_sha256": "72554faf58cb2e49b72b70232603009317be5102eab9dccde016e0035191cf82"
+    },
+    "preparation-publication-frozen-worktree-r1": {
+      "argv": [
+        "python3",
+        "out/publication/prepare-preparation-publication-build-v2.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 7.005048281047493,
+      "log_sha256": "f51e950a8aa1c4862baf19cfbc83f9cdacaa972fc53fa03d9b27e446613dad8e"
+    },
+    "preparation-publication-matched-r1": {
+      "argv": [
+        "python3",
+        "out/publication/run-preparation-publication-matched.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 494.02615799498744,
+      "log_sha256": "c0eb1db3c4c25416b1deaac64379e1430e06bb660574da68a9e23d6bd4caa0db"
+    },
+    "preparation-publication-parent-continuation-r1": {
+      "argv": [
+        "python3",
+        "out/publication/run-preparation-publication-parent-continuation.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1095.5479231451172,
+      "log_sha256": "0f69ef4dc754d3d1c76a522ebd6ed2b4ff2690089909b5001eec1200d03f3949"
+    },
+    "preparation-publication-observer-r1": {
+      "argv": [
+        "python3",
+        "out/publication/run-preparation-publication-observer.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.8032321771606803,
+      "log_sha256": "2b78af1e4bfba1de95528aa5bdaa5c0e54c707f9cf2b808aca8bfd37ea7e3806"
+    },
+    "preparation-publication-vendor-r2": {
+      "argv": [
+        "python3",
+        "out/publication/compile-preparation-publication-vendor-v2.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.601446206215769,
+      "log_sha256": "29d1a8c3753a907ac3374bc454a795ed57a2db0e26eaa8f35c74f1fda40b3fb6"
+    },
+    "preparation-publication-boundaries-r1": {
+      "argv": [
+        "python3",
+        "out/publication/run-preparation-publication-boundaries.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.201423151884228,
+      "log_sha256": "a574c137edd2ef249bd74ac4b34b3317a4452e07c0e4901bec6fa7412966ed1f"
+    }
+  },
+  "integration": {
+    "status": "passed-generated-source-and-object-checks",
+    "source_commit": "82e607abffa26a182c02ffad82d1056f210b380e",
+    "vendor_cold_function_sha256": "78d4ba85888bd0d9ae9a0b48109802fa4b2e08b2ae8f40939517cd23454a5cad",
+    "elf_sha256": "9b46035f1e66f32917fffbf2c870474e484afa49e8fa4c48de599e73c8ac65f7",
+    "layout": {
+      "__NOBITS_START__": 327680,
+      "__NOBITS_END__": 393024,
+      "__STACKS_START__": 327680,
+      "__STACKS_END__": 360448,
+      "__BSS_END__": 393024
+    },
+    "private_limit": 393216,
+    "spare_bytes": 192,
+    "reset_objects": {
+      "fes_nano_platform_cold_reset_request": {
+        "object": "/home/deano/fes/out/dev/de25-preparation-publication-proof/out/publication-boot/native-bl31/source/build/agilex5/release/bl31/socfpga_psci.o",
+        "object_sha256": "b623be744b349664426e62b66a5c69713c783281855c72551bf78afec5472c8d",
+        "present_in_normal_elf": true
+      },
+      "fes_nano_bridge_platform_cold_reset_held": {
+        "object": "/home/deano/fes/out/dev/de25-preparation-publication-proof/out/publication-boot/native-bl31/source/build/agilex5/release/bl31/socfpga_reset_manager.o",
+        "object_sha256": "c335902d256d354b48470b07ebd84eb2d1f46c0abed5fbe2667cbe14b7db27bf",
+        "present_in_normal_elf": true
+      },
+      "fes_nano_sdm_source_recover": {
+        "object": "/home/deano/fes/out/dev/de25-preparation-publication-proof/out/publication-boot/native-bl31/source/build/agilex5/release/bl31/nano_cold_platform.o",
+        "object_sha256": "a8f6486134631148dc609cf6b8dade0f4aaa2f0064969ff6bf8f137d769ba530",
+        "present_in_normal_elf": true
+      }
+    },
+    "compiler_stack_records": {
+      "build/agilex5/release/bl31/probe_setup.su": [
+        "plat/intel/soc/common/probe_setup.c:138:12:table_words\t64\tstatic",
+        "plat/intel/soc/common/probe_setup.c:153:12:memory_block\t1376\tstatic",
+        "plat/intel/soc/common/probe_setup.c:355:12:previous_tables\t1344\tstatic",
+        "plat/intel/soc/common/probe_setup.c:379:5:nano_probe_prepare\t320\tstatic"
+      ],
+      "build/agilex5/release/bl31/nano_cold_platform.su": [
+        "plat/intel/soc/common/include/nano_sdm_recovery_platform.inc:31:12:sdm_recovery_cached\t288\tstatic",
+        "plat/intel/soc/common/include/nano_sdm_recovery_platform.inc:49:12:sdm_recovery_scope\t96\tstatic",
+        "plat/intel/soc/common/include/nano_sdm_recovery_platform.inc:64:31:fes_nano_sdm_source_recover\t16\tstatic",
+        "plat/intel/soc/common/include/nano_sdm_input_finish.inc:24:5:fes_nano_sdm_source_finish\t1040\tstatic"
+      ]
+    },
+    "recovery_policy_installed": true,
+    "physical_reset_qualified": false,
+    "whole_EL3_stack_qualified": false,
+    "USB_close_source_sha256": "0e25a6fbbaee1ec158d4389248aaeae849caf2b7078a5d562663ff09838cb50a",
+    "USB_close_source_in_selected_SDK": true,
+    "hardware_actions": false
+  },
+  "hardware_actions": false,
+  "hardware_accepted": false
+}

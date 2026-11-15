@@ -1,0 +1,135 @@
+{
+  "status": "source-and-terminal-sample-analysis",
+  "native_boot_id": "bd103b1a199bc2be",
+  "sample_rows": [
+    {
+      "family": "callback",
+      "kind": "guard",
+      "calls": 9,
+      "samples": 9,
+      "sampled_ticks": 1161549,
+      "sampled_mean_microseconds": 322.6525,
+      "estimated_total_seconds": 0.0029038725,
+      "source_line": "NOTICE:  FES_NANO_TAPE_COST owner=23ef1e7f8791b9d generation=11 kind=guard calls=9 samples=9 period=1 ticks=11b94d max=1f90d clock_invalid=0 complete=0 hz=400000000"
+    },
+    {
+      "family": "callback",
+      "kind": "owns",
+      "calls": 14330,
+      "samples": 224,
+      "sampled_ticks": 6017558,
+      "sampled_mean_microseconds": 67.16024553571428,
+      "estimated_total_seconds": 0.9624063185267857,
+      "source_line": "NOTICE:  FES_NANO_TAPE_COST owner=23ef1e7f8791b9d generation=11 kind=owns calls=14330 samples=224 period=64 ticks=5bd216 max=69c9 clock_invalid=0 complete=0 hz=400000000"
+    },
+    {
+      "family": "callback",
+      "kind": "read",
+      "calls": 6738,
+      "samples": 106,
+      "sampled_ticks": 19826,
+      "sampled_mean_microseconds": 0.4675943396226415,
+      "estimated_total_seconds": 0.0031506506603773583,
+      "source_line": "NOTICE:  FES_NANO_TAPE_COST owner=23ef1e7f8791b9d generation=11 kind=read calls=6738 samples=106 period=64 ticks=4d72 max=29b clock_invalid=0 complete=0 hz=400000000"
+    },
+    {
+      "family": "callback",
+      "kind": "write",
+      "calls": 420,
+      "samples": 7,
+      "sampled_ticks": 117,
+      "sampled_mean_microseconds": 0.04178571428571429,
+      "estimated_total_seconds": 1.755e-05,
+      "source_line": "NOTICE:  FES_NANO_TAPE_COST owner=23ef1e7f8791b9d generation=11 kind=write calls=420 samples=7 period=64 ticks=75 max=11 clock_invalid=0 complete=0 hz=400000000"
+    },
+    {
+      "family": "callback",
+      "kind": "barrier",
+      "calls": 7158,
+      "samples": 112,
+      "sampled_ticks": 59970,
+      "sampled_mean_microseconds": 1.3386160714285713,
+      "estimated_total_seconds": 0.009581813839285714,
+      "source_line": "NOTICE:  FES_NANO_TAPE_COST owner=23ef1e7f8791b9d generation=11 kind=barrier calls=7158 samples=112 period=64 ticks=ea42 max=231 clock_invalid=0 complete=0 hz=400000000"
+    },
+    {
+      "family": "callback",
+      "kind": "image",
+      "calls": 4,
+      "samples": 4,
+      "sampled_ticks": 250187,
+      "sampled_mean_microseconds": 156.366875,
+      "estimated_total_seconds": 0.0006254675,
+      "source_line": "NOTICE:  FES_NANO_TAPE_COST owner=23ef1e7f8791b9d generation=11 kind=image calls=4 samples=4 period=1 ticks=3d14b max=110f7 clock_invalid=0 complete=0 hz=400000000"
+    },
+    {
+      "family": "callback",
+      "kind": "hash",
+      "calls": 1,
+      "samples": 1,
+      "sampled_ticks": 172097,
+      "sampled_mean_microseconds": 430.2425,
+      "estimated_total_seconds": 0.0004302425,
+      "source_line": "NOTICE:  FES_NANO_TAPE_COST owner=23ef1e7f8791b9d generation=11 kind=hash calls=1 samples=1 period=1 ticks=2a041 max=2a041 clock_invalid=0 complete=0 hz=400000000"
+    },
+    {
+      "family": "ownership-part",
+      "kind": "before",
+      "calls": 14330,
+      "samples": 224,
+      "sampled_ticks": 1896741,
+      "sampled_mean_microseconds": 21.168984375,
+      "estimated_total_seconds": 0.30335154609375,
+      "source_line": "NOTICE:  FES_NANO_TAPE_OWNERSHIP_COST owner=23ef1e7f8791b9d generation=11 kind=before samples=224 period=64 ticks=1cf125 max=2143 clock_invalid=0 complete=0 hz=400000000 parent_calls=14330 parent_samples=224"
+    },
+    {
+      "family": "ownership-part",
+      "kind": "usb",
+      "calls": 14330,
+      "samples": 224,
+      "sampled_ticks": 1551136,
+      "sampled_mean_microseconds": 17.311785714285715,
+      "estimated_total_seconds": 0.24807788928571425,
+      "source_line": "NOTICE:  FES_NANO_TAPE_OWNERSHIP_COST owner=23ef1e7f8791b9d generation=11 kind=usb samples=224 period=64 ticks=17ab20 max=1c22 clock_invalid=0 complete=0 hz=400000000 parent_calls=14330 parent_samples=224"
+    },
+    {
+      "family": "ownership-part",
+      "kind": "registers",
+      "calls": 14330,
+      "samples": 224,
+      "sampled_ticks": 60207,
+      "sampled_mean_microseconds": 0.671953125,
+      "estimated_total_seconds": 0.00962908828125,
+      "source_line": "NOTICE:  FES_NANO_TAPE_OWNERSHIP_COST owner=23ef1e7f8791b9d generation=11 kind=registers samples=224 period=64 ticks=eb2f max=23e clock_invalid=0 complete=0 hz=400000000 parent_calls=14330 parent_samples=224"
+    },
+    {
+      "family": "ownership-part",
+      "kind": "after",
+      "calls": 14330,
+      "samples": 224,
+      "sampled_ticks": 1896899,
+      "sampled_mean_microseconds": 21.17074776785714,
+      "estimated_total_seconds": 0.30337681551339285,
+      "source_line": "NOTICE:  FES_NANO_TAPE_OWNERSHIP_COST owner=23ef1e7f8791b9d generation=11 kind=after samples=224 period=64 ticks=1cf1c3 max=213b clock_invalid=0 complete=0 hz=400000000 parent_calls=14330 parent_samples=224"
+    }
+  ],
+  "actual_elf_sha256": "ab48bcc9616e0f2f98ee0d4afaa725199e00cb6a1bf74d53de1a9f04b5ebf2a3",
+  "mmu_state_address": 378752,
+  "mmu_state_bytes": 120,
+  "mmu_state_descriptor": 18014398509860427,
+  "mmu_state_cache_type": "secure Normal NC in OCRAM",
+  "scope_wrapper_stack_bytes": 112,
+  "scope_wrapper_operation_table_copy_bytes": 48,
+  "scope_wrapper_second_operation_table_copy_bytes": 48,
+  "scope_wrapper_disassembly_sha256": "1f4e89a14a27cb38053a565143882e3d723aff77c4f461b93b066d4d36ec613c",
+  "stack_mapping_unchanged": "secure Normal NC OCRAM",
+  "sampling_limitation": "Systematic one-in-64 samples estimate cost; not an exhaustive cycle profile or proof of a proposed speedup.",
+  "proposed_change": [
+    "Pass MMU operations by const pointer and use one static const platform table, preserving every fresh observation and failure predicate.",
+    "Place only the zero-initialized MMU state in the existing private initialized DDR data section, within the same two-MiB exclusion. Verify actual linked symbol, initialization bytes, RW/XN permissions and matched fit bound.",
+    "Keep other BSS, OCRAM and stack mappings, ownership/USB/CPU/register guard frequency, failure latching and the original tape deadline unchanged."
+  ],
+  "new_source_patch_applied": false,
+  "new_tests_run": false,
+  "new_hardware_attempt": false
+}

@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-timeout=120s",
+    "-run",
+    "TestProgram(Input|Keyboard)",
+    "./nativefabric"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/tamago",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 5.403376447968185,
+  "log_sha256": "074050ab5dc123ff6caafed32425a6102c42ea8722b617f40056df78f9403edb"
+}

@@ -768,6 +768,20 @@ package fes_i386_pkg;
         logic        tm1;
         logic        ts0;
         logic        ts1;
+        // The x87 unit's side of the instruction (fes_i386_x87): it goes to
+        // the unit (an ESC, or WAIT, with a 387 fitted), it is WAIT, which
+        // only waits for BUSY#, and a memory form's operand format. They are
+        // the first uop's and stay for a microcode routine's, since dc0
+        // keeps them.
+        logic        x87;
+        logic        x87_wait;
+        logic [2:0]  x87_fmt;
+        logic [10:0] x87_op;
+        // The part of the operand, environment or save image this uop
+        // moves, as fes_i386_x87's iss_part and wb_part want it: an
+        // environment field, or {1, register, chunk} for a save image's
+        // chunk, or an operand's chunk (0, 4 and 8 bytes on).
+        logic [5:0]  x87_part;
     } decoded_t;
 
     // Which of ESI, EDI and ECX (bits 0-2) a uop reads: src1, src2, a CL
@@ -1159,6 +1173,175 @@ package fes_i386_pkg;
         // ice0: D, the uop is ICEBP's first, which clears DR7.GD as it
         // reaches WB (fes_i386_cpu, "ICEBP").
         logic           ice0;
+        // The x87 unit's side of the uop: it belongs to an instruction the
+        // unit handles, and which part of the operand, environment field or
+        // save-image chunk it moves (fes_i386_x87's iss_part and wb_part).
+        logic           x87;
+        logic [5:0]     x87_part;
     } pipe_t;
+
+    // ---- The x87 operand formats and forms (fes_i386_x87, #1768). ----
+    // An ESC instruction's memory operand's format, which fes_i386_decode
+    // works out and the unit converts to and from.
+    parameter logic [2:0] X87F_NONE = 3'd0;  // a register form: no operand
+    parameter logic [2:0] X87F_F32  = 3'd1;
+    parameter logic [2:0] X87F_F64  = 3'd2;
+    parameter logic [2:0] X87F_F80  = 3'd3;
+    parameter logic [2:0] X87F_I16  = 3'd4;
+    parameter logic [2:0] X87F_I32  = 3'd5;
+    parameter logic [2:0] X87F_I64  = 3'd6;
+    parameter logic [2:0] X87F_ENV  = 3'd7;  // an environment or save image's field
+
+    // The format an ESC memory form's operand has, by the ESC's low three
+    // bits and the ModRM byte's reg field. The forms whose operand this
+    // slice does not convert read as X87F_NONE, which x87_decode turns into
+    // X87_UNIMPL; the arithmetic forms join this table in slice 3. FLDCW,
+    // FNSTCW and FNSTSW m16 move a 16-bit word, so they take X87F_I16.
+    function automatic logic [2:0] x87_format(input logic [2:0] esc, input logic [2:0] rf);
+        case ({esc, rf})
+            {3'b001, 3'd0}, {3'b001, 3'd2}, {3'b001, 3'd3}: x87_format = X87F_F32;
+            {3'b101, 3'd0}, {3'b101, 3'd2}, {3'b101, 3'd3}: x87_format = X87F_F64;
+            {3'b011, 3'd5}, {3'b011, 3'd7}: x87_format = X87F_F80;
+            {3'b011, 3'd0}, {3'b011, 3'd2}, {3'b011, 3'd3}: x87_format = X87F_I32;
+            {3'b111, 3'd5}, {3'b111, 3'd7}: x87_format = X87F_I64;
+            {3'b111, 3'd0}, {3'b111, 3'd2}, {3'b111, 3'd3},
+            {3'b001, 3'd5}, {3'b001, 3'd7}, {3'b101, 3'd7}: x87_format = X87F_I16;
+            {3'b001, 3'd4}, {3'b001, 3'd6}, {3'b101, 3'd4}, {3'b101, 3'd6}: x87_format = X87F_ENV;
+            default: x87_format = X87F_NONE;
+        endcase
+    endfunction
+
+    // The operations the x87 unit builds. A form a later slice builds
+    // decodes as X87_UNIMPL, which stops the instruction as not built.
+    typedef enum logic [4:0] {
+        X87_UNIMPL,   // a later slice's form
+        X87_NOP,      // FNOP, FENI, FDISI, FSETPM
+        X87_LD_M,     // FLD or FILD of a memory operand: push
+        X87_ST_M,     // FST, FIST: store ST(0)
+        X87_STP_M,    // FSTP, FISTP: store ST(0) and pop
+        X87_LDCW,
+        X87_STCW,
+        X87_STSW,
+        X87_STENV,
+        X87_LDENV,
+        X87_SAVE,
+        X87_RSTOR,
+        X87_LD_ST,    // FLD ST(i)
+        X87_ST_ST,    // FST ST(i)
+        X87_STP_ST,   // FSTP ST(i)
+        X87_XCH,
+        X87_FREE,
+        X87_INCSTP,
+        X87_DECSTP,
+        X87_INIT,
+        X87_CLEX,
+        X87_CONST,
+        X87_CHS,
+        X87_ABS,
+        X87_TST,
+        X87_XAM
+    } x87_op_e;
+
+    // The eight constants FLD1 to FLDZ push, in the 387's order (D9 E8-EE),
+    // and the significand each rounding mode gives for the ones that are not
+    // exact in 64 bits (387 PRM, "FLDPI and the other constants"; the 387
+    // rounds a constant under RC, so round down and round to zero give the
+    // significand one less).
+    function automatic logic [79:0] constant_of(input logic [2:0] i, input logic [1:0] rc);
+        logic [63:0] sig;
+        logic [14:0] exp;
+        logic        near_up;   // rounding to nearest takes the significand above
+        logic        inexact;
+        case (i)
+            3'd0: begin sig = 64'h8000000000000000; exp = 15'h3fff; near_up = 1'b0; inexact = 1'b0; end  // 1.0
+            3'd1: begin sig = 64'hd49a784bcd1b8afe; exp = 15'h4000; near_up = 1'b0; inexact = 1'b1; end  // log2(10)
+            3'd2: begin sig = 64'hb8aa3b295c17f0bb; exp = 15'h3fff; near_up = 1'b1; inexact = 1'b1; end  // log2(e)
+            3'd3: begin sig = 64'hc90fdaa22168c234; exp = 15'h4000; near_up = 1'b1; inexact = 1'b1; end  // pi
+            3'd4: begin sig = 64'h9a209a84fbcff798; exp = 15'h3ffd; near_up = 1'b1; inexact = 1'b1; end  // log10(2)
+            3'd5: begin sig = 64'hb17217f7d1cf79ab; exp = 15'h3ffe; near_up = 1'b1; inexact = 1'b1; end  // ln(2)
+            default: begin sig = 64'd0; exp = 15'd0; near_up = 1'b0; inexact = 1'b0; end                 // +0.0
+        endcase
+        // Every constant is positive, so round down and round to zero keep
+        // the truncated significand and round up takes the next one.
+        if (inexact && (rc == 2'd0 && near_up || rc == 2'd2)) sig = sig + 64'd1;
+        constant_of = {1'b0, exp, sig};
+    endfunction
+
+    // ---- Decode: the 387 opcode to an operation. ----
+    // op[10:8] is ESC's low three bits (D8h-DFh), op[7:0] the ModRM byte.
+    function automatic x87_op_e x87_decode(input logic [10:0] o, input logic [2:0] fmt);
+        logic [2:0] esc, rf;
+        logic       regform;
+        esc = o[10:8];
+        rf = o[5:3];
+        regform = o[7:6] == 2'b11;
+        x87_decode = X87_UNIMPL;
+        if (!regform) begin
+            // The memory forms. Every arithmetic form (D8, DA, DC, DE, and
+            // D9/D8 with a memory operand) is a later slice's.
+            case ({esc, rf})
+                {3'b001, 3'd0}, {3'b101, 3'd0}, {3'b011, 3'd5},   // FLD m32, m64, m80
+                {3'b011, 3'd0}, {3'b111, 3'd0}, {3'b111, 3'd5}:   // FILD m32, m16, m64
+                    x87_decode = X87_LD_M;
+                {3'b001, 3'd2}, {3'b101, 3'd2},                   // FST m32, m64
+                {3'b011, 3'd2}, {3'b111, 3'd2}:                   // FIST m32, m16
+                    x87_decode = X87_ST_M;
+                {3'b001, 3'd3}, {3'b101, 3'd3}, {3'b011, 3'd7},   // FSTP m32, m64, m80
+                {3'b011, 3'd3}, {3'b111, 3'd3}, {3'b111, 3'd7}:   // FISTP m32, m16, m64
+                    x87_decode = X87_STP_M;
+                {3'b001, 3'd5}: x87_decode = X87_LDCW;  // FLDCW, a word like any other
+                {3'b001, 3'd7}: x87_decode = X87_STCW;
+                {3'b101, 3'd7}: x87_decode = X87_STSW;
+                {3'b001, 3'd6}: x87_decode = X87_STENV;
+                {3'b001, 3'd4}: x87_decode = X87_LDENV;
+                {3'b101, 3'd6}: x87_decode = X87_SAVE;
+                {3'b101, 3'd4}: x87_decode = X87_RSTOR;
+                default: x87_decode = X87_UNIMPL;  // FBLD, FBSTP and the arithmetic forms
+            endcase
+            // A memory form needs its operand's format, and the four
+            // environment and save forms the environment's.
+            if (fmt == X87F_NONE) x87_decode = X87_UNIMPL;
+            if ((x87_decode == X87_STENV || x87_decode == X87_LDENV || x87_decode == X87_SAVE
+                 || x87_decode == X87_RSTOR) != (fmt == X87F_ENV)) x87_decode = X87_UNIMPL;
+        end else begin
+            case (esc)
+                3'b001: begin  // D9
+                    case (o[7:0])
+                        8'hd0: x87_decode = X87_NOP;   // FNOP
+                        8'he0: x87_decode = X87_CHS;
+                        8'he1: x87_decode = X87_ABS;
+                        8'he4: x87_decode = X87_TST;
+                        8'he5: x87_decode = X87_XAM;
+                        8'hf6: x87_decode = X87_DECSTP;
+                        8'hf7: x87_decode = X87_INCSTP;
+                        default: begin
+                            if (o[7:3] == 5'b11000) x87_decode = X87_LD_ST;        // D9 C0+i
+                            else if (o[7:3] == 5'b11001) x87_decode = X87_XCH;     // D9 C8+i
+                            else if (o[7:0] >= 8'he8 && o[7:0] <= 8'hee) x87_decode = X87_CONST;
+                            else x87_decode = X87_UNIMPL;
+                        end
+                    endcase
+                end
+                3'b011: begin  // DB
+                    // FENI, FDISI and FSETPM are a 387's FNOPs; FNCLEX and
+                    // FNINIT are the two forms that do not wait for BUSY#.
+                    case (o[7:0])
+                        8'he0, 8'he1, 8'he4: x87_decode = X87_NOP;
+                        8'he2: x87_decode = X87_CLEX;
+                        8'he3: x87_decode = X87_INIT;
+                        default: x87_decode = X87_UNIMPL;
+                    endcase
+                end
+                3'b101: begin  // DD
+                    if (o[7:3] == 5'b11000) x87_decode = X87_FREE;         // DD C0+i
+                    else if (o[7:3] == 5'b11010) x87_decode = X87_ST_ST;   // DD D0+i
+                    else if (o[7:3] == 5'b11011) x87_decode = X87_STP_ST;  // DD D8+i
+                    else x87_decode = X87_UNIMPL;
+                end
+                3'b111: x87_decode = o[7:0] == 8'he0 ? X87_STSW : X87_UNIMPL;  // DF E0
+                default: x87_decode = X87_UNIMPL;
+            endcase
+        end
+    endfunction
 
 endpackage

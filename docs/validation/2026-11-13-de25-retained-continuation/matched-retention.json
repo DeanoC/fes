@@ -1,0 +1,8 @@
+{
+  "status": "retained-and-independently-read-back",
+  "archive": "/home/deano/fes-retained/de25-retained-continuation-matched-20261113-r1/matched-chain.tar.gz",
+  "archive_sha256": "0a37615675a98961ec79039584d69504f105e8e346d62f02d2963872e8c113f9",
+  "archive_bytes": 118501191,
+  "hardware_actions": false,
+  "hardware_accepted": false
+}

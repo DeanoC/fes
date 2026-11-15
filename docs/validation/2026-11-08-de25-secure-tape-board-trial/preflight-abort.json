@@ -1,0 +1,36 @@
+{
+  "status": "host-preflight-abort-before-device-access",
+  "operator_source": "7c2356a8222d2ba45d8986c1216e66f5ce20bef4",
+  "compiled_source": "211ab49464df5ed93c31f33312a6567f2c4b32e3",
+  "reason": "Host shared USB hub disconnected/re-enumerated both adapters; exact top node changed from003/057 to003/060.",
+  "original_result": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/nano-secure-tape-trial-20261108/trial/experiment.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+    "returncode": 1,
+    "timed_out": false,
+    "elapsed": 0.600842930143699,
+    "log_sha256": "c88cd62f8c08e99fb181e67e145d24255ac4004d837225e9b767aebd7dff6d3a"
+  },
+  "original_log_sha256": "c88cd62f8c08e99fb181e67e145d24255ac4004d837225e9b767aebd7dff6d3a",
+  "absent_before_attempt_markers": [
+    "experiment-progress.json",
+    "experiment-result.json",
+    "recovery-program-consumed.json",
+    "native-program-consumed.json",
+    "transport.json"
+  ],
+  "experiment_started": false,
+  "programming_attempted": false,
+  "sd_writes_attempted": false,
+  "native_attempts_consumed": 0,
+  "max_native_attempts": 1,
+  "board_state": "Prior RebootRequired/finalPark unproven; no board operations performed by aborted invocation.",
+  "user_authorized_continue_when_stable": true,
+  "hardware_passed": false,
+  "goal_complete": false
+}

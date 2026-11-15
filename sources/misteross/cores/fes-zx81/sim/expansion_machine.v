@@ -36,6 +36,7 @@ module expansion_machine #(
     assign io_data = bus_wdata;
     zx81_machine #(.EXTERNAL_RAM(1), .FIRMWARE_INIT(FIRMWARE_INIT)) machine (
         .clk_sys(clk_sys), .reset(reset), .keyboard(keyboard),
+        .rom_address(), .external_rom_data(8'd0),
         .tape_ready(tape_ready), .tape_size(tape_size), .tape_data(tape_data),
         .tape_addr_out(tape_addr_out), .tape_busy(tape_busy),
         .save_ready(), .save_busy(), .save_changed(), .save_size(),

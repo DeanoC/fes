@@ -1,0 +1,129 @@
+{
+  "status": "passed-actual-restoration-and-full-SOF-file-prerequisite",
+  "restoration": {
+    "scope": "verified-original-files-restoration-before-full-SOF-candidate",
+    "restoration_procedure_sha256": "f9f0b77cd1e82901f2b45f2239214ee46501ed819440462a198f870defd47cf3",
+    "restoration_archive_sha256": "9ffdfd84adf45ea186c120afd14935a79e14ccad8ed245302977d854c7b76e1e",
+    "original_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+    "original_FIT_readback_verified": true,
+    "recovery_program_verified": true,
+    "restoration_wire": {
+      "status": "passed-actual-nonce-bound-FIT-refresh-wire",
+      "direction": "rollback",
+      "plan_sha256": "d83f52f139c61b6ce10f14b312aa7adc91952f9e8e9221dc63356134adccc64c",
+      "raw_sha256": "2f7d6f0b6b879054989a220c8355c12b2be284fe65bc64d371e9b8a271c552d3",
+      "raw_bytes": 243460,
+      "raw_commands": 818,
+      "readbacks_before": 17,
+      "readbacks_after": 17,
+      "target_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+      "SD_file_writes": 1,
+      "activation": false,
+      "native_boot_verified": false,
+      "Secure_SMMU_reset_qualified": false,
+      "DMA_authority": false
+    },
+    "files": {
+      "/home/deano/fes-retained/de25-program-failure-original-files-restored-20261115-r1/restoration.tar.gz": "9ffdfd84adf45ea186c120afd14935a79e14ccad8ed245302977d854c7b76e1e",
+      "/home/deano/fes/out/dev/de25-source-release/out/four-second-program-failure-files-restoration/procedure.json": "f9f0b77cd1e82901f2b45f2239214ee46501ed819440462a198f870defd47cf3",
+      "/home/deano/fes/out/dev/de25-source-release/out/four-second-program-failure-files-restoration/plan.json": "d83f52f139c61b6ce10f14b312aa7adc91952f9e8e9221dc63356134adccc64c",
+      "/home/deano/fes/out/dev/de25-source-release/out/four-second-program-failure-files-restoration/human-power-cycle.json": "bebfc683ba77c1cb836e544f30da9a19847387ff138454f87559e34848b7b913",
+      "/home/deano/fes/out/dev/de25-source-release/out/four-second-program-failure-files-restoration/attempt/human-power-cycle.json": "bebfc683ba77c1cb836e544f30da9a19847387ff138454f87559e34848b7b913",
+      "/home/deano/fes/out/dev/de25-source-release/out/four-second-program-failure-files-restoration/attempt/operator-attempt.json": "bbb16cf414b0f3a89ba3a9392a02269172818890bfd0f40e604442cbcba31cb8",
+      "/home/deano/fes/out/dev/de25-source-release/out/four-second-program-failure-files-restoration/attempt/result.json": "63712378c34d8099759d581474672ff51685c97faa281a69d4432b72e1d1aaa7",
+      "/home/deano/fes/out/dev/de25-source-release/out/four-second-program-failure-files-restoration/attempt/recovery-rollback/role-result.json": "0841223170cc42c029bdd714e01a791dda8f04577cf9e9c3d1360bc53824c55d",
+      "/home/deano/fes/out/dev/de25-source-release/out/four-second-program-failure-files-restoration/attempt/recovery-rollback/supervisor-result.json": "f0302d3a0965b496af1f15b06c40bf3dbab619ba8b39c7abdbf682ab1eef968d",
+      "/home/deano/fes/out/dev/de25-source-release/out/four-second-program-failure-files-restoration/attempt/recovery-rollback/recovery-result.json": "ee9b64cb72928be61602d905f10e17937c18409c61f2ee69f5cb16b4f0e54430",
+      "/home/deano/fes/out/dev/de25-source-release/out/four-second-program-failure-files-restoration/attempt/recovery-rollback/completed-program.json": "5a10a506289a408e97b8922febd398c92436a587157bac8f8cda794cfee2b107",
+      "/home/deano/fes/out/dev/de25-source-release/out/four-second-program-failure-files-restoration/attempt/recovery-rollback/recovery-boot-program.log": "566836724b83ff1b1078ead0594206e2ceb927bec58ac3fb8421a4fa9fbaf793",
+      "/home/deano/fes/out/dev/de25-source-release/out/four-second-program-failure-files-restoration/attempt/recovery-rollback/recovery-console.log": "aa8f098ed97ec965f67da81edc4ffb00eb2a6efe5f34d06a8913c973b6c8ca13",
+      "/home/deano/fes/out/dev/de25-source-release/out/four-second-program-failure-files-restoration/attempt/recovery-rollback/parameter-15.log": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "/home/deano/fes/out/dev/de25-source-release/out/four-second-program-failure-files-restoration/attempt/recovery-rollback/parameter-16.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+      "/home/deano/fes/out/dev/de25-source-release/out/four-second-program-failure-files-restoration/attempt/rollback/refresh-result.json": "7c1b1c99a636a709b9592cebcea8c5fe964461d390c0b2240fb01126073c6065",
+      "/home/deano/fes/out/dev/de25-source-release/out/four-second-program-failure-files-restoration/attempt/rollback/supervisor-result.json": "dd73fe9f279029bf593609657116c6aa10731fcbdef498ea772d4822e41d686c",
+      "/home/deano/fes/out/dev/de25-source-release/out/four-second-program-failure-files-restoration/attempt/rollback/refresh-console.log": "2f7d6f0b6b879054989a220c8355c12b2be284fe65bc64d371e9b8a271c552d3",
+      "/home/deano/fes/out/dev/de25-source-release/out/program-failure-original-files-proof/result.json": "15cb2a32c88a7c1c655fdafd4af57e86eba163429b7c250a0b8fb1981706e6e0",
+      "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/restoration-binding.json": "583e7fe6b998923759a659c8df53d1b291d912fbd067668735a1f7835ce58541"
+    },
+    "baseline_final_Park_verified": false,
+    "Secure_SMMU_reset_qualified": false,
+    "DMA_authority": false,
+    "fresh_epoch_admission_required": true,
+    "hardware_actions": false
+  },
+  "image": {
+    "scope": "verified-file-only-matched-native-full-SOF",
+    "image": {
+      "path": "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-composition/native-hps-first.sof",
+      "sha256": "ced3df3c0f3ba94b09f4732c8e95f17aa3abb8aac660fb04dbb9257d496d7e21",
+      "bytes": 1578912,
+      "kind": "matched-native-sof",
+      "operation": "p;/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-composition/native-hps-first.sof@1",
+      "volatile": true,
+      "flash_operation": false
+    },
+    "fit_sha256": "8d6aa12358f19ce4932eecc39b9dbb5c97bb733613d848a4b1ae04a8baffde4a",
+    "spl_sha256": "fa1e6735f95e47e0658e5761caa6132247a070ae2c1663fa2653f22b2c5f1cca",
+    "embedded_SPL": {
+      "format": "nano-sof-gzip-hps-literals",
+      "spl_bytes": 164001,
+      "spl_binary_sha256": "c91cdf83c5885c7ea8366678fe55553eb386d9dd7db974728603740477c4b6fb",
+      "spl_hex_sha256": "fa1e6735f95e47e0658e5761caa6132247a070ae2c1663fa2653f22b2c5f1cca",
+      "chunks": [
+        {
+          "address": 0,
+          "size": 65536
+        },
+        {
+          "address": 65536,
+          "size": 65536
+        },
+        {
+          "address": 131072,
+          "size": 32929
+        }
+      ],
+      "preserved_sections": 11,
+      "security_hash_and_configuration_crc_verified": false,
+      "hardware_programming_or_boot_acceptance": false
+    },
+    "files": {
+      "/data/altera_pro/26.3/quartus/bin/quartus_pfg": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+      "/data/altera_pro/26.3/quartus/linux64/quartus_pfg": "ed0026052cadd2ee56ae4e850c20a733ce0d0106bbd39687e15f045637404869",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/computer-project/board/hps/build-inputs.json": "28110085e834fcba01ec68a77b8e127d5e1a49ce1232c567867adb91211ed84b",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/computer-project/board/hps/diagnostic-with-vendor-spl.sof": "b41f974502a51e33614f4a773255c2baba762c16cbddb327e9a3c71cd9745bb0",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/computer-project/board/hps/hps-first-pair.json": "4616b6bdc7f335159ee9edfcb3eb83e3abbb06eea50d95009829b913ac2122a4",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/computer-project/board/hps/hps-first.core.rbf": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/computer-project/board/hps/hps-first.hps.rbf": "0510701306a1a28c09acfd478599b1b57ca35cecf07c7e80550952cf1261849d",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/computer-project/board/hps/project/output_files/golden_top.sof": "449b809b64ed73bc04a6150c5924ca729f14abab54981c4e0500c4d08010e7a7",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/computer-project/board/hps/seal-result.json": "04027e6b70fc6403ea09902f3bb3d7b4465e699c1cf597478962d4dc0fd5b553",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-entry/entry.img": "fb858f4d68e8b9d9407d80d220d66f72ffe52527a4ba11cbf6e8b336860ae332",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-entry/payload.elf": "bb684af4f9f8fb3fc318c9ffee45ccc3d5ad6c627b5b8e61f076dadcf64f63f9",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-entry/result.json": "ef91d61fa466a3887877ce5c5516673fe53611d1a29462d94cf9007eb016ee8d",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-uboot/build/.config": "ef715156b2611124ef44fb4c316d62a12ddcab5c974003c81d79b96e7afc07ff",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-uboot/build/spl/u-boot-spl-dtb.hex": "fa1e6735f95e47e0658e5761caa6132247a070ae2c1663fa2653f22b2c5f1cca",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-uboot/build/u-boot.itb": "8d6aa12358f19ce4932eecc39b9dbb5c97bb733613d848a4b1ae04a8baffde4a",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-uboot/result.json": "3ede482f6deb23fdf2df6f96407eb9b3f99c18b69a3635fbbc090157aa54c0eb",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/platform/embedded/nano/hps_boot.py": "72e6cf971b1af9a7399ccb6da388cec66165b72da5fd17bc7173dccf8c5ca743",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/platform/embedded/nano/hps_context.py": "6ac96f2ac50f0b6b69c1e808f0e6f62647d9800821692876f84b70944e2a26fd",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/platform/embedded/nano/hps_io.py": "cbb0527cda79cb0e65920d6babf1d7434eda7c432fa9de9fce75c82ebf53d5a4",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/platform/embedded/nano/package.py": "9b3a89c485a059084766b12c0dcc1b57ad188244c51acdd8cab7f0483b0221b7",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/platform/embedded/nano/sd-profile.json": "0d5976d94ac6cf8cb2963fc3fa836bb195ac3d6fb88a550ad25049eea3ad69ef",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/platform/embedded/nano/sof_hps.py": "11c9c21d46f28219accfd5a08d9a27486df84845ef4fee3573b2a0f6e72df70d",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/sources/misteross/prototypes/de25_board_control/build.py": "a53de83357e323fec2ea58d744b22c078333550fe5e317743f8bab72452c252e",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/sources/misteross/prototypes/de25_board_control/rom_transport.py": "8612d101c45e7e921d2bea3828d653c9ab9df2855996a08434181197988640ed",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/sources/misteross/prototypes/de25_board_control/seal.py": "a78484143b213c970bbcf35d4a365465f42809c260fa7095a1b43348f886e24e",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/sources/misteross/prototypes/de25_board_control/verify.py": "fffdac63b581ba96927ab7621b88e2a58113a983db71997b2e89a500605cf77c",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-composition/result.json": "2a1a0275cc9b089204b5d4f72b4d902428804d504e6573c291079c98a90b6ed3",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-composition/native-hps-first.sof": "ced3df3c0f3ba94b09f4732c8e95f17aa3abb8aac660fb04dbb9257d496d7e21",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-composition/u-boot-spl-dtb.hex": "fa1e6735f95e47e0658e5761caa6132247a070ae2c1663fa2653f22b2c5f1cca",
+      "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-composition/native-hps-first.hps.rbf": "c3b518b695649d33b14f7857f5a499f121283521ed2214fa47b62f832ff904fd",
+      "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/native-image-selection.json": "45493840239750fe7d915394e94bb8c6bb6265acee5a3b77533c70c0dba0f819"
+    },
+    "hardware_actions": false,
+    "programming_authority": false,
+    "hardware_acceptance": false,
+    "phase_one_fallback": false
+  },
+  "hardware_actions": false
+}

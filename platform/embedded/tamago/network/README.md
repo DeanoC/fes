@@ -1,0 +1,113 @@
+# Native Go networking
+
+This adapter connects ordinary Go `net` and `net/http` APIs to an explicit
+board Ethernet device. QEMU uses a modern VirtIO network device; Nano now has
+a separate [XGMAC/firmware contract](../xgmac/README.md). It uses the
+[go-net](https://github.com/usbarmory/go-net) Lneto stack and a small polling
+MMIO driver. The default `Open` path selects QEMU `virt`; `OpenDevice` supplies the shared
+IP/socket service to the Nano provider without QEMU address defaults.
+
+After `qemuvirt.InitDevices()`, call `network.Open(ctx, network.Config{})`
+once, before opening application sockets. The default address is
+`10.0.2.15/24`, with gateway `10.0.2.2`, matching QEMU user networking. Supply
+`Config.Address` and `Config.Gateway` to change them. `MMIOAddress == 0` scans
+the 32 QEMU VirtIO slots and rejects ambiguous multiple-NIC configurations.
+The shared adapter installs `net.SocketFunc`; application clients must use actual
+HTTP transport. `Open` neither replaces nor wraps an HTTP transport.
+
+Run the image with 512 MiB of RAM and one CPU. Enable modern VirtIO devices:
+
+```text
+-machine virt,gic-version=3 -cpu cortex-a53 -m 512M -smp 1
+-global virtio-mmio.force-legacy=false
+-netdev user,id=net0,hostfwd=tcp:127.0.0.1:18882-:8081
+-device virtio-net-device,netdev=net0,mac=52:54:00:12:34:56
+```
+
+A service bound to host loopback port 18881 is available from the guest at
+`http://10.0.2.2:18881`. The optional forwarding example makes a guest HTTP
+listener on port 8081 reachable at host `http://127.0.0.1:18882`.
+
+## Ownership and limits
+
+The board owns the global DMA arena. `Open` requires that arena to be initialized
+outside Go's heap and mapped as Normal noncacheable memory. The NIC never
+initializes it, frees a live descriptor, or borrows Go heap pointers for DMA.
+RX buffers remain posted to the device until completion. TX copies into an
+owned buffer and waits for completion before reuse. ARM barriers publish
+both descriptor contents and queue indices. Interrupts are suppressed and
+acknowledged during polling; no GIC handler or asynchronous preemption is
+required. Empty polling and TX waits yield to other goroutines.
+
+The adapter is a startup service lasting for the whole boot. `Err()` reports
+cancellation or the first fatal NIC error, and `Done()` closes when service
+becomes unavailable. A stopped device or failed TX stops RX polling and makes
+new sockets fail. Existing socket operations still need application deadlines.
+This does not shut down the stack, detach the global socket provider, or
+reclaim DMA. A failed TX poisons the NIC because descriptor ownership is
+uncertain; buffers stay reserved. Startup failure is likewise not retried.
+Recovery currently means rebooting the image. The shared `Link` installs its
+TX callback before starting Lneto workers and stops callback work on cancellation
+or a device failure. Cancellation is not a DMA fence.
+
+`Interface.BindControl(DMAControl{Stop: ..., Start: ...})` can bind one explicit
+trusted platform supplier to the same link. `Controller.PauseNetwork` closes
+the traffic gate, waits for all in-flight driver Receive/Transmit calls, then
+asks that supplier to stop the device and independently prove DMA/transactions
+drained. `ResumeNetwork` reopens traffic only after the paired platform restart.
+Both phases are bounded to five seconds and callbacks must honor cancellation.
+Repeated pause while already closed makes no hardware call. Failed or cancelled
+control stays gated and cannot be replaced or replayed, including through copied
+handles. Existing TCP sockets and the global provider remain attached; pending
+operations keep their application deadlines, and new socket calls reject while
+paused. This does not promise sockets survive a long FPGA configuration.
+
+The gate alone supplies no DMA fence. There is no default supplier, no buffer
+free or descriptor reallocation, and no automatic recovery. The current Nano
+profile has no qualified NIC lease/drain supplier and still disables Ethernet.
+The native `ProgramService.AttachNetwork` now claims the active controller once
+before frontend ownership and guards configuration, return, install, Park,
+presentation-failure cleanup and shutdown. Initial menu construction occurs
+before network startup. Unknown drain/restart retires without more firmware IO.
+Enabling the Nano still requires a source-bound firmware MAC lease/drain supplier
+and a qualified policy for ordinary frame/computer control while it is active.
+The model test exchanges actual HTTP through XGMAC descriptors and the IP stack
+across three short pause/resume cycles; its model-only callbacks are not firmware
+or physical DMA proof.
+
+Nano controlled startup now binds the real driver through the private firmware
+MAC client before this adapter installs sockets or starts packet workers. Its
+explicit `OpenNetworkWithControl` board hook requires the owner from accepted
+boot admission and returns the paired lifecycle controller. The generic Nano
+opener lacks that owner and refuses startup. No current profile selects or
+qualifies this path; QEMU startup is unchanged.
+
+The paired native launcher now wires that controlled opener through
+`ProgramService.StartNetwork` before frontend ownership. Its boot owner is
+captured under the original accepted cold context before USB/SD startup; a
+catalogue cannot replace it. Disabled compiled profiles perform no startup call.
+The board opener receives separate startup and stack-lifetime contexts: the
+bounded startup is used for XGMAC/firmware work, while `OpenDevice` workers use
+the longer lifetime. Canceling successful startup does not cancel the stack.
+The service retains partial returned controls and retires without FPGA cleanup
+after uncertain startup, including a propagated platform panic. This supplies
+the call path, not MAC/PHY/DMA qualification or a native upload listener.
+
+This prototype supports IPv4 TCP with static addressing and a 1500-byte MTU.
+It enables neither checksum/segmentation offloads nor merged receive buffers.
+The Lneto configuration limits active TCP ports to 16 and listener connections
+to 8. DHCP, DNS configuration, UDP, IPv6, link-change recovery, network
+throughput qualification and physical Ethernet acceptance remain separate work. Use
+numeric IPv4 addresses for the current private HTTP service. The board's
+deterministic entropy provider is unsuitable for authentication and TLS.
+
+The pinned dependency is `github.com/usbarmory/go-net`
+`v0.0.0-20260924083839-356cbf14db9e`, the revision compatible with the
+TamaGo 1.26.5 compiler. Both TCP peers in the smoke test exchange packets
+through QEMU VirtIO and user networking; a successful test is emulator
+integration evidence, not physical Ethernet acceptance.
+
+A staged platform may provide an additional Confirm hook for the driver to run
+after descriptor initialization. The driver must consume it before exposing
+complete Stop/Start controls. `NewController` rejects an unconsumed Confirm hook;
+it cannot reopen software traffic between a controller grant and confirmation.

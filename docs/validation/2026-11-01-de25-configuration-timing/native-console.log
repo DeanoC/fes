@@ -1,0 +1,126 @@
+
+U-Boot SPL 2025.01-fes-nano-12c8c5878f222658 (Jun 27 2025 - 01:40:35 +0000)
+FES_NANO_SPL BEGIN cause=00000004 per0=ff7fbfff bridge=0000004f cpus=0000000f release=00000000 kind=4 valid=1
+FES_NANO_SPL SCOPE mpidr=81000000 core=0 cause_now=00000004 cpus_now=0000000f release_now=00000000 reset_timeouts=00000000
+Reset state: Cold
+MPU           800000 kHz
+L4 Main	      400000 kHz
+L4 sys free   100000 kHz
+L4 MP         200000 kHz
+L4 SP         100000 kHz
+SDMMC         200000 kHz
+is_ddr_csr_clkgen_locked: ddr csr io96b_0 clkgenA is successfully locked
+io96b_cal_status: Calibration for IO96B instance 0x18400400 done at 0 msec!
+init_mem_cal: Initial DDR calibration IO96B_0 succeed
+DDR: Calibration success
+io96b_mb_init: num_instance 1
+io96b_mb_init: get memory interface IO96B 0
+io96b_mb_init: IO96B 0 mem_interface 0: ip_type_ret: 0x1
+io96b_mb_init: IO96B 0 mem_interface 0: instance_id_ret: 0x0
+io96b_mb_init: IO96B 0: num_mem_interface: 0x1
+LPDDR4: 1024 MiB
+ecc_enable_status: ECC enable status: 0
+DDR: size check success
+DDR: firewall init success
+DDR: init success
+Bloblist at 72000 not found (err=-2)
+WDT:   Not starting watchdog@10d00200
+Trying to boot from MMC1
+FES_NANO_SPL FIT verified before parsing
+## Checking hash(es) for config board-0 ... OK
+## Checking hash(es) for Image atf ... crc32+ OK
+## Checking hash(es) for Image uboot ... crc32+ OK
+## Checking hash(es) for Image fdt-0 ... crc32+ OK
+## Checking hash(es) for Image fes-entry ... crc32+ OK
+FES_NANO_SPL HANDOFF owner=4c23d4f5e5fe041b epoch=163ebca8b per0=ff7fbfbf bridge=0000000f sd=01f700f0
+NOTICE:  SOCFPGA: Boot Core = 0
+NOTICE:  SOCFPGA: CPU ID = 0
+NOTICE:  SOCFPGA: Setting CLUSTERECTRL_EL1
+NOTICE:  BL31: v2.12.0(release):fes-nano-owned-unready-580dcb5c4e10
+NOTICE:  BL31: Built : 08:42:23, Jun 11 2025
+NOTICE:  FES_NANO_OWNED_BOOT provider=1 result=0 reset=0000000f
+NOTICE:  FES_NANO_SD_PLATFORM setup=0 ready=0
+
+
+U-Boot 2025.01-fes-nano-12c8c5878f222658 (Jun 27 2025 - 01:40:35 +0000)socfpga_agilex5
+
+CPU:   Intel FPGA SoCFPGA Platform (ARMv8 64bit Cortex-A55/A76)
+Model: SoCFPGA Agilex5 Terasic DE25-Nano
+DRAM:  1 GiB
+Core:  30 devices, 17 uclasses, devicetree: separate
+WDT:   Not starting watchdog@10d00200
+WDT:   Not starting watchdog@10d00300
+WDT:   Not starting watchdog@10d00400
+WDT:   Not starting watchdog@10d00500
+WDT:   Not starting watchdog@10d00600
+Loading Environment from <NULL>... OK
+In:    serial1@10c02100
+Out:   serial1@10c02100
+Err:   serial1@10c02100
+Fail to read JTAG Usercode. Default Board ID to 0
+SOCFPGA_AGILEX5 # fesboot
+FES_NANO_BOOT id=12c8c5878f222658
+FES_NANO_MEMORY ram_top=c0000000 sp=bfb5f880 malloc=bfb68000..bff6a000 reloc=bff6a000 fdt=bfb61ca0
+lmb_dump_all:
+ memory.count = 0x1
+ memory[0]	[0x80000000-0xbfffffff], 0x40000000 bytes, flags: none
+ reserved.count = 0x2
+ reserved[0]	[0x0-0xffffff], 0x1000000 bytes, flags: no-map
+ reserved[1]	[0xbeb5fff0-0xbfffffff], 0x14a0010 bytes, flags: no-overwrite
+FES_NANO_OWNED phase=before-entry status=0 flags=46424f31000000df owner=4c23d4f5e5fe041b generation=1
+## Flattened Device Tree blob at bfb61ca0
+   Booting using the fdt blob at 0xbfb61ca0
+Working FDT set to bfb61ca0
+   Loading Device Tree to 00000000beb56000, end 00000000beb5f137 ... OK
+Working FDT set to beb56000
+
+Starting kernel ...
+
+FES_NANO_OWNED phase=after-remove status=0 flags=46424f31000000df owner=4c23d4f5e5fe041b generation=1
+FES_NANO_HANDOFF affinity=0 counter=400000000 cpus=0,1,1,1 per0=ff7fbfbf bridges=0000000f
+FES_NANO_HANDOFF PASS serial-only
+FES_ENTRY EL2 CLEAN
+FES_ENTRY EL1 HANDOFF
+FES_NATIVE_HPS_CONTEXT PASS sha256=94da3557f175eae05144d70937c3afceda20c6c9f9ca9d25155535da3e0814fc package_id=6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63 build_id=e25bb65a1d14a2bbbddf4c770ea033e5 owner=4c23d4f5e5fe041b generation=1 runtime_programming=unavailable
+NOTICE:  FES_NANO_CORE_TRANSFER phase=arm owner=4c23d4f5e5fe041b generation=1 completed=0 pending=0 total=2027520 base=94800000 counter=25ecde46f hash_ticks=4caedb5b
+NOTICE:  FES_NANO_CORE_TRANSFER phase=start owner=4c23d4f5e5fe041b generation=1 completed=0 pending=0 total=2027520 base=94800000 counter=2b510698c hash_ticks=995be36f
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=4c23d4f5e5fe041b generation=1 completed=0 pending=65536 total=2027520 base=94800000 counter=305c0108d hash_ticks=e886030c
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=0 pending=65536 total=2027520 base=94800000 counter=30bce548c hash_ticks=ed7de34a
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=0 pending=65536 total=2027520 base=94800000 counter=311e2a651 hash_ticks=f275b9b0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=4c23d4f5e5fe041b generation=1 completed=65536 pending=65536 total=2027520 base=94800000 counter=3183cce55 hash_ticks=f76d83ae
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=65536 pending=65536 total=2027520 base=94800000 counter=31e4d19a0 hash_ticks=fc655f51
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=65536 pending=65536 total=2027520 base=94800000 counter=324637093 hash_ticks=1015d438e
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=4c23d4f5e5fe041b generation=1 completed=131072 pending=65536 total=2027520 base=94800000 counter=32ac03868 hash_ticks=1065531eb
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=131072 pending=65536 total=2027520 base=94800000 counter=330d18f48 hash_ticks=10b4d0c24
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=131072 pending=65536 total=2027520 base=94800000 counter=336e8eed4 hash_ticks=11044dc01
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=4c23d4f5e5fe041b generation=1 completed=196608 pending=65536 total=2027520 base=94800000 counter=33d4607ed hash_ticks=1153c9b72
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=196608 pending=65536 total=2027520 base=94800000 counter=343576a8b hash_ticks=11a3464de
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=196608 pending=65536 total=2027520 base=94800000 counter=3496eccbb hash_ticks=11f2c3304
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=4c23d4f5e5fe041b generation=1 completed=262144 pending=65536 total=2027520 base=94800000 counter=34fcbe9b6 hash_ticks=12423fae5
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=262144 pending=65536 total=2027520 base=94800000 counter=355dd40b6 hash_ticks=1291bdce2
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=262144 pending=65536 total=2027520 base=94800000 counter=35bf49439 hash_ticks=12e13a9d1
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=4c23d4f5e5fe041b generation=1 completed=327680 pending=65536 total=2027520 base=94800000 counter=36251c287 hash_ticks=1330b7e97
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=327680 pending=65536 total=2027520 base=94800000 counter=36863191e hash_ticks=13803536a
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=327680 pending=65536 total=2027520 base=94800000 counter=36e7a7cd0 hash_ticks=13cfb33ec
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=4c23d4f5e5fe041b generation=1 completed=393216 pending=65536 total=2027520 base=94800000 counter=374d7a4e7 hash_ticks=141f2fce8
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=393216 pending=65536 total=2027520 base=94800000 counter=37ae8f7e3 hash_ticks=146eaccc9
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=393216 pending=65536 total=2027520 base=94800000 counter=381005b42 hash_ticks=14be2a76d
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=4c23d4f5e5fe041b generation=1 completed=458752 pending=65536 total=2027520 base=94800000 counter=3875d8235 hash_ticks=150da605b
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=458752 pending=65536 total=2027520 base=94800000 counter=38d6ed9f7 hash_ticks=155d2376e
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=458752 pending=65536 total=2027520 base=94800000 counter=3938633e6 hash_ticks=15aca083a
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=4c23d4f5e5fe041b generation=1 completed=524288 pending=65536 total=2027520 base=94800000 counter=399e37da5 hash_ticks=15fc1eb56
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=524288 pending=65536 total=2027520 base=94800000 counter=39ff4e184 hash_ticks=164b9c846
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=524288 pending=65536 total=2027520 base=94800000 counter=3a60c5472 hash_ticks=169b1a9d1
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=4c23d4f5e5fe041b generation=1 completed=589824 pending=65536 total=2027520 base=94800000 counter=3ac6997f5 hash_ticks=16ea98f84
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=589824 pending=65536 total=2027520 base=94800000 counter=3b27af430 hash_ticks=173a17358
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=589824 pending=65536 total=2027520 base=94800000 counter=3b8923a29 hash_ticks=17899411d
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=4c23d4f5e5fe041b generation=1 completed=655360 pending=65536 total=2027520 base=94800000 counter=3beef6ecb hash_ticks=17d911686
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=655360 pending=65536 total=2027520 base=94800000 counter=3c500c040 hash_ticks=18288e9b8
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=655360 pending=65536 total=2027520 base=94800000 counter=3cb1813fd hash_ticks=18780bbfc
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=4c23d4f5e5fe041b generation=1 completed=720896 pending=65536 total=2027520 base=94800000 counter=3d1754858 hash_ticks=18c788f85
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=4c23d4f5e5fe041b generation=1 completed=720896 pending=65536 total=2027520 base=94800000 counter=3d786a110 hash_ticks=191706666
+panic: late FPGA firmware return phase=completion elapsed_us=20121780 accepted=786432 completed=720896 outstanding=1 retained=2027520
+
+goroutine 1 [running]:
+main.main()
+	github.com/DeanoC/fes/platform/embedded/tamago/cmd/fpgaload/main.go:78 +0xccc

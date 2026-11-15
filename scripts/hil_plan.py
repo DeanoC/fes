@@ -73,6 +73,7 @@ RULES = [
     # client kit.py beside them keeps its producer classification: the import
     # graph reaches it from an acceptance producer.
     ('sources/misteross/scripts/kit_hil.py', 'none', None),
+    ('sources/misteross/tools/identity.py', 'none', None),
     # Definitions are checked through their generated deployed consumers below.
     ('sources/mister-packages/packages/board/de25_nano.yaml', 'none', None),
     ('sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'none', None),

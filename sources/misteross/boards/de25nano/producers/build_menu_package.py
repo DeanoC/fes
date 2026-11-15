@@ -9,6 +9,7 @@ and managed-kit acceptance remain separate gates.
 from __future__ import annotations
 
 import argparse
+
 from contextlib import contextmanager
 import hashlib
 import importlib.util
@@ -28,6 +29,7 @@ from decimal import Decimal, InvalidOperation
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from scripts.input_identity import with_identities
 from scripts.build_fes_pcxt_quartus import tree_digest
 from boards.de25nano.package.core_package import encode_manifest
 from boards.de25nano.package.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
@@ -260,7 +262,9 @@ def create_build_record(root, repository, revision, identities, execution, captu
             'fifo_reset_sharing': SHARED_FIFO_RESETS,
             'pixel_clock_hz': 74250000, 'system_clock_hz': 100000000,
             'execution_sha256': execution_digest(execution)}}
-    return encode_build_record(fields)
+    if execution.get("selection_only"):
+        fields["parameters"]["selection_only"] = True
+    return encode_build_record(with_identities(fields, root=root))
 
 
 def timing_evidence(directory, *, async_review=None, audio_review=None, revision='golden_top'):

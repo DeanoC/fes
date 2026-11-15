@@ -40,7 +40,8 @@ counts. Two receipt rows retain the first failure's halfword address, readback
 step (1/3/5/7), requested BE, original write payload, expected word and actual
 word. A missing acknowledgement records the outstanding step as NACK. Failure
 stops the preflight and prevents the full-span scan and overall SDRAM PASS.
-The gamepad stop and execution hold also stop/reset the preflight.
+The gamepad stop and execution hold also stop/reset the preflight. A registered
+phase boundary releases the full-span scan one cycle after the preflight passes.
 
 `make sim-fes-ramtest` checks all three controller rate/CAS profiles, refresh
 adjacency, timeout and stop handling. The integrated RTL simulation then checks

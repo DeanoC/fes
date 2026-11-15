@@ -1,0 +1,142 @@
+{
+  "bl31_sha256": "b6bd3da7449c408621d9f28e40ce9c5a01155b84e9ee34ac353de2e8317de249",
+  "build_id": "e25bb65a1d14a2bbbddf4c770ea033e5",
+  "classification": "unqualified HPS-first native SPL file composition",
+  "commands": [
+    {
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-c",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-physical-core-20261101/candidates/cpu16/native-core-build/board/hps/project/output_files/golden_top.sof",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-v2-20261102/hps-composition-final/native-hps-first.sof",
+        "-o",
+        "hps_path=/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-v2-20261102/hps-composition-final/u-boot-spl-dtb.hex"
+      ],
+      "elapsed_seconds": 2.104491107049398,
+      "log_sha256": "012c5318d02f7f2275aa46e43c21d6a49ce38aebbb3fd747262a52a05ae2d26d",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-i",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-v2-20261102/hps-composition-final/native-hps-first.sof"
+      ],
+      "elapsed_seconds": 1.7035096620675176,
+      "log_sha256": "c2ebbfc615a5104700de35fdcc863c6c193adeec2a853dde8b49b93bbe57bc2d",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-c",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-v2-20261102/hps-composition-final/native-hps-first.sof",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-v2-20261102/hps-composition-final/native-hps-first.rbf",
+        "-o",
+        "hps=on"
+      ],
+      "elapsed_seconds": 5.109994419966824,
+      "log_sha256": "f40252758cf39c724a9de6687ef7f3f0b936013540163633f55d965ed5114846",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-i",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-v2-20261102/hps-composition-final/native-hps-first.hps.rbf"
+      ],
+      "elapsed_seconds": 0.7156505660386756,
+      "log_sha256": "4947c12e307f909c089e19d12a5d29be1f4a0687838af2a31cd0d94025354efb",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-i",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-v2-20261102/hps-composition-final/native-hps-first.core.rbf"
+      ],
+      "elapsed_seconds": 0.8105695419944823,
+      "log_sha256": "38333b5bf47d1e56c4206e208e8064396d389ce9fb4e4190cb5f600fe3113868",
+      "returncode": 0
+    }
+  ],
+  "control_probe": true,
+  "core_payload_unchanged": true,
+  "core_sha256": "415cc2d68955755d2de406b233e34fa2cd6cce755089ba842f10f62e6945320c",
+  "core_size": 2027520,
+  "embedded_spl_identity": {
+    "chunks": [
+      {
+        "address": 0,
+        "size": 65536
+      },
+      {
+        "address": 65536,
+        "size": 65536
+      },
+      {
+        "address": 131072,
+        "size": 29919
+      }
+    ],
+    "format": "nano-sof-gzip-hps-literals",
+    "hardware_programming_or_boot_acceptance": false,
+    "preserved_sections": 11,
+    "security_hash_and_configuration_crc_verified": false,
+    "spl_binary_sha256": "705a67105430162ef3a36268345336444b7cd546503aadbf3fe67af370725d8c",
+    "spl_bytes": 160991,
+    "spl_hex_sha256": "c9ba7c4612a009c1f2097f2538f70fb7fd34f70e498abc2bb809efec53166a84"
+  },
+  "entry_sha256": "4595807e950d43c5c3bf1c7b24b5764bd172516105ab1c0745c219acd04a673f",
+  "fit_sha256": "58653823ec5bd30d3a0191b56b905c332f911ee8b83ced2bb3c3ce9a1a078afe",
+  "format": 1,
+  "hardware_acceptance": "not-run",
+  "hps_context_sha256": "94da3557f175eae05144d70937c3afceda20c6c9f9ca9d25155535da3e0814fc",
+  "hps_control_sha256": "bc13d4774a2f80683d42d70e8440d487c20b232da4281d5a1706c337ba176796",
+  "hps_initialization": "HPS FIRST",
+  "hps_io_hash": "df9589f2122209af6d453bee8ba0dd18f3192fa556b0b6e245cd3cb1a8fe4b1f",
+  "inputs": {
+    "/data/altera_pro/26.3/quartus/bin/quartus_pfg": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+    "/data/altera_pro/26.3/quartus/linux64/quartus_pfg": "ed0026052cadd2ee56ae4e850c20a733ce0d0106bbd39687e15f045637404869",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-v2-20261102/entry-build-final/entry.img": "4595807e950d43c5c3bf1c7b24b5764bd172516105ab1c0745c219acd04a673f",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-v2-20261102/entry-build-final/result.json": "e6a05246d6acc57e2c81e9e4bf14f557383ab30c12ff47a81594f48b0c85c617",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-v2-20261102/uboot-build-final/build/.config": "bea315f6f6d83eb2596959f5d7b59e111b236ca69cfc931fca32581f93729d2c",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-v2-20261102/uboot-build-final/build/spl/u-boot-spl-dtb.hex": "c9ba7c4612a009c1f2097f2538f70fb7fd34f70e498abc2bb809efec53166a84",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-v2-20261102/uboot-build-final/build/u-boot.itb": "58653823ec5bd30d3a0191b56b905c332f911ee8b83ced2bb3c3ce9a1a078afe",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-failure-status-v2-20261102/uboot-build-final/result.json": "1a4dd6b70c51bbc9e61534cb4e9ea6e53634353fd243979179701e0172237b89",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-physical-core-20261101/candidates/cpu16/native-core-build/board/hps/build-inputs.json": "3f41232c6d4ebd6095d9310148544f63140f7a442e401841c5c890045fd51b53",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-physical-core-20261101/candidates/cpu16/native-core-build/board/hps/diagnostic-with-vendor-spl.sof": "13376fd387211e1b45d3dbf83425621627696b19cd16532d9d65ce0ad851bb5e",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-physical-core-20261101/candidates/cpu16/native-core-build/board/hps/hps-first-pair.json": "cb737f8abb4f935bb27c0d820e570512f16a1421619bcc530de3da8ad5e9b77c",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-physical-core-20261101/candidates/cpu16/native-core-build/board/hps/hps-first.core.rbf": "415cc2d68955755d2de406b233e34fa2cd6cce755089ba842f10f62e6945320c",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-physical-core-20261101/candidates/cpu16/native-core-build/board/hps/hps-first.hps.rbf": "1deaa231739736c470c961675525cb2178c805c650713da78ca23f7007dcf510",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-physical-core-20261101/candidates/cpu16/native-core-build/board/hps/project/output_files/golden_top.sof": "875427d135d32711e8cef6fb197d8c560d6e9b2a0b39aff15f598b9c9ff9d9f2",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-physical-core-20261101/candidates/cpu16/native-core-build/board/hps/seal-result.json": "f5073007e22a4219110862deb7aa4d60acc8712d15d86ee022dfe310618be9f1",
+    "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/nano/hps_boot.py": "44b0ab949ba3a07c0a86d09601cc8b6c5566419da0b1bde2fed5ea8060b410f6",
+    "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/nano/package.py": "3f858d277e0603f887dfe29588ed01f18f0c318c7e7bd5cd47d2fc318936c360",
+    "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/nano/probe-profile.json": "b9b44ca396b049c9fdb985cc95439574f47d86d0c618b876c2508aa482249d15",
+    "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/nano/sof_hps.py": "11c9c21d46f28219accfd5a08d9a27486df84845ef4fee3573b2a0f6e72df70d",
+    "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/de25_board_control/build.py": "5145f5dfbc014abcdbb5c4ea5266304417a245744c6044c78a83d1b57c5fc174",
+    "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/de25_board_control/seal.py": "e0f1dd47d7f8214b051d8c55124a2007f33e93eea7347e9248ea4ddef2115e47",
+    "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/de25_board_control/verify.py": "7051a61f330120196f92120ecd61525307c725a9c0f66d9fa4c71b459ce4e182"
+  },
+  "limitations": [
+    "file composition only; no board, SD card or flash touched",
+    "native phase-one image differs from the vendor-SPL package pair",
+    "this receipt must not be used as a live trusted boot assertion",
+    "CPU mapping, DDR preservation, DMA and active bridge return remain unqualified"
+  ],
+  "native_boot_id": "eff3e21e316e011c",
+  "original_pair_sha256": "cb737f8abb4f935bb27c0d820e570512f16a1421619bcc530de3da8ad5e9b77c",
+  "original_phase1_sha256": "1deaa231739736c470c961675525cb2178c805c650713da78ca23f7007dcf510",
+  "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+  "phase1_sha256": "f2c1e9bd88eb0154034b553ff230ed0fd8fb7714431c639e260cac7092d4dbac",
+  "phase1_size": 831488,
+  "physical_programming_admission": false,
+  "profile_sha256": "b9b44ca396b049c9fdb985cc95439574f47d86d0c618b876c2508aa482249d15",
+  "reference_combined_sof_sha256": "13376fd387211e1b45d3dbf83425621627696b19cd16532d9d65ce0ad851bb5e",
+  "sof_sha256": "975c9e11149b73c0dfe419dcf6ca523f6b0ee91c5ddc278277579262e6b1e6d7",
+  "source_context_bound": true,
+  "spl_sha256": "c9ba7c4612a009c1f2097f2538f70fb7fd34f70e498abc2bb809efec53166a84",
+  "status": "prepared",
+  "trusted_boot_handoff": false
+}

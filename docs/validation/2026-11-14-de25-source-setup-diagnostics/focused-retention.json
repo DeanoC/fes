@@ -1,0 +1,15 @@
+{
+  "status": "passed-focused-source-setup-byte-hash-mode-retention",
+  "broad_campaign_passed": false,
+  "original_broad_campaign_timed_out": true,
+  "final_phase_separate_check_still_pending": true,
+  "source_commit": "2c20c0c0f80a5d963c47320ff5713834e0680ba9",
+  "archive": "/home/deano/fes-retained/de25-source-setup-focused-20261114-r1/software.tar.gz",
+  "archive_sha256": "03a5f768469b3b3655a3e0c6595e8e28fe68598df65b2b0da44494406290a75f",
+  "archive_bytes": 13193569,
+  "matched_archive": "/home/deano/fes-retained/de25-source-setup-matched-20261114-r1/matched-chain.tar.gz",
+  "matched_archive_sha256": "29318ff0ca32a9dddd07987cde8fc20e07a1c3270c3c505c7fe98306399ebe2e",
+  "hardware_actions": false,
+  "hardware_acceptance": false,
+  "whole_EL3_stack_qualified": false
+}

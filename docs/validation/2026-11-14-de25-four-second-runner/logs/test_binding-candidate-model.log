@@ -1,0 +1,9 @@
+test_actual_large_candidate_and_all_runtime_uploader_bindings (test_binding.Tests.test_actual_large_candidate_and_all_runtime_uploader_bindings) ... ok
+test_actual_latest_saved_baseline_replay_with_poisoned_dependency_cache (test_binding.Tests.test_actual_latest_saved_baseline_replay_with_poisoned_dependency_cache) ... ok
+test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) ... ok
+test_every_foreign_helper_class_and_old_limit_fail_closed (test_binding.Tests.test_every_foreign_helper_class_and_old_limit_fail_closed) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 1.883s
+
+OK

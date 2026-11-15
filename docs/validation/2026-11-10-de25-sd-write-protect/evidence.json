@@ -1,0 +1,37 @@
+{
+  "status": "manual-and-pinned-vendor-source-review",
+  "manual": {
+    "path": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-reset-domains-20261107/DE25-Nano_User_manual_revB.pdf",
+    "sha256": "22d74c3d0fa1e969636ea6b90983871505141616e97e9878cd878c1c22328bb6",
+    "pdf_pages": [
+      42,
+      43
+    ],
+    "printed_pages": [
+      41,
+      42
+    ],
+    "figure": "3-28",
+    "table": "3-23",
+    "official_resource_listing": "https://www.terasic.com.cn/cgi-bin/page/archive.pl?CategoryNo=115&Language=English&No=1384&PartNo=4",
+    "figure_image_sha256": "546c0feadceb081d42461b064141832917c272a6a638ec0da00dd60af2a99b4c",
+    "finding": "Connection diagram and pin table show CLK, CMD and DAT0..3 through a level translator, without a separate mechanical socket WP connection."
+  },
+  "vendor_source_sha256": {
+    "out/nano-sd-platform-20261101/reference/socfpga_sdmmc_reg.h": "dce2e73289b1717516da36fa64584103f559598d469866a77e2ecef197cb3794",
+    "out/nano-sd-writer-20261110/native-uboot/source/drivers/mmc/sdhci.c": "59c832ddf03989c0adec07a3a5fa733dd6e2d246953091fb242224aef8d67e78",
+    "out/nano-sd-writer-20261110/native-uboot/source/drivers/mmc/sdhci-cadence.c": "490d4649a74ed8d0999a8b36bfaad279174ae67cb1773960d8eebefcd80afc0d",
+    "out/nano-sd-writer-20261110/native-uboot/source/drivers/mmc/mmc-uclass.c": "b4a9b2f505bba68d3d1bba20cab58a0bd97951143a4fca3914922f5bac601d20"
+  },
+  "findings": [
+    "WPSL is SRS09 bit19 in the pinned Altera register definition.",
+    "The pinned Cadence vendor driver copies the standard U-Boot sdhci_ops; that table has no get_wp callback.",
+    "The MMC uclass returns ENOSYS for an absent get_wp callback; recovery writes succeeded on this card.",
+    "The old native driver unconditionally sampled bit19 for writable requests. This differs from the documented socket wiring contract."
+  ],
+  "hardware_finding": "Write path rejected with ErrReadOnly after VERIFIED; exact raw present value and failed sector were not captured. Any partial native write remains unknown.",
+  "failure_capsule": "/home/deano/fes-retained/de25-sd-writer-failure-20261110-r1",
+  "driver_fix": "Trusted board NoSocketWriteProtect selection propagated through firmware-owned session; CSD permanent/temp protection and explicit expected writable identity remain separate.",
+  "hardware_fix_tested": false,
+  "new_hardware_action": false
+}

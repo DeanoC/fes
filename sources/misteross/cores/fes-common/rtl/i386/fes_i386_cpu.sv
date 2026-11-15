@@ -256,6 +256,29 @@ module fes_i386_cpu #(
     output logic             trace_pw,
     output logic [fes_i386_pkg::PA-1:0] trace_pw_addr,
     output logic [31:0]      trace_pw_data,
+    // The i386dx+387 identity, and the AT board's coprocessor controls,
+    // which the machine decodes at ports F0h and F1h (fes_i386_x87). With
+    // the identity clear the CPU is a 386 with an empty 387 socket, exactly
+    // as before the unit existed.
+    input  logic             x87_present,
+    input  logic             x87_f0,       // a write to port F0h: clear the board's BUSY# latch
+    input  logic             x87_f1,       // a write to port F1h: reset the coprocessor
+    output logic             x87_irq13,    // the 387's ERROR#, IRQ 13's level on an AT board
+    // BUSY#, for the bench: a load's work finishes after the instruction
+    // has retired, so the lockstep compares the 387's state once this is
+    // clear, as a program would after WAIT.
+    output logic             trace_x87_busy,
+    output logic             trace_x87_latched,  // ... and the board's BUSY# latch
+    output logic [3:0]       trace_x87_seq,      // ... and the unit's sequencer state
+    output logic [15:0]      arch_x87_cw,
+    output logic [15:0]      arch_x87_sw,
+    output logic [15:0]      arch_x87_tw,
+    output logic [10:0]      arch_x87_opcode,
+    output logic [639:0]     arch_x87_regs,
+    output logic [31:0]      arch_x87_ip,
+    output logic [15:0]      arch_x87_cs,
+    output logic [31:0]      arch_x87_dp,
+    output logic [15:0]      arch_x87_ds,
     output logic [7:0][31:0] arch_gpr,
     output logic [31:0]      arch_eflags,
     output logic [31:0]      arch_cr0,     // as MOV r32, CR0 reads it: bits 30-5 ones, as Bochs's 386
@@ -653,7 +676,8 @@ module fes_i386_cpu #(
     logic        q_b_sys;
     logic [3:0]  q_slot;
     fes_i386_decode decode (
-        .q, .code32, .stack(dc_stack), .wait_nm(cr0_mp && cr0_ts), .esc_nm(cr0_em || cr0_ts), .pe(cr0_pe), .vm(eflags[17]), .cpl, .iopl(eflags[13:12]), .nt(eflags[14]), .dr_gd(dr7[13]), .uop(q_uop), .opsize32(q_opsize32), .lea(q_lea), .lea_early(dc_q.lea_early),
+        .q, .code32, .stack(dc_stack), .wait_nm(cr0_mp && cr0_ts), .esc_nm(cr0_em || cr0_ts), .x87(x87_present),
+        .x87_insn(dc_q.x87), .x87_wait(dc_q.x87_wait), .x87_fmt(dc_q.x87_fmt), .x87_op(dc_q.x87_op), .x87_part(dc_q.x87_part), .pe(cr0_pe), .vm(eflags[17]), .cpl, .iopl(eflags[13:12]), .nt(eflags[14]), .dr_gd(dr7[13]), .uop(q_uop), .opsize32(q_opsize32), .lea(q_lea), .lea_early(dc_q.lea_early),
         .lea_disp(q_lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
         .seg_index(dc_q.seg_index), .stop(dc_q.stop), .stk(q_stk), .push_eip(dc_q.push_eip),
         .cs_base(dc_q.cs_base), .seq(q_seq), .sel_part(dc_q.sel_part), .far_jmp(dc_q.far_jmp), .far_chk(dc_q.far_chk),
@@ -819,6 +843,50 @@ module fes_i386_cpu #(
     logic       tsw_tss, tsw_tg;
     assign tsw_tss = !t3[12] && (t3[11:8] == 4'd1 || t3[11:8] == 4'd9);
     assign tsw_tg = !t3[12] && t3[11:8] == 4'd5;
+    // ---- The x87 unit (fes_i386_x87). ----
+    // The uop at D's head drives its issue side, and WB its commit side.
+    // A uop's part is the environment field fpn names, a save image's chunk
+    // (fpn 7: register fpj[4:2]'s chunk fpj[1:0]), or an operand's chunk,
+    // which the uop's offset gives: 0, 4 and 8 bytes on.
+    logic        x87_hold, x87_nx, x87_iss, x87_clr_pointers;
+    logic [31:0] x87_sval;
+    assign x87_iss = cur_valid && dc.x87;
+    // FLDENV and FRSTOR load the environment's fields 3 to 6 back into the
+    // x87 pointers and the opcode, the inverse of the words SYS_RD_FIP to
+    // SYS_RD_FDS store. In real mode the layouts hold one linear address a
+    // pointer, with the opcode beside its high bits and no selector, so the
+    // selector reads back zero, as Bochs's FLDENV leaves it; in protected
+    // mode they hold the offset and the selector, and only the 32-bit
+    // layout has room for the opcode (387 PRM, the FLDENV layouts;
+    // bochs/cpu/fpu/fpu.cc's FLDENV).
+    logic        x87_ld_env;
+    logic [15:0] x87_ld_hi;      // a real-mode pointer's high half
+    logic [10:0] x87_ld_opcode;
+    assign x87_ld_env = wb_commit && wb_s.x87 && wb_s.uop.mem.kind == fes_i386_pkg::MEM_LOAD
+                     && !wb_s.x87_part[5] && wb_s.x87_part[2:0] >= 3'd3;
+    assign x87_ld_hi = wb_s.uop.size == fes_i386_pkg::SIZE_32 ? wb_s.result[27:12]
+                                                              : {12'd0, wb_s.result[15:12]};
+    assign x87_ld_opcode = !cr0_pe ? wb_s.result[10:0]
+                         : wb_s.uop.size == fes_i386_pkg::SIZE_32 ? wb_s.result[26:16] : 11'd0;
+    fes_i386_x87 x87 (
+        .clk, .reset, .present(x87_present), .f0(x87_f0), .f1(x87_f1),
+        .error(x87_irq13), .latched(trace_x87_latched),
+        .iss(x87_iss), .iss_wait(dc.x87_wait), .iss_op(dc.x87_op), .iss_fmt(dc.x87_fmt),
+        .iss_first(d_first), .iss_fire(issue), .iss_last(dc.uop.ctl.end_of_instruction),
+        .iss_part(dc.x87_part),
+        .hold(x87_hold), .sval(x87_sval), .nx(x87_nx),
+        .wb(wb_commit && wb_s.x87), .wb_last(wb_commit && wb_s.x87 && wb_s.uop.ctl.end_of_instruction),
+        .wb_val(wb_s.result), .wb_part(wb_s.x87_part), .flush(wb_flush),
+        .wb_opcode_set(x87_ld_env && wb_s.x87_part[2:0] == 3'd4), .wb_opcode(x87_ld_opcode),
+        .cw_o(arch_x87_cw), .sw_o(arch_x87_sw), .tw_o(arch_x87_tw), .opcode_o(arch_x87_opcode),
+        .clr_pointers(x87_clr_pointers),
+        .busy_o(trace_x87_busy), .trace_seq(trace_x87_seq), .regs_o(arch_x87_regs)
+    );
+    assign arch_x87_ip = fpu_ip;
+    assign arch_x87_cs = fpu_cs;
+    assign arch_x87_dp = fpu_dp;
+    assign arch_x87_ds = fpu_ds;
+
     fes_i386_seq seq (.d(dc), .d0(dc0), .w(rom_q), .cnt(str_cnt3), .gate32, .xp, .cg, .pcnt, .vret, .tsw_tss, .tsw_tg,
                       .n(dc_next));
     // An exception's entry: a NOP that starts the ROM's vector routine with
@@ -1583,7 +1651,7 @@ module fes_i386_cpu #(
     assign issue = cur_valid && !(addr_use && lea_stall) && !(reads_seg && seg_hazard) && !(mem && mseg_hazard)
                 && !store_hazard && !flag_hazard && !sp_hazard && !stack_wait && !t_wait && !uc_wait && !str_wait
                 && !str_hazard && !io_hazard && !(ser_wait && !dc.x_prev) && !(dc.uop.ntchk && nt_busy) && !freeze
-                && !halted && !gov_block;
+                && !halted && !gov_block && !x87_hold;
     assign d_first_next = reset || redirect || (issue ? !dc_more || u.str_cx : d_first);
     always_ff @(posedge clk) begin
         d_first <= d_first_next;
@@ -1730,11 +1798,19 @@ module fes_i386_cpu #(
             5'(fes_i386_pkg::SYS_RD_LDTR): sys_val = {16'd0, ldtr_sel};
             5'(fes_i386_pkg::SYS_RD_TR): sys_val = {16'd0, tr_sel};
             5'(fes_i386_pkg::SYS_RD_ERR): sys_val = {16'd0, exc_err};
-            5'(fes_i386_pkg::SYS_RD_ONES): sys_val = 32'hffff_ffff;
+            // With a 387 fitted the unit's word, and its opcode, stand
+            // where an empty socket gives all ones: the 387's control,
+            // status and tag words for an environment's first three fields,
+            // its value for a store, and the opcode in the field that
+            // carries it. The layouts are otherwise the same.
+            5'(fes_i386_pkg::SYS_RD_ONES): sys_val = x87_present ? x87_sval : 32'hffff_ffff;
             5'(fes_i386_pkg::SYS_RD_FIP): sys_val = cr0_pe ? fpu_ip : {16'hffff, fpu_lip[15:0]};
-            5'(fes_i386_pkg::SYS_RD_FCS): sys_val = cr0_pe ? {5'd0, 11'h7ff, fpu_cs} : {4'd0, fpu_lip[31:16], 1'b0, 11'h7ff};
+            5'(fes_i386_pkg::SYS_RD_FCS): sys_val = cr0_pe ? {5'd0, x87_present ? arch_x87_opcode : 11'h7ff, fpu_cs}
+                                                 : {4'd0, fpu_lip[31:16], 1'b0,
+                                                    x87_present ? arch_x87_opcode : 11'h7ff};
             5'(fes_i386_pkg::SYS_RD_FDP): sys_val = cr0_pe ? fpu_dp : {16'hffff, fpu_ldp[15:0]};
-            5'(fes_i386_pkg::SYS_RD_FDS): sys_val = cr0_pe ? {16'hffff, fpu_ds} : {4'd0, fpu_ldp[31:16], 12'd0};
+            5'(fes_i386_pkg::SYS_RD_FDS): sys_val = cr0_pe ? {16'hffff, fpu_ds}
+                                                 : {4'd0, fpu_ldp[31:16], 12'd0};
             5'(fes_i386_pkg::SYS_RD_ARPL): sys_val = {16'd0, t1[15:2], t2[1:0]};
             5'(fes_i386_pkg::SYS_RD_DR0): sys_val = dr[0];
             5'(fes_i386_pkg::SYS_RD_DR1): sys_val = dr[1];
@@ -1753,6 +1829,11 @@ module fes_i386_cpu #(
         d_out = '0;
         d_out.valid = issue;
         d_out.uop = u;
+        // With the identity clear nothing carries the flag, so the uop's
+        // commit touches no x87 state and FLDENV and FRSTOR load and
+        // discard, as the empty socket does. WAIT takes nothing either.
+        d_out.x87 = x87_present && dc.x87 && !dc.x87_wait;
+        d_out.x87_part = dc.x87_part;
         d_out.gov = dc.gov;
         d_out.eip = d_eip;
         d_out.eip_next = d_eip_next;
@@ -1889,7 +1970,8 @@ module fes_i386_cpu #(
         // so that separate store performs the write translation (#1665).
         d_out.ipp0 = dc.pp0;
         d_out.ipp1 = dc.pp1;
-        d_out.nx = d_out.nodata && !dc.str_fin && dc.stk != fes_i386_pkg::STK_PROBE;
+        d_out.nx = d_out.nodata && !dc.str_fin && dc.stk != fes_i386_pkg::STK_PROBE
+                || dc.x87 && x87_nx;
         d_out.wx = dc.str_fin || dc.stk == fes_i386_pkg::STK_PROBE || xchg_ld;
         d_out.ones = tsf_any && !tsf_32 && u.dst.valid && u.dst.space == fes_i386_pkg::RS_GPR;
         d_out.iret0 = d_first && dc.fetched && !d_ifw && !cs_gp
@@ -3000,8 +3082,19 @@ module fes_i386_cpu #(
         else if (rp_go && wb_s.ibp_en && !wb_frp && !wb_smc) ibp_skip <= 1'b1;
         else if (!freeze && !wb_flush && ag_s.valid && ag_s.fchk) ibp_skip <= 1'b0;
 
-    assign int_next = at_boundary && (dbg_fire || !int_shadow && (nmi_ok || intr && int_if)) || in_hlt && (nmi_ok || intr && int_if);
-    assign int_cnmi_n = nmi_ok && (in_hlt || !int_shadow);
+    // The board's BUSY# latch holds an ESC instruction or WAIT in D and
+    // nothing retires behind it, so an interrupt is taken as it is in HLT:
+    // the delivery pushes D's EIP, which is the held instruction's, and the
+    // handler's write to port F0h clears the latch, after which the held
+    // instruction runs (387 PRM Appendix F.2; slice 0's if1 and held-nmi
+    // cases). Only the latch can hold for ever -- the unit's own work is a
+    // few cycles -- so the wait is on the latch with the pipeline drained.
+    logic x87_stalled;
+    assign x87_stalled = x87_hold && trace_x87_latched && !int_take
+                      && !ag_s.valid && !m1_s.valid && !m2_s.valid && !ex_s.valid && !wb_s.valid;
+    assign int_next = at_boundary && (dbg_fire || !int_shadow && (nmi_ok || intr && int_if))
+                   || (in_hlt || x87_stalled) && (nmi_ok || intr && int_if);
+    assign int_cnmi_n = nmi_ok && (in_hlt || x87_stalled || !int_shadow);
     assign inta_req = int_wait;
     always_ff @(posedge clk) begin
         nmi_q <= nmi;
@@ -3343,6 +3436,39 @@ module fes_i386_cpu #(
                 if (wb_s.uop.str_si) gpr[6] <= str_wb_step(gpr[6], wb_str_by, wb_s.uop.mem.addr32);
                 if (wb_s.uop.str_di) gpr[7] <= str_wb_step(gpr[7], wb_str_by, wb_s.uop.mem.addr32);
                 if (wb_s.uop.str_cx) gpr[1] <= str_wb_step(gpr[1], 32'hffff_ffff, wb_s.uop.mem.addr32);
+                // FLDENV's and FRSTOR's fields 3 to 6.
+                if (x87_ld_env) begin
+                    case (wb_s.x87_part[2:0])
+                        3'd3: if (cr0_pe) fpu_ip <= wb_s.result;
+                              else fpu_lip[15:0] <= wb_s.result[15:0];
+                        3'd4: if (cr0_pe) fpu_cs <= wb_s.result[15:0];
+                              else begin
+                                  fpu_lip[31:16] <= x87_ld_hi;
+                                  fpu_ip <= {x87_ld_hi, fpu_lip[15:0]};
+                                  fpu_cs <= 16'd0;
+                              end
+                        3'd5: if (cr0_pe) fpu_dp <= wb_s.result;
+                              else fpu_ldp[15:0] <= wb_s.result[15:0];
+                        default: if (cr0_pe) fpu_ds <= wb_s.result[15:0];
+                                 else begin
+                                     fpu_ldp[31:16] <= x87_ld_hi;
+                                     fpu_dp <= {x87_ld_hi, fpu_ldp[15:0]};
+                                     fpu_ds <= 16'd0;
+                                 end
+                    endcase
+                end
+                // FINIT clears the x87 pointers with the words (387 PRM,
+                // FINIT), and FNSAVE leaves the unit as FINIT does: the
+                // unit says so in the cycle they commit, so the write below
+                // for the next ESC, which is later, still wins.
+                if (x87_clr_pointers) begin
+                    fpu_ip <= 32'd0;
+                    fpu_cs <= 16'd0;
+                    fpu_lip <= 32'd0;
+                    fpu_dp <= 32'd0;
+                    fpu_ds <= 16'd0;
+                    fpu_ldp <= 32'd0;
+                end
                 // An ESC instruction's last uop: the x87 instruction pointer,
                 // and a memory form's data pointer ("x87 pointers").
                 if (wb_s.uop.x87p != 2'd0) begin

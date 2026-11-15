@@ -75,7 +75,7 @@ def authenticate_misteross_origin(source):
         raise ValueError("selected misteross checkout has an ambiguous repository origin")
 
 
-def canonical_package_record(source, env=None, recipe=None):
+def canonical_package_record(source, env=None, recipe=None, *, selection_only=False):
     """Derive the selected producer's canonical pre-synthesis record in isolation."""
     recipe = recipe_for("fes.pong") if recipe is None else recipe
     license_arguments = _de25_license_arguments(env, recipe)
@@ -94,27 +94,35 @@ identity_version = int(sys.argv[sys.argv.index("--identity-version") + 1])
 assert identity_version == 2
 options = dict(json.loads(sys.argv[3]), identity_version=2)
 repository, revision = producer._require_clean_source(root, **options)
-tools = authenticate(root, cache_root=cache_root)
-identities = {name: tool.identity for name, tool in tools.items()}
-import tempfile
-from scripts.functional_execution import execution_environment, execution_inputs
-with tempfile.TemporaryDirectory(prefix="fes-canonical-home-") as home:
-    paths = {name: tool.path for name, tool in tools.items()}
-    if "--license-file" in sys.argv:
-        license_file = Path(sys.argv[sys.argv.index("--license-file") + 1])
-        environment = producer.execution_environment(Path(home), paths, license_file=license_file)
-    else:
-        environment = execution_environment(Path(home), paths)
-    options["execution"] = (producer.execution_inputs(paths, environment, 0)
-                            if hasattr(producer, "execution_inputs")
-                            else execution_inputs(paths, environment, 0))
+if "--selection-only" in sys.argv:
+    # This record is only a source-selection request. Export and publication
+    # reject the explicit marker; these strings are never compiler evidence.
+    identities = ({name: "selection-only" for name in ("quartus", "qsys", "ipgenerate", "pfg")}
+                  if sys.argv[1].startswith("boards.de25nano.")
+                  else {"selection-only": "not authenticated"})
+    options["execution"] = {"selection_only": True, "gpu_device": "lease", "toolchain": "quartus"}
+else:
+    tools = authenticate(root, cache_root=cache_root)
+    identities = {name: tool.identity for name, tool in tools.items()}
+    import tempfile
+    from scripts.functional_execution import execution_environment, execution_inputs
+    with tempfile.TemporaryDirectory(prefix="fes-canonical-home-") as home:
+        paths = {name: tool.path for name, tool in tools.items()}
+        if "--license-file" in sys.argv:
+            license_file = Path(sys.argv[sys.argv.index("--license-file") + 1])
+            environment = producer.execution_environment(Path(home), paths, license_file=license_file)
+        else:
+            environment = execution_environment(Path(home), paths)
+        options["execution"] = (producer.execution_inputs(paths, environment, 0)
+                                if hasattr(producer, "execution_inputs")
+                                else execution_inputs(paths, environment, 0))
 sys.stdout.buffer.write(producer.create_build_record(root, repository, revision, identities, **options))
 '''
     cache_root = str(recipe.cache_root)
     command = [sys.executable, "-c", program, recipe.producer_module, recipe.authenticate,
                json.dumps(dict(recipe.producer_options), sort_keys=True),
                "--cache-root", cache_root, "--identity-version", str(recipe.identity_version),
-               *license_arguments]
+               *license_arguments, *(["--selection-only"] if selection_only else [])]
     try:
         record = subprocess.check_output(
             command, cwd=source, env=package_build_environment(env, recipe=recipe))
@@ -142,6 +150,9 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
                            sort_keys=True).encode("utf-8") + b"\n"
     if artifact_cache.functional_key(record) is None or record != canonical:
         raise ValueError("producer returned a noncanonical format-2 build-input record")
+    if selection_only and (parsed.get("parameters", {}).get("selection_only") is not True
+                           or "identities" not in parsed):
+        raise ValueError("selected producer does not support selection-only design records")
     return record
 
 
@@ -195,6 +206,8 @@ package_path = Path(sys.argv[1]).resolve()
 record_path = Path(sys.argv[2]).resolve()
 record = record_path.read_bytes()
 record_fields = _decode_build_record(record)
+if record_fields["parameters"].get("selection_only"):
+    raise ValueError("selection-only record is not package build evidence")
 package = read_package(package_path)
 manifest = package.fields
 if manifest.get("target", {}).get("platform") != sys.argv[4].replace("-", "_"):
@@ -203,7 +216,8 @@ if record_fields["format"] != 2:
     raise ValueError("normal FES packages require functional build record 2")
 exporter.verify_record_source_at_revision(root, record)
 build = manifest["build"]
-toolchain = "; ".join(f"{name} {record_fields['tools'][name]}" for name in sorted(record_fields["tools"]))
+from scripts.input_identity import manifest_toolchain
+toolchain = manifest_toolchain(record_fields)
 if package_path.name != package.package_id:
     raise ValueError("package directory name differs from package identity")
 if (build["id"] != build_identity(record) or
@@ -305,7 +319,20 @@ def _matching_package_candidates(source, record, recipe=None, *, store_override=
         if candidate_record != record:
             if artifact_cache.functional_key(candidate_record) != artifact_cache.functional_key(record):
                 continue
-        identity = sidecar.name.removesuffix(".build-inputs.json") if store_override is None else sidecar.parent.name
+        candidate_fields = json.loads(candidate_record)
+        if store_override is None:
+            identity, separator, evidence_id = sidecar.name.removesuffix('.build-inputs.json').partition('.')
+            if separator and evidence_id != candidate_fields.get('identities', {}).get('record'):
+                raise ValueError('package evidence filename differs from its record digest')
+        elif 'identities' in candidate_fields:
+            if sidecar.parent.name != candidate_fields['identities']['record']:
+                raise ValueError('cache evidence directory differs from its record digest')
+            members = [path for path in sidecar.parent.iterdir() if path.name != 'build-inputs.json']
+            if len(members) != 1:
+                raise ValueError('cache evidence must name exactly one package')
+            identity = members[0].name
+        else:
+            identity = sidecar.parent.name
         if HEX64.fullmatch(identity) is None:
             raise ValueError("matching package evidence has an invalid package ID filename")
         package = store / identity if store_override is None else sidecar.parent / identity
@@ -314,7 +341,23 @@ def _matching_package_candidates(source, record, recipe=None, *, store_override=
         if inspected.get("package_id") != identity:
             raise ValueError("matching package evidence differs from inspected package identity")
         matches.append((package, sidecar, inspected))
-    return matches
+    return _rank_package_candidates(matches, record)
+
+
+def _rank_package_candidates(matches, record):
+    # Prefer an exact current build when available. Otherwise retain a stable
+    # already-qualified artifact rather than requiring a compiler upgrade.
+    selected_fields = json.loads(record)
+    selected = selected_fields.get('identities', {})
+    def rank(item):
+        original = item[1].read_bytes()
+        built_fields = json.loads(original)
+        built = built_fields.get('identities', {})
+        pin_mismatch = (artifact_cache.identity.toolchain_selection(built_fields) !=
+                        artifact_cache.identity.toolchain_selection(selected_fields))
+        return (original != record, pin_mismatch,
+                built.get('toolchain') != selected.get('toolchain'), item[2]['package_id'])
+    return sorted(matches, key=rank)
 
 
 def _selection_bytes(selection):
@@ -353,27 +396,46 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
     # Checked before any producer runs or anything is published to ARTIFACT_CACHE_ROOT.
     require_private_audit_cache(os.environ if env is None else env)
     produce = {} if env is None else {"env": env}
-    record = canonical_package_record(source, recipe=recipe, **produce)
+    record = canonical_package_record(source, recipe=recipe, selection_only=not force, **produce)
     if force:
         _build_package(source, recipe=recipe, **produce)
     candidates = _matching_package_candidates(source, record, recipe=recipe)
-    if not candidates and not force:
-        candidates = _matching_package_candidates(source, record, recipe=recipe,
+    if not force and (not candidates or 'identities' in json.loads(record)):
+        candidates += _matching_package_candidates(source, record, recipe=recipe,
             store_override=artifact_cache.store_for(ARTIFACT_CACHE_ROOT, record))
     if not candidates and not force:
-        # A failed producer raises. Do not search a different functional key.
+        # A cache miss adopts the selected pin deliberately. Authentication is
+        # deferred until here, so reusing a design does not install a new tool.
+        authenticated = canonical_package_record(source, recipe=recipe, **produce)
+        if artifact_cache.functional_key(authenticated) != artifact_cache.functional_key(record):
+            raise ValueError("design selection changed while authenticating the producer")
+        record = authenticated
         _build_package(source, recipe=recipe, **produce)
         candidates = _matching_package_candidates(source, record, recipe=recipe)
     if not candidates:
         raise ValueError(f"selected recipe did not produce a matching {recipe.core_id} package")
-    if len(candidates) > 1:
-        # Commits with identical functional inputs may have different immutable
-        # manifests. Equivalent payloads and ROM maps can use the first stable package ID.
-        if len({(item[2]["core_rbf_sha256"], item[2].get("rom_map_sha256"))
-                for item in candidates}) == 1:
-            candidates = candidates[:1]
-    if len(candidates) != 1:
-        raise ValueError("multiple package IDs match the canonical format-2 build inputs")
+    if 'identities' in json.loads(record):
+        candidates = _rank_package_candidates(candidates, record)
+        executions = {}
+        for item in candidates:
+            built = json.loads(item[1].read_bytes())
+            execution = built.get('identities', {}).get('toolchain')
+            if execution is not None:
+                outcome = (item[2]['core_rbf_sha256'], item[2].get('rom_map_sha256'))
+                if execution in executions and executions[execution] != outcome:
+                    raise ValueError('different payloads claim the same design and toolchain identity')
+                executions[execution] = outcome
+    if force:
+        # A forced update must select the exact freshly captured execution,
+        # never a previous toolchain's artifact with the same design ID.
+        candidates = [item for item in candidates if item[1].read_bytes() == record]
+        if not candidates:
+            raise ValueError("forced build did not produce the selected execution record")
+    if 'identities' not in json.loads(record) and len(candidates) > 1:
+        # Historical combined-key records promised a unique routed result.
+        if len({(item[2]["core_rbf_sha256"], item[2].get("rom_map_sha256")) for item in candidates}) != 1:
+            raise ValueError("multiple package IDs match the canonical format-2 build inputs")
+    candidates = candidates[:1]
     package, original_record_path, inspected = candidates[0]
     manifest = inspected["manifest"]
     package_id = inspected["package_id"]
@@ -431,6 +493,23 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
         "package_id": package_id,
         "core_rbf_sha256": core_rbf_sha256,
     }
+    if 'identities' in selected:
+        def toolchain_selection(fields):
+            return {path: value for path, value in fields['source_inputs'].items()
+                    if artifact_cache.identity.input_role(path) == 'toolchain'}
+        inputs['source_selection'].update({
+            'identity_policy': 'design-v1',
+            'design_id': original['identities']['design'][:32],
+            'built_toolchain_id': original['identities']['toolchain'],
+            'built_record_id': original['identities']['record'],
+            'built_with': original['tools'],
+            'built_pins': json.loads(original['parameters'].get('toolchain_pins', '{}')),
+            'selected_pins': json.loads(selected['parameters'].get('toolchain_pins', '{}')),
+            'built_toolchain_inputs': toolchain_selection(original),
+            'selected_toolchain_inputs': toolchain_selection(selected),
+            'toolchain_update_available': (artifact_cache.identity.toolchain_selection(original) !=
+                                           artifact_cache.identity.toolchain_selection(selected)),
+        })
     require_private_audit_cache(os.environ if env is None else env)
     artifact_cache.publish(ARTIFACT_CACHE_ROOT, original_record_path, package)
     receipt = json.dumps(inputs["source_selection"], sort_keys=True, indent=2).encode() + b"\n"

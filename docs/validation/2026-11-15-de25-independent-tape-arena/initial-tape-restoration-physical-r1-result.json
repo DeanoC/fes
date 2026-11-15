@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/initial-tape-files-restoration/run_restoration.py",
+    "--procedure-sha256",
+    "fbe754ce00877f8ecc61c4b911742b318c6b8701c2d80f05ca6da07976a4d564",
+    "--execute"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 267.9836225339677,
+  "log_sha256": "5ecb3c5838ec3fa46ba972f2dc274e1bac0282f492e744eceed642e83dee333c"
+}

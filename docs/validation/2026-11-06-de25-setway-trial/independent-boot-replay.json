@@ -1,0 +1,334 @@
+{
+  "records": [
+    {
+      "stage": "spl",
+      "line": 2,
+      "values": {
+        "id": "48445525a75cbe48"
+      }
+    },
+    {
+      "stage": "initial",
+      "line": 3,
+      "values": {
+        "cause": 4,
+        "per0": 4286562303,
+        "bridge": 79,
+        "cpus": 15,
+        "release": 0,
+        "kind": 4,
+        "valid": 1
+      }
+    },
+    {
+      "stage": "scope",
+      "line": 4,
+      "values": {
+        "mpidr": 2164260864,
+        "core": 0,
+        "cause": 4,
+        "cpus": 15,
+        "release": 0,
+        "timeouts": 0
+      }
+    },
+    {
+      "stage": "mmc",
+      "line": 28,
+      "values": {}
+    },
+    {
+      "stage": "fit",
+      "line": 29,
+      "values": {}
+    },
+    {
+      "stage": "spl_handoff",
+      "line": 35,
+      "values": {
+        "owner": 16748236602677319583,
+        "epoch": 6631151365,
+        "per0": 4286562239,
+        "bridge": 15,
+        "sd": 32964848
+      }
+    },
+    {
+      "stage": "spl_barrier_before",
+      "line": 36,
+      "values": {
+        "phase": "before"
+      }
+    },
+    {
+      "stage": "spl_barrier_after",
+      "line": 37,
+      "values": {
+        "phase": "after"
+      }
+    },
+    {
+      "stage": "spl_atf_entry",
+      "line": 38,
+      "values": {
+        "phase": "entry"
+      }
+    },
+    {
+      "stage": "spl_atf_hash_before",
+      "line": 39,
+      "values": {
+        "phase": "hash-before"
+      }
+    },
+    {
+      "stage": "spl_atf_hash_after",
+      "line": 40,
+      "values": {
+        "phase": "hash-after"
+      }
+    },
+    {
+      "stage": "spl_atf",
+      "line": 41,
+      "values": {
+        "target": 2147483648,
+        "bl32": 0,
+        "bl33": 2149580800,
+        "fdt": 0,
+        "params": 3220176904,
+        "cold": 139832,
+        "cookie": 5066060512865812482,
+        "el": 3,
+        "mpidr": 2164260864,
+        "sctlr": 12912696,
+        "scr": 15,
+        "daif": 960,
+        "bytes": 217157,
+        "sha256": "284163e803a6b9ab6ac771047ca9022fa0494605790acc12d7ed3265a008c361"
+      }
+    },
+    {
+      "stage": "el3_capture_before",
+      "line": 67,
+      "values": {
+        "phase": "before",
+        "pointer": 139832,
+        "cookie": 5066060512865812482
+      }
+    },
+    {
+      "stage": "el3_capture_after",
+      "line": 68,
+      "values": {
+        "phase": "after",
+        "pointer": 139832,
+        "cookie": 5066060512865812482
+      }
+    },
+    {
+      "stage": "usb_setup",
+      "line": 75,
+      "values": {
+        "status": 0,
+        "board_error": 0,
+        "platform_error": 0
+      }
+    },
+    {
+      "stage": "provider",
+      "line": 76,
+      "values": {
+        "provider": 1,
+        "result": 0,
+        "bridge": 15
+      }
+    },
+    {
+      "stage": "sd_platform",
+      "line": 77,
+      "values": {
+        "setup": 1,
+        "ready": 1
+      }
+    }
+  ],
+  "errors": [],
+  "loader_ready": false,
+  "complete": false,
+  "last_checkpoint": "sd_platform",
+  "core_load_acceptance": false,
+  "firmware_ram_trace": {
+    "records": [
+      {
+        "kind": "entry",
+        "line": 42,
+        "phase": null
+      },
+      {
+        "kind": "pass",
+        "line": 43,
+        "phase": null
+      }
+    ],
+    "complete": true,
+    "valid": true,
+    "vendor_records": [
+      {
+        "phase": "enter",
+        "line": 45
+      },
+      {
+        "phase": "reset-before",
+        "line": 46
+      },
+      {
+        "phase": "reset-after",
+        "line": 47
+      },
+      {
+        "phase": "cpu-data-before",
+        "line": 48
+      },
+      {
+        "phase": "cpu-data-after",
+        "line": 49
+      },
+      {
+        "phase": "rw-cache-before",
+        "line": 50
+      },
+      {
+        "phase": "rw-cache-after",
+        "line": 51
+      },
+      {
+        "phase": "nobits-cache-before",
+        "line": 56
+      },
+      {
+        "phase": "nobits-cache-after",
+        "line": 61
+      },
+      {
+        "phase": "bss-before",
+        "line": 62
+      },
+      {
+        "phase": "bss-after",
+        "line": 63
+      },
+      {
+        "phase": "stack-before",
+        "line": 64
+      },
+      {
+        "phase": "stack-after",
+        "line": 65
+      },
+      {
+        "phase": "setup-before",
+        "line": 66
+      },
+      {
+        "phase": "setup-after",
+        "line": 72
+      }
+    ],
+    "vendor_complete": true,
+    "exceptions": [],
+    "status_probe": {
+      "records": [],
+      "pending": null,
+      "complete": false,
+      "valid": true
+    },
+    "ras_probe": {
+      "records": [],
+      "pending": null,
+      "complete": false,
+      "valid": true,
+      "outcome": null,
+      "original_selector": null,
+      "selector_may_have_changed": false,
+      "selector_restored": false,
+      "record_complete": false
+    },
+    "decode_log": {
+      "records": [
+        {
+          "phase": "idle",
+          "line": 44
+        },
+        {
+          "phase": "setup-before",
+          "line": 52
+        },
+        {
+          "phase": "baseline-zero",
+          "line": 53
+        },
+        {
+          "phase": "enable-before",
+          "line": 54
+        },
+        {
+          "phase": "enabled",
+          "line": 55
+        },
+        {
+          "phase": "restore-before",
+          "line": 59
+        },
+        {
+          "phase": "restored",
+          "line": 60
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "write_attempted": true,
+      "restore_attempted": true,
+      "restored": true,
+      "failed": false
+    },
+    "cache_maintenance": {
+      "records": [
+        {
+          "phase": "setway-before",
+          "line": 57
+        },
+        {
+          "phase": "setway-after",
+          "line": 58
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "maintenance_may_have_started": true
+    }
+  },
+  "atf_observation": {
+    "target": 2147483648,
+    "bl32": 0,
+    "bl33": 2149580800,
+    "fdt": 0,
+    "params": 3220176904,
+    "cold": 139832,
+    "cookie": 5066060512865812482,
+    "el": 3,
+    "mpidr": 2164260864,
+    "sctlr": 12912696,
+    "scr": 15,
+    "daif": 960,
+    "bytes": 217157,
+    "sha256": "284163e803a6b9ab6ac771047ca9022fa0494605790acc12d7ed3265a008c361"
+  },
+  "hps_io_observation": {
+    "complete": false,
+    "map_sha256": "297995427d26df7bb4c51f0c68ca50735468ea22aae7323d92aa6e781e18f0ae",
+    "registers": 164,
+    "reads": 0,
+    "runtime_admission": false
+  }
+}

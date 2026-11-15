@@ -7,28 +7,29 @@ import (
 
 // Game is one catalog row from GET /api/v1/games.
 type Game struct {
-	ID           string   `json:"id"`
-	Title        string   `json:"title"`
-	System       string   `json:"system"`
-	CoreID       string   `json:"core_id,omitempty"`
-	PackageID    string   `json:"package_id,omitempty"`
-	MediaID      string   `json:"media_id,omitempty"`
-	MediaRole    string   `json:"media_role,omitempty"`
-	Cover        string   `json:"cover,omitempty"`
-	Genre        string   `json:"genre,omitempty"`
-	Year         string   `json:"year,omitempty"`
-	Region       string   `json:"region,omitempty"`
-	State        string   `json:"state"`
-	RootOnline   bool     `json:"root_online"`
-	Launchable   bool     `json:"launchable"`
-	ROMCached    *bool    `json:"rom_cached,omitempty"`
-	Favorite     bool     `json:"favorite,omitempty"`
-	PlayCount    int64    `json:"play_count,omitempty"`
-	LastPlayedAt int64    `json:"last_played_at,omitempty"`
-	Collections  []string `json:"collections,omitempty"`
-	Series       string   `json:"series,omitempty"`
-	VariantCount int      `json:"variant_count,omitempty"`
-	Variants     []Game   `json:"variants,omitempty"`
+	ID                 string   `json:"id"`
+	Title              string   `json:"title"`
+	System             string   `json:"system"`
+	CoreID             string   `json:"core_id,omitempty"`
+	PackageID          string   `json:"package_id,omitempty"`
+	PackageUnavailable bool     `json:"package_unavailable,omitempty"`
+	MediaID            string   `json:"media_id,omitempty"`
+	MediaRole          string   `json:"media_role,omitempty"`
+	Cover              string   `json:"cover,omitempty"`
+	Genre              string   `json:"genre,omitempty"`
+	Year               string   `json:"year,omitempty"`
+	Region             string   `json:"region,omitempty"`
+	State              string   `json:"state"`
+	RootOnline         bool     `json:"root_online"`
+	Launchable         bool     `json:"launchable"`
+	ROMCached          *bool    `json:"rom_cached,omitempty"`
+	Favorite           bool     `json:"favorite,omitempty"`
+	PlayCount          int64    `json:"play_count,omitempty"`
+	LastPlayedAt       int64    `json:"last_played_at,omitempty"`
+	Collections        []string `json:"collections,omitempty"`
+	Series             string   `json:"series,omitempty"`
+	VariantCount       int      `json:"variant_count,omitempty"`
+	Variants           []Game   `json:"variants,omitempty"`
 	// Editions are the grouped siblings kept after preferLaunchable clears
 	// Variants. Rooms read them; they are not a second wire field.
 	Editions         []Game `json:"-"`
@@ -38,6 +39,8 @@ type Game struct {
 	ExpansionID    string `json:"expansion_id,omitempty"`
 	ROMRequired    bool   `json:"rom_required,omitempty"`
 	ROMReady       bool   `json:"rom_ready,omitempty"`
+	VideoRequired  bool   `json:"video_required,omitempty"`
+	VideoReady     bool   `json:"video_ready,omitempty"`
 	ROMID          string `json:"rom_id,omitempty"`
 	ROMMediaID     string `json:"rom_media_id,omitempty"`
 	ROMRole        string `json:"rom_role,omitempty"`
@@ -80,9 +83,11 @@ const (
 	LaunchSourceOffline    LaunchBlock = "source_offline"
 	LaunchUnreadable       LaunchBlock = "unreadable"
 	LaunchNotReady         LaunchBlock = "not_ready"
+	LaunchMissingPackage   LaunchBlock = "missing_package"
 	LaunchMissingFirmware  LaunchBlock = "missing_firmware"
 	LaunchMissingExpansion LaunchBlock = "missing_expansion"
 	LaunchMissingROM       LaunchBlock = "missing_rom"
+	LaunchMissingVideo     LaunchBlock = "missing_video"
 	// Mesh blocks match meshcontent.Block. They are set only when
 	// ReadyHere is non-nil and false.
 	LaunchDistant        LaunchBlock = "distant"
@@ -143,6 +148,9 @@ func (g Game) catalogLaunchBlock() LaunchBlock {
 	if g.State != "available" {
 		return LaunchNotReady
 	}
+	if g.PackageUnavailable {
+		return LaunchMissingPackage
+	}
 	if g.ExpansionID != "" && !g.ExpansionReady {
 		return LaunchMissingExpansion
 	}
@@ -156,6 +164,9 @@ func (g Game) catalogLaunchBlock() LaunchBlock {
 	}
 	if g.ROMRequired && !g.ROMReady {
 		return LaunchMissingROM
+	}
+	if g.VideoRequired && !g.VideoReady {
+		return LaunchMissingVideo
 	}
 	return ""
 }

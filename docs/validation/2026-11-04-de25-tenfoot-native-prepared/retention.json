@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "classification": "retained off-board native Tenfoot serial boot candidate; no hardware acceptance",
+  "native_source_commit": "e225ea89b002fcc53a90c743f66c592d1f8d35ff",
+  "fpga_source_commit": "7808f74c2fda87cc56a0fe92e5a17454fd31746a",
+  "archive": "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/matched-candidate.tar.gz",
+  "archive_bytes": 911625620,
+  "archive_sha256": "1479d5fa439c77457a3c19959a97b810b8ce5a6aa0672bb4567519f2d7229d17",
+  "source_bundle": "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/source.bundle",
+  "source_bundle_sha256": "daeee37ba8c039ffc165c2c92d7a639af01c441099fe1359ae207846fa75216f",
+  "standalone_source_restore_and_strict_fsck": true,
+  "regular_members_independently_read_back": 43651,
+  "symlinks": 59,
+  "internal_build_links_normalized_to_relative_targets": true,
+  "hardware_actions": false,
+  "ordinary_admission": false,
+  "display": "serial-state-only"
+}

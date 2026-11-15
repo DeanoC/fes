@@ -1,0 +1,35 @@
+{
+  "status": "prepared-not-implemented",
+  "next": "Prototype a qualified cold-only full-hierarchy setway clean for the private BSS exit range, keeping original DDR/warm clean and all ownership gates",
+  "consumed_firmware": "4146f5345cb29e9b95d969f0c381031ccb114d47",
+  "consumed_operator": "7918a4a31e37736f2f6419efa7656dc7b79cc0dd",
+  "physical_result_sha256": "68db891f8602711ca1942a502e6b1926ab4b83f71ff2587e113543f4d57962b2",
+  "interval_audit_sha256": "059015d46212cd68b4f771812da0322de75b8d0bbf5e6d2355107cedcd9b5cc3",
+  "evidence": "29 ordered physical runtime markers end at bss-clean-before; DDR data-clean returned; no bss-clean-after, exit, prompt or native command. Exact stalled/faulting instruction unobserved.",
+  "source_findings": "Actual linked next call is clean_dcache_range on58000..5dec0 with DC CVAC; vendor bl31_plat_enable_mmu is a stub and architecture setup does not enable it. These source facts do not substitute for fresh live control/ownership admission.",
+  "pinned_source_sha256": {
+    "out/nano-runtime-startup-20261106/native-bl31-final/source/bl31/aarch64/bl31_entrypoint.S": "7bf19cbd7c0cfc15b4c2ec9e43629c744e972af7ae4397661916ac51a01b116c",
+    "out/nano-runtime-startup-20261106/native-bl31-final/source/lib/aarch64/cache_helpers.S": "675fe70fd4919347c9ac8fd3ffd5b3f09ec53f948e926ce51cf342083a68b8e6",
+    "out/nano-runtime-startup-20261106/native-bl31-final/source/include/arch/aarch64/arch.h": "d0af9010f10619371c236a779940988426a30fb9b8436440765e5645b7873815",
+    "out/nano-runtime-startup-20261106/native-bl31-final/source/plat/intel/soc/agilex5/bl31_plat_setup.c": "dfcb6f6c66e809e38bfe10508d08467ae6daa7704b39dd1f063baabf475099de",
+    "platform/embedded/firmware/nano_firmware_cache.inc": "b16c2ebc961e0adfa1b2d37e533cf7630ffb6d7912005e81cccfc72e17439188",
+    "platform/embedded/firmware/nano_firmware_decode.inc": "0817f885c72aaf44b1c26a229a87706c1b2d632aa0e8137db8350c688d7272fe",
+    "platform/embedded/firmware/nano_firmware_runtime.py": "6f4c8bc13fc611d42b874228a4ccbdcd05141890a2034c0d4ed8dd1f378d1ef6"
+  },
+  "requirements": [
+    "Never replay consumed4146 input; source-freeze and freshly admit a new matched image",
+    "Qualify the entire linked EL3 control history through main return, current MMU/cache/endianness state and cacheable-alias exclusion; do not assume cache-off means empty",
+    "Select only fixed aligned compiled BSS base58000/end5dec0; reject any argument, image/layout or profile drift",
+    "Use the pinned register-only full-hierarchy clean-by-setway mode rather than a blind maintenance skip; review dirty-line/shared-cache implications and retain other cache operations",
+    "Resolve DCCSW from the actual selected preprocessor configuration: this pinned header aliases it to DCCISW under ERRATA_A53_827319. Bind and review the chosen clean or clean/invalidate semantics; do not silently override vendor erratum policy or assume mode2.",
+    "Fresh primary A55/EL3/affinity/DAIF, CPU/reset/power and master containment plus selector checks before and after the call; unexpected ownership or selector changes park without fallback/retry",
+    "Preserve cold arguments and retained registers; no stack or private-data writes introduced at the exit window; keep warm and normal DDR paths byte-exact where unchanged",
+    "Add strictly ordered bounded exit-maintenance receipts inside runtime bss-clean bracket, with explicit parser/service gates and failure-only terminal evidence; partial progress grants nothing",
+    "Test actual ARM helper/selected mode and injected admission, drift, fault and UART failures off board; separately bound geometry counter models from physical cache proof",
+    "Rebuild/audit actual BL31/SPL/U-Boot/shared-lock composition and bind unchanged native/FPGA input bytes",
+    "Keep every existing50/100/20/5/450/480/740/850-second, passive2s/1MiB andROM16-byte/400M-tick/64-poll bound",
+    "Then freeze new operator, fresh recovery/8uploads/8readbacks, one attempt and stop first failure; retain claim/spare, factory restore waived, bottom kit untouched"
+  ],
+  "hardware_actions": false,
+  "core_load_acceptance": false
+}

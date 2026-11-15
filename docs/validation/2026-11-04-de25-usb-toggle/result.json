@@ -1,0 +1,205 @@
+{
+  "status": "passed",
+  "scope": "independent replay of physical report-descriptor timeout at byte88 after acknowledged direct-IN toggle notification",
+  "source": "1a168998c46b03ac20a7ffe464bf39ce1325216a",
+  "chain_sha256": "bb1ead25063f14279202076a387b04700ecc5a1495026bb2e42972e8fad0b645",
+  "actual_native_attempts_on_image": 1,
+  "retries": 0,
+  "HID_report_descriptor": null,
+  "transport_failure": {
+    "request_type": "0x81",
+    "request": "0x06",
+    "value": "0x2200",
+    "index": 0,
+    "length": 98,
+    "phase": "data",
+    "offset": 88,
+    "expected_PID": 0,
+    "toggle_rx": 1,
+    "toggle_irqs": 1,
+    "HCINT": "0x400",
+    "first_rx": "0xb0000",
+    "first_channel": "0x80528008",
+    "first_transfer": "0x80008",
+    "first_nonperiodic": "0x1080040",
+    "first_periodic": "0x100040",
+    "first_frame": "0x849e000f",
+    "halt_channel": "0xc0528008",
+    "halt_timeout_ms": 500
+  },
+  "parser_reached": false,
+  "USB_ready": false,
+  "USB_stop_proven": false,
+  "input_observed": false,
+  "CPU_halt_observed": false,
+  "core_load_acceptance": false,
+  "host_cleanup": {
+    "status": "passed",
+    "scope": "independent read-only bounded-procedure host cleanup",
+    "clock_readback": "15M",
+    "exact_usb_permissions_restored": true,
+    "private_JTAG_process_gone": true,
+    "UART_free": true,
+    "claim_retained": true,
+    "hardware_retry": false,
+    "factory_restore": false,
+    "original_factory_card_untouched": true
+  },
+  "trace_sha256": "5c5a53e0e6461498694636ab531a3a4e11e9960e37ae49410f74b48d2c48e311",
+  "native_receipt_sha256": "d3a0a35f63d63bf81fe3b1016e9c0df6d710f47efa26f844f4c5fc469a7eed88",
+  "outer_receipt_sha256": "362dc2041453e2238f48c0a504765939ae8d1ca4b1e32171ac9e21011a70066d",
+  "upload_receipts_sha256": {
+    "boot": "766cea4f6096f67b3db5a0d1452170e87e7d5aec473cd20559af6447f90eb054"
+  },
+  "fresh_receipts_sha256": {
+    "boot": "90045995eeecd637dfe5f044c77b52ab83f9d64aac603b7eab6a2004831d2711"
+  },
+  "selection": {
+    "status": "passed",
+    "source": "1a168998c46b03ac20a7ffe464bf39ce1325216a",
+    "native_sources_match_commit": true,
+    "actual_ELF_hub_split_health_paths": true,
+    "matched_USB_only_selection": true,
+    "usb_input": "gamepad",
+    "ELF_gamepad_paths_present": true,
+    "chain_sha256": "bb1ead25063f14279202076a387b04700ecc5a1495026bb2e42972e8fad0b645",
+    "fit_bytes": 2699152,
+    "hardware_execution": false
+  },
+  "software": {
+    "toggle-tests": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=90s",
+        "./dwc2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.001492430921644,
+      "log_sha256": "23ff0d740123586950629c46b40b6cae8db9b79d91130fbe1fc3090b3bbbb767"
+    },
+    "toggle-ownership-context": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=90s",
+        "./dwc2",
+        "./usbcontrol",
+        "./usb",
+        "./input"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.2015110020292923,
+      "log_sha256": "8081d4217c668860e750acda7cc58fd8c2658d25b775ac56a806f6acdbf20f1c"
+    },
+    "host-suite": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=120s",
+        "./..."
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 45.63793607195839,
+      "log_sha256": "02a71b1c53666e79d927e0c781b4c765e1e4daf77a1d547311887918470f51b4"
+    },
+    "consistency": {
+      "argv": [
+        "make",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 8.813388726906851,
+      "log_sha256": "273915f27c798cb3223bae157afc4edf45e1d7cab1a6e05b5172f999f2f30d90"
+    },
+    "sdk-precheck": {
+      "argv": [
+        "python3",
+        "platform/embedded/tamago/run.py",
+        "usbcheck",
+        "--usb-input",
+        "gamepad",
+        "--compiler",
+        "out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+        "--board",
+        "de25-nano",
+        "--profile",
+        "platform/embedded/nano/probe-profile.json",
+        "--hps-first-project",
+        "out/nano-tenfoot-serial-20261104/core-zx81/sealed-project",
+        "--output",
+        "out/nano-usb-toggle-20261104/native-sdk-precheck"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.6033978059422225,
+      "log_sha256": "c12c91bea615326464d9f1c82a5b6887ed634e34ea80a91d9dabd22afc034ddf"
+    }
+  },
+  "references": {
+    "hcd_intr.c": {
+      "url": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/usb/dwc2/hcd_intr.c",
+      "sha256": "cc998509cc806c4ea7beb6b5228a963158329643677d94436d1fac7aa3261f35",
+      "bytes": 66996
+    },
+    "hw.h": {
+      "url": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/usb/dwc2/hw.h",
+      "sha256": "0ef85e65f98798a795cb0eb7b3904467248e0e80134fb6783dcd1ba570eea2ff",
+      "bytes": 30495
+    },
+    "hcd.c": {
+      "url": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/usb/dwc2/hcd.c",
+      "sha256": "3dd34e3dffdf5c4e8560f0db95b5b4adfd9106ced54e7e3ebb964effb587b801",
+      "bytes": 168198
+    }
+  },
+  "evidence_sha256": {
+    "out/nano-usb-toggle-trial-20261104/source.json": "b65b405d7ebc2dfbc0542778cd6cde1ac315b7680c45a3e22dc322de877b33b1",
+    "out/nano-usb-toggle-trial-20261104/replay.py": "175a0ed6a5c3cc403af2651375b3f0e68eeb36bfa4bde48b0559f4d63d8de58b",
+    "out/nano-usb-toggle-trial-20261104/replay.json": "b7e0481f0308109331f68e74766910ebf49b28e97effcd5de1bd8ab7f86bc027",
+    "out/nano-usb-toggle-trial-20261104/trial/native.py": "07141c5e8b0df8271119904db328c870f3a6a227ad15d2dfe466e353603a3ffb",
+    "out/nano-usb-toggle-trial-20261104/trial/common.py": "b4ac4b566babb7e720cf5b91dc76790f63a372ffe1ccc4db091541f5d1f25168",
+    "out/nano-usb-toggle-trial-20261104/trial/experiment.py": "9455afda9c3945743bd23817321a1427cba0c2c6c5738d40d3cdb7d499a4b355",
+    "out/nano-usb-toggle-trial-20261104/trial/preflight.json": "8f256bdb1c64ddeb20f6ad39807265c0a3e2ca4c3c448483d0897805c67253c3",
+    "out/nano-usb-toggle-trial-20261104/trial/native-console.log": "5c5a53e0e6461498694636ab531a3a4e11e9960e37ae49410f74b48d2c48e311",
+    "out/nano-usb-toggle-trial-20261104/trial/native-result.json": "d3a0a35f63d63bf81fe3b1016e9c0df6d710f47efa26f844f4c5fc469a7eed88",
+    "out/nano-usb-toggle-trial-20261104/trial/experiment-result.json": "362dc2041453e2238f48c0a504765939ae8d1ca4b1e32171ac9e21011a70066d",
+    "out/nano-usb-toggle-trial-20261104/cleanup-evidence.json": "42ab82fbdd4edcec6d5513e261f4718bad74780fa21a155bc55d97539c398a64"
+  }
+}

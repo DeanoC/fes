@@ -1,0 +1,184 @@
+{
+  "format": 1,
+  "classification": "initial CPU parking hardware diagnostic; native handoff and core loading unqualified",
+  "implementation_commit": "87b2d7f4721c819b554212f2b80c193a07a2531e",
+  "build_source_base": "92bb630ff62461dc155d50eaca1756ff00a32457",
+  "source_snapshot_sha256": "90f10324c5b4d4348d6b9b32a844869af88c2763005972827556ef7eb3f42a72",
+  "diagnostic_id": "e22160f98b1b508a",
+  "started_utc": "2026-11-01T11:20:41.095148+00:00",
+  "finished_utc": "2026-11-01T11:20:51.642475+00:00",
+  "diagnostic_artifacts": {
+    "sof_sha256": "00db03271b70c04e9e7a3010b1fe7d6b5e57a8ec8cad37f2a32de93e9ed22f9a",
+    "spl_hex_sha256": "d90eed681c9b48ffb2e4b41e1ebf68ef0413fb7ec3739c7c6201816b6439f363",
+    "spl_elf_sha256": "d8768b68bee0ea68736093d107ef06e1a36274df7e20e6418ceeed4203a55cfa",
+    "console_sha256": "113fdec3ca245c24dca3993042ebbe19e20bac8dcf40cff63f2870ea38373c81",
+    "receipt_sha256": "a4b61e6368d65ad302a885ac476f3f1de3b2705cf9d126b72605c33fb05686ff"
+  },
+  "hardware": {
+    "pass": true,
+    "initial_parking_accepted": true,
+    "trace_records": 32,
+    "first": {
+      "cause": "00000004",
+      "per0": "ff7fbfff",
+      "bridge": "0000004f",
+      "cpus": "0000000f",
+      "release": "00000000",
+      "kind": "4",
+      "valid": "1"
+    },
+    "fresh": {
+      "mpidr": "81000000",
+      "core": "0",
+      "cause": "00000004",
+      "cpus": "0000000f",
+      "release": "00000000",
+      "reset_timeouts": "00000000"
+    },
+    "power_inventory": {
+      "first": {
+        "cpu0-pwrstat": 2415919137,
+        "cpu1-pwrstat": 0,
+        "cpu2-pwrstat": 0,
+        "cpu3-pwrstat": 0,
+        "mpu-pchctlr": 35,
+        "mpu-pchstat": 35,
+        "mpu-bootconfig": 7340574
+      },
+      "current": {
+        "cpu0-pwrstat": 2415919137,
+        "cpu1-pwrstat": 0,
+        "cpu2-pwrstat": 0,
+        "cpu3-pwrstat": 0,
+        "mpu-pchctlr": 35,
+        "mpu-pchstat": 35,
+        "mpu-bootconfig": 7340574
+      }
+    },
+    "unconditional_park": true,
+    "ddr_initialized": false,
+    "storage_accessed": false,
+    "bl31_executed": false,
+    "native_admission": false,
+    "firmware_cpu_on_denial_exercised_on_board": false,
+    "sd_drain_exercised_on_board": false,
+    "core_load_exercised": false,
+    "embedded_spl_independently_decoded": false
+  },
+  "matched_native_prepared": {
+    "build": "v12",
+    "fit_sha256": "feed856b8dcefc565c780ca90ad679b0afb78666a000ea890865b463358222bf",
+    "bl31_sha256": "e3ad55775db38bd237dd28abd3200c114bf24b2d352d7758031616327e42373b",
+    "spl_sha256": "1dd40829b0ba52f4c15ec4ad34e9de43805f96d594aa49b1119493efc5b66e52",
+    "sof_sha256": "d2500b04c2362df268e9100cf9d5bf7b1e724772b9f7693d8fac9a0e0296f11f",
+    "sd_image_sha256": "f7c4a2c77e44de5c6679b8e2c274100dd9ebb4961c900e7a6de10f727a34850c",
+    "hardware_booted": false,
+    "recovery_upload_path_preserved": true
+  },
+  "software": {
+    "scope": "six retained passing planner/parent/consistency checks; final frontend C delta and model deadline repair validated by focused C and four resumed affected phases",
+    "parent_suite_before_frontend_and_test_delta": {
+      "tests": 1217,
+      "skipped": 40,
+      "passed": true
+    },
+    "retained_checks": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      }
+    ],
+    "final_focused_cold_tests": 4,
+    "final_resumed_checks": [
+      {
+        "label": "native runtime firmware and FPGA launch integration",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "embedded producer identity and native control integration",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "embedded firmware and identity/drain RTL integration",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "test_*.py",
+        "lane": "fpga",
+        "returncode": 0
+      }
+    ],
+    "known_failed_runs_retained": [
+      "affected.log",
+      "affected-resume.log"
+    ],
+    "current_source_files_match_snapshot": true,
+    "hardware_acceptance": false
+  },
+  "final_fpga_suite": {
+    "tests": 1571,
+    "skipped": 75,
+    "passed": true
+  },
+  "retained_state": {
+    "serial": "TRWU8CBL",
+    "diagnostic_id": "e22160f98b1b508a",
+    "source_commit": "87b2d7f4721c819b554212f2b80c193a07a2531e",
+    "initial_parking_check_accepted": true,
+    "native_admission": false,
+    "native_firmware_executed": false,
+    "trace_records": 32,
+    "unconditional_park_observed": true,
+    "factory_restore_omitted_under_user_authorization": true,
+    "factory_card_retained": true,
+    "sd_or_flash_written": false,
+    "uart_owners": [],
+    "process_fd_tables_checked": 558,
+    "usb_node": "/dev/bus/usb/003/061",
+    "usb_owner_group_mode": [
+      0,
+      0,
+      "0o664"
+    ],
+    "jtag_id": "4362C0DD",
+    "claim_held": true,
+    "finished_utc": "2026-11-01T11:22:19.359436+00:00",
+    "receipt_sha256": "a4b61e6368d65ad302a885ac476f3f1de3b2705cf9d126b72605c33fb05686ff",
+    "post_query_sha256": "96907271495f8089c6eaee525ee754b31a95bf76bc9d173f0e21b2bf555087da"
+  },
+  "retention_directory": "/home/deano/fes-retained/de25-nano-initial-parking-v2-20261101",
+  "limitations": [
+    "initial CPU parking only; actual secure firmware callbacks, SD drain and EL1/native memory handoff remain unqualified",
+    "native SD/USB/network resume, active FPGA drain and real core launch/return remain open",
+    "source identity and CRC are not signed secure-boot attestation"
+  ]
+}

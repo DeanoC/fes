@@ -1,0 +1,11 @@
+{
+  "status": "passed-independent-read-only-baseline-final-stop-retention",
+  "archive": "/home/deano/fes-retained/de25-usb-readonly-final-stop-20261114-r1/baseline-stop.tar.gz",
+  "archive_sha256": "2ba2b7d30f5da13f6128a661e5bb9c7acd9e9c4874e0444b4f084eb593bd5bc4",
+  "files": 146,
+  "procedure_sha256": "ac4945e957b76ce474ae436dedfbbffb0a4a40829a99ac7b6a5f2c8931b14bcd",
+  "original_FIT_restored": true,
+  "full_baseline_Park_verified": false,
+  "all_hardware_handles_closed": true,
+  "USB_only_recovery_not_yet_tested": true
+}

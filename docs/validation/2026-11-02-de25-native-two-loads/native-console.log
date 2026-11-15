@@ -1,0 +1,177 @@
+
+U-Boot SPL 2025.01-fes-nano-1d8d771dc74c712c (Jun 27 2025 - 01:40:35 +0000)
+FES_NANO_SPL BEGIN cause=00000004 per0=ff7fbfff bridge=0000004f cpus=0000000f release=00000000 kind=4 valid=1
+FES_NANO_SPL SCOPE mpidr=81000000 core=0 cause_now=00000004 cpus_now=0000000f release_now=00000000 reset_timeouts=00000000
+Reset state: Cold
+MPU           800000 kHz
+L4 Main	      400000 kHz
+L4 sys free   100000 kHz
+L4 MP         200000 kHz
+L4 SP         100000 kHz
+SDMMC         200000 kHz
+is_ddr_csr_clkgen_locked: ddr csr io96b_0 clkgenA is successfully locked
+io96b_cal_status: Calibration for IO96B instance 0x18400400 done at 0 msec!
+init_mem_cal: Initial DDR calibration IO96B_0 succeed
+DDR: Calibration success
+io96b_mb_init: num_instance 1
+io96b_mb_init: get memory interface IO96B 0
+io96b_mb_init: IO96B 0 mem_interface 0: ip_type_ret: 0x1
+io96b_mb_init: IO96B 0 mem_interface 0: instance_id_ret: 0x0
+io96b_mb_init: IO96B 0: num_mem_interface: 0x1
+LPDDR4: 1024 MiB
+ecc_enable_status: ECC enable status: 0
+DDR: size check success
+DDR: firewall init success
+DDR: init success
+Bloblist at 72000 not found (err=-2)
+WDT:   Not starting watchdog@10d00200
+Trying to boot from MMC1
+FES_NANO_SPL FIT verified before parsing
+## Checking hash(es) for config board-0 ... OK
+## Checking hash(es) for Image atf ... crc32+ OK
+## Checking hash(es) for Image uboot ... crc32+ OK
+## Checking hash(es) for Image fdt-0 ... crc32+ OK
+## Checking hash(es) for Image fes-entry ... crc32+ OK
+FES_NANO_SPL HANDOFF owner=30f7e715075f507 epoch=14439932f per0=ff7fbfbf bridge=0000000f sd=01f700f0
+FES_NANO_SPL BARRIER phase=before
+FES_NANO_SPL BARRIER phase=after
+FES_NANO_SPL ATF_STEP phase=entry
+FES_NANO_SPL ATF_STEP phase=hash-before
+FES_NANO_SPL ATF_STEP phase=hash-after
+FES_NANO_SPL ATF target=80000000 bl32=0 bl33=80200000 fdt=0 params=bff00008 cold=21e98 cookie=464e433200000002 el=3 mpidr=81000000 sctlr=c50838 scr=f daif=3c0 bytes=86077 sha256=dde46c6b12e8abe11fce509ac07d3c31108ad4104f0f6216e8603222b681c1c1
+NOTICE:  FES_NANO_EL3_CAPTURE phase=before pointer=21e98 cookie=464e433200000002
+NOTICE:  FES_NANO_EL3_CAPTURE phase=after pointer=21e98 cookie=464e433200000002
+NOTICE:  SOCFPGA: Boot Core = 0
+NOTICE:  SOCFPGA: CPU ID = 0
+NOTICE:  SOCFPGA: Setting CLUSTERECTRL_EL1
+NOTICE:  BL31: v2.12.0(release):fes-nano-owned-unready-580dcb5c4e10
+NOTICE:  BL31: Built : 08:42:23, Jun 11 2025
+NOTICE:  FES_NANO_OWNED_BOOT provider=1 result=0 reset=0000000f
+NOTICE:  FES_NANO_SD_PLATFORM setup=1 ready=1
+
+
+U-Boot 2025.01-fes-nano-1d8d771dc74c712c (Jun 27 2025 - 01:40:35 +0000)socfpga_agilex5
+
+CPU:   Intel FPGA SoCFPGA Platform (ARMv8 64bit Cortex-A55/A76)
+Model: SoCFPGA Agilex5 Terasic DE25-Nano
+DRAM:  1 GiB
+Core:  30 devices, 17 uclasses, devicetree: separate
+WDT:   Not starting watchdog@10d00200
+WDT:   Not starting watchdog@10d00300
+WDT:   Not starting watchdog@10d00400
+WDT:   Not starting watchdog@10d00500
+WDT:   Not starting watchdog@10d00600
+Loading Environment from <NULL>... OK
+In:    serial1@10c02100
+Out:   serial1@10c02100
+Err:   serial1@10c02100
+Fail to read JTAG Usercode. Default Board ID to 0
+SOCFPGA_AGILEX5 # fesboot
+FES_NANO_BOOT id=1d8d771dc74c712c
+FES_NANO_MEMORY ram_top=c0000000 sp=bfb5f880 malloc=bfb68000..bff6a000 reloc=bff6a000 fdt=bfb61e20
+lmb_dump_all:
+ memory.count = 0x1
+ memory[0]	[0x80000000-0xbfffffff], 0x40000000 bytes, flags: none
+ reserved.count = 0x2
+ reserved[0]	[0x0-0xffffff], 0x1000000 bytes, flags: no-map
+ reserved[1]	[0xbeb5fff0-0xbfffffff], 0x14a0010 bytes, flags: no-overwrite
+FES_NANO_OWNED phase=before-entry status=0 flags=46424f31000000df owner=30f7e715075f507 generation=1
+## Flattened Device Tree blob at bfb61e20
+   Booting using the fdt blob at 0xbfb61e20
+Working FDT set to bfb61e20
+   Loading Device Tree to 00000000beb57000, end 00000000beb5ffb7 ... OK
+Working FDT set to beb57000
+
+Starting kernel ...
+
+FES_NANO_OWNED phase=after-remove status=0 flags=46424f31000000df owner=30f7e715075f507 generation=1
+FES_NANO_HANDOFF affinity=0 counter=400000000 cpus=0,1,1,1 per0=ff7fbfbf bridges=0000000f
+FES_NANO_HANDOFF PASS serial-only
+FES_ENTRY EL2 CLEAN
+FES_ENTRY EL1 HANDOFF
+FES_NANO_LOAD_PACKAGE CONTAINED package_id=b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37 owner=30f7e715075f507 generation=4 source=sd storage_active=0
+FES_NATIVE_FPGA_READER_MEMORY PINNED cpu_base=95000000 bus_base=95000000 bytes=8192 arena_bytes=2097152 map_sha256=302d8ad3aefe2abd129cf7d0976f8c2a92050923cb68b2ca8bef7adbbc89991e pattern_sha256=96f99b502ad38f7bad381abfbe0aed2e38521412958125acaeb4dc7c9cfa89da owner=30f7e715075f507 generation=4 fpga_access=unqualified
+FES_NATIVE_FPGA_CYCLE BEGIN cycle=1 count=2 owner=30f7e715075f507 generation=4
+FES_NATIVE_HPS_CONTEXT PASS sha256=e9fa95a8d645d900f4cb5b60d9aeaeae5da1c76145800cce9370004db3224def package_id=b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37 build_id=dda236646bb868e63c72bd0e777f3dd6 owner=30f7e715075f507 generation=4 runtime_programming=unavailable
+NOTICE:  FES_NANO_CORE_TRANSFER phase=arm owner=30f7e715075f507 generation=4 completed=0 pending=0 total=1646592 base=94800000 counter=711bf41a5 hash_ticks=16505c1c
+NOTICE:  FES_NANO_CORE_TRANSFER phase=start owner=30f7e715075f507 generation=4 completed=0 pending=0 total=1646592 base=94800000 counter=7333445d2 hash_ticks=2c9fcb6a
+NOTICE:  FES_NANO_CORE_ENGINE credits=4 block_bytes=1048560 next_job=0 owner=30f7e715075f507 generation=4
+NOTICE:  FES_NANO_CORE_MAILBOX phase=1 owner=30f7e715075f507 generation=4 completed=0 pending=0 job=0 cin=5 cout=5 rin=6 rout=6 bell=0 status=c3faf04f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=30f7e715075f507 generation=4 completed=0 pending=1048512 total=1646592 base=94800000 counter=76082ecd0 hash_ticks=51405ffb
+NOTICE:  FES_NANO_CORE_MAILBOX phase=2 owner=30f7e715075f507 generation=4 completed=0 pending=1048512 job=0 cin=5 cout=5 rin=6 rout=6 bell=0 status=c3faf04f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=30f7e715075f507 generation=4 completed=0 pending=1646592 total=1646592 base=94800000 counter=797984245 hash_ticks=75d722b8
+NOTICE:  FES_NANO_CORE_MAILBOX phase=2 owner=30f7e715075f507 generation=4 completed=0 pending=1646592 job=1 cin=9 cout=9 rin=7 rout=6 bell=1 status=c3faf04f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=30f7e715075f507 generation=4 completed=0 pending=1646592 total=1646592 base=94800000 counter=7dabe3bb2 hash_ticks=a2931076
+NOTICE:  FES_NANO_CORE_MAILBOX phase=3 owner=30f7e715075f507 generation=4 completed=1048512 pending=598080 job=2 cin=d cout=d rin=8 rout=7 bell=1 status=c3faf04f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=30f7e715075f507 generation=4 completed=1048512 pending=598080 total=1646592 base=94800000 counter=808d628df hash_ticks=c117f13f
+NOTICE:  FES_NANO_CORE_MAILBOX phase=3 owner=30f7e715075f507 generation=4 completed=1646592 pending=0 job=2 cin=d cout=d rin=8 rout=8 bell=0 status=c3faf04f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=status owner=30f7e715075f507 generation=4 completed=1646592 pending=0 total=1646592 base=94800000 counter=836d61ce1 hash_ticks=df8ae3d4
+NOTICE:  FES_NANO_FABRIC_ACTIVATION owner=30f7e715075f507 generation=4 previous=0 rearm=0 complete=1 data_held=1
+NOTICE:  FES_NANO_CORE_TRANSFER phase=complete owner=30f7e715075f507 generation=4 completed=1646592 pending=0 total=1646592 base=94800000 counter=84e33eff9 hash_ticks=f5f4bff9
+FES_NATIVE_FPGA_PROGRAMMED PASS package_id=b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37 core_sha256=e9255d3dc149e7db17f012c3032f8c1da245d913ded3947a2342034eb1927ac0 bytes=1646592 owner=30f7e715075f507 generation=4 data_held=1 activation=unavailable
+NOTICE:  FES_NANO_CONFIG_QUERY command=4 words=6
+NOTICE:  FES_NANO_CONFIG_STATUS status=0 words=6 state=0 version=1a0300 pins=c0000089 soft=3 error_location=0 error_details=f ready=1
+NOTICE:  FES_NANO_SMMU status=0 reads=26 idr0=80f7e3f idr1=e739d18 aidr=1 s_idr1=80000018 cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 identified=1 settled=1 bypass_controls_clear=1 access=unqualified
+NOTICE:  FES_NANO_DDR_FIREWALL status=0 owner=30f7e715075f507 generation=4 reset=f mpfe_reset=0 reads=66 enable=1 base=95000000 bytes=8192 access=unqualified
+NOTICE:  FES_NANO_DDR_REGION index=0 base=80100000 baseext=0 limit=bfffffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=1 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=2 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=3 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=4 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=5 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=6 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=7 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_FIREWALL_END layout_known=1 window_covered=1 access=unqualified
+FES_NATIVE_COMPUTER_ACTIVITY phase=initial fetches=0 address=0
+FES_NATIVE_COMPUTER_ACTIVITY phase=initial-held fetches=0 address=0
+FES_NATIVE_COMPUTER_ACTIVITY phase=run fetches=38419 address=3d3
+FES_NATIVE_COMPUTER_ACTIVITY phase=return fetches=259270 address=3d7
+FES_NATIVE_COMPUTER_ACTIVITY phase=return-held fetches=259270 address=3d7
+FES_NATIVE_COMPUTER_ACTIVITY phase=relaunch fetches=297682 address=3d3
+FES_NATIVE_COMPUTER_ACTIVITY phase=final fetches=325996 address=3cf
+FES_NATIVE_COMPUTER_ACTIVITY phase=final-held fetches=325996 address=3cf
+NOTICE:  FES_NANO_MASTER_STOP status=0 owner=30f7e715075f507 generation=5 reset=d reader_reads=88 reader_polls=1 disable=0 probe_polls=2 cancel=0 complete=1 data=held
+FES_NATIVE_COMPUTER_CONTROL PASS package_id=b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37 build_id=dda236646bb868e63c72bd0e777f3dd6 base=20010300 map_sha256=e6f40c8b236dfdeb1a41f09f04d87b932de8ff4fa9692f8339967a58503bc743 owner=30f7e715075f507 generation=6 held_ack=1 data_held=1 execution_observed=1 runtime_admission=unavailable
+FES_NATIVE_FPGA_CYCLE END cycle=1 count=2
+FES_NATIVE_FPGA_CYCLE BEGIN cycle=2 count=2 owner=30f7e715075f507 generation=6
+FES_NATIVE_HPS_CONTEXT PASS sha256=e9fa95a8d645d900f4cb5b60d9aeaeae5da1c76145800cce9370004db3224def package_id=b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37 build_id=dda236646bb868e63c72bd0e777f3dd6 owner=30f7e715075f507 generation=6 runtime_programming=unavailable
+NOTICE:  FES_NANO_CORE_TRANSFER phase=arm owner=30f7e715075f507 generation=6 completed=0 pending=0 total=1646592 base=94800000 counter=8c5e0b0b6 hash_ticks=10c439623
+NOTICE:  FES_NANO_CORE_TRANSFER phase=start owner=30f7e715075f507 generation=6 completed=0 pending=0 total=1646592 base=94800000 counter=8e7558d31 hash_ticks=12291d3ae
+NOTICE:  FES_NANO_CORE_ENGINE credits=4 block_bytes=1048560 next_job=2 owner=30f7e715075f507 generation=6
+NOTICE:  FES_NANO_CORE_MAILBOX phase=1 owner=30f7e715075f507 generation=6 completed=0 pending=0 job=2 cin=12 cout=12 rin=b rout=b bell=0 status=c3faf04f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=30f7e715075f507 generation=6 completed=0 pending=1048512 total=1646592 base=94800000 counter=914a3c337 hash_ticks=147305c58
+NOTICE:  FES_NANO_CORE_MAILBOX phase=2 owner=30f7e715075f507 generation=6 completed=0 pending=1048512 job=2 cin=12 cout=12 rin=b rout=b bell=0 status=c3faf04f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=30f7e715075f507 generation=6 completed=0 pending=1646592 total=1646592 base=94800000 counter=94bb9bd1d hash_ticks=16bc53c37
+NOTICE:  FES_NANO_CORE_MAILBOX phase=2 owner=30f7e715075f507 generation=6 completed=0 pending=1646592 job=3 cin=16 cout=16 rin=c rout=b bell=1 status=c3faf04f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=30f7e715075f507 generation=6 completed=0 pending=1646592 total=1646592 base=94800000 counter=98ee14df7 hash_ticks=198812ba7
+NOTICE:  FES_NANO_CORE_MAILBOX phase=3 owner=30f7e715075f507 generation=6 completed=1048512 pending=598080 job=4 cin=1a cout=1a rin=d rout=c bell=1 status=c3faf04f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=30f7e715075f507 generation=6 completed=1048512 pending=598080 total=1646592 base=94800000 counter=9bcfaebd2 hash_ticks=1b7062d18
+NOTICE:  FES_NANO_CORE_MAILBOX phase=3 owner=30f7e715075f507 generation=6 completed=1646592 pending=0 job=4 cin=1a cout=1a rin=d rout=d bell=0 status=c3faf04f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=status owner=30f7e715075f507 generation=6 completed=1646592 pending=0 total=1646592 base=94800000 counter=9eafc7478 hash_ticks=1d578af2a
+NOTICE:  FES_NANO_FABRIC_ACTIVATION owner=30f7e715075f507 generation=6 previous=4 rearm=1 complete=1 data_held=1
+NOTICE:  FES_NANO_CORE_TRANSFER phase=complete owner=30f7e715075f507 generation=6 completed=1646592 pending=0 total=1646592 base=94800000 counter=a025b0807 hash_ticks=1ebe2ba9f
+FES_NATIVE_FPGA_PROGRAMMED PASS package_id=b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37 core_sha256=e9255d3dc149e7db17f012c3032f8c1da245d913ded3947a2342034eb1927ac0 bytes=1646592 owner=30f7e715075f507 generation=6 data_held=1 activation=unavailable
+NOTICE:  FES_NANO_CONFIG_QUERY command=4 words=6
+NOTICE:  FES_NANO_CONFIG_STATUS status=0 words=6 state=0 version=1a0300 pins=c0000089 soft=3 error_location=0 error_details=f ready=1
+NOTICE:  FES_NANO_SMMU status=0 reads=26 idr0=80f7e3f idr1=e739d18 aidr=1 s_idr1=80000018 cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 identified=1 settled=1 bypass_controls_clear=1 access=unqualified
+NOTICE:  FES_NANO_DDR_FIREWALL status=0 owner=30f7e715075f507 generation=6 reset=f mpfe_reset=0 reads=66 enable=1 base=95000000 bytes=8192 access=unqualified
+NOTICE:  FES_NANO_DDR_REGION index=0 base=80100000 baseext=0 limit=bfffffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=1 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=2 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=3 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=4 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=5 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=6 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=7 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_FIREWALL_END layout_known=1 window_covered=1 access=unqualified
+FES_NATIVE_COMPUTER_ACTIVITY phase=initial fetches=0 address=0
+FES_NATIVE_COMPUTER_ACTIVITY phase=initial-held fetches=0 address=0
+FES_NATIVE_COMPUTER_ACTIVITY phase=run fetches=38413 address=3cf
+FES_NATIVE_COMPUTER_ACTIVITY phase=return fetches=259262 address=3df
+FES_NATIVE_COMPUTER_ACTIVITY phase=return-held fetches=259262 address=3df
+FES_NATIVE_COMPUTER_ACTIVITY phase=relaunch fetches=297676 address=3cf
+FES_NATIVE_COMPUTER_ACTIVITY phase=final fetches=325992 address=3d2
+FES_NATIVE_COMPUTER_ACTIVITY phase=final-held fetches=325992 address=3d2
+NOTICE:  FES_NANO_MASTER_STOP status=0 owner=30f7e715075f507 generation=7 reset=d reader_reads=88 reader_polls=1 disable=0 probe_polls=2 cancel=0 complete=1 data=held
+FES_NATIVE_COMPUTER_CONTROL PASS package_id=b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37 build_id=dda236646bb868e63c72bd0e777f3dd6 base=20010300 map_sha256=e6f40c8b236dfdeb1a41f09f04d87b932de8ff4fa9692f8339967a58503bc743 owner=30f7e715075f507 generation=8 held_ack=1 data_held=1 execution_observed=1 runtime_admission=unavailable
+FES_NATIVE_FPGA_CYCLE END cycle=2 count=2

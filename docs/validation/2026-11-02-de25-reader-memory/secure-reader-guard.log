@@ -1,0 +1,8 @@
+test_owned_identity_success_failures_and_containment (test_nano_identity.NanoIdentityTests.test_owned_identity_success_failures_and_containment) ... ok
+test_secure_reader_uses_actual_avalon_rtl_and_contains_failures (test_nano_identity.NanoIdentityTests.test_secure_reader_uses_actual_avalon_rtl_and_contains_failures) ... PASS 169 secure reader/actual Avalon RTL cases; 113 successful reads; 12 one-shot writes
+ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 2.504s
+
+OK

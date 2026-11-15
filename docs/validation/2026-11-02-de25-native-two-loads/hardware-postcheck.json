@@ -1,0 +1,13 @@
+{
+  "verification_status": "passed",
+  "hardware_result": "native-two-fixed-package-load-run-return-observed-controller-stopped",
+  "experiment_passed": false,
+  "source_commit": "169d54c4899beb265b2d3136188ca45216b1ed64",
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "uart_free": true,
+  "private_server_stopped": true,
+  "claim_retained": true,
+  "status": "passed",
+  "evidence_sha256": "d80e145822901a68cb4f934cb0339bce22d1d5c825da96e9dae1f6df5174bfe5"
+}

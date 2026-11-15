@@ -1,0 +1,11 @@
+{
+  "status": "passed",
+  "head": "64157280e2e7b06d08c1e43fb7ceff6c0214e3ed",
+  "classification": "actual matched serial-only SMMU observation boot chain cross-build; no FPGA/DDR data grant or hardware execution",
+  "steps": [
+    "probe-cross",
+    "uboot-entry-cross-v2",
+    "bl31-cross",
+    "uboot-cross"
+  ]
+}

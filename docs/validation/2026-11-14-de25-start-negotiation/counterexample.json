@@ -1,0 +1,8 @@
+{
+  "status": "reproduced-pre-ledger-DATA-header-consumption-in-actual-vendor-parser",
+  "reference_commit": "c5c794535b7974eeb5d4a8b26ddc763e806b569a",
+  "reference_service_sha256": "ba906890e095fb614bc2563478ed328547ac365f3dcecd59f0c40d0874577729",
+  "test_sha256": "4532df964c01cfb546a683a0713516590205722764d899e90926d5dd0a906cf8",
+  "counterexample": "1 != 0 : START parser header=10000000 status=0 consumed=2 prior=0 payload=0 prior_payload=0\nstart_header_test: /home/deano/fes/out/dev/de25-source-release/platform/embedded/firmware/tests/sdm_retire/start_header_test.c:20: run_header: Assertion `status && consumed==consumed_before && payload_reads==payload_before' failed.\nSTART header case=3 header=10000000\n",
+  "hardware_actions": false
+}

@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/publication/run-retained-tape-counterexample.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 4.804704123875126,
+  "log_sha256": "8acd4fc76f4a707f85efceb9bfe7398f63c6536a2dc4e7aa9f555a0b95b4fcd8"
+}

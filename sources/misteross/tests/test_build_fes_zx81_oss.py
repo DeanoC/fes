@@ -240,7 +240,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
         output = ROOT / OUTPUT_RELATIVE
         tools = {name: SimpleNamespace(path=ROOT/'build/toolchain/install/bin'/name, identity=name)
                  for name in ('yosys', 'nextpnr-mistral', 'mistral')}
-        database_root = ROOT/'build/toolchain/src/mistral'
+        database_root = ROOT/'build/toolchain/install/share/mistral/source'
         for name, data in database.items():
             path = database_root/name
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -383,10 +383,10 @@ class BuildFesZx81OssTests(unittest.TestCase):
                     ROOT, cache_root=request.cache_root
                 )
 
-            self.assertEqual(authenticated["yosys"].path, manifest.install / "bin/yosys")
+            self.assertEqual(authenticated["yosys"].path, manifest.tools["yosys"].install / "bin/yosys")
             self.assertEqual(
                 authenticated["nextpnr-mistral"].path,
-                manifest.install / "bin/nextpnr-mistral",
+                manifest.tools["nextpnr"].install / "bin/nextpnr-mistral",
             )
 
     def test_oss_commands_use_nmos_z80_and_not_tv80(self) -> None:

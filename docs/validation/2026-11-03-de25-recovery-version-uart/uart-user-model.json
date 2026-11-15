@@ -1,0 +1,37 @@
+{
+  "status": "passed",
+  "cases": [
+    {
+      "case": "pass",
+      "accepted": true,
+      "error": null
+    },
+    {
+      "case": "ready",
+      "accepted": false,
+      "error": "UART rate/prompt handshake"
+    },
+    {
+      "case": "size",
+      "accepted": false,
+      "error": "UART loader length observation differs"
+    },
+    {
+      "case": "ack",
+      "accepted": false,
+      "error": "UART loader final acknowledgement differs"
+    },
+    {
+      "case": "source",
+      "accepted": false,
+      "error": "UART source changed during transfer"
+    },
+    {
+      "case": "owner",
+      "accepted": false,
+      "error": "UART transfer lost kit ownership"
+    }
+  ],
+  "controller_sha256": "f4a1d8e6c40ca5331154225dade46e33b97130d35ee7847440e44adefe72bf53",
+  "scope": "real sender and pinned receiver over PTY plus changed readiness/size/ack/source/owner; no hardware"
+}

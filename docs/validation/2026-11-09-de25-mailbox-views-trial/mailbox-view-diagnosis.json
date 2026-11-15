@@ -1,0 +1,177 @@
+{
+  "status": "physical-mailbox-secure-view-preserved-ns-view-zero-after-mmu",
+  "native_boot_id": "0398905b34433547",
+  "compiled_source": "09a8cce01b977e41eef5d8c0a9df13b53e6b5227",
+  "views": {
+    "records": [
+      {
+        "phase": 0,
+        "values": {
+          "cin": 2,
+          "cout": 2,
+          "rin": 1,
+          "rout": 1,
+          "bell": 0,
+          "status": 3338334543
+        },
+        "line": 158,
+        "begin_line": 157
+      },
+      {
+        "phase": 1,
+        "values": {
+          "cin": 0,
+          "cout": 0,
+          "rin": 0,
+          "rout": 0,
+          "bell": 0,
+          "status": 0
+        },
+        "line": 161,
+        "begin_line": 160
+      },
+      {
+        "phase": 2,
+        "values": {
+          "cin": 2,
+          "cout": 2,
+          "rin": 1,
+          "rout": 1,
+          "bell": 0,
+          "status": 3338334543
+        },
+        "line": 163,
+        "begin_line": 162
+      }
+    ],
+    "pending": null,
+    "valid": true,
+    "complete": true,
+    "hardware_authority": false
+  },
+  "mailbox_registers": [
+    "cin",
+    "cout",
+    "rin",
+    "rout",
+    "bell",
+    "status"
+  ],
+  "before_mmu": {
+    "cin": 2,
+    "cout": 2,
+    "rin": 1,
+    "rout": 1,
+    "bell": 0,
+    "status": 3338334543
+  },
+  "after_mmu_original_ns": {
+    "cin": 0,
+    "cout": 0,
+    "rin": 0,
+    "rout": 0,
+    "bell": 0,
+    "status": 0
+  },
+  "after_mmu_secure_readonly_alias": {
+    "cin": 2,
+    "cout": 2,
+    "rin": 1,
+    "rout": 1,
+    "bell": 0,
+    "status": 3338334543
+  },
+  "before_and_secure_alias_match": true,
+  "original_ns_mapping_is_all_zero": true,
+  "register_contents_not_atomic": true,
+  "existing_vendor_driver_still_uses_original_mapping": true,
+  "configuration_start_observation": {
+    "records": [
+      {
+        "phase": 0,
+        "status": 0,
+        "line": 646
+      },
+      {
+        "phase": 1,
+        "status": 0,
+        "line": 647
+      },
+      {
+        "phase": 2,
+        "status": 0,
+        "line": 648
+      },
+      {
+        "phase": 3,
+        "status": 0,
+        "line": 649
+      },
+      {
+        "phase": 4,
+        "status": -1,
+        "line": 652
+      },
+      {
+        "phase": 9,
+        "status": 4,
+        "line": 653
+      },
+      {
+        "phase": 10,
+        "status": 4,
+        "line": 654
+      },
+      {
+        "phase": 11,
+        "status": 4,
+        "line": 656
+      }
+    ],
+    "complete": false,
+    "isolation": {
+      "status": -2047,
+      "line": 651
+    },
+    "isolation_io": {
+      "fill": 0,
+      "branch": 1,
+      "cin": 0,
+      "cout": 0,
+      "bell": 0,
+      "polls": 40,
+      "header": 0,
+      "line": 650
+    },
+    "hardware_authority": false
+  },
+  "raw_mailbox_return": -2047,
+  "exact_response_wait_timeout_proven": true,
+  "command_consumption_proven": false,
+  "device_write_acceptance_proven": false,
+  "interpretation": "The physical read-only comparison demonstrates different mailbox visibility through the NS mapping after MMU activation. It strongly implicates the driver using that mapping in the response timeout; a successful command through a correctly guarded secure mapping is still needed to establish the repair.",
+  "next_step": "Route the existing vendor mailbox accesses through one exact secure writable Device/XN page after MMU activation, preserving the original physical base before activation. Bind the generated header/base selection into the producer and cold identity, test both CPU states and every existing failure path, rebuild the matched image and run a fresh bounded trial. Do not change an entire PSS window or bypass response/ownership guards.",
+  "new_mailbox_commands_added": false,
+  "fpga_data_written": false,
+  "initial_menu_ready": false,
+  "core_launch_or_return": false,
+  "tape_attempted": false,
+  "ordinary_core_load_acceptance": false,
+  "raw_console_sha256": "ccea5a5608edc7d157f6309f6b952e6440b31afdf85a06cc4f69d7e7338d2943",
+  "actual_elf_sha256": "c800c0b81da962332189c9aff2cc562e69ad0f5172b7f25f73b1c34e2cd48f6a",
+  "mailbox_header_sha256": "a7a3e8dccc604fb6f9285572d5977bc00f36ba56417e1308cf0c8b16989db24f",
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "auto_adjust_readback": 1,
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "historical_programming_failures": 2,
+  "new_programming_failures": 0,
+  "hardware_actions": false
+}

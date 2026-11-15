@@ -1,0 +1,9 @@
+{
+  "status": "passed",
+  "tests_rerun": false,
+  "head": "eb52a604b37ba571bdfe0db18ca645653cb73f29",
+  "semantic_summary_sha256": "1d42a3734dd61c21867508c13b8be143bf1a02eccb1cc6617d0c6e619d13c8f0",
+  "original_wrapper_receipt_sha256": "375336c67b9d3d4d35ef324ffc1cf0dadf54f00c886c89194ce4fe8d7ff64d90",
+  "all_six_recorded_child_exits_verified": true,
+  "parent_coverage_verified": true
+}

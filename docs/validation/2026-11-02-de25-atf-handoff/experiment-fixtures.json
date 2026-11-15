@@ -1,0 +1,410 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "case": "positive",
+      "accepted": true,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "original-clock",
+      "accepted": false,
+      "phases": [],
+      "restore_attempted": false
+    },
+    {
+      "case": "clock-set",
+      "accepted": false,
+      "phases": [],
+      "restore_attempted": true
+    },
+    {
+      "case": "clock-confirm",
+      "accepted": false,
+      "phases": [],
+      "restore_attempted": true
+    },
+    {
+      "case": "clock-before-native",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "recovery-failure",
+      "accepted": false,
+      "phases": [
+        "recovery-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "upload-failure",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "missing-upload",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "failed-upload",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "bad-package-readback",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "bad-package-purpose",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "bad-package-protection",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "bad-package-manifest",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "bad-package-prompt",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "missing-fit",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "failed-fit",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "stale-fit",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "writable-fit",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "fit-purpose",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "fit-readback",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "fit-prompt",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "fit-write",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "fit-reference",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "native-failure",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "missing-native",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "native-not-passed",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "missing-fesboot",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "native-sd-write",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "incomplete-trace",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "late-error",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "activation",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "core-acceptance",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "missing-reader",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "wrong-checkpoint",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "clock-restore",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "restore-readback",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "permissions",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "master-incomplete",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "ddr-incomplete",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "bad-frequency",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "report-core-acceptance",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "missing-ddr-request",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": "transport-start",
+      "accepted": false,
+      "phases": [],
+      "restore_attempted": true
+    },
+    {
+      "case": "transport-stop",
+      "accepted": false,
+      "phases": [
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    }
+  ],
+  "helper_sha256": "5a127294b119966b586192916db978c45aa49792bc2f0567435bbbb270d7fc51"
+}

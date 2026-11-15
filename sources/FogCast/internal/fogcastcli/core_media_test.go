@@ -27,6 +27,7 @@ func TestCoreMediaCommandsUseHostShapes(t *testing.T) {
 	}{
 		{[]string{"core-entry", "Core", pkg}, "POST", "/api/v1/library/core-entries", map[string]any{"title": "Core", "package_id": pkg}},
 		{[]string{"core-entry", "Core", pkg, "blob", id}, "POST", "/api/v1/library/core-entries", map[string]any{"title": "Core", "package_id": pkg, "media_role": "blob", "media_id": id}},
+		{[]string{"core-entry", "Coleco", pkg, "cartridge", id}, "POST", "/api/v1/library/core-entries", map[string]any{"title": "Coleco", "package_id": pkg, "media_role": "cartridge", "media_id": id}},
 		{[]string{"core-entry", "Frogger", pkg, "blob", id, "firmware"}, "POST", "/api/v1/library/core-entries", map[string]any{"title": "Frogger", "package_id": pkg, "media_role": "blob", "media_id": id, "firmware_required": true}},
 		{[]string{"core-media-select", "core-test", pkg, "none", id}, "PUT", "/api/v1/library/core-entries/core-test/media", map[string]any{"expected_package_id": pkg, "expected_media_id": "", "media_role": "blob", "media_id": id}},
 		{[]string{"core-media-select", "core-test", pkg, id, "none"}, "PUT", "/api/v1/library/core-entries/core-test/media", map[string]any{"expected_package_id": pkg, "expected_media_id": id, "media_role": "", "media_id": ""}},
