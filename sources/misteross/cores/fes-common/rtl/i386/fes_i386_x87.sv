@@ -2712,14 +2712,29 @@ module fes_i386_x87 (
                 // precision control. FPREM1's quotient rounds to nearest,
                 // which can flip the sign and replace the magnitude.
                 P_FIN: begin
-                    logic [63:0] r0, half;
+                    logic [63:0] r0;
+                    logic [64:0] twice, bb;
                     logic        up, flip;
 `ifndef SYNTHESIS
                     if (dv_rem[95] || dv_rem >= {32'd0, ob_m})
                         $error("x87 remainder step left rem=%h outside [0, B=%h)", dv_rem, ob_m);
 `endif
                     r0 = dv_rem[63:0];
-                    half = {1'b0, ob_m[63:1]};
+                    // Compare 2*rem with B and not rem with B/2: `ob_m >> 1`
+                    // drops an odd divisor's low bit, so a remainder strictly
+                    // below half reads as a tie and FPREM1 rounds the
+                    // quotient up where the host does not. Doubling the
+                    // remainder instead is exact for every divisor.
+                    //
+                    // The counterexample is built rather than argued, and the
+                    // bench carries it as `prem1-chain-odd-lo`: FPREM1 of
+                    // 3FFF C000000000000001 by 3FFF 8000000000000001 gives
+                    // BFFE 8000000000000002 with C3 set under `rem vs B >> 1`
+                    // and 3FFE 8000000000000000 with C1 set -- the host's
+                    // answer -- under this one. One case of 738, and only an
+                    // odd divisor near the tie separates them.
+                    twice = {r0, 1'b0};
+                    bb = {1'b0, ob_m};
                     // Round the quotient to nearest only on a COMPLETING
                     // FPREM1 step: a partial step's remainder is the running
                     // dividend in [0, B), and only a completing FPREM1's is
@@ -2733,7 +2748,7 @@ module fes_i386_x87 (
                     // one to two. The difference-below-zero path clears
                     // pr_one, which is how it says its rounding is done.
                     up = pr_one && !pr_part
-                      && (r0 > half || (r0 == half && dv_c[0]));
+                      && (twice > bb || (twice == bb && dv_c[0]));
                     flip = up;
                     pr_q <= up ? dv_c[63:0] + 64'd1 : dv_c[63:0];
                     if (up) begin

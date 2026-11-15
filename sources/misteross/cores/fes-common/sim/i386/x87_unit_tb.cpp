@@ -1520,6 +1520,15 @@ int main(int argc, char **argv) {
             // A difference of zero, where FPREM truncates the quotient to one
             // and FPREM1 rounds it to two.
             {"d0",    0x4000, 0xc000000000000000ull, 0x4000, 0x8000000000000000ull},
+            // An ODD divisor near the tie. Comparing rem with B >> 1 drops
+            // the divisor's low bit, so a remainder strictly below half reads
+            // as a tie and FPREM1 rounds the quotient up where the host does
+            // not. These are the cases that separate `2*rem vs B` from
+            // `rem vs B/2`.
+            {"odd-lo", 0x3fff, 0xc000000000000001ull, 0x3fff, 0x8000000000000001ull},
+            {"odd-hi", 0x3fff, 0xc000000000000002ull, 0x3fff, 0x8000000000000001ull},
+            {"odd-eq", 0x3fff, 0xc000000000000000ull, 0x3fff, 0x8000000000000001ull},
+            {"odd-b",  0x4001, 0xffffffffffffffffull, 0x3fff, 0x8000000000000003ull},
         };
         for (unsigned one = 0; one < 2; ++one) {
             const uint8_t ops[2] = {0xd9, uint8_t(one ? 0xf5 : 0xf8)};
