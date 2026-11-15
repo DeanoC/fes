@@ -14,7 +14,14 @@ the one shared toolchain cache at
 same tool installs: Yosys `3a5accbd`, Mistral `8fcc4cb4`, nextpnr-mistral
 `bec82e36` with `gpu-router=HIP`. Private worktrees and outputs are under
 `/data/fes-1881/`. [runs.jsonl](runs.jsonl) carries each run's command,
-working tree, digests and outcome.
+working directory, working tree, digests and outcome. The two harnesses the
+runs used are copied here beside it: [synth_only.py](synth_only.py) runs the
+producer's Yosys step alone with a caller-chosen `BUILD_ID`, and
+[route_only.py](route_only.py) routes an existing `synth.json` through the
+producer's own `route_after_synth` call with the producer's device, QSF, SDC,
+frequency, seed list, timing weight, criticality exponent, first-pass mode and
+route timeout. Each was run with the tree's `sources/misteross` as the working
+directory.
 
 Yosys `3a5accbd` is unreliable on this hardware: it segfaults in `OPT_CLEAN`
 about one run in five, and about one run in six exits 0 having written a
@@ -137,8 +144,9 @@ recipe — are unchanged between the old base and the new one. Both hold here:
 - `cores/fes-common/rtl/fes_embedded_control.sv` changed, and `fes.ramtest`
   does not compile it; it is in neither `RTL_SOURCES` nor the core's closure.
 - `scripts/core_package.py` changed and **is** in the core's source closure,
-  so the new base's `BUILD_ID` differs from `7a60de20`. It is not compiled, so
-  it cannot move the netlist.
+  so the new base's `BUILD_ID` is expected to differ from `7a60de20`. That was
+  not measured and nothing here depends on it: the file is not compiled, so it
+  cannot move the netlist.
 - `cores/fes-ramtest/toolchain.lock`, `cores/fes-ramtest/constraints.qsf`,
   `boards/de10nano/clocks.sdc` and `fes.ramtest`'s `[recipes.pnr]` entry are
   all untouched between `8bbbed801` and `e9218eb5e`.
@@ -149,13 +157,23 @@ merged head `46b3a1ba8`:
 
 | Run | Tree | `synth.json` SHA-256 |
 | --- | --- | --- |
-| base2 r1, r2 | new merge base | `391b7a6b53a8f818…` (both) |
-| head2 r1, r2 | merged PR head | `391b7a6b53a8f818…` (both) |
+| base2 r1, r2 | new merge base `e9218eb5e3927cd76a24b218cb0d39a41a752e07` | `391b7a6b53a8f818…` (both) |
+| head2 r1, r2 | merged PR head `46b3a1ba8a7f3eae29bcc50f8f1fc5ceb299c51f` | `391b7a6b53a8f818…` (both) |
 
 `cmp` confirms the new base, the merged head and the old base all produce the
 identical netlist, so main's own netlist is byte-identical at both bases and
 section 2's RBF comparison carries unchanged. Eight synthesis runs in total
 agree on `391b7a6b53a8f818…`.
+
+Section 3's gated build was taken at head `984f6e29432976a4fc690da97c6cb1e1791a686b`,
+before the merge. The merged head has a different `BUILD_ID` again, through
+`scripts/core_package.py`, and no build was taken at it. That is what D12's
+merge-forward clause allows: this core's compiled source set and its
+route-deciding inputs are unchanged across the merge, and main's own netlist is
+byte-identical at both bases, so the recorded gated build and RBF comparison
+stand without a rebuild. A fresh build at the merged head would differ in
+`BUILD_ID`, winning seed and RBF for the reason section 3 gives, and would add
+nothing this record does not already establish.
 
 ## Scope of this record
 
