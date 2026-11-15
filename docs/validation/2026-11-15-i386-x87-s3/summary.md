@@ -82,6 +82,35 @@ Rules 2, 3 and 4 together are also the reason the record's own earlier draft
 was wrong twice: the first underflow rule fitted the samples it had, and only
 operand pairs chosen to separate the candidate rules broke the tie.
 
+## Method
+
+Three instruments, and they answer different questions.
+
+- **The unit's bench** (`sim/i386/x87_unit_tb.cpp`, driven by
+  `scripts/test_fes_i386_x87_unit.py`) is the one that *settles* behaviour,
+  because an x86-64 host's FPU is the same 80-bit unit a 387 is. It drives
+  the unit's CPU interface directly, so it can reach the operand classes and
+  the exception masks a guest program cannot easily be made to produce, and
+  it compares the whole architectural state rather than one result. It runs
+  on the RTL and on the netlist the seal's Yosys writes.
+- **The lockstep** is the one that proves the unit is *wired up*: the
+  decode's uops, the x87 pointers and the opcode a memory form leaves, and
+  the CPU's issue interlock. It also checks the oracle agrees.
+- **The fits and the seal** answer whether it fits the device and meets the
+  clock, which the sections below report.
+
+Where the host and a 387 differ the case follows the 387 Programmer's
+Reference Manual and not the host. No case in this slice needed that: every
+rule the host settled is one the manual is silent or ambiguous about rather
+than one it contradicts.
+
+**The oracle agreed everywhere the lockstep reached.** Bochs's x87 is
+SoftFloat-3e, an independent implementation of the same arithmetic, and the
+identity-on programs compare the 387's whole state against it. Nothing in
+this slice needed a `divergences.toml` entry: the eight rules above are
+rules the host *and* the oracle both follow, so they are the arithmetic's
+real behaviour and not a choice this unit made.
+
 ## What the datapath is
 
 Option A has no barrel shifter and one multiplier, so every step that needs a
@@ -225,6 +254,13 @@ record's reproduction prints now names `unbuilt` for that reason.
   identity-on on this branch minus identity-on at its merge-base **through
   the same slot**, rather than against slice 2's published numbers. The next
   slice should do the same rather than read this as an omission.
+- **The unmasked-exception rules are read off one real x87, not a 387.** The
+  bias adjust, the pre- and post-operation split and the tininess rule were
+  measured on an x86-64 host, which is a much later part. A 387 is believed
+  to behave the same -- these are architectural rules rather than
+  implementation choices, and the oracle's SoftFloat agrees with them -- but
+  no 387 was available to confirm it, which is the same open question the
+  plan record already carries for real-387 measurements.
 - **The identity's record word** is still unbuilt, as slice 2 left it, so a
   kit can only run the sealed package with the identity **off**. This
   slice's kit run is therefore a **regression run: it exercises none of this
@@ -232,3 +268,42 @@ record's reproduction prints now names `unbuilt` for that reason.
   because every title the census found computing except SpeedSys's FPU test
   also runs a transcendental. The bench and the lockstep are the gate here;
   the kit run is not.
+
+## Reproducing
+
+From `sources/misteross`, with the i386 lock's toolchain slot in
+`--cache-root`:
+
+```bash
+python3 scripts/test_fes_i386_x87_unit.py --cache-root /abs/fes-toolchain-cache
+```
+
+```bash
+python3 scripts/test_fes_i386_x87_unit.py --cache-root /abs/fes-toolchain-cache --netlist
+```
+
+```bash
+python3 scripts/test_fes_i386_lockstep.py --download --cache-root /abs/fes-toolchain-cache
+```
+
+```bash
+python3 scripts/test_fes_i386_test386.py --download --cache-root /abs/fes-toolchain-cache
+```
+
+The standalone fit of the unit, and the machine fits the area section
+reports, with the pc386 lock's slot:
+
+```bash
+QUARTUS_ROOTDIR=/abs/intelFPGA_lite/17.0/quartus python3 scripts/quartus_x87_spike.py --cache-root /abs/fes-toolchain-cache --mode standalone --variant unit --seed 1 --output /abs/scratch/unit-s1
+```
+
+```bash
+QUARTUS_ROOTDIR=/abs/intelFPGA_lite/17.0/quartus python3 scripts/quartus_x87_spike.py --cache-root /abs/fes-toolchain-cache --gpu-router CUDA --mode machine --variant base --identity-on --seed 1 --output /abs/scratch/identity-on
+```
+
+To see a finding rather than take it on trust, the bench names a case for
+each: `latch-f0-edge` for the port-F0h race, `arith-latch-pe` for the
+precision exception that writes its result and still latches BUSY#,
+`align65` for the clamp, `tiny-edge4` and `tiny-edge5` for the two operand
+pairs that settle tininess after rounding, `qnan-tie` for the NaN sign rule,
+and `xtract-overflow-masked` for the one push this slice makes.
