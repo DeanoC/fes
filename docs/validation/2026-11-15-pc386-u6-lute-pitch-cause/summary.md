@@ -93,9 +93,9 @@ the lute pass at `N = 0` (`P0`) and at the calibrated `N` (`PN`). `u6cal2.asm`
 adds `BO`, the delay loop at an odd start address. `analyse.py` turns the
 counts into clocks; the tick period cancels from every ratio.
 
-Binaries: `U6CAL.COM` `1aa15a91…`, 678 bytes (runs `c3`, `c1cal`; run `c1`
+Binaries: `U6CAL.COM` `1aa15a91…`, 786 bytes (runs `c3`, `c1cal`; run `c1`
 used the earlier `d9dcc85f…`, which lacked `B5`/`B4`), `U6CAL2.COM`
-`2fac2445…` (run `c4`), `U6CAL3.COM` `22b17b0f…` (run `c5`). `u6cal3.asm`
+`2fac2445…`, 836 bytes (run `c4`), `U6CAL3.COM` `22b17b0f…`, 1,002 bytes (run `c5`). `u6cal3.asm`
 also carries `BE`, `BQ` and `BR`.
 
 ## The runs
