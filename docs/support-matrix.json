@@ -327,7 +327,7 @@
         "path": "sources/misteross/cores/fes-zx81/toolchain.lock",
         "yosys": "3a5accbd",
         "mistral": "8fcc4cb4",
-        "nextpnr": "bd7a1c0d"
+        "nextpnr": "bec82e36"
       },
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
@@ -392,7 +392,7 @@
         "path": "sources/misteross/cores/fes-zx81/toolchain.lock",
         "yosys": "3a5accbd",
         "mistral": "8fcc4cb4",
-        "nextpnr": "bd7a1c0d"
+        "nextpnr": "bec82e36"
       },
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
@@ -453,7 +453,7 @@
         "path": "sources/misteross/cores/fes-zx81/toolchain.lock",
         "yosys": "3a5accbd",
         "mistral": "8fcc4cb4",
-        "nextpnr": "bd7a1c0d"
+        "nextpnr": "bec82e36"
       },
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
@@ -514,7 +514,7 @@
         "path": "sources/misteross/cores/fes-zx81/toolchain.lock",
         "yosys": "3a5accbd",
         "mistral": "8fcc4cb4",
-        "nextpnr": "bd7a1c0d"
+        "nextpnr": "bec82e36"
       },
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",

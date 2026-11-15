@@ -294,7 +294,7 @@ Each registered package authenticates the lock named by its `lock_path` in
 `scripts/pnr_recipe.py` classifies; the shared cache then adds that nextpnr's
 install and keeps sharing the other tools. Pong's
 lock pins nextpnr `552ba246`, Menu's pins `1eecf877` (Menu moved
-when its blitter took DSP multipliers), ZX81's pins nextpnr main `bd7a1c0d`, RISC-V's pins `8f453ebc`, and
+when its blitter took DSP multipliers), ZX81's pins nextpnr `bec82e36` (the same install as Coleco's), RISC-V's pins `8f453ebc`, and
 Coleco's pins Yosys `5391eeb1` with nextpnr `bec82e36`.
 Apple II, C64 (#1007) and Atari ST (#910) pin nextpnr `5fe55f3d` for its
 F0/F1 boundary `$ROUTETHRU` map, and Spectrum pins nextpnr main `bd7a1c0d`

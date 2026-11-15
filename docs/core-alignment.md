@@ -54,7 +54,7 @@ of the current tree.
    boundary `$ROUTETHRU` map; their locks are byte-identical and share one
    cache slot. Seven registered locks select their own slot: Atari ST on
    nextpnr `5fe55f3d` (#910); Menu on nextpnr `1eecf877` (moved
-   when its blitter took DSP multipliers); ZX81 on nextpnr main `bd7a1c0d`; Pong on `552ba246` (fes#887);
+   when its blitter took DSP multipliers); ZX81 on nextpnr `bec82e36`; Pong on `552ba246` (fes#887);
    RISC-V on `8f453ebc` (#945); Spectrum on nextpnr main `bd7a1c0d` (#1001;
    contains #276 as merged); and Coleco on Yosys `5391eeb1` with nextpnr
    `bec82e36` and the shared Mistral. The unregistered PC/XT diagnostic sits
@@ -174,7 +174,7 @@ contracts.
 
 Nine registered locks differ from the repository-level pin (Yosys
 `3a5accbd`, Mistral `8fcc4cb4`, nextpnr `9128800f`): Menu on
-`1eecf877`, ZX81 on nextpnr main `bd7a1c0d`, Pong on `552ba246`, RISC-V on `8f453ebc`, Apple II and C64 on
+`1eecf877`, ZX81 on nextpnr `bec82e36`, Pong on `552ba246`, RISC-V on `8f453ebc`, Apple II and C64 on
 `5fe55f3d` (#1007), Spectrum on nextpnr main `bd7a1c0d`, Atari ST on
 `5fe55f3d` (#910), and Coleco on Yosys `5391eeb1` with nextpnr `bec82e36`.
 The other four match it. The unregistered PC/XT diagnostic sits on nextpnr
@@ -190,7 +190,7 @@ the artifacts they name; current recipe lock paths are shown in
 | 3 | `fes.coleco` | `cores/fes-coleco/toolchain.lock` (Yosys `5391eeb1`, nextpnr `bec82e36`: current main includes #296 and #299 and retains #289, #290 and #292, own cache slot) | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second selected lock. |
 | 4 | `fes.apple2`, `fes.spectrum` | `cores/fes-apple2/toolchain.lock`, `cores/fes-spectrum/toolchain.lock` (Apple II on nextpnr `5fe55f3d` since #1007; Spectrum on nextpnr main `bd7a1c0d`) | Same multi-region cart support. Both files started at the shared commits. |
 | 5 | `fes.sms`, `fes.sg1000` | `cores/fes-sms/toolchain.lock`, `cores/fes-sg1000/toolchain.lock` | Both files start at the shared commits. The old Coleco producer selects the repository-level lock. |
-| 6 | `fes.zx81` | `cores/fes-zx81/toolchain.lock` (nextpnr `bd7a1c0d`; `1eecf877` from #936) | Bus 2.0 and session display. The 2 Oct note does not accept a shared-pin seal. |
+| 6 | `fes.zx81` | `cores/fes-zx81/toolchain.lock` (nextpnr `bec82e36`; `1eecf877` from #936) | Bus 2.0 and session display. The 2 Oct note does not accept a shared-pin seal. |
 
 The recipe `lock_path` selects each per-core file, and its producer
 authenticates that file. Pong, ZX81 and RISC-V have moved their nextpnr pins

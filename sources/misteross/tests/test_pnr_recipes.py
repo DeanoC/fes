@@ -28,10 +28,10 @@ ENV = {
 LOCK_SHA256 = {
     "fes.menu": "2adfe0457b7d90debb76f52593c5101a88171a9c0b37ca3c2b2146c199ae0df0",
     "fes.pong": "e9c28e573a5037cc7a3acef7637097691bf5bfac6f1a0cdca3bace84b9383edc",
-    "fes.zx81": "8268578de75c215bbf85168649e0ccd9076e977a57ea4dcc71aabd49646d71e8",
-    "fes.zx80": "8268578de75c215bbf85168649e0ccd9076e977a57ea4dcc71aabd49646d71e8",
-    "fes.ts1000": "8268578de75c215bbf85168649e0ccd9076e977a57ea4dcc71aabd49646d71e8",
-    "fes.ts1500": "8268578de75c215bbf85168649e0ccd9076e977a57ea4dcc71aabd49646d71e8",
+    "fes.zx81": "0db1035f83cd586b637c7cb2592ae49053414fb17d0ce46ed5bf5a8288dfdd60",
+    "fes.zx80": "0db1035f83cd586b637c7cb2592ae49053414fb17d0ce46ed5bf5a8288dfdd60",
+    "fes.ts1000": "0db1035f83cd586b637c7cb2592ae49053414fb17d0ce46ed5bf5a8288dfdd60",
+    "fes.ts1500": "0db1035f83cd586b637c7cb2592ae49053414fb17d0ce46ed5bf5a8288dfdd60",
     "fes.coleco": "cb2c2809dd1b9687fbb1f50d3c6ea3a8e01ebf328b1ea29c8d567854c93d0fdb",
     "fes.sms": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.sg1000": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
@@ -66,7 +66,7 @@ FLAGS_SHA256 = {
     67: "1a6b1280f5a3303b8ac0447b56e9af53d606633ec29ae9c4004ca700bf9d82b2",
 }
 PCXT_FLAGS_SHA256 = "1df45a51d1ebb46353c90454cf28986b9c565f05185a5a4adfc4fcaac9508b5a"
-ZX81_FLAGS_SHA256 = "0d8e2411d19f74c2af22177bb9c5836ab7cb0e7713e5931f0eca7b0b11914d7e"
+ZX81_FLAGS_SHA256 = "062bd30fd2598a5257fc4bc6f6145e76be394c1aea8002b6d532531fbd89f14b"
 ZX81_FAMILY = {"fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500"}
 
 # The source-declared additions to the 105-option set, independently checked
@@ -90,10 +90,10 @@ NO_PYTHON_GUI_OPTIONS = {
 GOLDENS = {
     "fes.menu": ("2dab30da3b734c32b1ff52bfd0cdc035cca4bfe1fcc3989461bf3432be25e958", "b840cd3425c9582751f1a7847d988db554f889f0a27f7a234ad25077ccd473df"),
     "fes.pong": ("c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
-    "fes.zx81": ("9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
-    "fes.zx80": ("9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
-    "fes.ts1000": ("9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
-    "fes.ts1500": ("9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
+    "fes.zx81": ("929a1867a60e7ea048379a56b0ad15d11fe6d50d30cf5f0b6771a4a56bc67035", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
+    "fes.zx80": ("929a1867a60e7ea048379a56b0ad15d11fe6d50d30cf5f0b6771a4a56bc67035", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
+    "fes.ts1000": ("929a1867a60e7ea048379a56b0ad15d11fe6d50d30cf5f0b6771a4a56bc67035", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
+    "fes.ts1500": ("929a1867a60e7ea048379a56b0ad15d11fe6d50d30cf5f0b6771a4a56bc67035", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
     "fes.coleco": ("5a6fccb367857e0282be870b60298989f1d845023f9198e79d979e06755c927d", "93de0822ff64f833c8e571cf08b0b7d312f005bde176ad43d308c3f7ec2142af"),
     "fes.sms": ("aaa419748321cab16db125a53dd74b54c0240bb5a021b32a3db417b56543bfe5", "9f5b6f7ee3c682d7927ee0ceb03bd307f891431c209d88aa12ac20004cf97126"),
     "fes.sg1000": ("0faae72f9ba02b06832ddf7b537823c87bc61acf31672e43bb9da36a6abd66e1", "abe6012bd8052f8814e813182b95509c08ff3c906e3f926a1c0edb49f4982b85"),
@@ -244,9 +244,9 @@ class PnrRecipeTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(lock.read_bytes()).hexdigest(), LOCK_SHA256[core_id])
                 pin = load_lock(lock)["nextpnr"].commit
                 self.assertEqual(pnr_recipe.nextpnr_pin(core_id), pin)
-                if core_id in {"fes.coleco", "fes.pcxt"}:
+                if core_id in {"fes.coleco", "fes.pcxt"} | ZX81_FAMILY:
                     option_count = 107
-                elif core_id in {"fes.pong", "fes.riscv", "fes.atari-st"} | ZX81_FAMILY:
+                elif core_id in {"fes.pong", "fes.riscv", "fes.atari-st"}:
                     option_count = 105
                 else:
                     option_count = 96
