@@ -263,7 +263,7 @@
       },
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-device` only; the authenticated toolchain sets the backend (misteross AGENTS.md).",
-      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-ramtest-quartus` is Quartus 17.0.2 at 130 MHz (`RAMTEST_MHZ=100` selects 100 MHz). The catalog utility is the OSS 100 MHz variant. 130 MHz closure remains open.",
+      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-ramtest-quartus` is Quartus 17.0.2 at 130 MHz (`RAMTEST_MHZ=100` selects 100 MHz). The catalog utility is the one OSS 100 MHz package; the separately sealed OSS 130 MHz package was removed. The OSS-versus-Quartus 130 MHz gap is #264.",
       "features": "Media: ROM-less utility. Input: `fes.gamepad`. HDMI: fixed 720p60. Memory: SDRAM addon and `fes.memory.hps-ddr`. Display plane is Planned in `docs/display-pipeline.md`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Library standing `supported`. Not in the bootstrap image. No exact-image hardware acceptance is claimed in core status.",
       "evidence": [

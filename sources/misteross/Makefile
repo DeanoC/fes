@@ -69,8 +69,6 @@ help:
 		"  build-fes-video-part  Build VIDEO_VARIANT=direct|scanlines against VIDEO_SHELL and VIDEO_PACKAGE" \
 		"  sim-fes-ramtest  Test the RAM tester against SDRAM and HPS DDR models, holds and identity" \
 		"  build-fes-ramtest-100  Seal the OSS 100 MHz SDRAM and HPS DDR tester with HIP nextpnr" \
-		"  build-fes-ramtest-130  Seal the OSS 130 MHz SDRAM and HPS DDR tester with HIP nextpnr" \
-		"  diagnose-fes-ramtest-timing  Measure the 130 MHz RAM tester on the shared toolchain" \
 		"  toolchain-fes-ramtest  Provision the FES RAM Tester HIP toolchain (per-core lock)" \
 		"  toolchain-fes-atari-st  Provision the Atari ST OSS toolchain (per-core lock)" \
 		"  build-fes-ramtest-quartus  Quartus (cores/fes-ramtest/quartus.lock) SDRAM and HPS DDR tester at 130 MHz (RAMTEST_MHZ=100 for 100 MHz)" \
@@ -231,19 +229,13 @@ sim-pong:
 		--Mdir "$(CURDIR)/build/sim/pong" cores/pong/rtl/pong_game.sv "$(CURDIR)/cores/pong/sim/tb.cpp"
 	@build/sim/pong/Vpong_game
 
-.PHONY: sim-fes-application sim-fes-splash build-fes-splash sim-fes-ramtest build-fes-ramtest-100 build-fes-ramtest-130 diagnose-fes-ramtest-timing build-fes-ramtest-quartus
+.PHONY: sim-fes-application sim-fes-splash build-fes-splash sim-fes-ramtest build-fes-ramtest-100 build-fes-ramtest-quartus
 sim-fes-ramtest:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_ramtest.py
 
 build-fes-ramtest-100:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py --memory-mhz 100 $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
-
-build-fes-ramtest-130:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py --memory-mhz 130 $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
-
-diagnose-fes-ramtest-timing:
-	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/diagnose_fes_ramtest_timing.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",) $(if $(GPU_DEVICE),--gpu-device "$(GPU_DEVICE)",)
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
 
 build-fes-ramtest-quartus:
 	$(PYTHON) scripts/build_fes_ramtest_quartus.py

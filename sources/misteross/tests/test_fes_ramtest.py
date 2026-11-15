@@ -101,21 +101,21 @@ FAILING_REPORTS = (
 
 
 class RamTestAbiTest(unittest.TestCase):
-    def test_parent_cli_selects_100_mhz_and_preserves_explicit_130(self):
-        for extra, expected in (([], 100), (["--memory-mhz", "130"], 130)):
-            with self.subTest(memory_mhz=expected), patch.object(producer, "build") as build:
-                with patch("sys.argv", ["build_fes_ramtest.py", "--root", str(ROOT),
-                        "--package-output", str(ROOT / "build/packages"),
-                        "--cache-root", "/tmp/ramtest-cache", "--identity-version", "2", *extra]):
-                    self.assertEqual(producer.main(), 0)
-                self.assertEqual(build.call_args.kwargs["memory_mhz"], expected)
-                self.assertEqual(build.call_args.kwargs["package_store"], ROOT / "build/packages")
-                self.assertEqual(build.call_args.kwargs["identity_version"], 2)
+    def test_parent_cli_seals_the_one_shipped_rate(self):
+        with patch.object(producer, "build") as build:
+            with patch("sys.argv", ["build_fes_ramtest.py", "--root", str(ROOT),
+                    "--package-output", str(ROOT / "build/packages"),
+                    "--cache-root", "/tmp/ramtest-cache", "--identity-version", "2"]):
+                self.assertEqual(producer.main(), 0)
+            self.assertEqual(build.call_args.kwargs["package_store"], ROOT / "build/packages")
+            self.assertEqual(build.call_args.kwargs["identity_version"], 2)
+            self.assertNotIn("memory_mhz", build.call_args.kwargs)
+        self.assertEqual(producer.MEMORY_MHZ, 100)
 
     def test_parent_authentication_uses_shipped_rate_and_shared_cache(self):
         with patch.object(producer, "authenticate_for", return_value={}) as authenticate:
             self.assertEqual(producer._authenticate_tools(ROOT, cache_root=Path("/tmp/cache")), {})
-            authenticate.assert_called_once_with(ROOT, 100, Path("/tmp/cache"))
+            authenticate.assert_called_once_with(ROOT, Path("/tmp/cache"))
 
     def test_mailbox_and_video_are_fes_application(self):
         top = (CORE / "rtl" / "top.v").read_text()

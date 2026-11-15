@@ -125,7 +125,7 @@ nine-package image set; its evidence limits are unchanged.
 | `fes.sms` 1.4.0 | 32 KiB Master System slice. No mapper. Do not use `fes.mastersystem`. | Sync M10K, format 3. Current lock: `cores/fes-sms/toolchain.lock`. | Still TV80. Named kit audio is artifact-scoped and does not accept a shared-pin seal. |
 | `fes.sg1000` 1.4.0 | 16 KiB slice. | `fes_z80_nmos`, sync M10K, format 3, `fes.application` with two gamepad ports. Current lock: `cores/fes-sg1000/toolchain.lock`. | The earlier 1.2.0 kit audio and 1.3.0 development diagnostics do not qualify 1.4.0. |
 | `fes.spectrum` 0.4.0, `fes.spectrum128` 0.2.0, `fes.spectrum-plus3` 0.2.0, `fes.pentagon` 0.2.0 | Experimental library packages; no longer in the image. Open diagnostic firmware only; no Sinclair or Amstrad ROM is shipped. | One shell, `fes_z80_nmos` with ULA clock stretching, session display plane, tape 2.0 played from HPS DDR port 1 (`fes_media_ddr`), sync M10K, format 3. Current lock: `cores/fes-spectrum/toolchain.lock`. | Timing matches Fuse in simulation, and the host's tape conversion matches Fuse on its fixtures. The [22 Oct Kit A diagnostic](validation/2026-10-22-spectrum-models-seal.md) booted each named ROM and ran a typed BASIC line. On kit A the superseded `7589e281` archives of these versions loaded a turbo-loader tape from DDR on the 48K, 128K and Pentagon; that +2A/+3 archive loaded it too and held HDMI once the runtime moved the ADV7513 input clock delay to −0.8 ns (#1011). Joysticks, AY music and expansion remain untested on kit. |
-| `fes.ramtest` 1.1.0 | SDRAM and HPS DDR tester. Supported library utility using the OSS 100 MHz variant; not in the bootstrap image. | Current lock: `cores/fes-ramtest/toolchain.lock`. | 130 MHz remains open. No exact-image hardware acceptance. |
+| `fes.ramtest` 1.1.0 | SDRAM and HPS DDR tester. Supported library utility using the OSS 100 MHz variant; not in the bootstrap image. | Current lock: `cores/fes-ramtest/toolchain.lock`. | The OSS 130 MHz package was removed; 100 MHz is the only sealed rate. No exact-image hardware acceptance. |
 | `fes.atari-st` 0.2.0 | Library standing experimental; no longer in the image. GEM, mouse, writable geometry-aware disks and video parts have passed on named artifacts. Not a compatible ST. | Video parts, sync M10K, format 3. Current lock: `cores/fes-atari-st/toolchain.lock`. | The October kit notes do not accept a shared-pin seal. Built-in Direct fallback remains. Borders, later demo sections, menu flash, audio fidelity and full current-image acceptance are open. |
 
 | Package | Usable as | Matches | Does not match |
@@ -200,9 +200,11 @@ followed (#910). Spectrum uses nextpnr main `bd7a1c0d`, which contains #276 as
 merged; Coleco uses `bec82e36` and keeps its own Yosys. The other four
 registered locks still share the repository-level slot.
 
-The 130 MHz timing diagnostic uses `cores/fes-ramtest/toolchain.lock`. OSS has not closed 130 MHz.
-The shared-pin seed-2 route reached 110.91 MHz on `ram_clock.clocks[0]`. That
-miss is known and is not a private pin.
+OSS never closed 130 MHz, and the 130 MHz OSS package and its timing
+diagnostic have been removed; `cores/fes-ramtest/toolchain.lock` now seals the
+100 MHz package only. The historical shared-pin seed-2 route reached
+110.91 MHz on `ram_clock.clocks[0]`. That miss was known and is not a private
+pin.
 
 ### 3. One Z80
 
