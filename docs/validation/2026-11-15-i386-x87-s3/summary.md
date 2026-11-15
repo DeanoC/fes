@@ -211,8 +211,9 @@ reads.
 |---|---|
 | unit bench, against a real 80-bit FPU | **537 / 0**, 242,776 comparisons |
 | ... on the seal's Yosys netlist | **537 / 0** |
-| lockstep, RTL: every bucket | **0 fail** (1,933 no-387 cases with the identity off, 14 x87 cases with it on, 84 directed) |
-| ... on the netlist, and governed at preset 3 | **(pending)** |
+| lockstep, RTL: every bucket | **0 fail** (1,933 no-387 cases with the identity off, 14 x87 cases with it on, 84 directed, and the corpus, random, protected-mode, task, debug, undefined and memory buckets) |
+| ... on the seal's Yosys netlist | **0 fail**, same buckets |
+| ... governed at preset 3, `--same-as` the ungoverned report | **(pending)** |
 | test386 | **POST … E0 EE FF**, halted |
 | Quartus 17.0.2 seal | **(pending)** |
 | kit run on that seal | **(pending)** |
