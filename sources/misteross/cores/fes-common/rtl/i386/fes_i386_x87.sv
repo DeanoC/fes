@@ -303,6 +303,35 @@ module fes_i386_x87 (
     logic [9:0]  rcp_q;          // the seed, valid the cycle after ob_m settles
     always_ff @(posedge clk) rcp_q <= rcp_tab[ob_m[62:56]];
 
+    // The reciprocal-square-root seeds: 256 words of 11 bits, indexed by the
+    // exponent's parity and the radicand's top 7 bits. The entry approximates
+    // 1/sqrt(a) for a in [1, 4) as v/1024, so v is in [512, 1024].
+    // The entries run from 513 to 1022 over the whole table -- a is never
+    // exactly 1, because the index is an interval's midpoint -- so ten bits
+    // hold them and the left-aligned seed always has bit 63 set.
+    (* ramstyle = "M10K" *) logic [9:0] rsq_tab [0:255];
+    initial begin
+        for (int pp = 0; pp < 2; pp++)
+            for (int i = 0; i < 128; i++)
+                rsq_tab[pp * 128 + i] =
+                    10'($rtoi(1024.0 / $sqrt((1.0 + (real'(i) + 0.5) / 128.0)
+                                             * (pp != 0 ? 2.0 : 1.0)) + 0.5));
+    end
+    logic [9:0]  rsq_q;
+    logic        sq_p;           // the radicand's exponent parity
+    always_ff @(posedge clk) rsq_q <= rsq_tab[{sq_p, oa_m[62:56]}];
+
+    // The square root's working values, each a 64-bit significand with a
+    // small signed exponent: value = sig * 2^(exp - 63). The multiplier's
+    // operands both have bit 63 set, so a product needs at most one bit of
+    // renormalisation, which is a mux and not a shift.
+    logic [63:0]        qy_s;    // y, the reciprocal square root
+    logic signed [5:0]  qy_e;
+    logic [63:0]        qt_s;    // 3 - a*y^2
+    logic signed [5:0]  qt_e;
+    logic [63:0]        qz_s;    // a*y, then a*y^2
+    logic signed [5:0]  qz_e;
+
     logic [63:0] gs_n, gs_d;     // Goldschmidt's numerator and denominator
     logic [1:0]  gs_it;          // iterations still to run
     logic [66:0] dv_c;           // the candidate quotient, 66 bits plus a carry
@@ -310,6 +339,8 @@ module fes_i386_x87 (
                                  // the true remainder is bounded by 2*E*B
     logic [3:0]  dv_k;           // restoring steps still to run
     logic        dv_s;           // the pre-scale: the quotient was below one
+    logic        dv_lost;        // the square root dropped radicand bits into
+                                 // the sticky at a reduced precision
 
     // The error bound E and the step count k are constants per precision, not
     // measurements: a case outside the sample that exceeded E would be a wrong
@@ -341,6 +372,25 @@ module fes_i386_x87 (
     // target's bound is the bug this cost 585 of 684 cases to find.
     function automatic logic [5:0] dv_drop(input logic [1:0] prec);
         dv_drop = prec == 2'd0 ? 6'd41 : prec == 2'd2 ? 6'd12 : 6'd0;
+    endfunction
+    // The square root's own bound and step count, measured the same way:
+    // 64 and 7 at the extended format, 4 and 3 at PC 24 and PC 53.
+    function automatic logic [7:0] sq_e(input logic [1:0] prec);
+        sq_e = (prec == 2'd0 || prec == 2'd2) ? 8'd4 : 8'd64;
+    endfunction
+    function automatic logic [3:0] sq_steps(input logic [1:0] prec);
+        sq_steps = (prec == 2'd0 || prec == 2'd2) ? 4'd3 : 4'd7;
+    endfunction
+
+    // One step of the square root's Newton iteration keeps every value
+    // normalised with bit 63 set, so a product of two such values has bit 127
+    // or bit 126 set and renormalising is a choice between two slices.
+    function automatic logic [63:0] norm_hi(input logic [127:0] pr);
+        norm_hi = pr[127] ? pr[127:64] : pr[126:63];
+    endfunction
+    function automatic logic signed [5:0] norm_e(input logic signed [5:0] e,
+                                                input logic p127);
+        norm_e = p127 ? e : e - 6'sd1;
     endfunction
 
     // The leading-zero count of a 64-bit magnitude (64 when it is zero).
@@ -464,7 +514,20 @@ module fes_i386_x87 (
         D_CAND,     // form the candidate C0 = qhat - E, start C0[63:0]*B
         D_REM,      // take the product and form the modular remainder
         D_TAIL,     // the restoring compare-subtract steps, one a clock
-        D_FIN       // the quotient, its guard, round and sticky, into A_RND
+        D_FIN,      // the quotient, its guard, round and sticky, into A_RND
+        // ---- Slice 4's square root. ----
+        // Newton on the reciprocal square root, y <- y(3 - a*y^2)/2, on the
+        // same multiplier, then the same exact tail with the square root's
+        // own trial: (C + 2^i)^2 - C^2 is (C << (i+1)) + 2^(2i), two shifts
+        // and an add, so the tail needs no multiply at all.
+        Q_SEED,     // the reciprocal-square-root seed is out: start a*y
+        Q_AY,       // take a*y, start (a*y)*y
+        Q_AY2,      // take a*y^2 and form 3 - a*y^2, then start y*that
+        Q_Y,        // take the new y, halve it, loop or fall through
+        Q_RES,      // the result estimate q = a*y
+        Q_CAND,     // the candidate, and start C0*C0
+        Q_REM,      // the radicand's remainder
+        Q_FIN       // into A_RND
     } seq_e;
     seq_e        seq;
     seq_e        sh_ret;      // the state S_MUL returns to when the multiply is done
@@ -890,7 +953,8 @@ module fes_i386_x87 (
     logic       a_form;     // the operation in flight is one of slice 3's
     logic       a_mem;      // ... and its second operand comes from memory
     assign a_form = cur == X87_ARITH || cur == X87_CMP || cur == X87_RNDINT
-                 || cur == X87_SCALE || cur == X87_XTRACT || cur == X87_DIV;
+                 || cur == X87_SCALE || cur == X87_XTRACT || cur == X87_DIV
+                 || cur == X87_SQRT;
     assign a_mem = (cur == X87_ARITH || cur == X87_CMP || cur == X87_DIV)
                 && cur_op_raw[7:6] != 2'b11;
     always_comb begin
@@ -964,6 +1028,15 @@ module fes_i386_x87 (
     // set) at the smallest normal's exponent, which is its value.
     function automatic logic signed [17:0] eff_e(input logic [79:0] v);
         eff_e = v[78:64] == 15'd0 ? 18'sd1 : $signed({3'b0, v[78:64]});
+    endfunction
+
+    // The effective exponent's low bit, which is all the square root's parity
+    // needs. A denormal's effective exponent is 1, so its parity bit is 1;
+    // every other value's is the exponent field's own bit 0. Subtracting the
+    // pre-normalising shift flips it by that shift's low bit, so the parity
+    // after normalisation is one XOR away and needs no subtract.
+    function automatic logic eff_e0(input logic [79:0] v);
+        eff_e0 = v[78:64] == 15'd0 ? 1'b1 : v[64];
     endfunction
 
     // ---- The operand classes that give a result without the datapath. ----
@@ -1403,7 +1476,8 @@ module fes_i386_x87 (
                     // Precision control applies to add, subtract, multiply,
                     // divide and square root and to nothing else (387 PRM
                     // section 2.3.2).
-                    wprec <= (cur == X87_ARITH || cur == X87_DIV) ? pc : PC_EXT;
+                    wprec <= (cur == X87_ARITH || cur == X87_DIV || cur == X87_SQRT)
+                           ? pc : PC_EXT;
                     if (a_mem && ld_shift) begin
                         sh_src <= ld_mag;
                         sh_pow <= 6'(clz64(ld_mag));
@@ -1497,6 +1571,10 @@ module fes_i386_x87 (
                     ob_m <= pb[63:0];
                     oa_e <= eff_e(pa);
                     ob_e <= eff_e(pb);
+                    // The square root's parity, set here because the seed is
+                    // a registered read of it: the radicand's exponent has to
+                    // be made even, so the parity is zero where oa_e is odd.
+                    sq_p <= ~eff_e0(pa);
                     wsign <= 1'b0;
                     if (cur == X87_CMP) begin
                         // A compare writes the condition codes and nothing
@@ -1507,7 +1585,8 @@ module fes_i386_x87 (
                         pcc <= cmp_cc;
                         pcc_wr <= 1'b1;
                         seq <= S_APPLY;
-                    end else if (cur == X87_RNDINT || cur == X87_XTRACT) begin
+                    end else if (cur == X87_RNDINT || cur == X87_XTRACT
+                                 || cur == X87_SQRT) begin
                         // The one-operand forms: only ST(0)'s class counts,
                         // so the two-operand special cases do not apply.
                         pfl <= pfl | (ca == C_EMPTY || ca == C_UNSUP || ca == C_SNAN ? 6'b000001
@@ -1538,8 +1617,23 @@ module fes_i386_x87 (
                         end else if (cur == X87_RNDINT && (ca == C_ZERO || ca == C_INF)) begin
                             ares <= pa;
                             seq <= S_APPLY;
+                        end else if (cur == X87_SQRT && pa[79] && ca != C_ZERO) begin
+                            // The square root of a negative is invalid, and
+                            // that is a pre-operation exception, so it is the
+                            // only thing reported -- a negative denormal gives
+                            // IE and not IE with DE. Negative zero is not a
+                            // negative here: it comes back as itself below.
+                            pfl <= 6'b000001;
+                            ares <= INDEFINITE;
+                            seq <= S_APPLY;
+                        end else if (cur == X87_SQRT && (ca == C_ZERO || ca == C_INF)) begin
+                            // Both zeros and positive infinity are their own
+                            // square roots, with no exception.
+                            ares <= pa;
+                            seq <= S_APPLY;
                         end else if (ca == C_DEN) begin
                             oa_e <= eff_e(pa) - 18'(lza);
+                            sq_p <= ~(eff_e0(pa) ^ lza[0]);
                             sh_src <= pa[63:0];
                             sh_pow <= 6'(lza);
                             sh_isprod <= 1'b0;
@@ -1676,6 +1770,19 @@ module fes_i386_x87 (
                         sh_isprod <= 1'b1;
                         sh_ret <= A_PROD;
                         seq <= S_SHIFT;
+                    end else if (cur == X87_SQRT) begin
+                        // The exponent halving. With the true exponent
+                        // E = oa_e - 16446, the result is
+                        //   we = 16446 + (oa_e - 16509 - p) / 2
+                        // and the parity p is chosen to make that difference
+                        // even: p is zero where oa_e is odd and one where it
+                        // is even. sq_p is already set, because the seed is a
+                        // registered read of it.
+                        wsign <= 1'b0;
+                        we <= 18'sd16446
+                            + ((oa_e - 18'sd16509 - 18'($signed({1'b0, sq_p}))) >>> 1);
+                        gs_it <= 2'd3;
+                        seq <= Q_SEED;
                     end else if (cur == X87_DIV) begin
                         // The divide. Both significands are normalised, so
                         // the quotient is in (0.5, 2); where it is below one
@@ -1688,6 +1795,7 @@ module fes_i386_x87 (
                         dv_s <= oa_m < ob_m;
                         we <= oa_e - ob_e + 18'sd16383 - 18'(oa_m < ob_m);
                         gs_it <= dv_iters(wprec);
+                        dv_lost <= 1'b0;
                         // D_SEED and not the multiply directly: `rcp_q` is a
                         // registered read of ob_m, so the entry for THIS
                         // divisor is not out of the table until the cycle
@@ -2197,14 +2305,22 @@ module fes_i386_x87 (
                 // count per precision: this is not an early-exit search, so a
                 // divide's latency does not depend on its operands.
                 D_TAIL: begin
-                    logic [95:0] trial;
-                    trial = dv_rem - ({32'd0, ob_m} << (dv_k - 4'd1));
+                    logic [95:0] trial, sub;
+                    logic [3:0]  i;
+                    i = dv_k - 4'd1;
+                    // The divide subtracts the divisor shifted; the square
+                    // root subtracts (C + 2^i)^2 - C^2, which is
+                    // (C << (i+1)) + 2^(2i) -- two shifts and an add, so the
+                    // square root's tail needs no multiply at all.
+                    sub = cur == X87_SQRT ? ((96'(dv_c) << (i + 4'd1)) + (96'd1 << (i + i)))
+                                          : ({32'd0, ob_m} << i);
+                    trial = dv_rem - sub;
                     if (!trial[95]) begin
                         dv_rem <= trial;
-                        dv_c <= dv_c + (67'd1 << (dv_k - 4'd1));
+                        dv_c <= dv_c + (67'd1 << i);
                     end
                     if (dv_k > 4'd1) dv_k <= dv_k - 4'd1;
-                    else seq <= D_FIN;
+                    else seq <= cur == X87_SQRT ? Q_FIN : D_FIN;
                 end
                 // The exact truncation, its guard and round bits, and the
                 // sticky the remainder gives for nothing. A_RND then applies
@@ -2222,6 +2338,118 @@ module fes_i386_x87 (
                     wg <= dr == 6'd0 ? dv_c[1] : 1'b0;
                     wrd <= dr == 6'd0 ? dv_c[0] : 1'b0;
                     ws <= |dv_rem;
+                    seq <= A_RND;
+                end
+                // ---- Slice 4: the square root. ----
+                // Values here are (significand, exponent) pairs meaning
+                // sig * 2^(exp - 63) with bit 63 of the significand set, which
+                // is what lets one mux renormalise every product. The seed is
+                // v/1024 with v in [513, 1022], so it is left-aligned to bit
+                // 63 with an exponent of -1.
+                Q_SEED: begin
+                    qy_s <= {rsq_q, 54'd0};
+                    qy_e <= -6'sd1;
+                    ua_mul <= oa_m;
+                    ub_mul <= {rsq_q, 54'd0};
+                    mul_start <= 1'b1;
+                    seq <= Q_AY;
+                end
+                Q_AY: if (mul_done) begin
+                    // z = a*y, then start z*y.
+                    qz_s <= norm_hi(mul_p);
+                    qz_e <= norm_e(6'sd1 + {5'd0, sq_p} + qy_e, mul_p[127]);
+                    ua_mul <= norm_hi(mul_p);
+                    ub_mul <= qy_s;
+                    mul_start <= 1'b1;
+                    seq <= Q_AY2;
+                end
+                Q_AY2: if (mul_done) begin
+                    // t = 3 - a*y^2, aligned by the exponent difference and
+                    // renormalised. 3 is 0xC000...  with an exponent of 1, and
+                    // a*y^2 is close to one, so the difference is close to two
+                    // and needs at most a couple of bits of normalisation.
+                    logic [63:0]       z2;
+                    logic signed [5:0] z2e;
+                    logic [6:0]        sh, lz;
+                    logic [63:0]       d;
+                    z2 = norm_hi(mul_p);
+                    z2e = norm_e(6'sd1 + qz_e + qy_e, mul_p[127]);
+                    sh = 7'(6'sd1 - z2e);
+                    d = 64'hc000_0000_0000_0000 - (sh >= 7'd64 ? 64'd0 : (z2 >> sh));
+                    lz = clz64(d);
+                    qt_s <= d << lz;
+                    qt_e <= 6'sd1 - 6'(lz);
+                    ua_mul <= qy_s;
+                    ub_mul <= d << lz;
+                    mul_start <= 1'b1;
+                    seq <= Q_Y;
+                end
+                Q_Y: if (mul_done) begin
+                    // y <- y*t/2: the halving is one off the exponent.
+                    qy_s <= norm_hi(mul_p);
+                    qy_e <= norm_e(qy_e + qt_e, mul_p[127]);
+                    if (gs_it > 2'd1) begin
+                        gs_it <= gs_it - 2'd1;
+                        ua_mul <= oa_m;
+                        ub_mul <= norm_hi(mul_p);
+                        mul_start <= 1'b1;
+                        seq <= Q_AY;
+                    end else begin
+                        ua_mul <= oa_m;
+                        ub_mul <= norm_hi(mul_p);
+                        mul_start <= 1'b1;
+                        seq <= Q_RES;
+                    end
+                end
+                Q_RES: if (mul_done) begin
+                    // q = a*y, the square root's estimate. Its exponent is 0
+                    // where q is in [1, 2) and **-1 where q is just below
+                    // one**, which is what happens when the true root is an
+                    // exact power of two: the iteration converges to it from
+                    // below, so y comes out as 0xFFFF...FFFF with an exponent
+                    // of -1 rather than 2^63 with zero. Hardcoding the shift
+                    // at 2 on the assumption that q is always in [1, 2) put
+                    // the candidate a whole binade high, and it failed on
+                    // exactly the patterns whose root is exact -- 1.0 and the
+                    // pseudo-denormal -- while every inexact root passed.
+                    logic [66:0]       qh, c0;
+                    logic signed [5:0] qe;
+                    qe = norm_e(6'sd1 + {5'd0, sq_p} + qy_e, mul_p[127]);
+                    qh = ({3'd0, norm_hi(mul_p)} << (qe + 6'sd2)) >> dv_drop(wprec);
+                    c0 = qh - {59'd0, sq_e(wprec)};
+                    dv_c <= c0;
+                    dv_k <= sq_steps(wprec);
+                    ua_mul <= c0[63:0];
+                    ub_mul <= c0[63:0];
+                    mul_start <= 1'b1;
+                    seq <= Q_REM;
+                end
+                // The radicand's remainder. The recurrence is self-similar
+                // under the precision's scaling, so the tail runs in the
+                // scaled domain and takes the same form as the full-precision
+                // one: the radicand shifts by 67 + parity - 2*drop, which is
+                // negative at PC 24, and the bits that shift out of it feed
+                // the sticky.
+                Q_REM: if (mul_done) begin
+                    logic signed [8:0] qsh;
+                    logic [31:0]       chi;
+                    logic [95:0]       rad;
+                    qsh = 9'sd67 + 9'sd1 * 9'($signed({1'b0, sq_p}))
+                        - 9'sd2 * 9'($signed({1'b0, dv_drop(wprec)}));
+                    rad = qsh >= 9'sd0 ? (96'(oa_m) << qsh[7:0]) : (96'(oa_m) >> (-qsh));
+                    chi = 32'(dv_c[66:64] * dv_c[31:0]);
+                    dv_rem <= rad - (mul_p[95:0] + {chi, 64'd0} + {chi, 64'd0});
+                    dv_lost <= qsh >= 9'sd0 ? 1'b0
+                             : |(oa_m & ((64'd1 << (-qsh)) - 64'd1));
+                    seq <= D_TAIL;
+                end
+                Q_FIN: begin
+                    logic [5:0] dr;
+                    dr = dv_drop(wprec);
+                    wm <= dr == 6'd0 ? dv_c[65:2] : (64'(dv_c) << (dr - 6'd2));
+                    wg <= dr == 6'd0 ? dv_c[1] : 1'b0;
+                    wrd <= dr == 6'd0 ? dv_c[0] : 1'b0;
+                    ws <= |dv_rem || dv_lost;
                     seq <= A_RND;
                 end
                 S_POST: begin
@@ -2422,7 +2650,7 @@ module fes_i386_x87 (
                                 default: nc = {1'b1, 1'b1, 1'b0, 1'b0};  // denormal
                             endcase
                         end
-                        X87_ARITH, X87_RNDINT, X87_SCALE, X87_DIV: begin
+                        X87_ARITH, X87_RNDINT, X87_SCALE, X87_DIV, X87_SQRT: begin
                             // The result goes to ST(0), or to ST(i) for the
                             // DC and DE forms, and DE pops ST(0) after it.
                             // X87_DIV belongs here and not in a case of its
@@ -2607,7 +2835,7 @@ module fes_i386_x87 (
                             seq <= S_APPLY2;
                         end
                         if (cur == X87_ARITH || cur == X87_RNDINT || cur == X87_SCALE
-                            || cur == X87_DIV) begin
+                            || cur == X87_DIV || cur == X87_SQRT) begin
                             rw_idx <= a_dst;
                             rw_val <= v;
                             rw_en <= 1'b1;

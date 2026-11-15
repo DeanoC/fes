@@ -1397,6 +1397,7 @@ package fes_i386_pkg;
                         8'he4: x87_decode = X87_TST;
                         8'he5: x87_decode = X87_XAM;
                         8'hf4: x87_decode = X87_XTRACT;
+                        8'hfa: x87_decode = X87_SQRT;
                         8'hf6: x87_decode = X87_DECSTP;
                         8'hf7: x87_decode = X87_INCSTP;
                         8'hfc: x87_decode = X87_RNDINT;

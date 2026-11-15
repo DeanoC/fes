@@ -1414,6 +1414,7 @@ int main(int argc, char **argv) {
             {"fucomp",     0x5, 0xe9, 2, 0, CMP_SW},
             {"fucompp",    0x2, 0xe9, 2, 0, CMP_SW},
             // The one-operand forms. FSCALE takes ST(1) as its scale.
+            {"fsqrt",      0x1, 0xfa, 1, 0, ARITH_SW},
             {"frndint",    0x1, 0xfc, 1, 0, ARITH_SW},
             {"fxtract",    0x1, 0xf4, 1, 0, ARITH_SW},
             {"fscale",     0x1, 0xfd, 2, 0, ARITH_SW},
@@ -1491,6 +1492,9 @@ int main(int argc, char **argv) {
             // the early termination did not change a result.
             {"fdiv",    0x0, 0xf1, 2, ARITH_SW}, {"fdivr",  0x0, 0xf9, 2, ARITH_SW},
             {"fdiv.p",  0x6, 0xf9, 2, ARITH_SW},
+            // FSQRT rounds at PC as well, and its iteration count is chosen
+            // by PC, so this row says the early termination changed nothing.
+            {"fsqrt",   0x1, 0xfa, 1, ARITH_SW},
         };
         const size_t named = 22;
         // PC 01 is reserved. The unit reads it as the extended format; this
