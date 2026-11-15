@@ -21,8 +21,8 @@ restate the verdicts; nothing outside this table, and no heading, carries one.
 | The Black Gate starts on a 386DX-25 reference | **done** |
 | A 386DX-25 board fixed by a rule committed before capture | **done**; the board that was fixed **does not meet** the rule, which is reported rather than worked around |
 | How the kit's 386 preset scores against that rule's range | **stated**: TopBench 68, above fifteen of the eighteen real entries, inside the range |
-| NPC pace, the quantity `method.md` committed | **not decided** — validity gate 3, one capture rate on both sides, is not met, so no window counts. The repeat count and the spread rule are both satisfied by r15a/r15b/r15d against q1/q2/q3 (2.7% and 0.2% against ±10%), on which the check would have been a miss of +22.0% |
-| NPC pace, the character's walk-cycle period | **measured**: kit 8.733 s against reference 11.800 s, a **26.0% miss** against the same ±10% band, three windows a side, 0.0% spread on both. A quantity the method did not commit, fixed before any kit capture |
+| NPC pace, the quantity `method.md` committed | **not decided; acceptance is not established by this record** — validity gate 3, one capture rate on both sides, is not met, so no window counts. The repeat count and the spread rule are both satisfied by r15a/r15b/r15d against q1/q2/q3 (2.7% and 0.2% against ±10%), on which the check would have been a miss of +22.0% |
+| NPC pace, the character's walk-cycle period | **measured, but not acceptance evidence**: kit 8.733 s against reference 11.800 s, a **26.0% miss** against the same ±10% band, three windows a side, 0.0% spread on both. A quantity the method did not commit, fixed before any kit capture |
 
 ## Part 1 — the game starts on a 386DX-25 reference
 
@@ -299,14 +299,15 @@ quantity the method did not commit, measured well. Whoever wants the check
 decided should commit this quantity in advance and measure again — everything
 needed to do that is in this record.
 
-**Both sides are at one rate, and getting there took the long way.** The gate
-asks for the reference to be captured at the kit's 60 fps. Three runs at 60
+**Gate 3 remains unmet; decimation does not satisfy it.** The gate requires
+the same actual capture rate on both sides. Three reference runs at 60 fps
 (`r60a`, `r60b`, `r60c`) **all failed the 100% gate**: `x11grab` at 60 fps on
-a 667×496 window costs 86Box its real-time margin on this host, so gates 2 and
-3 cannot both be met by capturing the reference faster. The gate's purpose —
-one rate on both sides — is met the other way instead, by **deriving the kit's
-captures at 15 fps**, keeping every fourth frame; `u7pace.py --decimate`. That
-is derivation, not capture, and it is reported as such.
+a 667×496 window costs 86Box its real-time margin on this host. The alternate
+route, an actual 15 fps capture of the kit, was **not attempted and is not
+ruled out** by these results. The kit windows here were captured at 60 fps and
+then derived at 15 fps by keeping every fourth frame with `u7pace.py
+--decimate`; derivation is not capture. No paired windows in this record meet
+gate 3, so the committed NPC-pace acceptance criterion remains unestablished.
 
 The rate turns out not to matter, which is measured rather than argued:
 
@@ -555,11 +556,11 @@ the HMA, which is why both run the image's menu entry 1.
   XT-IDE controller and the benchmark drive, because the pace reference's
   CMOS drive type is cut for the games image's geometry. The kit's 68 *is*
   from the same claim as its pace windows.
-- **How the one capture rate is reached.** The reference cannot be captured
-  at the kit's 60 fps on this host without losing the 100% gate (three runs
-  tried, all failed), so the kit's captures are *derived* at 15 fps instead.
-  The figure does not move with the rate, which is measured above, but the
-  gate as written asks for capture and this is derivation.
+- **A matching actual capture rate.** Three reference captures at 60 fps
+  failed the 100% gate on this host. The kit's 60 fps captures were derived at
+  15 fps, which does not meet the gate. A 15 fps kit capture was not attempted
+  and has not been ruled out; the record therefore has no same-rate captured
+  pair and does not establish the committed NPC-pace acceptance criterion.
 - **The m1/m2/m6 displacement result.** Its 32.1% spread is an out-of-gate
   observation because the drive copies fail the exact-digest gate and m1 lacks
   a pre-run digest. It does not establish a second valid spread against r15 —
