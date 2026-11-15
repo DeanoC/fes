@@ -1227,7 +1227,7 @@ package fes_i386_pkg;
 
     // The operations the x87 unit builds. A form a later slice builds
     // decodes as X87_UNIMPL, which stops the instruction as not built.
-    typedef enum logic [4:0] {
+    typedef enum logic [5:0] {
         X87_UNIMPL,   // a later slice's form
         X87_NOP,      // FNOP, FENI, FDISI, FSETPM
         X87_LD_M,     // FLD or FILD of a memory operand: push
@@ -1266,7 +1266,13 @@ package fes_i386_pkg;
         X87_CMP,      // FCOM, FCOMP, FCOMPP, FUCOM, FUCOMP, FUCOMPP, FICOM, FICOMP
         X87_RNDINT,   // FRNDINT (D9 FC)
         X87_SCALE,    // FSCALE (D9 FD)
-        X87_XTRACT    // FXTRACT (D9 F4)
+        X87_XTRACT,   // FXTRACT (D9 F4)
+        // Slice 4's. FDIV, FDIVR, FIDIV and FIDIVR share X87_DIV with the
+        // same ST(i), integer and popping forms X87_ARITH has, and the same
+        // `rev` sense read off the opcode.
+        X87_DIV,      // FDIV, FDIVR, FIDIV, FIDIVR and their forms
+        X87_SQRT,     // FSQRT (D9 FA)
+        X87_PREM      // FPREM (D9 F8) and FPREM1 (D9 F5)
     } x87_op_e;
 
     // The eight constants FLD1 to FLDZ push, in the 387's order (D9 E8-EE),
@@ -1314,6 +1320,9 @@ package fes_i386_pkg;
                 {3'b010, 3'd0}, {3'b010, 3'd1}, {3'b010, 3'd4}, {3'b010, 3'd5},  // FIADD/FIMUL/FISUB/FISUBR m32
                 {3'b110, 3'd0}, {3'b110, 3'd1}, {3'b110, 3'd4}, {3'b110, 3'd5}:  // ... m16
                     x87_decode = X87_ARITH;
+                {3'b000, 3'd6}, {3'b000, 3'd7}, {3'b100, 3'd6}, {3'b100, 3'd7},  // FDIV/FDIVR m32, m64
+                {3'b010, 3'd6}, {3'b010, 3'd7}, {3'b110, 3'd6}, {3'b110, 3'd7}:  // FIDIV/FIDIVR m32, m16
+                    x87_decode = X87_DIV;
                 {3'b000, 3'd2}, {3'b000, 3'd3}, {3'b100, 3'd2}, {3'b100, 3'd3},  // FCOM/FCOMP m32, m64
                 {3'b010, 3'd2}, {3'b010, 3'd3}, {3'b110, 3'd2}, {3'b110, 3'd3}:  // FICOM/FICOMP m32, m16
                     x87_decode = X87_CMP;
@@ -1333,7 +1342,7 @@ package fes_i386_pkg;
                 {3'b001, 3'd4}: x87_decode = X87_LDENV;
                 {3'b101, 3'd6}: x87_decode = X87_SAVE;
                 {3'b101, 3'd4}: x87_decode = X87_RSTOR;
-                default: x87_decode = X87_UNIMPL;  // FBLD and FBSTP, and the divides
+                default: x87_decode = X87_UNIMPL;  // FBLD and FBSTP (DF /4, /6), slice 5's
             endcase
             // A memory form needs its operand's format, and the four
             // environment and save forms the environment's.
@@ -1348,7 +1357,9 @@ package fes_i386_pkg;
                         x87_decode = X87_ARITH;
                     else if (o[7:3] == 5'b11010 || o[7:3] == 5'b11011) // D0+i FCOM, D8+i FCOMP
                         x87_decode = X87_CMP;
-                    else x87_decode = X87_UNIMPL;                      // F0+i, F8+i: the divides
+                    else if (o[7:3] == 5'b11110 || o[7:3] == 5'b11111) // F0+i FDIV, F8+i FDIVR
+                        x87_decode = X87_DIV;
+                    else x87_decode = X87_UNIMPL;
                 end
                 3'b100: begin  // DC: the same operations with ST(i) as the destination
                     // DC E0+i is FSUBR ST(i),ST and DC E8+i is FSUB ST(i),ST:
@@ -1359,6 +1370,12 @@ package fes_i386_pkg;
                     if (o[7:3] == 5'b11000 || o[7:3] == 5'b11001
                      || o[7:3] == 5'b11100 || o[7:3] == 5'b11101)
                         x87_decode = X87_ARITH;
+                    // DC F0+i is FDIVR ST(i),ST and DC F8+i is FDIV ST(i),ST:
+                    // the same swap of the E0/E8 sense the subtracts have once
+                    // the destination is ST(i), which `a_rev` reads off the
+                    // opcode (386 PRM, the FDIV and FDIVR entries).
+                    else if (o[7:3] == 5'b11110 || o[7:3] == 5'b11111)
+                        x87_decode = X87_DIV;
                     else x87_decode = X87_UNIMPL;
                 end
                 3'b110: begin  // DE: the popping forms, and FCOMPP
@@ -1366,6 +1383,8 @@ package fes_i386_pkg;
                     else if (o[7:3] == 5'b11000 || o[7:3] == 5'b11001  // C0+i FADDP, C8+i FMULP
                           || o[7:3] == 5'b11100 || o[7:3] == 5'b11101) // E0+i FSUBRP, E8+i FSUBP
                         x87_decode = X87_ARITH;
+                    else if (o[7:3] == 5'b11110 || o[7:3] == 5'b11111) // F0+i FDIVRP, F8+i FDIVP
+                        x87_decode = X87_DIV;
                     else x87_decode = X87_UNIMPL;
                 end
                 3'b010:  // DA E9 FUCOMPP; DA C0h-DFh are the Pentium Pro's FCMOVcc, not a 387's

@@ -1397,6 +1397,15 @@ int main(int argc, char **argv) {
             {"fmulp",      0x6, 0xc9, 2, 0, ARITH_SW},
             {"fsubp",      0x6, 0xe1, 2, 0, ARITH_SW},
             {"fsubrp",     0x6, 0xe9, 2, 0, ARITH_SW},
+            // Slice 4's divides. D8 F1 is FDIV ST,ST(1) and D8 F9 FDIVR;
+            // DC F1 is FDIVR ST(1),ST and DC F9 FDIV, the E0/E8 swap again;
+            // DE F1 and F9 are those two with the pop.
+            {"fdiv.st0",   0x0, 0xf1, 2, 0, ARITH_SW},
+            {"fdivr.st0",  0x0, 0xf9, 2, 0, ARITH_SW},
+            {"fdivr.sti",  0x4, 0xf1, 2, 0, ARITH_SW},
+            {"fdiv.sti",   0x4, 0xf9, 2, 0, ARITH_SW},
+            {"fdivrp",     0x6, 0xf1, 2, 0, ARITH_SW},
+            {"fdivp",      0x6, 0xf9, 2, 0, ARITH_SW},
             // The compares, ordered and unordered, with and without the pops.
             {"fcom",       0x0, 0xd1, 2, 0, CMP_SW},
             {"fcomp",      0x0, 0xd9, 2, 0, CMP_SW},
@@ -1463,9 +1472,10 @@ int main(int argc, char **argv) {
 
 
     // ---- Precision control. ----
-    // PC applies to add, subtract and multiply and to nothing else
-    // (387 PRM section 2.3.2), so FRNDINT, FSCALE, FXTRACT and the compares
-    // run here too: the point is that their results do not change with it.
+    // PC applies to add, subtract, multiply, divide and square root and to
+    // nothing else (387 PRM section 2.3.2), so FRNDINT, FSCALE, FXTRACT and
+    // the compares run here too: the point is that their results do not
+    // change with it.
     {
         StubPage page;
         const uint16_t ARITH_SW = 0xfaff;
@@ -1476,6 +1486,11 @@ int main(int argc, char **argv) {
             {"fsub.p",  0x6, 0xe1, 2, ARITH_SW}, {"fcom",   0x0, 0xd1, 2, 0xffff},
             {"frndint", 0x1, 0xfc, 1, ARITH_SW}, {"fscale", 0x1, 0xfd, 2, ARITH_SW},
             {"fxtract", 0x1, 0xf4, 1, ARITH_SW},
+            // Slice 4's: the divide rounds at PC like the multiply does, and
+            // its iteration count is chosen by PC, so this row is what says
+            // the early termination did not change a result.
+            {"fdiv",    0x0, 0xf1, 2, ARITH_SW}, {"fdivr",  0x0, 0xf9, 2, ARITH_SW},
+            {"fdiv.p",  0x6, 0xf9, 2, ARITH_SW},
         };
         const size_t named = 22;
         // PC 01 is reserved. The unit reads it as the extended format; this
