@@ -61,7 +61,11 @@ class FakeClient:
         if self.error is not None:
             raise self.error
         turn = self.replies[0] if len(self.replies) == 1 else self.replies.pop(0)
-        return dict(turn['status' if path == '/v1/status' else 'lease'])
+        value = turn['status' if path == '/v1/status' else 'lease']
+        # Non-dict payloads are passed through so the shape checks can be
+        # exercised directly. The real kit.Client already rejects a non-object
+        # body with a KitError, so these are belt and braces.
+        return dict(value) if isinstance(value, dict) else value
 
 
 IDLE = {'status': {'state': 'idle', 'game_id': None}, 'lease': {'state': 'free'}}
@@ -233,6 +237,37 @@ class CleanupGate(unittest.TestCase):
                               "address = 'http://10.0.0.2:8789'\nagent = 'b'\n")
             with self.assertRaises(kit.KitError):
                 kit_hil.client_for(config, 'kit2')
+
+    def test_a_status_shape_this_does_not_understand_refuses(self):
+        """A check that cannot fail is worse than no check.
+
+        `protocol.Status` always serialises `state` and `game_id`, and omits
+        `core_package` only when there is none. A payload without the first
+        two is not that status, so "no core_package" would mean nothing — and
+        reading it as idle is the shape of a readiness check that silently
+        cannot fail.
+        """
+
+        for payload in ({}, {'state': 'idle'}, {'game_id': None}, {'phase': 'idle'},
+                        {'state': 'idle', 'core_package': None}, [], 'idle', None, 7):
+            with self.subTest(payload=payload):
+                clock = Clock()
+                turn = {'status': payload, 'lease': {'state': 'free'}}
+                with self.assertRaises(kit_hil.CleanupRefused) as refused:
+                    kit_hil.cleanup_gate(FakeClient([turn]), wait=2,
+                                         now=clock.now, sleep=clock.sleep)
+                self.assertIn('not a shape this understands', str(refused.exception))
+
+    def test_a_running_game_refuses_even_if_the_core_field_moved(self):
+        # The fail-open this closes: if `core_package` were ever renamed, a
+        # loaded kit would have looked idle. `game_id` and the state are two
+        # further signals, and any of them is enough to refuse.
+        moved = {'status': {'state': 'idle', 'game_id': 'u6', 'core': {'core_id': 'fes.pc386'}},
+                 'lease': {'state': 'free'}}
+        clock = Clock()
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            kit_hil.cleanup_gate(FakeClient([moved]), wait=2, now=clock.now, sleep=clock.sleep)
+        self.assertIn('u6', str(refused.exception))
 
     def test_an_unreachable_agent_fails_closed(self):
         clock = Clock()

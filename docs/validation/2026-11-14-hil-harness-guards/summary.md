@@ -145,7 +145,7 @@ after checking them against the real data are red on the extraction too. All of
 them pass on the branch head:
 
     cd sources/misteross && python3 -m unittest discover -s tests -p 'test_kit*.py'
-    # 81 tests, OK (66 of them this module's)
+    # 83 tests, OK (68 of them this module's)
 
 The cleanup gate is also exercised against a real local HTTP agent replying in
 `protocol.Status`'s own shape (`state`, `game_id`, `core_package.package_id`,
@@ -474,7 +474,7 @@ trees under, which is the thing the guard exists to prevent.
 
 | gate | result |
 | --- | --- |
-| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 81 tests, OK |
+| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 83 tests, OK |
 | `tests/test_hil_plan.py` | 39 tests, OK |
 | `tests/test_affected.py`, `tests/test_test_changed.py` | 43 and 33 tests, OK |
 | `scripts/check_diff.py --base <main> --head HEAD` | exit 0 |
@@ -504,6 +504,54 @@ it closes its session. The per-session wiring, and the question of whether a
 shared thin driver should replace the 566-line copies at all, stay in issue
 #1852: a driver needs a kit's capture device, audio device and ssh helper, and
 proposing its shape without a kit run to validate it would be guesswork.
+
+## What these guards do not cover: a broken check
+
+Every guard here assumes its own readiness and verdict checks are themselves
+correct. Nothing in it defends against a check that is simply wrong, and that
+class is real rather than hypothetical. The x87 slice 3 session validated its
+kit runner end to end *before* claiming a kit — prospective, not a
+post-mortem — and found four ways it would have stranded Kit B:
+
+1. a `"phase":"idle"` readiness check that **can no longer pass**, because the
+   kit's local-control status path now answers 404;
+2. two helper scripts pointing at **deleted worktrees** for their `kit` module;
+3. a release gate built on a **guessed `result.json` schema**, which would have
+   read a clean run as a failure;
+4. a stale status-file regex, which its slice 2 runner avoids by taking the
+   baseline as environment variables instead of parsing that file.
+
+**(3) is the one these guards would not catch at all.** A verdict that misreads
+a clean run as a failure strands a kit not by holding a lease but by leaving
+its owner believing the cleanup failed, or refusing to release a healthy run.
+And (1) is the shape worth naming: *a condition that silently never becomes
+true*, so the caller waits or fails for ever — the same shape as the Codex
+`has_any_findings` marker that reads true while any older thread is
+unresolved. A guard built on a guessed schema, or on an endpoint that has
+moved, fails open or closed without telling anyone, and no amount of lease
+discipline helps.
+
+Two things were done here in that spirit rather than left to the next review.
+The verdict now validates the shape of what it reads, so a payload it cannot
+judge gives the no-verdict exit code instead of a pass or a crash. And the
+gate no longer infers "nothing is loaded" from failing to find a core: it
+refuses a status it does not recognise — `protocol.Status` always serialises
+`state` and `game_id`, so a payload without them is not that status — and
+reads three independent signals (the core package's identity, a non-null
+`game_id`, a state that is not idle), so no single field being renamed can
+turn a loaded kit into an idle-looking one. That was a real fail-open: with
+`core_package` renamed, the old check would have passed over a running kit.
+
+`kit_hil.py` parses no status file and contains no regular expressions, so (4)
+does not apply to it; the wrappers that do parse `~/kit-status` are where that
+risk lives, and taking the baseline from the environment is the better habit
+there.
+
+What this does not add is a way to know a check is correct. The practice that
+catches the rest is the one that produced this list: validate a runner against
+a live kit and a real `result.json` before claiming anything, which is also
+how `verdict` was checked here — over all 129 real results on this host rather
+than fixtures alone.
 
 ## Reach, and what is not done
 

@@ -334,14 +334,40 @@ def drain(source, execute, *, mode='batch', idle_limit=IDLE_LIMIT, heartbeat=HEA
             return done, reasons
 
 
+def recognised_idle(status):
+    """Raise unless this is a status we understand that says nothing is running.
+
+    "Nothing is loaded" must not be inferred from failing to find evidence of
+    a core. `protocol.Status` always serialises `state` and `game_id` (neither
+    is `omitempty`) and omits `core_package` only when there is none, so a
+    payload without those two keys is not the status this reads — and treating
+    it as idle would be a check that silently cannot fail. A non-null
+    `game_id` says something is running even if the core's own field were ever
+    renamed.
+    """
+
+    if not isinstance(status, dict) or 'state' not in status or 'game_id' not in status:
+        raise CleanupRefused('the agent\'s status is not a shape this understands (it has no '
+                             '`state` and `game_id`), so whether anything is loaded cannot be '
+                             'read from it')
+
+
 def loaded_core(status):
-    """Name what the agent has loaded, or None when it has nothing."""
+    """Name what the agent has loaded, or None when it has nothing.
+
+    Three independent signals, so no single field moving can turn a loaded kit
+    into an idle-looking one: the core package's own identity, a non-null
+    `game_id`, and a state that is not idle. `recognised_idle` has already
+    established that this is a status whose absence of them means something.
+    """
 
     package = status.get('core_package')
     if isinstance(package, dict) and (package.get('package_id') or package.get('core_id')):
         return ' '.join(str(package[key]) for key in ('core_id', 'package_id') if package.get(key))
+    if status.get('game_id') is not None:
+        return f'game {status["game_id"]}'
     if status.get('state') not in (None, 'idle'):
-        return str(status.get('game_id') or status.get('observed_core') or status.get('state'))
+        return str(status.get('observed_core') or status.get('state'))
     return None
 
 
@@ -364,9 +390,15 @@ def cleanup_gate(client, *, wait=GATE_WAIT, poll=GATE_POLL, now=time.monotonic, 
             lease = client.request('/v1/kit/lease')
         except kitlib.KitError as error:
             raise CleanupRefused(f'the kit agent did not answer, so its state is unknown: {error}') from None
-        core = loaded_core(status)
-        state, lease_state = status.get('state'), lease.get('state')
-        recovery = status.get('recovery') or ''
+        try:
+            recognised_idle(status)
+            core = loaded_core(status)
+        except CleanupRefused as unreadable:
+            if now() >= deadline:
+                raise
+            core = str(unreadable)
+        state, lease_state = status.get('state') if isinstance(status, dict) else None, lease.get('state')
+        recovery = (status.get('recovery') or '') if isinstance(status, dict) else ''
         if core is None and not recovery and state == 'idle' and lease_state == 'free':
             return {'state': state, 'lease': lease_state}
         held = {key: lease[key] for key in ('state', 'owner', 'purpose', 'reason') if key in lease}
@@ -517,6 +549,7 @@ def require_caller_lease(client, session):
         raise CleanupRefused(f'the kit lease is not the caller\'s: the agent reports '
                              f'{json.dumps(held)} and generation {generation!r}, the caller holds '
                              f'{session.generation!r}')
+    recognised_idle(status)
     core = loaded_core(status)
     recovery = status.get('recovery') or ''
     if core is not None or recovery or status.get('state') != 'idle':
