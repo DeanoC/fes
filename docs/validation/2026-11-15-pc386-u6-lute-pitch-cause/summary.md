@@ -203,6 +203,31 @@ excess — and matches #1474's "about two points" — but the reference's own
 cost for those two port accesses was not measured separately, so the record
 says *overhead*, not *ISA*, and does not claim the ISA charge is all of it.
 
+## The game itself, under an override: run `h1`
+
+The probe stands in for the lute; it does not replace it. Run `h1` played
+Ultima VI's lute at preset 1 with word 1 = **160** through PR #1838's own
+command flow (160 rather than 80 because that flow's fixed sleeps were timed
+at 12 MHz, and a faster machine can only reach each point early). The
+`u6-used` grab shows `Use-lute`, so the keys landed; `result.json` shows the
+package active with `fes.pc386.machine`, and the run ended `HIL rc=0`.
+
+**Committed before the run, from the measured pass rates alone:** key `6` at
+840.72 × 769/736 = **878.4 Hz**, checked at ±3%, so 852.1 to 904.8.
+
+| | predicted | measured (median of 32 notes) | |
+| --- | ---: | ---: | ---: |
+| key `6` | 878.4 Hz | **873.59 Hz** | **−0.55%** |
+| key `1` | 522.20 Hz | **521.40 Hz** | −0.15% |
+
+**Passed.** The game's own note at a frequency it had never been played at is
+predicted to better than 1% by a model fitted to nothing but the probe's
+block counts — and it is still about 9% below the reference's 962.76 Hz,
+because raising the clock cannot fix a calibrated delay.
+
+Notes in [`h1-lute-f160.json`](h1-lute-f160.json), from `notes_pitch.py`, the
+same autocorrelation PR #1838 used. The WAV stays on Powerboat.
+
 ## Where in the model the fault is
 
 The two loops use **the same three cost classes** — `unary_m` for `inc`/`dec`
