@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: MIT
 // The 387-compatible unit inside fes_i386_cpu (docs/i386-cpu-design.md,
 // "x87"; the plan in docs/validation/2026-11-12-i386-x87-plan). This is the
-// x87 phase's slice 2: the unit's state, its interface to the CPU, the AT
-// board's error path, the loads and stores with their conversions, FXCH, the
-// constants, FCHS, FABS, FTST, FXAM, and the stack faults. Arithmetic (add,
-// subtract, multiply, compare, divide, square root, remainder and the
-// transcendentals) is slices 3 to 5: a form this slice does not build raises
-// FAULT_UNIMPLEMENTED (unimpl), which is how the build stops at an
-// instruction it does not run.
+// x87 phase's slices 2 and 3.
+//
+// Slice 2 built the unit's state, its interface to the CPU, the AT board's
+// error path, the loads and stores with their conversions, FXCH, the
+// constants, FCHS, FABS, FTST, FXAM and the stack faults. Slice 3 adds the
+// arithmetic: add, subtract and reverse subtract with their integer, ST(i)
+// and popping forms, multiply, the ordered and unordered compares, FRNDINT,
+// FSCALE and FXTRACT, under precision as well as rounding control, with
+// every exception they raise. Divide, square root and the remainders are
+// slice 4's, and the transcendentals and BCD slice 5's: a form a later slice
+// builds raises FAULT_UNIMPLEMENTED (unimpl), which is how the build stops
+// at an instruction it does not run.
 //
 // Sources, which the plan record lists in full:
 //   387 PRM  Intel 80387 Programmer's Reference Manual 231917-001 (1987):
@@ -65,13 +70,16 @@
 // - **Shifts are multiplies.** Option A has no barrel shifter: a left shift
 //   by n is a multiply by 2^n and the product's low half, a right shift by n
 //   a multiply by 2^(64-n) with the product's high half and the low half as
-//   the sticky bit. The one multiplier is the 9-DSP block below, which slice
-//   3's multiply shares.
+//   the sticky bit. The one multiplier is the 9-DSP block below, and slice
+//   3's multiply shares it: every step that needs it goes through S_SHIFT
+//   and S_MUL and returns to the state `sh_ret` names, so an operation that
+//   pre-normalises both operands, aligns them and renormalises the result
+//   takes four passes of the same block and no second multiplier.
 //
 // - **Operand registers.** The multiplier and the adder take their operands
-//   from registers of their own (`ua_mul`/`ub_mul` here, the adder's in slice
-//   3), which is the fit spike's remedy for the one shared operand register
-//   its standalone fits could not route.
+//   from registers of their own (`ua_mul`/`ub_mul` and `ua_add`/`ub_add`),
+//   which is the fit spike's remedy for the one shared operand register its
+//   standalone fits could not route, and Deano's D5 decision on #1768.
 //
 // The 80-bit value this unit stores is {sign, exponent[14:0],
 // significand[63:0]}, the memory format, and its value is

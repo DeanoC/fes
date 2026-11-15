@@ -10317,6 +10317,110 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.op({0x9b});
             a.op({0xdf, 0xe0});
         }},
+        // ---- Slice 3's arithmetic (#1768). ----
+        // The forms through the CPU rather than the unit's own interface:
+        // the decode's new uops, the x87 pointers and the opcode a memory
+        // form leaves, and the issue interlock. Every control word these
+        // load keeps all six exceptions masked, as the operand table's
+        // comment requires.
+        {"arith-reg", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);                                 // FLD m32 1.5
+            a.esc(0xdd, 0, 0x108);                                 // FLD m64 -2.25
+            a.op({0xd8, 0xc1});                                    // FADD ST,ST(1)
+            a.op({0xd8, 0xc9});                                    // FMUL ST,ST(1)
+            a.op({0xd8, 0xe1});                                    // FSUB ST,ST(1)
+            a.op({0xd8, 0xe9});                                    // FSUBR ST,ST(1)
+            a.op({0xdc, 0xc1});                                    // FADD ST(1),ST
+            a.op({0xdc, 0xe1});                                    // FSUBR ST(1),ST
+            a.op({0xdc, 0xe9});                                    // FSUB ST(1),ST
+            a.op({0xdc, 0xc9});                                    // FMUL ST(1),ST
+            a.op({0xde, 0xc1});                                    // FADDP ST(1),ST
+            a.esc(0xd9, 0, 0x104);                                 // FLD m32 -1.0
+            a.op({0xde, 0xe9});                                    // FSUBP ST(1),ST
+            a.esc(0xd9, 0, 0x100);
+            a.op({0xde, 0xe1});                                    // FSUBRP ST(1),ST
+            a.esc(0xd9, 0, 0x100);
+            a.op({0xde, 0xc9});                                    // FMULP ST(1),ST
+        }},
+        {"arith-mem", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);                                 // FLD m32 1.5
+            a.esc(0xd8, 0, 0x104);                                 // FADD m32
+            a.esc(0xdc, 1, 0x108);                                 // FMUL m64, through UC_FRD8
+            a.esc(0xd8, 4, 0x100);                                 // FSUB m32
+            a.esc(0xdc, 5, 0x108);                                 // FSUBR m64
+            a.esc(0xda, 0, 0x124);                                 // FIADD m32
+            a.esc(0xde, 1, 0x120);                                 // FIMUL m16
+            a.esc(0xda, 4, 0x124);                                 // FISUB m32
+            a.esc(0xde, 5, 0x120);                                 // FISUBR m16
+            a.esc(0xd9, 6, 0x340);                                 // FNSTENV: the pointers and opcode
+        }},
+        {"compare", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);
+            a.esc(0xdd, 0, 0x108);
+            a.op({0xd8, 0xd1}); a.op({0xdf, 0xe0});                // FCOM ST(1), FNSTSW AX
+            a.op({0xdd, 0xe1}); a.op({0xdf, 0xe0});                // FUCOM ST(1), FNSTSW AX
+            a.esc(0xd8, 2, 0x100); a.op({0xdf, 0xe0});             // FCOM m32
+            a.esc(0xdc, 2, 0x108); a.op({0xdf, 0xe0});             // FCOM m64
+            a.esc(0xda, 2, 0x124); a.op({0xdf, 0xe0});             // FICOM m32
+            a.esc(0xde, 3, 0x120); a.op({0xdf, 0xe0});             // FICOMP m16, which pops
+            a.op({0xd8, 0xd9}); a.op({0xdf, 0xe0});                // FCOMP ST(1)
+            a.esc(0xd9, 0, 0x100);
+            a.op({0xde, 0xd9}); a.op({0xdf, 0xe0});                // FCOMPP, which pops twice
+            a.esc(0xd9, 0, 0x100); a.esc(0xd9, 0, 0x104);
+            a.op({0xda, 0xe9}); a.op({0xdf, 0xe0});                // FUCOMPP
+        }},
+        {"round", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xdb, 5, 0x110);                                 // FLD m80 3.0
+            a.op({0xd9, 0xfc});                                    // FRNDINT
+            a.esc(0xd9, 0, 0x100);                                 // FLD m32 1.5
+            a.op({0xd9, 0xfc});                                    // FRNDINT
+            a.esc(0xdb, 5, 0x150);                                 // FLD m80, an inexact value
+            a.op({0xd9, 0xfc});                                    // FRNDINT
+            a.op({0xd9, 0xf4});                                    // FXTRACT, which pushes
+            a.op({0xd9, 0xfd});                                    // FSCALE
+            a.esc(0xdf, 0, 0x120);                                 // FILD m16
+            a.op({0xd9, 0xfd});                                    // FSCALE
+            a.op({0xd9, 0xe5});                                    // FXAM
+        }},
+        {"precision", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 5, 0x140);                                 // FLDCW: PC 24
+            a.esc(0xdb, 5, 0x150);
+            a.op({0xd8, 0xc8});                                    // FMUL ST,ST(0)
+            a.esc(0xd8, 0, 0x100);                                 // FADD m32
+            a.esc(0xd9, 5, 0x142);                                 // FLDCW: PC 53
+            a.op({0xd8, 0xc8});
+            a.esc(0xd9, 5, 0x144);                                 // FLDCW: PC 64, round down
+            a.op({0xd8, 0xc8});
+            a.esc(0xd9, 5, 0x146);                                 // FLDCW: PC 64, round up
+            a.op({0xd8, 0xc8});
+            a.esc(0xd9, 5, 0x148);                                 // FLDCW: PC 64, toward zero
+            a.op({0xd8, 0xc8});
+            a.op({0xdf, 0xe0});
+        }},
+        {"arith-flags", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xdb, 5, 0x160);                                 // FLD m80: the largest denormal
+            a.esc(0xd8, 0, 0x100);                                 // FADD m32 -> the denormal exception
+            a.op({0xdf, 0xe0});
+            a.op({0xdb, 0xe2});                                    // FNCLEX
+            a.esc(0xdb, 5, 0x170);                                 // FLD m80: 1 + 2^-70
+            a.esc(0xd9, 0, 0x100);
+            a.op({0xd8, 0xc1});                                    // FADD -> precision
+            a.op({0xdf, 0xe0});
+            a.op({0xdb, 0xe2});
+            a.esc(0xdb, 5, 0x180);                                 // FLD m80: 2^9000
+            a.op({0xd8, 0xc8});                                    // FMUL -> masked overflow
+            a.op({0xdf, 0xe0});
+            a.op({0xdb, 0xe2});
+            a.esc(0xdb, 5, 0x190);                                 // FLD m80: 2^-8300
+            a.op({0xd8, 0xc8});                                    // FMUL -> masked underflow
+            a.op({0xdf, 0xe0});
+        }},
     };
 
     const bool was_fitted = x87_fitted;
@@ -10358,6 +10462,20 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             {0x124, {0x78, 0x56, 0x34, 0x12}},                                    // i32 12345678h
             {0x128, {0x21, 0x43, 0x65, 0x87, 0x09, 0x00, 0x00, 0x00}},            // i64
             {0x130, {0x7f, 0x03}},                                                // the control word, all masked
+            // Slice 3's operands. The control words differ only in the
+            // precision and rounding fields; all six exceptions stay masked.
+            {0x140, {0x7f, 0x00}},    // PC 24, to nearest
+            {0x142, {0x7f, 0x02}},    // PC 53, to nearest
+            {0x144, {0x7f, 0x07}},    // PC 64, down
+            {0x146, {0x7f, 0x0b}},    // PC 64, up
+            {0x148, {0x7f, 0x0f}},    // PC 64, toward zero
+            // pi, whose significand fills all 64 bits, so every arithmetic
+            // form on it is inexact at every precision.
+            {0x150, {0x35, 0xc2, 0x68, 0x21, 0xa2, 0xda, 0x0f, 0xc9, 0x00, 0x40}},
+            {0x160, {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f, 0x00, 0x00}},  // the largest denormal
+            {0x170, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xb9, 0x3f}},  // 2^-70
+            {0x180, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x27, 0x63}},  // 2^9000
+            {0x190, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xd4, 0x1f}},  // 2^-8300
         };
         for (const Operand &o : operands)
             for (unsigned i = 0; i < o.bytes.size(); ++i)

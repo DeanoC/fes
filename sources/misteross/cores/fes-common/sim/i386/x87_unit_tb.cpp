@@ -146,6 +146,11 @@ void host_const(unsigned n, unsigned rc, uint8_t out[10]) {
     std::memcpy(out, o.b, 10);
 }
 
+// A uop the unit held past the bench's patience. Forcing it through is a
+// protocol violation that corrupts the unit's state, so the run reports it
+// rather than letting the cases after it compare a wedged unit.
+int held_for_ever = 0;
+
 // ---- The unit under test, with the CPU's side of its interface. ----
 struct Unit {
     Vfes_i386_x87 top;
@@ -189,7 +194,9 @@ struct Unit {
         top.iss_part = part;
         top.iss_fire = 0;
         top.eval();
-        for (int n = 0; n < X87_WAIT && top.hold; ++n) tick();
+        int waited = 0;
+        for (; waited < X87_WAIT && top.hold; ++waited) tick();
+        if (waited >= X87_WAIT) ++held_for_ever;
         const uint32_t v = top.sval;
         top.iss_fire = 1;   // the uop issues on this edge, as the CPU's does
         top.eval();
@@ -1318,6 +1325,41 @@ int main(int argc, char **argv) {
     }
 
 
+
+    // ---- A write to port F0h in the cycle the error summary rises. ----
+    // The apply that raises an exception sets the board's latch itself, so
+    // the status word's own edge fires the cycle after it. A write to F0h
+    // landing in that one cycle has to win: the port is what clears the
+    // latch, and letting the edge undo the clear left the latch set and
+    // every later ESC held for ever, which is how 40 comparisons in this
+    // bench once ran against a unit still in its FNINIT state. The write is
+    // made at each of the first few cycles after the apply, so whichever one
+    // the edge falls in is covered.
+    {
+        bool stuck = false, raised = true;
+        for (int delay = 0; delay < 4 && !stuck && raised; ++delay) {
+            Unit u;
+            u.clear_latch();
+            u.reg_form(OP_FNINIT);
+            u.present(OP_FLDCW, FMT_I16, true, true, 0);
+            u.commit(0, 0x037e, true);   // invalid unmasked
+            u.settle();
+            u.clear_latch();
+            // FCHS on an empty ST(0) is an unmasked stack fault.
+            u.present(OP_FCHS, 0, true, true, 0);
+            u.commit(0, 0, true);
+            // The apply is the cycle the unit goes idle.
+            for (int n = 0; n < X87_WAIT && u.top.busy_o; ++n) u.tick();
+            raised = u.top.latched != 0;
+            for (int n = 0; n < delay; ++n) u.tick();
+            u.clear_latch();
+            if (u.top.latched) stuck = true;
+        }
+        if (!raised) bad("latch-f0-edge", "the exception did not latch BUSY#");
+        else if (stuck) bad("latch-f0-edge", "port F0h did not clear the latch beside the summary's edge");
+        else ok("latch-f0-edge");
+    }
+
     // ---- Slice 3: add, subtract, reverse subtract and multiply. ----
     // Each form runs over the operand classes the 387 PRM names, as pairs, in
     // every rounding mode, and the whole architectural state is compared with
@@ -1818,6 +1860,8 @@ int main(int argc, char **argv) {
         }
     }
 
+    if (held_for_ever) bad("protocol.hold", std::to_string(held_for_ever) + " uops held past the bench's wait");
+    else ok("protocol.hold");
     std::printf("SUMMARY %d %d\n", passed, failed);
     return failed ? 1 : 0;
 }
