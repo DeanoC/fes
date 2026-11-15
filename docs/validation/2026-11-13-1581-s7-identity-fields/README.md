@@ -66,27 +66,76 @@ The list is generated, not written by hand:
 twelve audited producers through `export_core_package.py`, and PC/XT through that plus its own two
 scripts. `fes.pcxt` and `fes.pcxt-dos` share one producer and so one closure.
 
-**The D12 evidence is not in this commit yet.** [#1752](https://github.com/DeanoC/fes/pull/1752)
-moved every BUILD_ID as well, so evidence gathered before it landed would not have survived it. That
-PR merged as `04bf27bb6`, this branch merged main forward to `11da3640b`, and the campaign is
-therefore unblocked. This record gains its results before the PR leaves draft.
+**The D12 evidence is in.** [#1752](https://github.com/DeanoC/fes/pull/1752) moved every
+BUILD_ID as well, so evidence gathered before it landed would not have survived it; it merged as
+`04bf27bb6` and this branch merged main forward, which is what unblocked the campaign.
 
-### What the campaign needs, measured
+### Result
 
-The merge base is `72d2fc4da`. Both sides run from one checkout path per side,
-`~/fes-scratch/d12s7/{main,pr}`, through the driver [#1752 landed on
-main](../2026-11-12-1747-toolchain-installs/forced_build_id.py): build the base, then build this
-branch with the base's `BUILD_ID` forced, and compare `core.rbf` byte for byte. Unlike #1752's own
-campaign both sides share one toolchain code path, because #1752 is in the merge base, so each side
-resolves the same per-tool installs the same way and the only difference is this change.
+Twelve of the thirteen cores discharge D12's conditions 1 and 2. `base` is the merge base
+`1a4bb8d41`; each core's netlist and RBF are byte-identical between the base build and a build of
+this branch with the base's `BUILD_ID` forced.
 
-Twelve of the thirteen cores need two builds each. Six toolchain installs those twelve pin are not
-on this host under the per-tool keys #1752 introduced, so they are from-source bootstraps before any
-core builds: nextpnr for `pong`, `sg1000`+`sms`, `menu`+`zx81`, `riscv` and `spectrum`, and Yosys for
-`coleco_socket_v2`. `ramtest`'s nextpnr and the Verilator that `apple2`, `atari_st` and `c64` share
-are present elsewhere on the host. The install key does not depend on the checkout path — the same
-key is derived from two different worktrees of this commit — so these are genuine misses rather than
-an artefact of where the campaign runs.
+| core | base `BUILD_ID` | RBF sha256 | netlist sha256 | reproduced |
+| --- | --- | --- | --- | --- |
+| `sg1000` | `7934cd7de29e79d7fb035d0228f3a091` | `33c5bfb5d0825e81…` | `2391423461a89232…` | yes |
+| `zx81` | `206e0c11ead6c524a5921162bb0485a9` | `2b119ad28633092c…` | `66bf33174544549e…` | yes |
+| `sms` | `ae427058d7af3fc0d5b4d1bcdd931857` | `13bdd21e2bcf0a3d…` | `96bd06d9be2499e6…` | yes |
+| `coleco_socket_v2` | `4c89ac89fa17748f98eb933d11a42448` | `b96654ed2215a8f5…` | `625f45a5de90868b…` | yes |
+| `apple2` | `8f2b0f5c44d80fd3cc859d2279df535b` | `f13e1a07375ff8c7…` | `7bcf92be4a480162…` | yes |
+| `spectrum` | `48d10766ec24b2e78dc1d51617d5dfb7` | `dea25f242efbb936…` | `0bb6d9e18fc65beb…` | yes |
+| `atari_st` | `33b9e9dd654a7d81a08428145f176f07` | `ab47e3937b51bdbb…` | `d475f5413aa990bb…` | yes |
+| `c64` | `8016924c62c6148f47a59e405b61ab1f` | `b0eccc7fe8296302…` | `08644e85311fa460…` | yes |
+| `pong` | `1d32b88b34acf5c5e953c2e721bac236` | `b668bbea9891ac6d…` | `951d41c8b2a2d2ac…` | yes |
+| `menu` | `177d3678bfc8e8b4187ed489066bef2f` | `f85ec56563d14ee7…` | `fddf97b917a61b9f…` | yes |
+| `ramtest` | `7a60de20fc0fb448849cd24eed50a253` | `d3774d8027b61a94…` | `a5e0d01b501fb772…` | yes |
+| `riscv` | `e0a17b8e0d06d1b5b5fae611bdedc308` | `a7224f83777d917a…` | `99f92fafc5b0c591…` | yes |
+
+"reproduced" is the load-bearing column, and it is not the same as "matched". Each core's forced
+side was built **twice**. A single pair cannot tell an inert change from two runs that produced the
+same wrong netlist, and that is not hypothetical: the pinned Yosys `3a5accbd7` exits 0 with a
+materially different, smaller netlist about one run in six on this hardware, and segfaults in
+`OPT_CLEAN` about one in five (DeanoC/yosys#77). One such run made `spectrum` read as a condition-2
+failure here before repetition showed the change was inert. `base == forced1 == forced2` would need
+the bad variant three times.
+
+### How it was run
+
+- `sg1000`, `zx81`, `sms`, `coleco_socket_v2`, `apple2`, `spectrum`, `atari_st`, `c64` on
+  `chip-30x0-ai-dev` with `--gpu-router CUDA`; `pong`, `menu`, `ramtest`, `riscv` on Powerboat with
+  HIP, because those four take no `--gpu-router` and `fes_build_common` pins
+  `FES_GPU_ROUTER = "HIP"`, so no NVIDIA-only host can build them (DeanoC/fes#1862 addresses that).
+- Per core, both sides in **one checkout path**, one tool install, build directory cleared between
+  runs. CLAUDE.md holds that HIP, CUDA and Metal give bit-identical route outcomes and that their
+  route evidence is interchangeable; each comparison is internally consistent regardless, since both
+  of its sides ran on one host against one install.
+- Every build's artifacts are checked for existing before any comparison: a run that exits 0 having
+  written nothing is treated as a failure, not as a match. That guard caught `ramtest`, whose
+  producer writes `build/fes-ramtest-100` and `build/fes-ramtest-130` rather than a single
+  directory.
+
+### What this evidence does not cover
+
+- **`fes.pcxt` and `fes.pcxt-dos` are the thirteenth closure, and only condition 1 is done.** Their
+  QSF is generated deterministically from the tree, so it can be compared without running Quartus,
+  and it is byte-identical between the base and this branch for **all eight** combinations of
+  `package_profile`, `video_mailbox_contract` and `audio_contract` — so the result does not depend
+  on which combination the producer uses. The QSF carries no `BUILD_ID` line, only `SEED`, so this
+  is plain byte-identity with no exemption invoked. Condition 2 needs a real Quartus 17.0.2 compile
+  and has not been run.
+- **The forced-build driver is unverified by a control.** Every forced build goes through
+  `forced_build_id.py`, which patches `build_identity` and stubs the package export. No run here
+  shows that an *unpatched* build reproduces what the driver produces, so a flaw in the patching
+  would present as a passing comparison. The campaign for DeanoC/fes#1862 does run that control and
+  found its adapters faithful; this one does not.
+- **The harness has no clean-tree guard of its own.** The producers do: each calls
+  `_require_clean_source` and refuses a modified tree, and both campaign worktrees held no modified
+  tracked files. So the evidence is sound, but by the tooling's enforcement rather than this
+  harness's.
+- **`ramtest`'s 130 MHz variant is not measured.** A default run produces only
+  `build/fes-ramtest-100`. If `fes-ramtest-130` is separately sealed, it needs its own comparison.
+- Condition 3, the PR's own build passing the core's normal timing and seal gates, is satisfied by
+  each base and forced build completing its producer's own checks; no separate seal run was made.
 
 ## Review fixes
 
