@@ -1,0 +1,64 @@
+{
+  "scope": "historical format-7 joined supplier operation counts; no hardware latency",
+  "source_commit": "56ae956505e3d3a499174b71d2ea9d955244725b",
+  "record_sha256": "eef703ffdf4908111d7f9bd09572940942964d05f8574f9e22951b787cecefd9",
+  "phase_counts": [
+    [
+      524,
+      0,
+      5120,
+      0,
+      10840,
+      6
+    ],
+    [
+      250,
+      1,
+      0,
+      0,
+      310,
+      12
+    ],
+    [
+      774,
+      1,
+      5120,
+      0,
+      11150,
+      18
+    ],
+    [
+      774,
+      1,
+      5120,
+      0,
+      11150,
+      18
+    ],
+    [
+      7996,
+      1,
+      0,
+      12,
+      10200,
+      366
+    ],
+    [
+      774,
+      1,
+      5120,
+      0,
+      11150,
+      18
+    ],
+    [
+      898,
+      0,
+      5120,
+      0,
+      11564,
+      7
+    ]
+  ],
+  "hardware_actions": false
+}

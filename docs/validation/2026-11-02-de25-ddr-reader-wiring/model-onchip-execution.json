@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "python3",
+    "sources/misteross/prototypes/de25_board_control/verify.py",
+    "--project",
+    "out/nano-ddr-reader-handoff-20261102/project-onchip",
+    "--output",
+    "out/nano-ddr-reader-handoff-20261102/model-onchip"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 8.407471782062203,
+  "log_sha256": "205ee2e453f1ad0b1eb63ab11a70c67684d4fb864f0937ceba82cf350272e142"
+}

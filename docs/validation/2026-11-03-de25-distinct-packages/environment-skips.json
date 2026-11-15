@@ -1,0 +1,314 @@
+{
+  "parent": [
+    [
+      "test_media_inputs.UbootDerivationTest.test_locked_upstream_derives_locked_uboot",
+      "locked upstream uboot.img cache is absent"
+    ],
+    [
+      "test_gpu_lease.GpuLeaseTests.test_macos_statfs_reports_the_lease_filesystem",
+      "statfs(2) layout is the macOS one"
+    ]
+  ],
+  "fpga": [
+    [
+      "test_fes_i386_frontend.OracleFrontEndTest.test_length_decoders_and_front_end_match_the_oracle",
+      "Verilator or the pinned Bochs checkout is absent"
+    ],
+    [
+      "test_fes_i386_frontend.RtlTest.test_yosys_reads_d_and_ag_as_simulated",
+      "FES_I386_YOSYS names no Yosys"
+    ],
+    [
+      "test_fes_i386_frontend.SynthesisTest.test_q_synthesizes_without_multipliers_or_carry_cells",
+      "FES_I386_YOSYS names no Yosys"
+    ],
+    [
+      "test_fes_i386_oracle.OracleSmokeTest.test_vectors_testbench_passes_and_fails_states",
+      "pinned Bochs not fetched (run a runner with --download)"
+    ],
+    [
+      "test_fes_kf8253_read_back.ReadBackPatchTest.test_8253_configuration_is_equivalent_to_the_original",
+      "requires Yosys and patch; set YOSYS to the locked executable"
+    ],
+    [
+      "test_fes_kf8259_priority.PicPriorityTest.test_all_requests_masks_rotations_and_nested_modes",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_cs_phase.ChipSelectStageProofTests.test_default_stage_preserves_all_command_address_data_and_oe_samples",
+      "requires pinned Yosys and yosys-abc"
+    ],
+    [
+      "test_pcxt_cs_phase.ChipSelectStageProofTests.test_earlier_cs_keeps_every_chip_capture_value",
+      "requires pinned Yosys and yosys-abc"
+    ],
+    [
+      "test_pcxt_cs_phase.ChipSelectStageProofTests.test_missing_external_register_produces_counterexample",
+      "requires pinned Yosys and yosys-abc"
+    ],
+    [
+      "test_pcxt_endpoint_equivalence.EndpointEquivalenceTest.test_all_streams_after_reset",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_endpoint_equivalence.EndpointEquivalenceTest.test_rejects_repeated_commit",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_hdmi_profile.HdmiProfilePackTests.test_default_profile_packs_one_clock_with_unused_output_disabled",
+      "requires pinned Yosys and nextpnr-mistral"
+    ],
+    [
+      "test_pcxt_hdmi_profile.HdmiProfilePackTests.test_half_rate_profile_packs_the_two_actual_video_clocks",
+      "requires pinned Yosys and nextpnr-mistral"
+    ],
+    [
+      "test_pcxt_hdmi_profile.HdmiProfilePackTests.test_memory_pll_packs_default_and_half_rate_profiles",
+      "requires pinned Yosys and nextpnr-mistral"
+    ],
+    [
+      "test_pcxt_hdmi_profile.HdmiProfilePackTests.test_nonzero_unused_output_frequency_is_rejected",
+      "requires pinned Yosys and nextpnr-mistral"
+    ],
+    [
+      "test_pcxt_hdmi_profile.HdmiProfilePackTests.test_nonzero_unused_output_phase_is_rejected",
+      "requires pinned Yosys and nextpnr-mistral"
+    ],
+    [
+      "test_pcxt_hdmi_profile.HdmiProfilePackTests.test_package_profile_phases_hdmi_without_slowing_the_board",
+      "requires pinned Yosys and nextpnr-mistral"
+    ],
+    [
+      "test_pcxt_motherboard_read_snapshot.MotherboardReadSnapshotTest.test_late_peripheral_sample_rejected",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_motherboard_read_snapshot.MotherboardReadSnapshotTest.test_original_read_sample_and_completed_payload",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_motherboard_read_snapshot.MotherboardReadSnapshotTest.test_wrong_completed_payload_rejected",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_quartus.QuartusElaborationTests.test_headers_byte_write_memory_and_signed_pll_parameters_survive",
+      "requires Yosys for the real elaboration path"
+    ],
+    [
+      "test_pcxt_reset_metadata.ResetMetadataTest.test_async_intent_reaches_ffs_without_logic_changes",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_rom_map.ROMMapTests.test_optional_mistral_oracle",
+      "set FES_ROM_ORACLE_MISTRAL and FES_ROM_ORACLE_SOURCE for host oracle"
+    ],
+    [
+      "test_build_fes_sg1000.Sg1000YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+      "Yosys is required to check the SG-1000 M10K netlist"
+    ],
+    [
+      "test_build_fes_sms.SmsYosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+      "Yosys is required to check the SMS M10K netlist"
+    ],
+    [
+      "test_fes_i386_lockstep.LockstepRunTest.test_rtl_retires_in_lockstep",
+      "Verilator, the pinned Bochs checkout or the corpus is absent"
+    ],
+    [
+      "test_fes_i386_lockstep.LockstepRunTest.test_yosys_netlist_retires_in_lockstep",
+      "Verilator, the pinned Bochs checkout or the corpus is absent"
+    ],
+    [
+      "test_pcxt_cpu_selection.CpuSelectionTest.test_jump_boolean_for_all_states",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_cpu_selection.CpuSelectionTest.test_local_rom_addresses_match_the_microcode_pc_after_reset",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_cpu_selection.CpuSelectionTest.test_microcode_next_address_matches_original_sequencer",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_cpu_selection.CpuSelectionTest.test_microcode_pc_stack_and_stall_match_original",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_cpu_selection.CpuSelectionTest.test_operand_values_for_every_selection_and_register_value",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_cpu_selection.CpuSelectionTest.test_prefetch_empty_for_every_pointer_value",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_cpu_selection.CpuSelectionTest.test_rom_contents_and_two_phase_registered_read_alignment",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_display_pipeline.DisplayPipelineTest.test_cga_and_mda_all_inputs_resets_and_markers",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_display_pipeline.DisplayPipelineTest.test_prepared_write_eligibility_matches_every_committed_request",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_display_pipeline.DisplayPipelineTest.test_rejects_undelayed_frame_marker",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_dma_mode_decode.DmaModeDecodeTest.test_all_state_and_interface_bits",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_dma_mode_decode.DmaModeDecodeTest.test_wrong_programmed_channel_rejected",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_dma_mode_decode.DmaModeDecodeTest.test_wrong_reset_decode_rejected",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_dma_mode_decode.DmaModeDecodeTest.test_xt_only_channel_zero_restriction_rejected_for_at",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_operand1_map.MuxMapTest.test_native_truth_tables_and_two_level_data_paths",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_operand1_map.MuxMapTest.test_zero_selectors_and_data_disconnect_only_inactive_input_arcs",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_rom_clock_map.RomClockMapTest.test_only_disabled_write_clock_is_rebound",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_build_fes_c64.C64YosysM10kTests.test_full_synth_has_live_memory_clocks",
+      "Yosys is required to check the C64 M10K netlist"
+    ],
+    [
+      "test_build_fes_c64.C64YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+      "Yosys is required to check the C64 M10K netlist"
+    ],
+    [
+      "test_pcxt_boundary_equivalence.BoundaryEquivalenceTest.test_all_request_response_and_reset_sequences",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_counter_equivalence.CounterEquivalenceTest.test_cpu_phase_pin_clock_and_guest_enable_are_cycle_exact",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_counter_equivalence.CounterEquivalenceTest.test_display_phase_and_enable_are_cycle_exact",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_counter_equivalence.CounterEquivalenceTest.test_precomputed_decrements_are_current_at_every_count_edge",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_counter_equivalence.CounterEquivalenceTest.test_saturating_binary_and_bcd_one_and_two_steps",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_counter_equivalence.CounterEquivalenceTest.test_terminal_flags_preserve_next_count_period_and_mode2_output",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_dma_snapshot.DmaSnapshotTest.test_state_and_valid_transaction_equivalence",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_dma_snapshot.DmaSnapshotTest.test_wrong_terminal_count_rejected",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_dma_snapshot.DmaSnapshotTest.test_wrong_transfer_address_rejected",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_hdmi_phase.HdmiPhaseProofTests.test_corrupting_a_pixel_has_a_counterexample",
+      "requires pinned Yosys and yosys-abc"
+    ],
+    [
+      "test_pcxt_hdmi_phase.HdmiPhaseProofTests.test_default_keeps_the_original_clock_and_all_video_pins",
+      "requires pinned Yosys and yosys-abc"
+    ],
+    [
+      "test_pcxt_hdmi_phase.HdmiPhaseProofTests.test_sampling_on_the_wrong_clock_edge_has_a_counterexample",
+      "requires pinned Yosys and yosys-abc"
+    ],
+    [
+      "test_pcxt_hdmi_phase.HdmiPhaseProofTests.test_shifted_capture_preserves_every_pixel_bundle_in_order",
+      "requires pinned Yosys and yosys-abc"
+    ],
+    [
+      "test_pcxt_region_decode.RegionDecodeTest.test_all_addresses_kinds_and_write_directions",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_region_decode.RegionDecodeTest.test_ram_hole_admission_mutation_rejected",
+      "requires Yosys"
+    ],
+    [
+      "test_build_fes_apple2.Apple2YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+      "Yosys is required to check the Apple II M10K netlist"
+    ],
+    [
+      "test_build_fes_zx81_oss.Zx81YosysM10kTests.test_mapped_shell_has_no_async_m10k",
+      "Yosys is required to check the ZX81 M10K netlist"
+    ],
+    [
+      "test_coleco_megacart_build.ColecoMegacartYosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+      "Yosys is required to check the MegaCart M10K netlist"
+    ],
+    [
+      "test_fes_dma8237_priority.DmaPriorityTest.test_whole_dma_state_and_interface_equivalence",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_dot_enable.DotEnableTest.test_reset_and_inductive_pulse_identity_for_both_rates",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_dot_enable.DotEnableTest.test_wrong_threshold_rejected_for_both_rates",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_eu_pipeline.EuPipelineTest.test_biu_strobe_is_masked_and_completion_captures_every_clock",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_eu_pipeline.EuPipelineTest.test_operand_read_execute_and_alu_for_arbitrary_data_and_resets",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_eu_pipeline.EuPipelineTest.test_rom_word_and_all_controls_hold_and_advance_together",
+      "requires Yosys"
+    ],
+    [
+      "test_pcxt_motherboard_pins.MotherboardPinTest.test_unbounded_original_pin_equations_after_reset",
+      "requires Yosys; set YOSYS to the locked executable"
+    ],
+    [
+      "test_pcxt_video_mailbox.VideoMailboxProofTests.test_cga_and_mda_arbitrary_interleavings_and_sampling_stalls",
+      "requires pinned Yosys and yosys-abc"
+    ],
+    [
+      "test_pcxt_video_mailbox.VideoMailboxProofTests.test_queued_publish_adopt_ack_and_republish_are_reachable",
+      "requires pinned Yosys and yosys-abc"
+    ],
+    [
+      "test_pcxt_video_mailbox.VideoMailboxProofTests.test_rejects_pending_bank_change",
+      "requires pinned Yosys and yosys-abc"
+    ],
+    [
+      "test_pcxt_video_mailbox.VideoMailboxProofTests.test_rejects_shortened_toggle_synchronizer",
+      "requires pinned Yosys and yosys-abc"
+    ]
+  ]
+}

@@ -1,0 +1,180 @@
+{
+  "status": "required-current-checks-passed-with-explicit-unchanged-fpga-reuse",
+  "source_head": "b8d788c067384b91f919a46bdcc295b25bbeb9a8",
+  "checks": {
+    "0": {
+      "receipt": "out/nano-stepped-tape-20261109/remote-validation/stepped-check-0-result.json",
+      "receipt_sha256": "e6792a9ff72a143d21044503a3ee31244c76d132b30e6d4c8b7e69cd6f4a6449",
+      "argv": [
+        "python3",
+        "out/nano-stepped-tape-20261109/run_check.py",
+        "0"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4005769230425358,
+      "log_sha256": "5f550d63077b936fd880f68d94bc122c2c6bf4752e5201a3ada3124304ef2690"
+    },
+    "1": {
+      "receipt": "out/nano-stepped-tape-20261109/remote-validation/stepped-check-1-result.json",
+      "receipt_sha256": "7462deef1b2ca70b2bf59d5f6ef610934537484cde1cd3696f1a02832ac7aec2",
+      "argv": [
+        "python3",
+        "out/nano-stepped-tape-20261109/run_check.py",
+        "1"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.6010919839609414,
+      "log_sha256": "f2d31920da241f2d5a9e4869155cad875ade867a0a921d236317b90ebaa422d8"
+    },
+    "2": {
+      "receipt": "out/nano-stepped-tape-20261109/remote-validation/stepped-check-2-result.json",
+      "receipt_sha256": "1ed1989216a8b316d545596f39944c1731a3465fcc242d5848ce67550b8655bc",
+      "argv": [
+        "python3",
+        "out/nano-stepped-tape-20261109/run_check.py",
+        "2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20045446790754795,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "3": {
+      "receipt": "out/nano-stepped-tape-20261109/remote-validation/stepped-check-3-result.json",
+      "receipt_sha256": "771ddd3c96892a22acfcfed443d74441898cfd778410c260d9ebfaaa6a415c7a",
+      "argv": [
+        "python3",
+        "out/nano-stepped-tape-20261109/run_check.py",
+        "3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20046496810391545,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "5": {
+      "receipt": "out/nano-stepped-tape-20261109/remote-validation/stepped-check-5-result.json",
+      "receipt_sha256": "e9b987cdd2ba8837fae602a878057984b3f3aeeb65912b9b0a22cdc8e8864309",
+      "argv": [
+        "python3",
+        "out/nano-stepped-tape-20261109/run_check.py",
+        "5"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 7.203376615187153,
+      "log_sha256": "dbe036bed3ef167b1b67bf32995b1f1c6272d7c810828a9ec3c98318c9007fb8"
+    },
+    "6": {
+      "receipt": "out/nano-stepped-tape-20261109/remote-validation/stepped-check-6-result.json",
+      "receipt_sha256": "7170c11781dee8e102b1f9500c64e5442046e462ae40c5f1676fa588601a6e61",
+      "argv": [
+        "python3",
+        "out/nano-stepped-tape-20261109/run_check.py",
+        "6"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.4010868871118873,
+      "log_sha256": "e51d201f0d58e93bf02bc450cf0569d2203935c69601118e072a2df8f70ed466"
+    },
+    "7": {
+      "receipt": "out/nano-stepped-tape-20261109/remote-validation/stepped-check-7-result.json",
+      "receipt_sha256": "562953bc451e6a5a2205042be2620f9d1d897933f088ea08f2c74b01ca916c7c",
+      "argv": [
+        "python3",
+        "out/nano-stepped-tape-20261109/run_check.py",
+        "7"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 163.0801877239719,
+      "log_sha256": "c943b6adda3abf934de7648b04a47bc821e7ee74f185500bb2f11684fc70fcfe"
+    },
+    "8": {
+      "receipt": "out/nano-stepped-tape-20261109/remote-validation/stepped-check-8-result.json",
+      "receipt_sha256": "ed038e2f1b832bd78ad04513402347af75e6230fdc6a19985c71b616ebca7236",
+      "argv": [
+        "python3",
+        "out/nano-stepped-tape-20261109/run_check.py",
+        "8"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 26.612197417998686,
+      "log_sha256": "decdeebbc6539b06ebf0742119b423b7e9d3eea1bd23ddf947ffd432680a4337"
+    },
+    "10": {
+      "receipt": "out/nano-stepped-tape-20261109/remote-validation/stepped-check-10-result.json",
+      "receipt_sha256": "75fa9f1c3545da5d0cb5cc995bef3b785be8bb695fe379bd58912d8da79e6c5e",
+      "argv": [
+        "python3",
+        "out/nano-stepped-tape-20261109/run_check.py",
+        "10"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.802819223841652,
+      "log_sha256": "f15d776924b9fc0d32fdc044065e3bddc319d470bb762375a3f53926d0c94826"
+    },
+    "4": {
+      "receipt": "out/nano-stepped-tape-20261109/parent-python-result.json",
+      "receipt_sha256": "29ed94ec1094f2c5d75236c5fc0589929f315f77f5731549e886cbd2ebadc4b1",
+      "argv": [
+        "python3",
+        "out/nano-stepped-tape-20261109/run_check.py",
+        "4"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 332.8088558590971,
+      "log_sha256": "7119544da8ba20f6dd30b5e8ede1d9a3e877d54a955c33a727520b026ccacfd8"
+    },
+    "9": {
+      "receipt": "out/nano-stepped-tape-20261109/contracts-local-result.json",
+      "receipt_sha256": "f016560c74f5a3902124f66f86c403e3c381820b1586574289611d29b339e2c3",
+      "argv": [
+        "python3",
+        "out/nano-stepped-tape-20261109/run_check.py",
+        "9"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.8033439978025854,
+      "log_sha256": "df7e534b90bbc201fc70a30f1664c1aa78d45b28e9f19686fdf7458d6d65c801"
+    }
+  },
+  "unchanged_fpga_reuse": {
+    "receipt": "out/nano-stepped-tape-20261109/unchanged-fpga-result.json",
+    "receipt_sha256": "6e2af236000cb72cf380a89277b96c6febe9a46484c2c2a84f52dba69e75e6cf",
+    "argv": [
+      "python3",
+      "out/nano-stepped-tape-20261109/reuse_fpga.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 0.8010956288781017,
+    "log_sha256": "589195d45f45455c1fd2cd425798eed64808cacfa162acc741f6abc51a06e942"
+  },
+  "fpga_proof_sha256": "8edf7050391799f51ca8464a2b95c0d8ec4befec37faa9ec851065e336c1a74c",
+  "remote_contract_attempt": "stepped-check-9 failed because copied Python3.13 rpds extension cannot load on Python3.12; exact committed contracts passed using the working local environment",
+  "extra_remote_fpga_campaign": "No repeat of the earlier unqualified stock-tool campaign; unchanged source hashes/membership and214-module catalog/prefix/suffix receipts rechecked. Shared software-only tape definition and its generated consumers are tested fresh.",
+  "hardware_actions": false,
+  "matched_boot_chain_built": false,
+  "ordinary_core_load_acceptance": false,
+  "goal_complete": false
+}

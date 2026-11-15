@@ -84,6 +84,10 @@ func TestColecoNativeROMLaunchLinksBIOSCartridgeAndVideoPart(t *testing.T) {
 	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-bios", "", bios); err != nil {
 		t.Fatal(err)
 	}
+	comps, err := s.CoreCompositions(ctx, []string{entry.GameID})
+	if err != nil || !comps[entry.GameID].FirmwareReady || !comps[entry.GameID].ROMReady || !comps[entry.GameID].VideoRequired || comps[entry.GameID].VideoReady {
+		t.Fatalf("unfilled native-video composition: %+v %v", comps, err)
+	}
 	_, err = s.Launch(ctx, entry.GameID, nil)
 	var admission *protocol.APIError
 	if !errors.As(err, &admission) || admission.Code != protocol.CodeBadRequest || admission.Phase != "request" || admission.Message != missingDirectVideoPartMessage || client.coreCalls != 0 {
@@ -101,8 +105,8 @@ func TestColecoNativeROMLaunchLinksBIOSCartridgeAndVideoPart(t *testing.T) {
 	if err != nil || video.Builtin || video.PartID != part.ID {
 		t.Fatalf("video selection %+v %v", video, err)
 	}
-	comps, err := s.CoreCompositions(ctx, []string{entry.GameID})
-	if err != nil || !comps[entry.GameID].ROMReady || !comps[entry.GameID].FirmwareReady || comps[entry.GameID].ROMSourceSize != 16384 {
+	comps, err = s.CoreCompositions(ctx, []string{entry.GameID})
+	if err != nil || !comps[entry.GameID].ROMReady || !comps[entry.GameID].FirmwareReady || !comps[entry.GameID].VideoRequired || !comps[entry.GameID].VideoReady || comps[entry.GameID].ROMSourceSize != 16384 {
 		t.Fatalf("readiness: %+v %v", comps, err)
 	}
 	root := t.TempDir()

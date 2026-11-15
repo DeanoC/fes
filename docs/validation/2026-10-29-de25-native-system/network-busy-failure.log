@@ -1,0 +1,18 @@
+STATS {Received:3 Transmitted:3 Dropped:0} health=<nil>
+HOST "GET /path-0 HTTP/1.1" 200 -
+REQUEST 0 STATUS 200 after=1.464706896s body="host received /path-0" err=<nil>
+HOST "GET /path-1 HTTP/1.1" 200 -
+REQUEST 1 STATUS 200 after=2.000987456s body="host received /path-1" err=<nil>
+STATS {Received:6 Transmitted:6 Dropped:0} health=<nil>
+REQUEST 3 ERROR after=2.18209272s Get "http://10.0.2.2:18881/path-3": dial tcp 10.0.2.2:18881: cywnet: retries exceeded
+REQUEST 4 ERROR after=2.182412112s Get "http://10.0.2.2:18881/path-4": dial tcp 10.0.2.2:18881: cywnet: retries exceeded
+REQUEST 5 ERROR after=2.182516608s Get "http://10.0.2.2:18881/path-5": dial tcp 10.0.2.2:18881: cywnet: retries exceeded
+REQUEST 6 ERROR after=2.182723584s Get "http://10.0.2.2:18881/path-6": dial tcp 10.0.2.2:18881: cywnet: retries exceeded
+REQUEST 7 ERROR after=2.182759056s Get "http://10.0.2.2:18881/path-7": dial tcp 10.0.2.2:18881: cywnet: retries exceeded
+REQUEST 8 ERROR after=2.18278968s Get "http://10.0.2.2:18881/path-8": dial tcp 10.0.2.2:18881: cywnet: retries exceeded
+REQUEST 9 ERROR after=2.182746128s Get "http://10.0.2.2:18881/path-9": dial tcp 10.0.2.2:18881: cywnet: retries exceeded
+HOST "GET /path-2 HTTP/1.1" 200 -
+REQUEST 2 STATUS 200 after=2.723780928s body="host received /path-2" err=<nil>
+WAVE_DONE 0
+CONCURRENT_DONE {Received:8 Transmitted:7 Dropped:0}
+qemu-system-aarch64: terminating on signal 15 from pid 2376580 (python3)

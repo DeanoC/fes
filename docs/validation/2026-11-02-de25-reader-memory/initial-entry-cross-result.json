@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "/usr/bin/python3",
+    "platform/embedded/entry/build.py",
+    "--target",
+    "de25-nano",
+    "--payload",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-reader-memory-20261102/serial-probe/probe.elf",
+    "--nano-build",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-reader-memory-20261102/serial-probe",
+    "--profile",
+    "platform/embedded/nano/sd-profile.json",
+    "--image-address",
+    "0x96080000",
+    "--cross-prefix",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+    "--output",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-reader-memory-20261102/serial-entry"
+  ],
+  "returncode": 1,
+  "timed_out": false,
+  "elapsed": 0.40051682700868696,
+  "log_sha256": "60d2d9b82e0fe40cbe679e7d4739771ec5191ec8fff24bf37bf31d91f2cb79e1"
+}

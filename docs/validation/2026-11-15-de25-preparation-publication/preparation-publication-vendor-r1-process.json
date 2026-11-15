@@ -1,0 +1,10 @@
+{
+  "pid": 920209,
+  "process_start_ticks": "176872887",
+  "cap_seconds": 240,
+  "start_monotonic": 1768728.879037897,
+  "argv": [
+    "python3",
+    "out/publication/compile-preparation-publication-vendor.py"
+  ]
+}

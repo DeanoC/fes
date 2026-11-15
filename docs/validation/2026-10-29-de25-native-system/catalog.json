@@ -1,0 +1,49 @@
+{
+  "games": [
+    {
+      "id": "snes-aster-f9f4cb7f02eb",
+      "title": "Aster",
+      "system": "snes",
+      "kind": "raw",
+      "state": "available",
+      "root_online": true,
+      "content_prepared": false,
+      "execution": "fpga_native",
+      "platform": "snes",
+      "launchable": false,
+      "canonical_title": "Aster",
+      "group_key": "snes\u001faster",
+      "variant_count": 1
+    },
+    {
+      "id": "snes-borealis-00e22a74a676",
+      "title": "Borealis",
+      "system": "snes",
+      "kind": "raw",
+      "state": "available",
+      "root_online": true,
+      "content_prepared": false,
+      "execution": "fpga_native",
+      "platform": "snes",
+      "launchable": false,
+      "canonical_title": "Borealis",
+      "group_key": "snes\u001fborealis",
+      "variant_count": 1
+    },
+    {
+      "id": "snes-comet-112137a995fd",
+      "title": "Comet",
+      "system": "snes",
+      "kind": "raw",
+      "state": "available",
+      "root_online": true,
+      "content_prepared": false,
+      "execution": "fpga_native",
+      "platform": "snes",
+      "launchable": false,
+      "canonical_title": "Comet",
+      "group_key": "snes\u001fcomet",
+      "variant_count": 1
+    }
+  ]
+}

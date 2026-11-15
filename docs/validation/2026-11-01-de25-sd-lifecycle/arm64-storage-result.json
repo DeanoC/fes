@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "python3",
+    "platform/embedded/tamago/run.py",
+    "storage",
+    "--board",
+    "de25-nano",
+    "--profile",
+    "out/nano-sd-lifecycle-20261101/synthetic-sd-profile.json",
+    "--compiler",
+    "out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+    "--output",
+    "out/nano-sd-lifecycle-20261101/storage-build"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 2.0013796440325677,
+  "log_sha256": "b4db219b14a919bb9eed08c2f4944ba7bc9df87b0a67620c85f99684a2a54b49"
+}

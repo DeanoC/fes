@@ -1,0 +1,169 @@
+{
+  "status": "passed-candidate-only-operator-models",
+  "tests": 83,
+  "checks": [
+    {
+      "test": "test_binding.py",
+      "tests": 4,
+      "returncode": 0,
+      "log_sha256": "4528a974feb315807212f44a70294d33ec39f9f8c3f5e004a62e05e06e6a69fc"
+    },
+    {
+      "test": "test_native_session.py",
+      "tests": 3,
+      "returncode": 0,
+      "log_sha256": "23e345b6929e3d90330e45e99d54266be89b3ae5499ea7e20ad0edf2a1e5979c"
+    },
+    {
+      "test": "test_flow.py",
+      "tests": 16,
+      "returncode": 0,
+      "log_sha256": "940e9bde9f4c368df723410c41ccc0ccfc9b75a4678a768070a8b80af7c120bd"
+    },
+    {
+      "test": "test_candidate_flow.py",
+      "tests": 7,
+      "returncode": 0,
+      "log_sha256": "616a9be771896f3acc14694b6524a56f4f92a1c75a55be0b53ce544998eb33df"
+    },
+    {
+      "test": "test_native_preflight.py",
+      "tests": 5,
+      "returncode": 0,
+      "log_sha256": "3b13efc85cae4984a9fc65728cabac2d0dbb99e79b1589546bd8792f2c82865b"
+    },
+    {
+      "test": "test_recovery_safety.py",
+      "tests": 1,
+      "returncode": 0,
+      "log_sha256": "f60314c199be8d7ad0295067d497873ad873b6206a20d3dc4937f903c6408b5c"
+    },
+    {
+      "test": "test_boot_boundary.py",
+      "tests": 8,
+      "returncode": 0,
+      "log_sha256": "aeda6cbf30853550dfc5ee6fb2244b9db9081f12c14f772972e932cd03e09bc6"
+    },
+    {
+      "test": "test_failure_tail.py",
+      "tests": 3,
+      "returncode": 0,
+      "log_sha256": "b25e9a7fb0086e854654284ffa675c608255aa671f9412778bcc55c95c0b2c8a"
+    },
+    {
+      "test": "test_rearm_session.py",
+      "tests": 4,
+      "returncode": 0,
+      "log_sha256": "d0bccb67c05b1da70e50191f44ca54b0cef569bb988aa0682af145504be59a3f"
+    },
+    {
+      "test": "test_dispatch_adapter.py",
+      "tests": 4,
+      "returncode": 0,
+      "log_sha256": "842418bed7e9af6d0efef5f9c25b480181f566729ea3c3cbe90a7c5d570a0054"
+    },
+    {
+      "test": "test_refresh_budget.py",
+      "tests": 7,
+      "returncode": 0,
+      "log_sha256": "c92b0d57cdcaeb193d85725a84204b3f1ec6e8863c4be53720f0178e92be8d15"
+    },
+    {
+      "test": "test_transport_file_binding.py",
+      "tests": 3,
+      "returncode": 0,
+      "log_sha256": "1898b3f2e3a2106db2bc2b7ad2a4643fba6274152ff0d45f66399f24b905fd54"
+    },
+    {
+      "test": "test_terminal_tail.py",
+      "tests": 1,
+      "returncode": 0,
+      "log_sha256": "b774cd5c213dd7b04b9fbac13278e79fb99c8865ce0f5cdfcff0b97b479c5fae"
+    },
+    {
+      "test": "test_refresh_wire.py",
+      "tests": 4,
+      "returncode": 0,
+      "log_sha256": "8426767c688729e1f3a3dfca29af99fc22b03fe1426d81aeb88454c3aeec3306"
+    },
+    {
+      "test": "test_files_restoration_gate.py",
+      "tests": 8,
+      "returncode": 0,
+      "log_sha256": "790cd464dbba6b8251f143137ff73da5c54adcca4c77da32d1e07cceeda0a6f2"
+    },
+    {
+      "test": "test_image_selection.py",
+      "tests": 5,
+      "returncode": 0,
+      "log_sha256": "e028061dda7b38576bcc6e6fcc1a2e7685cdd66fe15a6d594de569c153dedb75"
+    }
+  ],
+  "source_sha256": {
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_queue_observation.py": "39a3268d41d786bf8007988a64c5cfabe6ee8d4ffd279febf2c4ce2c10497f53",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_refresh_budget.py": "1ea15180c41c4a572fdf0310b0fa651f1ce8c33f2caf2b93098728431d3a0ac7",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/transport.py": "7c01959363ec00d26554fab3c8f3ae660aa1c66ff96370384b86e72bd8ae1d3b",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/admission.py": "50d4ca540325e13e142d3e55173877a1bd3d439e33d15474414c5b3e37aa0eb1",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_input_observation.py": "22b63d429a69c2195192ad8e07806aed8fde364d3400d5c330e14a72fd372a6c",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/original_audit.py": "8d27f60b6e388a242c6ce786615627309940c3594e9eec72c5314458d00d1323",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/upload_binding.py": "76b0fa24bfd0e4294aa86b5746fef2ac7aa3e02caa77c223c0cd81c9ad30ff1b",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_retire_observation.py": "85d7c613e87d6f20fcd5c8eaf34949d62a1c6330ff743f3493439bd5b456d867",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_transport_file_binding.py": "8806a40806c3b0b09f8752bcd93cd40b11ca03323f99f9d5251127ca046966e1",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_candidate_flow.py": "fab03288f9ff9a1147352bf5fbf957f59e114890467d301082aed6968305338c",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_terminal_tail.py": "ac87599a49dc2be354c5a80077835d078860c81282b2e15d88f0a3d49fb0f8ab",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/upload_memory.py": "3fa66df04acd58974fa7244246fa8c446878fb1167dbcb7733f2fa44b689b749",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/capture_binding.py": "5c4e09d881aa0b5d7bda558fc77fd19d8ed29455d063b976239f71600cf5c112",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/reset_gate.py": "23c16d37611c21df2d5cf01cff20f1af666e8294a597c1d7108d483e4c03665e",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/image_selection.py": "58694cc58774b97efd9bc7fdb14de9330c5581964c2b01ce169bef4daca884e1",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/candidate_flow.py": "b18ab17f112e5057d9e58ad59bca7a84311d789324c36b1c0e0584717ac3a631",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/worker.py": "48d51fede02251876a5f3b4b003b6e6f77695585948a2499cdef84fa03d7cb98",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/context.py": "00ec3caf5613629949cad4ee4d51c71a4bd45c589476e4766f108353110a820b",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/jtag_server_trace.py": "58f3665320c489a1cad640544b291d3aa3037a323fd163e109be25a330a07d0e",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/audit_wire.py": "4e2112a3d8111b054d4cfde2a469ff3fc3a5a9ee395d59a90b11fdfcf88257df",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_layout.py": "96cfe0a3aab4ababc4d01a0ada12c9f17b67e21fe54b46f49ca2ad7b092b1164",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_native_session.py": "e5feca51d6ddfa7c2c785c77ce2d0b0ffcab824da5764bf1e1eb56c1644c3d39",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/boot_boundary.py": "c2f39bdf0755cb214b13db80739d5a28cb147699576ea2979c146decf675ec79",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/reset_console.py": "2e3357be7e8549e53d899516498f0577e98cd23c1a9b687b7893ebd5ad12abfb",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/native_program_dispatch.py": "c9707603d523ccd0880441305c4486f59c48918c0e42418b38d5f7d4f7e686c1",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_files_restoration_gate.py": "058f8aeec027d798b953f744416572507231d7e1ef323a38b24b731bc6c9e277",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/refresh_wire.py": "ab1d0abea45a0a8fd6939bbef642d70b5cb9b3aefc876ffcf9de6b23c825c866",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_reset_console.py": "e37bea06a01e83a3828fb2cd2ffe0b5004cecec94c18e49e2f5bbed26ec2cb3e",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/freeze_selected.py": "f7fcaaf45f71d90863296862f92f133fa3ec19a5a8f21ac97f015bb162aad051",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/remap_trace.py": "fa76c2069dbdb18a3117834336e34fc7a5bc26590d32128b4afd234a2f559b5d",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_server_trace_adapter.py": "3cfb386884e99bdd97ff3f87351d3e2b9265dfcaa3185585345e55421b7006c7",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_observers.py": "965370863485a8268b5855a184579350f4e2bd9b39a903a8c4b6073361b0b064",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/supervise.py": "81d6ed5c93eccdf5e2a584f45f9852e0f4bddc8b881ff0b8f1a437cb20772448",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/run_trial.py": "b324c32b5112386dd6e7568e3f62a95905712598f7a306f99275fa53bbbea5e6",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_dispatch_adapter.py": "16122dcbbb3f79dba58e0667f7b4030dfdf588755117740b42a812a0ae4bc97c",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/retire_observation.py": "8375c6128edbbf8588c0ff10321408dc542b0ebcdc5721a385976b0041fe4d56",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_native_preflight.py": "0f09abe24fe3c68ea4ab983f1d8426b17a2cb3d5d243246de066471782f8ad84",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/refresh_session.py": "e7c6896a44e608fe8a3e60b166b2fd1699d03b95b651069b7f3b8c6ced69d071",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/restoration_gate.py": "b1cf6613f474f7c9afe1a6dfd6fe32649fe4b7142af1ae872f8caa7f4852d902",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_timing.py": "7c5326e16dc65657c7c9cb6f6ddf63d3ad52ed7b3bc4dce3f9a5f586860a86fd",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/timing_observation.py": "1dab08b9b66f65c5698541f07c278d23238075009d412f603c69b1b52eb8d6ed",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/recovery_session.py": "1c3094761bee188d6df910c79c210b699b3e6295fce9e52a2ee1731eb736121c",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/terminal_recovery_trace.py": "ba58d2fcf24eb45effc052510e756d6b74b30e6bd895c435aa9d3e643c9c1274",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/bounded_log.py": "e1d72926fed47296b2f0c65f4dc3dc81b7a9ad7b2b5e0ae1f0c0982cef8dda4c",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/upload.py": "536f3aab7c683f4a403a149dd54b183dddb15953717b9626210ae79766b65b6b",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_admission_roots.py": "5379fce32d7d8af1b48d4465a568fa9dab24e8343150afbc7abe8b175b292011",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_flow.py": "1ce176d4c285e83b96dd2f7a0c957644d99e2cf7c47e12360676c9b01641ae14",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/native_preflight.py": "3d7796b539a14369cd8420de34bcb2c3e2e13c74dc973d65b9f239035f5a22cc",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/native_session.py": "48c8ec70c40d1b0377997ad1b4a4602181080c49aeb3cfd0de2fa8a34378c941",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_boot_boundary.py": "90e7c8f78be2fb4d98890f6db468a4c4e7bf0b369b9f9e80cdaa10a6d9aa7a57",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/input_observation.py": "81bdd3b86e832101ba8a5b9f2d8435260aa252085130ca6352c34a7fc409f691",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py": "4af10cce5adaadfd28759705948993856cea45d969b80cec8d2d55ec700feef7",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_refresh_wire.py": "5a1d604b09261d3e944606c4ef03419dc8f7d26f858e0856f2462c8cf966bc6f",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/restoration_wire.py": "3142b4a4a348deb4bea8c5183cee24758f3f53f305a3b10519e0ea362b8015ad",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_rearm_session.py": "77b0207892bddaf5ba5acae51064a0f676cfbefaca0aba88ce96de7dbe50f888",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_recovery_safety.py": "c7f059ce748137b555c84aa4e34505eb3b0fe7f335d0983f63132de3ec4fa5aa",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_image_selection.py": "e0467828a9c229878e446649b339d916862afb9dfd8a7cc32a4ad39839f7cbcc",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/queue_observation.py": "27966b4fdfabec75c72c2b17c6a7eebfed49fd924243d10809e72bb51c4e2a0d",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_fit_swap.py": "0bf91ed7df5f5b4d32f6735ff5604053d23dd8114051eef2956908d085322026",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_failure_tail.py": "710f1da25301512d2a4308eb312b8b5623765c1b9555389f34270293e4528bab",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/hooks.py": "8ff6a0b4ae19caf8bfb23c610cbb26eccbafaa049499f52f31384ed74a483862",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py": "94bf0f7778d07f4c562d81d1182477e229ba17e774ab9f9603af049b2419889f",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/rearm_session.py": "a63656ae4aab79d1a50514625731c5f30e7ebc13f632dbe10333b69b4ca94cb6",
+    "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/flow.py": "5d938ecb425c39fdb58b099e8c5c7957c78a97bc621a10a2a7e1206c6b63f767"
+  },
+  "hardware_actions": false
+}

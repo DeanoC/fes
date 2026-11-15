@@ -1,0 +1,14 @@
+{
+  "status": "passed-self-contained-restoration-only-retention",
+  "procedure_sha256": "f9f0b77cd1e82901f2b45f2239214ee46501ed819440462a198f870defd47cf3",
+  "archive": "/home/deano/fes-retained/de25-program-failure-files-restoration-prepared-20261115-r1/prepared-procedure.tar.gz",
+  "archive_sha256": "12978606149a93a369410a5159fb3bda8c60d828b95a62d4748fe1edc3763275",
+  "archive_bytes": 281742686,
+  "logical_files": 12254,
+  "verified_unique_blobs": 5129,
+  "hardware_actions": false,
+  "attempt_reserved": false,
+  "execution_approval_created": false,
+  "diagnostic_authority": false,
+  "human_reset_confirmed": true
+}

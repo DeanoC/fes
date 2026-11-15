@@ -1,0 +1,22 @@
+{
+  "status": "passed",
+  "source_commit": "f7e4a5bc3f041f83479c64ef9e585629bc6df53e",
+  "native_source_commit": "dc2cf47604ce003744ce2b1cf0e1e53beb1e4738",
+  "source_bundle": "/home/deano/fes-retained/de25-window-service-20261104/source.bundle",
+  "source_bundle_sha256": "160810cbbe916dbd718e1d0b909a87bb540709b3bf638e10b26b2edd83636806",
+  "independent_source_restore": true,
+  "strict_fsck": true,
+  "alternates": false,
+  "verification_copy_removed": true,
+  "archive": "/home/deano/fes-retained/de25-window-service-20261104/matched-native-chain.tar.gz",
+  "archive_sha256": "9bcd66ed009ea20a0845c0649a0ba38aa0e64d4cbc06e1aa0131286db59f28ed",
+  "archive_bytes": 206311745,
+  "verified_members": 45165,
+  "hardware_acceptance": false,
+  "selected_sources_verified_from_exact_git_commit": true,
+  "unpublished_validation_documents": [],
+  "diagnostic_hardware_evidence_retained": true,
+  "prior_failures_retained_separately": true,
+  "host_cleanup_retained": true,
+  "expanded_files_removed": false
+}

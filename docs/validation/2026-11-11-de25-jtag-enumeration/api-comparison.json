@@ -1,0 +1,13 @@
+{
+  "scope": "installed-programmer-chain-creation-disassembly",
+  "programmer_sha256": "32f5511101a9dad0dd029a6b52ac68af56947411d0ba85312fed8403bb5a85e5",
+  "function": "QPGM_FRAMEWORK::create_chain(bool)",
+  "count_initialization": "0x41fa41: movl $0x0,0x44(%rsp)",
+  "first_read": "0x41fafd: aji_read_device_chain(chain,&count,nullptr,true)",
+  "expected_size_status": "0x41fb05: compare eax with47 (AJI_TOO_MANY_DEVICES)",
+  "list_read": "0x42032e: aji_read_device_chain(chain,&count,allocated_list,true)",
+  "forced_probe_difference": "aji_scan_device_chain followed by aji_read_device_chain with one entry and auto=false",
+  "disassembly_sha256": "bbbb4e8a888d4daaa6ca05dff34ada1a5449016c081a5e4032ae3cf143ae9cb0",
+  "hardware_actions": false,
+  "physical_failure_cause_established": false
+}

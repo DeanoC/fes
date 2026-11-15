@@ -1,0 +1,55 @@
+{
+  "status": "refused-name-or-chain-type-before-lock",
+  "serial": "TRWU8CBL",
+  "source_commit": "bfa84d89307d0e0e0882cdba51347a6342b1d1a5",
+  "diagnostic_procedure_consumed": true,
+  "observation": {
+    "observation_complete": true,
+    "scan_attempted": false,
+    "actual_forced_scan_calls": 0,
+    "name": {
+      "bytes": 44,
+      "valid_length": true,
+      "matches": true,
+      "chain_type": 2,
+      "hex": "444532352d4e616e6f206f6e206c6f63616c686f73743a3338343733205b332d31312e312d6966616365305d",
+      "text": "DE25-Nano on localhost:38473 [3-11.1-iface0]"
+    },
+    "fresh_identity_verified": false,
+    "programming": false,
+    "cpu_reset": false,
+    "grant": false,
+    "historical_failure_cause_proven": false
+  },
+  "cleanup": {
+    "status": "passed",
+    "exact_USB_permissions": true,
+    "same_USB_identity": true,
+    "recorded_clock_readback": "15M",
+    "owned_server_gone": true,
+    "uart_owners": [],
+    "hardware_actions": false,
+    "grant": false
+  },
+  "original_error87_explained": false,
+  "programming_grant": false,
+  "fpga_programming": false,
+  "cpu_reset": false,
+  "sd_uart_commands": false,
+  "bottom_kit_touched": false,
+  "ordinary_core_load_acceptance": false,
+  "goal_complete": false,
+  "prior_native_reservation_still_retired": true,
+  "prior_scan_diagnostic_still_retired": true,
+  "evidence_sha256": {
+    "out/nano-scan-predicate-20261108/trial/result.json": "af4dcf951c71d5ce4fc5adc68f6fd6550a8fd620402a6a08b819b6f9eaa1dd51",
+    "out/nano-scan-predicate-20261108/trial/scan.log": "f089a256eb0f6e1526f7393fd67d11978b8b58018d9ad5921f4ddf17745f332c",
+    "out/nano-scan-predicate-20261108/trial/attempt.json": "a924e452b91a7fcedd8414753b88fdd375fd82003eb8d399f555196918b1d4af",
+    "out/nano-scan-predicate-20261108/trial/transport.json": "6c0731875793ee9d9547f86e1758c90f89d84464e115c050a82c9835a02a500b",
+    "out/nano-scan-predicate-20261108/preflight.json": "893ef6b8cbb8ad3d5f76b8071dc781cfa5c6c89da3a3719b5484b192ce14dfd7",
+    "out/nano-scan-predicate-20261108/cleanup-evidence.json": "797d46b0ac580ee6805f7c9d169fa78dd762196bb7f2e11066b96f77553d2a55",
+    "out/nano-scan-predicate-20261108/prepared-retention-proof.json": "a056431000ef1329bdbfb1654ef28a295bd2a6b91346645879dd5bddb2fa815d",
+    "out/nano-scan-predicate-20261108/live-scan-result.json": "946219c6a18c8d96b920e465d2b6cb58b768b7cc9d01098cbce69d3a658f3b27",
+    "out/nano-scan-predicate-20261108/cleanup-independent-result.json": "feff2dbd2a4bd12c3aed6d13c4f11ccae5ae6a1e9595f94eb72db4b4dee63428"
+  }
+}

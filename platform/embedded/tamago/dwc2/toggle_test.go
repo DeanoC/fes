@@ -1,0 +1,450 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package dwc2
+
+import (
+	"bytes"
+	"context"
+	"os"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/DeanoC/fes/platform/embedded/tamago/input"
+	"github.com/DeanoC/fes/platform/embedded/tamago/usbcontrol"
+)
+
+func pendingIN(t *testing.T) (*Host, *controller, *rxObserved) {
+	t.Helper()
+	c := newController()
+	h := open(t, c)
+	o := &rxObserved{controller: c}
+	h.io = o
+	flags := uint32(8 | 1<<15 | 1<<17 | 1<<20 | 1<<22)
+	c.regs[hcchar] = flags | channelEnable
+	c.regs[hcint] = 0
+	c.regs[hctsiz] = 8 | 1<<19 | 2<<29
+	c.beforeIN = func(*controller) bool { return true } // The test supplies RX independently.
+	h.pending = packet{active: true, in: true, pid: 2, limit: 8, char: flags, deadline: c.Now().Add(time.Second)}
+	return h, c, o
+}
+
+func TestDirectINToggleNotificationWaitsForRealDataWithoutRearming(t *testing.T) {
+	for _, metadata := range []bool{false, true} {
+		cname := "interrupt-only"
+		if metadata {
+			cname = "RX-and-interrupt"
+		}
+		t.Run(cname, func(t *testing.T) {
+			h, c, o := pendingIN(t)
+			if metadata {
+				// Non-data status may retain arbitrary BCNT/DPID; no FIFO
+				// bytes exist for it. The accepted packet still needs its own PID.
+				c.rx = []uint32{5<<17 | 2047<<4 | 3<<15}
+			}
+			c.regs[hcint] = dataToggle
+			deadline, starts, toggle, size := h.pending.deadline, len(c.starts), h.toggle, c.regs[hctsiz]
+			done, data, nak, err := h.step()
+			if err != nil || done || nak || len(data) != 0 || o.fifos != 0 {
+				t.Fatal(done, data, nak, err)
+			}
+			if c.regs[hcint] != 0 || c.regs[hcchar]&channelEnable == 0 || len(c.starts) != starts+1 || c.regs[hctsiz] != size ||
+				h.pending.pid != 2 || h.toggle != toggle || h.pending.deadline != deadline || !h.pending.active || h.pending.received {
+				t.Fatal("notification completed/rearmed/retimed the packet")
+			}
+			want := []byte{0, 0, 4, 0, 0, 0, 0, 0}
+			c.active.pid = 2
+			c.complete(want, true)
+			for n := 0; n < 3; n++ {
+				done, data, nak, err = h.step()
+				if err != nil || nak {
+					t.Fatal(err, nak)
+				}
+				if done {
+					break
+				}
+			}
+			if !done || !bytes.Equal(data, want) || h.pending.active || c.regs[hcchar]&channelEnable != 0 || len(c.starts) != starts+1 {
+				t.Fatal(done, data)
+			}
+		})
+	}
+}
+
+func TestToggleNotificationCannotSupplyDataOrRelaxOtherFailures(t *testing.T) {
+	for _, mode := range []string{"completion-without-data", "wrong-PID", "halt", "stall", "OUT", "split", "other-channel", "deadline", "frozen-poll-bound"} {
+		t.Run(mode, func(t *testing.T) {
+			h, c, o := pendingIN(t)
+			c.rx = []uint32{5 << 17}
+			c.regs[hcint] = dataToggle
+			switch mode {
+			case "completion-without-data":
+				c.regs[hcint] |= 1
+				c.regs[hcchar] = 0
+			case "halt":
+				c.regs[hcint] |= 2
+				c.regs[hcchar] = 0
+			case "stall":
+				c.regs[hcint] |= 1 << 3
+			case "OUT":
+				h.pending.in = false
+			case "split":
+				h.pending.split = true
+			case "other-channel":
+				c.rx[0] |= 1
+			case "deadline":
+				h.pending.deadline = c.Now().Add(time.Millisecond)
+			case "frozen-poll-bound":
+				c.frozen = true
+				h.pending.polls = 999999
+			}
+			done, data, nak, err := h.step()
+			if mode == "wrong-PID" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				c.active.pid = 0
+				c.complete(make([]byte, 8), true)
+				done, data, nak, err = h.step()
+			}
+			if mode == "deadline" || mode == "frozen-poll-bound" {
+				for n := 0; err == nil && n < 30; n++ {
+					done, data, nak, err = h.step()
+				}
+				if err == nil || !strings.Contains(err.Error(), "packet timeout") || !strings.Contains(err.Error(), "first toggle observation") {
+					t.Fatal(err)
+				}
+			}
+			if err == nil || done || nak || len(data) != 0 || o.fifos != 0 {
+				t.Fatal("bad transfer escaped", done, data, nak, err)
+			}
+			h.fail(err)
+			accesses := c.accesses
+			if _, err := h.PollKeyboard(); err == nil || c.accesses != accesses {
+				t.Fatal("faulted host resumed")
+			}
+		})
+	}
+}
+
+func TestToggleQueueWorkIsBoundedAndDoesNotExtendDeadline(t *testing.T) {
+	h, c, o := pendingIN(t)
+	for n := 0; n < 20; n++ {
+		c.rx = append(c.rx, 5<<17)
+	}
+	c.regs[hcint] = dataToggle
+	deadline := h.pending.deadline
+	before := c.accesses
+	done, data, nak, err := h.step()
+	if err != nil || done || nak || len(data) != 0 || len(c.rx) != 12 || o.pops != 8 || o.fifos != 0 ||
+		c.accesses-before > 100 || h.pending.deadline != deadline {
+		t.Fatal(done, data, nak, err, c.accesses-before)
+	}
+}
+
+func TestRXOnlyAndCoalescedToggleEventsStillRequireCorrectPayload(t *testing.T) {
+	for _, coalesced := range []bool{false, true} {
+		h, c, o := pendingIN(t)
+		c.rx = []uint32{5 << 17}
+		c.regs[hcint] = 0
+		if !coalesced {
+			if done, data, nak, err := h.step(); err != nil || done || nak || len(data) != 0 || o.fifos != 0 {
+				t.Fatal(done, data, nak, err)
+			}
+		}
+		want := []byte{0, 0, 4, 0, 0, 0, 0, 0}
+		c.active.pid = 2
+		c.complete(want, true)
+		if coalesced {
+			c.regs[hcint] |= dataToggle
+		}
+		var done bool
+		var data []byte
+		for n := 0; n < 3; n++ {
+			var err error
+			var nak bool
+			done, data, nak, err = h.step()
+			if err != nil || nak {
+				t.Fatal(err, nak)
+			}
+			if done {
+				break
+			}
+		}
+		if !done || !bytes.Equal(data, want) || c.regs[hcchar]&channelEnable != 0 {
+			t.Fatal(done, data)
+		}
+	}
+}
+
+// A PIO notification consumes an IN request without consuming the packet.
+// Acknowledgement alone cannot make progress: another queue-backed IN token
+// must be issued while preserving the transfer registers and control setup.
+// A periodic retry may rewrite the same HCTSIZ only after an actual halt.
+type notifyingController struct {
+	*controller
+	waiting, acknowledged               bool
+	injected, injectedAt, continuations int
+	sizeWrites, fifoWrites              int
+	lateACK                             bool
+	ackClears                           int
+	periodicRetired                     bool
+	periodicRearms                      int
+}
+
+func (c *notifyingController) Read32(reg uint32) uint32 {
+	return c.controller.Read32(reg)
+}
+func (c *notifyingController) Write32(reg, value uint32) {
+	if reg == hctsiz {
+		c.sizeWrites++
+	}
+	if reg == fifo {
+		c.fifoWrites++
+	}
+	if c.waiting && (reg == hctsiz || reg == fifo) {
+		if reg != hctsiz || !c.periodicRetired || c.regs[hcchar]&(channelEnable|channelDisable) != 0 || c.regs[hctsiz] != value {
+			panic("continuation rewrote transfer size/PID or setup before observed halt")
+		}
+	}
+	if c.waiting && reg == hcchar && value&channelEnable != 0 && value&channelDisable == 0 {
+		if !c.acknowledged || c.regs[hcint]&(1<<5) != 0 {
+			panic("continuation before notification acknowledgement")
+		}
+		if c.periodicRetired {
+			c.periodicRearms++
+		} else {
+			c.continuations++
+		}
+		c.waiting, c.acknowledged = false, false
+		c.periodicRetired = false
+	}
+	c.controller.Write32(reg, value)
+	if c.waiting && reg == hcchar && value&channelDisable != 0 && (value>>18)&3 == 3 && c.regs[hcchar]&(channelEnable|channelDisable) == 0 && c.regs[hcint]&(1<<1) != 0 {
+		c.periodicRetired = true
+	}
+	if reg == hcint && value == dataToggle && c.waiting {
+		c.acknowledged = true
+		if c.lateACK {
+			c.regs[hcint] |= 1 << 5
+		}
+	}
+	if reg == hcint && value == 1<<5 && c.waiting {
+		c.ackClears++
+	}
+}
+
+func TestPeriodicInputRearmsAfterHaltAndLateACKWithoutInventingReports(t *testing.T) {
+	c := &notifyingController{controller: gamepadController(t), lateACK: true}
+	idle := []byte{128, 128, 0, 0}
+	changed := []byte{255, 0, 1, 0}
+	c.reports = [][]byte{idle, idle, changed}
+	c.beforeIN = func(hw *controller) bool {
+		if c.injected == 0 && hw.active.ep == 1 && len(hw.reports) == 1 {
+			c.injected++
+			c.waiting = true
+			c.injectedAt = len(hw.starts) - 1
+			hw.rx = append(hw.rx, 5<<17|2<<15)
+			hw.regs[hcint] = dataToggle
+			return true
+		}
+		return false
+	}
+	fw := &ownedFirmware{t: t, controller: c.controller, gamepad: true}
+	client, err := usbcontrol.New(context.Background(), fw, 17)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var host *GamepadHost
+	source, err := usbcontrol.OpenGamepad(context.Background(), client, func() (input.USBGamepadReports, error) {
+		var err error
+		host, err = OpenGamepad(c, Config{PHYClockHz: 60000000})
+		return host, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var reports [][]byte
+	for n := 0; n < 10000; n++ {
+		r, err := source.PollGamepad()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r != nil {
+			reports = append(reports, append([]byte(nil), r...))
+		}
+		if len(reports) == 3 {
+			break
+		}
+	}
+	if len(reports) != 3 || !bytes.Equal(reports[0], idle) || !bytes.Equal(reports[1], idle) || !bytes.Equal(reports[2], changed) ||
+		c.injected != 1 || c.continuations != 0 || c.periodicRearms != 1 || c.ackClears != 1 {
+		t.Fatal(reports, c.injected, c.continuations, c.periodicRearms, c.ackClears)
+	}
+	if err := source.Close(context.Background()); err != nil || fw.confirms != 1 || fw.stops != 1 {
+		t.Fatal(err, fw)
+	}
+	accesses := c.accesses
+	if _, err := source.PollGamepad(); err == nil || c.accesses != accesses {
+		t.Fatal("closed owner resumed", err)
+	}
+}
+func TestCapturedDescriptorControlTransferSurvivesNotificationWithoutSetupReplay(t *testing.T) {
+	newPad := func() *controller {
+		c := gamepadController(t)
+		d, err := os.ReadFile("../../../../tests/fixtures/nano-usb-gamepad/joystick-report.bin")
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.reportDescriptor = d
+		c.configuration[25], c.configuration[26] = byte(len(d)), byte(len(d)>>8)
+		return c
+	}
+	control := newPad()
+	if _, err := OpenGamepad(control, Config{PHYClockHz: 60000000}); err != nil {
+		t.Fatal(err)
+	}
+	c := &notifyingController{controller: newPad()}
+	c.beforeIN = func(hw *controller) bool {
+		if c.injected == 0 && hw.request != nil && hw.request.value == 0x2200 && hw.request.offset == 88 {
+			c.injected++
+			c.injectedAt = len(hw.starts) - 1
+			c.waiting = true
+			hw.rx = append(hw.rx, 5<<17|8<<4)
+			hw.regs[hcint] = dataToggle
+			return true
+		}
+		return false
+	}
+	fw := &ownedFirmware{t: t, controller: c.controller, gamepad: true}
+	client, err := usbcontrol.New(context.Background(), fw, 17)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var h *GamepadHost
+	source, err := usbcontrol.OpenGamepad(context.Background(), client, func() (input.USBGamepadReports, error) {
+		var err error
+		h, err = OpenGamepad(c, Config{PHYClockHz: 60000000})
+		return h, err
+	})
+	if err != nil || c.injected != 1 || !bytes.Equal(h.ReportDescriptor(), c.reportDescriptor) {
+		t.Fatal(err, c.injected)
+	}
+	starts := append([]transaction{}, c.starts[:c.injectedAt]...)
+	starts = append(starts, c.starts[c.injectedAt+1:]...)
+	if c.continuations != 1 || !reflect.DeepEqual(starts, control.starts) || !reflect.DeepEqual(c.requests, control.requests) ||
+		c.sizeWrites != len(control.starts) || c.fifoWrites != 2*len(control.requests) {
+		t.Fatal("continuation changed setup/transfer registers or failed to queue exactly one required IN token")
+	}
+	if fw.confirms != 1 {
+		t.Fatal("missing confirmed owner")
+	}
+	if err := source.Close(context.Background()); err != nil || fw.stops != 1 {
+		t.Fatal(err, fw)
+	}
+	accesses := c.accesses
+	if _, err := source.PollGamepad(); err == nil || c.accesses != accesses {
+		t.Fatal("closed owner polled hardware", err)
+	}
+}
+
+type setupFaultController struct{ *controller }
+
+func (c setupFaultController) Write32(reg, value uint32) {
+	c.controller.Write32(reg, value)
+	if reg == fifo && len(c.active.setup) == 8 {
+		c.regs[hcint] = 1 << 3
+	}
+}
+func TestControlFailuresRetainSetupDataAndStatusContext(t *testing.T) {
+	for _, phase := range []string{"setup", "data", "status"} {
+		t.Run(phase, func(t *testing.T) {
+			c := gamepadController(t)
+			var io Registers = c
+			if phase == "setup" {
+				io = setupFaultController{c}
+			}
+			c.beforeIN = func(hw *controller) bool {
+				if phase == "data" && hw.request.value == 0x2200 && hw.request.offset == 8 {
+					hw.mode = "pid"
+					hw.receive()
+					return true
+				}
+				if phase == "status" && hw.request.request == 9 {
+					hw.regs[hcint] = 1 << 3
+					return true
+				}
+				return false
+			}
+			h, err := OpenGamepad(io, Config{PHYClockHz: 60000000})
+			if err == nil || h == nil {
+				t.Fatal(err)
+			}
+			fields := []string{"dwc2: control address=", "phase=" + phase, "endpoint=0", "split=false"}
+			switch phase {
+			case "setup":
+				fields = append(fields, "request=0x06 value=0x0100", "length=8", "offset=0")
+			case "data":
+				fields = append(fields, "request=0x06 value=0x2200", "offset=8", "invalid RX size/PID/ownership", "nonperiodic=", "periodic=", "frame=")
+			case "status":
+				fields = append(fields, "request=0x09 value=0x0001", "length=0", "offset=0")
+			}
+			for _, field := range fields {
+				if !strings.Contains(err.Error(), field) {
+					t.Fatalf("missing %q: %v", field, err)
+				}
+			}
+			accesses := c.accesses
+			if _, err := h.PollGamepad(); err == nil || c.accesses != accesses {
+				t.Fatal("failed control resumed", err)
+			}
+		})
+	}
+}
+
+func TestToggleInterruptCannotHideOUTSplitOrOtherFatalErrors(t *testing.T) {
+	for _, mode := range []string{"OUT", "split", "babble"} {
+		h, c, _ := pendingIN(t)
+		c.regs[hcint] = dataToggle
+		switch mode {
+		case "OUT":
+			h.pending.in = false
+		case "split":
+			h.pending.split = true
+		case "babble":
+			c.regs[hcint] |= 1 << 8
+		}
+		if done, data, nak, err := h.step(); err == nil || done || nak || len(data) != 0 {
+			t.Fatal(mode, done, data, nak, err)
+		}
+	}
+}
+
+func TestDirectINACKCannotSupplyDataOrHideFatalStatus(t *testing.T) {
+	for _, fatal := range []bool{false, true} {
+		h, c, o := pendingIN(t)
+		c.regs[hcint] = 1 << 5
+		if fatal {
+			c.regs[hcint] |= 1 << 3
+		}
+		done, data, nak, err := h.step()
+		if done || nak || len(data) != 0 || o.fifos != 0 || (err != nil) != fatal {
+			t.Fatal(done, data, nak, err)
+		}
+		if fatal {
+			if h.pending.ackIRQs != 0 || c.regs[hcint]&(1<<3) == 0 {
+				t.Fatal("fatal status was acknowledged away")
+			}
+		} else {
+			if h.pending.ackIRQs != 1 || h.pending.received || h.pending.pid != 2 || c.regs[hcint] != 0 {
+				t.Fatal("ACK changed packet state")
+			}
+			h.pending.deadline = c.tick
+			_, _, _, err = h.step()
+			if err == nil || !strings.Contains(err.Error(), "packet timeout") || !strings.Contains(err.Error(), "ack_irqs=1") ||
+				!strings.Contains(err.Error(), "last_continue={reason=queued sampled=0x1f") {
+				t.Fatal(err)
+			}
+		}
+	}
+}

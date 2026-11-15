@@ -1,0 +1,1373 @@
+{
+  "status": "passed-preparation-publication-real-vendor-aarch64-objects",
+  "classification": "current publication-policy units in manually enabled compile-only vendor rearm; no admitted profile, linked BL31, whole EL3 stack qualification, boot image or hardware test",
+  "base_receipt": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-boot/native-bl31/result.json",
+  "compiler": {
+    "path": "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-gcc",
+    "sha256": "ea55f8b35f29e94d8bbf6cb6f4a2ed39f8e204e2a2080cf06ba7c1733da11d95"
+  },
+  "command": [
+    "/usr/bin/make",
+    "-j",
+    "2",
+    "PLAT=agilex5",
+    "BUILD_STRING=fes-nano-owned-unready-580dcb5c4e10",
+    "CROSS_COMPILE=/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+    "SEPARATE_NOBITS_REGION=1",
+    "V=1",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-publication-vendor-objects-v2/source/build/agilex5/release/bl31/nano_cold_platform.o",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-publication-vendor-objects-v2/source/build/agilex5/release/bl31/socfpga_sip_svc.o",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-publication-vendor-objects-v2/source/build/agilex5/release/bl31/input_tables.o",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-publication-vendor-objects-v2/source/build/agilex5/release/bl31/input_transfer.o",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-publication-vendor-objects-v2/source/build/agilex5/release/bl31/input_transfer_service.o",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-publication-vendor-objects-v2/source/build/agilex5/release/bl31/probe_setup.o",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-publication-vendor-objects-v2/source/build/agilex5/release/bl31/command_queue.o",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-publication-vendor-objects-v2/source/build/agilex5/release/bl31/source_retire.o",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-publication-vendor-objects-v2/source/build/agilex5/release/bl31/nano_sdm_reader.o"
+  ],
+  "objects": {
+    "nano_cold_platform": {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/preparation-publication-vendor-objects-v2/source/build/agilex5/release/bl31/nano_cold_platform.o",
+      "sha256": "8bd3b3a7f623f36f8b0290370c6c16f47a40d266e65c8f44c998ab6980d2283f",
+      "symbols_sha256": "1090b2c6a5675c5b683dcb740bd09974af8afb01387e54230b2ad37434012578"
+    },
+    "socfpga_sip_svc": {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/preparation-publication-vendor-objects-v2/source/build/agilex5/release/bl31/socfpga_sip_svc.o",
+      "sha256": "72a20e6a56c12120fd687dc44b233b5fbb9fcd405c0483d35ed30c0934ce5cfd",
+      "symbols_sha256": "c1987f67939ae274dcd398c79d6a81c6c71994300c891cf7416a77207ea6ac3f"
+    },
+    "input_tables": {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/preparation-publication-vendor-objects-v2/source/build/agilex5/release/bl31/input_tables.o",
+      "sha256": "bfa5c55bd3888abb41efe88697d69210bb433c3c89f311c684de0c1935f4e861",
+      "symbols_sha256": "e0edf5213da17643b419e8d22dc1dcd3b90481d13f08f0e8b7502d8c8abbc517"
+    },
+    "input_transfer": {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/preparation-publication-vendor-objects-v2/source/build/agilex5/release/bl31/input_transfer.o",
+      "sha256": "00206f3cc7f187bcb48ee2a40271fae6b49e1a3dda6651636715ee08956bf44c",
+      "symbols_sha256": "08160c7604bdc0d8d2f42f1732ef779b8fa6a3129c54ef7f56bb3edc6ef84ec0"
+    },
+    "input_transfer_service": {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/preparation-publication-vendor-objects-v2/source/build/agilex5/release/bl31/input_transfer_service.o",
+      "sha256": "563cae1abeb7093047ceb684c0186cb1561e047d24da489b4431051a36eecb2b",
+      "symbols_sha256": "ab6721f017e0dc0341d967bffd1b57938a1f714cf77657513984bd60bb224da9"
+    },
+    "probe_setup": {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/preparation-publication-vendor-objects-v2/source/build/agilex5/release/bl31/probe_setup.o",
+      "sha256": "783efeffa3bc2c85f4415464207d04fa4c82edf545b19aeb3d4929c006b65adf",
+      "symbols_sha256": "c26b41cbe7bc79965cdcb0cd2a42c50080d15a652f0abfc7f89f335868341e73"
+    },
+    "command_queue": {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/preparation-publication-vendor-objects-v2/source/build/agilex5/release/bl31/command_queue.o",
+      "sha256": "375cc724d3cbdfb22d73dcc45769f2218235e5d669366553d524f75f0f64cd26",
+      "symbols_sha256": "7a4299e3f393c9ffbfd629e58078efba125a7c167ab79dc46644eb8563f7a655"
+    },
+    "source_retire": {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/preparation-publication-vendor-objects-v2/source/build/agilex5/release/bl31/source_retire.o",
+      "sha256": "b56830e6ed062dedc160b6180bed8b63116bf2c12a7b77131e2bc8c1a3dfd700",
+      "symbols_sha256": "80da5143ee37600637274d392e2f49f0ada18d8a06076f18a227bb7d4f2d6a44"
+    },
+    "nano_sdm_reader": {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/preparation-publication-vendor-objects-v2/source/build/agilex5/release/bl31/nano_sdm_reader.o",
+      "sha256": "868cf6ac7e3070b2e260b1379d7356a5aeef8ba9354bad5280d7767d65749a57",
+      "symbols_sha256": "ae71a17f225b26d05a7026caa1575fcafd00ddb868c47501b9e9d1f81f96d3d2"
+    }
+  },
+  "individual_stack_records": {
+    "fes_nano_secure_mmio_address": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "fes_cold_hw_barrier": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_rom_now": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_tape_now": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_probe_clear": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_probe_store": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_input_callbacks": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "hps_io_trace": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "identity_trace": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "configuration_trace": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_source_setup_failure": {
+      "bytes": 224,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "cold_master_cpu_scope": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "smmu_owns": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "hps_io_owns": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "cold_master_snapshot": {
+      "bytes": 64,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "cold_producer_sample": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_cold_hw_wait": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_tape_header": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "smmu_report": {
+      "bytes": 320,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "firewall_report": {
+      "bytes": 272,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "identity_configured": {
+      "bytes": 96,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "new_fabric_stop": {
+      "bytes": 448,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_rom_verify": {
+      "bytes": 288,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_tape_frame_guard": {
+      "bytes": 144,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_rom_owned": {
+      "bytes": 96,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_rom_step_end": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_rom_step_begin": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "configuration_bind": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "configuration_return_generation": {
+      "bytes": 64,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_source_rearm_returned": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_probe_load_block": {
+      "bytes": 64,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_probe_store_block": {
+      "bytes": 64,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_release_clock": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_input_source": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_rearm_previous": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_source_rearm_scope": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "retire_store": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "retire_completed": {
+      "bytes": 240,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "retire_barrier": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "hps_io_barrier": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "usb_barrier": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_rom_barrier": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sd_barrier": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_probe_barrier": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "usb_wait": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fabric_wait": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sd_wait": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "cold_master_quiescent": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_probe_load": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_tape_end": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "identity_contain": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "cold_master_quiesce": {
+      "bytes": 96,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "firewall_owns": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_cold_hw_write": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sd_write": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "usb_write": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sd_read": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_tape_guard": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "usb_read": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "hps_io_read": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_tape_barrier": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_tape_verify": {
+      "bytes": 304,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_tape_image": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_tape_write": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "smmu_read": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "firewall_read": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "capability_read": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_tape_read": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_rom_write": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_source_time": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "retire_write": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "retire_time": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_probe_read": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "retire_read": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_probe_write": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "configuration_rom_descriptor": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "configuration_descriptor": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_rom_read": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "identity_read": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_tape_begin": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "identity_write": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "configuration_guard": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "configuration_check": {
+      "bytes": 320,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "cold_master_owns": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fabric_owns": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "probe_write": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "probe_read": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fabric_write": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fabric_read": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_cold_hw_read": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "configuration_complete": {
+      "bytes": 848,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "computer_tape_owns": {
+      "bytes": 112,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_hps_io_sip": {
+      "bytes": 176,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_usb_setup": {
+      "bytes": 704,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_cold_capture": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_boot_record": {
+      "bytes": 176,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_identity_probe": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_window_report": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_window_return": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "window_sd_return": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_probe_owns_mode": {
+      "bytes": 160,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_input_owns": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_source_owns": {
+      "bytes": 240,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "sdm_input_final_scope": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "retire_owned": {
+      "bytes": 160,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "retire_valid": {
+      "bytes": 368,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "retained_source_owned": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "retained_source_view": {
+      "bytes": 224,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "retained_source_ready": {
+      "bytes": 352,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "retained_reader_scope": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "release_observer_owns": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "release_observer_read": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "retained_reader_read": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_window_rearm": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_identity_report": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_control_target": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_identity_setup": {
+      "bytes": 592,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_configuration": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_configuration_diagnostic_ready": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_computer_rom": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_computer_rom_report": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_computer_tape": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_computer_tape_report": {
+      "bytes": 144,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_configuration_setup": {
+      "bytes": 192,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_sd_report": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_sd_setup": {
+      "bytes": 224,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_cold_mmu_admit": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_sdm_source_validate": {
+      "bytes": 352,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_sdm_source_prepare": {
+      "bytes": 688,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_sdm_source_start_ready": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_sdm_source_finish": {
+      "bytes": 1040,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_sdm_source_control_ready": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_sdm_source_reader_ready": {
+      "bytes": 224,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "window_gate": {
+      "bytes": 272,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_window_prepare": {
+      "bytes": 464,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_ddr_target": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_sdm_source_release_ready": {
+      "bytes": 176,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "fes_nano_platform_release_source": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "nano_cold_platform"
+    },
+    "mmio_write_32": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "mmio_read_32": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "is_out_of_sec_range": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "fes_nano_window_failure": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "fes_nano_remap_note": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "fes_nano_start_note": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "fes_contained_transport_failure.isra": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "intel_fpga_sdm_write_all": {
+      "bytes": 144,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "intel_fpga_config_completed_write.constprop": {
+      "bytes": 112,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "intel_mailbox_fpga_config_isdone": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "fes_nano_sdm_vendor_source_idle": {
+      "bytes": 240,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "is_address_in_ddr_range": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "intel_secure_reg_read": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "intel_secure_reg_write": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "intel_secure_reg_update": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "intel_rsu_update": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "intel_smc_service_completed": {
+      "bytes": 64,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "intel_hps_set_bridges": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "intel_smmu_hps_remapper_init": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "intel_fpga_config_start": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "intel_fpga_config_write": {
+      "bytes": 64,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "fes_nano_owned_call": {
+      "bytes": 272,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "sip_smc_handler": {
+      "bytes": 64,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "intel_smmu_hps_remapper_config": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "sip_smc_cmd_cb_ret2": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "sip_smc_cmd_cb_ret3": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "sip_smc_ret_nbytes_cb": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "sip_smc_get_chipid_cb": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "sip_smc_handler_v1": {
+      "bytes": 240,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "fes_nano_program_control_activate": {
+      "bytes": 128,
+      "kind": "static",
+      "unit": "socfpga_sip_svc"
+    },
+    "nano_sdm_input_validate": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "input_tables"
+    },
+    "nano_sdm_input_same": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "input_tables"
+    },
+    "nano_sdm_input_table_range": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "input_tables"
+    },
+    "nano_sdm_input_words": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "input_tables"
+    },
+    "ready": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "input_transfer"
+    },
+    "guard": {
+      "bytes": 240,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "nano_sdm_transfer_init": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "input_transfer"
+    },
+    "nano_sdm_transfer_before": {
+      "bytes": 64,
+      "kind": "static",
+      "unit": "input_transfer"
+    },
+    "nano_sdm_transfer_posted": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "input_transfer"
+    },
+    "nano_sdm_transfer_header": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "input_transfer"
+    },
+    "nano_sdm_transfer_expected": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "input_transfer"
+    },
+    "nano_sdm_transfer_response": {
+      "bytes": 64,
+      "kind": "static",
+      "unit": "input_transfer"
+    },
+    "nano_sdm_transfer_buffer": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "input_transfer"
+    },
+    "nano_sdm_transfer_status_begin": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "input_transfer"
+    },
+    "nano_sdm_transfer_status_result": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "input_transfer"
+    },
+    "stop": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "completion_record": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "completed": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "release_live": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "record_unchanged": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "active": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "fes_nano_sdm_transfer_prepare": {
+      "bytes": 896,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "fes_nano_sdm_transfer_begin": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "fes_nano_sdm_transfer_accept": {
+      "bytes": 64,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "fes_nano_sdm_transfer_before": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "fes_nano_sdm_transfer_posted": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "fes_nano_sdm_transfer_reader_ready": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "fes_nano_sdm_transfer_release_source": {
+      "bytes": 144,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "fes_nano_sdm_transfer_source_released": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "fes_nano_sdm_transfer_control_begin": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "fes_nano_sdm_transfer_control_finish": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "fes_nano_sdm_transfer_peek_header": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "fes_nano_sdm_transfer_read": {
+      "bytes": 64,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "fes_nano_sdm_transfer_response": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "fes_nano_sdm_transfer_buffer": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "fes_nano_sdm_transfer_status_begin": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "fes_nano_sdm_transfer_status_result": {
+      "bytes": 16,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "fes_nano_sdm_transfer_result": {
+      "bytes": 176,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    },
+    "separate": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "receipt": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "initialize": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "integrity": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "cmd_context": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "cmd_store": {
+      "bytes": 240,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "cmd_write": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "cmd_read": {
+      "bytes": 240,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "cmd_time": {
+      "bytes": 144,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "cmd_publish": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "cmd_owns": {
+      "bytes": 64,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "table_words": {
+      "bytes": 64,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "memory_block": {
+      "bytes": 1376,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "previous_tables": {
+      "bytes": 1344,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "rd": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "equal": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "identity": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "controls": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "layout": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "configured": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "wr": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "control": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "clear": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "cmd_barrier": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "nano_probe_init": {
+      "bytes": 160,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "nano_probe_init_input": {
+      "bytes": 176,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "nano_probe_init_rearmed_input": {
+      "bytes": 192,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "nano_probe_prepare": {
+      "bytes": 320,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "nano_probe_arm": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "probe_setup"
+    },
+    "unchanged": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "guard_bound": {
+      "bytes": 192,
+      "kind": "static",
+      "unit": "command_queue"
+    },
+    "fail.isra": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "read_bound": {
+      "bytes": 208,
+      "kind": "static",
+      "unit": "command_queue"
+    },
+    "checked_bound": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "command_queue"
+    },
+    "snapshot": {
+      "bytes": 64,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "nano_cmdq_encode": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "command_queue"
+    },
+    "nano_cmdq_init": {
+      "bytes": 64,
+      "kind": "static",
+      "unit": "command_queue"
+    },
+    "nano_cmdq_submit": {
+      "bytes": 368,
+      "kind": "static",
+      "unit": "command_queue"
+    },
+    "io_same": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "cmd_binding": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "prepared_same": {
+      "bytes": 32,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "source": {
+      "bytes": 224,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "continuation_state": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "continuation_guard": {
+      "bytes": 80,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "observe.constprop": {
+      "bytes": 320,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "transition_view.constprop": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "write32_timed": {
+      "bytes": 304,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "cmd_snapshot": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "initial_transition": {
+      "bytes": 64,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "cmd_progress": {
+      "bytes": 48,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "nano_source_retire": {
+      "bytes": 336,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "nano_source_continue": {
+      "bytes": 304,
+      "kind": "static",
+      "unit": "source_retire"
+    },
+    "nano_sdm_reader_observed": {
+      "bytes": 0,
+      "kind": "static",
+      "unit": "nano_sdm_reader"
+    }
+  },
+  "hardware_actions": false
+}

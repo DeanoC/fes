@@ -1,0 +1,264 @@
+{
+  "status": "prepared-independent-two-core-discovery",
+  "source_base": "668fd7d04e94aa248c0fdc1140bf24740bcbb0e2",
+  "native_boot_id": "6f54fe7c04d34128",
+  "target_code_commit": "b385f24cc54621f8760b6a65cc4d49f56b8609ef",
+  "prior_install": {
+    "path": "docs/validation/2026-11-11-de25-two-core-install-trial/hardware-result.json",
+    "sha256": "ade0a7ad47c0cc5430ca0a2284943fdbee70e4134a0b5ad6edec50a1461f461f"
+  },
+  "initial_titles": [
+    "ZX81 trial",
+    "ZX81",
+    "ZX80 trial"
+  ],
+  "expected_installed_mask": [
+    true,
+    true
+  ],
+  "source_sha256": {
+    "out/nano-two-core-discovery-20261111/trial/boot_checks.py": "bff8fe6e8fe9ca0680eff9101eba88002d4021194dc6244654c9501ddf1bbcb9",
+    "out/nano-two-core-discovery-20261111/trial/bounded_log.py": "e1d72926fed47296b2f0c65f4dc3dc81b7a9ad7b2b5e0ae1f0c0982cef8dda4c",
+    "out/nano-two-core-discovery-20261111/trial/common.py": "bb3554384142159766d07765b0471e48e340468a26a8fe2a24f09fc46cae7ae3",
+    "out/nano-two-core-discovery-20261111/trial/connection_precondition.py": "8dba579bae20291e970759114d439329d3e174d6b8052509605a70e14f397d0c",
+    "out/nano-two-core-discovery-20261111/trial/discovery_model.py": "fea26ac5c781600181d6d03a2b602bd4c115361bd98830910ca43ac113177a1a",
+    "out/nano-two-core-discovery-20261111/trial/experiment.py": "6f32658cfcc1217ebb62efc1caac3c9d71c47b3fc9a3d53488dbbebcc6df55ba",
+    "out/nano-two-core-discovery-20261111/trial/host_link.py": "f2a10245c541db49b0336d87eb9eea90f3c69cac478e6805d108603bff078790",
+    "out/nano-two-core-discovery-20261111/trial/installer_checks.py": "957482af3cd3a74e5efa39a50f59a848f667e99ebe75b5d03976efd4b9799932",
+    "out/nano-two-core-discovery-20261111/trial/installer_exercise.py": "1b2a02d2d6529468fc66d14a3008f10fcee7ee388026f3e3e624bef45cd05c6f",
+    "out/nano-two-core-discovery-20261111/trial/native.py": "3d14ca882712cc968bd6bdb2d988a9e2f39de23a49365e8e23ca4f2527b80aae",
+    "out/nano-two-core-discovery-20261111/trial/operator_models.py": "4c59ec4f3b1edd50d8425c1a0a353f4be80e82a6ddf907892e48e1bb5ad34316",
+    "out/nano-two-core-discovery-20261111/trial/operator_transport_tests.py": "b0a4970e7f3e543a089157cd9ad68f3bcab902fc9f32cd14cdc488f3f02dbca5",
+    "out/nano-two-core-discovery-20261111/trial/pending_checks.py": "a5b1f73d7bcc3288326ea17747363bef3f739080e7bd036a150a97ec6437fdbe",
+    "out/nano-two-core-discovery-20261111/trial/private_jtag.py": "887b8d10933e59736044ef249551623657919232d754848c38e43610894a2965",
+    "out/nano-two-core-discovery-20261111/trial/program_gate.py": "ea716c6b3a0c299cf20d64b100399830a5c209736125438e22490592e85b895a",
+    "out/nano-two-core-discovery-20261111/trial/read_sources.py": "2ed5595d01d4aa2e1b54dcdc24e36daec49043c63e5324c776cb8a29f5428059",
+    "out/nano-two-core-discovery-20261111/trial/receipt_models.py": "2aab556c21d2340454c0591ee9fae4d9524568673e9f5235e9a289fbd54fd548",
+    "out/nano-two-core-discovery-20261111/trial/recovery.py": "f6279d36e81e947979acfe40bb5fcabf028c83bcfd3d08689adafcef28151aa3",
+    "out/nano-two-core-discovery-20261111/trial/saved_wire.py": "408cf8e12b376dab191abd662393c6f522f22cf883ea623ad20711ef265bb276",
+    "out/nano-two-core-discovery-20261111/trial/source_read_checks.py": "61e007192275e0643896d2b444ba5065aead89c823c4f447652ae71d1231e3b6",
+    "out/nano-two-core-discovery-20261111/trial/transport_guards.py": "25f6208a5367d0e7e5a36fea8011390f2425c841eba453d9fccfcfaadfcfa225",
+    "out/nano-two-core-discovery-20261111/trial/trial_inputs.py": "ae9ee5dd67376b753d602fa27e926ef3d6ae3a78bbf8c2d03ab5459c62d3aa7d",
+    "out/nano-two-core-discovery-20261111/prepare_offline.py": "3e0a004a3d667a0e92d1b1ebb00e8945b520c259e1cf8ba689e921630f79960b",
+    "out/nano-two-core-discovery-20261111/freeze_operator.py": "78ecaa5a27c3fbd6ddaa4cd63510f27d5203f2c1cf891014b7e8f326bc300e4b",
+    "out/nano-two-core-discovery-20261111/preflight_final.py": "3e5076ddce1feffc0599de500af1cbca1f0e3d7a9b4c05d72eee1c34cc809f4e",
+    "out/nano-two-core-discovery-20261111/records.go": "ddc6c9b3bebfaf94ef3c643343a6d05689eb6eaeb2bd8f7fe2b2fb45f97bedeb",
+    "out/nano-two-core-discovery-20261111/record_parity.py": "baf17790b0be75ace617e7a8a793c1977a11a5bcc1c1e40cc308d1d6c030e80a",
+    "out/nano-two-core-discovery-20261111/read_flow_models.py": "4a8ed7ae09da0df78b649105c907b774526c1836b5b54d0c542c18bd6267d833",
+    "out/nano-two-core-discovery-20261111/orchestration_models.py": "bb41ef20c7204fcf3127302c4c2a92a92de340d57115364531c43b3678834a91",
+    "out/nano-two-core-discovery-20261111/source-plan.json": "99b7e9dbdf672008049157fec68f21d28d0b189cd49522b83259bd6a6e978b08",
+    "out/nano-two-core-discovery-20261111/expected-records/records.json": "30d3c4b02609016d90c6d5f25f9bc5a5a0d9fd7ec72dd44d7b116bd4af917557",
+    "out/nano-two-core-discovery-20261111/expected-records/zx80-rom.json": "ed7a3e61d7fc989187b4932f239ed59fec64d527ebe396365cc0739e7aa75a85",
+    "out/nano-two-core-discovery-20261111/expected-records/zx81-rom.json": "3667b4b5af2f1540e4f8bd53e577e17b99d22255569c2b8f83b1e0f2092fef8f"
+  },
+  "checks": {
+    "expected-records": {
+      "argv": [
+        "python3",
+        "-c",
+        "import pathlib,subprocess;r=pathlib.Path.cwd();b=r/'out/nano-two-core-discovery-20261111';subprocess.run(['go','run',str(b/'records.go'),str(r/'out/nano-catalog-observer-20261111/staged-export'),str(b/'expected-records')],cwd=r/'platform/embedded/tamago',check=True)"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.400957889854908,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "record-parity": {
+      "argv": [
+        "python3",
+        "out/nano-two-core-discovery-20261111/record_parity.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20101622212678194,
+      "log_sha256": "8c4726d9f7f20fb05bb1103a00ebe7b0cb6f5008190f4dfb869b17d9e1403779"
+    },
+    "operator-models-proof": {
+      "argv": [
+        "python3",
+        "out/nano-two-core-discovery-20261111/trial/operator_models.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20096412301063538,
+      "log_sha256": "22d5f6d6dd5ea52852cd0c247b1c76c38d9aa582db127aeb9de3d5f1f2a49ef6"
+    },
+    "operator-transport-proof": {
+      "argv": [
+        "python3",
+        "out/nano-two-core-discovery-20261111/trial/operator_transport_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.40065085398964584,
+      "log_sha256": "2a9dff3105c370d2624ab469ba2a638331ae1c668e5e9efd209941985def30f6"
+    },
+    "receipt-models-proof": {
+      "argv": [
+        "python3",
+        "out/nano-two-core-discovery-20261111/trial/receipt_models.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.40085765696130693,
+      "log_sha256": "3bc12f7e8c69c8e2180e9a588cd78eee0aa5861d18237364db637eba2b6e1854"
+    },
+    "read-flow-final": {
+      "argv": [
+        "python3",
+        "out/nano-two-core-discovery-20261111/read_flow_models.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.40099945897236466,
+      "log_sha256": "33d5e5276b6e87c3c11ba45c80393668cba182ed52ce5acf7dc5c6e6c886f33f"
+    },
+    "orchestration-proof": {
+      "argv": [
+        "python3",
+        "out/nano-two-core-discovery-20261111/orchestration_models.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.6009442980866879,
+      "log_sha256": "5bcb42bd6b0b93d91cc169211fae7cd154a6ea888ec6d147ef2bae773be04ef2"
+    },
+    "operator-structure-proof": {
+      "argv": [
+        "python3",
+        "out/nano-two-core-discovery-20261111/check_operator_structure.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20097879995591938,
+      "log_sha256": "822bf3d25f02e7dc3b48e2445d5fdcc99f0d710f21c3643a101263fcf03d8a31"
+    },
+    "connection-models": {
+      "argv": [
+        "python3",
+        "out/nano-two-core-discovery-20261111/connection_models.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2007866119965911,
+      "log_sha256": "911eacdd2f3268c729c16e93e6f1f0d0efd1a58e1ea88dfd7d85f9ba1f2232cf"
+    },
+    "host-link-final": {
+      "argv": [
+        "python3",
+        "out/nano-two-core-discovery-20261111/host_link_models.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20074618491344154,
+      "log_sha256": "8df115503a49b7f132cc3ec08f0595764f5b006696abcb69721655429bc9c615"
+    },
+    "epoch-models": {
+      "argv": [
+        "python3",
+        "out/nano-two-core-discovery-20261111/epoch_models.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20081053511239588,
+      "log_sha256": "817c33770c255e36aa16cc9c559f911d061feef88edea2ab515f0e18232fee54"
+    },
+    "program-gate-models": {
+      "argv": [
+        "python3",
+        "out/nano-two-core-discovery-20261111/program_gate_models.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20103137311525643,
+      "log_sha256": "5f69934705e2a05308b43f29d8d57d31ff8de70dea61fb28cc9389d729b558ac"
+    },
+    "candidate-inputs": {
+      "argv": [
+        "python3",
+        "out/nano-two-core-discovery-20261111/check_candidate.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 50.23899302794598,
+      "log_sha256": "6bcfd8e45e995398efc853d10bff294c0c0427469ce5536af2a65a8368dd7072"
+    },
+    "file-admission-final": {
+      "argv": [
+        "python3",
+        "out/nano-two-core-discovery-20261111/prepare_offline.py",
+        "final-r3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.003685680916533,
+      "log_sha256": "4cd0a218e18b177bcd34bd9bb9134f561aca77f656503224c6109d92e7527e11"
+    },
+    "freeze-operator": {
+      "argv": [
+        "python3",
+        "out/nano-two-core-discovery-20261111/freeze_operator.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20071783987805247,
+      "log_sha256": "bb54af15b67426830a21df4d1cefb7fefc3b2612901a2bb4178125afbc63c52d"
+    },
+    "unresolved-preflight-refusal": {
+      "argv": [
+        "python3",
+        "out/nano-two-core-discovery-20261111/check_pending_preflight.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20093328901566565,
+      "log_sha256": "b11178e5c4c53a17c4ddad4401e6d5d47bfa95aed85da5331434094a2d52a57e"
+    }
+  },
+  "file_admission": {
+    "files": 5667,
+    "trees": 8,
+    "prior_native_validation_reused": true,
+    "negative_checks": [
+      "wrong-admission-digest",
+      "lost-ownership"
+    ]
+  },
+  "bounds": {
+    "recovery": 270,
+    "source_reads": 300,
+    "native": 450,
+    "outer": 800,
+    "host": 890,
+    "program": 90,
+    "prompt": 50,
+    "initial_ready": 100,
+    "install": 220,
+    "launch": 100,
+    "core_close": 5,
+    "menu_restore": 100,
+    "park": 5
+  },
+  "hardware_actions": false,
+  "live_admission": false,
+  "recovery_sd_writes_allowed": false,
+  "install_actions_allowed": false,
+  "persistence_verified": false,
+  "ordinary_core_load_acceptance": false
+}

@@ -1,0 +1,49 @@
+{
+  "status": "matched-chain-and-software-checks-passed",
+  "base": "21f172b91eb16751a0e50c38c42a63258df7002a",
+  "firmware_compiled_source": "7c8f1b47f1a55af34e9982f6a9f1efd4342ceace",
+  "runtime_compiled_source": "e8fe4c9a6ea7b09494449ccd4801e77732fcb67a",
+  "native_boot_id": "c85f65c331fc3ab5",
+  "checks_summary_sha256": "de215c83b7d4605eccaed76d4c82e4d8a0a3d6177582f3fcda9cafb4d3df0ab8",
+  "evidence": {
+    "out/nano-guarded-derivation-final-20261108/chain-file-integrity.json": "5402a811ee14d9f643d70400aff12992a21ee324fc4e3ae91f99f34c4a232f5b",
+    "out/nano-guarded-derivation-final-20261108/firmware-file-proof.json": "565d459bab994db6da67f687bdf17cdf04a6ae28a6845b0977b2384bea83d4f8",
+    "out/nano-guarded-derivation-final-20261108/real-equivalence.json": "54e426e8e85925fafdbb79493bde1836e4e86a88f6ee16cabbae379f112a8d74",
+    "out/nano-guarded-derivation-final-20261108/runtime-entry-reuse.json": "80d28ab26a9e5f9500d9edc956203be10f603aa85efb0c5d050de61304daed32",
+    "out/nano-derivation-reuse-20261108/focused-checks.json": "3b433f0c00ac67eadd6850addc6efb9237e7e7181cc7a6db4a8bfa163bda6ba7",
+    "out/nano-derivation-reuse-20261108/regression-triage.json": "a7937eb8307649e0a3b45cfc9112fa1175f79f8478cee65b102734234bdcad10",
+    "out/nano-derivation-reuse-20261108/operator-context.json": "af4f55872bb05960af7876ca378f20dd3318b03beef4b195d1282f8e38ed3030"
+  },
+  "broad_suite": {
+    "tests": 1740,
+    "errors": 4,
+    "skipped": 3,
+    "receipt_sha256": "d94648cc606c7e06a365b1bbd0cff08fcda18f2ecbb94343eea565e16d189163",
+    "cause": "New private entry rule incorrectly applied to non-HPS diagnostic mode.",
+    "repair_commit": "7c8f1b47f1a55af34e9982f6a9f1efd4342ceace",
+    "repair_test_module": "test_embedded_nano_handoff.py (all 14 passed)",
+    "full_broad_suite_repeated_after_repair": false
+  },
+  "real_equivalence": {
+    "complete_records_equal": true,
+    "scoped_seconds": 49.48389689880423,
+    "fresh_seconds": 233.08859044709243,
+    "scoped_workers": 14,
+    "fresh_workers": 102
+  },
+  "chain_artifacts": {
+    "out/nano-guarded-derivation-final-20261108/native-bl31/result.json": "d3f3ea9560636e17a2c6cad57b79cc438aa053e085b3a0d6eec36c2423c74cfa",
+    "out/nano-guarded-derivation-final-20261108/native-uboot/result.json": "957a877ae772bbcaf74fe38b579733192d1cecd2c582d4f078e44e1dbfc1b6c5",
+    "out/nano-guarded-derivation-final-20261108/native-composition/result.json": "3f855702854905a4506e9870c6e82d8305319e9330e521408b28c433b686936a",
+    "out/nano-guarded-derivation-final-20261108/native-composition/native-hps-first.sof": "939a4a66fb1a18f5d6b18586b76d0dd13e3a7d1bc992e24deee1fa845469bc34"
+  },
+  "checked_file_digests": 2261,
+  "ocram_remaining_bytes": 7488,
+  "bounds_relaxed": false,
+  "hardware_actions": false,
+  "new_compiled_image_attempts": 0,
+  "hardware_acceptance": false,
+  "physical_programming_admission": false,
+  "retention_target": "/home/deano/fes-retained/de25-guarded-derivation-matched-chain-20261108-r1",
+  "next": "Fresh source-bound one-use operator preparation, then bounded startup and tape callback profiling on top TRWU8CBL."
+}

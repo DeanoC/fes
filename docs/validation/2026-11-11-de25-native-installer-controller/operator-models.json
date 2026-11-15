@@ -1,0 +1,24 @@
+{
+  "status": "passed-current-installer-inputs-flow-transport-and-receipt-models",
+  "cases": 15,
+  "checks": {
+    "operator-models-r3": {
+      "path": "out/nano-installer-hardware-20261111/operator-models-r3-result.json",
+      "sha256": "cbc2996d4c5616ef4a66caaa4e5b328305d75369a8da3811be3722adb5440c55",
+      "log_sha256": "2d450757ef56ea8e15aa396ca395edd27b3d291e328a941d7440808e8451dcb3"
+    },
+    "final-transport-models": {
+      "path": "out/nano-installer-hardware-20261111/final-transport-models-result.json",
+      "sha256": "724d8135dd827136850a2e5899d22e8fd07a443007f8a29d3a8d291c33dc8809",
+      "log_sha256": "3bb06f903ea7ee2bd7e8855ab1ed6f408bc03d93dd9e22be4d9c1b04660b4efc"
+    },
+    "receipt-models-r2": {
+      "path": "out/nano-installer-hardware-20261111/receipt-models-r2-result.json",
+      "sha256": "61b10d3ef23a4b7ba8373515b073e8cfcf298a02cda1c5d2709efd98b20363c5",
+      "log_sha256": "28a9e2138d1ceb6d0acda9163ee3f030773c661a96067f22bee18c481423c564"
+    }
+  },
+  "model_wire": true,
+  "hardware_actions": false,
+  "hardware_acceptance": false
+}

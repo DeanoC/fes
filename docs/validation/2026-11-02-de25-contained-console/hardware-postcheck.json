@@ -1,0 +1,6063 @@
+{
+  "status": "passed",
+  "source_commit": "6dd356157dac111852b0f943ca4c0c799adb5de1",
+  "classification": "bounded read-only FPGA DDR and complete bridge drain hardware diagnostic",
+  "core_load_acceptance": false,
+  "data_release": true,
+  "ddr_traffic_requested": true,
+  "experiment_passed": true,
+  "smmu_observation": {
+    "status": 0,
+    "reads": 26,
+    "idr0": 135233087,
+    "idr1": 242457880,
+    "aidr": 1,
+    "s_idr1": 2147483672,
+    "cr0": 0,
+    "ack": 0,
+    "gbpa": 0,
+    "agbpa": 0,
+    "s_cr0": 0,
+    "s_ack": 0,
+    "s_init": 0,
+    "s_gbpa": 0,
+    "s_agbpa": 0,
+    "identified": 1,
+    "settled": 1,
+    "bypass_controls_clear": 1,
+    "secure_implemented": true,
+    "access_qualified": false
+  },
+  "ddr_firewall_observation": {
+    "status": 0,
+    "owner": 8991833899408868463,
+    "generation": 4,
+    "reset": 15,
+    "mpfe_reset": 0,
+    "reads": 66,
+    "enable": 1,
+    "base": 2499805184,
+    "bytes": 8192,
+    "regions": [
+      {
+        "index": 0,
+        "base": 2148532224,
+        "baseext": 0,
+        "limit": 3221225471,
+        "limitext": 0
+      },
+      {
+        "index": 1,
+        "base": 0,
+        "baseext": 0,
+        "limit": 65535,
+        "limitext": 0
+      },
+      {
+        "index": 2,
+        "base": 0,
+        "baseext": 0,
+        "limit": 65535,
+        "limitext": 0
+      },
+      {
+        "index": 3,
+        "base": 0,
+        "baseext": 0,
+        "limit": 65535,
+        "limitext": 0
+      },
+      {
+        "index": 4,
+        "base": 0,
+        "baseext": 0,
+        "limit": 65535,
+        "limitext": 0
+      },
+      {
+        "index": 5,
+        "base": 0,
+        "baseext": 0,
+        "limit": 65535,
+        "limitext": 0
+      },
+      {
+        "index": 6,
+        "base": 0,
+        "baseext": 0,
+        "limit": 65535,
+        "limitext": 0
+      },
+      {
+        "index": 7,
+        "base": 0,
+        "baseext": 0,
+        "limit": 65535,
+        "limitext": 0
+      }
+    ],
+    "layout_known": true,
+    "window_covered": true,
+    "access_qualified": false
+  },
+  "configuration_transfer": {
+    "complete": true,
+    "completed_bytes": 1642496,
+    "core_sha256": "170a3929afc316bcaa51b25e69ce60a7f44c53542126ce6e82d90a99767998d0",
+    "arena_base": 2491416576,
+    "arena_size": 8388608
+  },
+  "ddr_read_observation": {
+    "complete": true,
+    "errors": [],
+    "reads": 158,
+    "writes": 9,
+    "polls": 4,
+    "data_remained_contained": false,
+    "runtime_admission": false,
+    "core_load_acceptance": false
+  },
+  "master_stop_observation": {
+    "status": 0,
+    "owner": 8991833899408868463,
+    "generation": 6,
+    "reset": 5,
+    "reader_reads": 88,
+    "reader_polls": 1,
+    "disable": 0,
+    "probe_polls": 2,
+    "cancel": 0,
+    "complete": 1
+  },
+  "hardware_closure_observation": {
+    "owner": 8991833899408868463,
+    "generation": 7,
+    "reset": 15,
+    "hardware_drained": 8,
+    "data_remained_contained": 0,
+    "producers_quiescent": 1,
+    "fabric_acknowledged": 0
+  },
+  "returned_data_observation": {
+    "status": 0,
+    "bytes": 32,
+    "checksum": 4060082112,
+    "data0": 916236459,
+    "data1": 1498689234,
+    "data2": 4211971097,
+    "data3": 499456576,
+    "generation": 1,
+    "cookie": 7
+  },
+  "raw_console_sha256": "eb0d2be7bb94638cf256d6898be18e1a4b400767f93486b77b3d6d6354f4c8ee",
+  "raw_bytes": 47273,
+  "package_id": "07b2d01003dc92e4993ba7f72761444ae801a1a005f87e0a1b65f9aad9dfeb7d",
+  "build_id": "d2435ab5d8221892162a1044d81dfb76",
+  "decoded": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "4b94b8a323e5da52"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 8991833899408868463,
+          "epoch": 5357858305,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "spl_barrier_before",
+        "line": 36,
+        "values": {
+          "phase": "before"
+        }
+      },
+      {
+        "stage": "spl_barrier_after",
+        "line": 37,
+        "values": {
+          "phase": "after"
+        }
+      },
+      {
+        "stage": "spl_atf_entry",
+        "line": 38,
+        "values": {
+          "phase": "entry"
+        }
+      },
+      {
+        "stage": "spl_atf_hash_before",
+        "line": 39,
+        "values": {
+          "phase": "hash-before"
+        }
+      },
+      {
+        "stage": "spl_atf_hash_after",
+        "line": 40,
+        "values": {
+          "phase": "hash-after"
+        }
+      },
+      {
+        "stage": "spl_atf",
+        "line": 41,
+        "values": {
+          "target": 2147483648,
+          "bl32": 0,
+          "bl33": 2149580800,
+          "fdt": 0,
+          "params": 3220176904,
+          "cold": 138904,
+          "cookie": 5066060512865812482,
+          "el": 3,
+          "mpidr": 2164260864,
+          "sctlr": 12912696,
+          "scr": 15,
+          "daif": 960,
+          "bytes": 90173,
+          "sha256": "50323d4935036c83376460d79b1c299d9104d162d30b428db41d1429fd704595"
+        }
+      },
+      {
+        "stage": "el3_capture_before",
+        "line": 42,
+        "values": {
+          "phase": "before",
+          "pointer": 138904,
+          "cookie": 5066060512865812482
+        }
+      },
+      {
+        "stage": "el3_capture_after",
+        "line": 43,
+        "values": {
+          "phase": "after",
+          "pointer": 138904,
+          "cookie": 5066060512865812482
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 49,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "sd_platform",
+        "line": 50,
+        "values": {
+          "setup": 1,
+          "ready": 1
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 53,
+        "values": {
+          "id": "4b94b8a323e5da52"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 57,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 69,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 70,
+        "values": {
+          "id": "4b94b8a323e5da52"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 71,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216373888,
+          "malloc_start": 3216408576,
+          "malloc_end": 3220611072,
+          "reloc": 3220611072,
+          "fdt": 3216383520
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 78,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 8991833899408868463,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 87,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 8991833899408868463,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 88,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 89,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 90,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 91,
+        "values": {}
+      },
+      {
+        "stage": "configuration_package",
+        "line": 92,
+        "values": {
+          "package_id": "07b2d01003dc92e4993ba7f72761444ae801a1a005f87e0a1b65f9aad9dfeb7d",
+          "owner": 8991833899408868463,
+          "sd_generation": 4
+        }
+      },
+      {
+        "stage": "reader_memory",
+        "line": 93,
+        "values": {
+          "cpu_base": 2499805184,
+          "bus_base": 2499805184,
+          "bytes": 8192,
+          "arena_bytes": 2097152,
+          "map_sha256": "625d20cea4c58a0af705d53459d1bfdcf40d4b9fba20ef205111cde85a1fb686",
+          "pattern_sha256": "96f99b502ad38f7bad381abfbe0aed2e38521412958125acaeb4dc7c9cfa89da",
+          "owner": 8991833899408868463,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "hps_context",
+        "line": 94,
+        "values": {
+          "sha256": "3d8809ff23eacc5cb108b05fd79333157f77643b3542e666f9403b2027acdb43",
+          "package_id": "07b2d01003dc92e4993ba7f72761444ae801a1a005f87e0a1b65f9aad9dfeb7d",
+          "build_id": "d2435ab5d8221892162a1044d81dfb76",
+          "owner": 8991833899408868463,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "configuration_arm",
+        "line": 95,
+        "values": {
+          "phase": "arm",
+          "owner": 8991833899408868463,
+          "generation": 4,
+          "completed": 0,
+          "pending": 0,
+          "total": 1642496,
+          "base": 2491416576,
+          "counter": 30166593194,
+          "hash_ticks": 374941656
+        }
+      },
+      {
+        "stage": "configuration_start",
+        "line": 96,
+        "values": {
+          "phase": "start",
+          "owner": 8991833899408868463,
+          "generation": 4,
+          "completed": 0,
+          "pending": 0,
+          "total": 1642496,
+          "base": 2491416576,
+          "counter": 30729921806,
+          "hash_ticks": 751658189
+        }
+      },
+      {
+        "stage": "configuration_engine",
+        "line": 97,
+        "values": {
+          "credits": 4,
+          "block_bytes": 1048560,
+          "next_job": 0,
+          "owner": 8991833899408868463,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 98,
+        "values": {
+          "phase": 1,
+          "owner": 8991833899408868463,
+          "generation": 4,
+          "completed": 0,
+          "pending": 0,
+          "job": 0,
+          "cin": 5,
+          "cout": 5,
+          "rin": 6,
+          "rout": 6,
+          "bell": 0,
+          "status": 3288002895,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 99,
+        "values": {
+          "phase": "write",
+          "owner": 8991833899408868463,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1048512,
+          "total": 1642496,
+          "base": 2491416576,
+          "counter": 31492925022,
+          "hash_ticks": 1368922576
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 100,
+        "values": {
+          "phase": 2,
+          "owner": 8991833899408868463,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1048512,
+          "job": 0,
+          "cin": 5,
+          "cout": 5,
+          "rin": 6,
+          "rout": 6,
+          "bell": 0,
+          "status": 3288002895,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 101,
+        "values": {
+          "phase": "write",
+          "owner": 8991833899408868463,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1642496,
+          "total": 1642496,
+          "base": 2491416576,
+          "counter": 32420201565,
+          "hash_ticks": 1986237031
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 102,
+        "values": {
+          "phase": 2,
+          "owner": 8991833899408868463,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1642496,
+          "job": 1,
+          "cin": 9,
+          "cout": 9,
+          "rin": 7,
+          "rout": 6,
+          "bell": 1,
+          "status": 3288002895,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 103,
+        "values": {
+          "phase": "poll",
+          "owner": 8991833899408868463,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1642496,
+          "total": 1642496,
+          "base": 2491416576,
+          "counter": 33549049553,
+          "hash_ticks": 2739829207
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 104,
+        "values": {
+          "phase": 3,
+          "owner": 8991833899408868463,
+          "generation": 4,
+          "completed": 1048512,
+          "pending": 593984,
+          "job": 2,
+          "cin": 13,
+          "cout": 13,
+          "rin": 8,
+          "rout": 7,
+          "bell": 1,
+          "status": 3288002895,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 105,
+        "values": {
+          "phase": "poll",
+          "owner": 8991833899408868463,
+          "generation": 4,
+          "completed": 1048512,
+          "pending": 593984,
+          "total": 1642496,
+          "base": 2491416576,
+          "counter": 34322500763,
+          "hash_ticks": 3252790684
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 106,
+        "values": {
+          "phase": 3,
+          "owner": 8991833899408868463,
+          "generation": 4,
+          "completed": 1642496,
+          "pending": 0,
+          "job": 2,
+          "cin": 13,
+          "cout": 13,
+          "rin": 8,
+          "rout": 8,
+          "bell": 0,
+          "status": 3288002895,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_status",
+        "line": 107,
+        "values": {
+          "phase": "status",
+          "owner": 8991833899408868463,
+          "generation": 4,
+          "completed": 1642496,
+          "pending": 0,
+          "total": 1642496,
+          "base": 2491416576,
+          "counter": 35095478568,
+          "hash_ticks": 3765674577
+        }
+      },
+      {
+        "stage": "configuration_complete",
+        "line": 108,
+        "values": {
+          "phase": "complete",
+          "owner": 8991833899408868463,
+          "generation": 4,
+          "completed": 1642496,
+          "pending": 0,
+          "total": 1642496,
+          "base": 2491416576,
+          "counter": 35483577228,
+          "hash_ticks": 4142362531
+        }
+      },
+      {
+        "stage": "configuration_programmed",
+        "line": 109,
+        "values": {
+          "package_id": "07b2d01003dc92e4993ba7f72761444ae801a1a005f87e0a1b65f9aad9dfeb7d",
+          "core_sha256": "170a3929afc316bcaa51b25e69ce60a7f44c53542126ce6e82d90a99767998d0",
+          "bytes": 1642496,
+          "owner": 8991833899408868463,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "fpga_query",
+        "line": 110,
+        "values": {}
+      },
+      {
+        "stage": "fpga_status",
+        "line": 111,
+        "values": {
+          "status": 0,
+          "words": 6,
+          "state": 0,
+          "version": 1704704,
+          "pins": 3221225609,
+          "soft": 3,
+          "error_location": 0,
+          "error_details": 15,
+          "ready": 1
+        }
+      },
+      {
+        "stage": "smmu",
+        "line": 112,
+        "values": {
+          "status": 0,
+          "reads": 26,
+          "idr0": 135233087,
+          "idr1": 242457880,
+          "aidr": 1,
+          "s_idr1": 2147483672,
+          "cr0": 0,
+          "ack": 0,
+          "gbpa": 0,
+          "agbpa": 0,
+          "s_cr0": 0,
+          "s_ack": 0,
+          "s_init": 0,
+          "s_gbpa": 0,
+          "s_agbpa": 0,
+          "identified": 1,
+          "settled": 1,
+          "bypass_controls_clear": 1
+        }
+      },
+      {
+        "stage": "ddr_firewall",
+        "line": 113,
+        "values": {
+          "status": 0,
+          "owner": 8991833899408868463,
+          "generation": 4,
+          "reset": 15,
+          "mpfe_reset": 0,
+          "reads": 66,
+          "enable": 1,
+          "base": 2499805184,
+          "bytes": 8192
+        }
+      },
+      {
+        "stage": "ddr_region_0",
+        "line": 114,
+        "values": {
+          "index": 0,
+          "base": 2148532224,
+          "baseext": 0,
+          "limit": 3221225471,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_1",
+        "line": 115,
+        "values": {
+          "index": 1,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_2",
+        "line": 116,
+        "values": {
+          "index": 2,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_3",
+        "line": 117,
+        "values": {
+          "index": 3,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_4",
+        "line": 118,
+        "values": {
+          "index": 4,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_5",
+        "line": 119,
+        "values": {
+          "index": 5,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_6",
+        "line": 120,
+        "values": {
+          "index": 6,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_7",
+        "line": 121,
+        "values": {
+          "index": 7,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_firewall_end",
+        "line": 122,
+        "values": {
+          "layout_known": 1,
+          "window_covered": 1
+        }
+      },
+      {
+        "stage": "identity_open",
+        "line": 123,
+        "values": {
+          "phase": "open",
+          "owner": 8991833899408868463,
+          "generation": 4,
+          "reset": 15,
+          "base": 536937472
+        }
+      },
+      {
+        "stage": "identity_read",
+        "line": 124,
+        "values": {
+          "phase": "read",
+          "owner": 8991833899408868463,
+          "generation": 5,
+          "reset": 13,
+          "base": 536937472
+        }
+      },
+      {
+        "stage": "identity_access_1_before",
+        "line": 125,
+        "values": {
+          "phase": "before",
+          "ordinal": 1,
+          "offset": 0,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_1_after",
+        "line": 126,
+        "values": {
+          "phase": "after",
+          "ordinal": 1,
+          "offset": 0,
+          "value": 1178948421
+        }
+      },
+      {
+        "stage": "identity_access_2_before",
+        "line": 127,
+        "values": {
+          "phase": "before",
+          "ordinal": 2,
+          "offset": 4,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_2_after",
+        "line": 128,
+        "values": {
+          "phase": "after",
+          "ordinal": 2,
+          "offset": 4,
+          "value": 65536
+        }
+      },
+      {
+        "stage": "identity_access_3_before",
+        "line": 129,
+        "values": {
+          "phase": "before",
+          "ordinal": 3,
+          "offset": 8,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_3_after",
+        "line": 130,
+        "values": {
+          "phase": "after",
+          "ordinal": 3,
+          "offset": 8,
+          "value": 270544961
+        }
+      },
+      {
+        "stage": "identity_access_4_before",
+        "line": 131,
+        "values": {
+          "phase": "before",
+          "ordinal": 4,
+          "offset": 12,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_4_after",
+        "line": 132,
+        "values": {
+          "phase": "after",
+          "ordinal": 4,
+          "offset": 12,
+          "value": 3625843574
+        }
+      },
+      {
+        "stage": "identity_access_5_before",
+        "line": 133,
+        "values": {
+          "phase": "before",
+          "ordinal": 5,
+          "offset": 16,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_5_after",
+        "line": 134,
+        "values": {
+          "phase": "after",
+          "ordinal": 5,
+          "offset": 16,
+          "value": 371855428
+        }
+      },
+      {
+        "stage": "identity_access_6_before",
+        "line": 135,
+        "values": {
+          "phase": "before",
+          "ordinal": 6,
+          "offset": 20,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_6_after",
+        "line": 136,
+        "values": {
+          "phase": "after",
+          "ordinal": 6,
+          "offset": 20,
+          "value": 3626113170
+        }
+      },
+      {
+        "stage": "identity_access_7_before",
+        "line": 137,
+        "values": {
+          "phase": "before",
+          "ordinal": 7,
+          "offset": 24,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_7_after",
+        "line": 138,
+        "values": {
+          "phase": "after",
+          "ordinal": 7,
+          "offset": 24,
+          "value": 3527629493
+        }
+      },
+      {
+        "stage": "identity_access_8_before",
+        "line": 139,
+        "values": {
+          "phase": "before",
+          "ordinal": 8,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_8_after",
+        "line": 140,
+        "values": {
+          "phase": "after",
+          "ordinal": 8,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_9_before",
+        "line": 141,
+        "values": {
+          "phase": "before",
+          "ordinal": 9,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_9_after",
+        "line": 142,
+        "values": {
+          "phase": "after",
+          "ordinal": 9,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_10_before",
+        "line": 143,
+        "values": {
+          "phase": "before",
+          "ordinal": 10,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_10_after",
+        "line": 144,
+        "values": {
+          "phase": "after",
+          "ordinal": 10,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_11_before",
+        "line": 145,
+        "values": {
+          "phase": "before",
+          "ordinal": 11,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_11_after",
+        "line": 146,
+        "values": {
+          "phase": "after",
+          "ordinal": 11,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_12_before",
+        "line": 147,
+        "values": {
+          "phase": "before",
+          "ordinal": 12,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_12_after",
+        "line": 148,
+        "values": {
+          "phase": "after",
+          "ordinal": 12,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_13_before",
+        "line": 149,
+        "values": {
+          "phase": "before",
+          "ordinal": 13,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_13_after",
+        "line": 150,
+        "values": {
+          "phase": "after",
+          "ordinal": 13,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_14_before",
+        "line": 151,
+        "values": {
+          "phase": "before",
+          "ordinal": 14,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_14_after",
+        "line": 152,
+        "values": {
+          "phase": "after",
+          "ordinal": 14,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_15_before",
+        "line": 153,
+        "values": {
+          "phase": "before",
+          "ordinal": 15,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_15_after",
+        "line": 154,
+        "values": {
+          "phase": "after",
+          "ordinal": 15,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_16_before",
+        "line": 155,
+        "values": {
+          "phase": "before",
+          "ordinal": 16,
+          "offset": 0,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_16_after",
+        "line": 156,
+        "values": {
+          "phase": "after",
+          "ordinal": 16,
+          "offset": 0,
+          "value": 1178948421
+        }
+      },
+      {
+        "stage": "identity_access_17_before",
+        "line": 157,
+        "values": {
+          "phase": "before",
+          "ordinal": 17,
+          "offset": 4,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_17_after",
+        "line": 158,
+        "values": {
+          "phase": "after",
+          "ordinal": 17,
+          "offset": 4,
+          "value": 65536
+        }
+      },
+      {
+        "stage": "identity_access_18_before",
+        "line": 159,
+        "values": {
+          "phase": "before",
+          "ordinal": 18,
+          "offset": 8,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_18_after",
+        "line": 160,
+        "values": {
+          "phase": "after",
+          "ordinal": 18,
+          "offset": 8,
+          "value": 270544961
+        }
+      },
+      {
+        "stage": "identity_access_19_before",
+        "line": 161,
+        "values": {
+          "phase": "before",
+          "ordinal": 19,
+          "offset": 12,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_19_after",
+        "line": 162,
+        "values": {
+          "phase": "after",
+          "ordinal": 19,
+          "offset": 12,
+          "value": 3625843574
+        }
+      },
+      {
+        "stage": "identity_access_20_before",
+        "line": 163,
+        "values": {
+          "phase": "before",
+          "ordinal": 20,
+          "offset": 16,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_20_after",
+        "line": 164,
+        "values": {
+          "phase": "after",
+          "ordinal": 20,
+          "offset": 16,
+          "value": 371855428
+        }
+      },
+      {
+        "stage": "identity_access_21_before",
+        "line": 165,
+        "values": {
+          "phase": "before",
+          "ordinal": 21,
+          "offset": 20,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_21_after",
+        "line": 166,
+        "values": {
+          "phase": "after",
+          "ordinal": 21,
+          "offset": 20,
+          "value": 3626113170
+        }
+      },
+      {
+        "stage": "identity_access_22_before",
+        "line": 167,
+        "values": {
+          "phase": "before",
+          "ordinal": 22,
+          "offset": 24,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_22_after",
+        "line": 168,
+        "values": {
+          "phase": "after",
+          "ordinal": 22,
+          "offset": 24,
+          "value": 3527629493
+        }
+      },
+      {
+        "stage": "identity_access_23_before",
+        "line": 169,
+        "values": {
+          "phase": "before",
+          "ordinal": 23,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_23_after",
+        "line": 170,
+        "values": {
+          "phase": "after",
+          "ordinal": 23,
+          "offset": 28,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_24_before",
+        "line": 171,
+        "values": {
+          "phase": "before",
+          "ordinal": 24,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_24_after",
+        "line": 172,
+        "values": {
+          "phase": "after",
+          "ordinal": 24,
+          "offset": 32,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_25_before",
+        "line": 173,
+        "values": {
+          "phase": "before",
+          "ordinal": 25,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_25_after",
+        "line": 174,
+        "values": {
+          "phase": "after",
+          "ordinal": 25,
+          "offset": 64,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_26_before",
+        "line": 175,
+        "values": {
+          "phase": "before",
+          "ordinal": 26,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_26_after",
+        "line": 176,
+        "values": {
+          "phase": "after",
+          "ordinal": 26,
+          "offset": 68,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_27_before",
+        "line": 177,
+        "values": {
+          "phase": "before",
+          "ordinal": 27,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_27_after",
+        "line": 178,
+        "values": {
+          "phase": "after",
+          "ordinal": 27,
+          "offset": 72,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_28_before",
+        "line": 179,
+        "values": {
+          "phase": "before",
+          "ordinal": 28,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_28_after",
+        "line": 180,
+        "values": {
+          "phase": "after",
+          "ordinal": 28,
+          "offset": 76,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_29_before",
+        "line": 181,
+        "values": {
+          "phase": "before",
+          "ordinal": 29,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_29_after",
+        "line": 182,
+        "values": {
+          "phase": "after",
+          "ordinal": 29,
+          "offset": 56,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_30_before",
+        "line": 183,
+        "values": {
+          "phase": "before",
+          "ordinal": 30,
+          "offset": 60,
+          "value": 0
+        }
+      },
+      {
+        "stage": "identity_access_30_after",
+        "line": 184,
+        "values": {
+          "phase": "after",
+          "ordinal": 30,
+          "offset": 60,
+          "value": 0
+        }
+      }
+    ],
+    "errors": [],
+    "loader_ready": true,
+    "complete": true,
+    "last_checkpoint": "ddr_read_closed",
+    "core_load_acceptance": false,
+    "atf_observation": {
+      "target": 2147483648,
+      "bl32": 0,
+      "bl33": 2149580800,
+      "fdt": 0,
+      "params": 3220176904,
+      "cold": 138904,
+      "cookie": 5066060512865812482,
+      "el": 3,
+      "mpidr": 2164260864,
+      "sctlr": 12912696,
+      "scr": 15,
+      "daif": 960,
+      "bytes": 90173,
+      "sha256": "50323d4935036c83376460d79b1c299d9104d162d30b428db41d1429fd704595"
+    },
+    "smmu_observation": {
+      "status": 0,
+      "reads": 26,
+      "idr0": 135233087,
+      "idr1": 242457880,
+      "aidr": 1,
+      "s_idr1": 2147483672,
+      "cr0": 0,
+      "ack": 0,
+      "gbpa": 0,
+      "agbpa": 0,
+      "s_cr0": 0,
+      "s_ack": 0,
+      "s_init": 0,
+      "s_gbpa": 0,
+      "s_agbpa": 0,
+      "identified": 1,
+      "settled": 1,
+      "bypass_controls_clear": 1,
+      "secure_implemented": true,
+      "access_qualified": false
+    },
+    "ddr_firewall_observation": {
+      "status": 0,
+      "owner": 8991833899408868463,
+      "generation": 4,
+      "reset": 15,
+      "mpfe_reset": 0,
+      "reads": 66,
+      "enable": 1,
+      "base": 2499805184,
+      "bytes": 8192,
+      "regions": [
+        {
+          "index": 0,
+          "base": 2148532224,
+          "baseext": 0,
+          "limit": 3221225471,
+          "limitext": 0
+        },
+        {
+          "index": 1,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        },
+        {
+          "index": 2,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        },
+        {
+          "index": 3,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        },
+        {
+          "index": 4,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        },
+        {
+          "index": 5,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        },
+        {
+          "index": 6,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        },
+        {
+          "index": 7,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      ],
+      "layout_known": true,
+      "window_covered": true,
+      "access_qualified": false
+    },
+    "reader_memory_observation": {
+      "cpu_base": 2499805184,
+      "bus_base": 2499805184,
+      "bytes": 8192,
+      "arena_bytes": 2097152,
+      "map_sha256": "625d20cea4c58a0af705d53459d1bfdcf40d4b9fba20ef205111cde85a1fb686",
+      "pattern_sha256": "96f99b502ad38f7bad381abfbe0aed2e38521412958125acaeb4dc7c9cfa89da",
+      "owner": 8991833899408868463,
+      "generation": 4,
+      "fpga_access_qualified": false
+    },
+    "configuration_transfer": {
+      "complete": true,
+      "completed_bytes": 1642496,
+      "core_sha256": "170a3929afc316bcaa51b25e69ce60a7f44c53542126ce6e82d90a99767998d0",
+      "arena_base": 2491416576,
+      "arena_size": 8388608
+    },
+    "configuration_timing": {
+      "counter_frequency": 400000000,
+      "first_counter": 30166593194,
+      "last_counter": 35483577228,
+      "hash_ticks": 4142362531,
+      "interval_ticks": 5316984034,
+      "interval_hash_ticks": 3767420875
+    },
+    "ddr_read": {
+      "complete": true,
+      "errors": [],
+      "records": [
+        {
+          "stage": "ddr_control",
+          "suffix_line": 1,
+          "values": {
+            "phase": 14,
+            "owner": 8991833899408868463,
+            "generation": 5,
+            "reset": 13
+          }
+        },
+        {
+          "stage": "ddr_smmu",
+          "suffix_line": 2,
+          "values": {
+            "status": 0,
+            "reads": 26,
+            "idr0": 135233087,
+            "idr1": 242457880,
+            "aidr": 1,
+            "s_idr1": 2147483672,
+            "cr0": 0,
+            "ack": 0,
+            "gbpa": 0,
+            "agbpa": 0,
+            "s_cr0": 0,
+            "s_ack": 0,
+            "s_init": 0,
+            "s_gbpa": 0,
+            "s_agbpa": 0,
+            "identified": 1,
+            "settled": 1,
+            "bypass_controls_clear": 1
+          }
+        },
+        {
+          "stage": "ddr_ddr_firewall",
+          "suffix_line": 3,
+          "values": {
+            "status": 0,
+            "owner": 8991833899408868463,
+            "generation": 5,
+            "reset": 13,
+            "mpfe_reset": 0,
+            "reads": 66,
+            "enable": 1,
+            "base": 2499805184,
+            "bytes": 8192
+          }
+        },
+        {
+          "stage": "ddr_ddr_region",
+          "suffix_line": 4,
+          "values": {
+            "index": 0,
+            "base": 2148532224,
+            "baseext": 0,
+            "limit": 3221225471,
+            "limitext": 0
+          }
+        },
+        {
+          "stage": "ddr_ddr_region",
+          "suffix_line": 5,
+          "values": {
+            "index": 1,
+            "base": 0,
+            "baseext": 0,
+            "limit": 65535,
+            "limitext": 0
+          }
+        },
+        {
+          "stage": "ddr_ddr_region",
+          "suffix_line": 6,
+          "values": {
+            "index": 2,
+            "base": 0,
+            "baseext": 0,
+            "limit": 65535,
+            "limitext": 0
+          }
+        },
+        {
+          "stage": "ddr_ddr_region",
+          "suffix_line": 7,
+          "values": {
+            "index": 3,
+            "base": 0,
+            "baseext": 0,
+            "limit": 65535,
+            "limitext": 0
+          }
+        },
+        {
+          "stage": "ddr_ddr_region",
+          "suffix_line": 8,
+          "values": {
+            "index": 4,
+            "base": 0,
+            "baseext": 0,
+            "limit": 65535,
+            "limitext": 0
+          }
+        },
+        {
+          "stage": "ddr_ddr_region",
+          "suffix_line": 9,
+          "values": {
+            "index": 5,
+            "base": 0,
+            "baseext": 0,
+            "limit": 65535,
+            "limitext": 0
+          }
+        },
+        {
+          "stage": "ddr_ddr_region",
+          "suffix_line": 10,
+          "values": {
+            "index": 6,
+            "base": 0,
+            "baseext": 0,
+            "limit": 65535,
+            "limitext": 0
+          }
+        },
+        {
+          "stage": "ddr_ddr_region",
+          "suffix_line": 11,
+          "values": {
+            "index": 7,
+            "base": 0,
+            "baseext": 0,
+            "limit": 65535,
+            "limitext": 0
+          }
+        },
+        {
+          "stage": "ddr_ddr_firewall_end",
+          "suffix_line": 12,
+          "values": {
+            "layout_known": 1,
+            "window_covered": 1
+          }
+        },
+        {
+          "stage": "ddr_gate",
+          "suffix_line": 13,
+          "values": {
+            "status": 0,
+            "owner": 8991833899408868463,
+            "generation": 5,
+            "reset": 13,
+            "pattern_words": 2048
+          }
+        },
+        {
+          "stage": "ddr_control",
+          "suffix_line": 14,
+          "values": {
+            "phase": 15,
+            "owner": 8991833899408868463,
+            "generation": 5,
+            "reset": 13
+          }
+        },
+        {
+          "stage": "ddr_smmu",
+          "suffix_line": 15,
+          "values": {
+            "status": 0,
+            "reads": 26,
+            "idr0": 135233087,
+            "idr1": 242457880,
+            "aidr": 1,
+            "s_idr1": 2147483672,
+            "cr0": 0,
+            "ack": 0,
+            "gbpa": 0,
+            "agbpa": 0,
+            "s_cr0": 0,
+            "s_ack": 0,
+            "s_init": 0,
+            "s_gbpa": 0,
+            "s_agbpa": 0,
+            "identified": 1,
+            "settled": 1,
+            "bypass_controls_clear": 1
+          }
+        },
+        {
+          "stage": "ddr_ddr_firewall",
+          "suffix_line": 16,
+          "values": {
+            "status": 0,
+            "owner": 8991833899408868463,
+            "generation": 5,
+            "reset": 13,
+            "mpfe_reset": 0,
+            "reads": 66,
+            "enable": 1,
+            "base": 2499805184,
+            "bytes": 8192
+          }
+        },
+        {
+          "stage": "ddr_ddr_region",
+          "suffix_line": 17,
+          "values": {
+            "index": 0,
+            "base": 2148532224,
+            "baseext": 0,
+            "limit": 3221225471,
+            "limitext": 0
+          }
+        },
+        {
+          "stage": "ddr_ddr_region",
+          "suffix_line": 18,
+          "values": {
+            "index": 1,
+            "base": 0,
+            "baseext": 0,
+            "limit": 65535,
+            "limitext": 0
+          }
+        },
+        {
+          "stage": "ddr_ddr_region",
+          "suffix_line": 19,
+          "values": {
+            "index": 2,
+            "base": 0,
+            "baseext": 0,
+            "limit": 65535,
+            "limitext": 0
+          }
+        },
+        {
+          "stage": "ddr_ddr_region",
+          "suffix_line": 20,
+          "values": {
+            "index": 3,
+            "base": 0,
+            "baseext": 0,
+            "limit": 65535,
+            "limitext": 0
+          }
+        },
+        {
+          "stage": "ddr_ddr_region",
+          "suffix_line": 21,
+          "values": {
+            "index": 4,
+            "base": 0,
+            "baseext": 0,
+            "limit": 65535,
+            "limitext": 0
+          }
+        },
+        {
+          "stage": "ddr_ddr_region",
+          "suffix_line": 22,
+          "values": {
+            "index": 5,
+            "base": 0,
+            "baseext": 0,
+            "limit": 65535,
+            "limitext": 0
+          }
+        },
+        {
+          "stage": "ddr_ddr_region",
+          "suffix_line": 23,
+          "values": {
+            "index": 6,
+            "base": 0,
+            "baseext": 0,
+            "limit": 65535,
+            "limitext": 0
+          }
+        },
+        {
+          "stage": "ddr_ddr_region",
+          "suffix_line": 24,
+          "values": {
+            "index": 7,
+            "base": 0,
+            "baseext": 0,
+            "limit": 65535,
+            "limitext": 0
+          }
+        },
+        {
+          "stage": "ddr_ddr_firewall_end",
+          "suffix_line": 25,
+          "values": {
+            "layout_known": 1,
+            "window_covered": 1
+          }
+        },
+        {
+          "stage": "ddr_gate",
+          "suffix_line": 26,
+          "values": {
+            "status": 0,
+            "owner": 8991833899408868463,
+            "generation": 5,
+            "reset": 13,
+            "pattern_words": 2048
+          }
+        },
+        {
+          "stage": "ddr_control",
+          "suffix_line": 27,
+          "values": {
+            "phase": 16,
+            "owner": 8991833899408868463,
+            "generation": 6,
+            "reset": 5
+          }
+        },
+        {
+          "stage": "ddr_phase",
+          "suffix_line": 28,
+          "values": {
+            "phase": 1,
+            "owner": 8991833899408868463,
+            "generation": 6,
+            "reset": 5,
+            "reads": 0,
+            "writes": 0,
+            "polls": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 29,
+          "values": {
+            "phase": "before",
+            "ordinal": 1,
+            "offset": 0,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 30,
+          "values": {
+            "phase": "after",
+            "ordinal": 1,
+            "offset": 0,
+            "value": 1178948421
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 31,
+          "values": {
+            "phase": "before",
+            "ordinal": 2,
+            "offset": 4,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 32,
+          "values": {
+            "phase": "after",
+            "ordinal": 2,
+            "offset": 4,
+            "value": 65536
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 33,
+          "values": {
+            "phase": "before",
+            "ordinal": 3,
+            "offset": 8,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 34,
+          "values": {
+            "phase": "after",
+            "ordinal": 3,
+            "offset": 8,
+            "value": 270544961
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 35,
+          "values": {
+            "phase": "before",
+            "ordinal": 4,
+            "offset": 12,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 36,
+          "values": {
+            "phase": "after",
+            "ordinal": 4,
+            "offset": 12,
+            "value": 3625843574
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 37,
+          "values": {
+            "phase": "before",
+            "ordinal": 5,
+            "offset": 16,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 38,
+          "values": {
+            "phase": "after",
+            "ordinal": 5,
+            "offset": 16,
+            "value": 371855428
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 39,
+          "values": {
+            "phase": "before",
+            "ordinal": 6,
+            "offset": 20,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 40,
+          "values": {
+            "phase": "after",
+            "ordinal": 6,
+            "offset": 20,
+            "value": 3626113170
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 41,
+          "values": {
+            "phase": "before",
+            "ordinal": 7,
+            "offset": 24,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 42,
+          "values": {
+            "phase": "after",
+            "ordinal": 7,
+            "offset": 24,
+            "value": 3527629493
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 43,
+          "values": {
+            "phase": "before",
+            "ordinal": 8,
+            "offset": 28,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 44,
+          "values": {
+            "phase": "after",
+            "ordinal": 8,
+            "offset": 28,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 45,
+          "values": {
+            "phase": "before",
+            "ordinal": 9,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 46,
+          "values": {
+            "phase": "after",
+            "ordinal": 9,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 47,
+          "values": {
+            "phase": "before",
+            "ordinal": 10,
+            "offset": 36,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 48,
+          "values": {
+            "phase": "after",
+            "ordinal": 10,
+            "offset": 36,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 49,
+          "values": {
+            "phase": "before",
+            "ordinal": 11,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 50,
+          "values": {
+            "phase": "after",
+            "ordinal": 11,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 51,
+          "values": {
+            "phase": "before",
+            "ordinal": 12,
+            "offset": 44,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 52,
+          "values": {
+            "phase": "after",
+            "ordinal": 12,
+            "offset": 44,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 53,
+          "values": {
+            "phase": "before",
+            "ordinal": 13,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 54,
+          "values": {
+            "phase": "after",
+            "ordinal": 13,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 55,
+          "values": {
+            "phase": "before",
+            "ordinal": 14,
+            "offset": 56,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 56,
+          "values": {
+            "phase": "after",
+            "ordinal": 14,
+            "offset": 56,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 57,
+          "values": {
+            "phase": "before",
+            "ordinal": 15,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 58,
+          "values": {
+            "phase": "after",
+            "ordinal": 15,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 59,
+          "values": {
+            "phase": "before",
+            "ordinal": 16,
+            "offset": 64,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 60,
+          "values": {
+            "phase": "after",
+            "ordinal": 16,
+            "offset": 64,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 61,
+          "values": {
+            "phase": "before",
+            "ordinal": 17,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 62,
+          "values": {
+            "phase": "after",
+            "ordinal": 17,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 63,
+          "values": {
+            "phase": "before",
+            "ordinal": 18,
+            "offset": 72,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 64,
+          "values": {
+            "phase": "after",
+            "ordinal": 18,
+            "offset": 72,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 65,
+          "values": {
+            "phase": "before",
+            "ordinal": 19,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 66,
+          "values": {
+            "phase": "after",
+            "ordinal": 19,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 67,
+          "values": {
+            "phase": "before",
+            "ordinal": 20,
+            "offset": 176,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 68,
+          "values": {
+            "phase": "after",
+            "ordinal": 20,
+            "offset": 176,
+            "value": 2499805184
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 69,
+          "values": {
+            "phase": "before",
+            "ordinal": 21,
+            "offset": 180,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 70,
+          "values": {
+            "phase": "after",
+            "ordinal": 21,
+            "offset": 180,
+            "value": 8192
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 71,
+          "values": {
+            "phase": "before",
+            "ordinal": 22,
+            "offset": 184,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 72,
+          "values": {
+            "phase": "after",
+            "ordinal": 22,
+            "offset": 184,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 73,
+          "values": {
+            "phase": "before",
+            "ordinal": 23,
+            "offset": 148,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 74,
+          "values": {
+            "phase": "after",
+            "ordinal": 23,
+            "offset": 148,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 75,
+          "values": {
+            "phase": "before",
+            "ordinal": 24,
+            "offset": 152,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 76,
+          "values": {
+            "phase": "after",
+            "ordinal": 24,
+            "offset": 152,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 77,
+          "values": {
+            "phase": "before",
+            "ordinal": 25,
+            "offset": 160,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 78,
+          "values": {
+            "phase": "after",
+            "ordinal": 25,
+            "offset": 160,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 79,
+          "values": {
+            "phase": "before",
+            "ordinal": 26,
+            "offset": 164,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 80,
+          "values": {
+            "phase": "after",
+            "ordinal": 26,
+            "offset": 164,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 81,
+          "values": {
+            "phase": "before",
+            "ordinal": 27,
+            "offset": 168,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 82,
+          "values": {
+            "phase": "after",
+            "ordinal": 27,
+            "offset": 168,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 83,
+          "values": {
+            "phase": "before",
+            "ordinal": 28,
+            "offset": 172,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 84,
+          "values": {
+            "phase": "after",
+            "ordinal": 28,
+            "offset": 172,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 85,
+          "values": {
+            "phase": "before",
+            "ordinal": 29,
+            "offset": 0,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 86,
+          "values": {
+            "phase": "after",
+            "ordinal": 29,
+            "offset": 0,
+            "value": 1178948421
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 87,
+          "values": {
+            "phase": "before",
+            "ordinal": 30,
+            "offset": 4,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 88,
+          "values": {
+            "phase": "after",
+            "ordinal": 30,
+            "offset": 4,
+            "value": 65536
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 89,
+          "values": {
+            "phase": "before",
+            "ordinal": 31,
+            "offset": 8,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 90,
+          "values": {
+            "phase": "after",
+            "ordinal": 31,
+            "offset": 8,
+            "value": 270544961
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 91,
+          "values": {
+            "phase": "before",
+            "ordinal": 32,
+            "offset": 12,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 92,
+          "values": {
+            "phase": "after",
+            "ordinal": 32,
+            "offset": 12,
+            "value": 3625843574
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 93,
+          "values": {
+            "phase": "before",
+            "ordinal": 33,
+            "offset": 16,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 94,
+          "values": {
+            "phase": "after",
+            "ordinal": 33,
+            "offset": 16,
+            "value": 371855428
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 95,
+          "values": {
+            "phase": "before",
+            "ordinal": 34,
+            "offset": 20,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 96,
+          "values": {
+            "phase": "after",
+            "ordinal": 34,
+            "offset": 20,
+            "value": 3626113170
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 97,
+          "values": {
+            "phase": "before",
+            "ordinal": 35,
+            "offset": 24,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 98,
+          "values": {
+            "phase": "after",
+            "ordinal": 35,
+            "offset": 24,
+            "value": 3527629493
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 99,
+          "values": {
+            "phase": "before",
+            "ordinal": 36,
+            "offset": 28,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 100,
+          "values": {
+            "phase": "after",
+            "ordinal": 36,
+            "offset": 28,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 101,
+          "values": {
+            "phase": "before",
+            "ordinal": 37,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 102,
+          "values": {
+            "phase": "after",
+            "ordinal": 37,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 103,
+          "values": {
+            "phase": "before",
+            "ordinal": 38,
+            "offset": 36,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 104,
+          "values": {
+            "phase": "after",
+            "ordinal": 38,
+            "offset": 36,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 105,
+          "values": {
+            "phase": "before",
+            "ordinal": 39,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 106,
+          "values": {
+            "phase": "after",
+            "ordinal": 39,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 107,
+          "values": {
+            "phase": "before",
+            "ordinal": 40,
+            "offset": 44,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 108,
+          "values": {
+            "phase": "after",
+            "ordinal": 40,
+            "offset": 44,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 109,
+          "values": {
+            "phase": "before",
+            "ordinal": 41,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 110,
+          "values": {
+            "phase": "after",
+            "ordinal": 41,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 111,
+          "values": {
+            "phase": "before",
+            "ordinal": 42,
+            "offset": 56,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 112,
+          "values": {
+            "phase": "after",
+            "ordinal": 42,
+            "offset": 56,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 113,
+          "values": {
+            "phase": "before",
+            "ordinal": 43,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 114,
+          "values": {
+            "phase": "after",
+            "ordinal": 43,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 115,
+          "values": {
+            "phase": "before",
+            "ordinal": 44,
+            "offset": 64,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 116,
+          "values": {
+            "phase": "after",
+            "ordinal": 44,
+            "offset": 64,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 117,
+          "values": {
+            "phase": "before",
+            "ordinal": 45,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 118,
+          "values": {
+            "phase": "after",
+            "ordinal": 45,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 119,
+          "values": {
+            "phase": "before",
+            "ordinal": 46,
+            "offset": 72,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 120,
+          "values": {
+            "phase": "after",
+            "ordinal": 46,
+            "offset": 72,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 121,
+          "values": {
+            "phase": "before",
+            "ordinal": 47,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 122,
+          "values": {
+            "phase": "after",
+            "ordinal": 47,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 123,
+          "values": {
+            "phase": "before",
+            "ordinal": 48,
+            "offset": 176,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 124,
+          "values": {
+            "phase": "after",
+            "ordinal": 48,
+            "offset": 176,
+            "value": 2499805184
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 125,
+          "values": {
+            "phase": "before",
+            "ordinal": 49,
+            "offset": 180,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 126,
+          "values": {
+            "phase": "after",
+            "ordinal": 49,
+            "offset": 180,
+            "value": 8192
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 127,
+          "values": {
+            "phase": "before",
+            "ordinal": 50,
+            "offset": 184,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 128,
+          "values": {
+            "phase": "after",
+            "ordinal": 50,
+            "offset": 184,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 129,
+          "values": {
+            "phase": "before",
+            "ordinal": 51,
+            "offset": 148,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 130,
+          "values": {
+            "phase": "after",
+            "ordinal": 51,
+            "offset": 148,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 131,
+          "values": {
+            "phase": "before",
+            "ordinal": 52,
+            "offset": 152,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 132,
+          "values": {
+            "phase": "after",
+            "ordinal": 52,
+            "offset": 152,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 133,
+          "values": {
+            "phase": "before",
+            "ordinal": 53,
+            "offset": 160,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 134,
+          "values": {
+            "phase": "after",
+            "ordinal": 53,
+            "offset": 160,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 135,
+          "values": {
+            "phase": "before",
+            "ordinal": 54,
+            "offset": 164,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 136,
+          "values": {
+            "phase": "after",
+            "ordinal": 54,
+            "offset": 164,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 137,
+          "values": {
+            "phase": "before",
+            "ordinal": 55,
+            "offset": 168,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 138,
+          "values": {
+            "phase": "after",
+            "ordinal": 55,
+            "offset": 168,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 139,
+          "values": {
+            "phase": "before",
+            "ordinal": 56,
+            "offset": 172,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 140,
+          "values": {
+            "phase": "after",
+            "ordinal": 56,
+            "offset": 172,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_phase",
+          "suffix_line": 141,
+          "values": {
+            "phase": 2,
+            "owner": 8991833899408868463,
+            "generation": 6,
+            "reset": 5,
+            "reads": 56,
+            "writes": 0,
+            "polls": 0
+          }
+        },
+        {
+          "stage": "ddr_write",
+          "suffix_line": 142,
+          "values": {
+            "phase": "before",
+            "offset": 36,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_write",
+          "suffix_line": 143,
+          "values": {
+            "phase": "after",
+            "offset": 36,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_write",
+          "suffix_line": 144,
+          "values": {
+            "phase": "before",
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_write",
+          "suffix_line": 145,
+          "values": {
+            "phase": "after",
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_write",
+          "suffix_line": 146,
+          "values": {
+            "phase": "before",
+            "offset": 52,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_write",
+          "suffix_line": 147,
+          "values": {
+            "phase": "after",
+            "offset": 52,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 148,
+          "values": {
+            "phase": "before",
+            "ordinal": 57,
+            "offset": 56,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 149,
+          "values": {
+            "phase": "after",
+            "ordinal": 57,
+            "offset": 56,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 150,
+          "values": {
+            "phase": "before",
+            "ordinal": 58,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 151,
+          "values": {
+            "phase": "after",
+            "ordinal": 58,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 152,
+          "values": {
+            "phase": "before",
+            "ordinal": 59,
+            "offset": 28,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 153,
+          "values": {
+            "phase": "after",
+            "ordinal": 59,
+            "offset": 28,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 154,
+          "values": {
+            "phase": "before",
+            "ordinal": 60,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 155,
+          "values": {
+            "phase": "after",
+            "ordinal": 60,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 156,
+          "values": {
+            "phase": "before",
+            "ordinal": 61,
+            "offset": 64,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 157,
+          "values": {
+            "phase": "after",
+            "ordinal": 61,
+            "offset": 64,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 158,
+          "values": {
+            "phase": "before",
+            "ordinal": 62,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 159,
+          "values": {
+            "phase": "after",
+            "ordinal": 62,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 160,
+          "values": {
+            "phase": "before",
+            "ordinal": 63,
+            "offset": 72,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 161,
+          "values": {
+            "phase": "after",
+            "ordinal": 63,
+            "offset": 72,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 162,
+          "values": {
+            "phase": "before",
+            "ordinal": 64,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 163,
+          "values": {
+            "phase": "after",
+            "ordinal": 64,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 164,
+          "values": {
+            "phase": "before",
+            "ordinal": 65,
+            "offset": 36,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 165,
+          "values": {
+            "phase": "after",
+            "ordinal": 65,
+            "offset": 36,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 166,
+          "values": {
+            "phase": "before",
+            "ordinal": 66,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 167,
+          "values": {
+            "phase": "after",
+            "ordinal": 66,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 168,
+          "values": {
+            "phase": "before",
+            "ordinal": 67,
+            "offset": 44,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 169,
+          "values": {
+            "phase": "after",
+            "ordinal": 67,
+            "offset": 44,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 170,
+          "values": {
+            "phase": "before",
+            "ordinal": 68,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 171,
+          "values": {
+            "phase": "after",
+            "ordinal": 68,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 172,
+          "values": {
+            "phase": "before",
+            "ordinal": 69,
+            "offset": 56,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 173,
+          "values": {
+            "phase": "after",
+            "ordinal": 69,
+            "offset": 56,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 174,
+          "values": {
+            "phase": "before",
+            "ordinal": 70,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 175,
+          "values": {
+            "phase": "after",
+            "ordinal": 70,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 176,
+          "values": {
+            "phase": "before",
+            "ordinal": 71,
+            "offset": 28,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 177,
+          "values": {
+            "phase": "after",
+            "ordinal": 71,
+            "offset": 28,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 178,
+          "values": {
+            "phase": "before",
+            "ordinal": 72,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 179,
+          "values": {
+            "phase": "after",
+            "ordinal": 72,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 180,
+          "values": {
+            "phase": "before",
+            "ordinal": 73,
+            "offset": 64,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 181,
+          "values": {
+            "phase": "after",
+            "ordinal": 73,
+            "offset": 64,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 182,
+          "values": {
+            "phase": "before",
+            "ordinal": 74,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 183,
+          "values": {
+            "phase": "after",
+            "ordinal": 74,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 184,
+          "values": {
+            "phase": "before",
+            "ordinal": 75,
+            "offset": 72,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 185,
+          "values": {
+            "phase": "after",
+            "ordinal": 75,
+            "offset": 72,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 186,
+          "values": {
+            "phase": "before",
+            "ordinal": 76,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 187,
+          "values": {
+            "phase": "after",
+            "ordinal": 76,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 188,
+          "values": {
+            "phase": "before",
+            "ordinal": 77,
+            "offset": 36,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 189,
+          "values": {
+            "phase": "after",
+            "ordinal": 77,
+            "offset": 36,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 190,
+          "values": {
+            "phase": "before",
+            "ordinal": 78,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 191,
+          "values": {
+            "phase": "after",
+            "ordinal": 78,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 192,
+          "values": {
+            "phase": "before",
+            "ordinal": 79,
+            "offset": 44,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 193,
+          "values": {
+            "phase": "after",
+            "ordinal": 79,
+            "offset": 44,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 194,
+          "values": {
+            "phase": "before",
+            "ordinal": 80,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 195,
+          "values": {
+            "phase": "after",
+            "ordinal": 80,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_phase",
+          "suffix_line": 196,
+          "values": {
+            "phase": 3,
+            "owner": 8991833899408868463,
+            "generation": 6,
+            "reset": 5,
+            "reads": 80,
+            "writes": 3,
+            "polls": 1
+          }
+        },
+        {
+          "stage": "ddr_write",
+          "suffix_line": 197,
+          "values": {
+            "phase": "before",
+            "offset": 132,
+            "value": 2499805184
+          }
+        },
+        {
+          "stage": "ddr_write",
+          "suffix_line": 198,
+          "values": {
+            "phase": "after",
+            "offset": 132,
+            "value": 2499805184
+          }
+        },
+        {
+          "stage": "ddr_write",
+          "suffix_line": 199,
+          "values": {
+            "phase": "before",
+            "offset": 136,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_write",
+          "suffix_line": 200,
+          "values": {
+            "phase": "after",
+            "offset": 136,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_write",
+          "suffix_line": 201,
+          "values": {
+            "phase": "before",
+            "offset": 128,
+            "value": 8
+          }
+        },
+        {
+          "stage": "ddr_write",
+          "suffix_line": 202,
+          "values": {
+            "phase": "after",
+            "offset": 128,
+            "value": 8
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 203,
+          "values": {
+            "phase": "before",
+            "ordinal": 81,
+            "offset": 56,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 204,
+          "values": {
+            "phase": "after",
+            "ordinal": 81,
+            "offset": 56,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 205,
+          "values": {
+            "phase": "before",
+            "ordinal": 82,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 206,
+          "values": {
+            "phase": "after",
+            "ordinal": 82,
+            "offset": 60,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 207,
+          "values": {
+            "phase": "before",
+            "ordinal": 83,
+            "offset": 28,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 208,
+          "values": {
+            "phase": "after",
+            "ordinal": 83,
+            "offset": 28,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 209,
+          "values": {
+            "phase": "before",
+            "ordinal": 84,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 210,
+          "values": {
+            "phase": "after",
+            "ordinal": 84,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 211,
+          "values": {
+            "phase": "before",
+            "ordinal": 85,
+            "offset": 64,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 212,
+          "values": {
+            "phase": "after",
+            "ordinal": 85,
+            "offset": 64,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 213,
+          "values": {
+            "phase": "before",
+            "ordinal": 86,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 214,
+          "values": {
+            "phase": "after",
+            "ordinal": 86,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 215,
+          "values": {
+            "phase": "before",
+            "ordinal": 87,
+            "offset": 72,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 216,
+          "values": {
+            "phase": "after",
+            "ordinal": 87,
+            "offset": 72,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 217,
+          "values": {
+            "phase": "before",
+            "ordinal": 88,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 218,
+          "values": {
+            "phase": "after",
+            "ordinal": 88,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 219,
+          "values": {
+            "phase": "before",
+            "ordinal": 89,
+            "offset": 36,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 220,
+          "values": {
+            "phase": "after",
+            "ordinal": 89,
+            "offset": 36,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 221,
+          "values": {
+            "phase": "before",
+            "ordinal": 90,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 222,
+          "values": {
+            "phase": "after",
+            "ordinal": 90,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 223,
+          "values": {
+            "phase": "before",
+            "ordinal": 91,
+            "offset": 44,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 224,
+          "values": {
+            "phase": "after",
+            "ordinal": 91,
+            "offset": 44,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 225,
+          "values": {
+            "phase": "before",
+            "ordinal": 92,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 226,
+          "values": {
+            "phase": "after",
+            "ordinal": 92,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 227,
+          "values": {
+            "phase": "before",
+            "ordinal": 93,
+            "offset": 56,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 228,
+          "values": {
+            "phase": "after",
+            "ordinal": 93,
+            "offset": 56,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 229,
+          "values": {
+            "phase": "before",
+            "ordinal": 94,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 230,
+          "values": {
+            "phase": "after",
+            "ordinal": 94,
+            "offset": 60,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 231,
+          "values": {
+            "phase": "before",
+            "ordinal": 95,
+            "offset": 28,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 232,
+          "values": {
+            "phase": "after",
+            "ordinal": 95,
+            "offset": 28,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 233,
+          "values": {
+            "phase": "before",
+            "ordinal": 96,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 234,
+          "values": {
+            "phase": "after",
+            "ordinal": 96,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 235,
+          "values": {
+            "phase": "before",
+            "ordinal": 97,
+            "offset": 64,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 236,
+          "values": {
+            "phase": "after",
+            "ordinal": 97,
+            "offset": 64,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 237,
+          "values": {
+            "phase": "before",
+            "ordinal": 98,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 238,
+          "values": {
+            "phase": "after",
+            "ordinal": 98,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 239,
+          "values": {
+            "phase": "before",
+            "ordinal": 99,
+            "offset": 72,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 240,
+          "values": {
+            "phase": "after",
+            "ordinal": 99,
+            "offset": 72,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 241,
+          "values": {
+            "phase": "before",
+            "ordinal": 100,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 242,
+          "values": {
+            "phase": "after",
+            "ordinal": 100,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 243,
+          "values": {
+            "phase": "before",
+            "ordinal": 101,
+            "offset": 36,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 244,
+          "values": {
+            "phase": "after",
+            "ordinal": 101,
+            "offset": 36,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 245,
+          "values": {
+            "phase": "before",
+            "ordinal": 102,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 246,
+          "values": {
+            "phase": "after",
+            "ordinal": 102,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 247,
+          "values": {
+            "phase": "before",
+            "ordinal": 103,
+            "offset": 44,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 248,
+          "values": {
+            "phase": "after",
+            "ordinal": 103,
+            "offset": 44,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 249,
+          "values": {
+            "phase": "before",
+            "ordinal": 104,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 250,
+          "values": {
+            "phase": "after",
+            "ordinal": 104,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_phase",
+          "suffix_line": 251,
+          "values": {
+            "phase": 4,
+            "owner": 8991833899408868463,
+            "generation": 6,
+            "reset": 5,
+            "reads": 104,
+            "writes": 6,
+            "polls": 2
+          }
+        },
+        {
+          "stage": "ddr_phase",
+          "suffix_line": 252,
+          "values": {
+            "phase": 5,
+            "owner": 8991833899408868463,
+            "generation": 6,
+            "reset": 5,
+            "reads": 104,
+            "writes": 6,
+            "polls": 2
+          }
+        },
+        {
+          "stage": "ddr_write",
+          "suffix_line": 253,
+          "values": {
+            "phase": "before",
+            "offset": 44,
+            "value": 7
+          }
+        },
+        {
+          "stage": "ddr_write",
+          "suffix_line": 254,
+          "values": {
+            "phase": "after",
+            "offset": 44,
+            "value": 7
+          }
+        },
+        {
+          "stage": "ddr_write",
+          "suffix_line": 255,
+          "values": {
+            "phase": "before",
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_write",
+          "suffix_line": 256,
+          "values": {
+            "phase": "after",
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_write",
+          "suffix_line": 257,
+          "values": {
+            "phase": "before",
+            "offset": 52,
+            "value": 2
+          }
+        },
+        {
+          "stage": "ddr_write",
+          "suffix_line": 258,
+          "values": {
+            "phase": "after",
+            "offset": 52,
+            "value": 2
+          }
+        },
+        {
+          "stage": "ddr_phase",
+          "suffix_line": 259,
+          "values": {
+            "phase": 6,
+            "owner": 8991833899408868463,
+            "generation": 6,
+            "reset": 5,
+            "reads": 104,
+            "writes": 9,
+            "polls": 2
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 260,
+          "values": {
+            "phase": "before",
+            "ordinal": 105,
+            "offset": 56,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 261,
+          "values": {
+            "phase": "after",
+            "ordinal": 105,
+            "offset": 56,
+            "value": 4
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 262,
+          "values": {
+            "phase": "before",
+            "ordinal": 106,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 263,
+          "values": {
+            "phase": "after",
+            "ordinal": 106,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 264,
+          "values": {
+            "phase": "before",
+            "ordinal": 107,
+            "offset": 28,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 265,
+          "values": {
+            "phase": "after",
+            "ordinal": 107,
+            "offset": 28,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 266,
+          "values": {
+            "phase": "before",
+            "ordinal": 108,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 267,
+          "values": {
+            "phase": "after",
+            "ordinal": 108,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 268,
+          "values": {
+            "phase": "before",
+            "ordinal": 109,
+            "offset": 64,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 269,
+          "values": {
+            "phase": "after",
+            "ordinal": 109,
+            "offset": 64,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 270,
+          "values": {
+            "phase": "before",
+            "ordinal": 110,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 271,
+          "values": {
+            "phase": "after",
+            "ordinal": 110,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 272,
+          "values": {
+            "phase": "before",
+            "ordinal": 111,
+            "offset": 72,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 273,
+          "values": {
+            "phase": "after",
+            "ordinal": 111,
+            "offset": 72,
+            "value": 7
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 274,
+          "values": {
+            "phase": "before",
+            "ordinal": 112,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 275,
+          "values": {
+            "phase": "after",
+            "ordinal": 112,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 276,
+          "values": {
+            "phase": "before",
+            "ordinal": 113,
+            "offset": 36,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 277,
+          "values": {
+            "phase": "after",
+            "ordinal": 113,
+            "offset": 36,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 278,
+          "values": {
+            "phase": "before",
+            "ordinal": 114,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 279,
+          "values": {
+            "phase": "after",
+            "ordinal": 114,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 280,
+          "values": {
+            "phase": "before",
+            "ordinal": 115,
+            "offset": 44,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 281,
+          "values": {
+            "phase": "after",
+            "ordinal": 115,
+            "offset": 44,
+            "value": 7
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 282,
+          "values": {
+            "phase": "before",
+            "ordinal": 116,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 283,
+          "values": {
+            "phase": "after",
+            "ordinal": 116,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 284,
+          "values": {
+            "phase": "before",
+            "ordinal": 117,
+            "offset": 56,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 285,
+          "values": {
+            "phase": "after",
+            "ordinal": 117,
+            "offset": 56,
+            "value": 4
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 286,
+          "values": {
+            "phase": "before",
+            "ordinal": 118,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 287,
+          "values": {
+            "phase": "after",
+            "ordinal": 118,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 288,
+          "values": {
+            "phase": "before",
+            "ordinal": 119,
+            "offset": 28,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 289,
+          "values": {
+            "phase": "after",
+            "ordinal": 119,
+            "offset": 28,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 290,
+          "values": {
+            "phase": "before",
+            "ordinal": 120,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 291,
+          "values": {
+            "phase": "after",
+            "ordinal": 120,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 292,
+          "values": {
+            "phase": "before",
+            "ordinal": 121,
+            "offset": 64,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 293,
+          "values": {
+            "phase": "after",
+            "ordinal": 121,
+            "offset": 64,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 294,
+          "values": {
+            "phase": "before",
+            "ordinal": 122,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 295,
+          "values": {
+            "phase": "after",
+            "ordinal": 122,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 296,
+          "values": {
+            "phase": "before",
+            "ordinal": 123,
+            "offset": 72,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 297,
+          "values": {
+            "phase": "after",
+            "ordinal": 123,
+            "offset": 72,
+            "value": 7
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 298,
+          "values": {
+            "phase": "before",
+            "ordinal": 124,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 299,
+          "values": {
+            "phase": "after",
+            "ordinal": 124,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 300,
+          "values": {
+            "phase": "before",
+            "ordinal": 125,
+            "offset": 36,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 301,
+          "values": {
+            "phase": "after",
+            "ordinal": 125,
+            "offset": 36,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 302,
+          "values": {
+            "phase": "before",
+            "ordinal": 126,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 303,
+          "values": {
+            "phase": "after",
+            "ordinal": 126,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 304,
+          "values": {
+            "phase": "before",
+            "ordinal": 127,
+            "offset": 44,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 305,
+          "values": {
+            "phase": "after",
+            "ordinal": 127,
+            "offset": 44,
+            "value": 7
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 306,
+          "values": {
+            "phase": "before",
+            "ordinal": 128,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 307,
+          "values": {
+            "phase": "after",
+            "ordinal": 128,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_phase",
+          "suffix_line": 308,
+          "values": {
+            "phase": 7,
+            "owner": 8991833899408868463,
+            "generation": 6,
+            "reset": 5,
+            "reads": 128,
+            "writes": 9,
+            "polls": 3
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 309,
+          "values": {
+            "phase": "before",
+            "ordinal": 129,
+            "offset": 148,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 310,
+          "values": {
+            "phase": "after",
+            "ordinal": 129,
+            "offset": 148,
+            "value": 32
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 311,
+          "values": {
+            "phase": "before",
+            "ordinal": 130,
+            "offset": 152,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 312,
+          "values": {
+            "phase": "after",
+            "ordinal": 130,
+            "offset": 152,
+            "value": 4060082112
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 313,
+          "values": {
+            "phase": "before",
+            "ordinal": 131,
+            "offset": 160,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 314,
+          "values": {
+            "phase": "after",
+            "ordinal": 131,
+            "offset": 160,
+            "value": 916236459
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 315,
+          "values": {
+            "phase": "before",
+            "ordinal": 132,
+            "offset": 164,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 316,
+          "values": {
+            "phase": "after",
+            "ordinal": 132,
+            "offset": 164,
+            "value": 1498689234
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 317,
+          "values": {
+            "phase": "before",
+            "ordinal": 133,
+            "offset": 168,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 318,
+          "values": {
+            "phase": "after",
+            "ordinal": 133,
+            "offset": 168,
+            "value": 4211971097
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 319,
+          "values": {
+            "phase": "before",
+            "ordinal": 134,
+            "offset": 172,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 320,
+          "values": {
+            "phase": "after",
+            "ordinal": 134,
+            "offset": 172,
+            "value": 499456576
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 321,
+          "values": {
+            "phase": "before",
+            "ordinal": 135,
+            "offset": 56,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 322,
+          "values": {
+            "phase": "after",
+            "ordinal": 135,
+            "offset": 56,
+            "value": 4
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 323,
+          "values": {
+            "phase": "before",
+            "ordinal": 136,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 324,
+          "values": {
+            "phase": "after",
+            "ordinal": 136,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 325,
+          "values": {
+            "phase": "before",
+            "ordinal": 137,
+            "offset": 28,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 326,
+          "values": {
+            "phase": "after",
+            "ordinal": 137,
+            "offset": 28,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 327,
+          "values": {
+            "phase": "before",
+            "ordinal": 138,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 328,
+          "values": {
+            "phase": "after",
+            "ordinal": 138,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 329,
+          "values": {
+            "phase": "before",
+            "ordinal": 139,
+            "offset": 64,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 330,
+          "values": {
+            "phase": "after",
+            "ordinal": 139,
+            "offset": 64,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 331,
+          "values": {
+            "phase": "before",
+            "ordinal": 140,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 332,
+          "values": {
+            "phase": "after",
+            "ordinal": 140,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 333,
+          "values": {
+            "phase": "before",
+            "ordinal": 141,
+            "offset": 72,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 334,
+          "values": {
+            "phase": "after",
+            "ordinal": 141,
+            "offset": 72,
+            "value": 7
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 335,
+          "values": {
+            "phase": "before",
+            "ordinal": 142,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 336,
+          "values": {
+            "phase": "after",
+            "ordinal": 142,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 337,
+          "values": {
+            "phase": "before",
+            "ordinal": 143,
+            "offset": 36,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 338,
+          "values": {
+            "phase": "after",
+            "ordinal": 143,
+            "offset": 36,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 339,
+          "values": {
+            "phase": "before",
+            "ordinal": 144,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 340,
+          "values": {
+            "phase": "after",
+            "ordinal": 144,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 341,
+          "values": {
+            "phase": "before",
+            "ordinal": 145,
+            "offset": 44,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 342,
+          "values": {
+            "phase": "after",
+            "ordinal": 145,
+            "offset": 44,
+            "value": 7
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 343,
+          "values": {
+            "phase": "before",
+            "ordinal": 146,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 344,
+          "values": {
+            "phase": "after",
+            "ordinal": 146,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 345,
+          "values": {
+            "phase": "before",
+            "ordinal": 147,
+            "offset": 56,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 346,
+          "values": {
+            "phase": "after",
+            "ordinal": 147,
+            "offset": 56,
+            "value": 4
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 347,
+          "values": {
+            "phase": "before",
+            "ordinal": 148,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 348,
+          "values": {
+            "phase": "after",
+            "ordinal": 148,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 349,
+          "values": {
+            "phase": "before",
+            "ordinal": 149,
+            "offset": 28,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 350,
+          "values": {
+            "phase": "after",
+            "ordinal": 149,
+            "offset": 28,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 351,
+          "values": {
+            "phase": "before",
+            "ordinal": 150,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 352,
+          "values": {
+            "phase": "after",
+            "ordinal": 150,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 353,
+          "values": {
+            "phase": "before",
+            "ordinal": 151,
+            "offset": 64,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 354,
+          "values": {
+            "phase": "after",
+            "ordinal": 151,
+            "offset": 64,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 355,
+          "values": {
+            "phase": "before",
+            "ordinal": 152,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 356,
+          "values": {
+            "phase": "after",
+            "ordinal": 152,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 357,
+          "values": {
+            "phase": "before",
+            "ordinal": 153,
+            "offset": 72,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 358,
+          "values": {
+            "phase": "after",
+            "ordinal": 153,
+            "offset": 72,
+            "value": 7
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 359,
+          "values": {
+            "phase": "before",
+            "ordinal": 154,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 360,
+          "values": {
+            "phase": "after",
+            "ordinal": 154,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 361,
+          "values": {
+            "phase": "before",
+            "ordinal": 155,
+            "offset": 36,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 362,
+          "values": {
+            "phase": "after",
+            "ordinal": 155,
+            "offset": 36,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 363,
+          "values": {
+            "phase": "before",
+            "ordinal": 156,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 364,
+          "values": {
+            "phase": "after",
+            "ordinal": 156,
+            "offset": 40,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 365,
+          "values": {
+            "phase": "before",
+            "ordinal": 157,
+            "offset": 44,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 366,
+          "values": {
+            "phase": "after",
+            "ordinal": 157,
+            "offset": 44,
+            "value": 7
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 367,
+          "values": {
+            "phase": "before",
+            "ordinal": 158,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_access",
+          "suffix_line": 368,
+          "values": {
+            "phase": "after",
+            "ordinal": 158,
+            "offset": 48,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_phase",
+          "suffix_line": 369,
+          "values": {
+            "phase": 8,
+            "owner": 8991833899408868463,
+            "generation": 6,
+            "reset": 5,
+            "reads": 158,
+            "writes": 9,
+            "polls": 4
+          }
+        },
+        {
+          "stage": "ddr_result",
+          "suffix_line": 370,
+          "values": {
+            "status": 0,
+            "bytes": 32,
+            "checksum": 4060082112,
+            "data0": 916236459,
+            "data1": 1498689234,
+            "data2": 4211971097,
+            "data3": 499456576,
+            "generation": 1,
+            "cookie": 7
+          }
+        },
+        {
+          "stage": "ddr_control",
+          "suffix_line": 371,
+          "values": {
+            "phase": 17,
+            "owner": 8991833899408868463,
+            "generation": 6,
+            "reset": 5
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 372,
+          "values": {
+            "phase": "before",
+            "ordinal": 31,
+            "offset": 0,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 373,
+          "values": {
+            "phase": "after",
+            "ordinal": 31,
+            "offset": 0,
+            "value": 1178948421
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 374,
+          "values": {
+            "phase": "before",
+            "ordinal": 32,
+            "offset": 4,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 375,
+          "values": {
+            "phase": "after",
+            "ordinal": 32,
+            "offset": 4,
+            "value": 65536
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 376,
+          "values": {
+            "phase": "before",
+            "ordinal": 33,
+            "offset": 8,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 377,
+          "values": {
+            "phase": "after",
+            "ordinal": 33,
+            "offset": 8,
+            "value": 270544961
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 378,
+          "values": {
+            "phase": "before",
+            "ordinal": 34,
+            "offset": 12,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 379,
+          "values": {
+            "phase": "after",
+            "ordinal": 34,
+            "offset": 12,
+            "value": 3625843574
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 380,
+          "values": {
+            "phase": "before",
+            "ordinal": 35,
+            "offset": 16,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 381,
+          "values": {
+            "phase": "after",
+            "ordinal": 35,
+            "offset": 16,
+            "value": 371855428
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 382,
+          "values": {
+            "phase": "before",
+            "ordinal": 36,
+            "offset": 20,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 383,
+          "values": {
+            "phase": "after",
+            "ordinal": 36,
+            "offset": 20,
+            "value": 3626113170
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 384,
+          "values": {
+            "phase": "before",
+            "ordinal": 37,
+            "offset": 24,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 385,
+          "values": {
+            "phase": "after",
+            "ordinal": 37,
+            "offset": 24,
+            "value": 3527629493
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 386,
+          "values": {
+            "phase": "before",
+            "ordinal": 38,
+            "offset": 28,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 387,
+          "values": {
+            "phase": "after",
+            "ordinal": 38,
+            "offset": 28,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 388,
+          "values": {
+            "phase": "before",
+            "ordinal": 39,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 389,
+          "values": {
+            "phase": "after",
+            "ordinal": 39,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 390,
+          "values": {
+            "phase": "before",
+            "ordinal": 40,
+            "offset": 64,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 391,
+          "values": {
+            "phase": "after",
+            "ordinal": 40,
+            "offset": 64,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 392,
+          "values": {
+            "phase": "before",
+            "ordinal": 41,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 393,
+          "values": {
+            "phase": "after",
+            "ordinal": 41,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 394,
+          "values": {
+            "phase": "before",
+            "ordinal": 42,
+            "offset": 72,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 395,
+          "values": {
+            "phase": "after",
+            "ordinal": 42,
+            "offset": 72,
+            "value": 7
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 396,
+          "values": {
+            "phase": "before",
+            "ordinal": 43,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 397,
+          "values": {
+            "phase": "after",
+            "ordinal": 43,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 398,
+          "values": {
+            "phase": "before",
+            "ordinal": 44,
+            "offset": 56,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 399,
+          "values": {
+            "phase": "after",
+            "ordinal": 44,
+            "offset": 56,
+            "value": 4
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 400,
+          "values": {
+            "phase": "before",
+            "ordinal": 45,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 401,
+          "values": {
+            "phase": "after",
+            "ordinal": 45,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 402,
+          "values": {
+            "phase": "before",
+            "ordinal": 46,
+            "offset": 0,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 403,
+          "values": {
+            "phase": "after",
+            "ordinal": 46,
+            "offset": 0,
+            "value": 1178948421
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 404,
+          "values": {
+            "phase": "before",
+            "ordinal": 47,
+            "offset": 4,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 405,
+          "values": {
+            "phase": "after",
+            "ordinal": 47,
+            "offset": 4,
+            "value": 65536
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 406,
+          "values": {
+            "phase": "before",
+            "ordinal": 48,
+            "offset": 8,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 407,
+          "values": {
+            "phase": "after",
+            "ordinal": 48,
+            "offset": 8,
+            "value": 270544961
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 408,
+          "values": {
+            "phase": "before",
+            "ordinal": 49,
+            "offset": 12,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 409,
+          "values": {
+            "phase": "after",
+            "ordinal": 49,
+            "offset": 12,
+            "value": 3625843574
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 410,
+          "values": {
+            "phase": "before",
+            "ordinal": 50,
+            "offset": 16,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 411,
+          "values": {
+            "phase": "after",
+            "ordinal": 50,
+            "offset": 16,
+            "value": 371855428
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 412,
+          "values": {
+            "phase": "before",
+            "ordinal": 51,
+            "offset": 20,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 413,
+          "values": {
+            "phase": "after",
+            "ordinal": 51,
+            "offset": 20,
+            "value": 3626113170
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 414,
+          "values": {
+            "phase": "before",
+            "ordinal": 52,
+            "offset": 24,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 415,
+          "values": {
+            "phase": "after",
+            "ordinal": 52,
+            "offset": 24,
+            "value": 3527629493
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 416,
+          "values": {
+            "phase": "before",
+            "ordinal": 53,
+            "offset": 28,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 417,
+          "values": {
+            "phase": "after",
+            "ordinal": 53,
+            "offset": 28,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 418,
+          "values": {
+            "phase": "before",
+            "ordinal": 54,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 419,
+          "values": {
+            "phase": "after",
+            "ordinal": 54,
+            "offset": 32,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 420,
+          "values": {
+            "phase": "before",
+            "ordinal": 55,
+            "offset": 64,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 421,
+          "values": {
+            "phase": "after",
+            "ordinal": 55,
+            "offset": 64,
+            "value": 1
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 422,
+          "values": {
+            "phase": "before",
+            "ordinal": 56,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 423,
+          "values": {
+            "phase": "after",
+            "ordinal": 56,
+            "offset": 68,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 424,
+          "values": {
+            "phase": "before",
+            "ordinal": 57,
+            "offset": 72,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 425,
+          "values": {
+            "phase": "after",
+            "ordinal": 57,
+            "offset": 72,
+            "value": 7
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 426,
+          "values": {
+            "phase": "before",
+            "ordinal": 58,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 427,
+          "values": {
+            "phase": "after",
+            "ordinal": 58,
+            "offset": 76,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 428,
+          "values": {
+            "phase": "before",
+            "ordinal": 59,
+            "offset": 56,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 429,
+          "values": {
+            "phase": "after",
+            "ordinal": 59,
+            "offset": 56,
+            "value": 4
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 430,
+          "values": {
+            "phase": "before",
+            "ordinal": 60,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_access",
+          "suffix_line": 431,
+          "values": {
+            "phase": "after",
+            "ordinal": 60,
+            "offset": 60,
+            "value": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_transition",
+          "suffix_line": 432,
+          "values": {
+            "phase": "close",
+            "owner": 8991833899408868463,
+            "generation": 6,
+            "reset": 5,
+            "base": 536937472
+          }
+        },
+        {
+          "stage": "ddr_master",
+          "suffix_line": 433,
+          "values": {
+            "status": 0,
+            "owner": 8991833899408868463,
+            "generation": 6,
+            "reset": 5,
+            "reader_reads": 88,
+            "reader_polls": 1,
+            "disable": 0,
+            "probe_polls": 2,
+            "cancel": 0,
+            "complete": 1
+          }
+        },
+        {
+          "stage": "ddr_closure",
+          "suffix_line": 434,
+          "values": {
+            "owner": 8991833899408868463,
+            "generation": 7,
+            "reset": 15,
+            "hardware_drained": 8,
+            "data_remained_contained": 0,
+            "producers_quiescent": 1,
+            "fabric_acknowledged": 0
+          }
+        },
+        {
+          "stage": "ddr_identity_transition",
+          "suffix_line": 435,
+          "values": {
+            "phase": "closed",
+            "owner": 8991833899408868463,
+            "generation": 7,
+            "reset": 15,
+            "base": 536937472
+          }
+        },
+        {
+          "stage": "ddr_fpga_identity",
+          "suffix_line": 436,
+          "values": {
+            "package_id": "07b2d01003dc92e4993ba7f72761444ae801a1a005f87e0a1b65f9aad9dfeb7d",
+            "build_id": "d2435ab5d8221892162a1044d81dfb76",
+            "abi": 270544961,
+            "base": 536937472,
+            "map_sha256": "63d62c64401f4c68fdcccf8e3f3b11a710eae52b5c3a7c479eb4f5babac2b634",
+            "owner": 8991833899408868463,
+            "generation": 7
+          }
+        },
+        {
+          "stage": "ddr_receipt",
+          "suffix_line": 437,
+          "values": {
+            "owner": 8991833899408868463,
+            "generation": 7
+          }
+        }
+      ],
+      "reads": 158,
+      "writes": 9,
+      "polls": 4,
+      "data_remained_contained": false,
+      "runtime_admission": false,
+      "core_load_acceptance": false
+    },
+    "classification": "serial-observed fixed DDR read, master stop and bridge drain; no runtime admission"
+  },
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "uart_free": true,
+  "claim_retained": true,
+  "board": "TRWU8CBL",
+  "factory_restore_requested": false
+}

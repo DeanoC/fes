@@ -1,0 +1,237 @@
+{
+  "status": "passed",
+  "source_revision": "7523333b1ac505f924604232e775a950dc17670f",
+  "scope": "owned native 8 MiB menu reservation/session and independent firmware return",
+  "checks": [
+    {
+      "label": "test_affected.py",
+      "receipt_label": "software-0",
+      "source_revision": "7523333b1ac505f924604232e775a950dc17670f",
+      "elapsed_seconds": 0.4009265168569982,
+      "result_sha256": "a85558f53db4e28cb55cd4a9dedddeb561f17f11ceea8f9425c5d8964be11a4f",
+      "log_sha256": "4a2fb87895001ca506b8602df1296b983a8dfce099d4f3ba1a3c1b8fff1d1980"
+    },
+    {
+      "label": "test_test_changed.py",
+      "receipt_label": "software-1",
+      "source_revision": "7523333b1ac505f924604232e775a950dc17670f",
+      "elapsed_seconds": 1.4009970219340175,
+      "result_sha256": "f87f5bedd434ad45cac0336851de9105750a3ab5c2824af6c0eab66b01776c31",
+      "log_sha256": "a532b32d24e3b4bc768d24dc61f26a1e250c52fad8ab117b6a3a43b8492ef595"
+    },
+    {
+      "label": "committed whitespace",
+      "receipt_label": "software-2",
+      "source_revision": "7523333b1ac505f924604232e775a950dc17670f",
+      "elapsed_seconds": 0.20047461800277233,
+      "result_sha256": "f803b17b2c2712bef82a2f2222af969431cc740a8c7792fd529bdc9243649137",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "working whitespace",
+      "receipt_label": "software-3",
+      "source_revision": "7523333b1ac505f924604232e775a950dc17670f",
+      "elapsed_seconds": 0.2009594962000847,
+      "result_sha256": "b1b827e54a0693acd619ff4e54301392d23990f91201aedee73a5c5369bd0dc2",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "owned menu scanout and actual Tenfoot pixels",
+      "receipt_label": "software-4",
+      "source_revision": "7523333b1ac505f924604232e775a950dc17670f",
+      "elapsed_seconds": 47.8246794200968,
+      "result_sha256": "25a297f39dfdccb5e73af9e58b32a886cc791c23193448ab533ba2b641098c2f",
+      "log_sha256": "2dd018e5bc6610142b3a77a869fe71682edefce9e5c0f4b8789d95634683c150"
+    },
+    {
+      "label": "parent Python regressions",
+      "receipt_label": "software-5",
+      "source_revision": "7523333b1ac505f924604232e775a950dc17670f",
+      "elapsed_seconds": 386.98873727885075,
+      "result_sha256": "e961bc904074da192fedcabd3d145bd2ccc760c5b9745b521f452e1753dfbe3e",
+      "log_sha256": "12f07b9c3fce879575d5ee7c7f0c9ffae112609c9f8e9136f37c2d10970283bf"
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "receipt_label": "software-6",
+      "source_revision": "7523333b1ac505f924604232e775a950dc17670f",
+      "elapsed_seconds": 6.404885143972933,
+      "result_sha256": "c91726b3a54dbd7e9f1d8355078f34d0804a96d7936a9385ff1970a6e48018a3",
+      "log_sha256": "32fa862c66e279643aaedec99c30c9fcbe50fca9e6ffb849cd844c6a8d59a5a1"
+    },
+    {
+      "label": "native runtime firmware and FPGA launch integration",
+      "receipt_label": "software-7",
+      "source_revision": "7523333b1ac505f924604232e775a950dc17670f",
+      "elapsed_seconds": 197.51077632978559,
+      "result_sha256": "7d3d5a21da417cfc96b18e87bdba4bb8abe1a57c654426e46123151de0169a02",
+      "log_sha256": "d90f444d1bace62aedee2e85ebb8d87ece53fe968a5e0f952a4e99c8316468ed"
+    },
+    {
+      "label": "embedded producer identity and native control integration",
+      "receipt_label": "software-8",
+      "source_revision": "7523333b1ac505f924604232e775a950dc17670f",
+      "elapsed_seconds": 56.62732184585184,
+      "result_sha256": "7131b2e4caab9d0c2181f7b81daf1453c53d17e3249bb4ba85681a047204ce5b",
+      "log_sha256": "60321bedc3af243e2c9a2862d53dfab7a80e285211c98223cceae74732b19611"
+    },
+    {
+      "label": "DE25 Avalon control and native integration",
+      "receipt_label": "software-9",
+      "source_revision": "7523333b1ac505f924604232e775a950dc17670f",
+      "elapsed_seconds": 92.24174986686558,
+      "result_sha256": "4d81473ae49dc5e514ada2a48f8ce3b08cb44beb149b471027fbea4a144ba267",
+      "log_sha256": "428bd804d3ce499fd9b1d2b334072d67335c4455805c54e48c61bdde58ea3040"
+    },
+    {
+      "label": "embedded firmware and identity/drain RTL integration",
+      "receipt_label": "software-10",
+      "source_revision": "7523333b1ac505f924604232e775a950dc17670f",
+      "elapsed_seconds": 11.60610993904993,
+      "result_sha256": "7b5dd6bd2578a7194fe0ad49ae9992f25d73ce91eae6eeafc9d204941b27d0f4",
+      "log_sha256": "5fe5977af488a5631e4a63e5d472b6b13f2af5515477d67d568a64fdebb4494a"
+    },
+    {
+      "label": "test_*.py",
+      "receipt_label": "software-11",
+      "source_revision": "7523333b1ac505f924604232e775a950dc17670f",
+      "elapsed_seconds": 558.0686213448644,
+      "result_sha256": "05a99fc736d16817ced3cdae70f2923e2ae20d68711f54746cad96e9f4a07cc9",
+      "log_sha256": "254a21a21216e0eacbcfc750bfc77431b6e0860c02e3898653e40b8ecc619d9a"
+    }
+  ],
+  "effective_affected_checks": 12,
+  "parent_tests": 1619,
+  "parent_skips": 3,
+  "fpga_regression_tests": 1590,
+  "model_directory": "out/embedded-menu-5c44b49c7e9e4e478ad42759070d2798",
+  "model_result_sha256": "2f58265e243c443423edaafa871910705676b70399436ccc21a1595e13c2a208",
+  "model_cases": 33,
+  "model_source_inputs_sha256": "7f310bbb4e23a8ea9359a032b8cd6376fa0f63f7c65ab288828a595b88a3bef7",
+  "artifact_directories": [
+    "out/de25-board-control-check-bc647f00d9ef44fba4bfb37d1611408f",
+    "out/de25-producer-check-c500ff5bd194485a937f113ad5c7a4a9",
+    "out/embedded-control-e94b8c43735e420a92a8fd9b339e5e7d",
+    "out/embedded-menu-5c44b49c7e9e4e478ad42759070d2798",
+    "out/nano-fabric-stop-ef64922c5c0942a7b6e896e7e005498c",
+    "out/native-fabric-hooks-dab753a0b0504ee8bcd462f9d6969ac4"
+  ],
+  "arm64_native_and_board": {
+    "status": "passed",
+    "source_revision": "cf5aa3cfb23c2b458aca01c2f09d7ae2db28c73f",
+    "source_state": "working-tree",
+    "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
+    "environment": {
+      "GOOS": "tamago",
+      "GOARCH": "arm64",
+      "GOOSPKG": "github.com/usbarmory/tamago",
+      "GOTOOLCHAIN": "local",
+      "GOMODCACHE": "/home/deano/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/mod",
+      "GOCACHE": "/home/deano/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/cache"
+    },
+    "archives": [
+      {
+        "package": "./nativefabric",
+        "command": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+          "-C",
+          "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/tamago",
+          "build",
+          "-overlay=/home/deano/fes/out/dev/de25-embedded-os/out/nano-distinct-native-20261107/native-sdk/overlay.json",
+          "-mod=readonly",
+          "-trimpath",
+          "-tags=de25nano,de25tenfootserial",
+          "-buildmode=archive",
+          "-o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-menu-owned-session-20261107/menu-native.a",
+          "./nativefabric"
+        ],
+        "sha256": "ec4e813d63d042d07f9be768f79f5ae11f6a08e1264ce3a831a62526bf83631d",
+        "bytes": 3048562
+      },
+      {
+        "package": "./board/de25nano",
+        "command": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+          "-C",
+          "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/tamago",
+          "build",
+          "-overlay=/home/deano/fes/out/dev/de25-embedded-os/out/nano-distinct-native-20261107/native-sdk/overlay.json",
+          "-mod=readonly",
+          "-trimpath",
+          "-tags=de25nano,de25tenfootserial",
+          "-buildmode=archive",
+          "-o",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-menu-owned-session-20261107/menu-board.a",
+          "./board/de25nano"
+        ],
+        "sha256": "2bbec6b8b4a672bd7749d82c03b263b46fd9b6b7410d60be5bfd286342f74319",
+        "bytes": 456806
+      }
+    ],
+    "target": "library archives; no native boot or hardware admission",
+    "hardware_actions": false
+  },
+  "arm64_explicit_menu_layout": {
+    "status": "passed",
+    "source_revision": "7523333b1ac505f924604232e775a950dc17670f",
+    "command": [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+      "-C",
+      "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/tamago",
+      "build",
+      "-overlay=/home/deano/fes/out/dev/de25-embedded-os/out/nano-menu-owned-session-20261107/compile-menu-overlay.json",
+      "-mod=readonly",
+      "-trimpath",
+      "-tags=de25nano,de25tenfootserial",
+      "-buildmode=archive",
+      "-o",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-menu-owned-session-20261107/menu-board-8m.a",
+      "./board/de25nano"
+    ],
+    "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
+    "archive_sha256": "fc2bb082367cdba8ae063a0130d66e785dc6d3ad4817639aa53bbfe8b17dabee",
+    "archive_bytes": 456806,
+    "seed_profile_sha256": "3ae676ce9a0a9dd3d99c523616b33565bd814a0483e9d6ef5d78dda3b3765b4c",
+    "compile_fixture_profile_sha256": "cd2f452897ac23f738df9cd4bfc03a0187c652c6815d76bcfa27b58d95b41765",
+    "overlay_sha256": "a42eb9dff66f68522022d47c156c6dd51dbb66acd30a35db8caf948abb80e829",
+    "fixture_change": "only reader arena extent 2 MiB to compiled menu 8 MiB; retained safe outside-heap base",
+    "source_sha256": {
+      "platform/embedded/tamago/board/de25nano/devices.go": "266aae3279eaeb27b15ab31157a534e1fde07dd9e737fba42fe579cd9882e191",
+      "platform/embedded/tamago/board/de25nano/fpga.go": "c90dc4c6c00fc6539d488731b22fb9e2edee37b2bfd5327dfb81985c1e11fd64",
+      "platform/embedded/tamago/board/de25nano/resources.go": "a7eb04fc4c668b98bb14c994e2f1debdc67674dadcae96787f79de292107a5c1",
+      "platform/embedded/tamago/board/de25nano/startup.go": "ff252edaf7eb26f04650f2f91f23696b83e69b9a51044752edc4d2b6cff60cab",
+      "platform/embedded/tamago/board/de25nano/profile.go": "66600bd7a904df1c5414880ffef776d64837708908e414fc1e059871858df5aa",
+      "platform/embedded/tamago/board/de25nano/usb.go": "55362be352cfb9d7ded0c5efd3f4b41c90938408de35bc7a8f267eff82fc0236",
+      "platform/embedded/tamago/board/de25nano/readermemory.go": "0ff56c895f481b99785828a2a7c99eed1928013244544f6ff5258e705a0943a8",
+      "platform/embedded/tamago/board/de25nano/display.go": "718f8ff88b5d702e9812d7188011052a50fb59065e4080e2a3a6f69fca9d8afb",
+      "platform/embedded/tamago/board/de25nano/board.go": "185427c87c3e428d36b864fd0155569f798c3850d4073fd518d29a86d7d25c6e",
+      "platform/embedded/tamago/board/de25nano/network.go": "7a7879eb891df6598fde8eccfbd7ab892a6add1eae7048a7fc102c9ee481ce6e",
+      "platform/embedded/tamago/board/de25nano/fabric.go": "a7a9111cd82fd124b8e9de61e29aa5e161fa0f6d24747b0b5474772973c22271",
+      "platform/embedded/tamago/board/de25nano/storage.go": "a1b2f92770bfc89fdd45b609901f2c92e032e9c6b0d201ad16b1307cdedc5657",
+      "platform/embedded/tamago/board/de25nano/configuration.go": "9ef0dfff311203ae749494b9de6f58e4fecbc53bcf8975bf2cbad0222391ee15"
+    },
+    "classification": "compile-only library with explicit 8 MiB fixture; no sealed producer, native executable or boot grant",
+    "hardware_actions": false
+  },
+  "secure_service_injected_for_native_session": true,
+  "actual_C_stop_and_menu_RTL": true,
+  "complete_cold_menu_objects_compiled": true,
+  "joined_menu_secure_service_execution": false,
+  "board_image_selected": false,
+  "sealed_menu_producer": false,
+  "hardware_actions": false,
+  "physical_HDMI": false,
+  "physical_DDR": false,
+  "ordinary_menu_admission": false,
+  "memory_release": false,
+  "storage_resume_or_reconfiguration": false,
+  "goal_complete": false,
+  "failed_checks_preserved": [
+    "initial menu session fixtures",
+    "initial C++ struct name collision",
+    "reservation-only cold matrix rejected missing sealed configuration",
+    "ARM64 compile without generated serial profile"
+  ],
+  "next": "Integrate this menu source into the sealed Nano producer with qualified pixel clock/reset and HDMI connections; extend matched boot selection before a bounded physical display test"
+}

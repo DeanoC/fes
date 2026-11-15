@@ -1,0 +1,12 @@
+FAIL: test_real_plan_partitions_all_discovered_tests (test_parent_affected.ParentAffectedTests.test_real_plan_partitions_all_discovered_tests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-embedded-os/tests/test_parent_affected.py", line 412, in test_real_plan_partitions_all_discovered_tests
+    self.assertLess(len(room['selected']), len(full['selected']) // 2)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 632 not less than 632
+
+----------------------------------------------------------------------
+Ran 1265 tests in 204.359s
+
+FAILED (failures=1, skipped=2)

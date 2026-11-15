@@ -1,0 +1,8 @@
+{
+  "head": "726a16f4e2d979e68fb67e85e97c916e3e94ee4f",
+  "base": "6bb565fddd75848524fa6ba52bdfdf078d7ce55b",
+  "board_revision": "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+  "fpga_source_commit": "c272cb2b320740220fc2b7bb1c8dfd92a0ffe6f6",
+  "native_build_source_commit": "726a16f4e2d979e68fb67e85e97c916e3e94ee4f",
+  "fpga_delta_to_native": "root consistency-test expected-count correction only"
+}

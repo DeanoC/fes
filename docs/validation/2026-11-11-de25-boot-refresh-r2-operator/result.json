@@ -1,0 +1,216 @@
+{
+  "status": "prepared-separate-bounded-attempt-after-host-reenumeration",
+  "source_base": "594cf02edaad25055b425285082b46e457588ae2",
+  "target_code_commit": "b385f24cc54621f8760b6a65cc4d49f56b8609ef",
+  "native_boot_id": "6f54fe7c04d34128",
+  "changed_source_sha256": {
+    "out/nano-boot-refresh-install-r2-20261111/trial/boot_checks.py": "bff8fe6e8fe9ca0680eff9101eba88002d4021194dc6244654c9501ddf1bbcb9",
+    "out/nano-boot-refresh-install-r2-20261111/trial/bounded_log.py": "e1d72926fed47296b2f0c65f4dc3dc81b7a9ad7b2b5e0ae1f0c0982cef8dda4c",
+    "out/nano-boot-refresh-install-r2-20261111/trial/common.py": "c6925880d48f3e19c3cf57d1be886ec60c4edcdf78892a74db8bbbaa27d5a0bb",
+    "out/nano-boot-refresh-install-r2-20261111/trial/connection_precondition.py": "8dba579bae20291e970759114d439329d3e174d6b8052509605a70e14f397d0c",
+    "out/nano-boot-refresh-install-r2-20261111/trial/experiment.py": "27d7ccff03f6276ce8c5bd192026b716f17dcbae77d099fc0ce8cceab5669ebd",
+    "out/nano-boot-refresh-install-r2-20261111/trial/host_link.py": "f2a10245c541db49b0336d87eb9eea90f3c69cac478e6805d108603bff078790",
+    "out/nano-boot-refresh-install-r2-20261111/trial/installer_checks.py": "957482af3cd3a74e5efa39a50f59a848f667e99ebe75b5d03976efd4b9799932",
+    "out/nano-boot-refresh-install-r2-20261111/trial/installer_exercise.py": "888fc58ddec6ea5af23c7f275defc519cf85a02d93453c9870ad16f101b87e6d",
+    "out/nano-boot-refresh-install-r2-20261111/trial/native.py": "01bdce2f2efb5baa124432f8af6a215fa24281400f371ca798a46727246b549c",
+    "out/nano-boot-refresh-install-r2-20261111/trial/operator_models.py": "9c4a722107a8d2e056b38d7b6ef6a49797b2d24170a4db6334484f9ce602a402",
+    "out/nano-boot-refresh-install-r2-20261111/trial/operator_transport_tests.py": "816b7f57be3a5859425fdf3a886f81f73b7eec209e346927dea853da05f58331",
+    "out/nano-boot-refresh-install-r2-20261111/trial/pending_checks.py": "a5b1f73d7bcc3288326ea17747363bef3f739080e7bd036a150a97ec6437fdbe",
+    "out/nano-boot-refresh-install-r2-20261111/trial/private_jtag.py": "887b8d10933e59736044ef249551623657919232d754848c38e43610894a2965",
+    "out/nano-boot-refresh-install-r2-20261111/trial/program_gate.py": "ea716c6b3a0c299cf20d64b100399830a5c209736125438e22490592e85b895a",
+    "out/nano-boot-refresh-install-r2-20261111/trial/receipt_models.py": "f3c177a282aabac2f33ba93072e3462a163db0273f96c4fc85cf35a0b2b43079",
+    "out/nano-boot-refresh-install-r2-20261111/trial/recovery.py": "f6279d36e81e947979acfe40bb5fcabf028c83bcfd3d08689adafcef28151aa3",
+    "out/nano-boot-refresh-install-r2-20261111/trial/refresh_checks.py": "8ae3d2e2ad6a58a1b345e70a65b3b920097b3e83f2a4a82df2f853458b330ad8",
+    "out/nano-boot-refresh-install-r2-20261111/trial/refresh_sources.py": "799f568e3b0804b405741222777e7040f086c364b6358193e9acd1888a516da0",
+    "out/nano-boot-refresh-install-r2-20261111/trial/saved_wire.py": "755b6f82c1ee666e4b29c87979bc53bce8b935c7b7964d882636e38f1c82c289",
+    "out/nano-boot-refresh-install-r2-20261111/trial/transport_guards.py": "25f6208a5367d0e7e5a36fea8011390f2425c841eba453d9fccfcfaadfcfa225",
+    "out/nano-boot-refresh-install-r2-20261111/trial/trial_inputs.py": "fe82fc8973d47aead6d6d9fb50067a8e6ee88a9168a1b857726ffca36a308027",
+    "out/nano-boot-refresh-install-r2-20261111/preflight_final.py": "e904c9ac030b3e756bafd0b3c3b1e0bc834937f8adce4ab25c98e9e69d382942",
+    "out/nano-boot-refresh-install-r2-20261111/freeze_operator.py": "a78d8eeb1b36e8ba51a297a5bfc0bcb0789ac0ff25a9ee39aadaa8c83847b369",
+    "out/nano-boot-refresh-install-r2-20261111/prepare_offline.py": "38012bce998ba323c2cedd6bb543f63b7049dfaee9db484e4f97e7ed4945e373",
+    "out/nano-boot-refresh-install-r2-20261111/refresh_flow_models.py": "aae3b2b3c5718b48bcf5c757c7bccbf7df200d8598ad1dcb6824164f513e8860",
+    "out/nano-boot-refresh-install-r2-20261111/orchestration_models.py": "c54c1c160cac9e6dbcf1316964692fe1221e9cf9f4f75e2c11b7f487a32b4412",
+    "out/nano-boot-refresh-install-r2-20261111/host_link_models.py": "fc9a1ccbb02dce92b96c52930a562d5c71a1d7289118144df8e0bfd3e1e86341",
+    "out/nano-boot-refresh-install-r2-20261111/usb_stability_live.py": "089caa46d40fafcbe1b9b1542c3fc477ac1dd6fc7142fc893f47f6d02c6de28d",
+    "out/nano-boot-refresh-install-r2-20261111/source-plan.json": "835c1450d73fb105f4fb558f5532c7f64f8ea3e0c60008c9b0083cb25fef8dc7"
+  },
+  "checks": {
+    "operator-models": {
+      "argv": [
+        "python3",
+        "out/nano-boot-refresh-install-r2-20261111/trial/operator_models.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.6062668729573488,
+      "log_sha256": "32e999e8a8911b162fadcfe6ff8f641569479909d478e2e71ce1614ba6b5abff"
+    },
+    "operator-transport": {
+      "argv": [
+        "python3",
+        "out/nano-boot-refresh-install-r2-20261111/trial/operator_transport_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.8034594950731844,
+      "log_sha256": "4786523310428ccd298df31418aea6f103bdea0b77692c01a6fbe89010d9ea1a"
+    },
+    "receipt-models": {
+      "argv": [
+        "python3",
+        "out/nano-boot-refresh-install-r2-20261111/trial/receipt_models.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.8018499750178307,
+      "log_sha256": "4fe8e0ca51e7eb997535d5b7f1f0d6eb330607db8e5b3b0898491f508347f2cc"
+    },
+    "refresh-flow-final": {
+      "argv": [
+        "python3",
+        "out/nano-boot-refresh-install-r2-20261111/refresh_flow_models.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.4015473581384867,
+      "log_sha256": "27fb1e79ce28665c393d05ec9b22ae81a7e3ada5847b51ce39046c5d8628a6ea"
+    },
+    "orchestration-final": {
+      "argv": [
+        "python3",
+        "out/nano-boot-refresh-install-r2-20261111/orchestration_models.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.0017796501051635,
+      "log_sha256": "7836edc563b9f874bfddeb4e7ebe1799f776d5db1b25326714a1190bab7b4e08"
+    },
+    "host-link-final": {
+      "argv": [
+        "python3",
+        "out/nano-boot-refresh-install-r2-20261111/host_link_models.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4054557210765779,
+      "log_sha256": "14947268daa043c99ffadec99bd17f881cbe7f76d26cf33588976e949682cd9f"
+    },
+    "operator-structure-final": {
+      "argv": [
+        "python3",
+        "out/nano-boot-refresh-install-r2-20261111/check_operator_structure.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2007258788216859,
+      "log_sha256": "2d89354259e4ad6cda76b0eff0df5afe0d5992212bd7795a47aad8accb79d34d"
+    },
+    "connection-models": {
+      "argv": [
+        "python3",
+        "out/nano-boot-refresh-install-r2-20261111/connection_models.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4018969580065459,
+      "log_sha256": "caa696e970085e9946ab4c1f5cec1bf674ea123e0d6140dcf12c89dc40440ebe"
+    },
+    "epoch-models": {
+      "argv": [
+        "python3",
+        "out/nano-boot-refresh-install-r2-20261111/epoch_models.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.40397788188420236,
+      "log_sha256": "d48f55cc6c89a47c5661bfc80027777b5ada261e21bf90c0b7674bec5b8282c6"
+    },
+    "program-gate-models": {
+      "argv": [
+        "python3",
+        "out/nano-boot-refresh-install-r2-20261111/program_gate_models.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20234991400502622,
+      "log_sha256": "aeced89232d6c394f67914b7877d423cff9180f38ed02f7f4c40d8ffbfa00195"
+    },
+    "candidate-inputs": {
+      "argv": [
+        "python3",
+        "out/nano-boot-refresh-install-r2-20261111/check_candidate.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 115.73210999486037,
+      "log_sha256": "6bcfd8e45e995398efc853d10bff294c0c0427469ce5536af2a65a8368dd7072"
+    },
+    "file-admission-final": {
+      "argv": [
+        "python3",
+        "out/nano-boot-refresh-install-r2-20261111/prepare_offline.py",
+        "final-r3"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 78.4708928829059,
+      "log_sha256": "89c3e53c26f5653c9ddc4a7679f80cd8edaa3c80d9fd8dfd08f725eb2b83aec5"
+    },
+    "freeze-operator": {
+      "argv": [
+        "python3",
+        "out/nano-boot-refresh-install-r2-20261111/freeze_operator.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4039253459777683,
+      "log_sha256": "d7dcccbbbf764496196be04c4870b1affcc02545f8d72a4f7b0d95dd30662868"
+    },
+    "unresolved-preflight-refusal": {
+      "argv": [
+        "python3",
+        "out/nano-boot-refresh-install-r2-20261111/check_pending_preflight.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20070445677265525,
+      "log_sha256": "b11178e5c4c53a17c4ddad4401e6d5d47bfa95aed85da5331434094a2d52a57e"
+    }
+  },
+  "file_admission": {
+    "files": 5660,
+    "trees": 8,
+    "negative_checks": [
+      "wrong-admission-digest",
+      "lost-ownership"
+    ]
+  },
+  "missing_host_proof_refusal": {
+    "status": "passed-real-preflight-refused-before-claim-without-new-host-stability",
+    "returncode": 1,
+    "kit_status_unchanged": true,
+    "preflight_created": false,
+    "hardware_actions": false
+  },
+  "prior_host_disconnect_attempts": 1,
+  "prior_native_proof_replayed": false,
+  "hardware_actions": false,
+  "live_admission": false,
+  "root_cause_proven": false,
+  "physical_acceptance": false,
+  "persistence_verified": false
+}

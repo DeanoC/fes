@@ -1,0 +1,9 @@
+{
+  "status": "passed",
+  "scope": "real G-Kermit/pinned U-Boot k_recv on host pipes; no UART or hardware",
+  "payload_bytes": 1048576,
+  "payload_sha256": "fbbab289f7f94b25736c58be46a994c441fd02552cc6022352e3d86d2fab7c83",
+  "vendor_receiver_sha256": "a629fa5c4fd749e1feae7ad8ed8d8f2d059ac582a1ce9771ea6fba78f78b677c",
+  "sender_sha256": "58106b4b78ff1e965435bc17ee2e8c13c40b4cd0abb4e1ef791b02bee9ff1b3f",
+  "receiver_wrapper_sha256": "2fb1263290ae81c3967c3e008c5952ea692ef9540dbcc61d3cc3d31911d350ab"
+}

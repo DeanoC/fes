@@ -1,0 +1,15 @@
+{
+  "pid": 1351281,
+  "process_start_ticks": "177160108",
+  "cap_seconds": 2400,
+  "start_monotonic": 1771601.089801719,
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/publication-loading-trial/run_trial.py",
+    "--procedure-sha256",
+    "16fe97ce2214c8c8526cb2b610b7b454a4455f06bfa9ff508ca18e433e9e1978",
+    "--execute"
+  ]
+}

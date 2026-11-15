@@ -1,0 +1,505 @@
+{
+  "verification_status": "passed",
+  "source_commit": "9ac28336594ce2eda780e7c77c372ce5dd196fdf",
+  "implementation_source_commit": "4aedf7230dd1fddec12bd5b6fdb7df6801278327",
+  "native_build_source_commit": "1bf9fe81404f130e914b4ff801e836a2864760a0",
+  "hardware_result": "uart-recovery-upgrade-phy-readiness-warm-sd-two-load-returns-passed",
+  "experiment_passed": true,
+  "physical_ram_probe_passed": true,
+  "uart_upgrade_verified": true,
+  "recovery_phy_prepared_before_link": true,
+  "upgrade_writes": [
+    {
+      "target": "FES/R1103.ITB",
+      "sha256": "25ebdf98d253e41f51e4b55b78314ffe6e03d346825af8582268eacef1d25f90",
+      "bytes": 952312,
+      "attempted": true,
+      "acknowledged": true,
+      "readback_verified": true
+    },
+    {
+      "target": "FES/R1103.JSN",
+      "sha256": "56102162f328d0a4325cd7c827159f9612c3f81c95fe6df9d5ad147b343b1539",
+      "bytes": 1249,
+      "attempted": true,
+      "acknowledged": true,
+      "readback_verified": true
+    },
+    {
+      "target": "u-boot.itb",
+      "sha256": "c27efed4828f73ad000fe78649ae01d665e12452f457c3e569d25b20b5b031dd",
+      "bytes": 953032,
+      "attempted": true,
+      "acknowledged": true,
+      "readback_verified": true
+    },
+    {
+      "target": "raw-fit-sector-512",
+      "bytes": 953344,
+      "sha256": "58bf1aebdebb2578dd56ecf774616ff2b34b322564df5c8eab32f63f7c6ab123",
+      "attempted": true,
+      "acknowledged": true,
+      "readback_verified": true
+    },
+    {
+      "target": "FES/RECOVERY.JSON",
+      "sha256": "4fa13be7cfecd0d756a492e945c6184c011814bafb903aeb626ee2155a00b8fb",
+      "bytes": 1315,
+      "attempted": true,
+      "acknowledged": true,
+      "readback_verified": true
+    }
+  ],
+  "upgrade_transfers": [
+    {
+      "purpose": "probe",
+      "bytes": 1024,
+      "sha256": "785b0751fc2c53dc14a4ce3d800e69ef9ce1009eb327ccf458afe09c242c26c9",
+      "attempted": true,
+      "complete": true,
+      "observation": {
+        "source_sha256": "785b0751fc2c53dc14a4ce3d800e69ef9ce1009eb327ccf458afe09c242c26c9",
+        "source_bytes": 1024,
+        "address": 2181038080,
+        "baud": 230400,
+        "reserved_bytes": 6674996,
+        "maximum_host_wire_bytes": 6674996,
+        "pass": true,
+        "stage": "complete",
+        "diagnostic_directory": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-drain-20261103/trial/upgrade-probe-sender.log.wire",
+        "protocol": "kermit-stop-and-wait",
+        "sender_argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-phy-prepare-20261103/kermit-tools/root/usr/bin/gkermit",
+          "-i",
+          "-S",
+          "-q",
+          "-X",
+          "-b",
+          "2",
+          "-d",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-drain-20261103/trial/upgrade-probe-sender.log.wire/gkermit.debug",
+          "-a",
+          "U.BIN",
+          "-s",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-drain-20261103/uart-probe.bin"
+        ],
+        "sender_returncode": 0,
+        "queued_host_bytes": 0,
+        "queued_sender_bytes": 0,
+        "stdout_open": false,
+        "sender_exit_observation": {
+          "returncode": 0,
+          "queued_host_bytes": 0,
+          "queued_sender_bytes": 0,
+          "stdout_open": true
+        },
+        "host_wire_bytes": 1358,
+        "target_wire_bytes": 43,
+        "host_wire_sha256": "e167ac39e8e7789a43404488a634c6a1d3233919d3c4cffdde33ce6bd40e65c2",
+        "target_wire_sha256": "0a9e73fd069cc60e46855b711e99f3e3f2798ca5423868a33310c706c9059f1e",
+        "elapsed_seconds": 1.5916494689881802,
+        "prompt_parked": true,
+        "sender_returncode_before_cleanup": 0,
+        "host_baud_restored": true,
+        "trace_files": {
+          "target.bin": {
+            "bytes": 356,
+            "sha256": "47170612f58893eddc7b291f5138be57f0c401197c497e7ea44eebd200846f53"
+          },
+          "sender-stdout.bin": {
+            "bytes": 1358,
+            "sha256": "e167ac39e8e7789a43404488a634c6a1d3233919d3c4cffdde33ce6bd40e65c2"
+          },
+          "host.bin": {
+            "bytes": 1358,
+            "sha256": "e167ac39e8e7789a43404488a634c6a1d3233919d3c4cffdde33ce6bd40e65c2"
+          },
+          "gkermit.debug": {
+            "bytes": 1611,
+            "sha256": "b705a3cb540bdf46d8688ed7602fdb5db5a55ec9b27b8436ff689bb535106fbd"
+          }
+        }
+      }
+    },
+    {
+      "purpose": "fit",
+      "bytes": 953344,
+      "sha256": "58bf1aebdebb2578dd56ecf774616ff2b34b322564df5c8eab32f63f7c6ab123",
+      "attempted": true,
+      "complete": true,
+      "observation": {
+        "source_sha256": "58bf1aebdebb2578dd56ecf774616ff2b34b322564df5c8eab32f63f7c6ab123",
+        "source_bytes": 953344,
+        "address": 2181038080,
+        "baud": 230400,
+        "reserved_bytes": 6674996,
+        "maximum_host_wire_bytes": 6674996,
+        "pass": true,
+        "stage": "complete",
+        "diagnostic_directory": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-drain-20261103/trial/upgrade-fit-sender.log.wire",
+        "protocol": "kermit-stop-and-wait",
+        "sender_argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-phy-prepare-20261103/kermit-tools/root/usr/bin/gkermit",
+          "-i",
+          "-S",
+          "-q",
+          "-X",
+          "-b",
+          "2",
+          "-d",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-drain-20261103/trial/upgrade-fit-sender.log.wire/gkermit.debug",
+          "-a",
+          "U.BIN",
+          "-s",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-drain-20261103/uart-fit.bin"
+        ],
+        "sender_returncode": 0,
+        "queued_host_bytes": 0,
+        "queued_sender_bytes": 0,
+        "stdout_open": false,
+        "sender_exit_observation": {
+          "returncode": 0,
+          "queued_host_bytes": 0,
+          "queued_sender_bytes": 0,
+          "stdout_open": true
+        },
+        "host_wire_bytes": 1414986,
+        "target_wire_bytes": 985,
+        "host_wire_sha256": "f4ccd62db7be8d87c8afca881ff503f484ce2ada398a4cc09c3b126572516cf3",
+        "target_wire_sha256": "31487e3e5fdb81d99470338250008eeccfa45ec3ea29dc60ecb64bc3dff4bb88",
+        "elapsed_seconds": 64.44757471501362,
+        "prompt_parked": true,
+        "sender_returncode_before_cleanup": 0,
+        "host_baud_restored": true,
+        "trace_files": {
+          "target.bin": {
+            "bytes": 1300,
+            "sha256": "413cba2b0fe2d72646fc4c97507ea56fba6e6446441ec57583350a467b412c9c"
+          },
+          "sender-stdout.bin": {
+            "bytes": 1414986,
+            "sha256": "f4ccd62db7be8d87c8afca881ff503f484ce2ada398a4cc09c3b126572516cf3"
+          },
+          "host.bin": {
+            "bytes": 1414986,
+            "sha256": "f4ccd62db7be8d87c8afca881ff503f484ce2ada398a4cc09c3b126572516cf3"
+          },
+          "gkermit.debug": {
+            "bytes": 36775,
+            "sha256": "c05de87a0f1ab656e3e93f884dd9fb0127d1c1b0bd1acb1c11c6f3a0588ba5ca"
+          }
+        }
+      }
+    },
+    {
+      "purpose": "manifest",
+      "bytes": 1315,
+      "sha256": "4fa13be7cfecd0d756a492e945c6184c011814bafb903aeb626ee2155a00b8fb",
+      "attempted": true,
+      "complete": true,
+      "observation": {
+        "source_sha256": "4fa13be7cfecd0d756a492e945c6184c011814bafb903aeb626ee2155a00b8fb",
+        "source_bytes": 1315,
+        "address": 2181038080,
+        "baud": 230400,
+        "reserved_bytes": 6674996,
+        "maximum_host_wire_bytes": 6674996,
+        "pass": true,
+        "stage": "complete",
+        "diagnostic_directory": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-drain-20261103/trial/upgrade-manifest-sender.log.wire",
+        "protocol": "kermit-stop-and-wait",
+        "sender_argv": [
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-phy-prepare-20261103/kermit-tools/root/usr/bin/gkermit",
+          "-i",
+          "-S",
+          "-q",
+          "-X",
+          "-b",
+          "2",
+          "-d",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-drain-20261103/trial/upgrade-manifest-sender.log.wire/gkermit.debug",
+          "-a",
+          "U.BIN",
+          "-s",
+          "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-drain-20261103/uart-manifest.bin"
+        ],
+        "sender_returncode": 0,
+        "queued_host_bytes": 0,
+        "queued_sender_bytes": 0,
+        "stdout_open": false,
+        "sender_exit_observation": {
+          "returncode": 0,
+          "queued_host_bytes": 0,
+          "queued_sender_bytes": 0,
+          "stdout_open": true
+        },
+        "host_wire_bytes": 1413,
+        "target_wire_bytes": 43,
+        "host_wire_sha256": "a3beb8dbd2e108e47c38bf7a9506ad18b77a4c75c92cb8fae1a73c7355f52127",
+        "target_wire_sha256": "0a9e73fd069cc60e46855b711e99f3e3f2798ca5423868a33310c706c9059f1e",
+        "elapsed_seconds": 1.551783200004138,
+        "prompt_parked": true,
+        "sender_returncode_before_cleanup": 0,
+        "host_baud_restored": true,
+        "trace_files": {
+          "target.bin": {
+            "bytes": 356,
+            "sha256": "217e40644c83ec0829baa7d99c402c22f0b7731989d76302108c5d994884ea90"
+          },
+          "sender-stdout.bin": {
+            "bytes": 1413,
+            "sha256": "a3beb8dbd2e108e47c38bf7a9506ad18b77a4c75c92cb8fae1a73c7355f52127"
+          },
+          "host.bin": {
+            "bytes": 1413,
+            "sha256": "a3beb8dbd2e108e47c38bf7a9506ad18b77a4c75c92cb8fae1a73c7355f52127"
+          },
+          "gkermit.debug": {
+            "bytes": 1617,
+            "sha256": "91f32ed43c800c8fd1a7acae04b049b74e63efc7886d7c8aa318ce6966bb6b3b"
+          }
+        }
+      }
+    }
+  ],
+  "native_boot_id": "a1cd2bc64ed5dbcf",
+  "raw_console_sha256": "b1c33964708b2341e0f33d263b1d23de87788cce1556ffb4f65d9ed1428d979f",
+  "raw_bytes": 16996,
+  "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+  "fpga_build_id": "dda236646bb868e63c72bd0e777f3dd6",
+  "cpu_mapping": {
+    "el": 1,
+    "sctlr": 818944005,
+    "tcr": 8589948185,
+    "root": 2214608896,
+    "mair": 4521728,
+    "mmfr0": 1052962,
+    "mpidr": 2164260864,
+    "ram_base": 2214592512,
+    "ram_bytes": 268435456,
+    "control_base": 536937472,
+    "control_bytes": 256,
+    "dma_base": 2491416576,
+    "dma_bytes": 8388608,
+    "reader_base": 2499805184,
+    "reader_bytes": 2097152,
+    "reads": 3604,
+    "translations": 5176,
+    "bytes": 278921472,
+    "descriptor_sha256": "cfabf526fbee128ea8d5ba6a0ac9257f7e70008a7fe5befb1f085e3c05aa7901",
+    "owner": 5707525099907010829,
+    "generation": 4,
+    "scope": "EL1-identity-mapping-only",
+    "runtime_admission": false
+  },
+  "configuration_intervals_seconds": [
+    13.317364065,
+    13.3200836975
+  ],
+  "storage_seconds": 59.17636648810003,
+  "source_mapping_sha256": "d4fe0201d08baf6902d7f786b21592f151a07c6f689e808f8067c09452b69c37",
+  "storage_return_observation": {
+    "complete": true,
+    "records": [
+      {
+        "stage": "storage_return_begin",
+        "line": 137,
+        "values": {
+          "owner": 5707525099907010829,
+          "generation": 6,
+          "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37"
+        }
+      },
+      {
+        "stage": "storage_return_active",
+        "line": 138,
+        "values": {
+          "owner": 5707525099907010829,
+          "generation": 8,
+          "return_generation": 6
+        }
+      },
+      {
+        "stage": "storage_return_contained",
+        "line": 139,
+        "values": {
+          "owner": 5707525099907010829,
+          "generation": 9,
+          "return_generation": 6,
+          "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37"
+        }
+      }
+    ],
+    "runtime_admission": false
+  },
+  "observer_phases": [
+    {
+      "phase": "first_core",
+      "bound_seconds": 45,
+      "elapsed_seconds": 18.493380900938064
+    },
+    {
+      "phase": "returned_storage",
+      "bound_seconds": 100,
+      "elapsed_seconds": 55.048016989952885
+    },
+    {
+      "phase": "second_core",
+      "bound_seconds": 45,
+      "elapsed_seconds": 18.331017664982937
+    }
+  ],
+  "saved_capture_rejections": [
+    {
+      "case": "missing-cpu",
+      "accepted": false
+    },
+    {
+      "case": "duplicate-cpu",
+      "accepted": false
+    },
+    {
+      "case": "late-panic",
+      "accepted": false
+    },
+    {
+      "case": "cpu-el",
+      "accepted": false
+    },
+    {
+      "case": "cpu-root",
+      "accepted": false
+    },
+    {
+      "case": "cpu-mair",
+      "accepted": false
+    },
+    {
+      "case": "cpu-mpidr",
+      "accepted": false
+    },
+    {
+      "case": "cpu-reads",
+      "accepted": false
+    },
+    {
+      "case": "cpu-translations",
+      "accepted": false
+    },
+    {
+      "case": "cpu-ram_base",
+      "accepted": false
+    },
+    {
+      "case": "cpu-dma_bytes",
+      "accepted": false
+    },
+    {
+      "case": "cpu-descriptor_sha256",
+      "accepted": false
+    },
+    {
+      "case": "cpu-owner",
+      "accepted": false
+    },
+    {
+      "case": "cpu-generation",
+      "accepted": false
+    },
+    {
+      "case": "cpu-data_held",
+      "accepted": false
+    },
+    {
+      "case": "cpu-runtime_admission",
+      "accepted": false
+    },
+    {
+      "case": "109-activation-complete",
+      "accepted": false
+    },
+    {
+      "case": "109-activation-data_held",
+      "accepted": false
+    },
+    {
+      "case": "154-activation-complete",
+      "accepted": false
+    },
+    {
+      "case": "154-activation-data_held",
+      "accepted": false
+    },
+    {
+      "case": "missing-BEGIN",
+      "accepted": false
+    },
+    {
+      "case": "duplicate-BEGIN",
+      "accepted": false
+    },
+    {
+      "case": "storage-BEGIN-owner",
+      "accepted": false
+    },
+    {
+      "case": "storage-BEGIN-generation",
+      "accepted": false
+    },
+    {
+      "case": "missing-ACTIVE",
+      "accepted": false
+    },
+    {
+      "case": "duplicate-ACTIVE",
+      "accepted": false
+    },
+    {
+      "case": "storage-ACTIVE-owner",
+      "accepted": false
+    },
+    {
+      "case": "storage-ACTIVE-generation",
+      "accepted": false
+    },
+    {
+      "case": "missing-CONTAINED",
+      "accepted": false
+    },
+    {
+      "case": "duplicate-CONTAINED",
+      "accepted": false
+    },
+    {
+      "case": "storage-CONTAINED-owner",
+      "accepted": false
+    },
+    {
+      "case": "storage-CONTAINED-generation",
+      "accepted": false
+    }
+  ],
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "private_server_stopped": true,
+  "uart_free": true,
+  "claim_retained": true,
+  "spare_retained": true,
+  "factory_restored": false,
+  "full_ram_clock_qualification": false,
+  "trusted_boot_handoff": false,
+  "runtime_admission": false,
+  "core_load_acceptance": false,
+  "input_sha256": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-drain-20261103/trial/native-console.log": "b1c33964708b2341e0f33d263b1d23de87788cce1556ffb4f65d9ed1428d979f",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-drain-20261103/trial/native-result.json": "f9a99aeba0482d5eabd5f75ffd9ac53dfac55369a63dc6c4c13a892f7e7aa2bf",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-drain-20261103/trial/experiment-result.json": "f6baa0446f38d341f872f836bf6eca78e55bdb48e8fa6cdbf1b24a95006be3fe",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-drain-20261103/trial/preflight.json": "72fc288b9071aeea5350003d6638495ccda9ac07c7951bc75e8b160a5253ed34",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-drain-20261103/trial/transport.json": "3ac0b105eabcdfe1a51da62c49ccf64d8eecfe916033f6ed2965258eb98d846f",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-drain-20261103/trial/upgrade-result.json": "137426a5f9949dd7e1018fa599e0a847756fa3c10f818e18a5dec142c3c9db9c",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-drain-20261103/trial/upgrade-console.log": "cbcadb3539c0f2966315ec093d850acc2cdca6d8f2bc07821b0c6740c2d04396",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-uart-drain-20261103/full-hardware-result.json": "c2d2b56b514f30bef35b1baf1723063655bac4d384e56f87448c7d030904651e",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-phy-prepare-20261103/native-uboot/result.json": "3f97093095ce4e162126fa14f288c3122b2ddac37697a94da932a7bb770e6aab",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-phy-prepare-20261103/native-composition/result.json": "708232031cf8441106958243a409d68675def08cd4b931ce067733c2446cfd01"
+  }
+}

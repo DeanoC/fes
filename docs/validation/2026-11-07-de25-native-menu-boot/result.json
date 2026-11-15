@@ -1,0 +1,163 @@
+{
+  "status": "matched-native-menu-files-and-serial-observer-verified-no-hardware-run",
+  "fpga_source": "0a91a980ab76459b9f5fa0ef672c98291051f5b9",
+  "native_sdk_entry_source": "6de7cb777af5a422825abb3b61e35ad5364de44b",
+  "firmware_spl_source": "d30bc530b5a0c686e7e8a0a1a3727b18a494d417",
+  "trace_source": "8dc3e0fb95062d1dac2b14efe6a8dfaa13c429fc",
+  "package_id": "c69484491de11e1ee6d1c955b7d54e02e3fe513a0ad39d5376e23e539ba75444",
+  "build_id": "40bf9e4b00c1d25192fd06df5d97c5bd",
+  "native_boot_id": "79d4818a6615debc",
+  "chain_sha256": "cd1484716362a19721b15423022dc6cfa81caab780bc15a11fc0b680d39dff55",
+  "fit_sha256": "739a556feacbfa43f103500c12e8a6e40e46761781d8c0c15daac93d6279c722",
+  "fit_bytes": 8051232,
+  "bl31_sha256": "47ed46df34c106d40c66d48c22f634d0a72c38b48cc13fb0f68ae089b3bc4894",
+  "entry_sha256": "b3f4cc332964513e5741533508e86a656cb63337c9ddfaaecf651cd74748eda0",
+  "core_sha256": "a9baf204120486cf49ad6c0bd235893c111a49a829cfe7701996cd0ba063ab26",
+  "sof_sha256": "c366767ac5f1d68f8d29c65da6a2fe0b3ff37cdd8dbeeea173f2529fcd98b07e",
+  "core_payload_unchanged": true,
+  "cpu_reader_bytes": 8388608,
+  "slot_bytes": 4194304,
+  "slots": 2,
+  "frames": 3,
+  "firmware_bss_actual_end": "0x5afc0",
+  "firmware_reservation": [
+    "0x50000",
+    "0x60000"
+  ],
+  "firmware_stack": [
+    "0x50000",
+    "0x58000"
+  ],
+  "matched_chain_audit": {
+    "path": "out/nano-menu-bss-bounds-20261107/matched-chain-audit.json",
+    "sha256": "eab2b1583309940851fef91b94d293f62656a84faa619fb1157177158a65559e"
+  },
+  "checks": [
+    {
+      "receipt": "out/nano-menu-bss-bounds-20261107/layout-regressions-result.json",
+      "sha256": "29abfcefb683c2b19dd2972fd5d8ad3a25f81bd3d8a7fa32b8112923a0be5a28",
+      "log_sha256": "8cba14195be14080ce15d4e8c9ff3353353ef175fe1c76b96b8e799320d24dd6"
+    },
+    {
+      "receipt": "out/nano-menu-bss-bounds-20261107/arm-bss-bounds-result.json",
+      "sha256": "59c99581699654f0620aea992d6ad1a4191481b75858e9a4ccb54366b8d7ccd2",
+      "log_sha256": "533e823765ceb3ed0a476fb679e5fb9847b3cb534716626999c091b5ef2b830e"
+    },
+    {
+      "receipt": "out/nano-menu-bss-bounds-20261107/arm-entry-bounds-result.json",
+      "sha256": "e2dc6685acdd1e6c374bb246d0f2a85d0c8d9802f3883af78a8f50dcb2a86190",
+      "log_sha256": "0c6da81436e44b734ad714ec709369c24b178834af94ff4f7bd7f34b97a54f43"
+    },
+    {
+      "receipt": "out/nano-menu-bss-bounds-20261107/spl-menu-guard-regressions-result.json",
+      "sha256": "4a9f635c263799a5a1d65d6fc515464cc9406cb57003f3e8bd2f117df586fdc8",
+      "log_sha256": "f8b720f5a9ba9a5fb58e38fc3e21e1009c47f7d058ea52ab5b8769c9ebad88af"
+    },
+    {
+      "receipt": "out/nano-menu-bss-bounds-20261107/compose-menu-chain-result.json",
+      "sha256": "7d8ffbedd94be2ea6425ed44b9aa32f7e04f4c5b6e5844896d30426949d6d15c",
+      "log_sha256": "34fc14b24a790366a23504e4330cb8f588bce97f14e2d4e4f790b59d472754ff"
+    },
+    {
+      "receipt": "out/nano-menu-bss-bounds-20261107/menu-trace-fixture-fix-result.json",
+      "sha256": "8238549291fe57c4d92ee525fed7332476e7f1b88f4e62bd5db8ba0c10b3b1ee",
+      "log_sha256": "46e489930f50336f4543b0cbff6b7559e1ff8194ac9827e0b1cb337d9f808a54"
+    },
+    {
+      "receipt": "out/nano-menu-trace-20261107/menu-selection-types-result.json",
+      "sha256": "5cd142f3f103616196059b4be4fde82a8a6bebec84d034aafed62a71691bc2e1",
+      "log_sha256": "541beacf58a1b60ef44a4e45906a2bd31faee10aa9ec7ad7a6108da8b7d5c9b5"
+    },
+    {
+      "receipt": "out/nano-menu-trace-20261107/prepare-menu-uploads-result.json",
+      "sha256": "9cc574ffca18ac2f36aea71f28652ec5cf20478532d116d0b3b1ebc41315fd0b",
+      "log_sha256": "104f0844b4d030d3b046c6349723ef3805e29b61c42988c033787e06ec96f45d"
+    }
+  ],
+  "focused_serial_trace_tests": 90,
+  "arm_entry_cases": 45,
+  "arm_exit_cache_cases": 72,
+  "earlier_software_scope": {
+    "source": "807b2d32a",
+    "parent_tests": 1626,
+    "parent_skips": 3,
+    "misteross_tests": 1595,
+    "misteross_skips": 79,
+    "spl_delta": "d30bc530b focused preprocessing tests and actual matched builders"
+  },
+  "constrained_slacks_ns": [
+    1.797,
+    0.001,
+    7.777,
+    0.133,
+    0.22
+  ],
+  "unwaived_rule_classes": [
+    "TMC-20012 - Missing Output Delay Constraint",
+    "TMC-20011 - Missing Input Delay Constraint",
+    "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+    "RES-50101 - Intra-Clock False Path Reset Synchronizer"
+  ],
+  "timing_signoff": false,
+  "hardware_actions": false,
+  "hardware_acceptance": "not-run",
+  "native_menu_core_menu": false,
+  "core_load_acceptance": false,
+  "goal_complete": false,
+  "retention_target": "/home/deano/fes-retained/de25-native-menu-boot-20261107-r1",
+  "next": "freeze and check bounded menu operator, freshly validate top kit/card, then observe native menu and independent secure return",
+  "trace_base_source": "449d1fb0f4100a5ab96d62e455a39ec2747c5703",
+  "upload_plan": {
+    "path": "out/nano-menu-trace-20261107/upload-plan.json",
+    "sha256": "c027e09669853d78302223259fbac9cf8f3a23f4497be2e5ea8dd42b5fedbc83",
+    "files": 2,
+    "execute": false,
+    "hardware_actions": false
+  },
+  "serial_observer_software": {
+    "base_source": "449d1fb0f4100a5ab96d62e455a39ec2747c5703",
+    "parent_tests": 1632,
+    "parent_skips": 3,
+    "affected_commands": [
+      {
+        "label": "test_affected.py",
+        "receipt": "out/nano-menu-trace-20261107/software-0-result.json",
+        "sha256": "224145996a4b52977499c36aa129f056e4bd0202c5612dab8bfe3b59ba533ff4",
+        "log_sha256": "df870729c9be1f538e0a318440ccf22171b2fb147eb24135793667e9cfa341e5"
+      },
+      {
+        "label": "test_test_changed.py",
+        "receipt": "out/nano-menu-trace-20261107/software-1-result.json",
+        "sha256": "3f00b5f3652dc42c723e241c2419917ed7207ad33295586ac1766504ebc2648b",
+        "log_sha256": "1f58b85f64b47734e9a287fd1b5e865c76673345267af319cdd2a8bb2dcaf54b"
+      },
+      {
+        "label": "committed whitespace",
+        "receipt": "out/nano-menu-trace-20261107/software-2-result.json",
+        "sha256": "839bfac3b418b220096be1dfdcf3a6377ec1a471865406697a06eea7482eb88f",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "label": "working whitespace",
+        "receipt": "out/nano-menu-trace-20261107/software-3-result.json",
+        "sha256": "c1256e822a529b968a4a3b858203365f11df128961261acbfc4b3137a0ccdcec",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "label": "parent Python regressions",
+        "receipt": "out/nano-menu-trace-20261107/software-4-result.json",
+        "sha256": "1a2d8c5d2c2a557482ef9c95851be7f63f57dfc09f6fad5af7278d5c86d8383a",
+        "log_sha256": "938cddbc59631ba6bfec82149cfcb888d873a4fbfbba68a766eafd736510c7a4"
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "receipt": "out/nano-menu-trace-20261107/software-5-result.json",
+        "sha256": "0dcd2c202c159015863cabde654a648c8e0d6b9b2f6815a25b07f2550ef4f034",
+        "log_sha256": "32fa862c66e279643aaedec99c30c9fcbe50fca9e6ffb849cd844c6a8d59a5a1"
+      }
+    ],
+    "followup_scope": "explicit mode-type rejection only",
+    "followup_receipt": "out/nano-menu-trace-20261107/menu-selection-types-result.json",
+    "followup_tests": 90
+  }
+}

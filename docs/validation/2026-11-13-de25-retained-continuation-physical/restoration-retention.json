@@ -1,0 +1,16 @@
+{
+  "status": "passed-exact-post-reset-restoration-byte-hash-mode-retention",
+  "archive": "/home/deano/fes-retained/de25-retained-continuation-baseline-restored-physical-20261113-r1/restoration.tar.gz",
+  "archive_sha256": "49579d709f13e29c60728e94e2a6eb2557472177c30bb09d23446aa84def148c",
+  "dependencies": {
+    "/home/deano/fes-retained/de25-retained-continuation-restoration-prepared-20261113-r1/retention.json": "44abd35edf89aa85e0924d77625eebbbc2412c9cff00a91685ade1ff980f2894",
+    "/home/deano/fes-retained/de25-retained-continuation-restoration-prepared-20261113-r1/prepared-procedure.tar.gz": "708fac7805bb3653470585bad83497c8923e25fc9e518858be7fa49acf25b9d3",
+    "/home/deano/fes-retained/de25-command-snapshot-procedure-prepared-20261113-r1/prepared-procedure.tar.gz": "1b5b82ea534a6af428682a59cad431042173292d3269735fc3b8215dff1bc793",
+    "/home/deano/fes-retained/de25-retained-continuation-physical-20261113-r1/manifest.json": "b70e142c3dd0acb8232a18f26bf277e84dfa0f429b1b3c4a5f8332666337e3be",
+    "/home/deano/fes-retained/de25-retained-continuation-physical-20261113-r1/physical-trial.tar.gz": "237cc5effca33b7d40c4ec00b9b631794e18e45f24d59c4eebc2a7aacc8fbe1c"
+  },
+  "baseline_restored": true,
+  "failed_candidate_native_menu_qualified": false,
+  "retained_source_continuation_scoped_proof_exists": true,
+  "general_core_load_acceptance": false
+}

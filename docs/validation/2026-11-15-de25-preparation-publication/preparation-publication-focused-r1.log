@@ -1,0 +1,23 @@
+test_command_completion_and_final_validation_policies (test_nano_source_retirement.SourceRetirementTests.test_command_completion_and_final_validation_policies) ... ok
+test_callback_substitution_stops_before_next_operation (test_nano_source_retirement.SourceRetirementTests.test_callback_substitution_stops_before_next_operation) ... ok
+test_retirement_staging_publication_completion_and_final_budgets (test_nano_source_retirement.SourceRetirementTests.test_retirement_staging_publication_completion_and_final_budgets) ... ok
+test_warm_probe_reuses_owned_queue_without_clearing_abort (test_nano_source_retirement.SourceRetirementTests.test_warm_probe_reuses_owned_queue_without_clearing_abort) ... ok
+test_input_preparation_completion_and_final_scope (unittest.loader._FailedTest.test_input_preparation_completion_and_final_scope) ... ERROR
+test_disabled_headers_keep_diagnostics_off (test_nano_sdm_input_profile.InputProfileTests.test_disabled_headers_keep_diagnostics_off) ... ok
+test_install_binds_every_source_and_refuses_reuse (test_nano_sdm_input_profile.InputProfileTests.test_install_binds_every_source_and_refuses_reuse) ... ok
+test_invalid_predecessor_rejected_before_writes (test_nano_sdm_input_profile.InputProfileTests.test_invalid_predecessor_rejected_before_writes) ... ok
+test_mutated_contract_and_incomplete_ownership_are_rejected (test_nano_sdm_input_profile.InputProfileTests.test_mutated_contract_and_incomplete_ownership_are_rejected) ... ok
+test_one_second_profiles_cannot_admit_the_four_second_candidate (test_nano_sdm_input_profile.InputProfileTests.test_one_second_profiles_cannot_admit_the_four_second_candidate) ... ok
+test_previous_contracts_cannot_admit_queue_observation_candidate (test_nano_sdm_input_profile.InputProfileTests.test_previous_contracts_cannot_admit_queue_observation_candidate) ... ok
+test_publication_timing_cannot_be_supplied_by_previous_contracts (test_nano_sdm_input_profile.InputProfileTests.test_publication_timing_cannot_be_supplied_by_previous_contracts) ... ok
+test_selection_is_explicit_and_exclusive (test_nano_sdm_input_profile.InputProfileTests.test_selection_is_explicit_and_exclusive) ... ok
+
+======================================================================
+ERROR: test_input_preparation_completion_and_final_scope (unittest.loader._FailedTest.test_input_preparation_completion_and_final_scope)
+----------------------------------------------------------------------
+AttributeError: type object 'SourceRetirementTests' has no attribute 'test_input_preparation_completion_and_final_scope'
+
+----------------------------------------------------------------------
+Ran 13 tests in 4.944s
+
+FAILED (errors=1)

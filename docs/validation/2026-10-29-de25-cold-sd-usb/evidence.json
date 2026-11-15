@@ -1,0 +1,809 @@
+{
+  "base": "2e732d2d7a12621c06f6b5fab6ad107df72a83a7",
+  "classification": "host models, QEMU execution and Nano cross-build only; no hardware acceptance",
+  "dwc2_reference": {
+    "source": "https://github.com/torvalds/linux/tree/v6.12/drivers/usb/dwc2",
+    "sha256": {
+      "hw.h": "0ef85e65f98798a795cb0eb7b3904467248e0e80134fb6783dcd1ba570eea2ff",
+      "core.c": "07f4238d710662508682a269594ddf9f8c5160136248ee8bc20aa3ae8fa97840",
+      "hcd.c": "3dd34e3dffdf5c4e8560f0db95b5b4adfd9106ced54e7e3ebb964effb587b801",
+      "hcd_intr.c": "cc998509cc806c4ea7beb6b5228a963158329643677d94436d1fac7aa3261f35"
+    }
+  },
+  "test_source_sha256": {
+    "platform/embedded/tamago/sdhci/sdhci_test.go": "67348c458beb1ef0343aaaf895ebb1d8477a4005219e64474d47f6a8b46edf81",
+    "platform/embedded/tamago/sdhci/fat_test.go": "8c4383704459f2a9cf1f39681c767789ab2c56edaf9bb93951519281190f3342",
+    "platform/embedded/tamago/dwc2/host_test.go": "c7debc99a1ce529f935c97d3d490ff4fb319e53147b8b256332dfae40adc52e3",
+    "tests/test_embedded_board_profile.py": "b3f88cd12fa58764570379fdd55ae878cda2fd73051fc4e85727a82e5526c7c3"
+  },
+  "test_log_sha256": {
+    "out/native-cold-go-final.log": "e98ca1f9184b0f21773ccf9ced95721b64df05e0422cb8d78456d5e663b3a028",
+    "out/native-cold-driver-final.log": "4991e34cea7fa5d3c42cfbbf4f2da7d6e10579217a9d54a878c3082eaf0576d2",
+    "out/native-cold-python-final.log": "8f9803bb8a607d946b92a9ad8299fd27644e0c8859445e569d5dcea9e84dd3d0",
+    "out/native-cold-profile-final.log": "199ba496f288116d36c62f29346d4fbf0bd75745a1c893abfcbdaa4c6d5b1033",
+    "out/native-cold-deadcode.log": "dc3fad4360e3c9bd3eee93b08d776c5f85d7d60401dc37837a319f986f7e696a"
+  },
+  "records": [
+    {
+      "status": "passed",
+      "program": "keyboard",
+      "classification": "QEMU-only native Go bare metal; not DE25 hardware",
+      "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
+      "elf_sha256": "af294f6086359f4ad789f9e232075e2ec6e48ab3d3e3bc82fe169a1aa5a17d7d",
+      "qemu_sha256": "abab52b9e084e176b047d698dcc9dc9c3a38e33cd6dc04cbe3792d2080cfdb45",
+      "limitations": [
+        "QEMU USB is not a DE25 DWC2 controller",
+        "virtio block is not a physical SD controller",
+        "synthetic catalog files are not playable ROMs",
+        "clean-reboot persistence is not power-loss atomicity"
+      ],
+      "termination": "runner stopped QEMU after actual USB/HID input; not guest shutdown",
+      "receipt": "out/native-cold-qemu-keyboard/result.json",
+      "receipt_sha256": "d9f12e84dd13737043f8a1d6cb6bd18c29377ea323f5b27ca62e18838728734c",
+      "selected_sources_digest": "eb792c1cc4cbe036db720607fc8551ace3226711d12dfa5ff32b708b396d3613",
+      "native_source_sha256": {
+        "platform/embedded/tamago/admission_fixtures.py": "dfc6213288fc06994615b81f883096fa4d5a8345a6a239377b9e555ba8a96cfe",
+        "platform/embedded/tamago/block/barrier.s": "fe7768b4e91255cdbd390070116e157d50eb74db7ea249627e6f182e5c9d8a07",
+        "platform/embedded/tamago/block/block.go": "83a10e5ed62721350f229d4b95232947871ddd82ecf190b60a4da15870687973",
+        "platform/embedded/tamago/block/virtio.go": "8e49019e6f7cec9e3ca821fb860c710c4268a7013c640c2b2bb6e4fae2418e62",
+        "platform/embedded/tamago/board/interfaces.go": "7022988e616065eb488d21de31127b3ddaa6c4012a664cb827d8f9e7b99a8364",
+        "platform/embedded/tamago/board/qemu.go": "346de3c00c3b3b43e17340fef6e5f685e60a90ff9dee0b8daff80f0203ca6379",
+        "platform/embedded/tamago/board/qemuvirt/board.go": "c4ec61bc2a6d8f220289804155356cb940e52371c9fbaa158700c30ad523ea7a",
+        "platform/embedded/tamago/board/qemuvirt/board.s": "2816a2bb882092d4d46e80a0ba2ace7acfb4e20d108647635b060f8d475bc995",
+        "platform/embedded/tamago/board/qemuvirt/devices.go": "89d6ebbc2b4a5821aa2557d8e3392528fd847cd6ffd5497e087742abc8ec0a70",
+        "platform/embedded/tamago/board/qemuvirt/devices.s": "a49904dc7e6299269f5b05a1eb4a3b5e8395ba036c27bffce3b71221962c9280",
+        "platform/embedded/tamago/board/qemuvirt/pci.go": "d5f676df3f9f25647139fa9ef7194c6e91e71984cc4ca65df8d49a9b3301af15",
+        "platform/embedded/tamago/cmd/keyboard/main.go": "c5b11358e530640ae09ef15b50dafd485013d2a0c3a9986bb0b66cc2cd147b31",
+        "platform/embedded/tamago/display/format.go": "debb9c22ad85d745cce69ff4948fae2c1377c9d229cfbb4be0740287698eed02",
+        "platform/embedded/tamago/display/mmio.s": "fa19a85a232fc4d5b611c9e41b07a3d26315b84a4c37c409ebd7036de1ccfce3",
+        "platform/embedded/tamago/display/ramfb.go": "94964bed3b01ecc1121754331a71d871366ebc1528968e520c784bb02d2ad8e1",
+        "platform/embedded/tamago/go.mod": "77f9be13dda9fc16855b0b62787252f9568ad1b280bada66b2e924702f241d94",
+        "platform/embedded/tamago/go.sum": "87dbccb2e14a610a1de9666fa936a18f374bd299b50436b44405b5d75e8fd5c4",
+        "platform/embedded/tamago/host_support.py": "a1936eeade5192fef18f8eabf41992c20f3f5860dbd71a97508c7f724f86e6c6",
+        "platform/embedded/tamago/input/serial.go": "4b7393336458d4db8c90f5eaf75a7d44df6840715fe02542c5a7067073ae496f",
+        "platform/embedded/tamago/input/uart.go": "d01e16b05674649249c6884f6ccd82467e7b094bc04c5d2ae1c1a3cba87e97c1",
+        "platform/embedded/tamago/input/usb.go": "bfc9d699cd96692756f6f155f50ca59899d05b06016c9b900dcb6c955e5256c0",
+        "platform/embedded/tamago/network/barrier_tamago.s": "ecbdec5b7fb4abf11b8e4b5c18a593b43e2118e022b5e4977dafbdb15f993a2d",
+        "platform/embedded/tamago/network/config.go": "826db5a404ad2a6f151cfcafa502fa5d6edd4b7f66390a72e4a80b65ea9c22f8",
+        "platform/embedded/tamago/network/network_tamago.go": "313968c607c6ad41b91d069d825e641cbc425a2891362d88463d59ea67e3e199",
+        "platform/embedded/tamago/network/nic_tamago.go": "77fd28017c7dc3994005fa1555bf10ad414982f9dc498f306ccfd117a0eea6f2",
+        "platform/embedded/tamago/package_fixtures.py": "350f9c712409b4164f49f8529c8db2d579892c0915aef4a7fd04836cbdba1f1d",
+        "platform/embedded/tamago/play_support.py": "aba5aec47b72becd49030c0eab056de5e3621919af5febd03d7f08f5d7c5f6a3",
+        "platform/embedded/tamago/run.py": "187f858e4bd34fb0aa24a886ab94110606e6196a9ac080eee0c918c85c203a64",
+        "platform/embedded/tamago/serial/qemu.s": "19d5fab4becd8df372f8c4c0274cc515aca595ae0f0097cbd9739ae357c55f85",
+        "platform/embedded/tamago/serial/serial.go": "efcfa38b4d01cb0623f64e2947c2cf76343b9eb875e2fb29912af1b200e860bc",
+        "platform/embedded/tamago/toolchain.lock.toml": "c82da7a02b03472d6e0a02e08ae52a98de9a31604e9e1b760619baf014588682",
+        "platform/embedded/tamago/usb/descriptor.go": "ae6a3d3de50b724dc2157f8941f109663ec7932fa7c274462dd0fd9aae345e08",
+        "platform/embedded/tamago/usb/hid.go": "1e989bba34fc3c741d5a41e9a11b930873489c06ced8922704bbf1e59bb2c03d",
+        "platform/embedded/tamago/usb/xhci_tamago.go": "0a84effc4c015b93359ba33de04a14b67ccb211109d7b77ed56926a07252b276",
+        "platform/embedded/tamago/usb/xhci_tamago.s": "3646c539c24c65846d34cf2d1de6a46250f54e2307566edb402cffd017ebb295"
+      }
+    },
+    {
+      "status": "passed",
+      "program": "play",
+      "classification": "QEMU-only native Go bare metal; not DE25 hardware",
+      "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
+      "elf_sha256": "7e6a32c733b6630d162ad05aeab2e4ae5ce0775e8d12b7e9197c20f457521ef8",
+      "qemu_sha256": "abab52b9e084e176b047d698dcc9dc9c3a38e33cd6dc04cbe3792d2080cfdb45",
+      "disk": {
+        "path": "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/native-cold-qemu-play/fat32.img",
+        "before_sha256": "b77e6b050583f4c674c6ba41eba4a9e2b24de6511a85dc1e997a405a125bec22",
+        "after_sha256": "b77e6b050583f4c674c6ba41eba4a9e2b24de6511a85dc1e997a405a125bec22"
+      },
+      "play_results": [
+        {
+          "id": "model-normal",
+          "check": "return",
+          "outcome": "returned",
+          "state": {
+            "backend": {
+              "PartsCompositionID": "",
+              "Action": "",
+              "Status": {
+                "State": "idle",
+                "ImageID": "model.idle",
+                "CoreGeneration": 0,
+                "DisplayGeneration": 3,
+                "InputEnabled": false,
+                "LastError": "",
+                "Package": {
+                  "PackageID": "",
+                  "CoreID": "",
+                  "ABI": "",
+                  "BuildID": "",
+                  "ActivationReceiptSHA256": "",
+                  "ProgrammedSHA256": "",
+                  "Major": 0,
+                  "Minor": 0
+                }
+              },
+              "Busy": false,
+              "Game": "",
+              "Error": "",
+              "Programs": 2,
+              "Saves": 1,
+              "Launches": 1,
+              "Stops": 1
+            },
+            "columns": 5,
+            "focus": 0,
+            "launch": "idle",
+            "launch_game": "",
+            "parked": false,
+            "retry": false,
+            "session": "idle"
+          }
+        },
+        {
+          "id": "model-wrong-rom",
+          "check": "preserve",
+          "outcome": "rejected",
+          "state": {
+            "backend": {
+              "PartsCompositionID": "",
+              "Action": "",
+              "Status": {
+                "State": "idle",
+                "ImageID": "model.idle",
+                "CoreGeneration": 0,
+                "DisplayGeneration": 3,
+                "InputEnabled": false,
+                "LastError": "",
+                "Package": {
+                  "PackageID": "",
+                  "CoreID": "",
+                  "ABI": "",
+                  "BuildID": "",
+                  "ActivationReceiptSHA256": "",
+                  "ProgrammedSHA256": "",
+                  "Major": 0,
+                  "Minor": 0
+                }
+              },
+              "Busy": false,
+              "Game": "",
+              "Error": "ROM source differs from selected digest",
+              "Programs": 2,
+              "Saves": 1,
+              "Launches": 2,
+              "Stops": 1
+            },
+            "columns": 5,
+            "focus": 1,
+            "launch": "host",
+            "launch_game": "model-wrong-rom",
+            "parked": false,
+            "retry": false,
+            "session": "idle"
+          }
+        },
+        {
+          "id": "model-wrong-receipt",
+          "check": "preserve",
+          "outcome": "rejected",
+          "state": {
+            "backend": {
+              "PartsCompositionID": "",
+              "Action": "",
+              "Status": {
+                "State": "idle",
+                "ImageID": "model.idle",
+                "CoreGeneration": 0,
+                "DisplayGeneration": 3,
+                "InputEnabled": false,
+                "LastError": "",
+                "Package": {
+                  "PackageID": "",
+                  "CoreID": "",
+                  "ABI": "",
+                  "BuildID": "",
+                  "ActivationReceiptSHA256": "",
+                  "ProgrammedSHA256": "",
+                  "Major": 0,
+                  "Minor": 0
+                }
+              },
+              "Busy": false,
+              "Game": "",
+              "Error": "receipt_mismatch: linked ROM activation receipt differs from request",
+              "Programs": 2,
+              "Saves": 1,
+              "Launches": 3,
+              "Stops": 1
+            },
+            "columns": 5,
+            "focus": 2,
+            "launch": "host",
+            "launch_game": "model-wrong-receipt",
+            "parked": false,
+            "retry": false,
+            "session": "idle"
+          }
+        },
+        {
+          "id": "model-interrupted",
+          "check": "preserve",
+          "outcome": "rejected",
+          "state": {
+            "backend": {
+              "PartsCompositionID": "",
+              "Action": "",
+              "Status": {
+                "State": "idle",
+                "ImageID": "model.idle",
+                "CoreGeneration": 0,
+                "DisplayGeneration": 3,
+                "InputEnabled": false,
+                "LastError": "",
+                "Package": {
+                  "PackageID": "",
+                  "CoreID": "",
+                  "ABI": "",
+                  "BuildID": "",
+                  "ActivationReceiptSHA256": "",
+                  "ProgrammedSHA256": "",
+                  "Major": 0,
+                  "Minor": 0
+                }
+              },
+              "Busy": false,
+              "Game": "",
+              "Error": "context canceled",
+              "Programs": 2,
+              "Saves": 1,
+              "Launches": 4,
+              "Stops": 1
+            },
+            "columns": 5,
+            "focus": 3,
+            "launch": "host",
+            "launch_game": "model-interrupted",
+            "parked": false,
+            "retry": false,
+            "session": "idle"
+          }
+        },
+        {
+          "id": "model-identity",
+          "check": "recover",
+          "outcome": "rejected",
+          "state": {
+            "backend": {
+              "PartsCompositionID": "",
+              "Action": "",
+              "Status": {
+                "State": "idle",
+                "ImageID": "model.idle",
+                "CoreGeneration": 0,
+                "DisplayGeneration": 4,
+                "InputEnabled": false,
+                "LastError": "live model identity mismatch",
+                "Package": {
+                  "PackageID": "",
+                  "CoreID": "",
+                  "ABI": "",
+                  "BuildID": "",
+                  "ActivationReceiptSHA256": "",
+                  "ProgrammedSHA256": "",
+                  "Major": 0,
+                  "Minor": 0
+                }
+              },
+              "Busy": false,
+              "Game": "",
+              "Error": "live model identity mismatch",
+              "Programs": 4,
+              "Saves": 1,
+              "Launches": 5,
+              "Stops": 1
+            },
+            "columns": 5,
+            "focus": 4,
+            "launch": "host",
+            "launch_game": "model-identity",
+            "parked": false,
+            "retry": false,
+            "session": "idle"
+          }
+        },
+        {
+          "id": "model-program",
+          "check": "recover",
+          "outcome": "rejected",
+          "state": {
+            "backend": {
+              "PartsCompositionID": "",
+              "Action": "",
+              "Status": {
+                "State": "idle",
+                "ImageID": "model.idle",
+                "CoreGeneration": 0,
+                "DisplayGeneration": 5,
+                "InputEnabled": false,
+                "LastError": "programmed model digest mismatch",
+                "Package": {
+                  "PackageID": "",
+                  "CoreID": "",
+                  "ABI": "",
+                  "BuildID": "",
+                  "ActivationReceiptSHA256": "",
+                  "ProgrammedSHA256": "",
+                  "Major": 0,
+                  "Minor": 0
+                }
+              },
+              "Busy": false,
+              "Game": "",
+              "Error": "programmed model digest mismatch",
+              "Programs": 6,
+              "Saves": 1,
+              "Launches": 6,
+              "Stops": 1
+            },
+            "columns": 5,
+            "focus": 5,
+            "launch": "host",
+            "launch_game": "model-program",
+            "parked": false,
+            "retry": false,
+            "session": "idle"
+          }
+        },
+        {
+          "id": "model-save",
+          "check": "retry",
+          "outcome": "returned",
+          "state": {
+            "backend": {
+              "PartsCompositionID": "",
+              "Action": "",
+              "Status": {
+                "State": "idle",
+                "ImageID": "model.idle",
+                "CoreGeneration": 0,
+                "DisplayGeneration": 7,
+                "InputEnabled": false,
+                "LastError": "",
+                "Package": {
+                  "PackageID": "",
+                  "CoreID": "",
+                  "ABI": "",
+                  "BuildID": "",
+                  "ActivationReceiptSHA256": "",
+                  "ProgrammedSHA256": "",
+                  "Major": 0,
+                  "Minor": 0
+                }
+              },
+              "Busy": false,
+              "Game": "",
+              "Error": "",
+              "Programs": 8,
+              "Saves": 3,
+              "Launches": 7,
+              "Stops": 3
+            },
+            "columns": 5,
+            "focus": 6,
+            "launch": "idle",
+            "launch_game": "",
+            "parked": false,
+            "retry": false,
+            "session": "idle"
+          }
+        },
+        {
+          "id": "model-composed",
+          "check": "return",
+          "outcome": "returned",
+          "state": {
+            "backend": {
+              "PartsCompositionID": "",
+              "Action": "",
+              "Status": {
+                "State": "idle",
+                "ImageID": "model.idle",
+                "CoreGeneration": 0,
+                "DisplayGeneration": 9,
+                "InputEnabled": false,
+                "LastError": "",
+                "Package": {
+                  "PackageID": "",
+                  "CoreID": "",
+                  "ABI": "",
+                  "BuildID": "",
+                  "ActivationReceiptSHA256": "",
+                  "ProgrammedSHA256": "",
+                  "Major": 0,
+                  "Minor": 0
+                }
+              },
+              "Busy": false,
+              "Game": "",
+              "Error": "",
+              "Programs": 10,
+              "Saves": 4,
+              "Launches": 8,
+              "Stops": 4
+            },
+            "columns": 5,
+            "focus": 7,
+            "launch": "idle",
+            "launch_game": "",
+            "parked": false,
+            "retry": false,
+            "session": "idle"
+          }
+        },
+        {
+          "id": "model-part-changed",
+          "check": "preserve",
+          "outcome": "rejected",
+          "state": {
+            "backend": {
+              "PartsCompositionID": "",
+              "Action": "",
+              "Status": {
+                "State": "idle",
+                "ImageID": "model.idle",
+                "CoreGeneration": 0,
+                "DisplayGeneration": 9,
+                "InputEnabled": false,
+                "LastError": "",
+                "Package": {
+                  "PackageID": "",
+                  "CoreID": "",
+                  "ABI": "",
+                  "BuildID": "",
+                  "ActivationReceiptSHA256": "",
+                  "ProgrammedSHA256": "",
+                  "Major": 0,
+                  "Minor": 0
+                }
+              },
+              "Busy": false,
+              "Game": "",
+              "Error": "receipt_mismatch: linked ROM activation receipt differs from request",
+              "Programs": 10,
+              "Saves": 4,
+              "Launches": 9,
+              "Stops": 4
+            },
+            "columns": 5,
+            "focus": 8,
+            "launch": "host",
+            "launch_game": "model-part-changed",
+            "parked": false,
+            "retry": false,
+            "session": "idle"
+          }
+        },
+        {
+          "id": "model-part-missing",
+          "check": "preserve",
+          "outcome": "rejected",
+          "state": {
+            "backend": {
+              "PartsCompositionID": "",
+              "Action": "",
+              "Status": {
+                "State": "idle",
+                "ImageID": "model.idle",
+                "CoreGeneration": 0,
+                "DisplayGeneration": 9,
+                "InputEnabled": false,
+                "LastError": "",
+                "Package": {
+                  "PackageID": "",
+                  "CoreID": "",
+                  "ABI": "",
+                  "BuildID": "",
+                  "ActivationReceiptSHA256": "",
+                  "ProgrammedSHA256": "",
+                  "Major": 0,
+                  "Minor": 0
+                }
+              },
+              "Busy": false,
+              "Game": "",
+              "Error": "parts composition requires a video part",
+              "Programs": 10,
+              "Saves": 4,
+              "Launches": 10,
+              "Stops": 4
+            },
+            "columns": 5,
+            "focus": 9,
+            "launch": "host",
+            "launch_game": "model-part-missing",
+            "parked": false,
+            "retry": false,
+            "session": "idle"
+          }
+        },
+        {
+          "id": "model-part-incompatible",
+          "check": "preserve",
+          "outcome": "rejected",
+          "state": {
+            "backend": {
+              "PartsCompositionID": "",
+              "Action": "",
+              "Status": {
+                "State": "idle",
+                "ImageID": "model.idle",
+                "CoreGeneration": 0,
+                "DisplayGeneration": 9,
+                "InputEnabled": false,
+                "LastError": "",
+                "Package": {
+                  "PackageID": "",
+                  "CoreID": "",
+                  "ABI": "",
+                  "BuildID": "",
+                  "ActivationReceiptSHA256": "",
+                  "ProgrammedSHA256": "",
+                  "Major": 0,
+                  "Minor": 0
+                }
+              },
+              "Busy": false,
+              "Game": "",
+              "Error": "video part was built for a different frozen shell",
+              "Programs": 10,
+              "Saves": 4,
+              "Launches": 11,
+              "Stops": 4
+            },
+            "columns": 5,
+            "focus": 10,
+            "launch": "host",
+            "launch_game": "model-part-incompatible",
+            "parked": false,
+            "retry": false,
+            "session": "idle"
+          }
+        }
+      ],
+      "limitations": [
+        "software model sessions, no emulated game or physical programming",
+        "Cyclone V synthetic vectors; no DE25 acceptance",
+        "in-process model catalog, not production host/target orchestration",
+        "no power-loss durability or hardware DMA proof"
+      ],
+      "termination": "tenfoot quit and model closed before runner reaped QEMU",
+      "receipt": "out/native-cold-qemu-play/result.json",
+      "receipt_sha256": "df27381852e2fefb55fe5a6d3e1920746611b605bbbe4afbdb11c4f69a9bb96c",
+      "selected_sources_digest": "9dfaaf385712d22eccc4659f04929bcad46364f662c806d645520d2aecf98a59",
+      "native_source_sha256": {
+        "platform/embedded/tamago/admission_fixtures.py": "dfc6213288fc06994615b81f883096fa4d5a8345a6a239377b9e555ba8a96cfe",
+        "platform/embedded/tamago/block/barrier.s": "fe7768b4e91255cdbd390070116e157d50eb74db7ea249627e6f182e5c9d8a07",
+        "platform/embedded/tamago/block/block.go": "83a10e5ed62721350f229d4b95232947871ddd82ecf190b60a4da15870687973",
+        "platform/embedded/tamago/block/virtio.go": "8e49019e6f7cec9e3ca821fb860c710c4268a7013c640c2b2bb6e4fae2418e62",
+        "platform/embedded/tamago/board/interfaces.go": "7022988e616065eb488d21de31127b3ddaa6c4012a664cb827d8f9e7b99a8364",
+        "platform/embedded/tamago/board/qemu.go": "346de3c00c3b3b43e17340fef6e5f685e60a90ff9dee0b8daff80f0203ca6379",
+        "platform/embedded/tamago/board/qemuvirt/board.go": "c4ec61bc2a6d8f220289804155356cb940e52371c9fbaa158700c30ad523ea7a",
+        "platform/embedded/tamago/board/qemuvirt/board.s": "2816a2bb882092d4d46e80a0ba2ace7acfb4e20d108647635b060f8d475bc995",
+        "platform/embedded/tamago/board/qemuvirt/devices.go": "89d6ebbc2b4a5821aa2557d8e3392528fd847cd6ffd5497e087742abc8ec0a70",
+        "platform/embedded/tamago/board/qemuvirt/devices.s": "a49904dc7e6299269f5b05a1eb4a3b5e8395ba036c27bffce3b71221962c9280",
+        "platform/embedded/tamago/board/qemuvirt/pci.go": "d5f676df3f9f25647139fa9ef7194c6e91e71984cc4ca65df8d49a9b3301af15",
+        "platform/embedded/tamago/cmd/session-fixtures/composition.go": "b57efec5abbf8f8d6d96525103566ee1d4314372b9bcf368b15f15d0b5e450f3",
+        "platform/embedded/tamago/cmd/session-fixtures/main.go": "4d72a5976acc200fc6e3e3d8ec9bd27b4b7e71af8c3f33b2cd95d580d832248a",
+        "platform/embedded/tamago/cmd/tenfoot/main.go": "c5195d1ec155dc076487b96efa78e34fa9ffc35641f706f14521fc3ef5fea783",
+        "platform/embedded/tamago/display/format.go": "debb9c22ad85d745cce69ff4948fae2c1377c9d229cfbb4be0740287698eed02",
+        "platform/embedded/tamago/display/mmio.s": "fa19a85a232fc4d5b611c9e41b07a3d26315b84a4c37c409ebd7036de1ccfce3",
+        "platform/embedded/tamago/display/ramfb.go": "94964bed3b01ecc1121754331a71d871366ebc1528968e520c784bb02d2ad8e1",
+        "platform/embedded/tamago/fabricmodel/checks.go": "211c3c8b5b02822074a4255b6ce9d9e65a0ef45cc44c2299ec2959e5c7ed5613",
+        "platform/embedded/tamago/fabricmodel/model.go": "437fb1968bcdd2a1934299c27d55b1cce15a551a0f6fe656dcb37aecc41c20fc",
+        "platform/embedded/tamago/fat/fat.go": "53b5b01f6e3e5b2c02c41d6a384b909440cabbcd0254ad046d9cc371e08c1aa1",
+        "platform/embedded/tamago/go.mod": "77f9be13dda9fc16855b0b62787252f9568ad1b280bada66b2e924702f241d94",
+        "platform/embedded/tamago/go.sum": "87dbccb2e14a610a1de9666fa936a18f374bd299b50436b44405b5d75e8fd5c4",
+        "platform/embedded/tamago/host_support.py": "a1936eeade5192fef18f8eabf41992c20f3f5860dbd71a97508c7f724f86e6c6",
+        "platform/embedded/tamago/input/serial.go": "4b7393336458d4db8c90f5eaf75a7d44df6840715fe02542c5a7067073ae496f",
+        "platform/embedded/tamago/input/uart.go": "d01e16b05674649249c6884f6ccd82467e7b094bc04c5d2ae1c1a3cba87e97c1",
+        "platform/embedded/tamago/input/usb.go": "bfc9d699cd96692756f6f155f50ca59899d05b06016c9b900dcb6c955e5256c0",
+        "platform/embedded/tamago/modelbackend/backend.go": "9774019c45c0063b59860f1dd358c51866a947f7f087f9a1f7d41194c2894720",
+        "platform/embedded/tamago/modelbackend/transport.go": "71ffde9b4b3bcbcf3b70ca95170127e9d2c2b63033b6e4a4d83e4bd20a41d87c",
+        "platform/embedded/tamago/network/barrier_tamago.s": "ecbdec5b7fb4abf11b8e4b5c18a593b43e2118e022b5e4977dafbdb15f993a2d",
+        "platform/embedded/tamago/network/config.go": "826db5a404ad2a6f151cfcafa502fa5d6edd4b7f66390a72e4a80b65ea9c22f8",
+        "platform/embedded/tamago/network/network_tamago.go": "313968c607c6ad41b91d069d825e641cbc425a2891362d88463d59ea67e3e199",
+        "platform/embedded/tamago/network/nic_tamago.go": "77fd28017c7dc3994005fa1555bf10ad414982f9dc498f306ccfd117a0eea6f2",
+        "platform/embedded/tamago/package_fixtures.py": "350f9c712409b4164f49f8529c8db2d579892c0915aef4a7fd04836cbdba1f1d",
+        "platform/embedded/tamago/play_support.py": "aba5aec47b72becd49030c0eab056de5e3621919af5febd03d7f08f5d7c5f6a3",
+        "platform/embedded/tamago/run.py": "187f858e4bd34fb0aa24a886ab94110606e6196a9ac080eee0c918c85c203a64",
+        "platform/embedded/tamago/runtimeadmission/admission.go": "27787b35f0bd8cdae8f83b0d2a740690bdda24d8f00d7b540399979da78ca2bf",
+        "platform/embedded/tamago/serial/qemu.s": "19d5fab4becd8df372f8c4c0274cc515aca595ae0f0097cbd9739ae357c55f85",
+        "platform/embedded/tamago/serial/serial.go": "efcfa38b4d01cb0623f64e2947c2cf76343b9eb875e2fb29912af1b200e860bc",
+        "platform/embedded/tamago/toolchain.lock.toml": "c82da7a02b03472d6e0a02e08ae52a98de9a31604e9e1b760619baf014588682",
+        "platform/embedded/tamago/usb/descriptor.go": "ae6a3d3de50b724dc2157f8941f109663ec7932fa7c274462dd0fd9aae345e08",
+        "platform/embedded/tamago/usb/hid.go": "1e989bba34fc3c741d5a41e9a11b930873489c06ced8922704bbf1e59bb2c03d",
+        "platform/embedded/tamago/usb/xhci_tamago.go": "0a84effc4c015b93359ba33de04a14b67ccb211109d7b77ed56926a07252b276",
+        "platform/embedded/tamago/usb/xhci_tamago.s": "3646c539c24c65846d34cf2d1de6a46250f54e2307566edb402cffd017ebb295"
+      }
+    },
+    {
+      "status": "cross-built",
+      "program": "probe",
+      "classification": "host-only cross-build; not boot or hardware acceptance",
+      "board": "de25-nano",
+      "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
+      "elf_sha256": "8b2983c1aadbb15344c30d0f4d3a5f1e8a0edd123ce285504035426108d18b2d",
+      "generated_profile_sha256": "a1cf0efa16faf1d2c6bfbc33a3c6c42b570142261e2d409921fbb7e57e6dc134",
+      "firmware_profile_sha256": "ef9b29676f6617498d27bb274fe01afecacd30545cea4385e798b0a3eb487103",
+      "limitations": [
+        "firmware must supply SD/USB PHY and input clocks plus verified resource reservations",
+        "SD cold card initialization, read-only PIO; SoC PHY setup remains firmware-owned",
+        "USB direct low/full-speed boot keyboard only; Ethernet/display/physical FPGA adapters unavailable"
+      ],
+      "receipt": "out/native-cold-build-probe/result.json",
+      "receipt_sha256": "877bd275f058ddab41623554e1a7a69496af5f213b7e0d5319d1475f0a2ee044",
+      "selected_sources_digest": "060467c3ebda66ed2da0fd977bdf3c93bbd8e3766ed651672d8df3b1d0304b6a",
+      "native_source_sha256": {
+        "platform/embedded/tamago/block/block.go": "83a10e5ed62721350f229d4b95232947871ddd82ecf190b60a4da15870687973",
+        "platform/embedded/tamago/board/de25nano/board.go": "32ed1f2253916870f113a957ada1f27f5051871354ad41a842353b37d8e991d8",
+        "platform/embedded/tamago/board/de25nano/board.s": "20f85cbd731e1e79a1576ff63559664d54db3dbf8d30a8f141ad6db9534ac12c",
+        "platform/embedded/tamago/board/de25nano/profile.go": "66600bd7a904df1c5414880ffef776d64837708908e414fc1e059871858df5aa",
+        "platform/embedded/tamago/board/de25nano/storage.go": "9773214d1abdaa8cd45948d9513b0885092922822e6e8edcb8c2f50e01794d6f",
+        "platform/embedded/tamago/board/de25nano/storage.s": "5b11663b5238250145a70264afbd59eea94090932e1cfaae94845550f20d0af5",
+        "platform/embedded/tamago/board/de25nano/usb.go": "0c06624ac47f582e248696f147d94b4f9c0544eb3c6f294638d4a18bb062359f",
+        "platform/embedded/tamago/board/interfaces.go": "7022988e616065eb488d21de31127b3ddaa6c4012a664cb827d8f9e7b99a8364",
+        "platform/embedded/tamago/board/nano.go": "dc9f6c5d3828fdc196fbc2b59457481b1b5f630f570bd8f6cb2ee18bc04bb3c9",
+        "platform/embedded/tamago/build.py": "13b04ca3ef99382408cfa5e611e9e69c20308a7b2e3b9840fad31c0f6e999e39",
+        "platform/embedded/tamago/cmd/probe/main.go": "eac9cfca534cd2c4ae6a7f819e73bce2f42429c98c75c9317f0173d2dd3ff88e",
+        "platform/embedded/tamago/dwc2/host.go": "5f7063f2b224d940a5e92c10e1ae15a19679356bfece6dcd4f3f522b6f12146b",
+        "platform/embedded/tamago/go.mod": "77f9be13dda9fc16855b0b62787252f9568ad1b280bada66b2e924702f241d94",
+        "platform/embedded/tamago/go.sum": "87dbccb2e14a610a1de9666fa936a18f374bd299b50436b44405b5d75e8fd5c4",
+        "platform/embedded/tamago/input/serial.go": "4b7393336458d4db8c90f5eaf75a7d44df6840715fe02542c5a7067073ae496f",
+        "platform/embedded/tamago/input/uart.go": "d01e16b05674649249c6884f6ccd82467e7b094bc04c5d2ae1c1a3cba87e97c1",
+        "platform/embedded/tamago/input/usb.go": "bfc9d699cd96692756f6f155f50ca59899d05b06016c9b900dcb6c955e5256c0",
+        "platform/embedded/tamago/run.py": "187f858e4bd34fb0aa24a886ab94110606e6196a9ac080eee0c918c85c203a64",
+        "platform/embedded/tamago/sdhci/sdhci.go": "92fba7c510c53565fa2a7233d5eab8cdd57413cb07f0244d34448f56dfb87309",
+        "platform/embedded/tamago/serial/de25.s": "cd1dde3c9c6d13b376deeacd28dbb5d76bcc6652373229d90d2658f92672e3b6",
+        "platform/embedded/tamago/serial/serial.go": "efcfa38b4d01cb0623f64e2947c2cf76343b9eb875e2fb29912af1b200e860bc",
+        "platform/embedded/tamago/toolchain.lock.toml": "c82da7a02b03472d6e0a02e08ae52a98de9a31604e9e1b760619baf014588682",
+        "platform/embedded/tamago/usb/descriptor.go": "ae6a3d3de50b724dc2157f8941f109663ec7932fa7c274462dd0fd9aae345e08",
+        "platform/embedded/tamago/usb/hid.go": "1e989bba34fc3c741d5a41e9a11b930873489c06ced8922704bbf1e59bb2c03d"
+      }
+    },
+    {
+      "status": "cross-built",
+      "program": "storage",
+      "classification": "host-only cross-build; not boot or hardware acceptance",
+      "board": "de25-nano",
+      "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
+      "elf_sha256": "146c2c9500d34d2d0c601ea2dd85dfe9a7094b5d13cd2fba8c9d57cd73346bd4",
+      "generated_profile_sha256": "a1cf0efa16faf1d2c6bfbc33a3c6c42b570142261e2d409921fbb7e57e6dc134",
+      "firmware_profile_sha256": "ef9b29676f6617498d27bb274fe01afecacd30545cea4385e798b0a3eb487103",
+      "limitations": [
+        "firmware must supply SD/USB PHY and input clocks plus verified resource reservations",
+        "SD cold card initialization, read-only PIO; SoC PHY setup remains firmware-owned",
+        "USB direct low/full-speed boot keyboard only; Ethernet/display/physical FPGA adapters unavailable"
+      ],
+      "receipt": "out/native-cold-build-storage/result.json",
+      "receipt_sha256": "aefdafc4bd44f17fc6221d6c935065dd5d9acdc658f084f181b7d16d31118ffc",
+      "selected_sources_digest": "f4cabc8de700aedf5538e4c58968093250059e8990f12cef4cf93c1e3b03fb51",
+      "native_source_sha256": {
+        "platform/embedded/tamago/block/block.go": "83a10e5ed62721350f229d4b95232947871ddd82ecf190b60a4da15870687973",
+        "platform/embedded/tamago/board/de25nano/board.go": "32ed1f2253916870f113a957ada1f27f5051871354ad41a842353b37d8e991d8",
+        "platform/embedded/tamago/board/de25nano/board.s": "20f85cbd731e1e79a1576ff63559664d54db3dbf8d30a8f141ad6db9534ac12c",
+        "platform/embedded/tamago/board/de25nano/profile.go": "66600bd7a904df1c5414880ffef776d64837708908e414fc1e059871858df5aa",
+        "platform/embedded/tamago/board/de25nano/storage.go": "9773214d1abdaa8cd45948d9513b0885092922822e6e8edcb8c2f50e01794d6f",
+        "platform/embedded/tamago/board/de25nano/storage.s": "5b11663b5238250145a70264afbd59eea94090932e1cfaae94845550f20d0af5",
+        "platform/embedded/tamago/board/de25nano/usb.go": "0c06624ac47f582e248696f147d94b4f9c0544eb3c6f294638d4a18bb062359f",
+        "platform/embedded/tamago/board/interfaces.go": "7022988e616065eb488d21de31127b3ddaa6c4012a664cb827d8f9e7b99a8364",
+        "platform/embedded/tamago/board/nano.go": "dc9f6c5d3828fdc196fbc2b59457481b1b5f630f570bd8f6cb2ee18bc04bb3c9",
+        "platform/embedded/tamago/build.py": "13b04ca3ef99382408cfa5e611e9e69c20308a7b2e3b9840fad31c0f6e999e39",
+        "platform/embedded/tamago/cmd/storage/main.go": "f3ed2e2e02ea1bec0b60fbf74d5df44a2c2f58358fc857f667f73cac24b42a5d",
+        "platform/embedded/tamago/dwc2/host.go": "5f7063f2b224d940a5e92c10e1ae15a19679356bfece6dcd4f3f522b6f12146b",
+        "platform/embedded/tamago/fat/fat.go": "53b5b01f6e3e5b2c02c41d6a384b909440cabbcd0254ad046d9cc371e08c1aa1",
+        "platform/embedded/tamago/go.mod": "77f9be13dda9fc16855b0b62787252f9568ad1b280bada66b2e924702f241d94",
+        "platform/embedded/tamago/go.sum": "87dbccb2e14a610a1de9666fa936a18f374bd299b50436b44405b5d75e8fd5c4",
+        "platform/embedded/tamago/input/serial.go": "4b7393336458d4db8c90f5eaf75a7d44df6840715fe02542c5a7067073ae496f",
+        "platform/embedded/tamago/input/uart.go": "d01e16b05674649249c6884f6ccd82467e7b094bc04c5d2ae1c1a3cba87e97c1",
+        "platform/embedded/tamago/input/usb.go": "bfc9d699cd96692756f6f155f50ca59899d05b06016c9b900dcb6c955e5256c0",
+        "platform/embedded/tamago/run.py": "187f858e4bd34fb0aa24a886ab94110606e6196a9ac080eee0c918c85c203a64",
+        "platform/embedded/tamago/sdhci/sdhci.go": "92fba7c510c53565fa2a7233d5eab8cdd57413cb07f0244d34448f56dfb87309",
+        "platform/embedded/tamago/serial/de25.s": "cd1dde3c9c6d13b376deeacd28dbb5d76bcc6652373229d90d2658f92672e3b6",
+        "platform/embedded/tamago/serial/serial.go": "efcfa38b4d01cb0623f64e2947c2cf76343b9eb875e2fb29912af1b200e860bc",
+        "platform/embedded/tamago/toolchain.lock.toml": "c82da7a02b03472d6e0a02e08ae52a98de9a31604e9e1b760619baf014588682",
+        "platform/embedded/tamago/usb/descriptor.go": "ae6a3d3de50b724dc2157f8941f109663ec7932fa7c274462dd0fd9aae345e08",
+        "platform/embedded/tamago/usb/hid.go": "1e989bba34fc3c741d5a41e9a11b930873489c06ced8922704bbf1e59bb2c03d"
+      }
+    },
+    {
+      "status": "cross-built",
+      "program": "keyboard",
+      "classification": "host-only cross-build; not boot or hardware acceptance",
+      "board": "de25-nano",
+      "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
+      "elf_sha256": "c6f6b3cea2eed46bdd4fdf14754b626968b71196e44295d24aa78fa5800334fd",
+      "generated_profile_sha256": "a1cf0efa16faf1d2c6bfbc33a3c6c42b570142261e2d409921fbb7e57e6dc134",
+      "firmware_profile_sha256": "ef9b29676f6617498d27bb274fe01afecacd30545cea4385e798b0a3eb487103",
+      "limitations": [
+        "firmware must supply SD/USB PHY and input clocks plus verified resource reservations",
+        "SD cold card initialization, read-only PIO; SoC PHY setup remains firmware-owned",
+        "USB direct low/full-speed boot keyboard only; Ethernet/display/physical FPGA adapters unavailable"
+      ],
+      "receipt": "out/native-cold-build-keyboard/result.json",
+      "receipt_sha256": "cd840dea6458c6811c785949da3ab6d07a617d0191dce040c08c7c46e13a75e7",
+      "selected_sources_digest": "26083a58be3f10d7b6452d3578420181785cc27484bffa4660f5d826efebcade",
+      "native_source_sha256": {
+        "platform/embedded/tamago/block/block.go": "83a10e5ed62721350f229d4b95232947871ddd82ecf190b60a4da15870687973",
+        "platform/embedded/tamago/board/de25nano/board.go": "32ed1f2253916870f113a957ada1f27f5051871354ad41a842353b37d8e991d8",
+        "platform/embedded/tamago/board/de25nano/board.s": "20f85cbd731e1e79a1576ff63559664d54db3dbf8d30a8f141ad6db9534ac12c",
+        "platform/embedded/tamago/board/de25nano/profile.go": "66600bd7a904df1c5414880ffef776d64837708908e414fc1e059871858df5aa",
+        "platform/embedded/tamago/board/de25nano/storage.go": "9773214d1abdaa8cd45948d9513b0885092922822e6e8edcb8c2f50e01794d6f",
+        "platform/embedded/tamago/board/de25nano/storage.s": "5b11663b5238250145a70264afbd59eea94090932e1cfaae94845550f20d0af5",
+        "platform/embedded/tamago/board/de25nano/usb.go": "0c06624ac47f582e248696f147d94b4f9c0544eb3c6f294638d4a18bb062359f",
+        "platform/embedded/tamago/board/interfaces.go": "7022988e616065eb488d21de31127b3ddaa6c4012a664cb827d8f9e7b99a8364",
+        "platform/embedded/tamago/board/nano.go": "dc9f6c5d3828fdc196fbc2b59457481b1b5f630f570bd8f6cb2ee18bc04bb3c9",
+        "platform/embedded/tamago/build.py": "13b04ca3ef99382408cfa5e611e9e69c20308a7b2e3b9840fad31c0f6e999e39",
+        "platform/embedded/tamago/cmd/keyboard/main.go": "c5b11358e530640ae09ef15b50dafd485013d2a0c3a9986bb0b66cc2cd147b31",
+        "platform/embedded/tamago/dwc2/host.go": "5f7063f2b224d940a5e92c10e1ae15a19679356bfece6dcd4f3f522b6f12146b",
+        "platform/embedded/tamago/go.mod": "77f9be13dda9fc16855b0b62787252f9568ad1b280bada66b2e924702f241d94",
+        "platform/embedded/tamago/go.sum": "87dbccb2e14a610a1de9666fa936a18f374bd299b50436b44405b5d75e8fd5c4",
+        "platform/embedded/tamago/input/serial.go": "4b7393336458d4db8c90f5eaf75a7d44df6840715fe02542c5a7067073ae496f",
+        "platform/embedded/tamago/input/uart.go": "d01e16b05674649249c6884f6ccd82467e7b094bc04c5d2ae1c1a3cba87e97c1",
+        "platform/embedded/tamago/input/usb.go": "bfc9d699cd96692756f6f155f50ca59899d05b06016c9b900dcb6c955e5256c0",
+        "platform/embedded/tamago/run.py": "187f858e4bd34fb0aa24a886ab94110606e6196a9ac080eee0c918c85c203a64",
+        "platform/embedded/tamago/sdhci/sdhci.go": "92fba7c510c53565fa2a7233d5eab8cdd57413cb07f0244d34448f56dfb87309",
+        "platform/embedded/tamago/serial/de25.s": "cd1dde3c9c6d13b376deeacd28dbb5d76bcc6652373229d90d2658f92672e3b6",
+        "platform/embedded/tamago/serial/serial.go": "efcfa38b4d01cb0623f64e2947c2cf76343b9eb875e2fb29912af1b200e860bc",
+        "platform/embedded/tamago/toolchain.lock.toml": "c82da7a02b03472d6e0a02e08ae52a98de9a31604e9e1b760619baf014588682",
+        "platform/embedded/tamago/usb/descriptor.go": "ae6a3d3de50b724dc2157f8941f109663ec7932fa7c274462dd0fd9aae345e08",
+        "platform/embedded/tamago/usb/hid.go": "1e989bba34fc3c741d5a41e9a11b930873489c06ced8922704bbf1e59bb2c03d"
+      }
+    },
+    {
+      "status": "cross-built",
+      "program": "tenfoot",
+      "classification": "host-only cross-build; not boot or hardware acceptance",
+      "board": "de25-nano",
+      "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
+      "elf_sha256": "e8d90126806a20604f0d17646a145ce6df5d9e04bfa74195e96a1986d610a47f",
+      "generated_profile_sha256": "a1cf0efa16faf1d2c6bfbc33a3c6c42b570142261e2d409921fbb7e57e6dc134",
+      "firmware_profile_sha256": "ef9b29676f6617498d27bb274fe01afecacd30545cea4385e798b0a3eb487103",
+      "limitations": [
+        "firmware must supply SD/USB PHY and input clocks plus verified resource reservations",
+        "SD cold card initialization, read-only PIO; SoC PHY setup remains firmware-owned",
+        "USB direct low/full-speed boot keyboard only; Ethernet/display/physical FPGA adapters unavailable"
+      ],
+      "receipt": "out/native-cold-build-tenfoot/result.json",
+      "receipt_sha256": "4aa5e2569e6812f95b29fcf9b97aea3e95451815d40b18ca92ad614ad18c882e",
+      "selected_sources_digest": "745e2315a5884c2bd39f047d2ee6accf47a58fdba87b9f89d68718faf53049d4",
+      "native_source_sha256": {
+        "platform/embedded/tamago/block/block.go": "83a10e5ed62721350f229d4b95232947871ddd82ecf190b60a4da15870687973",
+        "platform/embedded/tamago/board/de25nano/board.go": "32ed1f2253916870f113a957ada1f27f5051871354ad41a842353b37d8e991d8",
+        "platform/embedded/tamago/board/de25nano/board.s": "20f85cbd731e1e79a1576ff63559664d54db3dbf8d30a8f141ad6db9534ac12c",
+        "platform/embedded/tamago/board/de25nano/profile.go": "66600bd7a904df1c5414880ffef776d64837708908e414fc1e059871858df5aa",
+        "platform/embedded/tamago/board/de25nano/storage.go": "9773214d1abdaa8cd45948d9513b0885092922822e6e8edcb8c2f50e01794d6f",
+        "platform/embedded/tamago/board/de25nano/storage.s": "5b11663b5238250145a70264afbd59eea94090932e1cfaae94845550f20d0af5",
+        "platform/embedded/tamago/board/de25nano/usb.go": "0c06624ac47f582e248696f147d94b4f9c0544eb3c6f294638d4a18bb062359f",
+        "platform/embedded/tamago/board/interfaces.go": "7022988e616065eb488d21de31127b3ddaa6c4012a664cb827d8f9e7b99a8364",
+        "platform/embedded/tamago/board/nano.go": "dc9f6c5d3828fdc196fbc2b59457481b1b5f630f570bd8f6cb2ee18bc04bb3c9",
+        "platform/embedded/tamago/build.py": "13b04ca3ef99382408cfa5e611e9e69c20308a7b2e3b9840fad31c0f6e999e39",
+        "platform/embedded/tamago/cmd/tenfoot/main.go": "c5195d1ec155dc076487b96efa78e34fa9ffc35641f706f14521fc3ef5fea783",
+        "platform/embedded/tamago/dwc2/host.go": "5f7063f2b224d940a5e92c10e1ae15a19679356bfece6dcd4f3f522b6f12146b",
+        "platform/embedded/tamago/fabricmodel/checks.go": "211c3c8b5b02822074a4255b6ce9d9e65a0ef45cc44c2299ec2959e5c7ed5613",
+        "platform/embedded/tamago/fabricmodel/model.go": "437fb1968bcdd2a1934299c27d55b1cce15a551a0f6fe656dcb37aecc41c20fc",
+        "platform/embedded/tamago/fat/fat.go": "53b5b01f6e3e5b2c02c41d6a384b909440cabbcd0254ad046d9cc371e08c1aa1",
+        "platform/embedded/tamago/go.mod": "77f9be13dda9fc16855b0b62787252f9568ad1b280bada66b2e924702f241d94",
+        "platform/embedded/tamago/go.sum": "87dbccb2e14a610a1de9666fa936a18f374bd299b50436b44405b5d75e8fd5c4",
+        "platform/embedded/tamago/input/serial.go": "4b7393336458d4db8c90f5eaf75a7d44df6840715fe02542c5a7067073ae496f",
+        "platform/embedded/tamago/input/uart.go": "d01e16b05674649249c6884f6ccd82467e7b094bc04c5d2ae1c1a3cba87e97c1",
+        "platform/embedded/tamago/input/usb.go": "bfc9d699cd96692756f6f155f50ca59899d05b06016c9b900dcb6c955e5256c0",
+        "platform/embedded/tamago/modelbackend/backend.go": "9774019c45c0063b59860f1dd358c51866a947f7f087f9a1f7d41194c2894720",
+        "platform/embedded/tamago/modelbackend/transport.go": "71ffde9b4b3bcbcf3b70ca95170127e9d2c2b63033b6e4a4d83e4bd20a41d87c",
+        "platform/embedded/tamago/run.py": "187f858e4bd34fb0aa24a886ab94110606e6196a9ac080eee0c918c85c203a64",
+        "platform/embedded/tamago/runtimeadmission/admission.go": "27787b35f0bd8cdae8f83b0d2a740690bdda24d8f00d7b540399979da78ca2bf",
+        "platform/embedded/tamago/sdhci/sdhci.go": "92fba7c510c53565fa2a7233d5eab8cdd57413cb07f0244d34448f56dfb87309",
+        "platform/embedded/tamago/serial/de25.s": "cd1dde3c9c6d13b376deeacd28dbb5d76bcc6652373229d90d2658f92672e3b6",
+        "platform/embedded/tamago/serial/serial.go": "efcfa38b4d01cb0623f64e2947c2cf76343b9eb875e2fb29912af1b200e860bc",
+        "platform/embedded/tamago/toolchain.lock.toml": "c82da7a02b03472d6e0a02e08ae52a98de9a31604e9e1b760619baf014588682",
+        "platform/embedded/tamago/usb/descriptor.go": "ae6a3d3de50b724dc2157f8941f109663ec7932fa7c274462dd0fd9aae345e08",
+        "platform/embedded/tamago/usb/hid.go": "1e989bba34fc3c741d5a41e9a11b930873489c06ced8922704bbf1e59bb2c03d"
+      }
+    }
+  ]
+}

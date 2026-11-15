@@ -1,0 +1,14 @@
+{
+  "status": "passed-self-contained-restoration-only-retention",
+  "procedure_sha256": "fbe754ce00877f8ecc61c4b911742b318c6b8701c2d80f05ca6da07976a4d564",
+  "archive": "/home/deano/fes-retained/de25-initial-tape-files-restoration-prepared-20261115-r1/prepared-procedure.tar.gz",
+  "archive_sha256": "0bc6d7d8ccc804e739f8180e78c31bb01f48fae7d3f5829ef8766ed07994793a",
+  "archive_bytes": 283430904,
+  "logical_files": 12262,
+  "verified_unique_blobs": 5136,
+  "hardware_actions": false,
+  "attempt_reserved": false,
+  "execution_approval_created": false,
+  "diagnostic_authority": false,
+  "human_reset_confirmed": true
+}

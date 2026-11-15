@@ -1,0 +1,8 @@
+{
+  "base_commit": "dfeb1e1932abee706dcab96976dccf0760fa4a42",
+  "scope": "actual SD PIO lifecycle implementation, same-card resume and filesystem preservation; model/race/cross-build evidence only",
+  "board_operations": false,
+  "firmware_sd_resume_stop_wire_binding": "required next; not supplied by this change",
+  "physical_sd_acceptance": false,
+  "core_load_acceptance": false
+}

@@ -1,0 +1,120 @@
+{
+  "format": 1,
+  "status": "passed",
+  "classification": "software integration and ARM64 TamaGo library cross-build; no hardware acceptance",
+  "base_commit": "981d1ab4e62035b3de246591450baf3ae4284a39",
+  "source_sha256": {
+    "platform/embedded/tamago/nativefabric/program_backend.go": "04b231f8eb32ccf9917a15d121429fb83ce97e7631bb448be8e1e732276e9bd5",
+    "platform/embedded/tamago/nativefabric/program_backend_test.go": "0c16416a359bda1e22c21f47f0c83bd2002258bc9a8de9e17157ed54d986efca",
+    "platform/embedded/tamago/nativefabric/program_service.go": "3205a1366f59c4f1f1816e0c82c34770130fd6a16861aacd1d0b8b7971310471"
+  },
+  "checks": {
+    "backend-failures2": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "./nativefabric",
+        "-run",
+        "^TestProgramBackend",
+        "-count=1",
+        "-timeout=150s"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.201360121020116,
+      "log_sha256": "79bfb8087dcfbc82042e2ded0b1b3bcaba413b0d94949beee35dca3146d3ac0f",
+      "log": "out/nano-tenfoot-backend-20261104/backend-failures2.log"
+    },
+    "backend-race": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "./nativefabric",
+        "-run",
+        "^TestProgramBackend",
+        "-count=10",
+        "-timeout=150s"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.203892378951423,
+      "log_sha256": "da47025cccd4ee23196e7cba09a39994a10db82075ccc054b016025cd16f41f2",
+      "log": "out/nano-tenfoot-backend-20261104/backend-race.log"
+    },
+    "native-library2": {
+      "argv": [
+        "python3",
+        "-c",
+        "import os,subprocess; e=dict(os.environ,GOOS=\"tamago\",GOARCH=\"arm64\",CGO_ENABLED=\"0\",GOOSPKG=\"github.com/usbarmory/tamago\",GOWORK=\"off\",GOTOOLCHAIN=\"local\",GOENV=\"off\",GOPROXY=\"off\",GOSUMDB=\"off\",GOMODCACHE=\"/home/deano/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/mod\",GOCACHE=\"/home/deano/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/cache\");subprocess.run([\"/home/deano/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go\",\"build\",\"-mod=readonly\",\"-tags=de25nano\",\"./nativefabric\"],cwd=\"platform/embedded/tamago\",env=e,check=True)"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.602633683010936,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "log": "out/nano-tenfoot-backend-20261104/native-library2.log"
+    },
+    "affected": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "PATH=/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "981d1ab4e62035b3de246591450baf3ae4284a39",
+        "--jobs",
+        "2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 347.858925818,
+      "log_sha256": "1d85c871384fa07b5fd51f28adef2f054007bebc15283495da41ca4771af9c81",
+      "log": "out/nano-tenfoot-backend-20261104/affected.log"
+    }
+  },
+  "firmware_rtl_integration": {
+    "result": "out/native-fabric-hooks-597e36645a324b3c84a4704c5e47a316/result.json",
+    "sha256": "3e9b4c1a50a95b6ce6fb0e6de345081ed7fb529fb9ea884eb2868ddb434ea361",
+    "status": "passed",
+    "classification": "host native Go lifecycle/tenfoot with actual patched TF-A C and Verilated FPGA RTL; simulated bridges, memory and SDM; no hardware acceptance"
+  },
+  "scope": {
+    "full_tenfoot_app": true,
+    "native_go_lifecycle": true,
+    "secure_calls_and_csrs_in_new_adapter_tests": "modeled",
+    "native_boot_command_selects_backend": false,
+    "ordinary_package_admission": false,
+    "physical_hdmi": false,
+    "usb_hub_input": false,
+    "native_ethernet": false,
+    "hardware_modified": false
+  },
+  "development_failures_retained": {
+    "backend-focused": "test API compile mistakes corrected",
+    "backend-focused2": "repeated Back did not consistently select Stop; use the explicit Stop command and native execution discriminator",
+    "backend-failures": "parallel cached reads contended with requests; corrected by independent immutable cached snapshots",
+    "native-library": "TamaGo module selection attempted before changing module directory; corrected working directory and pinned cache"
+  }
+}

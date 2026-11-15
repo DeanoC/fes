@@ -1,0 +1,17 @@
+{
+  "status": "passed-self-contained-selected-trial-retention",
+  "procedure_sha256": "16fe97ce2214c8c8526cb2b610b7b454a4455f06bfa9ff508ca18e433e9e1978",
+  "archive": "/home/deano/fes-retained/de25-publication-loading-prepared-20261115-r1/prepared-procedure.tar.gz",
+  "archive_sha256": "12ddb0a11ee43a517bb9a383f4bfdc2140de1e1f5ec2ade3e2b0de415594dc75",
+  "archive_bytes": 279449163,
+  "logical_files": 10945,
+  "verified_unique_blobs": 5058,
+  "hardware_actions": false,
+  "attempt_reserved": false,
+  "execution_approval_created": false,
+  "terminal_telemetry_grants_recovery": false,
+  "native_baseline_dispatch": false,
+  "baseline_final_Park_prerequisite_claimed": false,
+  "files_only_original_restoration_prerequisite": true,
+  "baseline_native_boot_forbidden": true
+}

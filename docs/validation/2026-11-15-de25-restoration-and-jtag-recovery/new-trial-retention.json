@@ -1,0 +1,13 @@
+{
+  "status": "passed-independent-four-second-after-reset-physical-retention",
+  "procedure_sha256": "dfef7b983d4d9df1b57206d973b912a3eabc3af6e9bf5eafc9e0f9476f00d4d9",
+  "archive": "/home/deano/fes-retained/de25-four-second-after-usb-reset-physical-20261115-r1/physical-trial.tar.gz",
+  "archive_sha256": "2c4f9ad5309b61b67ef00be64b26c3dabfc7c3b9a6ccedcc47976593a24e2b2e",
+  "files": 157,
+  "candidate_cycle_Park_verified": false,
+  "candidate_left_installed": false,
+  "all_hardware_handles_closed": true,
+  "physical_reset_required": true,
+  "hardware_acceptance": false,
+  "general_core_load_acceptance": false
+}

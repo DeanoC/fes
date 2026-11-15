@@ -1,0 +1,114 @@
+{
+  "status": "passed",
+  "checks": {
+    "programming-fixed": {
+      "receipt_sha256": "de57b0950eed572fb560f3190af836524300e67cf300442e4f80eec72a3955ca",
+      "argv": [
+        "python3",
+        "out/nano-isolation-trial-20261109/operator_programming_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20076125813648105,
+      "log_sha256": "2d99c96ca517b727d36146fcebb9dddd8c22d140b3f52a89617c568f8daecfe3"
+    },
+    "serial-fixed": {
+      "receipt_sha256": "c27b08d8dc3f3ee33e1768162a98a0a7911837af3ec49f63aa070306daaebf48",
+      "argv": [
+        "python3",
+        "out/nano-isolation-trial-20261109/operator_transport_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4010691868606955,
+      "log_sha256": "75ccbe553eecb49cbc0cf60abe44c78dcf0bcb41b21739b56db86715b4be512b"
+    },
+    "paired-receipts": {
+      "receipt_sha256": "99e02897812ba6f3c332d39b0aa7c70897a6d415582f2bd7e565f16340aa753d",
+      "argv": [
+        "python3",
+        "out/nano-isolation-trial-20261109/paired_receipt_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20071659609675407,
+      "log_sha256": "1105ee4035aa995b886fe0c31e3d5b69b0b4cbd2381f9f460b6507851de95d32"
+    },
+    "startup-input": {
+      "receipt_sha256": "632e6ffcd393e3d83015fa323cc303d97ecf7032e898496480590c396e2ae98b",
+      "argv": [
+        "python3",
+        "out/nano-isolation-trial-20261109/startup_input_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20077755488455296,
+      "log_sha256": "6299c61ecefc2c6e262ba2dccd92b35e4ade4e41b723fe2eac602dbd7b324b98"
+    },
+    "mmu-consumers": {
+      "receipt_sha256": "1faebe9268961252dd4281ee2df4d5d2ef81d9d2b5498be8a8091ed1399c9d8c",
+      "argv": [
+        "python3",
+        "out/nano-isolation-trial-20261109/mmu_operator_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20075378101319075,
+      "log_sha256": "c3dc4ce80790d0a5a68dcff2d3009be59564c24dfe01144e0f6b50051e539cc3"
+    },
+    "failure-decoder": {
+      "receipt_sha256": "c8f105a19722d21875455e1db5bb2157c3782e0246291b220ad79cbcbc557148",
+      "argv": [
+        "python3",
+        "out/nano-isolation-trial-20261109/profile_decode_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20067763817496598,
+      "log_sha256": "65378dcad145da2497120819bebfc3c46534dce9714ce064b3d809a56654aca2"
+    },
+    "clock-glue": {
+      "receipt_sha256": "4bd6161e08d923d2d314958aff1230f7bf38186ccb7f4a95a8e2af7c0681bce4",
+      "argv": [
+        "python3",
+        "out/nano-isolation-trial-20261109/clock_glue_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2007670879829675,
+      "log_sha256": "f165ca3af9e162928344667698dab40c859c3e0e84487021290cba1984d96d8d"
+    },
+    "file-admission-final": {
+      "receipt_sha256": "9b63e2622fd6adc04860e8c0b58038d81de40c0188507ccbc4fa3195d27c9b09",
+      "argv": [
+        "python3",
+        "out/nano-isolation-trial-20261109/prepare_final_admission.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 69.84081587917171,
+      "log_sha256": "97b44b10c14716bdf848318e4bdcde4ea819f385091e40c3d5b17a24de4be8a1"
+    },
+    "usb-stability": {
+      "receipt_sha256": "91389d9b69dbbf25e851d4f8223bb37dc6ab7f324464c5eaf75636bc060e76b9",
+      "argv": [
+        "python3",
+        "out/nano-isolation-trial-20261109/usb_stability.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 60.2340141038876,
+      "log_sha256": "3370512c3830b423386bc87e3a864d938d551f9c25a9e2ed79ab2ce51ca6f102"
+    }
+  },
+  "hardware_actions": false
+}

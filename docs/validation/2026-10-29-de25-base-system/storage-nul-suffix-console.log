@@ -1,0 +1,13 @@
+[00:00:00.020,000] [0m<inf> pcie_core: [00:00.0] 1b36:0008 class 6 subclass 0 progif 0 rev 0 Type0 multifunction false[0m
+[00:00:00.020,000] [0m<inf> pcie_core: [00:01.0] 8086:100e class 2 subclass 0 progif 0 rev 3 Type0 multifunction false[0m
+[00:00:00.020,000] [0m<inf> pcie_core: [00:01.0] BAR0 size 0x20000 assigned [mem 0x10000000-0x1001ffff -> 0x10000000-0x1001ffff][0m
+[00:00:00.020,000] [0m<inf> pcie_core: [00:01.0] BAR1 size 0x40 assigned [io 0x1000-0x103f -> 0x3eff1000-0x3eff103f][0m
+[00:00:00.020,000] [0m<inf> pcie_core: [00:02.0] 1b36:0010 class 1 subclass 8 progif 2 rev 2 Type0 multifunction false[0m
+[00:00:00.020,000] [0m<inf> pcie_core: [00:02.0] BAR0 size 0x4000 assigned [mem64 0x8000000000-0x8000003fff -> 0x8000000000-0x8000003fff][0m
+*** Booting Zephyr OS build v4.2.0 ***
+FES_BASE boot target=qemu-virt os=zephyr scope=base-services
+FES_BASE STORAGE_READY filesystem=fat32 driver=nvme sectors=131072 sector_bytes=512
+FES_BASE storage=fat32 driver=nvme sectors=131072 sector_bytes=512 config=invalid
+FES_BASE network interface_up=1 ipv4=10.0.2.15
+FES_BASE READY tcp=4242 storage=ready boot_config=unavailable
+qemu-system-aarch64: terminating on signal 15 from pid 1607489 (python3)

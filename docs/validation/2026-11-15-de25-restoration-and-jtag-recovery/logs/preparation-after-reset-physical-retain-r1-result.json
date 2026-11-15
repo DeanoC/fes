@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/publication/retain-preparation-after-reset-physical.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 1.8021546301897615,
+  "log_sha256": "3e00ad2ad63285ad2cb1aab3b77ca8ac72b699937a6582ec3eb4f5233682effd"
+}

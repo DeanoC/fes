@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "/usr/bin/python3",
+    "out/publication/collect-candidate-files-restoration.py",
+    "--procedure-sha256",
+    "b94fc4870e849bb85cbb2f81bfef6e713ab5146a6ab871d457f573370faf8f58",
+    "--wrapper-label",
+    "candidate-files-restoration-physical-r1"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 1.4015135518275201,
+  "log_sha256": "9d622709b8edce6a8df2687709193edf3b5563b0c764512d66a8f3ab18826eee"
+}

@@ -1,0 +1,74 @@
+{
+  "USB_channel_halt_proven": false,
+  "affected_steps": 6,
+  "base_source": "0955ccf80183de694ec597076f9e129a5b9f94e6",
+  "changed_checks_seconds": 270.9823219910031,
+  "classification": "test-only independent direct periodic USB timing model; production driver unchanged; no hardware action",
+  "core_load_acceptance": false,
+  "driver_policy_changed": false,
+  "evidence_sha256": {
+    "out/nano-usb-frame-model-20261106/changed-checks-result.json": "63e703aa9c4a2ff989ba6c145cd73143fa7ec01f0b0f9f0341871be20348aa23",
+    "out/nano-usb-frame-model-20261106/changed-checks.log": "3a28feea5e46783b2b0946cdb3f307fb644580f20a9bfbf2c7bcafe7ad51d885",
+    "out/nano-usb-frame-model-20261106/check.py": "8da403135eb9242a514042c221d75e85632b17b5b14a2c2b4e6d2943abb646e4",
+    "out/nano-usb-frame-model-20261106/check_all.py": "3366b9687f2513d660c4f83756f514ffb0abcea12a67fec998c71e67cccd946d",
+    "out/nano-usb-frame-model-20261106/model-result.json": "885072a970f4c44c1168cae0f0d67d8e0371d324ca2d90c6fcecdea332dd9499",
+    "out/nano-usb-frame-model-20261106/model.log": "b956a0f39be8244143b952c6bf6421c24bef3637b1e12acd88f3795a9b66609d",
+    "out/nano-usb-frame-model-20261106/power-interruption.json": "1c5dc6de8b9701ad59aaabea7cc70c99a734e11917f2d91d5ac65ffdc382cf18",
+    "out/nano-usb-frame-model-20261106/race-all-result.json": "a667736a0aa90146fd4d301c634457619610f3a74779cc6a6d95542a38747ee2",
+    "out/nano-usb-frame-model-20261106/race-all.log": "01588f7d0408d7c29d385e80600de3e3e98c2ee449339318abaeef593fbfc14c",
+    "out/nano-usb-frame-model-20261106/run.py": "8dea93a99adab57fd4721de0379fa6fbbcd75877d64f4d7e8ed80a041df6ed3c",
+    "out/nano-usb-frame-model-20261106/software-plan.json": "7d2e6e20857f9b787f0c9defe81cb264d67e8ac40b4a2e9627d67c3c8c7e2f1e",
+    "out/nano-usb-frame-model-20261106/summarize.py": "87a754271a2209b0d8e2c4222983043159891f8ce020e9f47076eebec8620384",
+    "out/nano-usb-frame-model-20261106/sweep.json": "2366e84c48e260742356df5e13c7ccaeb232252e175febacf52aabe8a295c541",
+    "out/nano-usb-frame-model-20261106/timing-cases-result.json": "28b891533c9457ba27ef926ecaf9b70148ed99881089746022cf2d1b65292529",
+    "out/nano-usb-frame-model-20261106/timing-cases.log": "c51f69c15ad2f388eb3d4036a74c3395159ca1fc8bf5e553db821b8411a6f6db",
+    "out/nano-usb-frame-model-20261106/timing-final-result.json": "78f5e5a4d42cf477ae427aac09b226eed395710200eb1a6e7c4f31107e64fd68",
+    "out/nano-usb-frame-model-20261106/timing-final.log": "b3858074a3d21d9f10995710e7540d5ed13fa2ab7e27f430260dcf3d7ea0a32f"
+  },
+  "firmware_changed": false,
+  "frame_bases": [
+    "0x372",
+    "0xffff"
+  ],
+  "frontend_gap_cases": 28,
+  "frontend_gap_range_us": [
+    50,
+    500,
+    1000,
+    10000,
+    50000,
+    100000,
+    200000
+  ],
+  "hardware_actions": false,
+  "implementation_source": "ee8c6a0b0ae684c4e522746d34f10021f079ddd6",
+  "late_continuation_cases": 2,
+  "native_rebuilt": false,
+  "next_step": "Measure frame selection and channel-write timing in a fresh matched bounded diagnostic before choosing a scheduler repair; preserve terminal overrun and ownership rules.",
+  "parent_test_counts": [
+    32,
+    39,
+    1,
+    1568
+  ],
+  "permission_to_program": false,
+  "physical_failure_cause_established": false,
+  "power_interruption": "User-reported power loss, exact USB identity reobserved; no boot or card revalidation yet",
+  "prior_hardware_attempt_consumed": true,
+  "queue_NAK_stuck_halt_cases": 3,
+  "race_check_seconds": 32.62655181996524,
+  "source_sha256": {
+    "platform/embedded/tamago/dwc2/README.md": "cb98888736771c2884ad23d2289983c3286dc019f72e2066f6dd4bfcff09e2e9",
+    "platform/embedded/tamago/dwc2/periodic_model_test.go": "5e42981823f398c8ccd84190cba4e42064531ab15b7e977e72633e1a4372d9c6"
+  },
+  "status": "PASS",
+  "sweep_cases": 32,
+  "sweep_delivered": 28,
+  "sweep_terminal_overruns": 4,
+  "synthetic_timing_only": true,
+  "toggle_notification_counts": [
+    0,
+    1
+  ],
+  "top_level_model_tests": 7
+}

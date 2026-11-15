@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "-c",
+    "import unittest; l=unittest.TestLoader(); s=unittest.TestSuite(l.discover(\"tests\",pattern=p) for p in (\"test_nano_recovery.py\",\"test_nano_upload.py\")); r=unittest.TextTestRunner(verbosity=1).run(s); raise SystemExit(not r.wasSuccessful())"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 1.601757722091861,
+  "log_sha256": "bd1cfb33131560b09a5e55cb4fd6eff94d94dd456892848a5ee78cc7ad8cae26"
+}

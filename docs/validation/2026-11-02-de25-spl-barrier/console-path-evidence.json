@@ -1,0 +1,85 @@
+{
+  "status": "passed",
+  "classification": "actual vendor C and linked-call proof plus injected callback failure; no hardware fault location proved",
+  "elf_sha256": "12d8e15706d99d14a23d0ff9ba4b80f392b466eeff2d9bd0986ef7dbe6597bbc",
+  "source_sha256": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-spl-barrier-20261102/native-uboot/source/drivers/serial/ns16550.c": "df19d1c202e8308c73feae0431f8ea93410efe1ac8871042ba73e65364f1a9b9",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-spl-barrier-20261102/native-uboot/source/drivers/serial/serial-uclass.c": "270c1ed13b52459fae65546f274ff0d24ce3d6befa4958997eee81db78784c83",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-spl-barrier-20261102/native-uboot/source/common/console.c": "bea9145a03023ec98a0cf07c58680442a8f28e04d73e535d731faf85807577cf",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-spl-barrier-20261102/native-uboot/source/common/cyclic.c": "77770488963d62af47d09c4d62962968dcbd5c35a2efe06ae1cce55ebebd748e",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-spl-barrier-20261102/native-uboot/source/lib/vsprintf.c": "90846f79b3fe23eb84611d721b34293417e65ee2fa641715f0005d151d00c55a"
+  },
+  "linked": {
+    "_serial_putc": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-spl-barrier-20261102/console-_serial_putc.txt",
+      "sha256": "b60d9e4ab7e08c17194d6002ad6586a030fef527366a8acec0c81dd8695d5449",
+      "direct_calls": [
+        "_serial_putc"
+      ]
+    },
+    "ns16550_serial_putc": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-spl-barrier-20261102/console-ns16550_serial_putc.txt",
+      "sha256": "33e987b05201281b503c2d5fa09a85bfd3bc3f8214129c307e0008c185b2886e",
+      "direct_calls": [
+        "dev_get_priv",
+        "ns16550_readb.isra.0",
+        "ns16550_writeb.isra.0",
+        "schedule",
+        "ns16550_serial_putc",
+        "ns16550_serial_putc"
+      ]
+    },
+    "printf": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-spl-barrier-20261102/console-printf.txt",
+      "sha256": "1310651042effded8fcc54185420d70ace2a7d893236252ceb949bf60e3d4072",
+      "direct_calls": [
+        "vprintf"
+      ]
+    },
+    "puts": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-spl-barrier-20261102/console-puts.txt",
+      "sha256": "0e64302e976d8b7d2f5158bf636a5aaf569dfda24a2d268c714d09919fb51c7a",
+      "direct_calls": [
+        "console_puts_select.part.0",
+        "serial_puts"
+      ]
+    },
+    "schedule": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-spl-barrier-20261102/console-schedule.txt",
+      "sha256": "6d8a453d5784d8abe986b723b184947038171de650d24f2bd07902bb6f26ede7",
+      "direct_calls": [
+        "timer_get_us",
+        "timer_get_us",
+        "printf",
+        "schedule"
+      ]
+    },
+    "serial_puts": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-spl-barrier-20261102/console-serial_puts.txt",
+      "sha256": "8cfcdc110634444a74518f3cfcec8edafd3d93fb6838d0acf910f6c45a8c728a",
+      "direct_calls": [
+        "_serial_putc",
+        "serial_puts"
+      ]
+    },
+    "vprintf": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-spl-barrier-20261102/console-vprintf.txt",
+      "sha256": "24743b73d315db6b2075d4d5786231d8849059009218a61cb58a30bb42fe9f8b",
+      "direct_calls": [
+        "memcpy",
+        "vscnprintf",
+        "puts"
+      ]
+    }
+  },
+  "spl_dm_serial": true,
+  "spl_cyclic": true,
+  "serial_bulk_puts": false,
+  "actual_c_cases": 5,
+  "newline_transmitted_before_scheduler": true,
+  "injected_scheduler_failure_prevents_return_after_newline": true,
+  "runtime_callback_list_observed": false,
+  "hardware_pc_observed": false,
+  "root_cause_proven": false,
+  "next_candidate": "bounded post-containment console output without scheduler/device callbacks; preserve all ownership and final barrier checks"
+}

@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/nano-master-containment-final-20261102/generate.py",
+    "onchip"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 93.08017080102582,
+  "log_sha256": "7ac2ec1236d8131f439812839bd24fcdab6dbf3cef3de5258e4f62a5baf42111"
+}

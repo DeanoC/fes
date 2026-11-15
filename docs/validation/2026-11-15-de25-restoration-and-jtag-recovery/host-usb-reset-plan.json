@@ -1,0 +1,59 @@
+{
+  "scope": "one-top-programming-adapter-USB-device-reset-only",
+  "serial": "TRWU8CBL",
+  "source_sha256": "09b438cf9e4ae2ea8b3192769a996fc10181e5966db186f96be853e878dfbeb6",
+  "before": {
+    "TRWU8J8G": {
+      "serial": "TRWU8J8G",
+      "idVendor": "09fb",
+      "idProduct": "6026",
+      "busnum": "3",
+      "devnum": "89",
+      "devpath": "11.3",
+      "sysfs": "/sys/devices/pci0000:80/0000:80:14.0/usb3/3-11/3-11.3",
+      "node": "/dev/bus/usb/003/089",
+      "device": 6,
+      "inode": 6819,
+      "uid": 0,
+      "gid": 46,
+      "mode": 432
+    },
+    "TRWU8CBL": {
+      "serial": "TRWU8CBL",
+      "idVendor": "09fb",
+      "idProduct": "6026",
+      "busnum": "3",
+      "devnum": "88",
+      "devpath": "11.1",
+      "sysfs": "/sys/devices/pci0000:80/0000:80:14.0/usb3/3-11/3-11.1",
+      "node": "/dev/bus/usb/003/088",
+      "device": 6,
+      "inode": 6802,
+      "uid": 0,
+      "gid": 0,
+      "mode": 436
+    }
+  },
+  "cause": {
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/procedure.json": "f39c1a04a59680865e2b686295af04c66e3c71b1befe00aa83ccf53855c60772",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/attempt/result.json": "8d504bf60c058e371bfcb8280688b564b2c026ddd16dcfded68366add3da0ebc",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/attempt/recovery-before/role-result.json": "7592e4c0bf3cd1ec8c65034b1e138ad74d86cdfd99b6e7559cc4aa39e5778b86",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/attempt/recovery-before/recovery-boot-program.log": "2406af93016368773f13ecb165ed96253e42fb83430586adaaabfd4fe1012107",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/attempt/recovery-before/usb-original.json": "559bfbb4dbd6a96b1ec5b8eb90ae76feb517602f8a7034a3b647fc170f4615e9",
+    "/home/deano/fes/out/dev/de25-source-release/out/four-second-recovery-stop-proof/result.json": "36ca243b9b944d3c15d86c043545166cc020c970b720484122347f152cdaa191",
+    "/home/deano/fes/out/dev/de25-source-release/out/four-second-recovery-stop-proof/retention-proof.json": "e2f1f2eee01907b9eef9ff79471e2e7ad6d137f32ae0c3260156a5d6b81e8652"
+  },
+  "FD_scan": {
+    "root_scan": true,
+    "UART_and_top_adapter_FDs_free": true,
+    "device_opened": false
+  },
+  "reset_ioctl": 21780,
+  "attempt_limit": 1,
+  "reset_parent_hub": false,
+  "bottom_kit_reset": false,
+  "FPGA_programming": false,
+  "HPS_USB_controller_reset": false,
+  "SD_write": false,
+  "firmware_recovery_authority": false
+}

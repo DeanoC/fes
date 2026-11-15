@@ -1,0 +1,11 @@
+{
+  "scope": "read-only observation after the stopped attempt; original deadline failure retained",
+  "seconds": 45.092015643953346,
+  "bytes": 0,
+  "chunks": [],
+  "serial_writes": false,
+  "reboot_requested": false,
+  "programming_requested": false,
+  "uart_closed": true,
+  "uart_attributes_restored": true
+}

@@ -1,0 +1,101 @@
+{
+  "status": "stopped-at-recovery-programming",
+  "source": "9fd40a21b334fb0f1b63dc3a1eabac2bd2065ea9",
+  "attempts": 1,
+  "retries": 0,
+  "hardware_actions": true,
+  "recovery_programming_attempted": true,
+  "recovery_programming_accepted": false,
+  "recovery_console_prompt_observed": true,
+  "jtag_programming_error": "chain broken and rescan error despite a configuration-succeeded line; overall programmer exit failed",
+  "sd_write_commands_sent": false,
+  "native_candidate_uploaded": false,
+  "native_candidate_programmed": false,
+  "native_candidate_executed": false,
+  "rom_cost_split_observed": false,
+  "rom_completion": false,
+  "cpu_run_accepted": false,
+  "return_cycle": false,
+  "ordinary_admission": false,
+  "core_load_acceptance": false,
+  "physical_cpu_or_usb_halt_proved": false,
+  "no_open_host_usb_holders_after_cleanup": true,
+  "post_stop_15mhz": {
+    "source": "9fd40a21b334fb0f1b63dc3a1eabac2bd2065ea9",
+    "pass_": false,
+    "programming_attempted": false,
+    "serial_opened": false,
+    "sd_write_commands_sent": false,
+    "hps_reset": false,
+    "clock_write": false,
+    "prior_recovery_receipt_sha256": "6711b130d9074a4c673d0116020616e4e3a7fda2d73ca63570f603eb7d49cac7",
+    "observations": [
+      {
+        "index": 0,
+        "fpga_id": "4362C0DD",
+        "log_sha256": "4c2bb222fc8276f10925427f22d27ad8c82126e8d92eb206715fefbb6883f85c"
+      }
+    ],
+    "error": "",
+    "original_clock_restored": true,
+    "restored_clock": "15M",
+    "private_server_stopped": true,
+    "usb_permissions_restored": true
+  },
+  "post_stop_6mhz": {
+    "source": "9fd40a21b334fb0f1b63dc3a1eabac2bd2065ea9",
+    "pass_": true,
+    "programming_attempted": false,
+    "serial_opened": false,
+    "sd_write_commands_sent": false,
+    "hps_reset": false,
+    "clock_write": true,
+    "clock_restore_attempted": true,
+    "prior_recovery_receipt_sha256": "6711b130d9074a4c673d0116020616e4e3a7fda2d73ca63570f603eb7d49cac7",
+    "observations": [
+      {
+        "index": 0,
+        "fpga_id": "4362C0DD",
+        "log_sha256": "087bcbe12102661074f7c3894efae4e5d96173ae2b2c2a980174b71b0cc47698"
+      },
+      {
+        "index": 1,
+        "fpga_id": "4362C0DD",
+        "log_sha256": "087bcbe12102661074f7c3894efae4e5d96173ae2b2c2a980174b71b0cc47698"
+      },
+      {
+        "index": 2,
+        "fpga_id": "4362C0DD",
+        "log_sha256": "087bcbe12102661074f7c3894efae4e5d96173ae2b2c2a980174b71b0cc47698"
+      }
+    ],
+    "sample_clock": "6M",
+    "original_clock_restored": true,
+    "restored_clock": "15M",
+    "private_server_stopped": true,
+    "usb_permissions_restored": true
+  },
+  "link_speed_cause_proved": false,
+  "six_mhz_programming_or_boot_qualified": false,
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "logs": {
+    "hardware.log": "4c88c2f6057976606df8d8e5eaccec459cd1fb43dd0954865cc5db29aac1d349",
+    "trial/recovery-boot-program.log": "f623a1a6adc4a00c7365ef8d25e98a19c75453b7aa67b93c40dd94e336f15794",
+    "trial/recovery-boot-console.log": "aa8f098ed97ec965f67da81edc4ffb00eb2a6efe5f34d06a8913c973b6c8ca13",
+    "trial/recovery-boot-result.json": "6711b130d9074a4c673d0116020616e4e3a7fda2d73ca63570f603eb7d49cac7",
+    "trial/experiment-result.json": "c29471a6400caa504165fb31e679518a57f69705b5d90155c119b85960e9fea0",
+    "kernel-window.log": "19c4e28b2f54ea8f217db4e622b0a5c758efa7b77ce2dc0394b6d159568c0b2e",
+    "usb-holder-inventory.json": "111f550f916106d494a80a7a5620f830e4d7ceb3ca5ed8ae620620376b8d7db9",
+    "cleanup-evidence.json": "7fecd92dbf5fcf639e54b7c9e3b602b1171d67c1e9529f2bf67e1ce82aedfe8c"
+  },
+  "next": "prepare a separate bounded 6MHz programming recipe with explicit original15MHz restoration and prior-failure accounting; do not replay the stopped15MHz attempt or infer ROM timing"
+}

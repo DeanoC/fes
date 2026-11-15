@@ -1,0 +1,41 @@
+{
+  "passed": true,
+  "prior_native_source": "42f2586b24a07dbbf1cfb8fd40dadf07ec7b6e65",
+  "current_native_source": "cac97213eee7619bd40d99173b46f3ce1c14968f",
+  "configuration_map_changed_fields": [
+    "chunk_bytes",
+    "chunk_sha384"
+  ],
+  "prior_chunk_bytes": 65536,
+  "chunk_bytes": 1048512,
+  "prior_chunks": 31,
+  "chunks": 2,
+  "core_sha256": "415cc2d68955755d2de406b233e34fa2cd6cce755089ba842f10f62e6945320c",
+  "core_size": 2027520,
+  "arena_base": 2491416576,
+  "arena_size": 8388608,
+  "unchanged_compiled_firmware_files": [
+    {
+      "file": "source/plat/intel/soc/common/socfpga_sip_svc.c",
+      "sha256": "e28a614a27a8557312e48d67b319178f212ac738a74d60fc563e8a140f9d153d"
+    },
+    {
+      "file": "source/plat/intel/soc/common/soc/socfpga_mailbox.c",
+      "sha256": "f6286fd8db7d2a2673824998d5811d784df2dcd9b64455921a35b0a75adbf4ec"
+    },
+    {
+      "file": "source/plat/intel/soc/common/include/socfpga_mailbox.h",
+      "sha256": "a7a3e8dccc604fb6f9285572d5977bc00f36ba56417e1308cf0c8b16989db24f"
+    },
+    {
+      "file": "source/plat/intel/soc/common/lib/sha/sha.c",
+      "sha256": "29d00b767bf40349e7074283db6037c725288ef64d767385f693d2cfbd6d501d"
+    },
+    {
+      "file": "source/plat/intel/soc/common/nano_configuration.c",
+      "sha256": "5218587aac46abc992dcf128ac7598a8cb96c308a7e94adab900bffc79dc5d0f"
+    }
+  ],
+  "all_data_paths_held": true,
+  "physical_runtime_admission": false
+}

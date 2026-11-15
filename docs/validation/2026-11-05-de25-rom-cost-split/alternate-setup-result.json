@@ -1,0 +1,52 @@
+{
+  "status": "host-clock-setup-logging-failure-before-programming",
+  "source": {
+    "checkout": "fa346302dbb777dc92d957c28afc4310f09bdc13",
+    "native": "9fd40a21b334fb0f1b63dc3a1eabac2bd2065ea9",
+    "firmware": "9fd40a21b334fb0f1b63dc3a1eabac2bd2065ea9",
+    "sdk_entry_build": "9fd40a21b334fb0f1b63dc3a1eabac2bd2065ea9",
+    "source_delta": [
+      "docs/validation/2026-11-05-de25-rom-cost-split/README.md",
+      "docs/validation/2026-11-05-de25-rom-cost-split/hardware-result.json"
+    ]
+  },
+  "programming_attempted": false,
+  "sd_write_commands_sent": false,
+  "native_candidate_executed": false,
+  "terminal_receipt_missing_due_to_serialization_failure": true,
+  "error": "CompletedProcess was stored in stages.returncode; json serialization threw before programming; initial mock returned int rather than real subprocess API shape",
+  "clock_set_command_issued": true,
+  "clock_restore_command_issued": true,
+  "original_clock_independently_verified": "15M",
+  "cleanup_audit": {
+    "status": "passed",
+    "source": "fa346302dbb777dc92d957c28afc4310f09bdc13",
+    "old_private_server_gone": true,
+    "old_usb_permissions_exact": true,
+    "programming_attempted": false,
+    "hps_reset": false,
+    "serial_opened": false,
+    "sd_write_commands_sent": false,
+    "corrective_clock_write": false,
+    "initial_clock_readback": "15M",
+    "original_clock_readback": "15M",
+    "new_private_server_gone": true,
+    "usb_permissions_exact": true,
+    "uart_owners": []
+  },
+  "fixed_operator": "out/nano-rom-cost-split-6m-fixed-board-20261105",
+  "fixed_operator_hardware_admission": false,
+  "corrected_setter_checks": [
+    "CompletedProcess.returncode stored and tested",
+    "save callback verifies JSON serializability",
+    "actual CompletedProcess mock",
+    "nonzero exit code rejected"
+  ],
+  "logs": {
+    "out/nano-rom-cost-split-6m-board-20261105/hardware.log": "704f75378b3803cd23e008733c0acc50866f28f1b8fbc269abb0fa46ef8c555a",
+    "out/nano-rom-cost-split-6m-board-20261105/hardware-result.json": "653c90b4ec2998f3857e54c9079f18b94ff73e89dd24d54df85b58535a180097",
+    "out/nano-rom-cost-split-6m-clock-audit-20261105/cleanup-evidence.json": "164053cc76c63b176e3482b76ff9891981c55edf89f3fab6620262149b4fdce1",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/transport-fixtures-final.log": "ff5ae5a5e647d02566fe90529c69dd8c5ce0885ade56abc9550b57c88a8e62a0"
+  },
+  "goal_complete": false
+}

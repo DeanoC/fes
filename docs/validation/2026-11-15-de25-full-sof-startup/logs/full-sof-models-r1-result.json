@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/publication/check-full-sof-models.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 1,
+  "timed_out": false,
+  "elapsed": 6.424666971899569,
+  "log_sha256": "f57be59e84f0c267a4d1b53d1c5210c941fb03cb1d1b899f20105d3c74ea637b"
+}
