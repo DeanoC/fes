@@ -72,7 +72,9 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertIn('Windows for Workgroups 3.11', row['notes'])
         self.assertIn('Linux 0.99.15, 1.2.13 and 2.0.0', row['notes'])
         self.assertIn('not a catalog package', row['notes'])
-        self.assertIn('Phase 6 (#1768)', row['features'])
+        # The 387 is built as far as slice 2; its arithmetic is not.
+        self.assertIn('slice 2 (#1768)', row['features'])
+        self.assertIn('arithmetic is slices 3 to 5 and is not built', row['features'])
         # Each kit result names its own artifact; the level exits are the
         # 6 November run, not the 10 November seal.
         # Each kit result names its own seal, and the rerun's gaps are kept.
