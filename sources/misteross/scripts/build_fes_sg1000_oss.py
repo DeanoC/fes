@@ -14,7 +14,6 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.input_identity import manifest_toolchain
 from scripts.source_repository import canonical_repository
 from scripts.fes_build_common import (
     cuda_toolchain_configuration,
@@ -469,7 +468,7 @@ def _manifest(
 ) -> bytes:
     rbf = evidence["rbf"]
     record_fields = json.loads(record)
-    toolchain = manifest_toolchain(record)
+    toolchain = "; ".join(f"{name} {tools[name]}" for name in sorted(tools))
     fields = {
         "format": 3,
         "core": {

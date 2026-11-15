@@ -29,7 +29,6 @@ from decimal import Decimal, InvalidOperation
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from scripts.input_identity import manifest_toolchain
 from scripts.input_identity import with_identities
 from scripts.build_fes_pcxt_quartus import tree_digest
 from boards.de25nano.package.core_package import encode_manifest
@@ -389,7 +388,7 @@ def manifest(record, payload):
             ('fes.video.fixed-720p60', 0), ('fes.video.menu-display', 0), ('fes.fabric.de25-scanout', 3))],
         'build': {'id': build_identity(record), 'repository': fields['repository'], 'revision': fields['revision'],
             'recipe_sha256': fields['recipe_sha256'],
-            'toolchain': manifest_toolchain(record)}})
+            'toolchain': '; '.join(f'{n} {v}' for n, v in sorted(fields['tools'].items()))}})
 
 
 @contextmanager

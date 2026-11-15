@@ -16,7 +16,6 @@ import sys
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.input_identity import manifest_toolchain
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts import fes_build_common as board
@@ -207,7 +206,7 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str, iden
         ],
         "build": {"id": build_identity(record), "repository": repository, "revision": revision,
                   "recipe_sha256": json.loads(record)["recipe_sha256"],
-                  "toolchain": manifest_toolchain(record)},
+                  "toolchain": "; ".join(f"{key} {identities[key]}" for key in sorted(identities))},
     })
 
 

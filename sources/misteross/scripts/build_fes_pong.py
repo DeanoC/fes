@@ -12,7 +12,6 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.input_identity import manifest_toolchain
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, PackageError, encode_manifest, package_identity, read_package
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
@@ -219,7 +218,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT, *, audio: bo
 def _manifest(record: bytes, evidence: dict, repository: str, revision: str, tools: Mapping[str, str]) -> bytes:
     record_fields = json.loads(record)
     rbf = evidence["rbf"]
-    toolchain = manifest_toolchain(record)
+    toolchain = "; ".join(f"{name} {tools[name]}" for name in sorted(tools))
     fields = {
         "format": 2,
         "core": {

@@ -402,15 +402,16 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
         candidates = _matching_package_candidates(source, record, recipe=recipe)
     if not candidates:
         raise ValueError(f"selected recipe did not produce a matching {recipe.core_id} package")
-    executions = {}
-    for item in candidates:
-        built = json.loads(item[1].read_bytes())
-        execution = built.get('identities', {}).get('toolchain')
-        if execution is not None:
-            outcome = (item[2]['core_rbf_sha256'], item[2].get('rom_map_sha256'))
-            if execution in executions and executions[execution] != outcome:
-                raise ValueError('different payloads claim the same design and toolchain identity')
-            executions[execution] = outcome
+    if 'identities' in json.loads(record):
+        executions = {}
+        for item in candidates:
+            built = json.loads(item[1].read_bytes())
+            execution = built.get('identities', {}).get('toolchain')
+            if execution is not None:
+                outcome = (item[2]['core_rbf_sha256'], item[2].get('rom_map_sha256'))
+                if execution in executions and executions[execution] != outcome:
+                    raise ValueError('different payloads claim the same design and toolchain identity')
+                executions[execution] = outcome
     if force:
         # A forced update must select the exact freshly captured execution,
         # never a previous toolchain's artifact with the same design ID.

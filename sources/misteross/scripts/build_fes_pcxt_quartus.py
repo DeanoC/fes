@@ -27,7 +27,6 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import quartus_fes_pcxt as board
-from scripts.input_identity import manifest_toolchain
 from scripts.input_identity import with_identities
 from scripts.export_core_package import (build_identity, encode_build_record,
     export_package, source_input_closure)
@@ -349,7 +348,7 @@ def manifest(record, payload, *, dos_profile=False, metadata=None):
         'interfaces': interfaces,
         'build': {'id': build_identity(record), 'repository': fields['repository'],
                   'revision': fields['revision'], 'recipe_sha256': fields['recipe_sha256'],
-                  'toolchain': manifest_toolchain(record)}})
+                  'toolchain': '; '.join(f'{k} {fields["tools"][k]}' for k in sorted(fields['tools']))}})
 
 
 def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2, dos_profile=False):

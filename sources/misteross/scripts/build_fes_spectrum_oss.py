@@ -26,7 +26,6 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import spectrum_slots, rom_map, coleco_expansion
-from scripts.input_identity import manifest_toolchain
 from scripts.compiler_read_audit import guard_functional_source
 from scripts import fes_de10nano_evidence
 from scripts.fes_de10nano_evidence import PLANE_DSP, plane_dsp_evidence as _plane_dsp_evidence
@@ -607,7 +606,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
     rbf = evidence["rbf"]
     record_fields = json.loads(record)
     machine = model_for(record_fields["parameters"]["model"])
-    toolchain = manifest_toolchain(record)
+    toolchain = "; ".join(f"{name} {tools[name]}" for name in sorted(tools))
     required = [
         ("fes.video.fixed-720p60", 1), ("fes.keyboard.hid", 1), ("fes.gamepad.ports", 1),
         ("fes.audio.pcm-s16-stereo-48k", 1), ("fes.media.spectrum-tape", 2),

@@ -9,7 +9,6 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import build_fes_menu as menu
 from scripts import fes_build_common as board
-from scripts.input_identity import manifest_toolchain
 from scripts.compiler_read_audit import python_source_guard
 from scripts.core_package import encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
@@ -86,7 +85,7 @@ def create_manifest(root, repository, revision, record):
             ('fes.video.fixed-720p60',0),('fes.memory.hps-ddr',0),('fes.video.menu-display',0),('fes.video.menu-blitter',1))],
         'build':{'id':build_identity(record),'repository':repository,'revision':revision,
             'recipe_sha256':fields['recipe_sha256'],
-            'toolchain':manifest_toolchain(record)}})
+            'toolchain':'; '.join(f'{name} {identity}' for name,identity in sorted(fields['tools'].items()))}})
 
 
 def _require_clean_source(root, *, identity_version=2):

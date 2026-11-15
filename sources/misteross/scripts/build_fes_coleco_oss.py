@@ -19,7 +19,6 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.input_identity import manifest_toolchain
 from scripts.source_repository import canonical_repository
 from scripts.fes_build_common import (
     BuildError,
@@ -567,7 +566,7 @@ def _manifest(
     rbf = evidence["rbf"]
     record_fields = json.loads(record)
     private_bios = record_fields["parameters"].get("bios_mode") == "private-8192"
-    toolchain = manifest_toolchain(record)
+    toolchain = "; ".join(f"{name} {tools[name]}" for name in sorted(tools))
     fields = {
         "format": 2,
         "core": {

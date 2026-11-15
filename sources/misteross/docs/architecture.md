@@ -986,9 +986,11 @@ remain separate gates. No normal runtime profile is admitted by these models.
 
 Pong, ZX81, Coleco, SMS and SG-1000 use functional
 identity 2 exclusively. Both Python and CLI entrypoints default to 2 and reject
-other identity versions. Quartus oracle and board-firmware records retain their
-current evidence schema. Rebuilt script closures receive new identities;
-existing artifacts and caches are never relabelled or deleted.
+other identity versions. Native oracle/diagnostic records without the design-v1
+policy retain their legacy identity semantics. Normal source-closed producers
+and board firmware use design-v1 while retaining record format 2. Design-input
+changes receive new embedded IDs; packaging/toolchain-only changes retain the
+design ID. Existing artifacts and caches are never relabelled or deleted.
 ZX81, SMS, SG-1000, Apple II, C64, Spectrum and Atari ST use format 3 to seal
 one ROM map. The factory Coleco package and its MegaCart development producer
 use format 4 for two ordered ROM sources and one sealed map. ROM-less producers
@@ -1106,8 +1108,8 @@ their original semantics, including documentation in declared roots.
 
 Factory producers, including RISC-V, select committed per-producer roots from
 `scripts/source_closures.json`, setting `parameters.source_closure_mode` to
-`audited-v1`. Their source key covers the declared import, HDL, recipe, ABI and
-toolchain-lock closure rather than the entire scripts and shared-core trees.
+`audited-v1`. Their provenance closure covers the declared import, HDL, recipe,
+ABI and toolchain-lock inputs rather than the entire scripts and shared-core trees.
 Python and traced compiler reads and directory listings enforce these roots;
 an uncovered source access fails the build. Other producers retain the broad
 roots. RISC-V's closure includes its firmware, CPU, board constraints and tool
@@ -1153,8 +1155,10 @@ outside `gpu-run`, so a normal seal does not see a grant. The sealed execution
 record sets `gpu_device` and `gpu_selection` to `lease`: gpu-run chooses any
 free GPU while nextpnr routes, after the record is sealed. The requested
 `--gpu-device` index is not that device and is not part of the digest.
-`BUILD_ID` is a synthesis parameter, so recording the granted id in the sealed
-record would change placement and RBF bytes whenever a different GPU was free.
+GPU selection remains execution provenance and does not enter a design-v1
+`BUILD_ID`. The canonical execution record keeps the lease unbound rather than
+capturing transient scheduler state; the actual grant is retained in route logs.
+Historical combined-key records retain their original hashing semantics.
 HIP and CUDA routes match each other and the CPU reference, so the bitstream
 does not depend on which physical GPU was granted. The route log line
 `FES-GPU-GRANT <id>` names the physical GPU that routed. SMS `build-summary.json`

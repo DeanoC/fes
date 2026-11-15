@@ -22,7 +22,6 @@ if __package__ in (None, ''):
 from boards.de25nano.producers import build_menu_package as common
 from boards.de25nano.package.core_package import encode_manifest
 from boards.de25nano.package.export_core_package import build_identity, encode_build_record, export_package
-from scripts.input_identity import manifest_toolchain
 from scripts.input_identity import with_identities
 from scripts.fes_build_common import AuthenticatedTool, BuildError, _require_clean_source as require_clean_source
 from scripts.functional_execution import execution_digest
@@ -127,7 +126,7 @@ def manifest(record, payload):
             [{'id': 'fes.fabric.de25-scanout', 'major': 1, 'minor': 3, 'required': True}],
         'build': {'id': build_identity(record), 'repository': fields['repository'], 'revision': fields['revision'],
             'recipe_sha256': fields['recipe_sha256'],
-            'toolchain': manifest_toolchain(record)}})
+            'toolchain': '; '.join(f'{name} {value}' for name, value in sorted(fields['tools'].items()))}})
 
 
 def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_output=None, compile_only=False,
