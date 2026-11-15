@@ -32,6 +32,12 @@
 
 namespace {
 
+// How long the bench waits for the unit: slice 2's forms settle in a few
+// cycles, but slice 3's arithmetic runs up to four multiplies of four
+// clocks apiece, so a 64-cycle wait ran out and let a uop issue while the
+// unit still held it, which wedged the case and every one after it.
+constexpr int X87_WAIT = 512;
+
 constexpr unsigned FMT_F32 = 1, FMT_F64 = 2, FMT_F80 = 3;
 constexpr unsigned FMT_I16 = 4, FMT_I32 = 5, FMT_I64 = 6, FMT_ENV = 7;
 
@@ -183,7 +189,7 @@ struct Unit {
         top.iss_part = part;
         top.iss_fire = 0;
         top.eval();
-        for (int n = 0; n < 64 && top.hold; ++n) tick();
+        for (int n = 0; n < X87_WAIT && top.hold; ++n) tick();
         const uint32_t v = top.sval;
         top.iss_fire = 1;   // the uop issues on this edge, as the CPU's does
         top.eval();
@@ -217,7 +223,7 @@ struct Unit {
         top.iss_fire = 0;
         top.eval();
         for (unsigned n = 0; n < held; ++n) tick();
-        for (int n = 0; n < 64 && top.hold; ++n) tick();
+        for (int n = 0; n < X87_WAIT && top.hold; ++n) tick();
         top.iss_fire = 1;
         top.eval();
         tick();
@@ -263,7 +269,7 @@ struct Unit {
         tick();
         top.wb = top.wb_last = 0;
         top.eval();
-        for (int n = 0; n < 64 && top.hold; ++n) tick();
+        for (int n = 0; n < X87_WAIT && top.hold; ++n) tick();
         top.iss_fire = 1;
         top.eval();
         tick();
@@ -275,7 +281,7 @@ struct Unit {
     // Unmask the invalid-operation exception and raise one, which sets ES
     // and latches BUSY#.
     void settle() {
-        for (int n = 0; n < 64 && top.busy_o; ++n) tick();
+        for (int n = 0; n < X87_WAIT && top.busy_o; ++n) tick();
     }
     // One instruction with no memory operand.
     void reg_form(unsigned op) {
@@ -466,6 +472,7 @@ void top_push_overlap_store(Unit &u) {
 struct Image {
     uint16_t cw, sw, tw;
     uint8_t  reg[8][10];
+    bool     setup_ok = true;   // the unit took the control word the case set
 };
 
 // The generated stub, called as
@@ -544,6 +551,11 @@ void unit_form(Unit &u, uint16_t cw, const uint8_t (*stack)[10], unsigned pushes
     u.present(OP_FLDCW, FMT_I16, true, true, 0);
     u.commit(0, cw, true);
     u.settle();
+    // The setup has to have taken, or the case is void rather than wrong: a
+    // control word that never landed means the unit held the FLDCW and the
+    // bench forced it through, which is how a stuck BUSY# latch once made 40
+    // comparisons compare a fresh unit against a real result.
+    out.setup_ok = u.cw() == cw;
     for (unsigned n = pushes; n-- > 0;) u.load(OP_FLD_M80, FMT_F80, stack[n]);
     if (fmt == 0) u.reg_form(op);
     else u.load(op, fmt, mem);
@@ -576,6 +588,7 @@ std::string state_str(const Image &im, uint16_t swmask) {
     return s;
 }
 bool same_state(const Image &x, const Image &y, uint16_t swmask) {
+    if (!x.setup_ok || !y.setup_ok) return false;
     if (x.cw != y.cw || (x.sw & swmask) != (y.sw & swmask) || x.tw != y.tw) return false;
     for (unsigned n = 0; n < 8; ++n)
         if (reg_live(x, n) && std::memcmp(x.reg[n], y.reg[n], 10) != 0) return false;
@@ -1578,6 +1591,206 @@ int main(int argc, char **argv) {
                 if (diffs) bad(name, std::to_string(diffs) + " of " + std::to_string(ran) + " " + first);
                 else ok(name);
             }
+        }
+    }
+
+
+    // ---- The exception edges, masked and unmasked. ----
+    // The operand pairs the grid above never reaches: an overflowing product,
+    // an underflow into the denormals and past them, the tininess boundary,
+    // and an inexact result. Each runs with everything masked and then with
+    // one exception unmasked at a time, and the host settles what a real x87
+    // does -- which is not the same for the two halves of the exception set.
+    // Invalid, denormal and divide-by-zero are detected before the result
+    // exists, so unmasked they leave the operands and TOP alone; overflow and
+    // underflow are detected after it, and unmasked they store the result
+    // with its exponent moved by 24576; precision never holds a result back.
+    {
+        StubPage page;
+        const uint16_t ARITH_SW = 0xfaff;
+        auto pat = [](uint16_t se, uint64_t sig) {
+            std::array<uint8_t, 10> b{};
+            std::memcpy(b.data(), &sig, 8);
+            std::memcpy(b.data() + 8, &se, 2);
+            return b;
+        };
+        struct Edge {
+            const char *name;
+            std::array<uint8_t, 10> a, b;
+        };
+        const std::array<uint8_t, 10> one = pat(0x3fff, 0x8000000000000000ull);
+        const std::vector<Edge> edges = {
+            // 2^9000 squared, which overflows the extended format.
+            {"overflow", pat(0x3fff + 9000, 0x8000000000000000ull), pat(0x3fff + 9000, 0x8000000000000000ull)},
+            // 2^-8200 squared: tiny, and exactly a denormal, so nothing is
+            // lost and a real x87 raises nothing at all when it is masked.
+            {"tiny-exact", pat(0x3fff - 8200, 0x8000000000000000ull), pat(0x3fff - 8200, 0x8000000000000000ull)},
+            // 2^-8300 squared, which is past the smallest denormal.
+            {"tiny-gone", pat(0x3fff - 8300, 0x8000000000000000ull), pat(0x3fff - 8300, 0x8000000000000000ull)},
+            // The largest denormal times just over one: tiny, inexact, and
+            // on the edge of rounding up to the smallest normal, which is
+            // where tininess before and after rounding part company.
+            {"tiny-edge", pat(0x0000, 0x7fffffffffffffffull), pat(0x3fff, 0x8000000000000002ull)},
+            {"tiny-edge2", pat(0x0001, 0x8000000000000000ull), pat(0x3ffe, 0xfffffffffffffffeull)},
+            {"tiny-edge3", pat(0x0001, 0x8000000000000000ull), pat(0x3ffe, 0xffffffffffffffffull)},
+            // An inexact sum and an inexact product.
+            {"inexact-add", one, pat(0x3fff - 70, 0x8000000000000000ull)},
+            {"inexact-mul", pat(0x3fff, 0xb504f333f9de6484ull), pat(0x3fff, 0xb504f333f9de6484ull)},
+            // An overflow that is also inexact, which is where OE and PE
+            // could disagree about who reports.
+            {"overflow-inexact", pat(0x3fff + 9000, 0xb504f333f9de6484ull),
+                                 pat(0x3fff + 9000, 0xb504f333f9de6484ull)},
+            // A subtract that cancels almost everything, and one that
+            // cancels exactly.
+            {"cancel", pat(0x4000, 0x8000000000000000ull), pat(0x3fff, 0xffffffffffffffffull)},
+            {"cancel-exact", one, one},
+            // A denormal operand, which raises the denormal exception.
+            {"denormal-op", pat(0x0000, 0x4000000000000000ull), one},
+            // Two values an exponent apart, where the alignment shift drops
+            // the guard bit and nothing else.
+            {"align1", pat(0x4000, 0x8000000000000000ull), pat(0x3fff, 0x8000000000000001ull)},
+            // And the shifts around the point where the round bit is the
+            // operand's own top bit: 64, 65, 66 and 67 places.
+            {"align64", pat(0x3fff + 64, 0x8000000000000000ull), one},
+            {"align65", pat(0x3fff + 65, 0x8000000000000000ull), one},
+            {"align66", pat(0x3fff + 66, 0x8000000000000000ull), one},
+            {"align67", pat(0x3fff + 67, 0x8000000000000000ull), one},
+            {"align64b", pat(0x3fff + 64, 0x8000000000000000ull), pat(0x3fff, 0xffffffffffffffffull)},
+            {"align65b", pat(0x3fff + 65, 0x8000000000000000ull), pat(0x3fff, 0xffffffffffffffffull)},
+            {"align66b", pat(0x3fff + 66, 0x8000000000000000ull), pat(0x3fff, 0xffffffffffffffffull)},
+            // An empty ST(1), which is a stack underflow.
+            {"empty", one, pat(0, 0)},
+        };
+        struct Mask { const char *name; uint16_t clear; };
+        const Mask masks[] = {
+            {"masked", 0x0000}, {"im", 0x0001}, {"dm", 0x0002}, {"zm", 0x0004},
+            {"om", 0x0008},     {"um", 0x0010}, {"pm", 0x0020},
+        };
+        struct EForm { const char *name; unsigned esc, modrm, pushes; uint16_t swmask; };
+        const EForm eforms[] = {
+            {"fadd",  0x0, 0xc1, 2, ARITH_SW}, {"fmul",   0x0, 0xc9, 2, ARITH_SW},
+            {"fsub",  0x0, 0xe1, 2, ARITH_SW}, {"fsubr",  0x0, 0xe9, 2, ARITH_SW},
+            {"fmulp", 0x6, 0xc9, 2, ARITH_SW}, {"fscale", 0x1, 0xfd, 2, ARITH_SW},
+            {"frndint", 0x1, 0xfc, 1, ARITH_SW}, {"fxtract", 0x1, 0xf4, 1, ARITH_SW},
+            {"fcom",  0x0, 0xd1, 2, 0xffff},
+        };
+        for (const Mask &m : masks) {
+            for (unsigned rc = 0; rc < 4; ++rc) {
+                for (unsigned pc = 0; pc < 3; ++pc) {
+                    const unsigned pcbits = pc == 0 ? 0 : pc == 1 ? 2 : 3;
+                    const uint16_t cw = uint16_t(cw_of(rc, pcbits) & ~m.clear);
+                    int diffs = 0, ran = 0;
+                    std::string first;
+                    Unit u;
+                    for (const EForm &f : eforms) {
+                        const uint8_t ops[2] = {uint8_t(0xd8 | f.esc), uint8_t(f.modrm)};
+                        for (const Edge &e : edges) {
+                            // Both operand orders, so each form sees the edge
+                            // as its destination and as its source.
+                            for (unsigned flip = 0; flip < 2; ++flip) {
+                                uint8_t stack[2][10];
+                                std::memcpy(stack[0], (flip ? e.b : e.a).data(), 10);
+                                std::memcpy(stack[1], (flip ? e.a : e.b).data(), 10);
+                                Image want{}, got{};
+                                if (!host_form(page, cw, stack, f.pushes, nullptr, ops, 2, want)) break;
+                                unit_form(u, cw, stack, f.pushes, nullptr,
+                                          (f.esc << 8) | f.modrm, 0, got);
+                                ++ran;
+                                if (!same_state(want, got, f.swmask)) {
+                                    if (!diffs)
+                                        first = std::string(f.name) + " " + e.name +
+                                                (flip ? " flipped" : "") +
+                                                " st0=" + hex80(stack[0]) + " st1=" + hex80(stack[1]) +
+                                                " got " + state_str(got, f.swmask) +
+                                                " want " + state_str(want, f.swmask);
+                                    ++diffs;
+                                }
+                            }
+                        }
+                    }
+                    const std::string name = std::string("edge-") + m.name + "-rc" + std::to_string(rc) +
+                                             "-pc" + (pc == 0 ? "24" : pc == 1 ? "53" : "64");
+                    if (diffs) bad(name, std::to_string(diffs) + " of " + std::to_string(ran) + " " + first);
+                    else ok(name);
+                }
+            }
+        }
+    }
+
+    // ---- The arithmetic's own ERROR# and BUSY# latch. ----
+    // The flags an operation raises and the board's BUSY# latch have to go up
+    // in the same cycle: the apply that writes the flags is the cycle the
+    // unit goes idle, so a latch driven from an edge of the status word is a
+    // cycle late and leaves an ESC free to run. This is the shape of all
+    // three faults slice 2 had, so it is checked here for each exception the
+    // arithmetic raises -- including the ones that do not hold the result
+    // back, where `um` is false and the latch still has to rise.
+    {
+        struct Trial { const char *name; uint16_t cw; uint16_t se_a; uint64_t sig_a; uint16_t se_b; uint64_t sig_b;
+                       unsigned esc, modrm; };
+        const Trial trials[] = {
+            // invalid: 0 times infinity, with IM clear
+            {"ie", 0x037e, 0x0000, 0, 0x7fff, 0x8000000000000000ull, 0x0, 0xc9},
+            // denormal operand, with DM clear
+            {"de", 0x037d, 0x0000, 0x4000000000000000ull, 0x3fff, 0x8000000000000000ull, 0x0, 0xc1},
+            // overflow, with OM clear
+            {"oe", 0x0377, uint16_t(0x3fff + 9000), 0x8000000000000000ull,
+                           uint16_t(0x3fff + 9000), 0x8000000000000000ull, 0x0, 0xc9},
+            // underflow, with UM clear
+            {"ue", 0x036f, uint16_t(0x3fff - 8300), 0x8000000000000000ull,
+                           uint16_t(0x3fff - 8300), 0x8000000000000000ull, 0x0, 0xc9},
+            // precision, with PM clear: the result is written and the latch
+            // still rises, which is the case `um` alone would miss.
+            {"pe", 0x035f, 0x3fff, 0x8000000000000000ull,
+                           uint16_t(0x3fff - 70), 0x8000000000000000ull, 0x0, 0xc1},
+            // divide-by-zero, which only FXTRACT raises in this slice
+            {"ze", 0x037b, 0x0000, 0, 0x0000, 0, 0x1, 0xf4},
+        };
+        for (const Trial &t : trials) {
+            Unit u;
+            u.clear_latch();
+            u.reg_form(OP_FNINIT);
+            uint8_t a[10] = {0}, b[10] = {0};
+            std::memcpy(a, &t.sig_a, 8);
+            std::memcpy(a + 8, &t.se_a, 2);
+            std::memcpy(b, &t.sig_b, 8);
+            std::memcpy(b + 8, &t.se_b, 2);
+            u.present(OP_FLDCW, FMT_I16, true, true, 0);
+            u.commit(0, t.cw, true);
+            u.settle();
+            u.load(OP_FLD_M80, FMT_F80, b);
+            u.load(OP_FLD_M80, FMT_F80, a);
+            u.clear_latch();            // so the latch below is this form's
+            // The form, and then the first cycle the unit is idle.
+            u.present((t.esc << 8) | t.modrm, 0, true, true, 0);
+            u.commit(0, 0, true);
+            bool idle_seen = false, gap = false, flagged = false;
+            for (int n = 0; n < 256 && !idle_seen; ++n) {
+                if (!u.top.busy_o) {
+                    idle_seen = true;
+                    flagged = u.top.error != 0;
+                    u.top.iss = 1;
+                    u.top.iss_wait = 0;
+                    u.top.iss_op = OP_FCHS;
+                    u.top.iss_fmt = 0;
+                    u.top.iss_first = 1;
+                    u.top.iss_last = 1;
+                    u.top.iss_part = 0;
+                    u.top.eval();
+                    gap = !u.top.hold;
+                    u.top.iss = u.top.iss_first = u.top.iss_last = 0;
+                    u.top.eval();
+                } else {
+                    u.tick();
+                }
+            }
+            const std::string name = std::string("arith-latch-") + t.name;
+            if (!idle_seen) bad(name, "the unit never went idle");
+            else if (!flagged) bad(name, "ERROR# was not up the cycle the unit went idle, sw=" + hex(u.sw(), 4));
+            else if (gap) bad(name, "an ESC was free the cycle the unit went idle, sw=" + hex(u.sw(), 4));
+            else ok(name);
+            u.reg_form(OP_FNINIT);
+            u.clear_latch();
         }
     }
 

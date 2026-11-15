@@ -1012,6 +1012,9 @@ module fes_i386_x87 (
     logic               wsf;           // ... and the stack flag
     logic [1:0]         wprec;         // the precision this operation rounds to
     logic               wtiny;         // the denormalising shift has been taken
+    logic               wshloss;       // ... and it dropped bits of the result
+    logic               wsat;          // FSCALE's scale saturated, so the true exponent is
+                                       // out of the bias adjust's reach by construction
     logic [79:0]        ares, ares2;   // the result the apply writes, and FXTRACT's second
     logic [3:0]         acc;           // the condition codes it writes
     logic               acc_wr;
@@ -1269,6 +1272,8 @@ module fes_i386_x87 (
                     pc1 <= 1'b0;
                     pcc_wr <= 1'b0;
                     wtiny <= 1'b0;
+                    wshloss <= 1'b0;
+                    wsat <= 1'b0;
                     wprec <= cur == X87_ARITH ? pc : PC_EXT;
                     if (a_mem && ld_shift) begin
                         sh_src <= ld_mag;
@@ -1639,7 +1644,16 @@ module fes_i386_x87 (
                             // the operand's exponent is between -62 (a
                             // pre-normalised denormal) and 32766. A smaller
                             // step left a denormal scaled by 2^63 finite.
+                            // The step stands in for the true scale, so the
+                            // bias adjust an unmasked overflow or underflow
+                            // applies cannot stand for it: `wsat` makes
+                            // those deliver the masked result instead, which
+                            // is what a real x87 does for a scale this
+                            // large -- FSCALE of 1 by 2^64 with OM clear
+                            // gives an infinity with OE, PE and C1, and not
+                            // a wrapped exponent.
                             we <= pb[79] ? oa_e - 18'sd36000 : oa_e + 18'sd36000;
+                            wsat <= 1'b1;
                             seq <= A_RND;
                         end else begin
                             sh_src <= ob_m;
@@ -1833,10 +1847,23 @@ module fes_i386_x87 (
                 // The denormalising shift of a tiny result, which runs
                 // before the rounding so the result is rounded once.
                 A_TINY: begin
+                    // The guard and round bits the arithmetic left are below
+                    // bit 0 once the shift has moved the significand down,
+                    // so they join the sticky rather than being dropped.
+                    // `wshloss` is whether the denormalising itself lost
+                    // anything, which is what underflow is reported from:
+                    // the precision exception follows the whole rounding,
+                    // but underflow follows this shift alone. A real x87
+                    // parts them -- the smallest normal minus the smallest
+                    // denormal lands exactly on the denormal grid, so at
+                    // PC 24 it reports precision and not underflow, while
+                    // the smallest normal times (1 - 2^-64) falls between
+                    // two denormals and reports both.
                     wm <= mul_p[127:64];
                     wg <= mul_p[63];
                     wrd <= mul_p[62];
-                    ws <= ws || |mul_p[61:0];
+                    ws <= ws || wg || wrd || |mul_p[61:0];
+                    wshloss <= ws || wg || wrd || mul_p[63] || mul_p[62] || |mul_p[61:0];
                     seq <= A_RND;
                 end
                 // Rounding at the destination's precision, and then the
@@ -1864,7 +1891,13 @@ module fes_i386_x87 (
                     logic [63:0]        mag;
                     logic signed [17:0] e2;
                     logic [6:0]         k;
-                    if (!wtiny && we < 18'sd1 && cw[4]) begin
+                    // The bias adjust can only move the exponent by 24576,
+                    // so where even that leaves it out of range -- which
+                    // FSCALE reaches, because its scale saturates -- the
+                    // result is the masked one instead. A real x87 gives
+                    // FSCALE of 2^9000 by 2^9000 an infinity with OE and PE
+                    // and C1 set, with OM clear, and not a wrapped exponent.
+                    if (!wtiny && we < 18'sd1 && (cw[4] || wsat || we < -18'sd24575)) begin
                         k = (18'sd1 - we) > 18'sd66 ? 7'd66 : 7'((18'sd1 - we));
                         wtiny <= 1'b1;
                         we <= 18'sd1;
@@ -1883,6 +1916,7 @@ module fes_i386_x87 (
                             wg <= 1'b0;
                             wrd <= 1'b0;
                             ws <= 1'b1;
+                            wshloss <= 1'b1;
                         end
                     end else begin
                         rp = round_pc(wm, wg, wrd, ws, wsign, rc, wprec);
@@ -1891,10 +1925,21 @@ module fes_i386_x87 (
                         pc1 <= rp[64];
                         if (rp[65]) pfl[5] <= 1'b1;
                         if (e2 > 18'sd32766) begin
-                            logic inf;
-                            inf = rc == 2'd0 || (rc == 2'd1 && wsign) || (rc == 2'd2 && !wsign);
+                            logic inf, fits;
+                            // Masked overflow stores an infinity, or the
+                            // largest finite value where the rounding is
+                            // toward zero. Where overflow is *unmasked* and
+                            // the bias adjust cannot reach -- FSCALE's
+                            // saturated scale -- a real x87 stores an
+                            // infinity whatever the rounding mode, because
+                            // there is no finite result to round toward: the
+                            // same operation with OM set rounds down to the
+                            // largest finite value, and with OM clear gives
+                            // an infinity.
+                            inf = !cw[3] || rc == 2'd0 || (rc == 2'd1 && wsign) || (rc == 2'd2 && !wsign);
+                            fits = e2 - 18'sd24576 <= 18'sd32766 && !wsat;
                             pfl[3] <= 1'b1;
-                            if (cw[3]) begin
+                            if (cw[3] || !fits) begin
                                 pfl[5] <= 1'b1;
                                 pc1 <= inf;
                                 ares <= inf ? {wsign, 15'h7fff, 1'b1, 63'd0}
@@ -1902,9 +1947,52 @@ module fes_i386_x87 (
                             end else
                                 ares <= {wsign, 15'(e2 - 18'sd24576), mag};
                         end else if (wtiny) begin
+                            // Tininess is decided before the rounding, and
+                            // reported that way too: a real x87 sets UE for
+                            // the smallest normal times (1 - 2^-64), whose
+                            // exact product is below the smallest normal and
+                            // whose rounded one is the smallest normal
+                            // itself. So the test is the rounding's
+                            // inexactness alone, and not whether the result
+                            // came back up out of the denormals.
                             ares <= {wsign, mag[63] ? 15'd1 : 15'd0, mag};
-                            if (rp[65] && !mag[63]) pfl[4] <= 1'b1;
-                        end else if (we < 18'sd1) begin
+                            // Masked underflow is reported where the
+                            // denormalising shift itself lost bits, or where
+                            // the rounded result is still a denormal and the
+                            // rounding was inexact. Every tiny case the host
+                            // bench runs fits that and nothing simpler does:
+                            // the smallest normal times (1 - 2^-64) falls
+                            // between two denormals and reports underflow
+                            // even though it rounds up to a normal; the
+                            // smallest normal minus the smallest denormal
+                            // lands on a denormal exactly and reports only
+                            // precision when PC shortens it; and the
+                            // smallest denormal at PC 24 reports both,
+                            // rounding either away to zero or up to the
+                            // smallest denormal that precision allows.
+                            //
+                            // The denormalising loss counts only where the
+                            // destination is the extended format. The same
+                            // product reports underflow at PC 64 and only
+                            // precision at PC 24 and PC 53, with the same
+                            // shift losing the same half bit and the same
+                            // rounded result, so the 387 is carrying the
+                            // result at the destination's precision and the
+                            // shorter ones subsume that loss in the rounding.
+                            // Ten tiny cases across the host bench fit this
+                            // and no rule without the PC term fits them all.
+                            // Precision control moves the denormal grid, so
+                            // the second and third differ only in PC.
+                            if (wshloss && wprec == PC_EXT || rp[65] && !mag[63]) pfl[4] <= 1'b1;
+                        end else if (we < 18'sd1 && e2 < 18'sd1) begin
+                            // Unmasked underflow: the bias adjust, and UE
+                            // whether or not the result is inexact. The
+                            // rounding's own carry can lift the exponent
+                            // back into range, and then there is no
+                            // underflow to report: the smallest normal
+                            // times (1 - 2^-63) at PC 24 rounds up to the
+                            // smallest normal and a real x87 reports
+                            // precision alone, with UM clear.
                             pfl[4] <= 1'b1;
                             ares <= {wsign, 15'(e2 + 18'sd24576), mag};
                         end else
@@ -2202,13 +2290,35 @@ module fes_i386_x87 (
                     // PE unmasked should make its access is its own question
                     // and the record names it.
                     um = a_form ? unmasked(f & 6'b000111, cw) : unmasked(f, cw);
+                    // ... and because such an exception means the operation
+                    // never produced a result, the exceptions the result
+                    // would have raised are not reported with it: a real x87
+                    // adding the largest denormal to just over one with DM
+                    // clear reports the denormal alone, and not the precision
+                    // exception the sum would have raised.
+                    if (a_form && um) begin
+                        f[5:3] = 3'b000;
+                        // ... and C1, which says which way the rounding
+                        // went, has nothing to say about a result that was
+                        // never produced. A stack fault keeps its C1,
+                        // because there it says overflow or underflow and
+                        // the handler reads it.
+                        if (!stk) c1 = 1'b0;
+                    end
                     // ERROR# rises with this apply, and the board latches
                     // BUSY# on that edge. Setting it here rather than from
                     // the edge detector below closes the cycle between this
                     // apply, which makes the unit idle, and the detector's
                     // own edge, where an ESC would see neither busy nor
                     // latched (387 PRM Appendix F.2, the AT's latch).
-                    if (um) latched <= 1'b1;
+                    // Any unmasked exception raises ERROR# and latches
+                    // BUSY#, including the ones that do not hold the result
+                    // back: the latch is what the next ESC waits on, and the
+                    // flags and the latch have to go up together. `um` above
+                    // gates the write and this gates the latch, and they are
+                    // not the same set -- an unmasked precision exception
+                    // writes its result and still latches.
+                    if (unmasked(f, cw)) latched <= 1'b1;
                     // The flags and the stack flag are sticky; ES stays set
                     // until FNCLEX, FNINIT or the F1h reset clears it.
                     if (cur != X87_INIT && cur != X87_SAVE && cur != X87_CLEX) begin
@@ -2325,7 +2435,16 @@ module fes_i386_x87 (
             // word before the status word, so the summary can rise on the
             // old flags part way through: the latch waits for the whole
             // instruction, and its own apply sets it if ES is still active.
-            if (es && !es_q && !env_load) latched <= 1'b1;
+            //
+            // A write to port F0h in this cycle wins. The apply that raises
+            // an exception sets the latch itself, in the same cycle as the
+            // flags, so this edge fires the cycle *after* it, when ES is up
+            // and `es_q` has not caught up -- and an F0h write landing in
+            // that one cycle would be undone by it, leaving the latch set
+            // and every later ESC held for ever. Clearing the latch is what
+            // the port is for, and a genuinely new exception sets it from
+            // its own apply above and not from here.
+            if (es && !es_q && !env_load && !f0) latched <= 1'b1;
         end
     end
 endmodule
