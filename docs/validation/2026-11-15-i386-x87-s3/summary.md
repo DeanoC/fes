@@ -466,13 +466,21 @@ every seed, which is the check that these are real results and not
 interference between concurrent runs: a seed should move ALMs, registers and
 slack and nothing else, and that is all it moved. No seed here is a dead run.
 
-**The x87 is not on the failing paths.** Seed 3's worst path is −0.008 ns
-into an anonymous net while its x87 paths keep **+0.456**; seed 4's worst is
-−0.159 while its x87 paths keep **+1.458**. That is the same shape as seed 1,
-where the machine's worst was in the L1D at +0.317 and the x87 held +1.023.
-So the misses are whole-machine congestion at about 94.8%, and **nothing in
-slice 3's arithmetic would fix them** -- not a pipeline stage, not a narrower
-datapath. What would fix them is area recovered elsewhere.
+**The x87 is not on the failing paths, on any of them.** Every failing seed
+has the same shape: the worst path launches from the decoder's byte
+registers, `cpu_decode_by[13]` on seed 3, `[5]` on 4, `[3]` on 5 and `[4]`
+on 6, and the x87's own paths sit several tenths behind (seed 3 keeps
++0.456, seed 4 +1.458). Seed 1 is the same story with a different endpoint:
+the machine's worst is in the L1D at +0.317 while the x87 holds +1.023.
+[Where the margin went](#where-the-margin-went-which-is-not-where-it-looks)
+closes this by name rather than by inference, in the fit that keeps the
+hierarchy: the machine's worst is the front end's queue aligner at +0.553
+and the worst path touching the x87 at all is **+2.300**. It also shows the
+decode paths were already tied for critical in the merge-base, at +0.727.
+So the misses are whole-machine congestion at about 94.8% of long-standing
+paths, and **nothing in slice 3's arithmetic would fix them** -- not a
+pipeline stage, not a narrower datapath. What would fix them is area
+recovered elsewhere.
 
 **The sweep triggered this slice's own stop rule, and the decision was
 escalated rather than taken here.** Before any seed had run, this session
@@ -538,19 +546,38 @@ and, separately, the worst into and out of the x87:
 | identity off | +1.074 ns | `cpu_r_dst[30]`, the register file's write | +5.563 ns |
 | identity on | **+0.317 ns** | **`cpu_l1d_q_tx`, the L1 data cache** | **+1.023 ns** |
 
-These are the slow corner's path list, which the fit keeps in full. The
-+0.176 ns above is the worst setup over all four corners and comes from the
-Slow 1100mV 100C model, whose own worst *path* this record did not isolate:
-the list's worst is +0.317 and the arithmetic between them was not chased, so
-read the comparison below as between paths in one list rather than as a claim
-about the single worst path on the device.
+These are the path list the fit keeps, which is one corner; the headline
+slack above is the worst of the system clock over **all** corners, so the two
+differ by up to about 0.19 ns. The list says *where* a path is, not what the
+worst slack is. Both questions are answered below, and the second is answered
+in the fit where names survive.
 
-Within that list the x87's own worst path keeps about **1 ns, three times the
-list's worst**, and the list's worst is in the L1D, which this slice does not
-touch.
-The margin did not go into the adder, the rounder or the sequencer: it went
-into the machine, through dense packing and placement at 94.7% lengthening
-paths that have nothing to do with the arithmetic.
+**The flattened fits cannot settle this on names, and the non-flattened one
+can.** After `flatten`, endpoints are anonymous (`_40448_`, `_40514_`), so
+"no x87 path is critical" would rest on reading the launch register's name
+only. The per-entity fit keeps the hierarchy, and there the question is
+closed:
+
+| Non-flattened fit, identity on, seed 1 | slack | path |
+| --- | ---: | --- |
+| worst in the machine | **+0.553** | `frontend\|qalign\|acc[7]` → `qalign\|start[2]` |
+| second and third | +0.620, +0.628 | the same aligner |
+| **worst path touching the x87 at all** | **+2.300** | `wb_fault[1]` → `arch_x87_ds[5]` |
+
+**The x87's worst path has 1.75 ns more slack than the machine's worst**, by
+name, in a fit that keeps names. The binding logic is the front end's queue
+aligner.
+
+**And the paths that miss on the failing seeds were already the near-critical
+class before this slice.** Across the flattened fits the worst path moves
+with the seed -- the L1D (`cpu_l1d_q_tx`) on seed 1, the decoder's byte
+registers (`cpu_decode_by[n]`) on every one of seeds 3, 4, 5 and 6 -- and
+`cpu_decode_by[5]` is already at **+0.727** in the merge-base's identity-on
+fit, where that fit's own worst is +0.720. So the decode paths did not become
+critical because of slice 3; they were tied for critical already, and a
+denser machine stretched them. The margin did not go into the adder, the
+rounder or the sequencer. It went into the machine, through placement at
+94.7% lengthening paths that have nothing to do with the arithmetic.
 
 **This record's own first draft of this section got it wrong, and the way it
 went wrong is worth more than the conclusion.** It said the slack was going
