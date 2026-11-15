@@ -348,8 +348,17 @@ The margin did not go into the adder, the rounder or the sequencer: it went
 into the machine, through dense packing and placement at 94.7% lengthening
 paths that have nothing to do with the arithmetic.
 
-Two consequences, and the first was nearly got wrong here. **Pipelining the
-x87 would recover nothing** — a register stage in the sum or the rounding
+**This record's own first draft of this section got it wrong, and the way it
+went wrong is worth more than the conclusion.** It said the slack was going
+into the shared datapath, and that slice 4's reuse of the same adder and
+rounder would crowd the critical logic further. That is a plausible story
+about logic this slice had just written, told without opening a path report
+-- which is exactly when a plausible story is least safe. Had anyone acted on
+it, the fix would have been a register stage in the sum or the rounding: a
+re-freeze, every gate again, and **no slack recovered at all**, because those
+paths already have a nanosecond. The paths were there to read the whole time.
+
+Two consequences follow. **Pipelining the x87 would recover nothing** — a register stage in the sum or the rounding
 would cost a re-freeze and every gate and buy no slack, because those paths
 already have a nanosecond. And the plausible-sounding argument that slice 4's
 reuse of the same adder and rounder will crowd the critical logic has **no
