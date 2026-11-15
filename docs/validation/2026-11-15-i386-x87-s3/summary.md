@@ -33,7 +33,8 @@ host's FPU *is* an 80-bit x87, so the bench drives the unit's CPU interface
 and compares the whole architectural state -- the control, status and tag
 words and all eight registers -- with the host's own instruction, over the
 operand classes the 387 PRM names as pairs, in all four rounding modes and
-all three precisions. Roughly **183,000 comparisons** against real hardware.
+all three precisions. The bench counts them: **214,264 comparisons** against real hardware, over 499
+cases.
 
 Eight rules came out of it that a manual reading would have got wrong, and
 each is in the RTL with the case that settles it:

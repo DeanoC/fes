@@ -114,9 +114,13 @@ def main(argv: list[str] | None = None) -> int:
     verilator = i386_verilator.locate(args.cache_root)
     yosys = None
     if args.netlist:
-        yosys = args.cache_root and (args.cache_root / 'slots' / verilator.slot / 'install/bin/yosys')
-        if not yosys or not yosys.exists():
-            raise X87UnitError('--netlist needs the lock\'s Yosys in --cache-root')
+        # Through the cache API, as the Verilator above is: the per-tool
+        # layout has no directory a caller can assemble, and a path not held
+        # for this process can be pruned mid-run (i386_verilator.locate_yosys).
+        try:
+            yosys = i386_verilator.locate_yosys(args.cache_root)
+        except i386_verilator.VerilatorError as error:
+            raise X87UnitError(f"--netlist needs the lock's Yosys: {error}") from error
     bench = verilate(verilator, args.jobs, yosys)
     result = subprocess.run([str(bench)], capture_output=True, text=True, timeout=1800)
     passed, failed, failures = parse(result.stdout)

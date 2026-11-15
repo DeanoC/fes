@@ -150,6 +150,9 @@ void host_const(unsigned n, unsigned rc, uint8_t out[10]) {
 // protocol violation that corrupts the unit's state, so the run reports it
 // rather than letting the cases after it compare a wedged unit.
 int held_for_ever = 0;
+// Every state the slice 3 cases compared with the host's, so the record can
+// state the count rather than estimate it.
+long compared = 0;
 
 // ---- The unit under test, with the CPU's side of its interface. ----
 struct Unit {
@@ -1437,6 +1440,7 @@ int main(int argc, char **argv) {
                     }
                     unit_form(u, cw, stack, f.pushes, nullptr, (f.esc << 8) | f.modrm, f.fmt, got);
                     ++ran;
+                    ++compared;
                     if (!same_state(want, got, f.swmask)) {
                         const std::string what = "st0=" + hex80(a) + " st1=" + hex80(b) +
                                                  " got " + state_str(got, f.swmask) +
@@ -1492,7 +1496,8 @@ int main(int argc, char **argv) {
                             if (!host_form(page, cw, stack, f.pushes, nullptr, ops, 2, want)) break;
                             unit_form(u, cw, stack, f.pushes, nullptr, (f.esc << 8) | f.modrm, 0, got);
                             ++ran;
-                            if (!same_state(want, got, f.swmask)) {
+                            ++compared;
+                    if (!same_state(want, got, f.swmask)) {
                                 if (!diffs)
                                     first = "st0=" + hex80(stack[0]) + " st1=" + hex80(stack[1]) +
                                             " got " + state_str(got, f.swmask) +
@@ -1554,6 +1559,7 @@ int main(int argc, char **argv) {
                             if (!host_form(page, cw, stack, 1, mbytes, ops, 2, want)) break;
                             unit_form(u, cw, stack, 1, mbytes, uop, m.fmt, got);
                             ++ran;
+                            ++compared;
                             if (!same_state(want, got, swmask)) {
                                 if (!diffs)
                                     first = "st0=" + hex80(stack[0]) + " mem=" + hex(raw, 2 * m.bytes) +
@@ -1622,6 +1628,7 @@ int main(int argc, char **argv) {
                     unit_form(u, host_cw(0), stacks[which], 8, nullptr,
                               (f.esc << 8) | (f.base + i), 0, got);
                     ++ran;
+                    ++compared;
                     if (!same_state(want, got, f.swmask)) {
                         if (!diffs)
                             first = "i=" + std::to_string(i) + " got " + state_str(got, f.swmask) +
@@ -1762,7 +1769,8 @@ int main(int argc, char **argv) {
                                 unit_form(u, cw, stack, f.pushes, nullptr,
                                           (f.esc << 8) | f.modrm, 0, got);
                                 ++ran;
-                                if (!same_state(want, got, f.swmask)) {
+                                ++compared;
+                    if (!same_state(want, got, f.swmask)) {
                                     if (!diffs)
                                         first = std::string(f.name) + " " + e.name +
                                                 (flip ? " flipped" : "") +
@@ -1862,6 +1870,7 @@ int main(int argc, char **argv) {
 
     if (held_for_ever) bad("protocol.hold", std::to_string(held_for_ever) + " uops held past the bench's wait");
     else ok("protocol.hold");
+    std::printf("COMPARED %ld\n", compared);
     std::printf("SUMMARY %d %d\n", passed, failed);
     return failed ? 1 : 0;
 }

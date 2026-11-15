@@ -10336,12 +10336,19 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.op({0xdc, 0xe9});                                    // FSUB ST(1),ST
             a.op({0xdc, 0xc9});                                    // FMUL ST(1),ST
             a.op({0xde, 0xc1});                                    // FADDP ST(1),ST
+            a.op({0xdf, 0xe0});                                    // FNSTSW AX
+            a.esc(0xdb, 7, 0x300);                                 // FSTP m80: the result, through memory
+            a.esc(0xd9, 0, 0x100);
             a.esc(0xd9, 0, 0x104);                                 // FLD m32 -1.0
             a.op({0xde, 0xe9});                                    // FSUBP ST(1),ST
-            a.esc(0xd9, 0, 0x100);
+            a.esc(0xdb, 7, 0x30c);
+            a.esc(0xd9, 0, 0x100); a.esc(0xd9, 0, 0x104);
             a.op({0xde, 0xe1});                                    // FSUBRP ST(1),ST
-            a.esc(0xd9, 0, 0x100);
+            a.esc(0xdb, 7, 0x318);
+            a.esc(0xd9, 0, 0x100); a.esc(0xd9, 0, 0x104);
             a.op({0xde, 0xc9});                                    // FMULP ST(1),ST
+            a.esc(0xdb, 7, 0x324);
+            a.op({0xdf, 0xe0});
         }},
         {"arith-mem", [](Asm &a) {
             a.op({0xdb, 0xe3});
@@ -10354,9 +10361,18 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.esc(0xde, 1, 0x120);                                 // FIMUL m16
             a.esc(0xda, 4, 0x124);                                 // FISUB m32
             a.esc(0xde, 5, 0x120);                                 // FISUBR m16
+            a.op({0xdf, 0xe0});                                    // FNSTSW AX
+            a.esc(0xdb, 7, 0x300);                                 // FSTP m80: the result, through memory
             a.esc(0xd9, 6, 0x340);                                 // FNSTENV: the pointers and opcode
         }},
         {"compare", [](Asm &a) {
+            // FNSTSW AX after each compare puts the status word in a GPR,
+            // which the lockstep compares at every retirement whether or not
+            // the unit is still busy, so the condition codes are checked
+            // even where the x87 state comparison is skipped. Each popping
+            // form gets its operands pushed again first, so the ordinary
+            // path runs; the one case with an empty ST(1) is last and
+            // deliberate.
             a.op({0xdb, 0xe3});
             a.esc(0xd9, 0, 0x100);
             a.esc(0xdd, 0, 0x108);
@@ -10366,11 +10382,14 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.esc(0xdc, 2, 0x108); a.op({0xdf, 0xe0});             // FCOM m64
             a.esc(0xda, 2, 0x124); a.op({0xdf, 0xe0});             // FICOM m32
             a.esc(0xde, 3, 0x120); a.op({0xdf, 0xe0});             // FICOMP m16, which pops
-            a.op({0xd8, 0xd9}); a.op({0xdf, 0xe0});                // FCOMP ST(1)
-            a.esc(0xd9, 0, 0x100);
+            a.esc(0xdd, 0, 0x108);                                 // push ST(1) again
+            a.op({0xd8, 0xd9}); a.op({0xdf, 0xe0});                // FCOMP ST(1), which pops
+            a.esc(0xdd, 0, 0x108);
             a.op({0xde, 0xd9}); a.op({0xdf, 0xe0});                // FCOMPP, which pops twice
-            a.esc(0xd9, 0, 0x100); a.esc(0xd9, 0, 0x104);
-            a.op({0xda, 0xe9}); a.op({0xdf, 0xe0});                // FUCOMPP
+            a.esc(0xd9, 0, 0x100); a.esc(0xdd, 0, 0x108);
+            a.op({0xda, 0xe9}); a.op({0xdf, 0xe0});                // FUCOMPP, which pops twice
+            a.esc(0xd9, 0, 0x100);
+            a.op({0xd8, 0xd1}); a.op({0xdf, 0xe0});                // FCOM with ST(1) empty
         }},
         {"round", [](Asm &a) {
             a.op({0xdb, 0xe3});
@@ -10385,6 +10404,9 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.esc(0xdf, 0, 0x120);                                 // FILD m16
             a.op({0xd9, 0xfd});                                    // FSCALE
             a.op({0xd9, 0xe5});                                    // FXAM
+            a.op({0xdf, 0xe0});                                    // FNSTSW AX
+            a.esc(0xdb, 7, 0x300);                                 // FSTP m80, through memory
+            a.esc(0xdb, 7, 0x30c);
         }},
         {"precision", [](Asm &a) {
             a.op({0xdb, 0xe3});
@@ -10401,6 +10423,7 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.esc(0xd9, 5, 0x148);                                 // FLDCW: PC 64, toward zero
             a.op({0xd8, 0xc8});
             a.op({0xdf, 0xe0});
+            a.esc(0xdb, 7, 0x300);                                 // FSTP m80, through memory
         }},
         {"arith-flags", [](Asm &a) {
             a.op({0xdb, 0xe3});
@@ -10420,6 +10443,7 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.esc(0xdb, 5, 0x190);                                 // FLD m80: 2^-8300
             a.op({0xd8, 0xc8});                                    // FMUL -> masked underflow
             a.op({0xdf, 0xe0});
+            a.esc(0xdb, 7, 0x300);                                 // FSTP m80, through memory
         }},
     };
 
