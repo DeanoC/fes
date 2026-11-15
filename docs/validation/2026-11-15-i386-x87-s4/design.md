@@ -166,7 +166,7 @@ will be checked in the model rather than assumed, because FPREM's exactness
 and its C2 semantics are where a shared primitive would most plausibly fall
 short.
 
-## FSQRT, and the one place early termination is not worth taking
+## FSQRT
 
 `model/sqrt_exactness.py` and `model/sqrt_per_pc.py` run the square root the
 same way: Newton on the reciprocal square root (`y <- y(3 - a·y²)/2`) with a
@@ -180,44 +180,62 @@ shifts and an add on the existing adder.
 intervals, the significand extremes, both exponent parities, and 30,000
 random. Zero mismatches, result and sticky.
 
-Convergence, at the 66-bit extended target:
+| precision | iterations | multiplies | restoring steps | remainder width |
+|---|---:|---:|---:|---:|
+| PC 24 | 2 | 7 | 2 | 28 bits |
+| PC 53 | 3 | 10 | 2 | 57 bits |
+| PC 64 | 3 | 10 | 6 | **73 bits** |
 
-| iterations | multiplies | max error | restoring steps | remainder width |
-|---:|---:|---:|---:|---:|
-| 1 | 4 | 4.9 × 10^14 | 50 | 117 bits |
-| 2 | 7 | 6.6 × 10^9 | 34 | 101 bits |
-| 3 | 10 | **21** | **6** | **73 bits** |
-| 4 | 13 | 11 | 5 | 72 bits |
+A fourth iteration costs 3 multiplies — 12 clocks — to save one restoring step
+and one bit of register, so three is the choice at PC 53 and PC 64 and two at
+PC 24.
 
-Three iterations is the choice: the fourth costs 3 multiplies — 12 clocks — to
-save one restoring step and one bit of register.
+### A withdrawn section, and why it was wrong
 
-**And the per-precision grid says to take early termination on divide and not
-on square root**, which is a measured trade rather than a preference:
+**An earlier version of this record declined early termination for FSQRT, on
+the ground that it widened the shared remainder register from 73 bits to 110
+to save 12 clocks. That measurement was wrong and the decline is withdrawn.**
+Early termination is taken for the square root as well as the divide.
 
-| | PC 24 | PC 53 | PC 64 | widest remainder |
-|---|---|---|---|---:|
-| FDIV, iterations / steps | 2 / 2 | 3 / 2 | 3 / 7 | **71 bits** |
-| FSQRT, iterations / steps | 2 / 2 | 3 / 2 | 3 / 6 | **110 bits** |
+The error was in the model, not the hardware. It took the PC target as
+`isqrt(A·2^s) >> drop` and then measured the remainder against the
+**full-width** square, so the remainder it reported was the full-precision
+one. `isqrt(n) >> d` is not `isqrt(n >> 2d)`: the right target is
+`isqrt((A·2^s) >> 2·drop)`, with the sticky bit taken as the remainder being
+non-zero **or** the radicand bits shifted out being non-zero. Scaled that
+way, a lower precision makes the remainder *narrower* — 28 bits at PC 24
+against 73 at PC 64 — which is the opposite of what the record claimed, and
+obvious in hindsight: a shorter result is compared against a shorter radicand.
 
-For divide, a precision-selected iteration count costs **nothing** in register
-width — every precision's remainder fits the same 71 bits — and saves 2
-multiplies, 8 clocks, at PC 24. Taken.
+So the widest remainder this slice needs is 73 bits, set by PC 64, and
+precision-selected iteration counts cost **nothing** in register width for
+either operation. The decline, and the whole ledger of 37 bits against 12
+clocks that justified it, are withdrawn.
 
-For square root it is the other way round. A square root's remainder is
-`A·2^s - C²`, which lives at the *radicand's* scale and is bounded only
-because `C²` tracks `A` closely. Targeting fewer result bits makes `C²` track
-`A` less closely, so the bound grows: the remainder register goes from 73 bits
-to **110** to save 3 multiplies at PC 24. That is 37 bits of register on a
-shared path to save 12 clocks on the least common precision, with ALMs the
-binding constraint on this phase — so FSQRT computes at the extended target
-always and lets slice 3's `round_pc()` apply precision control, which it does
-correctly because the result is an exact truncation with a true sticky bit.
+Two things were reported to the coordinating session on the strength of that
+wrong number, and both are corrected here: that FSQRT would compute at the
+extended target always, and that slice 6 might reconsider it. There is
+nothing to reconsider. The x87 precision census was also asked for an
+FSQRT-by-PC breakdown to test the decline's premise, and returned Quake at
+328 square roots at PC 24 against 1,018 at PC 64; **that figure stands on its
+own and is worth keeping** — it says the saving lands on a minority of
+Quake's square roots — but it is no longer load-bearing, because the saving
+is free.
 
-So the plan's "early termination at 24 and 53 bits" is **implemented for
-divide and measured-and-declined for square root**, with the number above
-rather than silently omitted. It is a design choice inside the slice and the
-figures are here to be overruled with.
+### What the census does make load-bearing
+
+The same census reports **Quake's 835,000 divides at 97% PC 24**. So the
+divide's two-iteration path — 8 clocks saved, free in area — lands on roughly
+810,000 divides in one title, which is a much stronger result than "8 clocks"
+suggested. (Prior-record numbers of 12 November, with the census session's own
+runs still building; to be relabelled when it confirms.)
+
+Worth recording as a prediction rather than hindsight: Quake running its
+divides at PC 24 and its square roots mostly at PC 64 in the same program is
+what you would expect if the engine sets PC 24 for its own fast math while the
+C runtime's `sqrt()` runs at a control word the engine never reset. The census
+is breaking the PC 64 call sites down by engine against library next. If that
+comes back "library", the picture is consistent.
 
 ## FPREM's partial step is the divide's primitive
 
