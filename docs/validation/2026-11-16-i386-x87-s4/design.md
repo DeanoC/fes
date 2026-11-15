@@ -145,3 +145,68 @@ and if it is, FPREM needs no loop of its own, which is a real area saving. It
 will be checked in the model rather than assumed, because FPREM's exactness
 and its C2 semantics are where a shared primitive would most plausibly fall
 short.
+
+## FSQRT, and the one place early termination is not worth taking
+
+`model/sqrt_exactness.py` and `model/sqrt_per_pc.py` run the square root the
+same way: Newton on the reciprocal square root (`y <- y(3 - a·y²)/2`) with a
+256-word, 10-bit M10K seed indexed by the exponent's parity bit and the
+radicand's top 7 bits, every intermediate the top 64 bits of the multiplier's
+product, then the same bounded exact tail. The restoring step for a square
+root needs no multiply at all: `(C + 2^i)² - C² = (C << (i+1)) + 2^(2i)`, two
+shifts and an add on the existing adder.
+
+39,522 cases — exact squares, square±1, both endpoints of all 128 seed
+intervals, the significand extremes, both exponent parities, and 30,000
+random. Zero mismatches, result and sticky.
+
+Convergence, at the 66-bit extended target:
+
+| iterations | multiplies | max error | restoring steps | remainder width |
+|---:|---:|---:|---:|---:|
+| 1 | 4 | 4.9 × 10^14 | 50 | 117 bits |
+| 2 | 7 | 6.6 × 10^9 | 34 | 101 bits |
+| 3 | 10 | **21** | **6** | **73 bits** |
+| 4 | 13 | 11 | 5 | 72 bits |
+
+Three iterations is the choice: the fourth costs 3 multiplies — 12 clocks — to
+save one restoring step and one bit of register.
+
+**And the per-precision grid says to take early termination on divide and not
+on square root**, which is a measured trade rather than a preference:
+
+| | PC 24 | PC 53 | PC 64 | widest remainder |
+|---|---|---|---|---:|
+| FDIV, iterations / steps | 2 / 2 | 3 / 2 | 3 / 7 | **71 bits** |
+| FSQRT, iterations / steps | 2 / 2 | 3 / 2 | 3 / 6 | **110 bits** |
+
+For divide, a precision-selected iteration count costs **nothing** in register
+width — every precision's remainder fits the same 71 bits — and saves 2
+multiplies, 8 clocks, at PC 24. Taken.
+
+For square root it is the other way round. A square root's remainder is
+`A·2^s - C²`, which lives at the *radicand's* scale and is bounded only
+because `C²` tracks `A` closely. Targeting fewer result bits makes `C²` track
+`A` less closely, so the bound grows: the remainder register goes from 73 bits
+to **110** to save 3 multiplies at PC 24. That is 37 bits of register on a
+shared path to save 12 clocks on the least common precision, with ALMs the
+binding constraint on this phase — so FSQRT computes at the extended target
+always and lets slice 3's `round_pc()` apply precision control, which it does
+correctly because the result is an exact truncation with a true sticky bit.
+
+So the plan's "early termination at 24 and 53 bits" is **implemented for
+divide and measured-and-declined for square root**, with the number above
+rather than silently omitted. It is a design choice inside the slice and the
+figures are here to be overruled with.
+
+## FPREM's partial step is the divide's primitive
+
+Confirmed in `model/sqrt_prem.py` over 20,000 operand pairs with exponent
+differences up to 300: a partial step's quotient is at most 64 bits, so
+`N × B` is exactly the shared multiplier's 128-bit product, and the remainder
+`A·2^k - N·B` is exact and less than `B` with no violations. That is the same
+primitive as the divide tail — a quotient estimate, one exact 64×64 product,
+and a bounded remainder finished by compare-subtract steps — so **FPREM and
+FPREM1 need no divider of their own**, only the quotient-bit capture for
+C0/C3/C1, the round-to-nearest variant for FPREM1, and the C2 decision on the
+exponent difference.
