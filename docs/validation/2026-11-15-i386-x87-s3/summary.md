@@ -258,8 +258,12 @@ record's reproduction prints now names `unbuilt` for that reason.
 
 ## Area and timing
 
-Every figure here is Quartus 17.0.2 at the seal's settings, seed 1, through
-**the chip host's CUDA toolchain slot**, and the fits were run on
+Every figure here is Quartus 17.0.2 at the seal's settings, seed 1. **The
+machine fits** -- which are the ones the deltas rest on -- all ran through
+**the chip host's CUDA toolchain slot**; the standalone fits of the unit, two
+subsections down, ran through Powerboat's HIP slot, and that subsection says
+why its comparison with slice 2 is indicative rather than exact. The machine
+fits were run on
 `3dcc08cc037c91d666e2b3283ecf64c4ca389ae0` — whose RTL is byte-identical to
 the frozen head's, the only differences between them being two testbench
 files that no fit reads. The merge-base tree's pc386 firmware was copied from
@@ -268,7 +272,7 @@ host; the two trees change no firmware source, and the copy validates with
 the same ROM and VGA BIOS digests, so it is the same artefact and not a
 substitute.
 
-Why one slot for all of them: the HIP and CUDA slots' Yosys binaries differ,
+Why one slot for all the machine fits: the HIP and CUDA slots' Yosys binaries differ,
 so their netlists are the same logic with different net numbering and Quartus
 fits them differently — 36,055 against 36,069 ALMs and setup +0.594 against
 +0.410 on identical RTL, which is the size of the deltas this slice reports.
