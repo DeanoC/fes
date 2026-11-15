@@ -278,6 +278,47 @@ class SupportMatrixTests(unittest.TestCase):
                 # The heading's own text is not part of the section either.
                 self.assertNotIn('Replacement', section)
 
+    def test_a_fenced_block_is_not_markdown(self):
+        """Example Markdown inside a fence is neither a heading to read nor a
+        second heading to complain about."""
+        plan = (ROOT / SUPPORT_MATRIX.FORWARD_PLAN).read_text()
+        quote = SUPPORT_MATRIX.LADDER_QUOTES[0]
+        section = plan[plan.index('## Tiers'):]
+        # The whole section kept inside a fence for history, with no real one
+        # left: there is no section to read, which fails closed.
+        for fence in ('```', '~~~~', '   ```'):
+            with self.subTest(f'fenced away with {fence!r}'):
+                self.assertIsNone(SUPPORT_MATRIX.ladder_section(
+                    f'# Plan\n\n{fence}\n{section}\n{fence.strip()}\n'
+                ))
+        # A legitimate fenced example beside the real section must not count as
+        # a second heading, or it would fail the build on valid content.
+        for opener in ('```markdown', '~~~ markdown', '```'):
+            with self.subTest(f'example in {opener!r}'):
+                closer = '~~~' if opener.startswith('~') else '```'
+                example = plan.replace(
+                    '## Tiers',
+                    f'{opener}\n## Tiers\n\nnot the real one\n{closer}\n\n## Tiers', 1
+                )
+                read = SUPPORT_MATRIX.ladder_section(example)
+                self.assertIsNotNone(read)
+                self.assertIn(quote, read)
+                self.assertNotIn('not the real one', read)
+
+    def test_a_fenced_agents_rule_is_not_the_rule(self):
+        """A fenced quotation of the rule cannot stand in for it, nor collide
+        with the real one."""
+        agents = (ROOT / SUPPORT_MATRIX.AGENTS).read_text()
+        bullet = next(line for line in agents.splitlines()
+                      if SUPPORT_MATRIX.AGENTS_RULE_CITE in line)
+        # Quoted in a fence, with the real rule gone.
+        quoted = agents.replace(bullet, f'```\n{bullet}\n```')
+        self.assertTrue(any('no longer carries' in error
+                            for error in SUPPORT_MATRIX.agents_rule_errors(quoted)), quoted[:0])
+        # Quoted in a fence beside the real rule: still exactly one rule.
+        beside = agents.replace(bullet, f'```\n{bullet}\n```\n{bullet}')
+        self.assertEqual([], SUPPORT_MATRIX.agents_rule_errors(beside))
+
     def test_setext_underline_only_matches_underlines(self):
         cases = {'---': True, '===': True, '-': True, '  ----  ': True,
                  '    ----': False, '- a bullet': False, '--- text': False,

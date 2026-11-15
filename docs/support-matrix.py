@@ -215,6 +215,41 @@ HEADING_CLOSE = re.compile(r'[ \t]+#+$')
 # error naming the section.
 SETEXT_UNDERLINE = re.compile(r'^ {0,3}(?:=+|-+)[ \t]*$')
 LIST_ITEM = re.compile(r'^ {0,3}[-*+] +')
+# A fenced code block holds example Markdown, not Markdown: a `## Tiers` inside
+# one is neither a heading to read nor a second heading to complain about. This
+# repository's docs are full of fenced examples, so blanking fences keeps a
+# legitimate example from failing the build as well as from satisfying it.
+FENCE = re.compile(r'^ {0,3}(?P<fence>`{3,}|~{3,})(?P<info>.*)$')
+
+
+def outside_fences(lines: list[str]) -> list[str]:
+    """`lines` with fenced code blocks blanked, indices preserved.
+
+    Blanking rather than dropping keeps every index aligned with the original,
+    which the list-item walk relies on.
+    """
+    out = []
+    fence = None
+    for line in lines:
+        found = FENCE.match(line)
+        if fence is None:
+            # A backtick fence's info string may not contain a backtick; a
+            # tilde fence's may contain anything.
+            if found and not (found.group('fence')[0] == '`' and '`' in found.group('info')):
+                fence = found.group('fence')
+            out.append('' if fence else line)
+            continue
+        # A closing fence is the same character, at least as long, info-free.
+        closing = (
+            found
+            and found.group('fence')[0] == fence[0]
+            and len(found.group('fence')) >= len(fence)
+            and not found.group('info').strip()
+        )
+        out.append('')
+        if closing:
+            fence = None
+    return out
 
 
 def heading2(line: str) -> str | None:
@@ -259,7 +294,7 @@ def ladder_section(text: str) -> str | None:
     renamed `## Tiers (superseded)` beside a new one would otherwise keep
     answering for the ladder.
     """
-    lines = text.splitlines()
+    lines = outside_fences(text.splitlines())
     wanted = LADDER_HEADING.removeprefix('## ')
     starts = [i for i, line in enumerate(lines) if heading2(line) == wanted]
     if len(starts) != 1:
@@ -878,7 +913,7 @@ def agents_rule_errors(text: str) -> list[str]:
     be in that bullet, so the policy cannot stay accepted while the rule around
     the marker has been weakened or removed.
     """
-    lines = text.splitlines()
+    lines = outside_fences(text.splitlines())
     cited = [i for i, line in enumerate(lines) if AGENTS_RULE_CITE in line]
     if not cited:
         return [
