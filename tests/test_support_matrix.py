@@ -160,10 +160,19 @@ class SupportMatrixTests(unittest.TestCase):
         bullet = next(line for line in agents.splitlines() if cite in line)
         # Gutting the rule around its marker must not pass, and nor must a
         # second, possibly contradictory, copy of it.
-        gutted = agents.replace(bullet, f'- The marker `check_level: reduced` states no obligation. {cite}')
         cases = [
-            ('rule gutted around the marker', gutted),
+            # Gutted around its marker.
+            ('rule gutted around the marker',
+             agents.replace(bullet, f'- The marker `check_level: reduced` states no obligation. {cite}')),
+            # A clause dropped.
             ('one clause dropped', agents.replace('puts that core back under the full rule', 'is fine')),
+            # Every clause kept, and then negated or weakened by what follows:
+            # this is why the rule is compared whole and not by its clauses.
+            ('negation appended',
+             agents.replace(bullet, bullet + ' This rule states no obligation despite the above.')),
+            ('exception appended',
+             agents.replace('never lower a gate on work being done to a core',
+                            'never lower a gate on work being done to a core, except where a lane owner says so')),
             ('cite gone', agents.replace(cite, '')),
             ('rule stated twice', agents + '\n' + bullet + '\n'),
             ('file gone', None),
@@ -205,7 +214,11 @@ class SupportMatrixTests(unittest.TestCase):
             # The ladder is gone.
             'no ladder here\n': 'no longer says',
             # The ladder's sentences moved out of the Tiers section.
-            plan.replace('## Tiers', '## Something else'): 'has no',
+            plan.replace('## Tiers', '## Something else'): 'exactly one',
+            # A superseded section kept beside a new authoritative one must not
+            # keep answering for the ladder: only the exact `## Tiers` heading
+            # is read, so the old section's quotes no longer validate.
+            plan.replace('## Tiers', '## Tiers (superseded)') + '\n## Tiers\n\nnew ladder here\n': 'no longer says',
             # A second statement of the same placement may supersede it.
             plan + '\n' + quote + '\n': 'may supersede',
             # The plan stops naming a pending placement's condition.

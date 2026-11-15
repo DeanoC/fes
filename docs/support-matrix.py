@@ -144,16 +144,14 @@ CHECK_IN_FORCE = 'In force.'
 # The obligation itself lives in AGENTS.md. While the matrix says accepted,
 # that rule has to be there: this is the phrase it is written with.
 AGENTS = Path('AGENTS.md')
-# Its unique citation finds the bullet; these clauses are the rule itself, so
-# the policy cannot stay accepted after the rule is gutted around the marker.
+# Its unique citation finds the bullet. The rule is then compared whole, on
+# normalised whitespace: testing for clauses would pass a bullet that keeps
+# every clause and appends an exception or a negation to them. Rewording the
+# rule in AGENTS.md means updating this constant in the same change, which is
+# the point: the matrix cannot say accepted against a rule that moved under it.
 AGENTS_RULE_CITE = '(#1863, accepted 2026-11-15)'
-AGENTS_RULE_PHRASES = (
-    '`check_level: reduced`',
-    'owes only the first of those three',
-    'its netlist comparison is still measured and recorded',
-    'are not expected of it',
-    'puts that core back under the full rule',
-    'never lower a gate on work being done to a core',
+AGENTS_RULE = (
+    "For a core the support matrix records at `check_level: reduced`, that same closure change owes only the first of those three: its netlist comparison is still measured and recorded exactly as the rule above says, and the RBF reproduction, the timing and seal gate and the HIL are not expected of it. A netlist that is not byte-identical puts that core back under the full rule, as does any change that touches the core's own RTL, programs, toolchain lock or placement recipe, and as does any change that ships it. The levels are derived in `docs/support-matrix.py` from the quality ladder in `docs/plans/forward-plan.md` and are listed in [the support matrix](docs/support-matrix.md): they say which cores a sweep is not about, and they never lower a gate on work being done to a core, which the rule above this one still forbids. (#1863, accepted 2026-11-15)"
 )
 AS_OF = '2026-10-29'
 # Main's first-parent tip at the end of AS_OF. Keep the history snapshot fixed
@@ -198,14 +196,23 @@ def derive_tier(row: dict) -> str:
     return 'stale'
 
 
-def ladder_section(flat: str) -> str | None:
-    """The forward plan's own Tiers section, from whitespace-flattened text."""
-    start = flat.find(LADDER_HEADING)
-    if start < 0:
+def ladder_section(text: str) -> str | None:
+    """The forward plan's own Tiers section, flattened.
+
+    The heading has to be that line exactly and appear once: a section renamed
+    `## Tiers (superseded)` beside a new one would otherwise keep answering for
+    the ladder.
+    """
+    lines = text.splitlines()
+    starts = [i for i, line in enumerate(lines) if line.strip() == LADDER_HEADING]
+    if len(starts) != 1:
         return None
-    rest = flat[start + len(LADDER_HEADING):]
-    end = rest.find('## ')
-    return rest if end < 0 else rest[:end]
+    body = []
+    for line in lines[starts[0] + 1:]:
+        if line.startswith('## '):
+            break
+        body.append(line)
+    return ' '.join(' '.join(body).split())
 
 
 def derive_check_level(row: dict) -> str:
@@ -801,11 +808,11 @@ def agents_rule_errors(text: str) -> list[str]:
         ]
     if len(bullets) > 1:
         return [f'{AGENTS} states {AGENTS_RULE_CITE} {len(bullets)} times; one of them may contradict the other']
-    missing = [phrase for phrase in AGENTS_RULE_PHRASES if phrase not in bullets[0]]
-    if missing:
+    found = ' '.join(bullets[0].removeprefix('-').split())
+    if found != AGENTS_RULE:
         return [
-            f'{AGENTS} rule {AGENTS_RULE_CITE} no longer says {phrase!r}; re-read it before the '
-            'matrix claims accepted' for phrase in missing
+            f'{AGENTS} rule {AGENTS_RULE_CITE} is not the rule this page was accepted against; '
+            're-read it and update AGENTS_RULE in the same change'
         ]
     return []
 
@@ -826,10 +833,14 @@ def validate_check_policy(root: Path, data: dict, by_id: dict, rendered: str | N
     if not plan.is_file():
         errors.append(f'{FORWARD_PLAN} is missing, so the quality ladder has no source')
     else:
-        flat = ' '.join(plan.read_text().split())
-        section = ladder_section(flat)
+        raw = plan.read_text()
+        flat = ' '.join(raw.split())
+        section = ladder_section(raw)
         if section is None:
-            errors.append(f'{FORWARD_PLAN} has no {LADDER_HEADING!r} section to read the ladder from')
+            errors.append(
+                f'{FORWARD_PLAN} does not have exactly one {LADDER_HEADING!r} section to read '
+                'the ladder from'
+            )
             section = ''
         for quote in LADDER_QUOTES:
             # In the ladder's own section, so a decision recorded elsewhere in
