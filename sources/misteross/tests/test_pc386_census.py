@@ -133,6 +133,83 @@ int main(int, char **argv) {
         assert(census.paged_steps == 2 && census.page_cross == 1);
     }
 
+    // The x87 game census keys (the 15 November record's method): the control
+    // word per form, by second and on a write, the significand bucket of
+    // ST(0), and arithmetic by precision and code page.
+    {
+        Census c([](uint32_t at) { return at < ram.size() ? ram[at] : uint8_t(0xff); });
+        auto x87 = [](uint16_t control, uint16_t status, uint64_t significand) {
+            X87State st;
+            st.control = control;
+            st.status = status;  // TOP in bits 13-11
+            st.r[(status >> 11) & 7].significand = significand;
+            return st;
+        };
+        // FMUL m32 (D8 /1) at PC=24, round to nearest, all masked (003Fh),
+        // leaving a 24-bit significand: bit 40 set, nothing below it.
+        put(0x200, {0xd8, 0x0d, 0, 0, 0, 0});
+        State s0 = pm(0x200, 3);
+        s0.seg[SEG_CS].selector = 0x1b;
+        c.begin(s0, "site");
+        c.x87(s0, s0, retired(), x87(0x003f, 0x0000, uint64_t(1) << 40), x87(0x003f, 0x0000, uint64_t(1) << 40), 7.5);
+        assert(c.counts.at("x87op:d8.m1:pm3") == 1);
+        assert(c.counts.at("x87cwform:d8.m1:003f") == 1);
+        assert(c.counts.at("x87cwsec:7:003f") == 1);
+        assert(c.counts.at("x87sig:d8.m1:le24") == 1);
+        assert(c.counts.at("x87cw:mul:003f") == 1);
+        assert(c.counts.at("x87pcsite:0:001b:00000") == 1);
+        // FILD m32 (DB /0) under the same control word, leaving a significand
+        // with bit 0 set: a 64-bit significand, which precision control does
+        // not touch. This is the case that makes a PC=24 title insufficient
+        // for a 24-bit datapath.
+        put(0x210, {0xdb, 0x05, 0, 0, 0, 0});
+        State s1 = pm(0x210, 3);
+        s1.seg[SEG_CS].selector = 0x1b;
+        c.begin(s1, "site");
+        c.x87(s1, s1, retired(), x87(0x003f, 0x0000, 1), x87(0x003f, 0x0000, 1), 7.9);
+        assert(c.counts.at("x87sig:db.m0:le64") == 1);
+        assert(c.counts.at("x87cwsec:7:003f") == 2);
+        // No arithmetic site key for a load.
+        assert(c.counts.count("x87pcsite:0:001b:00000") == 1 && c.counts.at("x87pcsite:0:001b:00000") == 1);
+        // A zero significand is its own bucket, not le24.
+        put(0x218, {0xd9, 0xee});  // FLDZ
+        State s2 = pm(0x218, 3);
+        c.begin(s2, "site");
+        c.x87(s2, s2, retired(), x87(0x003f, 0x0000, 0), x87(0x003f, 0x0000, 0), 8.0);
+        assert(c.counts.at("x87sig:d9ee:zero") == 1);
+        // FLDCW (D9 /5): a write is counted even when it changes nothing.
+        put(0x220, {0xd9, 0x2d, 0, 0, 0, 0});
+        State s3 = pm(0x220, 3);
+        c.begin(s3, "site");
+        c.x87(s3, s3, retired(), x87(0x003f, 0x0000, 0), x87(0x003f, 0x0000, 0), 9.0);
+        assert(c.counts.at("x87cwset:d9.m5:003f>003f") == 1);
+        // FLDCW to PC=64 round-to-zero (0F3Fh): the old value is the one the
+        // instruction itself ran under.
+        c.begin(s3, "site");
+        c.x87(s3, s3, retired(), x87(0x003f, 0x0000, 0), x87(0x0f3f, 0x0000, 0), 9.1);
+        assert(c.counts.at("x87cwset:d9.m5:003f>0f3f") == 1);
+        // FSTP m80 (DB /7): the explicit extended store.
+        put(0x230, {0xdb, 0x3d, 0, 0, 0, 0});
+        State s4 = pm(0x230, 3);
+        c.begin(s4, "site");
+        c.x87(s4, s4, retired(), x87(0x003f, 0x0000, uint64_t(1) << 63), x87(0x003f, 0x0000, uint64_t(1) << 63), 9.2);
+        assert(c.counts.at("x87op:db.m7:pm3") == 1);
+        // FDIV m64 (DC /6) at PC=64 on another page: the site key separates them.
+        put(0x1240, {0xdc, 0x35, 0, 0, 0, 0});
+        State s5 = pm(0x1240, 3);
+        s5.seg[SEG_CS].selector = 0x1b;
+        c.begin(s5, "site");
+        c.x87(s5, s5, retired(), x87(0x0f3f, 0x0000, 3), x87(0x0f3f, 0x0000, 3), 9.3);
+        assert(c.counts.at("x87pcsite:3:001b:00001") == 1);
+        assert(c.counts.at("x87cw:div:0f3f") == 1);
+        // ST(0) follows TOP: with TOP = 3 the bucket is r[3]'s.
+        put(0x250, {0xd8, 0xc1});  // FADD ST, ST(1)
+        State s6 = pm(0x250, 3);
+        c.begin(s6, "site");
+        c.x87(s6, s6, retired(), x87(0x003f, 3 << 11, 0), x87(0x003f, 3 << 11, uint64_t(1) << 30), 9.4);
+        assert(c.counts.at("x87sig:d8.r0:le53") == 1);
+    }
+
     // The TLB model: 16 entries, LRU.
     {
         pc386_census::Tlb t(16);
@@ -317,6 +394,79 @@ class SummaryTest(unittest.TestCase):
         self.assertEqual(row['tlb'], {'dtlb16': {'accesses': 2000, 'walks': 3, 'walks_per_100': 0.15},
                                       'itlb8': {'accesses': 0, 'walks': 0, 'walks_per_100': None}})
         self.assertEqual((row['end'], row['seconds'], row['paged_steps']), ('limit', 20.0, 50))
+
+    X87_CENSUS = '\n'.join([
+        'x87op:d8.m1:pm3 100 001b:00001000', 'x87op:d9.m0:pm3 40 001b:00001010',
+        'x87op:dd.m3:pm3 10 001b:00001020', 'x87op:db.m0:pm3 50 001b:00001030',
+        'x87op:d9.r1:pm3 30 001b:00001040', 'x87op:dbe3:rm 2 0000:00000100',
+        'x87cwform:d8.m1:003f 90 001b:00001000', 'x87cwform:d8.m1:0f3f 10 001b:00001000',
+        'x87cwform:d9.m0:003f 40 001b:00001010', 'x87cwform:db.m0:003f 50 001b:00001030',
+        'x87cwsec:0:003f 10 -', 'x87cwsec:1:0f3f 20 -',
+        'x87cwset:d9.m5:037f>003f 1 001b:00001050', 'x87cwset:dbe3:ffff>037f 2 0000:00000100',
+        'x87sig:d8.m1:le24 95 001b:00001000', 'x87sig:d8.m1:le53 5 001b:00001000',
+        'x87sig:db.m0:le24 50 001b:00001030',
+        'x87pcsite:0:001b:00001 90 001b:00001000', 'x87pcsite:3:001b:00002 10 001b:00002000',
+        'x87es:d8.m1:pm3:ne=1 1 001b:00001000',
+        'x87exc:d8.m1:raised=20:unmasked=00 3 001b:00001000',
+        'x87wait:pm3 7 001b:00001060']) + '\n'
+
+    def test_the_x87_row(self):
+        """The census keys this record added, and the committed verdict."""
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, 'census.txt').write_text(self.X87_CENSUS)
+            row = summary.run('t', Path(tmp))['x87']
+        self.assertEqual(row['retired'], 232)
+        self.assertEqual(row['by_class'], {'arith': 100, 'control': 2, 'fxch': 30, 'load': 90, 'store': 10})
+        # The operand widths come from the form, not from new instrumentation.
+        self.assertEqual(row['by_operand'], {'int32': 50, 'real32': 140, 'real64': 10})
+        self.assertEqual(row['unknown_forms'], {})
+        # Precision and rounding control over the arithmetic forms only.
+        self.assertEqual(row['pc_arith'], {'24': 90, '64': 10})
+        self.assertEqual(row['rc_arith'], {'nearest': 90, 'zero': 10})
+        self.assertEqual(row['pc_all'], {'24': 180, '64': 10})
+        self.assertEqual(row['cw_by_second'], {'0': ['pc24/nearest'], '1': ['pc64/zero']})
+        self.assertEqual(row['cw_writes'], {'d9.m5:037f>003f': 1, 'dbe3:ffff>037f': 2})
+        self.assertEqual(row['pc_sites'], {'24': {'001b:00001': 90}, '64': {'001b:00002': 10}})
+        self.assertEqual(row['exception_masks'], {'3f': 190})
+        self.assertEqual(row['es_set'], {'d8.m1:pm3:ne=1': 1})
+        self.assertEqual(row['fwait'], 7)
+        # Two independent reasons, each named with its count.
+        self.assertFalse(row['pc24_sufficient'])
+        self.assertEqual(row['pc24_insufficient_because'],
+                         ['10 arithmetic ESCs at PC=64', '5 steps left ST(0) with a significand in le53'])
+
+    def test_pc24_is_not_sufficient_on_a_wide_load_alone(self):
+        """The counterexample: every arithmetic ESC at PC=24, and still not
+        sufficient, because a load put a 64-bit significand in a register.
+        Precision control does not act on loads."""
+        census = ('x87op:d8.m1:pm3 100 -\nx87op:db.m0:pm3 50 -\n'
+                  'x87cwform:d8.m1:003f 100 -\nx87cwform:db.m0:003f 50 -\n'
+                  'x87sig:d8.m1:le24 100 -\nx87sig:db.m0:le64 50 -\n')
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, 'census.txt').write_text(census)
+            row = summary.run('t', Path(tmp))['x87']
+        self.assertEqual(row['pc_arith'], {'24': 100})
+        self.assertFalse(row['pc24_sufficient'])
+        self.assertEqual(row['pc24_insufficient_because'],
+                         ['50 steps left ST(0) with a significand in le64'])
+        # The same run with that load narrow is sufficient, so the verdict is
+        # not simply always false.
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, 'census.txt').write_text(census.replace('db.m0:le64', 'db.m0:le24'))
+            row = summary.run('t', Path(tmp))['x87']
+        self.assertTrue(row['pc24_sufficient'])
+
+    def test_a_probe_only_title_has_no_verdict(self):
+        """A title that only probes computes nothing, so sufficiency does not
+        apply to it; this is the DOOM row's shape."""
+        census = ('x87op:dbe3:rm 1 -\nx87op:dfe0:rm 4 -\nx87op:d9.m7:rm 3 -\n'
+                  'x87cwform:dbe3:037f 1 -\nx87sig:dbe3:zero 1 -\n')
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, 'census.txt').write_text(census)
+            row = summary.run('t', Path(tmp))['x87']
+        self.assertTrue(row['probe_only'])
+        self.assertIsNone(row['pc24_sufficient'])
+        self.assertEqual(row['by_class'], {'control': 8})
 
     def test_the_rows_are_stable(self):
         with tempfile.TemporaryDirectory() as tmp:

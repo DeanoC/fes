@@ -1850,7 +1850,8 @@ int main(int argc, char **argv) {
                 if (!options.census.empty()) {
                     const fes_i386::State after = oracle->get_state();
                     census.end(before, after, result);
-                    census.x87(before, after, result, x87_before, oracle->x87_state());
+                    census.x87(before, after, result, x87_before, oracle->x87_state(),
+                               double(machine.cycles) / CLOCK_HZ);
                 }
                 machine.irq13 = oracle->x87_irq13();
                 ++steps;

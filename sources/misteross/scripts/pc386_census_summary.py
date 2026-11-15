@@ -97,11 +97,197 @@ def summarize(counts: dict[str, int]) -> dict:
     }
 
 
+# The x87 game census (docs/validation/2026-11-15-i386-x87-game-census/method.md).
+# A form's name, its slice class and the operand it moves. The form is the
+# census's: the opcode, ".m<reg>" for a memory form, the whole ModRM for the
+# register forms that need it, else ".r<reg>".
+#
+# class: load, store, fxch, arith, compare, trans, control, image, simple.
+# operand: real32, real64, real80, int16, int32, int64, bcd80, image, none.
+X87_FORMS = {
+    # D8/DC: real arithmetic, memory (m32 / m64) and register.
+    **{f'd8.m{r}': (('arith' if r in (0, 1, 4, 5, 6, 7) else 'compare'), 'real32') for r in range(8)},
+    **{f'dc.m{r}': (('arith' if r in (0, 1, 4, 5, 6, 7) else 'compare'), 'real64') for r in range(8)},
+    **{f'd8.r{r}': (('arith' if r in (0, 1, 4, 5, 6, 7) else 'compare'), 'none') for r in range(8)},
+    **{f'dc.r{r}': (('arith' if r in (0, 1, 4, 5, 6, 7) else 'compare'), 'none') for r in range(8)},
+    **{f'de.r{r}': (('arith' if r in (0, 1, 4, 5, 6, 7) else 'compare'), 'none') for r in range(8)},
+    # DA/DE memory: integer arithmetic (m32 / m16).
+    **{f'da.m{r}': (('arith' if r in (0, 1, 4, 5, 6, 7) else 'compare'), 'int32') for r in range(8)},
+    **{f'de.m{r}': (('arith' if r in (0, 1, 4, 5, 6, 7) else 'compare'), 'int16') for r in range(8)},
+    # D9 memory: FLD/FST/FSTP m32, FLDENV, FLDCW, FNSTENV, FNSTCW.
+    'd9.m0': ('load', 'real32'), 'd9.m2': ('store', 'real32'), 'd9.m3': ('store', 'real32'),
+    'd9.m4': ('control', 'image'), 'd9.m5': ('control', 'none'),
+    'd9.m6': ('control', 'image'), 'd9.m7': ('control', 'none'),
+    # DD memory: FLD/FST/FSTP m64, FRSTOR, FNSAVE, FNSTSW m16.
+    'dd.m0': ('load', 'real64'), 'dd.m2': ('store', 'real64'), 'dd.m3': ('store', 'real64'),
+    'dd.m4': ('control', 'image'), 'dd.m6': ('control', 'image'), 'dd.m7': ('control', 'none'),
+    # DB memory: FILD/FIST/FISTP m32, FLD m80, FSTP m80.
+    'db.m0': ('load', 'int32'), 'db.m2': ('store', 'int32'), 'db.m3': ('store', 'int32'),
+    'db.m5': ('load', 'real80'), 'db.m7': ('store', 'real80'),
+    # DF memory: FILD/FIST/FISTP m16, FBLD/FBSTP m80, FILD/FISTP m64.
+    'df.m0': ('load', 'int16'), 'df.m2': ('store', 'int16'), 'df.m3': ('store', 'int16'),
+    'df.m4': ('load', 'bcd80'), 'df.m5': ('load', 'int64'),
+    'df.m6': ('store', 'bcd80'), 'df.m7': ('store', 'int64'),
+    # D9 register forms.
+    'd9.r0': ('load', 'none'), 'd9.r1': ('fxch', 'none'),
+    'd9e0': ('simple', 'none'), 'd9e1': ('simple', 'none'), 'd9e4': ('compare', 'none'),
+    'd9e5': ('compare', 'none'), 'd9e8': ('load', 'none'), 'd9e9': ('load', 'none'),
+    'd9ea': ('load', 'none'), 'd9eb': ('load', 'none'), 'd9ec': ('load', 'none'),
+    'd9ed': ('load', 'none'), 'd9ee': ('load', 'none'),
+    'd9f0': ('trans', 'none'), 'd9f1': ('trans', 'none'), 'd9f2': ('trans', 'none'),
+    'd9f3': ('trans', 'none'), 'd9f4': ('simple', 'none'), 'd9f5': ('trans', 'none'),
+    'd9f6': ('simple', 'none'), 'd9f7': ('simple', 'none'), 'd9f8': ('trans', 'none'),
+    'd9f9': ('trans', 'none'), 'd9fa': ('arith', 'none'), 'd9fb': ('trans', 'none'),
+    'd9fc': ('arith', 'none'), 'd9fd': ('trans', 'none'), 'd9fe': ('trans', 'none'),
+    'd9ff': ('trans', 'none'),
+    # DB/DA/DE/DD register forms that carry their whole ModRM.
+    'dbe0': ('control', 'none'), 'dbe1': ('control', 'none'), 'dbe2': ('control', 'none'),
+    'dbe3': ('control', 'none'), 'dbe4': ('control', 'none'),
+    'dae9': ('compare', 'none'), 'ded9': ('compare', 'none'), 'dfe0': ('control', 'none'),
+    **{f'dd.r{r}': ('simple', 'none') for r in range(4)},
+    **{f'dde{n:x}': ('simple', 'none') for n in range(16)},
+    **{f'db.r{r}': ('simple', 'none') for r in range(8)},
+    **{f'da.r{r}': ('compare', 'none') for r in range(8)},
+    **{f'df.r{r}': ('simple', 'none') for r in range(8)},
+}
+# FXCH is d9.r1; the sqrt and the precision-controlled register forms above
+# are named individually. Forms the table does not name are counted as
+# 'unknown' and reported, never silently dropped.
+X87_ARITH_PC = ('arith',)  # the classes precision control acts on
+PRECISION = {0: '24', 1: 'reserved', 2: '53', 3: '64'}
+ROUNDING = {0: 'nearest', 1: 'down', 2: 'up', 3: 'zero'}
+
+
+def x87_form_of(key: str) -> str:
+    """The form in an x87 key's field: 'D8.m0:pm3' -> 'D8.m0'."""
+    return key.split(':')[0]
+
+
+def x87_summary(counts: dict[str, int]) -> dict:
+    """The x87 rows this record's tables are built from."""
+    ops: Counter = Counter()
+    for key, n in counts.items():
+        if key.startswith('x87op:'):
+            ops[x87_form_of(key[len('x87op:'):])] += n
+    by_class: Counter = Counter()
+    by_operand: Counter = Counter()
+    unknown: Counter = Counter()
+    for form, n in ops.items():
+        entry = X87_FORMS.get(form)
+        if entry is None:
+            unknown[form] += n
+            continue
+        cls, operand = entry
+        by_class[cls] += n
+        if operand != 'none':
+            by_operand[operand] += n
+    # Precision and rounding control, per form and over the arithmetic forms.
+    pc_arith: Counter = Counter()
+    rc_arith: Counter = Counter()
+    pc_all: Counter = Counter()
+    rc_all: Counter = Counter()
+    for key, n in counts.items():
+        if not key.startswith('x87cwform:'):
+            continue
+        rest = key[len('x87cwform:'):]
+        form, _, cw_text = rest.rpartition(':')
+        cw = int(cw_text, 16)
+        pc, rc = PRECISION[(cw >> 8) & 3], ROUNDING[(cw >> 10) & 3]
+        pc_all[pc] += n
+        rc_all[rc] += n
+        entry = X87_FORMS.get(x87_form_of(form))
+        if entry and entry[0] in X87_ARITH_PC:
+            pc_arith[pc] += n
+            rc_arith[rc] += n
+    sig: Counter = Counter()
+    sig_by_form: dict[str, Counter] = {}
+    for key, n in counts.items():
+        if key.startswith('x87sig:'):
+            form, _, bucket = key[len('x87sig:'):].rpartition(':')
+            sig[bucket] += n
+            sig_by_form.setdefault(bucket, Counter())[form] += n
+    masks: Counter = Counter()
+    for key, n in counts.items():
+        if key.startswith('x87cwform:'):
+            cw = int(key.rpartition(':')[2], 16)
+            masks[f'{cw & 0x3f:02x}'] += n
+    pc_sites: dict[str, Counter] = {}
+    for key, n in counts.items():
+        if key.startswith('x87pcsite:'):
+            pc, cs, page = key[len('x87pcsite:'):].split(':')
+            pc_sites.setdefault(PRECISION[int(pc)], Counter())[f'{cs}:{page}'] += n
+    cw_sets: Counter = Counter()
+    for key, n in counts.items():
+        if key.startswith('x87cwset:'):
+            cw_sets[key[len('x87cwset:'):]] += n
+    cw_seconds: dict[str, set] = {}
+    for key, n in counts.items():
+        if key.startswith('x87cwsec:'):
+            second, _, cw_text = key[len('x87cwsec:'):].rpartition(':')
+            cw = int(cw_text, 16)
+            cw_seconds.setdefault(second, set()).add(f'pc{PRECISION[(cw >> 8) & 3]}/{ROUNDING[(cw >> 10) & 3]}')
+    retired = sum(ops.values())
+    # The committed verdict
+    # (docs/validation/2026-11-15-i386-x87-game-census/method.md): a title is
+    # sufficient for a 24-bit significand only if every arithmetic ESC ran at
+    # PC=24, no significand wider than 24 bits was observed, and no m80 real
+    # operand was loaded or stored. Each failing reason is named with its
+    # count, so the verdict is the script's output and not a reading of the
+    # tables. Mind what it does not say: precision control narrows the
+    # significand only, so "sufficient" means a 24-bit-significand unit with
+    # the 387's 15-bit exponent, never an fp32 one.
+    reasons = []
+    for pc, n in sorted(pc_arith.items()):
+        if pc != '24' and n:
+            reasons.append(f'{n} arithmetic ESCs at PC={pc}')
+    for bucket in ('le53', 'le64'):
+        if sig.get(bucket):
+            reasons.append(f'{sig[bucket]} steps left ST(0) with a significand in {bucket}')
+    for form in ('db.m5', 'db.m7'):
+        if ops.get(form):
+            reasons.append(f'{ops[form]} {"FLD" if form == "db.m5" else "FSTP"} m80')
+    computing = bool(by_class.get('arith', 0) or by_class.get('trans', 0) or by_class.get('load', 0)
+                     or by_class.get('store', 0) or by_class.get('fxch', 0))
+    return {
+        'computes': computing,
+        'probe_only': not computing,
+        'pc24_sufficient': (not reasons) if computing else None,
+        'pc24_insufficient_because': reasons,
+        'retired': retired,
+        'by_form': dict(sorted(ops.items())),
+        'by_class': dict(sorted(by_class.items())),
+        'by_operand': dict(sorted(by_operand.items())),
+        'unknown_forms': dict(sorted(unknown.items())),
+        'pc_arith': dict(sorted(pc_arith.items())),
+        'rc_arith': dict(sorted(rc_arith.items())),
+        'pc_all': dict(sorted(pc_all.items())),
+        'rc_all': dict(sorted(rc_all.items())),
+        'significand': dict(sorted(sig.items())),
+        'significand_forms': {b: dict(sorted(c.items())) for b, c in sorted(sig_by_form.items())},
+        'exception_masks': dict(sorted(masks.items())),
+        'pc_sites': {p: dict(sorted(c.items())) for p, c in sorted(pc_sites.items())},
+        'cw_writes': dict(sorted(cw_sets.items())),
+        'cw_by_second': {k: sorted(v) for k, v in sorted(cw_seconds.items(), key=lambda kv: int(kv[0]))},
+        'es_set': {k[len('x87es:'):]: n for k, n in sorted(counts.items()) if k.startswith('x87es:')},
+        'exceptions': {k[len('x87exc:'):]: n for k, n in sorted(counts.items()) if k.startswith('x87exc:')},
+        'faults': {k[len('x87fault:'):]: n for k, n in sorted(counts.items()) if k.startswith('x87fault:')},
+        'held': {k[len('x87held:'):]: n for k, n in sorted(counts.items()) if k.startswith('x87held:')},
+        'emulator_ints': {k[len('x87emuint:'):]: n for k, n in sorted(counts.items()) if k.startswith('x87emuint:')},
+        'coprocessor_io': {k[len('x87io:'):]: n for k, n in sorted(counts.items()) if k.startswith('x87io:')},
+        'cr0_changes': {k[len('x87cr0:'):]: n for k, n in sorted(counts.items()) if k.startswith('x87cr0:')},
+        'events': {k[len('x87ev:'):]: n for k, n in sorted(counts.items()) if k.startswith('x87ev:')},
+        'fwait': sum(n for k, n in counts.items() if k.startswith('x87wait')),
+        'stem_total': sum(n for k, n in counts.items()
+                          if re.match(r'^(?:67)?(?:66)?D[89ABCDEF]\.\d(?::|$)', k)),
+    }
+
+
 def run(title: str, directory: Path) -> dict:
     census = directory / 'census.txt'
     if not census.exists():
         return {'title': title, 'missing': True}
-    row = {'title': title, **summarize(load(census))}
+    counts = load(census)
+    row = {'title': title, **summarize(counts), 'x87': x87_summary(counts)}
     report = directory / 'report.json'
     if report.exists():
         end = json.loads(report.read_text()).get('end') or {}

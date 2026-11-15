@@ -280,7 +280,7 @@ public:
     // 34h-3Eh) and I/O to the AT's coprocessor ports F0h-FFh. before and
     // after are the 387's state around the step.
     void x87(const fes_i386::State &before, const fes_i386::State &after, const fes_i386::StepResult &result,
-             const fes_i386::X87State &before87, const fes_i386::X87State &after87) {
+             const fes_i386::X87State &before87, const fes_i386::X87State &after87, double seconds = 0.0) {
         const uint16_t cw0 = before87.control, sw0 = before87.status, sw1 = after87.status;
         const bool delivery = !result.events.empty() && (result.events[0].kind == fes_i386::EventKind::ExternalInterrupt ||
                                                         result.events[0].kind == fes_i386::EventKind::Nmi);
@@ -328,6 +328,36 @@ public:
             return;
         }
         count("x87op:" + form + mode);
+        // The game census (docs/validation/2026-11-15-i386-x87-game-census/method.md).
+        // The control word every retired form ran under, and by whole
+        // simulated second: precision and rounding control over time, and
+        // rounding on the integer stores, which the by-class key above does
+        // not separate.
+        const uint16_t cw = cw0 & 0x1f3f;
+        count("x87cwform:" + form + ':' + hex(cw, 4));
+        count("x87cwsec:" + std::to_string(uint64_t(seconds)) + ':' + hex(cw, 4));
+        // Control-word writes, from the state after the step, including a
+        // write that leaves the value unchanged: FLDCW, FNINIT, FLDENV and
+        // FRSTOR. "Does the title ever write the control word" is then a
+        // count, not an inference from the value.
+        if (form == "d9.m5" || form == "dbe3" || form == "d9.m4" || form == "dd.m4")
+            count("x87cwset:" + form + ':' + hex(cw0 & 0x1f3f, 4) + '>' + hex(after87.control & 0x1f3f, 4));
+        // The significand width in use: 64 - ctz of ST(0) after the step.
+        // A value rounded to 24 bits of significand has at least 40 trailing
+        // zeros, so a bucket above le24 is a value a 24-bit significand
+        // cannot hold.
+        const unsigned top = (after87.status >> 11) & 7;
+        const uint64_t sig = after87.r[top].significand;
+        const char *bucket = "zero";
+        if (sig) {
+            unsigned width = 64;
+            while (width > 1 && !(sig & (uint64_t(1) << (64 - width)))) --width;
+            bucket = width <= 24 ? "le24" : width <= 53 ? "le53" : "le64";
+        }
+        count(std::string("x87sig:") + form + ':' + bucket);
+        // Arithmetic by precision control and code page, so a title's
+        // non-PC=24 arithmetic can be attributed to its engine or to a
+        // library or DPMI host.
         // The control word by class: precision control sets an iterative
         // divider's and square root's latency.
         // The arithmetic forms: D8 and DC both ways, DE's register forms and
@@ -346,6 +376,9 @@ public:
                                 modrm == 0xfb || modrm == 0xfe || modrm == 0xff))
             cls = "trans";
         count("x87cw:" + cls + ':' + hex(cw0 & 0x1f3f, 4));
+        if (cls == "add" || cls == "mul" || cls == "div" || cls == "sqrt")
+            count("x87pcsite:" + std::to_string((cw0 >> 8) & 3) + ':' + hex(before.seg[fes_i386::SEG_CS].selector, 4) +
+                  ':' + hex(((before.seg[fes_i386::SEG_CS].base + before.eip) >> 12), 5));
         const unsigned raised = sw1 & ~sw0 & 0x7f;
         if (raised) count("x87exc:" + form + ":raised=" + hex(raised, 2) + ":unmasked=" + hex(raised & ~cw0 & 0x3f, 2));
         // ne= is CR0 bit 5, a reserved bit on a 386, which Bochs at CPU level
