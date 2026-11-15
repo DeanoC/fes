@@ -126,6 +126,37 @@ PR's tooling and the merge base's `BUILD_ID` reproduces the merge base's RBF
 byte for byte, and the PR's own build passes the core's normal timing and seal
 gates. No reseal and no kit HIL are required for this change.
 
+## 4. Merge forward to `e9218eb5e`
+
+After sections 1 to 3 were measured, main advanced to `e9218eb5e` (#1791) and
+main was merged into this branch. D12 keeps a recorded comparison across a
+merge forward where the core's compiled source set and its route-deciding
+inputs — its toolchain lock, its timing and pin constraints, and its placement
+recipe — are unchanged between the old base and the new one. Both hold here:
+
+- `cores/fes-common/rtl/fes_embedded_control.sv` changed, and `fes.ramtest`
+  does not compile it; it is in neither `RTL_SOURCES` nor the core's closure.
+- `scripts/core_package.py` changed and **is** in the core's source closure,
+  so the new base's `BUILD_ID` differs from `7a60de20`. It is not compiled, so
+  it cannot move the netlist.
+- `cores/fes-ramtest/toolchain.lock`, `cores/fes-ramtest/constraints.qsf`,
+  `boards/de10nano/clocks.sdc` and `fes.ramtest`'s `[recipes.pnr]` entry are
+  all untouched between `8bbbed801` and `e9218eb5e`.
+
+Rather than rest on that reasoning, the netlist was re-measured with `BUILD_ID`
+pinned to 32 zeros, twice per side, at the new base `e9218eb5e` and at the
+merged head `46b3a1ba8`:
+
+| Run | Tree | `synth.json` SHA-256 |
+| --- | --- | --- |
+| base2 r1, r2 | new merge base | `391b7a6b53a8f818…` (both) |
+| head2 r1, r2 | merged PR head | `391b7a6b53a8f818…` (both) |
+
+`cmp` confirms the new base, the merged head and the old base all produce the
+identical netlist, so main's own netlist is byte-identical at both bases and
+section 2's RBF comparison carries unchanged. Eight synthesis runs in total
+agree on `391b7a6b53a8f818…`.
+
 ## Scope of this record
 
 This record covers artifact identity only. It is not hardware acceptance, and
