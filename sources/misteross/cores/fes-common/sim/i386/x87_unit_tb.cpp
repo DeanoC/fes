@@ -1478,8 +1478,10 @@ int main(int argc, char **argv) {
             {"fxtract", 0x1, 0xf4, 1, ARITH_SW},
         };
         const size_t named = 22;
-        for (unsigned pc = 0; pc < 3; ++pc) {
-            const unsigned pcbits = pc == 0 ? 0 : pc == 1 ? 2 : 3;   // 24, 53, 64 bits
+        // PC 01 is reserved. The unit reads it as the extended format; this
+        // row is what says whether a real x87 agrees.
+        for (unsigned pc = 0; pc < 4; ++pc) {
+            const unsigned pcbits = pc == 0 ? 0 : pc == 1 ? 2 : pc == 2 ? 3 : 1;
             for (const PForm &f : pforms) {
                 for (unsigned rc = 0; rc < 4; ++rc) {
                     const uint16_t cw = cw_of(rc, pcbits);
@@ -1505,7 +1507,8 @@ int main(int argc, char **argv) {
                                 ++diffs;
                             }
                         }
-                    const std::string name = std::string("pc") + (pc == 0 ? "24" : pc == 1 ? "53" : "64") +
+                    const std::string name = std::string("pc") +
+                                             (pc == 0 ? "24" : pc == 1 ? "53" : pc == 2 ? "64" : "01") +
                                              "-" + f.name + "-rc" + std::to_string(rc);
                     if (diffs) bad(name, std::to_string(diffs) + " of " + std::to_string(ran) + " " + first);
                     else ok(name);
@@ -1644,6 +1647,36 @@ int main(int argc, char **argv) {
     }
 
 
+
+    // ---- FXTRACT's push, on a full stack. ----
+    // The only push this slice makes. A full stack is a stack overflow: the
+    // masked result is the real indefinite in both registers with C1 set,
+    // which says overflow rather than underflow, and unmasked it leaves the
+    // stack alone. Nothing else in the bench reaches those writes.
+    {
+        StubPage page;
+        uint8_t full[8][10];
+        for (unsigned n = 0; n < 8; ++n) {
+            const uint64_t sig = 0x8000000000000000ull | (uint64_t(n + 1) << 40);
+            const uint16_t se = uint16_t(0x4000 + n);
+            std::memcpy(full[n], &sig, 8);
+            std::memcpy(full[n] + 8, &se, 2);
+        }
+        const uint8_t ops[2] = {0xd9, 0xf4};
+        for (unsigned which = 0; which < 2; ++which) {
+            const uint16_t cw = uint16_t(which ? (host_cw(0) & ~0x0001) : host_cw(0));
+            Image want{}, got{};
+            Unit u;
+            bool ok_stub = host_form(page, cw, full, 8, nullptr, ops, 2, want);
+            unit_form(u, cw, full, 8, nullptr, (1u << 8) | 0xf4, 0, got);
+            const std::string name = std::string("xtract-overflow-") + (which ? "unmasked" : "masked");
+            if (!ok_stub) bad(name, "no stub page");
+            else if (!same_state(want, got, 0xfaff))
+                bad(name, "got " + state_str(got, 0xfaff) + " want " + state_str(want, 0xfaff));
+            else ok(name);
+        }
+    }
+
     // ---- The exception edges, masked and unmasked. ----
     // The operand pairs the grid above never reaches: an overflowing product,
     // an underflow into the denormals and past them, the tininess boundary,
@@ -1745,7 +1778,8 @@ int main(int argc, char **argv) {
             {"fmulp", 0x6, 0xc9, 2, ARITH_SW}, {"fscale", 0x1, 0xfd, 2, ARITH_SW},
             {"fadd.sti", 0x4, 0xc1, 2, ARITH_SW}, {"fsubr.sti", 0x4, 0xe9, 2, ARITH_SW},
             {"frndint", 0x1, 0xfc, 1, ARITH_SW}, {"fxtract", 0x1, 0xf4, 1, ARITH_SW},
-            {"fcom",  0x0, 0xd1, 2, 0xffff},
+            {"fcom",  0x0, 0xd1, 2, 0xffff}, {"fcompp", 0x6, 0xd9, 2, 0xffff},
+            {"fucomp", 0x5, 0xe9, 2, 0xffff},
         };
         for (const Mask &m : masks) {
             for (unsigned rc = 0; rc < 4; ++rc) {

@@ -747,10 +747,6 @@ public:
         }
         if (top.trace_unimplemented) return Event::Unimplemented;
         if (top.shutdown) return Event::Shutdown;
-        if (std::getenv("FES_I386_X87DBG"))
-            std::fprintf(stderr, "timeout: x87 seq=%d busy=%d latched=%d irq13=%d sw=%04x tw=%04x\n",
-                         int(top.trace_x87_seq), int(top.trace_x87_busy), int(top.trace_x87_latched),
-                         int(top.x87_irq13), unsigned(top.arch_x87_sw), unsigned(top.arch_x87_tw));
         return Event::Timeout;
     }
 
@@ -2981,14 +2977,8 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // RTL halts too: a REP that stores over the HLT after it, which the
         // RTL has fetched, as the 386EX had.
         if (result.halted || rtl.stopped()) {
-            if (!(result.halted && rtl.stopped()) && !(skip.all && rtl.stopped())) {
+            if (!(result.halted && rtl.stopped()) && !(skip.all && rtl.stopped()))
                 out.add(at + "halt", result.halted, rtl.stopped());
-                if (std::getenv("FES_I386_X87DBG"))
-                    std::fprintf(stderr, "halt split: oracle eip=%08x rtl eip=%08x code_hi=%08x "
-                                         "before.eip=%08x halted=%d stopped=%d\n",
-                                 oracle.get_state().eip, rtl.state().eip, code_hi, before.eip,
-                                 int(result.halted), int(rtl.stopped()));
-            }
             // A HLT before the program's last, with IF set, wakes on INTR.
             const State now = oracle.get_state();
             if (irq && result.halted && rtl.top.trace_halt && !rtl.top.trace_unimplemented && (now.eflags & 0x200) &&
@@ -10630,16 +10620,13 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             };
             // stderr: the runner reads stdout as its own protocol.
             std::cerr << "x87:" << c.label << " states (ip before settling " << hex(ip_before_settle)
-                      << ", busy " << busy_before_settle << ", limit " << outcome.limit
-                      << ", halted " << outcome.halted << ", eip " << hex(rtl.state().eip)
-                      << ", seq " << int(rtl.top.trace_x87_seq) << ", bytes " << hex(uint32_t(a.b.size()))
-                      << ", shutdown " << outcome.shutdown << ", vmoved " << outcome.vector_moved
-                      << ", wcode " << outcome.window_code << ", cstore " << outcome.code_store
-                      << ", repstore " << outcome.rep_self_store << ", exc " << outcome.exception
-                      << ", unbuilt " << outcome.unbuilt << ", interrupt " << outcome.interrupt
-                      << ", trace_unbuilt " << int(rtl.top.trace_unbuilt)
-                      << ", trace_unimpl " << int(rtl.top.trace_unimplemented)
-                      << ")\n";
+                      << ", busy " << busy_before_settle << ", eip " << hex(rtl.state().eip)
+                      << ", limit " << outcome.limit << ", halted " << outcome.halted
+                      // `unbuilt` is the field worth having: a form missing
+                      // from x87_built_form above stops the run with every
+                      // other outcome flag clear and no mismatch of its own,
+                      // which reads as a program that simply did not halt.
+                      << ", unbuilt " << outcome.unbuilt << ")\n";
             show("oracle", want);
             show("rtl   ", got);
         }
