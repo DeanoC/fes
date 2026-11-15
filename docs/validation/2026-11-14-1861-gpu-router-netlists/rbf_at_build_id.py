@@ -125,9 +125,98 @@ def _zx81_model(model: str):
     return route
 
 
+def route_spectrum(tree: Path, cache_root: Path, build_id: str):
+    """Spectrum: a generated socket QSF, then Yosys, then the recipe's search.
+
+    No netlist transform here, unlike the ZX81 family. Mirrors
+    build_fes_spectrum_oss.build() between _prepare_output and
+    route_after_synth.
+    """
+    producer = _load(tree, "build_fes_spectrum_oss")
+    from scripts.functional_execution import FunctionalInvocation
+    from scripts.search_placer_qor import route_after_synth
+    from scripts import pnr_recipe
+
+    model = "48"
+    machine = producer.model_for(model)
+    pnr = producer.pnr_for(machine)
+    authenticated = producer._authenticate_spectrum_tools(
+        producer.ROOT, cache_root=cache_root, gpu_router="HIP", core_id=machine.core_id)
+    invocation = FunctionalInvocation(authenticated, 0)
+    try:
+        output = producer._prepare_output(
+            producer.ROOT, relative=machine.output, build_outputs=producer.BUILD_OUTPUTS)
+        producer._write_atomic(
+            output / "socket.qsf",
+            producer.socket_qsf((producer.ROOT / producer.QSF).read_text()).encode())
+        yosys, _route = producer.build_commands(
+            producer.ROOT, output, build_id,
+            {n: authenticated[n].path for n in ("yosys", "nextpnr-mistral")}, model=model)
+        producer._run_tool(yosys, producer.ROOT, output / "yosys.log",
+                           env=invocation.env, audit_source_root=producer.ROOT,
+                           output_relative=machine.output)
+        if not (output / "synth.json").is_file():
+            raise SystemExit("Yosys produced no synthesis evidence")
+        producer.validate_synth_evidence(output, model=model, source_root=producer.ROOT)
+        winner = route_after_synth(
+            nextpnr=authenticated["nextpnr-mistral"].path,
+            fixture=output / "synth.json", dest=output, device=producer.TARGET,
+            qsf=output / "socket.qsf", sdc=producer.ROOT / producer.SDC, freq="74.25",
+            seeds=tuple(pnr["seeds"]), weights=(pnr["timing_weights"][0],),
+            critexp=pnr["critexp"], budget=len(pnr["seeds"]),
+            mode="first-pass", extra=(), timeout=pnr["timeout_s"],
+            required=pnr_recipe.required_clocks(machine.core_id),
+            gpu_devices=(invocation.gpu_device,),
+            env=invocation.env, audit_source_root=producer.ROOT, core_id=machine.core_id)
+        return output, {n: t.identity for n, t in authenticated.items()}, winner
+    finally:
+        invocation.close()
+
+
+def route_c64(tree: Path, cache_root: Path, build_id: str):
+    """c64: a generated socket QSF, then Yosys, then the recipe's search."""
+    producer = _load(tree, "build_fes_c64_oss")
+    from scripts.functional_execution import FunctionalInvocation
+    from scripts.search_placer_qor import route_after_synth
+
+    authenticated = producer._authenticate_c64_tools(producer.ROOT, cache_root=cache_root)
+    invocation = FunctionalInvocation(authenticated, 0)
+    try:
+        output = producer._prepare_output(
+            producer.ROOT, relative=producer.OUTPUT_RELATIVE,
+            build_outputs=producer.BUILD_OUTPUTS)
+        producer._write_atomic(
+            output / "socket.qsf",
+            producer.socket_qsf((producer.ROOT / producer.QSF).read_text()).encode())
+        yosys, _route = producer.build_commands(
+            producer.ROOT, output, build_id,
+            {n: authenticated[n].path for n in ("yosys", "nextpnr-mistral")})
+        producer._run_tool(yosys, producer.ROOT, output / "yosys.log",
+                           env=invocation.env, audit_source_root=producer.ROOT,
+                           output_relative=producer.OUTPUT_RELATIVE)
+        if not (output / "synth.json").is_file():
+            raise SystemExit("Yosys produced no synthesis evidence")
+        producer.validate_synth_evidence(output, source_root=producer.ROOT)
+        winner = route_after_synth(
+            nextpnr=authenticated["nextpnr-mistral"].path,
+            fixture=output / "synth.json", dest=output, device=producer.TARGET,
+            qsf=output / "socket.qsf", sdc=producer.ROOT / producer.SDC, freq="74.25",
+            seeds=producer.PLACER_SEEDS, weights=(producer.PLACER_WEIGHT,),
+            critexp=producer.PLACER_CRITICALITY_EXPONENT,
+            budget=len(producer.PLACER_SEEDS), mode="first-pass", extra=(),
+            timeout=producer.ROUTE_TIMEOUT_SECONDS,
+            required=producer.PLACER_QOR_CLOCKS, gpu_devices=(invocation.gpu_device,),
+            env=invocation.env, audit_source_root=producer.ROOT, core_id="fes.c64")
+        return output, {n: t.identity for n, t in authenticated.items()}, winner
+    finally:
+        invocation.close()
+
+
 CORES = {
     "fes.menu": route_menu,
     "fes.zx81": _zx81_model("zx81"),
+    "fes.spectrum": route_spectrum,
+    "fes.c64": route_c64,
 }
 
 
