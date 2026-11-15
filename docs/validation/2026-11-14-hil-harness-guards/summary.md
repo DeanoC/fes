@@ -69,8 +69,9 @@ client `kit.py` the session drivers already import, and are checked in
    the kit's FogCast data directories: the agent never sees it.
    `guard-idle` reads the kit's state and claims nothing, so it is an
    observation and not an enforcement — see the correction below. The only
-   caller that removes anything is `kit_hil.py clean`, which holds the lease
-   across its whole listing and removal, and which
+   caller that removes anything is `kit_hil.clean`, a library call the driver
+   makes inside the lease its run already holds (see "the cleanup no longer
+   manages a lease"), and which
    takes the step the wrappers each hand-rolled: it reads the run's own
    `kit-new-tops.txt` and `kit-new-paths.txt`, gates, removes exactly those
    trees, checks the `find` diff is exactly them with nothing appeared, and
@@ -133,7 +134,7 @@ after checking them against the real data are red on the extraction too. All of
 them pass on the branch head:
 
     cd sources/misteross && python3 -m unittest discover -s tests -p 'test_kit*.py'
-    # 80 tests, OK (65 of them this module's)
+    # 75 tests, OK (60 of them this module's)
 
 The cleanup gate is also exercised against a real local HTTP agent replying in
 `protocol.Status`'s own shape (`state`, `game_id`, `core_package.package_id`,
@@ -234,7 +235,59 @@ of them, which is what guard 3 changes.
   keeps its overlay classification: the import graph reaches it from
   `pc386_wfw_kit_acceptance.py`, so that one is not a misclassification.
 
-## The invariant guard 2 rests on
+## The cleanup no longer manages a lease
+
+**This is the change five review rounds argued for, and it is less code than
+the guards it replaces: 88 lines added, 158 removed.**
+
+`clean` claims, renews and releases nothing. The caller passes the
+`kit.Session` its run already holds, and `clean` verifies that lease — the
+session's token, renewal and deadline, and the agent's own view that the lease
+is held with that session's generation — and refuses otherwise. Cleanup happens
+inside the run's own held session, before the driver closes it, so **there is
+no second interval for a lease to lapse across**. `hold_for_cleanup`, the
+claim, the release, the release-in-`finally` and the `clean` CLI subcommand are
+deleted rather than kept behind a flag.
+
+What that means for callers, and it is worth being blunt because the next
+implementer will otherwise rediscover it: only a live renewing process holds a
+kit lease (`kit.Session._renew`, a 20 s daemon thread against the agent's 90 s
+TTL). A shell tail that runs after the driver has exited therefore has no lease
+and cannot clean under one. So the removal belongs in the driver, which already
+has the ssh path it needs (`kit(command)` in `hil_games.py`) and already ends
+with `session.close()` inside a `finally`; the wrapper's tail keeps `verdict`,
+which needs no lease, and `guard-idle` as a read-only look.
+
+**What survives the reduction, and why.** Two checks are kept because they are
+about the caller's lease rather than about owning one: `require_lease` before
+each `rm -r` and before the verification listing, since a renewal can still
+fail mid-removal and `kit.Session` only sets a flag; and `KitShell`'s
+per-command timeout staying under the lease's own expiry. The round-5 listing
+finding also survives and is fixed here rather than argued away: a bare
+`test -d` cannot tell a root that is absent from a probe that failed (an ssh
+helper exiting 255, a directory that cannot be searched), so the probe is asked
+to answer `PRESENT` or `ABSENT` and anything else refuses.
+
+**What is not changed.** The two guards for the original failures — the
+deterministic end of run, and no removal under a loaded core — and the run
+verdict and the liveness helper all stay exactly as they were, with their
+tests. In the reduced shape the second one is simply that the run holds its own
+lease and the kit is verified idle, so nothing else can have loaded a core.
+
+**The new invariant, stated as plainly as the old one and no more
+reassuringly:** the run owns its lease for its whole life, the cleanup happens
+inside that, and **the kit still does not enforce any of it**. The removal is
+`rm -r` over ssh the agent never sees, so holding the lease stops another
+session from claiming the kit, not the removal itself. A caller whose lease
+lapses mid-removal is caught by `require_lease` before the next step, not by
+the kit refusing the step.
+[#1865](https://github.com/DeanoC/fes/issues/1865) is the follow-up that would
+make the kit enforce it — an agent-side operation owning the lease and the
+removal together — and it carries all five rounds' findings as its evidence.
+That issue is what would make these guards unnecessary rather than merely
+correct.
+
+## What the five rounds established, and the invariant before the reduction
 
 **The kit lease is held for the whole interval in which the cleanup reads or
 removes anything, and the command's exit code tells the truth about whether it
@@ -259,14 +312,15 @@ rather than only implemented:
    and the documented `clean … || exit 5` tail proceeded with the lease
    possibly still held — the exit code not telling the truth.
 
-What holds it now: `hold_for_cleanup` claims before it checks;
-`require_lease` — `kit.Session.mutate`'s own guard, applied to the steps the
-agent never sees — runs before the listing, before each `rm -r` and before the
-verification listing, and aborts with nothing further removed; `KitShell`'s
-per-command timeout is below the lease's own expiry so one command cannot
-outlast it; and an unconfirmed release raises, after any original failure has
-been preserved, so the command cannot report success over a lease that may
-still be held.
+What held it at that point, before the reduction removed the claim cycle
+entirely: `hold_for_cleanup` claimed before it checked; `require_lease` —
+`kit.Session.mutate`'s own guard, applied to the steps the agent never sees —
+ran before the listing, before each `rm -r` and before the verification
+listing, aborting with nothing further removed; `KitShell`'s per-command
+timeout was below the lease's own expiry so one command could not outlast it;
+and an unconfirmed release raised, after any original failure had been
+preserved. Of those, `require_lease` and the timeout survive; the rest went
+with the claim.
 
 **Where the guarantee comes from, stated honestly.** It is enforced
 client-side, by a sum of checks in this Python, and not by the kit. The
@@ -305,13 +359,12 @@ That is evidence about the shape of the code, not about any single omission,
 and it is why this record states the invariant rather than only implementing
 it — the mechanism will change, the invariant is what has to be preserved.
 
-The round-5 findings are **acknowledged and left open**, not fixed: the
-alternative shape is an agent-side operation that owns the lease and the
-removal together, where the kit itself refuses a mutation from a caller whose
-lease has lapsed instead of the client checking for it. Whether that is worth
-building, and whether these guards should land as they are meanwhile, is
-Deano's call; the coordinating session is putting it to him. Another patch
-round is not how to settle it.
+Deano's answer was to take the lease management out of the cleanup path, which
+is what the section above records. Of the two round-5 findings, the listing one
+is fixed properly and the other — the post-claim refusal branches discarding
+what `release()` returned — is gone with the code it applied to, since there is
+no claim and no release any more. The agent-side enforcement is
+[#1865](https://github.com/DeanoC/fes/issues/1865).
 
 ## A claim this record made, and why it was wrong
 
@@ -336,14 +389,13 @@ to be wrong. A record asserting a safety property the code does not have is
 worse than a missing guard, because the next session reads the record instead
 of the code.
 
-**What it does now.** `hold_for_cleanup` claims the kit lease *first* — a claim
-succeeds only while the lease is free, so it is the exclusion itself — and
-checks the state second, under its own held lease; `clean` releases it in a
-`finally`. Check and removal are one held interval instead of two ordered
-events. `guard-idle` is unchanged and still read-only: it is an observation,
-and the record no longer calls it more than that. The order is asserted
-directly in `test_the_lease_is_claimed_before_the_kit_is_listed`, which fails
-if anything is read or removed before the claim.
+**What was done about it.** First, claim-first: `hold_for_cleanup` claimed the
+kit lease before checking the state, since a claim succeeds only while the
+lease is free and is therefore the exclusion itself. Three further rounds then
+found that the interval so claimed was not reliably held, and the answer in the
+end was to stop acquiring a lease in the cleanup at all — the run's own lease
+covers it. `guard-idle` is unchanged throughout and still read-only: an
+observation, and this record no longer calls it more than that.
 
 A second round on the claim-first head found two more of the same family, both
 right: the lost-renewal P1 and the unconfirmed-release P2 above. Five of their
@@ -392,7 +444,7 @@ trees under, which is the thing the guard exists to prevent.
 
 | gate | result |
 | --- | --- |
-| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 80 tests, OK |
+| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 75 tests, OK |
 | `tests/test_hil_plan.py` | 39 tests, OK |
 | `tests/test_affected.py`, `tests/test_test_changed.py` | 43 and 33 tests, OK |
 | `scripts/check_diff.py --base <main> --head HEAD` | exit 0 |
@@ -412,11 +464,13 @@ is touched here. What this PR can do instead is make the call a single tested
 command rather than a block each wrapper reimplements: with `clean` and
 `verdict`, a wrapper's tail is
 
-    python3 "$KH" clean --ssh "$SSH" --run-dir "$OUT" --config "$CFG" --target "$T" --apply || exit 5
     python3 "$KH" verdict "$OUT/result.json" || rc=99
 
-in place of the `find`/`comm`/`ssh rm -rf` block and the `grep '"error"'` only
-`run-x87.sh` ever wrote. The per-session wiring, and the question of whether a
+in place of the `grep '"error"'` only `run-x87.sh` ever wrote, with
+`guard-idle` where a tail wants a read-only look first. The
+`find`/`comm`/`ssh rm -rf` block leaves the tail altogether: the removal moves
+into the driver, which is where the lease is, as a `kit_hil.clean` call before
+it closes its session. The per-session wiring, and the question of whether a
 shared thin driver should replace the 566-line copies at all, stay in issue
 #1852: a driver needs a kit's capture device, audio device and ssh helper, and
 proposing its shape without a kit run to validate it would be guesswork.

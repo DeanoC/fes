@@ -269,33 +269,38 @@ with "operator recovery required" — so the guards against them live in
   close does not trip it. A removal under a loaded core preceded the stop/close
   that returned HTTP 500 and blocked the lease; the #1368 record calls that the
   likely cause without showing it, and the gate costs nothing either way.
-- **The removal itself.** `kit_hil.py clean --ssh <kit ssh helper> --run-dir
-  runs/RUN --config <host.toml> --target {dev,kit2} --apply` removes exactly
-  the trees the run created and nothing else, with the gate above run first
-  and again afterwards. It reads the run's own `kit-new-tops.txt` and
-  `kit-new-paths.txt`, and refuses: a path the run did not create, a path
+- **The removal itself.** `kit_hil.clean` removes exactly the trees the run
+  created, **inside the lease the run already holds**. It claims, renews and
+  releases nothing: the caller passes its own `kit.Session` and client, and
+  `clean` verifies that lease from both sides — the session's token, renewal
+  and deadline, and the agent's own view that the lease is held with that
+  session's generation — then refuses unless the kit is idle with nothing
+  loaded. It is a library call for the driver, before it closes its session,
+  not a CLI command: only a live renewing process holds a kit lease, so a
+  shell tail that runs after the driver has exited has no lease to clean
+  under. It reads the run's own `kit-new-tops.txt`/`kit-new-paths.txt` lists
+  (the caller passes them), and refuses a path the run did not create, a path
   outside FogCast's three data directories, a data root itself, a path that
-  could not survive shell quoting, anything named by `--keep` (a shared disk
+  could not survive shell quoting, anything named by `keep` (a shared disk
   image), an empty list, a tree already gone, any path that appears during the
-  removal, and a diff larger than the listed trees. Without `--apply` it
-  reports the plan and removes nothing. It **claims the kit lease before it
-  reads or removes anything** and releases it in a `finally`: a claim
-  succeeds only while the lease is free, so claiming first and checking second
-  makes the check and the removal one held interval rather than two ordered
-  events. Checking a free kit and then removing would establish only that the
-  kit was idle when it was looked at. It also re-checks that the lease is
-  still live before the listing, before each `rm -r` and before the
-  verification listing — a claim excludes others only while it is live, and a
-  lost renewal only sets a flag — and an unconfirmed release makes the command
-  fail, so `clean … || exit 5` cannot proceed over a lease that may still be
-  held, and the lease is released unconditionally even when the removal fails
-  unexpectedly. The invariant: the lease is held for the whole interval in
-  which anything is read or removed, and the exit code says whether it was.
-  That invariant is enforced client-side by these checks, not by the kit — the
-  removal is `rm -r` over ssh that the agent never sees — so it makes the
-  failure unlikely and always visible, not impossible. Prefer it to a hand-rolled
-  `ssh rm -rf`: every wrapper that rolled its own left out at least one of
-  those checks.
+  removal, and a diff larger than the listed trees. A root whose existence
+  probe fails refuses too, where a root confirmed absent is simply empty.
+  `apply` must be set, or it reports the plan and removes nothing.
+  `require_lease` runs again before each `rm -r` and before the verification
+  listing, because a renewal can still fail mid-removal and `kit.Session`
+  only sets a flag.
+
+  A cleanup used to claim a lease of its own. Five review rounds on PR #1850
+  all asked one question — is the lease held for the whole interval, and does
+  the exit code say so — and two of their findings were introduced by earlier
+  fixes in the same series, so the claim/release cycle was removed rather than
+  guarded further. The invariant now: **the run owns its lease for its whole
+  life and the cleanup happens inside that, so there is no second interval for
+  a lease to lapse across.** The kit still does not enforce any of this — the
+  removal is `rm -r` over ssh the agent never sees, and holding the lease
+  stops another session claiming the kit, not the removal itself. Issue #1865
+  tracks the agent-side operation that would make the kit enforce it.
+
 - **The run's verdict.** Run `kit_hil.py verdict runs/RUN/result.json` and
   carry its exit code into the wrapper's own. A command the kit refused — an
   HTTP 422 `INVALID_ARCHIVE` at admission, say — is recorded in `result.json`
@@ -314,16 +319,20 @@ with "operator recovery required" — so the guards against them live in
   `pgrep -x` form for the cases a lock cannot cover.
 
 The drivers on Powerboat are per-session copies that import `kit.py` by path,
-so these guards reach a run only once its driver and wrapper call them. A
-wrapper's tail becomes:
+so these guards reach a run only once its driver and wrapper call them. The
+split is: the **driver** calls `drain`, takes `run_lock`, and calls `clean`
+inside its own held session before closing it; the **wrapper's tail** keeps
+only what needs no lease:
 
 ```sh
-python3 "$KH" clean --ssh "$SSH" --run-dir "$OUT" --config "$CFG" --target "$T" --apply || exit 5
 python3 "$KH" verdict "$OUT/result.json" || rc=99
 ```
 
-in place of the `find`/`comm`/`ssh rm -rf` block and the `grep '"error"'` each
-wrapper wrote for itself. Adoption per session is tracked in issue #1852.
+in place of the `grep '"error"'` each wrapper wrote for itself, and
+`guard-idle` where a tail wants a read-only look at the kit first. The
+`find`/`comm`/`ssh rm -rf` block in the tail goes away because the removal
+moves into the driver, where the lease is. Adoption per session is tracked in
+issue #1852.
 
 ## Validation
 

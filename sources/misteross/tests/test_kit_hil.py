@@ -453,13 +453,14 @@ class FakeKit:
 
 
 class FakeSession:
-    """The lease a cleanup claims: its renewal, its deadline and its release."""
+    """The caller's own lease: the run holds it, the cleanup only verifies it."""
 
     def __init__(self, client, owner, purpose, claim_error=None, close_error=None):
         self.client, self.owner, self.purpose = client, owner, purpose
         self.claim_error, self.close_error = claim_error, close_error
         self.claimed, self.closed = False, False
         self.token = 'private-lease'
+        self.generation = 'g1'
         self.failed = threading.Event()
         self.deadline = time.monotonic() + 90
 
@@ -487,351 +488,242 @@ KIT_BEFORE = [DISKS, DATA, f'{DATA}/games', RUN_TREE, f'{RUN_TREE}/record.json',
 # What this run created, as its wrapper's find diff reports it: the earlier
 # run's tree and the shared image are not in it.
 CREATED = [RUN_TREE, f'{RUN_TREE}/record.json', RUN_DISK]
+# The state a cleanup runs in now: the run's own lease, held, over a kit whose
+# core it has already stopped.
+HELD = {'status': {'state': 'idle', 'game_id': None},
+        'lease': {'state': 'held', 'owner': 'claude-test', 'purpose': 'the run itself',
+                  'generation': 'g1'}}
 
 
 class GuardedRemoval(unittest.TestCase):
-    """The tail's removal itself, which is what ran under a loaded core."""
+    """The removal runs inside the run's own lease and owns none of it."""
 
     LISTED = [RUN_TREE, RUN_DISK]
 
     def setUp(self):
-        self.said, self.sessions, self.close_error = [], [], None
+        self.said = []
 
-    def hold_for(self, *turns, claim_error=None):
-        """A hold that claims the kit and then sees `turns` in order."""
+    def caller(self, *turns, generation='g1'):
+        """A client the agent answers through, and the caller's own session."""
 
-        clock = Clock()
-        self.sessions = []
+        client = FakeClient(list(turns))
+        session = FakeSession(client, 'claude-test', 'the run itself')
+        session.generation = generation
+        return client, session
 
-        def factory(client, owner, purpose):
-            session = FakeSession(client, owner, purpose, claim_error=claim_error,
-                                  close_error=self.close_error)
-            self.sessions.append(session)
-            return session
+    def clean(self, kitfs, listed=None, created=None, **kwargs):
+        client = kwargs.pop('client', None)
+        session = kwargs.pop('session', None)
+        return kit_hil.clean(kitfs, self.LISTED if listed is None else listed,
+                             CREATED if created is None else created,
+                             client=client, session=session, log=self.said.append, **kwargs)
 
-        return lambda: kit_hil.hold_for_cleanup(
-            FakeClient(list(turns)), 'claude-test', 'cleanup of k1', wait=5,
-            session_factory=factory, now=clock.now, sleep=clock.sleep)
-
-    def gate_for(self, turn):
-        return self.hold_for(turn, turn)
-
-    def test_a_loaded_core_removes_nothing(self):
-        # The kit of the #1368 incident: a core loaded and the lease held by
-        # the run that loaded it. The refusal comes at the lease, before any
-        # claim, and nothing is read or removed.
+    def test_without_a_session_nothing_is_removed(self):
         kitfs = FakeKit(KIT_BEFORE)
+        client, session = self.caller(HELD)
         with self.assertRaises(kit_hil.CleanupRefused) as refused:
-            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True,
-                          hold=self.gate_for(LOADED), log=self.said.append)
-        self.assertEqual(kitfs.removed, [], 'nothing may be removed under a loaded core')
-        self.assertEqual(sorted(kitfs.paths), sorted(KIT_BEFORE))
-        self.assertIn('claude-pc386-games', str(refused.exception))
-        self.assertEqual(self.sessions, [])
-
-    def test_a_core_loaded_under_a_free_lease_removes_nothing(self):
-        # A lease that expired while its core stayed loaded: the claim
-        # succeeds, and the check under it names what is loaded.
-        free_but_loaded = {'status': dict(LOADED['status']), 'lease': {'state': 'free'}}
-        kitfs = FakeKit(KIT_BEFORE)
-        with self.assertRaises(kit_hil.CleanupRefused) as refused:
-            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True,
-                          hold=self.hold_for(free_but_loaded, free_but_loaded),
-                          log=self.said.append)
+            self.clean(kitfs, apply=True, client=client, session=None)
         self.assertEqual(kitfs.removed, [])
-        self.assertIn('fes.pc386', str(refused.exception))
-        self.assertIn('a6977555', str(refused.exception))
-        self.assertTrue(self.sessions[0].closed)
+        self.assertIn('will not claim one of its own', str(refused.exception))
 
-    def test_an_idle_kit_removes_exactly_the_runs_trees(self):
+    def test_a_caller_held_lease_over_an_idle_kit_removes_exactly_its_trees(self):
         kitfs = FakeKit(KIT_BEFORE)
-        plan = kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True,
-                             hold=self.gate_for(IDLE), log=self.said.append)
+        client, session = self.caller(HELD)
+        plan = self.clean(kitfs, apply=True, client=client, session=session)
         self.assertEqual(kitfs.removed, self.LISTED)
         self.assertEqual(plan, {'trees': 2, 'paths': 3, 'applied': True})
         self.assertEqual(sorted(kitfs.paths),
                          sorted([DISKS, DATA, f'{DATA}/games', OLD_TREE,
                                  f'{OLD_TREE}/record.json', SCRUB]),
-                         'an earlier run\'s trees and the shared image stay')
+                         "an earlier run's trees and the shared image stay")
 
-    def test_without_apply_nothing_is_removed(self):
+    def test_the_cleanup_touches_no_lease_state_at_all(self):
+        """The reduction: it verifies the lease, it does not manage it."""
+
         kitfs = FakeKit(KIT_BEFORE)
-        plan = kit_hil.clean(kitfs, self.LISTED, CREATED,
-                             hold=self.gate_for(IDLE), log=self.said.append)
-        self.assertEqual(kitfs.removed, [])
-        self.assertFalse(plan['applied'])
+        client, session = self.caller(HELD)
+        self.clean(kitfs, apply=True, client=client, session=session)
+        self.assertFalse(session.claimed, 'a cleanup must not claim a lease')
+        self.assertFalse(session.closed, 'a cleanup must not release the run\'s lease')
+        self.assertEqual([path for path in client.calls if 'claim' in path or 'release' in path
+                          or 'renew' in path or 'takeover' in path], [],
+                         'no lease-changing request may be made')
+        self.assertFalse(hasattr(kit_hil, 'hold_for_cleanup'),
+                         'the claim/release cycle is deleted, not kept behind a flag')
+        self.assertFalse(hasattr(kit_hil, 'release'))
 
-    def test_a_path_the_run_did_not_create_is_refused(self):
+    def test_a_lease_the_agent_says_is_someone_elses_refuses(self):
+        other = {'status': {'state': 'idle', 'game_id': None},
+                 'lease': {'state': 'held', 'owner': 'lander', 'purpose': 'queue run',
+                           'generation': 'g-other'}}
         kitfs = FakeKit(KIT_BEFORE)
+        client, session = self.caller(other, generation='g1')
         with self.assertRaises(kit_hil.CleanupRefused) as refused:
-            kit_hil.clean(kitfs, [OLD_TREE], CREATED, apply=True,
-                          hold=self.gate_for(IDLE), log=self.said.append)
+            self.clean(kitfs, apply=True, client=client, session=session)
         self.assertEqual(kitfs.removed, [])
-        self.assertIn('not in this run', str(refused.exception))
-
-    def test_a_path_outside_the_data_roots_is_refused(self):
-        for path in ('/media/fat/fogcast/launcher.json', '/media/fat/linux/u-boot.txt',
-                     '/media/fat', DATA, f'{DATA}/../..'):
-            with self.subTest(path=path):
-                kitfs = FakeKit(KIT_BEFORE + [path])
-                with self.assertRaises(kit_hil.CleanupRefused):
-                    kit_hil.clean(kitfs, [path], CREATED + [path], apply=True,
-                                  hold=self.gate_for(IDLE), log=self.said.append)
-                self.assertEqual(kitfs.removed, [])
-
-    def test_a_shell_unsafe_path_is_refused(self):
-        for path in (f"{DATA}/games/x'y", f'{DATA}/games/$(reboot)', f'{DATA}/games/*'):
-            with self.subTest(path=path):
-                kitfs = FakeKit(KIT_BEFORE + [path])
-                with self.assertRaises(kit_hil.CleanupRefused):
-                    kit_hil.clean(kitfs, [path], CREATED + [path], apply=True,
-                                  hold=self.gate_for(IDLE), log=self.said.append)
-                self.assertEqual(kitfs.removed, [])
-
-    def test_a_kept_path_is_refused(self):
-        kitfs = FakeKit(KIT_BEFORE)
-        with self.assertRaises(kit_hil.CleanupRefused) as refused:
-            kit_hil.clean(kitfs, [SCRUB], CREATED + [SCRUB], apply=True, keep=('d' * 64,),
-                          hold=self.gate_for(IDLE), log=self.said.append)
-        self.assertEqual(kitfs.removed, [])
-        self.assertIn('kept', str(refused.exception))
-
-    def test_an_empty_list_is_refused(self):
-        with self.assertRaises(kit_hil.CleanupRefused):
-            kit_hil.clean(FakeKit(KIT_BEFORE), [], CREATED, apply=True,
-                          hold=self.gate_for(IDLE), log=self.said.append)
-
-    def test_a_tree_already_gone_is_refused_before_anything_is_removed(self):
-        kitfs = FakeKit([p for p in KIT_BEFORE if not p.startswith(RUN_TREE)])
-        with self.assertRaises(kit_hil.CleanupRefused) as refused:
-            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True,
-                          hold=self.gate_for(IDLE), log=self.said.append)
-        self.assertEqual(kitfs.removed, [], 'refuse before removing, not halfway')
-        self.assertIn('no longer on the kit', str(refused.exception))
-
-    def test_paths_appearing_during_the_removal_are_reported(self):
-        kitfs = FakeKit(KIT_BEFORE, appears=[f'{DATA}/games/new'])
-        with self.assertRaises(kit_hil.CleanupRefused) as refused:
-            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True,
-                          hold=self.gate_for(IDLE), log=self.said.append)
-        self.assertIn('appeared', str(refused.exception))
-
-    def test_taking_more_than_the_listed_trees_is_reported(self):
-        kitfs = FakeKit(KIT_BEFORE, loses=[f'{OLD_TREE}/record.json'])
-        with self.assertRaises(kit_hil.CleanupRefused) as refused:
-            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True,
-                          hold=self.gate_for(IDLE), log=self.said.append)
-        self.assertIn('not the', str(refused.exception))
-
-    def test_the_gate_runs_before_the_listing(self):
-        class Listless(FakeKit):
-            def find(self, roots):
-                raise AssertionError('the gate must refuse before the kit is listed')
-
-        with self.assertRaises(kit_hil.CleanupRefused):
-            kit_hil.clean(Listless(KIT_BEFORE), self.LISTED, CREATED, apply=True,
-                          hold=self.gate_for(LOADED), log=self.said.append)
-
-    def test_the_lease_is_claimed_before_the_kit_is_listed(self):
-        """The P1: the check and the removal must be one held interval."""
-
-        order = []
-
-        class Watched(FakeKit):
-            def find(self, roots):
-                order.append('find')
-                return super().find(roots)
-
-            def remove(self, path):
-                order.append('remove')
-                return super().remove(path)
-
-        clock = Clock()
-        sessions = []
-
-        def factory(client, owner, purpose):
-            session = FakeSession(client, owner, purpose)
-            sessions.append(session)
-            order.append('claim')
-            return session
-
-        kitfs = Watched(KIT_BEFORE)
-        kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True, log=self.said.append,
-                      hold=lambda: kit_hil.hold_for_cleanup(
-                          FakeClient([IDLE, IDLE]), 'claude-test', 'cleanup of k1',
-                          session_factory=factory, now=clock.now, sleep=clock.sleep))
-        self.assertEqual(order[:2], ['claim', 'find'],
-                         'the lease must be held before anything is read or removed')
-        self.assertIn('remove', order)
-        self.assertTrue(sessions[0].claimed)
-        self.assertTrue(sessions[0].closed, 'the cleanup must give its lease back')
-
-    def test_a_core_loaded_after_the_claim_refuses_and_releases(self):
-        # The window the P1 names: free when read, a core by the time the
-        # removal would act. Claiming first closes it; this covers the kit
-        # that was already busy under our own claim.
-        kitfs = FakeKit(KIT_BEFORE)
-        with self.assertRaises(kit_hil.CleanupRefused) as refused:
-            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True, log=self.said.append,
-                          hold=self.hold_for(IDLE, LOADED))
-        self.assertEqual(kitfs.removed, [])
-        self.assertIn('fes.pc386', str(refused.exception))
-        self.assertTrue(self.sessions[0].closed, 'a refusal still gives the lease back')
-
-    def test_a_lease_held_by_another_session_refuses_without_claiming(self):
-        held = {'status': {'state': 'idle', 'game_id': None},
-                'lease': {'state': 'held', 'owner': 'lander', 'purpose': 'queue run'}}
-        kitfs = FakeKit(KIT_BEFORE)
-        with self.assertRaises(kit_hil.CleanupRefused) as refused:
-            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True, log=self.said.append,
-                          hold=self.hold_for(held))
-        self.assertEqual(kitfs.removed, [])
+        self.assertIn('not the caller', str(refused.exception))
         self.assertIn('lander', str(refused.exception))
-        self.assertEqual(self.sessions, [], 'never claim a kit someone else holds')
 
-    def test_a_refused_claim_refuses_the_cleanup(self):
+    def test_a_free_lease_refuses_because_the_caller_holds_nothing(self):
         kitfs = FakeKit(KIT_BEFORE)
+        client, session = self.caller(IDLE)
         with self.assertRaises(kit_hil.CleanupRefused) as refused:
-            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True, log=self.said.append,
-                          hold=self.hold_for(IDLE, claim_error=kit.KitError('claim refused', 409)))
+            self.clean(kitfs, apply=True, client=client, session=session)
         self.assertEqual(kitfs.removed, [])
-        self.assertIn('nothing excludes another session', str(refused.exception))
+        self.assertIn('not the caller', str(refused.exception))
 
-    def test_a_list_check_failure_never_claims_the_kit(self):
+    def test_a_loaded_core_under_the_callers_own_lease_removes_nothing(self):
+        """Guard 2, unchanged by the reduction: stop the core first."""
+
+        loaded = {'status': dict(LOADED['status']),
+                  'lease': {'state': 'held', 'owner': 'claude-test', 'generation': 'g1'}}
         kitfs = FakeKit(KIT_BEFORE)
-        with self.assertRaises(kit_hil.CleanupRefused):
-            kit_hil.clean(kitfs, [OLD_TREE], CREATED, apply=True, log=self.said.append,
-                          hold=self.hold_for(IDLE, IDLE))
-        self.assertEqual(self.sessions, [],
-                         'a bad list is caught before the kit is touched at all')
-
-    def test_a_lost_renewal_stops_the_cleanup_before_it_lists(self):
-        """The lease must be held for the whole interval, not just claimed."""
-
-        kitfs = FakeKit(KIT_BEFORE)
-        hold = self.hold_for(IDLE, IDLE)
-
-        def losing_hold():
-            session = hold()
-            session.failed.set()      # a renewal failed while we held it
-            return session
-
+        client, session = self.caller(loaded)
         with self.assertRaises(kit_hil.CleanupRefused) as refused:
-            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True, log=self.said.append,
-                          hold=losing_hold)
+            self.clean(kitfs, apply=True, client=client, session=session)
         self.assertEqual(kitfs.removed, [])
         self.assertEqual(sorted(kitfs.paths), sorted(KIT_BEFORE))
+        self.assertIn('fes.pc386', str(refused.exception))
+        self.assertIn('a6977555', str(refused.exception))
+
+    def test_a_pending_recovery_removes_nothing(self):
+        recovering = {'status': {'state': 'idle', 'game_id': None,
+                                 'recovery': 'reboot_required'},
+                      'lease': {'state': 'held', 'owner': 'claude-test', 'generation': 'g1'}}
+        kitfs = FakeKit(KIT_BEFORE)
+        client, session = self.caller(recovering)
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            self.clean(kitfs, apply=True, client=client, session=session)
+        self.assertEqual(kitfs.removed, [])
+        self.assertIn('reboot_required', str(refused.exception))
+
+    def test_an_unreachable_agent_fails_closed(self):
+        kitfs = FakeKit(KIT_BEFORE)
+        client, session = self.caller(HELD)
+        client.error = kit.KitError('target request failed')
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            self.clean(kitfs, apply=True, client=client, session=session)
+        self.assertEqual(kitfs.removed, [])
+        self.assertIn('cannot be confirmed', str(refused.exception))
+
+    def test_a_lost_renewal_stops_the_cleanup_before_it_lists(self):
+        kitfs = FakeKit(KIT_BEFORE)
+        client, session = self.caller(HELD)
+        session.failed.set()
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            self.clean(kitfs, apply=True, client=client, session=session)
+        self.assertEqual(kitfs.removed, [])
         self.assertIn('no longer held', str(refused.exception))
-        self.assertIn('the kit listing', str(refused.exception))
-        self.assertTrue(self.sessions[0].closed)
 
     def test_a_renewal_lost_mid_removal_stops_at_that_tree(self):
-        # A slow find or rm can outlast the kit's 90 s lease. Losing it after
-        # the first tree must not carry on to the second.
-        sessions = []
+        # The one lease check the reduction does not remove: the run's own
+        # lease can still fail renewal while the removal is running, and
+        # kit.Session only sets a flag.
+        client, session = self.caller(HELD)
 
         class Losing(FakeKit):
             def remove(self, path):
                 super().remove(path)
-                sessions[0].failed.set()
+                session.failed.set()
 
         kitfs = Losing(KIT_BEFORE)
-        hold = self.hold_for(IDLE, IDLE)
-
-        def watching_hold():
-            session = hold()
-            sessions.append(session)
-            return session
-
         with self.assertRaises(kit_hil.CleanupRefused) as refused:
-            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True, log=self.said.append,
-                          hold=watching_hold)
+            self.clean(kitfs, apply=True, client=client, session=session)
         self.assertEqual(kitfs.removed, [self.LISTED[0]],
                          'the second tree must not be removed under a lost lease')
         self.assertIn(f'removing {self.LISTED[1]}', str(refused.exception))
 
     def test_an_expired_lease_deadline_stops_the_cleanup(self):
         kitfs = FakeKit(KIT_BEFORE)
-        hold = self.hold_for(IDLE, IDLE)
-
-        def expired_hold():
-            session = hold()
-            session.deadline = time.monotonic() - 1
-            return session
-
+        client, session = self.caller(HELD)
+        session.deadline = time.monotonic() - 1
         with self.assertRaises(kit_hil.CleanupRefused):
-            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True, log=self.said.append,
-                          hold=expired_hold)
+            self.clean(kitfs, apply=True, client=client, session=session)
         self.assertEqual(kitfs.removed, [])
-
-    def test_an_unconfirmed_release_fails_the_command(self):
-        # The removal finished, but the wrapper's `|| exit 5` is the only thing
-        # between an unreleased lease and a run reported complete.
-        self.close_error = kit.KitError('/v1/kit/release: HTTP 500', 500)
-        kitfs = FakeKit(KIT_BEFORE)
-        with self.assertRaises(kit_hil.CleanupRefused) as refused:
-            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True, log=self.said.append,
-                          hold=self.hold_for(IDLE, IDLE))
-        self.assertEqual(kitfs.removed, self.LISTED, 'the removal itself did finish')
-        self.assertIn('not confirmed released', str(refused.exception))
-        self.assertIn('the removal itself finished', str(refused.exception))
-
-    def test_an_unconfirmed_release_does_not_mask_the_original_refusal(self):
-        self.close_error = kit.KitError('/v1/kit/release: HTTP 500', 500)
-        kitfs = FakeKit([p for p in KIT_BEFORE if not p.startswith(RUN_TREE)])
-        with self.assertRaises(kit_hil.CleanupRefused) as refused:
-            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True, log=self.said.append,
-                          hold=self.hold_for(IDLE, IDLE))
-        self.assertIn('no longer on the kit', str(refused.exception),
-                      'the first failure is the one reported')
-
-    def test_any_exception_out_of_the_removal_still_releases_the_lease(self):
-        """A release in a finally: an unexpected failure must not keep the kit."""
-
-        for error in (BrokenPipeError('stdout closed'),
-                      UnicodeDecodeError('utf-8', b'\xff', 0, 1, 'bad listing'),
-                      KeyboardInterrupt(),
-                      MemoryError()):
-            with self.subTest(error=type(error).__name__):
-                class Exploding(FakeKit):
-                    def find(self, roots):
-                        raise error
-
-                self.sessions = []
-                with self.assertRaises(type(error)):
-                    kit_hil.clean(Exploding(KIT_BEFORE), self.LISTED, CREATED, apply=True,
-                                  log=self.said.append, hold=self.hold_for(IDLE, IDLE))
-                self.assertTrue(self.sessions[0].closed,
-                                'the shared kit must be given back whatever happened')
-
-    def test_a_release_that_raises_something_unexpected_fails_the_command(self):
-        # release() runs in a finally, so it must report rather than raise.
-        self.close_error = OSError('connection reset')
-        kitfs = FakeKit(KIT_BEFORE)
-        with self.assertRaises(kit_hil.CleanupRefused) as refused:
-            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True, log=self.said.append,
-                          hold=self.hold_for(IDLE, IDLE))
-        self.assertIn('not confirmed released', str(refused.exception))
-
-    def test_a_release_failure_does_not_replace_an_unexpected_exception(self):
-        self.close_error = kit.KitError('/v1/kit/release: HTTP 500', 500)
-
-        class Exploding(FakeKit):
-            def find(self, roots):
-                raise BrokenPipeError('stdout closed')
-
-        with self.assertRaises(BrokenPipeError):
-            kit_hil.clean(Exploding(KIT_BEFORE), self.LISTED, CREATED, apply=True,
-                          log=self.said.append, hold=self.hold_for(IDLE, IDLE))
 
     def test_an_ssh_command_cannot_outlast_the_kits_lease(self):
         # The kit's production lease is 90 s (kitlease.New in mister-agent).
         self.assertLess(kit_hil.KitShell('/nonexistent/ssh').timeout, 90)
 
-    def test_a_missing_run_list_is_refused(self):
-        with tempfile.TemporaryDirectory() as home:
-            with self.assertRaises(kit_hil.CleanupRefused):
-                kit_hil.read_lines(Path(home) / 'kit-new-tops.txt')
+    def test_without_apply_nothing_is_removed(self):
+        kitfs = FakeKit(KIT_BEFORE)
+        client, session = self.caller(HELD)
+        plan = self.clean(kitfs, client=client, session=session)
+        self.assertEqual(kitfs.removed, [])
+        self.assertFalse(plan['applied'])
+
+    def test_a_path_the_run_did_not_create_is_refused(self):
+        kitfs = FakeKit(KIT_BEFORE)
+        client, session = self.caller(HELD)
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            self.clean(kitfs, listed=[OLD_TREE], apply=True, client=client, session=session)
+        self.assertEqual(kitfs.removed, [])
+        self.assertIn('not in this run', str(refused.exception))
+
+    def test_a_bad_list_is_caught_before_the_agent_is_asked_anything(self):
+        kitfs = FakeKit(KIT_BEFORE)
+        client, session = self.caller(HELD)
+        with self.assertRaises(kit_hil.CleanupRefused):
+            self.clean(kitfs, listed=[OLD_TREE], apply=True, client=client, session=session)
+        self.assertEqual(client.calls, [], 'check the list before touching the kit at all')
+
+    def test_a_path_outside_the_data_roots_is_refused(self):
+        for path in ('/media/fat/fogcast/launcher.json', '/media/fat/linux/u-boot.txt',
+                     '/media/fat', DATA, f'{DATA}/../..'):
+            with self.subTest(path=path):
+                kitfs = FakeKit(KIT_BEFORE + [path])
+                client, session = self.caller(HELD)
+                with self.assertRaises(kit_hil.CleanupRefused):
+                    self.clean(kitfs, listed=[path], created=CREATED + [path], apply=True,
+                               client=client, session=session)
+                self.assertEqual(kitfs.removed, [])
+
+    def test_a_shell_unsafe_path_is_refused(self):
+        for path in (f"{DATA}/games/x'y", f'{DATA}/games/$(reboot)', f'{DATA}/games/*'):
+            with self.subTest(path=path):
+                kitfs = FakeKit(KIT_BEFORE + [path])
+                client, session = self.caller(HELD)
+                with self.assertRaises(kit_hil.CleanupRefused):
+                    self.clean(kitfs, listed=[path], created=CREATED + [path], apply=True,
+                               client=client, session=session)
+                self.assertEqual(kitfs.removed, [])
+
+    def test_a_kept_path_is_refused(self):
+        kitfs = FakeKit(KIT_BEFORE)
+        client, session = self.caller(HELD)
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            self.clean(kitfs, listed=[SCRUB], created=CREATED + [SCRUB], apply=True,
+                       keep=('d' * 64,), client=client, session=session)
+        self.assertEqual(kitfs.removed, [])
+        self.assertIn('kept', str(refused.exception))
+
+    def test_an_empty_list_is_refused(self):
+        client, session = self.caller(HELD)
+        with self.assertRaises(kit_hil.CleanupRefused):
+            self.clean(FakeKit(KIT_BEFORE), listed=[], apply=True,
+                       client=client, session=session)
+
+    def test_a_tree_already_gone_is_refused_before_anything_is_removed(self):
+        kitfs = FakeKit([p for p in KIT_BEFORE if not p.startswith(RUN_TREE)])
+        client, session = self.caller(HELD)
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            self.clean(kitfs, apply=True, client=client, session=session)
+        self.assertEqual(kitfs.removed, [], 'refuse before removing, not halfway')
+        self.assertIn('no longer on the kit', str(refused.exception))
+
+    def test_paths_appearing_during_the_removal_are_reported(self):
+        kitfs = FakeKit(KIT_BEFORE, appears=[f'{DATA}/games/new'])
+        client, session = self.caller(HELD)
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            self.clean(kitfs, apply=True, client=client, session=session)
+        self.assertIn('appeared', str(refused.exception))
+
+    def test_taking_more_than_the_listed_trees_is_reported(self):
+        kitfs = FakeKit(KIT_BEFORE, loses=[f'{OLD_TREE}/record.json'])
+        client, session = self.caller(HELD)
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            self.clean(kitfs, apply=True, client=client, session=session)
+        self.assertIn('not the', str(refused.exception))
 
 
 class KitListing(unittest.TestCase):
@@ -852,13 +744,24 @@ class KitListing(unittest.TestCase):
 
         return Shell()
 
+    def test_a_probe_that_fails_is_not_a_confirmed_absent_root(self):
+        # An ssh helper exiting 255, or a directory that cannot be searched,
+        # must not read as "absent": the diff would then be certified over a
+        # root that was never seen.
+        for reply in ((255, ''), (0, ''), (0, 'ssh: connect failed'), (1, 'ABSENT')):
+            with self.subTest(reply=reply):
+                shell = self.shell({'test -d': reply})
+                with self.assertRaises(kit_hil.CleanupRefused) as refused:
+                    shell.find(kit_hil.DATA_ROOTS)
+                self.assertIn('unknown', str(refused.exception))
+
     def test_an_absent_root_is_empty_and_said_so_not_unknown(self):
         # /media/fat/fogcast/saves need not exist on a kit that never saved.
         # One find over all three roots would exit nonzero for that and a
         # refusal on any nonzero exit would refuse every cleanup there.
-        shell = self.shell({f"test -d '{SCRUB.rsplit('/', 1)[0]}'": (0, ''),
-                            f"test -d '{DATA}'": (0, ''),
-                            "test -d '/media/fat/fogcast/saves'": (1, ''),
+        shell = self.shell({f"test -d '{SCRUB.rsplit('/', 1)[0]}'": (0, 'PRESENT'),
+                            f"test -d '{DATA}'": (0, 'PRESENT'),
+                            "test -d '/media/fat/fogcast/saves'": (0, 'ABSENT'),
                             f"find '{DISKS}'": (0, f'{DISKS}\n{RUN_DISK}\n'),
                             f"find '{DATA}'": (0, f'{DATA}\n'),
                             "find '/media/fat/fogcast/saves'": (2, 'must not be asked')})
@@ -869,7 +772,7 @@ class KitListing(unittest.TestCase):
                          'an absent root is not listed at all')
 
     def test_a_failed_listing_of_a_root_that_exists_refuses(self):
-        shell = self.shell({'test -d': (0, ''),
+        shell = self.shell({'test -d': (0, 'PRESENT'),
                             f"find '{DISKS}'": (0, f'{DISKS}\n'),
                             f"find '{DATA}'": (1, f'{DATA}\n{RUN_TREE}\n')})
         with self.assertRaises(kit_hil.CleanupRefused) as refused:
@@ -878,17 +781,19 @@ class KitListing(unittest.TestCase):
         self.assertIn('nothing removed', str(refused.exception))
 
     def test_a_partial_listing_never_reaches_a_removal(self):
-        shell = self.shell({'test -d': (0, ''),
+        shell = self.shell({'test -d': (0, 'PRESENT'),
                             f"find '{DISKS}'": (1, f'{DISKS}\n{RUN_DISK}\n')})
         removed = []
         shell.remove = removed.append
         with self.assertRaises(kit_hil.CleanupRefused):
+            client = FakeClient([HELD])
+            session = FakeSession(client, 'claude-test', 'the run itself')
             kit_hil.clean(shell, [RUN_DISK], [RUN_DISK], apply=True, log=lambda *_: None,
-                          hold=None)
+                          client=client, session=session)
         self.assertEqual(removed, [])
 
     def test_an_unsafe_root_is_refused(self):
-        shell = self.shell({'test -d': (0, '')})
+        shell = self.shell({'test -d': (0, 'PRESENT')})
         with self.assertRaises(kit_hil.CleanupRefused):
             shell.find(('/media/fat/fogcast/$(reboot)',))
 

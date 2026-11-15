@@ -9,8 +9,9 @@ instead, where the test suite holds them:
 * `drain` ends a run deterministically. A command file with no final
   `{"op": "quit"}` ends the run instead of idling silently, and a live console
   that does wait says, over and over, exactly what it waits for.
-* `cleanup_gate` refuses a post-run tail while the kit still has a core loaded.
-  A removal under a loaded core preceded the stop/close that returned HTTP 500
+* `cleanup_gate` reads whether the kit is safe to touch, and `clean` refuses to
+  remove anything unless the caller's own lease is live and the kit is idle. A
+  removal under a loaded core preceded the stop/close that returned HTTP 500
   and left Kit B's lease `blocked` with "operator recovery required".
 * `verdict` makes a command error the run's own verdict. A `load` the kit
   refused at admission (HTTP 422 `INVALID_ARCHIVE`) must not leave `rc=0`.
@@ -18,9 +19,17 @@ instead, where the test suite holds them:
 `run_lock` and `lock_holder` answer "is my driver still alive?" without
 `pgrep -f`, which matches the asking shell's own command line.
 
+`clean` removes exactly the trees a run created, inside the lease the run
+already holds. It is a library call for the driver, not a CLI command: only a
+live renewing process holds a kit lease, so a shell tail after the driver has
+exited has no lease to clean under. See the validation record for why the
+cleanup no longer manages a lease of its own, and issue #1865 for the
+agent-side enforcement that would make these guards unnecessary rather than
+merely correct.
+
 The CLI serves the shell wrappers:
 
-    kit_hil.py guard-idle --config PRIVATE.toml     # before any post-run tail
+    kit_hil.py guard-idle --config PRIVATE.toml     # read the kit's state
     kit_hil.py verdict runs/RUN/result.json         # the run's own verdict
     kit_hil.py alive runs/RUN/kit-hil-run.lock      # is the driver alive?
 """
@@ -333,8 +342,18 @@ class KitShell:
         paths, self.absent = [], []
         for root in roots:
             check_path(root, 'data root')
-            code, _ = self.run(f"test -d '{root}'")
-            if code != 0:
+            # A bare `test -d` cannot tell a root that is absent from a probe
+            # that failed: an ssh helper exiting 255, or a directory that
+            # cannot be searched, would both read as "absent" and the diff
+            # would then be certified over a root never seen. Make the probe
+            # say which, and refuse anything that is not one of the two.
+            code, out = self.run(f"test -d '{root}' && echo PRESENT || echo ABSENT")
+            answer = out.strip().splitlines()[-1].strip() if out.strip() else ''
+            if code != 0 or answer not in ('PRESENT', 'ABSENT'):
+                raise CleanupRefused(f'the probe for {root} failed (exit {code}, said '
+                                     f'{answer or "nothing"!r}), so whether it exists is '
+                                     f'unknown; nothing removed')
+            if answer == 'ABSENT':
                 self.absent.append(root)
                 continue
             code, out = self.run(f"find '{root}' | sort")
@@ -387,57 +406,78 @@ def check_removable(listed, created, *, roots=DATA_ROOTS, keep=()):
             raise CleanupRefused(f'{path!r} is not in this run\'s own new paths')
 
 
-def clean(shell, listed, created, *, roots=DATA_ROOTS, keep=(), hold=None, apply=False,
-          log=print):
-    """Remove exactly the trees a run created, under a held kit lease.
+def require_caller_lease(client, session):
+    """Raise unless the caller's own lease is live, ours, and over an idle kit.
 
-    `hold` takes the lease and returns the session to release — in practice
-    `hold_for_cleanup`, which claims before it checks so that the check and
-    the removal are one held interval. Checking a free kit and then removing
-    would only establish that the kit was idle when it was looked at, since
-    another session can claim it in between; the removal is `rm -r` over ssh
-    that the agent never sees, so nothing else would stop it.
+    `clean` claims, renews and releases nothing. The run that created the data
+    holds the lease for its whole life and the cleanup happens inside that
+    held session, so there is no second interval for a lease to lapse across.
+    What is left is to verify the caller really holds it, from both sides: the
+    local session (token, renewal, deadline) and the agent's own view of the
+    lease (held, and the generation this session was granted).
 
-    The list is checked against what the run created before the lease is even
-    taken, every tree must still be there, and afterwards the `find` diff must
-    be exactly those trees with nothing appeared — the checks `clean-r.sh`
-    grew by hand, in one tested place.
+    An earlier version of this module claimed a lease of its own here. Five
+    review rounds on PR #1850 all asked one question — is the lease held for
+    the whole interval, and does the exit code say so — and two of their
+    findings were introduced by earlier fixes in the same series. A path that
+    orchestrates ssh commands which can outrun a lease is the wrong place to
+    manage one, so it no longer does; see the validation record and issue
+    #1865.
+    """
+
+    if session is None:
+        raise CleanupRefused('a cleanup runs inside the run\'s own held lease; this one was '
+                             'given no session, and it will not claim one of its own')
+    require_lease(session, 'the cleanup')
+    try:
+        lease = client.request('/v1/kit/lease')
+        status = client.request('/v1/status')
+    except kitlib.KitError as error:
+        raise CleanupRefused(f'the kit agent did not answer, so the caller\'s lease cannot be '
+                             f'confirmed: {error}') from None
+    generation = lease.get('generation')
+    if lease.get('state') != 'held' or generation != session.generation:
+        held = {key: lease[key] for key in ('state', 'owner', 'purpose', 'reason') if key in lease}
+        raise CleanupRefused(f'the kit lease is not the caller\'s: the agent reports '
+                             f'{json.dumps(held)} and generation {generation!r}, the caller holds '
+                             f'{session.generation!r}')
+    core = loaded_core(status)
+    recovery = status.get('recovery') or ''
+    if core is not None or recovery or status.get('state') != 'idle':
+        raise CleanupRefused(
+            f'the kit is {status.get("state")}'
+            + (f' with {core} loaded' if core else '')
+            + (f' reporting recovery {recovery!r}' if recovery else '')
+            + '; stop the core before removing the run\'s data. A removal under a loaded core '
+              'preceded the stop/close that blocked a lease on 14 November 2026.')
+    return {'state': status.get('state'), 'lease': lease.get('state'),
+            'generation': session.generation}
+
+
+def clean(shell, listed, created, *, roots=DATA_ROOTS, keep=(), session=None, client=None,
+          apply=False, log=print):
+    """Remove exactly the trees a run created, inside the run's own lease.
+
+    The caller holds the lease; this function verifies it and never touches
+    lease state. Call it from the driver that did the run, before it closes
+    its session — not from a shell tail after that session has gone, which
+    would have no lease to run under.
+
+    The list is checked against what the run created, the caller's lease is
+    verified, every tree must still be there, and afterwards the `find` diff
+    must be exactly those trees with nothing appeared. `require_lease` runs
+    again before each `rm -r` and before the verification listing, because a
+    renewal can still fail mid-removal and `kit.Session` only sets a flag.
 
     `apply` must be set to remove anything; the default reports the plan.
     """
 
     check_removable(listed, created, roots=roots, keep=keep)
-    session = hold() if hold is not None else None
-    plan, failure, released = None, None, True
-    try:
-        # The release is unconditional: anything at all out of the removal —
-        # a BrokenPipeError from the log, a UnicodeDecodeError on a listing, a
-        # KeyboardInterrupt — must still give the shared kit back, and must
-        # still reach the caller afterwards.
-        try:
-            plan = _clean_held(shell, listed, roots=roots, apply=apply, log=log,
-                               session=session)
-        except CleanupRefused as error:
-            failure = error
-    finally:
-        if session is not None:
-            released = release(session)
-    if failure is not None:
-        raise failure
-    if not released:
-        # The removal may have finished, but the exit code has to tell the
-        # truth about the lease: a wrapper's `|| exit 5` is the only thing
-        # standing between an unreleased lease and a run reported complete.
-        raise CleanupRefused('the cleanup lease was not confirmed released, so the kit may '
-                             'still be held; check /v1/kit/lease before releasing the kit'
-                             + (f' (the removal itself finished: {json.dumps(plan)})'
-                                if plan else ''))
-    return plan
-
-
-def _clean_held(shell, listed, *, roots, apply, log, session=None):
-    """The listing and the removal, with the cleanup's lease already held."""
-
+    if client is not None or session is not None:
+        log(f'lease: {json.dumps(require_caller_lease(client, session))}')
+    else:
+        raise CleanupRefused('a cleanup needs the caller\'s session and client to verify the '
+                             'lease it runs under')
     require_lease(session, 'the kit listing')
     before = shell.find(roots)
     if getattr(shell, 'absent', None):
@@ -501,61 +541,6 @@ def client_for(config_path, target=None):
     return client
 
 
-def hold_for_cleanup(client, owner, purpose, *, wait=GATE_WAIT, poll=GATE_POLL,
-                     session_factory=None, now=time.monotonic, sleep=time.sleep):
-    """Claim the kit, then check it, and return the held lease.
-
-    The order is the point. `cleanup_gate` reads the kit's state, and a state
-    that was safe when it was read is not a state that is safe when the
-    removal acts on it: another session may claim the free kit in between and
-    load a core, which is the #1368 incident's own shape — a sequencing
-    assumption that happened to be wrong. A claim is the only exclusion the
-    agent offers, and it succeeds only while the lease is free, so claiming
-    first and checking second makes the check and the removal one held
-    interval instead of two ordered events.
-
-    The caller releases it; `clean` does that in a `finally`.
-    """
-
-    deadline = now() + wait
-    while True:
-        try:
-            lease = client.request('/v1/kit/lease')
-        except kitlib.KitError as error:
-            raise CleanupRefused(f'the kit agent did not answer, so its state is unknown: '
-                                 f'{error}') from None
-        state = lease.get('state')
-        if state == 'free':
-            break
-        held = {key: lease[key] for key in ('state', 'owner', 'purpose', 'reason') if key in lease}
-        if state != 'revoking' or now() >= deadline:
-            raise CleanupRefused(f'the kit lease is {state}, so it is not this run\'s to clean '
-                                 f'under. Lease: {json.dumps(held)}')
-        sleep(min(poll, max(0.0, deadline - now())))
-    session = (session_factory or kitlib.Session)(client, owner, purpose)
-    try:
-        session.claim()
-    except kitlib.KitError as error:
-        raise CleanupRefused(f'the kit lease could not be claimed for the cleanup, so nothing '
-                             f'excludes another session from it: {error}') from None
-    try:
-        status = client.request('/v1/status')
-    except kitlib.KitError as error:
-        release(session)
-        raise CleanupRefused(f'the kit agent did not answer under the claim: {error}') from None
-    core = loaded_core(status)
-    recovery = status.get('recovery') or ''
-    if core is not None or recovery or status.get('state') != 'idle':
-        release(session)
-        raise CleanupRefused(
-            f'under the cleanup\'s own lease the kit is {status.get("state")}'
-            + (f' with {core} loaded' if core else '')
-            + (f' reporting recovery {recovery!r}' if recovery else '')
-            + '; a removal under a loaded core preceded the stop/close that blocked this '
-              'lease on 14 November 2026. Stop the core first.')
-    return session
-
-
 def require_lease(session, step):
     """Raise unless the cleanup's lease is still live. Call before each step.
 
@@ -576,21 +561,6 @@ def require_lease(session, step):
         raise CleanupRefused(f'the cleanup lease is no longer held, so {step} would run '
                              f'unprotected and another session may already have the kit; '
                              f'nothing further is removed')
-
-
-def release(session):
-    """Give the cleanup's lease back, and never mask what it was taken for.
-
-    Called from a `finally`, so it must not raise: a failure here is reported
-    through the return value and becomes the command's exit code, while
-    whatever the cleanup was already failing with keeps its place.
-    """
-
-    try:
-        session.close()
-    except Exception:  # noqa: BLE001 - a release failure must not replace the cause
-        return False
-    return True
 
 
 def run_lock(path):
@@ -692,15 +662,6 @@ def program_pids(program, *, needle=None, pgrep='pgrep'):
     return pids
 
 
-def read_lines(path):
-    """The non-empty lines of a run's own list, or a refusal if it is absent."""
-
-    try:
-        return [line.strip() for line in Path(path).read_text().splitlines() if line.strip()]
-    except OSError:
-        raise CleanupRefused(f'{path} is missing, so what the run left is unknown') from None
-
-
 def where(client):
     """Which kit a gate answered about, for a message that must not mislead."""
 
@@ -724,24 +685,6 @@ def parser():
     said.add_argument('result', type=Path)
     alive = commands.add_parser('alive', help='is the driver that holds this run lock alive?')
     alive.add_argument('lock', type=Path)
-    wipe = commands.add_parser('clean', help="remove exactly the trees a run left, gated")
-    wipe.add_argument('--config', type=Path, help='private FogCast host TOML')
-    wipe.add_argument('--url', help='target agent origin (or FOGCAST_BASE_URL)')
-    wipe.add_argument('--target', help="the config's target, e.g. dev or kit2")
-    wipe.add_argument('--wait', type=float, default=GATE_WAIT,
-                      help='seconds to wait out a revoking lease (default %(default)s)')
-    wipe.add_argument('--ssh', required=True, type=Path, help="the kit's ssh helper")
-    wipe.add_argument('--run-dir', required=True, type=Path,
-                      help='the run directory holding kit-new-tops.txt and kit-new-paths.txt')
-    wipe.add_argument('--root', action='append', dest='roots', default=None,
-                      help='a data root a removal may touch (default: FogCast\'s three)')
-    wipe.add_argument('--keep', action='append', default=[],
-                      help='a path or digest that must never be removed, repeatable')
-    wipe.add_argument('--owner', default='claude-kit-hil-clean',
-                      help='the lease owner to claim as (default %(default)s)')
-    wipe.add_argument('--purpose', help="the lease purpose (default: the run directory's name)")
-    wipe.add_argument('--apply', action='store_true',
-                      help='remove; without it the plan is reported and nothing is removed')
     return ask
 
 
@@ -775,19 +718,6 @@ def main(argv=None):
     try:
         client = (client_for(args.config, args.target) if args.config
                   else kitlib.configuration(args))
-        if args.command == 'clean':
-            listed = read_lines(args.run_dir / 'kit-new-tops.txt')
-            created = read_lines(args.run_dir / 'kit-new-paths.txt')
-            plan = clean(KitShell(args.ssh), listed, created,
-                         roots=tuple(args.roots) if args.roots else DATA_ROOTS,
-                         keep=tuple(args.keep), apply=args.apply,
-                         hold=lambda: hold_for_cleanup(
-                             client, args.owner,
-                             args.purpose or f'cleanup of {args.run_dir.name}',
-                             wait=args.wait))
-            plan['target'] = getattr(client, 'target_name', None) or args.target or 'selected'
-            print(json.dumps(plan))
-            return 0
         state = cleanup_gate(client, wait=args.wait)
     except CleanupRefused as error:
         print(f'REFUSED ({where(client)}): {error}', file=sys.stderr)
