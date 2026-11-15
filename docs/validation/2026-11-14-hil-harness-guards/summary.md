@@ -444,13 +444,17 @@ that is red on `b35a9cf3f`.
 The first per-root implementation still had two fail-open edges. Its
 `test -d ... && echo PRESENT || echo ABSENT` probe translated every test error
 into an absent root, and `find ... | sort` returned `sort`'s success status
-when `find` failed after printing a partial listing. The probe now preserves
-the test status (only status 1 means absent; other failures refuse), while each
-present root is listed by a bare remote `find`. The complete result is sorted
+when `find` failed after printing a partial listing. The probe now treats
+status 1 as a possible absence only: it confirms the parent is a readable,
+searchable directory, then checks its `ls -a` output for the exact root entry.
+An inaccessible parent, failed listing, or entry that exists but is not a
+directory refuses; other `test` failures also refuse. Each present root is
+listed by a bare remote `find`. The complete result is sorted
 locally only after each remote listing succeeds. A genuinely absent optional
 root such as `saves` still contributes nothing and is named in the log; a
 partial listing or failed probe cannot certify a cleanup diff. Focused local
-fake-SSH tests exercise both shell-status cases without touching a kit.
+fake-SSH tests exercise the probe through POSIX `sh`, including a truly absent
+root and an inaccessible parent, without touching a kit.
 
 ## After the reduction: one finding, and not of that family
 

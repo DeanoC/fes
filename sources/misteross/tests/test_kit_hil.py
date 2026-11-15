@@ -947,6 +947,12 @@ class KitListing(unittest.TestCase):
 
         return Shell()
 
+    def real_shell(self, home):
+        ssh = Path(home) / 'ssh-posix-shell'
+        ssh.write_text('#!/bin/sh\nexec /bin/sh -c "$1"\n')
+        ssh.chmod(0o755)
+        return kit_hil.KitShell(str(ssh))
+
     def test_a_probe_that_fails_is_not_a_confirmed_absent_root(self):
         # An ssh helper exiting 255, or a directory that cannot be searched,
         # must not read as "absent": the diff would then be certified over a
@@ -961,14 +967,47 @@ class KitListing(unittest.TestCase):
 
     def test_a_test_error_is_not_translated_into_an_absent_root(self):
         with tempfile.TemporaryDirectory() as home:
-            ssh = Path(home) / 'ssh-test-error'
+            ssh = Path(home) / 'ssh-posix-shell'
             ssh.write_text("#!/bin/sh\n"
-                           "exec /bin/bash -c 'test() { return 2; }; eval \"$1\"' _ \"$1\"\n")
+                           "exec /bin/sh -c 'test() { return 2; }; eval \"$1\"' _ \"$1\"\n")
             ssh.chmod(0o755)
             shell = kit_hil.KitShell(str(ssh))
             with self.assertRaises(kit_hil.CleanupRefused) as refused:
                 shell.find((f'{home}/root',))
             self.assertIn('unknown', str(refused.exception))
+
+    def test_real_posix_shell_confirms_a_truly_absent_root(self):
+        with tempfile.TemporaryDirectory() as home:
+            parent = Path(home) / 'parent'
+            parent.mkdir()
+            shell = self.real_shell(home)
+            self.assertEqual(shell.find((str(parent / 'missing'),)), [])
+            self.assertEqual(shell.absent, [str(parent / 'missing')])
+
+    def test_real_posix_shell_does_not_call_a_non_directory_entry_absent(self):
+        with tempfile.TemporaryDirectory() as home:
+            parent = Path(home) / 'parent'
+            parent.mkdir()
+            root = parent / 'root'
+            root.touch()
+            shell = self.real_shell(home)
+            with self.assertRaises(kit_hil.CleanupRefused):
+                shell.find((str(root),))
+
+    def test_real_posix_shell_refuses_an_inaccessible_parent(self):
+        if os.geteuid() == 0:
+            self.skipTest('root can search mode-000 directories')
+        with tempfile.TemporaryDirectory() as home:
+            parent = Path(home) / 'parent'
+            parent.mkdir()
+            parent.chmod(0)
+            try:
+                shell = self.real_shell(home)
+                with self.assertRaises(kit_hil.CleanupRefused) as refused:
+                    shell.find((str(parent / 'missing'),))
+                self.assertIn('unknown', str(refused.exception))
+            finally:
+                parent.chmod(0o700)
 
     def test_find_partial_output_with_failure_is_not_hidden_by_sort(self):
         with tempfile.TemporaryDirectory() as home:

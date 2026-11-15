@@ -472,9 +472,14 @@ class KitShell:
             # Preserve `test`'s status: `&& ... || ...` turns every error
             # into ABSENT just as readily as a false test. A failed probe is
             # unknown, not an empty root.
+            parent, name = root.rsplit('/', 1)
             probe = (f"if test -d '{root}'; then printf '%s\\n' PRESENT; "
                      f"else probe_status=$?; case \"$probe_status\" in "
-                     f"1) printf '%s\\n' ABSENT ;; *) exit \"$probe_status\" ;; esac; fi")
+                     f"1) if test -d '{parent}' && test -x '{parent}' && "
+                     f"test -r '{parent}'; then entries=$(ls -a '{parent}') || exit $?; "
+                     f"case \"\n$entries\n\" in *\"\n{name}\n\"*) exit 2 ;; "
+                     f"*) printf '%s\\n' ABSENT ;; esac; else exit 2; fi ;; "
+                     f"*) exit \"$probe_status\" ;; esac; fi")
             code, out = self.run(probe)
             answer = out.strip().splitlines()[-1].strip() if out.strip() else ''
             if code != 0 or answer not in ('PRESENT', 'ABSENT'):
