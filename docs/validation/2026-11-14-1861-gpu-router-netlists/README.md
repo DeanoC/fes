@@ -130,6 +130,39 @@ all four branches reproduced main's RBF byte for byte. Condition 3 is each
 branch's own normal seal passing its gates, recorded in `reports-seal/`; all
 five pass.
 
+### Condition 3 is exposed to the `BUILD_ID` itself; condition 2 is not
+
+The session running #1806's campaign measured something that bears on how these
+seals should be read: on `fes.coleco` socket-v2, the only closure change was
+`core_package.py`, whose diff emits no RTL and whose sole build effect is moving
+the `BUILD_ID` — and that core then missed timing on all ten seeds (best
+`worst_ratio` 0.9796), having passed on seed 1 three hours earlier. A 128-bit
+constant with no functional meaning decided whether it closed.
+
+That cuts two ways here:
+
+- **Condition 2 is immune by construction.** It holds the `BUILD_ID` equal on
+  both sides, which is precisely why D12 forces the constant rather than
+  comparing the two natural seals.
+- **Condition 3 is exposed.** Each branch seal routes at its own `BUILD_ID`, so
+  a miss there could be the constant rather than the change.
+
+Worth stating because some of these cores run close to their bound. Worst
+achieved/constraint ratio across clock domains, from `reports-seal/`:
+
+| Artifact | main | branch |
+| --- | --- | --- |
+| `fes.c64` | 1.007 | 1.053 |
+| `fes.zx81` | 1.013 | 1.020 |
+| `fes.spectrum` | 1.041 | 1.206 |
+
+`fes.c64` clears its pixel constraint by 0.7% on main. Every branch seal passed,
+and in each case with *more* margin than main — but that is the luck of the
+constant, not a property of this change, and it should not be read as one. The
+converse matters more: had a branch seal missed at these margins, it would not
+have been attributable to this PR without re-running it at main's `BUILD_ID`
+first, which is what condition 2's forced run already does.
+
 The placer seed is worth reading as evidence rather than bookkeeping. The
 search tries seeds in recipe order and stops at the first that meets timing, so
 the two sides agreeing on the seed — 5, 1, 5 and 4 respectively — means the

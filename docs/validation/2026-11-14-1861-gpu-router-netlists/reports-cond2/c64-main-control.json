@@ -1,7 +1,10 @@
 {
   "build_id": "310c87314680b122595bb792ab7429c9",
   "core": "fes.c64",
+  "dirty_pinned_inputs": [],
   "netlist_sha256": "3375e49117201dba0760d437ff7166b262e4af7eac4e00ac4a6589164331891c",
+  "pinned_input_count": 73,
+  "pinned_inputs_sha256": "e6f24fcd65f12efb710a5e40044f7edc0c40d02048d25d2eb64db2b77da8d9ea",
   "placer_heap_timingweight": 2000,
   "placer_seed": 4,
   "rbf_bytes": 3749707,
@@ -12,5 +15,6 @@
     "nextpnr-mistral": "commit=5fe55f3df5d9e48d81b41ec5134a4f3e9a6c06fe; sha256=e8eb270691b1849737e64d10750316ad9555a0a0dda67f3fcb055c124d36d3d4; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
     "yosys": "commit=3a5accbd78c526ab7bae32640044a2e062a3cfc9; sha256=432db5309258ff6d58b56736f11de52aef2d134810422f86cc7902964cfd2b83"
   },
-  "tree": "/data/fes1861-netlist/mainref/sources/misteross"
+  "tree": "/data/fes1861-netlist/mainref/sources/misteross",
+  "tree_clean": true
 }

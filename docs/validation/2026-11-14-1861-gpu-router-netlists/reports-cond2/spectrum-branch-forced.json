@@ -1,16 +1,20 @@
 {
   "build_id": "401632145ba4e7c84cbae6544b2d6d53",
   "core": "fes.spectrum",
+  "dirty_pinned_inputs": [],
   "netlist_sha256": "d77a0478905205944eace848af9be3bd11831a41b36c98794e1c630f6f926bbe",
+  "pinned_input_count": 52,
+  "pinned_inputs_sha256": "979720ef31f528b4093d6d8233973482307782d09f2f22b52c85e191760f2704",
   "placer_heap_timingweight": 2000,
   "placer_seed": 5,
   "rbf_bytes": 2642711,
   "rbf_sha256": "402a213d752b3e58ba184e5b4afe34029020e4293682ae9bdd7d2d01cf53b058",
-  "revision": "44e836053ab4733994b16e31299fd7ed5a8c517a",
+  "revision": "7aae9b96c30df4de98b5f5a52fc34accfcb47bb4",
   "tools": {
     "mistral": "commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=0a5528a4e8154aeb27109ff89a9cbde252502482d592ca7412fd391ad5ce7566",
     "nextpnr-mistral": "commit=bd7a1c0d2e1a36ff64ad303edffac87fdabd66bb; sha256=7dc0117c616faf056a2637e9fef353def9ce938eed9036e3a531b280d60ea1b0; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
     "yosys": "commit=3a5accbd78c526ab7bae32640044a2e062a3cfc9; sha256=432db5309258ff6d58b56736f11de52aef2d134810422f86cc7902964cfd2b83"
   },
-  "tree": "/home/deano/fes/.claude/worktrees/gpu-router-default/sources/misteross"
+  "tree": "/home/deano/fes/.claude/worktrees/gpu-router-default/sources/misteross",
+  "tree_clean": true
 }
