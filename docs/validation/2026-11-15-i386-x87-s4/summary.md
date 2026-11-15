@@ -136,8 +136,12 @@ Four instruments, answering different questions.
 
 | gate | result |
 |---|---|
+All of these ran on the frozen head, **after** the last RTL change
+(`7358e369d`); everything committed since is documentation, models and the
+testbench.
+
 | unit bench, RTL, tail assertions armed | **740 passed, 0 failed** |
-| unit bench, locked-Yosys netlist | 730 passed, 0 failed (before the last 10 cases) |
+| unit bench, locked-Yosys netlist | **740 passed, 0 failed** |
 | **QEMU's fprem test** | **ported as its operand grid: 23,328 pairs an instruction, 0 failed** |
 | directed partial-step chains | **32 chains pass** (both instructions, exponent differences −5 to 999, odd divisors at the tie, full status mask, each step's result fed back) |
 | exception-mask matrix, divide/sqrt/remainder rows | **passes under all seven mask settings** |
@@ -146,7 +150,7 @@ Four instruments, answering different questions.
 | lockstep, identity **on**, with slice 4's own programs | **21 pass, 0 failed** |
 | in-machine fit, identity **off** — what ships and seals | **36,416 ALMs, +0.459 ns: fits and closes** |
 | in-machine fit, identity **on** | **does not fit: 4,407 of 4,191 LABs** ([escalation](STOP-RULE-FIRED.md)) |
-| test386 | **POST FFh reached**, halt at d0:ffb9 after 79,641,629 steps |
+| test386 | **POST FFh reached**, halt at d0:ffb9 after 79,641,629 steps, no EE differences |
 | standalone area, against the merge base in the same flow | **+3,997 ALMs, +0 DSP, +2 M10K** ([the reading](area-first-reading.md)) |
 | TestFloat div, sqrt, rem | **attempted, unmet**: a scope of its own, see below |
 | QEMU's fprem test | not run |
