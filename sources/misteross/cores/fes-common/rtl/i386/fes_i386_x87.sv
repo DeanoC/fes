@@ -402,9 +402,6 @@ module fes_i386_x87 (
                                   // variable shift (see D_TAIL)
     logic [95:0] dv_pow;          // ... and 2^(2i), which the square root's
                                   // trial needs and which halves twice a step
-    logic [6:0]  dv_dr;           // the scale the candidate is formed at: the
-                                  // precision's drop for a divide or a square
-                                  // root, and 65 + s - n for a remainder step
 
     // The error bound E and the step count k are constants per precision, not
     // measurements: a case outside the sample that exceeded E would be a wrong
@@ -436,6 +433,42 @@ module fes_i386_x87 (
     // target's bound is the bug this cost 585 of 684 cases to find.
     function automatic logic [5:0] dv_drop(input logic [1:0] prec);
         dv_drop = prec == 2'd0 ? 6'd41 : prec == 2'd2 ? 6'd12 : 6'd0;
+    endfunction
+    // The drop is one of **three constants**, so each place it is applied is a
+    // three-way mux of constant shifts and not a shifter. Writing
+    // `v >> dv_drop(prec)` gives Quartus a variable amount and it builds the
+    // general thing; these say what is meant. Option A has no barrel shifter.
+    //
+    // This was only possible once the remainders stopped sharing these paths:
+    // FPREM needed a genuinely variable drop, and while it did, muxing the
+    // divide's and the square root's constants bought nothing.
+    function automatic logic [66:0] drop67(input logic [66:0] v, input logic [1:0] prec);
+        case (prec)
+            2'd0:    drop67 = v >> 41;
+            2'd2:    drop67 = v >> 12;
+            default: drop67 = v;
+        endcase
+    endfunction
+    // The dividend at the remainder's scale: 65 + s - drop, so 24/25, 53/54
+    // or 65/66 -- six constants, selected by the precision and the pre-scale.
+    function automatic logic [95:0] dvd96(input logic [63:0] m, input logic s,
+                                          input logic [1:0] prec);
+        case (prec)
+            2'd0:    dvd96 = s ? (96'(m) << 25) : (96'(m) << 24);
+            2'd2:    dvd96 = s ? (96'(m) << 54) : (96'(m) << 53);
+            default: dvd96 = s ? (96'(m) << 66) : (96'(m) << 65);
+        endcase
+    endfunction
+    // The exact truncation put back where round_pc() reads it: the candidate's
+    // bits land at m[63:39] at PC 24 and m[63:10] at PC 53, with the guard and
+    // round bits clear because the sticky already covers what was not
+    // computed.
+    function automatic logic [63:0] place64(input logic [66:0] c, input logic [1:0] prec);
+        case (prec)
+            2'd0:    place64 = {c[24:0], 39'd0};
+            2'd2:    place64 = {c[53:0], 10'd0};
+            default: place64 = c[65:2];
+        endcase
     endfunction
     // The square root's own bound and step count, measured the same way:
     // 64 and 7 at the extended format, 4 and 3 at PC 24 and PC 53.
@@ -2027,7 +2060,6 @@ module fes_i386_x87 (
                             + ((oa_e - 18'sd16509 - 18'($signed({1'b0, sq_p}))) >>> 1);
                         gs_it <= dv_iters(wprec);
                         dv_lost <= 1'b0;
-                        dv_dr <= {1'b0, dv_drop(wprec)};
                         seq <= Q_SEED;
                     end else if (cur == X87_DIV) begin
                         // The divide. Both significands are normalised, so
@@ -2042,7 +2074,6 @@ module fes_i386_x87 (
                         we <= oa_e - ob_e + 18'sd16383 - 18'(oa_m < ob_m);
                         gs_it <= dv_iters(wprec);
                         dv_lost <= 1'b0;
-                        dv_dr <= {1'b0, dv_drop(wprec)};
                         // D_SEED and not the multiply directly: `rcp_q` is a
                         // registered read of ob_m, so the entry for THIS
                         // divisor is not out of the table until the cycle
@@ -2533,7 +2564,7 @@ module fes_i386_x87 (
                 // shifted adds of the divisor below.
                 D_CAND: begin
                     logic [66:0] qh, c0;
-                    qh = ({3'd0, gs_n} << (dv_s ? 3 : 2)) >> dv_dr;
+                    qh = drop67({3'd0, gs_n} << (dv_s ? 3 : 2), wprec);
                     // Clamped, which the divide alone never needed: a
                     // remainder step's quotient can be smaller than the error
                     // bound, and an unclamped subtract would wrap it to a huge
@@ -2556,7 +2587,7 @@ module fes_i386_x87 (
                     logic [3:0]  k;
                     chi = mul3(dv_c[66:64], ob_m[31:0]);
                     k = cur == X87_PREM ? 4'd8 : dv_steps(wprec);
-                    dv_rem <= (96'(oa_m) << (7'd65 + 7'(dv_s) - dv_dr))
+                    dv_rem <= dvd96(oa_m, dv_s, wprec)
                             - (mul_p[95:0] + {chi, 64'd0});
                     // The tail's first subtrahend: B << (k - 1), where k is
                     // one of three constants, so this is a mux and not a
@@ -2624,7 +2655,7 @@ module fes_i386_x87 (
                 // everything the shorter target did not compute.
                 D_FIN: begin
                     logic [5:0] dr;
-                    dr = dv_dr[5:0];
+                    dr = dv_drop(wprec);
 `ifndef SYNTHESIS
                     // The tail's contract, asserted rather than trusted: the
                     // remainder it leaves must be non-negative and below the
@@ -2637,7 +2668,7 @@ module fes_i386_x87 (
                     if (dv_rem[95] || dv_rem >= {32'd0, ob_m})
                         $error("x87 divide tail left rem=%h outside [0, B=%h)", dv_rem, ob_m);
 `endif
-                    wm <= dr == 6'd0 ? dv_c[65:2] : (64'(dv_c) << (dr - 6'd2));
+                    wm <= place64(dv_c, wprec);
                     wg <= dr == 6'd0 ? dv_c[1] : 1'b0;
                     wrd <= dr == 6'd0 ? dv_c[0] : 1'b0;
                     ws <= |dv_rem;
@@ -2718,7 +2749,7 @@ module fes_i386_x87 (
                     logic [66:0]       qh, c0;
                     logic signed [5:0] qe;
                     qe = norm_e(6'sd1 + {5'd0, sq_p} + qy_e, mul_p[127]);
-                    qh = ({3'd0, norm_hi(mul_p)} << (qe + 6'sd2)) >> dv_dr;
+                    qh = drop67({3'd0, norm_hi(mul_p)} << (qe + 6'sd2), wprec);
                     c0 = qh > {59'd0, sq_e(wprec)} ? qh - {59'd0, sq_e(wprec)} : 67'd0;
                     dv_c <= c0;
                     dv_k <= sq_steps(wprec);
@@ -2738,7 +2769,7 @@ module fes_i386_x87 (
                     logic [31:0]       chi;
                     logic [95:0]       rad;
                     qsh = 9'sd67 + 9'($signed({1'b0, sq_p}))
-                        - 9'sd2 * 9'($signed({2'b0, dv_dr}));
+                        - 9'sd2 * 9'($signed({3'b0, dv_drop(wprec)}));
                     rad = qsh >= 9'sd0 ? (96'(oa_m) << qsh[7:0]) : (96'(oa_m) >> (-qsh));
                     chi = mul3(dv_c[66:64], dv_c[31:0]);
                     dv_rem <= rad - (mul_p[95:0] + {chi, 64'd0} + {chi, 64'd0});
@@ -2753,7 +2784,7 @@ module fes_i386_x87 (
                 end
                 Q_FIN: begin
                     logic [5:0] dr;
-                    dr = dv_dr[5:0];
+                    dr = dv_drop(wprec);
 `ifndef SYNTHESIS
                     // The same contract for the square root: the remainder
                     // must be non-negative and below 2*C + 1, which is the
@@ -2761,7 +2792,7 @@ module fes_i386_x87 (
                     if (dv_rem[95] || dv_rem > {28'd0, dv_c, 1'b0})
                         $error("x87 sqrt tail left rem=%h outside [0, 2C+1] with C=%h", dv_rem, dv_c);
 `endif
-                    wm <= dr == 6'd0 ? dv_c[65:2] : (64'(dv_c) << (dr - 6'd2));
+                    wm <= place64(dv_c, wprec);
                     wg <= dr == 6'd0 ? dv_c[1] : 1'b0;
                     wrd <= dr == 6'd0 ? dv_c[0] : 1'b0;
                     ws <= |dv_rem || dv_lost;
