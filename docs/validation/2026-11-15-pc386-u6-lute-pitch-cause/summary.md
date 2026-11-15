@@ -2,7 +2,7 @@
 
 fes#1837. The method, with every prediction and pass rule, is in
 [`method.md`](method.md), committed before any capture and amended and
-corrected six times, each entry dated and saying what had been seen. One
+corrected seven times, each entry dated and saying what had been seen. One
 rule committed there is reported **falsified**; it was not replaced.
 
 **The cause.** The game times its own delay loop against the BIOS tick at
@@ -34,7 +34,8 @@ key `6` at **878.4 Hz** for a word-1 override of 160 — the kit's own 840.72 Hz
 at 12 MHz scaled by the probe's two pass rates, 769/736, and nothing else.
 The kit then played it at **873.59 Hz**: **−0.55%**, with key `1` at −0.15%,
 at a frequency the game had never been played at. The prediction was
-committed, and then measured, in that order.
+committed, and then measured, in that order. (Key `6` is the committed
+figure; the key `1` number was worked out the same way after the run.)
 
 **What is not settled.** Whether the reference's extra cost is
 instruction-fetch time — which would also act on **fes#1840** — or simply
@@ -124,7 +125,12 @@ November; what that cost is declared in the scratch README, and `c1`'s
 figures are superseded by `c3` in any case. The kit ran
 core-only on its baseline software `c9ae79e2` and image `179affbb…`, claimed
 and released in `kitA-STATUS.md`, with no install, image change or reboot.
-Every kit load was verified from `runs/c1cal/result.json` and `acks.jsonl`.
+Both kit runs were verified from their `result.json` and `acks.jsonl`:
+`c1cal` has five `"state": "active"` loads (the scrub plus the four override
+points) and `h1cal` two, neither holds an `error` for any command, and both
+ended `HIL rc=0` with the kit released and its baseline re-verified
+read-only afterwards. The frame grabs of `runs/c2` to `c5` are all from this
+work; `c2`'s directory holds none.
 
 `run-u6cal.sh` is `run-u6ref.sh` with one duplicate idleness check — the
 kit-local `"phase":"idle"`, which Kit A's bundle does not serve — replaced by
@@ -134,8 +140,8 @@ Every other baseline, lease and restore check is unchanged.
 ## What the probe measured
 
 All three repeats of the whole probe were read at every kit point and all
-twelve printed identical block counts; the reference's three repeats are
-identical too. `C` is five repeats within each run: equal in every run except
+twelve printed identical block counts. The reference's three repeats were
+read in `c3` and are identical too. `C` is five repeats within each run: equal in every run except
 at word 1 = 80, where it alternates between 18,288 and 18,291 — a spread of
 0.016%, against a ±5.9% band.
 
@@ -151,7 +157,12 @@ at word 1 = 80, where it alternates between 18,288 and 18,291 — a spread of
 | `PN` | 847 | 736 | 679 | 736 | 769 |
 | *predicted* `PN` | — | — | *680* | *737* | *769* |
 
-In clocks (`analyse.py`; the tick period cancels):
+In clocks (`analyse.py`). The tick period cancels from every *ratio* between
+machines, which is what the argument rests on; the absolute clock counts
+below also assume each machine's nominal tick (18.2065 Hz) and nominal clock.
+The probe's T0/T1 marker, which would have timed the kit's tick against wall
+time, was printed but never captured on video, so the kit's tick period is
+not independently measured here.
 
 | | reference | kit (all three overrides) | charged |
 | --- | ---: | ---: | ---: |
@@ -209,10 +220,16 @@ calibrated delay** and **2.37 points to the rest of the pass**.
 
 **Against fes#1837's own three candidates** the gate is met: its "governor's
 ISA charges" has 2.4 points, its "governor's pacing of the delay loop" has
-10.7, and its "the loop costing the kit's 386 a different number of clocks
-than the table says" is excluded outright, because the kit is paced exactly
-as it is charged at every frequency. One candidate carries more than 9 points
-and the others under 3 each.
+10.7, and and its third — "the loop costing the kit's 386 a different
+number of clocks than a 286, whatever the clock table says" — is excluded
+outright, because the kit's measured clocks *equal* its charges at every
+frequency, so the fabric is not costing the loop anything the table does not
+say. One candidate carries more than 9 points and the others under 3 each.
+
+The 10.7 points map to #1837's second candidate by **mechanism** — the
+governor's pacing of the game's software delay — rather than loop for loop:
+what is mischarged is the *calibration* loop's cost relative to the delay
+loop's, and it is the calibration loop that carries most of the error.
 
 **Against the three hypotheses `method.md` named** the gate's "otherwise"
 clause applies instead, and the record says so: H2 (the ISA charges) has its
@@ -236,10 +253,10 @@ The probe stands in for the lute; it does not replace it. Run `h1` played
 Ultima VI's lute at preset 1 with word 1 = **160** through PR #1838's own
 command flow (160 rather than 80 because that flow's fixed sleeps were timed
 at 12 MHz, and a faster machine can only reach each point early). The
-`u6-used` grab shows `Use-lute`, so the keys landed; `hil.log`'s `load` result shows the package
-active with `fes.pc386.machine` among its interfaces, `acks.jsonl` holds no
-`error` for any command, and the run ended `HIL rc=0` with Kit A released and
-its baseline re-verified read-only afterwards.
+`u6-used` grab shows `Use-lute`, so the keys landed; `result.json` and `acks.jsonl` hold its two
+`"state": "active"` loads with `fes.pc386.machine` among their interfaces and
+no `error` for any command, and the run ended `HIL rc=0` with Kit A released
+and its baseline re-verified read-only afterwards.
 
 **Committed before the run, from the measured pass rates alone:** key `6` at
 840.72 × 769/736 = **878.4 Hz**, checked at ±3%, so 852.1 to 904.8.
@@ -247,10 +264,16 @@ its baseline re-verified read-only afterwards.
 | | predicted | measured (median of 32 notes) | |
 | --- | ---: | ---: | ---: |
 | key `6` | 878.4 Hz | **873.59 Hz** | **−0.55%** |
-| key `1` | 522.20 Hz | **521.40 Hz** | −0.15% |
+| key `1` | 522.20 Hz* | **521.40 Hz** | −0.15% |
 
-(32 notes in each band: the 30 presses plus the two that the closing `1`-`0`
-scale contributes to each. The medians are over all 32.)
+\* Only key `6`'s 878.4 Hz was committed before the run. Key `1`'s figure is
+the same scaling applied to its own 499.79 Hz afterwards, and is shown as a
+consistency check, not as a prediction under the gate.
+
+31 notes in each band — the 30 presses plus one the closing `1`-`0` scale
+contributes — and the medians are over those 31. They are tight: 872.94 to
+873.72 Hz (0.09%) and 521.27 to 521.49 Hz (0.04%). The other ten of the 72
+detections are the rest of that closing scale.
 
 **Passed.** The prediction is the kit's own 840.72 Hz at 12 MHz scaled by the
 probe's two pass rates, 769/736, and nothing else. The game's own note at a

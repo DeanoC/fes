@@ -320,8 +320,7 @@ each point early. **Committed now, before the run:** key `6` at
 check is ±3%, the same margin as the reproduction gate. Analysed by
 `notes_pitch.py`, the same autocorrelation PR #1838 used.
 
-## Correction, 15 November, while run `h1` was in flight and before any of its
-## audio was opened
+## Correction, 15 November, while `h1` was in flight, before its audio was opened
 
 Two corrections to the amendment above, neither of which changes a rule.
 
