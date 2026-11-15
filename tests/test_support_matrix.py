@@ -212,6 +212,33 @@ class SupportMatrixTests(unittest.TestCase):
             errors = SUPPORT_MATRIX.validate_check_policy(root, data, by_id, None)
             self.assertEqual([], [e for e in errors if 'AGENTS.md' in e], errors)
 
+    def test_heading2_follows_commonmark(self):
+        """`##Tiers` is ordinary text; `## Tiers ##` is the closed form."""
+        cases = {
+            '## Tiers': 'Tiers',
+            '  ## Tiers': 'Tiers',
+            '## Tiers ##': 'Tiers',
+            '## Tiers (superseded)': 'Tiers (superseded)',
+            '##': '',
+            '##Tiers': None,
+            '### Tiers': None,
+            '    ## Tiers': None,
+            '- a bullet': None,
+        }
+        for line, expected in cases.items():
+            with self.subTest(line=line):
+                self.assertEqual(expected, SUPPORT_MATRIX.heading2(line))
+
+    def test_the_ladder_heading_must_be_a_real_heading(self):
+        plan = (ROOT / SUPPORT_MATRIX.FORWARD_PLAN).read_text()
+        quote = SUPPORT_MATRIX.LADDER_QUOTES[0]
+        # Not a heading at all, so there is no section to read.
+        self.assertIsNone(SUPPORT_MATRIX.ladder_section(plan.replace('## Tiers', '##Tiers', 1)))
+        # The closed form is the same heading.
+        closed = SUPPORT_MATRIX.ladder_section(plan.replace('## Tiers', '## Tiers ##', 1))
+        self.assertIsNotNone(closed)
+        self.assertIn(quote, closed)
+
     def test_an_indented_heading_ends_the_ladder_section(self):
         """Markdown allows up to three spaces before `##`, so the section must
         end there too: otherwise a later section's text answers for the ladder."""

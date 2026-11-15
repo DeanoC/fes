@@ -197,16 +197,21 @@ def derive_tier(row: dict) -> str:
     return 'stale'
 
 
-# A level-two ATX heading: Markdown allows up to three leading spaces, so the
-# boundary has to match those too or a later section folds into this one.
-HEADING2 = re.compile(r'^ {0,3}##(?!#)\s*(.*?)\s*$')
+# A level-two ATX heading as CommonMark defines it: up to three leading
+# spaces, then exactly two hashes, then whitespace or the end of the line, and
+# optionally a closing hash sequence. `##Tiers` is ordinary text, not a
+# heading, and `## Tiers ##` is the closed form of the same heading.
+HEADING2 = re.compile(r'^ {0,3}##(?!#)(?:[ \t]+(.*?))?[ \t]*$')
+HEADING_CLOSE = re.compile(r'[ \t]+#+$')
 LIST_ITEM = re.compile(r'^ {0,3}[-*+] +')
 
 
 def heading2(line: str) -> str | None:
     """The text of a level-two heading, or None if this is not one."""
     found = HEADING2.match(line)
-    return found.group(1) if found else None
+    if not found:
+        return None
+    return HEADING_CLOSE.sub('', found.group(1) or '').strip()
 
 
 def ladder_section(text: str) -> str | None:
