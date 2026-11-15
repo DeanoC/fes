@@ -298,6 +298,33 @@ is usually plausible, the symptom is a wrong result rather than a crash. The
 practical defence is the one this bench has by construction: **run operations
 back to back**, because a single operation hides the class entirely.
 
+## The seal's order, and why it is the order
+
+The RTL changed substantially **after** the lockstep and test386 last passed
+— FPREM's doubling loop and both shift restructures — so a seal reported
+against those runs would not cover its own head. That is the trap slice 2
+fell into three times, and it cost it three full re-freezes.
+
+**The tool enforces it rather than the discipline having to**:
+`build_fes_pc386_quartus.py` takes `--lockstep-report` as a required input, so
+a seal cannot be produced without pointing at a lockstep run. It is worth
+naming because a required input is a far better guard than a rule someone has
+to remember at the end of a long day.
+
+## A note on the kit status files, which cost two readings
+
+The two status files use **different timezone conventions**: Kit A's entries
+carry `+00:00` and Kit B's carry `+0200`. A Kit B timestamp therefore needs
+converting before it is compared with a Kit A one or with wall clock, and
+reading one as the other puts the claim **two hours further in the past than
+it is** — which is the error direction that would make someone take a live
+kit.
+
+Separately, and the reason this note exists at all: reading a *truncated tail*
+of either file can show an `IN USE` line that a `FREE` line two entries later
+has already answered. Both kits read as claimed on a tail window and both were
+in fact free. **Read the last `## ` line, not the last screenful.**
+
 ## Reproducing
 
 From `sources/misteross`, with the i386 lock's toolchain slot in
