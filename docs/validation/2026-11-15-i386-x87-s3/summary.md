@@ -512,10 +512,10 @@ paths sit well behind -- +0.456 on seed 3, +1.458 on seed 4, +1.424 on seed
 has the non-flattened fit, where the machine's worst is the queue aligner at
 +0.553 and the nearest x87 path is 1.75 ns behind it. **So nothing in slice
 3's arithmetic would fix these misses** -- not a pipeline stage, not a
-narrower datapath. That section also withdraws a claim that the decode paths
-pre-date this slice: their logic depth suggests slice 3's own decode
-additions deepened them, which is a live question rather than a settled one
-and belongs to slice 6.
+narrower datapath. That section also withdraws, in both directions,
+the question of whether slice 3's own decode additions lengthened the decode
+paths: the evidence runs both ways and settles neither. It is a live
+question for slice 6.
 
 **The sweep triggered this slice's own stop rule, and the decision was
 escalated rather than taken here.** Before any seed had run, this session
