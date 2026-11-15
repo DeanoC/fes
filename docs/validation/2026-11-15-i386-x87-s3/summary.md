@@ -902,22 +902,41 @@ scope.** The identity ships off through slices 5 and 6 as well, so no slice
 before 7 needs the identity-on machine to close, and the identity-on figures
 from slices 4 and 5 now serve the same purpose: telling slice 6 what to fix.
 
-**What slice 6 should fix, and what it should not.** The evidence of what
-binds is in [the margin section](#where-the-margin-went-which-is-not-where-it-looks),
-and over the full nine seeds it is **three regions, not one**: the decoder's
-byte registers (`cpu_decode_by[n]`, worst on seeds 3, 4, 5 and 6), the front
-end's queue aligner (`cpu_frontend_align_acc`, worst on seed 9 and in the
-per-entity fit) and the **L1 data cache** (`cpu_l1d_q_tx`, `cpu_l1d_stall`,
-worst on seeds 1 and 2). That spread across unrelated regions is itself the
-finding: it is the signature of congestion at 94.8% rather than of one long
-path, and it is harder to argue with than the nine slack numbers. Across
-those same nine the x87's nearest path is **0.46 to 1.75 ns** behind the
-worst in its dump -- the 0.46 is seed 3, and an earlier draft of this
-paragraph said "1.0 to 1.5 ns" from a four-seed reading. The negative result matters as much as
-the positive one and is stated plainly because the first instinct on reading
-"the margin is thin" will be to optimise the arithmetic: **an x87 fix was
-looked for and there is not one.** A pipeline stage in the sum or the
-rounding would cost a re-freeze and every gate and buy no slack at all.
+### What slice 6 should target
+
+**Not the arithmetic.** On every seed in
+[the sweep](#the-identity-on-seed-sweep-closure-is-seed-dependent) above,
+including each one that missed, the nearest x87 path is between **0.46 and
+1.75 ns** behind the worst path in the same dump. An x87 fix was looked for
+and there is not one: a register stage in the sum or the rounding would cost
+a re-freeze and every gate in this slice and buy no slack at all, because
+those paths are not what fails. The first instinct on "the margin is thin"
+is to optimise the unit that was just added, and here that instinct is
+wrong.
+
+**There is no single path to fix either.** The binding region moves by seed
+-- the decoder, the front end's queue aligner, and the L1D, as
+[where the margin went](#where-the-margin-went-which-is-not-where-it-looks)
+sets out -- which is the signature of placement and congestion at this
+utilisation rather than of logic depth anywhere. What recovers the margin is
+**area recovered elsewhere in the machine**, which is what makes the
+deferred whole-system reduction a prerequisite for slice 7 rather than a
+tidy-up after it: it buys slack as well as ALMs.
+
+**One question is open and bears directly on this.** `fes_i386_decode.sv` is
+a file this slice edits, and the decode path that misses on four of the nine
+seeds is two to three logic levels deeper than the merge base's. Against
+that: the endpoints differ, and these dumps hold worst-slack paths rather
+than deepest paths. A third counter-indication was offered and has been
+withdrawn -- that `fes_i386_decode` fits 15 ALMs *smaller* here -- because
+repeating the merge-base fit put it at 698.9 against the branch's 713.4,
+making the branch 14.5 ALMs *larger*; the sign flips with the run, so the
+decoder's area settles nothing. Both readings -- that the paths pre-date
+this slice, and that this slice deepened them -- were written into earlier
+revisions of this record and **both are withdrawn as not established**.
+**Pending** the targeted `report_timing` on both flattened fits. If it turns
+out this slice deepened decode, the claim that no change here recovers the
+margin is false for decode and slice 6 should start there.
 
 **One part of the spike's estimate is still intact, and it is the memory.**
 The spike predicted **+1,687 ALMs, 9 DSP and 17 M10K** in-machine for the
