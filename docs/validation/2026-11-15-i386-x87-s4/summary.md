@@ -136,12 +136,13 @@ Four instruments, answering different questions.
 
 | gate | result |
 |---|---|
-| unit bench, RTL, tail assertions armed | **730 passed, 0 failed** |
-| unit bench, locked-Yosys netlist | **730 passed, 0 failed** |
-| directed partial-step chains | **24 chains pass** (both instructions, exponent differences −5 to 999, full status mask, each step's result fed back) |
+| unit bench, RTL, tail assertions armed | **740 passed, 0 failed** |
+| unit bench, locked-Yosys netlist | 730 passed, 0 failed (before the last 10 cases) |
+| **QEMU's fprem test** | **ported as its operand grid: 23,328 pairs an instruction, 0 failed** |
+| directed partial-step chains | **32 chains pass** (both instructions, exponent differences −5 to 999, odd divisors at the tie, full status mask, each step's result fed back) |
 | exception-mask matrix, divide/sqrt/remainder rows | **passes under all seven mask settings** |
 | BUSY# latch trials for ZE, IE and PE from real divides and roots | **pass** |
-| lockstep, every bucket | **passed, 0 failed** — including all **1,933 no-387 cases** |
+| lockstep, every bucket | **passed, 0 failed** — including all **1,933 no-387 cases**; rerunning with slice 4's own identity-on programs |
 | test386 | **POST FFh reached**, halt at d0:ffb9 after 79,641,629 steps |
 | standalone area, against the merge base in the same flow | **+3,997 ALMs, +0 DSP, +2 M10K** ([the reading](area-first-reading.md)) |
 | TestFloat div, sqrt, rem | **attempted, unmet**: a scope of its own, see below |
@@ -150,11 +151,39 @@ Four instruments, answering different questions.
 | Quartus 17.0.2 seal | not run |
 | kit run | not run |
 
-**The lockstep's identity-on bucket is still slice 2 and 3's 14 cases**, so it
-exercises none of slice 4's arithmetic. The identity-**off** half is the
-meaningful result there: 1,933 no-387 cases pass, so nothing this slice did
-changed the empty-socket behaviour. Directed identity-on programs for the new
-forms are not written.
+Slice 4 adds **seven identity-on lockstep programs** — `div-reg`, `div-mem`,
+`div-zero`, `sqrt`, `prem`, `prem1` and `div-prec` — so the forms run through
+the CPU rather than through the unit's own interface, and the two remainder
+programs loop on C2 the way software does, which compares every partial step
+against Bochs. **That is what the unit bench cannot reach, and it is not a
+formality: `div-mem` is the case for the P1 below.**
+
+### Two tables, not one
+
+`x87_decode` is not the only table a form has to be in. **`fes_i386_decode`
+takes the operand format from `x87_format` first and turns the operation back
+into `X87_UNIMPL` where it is `X87F_NONE`** — so the memory divides were
+accepted by one table, missing from the other, and would have raised
+`FAULT_UNIMPLEMENTED` on the real CPU. The unit's bench cannot see it,
+because it supplies the format itself rather than going through the decoder.
+Codex found it on PR #1889; `div-mem` covers it now.
+
+### What QEMU's test found
+
+QEMU's own header says to run its fprem test on real hardware and diff
+against the implementation, which is what this bench already does, so it is
+ported as its **operand grid** rather than run as a program: QEMU's own
+fields, 432 values an operand, compared on the whole architectural state
+rather than on printed fields.
+
+It found a real bug on its fourth case family. **A divisor of infinity gives
+the dividend back and never rounds, and that cannot be left to the exponent
+difference being "very negative": an infinity's exponent field is 7FFFh, the
+largest, so a dividend at 7FFEh is exactly one below it** and took FPREM1's
+round-up path at a difference of −1. Four cases of 23,328, and only a
+dividend within one binade of the top separates the two readings. An earlier
+commit had removed the explicit infinite-divisor case on exactly that
+reasoning.
 
 ## TestFloat: attempted, and it is a scope of its own
 
