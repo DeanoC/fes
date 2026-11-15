@@ -149,8 +149,13 @@ the bad variant three times.
   `_require_clean_source` and refuses a modified tree, and both campaign worktrees held no modified
   tracked files. So the evidence is sound, but by the tooling's enforcement rather than this
   harness's.
-- **`ramtest`'s 130 MHz variant is not measured.** A default run produces only
-  `build/fes-ramtest-100`. If `fes-ramtest-130` is separately sealed, it needs its own comparison.
+- **`ramtest`'s 130 MHz package is out of scope by decision, not by oversight.** It *is* a
+  separately sealed artefact -- `Makefile` has `build-fes-ramtest-130`, `--memory-mhz 130` seals
+  into `build/fes-ramtest-130` with its own memory PLL, and `docs/architecture.md` says both rates
+  seal distinct packages with their own timing gates -- so this change moves its `BUILD_ID` too, and
+  the 100 MHz evidence cannot discharge D12 for it. Deano's decision is that the 130 rate was an
+  original aspiration and 100 is the current target, so it is not measured here. If that package is
+  ever sealed again it needs conditions 1, 2 and 3 of its own first.
 - Condition 3, the PR's own build passing the core's normal timing and seal gates, is satisfied by
   each base and forced build completing its producer's own checks; no separate seal run was made.
 
