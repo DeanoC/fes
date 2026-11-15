@@ -17,7 +17,7 @@ SPEC.loader.exec_module(SUPPORT_MATRIX)
 
 
 class SupportMatrixTests(unittest.TestCase):
-    def test_pcxt_dos_records_live_media_and_scoped_kit_smoke(self):
+    def test_pcxt_dos_records_live_media_and_the_qualification_reruns(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
         row = next(row for row in data['cores'] if row['id'] == 'fes.pcxt-dos')
         self.assertTrue(row['recipe'])
@@ -28,22 +28,51 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertFalse(row['in_bootstrap_image'])
         self.assertIn('experimental', row['notes'])
         self.assertEqual('live', row['signals']['media_gen'])
-        self.assertEqual('2026-11-05', row['signals']['last_hil_pass'])
-        self.assertEqual('docs/validation/2026-11-05-pcxt-kit-b-short-smoke.md',
+        # The 8-10 November #1529 reruns supersede the 5 November smoke.
+        self.assertEqual('2026-11-10', row['signals']['last_hil_pass'])
+        self.assertEqual('docs/validation/2026-11-08-pcxt-qualification-reruns/summary.md',
                          row['signals']['hil_note'])
-        self.assertIn('one-direction', row['signals']['hil_scope'])
-        self.assertIn('listening excerpt accepted without original reference', row['signals']['hil_scope'])
+        self.assertIn('precommitted #1529 plan', row['signals']['hil_scope'])
+        self.assertIn('the power-loss case ran on the earlier package 4dd6d431',
+                      row['signals']['hil_scope'])
+        self.assertIn('docs/validation/2026-11-08-pcxt-qualification-reruns/summary.md',
+                      row['evidence'])
         self.assertIn('docs/validation/2026-11-04-pcxt-game-and-speaker-kit-a.md',
                       row['evidence'])
-        for identity in ('87fd8149', 'bb87b9b6', '6f49758f'):
+        for identity in ('e73a0e87', '8d9b71fab', '4dd6d431'):
             self.assertIn(identity, row['notes'])
         self.assertIn('loaded at runtime through the mailbox', row['features'])
         self.assertIn('write sectors', row['features'])
         self.assertIn('keyboard', row['features'])
-        self.assertIn('listening excerpt identifiable and acceptable', row['notes'])
-        self.assertIn('without an original-audio reference', row['notes'])
+        # The reruns are scoped: the power loss ran on another package, and
+        # external timing, physical ISA and the session display stay open.
+        self.assertIn('not exact-artifact acceptance of e73a0e87', row['notes'])
+        self.assertIn('#1561', row['notes'])
         self.assertEqual('Quartus', SUPPORT_MATRIX.de10_cell(row))
         self.assertIn('| PC/XT (FreeDOS) | Current | Quartus |', SUPPORT_MATRIX.render(data))
+
+    def test_pc386_records_the_sealed_development_package_on_a_kit(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        row = next(row for row in data['cores'] if row['id'] == 'fes.pc386')
+        # Not a recipe and not a catalog package, but no longer simulation only.
+        self.assertFalse(row['recipe'])
+        self.assertEqual('bring-up', row['tier'])
+        self.assertEqual('de10', row['board'])
+        self.assertEqual('quartus', row['primary_toolchain'])
+        self.assertEqual('live', row['signals']['media_gen'])
+        self.assertEqual('2026-11-12', row['signals']['last_hil_pass'])
+        self.assertEqual('docs/validation/2026-11-12-pc386-windows-kit/summary.md',
+                         row['signals']['hil_note'])
+        self.assertIn('Kit B', row['signals']['hil_scope'])
+        for issue in row['signals']['open_issues']:
+            self.assertIn(issue, ('#1368', '#1494', '#1235'))
+        self.assertIn('Windows for Workgroups 3.11', row['notes'])
+        self.assertIn('Linux 0.99.15, 1.2.13 and 2.0.0', row['notes'])
+        self.assertIn('not a catalog package', row['notes'])
+        self.assertIn('Phase 6 (#1768)', row['features'])
+        self.assertEqual('Quartus', SUPPORT_MATRIX.de10_cell(row))
+        self.assertIn('| pc386 | Bring-up | Quartus | Quartus | disk, keys, mouse, HDMI |',
+                      SUPPORT_MATRIX.render(data))
 
     def test_every_release_package_records_its_scope(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
@@ -63,10 +92,14 @@ class SupportMatrixTests(unittest.TestCase):
     def test_de25_cell_is_blank_for_rows_without_board_bitstreams(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
         by_id = {row['id']: row for row in data['cores']}
-        for core_id in ('sim.pong', 'fes.pc386', 'i386', 'z80', 'cpu6502', 'fx68k', 'tv80'):
+        for core_id in ('sim.pong', 'i386', 'z80', 'cpu6502', 'fx68k', 'tv80'):
             with self.subTest(core_id=core_id):
                 self.assertNotEqual('de10', by_id[core_id]['board'])
                 self.assertEqual('—', SUPPORT_MATRIX.de25_cell(by_id[core_id]))
+        # pc386's sealed development package has a DE10-Nano bitstream, so its
+        # DE25 cell follows the policy line like every other board row.
+        self.assertEqual('de10', by_id['fes.pc386']['board'])
+        self.assertEqual('Quartus', SUPPORT_MATRIX.de25_cell(by_id['fes.pc386']))
 
     def test_optional_atari_st_row_shows_derived_tier(self):
         data = SUPPORT_MATRIX.load_json(ROOT)

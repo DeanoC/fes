@@ -63,7 +63,7 @@ HIGHLIGHTS = {
     'sim.pong': '—',
     'fes.pcxt': 'disk, HDMI',
     'fes.pcxt-dos': 'disk, keys, HDMI',
-    'fes.pc386': 'sim',
+    'fes.pc386': 'disk, keys, mouse, HDMI',
     'i386': '—',
     'z80': '—',
     'cpu6502': '—',
@@ -103,6 +103,29 @@ DETAILS = {
     'fx68k': ('sources/misteross/cores/fes-common/rtl/fx68k/README.md', 'README'),
     'tv80': ('docs/core-alignment.md', 'alignment'),
 }
+FORWARD_PLAN = Path('docs/plans/forward-plan.md')
+# The ladder, its bars and its tier 1 set are decided in the forward plan.
+# These sets mirror that decision; the wording check below fails if it moves.
+LADDER_QUOTES = (
+    'Tier 1 set on DE10 (decided): ZX81 family, Spectrum family, C64, Atari ST, PC/XT.',
+    'pc386 joins when #1368 and #1494 close.',
+    'Coleco, SMS, SG-1000 and Apple II are tier 2 once they meet the port',
+    'Pong, RAM Tester and RISC-V are utilities and demos, outside the ladder',
+)
+QUALITY_TIER_IDS = {
+    '1': frozenset({
+        'fes.zx81', 'fes.zx80', 'fes.ts1000', 'fes.ts1500',
+        'fes.spectrum', 'fes.spectrum128', 'fes.spectrum-plus3', 'fes.pentagon',
+        'fes.c64', 'fes.atari-st', 'fes.pcxt', 'fes.pcxt-dos',
+    }),
+    '2': frozenset({'fes.pc386'}),
+    '3': frozenset({'fes.coleco', 'fes.sms', 'fes.sg1000', 'fes.apple2'}),
+    'utility': frozenset({'fes.pong', 'fes.ramtest', 'fes.riscv'}),
+}
+CHECK_LEVELS = frozenset({'full', 'reduced', 'via-consumer', 'none'})
+CHECK_PROPOSED = 'proposed'
+CHECK_HEADING = 'Quality tier and checks (proposed)'
+CHECK_NOT_IN_FORCE = 'Proposed, not in force.'
 AS_OF = '2026-10-29'
 # Main's first-parent tip at the end of AS_OF. Keep the history snapshot fixed
 # so later merges with backdated author dates cannot change the matrix.
@@ -144,6 +167,23 @@ def derive_tier(row: dict) -> str:
     if rtl and rtl >= WINDOW_START:
         return 'aging'
     return 'stale'
+
+
+def derive_check_level(row: dict) -> str:
+    """Proposed per-change evidence level. From the role and the quality ladder.
+
+    Shared RTL is checked through the packages that embed it; a row with no
+    built artifact has nothing to check; bootstrap firmware always carries its
+    own evidence. Otherwise tier 1 and tier 2 cells carry full evidence and the
+    rest carry it only for changes aimed at them.
+    """
+    if row['tier_role'] == 'shared':
+        return 'via-consumer'
+    if row['tier_role'] == 'reference' or row['tier'] == 'bring-up-queued':
+        return 'none'
+    if row['tier_role'] == 'firmware':
+        return 'full'
+    return 'full' if row.get('quality_tier') in ('1', '2') else 'reduced'
 
 
 def _git(root: Path, *args: str) -> str:
@@ -240,7 +280,7 @@ def render(data: dict) -> str:
         lines.append(f"| {cell(tier['label'])} | {cell(tier['meaning'])} |")
     lines += [
         '',
-        f'**DE10-Nano** (MiSTer, Cyclone V) **OSS** is Yosys + nextpnr-mistral, the installed toolchain. i386, pc386 and PC/XT are {QUARTUS_PRIMARY} ({POLICY_CITE}). nextpnr builds there are advisory; a miss is filed as a nextpnr issue, not a blocker. A dash means this row has no DE10-Nano bitstream. pc386 and i386 are Cyclone V spikes; Quartus is still their primary toolchain.',
+        f'**DE10-Nano** (MiSTer, Cyclone V) **OSS** is Yosys + nextpnr-mistral, the installed toolchain. i386, pc386 and PC/XT are {QUARTUS_PRIMARY} ({POLICY_CITE}). nextpnr builds there are advisory; a miss is filed as a nextpnr issue, not a blocker. A dash means this row has no DE10-Nano bitstream. i386 is a CPU spike with no board shell of its own; the sealed pc386 development package runs on the DE10-Nano.',
         '',
         f'**DE25-Nano** (Agilex 5) follows {DE25_CELL} ({POLICY_CITE}). Rows with a board bitstream show Quartus; rows without one show a dash. Agilex 5 has no OSS reverse-engineering. Per-core ports are re-checked only after the shell is on this branch.',
         '',
@@ -292,6 +332,7 @@ def render(data: dict) -> str:
     for scope, title in RELEASE_SCOPES.items():
         names = [row['label'] for row in data['cores'] if row.get('release') == scope]
         lines.append(f"- **{title}:** {', '.join(names)}")
+    lines += render_check_policy(data)
     lines += [
         '',
         '## Open',
@@ -306,6 +347,31 @@ def render(data: dict) -> str:
         lines.append(f"- {item}")
     lines.append('')
     return '\n'.join(lines)
+
+
+def render_check_policy(data: dict) -> list[str]:
+    """The quality ladder and the proposed per-change evidence level."""
+    policy = data['check_policy']
+    lines = ['', f'## {CHECK_HEADING}', '']
+    lines += [paragraph for note in policy['note'] for paragraph in (cell(note), '')]
+    lines += [
+        '| Quality tier | Meaning |',
+        '| --- | --- |',
+    ]
+    for item in policy['quality_tiers']:
+        lines.append(f"| {cell(item['label'])} | {cell(item['meaning'])} |")
+    lines += ['', '| Checks | Expected evidence |', '| --- | --- |']
+    for item in policy['levels']:
+        lines.append(f"| {cell(item['label'])} | {cell(item['meaning'])} |")
+    lines.append('')
+    for item in policy['quality_tiers']:
+        names = [row['label'] for row in data['cores'] if row.get('quality_tier') == item['id']]
+        lines.append(f"- **{item['label']}:** {', '.join(names) or 'none'}")
+    lines.append('')
+    for item in policy['levels']:
+        names = [row['label'] for row in data['cores'] if row.get('check_level') == item['id']]
+        lines.append(f"- **{item['label']} checks:** {', '.join(names) or 'none'}")
+    return lines
 
 
 def feature_union(ids: list[str]) -> str:
@@ -671,11 +737,88 @@ def validate(root: Path, data: dict) -> list[str]:
     for phrase in (POLICY_CITE, QUARTUS_PRIMARY, DE25_CELL, 'empty-library status'):
         if phrase not in policy:
             errors.append(f'policy section is missing {phrase!r}')
+    errors += validate_check_policy(root, data, by_id, rendered)
     coleco = by_id.get('fes.coleco') or {}
     coleco_notes = coleco.get('notes') or ''
     for phrase in (POLICY_CITE, 'empty-library status', 'low priority', 'Adam'):
         if phrase not in coleco_notes:
             errors.append(f'fes.coleco notes are missing {phrase!r}')
+    return errors
+
+
+def validate_check_policy(root: Path, data: dict, by_id: dict, rendered: str | None) -> list[str]:
+    """The ladder is a citation and the check level is derived from it.
+
+    The quality tier must match the forward plan's decided sets, and the
+    forward plan must still say so in those words. The check level must be
+    derived, never hand-set, and while the proposal is unaccepted the rendered
+    page must say that it is not in force.
+    """
+    errors = []
+    policy = data.get('check_policy')
+    if not policy:
+        return ['support-matrix.json has no check_policy block']
+    plan = root / FORWARD_PLAN
+    if not plan.is_file():
+        errors.append(f'{FORWARD_PLAN} is missing, so the quality ladder has no source')
+    else:
+        flat = ' '.join(plan.read_text().split())
+        for quote in LADDER_QUOTES:
+            if quote not in flat:
+                errors.append(f'{FORWARD_PLAN} no longer says {quote!r}; re-read the ladder before trusting quality_tier')
+    if policy.get('ladder_source') != str(FORWARD_PLAN):
+        errors.append(f'check_policy ladder_source must be {FORWARD_PLAN}')
+    if policy.get('status') != CHECK_PROPOSED:
+        errors.append('check_policy status is not proposed; accepting it needs its own change, with Deano named in decided_by')
+    elif policy.get('decided_by'):
+        errors.append('check_policy is proposed but records a decided_by')
+    level_ids = [item['id'] for item in policy.get('levels') or []]
+    if set(level_ids) != CHECK_LEVELS or len(level_ids) != len(CHECK_LEVELS):
+        errors.append(f'check_policy levels {sorted(level_ids)} != {sorted(CHECK_LEVELS)}')
+    tier_ids = [item['id'] for item in policy.get('quality_tiers') or []]
+    if set(tier_ids) != set(QUALITY_TIER_IDS) or len(tier_ids) != len(QUALITY_TIER_IDS):
+        errors.append(f'check_policy quality_tiers {sorted(tier_ids)} != {sorted(QUALITY_TIER_IDS)}')
+    for item in (policy.get('levels') or []) + (policy.get('quality_tiers') or []):
+        if not str(item.get('label') or '').strip() or not str(item.get('meaning') or '').strip():
+            errors.append(f"check_policy entry {item.get('id')!r} needs a label and a meaning")
+    if not policy.get('note'):
+        errors.append('check_policy needs its note prose')
+
+    for quality, expected in QUALITY_TIER_IDS.items():
+        recorded = {cid for cid, row in by_id.items() if row.get('quality_tier') == quality}
+        if recorded != set(expected):
+            errors.append(
+                f'quality_tier {quality} rows {sorted(recorded)} != the forward plan\'s {sorted(expected)}'
+            )
+    laddered = {cid for ids in QUALITY_TIER_IDS.values() for cid in ids}
+    for cid, row in by_id.items():
+        quality = row.get('quality_tier')
+        if cid not in laddered and quality is not None:
+            errors.append(f'{cid} is not on the forward plan\'s ladder but records quality_tier {quality!r}')
+        if 'check_level' not in row:
+            errors.append(f'{cid} has no check_level')
+            continue
+        derived = derive_check_level(row)
+        if row['check_level'] != derived:
+            errors.append(f"{cid} check_level {row['check_level']!r} != derived {derived!r}")
+        if row['check_level'] == 'reduced':
+            if not str(row.get('check_note') or '').strip() and quality == 'utility':
+                errors.append(f'{cid} is reduced as a utility and needs a check_note')
+            if row.get('in_bootstrap_image'):
+                errors.append(f'{cid} is in the bootstrap image and cannot be reduced')
+            if row.get('release') not in (None, 'held-back'):
+                errors.append(f"{cid} is release {row.get('release')!r} and cannot be reduced")
+        # The ladder and the proposal must not move the freshness tier.
+        shifted = dict(row)
+        shifted['quality_tier'] = '1' if quality != '1' else '3'
+        shifted['check_level'] = 'full' if row['check_level'] != 'full' else 'reduced'
+        if derive_tier(shifted) != derive_tier(row) or effective_tier(shifted) != effective_tier(row):
+            errors.append(f'{cid} freshness tier changes when the quality tier or check level changes')
+    if rendered is not None:
+        if CHECK_HEADING not in rendered:
+            errors.append(f'human page is missing the {CHECK_HEADING!r} section')
+        if policy.get('status') == CHECK_PROPOSED and CHECK_NOT_IN_FORCE not in rendered:
+            errors.append(f'human page must say {CHECK_NOT_IN_FORCE!r} while the check policy is proposed')
     return errors
 
 
