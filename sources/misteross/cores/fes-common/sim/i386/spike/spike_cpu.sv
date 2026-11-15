@@ -155,6 +155,7 @@ module spike_cpu (
         .init_gdtr_base, .init_gdtr_limit, .init_idtr_base, .init_idtr_limit, .init_sel, .init_base, .init_limit,
         .init_ar, .init_ldtr_sel, .init_ldtr_base, .init_ldtr_limit, .init_ldtr_ar, .init_ldtr_valid, .init_tr_sel,
         .init_tr_base, .init_tr_limit, .init_tr_ar, .a20m, .attr_upper(ATTR_UPPER), .ram_top(7'd16), .queue16, .gov_preset, .gov_frequency, .gov_turbo,
+        .x87_present(1'b1), .x87_f0(1'b0), .x87_f1(1'b0),
         .ddr_address, .ddr_burstcount, .ddr_read, .ddr_write, .ddr_writedata, .ddr_byteenable, .ddr_waitrequest,
         .ddr_readdata, .ddr_readdatavalid,
         .mmio_valid, .mmio_write, .mmio_address, .mmio_byteenable, .mmio_wdata, .mmio_ready, .mmio_rvalid, .mmio_rdata,
