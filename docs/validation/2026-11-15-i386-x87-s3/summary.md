@@ -389,7 +389,21 @@ that drives four passes of one multiplier.
 
 **So slice 3's own cost in the machine is +1,609 ALMs and +3.84 points of
 the device.** That is a difference of two fits through one slot that differ
-only by this slice's RTL, which is what the brief asks for. The same
+only by this slice's RTL, which is what the brief asks for.
+
+**With one uncertainty that was found late and is worth more than it costs
+here.** Chasing the decode question meant re-running the merge-base
+per-entity fit at the same seed, settings, slot and tree as the first one.
+It did not reproduce: **38,135 ALMs and +0.565 ns the first time, 37,948 and
++0.510 the second**, 187 ALMs apart. The branch's fit repeated *exactly*
+(39,717 and +0.455 both times), and the merge-base tree was verified clean
+and at the same commit, so this is run-to-run variation in the flow rather
+than a changed input. Nothing explains it yet. The practical consequence:
+read the area deltas in this record as carrying an uncertainty of order
+**±200 ALMs**, not of a few tens. +1,609 and +2,250 survive that easily --
+they are eight and eleven times the variation -- but a difference of tens of
+ALMs between two single fits means nothing, which is exactly the trap the
+decoder figure fell into below. The same
 subtraction on the setup column gives −0.209 ns (+0.385 to +0.176), **and
 that one does not carry**: it is one seed against one seed, and the sweep
 below spreads identical RTL across 0.746 ns of slack. The area delta is a
@@ -568,16 +582,23 @@ a same-slot delta and not the cross-slot estimate an earlier draft gave:
 | `fes_i386_cpu`, whole | 28,491.5 (9,081.9) | 26,645.7 (9,382.1) | +1,845.8 |
 | whole fit | 39,717 | 38,135 | +1,582 |
 
-**+2,249 ALMs inside the unit**, measured rather than estimated. (An earlier
+**about +2,250 ALMs inside the unit**, measured rather than estimated: this
+pair gives +2,249.5 and an independent repeat of both fits gives +2,273.6,
+so the figure is good to roughly ±25. (An earlier
 draft put it at "roughly +2,437, read across slots, so indicative", against
 slice 2's published 1,414; that figure is superseded by this one.) The
 per-entity flow drops `flatten`, so its whole-fit delta of +1,582 and the
 flattened machine's +1,609 are two different flows' answers to the same
 question and agree to under 2%.
 
-**The decoder did not grow; it shrank by 15 ALMs**, which bears on the open
-question about decode path depth above: whatever this slice did to
-`fes_i386_decode.sv`, it did not cost area there.
+**The decoder's area difference is noise, and finding that out cost a
+claim.** This table reads `fes_i386_decode` at 713.4 against the merge-base's
+728.5, which an earlier draft reported as "the decoder shrank by 15 ALMs".
+Both per-entity fits were then re-run together under identical settings to
+chase the decode question, and in that matched pair the merge-base reads
+**698.9** -- so the branch is 14.5 ALMs *larger*. The sign flips with the
+run. The decoder's area is the same to within about 2%, and no conclusion
+rests on its direction.
 
 **The multiplier did not grow**: 187.4 against the merge-base's 185.0.
 That is the shared-multiplier design holding — every shift and every product
