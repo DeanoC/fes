@@ -332,10 +332,12 @@ that drives four passes of one multiplier.
 - **The unmasked-exception rules are read off one real x87, not a 387.** The
   bias adjust, the pre- and post-operation split and the tininess rule were
   measured on an x86-64 host, which is a much later part. A 387 is believed
-  to behave the same -- these are architectural rules rather than
-  implementation choices, and the oracle's SoftFloat agrees with them -- but
-  no 387 was available to confirm it, which is the same open question the
-  plan record already carries for real-387 measurements.
+  to behave the same, because they read as architectural rules rather than
+  implementation choices, but **nothing here corroborates that**: the
+  lockstep's programs are masked throughout, so the oracle never exercised
+  any of them, and no 387 was available. It is the same open question the
+  plan record already carries for real-387 measurements, and these five
+  rules now depend on it.
 - **The identity's record word** is still unbuilt, as slice 2 left it, so a
   kit can only run the sealed package with the identity **off**. This
   slice's kit run is therefore a **regression run: it exercises none of this
