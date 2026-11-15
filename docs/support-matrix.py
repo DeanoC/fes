@@ -144,7 +144,17 @@ CHECK_IN_FORCE = 'In force.'
 # The obligation itself lives in AGENTS.md. While the matrix says accepted,
 # that rule has to be there: this is the phrase it is written with.
 AGENTS = Path('AGENTS.md')
-AGENTS_RULE = '`check_level: reduced`'
+# Its unique citation finds the bullet; these clauses are the rule itself, so
+# the policy cannot stay accepted after the rule is gutted around the marker.
+AGENTS_RULE_CITE = '(#1863, accepted 2026-11-15)'
+AGENTS_RULE_PHRASES = (
+    '`check_level: reduced`',
+    'owes only the first of those three',
+    'its netlist comparison is still measured and recorded',
+    'are not expected of it',
+    'puts that core back under the full rule',
+    'never lower a gate on work being done to a core',
+)
 AS_OF = '2026-10-29'
 # Main's first-parent tip at the end of AS_OF. Keep the history snapshot fixed
 # so later merges with backdated author dates cannot change the matrix.
@@ -776,6 +786,30 @@ def validate(root: Path, data: dict) -> list[str]:
     return errors
 
 
+def agents_rule_errors(text: str) -> list[str]:
+    """Check the accepted rule is still in AGENTS.md, whole.
+
+    The citation identifies the one bullet, and every clause of the rule has to
+    be in that bullet, so the policy cannot stay accepted while the rule around
+    the marker has been weakened or removed.
+    """
+    bullets = [line for line in text.splitlines() if AGENTS_RULE_CITE in line]
+    if not bullets:
+        return [
+            f'{AGENTS} no longer carries the rule cited {AGENTS_RULE_CITE}; the check policy '
+            'cannot say accepted while nothing states the obligation'
+        ]
+    if len(bullets) > 1:
+        return [f'{AGENTS} states {AGENTS_RULE_CITE} {len(bullets)} times; one of them may contradict the other']
+    missing = [phrase for phrase in AGENTS_RULE_PHRASES if phrase not in bullets[0]]
+    if missing:
+        return [
+            f'{AGENTS} rule {AGENTS_RULE_CITE} no longer says {phrase!r}; re-read it before the '
+            'matrix claims accepted' for phrase in missing
+        ]
+    return []
+
+
 def validate_check_policy(root: Path, data: dict, by_id: dict, rendered: str | None) -> list[str]:
     """The ladder is a citation and the check level is derived from it.
 
@@ -835,11 +869,8 @@ def validate_check_policy(root: Path, data: dict, by_id: dict, rendered: str | N
         agents = root / AGENTS
         if not agents.is_file():
             errors.append(f'{AGENTS} is missing, so the accepted check policy has no rule')
-        elif AGENTS_RULE not in agents.read_text():
-            errors.append(
-                f'{AGENTS} does not carry the {AGENTS_RULE} rule; the check policy cannot '
-                'say accepted while nothing states the obligation'
-            )
+        else:
+            errors += agents_rule_errors(agents.read_text())
     level_ids = [item['id'] for item in policy.get('levels') or []]
     if set(level_ids) != CHECK_LEVELS or len(level_ids) != len(CHECK_LEVELS):
         errors.append(f'check_policy levels {sorted(level_ids)} != {sorted(CHECK_LEVELS)}')

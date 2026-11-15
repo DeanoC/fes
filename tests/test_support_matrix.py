@@ -155,9 +155,20 @@ class SupportMatrixTests(unittest.TestCase):
         by_id = {row['id']: row for row in data['cores']}
         plan = (ROOT / SUPPORT_MATRIX.FORWARD_PLAN).read_text()
         agents = (ROOT / SUPPORT_MATRIX.AGENTS).read_text()
-        self.assertIn(SUPPORT_MATRIX.AGENTS_RULE, agents)
-        for label, text in (('rule gone', agents.replace(SUPPORT_MATRIX.AGENTS_RULE, '`nothing`')),
-                            ('file gone', None)):
+        cite = SUPPORT_MATRIX.AGENTS_RULE_CITE
+        self.assertIn(cite, agents)
+        bullet = next(line for line in agents.splitlines() if cite in line)
+        # Gutting the rule around its marker must not pass, and nor must a
+        # second, possibly contradictory, copy of it.
+        gutted = agents.replace(bullet, f'- The marker `check_level: reduced` states no obligation. {cite}')
+        cases = [
+            ('rule gutted around the marker', gutted),
+            ('one clause dropped', agents.replace('puts that core back under the full rule', 'is fine')),
+            ('cite gone', agents.replace(cite, '')),
+            ('rule stated twice', agents + '\n' + bullet + '\n'),
+            ('file gone', None),
+        ]
+        for label, text in cases:
             with self.subTest(label), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 (root / 'docs' / 'plans').mkdir(parents=True)
