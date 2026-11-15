@@ -211,6 +211,16 @@ def x87_summary(counts: dict[str, int]) -> dict:
         if key.startswith('x87cwform:'):
             cw = int(key.rpartition(':')[2], 16)
             masks[f'{cw & 0x3f:02x}'] += n
+    # Precision and rounding control by the census's arithmetic class, which
+    # is where FSQRT is separable: x87cw:sqrt is FSQRT alone (d9fa).
+    pc_by_class: dict[str, Counter] = {}
+    rc_by_class: dict[str, Counter] = {}
+    for key, n in counts.items():
+        if key.startswith('x87cw:'):
+            cls, _, cw_text = key[len('x87cw:'):].rpartition(':')
+            cw = int(cw_text, 16)
+            pc_by_class.setdefault(cls, Counter())[PRECISION[(cw >> 8) & 3]] += n
+            rc_by_class.setdefault(cls, Counter())[ROUNDING[(cw >> 10) & 3]] += n
     pc_sites: dict[str, Counter] = {}
     for key, n in counts.items():
         if key.startswith('x87pcsite:'):
@@ -265,6 +275,10 @@ def x87_summary(counts: dict[str, int]) -> dict:
         'significand': dict(sorted(sig.items())),
         'significand_forms': {b: dict(sorted(c.items())) for b, c in sorted(sig_by_form.items())},
         'exception_masks': dict(sorted(masks.items())),
+        'pc_by_class': {c: dict(sorted(v.items())) for c, v in sorted(pc_by_class.items())},
+        'rc_by_class': {c: dict(sorted(v.items())) for c, v in sorted(rc_by_class.items())},
+        'fsqrt': ops.get('d9fa', 0),
+        'fsqrt_by_pc': dict(sorted(pc_by_class.get('sqrt', Counter()).items())),
         'pc_sites': {p: dict(sorted(c.items())) for p, c in sorted(pc_sites.items())},
         'cw_writes': dict(sorted(cw_sets.items())),
         'cw_by_second': {k: sorted(v) for k, v in sorted(cw_seconds.items(), key=lambda kv: int(kv[0]))},
