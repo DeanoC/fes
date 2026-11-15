@@ -163,7 +163,9 @@ Slice 2's three Codex findings were one shape: a state machine that writes
 flags and goes idle on one edge, with a summary derived from a *registered*
 word, leaves a cycle where the summary has not risen and a latch has not been
 set. Slice 3's bench therefore checks the cycle *of* the commit rather than
-the one after, and found three more of it.
+the one after, and the first two below are that shape and were found that
+way. The third is a different kind of fault and was found by reading the
+alignment's arithmetic rather than by a case; it has a case now.
 
 - **An unmasked overflow, underflow or precision exception did not latch
   BUSY# at all.** The gate that holds the write back and the gate that raises
@@ -182,9 +184,13 @@ the one after, and found three more of it.
   because the stuck latch holds every later FLDCW. That count was measured on
   the 499-case bench, before the last cases were added. Under the pc386 reseal
   exemption it needs no reseal of slice 2.
-- **The alignment clamp was off by one.** At a shift of 65 the round bit is
-  still the operand's own top bit; only from 66 is nothing left but the
-  sticky. The `align64` to `align67` cases pin it.
+- **The alignment clamp was off by one**, which is neither of that shape and
+  was not found by a case: the first draft treated a shift of 65 or more as
+  "nothing but a sticky bit", when at 65 the round bit is still the operand's
+  own top bit and only from 66 is nothing left. The counterexample is a
+  subtract of two normals 65 exponents apart, where the correct result is one
+  exponent down with every significand bit set and the clamp gives the
+  minuend back. `align64` to `align67` are the cases that pin it now.
 
 A fourth, in merged slice-2 code, is **not** fixed here: a memory form the
 microcode moves in several chunks leaves the x87 data pointer at its last
