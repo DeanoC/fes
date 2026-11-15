@@ -32,7 +32,7 @@ the gap is explicit rather than silent.
 | Artifact | Condition 1 | Condition 2 | Condition 3 |
 | --- | --- | --- | --- |
 | `splash` | done (src exempt) | **done** | **done** |
-| `fes.menu` | done | pending | pending |
+| `fes.menu` | done | **done** | **done** |
 | `fes.zx81` | done | pending | pending |
 | `fes.spectrum` | done | pending | pending |
 | `fes.c64` | done | pending | pending |
@@ -67,6 +67,19 @@ Same seed, same bytes. Without that control the tool's branch-side answer
 would be unfalsifiable, which is the failure mode this record has already hit
 twice: a pass comparison that read one file twice, and a Yosys run that exited
 0 with a silently different netlist.
+
+With the tool so checked, `fes.menu`'s condition 2 **passes**:
+
+| run | BUILD_ID | netlist sha256 | RBF sha256 | bytes |
+| --- | --- | --- | --- | --- |
+| main, producer, normal seal | `60bccd54…` | — | `6107b13e0425af1b…` | 2,172,530 |
+| main, tool, forced (control) | `60bccd54…` | `2fc9786e3e6bb27e…` | `6107b13e0425af1b…` | 2,172,530 |
+| **branch, tool, forced** | `60bccd54…` | `2fc9786e3e6bb27e…` | `6107b13e0425af1b…` | 2,172,530 |
+
+The branch reproduces main's RBF byte for byte at main's `BUILD_ID`, on the
+same placer seed, from an identical netlist. Note the netlist digests here are
+at main's real `BUILD_ID`, independently of the zeroed-constant comparison in
+the condition 1 table — the two agree.
 
 ### `splash` is complete, and needed no GPU
 
