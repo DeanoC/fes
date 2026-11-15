@@ -80,6 +80,11 @@ class SupportMatrixTests(unittest.TestCase):
             self.assertIn(artifact, row['notes'])
         self.assertIn('the Wolfenstein 3D playthrough was not rerun', row['notes'])
         self.assertIn('seven launches of eight', row['notes'])
+        # The pitch pass is a regression comparison; against the named
+        # reference it fails (#1837), and the pace work is #1840 and #1853.
+        self.assertIn('not a reference', row['notes'])
+        for issue in ('#1837', '#1840', '#1853'):
+            self.assertIn(issue, row['notes'])
         self.assertEqual('Quartus', SUPPORT_MATRIX.de10_cell(row))
         # bring-up here is a profile, not an absent recipe: fes.pcxt has one.
         meaning = next(t['meaning'] for t in SUPPORT_MATRIX.load_json(ROOT)['tiers']
