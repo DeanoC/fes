@@ -318,6 +318,13 @@
    "pace_heights_per_s": 0.04716,
    "cycle_s": 11.8,
    "cycle_correlation": 0.707,
+   "speed_rect": [
+    263,
+    25,
+    667,
+    52
+   ],
+   "speed_sha": "92f3943e2eac8b376656f6b193aba5d817697ef26e037eb30e154f2d187ae7f3",
    "speed_readout_steady": true,
    "speed_readout_is_100": true,
    "speed_gate": true
@@ -351,6 +358,13 @@
    "pace_heights_per_s": 0.04712,
    "cycle_s": 11.8,
    "cycle_correlation": 0.706,
+   "speed_rect": [
+    263,
+    25,
+    667,
+    52
+   ],
+   "speed_sha": "92f3943e2eac8b376656f6b193aba5d817697ef26e037eb30e154f2d187ae7f3",
    "speed_readout_steady": true,
    "speed_readout_is_100": true,
    "speed_gate": true
@@ -417,6 +431,13 @@
    "pace_heights_per_s": 0.04592,
    "cycle_s": 11.8,
    "cycle_correlation": 0.629,
+   "speed_rect": [
+    263,
+    25,
+    667,
+    52
+   ],
+   "speed_sha": "92f3943e2eac8b376656f6b193aba5d817697ef26e037eb30e154f2d187ae7f3",
    "speed_readout_steady": true,
    "speed_readout_is_100": true,
    "speed_gate": true
@@ -550,6 +571,8 @@
    "pace_heights_per_s": 0.05698,
    "cycle_s": 8.733,
    "cycle_correlation": 0.708,
+   "speed_rect": null,
+   "speed_sha": null,
    "speed_readout_steady": null,
    "speed_readout_is_100": null,
    "speed_gate": null
@@ -583,6 +606,8 @@
    "pace_heights_per_s": 0.05711,
    "cycle_s": 8.733,
    "cycle_correlation": 0.71,
+   "speed_rect": null,
+   "speed_sha": null,
    "speed_readout_steady": null,
    "speed_readout_is_100": null,
    "speed_gate": null
@@ -616,6 +641,8 @@
    "pace_heights_per_s": 0.05699,
    "cycle_s": 8.733,
    "cycle_correlation": 0.707,
+   "speed_rect": null,
+   "speed_sha": null,
    "speed_readout_steady": null,
    "speed_readout_is_100": null,
    "speed_gate": null
@@ -644,5 +671,12 @@
    8.733
   ],
   "note": "the cycle is unchanged by the rate on the side where both were measured; the kit figures are the same captures derived at the two rates"
+ },
+ "invocations": {
+  "reference": "tools/venv/bin/python -I u7pace.py runs/<run>/approach.geom runs/<run>/approach.gray --crop=55,41 --speed=263,25,667,52 --speed-sha=92f3943e2eac8b376656f6b193aba5d817697ef26e037eb30e154f2d187ae7f3",
+  "kit": "tools/venv/bin/python -I u7pace.py kit/runs/u7pace2/<window>-approach.geom kit/runs/u7pace2/<window>-approach.gray --crop=0,0 --decimate=4",
+  "speed_rect_meaning": "x0,y0,x1,y1 in the 667x496 capture: 86Box's tool bar, from the left edge of the text to the window's right edge. speed-100.png in this directory is that rectangle rendering 100%, and its SHA-256 is the --speed-sha above.",
+  "kit_speed_gate": "none: the kit is hardware and has no emulator speed readout, so its windows carry no speed fields",
+  "note": "every window record below also carries its own speed_rect, speed_sha and decimate, so a gate result can be rederived without this block"
  }
 }

@@ -15,6 +15,7 @@
 ;   r  read-only and not uniform -- ROM body, or a shadowed region
 ;   .  read-only and reads FF everywhere sampled -- open bus
 ;   -  read-only and reads 00 everywhere sampled
+;   =  read-only and uniform at some other value -- not open bus, not zeroes
 ;
 ; Four offsets are sampled for the uniformity test (0, 1, 800h, FFFh). The
 ; write test writes one byte and puts the original back, so a writable block
@@ -75,7 +76,11 @@ probe:
         jne .ro
         cmp al, 0xff
         je .open
-        mov al, '-'
+        or al, al
+        jz .zero
+        mov al, '='
+        jmp .done
+.zero:  mov al, '-'
         jmp .done
 .open:  mov al, '.'
         jmp .done
@@ -126,5 +131,5 @@ crlf:
         call putc
         ret
 
-banner: db 'UMAP A000-FFFF 4K blocks R=rom W=ram r=ro .=ff -=00', 13, 10, '$'
+banner: db 'UMAP A000-FFFF 4K R=rom W=ram r=ro .=ff -=00 ==same', 13, 10, '$'
 curseg: dw 0

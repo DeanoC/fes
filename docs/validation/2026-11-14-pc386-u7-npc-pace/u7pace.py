@@ -32,7 +32,9 @@ figures come out of the series:
 The capture is of 86Box's whole window, so it carries the emulator's own
 speed readout. `--speed` names that rectangle, in capture pixels, and
 `--speed-sha` the SHA-256 of that rectangle rendering **100%**, which
-`speed-100.png` in the record holds for inspection. The gate is that every
+`speed-100.png` in the record holds for inspection. Both are echoed into the
+output, so a gate result can be rederived from the record alone without
+knowing how it was invoked. The gate is that every
 frame of the window matches that hash: constancy alone is not enough, because
 a run held steady at 97% would pass it and inflate the measured period. Both
 answers are reported separately — whether the readout was steady, and whether
@@ -173,6 +175,7 @@ def main():
            'pace_heights_per_s': round(path / ph / span, 5),
            'cycle_s': None if cycle is None else round(cycle, 3),
            'cycle_correlation': None if peak is None else round(peak, 3),
+           'speed_rect': speed_rect, 'speed_sha': speed_sha,
            'speed_readout_steady': speed_steady,
            'speed_readout_is_100': speed_is_100,
            'speed_gate': speed_gate}

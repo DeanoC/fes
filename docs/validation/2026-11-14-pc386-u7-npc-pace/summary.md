@@ -449,7 +449,7 @@ running.
 than asserted. The reference, from `runs/r1/fr/r1-umap.png`:
 
 ```
-UMAP A000-FFFF 4K blocks R=rom W=ram r=ro .=ff -=00
+UMAP A000-FFFF 4K R=rom W=ram r=ro .=ff -=00 ==same
 A000 ................
 B000 ........WWWWWWWW
 C000 Rrrrr...WWWWWWWW
@@ -469,6 +469,16 @@ D000 WWWWWWWWWWWWWWWW
 E000 ................
 F000 rrrrrrrrrr--rr-r
 ```
+
+The reference map above is from a re-run with the corrected probe. The first
+build of `UMAP.COM` printed `-` for any block that was uniform and not `FF`,
+although its legend said `-` meant `00`; it now tests zero explicitly and
+prints `=` for a block uniform at some other value. Re-run, **the reference's
+map is unchanged**, so its five `-` blocks at F000 really are zero-filled. The
+kit's map was taken with the first build and has not been re-run, so its three
+`-` blocks at F000 are "uniform, value not distinguished". They are in the
+BIOS, nothing in this record depends on them, and the `W` blocks that matter
+come from the write test, which the fault never touched.
 
 **C800–DFFF is 96 KiB of writable RAM on both**, which is what the games
 image's UMB provider asks for, and both print `UMBM: Upper Memory Blocks:
