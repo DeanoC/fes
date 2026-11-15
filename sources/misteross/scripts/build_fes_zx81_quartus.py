@@ -46,6 +46,7 @@ import subprocess
 import sys
 import sysconfig
 import tempfile
+import time
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -67,6 +68,8 @@ TOP = 'top'
 SEEDS = (1, 2, 3)
 THREADS = 4
 COMPILE_TIMEOUT_S = 3600
+HEARTBEAT_S = 60
+MIN_FREE_BYTES = 30 * 10**9
 SDC = 'cores/fes-zx81/clocks.sdc'
 QSF_PINS = 'cores/fes-zx81/constraints.qsf'
 ROM_LINK = 'cores/fes-zx81/quartus/zx81_rom_link.v'
@@ -384,15 +387,32 @@ def write_project(root: Path, project: Path, build_id: str, seed: int, machine: 
     return project
 
 
+def require_disk(path: Path) -> None:
+    """AGENTS.md (Ops): refuse to start a job with under 30 GB free."""
+    free = shutil.disk_usage(path).free
+    if free < MIN_FREE_BYTES:
+        raise BuildError(f'only {free / 1e9:.1f} GB free under {path}; Quartus jobs need {MIN_FREE_BYTES / 1e9:.0f} GB')
+
+
 def _run(command, cwd: Path, env: dict, log: Path) -> None:
+    """Run one Quartus step under the time cap, with a heartbeat on stdout."""
+    name = Path(command[0]).name
+    started = time.monotonic()
     with log.open('wb') as stream:
-        try:
-            result = subprocess.run(command, cwd=cwd, env=env, stdout=stream, stderr=subprocess.STDOUT,
-                                    timeout=COMPILE_TIMEOUT_S, check=False)
-        except subprocess.TimeoutExpired as error:
-            raise BuildError(f'{command[0]} exceeded {COMPILE_TIMEOUT_S} s; log: {log}') from error
-    if result.returncode != 0:
-        raise BuildError(f'{Path(command[0]).name} failed (exit {result.returncode}); log: {log}')
+        process = subprocess.Popen(command, cwd=cwd, env=env, stdout=stream, stderr=subprocess.STDOUT)
+        while True:
+            try:
+                returncode = process.wait(timeout=HEARTBEAT_S)
+                break
+            except subprocess.TimeoutExpired:
+                elapsed = time.monotonic() - started
+                if elapsed >= COMPILE_TIMEOUT_S:
+                    process.kill()
+                    process.wait()
+                    raise BuildError(f'{name} exceeded {COMPILE_TIMEOUT_S} s; log: {log}') from None
+                print(f'    {name} running {elapsed:.0f} s ({cwd.name})', flush=True)
+    if returncode != 0:
+        raise BuildError(f'{name} failed (exit {returncode}); log: {log}')
 
 
 def quartus_env(env: dict, quartus: Path) -> dict:
@@ -577,6 +597,7 @@ def manifest(record: bytes, payload: Path, rom: dict, machine: Model) -> bytes:
 def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2, model='zx81'):
     machine = model_for(model)
     root = Path(root).resolve()
+    require_disk(root)
     repository, revision = _require_clean_source(root, identity_version=identity_version, model=model)
     tools = authenticate_tools(root, cache_root=cache_root)
     database = rom_database(cache_root)
@@ -646,12 +667,13 @@ def main(argv=None):
     parser.add_argument('--model', choices=tuple(MODELS), default='zx81', help='zx81, zx80, ts1000 or ts1500')
     args = parser.parse_args(argv)
     try:
-        print(build(args.root, package_output=args.package_output, cache_root=args.cache_root,
-                    identity_version=args.identity_version, model=args.model))
-        return 0
+        package = build(args.root, package_output=args.package_output, cache_root=args.cache_root,
+                        identity_version=args.identity_version, model=args.model)
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
-        print(f'build-fes-zx81-quartus: {error}', file=sys.stderr)
+        print(f'build-fes-zx81-quartus: FAILED {args.model}: {error}', file=sys.stderr, flush=True)
         return 1
+    print(f'build-fes-zx81-quartus: FINISHED {args.model}: {package}', flush=True)
+    return 0
 
 
 if __name__ == '__main__':

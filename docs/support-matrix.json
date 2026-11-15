@@ -331,7 +331,7 @@
       },
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
-      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-zx81-quartus` runs Quartus 17.0.2 (`scripts/build_fes_zx81.py`). Not the installed package.",
+      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-zx81-quartus` runs the Quartus Lite 17.0.2 family producer (`scripts/build_fes_zx81_quartus.py`, docs/design/zx81-quartus-seal.md). Not the installed package until the registry switch (DeanoC/fes#1876).",
       "features": "Media: format-3 `machine-rom` plus `fes.media.zx81-tape` and tape-write (`.p`). Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through `fes_display_plane`. Optional `fes.expansion.zx81-bus` 2.0. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Library standing `supported`. Not in the bootstrap image. ZX80, TS1000 and TS1500 are other models of this shell.",
       "evidence": [
@@ -346,7 +346,7 @@
         "sources/misteross/AGENTS.md",
         "sources/misteross/cores/fes-zx81/toolchain.lock",
         "sources/misteross/scripts/build_fes_zx81_oss.py",
-        "sources/misteross/scripts/build_fes_zx81.py"
+        "sources/misteross/scripts/build_fes_zx81_quartus.py"
       ],
       "tier_role": "play",
       "family": "zx81",
@@ -396,7 +396,7 @@
       },
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
-      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`, the same wording as ZX81. No `make build-fes-zx80-quartus` target was found. `scripts/build_fes_zx81.py` writes `build/fes-zx81-quartus`. Whether that oracle covers ZX80 is unverified.",
+      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`, the same wording as ZX81. `make build-fes-zx81-quartus MODEL=zx80` builds it with the family's Quartus Lite producer (`scripts/build_fes_zx81_quartus.py`).",
       "features": "Media: format-3 linked `zx80-rom` firmware plus tape load (`fes.media.zx81-tape`); the producer omits tape-write for this model. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through the session display plane. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Same tree and lock as ZX81. Experimental: PAL, 4 KiB ROM, 1 KiB RAM, no NMI. Not in the bootstrap image. No sealed package and no hardware acceptance are recorded in core alignment.",
       "evidence": [
