@@ -251,7 +251,17 @@ the drives. The baseline was unchanged throughout (software `7ddb0bfb` on
 image `179affbb`, the same snapshot keys before and after, agent idle and
 lease free), and the run's four FogCast paths were removed afterwards.
 
-**And on the head the record describes** (Kit A, run `a2`, 14 November
+**On the head the record describes** (Kit A, run `a3`, 15 November 2026).
+The seal of the head, package `ca35f82d2bb8186a`, launched on Kit A's
+baseline (software `a2756499` on image `179affbb`), core-only: FreeDOS
+boots to `C:\>` and DIR reports **33,292,288 bytes free**, the same figure
+every kit run of this branch has reported ([grab](kitA-a3-dir.png)).
+Claimed only after the status file logged Kit A FREE on that baseline with
+its agent idle and lease free, released FREE once the post-run snapshot
+matched the probe, and the three FogCast trees the run created removed in a
+second claim.
+
+**On the head before it** (Kit A, run `a2`, 14 November
 2026). The round-5 seal `9f08910b0af8e1dc` launched on Kit A's baseline
 (software `a2756499` on image `179affbb`), core-only: FreeDOS boots to
 `C:\>` and DIR reports **33,292,288 bytes free**, the same figure every kit
@@ -285,8 +295,8 @@ delta and the staged fixture image) were removed in a second claim.
 Quartus 17.0.2, seed 1, the CUDA slot on `chip-30x0-ai-dev`, from a clean
 worktree of the exact commit, with the lockstep `--netlist` report (#1782) in
 front of it (`lockstep exit=0`). Every analysis passes. The branch was sealed
-four times, as the review moved the controller; the last, at `23218503b`,
-is the build the record's figures describe. The branch's own merge base `53681975f` is
+five times, as the review moved the controller; the last, at `cf68f7c2e`,
+is the branch head and the build the record's figures describe. The branch's own merge base `53681975f` is
 sealed the same way on the same host, so the slice can be measured against
 the tree it is a change to; the two mains of the two days are kept in the
 table as well, with what they do and do not show.
@@ -294,8 +304,9 @@ table as well, with what they do and do not show.
 | Build | ALMs | RAM blocks | DSP | Registers | Setup | Hold |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | **the branch's base `53681975f`** ([summary](base-r3-build-summary.json)) | 36,399 | 274 | 40 | 32,728 | +0.147 | +0.080 |
-| **F2 seal `23218503b`, 14 Nov** ([summary](seal-r5-build-summary.json)) | **36,556** | 274 | 40 | 32,935 | **+0.749** | **+0.069** |
-| **the slice** | **+157** | **0** | **0** | **+207** | | |
+| **F2 seal `cf68f7c2e`, the head** ([summary](seal-r6-build-summary.json)) | **36,543** | 274 | 40 | 32,784 | **+0.461** | **+0.104** |
+| **the slice** | **+144** | **0** | **0** | **+56** | | |
+| An earlier F2 head `23218503b` ([summary](seal-r5-build-summary.json)) | 36,556 | 274 | 40 | 32,935 | +0.749 | +0.069 |
 | An earlier F2 head `1b75a9750` ([summary](seal-r4-build-summary.json)) | 36,635 | 274 | 40 | 33,004 | +0.977 | +0.098 |
 | An earlier F2 head `41ecd7ef7` ([summary](seal-r3-build-summary.json)) | 36,594 | 274 | 40 | 32,716 | +0.810 | +0.082 |
 | The doc's F2 estimate | +150 | 0 | 0 | | | |
@@ -304,17 +315,20 @@ table as well, with what they do and do not show.
 | F2 seal `92ef982d6`, 13 Nov ([summary](seal-build-summary.json)) | 36,399 | 274 | 40 | 32,869 | +0.694 | +0.068 |
 | An earlier F2 head `18ccf4884` ([summary](earlier-seal-build-summary.json)) | 36,471 | 274 | 40 | 32,965 | +0.330 | +0.076 |
 
-- **+157 ALMs, +0 M10K and +0 DSP**, measured against the branch's own
+- **+144 ALMs, +0 M10K and +0 DSP**, measured against the branch's own
   merge base `53681975f` sealed the same way on the same host: the same tree
   with and without this slice, which is the only comparison that isolates
-  it. That is the figure to quote, and it lands on the doc's +150 estimate.
-  At **87.2%** of the 5CSEBA6 the device keeps its room. Counting the PCN in
-  the step engine costs 79 ALMs less than loading it at dispatch did, which
-  is where the figure came down from the previous head's +236.
-- **The register count sits 207 above the base**, having been 12 below it
-  two heads ago. None of the review's fixes adds state of its own, so that
-  spread is the fit choosing differently — retiming and duplication around
-  the arithmetic — rather than new registers in the design.
+  it. That is the figure to quote, and it comes in **under** the doc's +150
+  estimate. At **87.2%** of the 5CSEBA6 the device keeps its room. The
+  figure fell across the review rather than rising: counting the PCN in the
+  step engine costs less than loading it at dispatch did, and bounding the
+  head by the drive's last track less than bounding it by the register's
+  width.
+- **The register count sits 56 above the base**, having ranged from 12
+  below it to 276 above across the review's heads. None of the fixes adds
+  state of its own, so that spread is the fit choosing differently —
+  retiming and duplication around the arithmetic — rather than new registers
+  in the design.
 - **The main-of-the-day comparisons are noisier, and the record keeps them
   so nobody re-derives them.** The branch carries none of main's commits
   since `8ab34380e`, and main itself shed 144 ALMs and 689 registers over
@@ -338,21 +352,16 @@ table as well, with what they do and do not show.
   pays the rest when its endpoint drives those inputs, as slice F1's record
   says of the controller itself.
 - **Timing is met with room**, and more of it than the base had: setup
-  +0.749 ns against the merge base's +0.147, hold +0.069 ns, minimum pulse
-  width +1.122 ns, recovery +6.291 ns, removal +0.453 ns, on the 61.44 MHz
+  +0.461 ns against the merge base's +0.147, hold +0.104 ns, minimum pulse
+  width +1.122 ns, recovery +6.496 ns, removal +0.271 ns, on the 61.44 MHz
   system clock with the 74.27 MHz pixel and 12.29 MHz audio clocks. Nothing
   was relaxed.
-- **The sealed commit is not the branch head, and after this round the RTL
-  differs from it.** The figures above are the seal of `23218503b`; the head
-  adds the drive's inward stop in `pc386_fdc.sv`, its replay case and this
-  record. That is a post-seal RTL fix on a pc386 PR while pc386 is in
-  bring-up, which Deano's standing exemption covers (1 November, on #1335):
-  it waives only the rule that a seal must cover the exact head, because the
-  next PR to merge main reseals the tree and carries the kit runs. It waives
-  nothing about timing — the seal quoted here passed every analysis at
-  61.44 MHz from a clean checkout — and it does not reach shared kit-core
-  RTL, which `pc386_fdc.sv` is not. **So read the table as covering
-  `23218503b`, not the head.**
+- **The seal covers the branch head.** `cf68f7c2e` is sealed from a clean
+  worktree of itself, so no exemption is being leaned on: the figures above,
+  the package the kit ran and the RTL in the PR are one build. An earlier
+  round did rest on the pc386 bring-up exemption for a post-seal RTL fix,
+  and resealing was cheaper than asking a reader to accept a waiver the
+  repository's rules do not record.
 - Package `9f08910b0af8e1dc…`, `BUILD_ID` `622aa3935b181750ce5da9d81611817a`,
   backend CUDA, device 5CSEBA6U23I7, status `pass`.
 
