@@ -321,11 +321,13 @@ tree paths are set aside, exactly one assignment:
 
 The measurement flow zeroes the build id so that fits of different builds are
 comparable at all; the sealer embeds the real one. Same device, same SDC,
-same 61.44 MHz clock and 16.276 ns period. That 128-bit constant, plus the
-placement it perturbs, is the whole of the difference between the sealer's
-identity-off report at **36,480 ALMs and +0.896 ns** and the table below at
-**36,392 and +0.576** -- 88 ALMs and 0.32 ns, which is the size of this
-flow's seed-to-seed spread rather than a difference of designs. **The rows
+same 61.44 MHz clock and 16.276 ns period. That constant is the only **project-setting**
+difference between the sealer's identity-off report at **36,480 ALMs and
++0.896 ns** and the table below at **36,392 and +0.576**; the two netlists
+themselves were not compared, so "only difference" is a statement about the
+Quartus projects and not a proof that nothing else differs. The gap is 88
+ALMs and 0.32 ns either way, which is the size of this flow's seed-to-seed
+spread rather than a difference of designs. **The rows
 here difference against each other; the sealer's report is what the shipped
 artefact closes at.** **The machine fits** -- which are the ones the deltas rest on -- all ran through
 **the chip host's CUDA toolchain slot**; the standalone fit of the unit, in
@@ -438,8 +440,10 @@ Nothing is being sealed at 1% margin.
 **The forward-looking number is the one to read carefully, and it is the
 margin and not the area.** Within this slot, turning the identity on takes
 setup slack from +0.576 to **+0.176 ns — 1.08% of the 16.276 ns period** and
-leaves the device with **2,228 ALMs**. That is a same-slot comparison and it
-stands on its own.
+leaves the device with **2,228 ALMs**. Same slot, same seed -- and the slack
+half of it is still one seed pair, so the figure that carries is the sweep's:
+**five of nine seeds do not close at all** with the identity on. The ALM
+figure is the one to plan against.
 
 What this record does **not** claim is a margin drop against slice 2.
 Comparing +0.176 with slice 2's published +0.603 would be a cross-slot
