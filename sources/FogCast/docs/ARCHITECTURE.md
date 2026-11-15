@@ -60,7 +60,19 @@ independently validate their retained package bytes.
 Native-video shells also require a matching video part admitted against the
 exact shell in the host's own catalog. The default profile is Direct. If no
 preferred or Direct part is available, launch stops before core-load dispatch
-and reports the missing part as an admission error.
+and reports the missing part as an admission error. Library compositions report
+`video_required` and `video_ready` for selectable-video shells. Readiness uses
+the current profile and its Direct fallback, verifies the selected stored part
+against the exact shell, and checks each part once per listing without composing
+the shell. Built-in Direct remains the final fallback for raster shells; an
+installed selected part that fails verification is not silently bypassed. The
+browser and kit block Play with the same missing-video reason. When the shell
+cannot be inspected, its requirements are unknown, so the row instead blocks
+Play with a missing-package reason. This is host
+catalog readiness, not proof of target readiness or of compatibility with every
+selected CPU/slot combination; launch still performs full admission. The
+`availability=ready` list filter selects available, online sources and can
+therefore return a repairable but launch-ineligible entry with these flags.
 
 This is the canonical description of the working system.
 
