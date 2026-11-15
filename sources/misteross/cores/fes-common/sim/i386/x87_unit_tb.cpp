@@ -1413,6 +1413,13 @@ int main(int argc, char **argv) {
             {"fucom",      0x5, 0xe1, 2, 0, CMP_SW},
             {"fucomp",     0x5, 0xe9, 2, 0, CMP_SW},
             {"fucompp",    0x2, 0xe9, 2, 0, CMP_SW},
+            // Slice 4's remainders, with CMP_SW and not ARITH_SW: FAFFh
+            // masks out C0, C2 and C3, which are exactly the bits a remainder
+            // reports -- C2 for a partial step and C0, C3 and C1 for the
+            // quotient -- so a remainder row under ARITH_SW would check none
+            // of what this slice is for.
+            {"fprem",      0x1, 0xf8, 2, 0, CMP_SW},
+            {"fprem1",     0x1, 0xf5, 2, 0, CMP_SW},
             // The one-operand forms. FSCALE takes ST(1) as its scale.
             {"fsqrt",      0x1, 0xfa, 1, 0, ARITH_SW},
             {"frndint",    0x1, 0xfc, 1, 0, ARITH_SW},
@@ -1495,6 +1502,9 @@ int main(int argc, char **argv) {
             // FSQRT rounds at PC as well, and its iteration count is chosen
             // by PC, so this row says the early termination changed nothing.
             {"fsqrt",   0x1, 0xfa, 1, ARITH_SW},
+            // The remainders ignore precision control entirely, so these rows
+            // say their results do not move with it.
+            {"fprem",   0x1, 0xf8, 2, 0xffff}, {"fprem1", 0x1, 0xf5, 2, 0xffff},
         };
         const size_t named = 22;
         // PC 01 is reserved. The unit reads it as the extended format; this

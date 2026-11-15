@@ -591,8 +591,9 @@ module fes_i386_x87 (
         // multiply gives the exact remainder for that quotient.
         P_Q,        // form the step's quotient from T, start q*B
         P_REM,      // the exact remainder
-        P_FIN       // FPREM1's round-to-nearest, the normalise, C2 and the
-                    // quotient bits
+        P_FIN,      // FPREM1's round-to-nearest and the normalising shift
+        P_ZERO,     // ... an exact zero remainder, which is packed not shifted
+        P_PACK      // ... and the normalised magnitude, C2 and the quotient bits
     } seq_e;
     seq_e        seq;
     seq_e        sh_ret;      // the state S_MUL returns to when the multiply is done
@@ -1102,6 +1103,17 @@ module fes_i386_x87 (
     // after normalisation is one XOR away and needs no subtract.
     function automatic logic eff_e0(input logic [79:0] v);
         eff_e0 = v[78:64] == 15'd0 ? 1'b1 : v[64];
+    endfunction
+
+    // A value in the form the unit writes it. The only operand that is not
+    // already canonical is a PSEUDO-DENORMAL -- exponent field 0 with bit 63
+    // set -- whose effective exponent is 1, so its canonical form is the
+    // smallest normal's. The remainders need this because they hand the
+    // dividend back unreduced when the divisor is larger, and the host
+    // returns 0001 8000... where the operand was 0000 8000...; a genuine
+    // denormal is left exactly as it is.
+    function automatic logic [79:0] canon(input logic [79:0] v);
+        canon = (v[78:64] == 15'd0 && v[63]) ? {v[79], 15'd1, v[63:0]} : v;
     endfunction
 
     // ---- The operand classes that give a result without the datapath. ----
@@ -1707,6 +1719,60 @@ module fes_i386_x87 (
                             seq <= S_SHIFT;
                         end else
                             seq <= A_OP;
+                    end else if (cur == X87_PREM) begin
+                        // FPREM's and FPREM1's own operand classes, read off
+                        // the host rather than the manual (model/fprem_host.c
+                        // has the status words): an infinite dividend and a
+                        // zero divisor are invalid, a zero dividend gives
+                        // itself with NO exception at all, and a divisor of
+                        // infinity gives the dividend back unchanged with C2
+                        // clear and no exception -- a divisor of infinity is
+                        // not an invalid case and does not reduce, which is
+                        // the one a PRM reading gets wrong.
+                        wsign <= pa[79];
+                        pcc <= 4'd0;
+                        pcc_wr <= 1'b1;
+                        if (ca == C_EMPTY || cb == C_EMPTY) begin
+                            pfl <= pfl | 6'b000001;
+                            psf <= 1'b1;
+                            ares <= INDEFINITE;
+                            seq <= S_APPLY;
+                        end else if (ca == C_UNSUP || cb == C_UNSUP) begin
+                            pfl <= pfl | 6'b000001;
+                            ares <= INDEFINITE;
+                            seq <= S_APPLY;
+                        end else if (ca == C_QNAN || ca == C_SNAN
+                                     || cb == C_QNAN || cb == C_SNAN) begin
+                            pfl <= sp_fl;
+                            ares <= sp_v;
+                            seq <= S_APPLY;
+                        end else if (ca == C_INF || cb == C_ZERO) begin
+                            pfl <= 6'b000001;
+                            ares <= INDEFINITE;
+                            seq <= S_APPLY;
+                        end else if (ca == C_ZERO || cb == C_INF) begin
+                            pfl <= pfl | ((ca == C_DEN || cb == C_DEN) ? 6'b000010 : 6'd0);
+                            ares <= canon(pa);
+                            seq <= S_APPLY;
+                        end else begin
+                            pfl <= pfl | (ca == C_DEN || cb == C_DEN ? 6'b000010 : 6'd0);
+                            if (ca == C_DEN) begin
+                                oa_e <= eff_e(pa) - 18'(lza);
+                                sh_src <= pa[63:0];
+                                sh_pow <= 6'(lza);
+                                sh_isprod <= 1'b0;
+                                sh_ret <= A_PNA;
+                                seq <= S_SHIFT;
+                            end else if (cb == C_DEN) begin
+                                ob_e <= eff_e(pb) - 18'(lzb);
+                                sh_src <= pb[63:0];
+                                sh_pow <= 6'(lzb);
+                                sh_isprod <= 1'b0;
+                                sh_ret <= A_PNB;
+                                seq <= S_SHIFT;
+                            end else
+                                seq <= A_OP;
+                        end
                     end else if (cur == X87_SCALE) begin
                         // FSCALE's own operand classes: the add's and the
                         // multiply's rules do not apply, because the second
@@ -1836,6 +1902,62 @@ module fes_i386_x87 (
                         sh_isprod <= 1'b1;
                         sh_ret <= A_PROD;
                         seq <= S_SHIFT;
+                    end else if (cur == X87_PREM) begin
+                        // The step reduces n = (expDiff & 31) | 32 quotient
+                        // bits where the difference is 64 or more, and the
+                        // whole difference where it is less -- measured on the
+                        // host, and exactly what Bochs's cpu/fpu/fprem.cc
+                        // computes at the pinned revision, so lockstep is
+                        // exact on partial steps rather than divergent.
+                        //
+                        // A NEGATIVE difference never reaches the datapath:
+                        // the quotient is zero and the remainder is the
+                        // dividend, and only FPREM1 at a difference of -1 can
+                        // round the quotient up to one.
+                        logic signed [17:0] d;
+                        logic               one, rnd_up;
+                        logic [6:0]         n;
+                        d = oa_e - ob_e;
+                        one = cur_op_raw[3:0] == 4'h5;      // D9 F5 is FPREM1
+                        rnd_up = one && d == -18'sd1 && oa_m > ob_m;
+                        n = d >= 18'sd64 ? (7'd32 | {2'b0, d[4:0]}) : 7'(d[6:0]);
+                        wsign <= pa[79];
+                        pr_one <= one;
+                        pcc_wr <= 1'b1;
+                        if (d < 18'sd0) begin
+                            // FPREM1 at -1: a/b is in (0.25, 1), so compare A
+                            // with B. Above gives a quotient of one, a
+                            // magnitude of 2B - A and the other sign; equal
+                            // rounds to even and stays zero.
+                            pr_part <= 1'b0;
+                            pr_q <= {63'd0, rnd_up};
+                            pr_one <= 1'b0;   // the rounding is already applied
+                            pcc <= 4'd0;
+                            pc1 <= rnd_up;    // C1 is the quotient's bit 0
+                            if (rnd_up) begin
+                                pr_n <= 7'd0;
+                                dv_rem <= {32'd0, 64'({ob_m, 1'b0} - {1'b0, oa_m})};
+                                wsign <= !pa[79];
+                                we <= oa_e;
+                                seq <= P_FIN;
+                            end else begin
+                                ares <= canon(pa);
+                                seq <= S_APPLY;
+                            end
+                        end else begin
+                            pr_part <= d >= 18'sd64;
+                            pr_n <= n;
+                            dv_s <= oa_m < ob_m;
+                            dv_lost <= 1'b0;
+                            gs_it <= 2'd3;
+                            // The candidate is formed at the step's own scale:
+                            // 65 + s - n of the 66-bit target's bits dropped.
+                            // The extended error bound covers every scale,
+                            // because a coarser scale has a smaller error.
+                            dv_dr <= 7'd65 + 7'(oa_m < ob_m) - n;
+                            we <= oa_e - 18'({11'd0, n});
+                            seq <= D_SEED;
+                        end
                     end else if (cur == X87_SQRT) begin
                         // The exponent halving. With the true exponent
                         // E = oa_e - 16446, the result is
@@ -2526,6 +2648,78 @@ module fes_i386_x87 (
                     ws <= |dv_rem || dv_lost;
                     seq <= A_RND;
                 end
+                // The remainder's result: exact, so it does not go through
+                // A_RND at all -- FPREM and FPREM1 ignore both rounding and
+                // precision control. FPREM1's quotient rounds to nearest,
+                // which can flip the sign and replace the magnitude.
+                P_FIN: begin
+                    logic [63:0] r0, half;
+                    logic        up, flip;
+                    r0 = dv_rem[63:0];
+                    half = {1'b0, ob_m[63:1]};
+                    // Round the quotient to nearest only on a COMPLETING
+                    // FPREM1 step: a partial step's remainder is the running
+                    // dividend in [0, B), and only a completing FPREM1's is
+                    // the IEEE [-B/2, B/2]. Applying the IEEE range everywhere
+                    // is the plausible wrong fix -- an earlier version of this
+                    // slice's own model did it and reported 7,860 violations
+                    // against correct behaviour.
+                    // Every completing FPREM1 step rounds, including one at an
+                    // exponent difference of zero: gating this on a non-zero
+                    // reduction excluded 3 mod 2, whose quotient rounds from
+                    // one to two. The difference-below-zero path clears
+                    // pr_one, which is how it says its rounding is done.
+                    up = pr_one && !pr_part
+                      && (r0 > half || (r0 == half && dv_c[0]));
+                    flip = up;
+                    pr_q <= up ? dv_c[63:0] + 64'd1 : dv_c[63:0];
+                    if (up) begin
+                        dv_rem <= {32'd0, ob_m - r0};
+                        wsign <= wsign ^ 1'b1;
+                    end
+                    pcc <= pr_part ? 4'b0100               // C2 alone: loop again
+                         : {1'b0, 1'b0, 1'b0, 1'b0};
+                    // The magnitude normalises through the shifter, as every
+                    // other value in this unit does: option A has no barrel
+                    // shifter, so a left shift is a multiply by 2^lz.
+                    if ((up ? ob_m - r0 : r0) == 64'd0) begin
+                        // An exact zero keeps the dividend's sign and is
+                        // packed as a true zero, not normalised.
+                        ares <= {flip ? !pa[79] : pa[79], 79'd0};
+                        seq <= P_ZERO;
+                    end else begin
+                        sh_src <= up ? ob_m - r0 : r0;
+                        sh_pow <= 6'(clz64(up ? ob_m - r0 : r0));
+                        sh_isprod <= 1'b0;
+                        sh_ret <= P_PACK;
+                        we <= we - 18'(clz64(up ? ob_m - r0 : r0));
+                        seq <= S_SHIFT;
+                    end
+                end
+                // The condition codes a completing step reports: C2 clear and
+                // the quotient's low three bits as C0, C3 and C1 -- which is
+                // q = C0*4 + C3*2 + C1, measured on the host over q = 0 to 9
+                // for both instructions. The PRM's q2/q1/q0 map to C0/C3/C1 in
+                // that order, which is easy to get backwards from the manual.
+                P_ZERO: begin
+                    pcc <= pr_part ? 4'b0100
+                         : {pr_q[1], 1'b0, pr_q[0], pr_q[2]};
+                    // C1 comes from pc1 and not from this vector -- S_APPLY
+                    // writes cc as {nc[3], nc[2], c1, nc[0]} -- so a
+                    // remainder's C1, which is the quotient's bit 0 rather
+                    // than a rounding direction, has to go through pc1.
+                    pc1 <= !pr_part && pr_q[0];
+                    pcc_wr <= 1'b1;
+                    seq <= S_APPLY;
+                end
+                P_PACK: begin
+                    ares <= {wsign, 15'(we), mul_p[63:0]};
+                    pcc <= pr_part ? 4'b0100
+                         : {pr_q[1], 1'b0, pr_q[0], pr_q[2]};
+                    pc1 <= !pr_part && pr_q[0];
+                    pcc_wr <= 1'b1;
+                    seq <= S_APPLY;
+                end
                 S_POST: begin
                     rnd_q <= rnd_w[64:0];
                     rnd_inex_q <= rnd_w[65];
@@ -2724,7 +2918,8 @@ module fes_i386_x87 (
                                 default: nc = {1'b1, 1'b1, 1'b0, 1'b0};  // denormal
                             endcase
                         end
-                        X87_ARITH, X87_RNDINT, X87_SCALE, X87_DIV, X87_SQRT: begin
+                        X87_ARITH, X87_RNDINT, X87_SCALE, X87_DIV, X87_SQRT,
+                        X87_PREM: begin
                             // The result goes to ST(0), or to ST(i) for the
                             // DC and DE forms, and DE pops ST(0) after it.
                             // X87_DIV belongs here and not in a case of its
@@ -2909,7 +3104,8 @@ module fes_i386_x87 (
                             seq <= S_APPLY2;
                         end
                         if (cur == X87_ARITH || cur == X87_RNDINT || cur == X87_SCALE
-                            || cur == X87_DIV || cur == X87_SQRT) begin
+                            || cur == X87_DIV || cur == X87_SQRT
+                            || cur == X87_PREM) begin
                             rw_idx <= a_dst;
                             rw_val <= v;
                             rw_en <= 1'b1;
