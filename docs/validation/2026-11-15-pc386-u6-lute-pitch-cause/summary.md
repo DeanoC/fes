@@ -16,9 +16,11 @@ matches #1474's "about two points", though the reference's own cost for those
 two port accesses was not measured, so the record does not attribute the 2.4
 to the ISA charge.
 
-**So the fault is in the governor's cost table — what it charges these forms
-relative to each other — and not in the ISA charge model, not in the CPU's
-instruction timing, and not in any uniform speed error.** The fix is not
+**So the fault is in the governor's cost model — what it charges these two
+loops relative to each other — and not in the ISA charge model, not in the
+CPU's instruction timing, and not in any uniform speed error.** Whether the
+shortfall is a wrong table entry or the instruction-fetch time the model does
+not carry is *not* settled here, and no class entry is pinned. The fix is not
 applied here: it moves every preset and every title, which is Deano's to
 weigh. **The pitch still fails #1368's band.**
 
@@ -292,16 +294,20 @@ The two loops use **the same three cost classes** — `unary_m` for `inc`/`dec`
 of memory, `test_m` for `cmp r/m, imm`, `jcc` for the branch — and the same
 memory accesses. The governor charges them additively: 24 and 17 clocks, a
 ratio of 0.7083. The reference costs them 29.02 and 18.04, a ratio of 0.6217.
-**The fault is in the cost table's 286 column**, in what it charges these
-forms relative to each other. Two adjustments are needed, and only one of
-them is pinned to a class:
+**The fault is in what the cost model charges these two loops relative to
+each other.** Two shortfalls have to be made up, and **neither is pinned to a
+class**: each could be a table entry or the instruction-fetch time the model
+does not carry, and this record does not separate those. What follows is
+where each shortfall sits, not which entry is wrong:
 
 - The delay loop needs **one clock more** (17 → 18.04). It contains one
   `unary_m` and one taken `jcc`, and nothing here says which of the two is
   short, so that clock is **underdetermined**: raising `unary_m` 7 → 8 fits
   the measurements exactly as well as raising `jcc` taken 8 → 9, and the
-  second would retime every taken branch on every preset. Separating them
-  needs a loop that has one and not the other.
+  second would retime every taken branch on every preset. The fetch reading
+  accounts for it without either being undercharged at all, since the loop is
+  six bytes. Separating them needs a loop that has one of those classes and
+  not the other.
 - The calibration loop then needs **about four clocks more** on top. The only
   class it has that the delay loop does not is `test_m`
   (`CMP`/`TEST r/m, imm`), charged 6 where that instruction costs the
@@ -332,7 +338,9 @@ That is the shape of a fix, not a fix: it moves every preset and every title
 and it is Deano's to weigh. **Nothing is changed in this PR, and the pitch
 still fails #1368's band.**
 
-Both entries are *undercharges*, which is also fes#1840's direction.
+Both shortfalls are the kit charging *less* than the reference, which is
+also fes#1840's direction — but whether any particular class entry is
+undercharged is exactly what is not settled here.
 
 `governor.toml` gives `test_m` and `cmp_load` the same 6 clocks in the 286
 column, from the compiled data-sheet table its header cites. The reference does not: 9.00 against
