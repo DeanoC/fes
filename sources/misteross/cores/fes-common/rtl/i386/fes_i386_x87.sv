@@ -437,6 +437,18 @@ module fes_i386_x87 (
         sq_steps = (prec == 2'd0 || prec == 2'd2) ? 4'd3 : 4'd7;
     endfunction
 
+    // The candidate's bits above 63 times a 64-bit value, as three shifted
+    // adds rather than a multiply. Written as `a * b` Quartus maps it to a DSP
+    // block, and the first standalone fit came back with **13 DSP blocks**
+    // against the nine Deano's option A allows -- the multiplier's nine plus
+    // these. The multiplicand is three bits, so the product is three
+    // conditional shifts of the multiplier and about sixty ALMs.
+    function automatic logic [31:0] mul3(input logic [2:0] a, input logic [31:0] b);
+        mul3 = (a[0] ? b : 32'd0)
+             + (a[1] ? {b[30:0], 1'b0} : 32'd0)
+             + (a[2] ? {b[29:0], 2'b00} : 32'd0);
+    endfunction
+
     // One step of the square root's Newton iteration keeps every value
     // normalised with bit 63 set, so a product of two such values has bit 127
     // or bit 126 set and renormalising is a choice between two slices.
@@ -1105,17 +1117,6 @@ module fes_i386_x87 (
         eff_e0 = v[78:64] == 15'd0 ? 1'b1 : v[64];
     endfunction
 
-    // A value in the form the unit writes it. The only operand that is not
-    // already canonical is a PSEUDO-DENORMAL -- exponent field 0 with bit 63
-    // set -- whose effective exponent is 1, so its canonical form is the
-    // smallest normal's. The remainders need this because they hand the
-    // dividend back unreduced when the divisor is larger, and the host
-    // returns 0001 8000... where the operand was 0000 8000...; a genuine
-    // denormal is left exactly as it is.
-    function automatic logic [79:0] canon(input logic [79:0] v);
-        canon = (v[78:64] == 15'd0 && v[63]) ? {v[79], 15'd1, v[63:0]} : v;
-    endfunction
-
     // ---- The operand classes that give a result without the datapath. ----
     // An empty register, an unsupported format, a NaN, an infinity and the
     // zeros (387 PRM section 3.1.7 and Table 3.5). Everything else is a
@@ -1369,6 +1370,13 @@ module fes_i386_x87 (
     // and the board's latch instead of a result.
     function automatic logic unmasked(input logic [5:0] f, input logic [15:0] c);
         unmasked = |(f & ~c[5:0]);
+    endfunction
+    // Whether an unmasked PRE-operation exception fired: invalid, denormal or
+    // divide-by-zero. Those are detected before the result exists, so an
+    // unmasked one reports nothing else at all -- not the other flags, and
+    // not the condition codes a remainder would otherwise write.
+    function automatic logic pre_um(input logic [5:0] f, input logic [15:0] c);
+        pre_um = |(f[2:0] & ~c[2:0]);
     endfunction
 
     always_ff @(posedge clk) begin
@@ -1750,9 +1758,14 @@ module fes_i386_x87 (
                             pfl <= 6'b000001;
                             ares <= INDEFINITE;
                             seq <= S_APPLY;
-                        end else if (ca == C_ZERO || cb == C_INF) begin
-                            pfl <= pfl | ((ca == C_DEN || cb == C_DEN) ? 6'b000010 : 6'd0);
-                            ares <= canon(pa);
+                        end else if (ca == C_ZERO) begin
+                            // Zero over anything finite is itself, with no
+                            // exception at all. A DIVISOR of infinity needs no
+                            // case of its own: its exponent makes the
+                            // difference very negative, which is the path that
+                            // hands the dividend back.
+                            pfl <= pfl | (cb == C_DEN ? 6'b000010 : 6'd0);
+                            ares <= pa;
                             seq <= S_APPLY;
                         end else begin
                             pfl <= pfl | (ca == C_DEN || cb == C_DEN ? 6'b000010 : 6'd0);
@@ -1931,6 +1944,12 @@ module fes_i386_x87 (
                             // rounds to even and stays zero.
                             pr_part <= 1'b0;
                             pr_q <= {63'd0, rnd_up};
+                            // dv_c as well, because P_FIN takes the quotient
+                            // from it: this path does not run the datapath, so
+                            // without this the stale candidate would overwrite
+                            // the quotient and C1 would read zero where the
+                            // rounding made it one.
+                            dv_c <= {66'd0, rnd_up};
                             pr_one <= 1'b0;   // the rounding is already applied
                             pcc <= 4'd0;
                             pc1 <= rnd_up;    // C1 is the quotient's bit 0
@@ -1941,8 +1960,23 @@ module fes_i386_x87 (
                                 we <= oa_e;
                                 seq <= P_FIN;
                             end else begin
-                                ares <= canon(pa);
-                                seq <= S_APPLY;
+                                // The dividend comes back **through A_RND**,
+                                // not as it stands. It is exact, so nothing
+                                // rounds, but the exponent still goes through
+                                // the normalise, tiny and bias-adjust rules:
+                                // the host returns a pseudo-denormal as
+                                // 0001 8000... and a genuine denormal with an
+                                // UNMASKED underflow and the exponent moved by
+                                // 24576, which is slice 3's rule 2 reaching a
+                                // form that never rounds. An earlier version
+                                // special-cased the pseudo-denormal and got
+                                // the genuine one wrong.
+                                wm <= oa_m;
+                                wg <= 1'b0;
+                                wrd <= 1'b0;
+                                ws <= 1'b0;
+                                we <= oa_e;
+                                seq <= A_RND;
                             end
                         end else begin
                             pr_part <= d >= 18'sd64;
@@ -2280,7 +2314,10 @@ module fes_i386_x87 (
                     logic [66:0] rp;
                     logic [63:0] mag;
                     rp = round_pc(wm, wg, wrd, ws, wsign, rc, PC_EXT);
-                    pc1 <= rp[64];
+                    // A remainder's C1 is the quotient's bit 0, set in P_PACK
+                    // and P_ZERO, not the rounding's direction -- and FPREM
+                    // and FPREM1 never round, so there is nothing to record.
+                    if (cur != X87_PREM) pc1 <= rp[64];
                     if (rp[65]) pfl[5] <= 1'b1;
                     // A rounding that carried out of bit 63 is 2^64, which
                     // is the significand 2^63 one exponent up.
@@ -2356,7 +2393,10 @@ module fes_i386_x87 (
                     rp = round_pc(wm, wg, wrd, ws, wsign, rc, wprec);
                     mag = rp[66] ? 64'h8000_0000_0000_0000 : rp[63:0];
                     e2 = we + 18'(rp[66]);
-                    pc1 <= rp[64];
+                    // A remainder's C1 is the quotient's bit 0, set in P_PACK
+                    // and P_ZERO, not the rounding's direction -- and FPREM
+                    // and FPREM1 never round, so there is nothing to record.
+                    if (cur != X87_PREM) pc1 <= rp[64];
                     if (wtiny) begin
                         // The denormalised value, rounded here for the first
                         // and only time: the exponent field is 0, or 1 where
@@ -2491,7 +2531,7 @@ module fes_i386_x87 (
                 // the candidate's bits above 63 contribute three shifted adds.
                 D_REM: if (mul_done) begin
                     logic [31:0] chi;
-                    chi = 32'(dv_c[66:64] * ob_m[31:0]);
+                    chi = mul3(dv_c[66:64], ob_m[31:0]);
                     dv_rem <= (96'(oa_m) << (7'd65 + 7'(dv_s) - dv_dr))
                             - (mul_p[95:0] + {chi, 64'd0});
                     seq <= D_TAIL;
@@ -2633,7 +2673,7 @@ module fes_i386_x87 (
                     qsh = 9'sd67 + 9'($signed({1'b0, sq_p}))
                         - 9'sd2 * 9'($signed({2'b0, dv_dr}));
                     rad = qsh >= 9'sd0 ? (96'(oa_m) << qsh[7:0]) : (96'(oa_m) >> (-qsh));
-                    chi = 32'(dv_c[66:64] * dv_c[31:0]);
+                    chi = mul3(dv_c[66:64], dv_c[31:0]);
                     dv_rem <= rad - (mul_p[95:0] + {chi, 64'd0} + {chi, 64'd0});
                     dv_lost <= qsh >= 9'sd0 ? 1'b0
                              : |(oa_m & ((64'd1 << (-qsh)) - 64'd1));
@@ -2702,23 +2742,35 @@ module fes_i386_x87 (
                 // for both instructions. The PRM's q2/q1/q0 map to C0/C3/C1 in
                 // that order, which is easy to get backwards from the manual.
                 P_ZERO: begin
-                    pcc <= pr_part ? 4'b0100
+                    // An unmasked PRE-operation exception reports nothing
+                    // else -- slice 3's rule 5 -- and that includes C2 and
+                    // the quotient bits. A denormal divisor with DM clear
+                    // raises DE before the reduction runs, so the host leaves
+                    // every condition code clear where the exponent
+                    // difference alone would have set C2. The bench's mask
+                    // matrix found it: six cases per unmasked-DE row.
+                    pcc <= pre_um(pfl, cw) ? 4'd0
+                         : pr_part ? 4'b0100
                          : {pr_q[1], 1'b0, pr_q[0], pr_q[2]};
                     // C1 comes from pc1 and not from this vector -- S_APPLY
                     // writes cc as {nc[3], nc[2], c1, nc[0]} -- so a
                     // remainder's C1, which is the quotient's bit 0 rather
                     // than a rounding direction, has to go through pc1.
-                    pc1 <= !pr_part && pr_q[0];
+                    pc1 <= !pre_um(pfl, cw) && !pr_part && pr_q[0];
                     pcc_wr <= 1'b1;
                     seq <= S_APPLY;
                 end
                 P_PACK: begin
-                    ares <= {wsign, 15'(we), mul_p[63:0]};
-                    pcc <= pr_part ? 4'b0100
+                    wm <= mul_p[63:0];
+                    wg <= 1'b0;
+                    wrd <= 1'b0;
+                    ws <= 1'b0;
+                    pcc <= pre_um(pfl, cw) ? 4'd0
+                         : pr_part ? 4'b0100
                          : {pr_q[1], 1'b0, pr_q[0], pr_q[2]};
-                    pc1 <= !pr_part && pr_q[0];
+                    pc1 <= !pre_um(pfl, cw) && !pr_part && pr_q[0];
                     pcc_wr <= 1'b1;
-                    seq <= S_APPLY;
+                    seq <= A_RND;
                 end
                 S_POST: begin
                     rnd_q <= rnd_w[64:0];

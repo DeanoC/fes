@@ -1479,6 +1479,94 @@ int main(int argc, char **argv) {
     }
 
 
+    // ---- The remainders' partial steps, chained. ----
+    // The plan names this gate: directed FPREM and FPREM1 cases over large
+    // exponent differences, checking each partial step's C2 and the final
+    // C0, C3 and C1 quotient bits.
+    //
+    // A single instruction cannot check it, because the behaviour IS the
+    // sequence: while the exponent difference is 64 or more the step returns
+    // a partial remainder with C2 set and software loops. So each case runs
+    // the instruction repeatedly on the host and on the unit, comparing the
+    // whole state every step, and feeds the step's result back in as the next
+    // dividend -- which is what a program using FPREM does.
+    //
+    // A partial step reduces n = (expDiff & 31) | 32 quotient bits, so the
+    // step COUNT is data-dependent (cancellation shrinks the remainder
+    // unpredictably) and the chain runs until the host clears C2 rather than
+    // for a fixed number of steps.
+    {
+        StubPage page;
+        struct Chain { const char *name; uint16_t ea; uint64_t sa; uint16_t eb; uint64_t sb; };
+        const Chain chains[] = {
+            // Differences at and around the boundary: 63 completes in one
+            // step, 64 and 65 take two.
+            {"d63",   uint16_t(0x3fff + 63), 0x9357bdf000000000ull, 0x3fff, 0x8000000000000000ull},
+            {"d64",   uint16_t(0x3fff + 64), 0x9357bdf000000000ull, 0x3fff, 0x8000000000000000ull},
+            {"d65",   uint16_t(0x3fff + 65), 0x9357bdf000000000ull, 0x3fff, 0x8000000000000000ull},
+            // ... and far beyond it, where the chain runs many steps.
+            {"d200",  uint16_t(0x3fff + 200), 0x923456789abcdef0ull, 0x3fff, 0x8000000000000000ull},
+            {"d299",  uint16_t(0x3fff + 299), 0xaaaaaaaaaaaaaaaaull, 0x4000, 0xc000000000000000ull},
+            {"d359",  uint16_t(0x3fff + 359), 0xfedcba9876543210ull, 0x4000, 0xc000000000000000ull},
+            {"d999",  uint16_t(0x3fff + 999), 0xfedcba9876543210ull, 0x4000, 0xc000000000000000ull},
+            // A divisor that is not a power of two and a dividend that is,
+            // so the quotient's low bits are not all zero at the end.
+            {"d130",  uint16_t(0x3fff + 130), 0x8000000000000000ull, 0x3fff, 0xb504f333f9de6484ull},
+            // Negative differences: the quotient is zero and the dividend
+            // comes back, except for FPREM1 at exactly -1.
+            {"dm1",   0x3ffe, 0xc000000000000000ull, 0x3fff, 0x8000000000000000ull},
+            {"dm1eq", 0x3ffe, 0x8000000000000000ull, 0x3fff, 0x8000000000000000ull},
+            {"dm5",   uint16_t(0x3fff - 5), 0x9000000000000000ull, 0x3fff, 0x8000000000000000ull},
+            // A difference of zero, where FPREM truncates the quotient to one
+            // and FPREM1 rounds it to two.
+            {"d0",    0x4000, 0xc000000000000000ull, 0x4000, 0x8000000000000000ull},
+        };
+        for (unsigned one = 0; one < 2; ++one) {
+            const uint8_t ops[2] = {0xd9, uint8_t(one ? 0xf5 : 0xf8)};
+            const unsigned uop = (0x1u << 8) | (one ? 0xf5u : 0xf8u);
+            for (const Chain &c : chains) {
+                Unit u;
+                std::array<uint8_t, 10> a{}, b{};
+                std::memcpy(a.data(), &c.sa, 8);
+                std::memcpy(a.data() + 8, &c.ea, 2);
+                std::memcpy(b.data(), &c.sb, 8);
+                std::memcpy(b.data() + 8, &c.eb, 2);
+                int steps = 0, diffs = 0;
+                bool partial_seen = false, complete_seen = false;
+                std::string first;
+                for (; steps < 40; ++steps) {
+                    uint8_t stack[2][10];
+                    std::memcpy(stack[0], a.data(), 10);
+                    std::memcpy(stack[1], b.data(), 10);
+                    Image want{}, got{};
+                    if (!host_form(page, host_cw(0), stack, 2, nullptr, ops, 2, want)) break;
+                    unit_form(u, host_cw(0), stack, 2, nullptr, uop, 0, got);
+                    ++compared;
+                    // The full mask: C2 says whether to loop and C0, C3 and
+                    // C1 carry the quotient, so none of them may be masked.
+                    if (!same_state(want, got, 0xffff)) {
+                        if (!diffs)
+                            first = "step " + std::to_string(steps) +
+                                    " st0=" + hex80(stack[0]) + " st1=" + hex80(stack[1]) +
+                                    " got " + state_str(got, 0xffff) +
+                                    " want " + state_str(want, 0xffff);
+                        ++diffs;
+                        break;      // the chain has diverged; later steps say nothing
+                    }
+                    const bool c2 = (want.sw >> 10) & 1;
+                    if (c2) partial_seen = true; else complete_seen = true;
+                    if (!c2) break;
+                    std::memcpy(a.data(), want.reg[0], 10);   // feed the step back
+                }
+                const std::string name = std::string(one ? "prem1-chain-" : "prem-chain-") + c.name;
+                if (diffs) bad(name, std::to_string(diffs) + " " + first);
+                else if (!complete_seen) bad(name, "the chain never cleared C2 in 40 steps");
+                else ok(name + "-" + std::to_string(steps + 1) +
+                        (partial_seen ? "-partial" : "-direct"));
+            }
+        }
+    }
+
     // ---- Precision control. ----
     // PC applies to add, subtract, multiply, divide and square root and to
     // nothing else (387 PRM section 2.3.2), so FRNDINT, FSCALE, FXTRACT and
@@ -1811,6 +1899,21 @@ int main(int argc, char **argv) {
             {"frndint", 0x1, 0xfc, 1, ARITH_SW}, {"fxtract", 0x1, 0xf4, 1, ARITH_SW},
             {"fcom",  0x0, 0xd1, 2, 0xffff}, {"fcompp", 0x6, 0xd9, 2, 0xffff},
             {"fucomp", 0x5, 0xe9, 2, 0xffff},
+            // Slice 4's, under every mask setting. The divide is the only
+            // form in this unit that can raise ZE, and unmasked ZE on the
+            // commit edge is the hazard this slice's brief names, so these
+            // rows are what exercise it.
+            //
+            // **C1 means something different in the remainder rows.** For the
+            // arithmetic and the divide it is the rounding's direction and
+            // comes from `pc1`; for FPREM and FPREM1 it is the QUOTIENT'S BIT
+            // 0. Both reach the status word through `pc1`, because S_APPLY
+            // writes the codes as {nc[3], nc[2], c1, nc[0]}. A row copied
+            // from a divide row and read as a rounding direction is wrong.
+            {"fdiv",   0x0, 0xf1, 2, ARITH_SW}, {"fdivr", 0x0, 0xf9, 2, ARITH_SW},
+            {"fdiv.sti", 0x4, 0xf9, 2, ARITH_SW}, {"fdivp", 0x6, 0xf9, 2, ARITH_SW},
+            {"fsqrt",  0x1, 0xfa, 1, ARITH_SW},
+            {"fprem",  0x1, 0xf8, 2, 0xffff}, {"fprem1", 0x1, 0xf5, 2, 0xffff},
         };
         for (const Mask &m : masks) {
             for (unsigned rc = 0; rc < 4; ++rc) {
@@ -1882,8 +1985,26 @@ int main(int argc, char **argv) {
             // still rises, which is the case `um` alone would miss.
             {"pe", 0x035f, 0x3fff, 0x8000000000000000ull,
                            uint16_t(0x3fff - 70), 0x8000000000000000ull, 0x0, 0xc1},
-            // divide-by-zero, which only FXTRACT raises in this slice
+            // divide-by-zero, which only FXTRACT raised before slice 4
             {"ze", 0x037b, 0x0000, 0, 0x0000, 0, 0x1, 0xf4},
+            // Slice 4's. ZE from a real divide is the exception this slice
+            // adds and the one its brief names: 1 / 0 with ZM clear, where
+            // divide-by-zero is a PRE-operation exception, so the operands
+            // and TOP are left alone and the latch still has to rise on the
+            // commit edge.
+            {"ze-div", 0x037b, 0x3fff, 0x8000000000000000ull, 0x0000, 0, 0x0, 0xf1},
+            // invalid from a divide: 0 / 0 with IM clear.
+            {"ie-div", 0x037e, 0x0000, 0, 0x0000, 0, 0x0, 0xf1},
+            // invalid from a square root: the root of a negative, IM clear.
+            {"ie-sqrt", 0x037e, 0xbfff, 0x8000000000000000ull, 0x3fff,
+                        0x8000000000000000ull, 0x1, 0xfa},
+            // precision from a divide, PM clear: the result is written and
+            // the latch still rises, the case `um` alone would miss.
+            {"pe-div", 0x035f, 0x3fff, 0x8000000000000000ull, 0x4000,
+                       0xc000000000000000ull, 0x0, 0xf1},
+            // invalid from a remainder: an infinite dividend, IM clear.
+            {"ie-prem", 0x037e, 0x7fff, 0x8000000000000000ull, 0x4000,
+                        0x8000000000000000ull, 0x1, 0xf8},
         };
         for (const Trial &t : trials) {
             Unit u;
