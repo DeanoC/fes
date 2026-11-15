@@ -12,14 +12,32 @@ previous one-second cutoff. It does not govern the core's real-time work.
 The preparation clock starts at its first guard and covers table work, nested
 final validation and arm; none of these stages can restart it. The independent
 twenty-second overall clock starts before the extra source digest. Command
-construction/consumption remains 100 ms, source release one second, retirement
+consumption remains 100 ms from the accepted prewrite-guard counter. Command
+construction and final checks share the original four-second preparation
+budget; the command clock and enclosing preparation clock are never restarted.
+Source release remains one second, retirement
 staging/consumption/final validation two/one/four seconds and transfer twenty
 seconds. The arm-only and fault-only producers retain their one-second setup.
-Old formats 16/17/18 and partial budget/version replacements are rejected.
+Old formats 16 through 21 and partial budget/version replacements are rejected.
 Cold/warm cost tests exercise complete preparation beyond one second, include
 prior preparation work, and retain the previous source on expiry before queue
 submission. This budget change requires a new matched build and physical trial;
 it grants no acceptance to the previously stopped artifact.
+
+The [full-SOF hardware trial](../../../docs/validation/2026-11-15-de25-full-sof-startup/README.md)
+boots the matched native image, loads MENU and releases its first source.
+Its next warm queue stops before any slot store or producer publication:
+construction takes 101.123 ms, while the parent preparation has used only
+1.723 seconds. This is a software clock scope failure before hardware
+consumption. The [preparation publication repair](../../../docs/validation/2026-11-15-de25-preparation-publication/README.md)
+samples its trusted prewrite guard
+and applies the unchanged 100 ms completion budget from that conservative
+sample. Ownership checks, six stores, final snapshots and the original parent
+clock remain required. A malformed or missing publication history cannot be
+used as a completed preparation receipt. Sanitized cold/warm models reproduce
+the measured staging delay and reject late completion, lost ownership,
+backwards clocks and expired parent work. This changed firmware still needs
+its own matched build and physical repeated-loading test.
 
 The [publication-timed retirement contract](../../../docs/validation/2026-11-14-de25-publication-timing/README.md)
 separates command construction from completion observation: staging has two
@@ -27,9 +45,9 @@ seconds, owned consumption has one second from the accepted prewrite-guard
 counter, and retirement plus continuation share four seconds from the original
 retirement origin. Every existing ownership, register, table and prewrite check
 remains. Input preparation now has four seconds from its original first guard;
-source release retains its independent one-second budget. Profiles 19/20/21
-reject the previous one-second preparation contracts as well as
-the superseded timing contracts. Joined cost models now complete retirement
+source release retains its independent one-second budget. Profiles 22/23/24
+require the preparation publication policy and reject previous preparation
+contracts as well as partial timing/version replacements. Joined cost models now complete retirement
 and continuation at the previously failing injected costs; nine vendor
 AArch64 objects compile. A selected format-18 descendant now passes initial MENU retirement and
 continuation in the [traced physical trial](../../../docs/validation/2026-11-14-de25-warm-prepare-stop/README.md),
@@ -68,9 +86,9 @@ separates trusted invalidation from the ordinary locking wrapper. It consumes
 one attempt, revokes ordinary authority, requires an independent live recovery
 scope and selects only the pinned cold mailbox provider. Sanitizer tests cover
 ownership drift, reentrancy, returning transport and retained reservations.
-Formats 19/20 keep this entry inactive. The
+Formats 22/23 keep this entry inactive. The
 [selected terminal supplier](../../../docs/validation/2026-11-14-de25-terminal-recovery/README.md)
-now uses format 21 and requires `--nano-sdm-source-recovery` in both matched boot
+now uses format 24 and requires `--nano-sdm-source-recovery` in both matched boot
 producers, alongside source rearm. It validates the actual completed source,
 revoked private binding and fresh CPU/device containment before one request.
 Cold and warm failure models pass, and recovery markers end the old trace
@@ -99,16 +117,19 @@ service maps a failure to its generic result. They read no registers or timers,
 call no ownership/supplier hook, grant no access and never retry. Successful
 setup emits neither record. Sanitizer models distinguish several failures at
 the same eighth write and execute the observer with every callback poisoned.
+The failure queue record also reports retained `publication_seen` and
+`publication_us`, so a completion timeout can be compared with its accepted
+prewrite origin. The observer still invokes no callback or timer.
 These new diagnostics require a new matched image before a future trial;
 the older failed image and its hardware evidence remain unchanged.
 
 The [new retained setup trace](../../../docs/validation/2026-11-14-de25-source-setup-physical/README.md)
 identifies completion at 79.457 ms and failure of the second final snapshot at
 100.672 ms, with preparation still within its original one-second lifetime.
-Input preparation now selects its own final-validation policy: all publication
-and completion observations retain the 100 ms deadline; both final snapshots
-and the final guard remain mandatory under the original preparation
-origin, now bounded to four seconds. The callbacks still reject an expired parent or lost ownership, and
+Input preparation selects its own publication policy: construction and final
+validation remain bounded by the original four-second preparation clock.
+Owned completion has 100 ms from the conservative counter accepted before
+the producer write. Both final snapshots and the final guard remain mandatory. The callbacks still reject an expired parent or lost ownership, and
 later arm cannot establish a new origin. Arm-only setup keeps its full-operation
 policy. Retirement accepts only a timely completed setup with its selected
 finite validation history; a retirement-policy record cannot stand in for it.

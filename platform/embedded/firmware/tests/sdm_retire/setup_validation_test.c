@@ -8,7 +8,7 @@ static uint64_t completion_delay,final_delay;
 static int validation_time(void *c,uint64_t *out)
 {
  struct nano_probe_setup *p=&m.probes[m.slot];struct nano_cmdq *q=&p->command;
- if(q->timed && q->stage==CMDQ_PROGRESS && !injected){m.now=q->start+completion_delay;injected=1;}
+ if(q->timed && q->stage==CMDQ_PROGRESS && !injected){m.now=q->publication_us+completion_delay;injected=1;}
  if(q->completion_seen && q->stage==point && injected==1){
   injected=2;
   if(fault==2)m.now=p->start+NANO_PROBE_BOUND_US+1;
@@ -51,8 +51,8 @@ int main(void)
   int error=nano_probe_prepare(p,&receipt);
   if(!failure){
    assert(!error && injected==2 && p->prepared && !p->armed);
-   assert(p->command.validation_policy==CMDQ_PREPARATION_FINAL_VALIDATION && p->command.completion_seen);
-   assert(p->command.completion_us-p->command.start<=NANO_CMDQ_BOUND_US && p->command.last-p->command.start>NANO_CMDQ_BOUND_US);
+   assert(p->command.validation_policy==CMDQ_PREPARATION_PUBLICATION_BOUND && p->command.completion_seen);
+   assert(p->command.completion_us-p->command.publication_us<=NANO_CMDQ_BOUND_US && p->command.last-p->command.start>NANO_CMDQ_BOUND_US);
    assert(p->last-p->start<=NANO_PROBE_BOUND_US);
    assert(!nano_probe_arm(p,&receipt) && receipt.DMA_access_granted && !receipt.interconnect_drained);
    retire_current(); /* Pins the actual completed preparation with its new policy. */

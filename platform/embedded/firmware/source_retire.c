@@ -23,6 +23,15 @@ static int prepared_same(const struct nano_retire *s)
   s->queue_baseline==((s->prepared_snapshot.binding.baseline+NANO_CMDQ_COMMANDS)&15U) &&
   s->queue_target==((s->queue_baseline+NANO_CMDQ_COMMANDS)&15U);
 }
+static int prepared_clock_valid(const struct nano_cmdq *q)
+{
+ if(q->last<q->start || q->completion_us<q->start || q->completion_us>q->last)return 0;
+ if(q->validation_policy==CMDQ_FULL_OPERATION_BOUND)
+  return !q->publication_seen && !q->publication_us && q->last-q->start<=NANO_CMDQ_BOUND_US;
+ return q->validation_policy==CMDQ_PREPARATION_PUBLICATION_BOUND && q->io.publish_timed &&
+  q->publication_seen==1 && q->publication_us>=q->start && q->publication_us<=q->completion_us &&
+  q->completion_us-q->publication_us<=NANO_CMDQ_BOUND_US && q->last-q->start<=NANO_CMDQ_FINAL_BOUND_US;
+}
 static int prepared_valid(const struct nano_cmdq *q,const struct nano_sdm_input_binding *b)
 {
  return q && q->binding.owner==b->owner && q->binding.epoch==b->epoch &&
@@ -31,11 +40,7 @@ static int prepared_valid(const struct nano_cmdq *q,const struct nano_sdm_input_
   q->submitted==1 && q->timed==1 && !q->failed && !q->first_error &&
   q->slots_attempted==NANO_CMDQ_COMMANDS && q->publish_attempted==1 &&
   q->stage==CMDQ_COMPLETE && q->completion_seen==1 &&
-  (q->validation_policy==CMDQ_FULL_OPERATION_BOUND || q->validation_policy==CMDQ_PREPARATION_FINAL_VALIDATION) &&
-  q->last>=q->start &&
-  q->completion_us>=q->start && q->completion_us<=q->last &&
-  q->completion_us-q->start<=NANO_CMDQ_BOUND_US &&
-  q->last-q->start<=(q->validation_policy==CMDQ_FULL_OPERATION_BOUND ? NANO_CMDQ_BOUND_US:NANO_CMDQ_FINAL_BOUND_US) && q->io.context && q->io.owns &&
+  prepared_clock_valid(q) && q->io.context && q->io.owns &&
   q->io.time_us && q->io.read32 && q->io.write32 && q->io.store && q->io.barrier;
 }
 static void observed_read(struct nano_retire *s,uint32_t offset,uint32_t value)

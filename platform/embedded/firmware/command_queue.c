@@ -131,11 +131,14 @@ int nano_cmdq_submit(struct nano_cmdq *s,struct nano_cmdq_receipt *out,enum nano
     if (!s || !s->initialized || s->submitted || s->failed) return -1;
     s->submitted=1; /* consume before any callback */
     if (!out || (policy!=CMDQ_FULL_OPERATION_BOUND && policy!=CMDQ_RETIREMENT_PUBLICATION_BOUND &&
-                 policy!=CMDQ_PREPARATION_FINAL_VALIDATION) ||
-        (policy==CMDQ_RETIREMENT_PUBLICATION_BOUND && !s->io.publish_timed)) return fail(s,-22);
+                 policy!=CMDQ_PREPARATION_PUBLICATION_BOUND) ||
+        ((policy==CMDQ_RETIREMENT_PUBLICATION_BOUND || policy==CMDQ_PREPARATION_PUBLICATION_BOUND) && !s->io.publish_timed)) return fail(s,-22);
     const uint64_t construction_bound=policy==CMDQ_RETIREMENT_PUBLICATION_BOUND ?
-        NANO_CMDQ_RETIRE_STAGE_US:NANO_CMDQ_BOUND_US;
+        NANO_CMDQ_RETIRE_STAGE_US:policy==CMDQ_PREPARATION_PUBLICATION_BOUND ? NANO_CMDQ_FINAL_BOUND_US:NANO_CMDQ_BOUND_US;
     uint64_t active_bound=NANO_CMDQ_BOUND_US;
+    const unsigned publication_timed=policy==CMDQ_RETIREMENT_PUBLICATION_BOUND || policy==CMDQ_PREPARATION_PUBLICATION_BOUND;
+    const uint64_t final_bound=policy==CMDQ_FULL_OPERATION_BOUND ? NANO_CMDQ_BOUND_US:
+        policy==CMDQ_PREPARATION_PUBLICATION_BOUND ? NANO_CMDQ_FINAL_BOUND_US:NANO_CMDQ_RETIRE_FINAL_US;
     s->validation_policy=(unsigned)policy; /* observation; decisions use local policy */
     uintptr_t a=(uintptr_t)s,b=(uintptr_t)out;
     if (a>UINTPTR_MAX-sizeof(*s) || b>UINTPTR_MAX-sizeof(*out) ||
@@ -169,22 +172,24 @@ int nano_cmdq_submit(struct nano_cmdq *s,struct nano_cmdq_receipt *out,enum nano
     s->publish_attempted=1;
     uint64_t issued=0;
     const uint64_t before=s->last;
-    int error=policy==CMDQ_RETIREMENT_PUBLICATION_BOUND ?
+    int error=publication_timed ?
         io.publish_timed(io.context,target,&issued):io.write32(io.context,PROD,target);
     if (!unchanged(s,&io,&binding)) return fail(s,-13);
     io.barrier(io.context);
     if (!unchanged(s,&io,&binding)) return fail(s,-13);
     if (error) return fail(s,error);
-    if (guard_bound(s,policy==CMDQ_RETIREMENT_PUBLICATION_BOUND ? NANO_CMDQ_RETIRE_FINAL_US:construction_bound)) return -1;
-    if (policy==CMDQ_RETIREMENT_PUBLICATION_BOUND) {
+    if (guard_bound(s,publication_timed ? final_bound:construction_bound)) return -1;
+    if (publication_timed) {
         if (issued<before || issued<s->start || issued>s->last) return fail(s,-3);
         const uint64_t delta=issued-s->start;
-        if (delta>NANO_CMDQ_RETIRE_STAGE_US) return fail(s,-3);
-        /* The checked finite delta makes this addition overflow-free. Policy
+        if (delta>construction_bound) return fail(s,-3);
+        /* Each checked delta is at most four seconds, so adding the completion
+         * budget cannot overflow. Clamp to the original final bound. Policy
          * and deadlines stay local even if observation fields are changed. */
         _Static_assert(NANO_CMDQ_RETIRE_STAGE_US+NANO_CMDQ_RETIRE_COMPLETION_US<=NANO_CMDQ_RETIRE_FINAL_US,
                        "retirement publication budgets must fit final validation");
-        active_bound=delta+NANO_CMDQ_RETIRE_COMPLETION_US;
+        active_bound=delta+(policy==CMDQ_RETIREMENT_PUBLICATION_BOUND ? NANO_CMDQ_RETIRE_COMPLETION_US:NANO_CMDQ_BOUND_US);
+        if (active_bound>final_bound) active_bound=final_bound;
         s->publication_us=issued;s->publication_seen=1;
         if (guard_bound(s,active_bound)) return -1;
     }
@@ -201,8 +206,6 @@ int nano_cmdq_submit(struct nano_cmdq *s,struct nano_cmdq_receipt *out,enum nano
              * under the selected local budget. Final checks never replace
              * either the queue or enclosing preparation/retirement origin. */
             s->completion_us=s->last;s->completion_seen=1;
-            const uint64_t final_bound=policy==CMDQ_FULL_OPERATION_BOUND ? NANO_CMDQ_BOUND_US:
-                policy==CMDQ_PREPARATION_FINAL_VALIDATION ? NANO_CMDQ_FINAL_BOUND_US:NANO_CMDQ_RETIRE_FINAL_US;
             s->stage=CMDQ_FINAL_FIRST;
             if (snapshot(s,target,final_bound)) return -1;
             s->stage=CMDQ_FINAL_SECOND;

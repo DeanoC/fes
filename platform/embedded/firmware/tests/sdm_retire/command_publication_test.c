@@ -23,7 +23,7 @@ static int publish_timed(void *p,uint32_t target,uint64_t *sample)
   * admission before any producer write. No failure can replay this call. */
  uint64_t now=0;assert(!clock_us(p,&now));
  if(!owns(p,&m->queue.binding) || now<m->queue.start ||
-    now-m->queue.start>NANO_CMDQ_RETIRE_STAGE_US)return -110;
+    now-m->queue.start>(m->queue.validation_policy==CMDQ_PREPARATION_PUBLICATION_BOUND ? NANO_CMDQ_FINAL_BOUND_US:NANO_CMDQ_RETIRE_STAGE_US))return -110;
  *sample=issued=now;
  int e=write32(p,0x98,target);
  switch(fault){
@@ -59,6 +59,8 @@ static unsigned cases;
 static void run_case(unsigned policy,uint64_t stage,uint64_t before_write,
                      uint64_t complete,uint64_t final,unsigned broken,unsigned pass)
 {
+ const uint64_t stage_bound=policy==CMDQ_PREPARATION_PUBLICATION_BOUND ? NANO_CMDQ_FINAL_BOUND_US:NANO_CMDQ_RETIRE_STAGE_US;
+ const uint64_t complete_bound=policy==CMDQ_PREPARATION_PUBLICATION_BOUND ? NANO_CMDQ_BOUND_US:NANO_CMDQ_RETIRE_COMPLETION_US;
  struct model m={.owned=1,.producer=6,.consumer=6};
  staging=stage;prewrite=before_write;completion=complete;final_delay=final;
  fault=broken;publication_calls=first_snapshot=delay_final=0;issued=0;
@@ -70,13 +72,13 @@ static void run_case(unsigned policy,uint64_t stage,uint64_t before_write,
  if(pass){
   assert(!e && !m.queue.failed && r.commands_completed && m.writes==1 && m.stores==6);
   assert(m.queue.publication_seen && m.queue.publication_us==issued && m.queue.completion_seen);
-  assert(m.queue.completion_us-issued<=NANO_CMDQ_RETIRE_COMPLETION_US);
+  assert(m.queue.completion_us-issued<=complete_bound);
   assert(m.queue.last-m.queue.start<=NANO_CMDQ_RETIRE_FINAL_US);
  }else{
   assert(e && m.queue.failed && !r.commands_completed);
-  if(stage>NANO_CMDQ_RETIRE_STAGE_US || policy!=CMDQ_RETIREMENT_PUBLICATION_BOUND)
+  if(stage>stage_bound || (policy!=CMDQ_RETIREMENT_PUBLICATION_BOUND && policy!=CMDQ_PREPARATION_PUBLICATION_BOUND))
    assert(!m.writes && !publication_calls);
-  if(before_write>NANO_CMDQ_RETIRE_STAGE_US)assert(publication_calls==1 && !m.writes);
+  if(before_write>stage_bound)assert(publication_calls==1 && !m.writes);
  }
  assert(!r.interconnect_drained && !r.DMA_access_granted);
  unsigned writes=m.writes,stores=m.stores,reads=m.reads,publishes=publication_calls;
@@ -84,7 +86,10 @@ static void run_case(unsigned policy,uint64_t stage,uint64_t before_write,
  assert(m.writes==writes && m.stores==stores && m.reads==reads && publication_calls==publishes);
  cases++;
 }
-int main(void)
+#ifndef FES_TEST_PUBLICATION_MAIN
+#define FES_TEST_PUBLICATION_MAIN main
+#endif
+int FES_TEST_PUBLICATION_MAIN(void)
 {
  for(fallback=0;fallback<=1;fallback++){
  run_case(3,0,0,0,0,0,1);
@@ -96,7 +101,7 @@ int main(void)
  run_case(3,0,NANO_CMDQ_RETIRE_STAGE_US+1,0,0,0,0);
  run_case(3,0,0,0,NANO_CMDQ_RETIRE_FINAL_US+1,0,0);
  for(unsigned broken=1;broken<=8;broken++)run_case(3,300000,0,900000,0,broken,broken==8);
- /* Other issuers keep their old completion/staging origin and limits. */
+ /* The full-operation issuer keeps its original origin; old policy 2 is rejected. */
  run_case(0,300000,0,0,0,0,0);
  run_case(2,300000,0,0,0,0,0);
  /* Removed policy 1 and a missing trusted timed publisher fail before I/O. */
@@ -110,4 +115,5 @@ int main(void)
  }
  }
  printf("{\"status\":\"passed\",\"cases\":%u,\"hardware_actions\":false}\n",cases);
+ return 0;
 }

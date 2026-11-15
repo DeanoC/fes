@@ -41,7 +41,7 @@ static void barrier_mutating(void *p)
 int main(void)
 {
  unsigned cases=0;
- const unsigned policies[]={CMDQ_FULL_OPERATION_BOUND,CMDQ_PREPARATION_FINAL_VALIDATION,CMDQ_RETIREMENT_PUBLICATION_BOUND};
+ const unsigned policies[]={CMDQ_FULL_OPERATION_BOUND,CMDQ_PREPARATION_PUBLICATION_BOUND,CMDQ_RETIREMENT_PUBLICATION_BOUND};
  for(unsigned selected=0;selected<3;selected++)for(cut=1;cut<=8;cut++)for(field=0;field<10;field++){
   unsigned policy=policies[selected];
   struct model m={.owned=1,.producer=6,.consumer=6};hit=barriers=0;

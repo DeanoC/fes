@@ -1,0 +1,43 @@
+{
+  "status": "passed-preparation-publication-model-source-and-object-retention",
+  "base_commit": "2a1d1aaf2076d8dc4afdb99e29e2d1776c9b6e42",
+  "patch_sha256": "2aa1b0bf3db8b1760219ea58d0d02388f7aee2923962d53eca5524978dafcb92",
+  "unique_affected_tests_passed_across_runs": 62,
+  "expanded_run": "61 passed; one nested fixture return compilation failure subsequently repaired",
+  "final_boundary_tests_passed": 2,
+  "preparation_queue_boundary_cases": 36,
+  "real_cold_warm_preparation_cases": 16,
+  "prepared_receipt_negative_cases": 10,
+  "retirement_queue_cases": 42,
+  "vendor_units": 9,
+  "archive": "/home/deano/fes-retained/de25-preparation-publication-models-20261115-r1/models.tar.gz",
+  "archive_sha256": "30a824f457ef884d8933fbb98379f0fc9785f739b659abca45d8a9c2a66d2a74",
+  "files": 5313,
+  "checks": {
+    "preparation-publication-boundaries-r1": {
+      "argv": [
+        "python3",
+        "out/publication/run-preparation-publication-boundaries.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.201423151884228,
+      "log_sha256": "a574c137edd2ef249bd74ac4b34b3317a4452e07c0e4901bec6fa7412966ed1f"
+    },
+    "preparation-publication-vendor-r1": {
+      "argv": [
+        "python3",
+        "out/publication/compile-preparation-publication-vendor.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.6027848159428686,
+      "log_sha256": "29d1a8c3753a907ac3374bc454a795ed57a2db0e26eaa8f35c74f1fda40b3fb6"
+    }
+  },
+  "hardware_actions": false,
+  "linked_boot_image": false,
+  "hardware_acceptance": false
+}

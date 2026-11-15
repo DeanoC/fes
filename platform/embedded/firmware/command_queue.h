@@ -14,10 +14,10 @@
 #define NANO_CMDQ_RETIRE_FINAL_US 4000000U
 enum nano_cmdq_validation_policy {
     CMDQ_FULL_OPERATION_BOUND=0,
-    /* Input setup alone: completion still uses 100 ms. Its callbacks and
-     * caller enforce the original four-second preparation origin throughout
-     * both mandatory final snapshots and the final guard. */
-    CMDQ_PREPARATION_FINAL_VALIDATION=2,
+    /* Input setup alone: staging and final verification share the original
+     * four-second preparation origin through the pinned callbacks. Owned
+     * completion stays within 100 ms of the conservative prewrite sample. */
+    CMDQ_PREPARATION_PUBLICATION_BOUND=4,
     /* Retirement only: construction and prewrite checks have a finite
      * staging budget. Owned completion must be observed within its separate
      * budget from the accepted pre-publication sample. Final validation and
@@ -50,7 +50,7 @@ struct nano_cmdq_io {
      * return a fresh consumer only after the bounded batch passes. This
      * cannot store, publish, acknowledge, reset or grant DMA. */
     int (*progress)(void *,uint32_t target,uint32_t *consumer);
-    /* Required by the retirement policy. Perform the same owned producer
+    /* Required by both publication policies. Perform the same owned producer
      * write and report the accepted counter from its final prewrite guard.
      * This conservative sample precedes the guard's fresh ownership check
      * and the write barrier; it is not a measured MMIO issue time.

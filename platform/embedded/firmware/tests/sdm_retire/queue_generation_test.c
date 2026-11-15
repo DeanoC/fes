@@ -55,6 +55,8 @@ static int read32(void *p,uint32_t off,uint32_t *v)
 }
 static int publish(void *p,uint32_t off,uint32_t v)
 {struct model *m=p;assert(off==0x98 && v==((m->expected.baseline+6)&15U));m->producer=v;m->publishes++;corrupt(m,4);return 0;}
+static int prepare_publish_sample(void *p,uint32_t target,uint64_t *issued)
+{struct model *m=p;uint64_t now=0;if(clock_us(p,&now) || !owns(p,&m->q.binding) || now<m->q.start || now-m->q.start>NANO_CMDQ_FINAL_BOUND_US)return -110;*issued=now;return publish(p,0x98,target);}
 static int store(void *p,unsigned slot,const uint8_t bytes[16])
 {struct model *m=p;uint8_t expected[16];assert(m->stores<6 && !nano_cmdq_encode(m->stores,expected));assert(slot==((m->expected.baseline+m->stores)&7U) && !memcmp(bytes,expected,16));m->stores++;corrupt(m,5);return 0;}
 static void barrier(void *p)
@@ -66,13 +68,13 @@ static int progress(void *p,uint32_t target,uint32_t *consumer)
 static void init(struct model *m,unsigned mode,unsigned baseline,uint64_t generation)
 {
  *m=(struct model){.producer=baseline,.consumer=baseline,.mode=mode,.expected={17,7,generation,0x94008000,baseline}};
- struct nano_cmdq_io io={m,owns,clock_us,read32,publish,store,barrier,mode ? snapshot:0,mode==2 ? progress:0,0};
+ struct nano_cmdq_io io={m,owns,clock_us,read32,publish,store,barrier,mode ? snapshot:0,mode==2 ? progress:0,prepare_publish_sample};
  assert(!nano_cmdq_init(&m->q,m->expected,io));
 }
 int main(void)
 {
  unsigned cases=0,wraps=0;
- const unsigned policies[]={CMDQ_FULL_OPERATION_BOUND,CMDQ_PREPARATION_FINAL_VALIDATION};
+ const unsigned policies[]={CMDQ_FULL_OPERATION_BOUND,CMDQ_PREPARATION_PUBLICATION_BOUND};
  for(unsigned mode=0;mode<3;mode++)for(unsigned selected=0;selected<2;selected++){
   unsigned policy=policies[selected];
   unsigned baseline=0;

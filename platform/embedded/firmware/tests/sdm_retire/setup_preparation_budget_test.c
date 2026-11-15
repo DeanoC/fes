@@ -32,7 +32,7 @@ int main(void)
     unsigned table=nano_sdm_input_table_range(off,8);
     assert(stores_seen[off/8]==table && reads_seen[off/8]==table*(warm ? 2U:1U));
    }
-   assert(p->command.completion_seen && p->command.completion_us-p->command.start<=100000);
+   assert(p->command.completion_seen && p->command.publication_seen && p->command.completion_us-p->command.publication_us<=100000);
   }else{
    assert(error==-110 && p->failed && !p->prepared && !p->armed);
    assert(!p->command.attempted && m.writes==before && !receipt.DMA_access_granted);

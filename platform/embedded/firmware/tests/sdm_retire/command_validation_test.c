@@ -7,7 +7,7 @@ static uint64_t elapsed;
 static void inject(struct model *m)
 {
  if(injected)return;
- injected=1;m->now=m->queue.start+elapsed-1;
+ injected=1;m->now=(point==CMDQ_PROGRESS && m->queue.publication_seen ? m->queue.publication_us:m->queue.start)+elapsed-1;
  if(mutation==1)m->owned=0;
  if(mutation==2)m->queue.io.barrier=0;
  if(mutation==3)m->queue.binding.owner++;
@@ -42,14 +42,14 @@ int main(void)
 {
  unsigned cases=0;const unsigned points[]={CMDQ_PROGRESS,CMDQ_FINAL_FIRST,CMDQ_FINAL_SECOND,CMDQ_FINAL_GUARD};
  const uint64_t times[]={80000,100001,105704,900000,1000001,3000000,4000001};
- const unsigned policies[]={CMDQ_FULL_OPERATION_BOUND,CMDQ_PREPARATION_FINAL_VALIDATION};
+ const unsigned policies[]={CMDQ_FULL_OPERATION_BOUND,CMDQ_PREPARATION_PUBLICATION_BOUND};
  for(unsigned selected=0;selected<2;selected++)for(fallback=0;fallback<=1;fallback++)
  for(unsigned n=0;n<4;n++)for(unsigned t=0;t<sizeof(times)/sizeof(times[0]);t++)for(mutation=0;mutation<=5;mutation++){
   unsigned policy=policies[selected];point=points[n];elapsed=times[t];injected=0;
   struct model m={.owned=1,.producer=6,.consumer=6};
   struct nano_cmdq_binding b={17,7,4,0x94008000,6};
   struct nano_cmdq_io io={&m,owns,clock_observed,read_observed,write32,store,barrier,
-      fallback ? 0:snapshot_observed,fallback ? 0:progress_observed,0};
+      fallback ? 0:snapshot_observed,fallback ? 0:progress_observed,prepare_publish_sample};
   assert(!nano_cmdq_init(&m.queue,b,io));struct nano_cmdq_receipt r={0};
   int error=nano_cmdq_submit(&m.queue,&r,(enum nano_cmdq_validation_policy)policy);
   unsigned bound=policy ? NANO_CMDQ_FINAL_BOUND_US:NANO_CMDQ_BOUND_US;
@@ -58,7 +58,7 @@ int main(void)
   assert(injected && m.stores==6 && m.writes==1);
   if(should_pass){
    assert(!error && r.commands_completed && m.queue.stage==CMDQ_COMPLETE);
-   assert(m.queue.completion_seen && m.queue.completion_us-m.queue.start<=NANO_CMDQ_BOUND_US);
+   assert(m.queue.completion_seen && m.queue.completion_us-(policy ? m.queue.publication_us:m.queue.start)<=NANO_CMDQ_BOUND_US);
    assert(fallback ? m.snapshots==0:m.snapshots==5);
   }else{
    assert(error && m.queue.failed && !r.commands_completed);
@@ -75,9 +75,9 @@ int main(void)
  for(fallback=0;fallback<=1;fallback++)for(elapsed=99999;elapsed<=100001;elapsed++){
   point=CMDQ_PROGRESS;mutation=injected=0;
   struct model m={.owned=1,.producer=6,.consumer=6};struct nano_cmdq_binding b={17,7,4,0x94008000,6};
-  struct nano_cmdq_io io={&m,owns,clock_observed,read_observed,write32,store,barrier,fallback ? 0:snapshot_observed,fallback ? 0:progress_observed,0};
+  struct nano_cmdq_io io={&m,owns,clock_observed,read_observed,write32,store,barrier,fallback ? 0:snapshot_observed,fallback ? 0:progress_observed,prepare_publish_sample};
   assert(!nano_cmdq_init(&m.queue,b,io));struct nano_cmdq_receipt r={0};
-  int error=nano_cmdq_submit(&m.queue,&r,CMDQ_PREPARATION_FINAL_VALIDATION);
+  int error=nano_cmdq_submit(&m.queue,&r,CMDQ_PREPARATION_PUBLICATION_BOUND);
   assert((error==0)==(elapsed<=100000) && m.queue.completion_seen==(elapsed<=100000));cases++;
  }
  for(int policy=-1;policy<=3;policy+=4){

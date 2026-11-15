@@ -29,3 +29,8 @@ Current board: stopped private warm preparation, candidate FIT `8d6aa123…` sti
 Next repair: separate the preparation command's staging/validation cost from the hardware consumption clock, retaining the original four-second preparation origin and a 100 ms completion limit from a verified pre-publication sample. All ownership, table, queue, final-view and failure-retention checks remain required. It needs new source contracts, targeted delayed-publication/late-completion tests, a fresh matched build and new physical qualification. The overall core-loading goal remains incomplete.
 
 A sanitizer-enabled host counterexample executes the actual current command controller with an injected 101,123-microsecond sample at its second initial snapshot. It reproduces error `-3`, eight reads, no slots, no publication and no retry. This is a clock/phase reproduction, not a hardware-latency measurement or an implementation of the repair. The previous controller source, binary, inputs and output are independently archived before editing the firmware.
+
+Subsequent restoration and firmware work are recorded in the
+[preparation publication repair](../2026-11-15-de25-preparation-publication/README.md).
+The original FIT is now restored after a fresh human reset; the failed trial
+above remains consumed and its failure trace is unchanged.

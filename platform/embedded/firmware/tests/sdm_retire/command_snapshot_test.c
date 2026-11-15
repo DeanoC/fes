@@ -39,6 +39,13 @@ static int write32(void *p,uint32_t offset,uint32_t value)
  struct model *m=p;assert(m->stores==6 && !m->writes && offset==0x98 && value==12);
  m->writes++;m->producer=m->consumer=value;return 0;
 }
+static int prepare_publish_sample(void *p,uint32_t target,uint64_t *issued)
+{
+ struct model *m=p;uint64_t now=0;
+ if(clock_us(p,&now) || !owns(p,&m->queue.binding) || now<m->queue.start ||
+    now-m->queue.start>NANO_CMDQ_FINAL_BOUND_US)return -110;
+ *issued=now;return write32(p,0x98,target);
+}
 static void barrier(void *p){(void)p;}
 static int snapshot(void *p,uint32_t pointer)
 {

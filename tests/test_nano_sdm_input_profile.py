@@ -109,6 +109,24 @@ class InputProfileTests(unittest.TestCase):
         self.assertEqual((contract["command_bound_us"], contract["preparation_bound_us"],
                           contract["transfer_bound_us"]), (100000, 4000000, 20000000))
 
+    def test_old_preparation_clock_contracts_cannot_supply_publication_timing(self):
+        for current, version, scope in ((mode.CONTRACT, 19, "nano-retained-source-preparation-budget-v19"),
+                                        (mode.REARM_CONTRACT, 20, "nano-owned-source-release-rearm-v20"),
+                                        (mode.RECOVERY_CONTRACT, 21, "nano-source-rearm-terminal-cold-recovery-v21")):
+            old = copy.deepcopy(current)
+            for key in tuple(old):
+                if key.startswith("preparation_command_"):
+                    del old[key]
+            old.update(format=version, scope=scope)
+            for change in ({}, {"format": current["format"], "scope": current["scope"]},
+                           {key: value for key, value in current.items() if key.startswith("preparation_command_")}):
+                p = profile();p["sdm_input_transfer"] = dict(old, **change)
+                with self.subTest(version=version, change=change), self.assertRaisesRegex(ValueError, "unsupported SDM input"):
+                    mode.checked(p)
+        contract = mode.checked(profile())
+        self.assertEqual((contract["preparation_command_policy"], contract["preparation_command_staging_bound_us"],
+                          contract["preparation_command_completion_bound_us"]), (4, 4000000, 100000))
+
     def test_one_second_profiles_cannot_admit_the_four_second_candidate(self):
         # Exact prior contracts, and hybrids with either the new version or
         # new duration alone, must not be mistaken for this candidate.

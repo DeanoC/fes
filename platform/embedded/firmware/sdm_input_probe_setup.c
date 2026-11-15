@@ -249,6 +249,22 @@ static int cmd_write(void *context,uint32_t offset,uint32_t value)
     s->last_kind=2;s->last_offset=offset;s->last_value=value;s->last_callback_status=result;
     return result;
 }
+/* The sample is from the full, fresh preparation prewrite guard. It is
+ * conservative: ownership checks and the write barrier occur after it. No
+ * producer write may outlive either the original parent or staging clock. */
+static int cmd_publish(void *context,uint32_t target,uint64_t *issued)
+{
+    struct nano_probe_setup *s=context;
+    if(!issued || !cmd_context(s) || target!=s->queue_target ||
+       s->command.stage!=CMDQ_PUBLICATION || guard(s))return -22;
+    uint64_t sample=s->last;
+    if(!s->command.timed || sample<s->command.start ||
+       sample-s->command.start>NANO_CMDQ_FINAL_BOUND_US)return fail(s,-110);
+    s->trusted_io.barrier(s->trusted_io.context);
+    if(!cmd_context(s))return fail(s,-13);
+    *issued=sample;
+    return cmd_write(context,0x98,target);
+}
 static void cmd_barrier(void *context) {struct nano_probe_setup *s=context;if(!integrity(s)){fail(s,-13);return;}s->trusted_io.barrier(s->trusted_io.context);if(!integrity(s))fail(s,-13);}
 static int cmd_store(void *context,unsigned slot,const uint8_t bytes[16])
 {
@@ -389,8 +405,8 @@ int nano_probe_prepare(struct nano_probe_setup *s,struct nano_probe_receipt *out
         equal(s,0x94,0))) return s->first_error;
     if(control(s,8))return s->first_error;
     struct nano_cmdq_binding b={s->binding.owner,s->binding.epoch,s->binding.generation,NANO_PROBE_BASE+NANO_PROBE_CMDQ,s->queue_baseline};
-    struct nano_cmdq_io io={s,cmd_owns,cmd_time,cmd_read,cmd_write,cmd_store,cmd_barrier,0,0,0};
-    if (nano_cmdq_init(&s->command,b,io) || nano_cmdq_submit(&s->command,&s->command_receipt,CMDQ_PREPARATION_FINAL_VALIDATION)) return fail(s,-5);
+    struct nano_cmdq_io io={s,cmd_owns,cmd_time,cmd_read,cmd_write,cmd_store,cmd_barrier,0,0,cmd_publish};
+    if (nano_cmdq_init(&s->command,b,io) || nano_cmdq_submit(&s->command,&s->command_receipt,CMDQ_PREPARATION_PUBLICATION_BOUND)) return fail(s,-5);
     if (!s->warm && (wr(s,0xa0,(uint32_t)(NANO_PROBE_BASE+NANO_PROBE_EVTQ)|3U) || wr(s,0xa4,0)))return s->first_error;
     if (
         equal(s,0x100a8,0) || equal(s,0x100ac,0) || control(s,12) ||

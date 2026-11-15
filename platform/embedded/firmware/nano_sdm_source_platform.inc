@@ -405,7 +405,7 @@ __attribute__((noinline)) static void sdm_source_setup_failure(unsigned stage,in
   sdm_arm_probe.reads,sdm_arm_probe.writes,sdm_arm_probe.clears,sdm_arm_probe.stores,
   sdm_arm_probe.loads,sdm_arm_probe.ack_polls,sdm_arm_probe.last_kind,sdm_arm_probe.last_offset,
   (unsigned long long)sdm_arm_probe.last_value,sdm_arm_probe.last_callback_status,sdm_probe_scope_reason);
- NOTICE("FES_NANO_SOURCE_SETUP_QUEUE build=%s attempted=%u initialized=%u submitted=%u failed=%u error=%d stage=%u policy=%u baseline=%u target=%u timed=%u start_us=%llu last_us=%llu observed_us=%llu samples=%u slots=%u published=%u polls=%u reads=%u completion_seen=%u completion_us=%llu retained=1 grant=0\n",
+ NOTICE("FES_NANO_SOURCE_SETUP_QUEUE build=%s attempted=%u initialized=%u submitted=%u failed=%u error=%d stage=%u policy=%u baseline=%u target=%u timed=%u start_us=%llu last_us=%llu observed_us=%llu samples=%u slots=%u published=%u polls=%u reads=%u publication_seen=%u publication_us=%llu completion_seen=%u completion_us=%llu retained=1 grant=0\n",
   FES_NANO_INPUT_BUILD,sdm_arm_probe.command.attempted,sdm_arm_probe.command.initialized,
   sdm_arm_probe.command.submitted,sdm_arm_probe.command.failed,sdm_arm_probe.command.first_error,
   sdm_arm_probe.command.stage,sdm_arm_probe.command.validation_policy,
@@ -413,7 +413,8 @@ __attribute__((noinline)) static void sdm_source_setup_failure(unsigned stage,in
   (unsigned long long)sdm_arm_probe.command.start,(unsigned long long)sdm_arm_probe.command.last,
   (unsigned long long)sdm_arm_probe.command.observed,sdm_arm_probe.command.clock_samples,
   sdm_arm_probe.command.slots_attempted,sdm_arm_probe.command.publish_attempted,
-  sdm_arm_probe.command.polls,sdm_arm_probe.command.reads,sdm_arm_probe.command.completion_seen,
+  sdm_arm_probe.command.polls,sdm_arm_probe.command.reads,sdm_arm_probe.command.publication_seen,
+  (unsigned long long)sdm_arm_probe.command.publication_us,sdm_arm_probe.command.completion_seen,
   (unsigned long long)sdm_arm_probe.command.completion_us);
 }
 int fes_nano_sdm_source_prepare(struct nano_sdm_input_binding *output,

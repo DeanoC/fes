@@ -12,7 +12,7 @@ from test_nano_sdm_rearm_profile import mode, warm_profile
 class RecoveryProfileTests(unittest.TestCase):
     def test_recovery_is_separate_from_default_repeated_loading(self):
         p=warm_profile()
-        self.assertEqual(mode.checked(p)['format'],20)
+        self.assertEqual(mode.checked(p)['format'],23)
         self.assertFalse(mode.checked(p)['automatic_reset'])
         self.assertIn('#define FES_NANO_SDM_COLD_RECOVERY 0\n',mode.header(p))
         p['sdm_input_transfer']=mode.selected(p,True,source_rearm=True,source_recovery=True)

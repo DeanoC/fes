@@ -53,7 +53,7 @@ def checked_cpu_binding(profile):
 
 def contract(base):
     result = copy.deepcopy(base)
-    result.update(format=20, scope='nano-owned-source-release-rearm-v20',
+    result.update(format=23, scope='nano-owned-source-release-rearm-v23',
                   mode='input-transfer-retire-native-return-release-rearm',
                   attempt_scope='one-per-fresh-configuration-generation-no-retry',
                   buffers='retained-until-owned-return-SD-stop-and-consumed-source-release',

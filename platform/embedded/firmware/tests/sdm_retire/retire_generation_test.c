@@ -50,6 +50,8 @@ static struct nano_sdm_input_binding generation_setup(struct model *m,uint64_t g
  prepared=prepared_queue_at(generation,before);
  struct nano_sdm_input_binding b=binding();b.generation=generation;return b;
 }
+static int reject_unexpected_publish(void *p,uint32_t target,uint64_t *out)
+{(void)p;(void)target;(void)out;assert(0);return -1;}
 int main(void)
 {
  unsigned generations=0,wraps=0,negative=0;
@@ -113,9 +115,34 @@ int main(void)
   else if(kind==10)prepared->completion_us=prepared->start+NANO_CMDQ_BOUND_US+1;
   else if(kind==11)prepared->validation_policy=CMDQ_RETIREMENT_PUBLICATION_BOUND;
   else if(kind==12)prepared->validation_policy=3;
-  else if(kind==13){prepared->validation_policy=CMDQ_PREPARATION_FINAL_VALIDATION;prepared->last=prepared->start+NANO_CMDQ_FINAL_BOUND_US+1;}
-  else if(kind==14){prepared->validation_policy=CMDQ_PREPARATION_FINAL_VALIDATION;prepared->completion_us=prepared->start+NANO_CMDQ_BOUND_US+1;prepared->last=prepared->completion_us;}
+  else if(kind==13){prepared->validation_policy=CMDQ_PREPARATION_PUBLICATION_BOUND;prepared->last=prepared->start+NANO_CMDQ_FINAL_BOUND_US+1;}
+  else if(kind==14){prepared->validation_policy=CMDQ_PREPARATION_PUBLICATION_BOUND;prepared->completion_us=prepared->start+NANO_CMDQ_BOUND_US+1;prepared->last=prepared->completion_us;}
   else prepared->last=prepared->start+NANO_CMDQ_BOUND_US+1;
+  assert(nano_source_retire(&s,b,io,&r) && s.failed && !s.retired);
+  assert(!m.reads && !m.written && !m.stores && !r.translation_retired);negative++;
+ }
+ /* A publication-policy preparation needs its own accepted timestamp history.
+  * Reject malformed receipts at entry, before any retirement MMIO. */
+ for(unsigned kind=0;kind<10;kind++){
+  struct model m;struct nano_retire s={0};struct nano_retire_receipt r={0};
+  struct nano_sdm_input_binding b=generation_setup(&m,21,4);
+  prepared->validation_policy=CMDQ_PREPARATION_PUBLICATION_BOUND;
+  prepared->io.publish_timed=0; /* missing publisher is itself invalid */
+  prepared->publication_seen=1;
+  prepared->publication_us=prepared->start+350000;
+  prepared->completion_us=prepared->publication_us+80000;prepared->last=prepared->completion_us+100;
+  /* A real publisher is never called by receipt validation. */
+  if(kind)prepared->io.publish_timed=reject_unexpected_publish;
+  if(kind==1)prepared->publication_seen=0;
+  if(kind==2)prepared->publication_seen=2;
+  if(kind==3)prepared->publication_us=prepared->start-1;
+  if(kind==4)prepared->publication_us=prepared->completion_us+1;
+  if(kind==5){prepared->completion_us=prepared->publication_us+100001;prepared->last=prepared->completion_us;}
+  if(kind==6)prepared->last=prepared->start+NANO_CMDQ_FINAL_BOUND_US+1;
+  if(kind==7)prepared->completion_us=prepared->last+1;
+  if(kind==8)prepared->last=prepared->start-1;
+  if(kind==9)prepared->validation_policy=2;
+  struct nano_retire_io io=generation_io(&m);
   assert(nano_source_retire(&s,b,io,&r) && s.failed && !s.retired);
   assert(!m.reads && !m.written && !m.stores && !r.translation_retired);negative++;
  }

@@ -80,7 +80,7 @@ class SourceRetirementTests(unittest.TestCase):
     def run_model(self, name, joined=False, arguments=()):
         binary = self.output / name
         sources = [FIXTURE / (name + ".c"), FW / "source_retire.c", FW / "command_queue.c", FW / "input_tables.c"]
-        if name in ("warm_probe_test", "setup_validation_test", "setup_batch_cost_test", "setup_preparation_budget_test"):
+        if name in ("warm_probe_test", "setup_validation_test", "setup_batch_cost_test", "setup_preparation_budget_test", "setup_publication_test"):
             sources += [self.output / "probe_setup.c"]
         if name == "setup_word_cost_test":
             measured = self.output / "expected_words_probe.c"
@@ -127,7 +127,7 @@ class SourceRetirementTests(unittest.TestCase):
         report = self.run_model("retire_generation_test")
         self.assertEqual(report["completed_generations"], 256)
         self.assertGreater(report["wraps"], 0)
-        self.assertEqual(report["negative_cases"], 136)
+        self.assertEqual(report["negative_cases"], 146)
 
     def test_real_source_release_supplier_requires_returned_owned_source(self):
         report = self.run_model("source_release_test", joined=True)
@@ -186,6 +186,14 @@ class SourceRetirementTests(unittest.TestCase):
     def test_preparation_completion_and_final_checks_keep_separate_finite_bounds(self):
         report = self.run_model("setup_validation_test")
         self.assertEqual(report["cases"], 43)
+
+    def test_preparation_publication_timestamp_and_completion_boundaries(self):
+        report = self.run_model("preparation_queue_publication_test")
+        self.assertEqual(report["cases"], 36)
+
+    def test_preparation_staging_and_consumption_keep_distinct_original_bounds(self):
+        result = self.run_model("setup_publication_test")
+        self.assertEqual(result["cases"], 16)
 
     def test_warm_probe_reuses_owned_queue_without_clearing_abort(self):
         report = self.run_model("warm_probe_test")

@@ -54,6 +54,8 @@ static void failure_case(unsigned fault)
  field(queue,"samples",sdm_arm_probe.command.clock_samples);
  field(queue,"polls",sdm_arm_probe.command.polls);
  field(queue,"published",sdm_arm_probe.command.publish_attempted);
+ field(queue,"publication_seen",sdm_arm_probe.command.publication_seen);
+ field(queue,"publication_us",sdm_arm_probe.command.publication_us);
  field(queue,"completion_seen",sdm_arm_probe.command.completion_seen);
  field(queue,"retained",1);field(queue,"grant",0);
  if(fault>=3 && fault<=5){
@@ -76,6 +78,7 @@ static void observation_only(void)
  sdm_arm_probe.io=(struct nano_probe_io){0};sdm_arm_probe.trusted_io=(struct nano_probe_io){0};
  sdm_arm_probe.command.io=(struct nano_cmdq_io){0};
  sdm_arm_probe.last_value=UINT64_C(0x123456789abcdef0);sdm_probe_scope_reason=37;
+ sdm_arm_probe.command.publication_seen=1;sdm_arm_probe.command.publication_us=UINT64_C(0x123456789abcdef0);
  struct nano_probe_setup before=sdm_arm_probe;
  unsigned reads_before=smmu_reads,writes_before=smmu_writes,loads_before=cb_loads,stores_before=cb_stores;
  uint64_t clock=ticks;terminal_used=0;terminal_log[0]=0;
@@ -83,6 +86,7 @@ static void observation_only(void)
  assert(!memcmp(&before,&sdm_arm_probe,sizeof(before)) && ticks==clock &&
   reads_before==smmu_reads && writes_before==smmu_writes && loads_before==cb_loads && stores_before==cb_stores);
  assert(strstr(terminal_log,"value=123456789abcdef0 "));
+ field(terminal_log,"publication_seen",1);field(terminal_log,"publication_us",INT64_C(0x123456789abcdef0));
  field(terminal_log,"scope_reason",37);field(terminal_log,"grant",0);
 }
 static void success(void)
