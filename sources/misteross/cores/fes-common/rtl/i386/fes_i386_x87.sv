@@ -2570,6 +2570,18 @@ module fes_i386_x87 (
                 D_FIN: begin
                     logic [5:0] dr;
                     dr = dv_dr[5:0];
+`ifndef SYNTHESIS
+                    // The tail's contract, asserted rather than trusted: the
+                    // remainder it leaves must be non-negative and below the
+                    // divisor, which is what makes the truncation exact and
+                    // the sticky bit true. The error bound and the step count
+                    // are constants validated on 3,000,000 model cases, so
+                    // this is the check that the RTL has not drifted from the
+                    // model -- the model's value class normalises more freely
+                    // than these registers do.
+                    if (dv_rem[95] || dv_rem >= {32'd0, ob_m})
+                        $error("x87 divide tail left rem=%h outside [0, B=%h)", dv_rem, ob_m);
+`endif
                     wm <= dr == 6'd0 ? dv_c[65:2] : (64'(dv_c) << (dr - 6'd2));
                     wg <= dr == 6'd0 ? dv_c[1] : 1'b0;
                     wrd <= dr == 6'd0 ? dv_c[0] : 1'b0;
@@ -2682,6 +2694,13 @@ module fes_i386_x87 (
                 Q_FIN: begin
                     logic [5:0] dr;
                     dr = dv_dr[5:0];
+`ifndef SYNTHESIS
+                    // The same contract for the square root: the remainder
+                    // must be non-negative and below 2*C + 1, which is the
+                    // gap to the next candidate's square.
+                    if (dv_rem[95] || dv_rem > {28'd0, dv_c, 1'b0})
+                        $error("x87 sqrt tail left rem=%h outside [0, 2C+1] with C=%h", dv_rem, dv_c);
+`endif
                     wm <= dr == 6'd0 ? dv_c[65:2] : (64'(dv_c) << (dr - 6'd2));
                     wg <= dr == 6'd0 ? dv_c[1] : 1'b0;
                     wrd <= dr == 6'd0 ? dv_c[0] : 1'b0;
@@ -2695,6 +2714,10 @@ module fes_i386_x87 (
                 P_FIN: begin
                     logic [63:0] r0, half;
                     logic        up, flip;
+`ifndef SYNTHESIS
+                    if (dv_rem[95] || dv_rem >= {32'd0, ob_m})
+                        $error("x87 remainder step left rem=%h outside [0, B=%h)", dv_rem, ob_m);
+`endif
                     r0 = dv_rem[63:0];
                     half = {1'b0, ob_m[63:1]};
                     // Round the quotient to nearest only on a COMPLETING

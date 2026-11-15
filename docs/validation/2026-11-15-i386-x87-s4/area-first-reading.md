@@ -6,10 +6,15 @@ the chip host's CUDA slot:**
 | fit | ALMs | DSP | M10K | worst setup |
 |---|---:|---:|---:|---:|
 | merge base (slice 3's unit) | 4,076 | 9 | 4 | **+0.570 ns** |
-| slice 4, before the DSP fix | 7,964 | 13 | 6 | **−3.029 ns** |
+| slice 4, before the DSP fix | 7,964 | **13** | 6 | −3.029 ns |
+| slice 4, after it | **8,073** | **9** | **6** | **−3.839 ns** |
 
-**+3,888 ALMs standalone — the slice roughly doubled the unit** — and the
-standalone envelope stopped closing by about 3 ns.
+**+3,997 ALMs standalone — the slice roughly doubled the unit** — and the
+standalone envelope stopped closing by about 4 ns.
+
+The DSP fix did what it was for: 13 blocks back to the **9** option A allows,
+for +109 ALMs, which is the three conditional shifts replacing two DSP-mapped
+products. The 2 extra M10K are the two seed tables.
 
 **M10K went 4 → 6, so the two seed tables landed in memory as the budget
 predicted.** That is the one part of the forecast that held.
@@ -26,12 +31,12 @@ predicted.** That is the one part of the forecast that held.
   Yosys binaries give different net numbering and Quartus fits them
   differently. The only valid comparison here is against the merge base
   measured **beside it in the same flow**, which is what the table does.
-- **It is not the number after the DSP fix.** 13 DSP blocks against the nine
-  option A allows was a design violation, not a measurement: the candidate's
-  bits above 63 times a 64-bit value was written `a * b` and Quartus mapped
-  each to a DSP block. The multiplicand is three bits, so it is three
-  conditional shifts and about sixty ALMs (`mul3`). That is fixed and
-  re-fitting.
+- **It was not, at first, a measurement of the design option A specifies.**
+  13 DSP blocks against the nine option A allows was a violation: the
+  candidate's bits above 63 times a 64-bit value was written `a * b` and
+  Quartus mapped each to a DSP block. The multiplicand is three bits, so it
+  is three conditional shifts (`mul3`). Fixed, and the third row above is the
+  number for the design as specified.
 
 ## What it does say
 
@@ -59,3 +64,23 @@ more to the phase's decision than an optimised number from a version this
 slice broke at the last minute. It is **not** trimming to fit — it is
 building what option A specifies — but it is not free risk either, and it is
 the coordinating session's and Deano's call whether this slice spends it.
+
+## The other gates, as of this reading
+
+| gate | result |
+|---|---|
+| unit bench, RTL, with the tail assertions active | **730 passed, 0 failed** |
+| unit bench, locked-Yosys netlist | 701 passed, 0 failed (before the last 29 cases) |
+| lockstep, every bucket | **passed, 0 failed** — including all **1,933 no-387 cases**, so the identity-off behaviour is unchanged |
+| test386 | **POST FFh reached**, halt at d0:ffb9 after 79,641,629 steps |
+
+The lockstep's identity-**on** bucket is still slice 2 and 3's 14 cases: it
+exercises none of slice 4's arithmetic. That is a gap, not coverage, and
+directed identity-on programs for the new forms are among
+[what is left](summary.md#what-is-left).
+
+**The tail assertions are now active in every bench run**: the divide's and
+the remainder's remainder must be in `[0, B)` and the square root's in
+`[0, 2C]`, which is the contract that makes the truncation exact and the
+sticky bit true. 730 cases pass with them armed, so the RTL has not drifted
+from the model the constants were validated against.
