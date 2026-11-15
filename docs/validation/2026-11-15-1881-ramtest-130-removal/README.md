@@ -1,11 +1,12 @@
-# RAM tester 130 MHz removal: D12 identity evidence, 15 November 2026
+# RAM tester 130 MHz removal: historical D12 evidence and current gate status, 15 November 2026
 
-PR [#1881](https://github.com/DeanoC/fes/pull/1881). This record discharges
-[AGENTS.md](../../../AGENTS.md)'s D12 for `fes.ramtest`: the change deletes and
-edits files in the core's source closure (`scripts/build_fes_ramtest.py` among
-them) with no RTL change, so it moves the core's `BUILD_ID` and needs the
-netlist comparison, the RBF reproduction and the PR's own gated build rather
-than a reseal and kit HIL.
+PR [#1881](https://github.com/DeanoC/fes/pull/1881). This record contains
+historical D12 measurements for the PR head `984f6e29432976a4fc690da97c6cb1e1791a686b`.
+It does not discharge [AGENTS.md](../../../AGENTS.md)'s D12 for the current PR
+tree: main's `scripts/core_package.py` source-closure change altered the
+production build identity after the last gated build. The current tree's
+production-ID timing and seal gates have not been measured, so the current
+no-HIL conclusion is withdrawn pending those gates.
 
 Merge base: `8bbbed8017448873fb33bc42109bc65e296f40ed`. PR head:
 `984f6e29432976a4fc690da97c6cb1e1791a686b`. Both sides ran on Powerboat from
@@ -96,7 +97,7 @@ same netlist `a5e0d01b501fb772…`. `fes.ramtest`'s compiled source set and its
 route-deciding inputs are unchanged between those two bases, which is why the
 artifacts agree.
 
-## 3. The PR's own gated build
+## 3. Historical gated build at `984f6e2`
 
 `python3 scripts/build_fes_ramtest.py --cache-root <shared cache>` on the PR
 head, with no rate argument, since the PR removes `--memory-mhz`. It passed
@@ -125,28 +126,30 @@ forces the merge base's `BUILD_ID` rather than comparing the two production
 RBFs. Section 2 is that forced comparison; this section is the separate
 requirement that the PR's own build passes its gates.
 
-## Conclusion
+## Historical conclusion at `984f6e2`
 
-All three of D12's conditions hold for `fes.ramtest` on PR #1881: the netlist
-is byte-identical to the merge base with nothing normalised, a build with the
-PR's tooling and the merge base's `BUILD_ID` reproduces the merge base's RBF
-byte for byte, and the PR's own build passes the core's normal timing and seal
-gates. No reseal and no kit HIL are required for this change.
+At the time of those runs, all three D12 conditions were recorded for
+`fes.ramtest` at `984f6e2`: the netlist was byte-identical to the then-merge
+base, the PR tooling reproduced that base's RBF with its `BUILD_ID`, and the
+then-current PR build passed the normal timing and seal gates. Those results
+remain evidence for the exact inputs and heads listed above; they are not
+current-head production-ID gate evidence.
 
-## 4. Merge forward to `e9218eb5e`
+## 4. Merge forward to `e9218eb5e` and current status at `4e943032`
 
 After sections 1 to 3 were measured, main advanced to `e9218eb5e` (#1791) and
-main was merged into this branch. D12 keeps a recorded comparison across a
-merge forward where the core's compiled source set and its route-deciding
-inputs — its toolchain lock, its timing and pin constraints, and its placement
-recipe — are unchanged between the old base and the new one. Both hold here:
+main was merged into this branch. The compiled source set and route-deciding
+inputs — the toolchain lock, timing and pin constraints, and placement recipe
+— did not change. `scripts/core_package.py` did change in the hashed source
+closure. It is not compiled RTL, so it does not change synthesis with a fixed
+`BUILD_ID`; it does change the production identity input and therefore makes
+the current production-ID gate a separate requirement.
 
 - `cores/fes-common/rtl/fes_embedded_control.sv` changed, and `fes.ramtest`
   does not compile it; it is in neither `RTL_SOURCES` nor the core's closure.
 - `scripts/core_package.py` changed and **is** in the core's source closure,
-  so the new base's `BUILD_ID` is expected to differ from `7a60de20`. That was
-  not measured and nothing here depends on it: the file is not compiled, so it
-  cannot move the netlist.
+  so the current production `BUILD_ID` differs from the values recorded in
+  sections 1 to 3. Its current value was not recorded.
 - `cores/fes-ramtest/toolchain.lock`, `cores/fes-ramtest/constraints.qsf`,
   `boards/de10nano/clocks.sdc` and `fes.ramtest`'s `[recipes.pnr]` entry are
   all untouched between `8bbbed801` and `e9218eb5e`.
@@ -160,25 +163,30 @@ merged head `46b3a1ba8`:
 | base2 r1, r2 | new merge base `e9218eb5e3927cd76a24b218cb0d39a41a752e07` | `391b7a6b53a8f818…` (both) |
 | head2 r1, r2 | merged PR head `46b3a1ba8a7f3eae29bcc50f8f1fc5ceb299c51f` | `391b7a6b53a8f818…` (both) |
 
-`cmp` confirms the new base, the merged head and the old base all produce the
-identical netlist, so main's own netlist is byte-identical at both bases and
-section 2's RBF comparison carries unchanged. Eight synthesis runs in total
-agree on `391b7a6b53a8f818…`.
+`cmp` confirms the new base, the merged head and the old base produce the
+identical netlist with this forced ID. Eight synthesis runs in total agree on
+`391b7a6b53a8f818…`. This is fixed-ID netlist evidence; it does not run the
+current production identity through the timing and seal gates. Section 2's
+RBF digest remains the comparison at the old merge base's forced production
+ID, not a current production-ID result.
 
-Section 3's gated build was taken at head `984f6e29432976a4fc690da97c6cb1e1791a686b`,
-before the merge. The merged head has a different `BUILD_ID` again, through
-`scripts/core_package.py`, and no build was taken at it. That is what D12's
-merge-forward clause allows: this core's compiled source set and its
-route-deciding inputs are unchanged across the merge, and main's own netlist is
-byte-identical at both bases, so the recorded gated build and RBF comparison
-stand without a rebuild. A fresh build at the merged head would differ in
-`BUILD_ID`, winning seed and RBF for the reason section 3 gives, and would add
-nothing this record does not already establish.
+Section 3's gated build was taken at `984f6e29432976a4fc690da97c6cb1e1791a686b`,
+before the merge. The fixed-ID synthesis and forced-old-ID RBF comparisons
+above do not establish a current production-ID gate pass.
+The current checked-out PR tree is `4e94303238e1d683d862386b79432aec27c2517b`.
+No `python3 scripts/build_fes_ramtest.py` run, current production `BUILD_ID`,
+current package digest, or current timing/seal result is recorded here. The
+merge-forward measurements therefore do not establish the final D12 condition
+for this tree, and this record makes no current no-HIL determination. To close
+that gap, run the normal authenticated RAM Tester producer on the exact PR head
+and record its production `BUILD_ID`, package and RBF digests, winning seed,
+and every clock result. Reassess D12 and the HIL requirement from that
+exact-head evidence.
 
 ## Scope of this record
 
-This record covers artifact identity only. It is not hardware acceptance, and
-no kit was programmed. The PR keeps the RTL's 130 MHz branches and the Quartus
-comparison lane untouched for the reason D12 implies: deleting RTL lines would
-shift the line numbers inside `src` attributes, which the rule does not exempt,
-and netlist identity would genuinely fail.
+The historical evidence covers artifact identity only. It is not hardware
+acceptance, and no kit was programmed. The PR keeps the RTL's 130 MHz branches
+and the Quartus comparison lane untouched for the reason D12 implies: deleting
+RTL lines would shift the line numbers inside `src` attributes, which the rule
+does not exempt, and netlist identity would genuinely fail.
