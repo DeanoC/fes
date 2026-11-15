@@ -223,3 +223,30 @@ can never pass there and the wrapper refused to touch the kit — correctly.
 the host API's own `"state":"idle"`, which is the same fact from the source
 the next check (`games_lease_probe.py`, "idle free") already uses. Every other
 baseline, lease and restore check is unchanged.
+
+## Amendment, 15 November, before any kit grab was opened
+
+Run `c3` on the reference had been read (the figures are in the record; they
+repeat `c1` exactly and add B5 = 1,625, B4 = 1,755). The kit run `c1cal` was
+in flight and **no kit grab had been opened**. Two things are added here.
+
+**1. The kit's predicted B5 and B4, which the first amendment forgot.** Both
+loops are charged the same 24 clocks — `cmp` 6 + 1 wait, `dec` 7 + 2 waits,
+`jne` taken 8 — so at word 1 = 120 both should read about **1,758**, against
+BD ≈ 2,481 and BP ≈ 1,318. The charged B5 = B4 exactly: the cost model's
+inputs (`fes_i386_governor`'s ports) carry an instruction's class, its memory
+accesses and its I/O, and **no instruction address and no instruction
+length**, so by construction it cannot charge one encoding more than another
+of the same class and accesses, nor charge for where a loop sits.
+
+**2. One more reference-only variant, `BO`.** The same six-byte delay loop
+started at an odd address instead of an even one. The B5 loop (11 bytes, three
+instructions, three accesses) costs 27.04 clocks on the reference while the
+game's calibration loop (11 bytes, three instructions, three accesses, a
+different order and an odd start) costs 29.02. If `BO` differs from `BD` on
+the reference, no table entry can explain it, and the missing term is fetch.
+If it does not, the B5-against-B4 gap of 2.00 clocks stands alone and the
+record will say **"consistent with a missing fetch term, not separated from a
+table entry"** — and will not claim that fes#1840 shares this cause.
+
+The kit cannot run `BO` as a comparison, for the structural reason in (1).
