@@ -765,7 +765,7 @@ Each spike lands as its own `docs/validation/<date>-1581-<name>/` record.
   - `M/scripts/export_core_package.py` (cross-check);
   - every format-2 Quartus producer (PC/XT today) writes `front_end`, `device_family`, `quartus_qsf_sha256` and, on the yosys front end, `front_end_program_sha256`. The format-1 producers gain them when they move to format 2 (S9b–S9f, S10); the native `quartus-lite` ones never write `front_end_program_sha256`;
   - the seal-summary fields;
-  - `docs/support-matrix.py:380-381`.
+  - `docs/support-matrix.py:446-447`.
 - **Tests:**
   - updated: `test_build_fes_pcxt_quartus.py:272-287`, `test_export_core_package.py:246`, `test_pnr_recipes.py:235-238`, `tests/test_recipes.py:169-172`;
   - new: every seed's final QSF minus its BUILD_ID and `SEED` lines hashes to the recorded `quartus_qsf_sha256`; each executed Yosys program (signoff and repeat), with its roots replaced by the placeholders and its BUILD_ID zeroed, hashes to the recorded `front_end_program_sha256`; two builds that differ only in BUILD_ID record the same digest and program; records that differ only in `front_end` get different BUILD_IDs and functional keys; an OSS record's field set and functional projection are byte-identical for identical inputs; illegal pairs are rejected; a format-1 record that carries `front_end` is rejected; a `quartus-lite` record that carries `front_end_program_sha256` is rejected, and a `yosys` Quartus record without it is rejected.

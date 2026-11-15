@@ -47,7 +47,10 @@ class SupportMatrixTests(unittest.TestCase):
         # The reruns are scoped: the power loss ran on another package, and
         # external timing, physical ISA and the session display stay open.
         self.assertIn('not exact-artifact acceptance of e73a0e87', row['notes'])
-        self.assertIn('#1561', row['notes'])
+        self.assertIn('#835', row['notes'])
+        # Closed issues stay off the row.
+        for closed in ('#1402', '#1561', '#1613'):
+            self.assertNotIn(closed, row['signals']['open_issues'])
         self.assertEqual('Quartus', SUPPORT_MATRIX.de10_cell(row))
         self.assertIn('| PC/XT (FreeDOS) | Current | Quartus |', SUPPORT_MATRIX.render(data))
 
@@ -73,6 +76,71 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertEqual('Quartus', SUPPORT_MATRIX.de10_cell(row))
         self.assertIn('| pc386 | Bring-up | Quartus | Quartus | disk, keys, mouse, HDMI |',
                       SUPPORT_MATRIX.render(data))
+
+    def test_check_level_is_derived_from_the_quality_ladder(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        self.assertEqual([], SUPPORT_MATRIX.validate(ROOT, data))
+        by_id = {row['id']: row for row in data['cores']}
+        self.assertEqual('proposed', data['check_policy']['status'])
+        self.assertIsNone(data['check_policy']['decided_by'])
+        # Tier 1 and tier 2 cells carry full evidence; the rest carry it only
+        # for changes aimed at them.
+        self.assertEqual('full', by_id['fes.pcxt-dos']['check_level'])
+        self.assertEqual('full', by_id['fes.pc386']['check_level'])
+        self.assertEqual('full', by_id['fes.menu']['check_level'])
+        for core_id in ('fes.pong', 'fes.ramtest', 'fes.riscv', 'fes.coleco',
+                        'fes.sms', 'fes.sg1000', 'fes.apple2'):
+            with self.subTest(core_id=core_id):
+                self.assertEqual('reduced', by_id[core_id]['check_level'])
+                self.assertFalse(by_id[core_id]['in_bootstrap_image'])
+                self.assertEqual('held-back', by_id[core_id]['release'])
+        self.assertEqual('via-consumer', by_id['i386']['check_level'])
+        self.assertEqual('none', by_id['fes.c64-ntsc']['check_level'])
+        self.assertIn('- **Reduced checks:** `fes.pong`', SUPPORT_MATRIX.render(data))
+        self.assertIn(SUPPORT_MATRIX.CHECK_NOT_IN_FORCE, SUPPORT_MATRIX.render(data))
+
+    def test_a_hand_set_check_level_or_quality_tier_is_rejected(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        by_id = {row['id']: row for row in data['cores']}
+        by_id['fes.riscv']['check_level'] = 'full'
+        by_id['fes.c64']['quality_tier'] = '3'
+        by_id['fes.menu']['quality_tier'] = '1'
+        errors = SUPPORT_MATRIX.validate(ROOT, data)
+        self.assertIn("fes.riscv check_level 'full' != derived 'reduced'", errors)
+        self.assertTrue(any(error.startswith('quality_tier 1 rows') for error in errors), errors)
+        self.assertTrue(any(error.startswith('quality_tier 3 rows') for error in errors), errors)
+        self.assertIn(
+            "fes.menu is not on the forward plan's ladder but records quality_tier '1'", errors
+        )
+
+    def test_a_reduced_row_cannot_be_shipped_or_in_the_image(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        by_id = {row['id']: row for row in data['cores']}
+        by_id['fes.sms']['release'] = 'v1'
+        by_id['fes.riscv']['in_bootstrap_image'] = True
+        errors = SUPPORT_MATRIX.validate(ROOT, data)
+        self.assertIn("fes.sms is release 'v1' and cannot be reduced", errors)
+        self.assertIn('fes.riscv is in the bootstrap image and cannot be reduced', errors)
+
+    def test_the_check_policy_cannot_claim_to_be_accepted_on_its_own(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        data['check_policy']['status'] = 'accepted'
+        errors = SUPPORT_MATRIX.validate(ROOT, data)
+        self.assertTrue(
+            any('check_policy status is not proposed' in error for error in errors), errors
+        )
+
+    def test_the_quality_ladder_citation_must_still_be_in_the_forward_plan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'docs' / 'plans').mkdir(parents=True)
+            (root / 'docs' / 'plans' / 'forward-plan.md').write_text('no ladder here\n')
+            data = SUPPORT_MATRIX.load_json(ROOT)
+            by_id = {row['id']: row for row in data['cores']}
+            errors = SUPPORT_MATRIX.validate_check_policy(root, data, by_id, None)
+            self.assertTrue(
+                any('no longer says' in error for error in errors), errors
+            )
 
     def test_every_release_package_records_its_scope(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
