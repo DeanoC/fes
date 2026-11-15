@@ -1,8 +1,9 @@
 # Sealing the DE10 ZX81 family with Quartus Lite
 
-Status: design note for decision (Deano). Written 15 November 2026 against
-`1a4bb8d41`. This note changes no producer, registry row or lock. The prototype
-evidence is in
+Status: decided (Deano, 15 November 2026). See [Decisions](#decisions). Written
+15 November 2026 against `1a4bb8d41`. This note itself changes no producer,
+registry row or lock; the [implementation plan](#implementation-plan) does that
+in separate PRs. The prototype evidence is in
 [2026-11-15-zx81-quartus-lite-prototype](../validation/2026-11-15-zx81-quartus-lite-prototype/README.md).
 
 Path convention: `M/` means `sources/misteross/`.
@@ -267,7 +268,59 @@ today, and the gap is above 15%.
 About 2–3 weeks in total with option B, or 1.5 weeks without carts. Option C
 would add weeks and might not converge.
 
-## Open decisions for Deano
+## Decisions
+
+Deano decided these on 15 November 2026, recorded on DeanoC/fes#1873.
+
+- **Policy.** Use Quartus wherever nextpnr timing closure is hard. An OSS lane
+  for this family is a later goal; moving forward easily matters more now. This
+  is a project-wide extension of [Quartus-built cores](quartus-cores.md)
+  policy 5 for cores like this one.
+- **D1. Lane.** The four rows switch to a single Quartus Lite producer, as
+  PC/XT did. `build_fes_zx81_oss.py` stays in the tree as an advisory lane.
+- **D2. Carts.** Option B: the 16K RAM and Zon X carts are built into the shell
+  and selected at launch.
+- **D3. Build host.** chip-30x0-ai-dev is allowed as a Lite build host,
+  alongside Powerboat.
+- **D4. Sign-off seeds.** `[1, 2, 3]`, every seed passing, plus an independent
+  seed-1 repeat that must reproduce the RBF.
+- **D5. ROM-map source.** The pinned Mistral database, plus the update-MIF
+  self-test on every build.
+- **D6. MLAB.** The OSS ban on MLAB stays in the Quartus lane.
+
+Still open: whether the QS Character Board, the third bus cart and the one
+DeanoC/fes#1807 changes, is also built in or leaves the product path with the
+nextpnr cart flow. DeanoC/fes#1875 asks that question.
+
+## Implementation plan
+
+Three PRs, one scope each, in this order:
+
+1. **Producer** (DeanoC/fes#1874). The Quartus branch of `zx81_rom_link.v`, the
+   Quartus Lite producer for the four models with every-seed timing, a repeat
+   RBF, the ROM map and its self-test, the `.vo` evidence adapter, the shared
+   `Model` table, and deletion of `build_fes_zx81.py`. The registry is
+   unchanged.
+2. **Carts in the shell** (DeanoC/fes#1875). The 16K and Zon X RTL behind the
+   bus with a launch-time select, the host interface to set it, and the
+   library and FogCast mapping from the existing expansion choice.
+3. **Registry switch, reseal and HIL** (DeanoC/fes#1876). The four rows move to
+   the Quartus producer, docs follow, and the four models are resealed and
+   HIL-tested with the built-in carts.
+
+Part 3 comes after part 2, because switching first would remove the carts from
+the registered packages until part 2 lands. If Deano would rather unblock
+DeanoC/fes#1807 sooner, part 3 can go before part 2, with carts unavailable in
+between.
+
+DeanoC/fes#1807 moves the family's `BUILD_ID`, and nextpnr could not reseal it.
+It lands after part 3: merge main, reseal on the registered Quartus producer,
+then HIL. If QS is built in, its `qs_chrs.v` changes become shell RTL, and part
+2 should merge #1807's QS behaviour first or carry it.
+
+## Decisions as originally posed
+
+The questions as the note first posed them, kept for the record:
 
 - **D1. Lane policy.** Switch the four rows to a single Quartus producer, as
   PC/XT did, and keep the OSS producer as an advisory lane? Or wait for

@@ -32,6 +32,11 @@ Where the prototype differs from a production shell:
 - ROM lanes hold random test data so that the map can be checked. A sealed base
   would hold blank lanes.
 - `BUILD_ID` is a fixed placeholder constant. Four fitter threads per run.
+- The zx81 seed 2 and seed 3 runs set `ON_CHIP_BITSTREAM_DECOMPRESSION ON`, so
+  they wrote compressed RBFs. Every other run wrote an uncompressed RBF.
+  `make_project.py`'s optional sixth argument, `compressed`, selects this. The
+  regenerated projects are identical to the ones compiled, apart from the
+  `LAST_QUARTUS_VERSION` line that Quartus appends to the QSF after a compile.
 - `pin` runs add `set_location_assignment M10K_X5_Y{73+lane}_N0` for each lane.
   These are the BELs the OSS shell uses (`MISTRAL_M10K.5.73.0` and up).
 
@@ -110,5 +115,9 @@ python3 -I ../../docs/validation/2026-11-15-zx81-quartus-lite-prototype/scripts/
 python3 -I ../../docs/validation/2026-11-15-zx81-quartus-lite-prototype/scripts/check_bytes.py . $S/zx81-pin-s1 8
 ```
 
-The scripts hard-code this host's Quartus and Mistral database paths. They are
-prototype code and not a producer.
+For the compressed case, pass `compressed` after `pin`. `zx81q_fit.sh` exits
+with `quartus_sh`'s status, which is 124 if the one-hour cap expires.
+`check_bytes.py`, `mif_selftest.sh` and `ddr_cfg_from_vo.py` exit non-zero on
+any mismatch. The scripts hard-code this host's Mistral database path;
+`zx81q_fit.sh` honours `QUARTUS_ROOTDIR`. They are prototype code and not a
+producer.

@@ -10,6 +10,7 @@ blocks = rom_map.rom_blocks(rom_map.parse_ram_offsets(db['data/m10k-mux.txt'].de
 raw = (proj/'output_files/top.rbf').read_bytes(); cram = rbf_load(raw).cram
 pat = json.loads((proj/'patterns.json').read_text())
 print('rbf bytes', len(raw))
+failed = False
 for lane, block in enumerate(blocks):
     ok = pad_blank = 0
     for w, bits in enumerate(block['word_bits']):
@@ -20,3 +21,5 @@ for lane, block in enumerate(blocks):
             elif not s: logical |= 1 << perm[i]
         ok += all(((logical >> (10*k)) & 0xff) == (pat[str(lane)][4*w+k] & 0xff) for k in range(4))
     print(f'lane{lane}: bytes match in {ok}/256 rows; padding bits blank {pad_blank}/{256*8}')
+    failed |= ok != 256 or pad_blank != 256*8
+sys.exit(1 if failed else 0)

@@ -10,7 +10,10 @@ from scripts.fes_de10nano_evidence import hps_ddr_layout, HPS_DDR_CFG_PORTS
 text = open(sys.argv[1]).read()
 start = text.index('cyclonev_hps_interface_fpga2sdram'); block = text[start:text.index(');', start)]
 want = hps_ddr_layout(Path('.'))
+failed = False
 for port in HPS_DDR_CFG_PORTS:
     bits = re.search(r'\.' + port + r'\(\{([^}]*)\}\)', block).group(1).split(',')
     value = int(''.join('1' if b.strip() == 'vcc' else '0' for b in bits), 2)  # MSB first
     print(port, hex(value), 'layout', hex(want[port]), 'OK' if value == want[port] else 'MISMATCH')
+    failed |= value != want[port]
+sys.exit(1 if failed else 0)

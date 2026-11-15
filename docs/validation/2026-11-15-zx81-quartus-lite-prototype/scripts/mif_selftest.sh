@@ -31,5 +31,7 @@ db = rom_map.read_database(Path('/data/fes-toolchain-cache/tools/mistral/e7993ca
 dest = {p for blk in rom_map.rom_blocks(rom_map.parse_ram_offsets(db['data/m10k-mux.txt'].decode()), tuple(range(73, 81)))
         for w in blk['word_bits'] for p in w}
 changed = [i*8+k for i in range(len(a)) if a[i] != b[i] for k in range(8) if ((a[i]^b[i]) >> k) & 1]
-print('changed CRAM bits', len(changed), 'outside ROM destinations', sum(c not in dest for c in changed))
+outside = sum(c not in dest for c in changed)
+print('changed CRAM bits', len(changed), 'outside ROM destinations', outside)
+sys.exit(1 if outside or not changed else 0)
 PY

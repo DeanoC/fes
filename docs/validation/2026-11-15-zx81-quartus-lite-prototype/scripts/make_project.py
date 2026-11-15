@@ -3,6 +3,9 @@ import re, sys, random, os
 from pathlib import Path
 root = Path(sys.argv[1]).resolve()          # sources/misteross
 out = Path(sys.argv[2]).resolve(); seed = int(sys.argv[3]); model = sys.argv[4]; pin = sys.argv[5] == 'pin'
+# Optional sixth argument: 'compressed' sets ON_CHIP_BITSTREAM_DECOMPRESSION ON (the
+# validation record's zx81 seed 2 and seed 3 runs); the default writes an uncompressed RBF.
+compressed = len(sys.argv) > 6 and sys.argv[6] == 'compressed'
 out.mkdir(parents=True, exist_ok=True)
 src = (root/'scripts/build_fes_zx81_oss.py').read_text()
 rtl = eval(re.search(r'RTL_SOURCES = (\(.*?\))\n', src).group(1))
@@ -38,7 +41,7 @@ L = ['set_global_assignment -name FAMILY "Cyclone V"', 'set_global_assignment -n
      'set_global_assignment -name TOP_LEVEL_ENTITY top', 'set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files',
      'set_global_assignment -name GENERATE_RBF_FILE ON', 'set_global_assignment -name NUM_PARALLEL_PROCESSORS 4',
      f'set_global_assignment -name SEED {seed}', 'set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005',
-     'set_global_assignment -name ON_CHIP_BITSTREAM_DECOMPRESSION OFF',
+     f'set_global_assignment -name ON_CHIP_BITSTREAM_DECOMPRESSION {"ON" if compressed else "OFF"}',
      f'set_global_assignment -name SEARCH_PATH "{rel("cores/fes-zx81/generated")}"',
      f'set_global_assignment -name SEARCH_PATH "{rel("cores/fes-zx81/rtl")}"',
      f'set_global_assignment -name SEARCH_PATH "{rel("cores/fes-common/generated")}"',
