@@ -1,4 +1,10 @@
-# Slice 4 exactness model, corrected construction.
+# Slice 4 exactness model: the CONVERGENCE SCAN.
+#
+# This scans iteration counts and reports E and k as maxima over the sample,
+# which is how the datapath was sized. It is NOT the exactness gate: E and k
+# are RTL constants, so fitting them to the verifying cases proves less than
+# it looks. fixed_constants.py pins them and validates independently, and its
+# numbers are the ones the record quotes.
 #
 #   1. Goldschmidt on the shared multiplier, 64-bit truncated intermediates.
 #   2. C0 = qhat - E, a guaranteed lower bound (E measured, not guessed).
@@ -82,7 +88,8 @@ for name, pos in PCPOS.items():
             T, nz = exact(A, B, drop)
             if C != T or (rem != 0) != nz: bad += 1
         row = (iters, worst, E, k, maxrem, 2 + 2 * iters, bad)
-        if bad == 0: break
+        print(f"   {name} it={iters} muls={2+2*iters} maxerr={worst} E={E} k={k} "
+              f"rem={maxrem} {'ok' if bad == 0 else f'BAD({bad})'}")
     results[name] = row
     print(f"{name:9} {row[0]:5} {row[1]:11} {row[2]:6} {row[3]:8} {row[4]:9} "
           f"{row[5]:5} {'yes' if row[6]==0 else f'NO({row[6]})':>7}")

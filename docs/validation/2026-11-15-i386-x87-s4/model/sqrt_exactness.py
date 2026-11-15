@@ -73,17 +73,18 @@ def test(cases,iters):
         if C!=T or (rem!=0)!=((A<<s)-T*T!=0): bad+=1
     return worst,E,k,mr,nm,bad
 
-rnd=random.Random(11); sc=[]
-for p in (0,1):
-    sc+=[(1<<63,p),(M64,p),((1<<63)|1,p),(M64-1,p),(0xC000000000000000,p)]
-    for i in range(128):
-        b=(1<<63)|(i<<56); sc+=[(b,p),(b|((1<<56)-1),p)]
-    for _ in range(1500):
-        r=rnd.getrandbits(33)|(1<<32); v=r*r
-        v>>=max(0,v.bit_length()-64)
-        for d in(-1,0,1): sc.append((((v|(1<<63))+d)&M64,p))
-    sc+=[(rnd.getrandbits(64)|(1<<63),p) for _ in range(15000)]
-print(f"FSQRT: {len(sc)} cases\n{'iters':>5} {'muls':>5} {'max T-qhat':>12} {'steps k':>8} {'rem bits':>9} {'exact':>6}")
-for it in (1,2,3,4):
-    w,E,k,mr,nm,bad=test(sc,it)
-    print(f"{it:5} {nm:5} {w:12} {k:8} {mr:9} {'yes' if bad==0 else f'NO({bad})':>6}")
+if __name__ == '__main__':
+    rnd=random.Random(11); sc=[]
+    for p in (0,1):
+        sc+=[(1<<63,p),(M64,p),((1<<63)|1,p),(M64-1,p),(0xC000000000000000,p)]
+        for i in range(128):
+            b=(1<<63)|(i<<56); sc+=[(b,p),(b|((1<<56)-1),p)]
+        for _ in range(1500):
+            r=rnd.getrandbits(33)|(1<<32); v=r*r
+            v>>=max(0,v.bit_length()-64)
+            for d in(-1,0,1): sc.append((((v|(1<<63))+d)&M64,p))
+        sc+=[(rnd.getrandbits(64)|(1<<63),p) for _ in range(15000)]
+    print(f"FSQRT: {len(sc)} cases\n{'iters':>5} {'muls':>5} {'max T-qhat':>12} {'steps k':>8} {'rem bits':>9} {'exact':>6}")
+    for it in (1,2,3,4):
+        w,E,k,mr,nm,bad=test(sc,it)
+        print(f"{it:5} {nm:5} {w:12} {k:8} {mr:9} {'yes' if bad==0 else f'NO({bad})':>6}")
