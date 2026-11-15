@@ -391,19 +391,19 @@ that drives four passes of one multiplier.
 the device.** That is a difference of two fits through one slot that differ
 only by this slice's RTL, which is what the brief asks for.
 
-**With one uncertainty that was found late and is worth more than it costs
-here.** Chasing the decode question meant re-running the merge-base
-per-entity fit at the same seed, settings, slot and tree as the first one.
-It did not reproduce: **38,135 ALMs and +0.565 ns the first time, 37,948 and
-+0.510 the second**, 187 ALMs apart. The branch's fit repeated *exactly*
-(39,717 and +0.455 both times), and the merge-base tree was verified clean
-and at the same commit, so this is run-to-run variation in the flow rather
-than a changed input. Nothing explains it yet. The practical consequence:
-read the area deltas in this record as carrying an uncertainty of order
-**±200 ALMs**, not of a few tens. +1,609 and +2,250 survive that easily --
-they are eight and eleven times the variation -- but a difference of tens of
-ALMs between two single fits means nothing, which is exactly the trap the
-decoder figure fell into below. The same
+**This pair reproduces exactly, and one other pair does not.** Chasing the
+decode question meant re-running four fits at the same seed, settings, slot
+and tree as the originals. The three **flattened** machine fits came back
+bit-for-bit identical -- this branch at 39,682 and +0.176, the merge base at
+38,073 and +0.385 -- so **the +1,609 ALM delta above is exactly
+reproducible** and not a lucky placement. The **per-entity** merge-base fit
+did not: **38,135 ALMs and +0.565 ns the first time, 37,948 and +0.510 the
+second**, 187 apart, with the tree verified clean at the same commit and the
+branch's per-entity fit repeating exactly. Nothing explains that yet. So the
+uncertainty is not general: the flattened machine deltas this record leans on
+are reproducible, while a difference of tens of ALMs read off a single
+per-entity pair is not evidence -- which is exactly the trap the decoder
+figure fell into below. The same
 subtraction on the setup column gives −0.209 ns (+0.385 to +0.176), **and
 that one does not carry**: it is one seed against one seed, and the sweep
 below spreads identical RTL across 0.746 ns of slack. The area delta is a
@@ -923,20 +923,40 @@ utilisation rather than of logic depth anywhere. What recovers the margin is
 deferred whole-system reduction a prerequisite for slice 7 rather than a
 tidy-up after it: it buys slack as well as ALMs.
 
-**One question is open and bears directly on this.** `fes_i386_decode.sv` is
-a file this slice edits, and the decode path that misses on four of the nine
-seeds is two to three logic levels deeper than the merge base's. Against
-that: the endpoints differ, and these dumps hold worst-slack paths rather
-than deepest paths. A third counter-indication was offered and has been
-withdrawn -- that `fes_i386_decode` fits 15 ALMs *smaller* here -- because
-repeating the merge-base fit put it at 698.9 against the branch's 713.4,
-making the branch 14.5 ALMs *larger*; the sign flips with the run, so the
-decoder's area settles nothing. Both readings -- that the paths pre-date
-this slice, and that this slice deepened them -- were written into earlier
-revisions of this record and **both are withdrawn as not established**.
-**Pending** the targeted `report_timing` on both flattened fits. If it turns
-out this slice deepened decode, the claim that no change here recovers the
-margin is false for decode and slice 6 should start there.
+**One question was open and bears directly on this; it has been measured.**
+`fes_i386_decode.sv` is a file this slice edits, and the decode path that
+misses on four of the nine seeds is two to three logic levels deeper than
+the merge base's, which read as though this slice had lengthened it. Both
+readings -- that the paths pre-date this slice, and that this slice deepened
+them -- were asserted in earlier revisions of this record and withdrawn. The
+deciding measurement is a `report_timing` from `cpu_decode_by*` run on both
+**flattened** fits, re-run at seed 1 with their databases kept, the same
+query on each:
+
+| Worst path, identity on, seed 1 | merge base | this branch | change |
+| --- | ---: | ---: | ---: |
+| from `cpu_decode_by*` | +0.727 | +0.524 | **−0.203** |
+| anywhere in the machine | +0.720 | +0.317 | **−0.403** |
+
+**The decode path lost 0.203 ns where the machine's worst path lost 0.403.**
+At the merge base decode was effectively tied for critical, 7 ps behind the
+worst path in the design; on this branch it sits 0.207 ns behind it. A slice
+that had deepened decode would have made it worse than the machine around
+it, and this is the opposite: decode degraded by half as much as the design
+did, which is what uniform congestion looks like. **So the reading that this
+slice lengthened the decode path is not supported**, and the first paragraph
+above stands unchanged.
+
+Two limits on that, because this record has already asserted this question
+twice and been wrong twice. Slack is placement as well as logic, so this
+measures how critical the path is and not its depth directly; and the
+endpoints are differently numbered nets in the two netlists (`_38176_`
+against `_40448_`), so "the same endpoint" was never available here -- what
+is matched is the query, the seed and the flow. The counter-indication this
+record previously offered from the decoder's *area* is withdrawn
+separately: repeating the merge-base per-entity fit moved it from 728.5 to
+698.9 against the branch's 713.4, flipping the sign, so the decoder's area
+settles nothing either way.
 
 **One part of the spike's estimate is still intact, and it is the memory.**
 The spike predicted **+1,687 ALMs, 9 DSP and 17 M10K** in-machine for the
