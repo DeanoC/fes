@@ -473,6 +473,26 @@ def run_no387(testbench: str, env: dict) -> dict:
 NO387_CASES = 1933
 
 
+def run_x87(testbench: str, env: dict) -> dict:
+    """The directed cases of the ESC instructions with a 387 fitted
+    (lockstep_tb.cpp's run_x87_cases), the i386dx+387 identity on: the forms
+    slice 2 of the x87 phase builds, run through the CPU against the oracle's
+    387, with the 387's whole state compared at every retirement. The random
+    and corpus programs run no ESC, so these are what exercises the unit
+    inside the CPU."""
+    env = dict(env, FES_I386_MODE='x87', FES_I386_LATENCY='1')
+    result = subprocess.run([testbench], env=env, capture_output=True, text=True)
+    if result.returncode not in (0, 1):
+        raise LockstepError(f'x87 cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
+    summary, failures = parse_output(result.stdout)
+    if summary['runs'] != X87_CASES:
+        raise LockstepError(f'x87 cases: testbench ran {summary["runs"]} of {X87_CASES} cases')
+    return {'summary': summary, 'failures': failures}
+
+
+X87_CASES = 8
+
+
 def divergence_table(entries: list[dict], path: Path) -> None:
     """The opcode-class entries, for the testbench to apply per retirement."""
     lines = []
@@ -582,7 +602,8 @@ def same_as(report: dict, other: dict) -> list[str]:
         compare(f'pmode {key}', report['pmode']['totals'].get(key), other['pmode']['totals'].get(key))
     for key in ('seeds', 'programs_per_seed', 'trace_hashes', 'pm_deliveries', 'unbuilt_stops', 'pm_kinds', 'cs_limit'):
         compare(f'pmode {key}', report['pmode'].get(key), other['pmode'].get(key))
-    for mode in ('directed_cases', 'unreal_cases', 'pmode_cases', 'paging_cases', 'no387_cases', 'memory_cases',
+    for mode in ('directed_cases', 'unreal_cases', 'pmode_cases', 'paging_cases', 'no387_cases', 'x87_cases',
+                 'memory_cases',
                  'reset_store'):
         for key in SAME_MODE:
             compare(f'{mode} {key}', report[mode]['summary'].get(key), other[mode]['summary'].get(key))
@@ -730,6 +751,7 @@ def main() -> int:
         pmode_cases = run_pmode(testbench, env)
         paging_cases = run_paging(testbench, env)
         no387 = run_no387(testbench, env)
+        x87 = run_x87(testbench, env)
         memory = run_memory(testbench, env)
 
         corpus = args.corpus or vectors.OUTPUT / 'corpus' / vectors.REVISION
@@ -849,7 +871,7 @@ def main() -> int:
     random_failures += held
     reset_store_failures = reset_store['failures']
     directed_failures = (directed['failures'] + unreal['failures'] + pmode_cases['failures'] + paging_cases['failures']
-                         + no387['failures'])
+                         + no387['failures'] + x87['failures'])
     # #1730's [[lockstep]] rules (divergences.toml umov, mov-tr, icebp-gd):
     # each must still be taken by its directed cases, or its entry no longer
     # matches.
@@ -869,6 +891,7 @@ def main() -> int:
         'pmode_cases': pmode_cases,
         'paging_cases': paging_cases,
         'no387_cases': no387,
+        'x87_cases': x87,
         'memory_cases': memory,
         'governor': {'preset': args.preset},
         'corpus': {'revision': vectors.REVISION, 'files': len(corpus_results), 'totals': dict(totals),
@@ -1000,6 +1023,8 @@ def main() -> int:
           f"ICEBP's GD {undocumented['icebp-gd']})")
     print(f"paging cases: {paging_cases['summary']['passed']} pass, {paging_cases['summary']['failed']} fail "
           f"({paging_cases['summary']['nested']} faults in a delivery delivered)")
+    print(f"x87 cases (the identity on): {x87['summary']['passed']} pass, {x87['summary']['failed']} fail, "
+          f"{x87['summary'].get('x87_compared', 0)} retirements with the 387's state compared")
     print(f"no-387 cases: {no387['summary']['passed']} pass, {no387['summary']['failed']} fail "
           f"({no387['summary']['no387_rule']} ESC instructions under the no-387 rule, "
           f"{no387['summary']['no387_skips']} of them not stepped on the oracle)")

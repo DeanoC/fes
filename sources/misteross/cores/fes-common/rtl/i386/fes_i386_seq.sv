@@ -501,9 +501,23 @@ module fes_i386_seq (
                 n.uop.v86 = w.v86;
                 n.vgo = w.vgo;
                 // LGDT's and SGDT's base, 2 bytes on; an x87 environment's
-                // field fpn (operand-sized) or its save image's dword fpj.
-                n.moff = w.plus2 ? 7'd2 : (n.opsize32 ? {2'b0, w.fpn, 2'b0} : {3'b0, w.fpn, 1'b0}) + {w.fpj, 2'b0};
+                // field fpn (operand-sized); or a save image's chunk, which
+                // fpn 7 names: register fpj[4:2]'s two dwords and its top
+                // word, at ten bytes a register past the environment, so no
+                // chunk straddles two registers (fes_i386_x87).
+                // Ten bytes a register is eight plus two, and four bytes a
+                // chunk is a shift, so the offset needs no multiplier.
+                n.moff = w.plus2 ? 7'd2
+                       : w.fpn == 3'd7
+                           ? (n.opsize32 ? 7'd28 : 7'd14) + {1'b0, w.fpj[4:2], 3'b0} + {3'b0, w.fpj[4:2], 1'b0}
+                             + {3'b0, w.fpj[1:0], 2'b0}
+                       : (n.opsize32 ? {2'b0, w.fpn, 2'b0} : {3'b0, w.fpn, 1'b0}) + {w.fpj, 2'b0};
                 n.uop.x87p = w.x87p;
+                // The part the unit sees: a save image's chunk by register
+                // (fpn 7), else the environment field fpn, else the
+                // operand's chunk fpj names.
+                n.x87_part = w.fpn == 3'd7 ? {1'b1, w.fpj[4:2], w.fpj[1:0]}
+                           : w.fpn != 3'd0 ? {3'b0, w.fpn} : {4'b0, w.fpj[1:0]};
                 n.nochk = w.nochk;
                 n.errp = w.errp;
                 n.dmode = w.dmode;

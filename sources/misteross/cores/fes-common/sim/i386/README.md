@@ -214,11 +214,17 @@ differs. Directed tests in later phases decide these, not the oracle:
 
 - Bochs models a 387: MOV CR0 forces ET to 1 and ESC instructions return 387
   results. Its FERR# is routed only with `set_at_coprocessor` (the AT's
-  IRQ 13, [Adapter](#adapter)). The FES CPU models an empty socket. With
-  `FES_I386_X87=387` (the i386dx+387 identity) the lockstep fits the 387 as
-  on an AT, drops the no-387 rule, and ends a run as not built (`unbuilt`
-  387) at its first ESC or WAIT, since this build's RTL has no 387; the
-  comparison of `X87State` at each retirement comes with the RTL's 387. For
+  IRQ 13, [Adapter](#adapter)). With the identity clear the FES CPU models
+  an empty socket, which is what every package ships until the x87 phase's
+  last slice. With `FES_I386_X87=387` (the i386dx+387 identity) the lockstep
+  fits the 387 as on an AT, drops the no-387 rule, and compares `X87State`
+  at every retirement against the RTL's own 387
+  ([fes_i386_x87](../../rtl/i386/README.md#the-387)). The RTL builds the
+  x87 phase's slice 2: the state, the loads and stores, the register forms,
+  the constants, FXAM, FTST, the control and status words and the
+  environment and save layouts. A form a later slice builds -- any
+  arithmetic -- ends the run as not built (`unbuilt` 387), so a run's end
+  marks how far the slices have come rather than the absence of a unit. For
   an ESC instruction with EM and TS clear and no LOCK the lockstep applies
   the no-387 rule (`EscStep`, counted as `no387_rule`):
   - before the step the adapter makes Bochs's 387 read as an empty socket
