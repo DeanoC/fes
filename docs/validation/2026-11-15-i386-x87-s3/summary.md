@@ -104,12 +104,22 @@ Reference Manual and not the host. No case in this slice needed that: every
 rule the host settled is one the manual is silent or ambiguous about rather
 than one it contradicts.
 
-**The oracle agreed everywhere the lockstep reached.** Bochs's x87 is
-SoftFloat-3e, an independent implementation of the same arithmetic, and the
-identity-on programs compare the 387's whole state against it. Nothing in
-this slice needed a `divergences.toml` entry: the eight rules above are
-rules the host *and* the oracle both follow, so they are the arithmetic's
-real behaviour and not a choice this unit made.
+**What the oracle did and did not confirm.** Bochs's x87 is SoftFloat-3e, an
+independent implementation of the same arithmetic, and the identity-on
+programs compare the 387's whole state against it, so the agreement is real
+as far as it goes. It does not go as far as the eight rules. Those programs
+run with **all six exceptions masked throughout** -- the operand table's own
+comment requires it, because this bench drives no IRQ 13 and an unmasked
+exception would hold a run for ever -- and over about a dozen operands. So
+the oracle confirms the ordinary results, the condition codes, the flags a
+masked operation raises, the pops, and the pointers and opcode.
+
+It does **not** confirm the unmasked split (rule 1), the bias adjust (rule
+2), unmasked underflow on an exact result (rule 3), the two operand pairs
+that settle tininess (rule 4), or the NaN payload tie (rule 7). Those rest on
+the host alone. No `divergences.toml` entry was needed, but the honest
+statement is that **none was found in what was compared**, not that none
+exists.
 
 ## What the datapath is
 
@@ -167,9 +177,10 @@ the one after, and found three more of it.
   slice 3's bench and not introduced here: the apply sets the latch itself,
   so the edge detector at the foot of the unit fires the cycle *after* it,
   and an F0h write landing in that one cycle was undone. Reverting the `!f0`
-  gate takes the bench from 537/0 to a failed `latch-f0-edge` **and 47
+  gate takes the bench from a clean run to a failed `latch-f0-edge` **and 47
   comparisons in `edge-im` run against a unit still in its FNINIT state**,
-  because the stuck latch holds every later FLDCW. Under the pc386 reseal
+  because the stuck latch holds every later FLDCW. That count was measured on
+  the 499-case bench, before the last cases were added. Under the pc386 reseal
   exemption it needs no reseal of slice 2.
 - **The alignment clamp was off by one.** At a shift of 65 the round bit is
   still the operand's own top bit; only from 66 is nothing left but the
