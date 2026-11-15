@@ -53,3 +53,7 @@ firmware contract. Preserve the retention, mapping and ownership checks; do not
 remove the guard or overwrite protected source/metadata. Rebuild and qualify a
 new artifact before another physical trial. Broader loading and appliance
 acceptance remain open.
+
+The subsequent [restoration and independent tape prototype](../2026-11-15-de25-independent-tape-arena/README.md)
+records the fresh reset and verified original FIT restoration. The failed
+trial above remains consumed; separate tape staging is still unselected.

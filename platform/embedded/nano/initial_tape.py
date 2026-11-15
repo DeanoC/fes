@@ -45,3 +45,50 @@ def linked(record):
     elif options:
         raise ValueError('unselected initial tape appears in native link command')
     return selected
+
+
+# Prototype companion for the independent publisher. Producers do not select
+# this layout until the CPU mapper and fixed firmware supplier are wired to it.
+# Geometry is not physical ownership, a live mapping proof or activation.
+def staging_layout(cpu_mapping, boot_reserved, entry_image):
+    import json
+    expected = dict(format=2, scope='pinned-tamago-el1-resources-excluded-v2',
+                    ram_base=0x84000000, ram_bytes=256 << 20,
+                    control_base=0x20010400, control_bytes=256,
+                    dma_base=0x94800000, dma_bytes=8 << 20,
+                    reader_base=0x95000000, reader_bytes=8 << 20,
+                    firmware_base=0x50000, firmware_bytes=0x10000)
+    if json.dumps(cpu_mapping, sort_keys=True) != json.dumps(expected, sort_keys=True):
+        raise ValueError('independent tape requires the complete paired-program resource layout')
+    if not isinstance(boot_reserved, list):
+        raise ValueError('complete boot reservations required')
+    protected = [(expected[a], expected[b]) for a, b in (
+        ('ram_base', 'ram_bytes'), ('control_base', 'control_bytes'),
+        ('dma_base', 'dma_bytes'), ('reader_base', 'reader_bytes'),
+        ('firmware_base', 'firmware_bytes'))]
+    required = {(0, 0x80000), (0x80000000, 32 << 20),
+                (0x82000000, 32 << 20), (0xb0000000, 256 << 20)}
+    observed = set()
+    for row in boot_reserved:
+        if not isinstance(row, dict) or any(type(row.get(k)) is not int for k in ('start', 'size')):
+            raise ValueError('integer boot reservation required')
+        start, size = row['start'], row['size']
+        if start < 0 or size <= 0 or start > (1 << 64) - size:
+            raise ValueError('bounded boot reservation required')
+        observed.add((start, size))
+        protected.append((start, size))
+    if not required <= observed:
+        raise ValueError('original boot reservations cannot be omitted')
+    if (not isinstance(entry_image, dict) or set(entry_image) != {'base', 'bytes'} or
+            any(type(entry_image[k]) is not int for k in entry_image) or
+            entry_image['base'] != 0x96080000 or not 0 < entry_image['bytes'] <= 16 << 20):
+        raise ValueError('complete fixed native entry envelope required')
+    protected += [(entry_image['base'], entry_image['bytes']), (0x99000000, 16 << 20)]
+    base, size = 0x95800000, 2 << 20
+    if any(base < first + length and first < base + size for first, length in protected):
+        raise ValueError('independent tape reservation overlaps a live or boot resource')
+    return dict(format=1, scope='nano-independent-initial-tape-memory-v1',
+                base=base, bytes=size, payload_bytes=0x4000,
+                metadata_base=base + size - 4096, metadata_bytes=4096,
+                mapping='normal-uncached-XN', lifetime='pinned-until-reboot',
+                configuration_reused=False, physical_authority=False)

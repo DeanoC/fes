@@ -1,5 +1,23 @@
 # Native contained-fabric endpoint
 
+The independent initial-tape arena prototype has separate pinned storage at
+`0x95800000..0x95a00000`, with a 16 KiB payload and its own final metadata page.
+Its layout checker preserves the complete configuration reservation, both MENU
+slots, heap and boot windows. The publisher requires a newly completed,
+privately validated configuration for every tape lease and leaves that source
+and metadata unchanged. Copied tape handles share one private state; copied
+configuration owners and storage aliases reject before access. Late/uncertain
+publication remains retained and cannot replay. Race-enabled host tests and the
+actual generic C tape protocol engine pass, including minimum/maximum tapes.
+
+This prototype is **not wired into the board hook, CPU/EL3 mappings, fixed
+firmware supplier or matched producer profile yet**. It has no boot image or
+hardware acceptance. The existing selected publisher still rejects retained
+configuration storage, as required by the recorded hardware failure. Replace
+that borrowed-storage path when the matched independent path is complete; do
+not remove its guard to bypass the ownership conflict.
+
+
 The selected native Tenfoot image now accepts an explicit
 `--writable-storage-plan FILE --sd-transfer-clock 25000000`. That compiled
 card/recovery plan selects the owned writable session and partition-confined

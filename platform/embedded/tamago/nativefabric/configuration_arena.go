@@ -13,6 +13,7 @@ import (
 // this type establishes neither physical ownership nor bridge permission.
 // A retained program additionally needs secure source release before overwrite.
 type ConfigurationArena struct {
+	self                      *ConfigurationArena // canonical owner; copied handles cannot supply a new tape lease
 	mu                        sync.Mutex
 	address                   uint64
 	memory                    []byte
@@ -22,6 +23,7 @@ type ConfigurationArena struct {
 	ready                     bool
 	failed                    bool
 	retained                  bool
+	sourceMatches             func() bool // called only with mu held
 	tapeOwner, tapeGeneration uint64
 	tapeRegion                *Region
 }
@@ -59,7 +61,9 @@ func NewConfigurationArena(address uint64, memory []byte, barrier func() error) 
 		address > 0xc0000000-uint64(len(memory)) || barrier == nil {
 		return nil, errors.New("native fabric: bounded pinned configuration arena required")
 	}
-	return &ConfigurationArena{address: address, memory: memory, barrier: barrier}, nil
+	a := &ConfigurationArena{address: address, memory: memory, barrier: barrier}
+	a.self = a
+	return a, nil
 }
 
 // Reserve never overwrites an outstanding or uncertain lease. Completion
@@ -231,6 +235,10 @@ func (a *ConfigurationArena) reserveLocked(source []byte, reclaimed bool) (*Regi
 			}
 			return a.reserveLocked(next, true)
 		}
+	}
+	a.sourceMatches = func() bool {
+		return !a.failed && a.active == region && a.ready && bytes.Equal(region.Bytes, owned) &&
+			(a.metadata == nil || published && bytes.Equal(a.metadata[:len(header)], header) && romUnchanged())
 	}
 	clear(a.metadata)
 	copy(region.Bytes, owned)
