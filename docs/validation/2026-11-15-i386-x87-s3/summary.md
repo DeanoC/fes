@@ -1008,13 +1008,19 @@ What follows from it, and what does not:
   three binding regions rather than the single cause; and the decoder's
   *area* did not grow, which is consistent with logic that was restructured
   deeper rather than simply added to.
-- **The shapes of fix are all in this slice's own code**, which is why it is
-  worth saying where they are even though none is taken here: fold the x87
-  memory arms into the shared memory-operand path so the address-mode
-  selection gains no cases; or derive the x87 memory shape from ModRM fields
-  that are already computed, off this cone; or add a decode stage, which is
-  architectural and much the most expensive. The first is the least invasive
-  and changes no behaviour.
+- **Where to start, which the measurement names specifically.** The problem
+  is **case count in a shared selection, not x87 logic depth**: no x87 field
+  is on these paths, and what grew is the address-mode decode that this
+  slice's new memory forms now feed. So the recommended starting point is
+  to **fold the x87 memory arms into the shared memory-operand path, which
+  changes no behaviour and removes cases from the address-mode selection
+  rather than adding depth beside it.** Deriving the x87 memory shape from
+  ModRM fields already computed, off this cone, is the same idea by another
+  route. A decode stage would also work and is much the most expensive --
+  it is architectural, and it moves instruction timing, so the lockstep's
+  cycle expectations move with it. These are listed in that order on
+  purpose: the first is what the evidence points at, not merely the
+  cheapest of three.
 - **Doing it in slice 3 would cost a re-freeze and every gate again** -- the
   unit bench on RTL and netlist, the lockstep four ways, test386, a new
   Quartus seal, a kit run, and a fresh nine-seed sweep to find out whether it
