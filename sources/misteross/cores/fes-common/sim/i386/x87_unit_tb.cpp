@@ -1546,9 +1546,11 @@ int main(int argc, char **argv) {
             {"m32",  0x0, FMT_F32, 4}, {"m64", 0x4, FMT_F64, 8},
             {"m32i", 0x2, FMT_I32, 4}, {"m16i", 0x6, FMT_I16, 2},
         };
-        const char *rfname[6] = {"add", "mul", "com", "comp", "sub", "subr"};
+        // Reg fields 0 to 5 are slice 3's and 6 and 7 are slice 4's divides,
+        // so the loop runs the whole field.
+        const char *rfname[8] = {"add", "mul", "com", "comp", "sub", "subr", "div", "divr"};
         for (const MForm &m : mforms) {
-            for (unsigned rf = 0; rf < 6; ++rf) {
+            for (unsigned rf = 0; rf < 8; ++rf) {
                 for (unsigned rc = 0; rc < 4; ++rc) {
                     const uint16_t cw = host_cw(rc);
                     // The host addresses the operand through %rcx, so its

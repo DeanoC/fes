@@ -1606,7 +1606,17 @@ module fes_i386_x87 (
                         // An empty register, an unsupported format, a NaN,
                         // an infinity or a pair of zeros: the result is the
                         // operand classes' and the datapath never runs.
-                        pfl <= sp_bad ? sp_fl : pfl | sp_fl;
+                        //
+                        // Where the operation's own PRE-operation exception
+                        // fired -- invalid, or slice 4's divide-by-zero --
+                        // it is the only thing reported, so a denormal the
+                        // memory conversion already flagged goes with
+                        // everything else. The host settles it on FDIVR with
+                        // a denormal m32 over zero, which reports ZE alone
+                        // and not ZE and DE: six to eight cases per memory
+                        // row. This is slice 3's rule 5 holding for a masked
+                        // exception as well as an unmasked one.
+                        pfl <= (sp_bad || sp_fl[0] || sp_fl[2]) ? sp_fl : pfl | sp_fl;
                         psf <= sp_sf;
                         pc1 <= sp_sf && ca != C_EMPTY && cb != C_EMPTY;
                         ares <= sp_v;
