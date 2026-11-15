@@ -330,7 +330,10 @@ module pc386_system #(
         .dirty_index(dirty_index), .dirty_word(dirty_word),
         .disk_frozen(disk_frozen), .disk_dirty_clear(disk_dirty_clear), .disk_dirty_clearing(disk_dirty_clearing),
         .disk_writer_busy(disk_writer_busy), .disk_fenced(disk_fenced), .disk_written(disk_written),
-        .floppy_type({3'd0, 3'd0}), .floppy_present(2'b00), .floppy_write_protect(2'b00),
+        // No drives and a hard-disk launch until slice F3 brings the
+        // record's drive types and boot device (removable media, F3).
+        .floppy_type({3'd0, 3'd0}), .boot_device(2'd0),
+        .floppy_present(2'b00), .floppy_write_protect(2'b00),
         .floppy_two_sided(2'b00), .floppy_cylinders({7'd0, 7'd0}), .floppy_spt({6'd0, 6'd0}),
         .fdc_frozen(1'b0), .fdc_busy(fdc_busy), .fdc_fenced(fdc_fenced),
         .record_write(record_write), .record_index(record_index), .record_byte(record_byte),

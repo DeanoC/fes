@@ -176,6 +176,7 @@
 #define PORT_FD_DOR            0x03f2
 #define PORT_FD_STATUS         0x03f4
 #define PORT_FD_DATA           0x03f5
+#define PORT_FD_DIR            0x03f7  // FES 2026-11-13: INT 13h AH=16h
 
 #define CPUID_MSR (1 << 5)
 #define CPUID_APIC (1 << 9)

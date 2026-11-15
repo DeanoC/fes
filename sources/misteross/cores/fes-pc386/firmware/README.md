@@ -121,10 +121,46 @@ a modified library:
   `modeset` check (`--suite scroll`) sets modes 13h, 93h and 03h and counts
   the registers kept.
 
-The boot order and disk-only boot need no patch: the machine writes CMOS 2Dh,
-38h, 3Dh and 3Fh. The floppy POST and INT 13h floppy paths stay; CMOS 10h says
-no drives, so they never reach the floppy controller (`pc386_fdc`) that slice F1
-of [removable media](../../../../../docs/design/pc386-removable-media.md) fitted. The Bochs debug ports
+- `rombios.c`, `rombios.h`: the floppy change line, slice F2 of
+  [removable media](../../../../../docs/design/pc386-removable-media.md)
+  ([#1694](https://github.com/DeanoC/fes/issues/1694)).
+  - **INT 13h AH=15h** returns AH=02h, a drive with a change line, when the
+    drive's CMOS 10h type is 2-5, as an AT BIOS reports a 1.2M, 720K, 1.44M
+    or 2.88M drive. Type 1 (360K) keeps AH=01h and an absent drive AH=00h.
+  - **INT 13h AH=16h** answers from the controller's DIR for such a drive: it
+    selects the drive and its motor as `floppy_prepare_controller` does,
+    reads 3F7h bit 7, and returns AH=00h with CF clear when it is clear. On a
+    change it clears the drive's recalibration bit in 40:3E and the "media
+    type established" bit of its media state at 40:90, so the next access
+    senses the medium and rereads the disk, then returns AH=06h with CF.
+    A 360K drive (type 1) always reports a change, and an absent drive a
+    timeout (AH=80h), as the AT BIOS's DISK_CHANGE does.
+  - **`floppy_drive_recal`** steps the head in one cylinder, with a Seek to
+    cylinder 1, before the Recalibrate when the change line is active. A
+    drive resets that line only when it sees a step pulse with a disk in it,
+    and Recalibrate issues step pulses only "as long as the TRKO pin is low"
+    (82077SL datasheet 290410-001, RECALIBRATE; the 82077AA's superset), so a
+    head already at cylinder 0 would leave the line set and every later
+    access would be told the disk had changed again. INT 0Eh ends the seek
+    with its own Sense Interrupt Status, as it does for the Recalibrate.
+
+  Upstream always reported no change line, so DOS treated the drives as
+  XT-style and assumed a change after two idle seconds. The IBM PC/AT BIOS's
+  own diskette listing (5170 BIOS source, `DSKETTE.ASM`) settles each answer:
+  `DISK_TYPE` returns CHGLN for an 80-track drive and NOCHGLN for a 40-track
+  one; `DISK_CHANGE` reads 3F7h through `READ_DSKCHNG`, which turns the motor
+  on first, and reports a timeout when there is no drive; and `MED_CHANGE`
+  resets the change signal with "THIS SEQUENCE OF SEEKS", a seek to cylinder 1
+  and back to cylinder 0, after clearing the drive's media state. This BIOS
+  puts that seek in `floppy_drive_recal`, which the media sense calls on the
+  next access. `--suite floppy` checks the whole sequence across four swaps.
+
+The boot order and the boot device need no patch: the machine writes CMOS
+2Dh, 38h, 3Dh and 3Fh from the launch's boot device. The floppy POST and INT
+13h floppy paths reach the floppy controller (`pc386_fdc`) only when CMOS 10h
+fits a drive, which slice F2 drives from the machine's configuration; the
+sealed core still fits none until slice F3 reads them from the
+`fes.pc386.machine` record. The Bochs debug ports
 400h-403h and VGABios's 500h are the machine's debug sink.
 
 ## Licence obligations

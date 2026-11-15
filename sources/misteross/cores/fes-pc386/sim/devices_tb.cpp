@@ -76,6 +76,18 @@ struct Bench {
         while (top.cmos_busy) clock();
     }
 
+    // Fit the floppy drives and set the launch's boot device, then reset so
+    // the RTC writes the configuration bytes again.
+    void configure_floppies(unsigned type_a, unsigned type_b, unsigned boot_device) {
+        top.floppy_type = uint8_t(type_a | (type_b << 3));
+        top.boot_device = uint8_t(boot_device);
+        top.reset = 1;
+        for (int n = 0; n < 4; ++n) clock();
+        top.reset = 0;
+        while (top.cmos_busy) clock();
+        for (int n = 0; n < 4; ++n) clock();
+    }
+
     void clock() {
         top.disk_rvalid = pending_read &&
                           (held_read_lba < 0 || pending_address / 64 != uint64_t(held_read_lba));
@@ -955,10 +967,30 @@ void rtc(Bench &b) {
     bool config = b.cmos(0x10) == 0x00 && b.cmos(0x12) == 0xf0 && b.cmos(0x14) == 0x04 && b.cmos(0x15) == 0x80 &&
                   b.cmos(0x16) == 0x02 && b.cmos(0x17) == 0x00 && b.cmos(0x18) == 0x3c && b.cmos(0x19) == 47 &&
                   b.cmos(0x1b) == CYLINDERS && b.cmos(0x1d) == HEADS && b.cmos(0x23) == SPT &&
-                  b.cmos(0x30) == 0x00 && b.cmos(0x31) == 0x3c && b.cmos(0x3d) == 0x02 && b.cmos(0x3f) == 0x01 &&
+                  b.cmos(0x30) == 0x00 && b.cmos(0x31) == 0x3c && b.cmos(0x3f) == 0x01 &&
                   b.cmos(0x60) == 0x22 && b.cmos(0x61) == 0x07 && b.cmos(0x62) == 0x01 &&
                   b.cmos(0x63) == 128 && b.cmos(0x64) == 0xe0 && b.cmos(0x65) == 0x26;
     check("CMOS configuration bytes", config);
+    // The floppy drives and the boot device (removable media F2): with no
+    // drive, 10h and 14h's floppy fields are 0 and the hard-disk launch
+    // names all three devices, hard disk, floppy then CD.
+    check("CMOS with no floppy drive: a hard-disk launch", b.cmos(0x10) == 0x00 && b.cmos(0x14) == 0x04 &&
+          b.cmos(0x2d) == 0x00 && b.cmos(0x3d) == 0x12 && b.cmos(0x38) == 0x30,
+          hex(b.cmos(0x10)) + " " + hex(b.cmos(0x14)) + " " + hex(b.cmos(0x2d)) + " " +
+          hex(b.cmos(0x3d)) + " " + hex(b.cmos(0x38)));
+    // A: 1.44M and B: 1.2M, booting from A:.
+    b.configure_floppies(4, 2, 1);
+    check("CMOS with two drives and an A: launch", b.cmos(0x10) == 0x42 && b.cmos(0x14) == 0x45 &&
+          b.cmos(0x2d) == 0x20 && b.cmos(0x3d) == 0x21 && b.cmos(0x38) == 0x30,
+          hex(b.cmos(0x10)) + " " + hex(b.cmos(0x14)) + " " + hex(b.cmos(0x2d)) + " " +
+          hex(b.cmos(0x3d)) + " " + hex(b.cmos(0x38)));
+    // One 360K drive as A:, booting from the CD.
+    b.configure_floppies(1, 0, 2);
+    check("CMOS with one drive and a CD launch", b.cmos(0x10) == 0x10 && b.cmos(0x14) == 0x05 &&
+          b.cmos(0x2d) == 0x00 && b.cmos(0x3d) == 0x23 && b.cmos(0x38) == 0x10,
+          hex(b.cmos(0x10)) + " " + hex(b.cmos(0x14)) + " " + hex(b.cmos(0x2d)) + " " +
+          hex(b.cmos(0x3d)) + " " + hex(b.cmos(0x38)));
+    b.configure_floppies(0, 0, 0);
     unsigned sum = 0;
     for (int n = 0x10; n <= 0x2d; ++n) sum += b.cmos(uint8_t(n));
     check("CMOS checksum 2Eh-2Fh covers 10h-2Dh", b.cmos(0x2e) == (sum >> 8) && b.cmos(0x2f) == (sum & 0xff));
