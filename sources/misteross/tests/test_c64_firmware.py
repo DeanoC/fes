@@ -41,6 +41,17 @@ class C64FirmwareTests(unittest.TestCase):
             # leaves that 8 on a pass picture.
             self.assertIn(bytes([0xE0, 0x09]), kernal)
 
+    def test_character_probe_and_pass_bench_follow_the_open_font(self):
+        chars = firmware.character_image()
+        # Stage 4: LDA $D000; CMP #first character-ROM byte.
+        probe = bytes([0xAD, 0x00, 0xD0, 0xC9, chars[0]])
+        for image in (firmware.build(), firmware.build(without_cartridges=True)):
+            self.assertIn(probe, image[8192:16384])
+        bench = (PATH.parents[1] / "sim/machine_tb.cpp").read_text()
+        for name, code in (("P", 16), ("A", 1), ("S", 19)):
+            row = ", ".join(f"0x{byte:02X}" for byte in chars[code * 8:code * 8 + 8])
+            self.assertIn(f"kGlyph{name}[8] = {{{row}}}", bench)
+
 
 if __name__ == "__main__":
     unittest.main()
