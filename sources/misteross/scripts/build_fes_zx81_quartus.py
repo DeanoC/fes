@@ -201,25 +201,34 @@ def authenticate_tools(root, *, cache_root=None):
     return {'quartus': Tool(quartus.resolve(), version + ' sha256:' + sha(quartus))}
 
 
-def rom_database(cache_root=None):
+# `make toolchain-fes-zx81` without CACHE_ROOT installs the ZX81 lock's Mistral here.
+REPO_LOCAL_MISTRAL = 'build/toolchain/zx81-expansion/install/share/mistral/source'
+
+
+def rom_database(cache_root=None, root=ROOT):
     """The pinned Mistral M10K database: its bytes, found by digest.
 
     FES_ZX81_MISTRAL_DATABASE names a source tree directly. Otherwise every
-    Mistral install under <cache-root>/tools/mistral is a candidate. Only bytes
-    with the pinned digests are accepted, so the locator is not an input.
+    Mistral install under <cache-root>/tools/mistral is a candidate, then the
+    repo-local install that `make toolchain-fes-zx81` writes without a cache.
+    Only bytes with the pinned digests are accepted, so the locator is not an
+    input.
     """
     candidates = []
     if os.environ.get('FES_ZX81_MISTRAL_DATABASE'):
         candidates.append(Path(os.environ['FES_ZX81_MISTRAL_DATABASE']))
-    elif cache_root is not None:
-        candidates.extend(sorted(Path(cache_root).glob('tools/mistral/*/install/share/mistral/source')))
+    else:
+        if cache_root is not None:
+            candidates.extend(sorted(Path(cache_root).glob('tools/mistral/*/install/share/mistral/source')))
+        candidates.append(Path(root) / REPO_LOCAL_MISTRAL)
     for candidate in candidates:
         try:
             return rom_map.read_database(candidate, ROM_DATABASE_SHA256)
         except ValueError:
             continue
-    raise BuildError('no Mistral M10K database with the pinned digests; set FES_ZX81_MISTRAL_DATABASE '
-                     'or pass --cache-root holding the ZX81 toolchain lock\'s Mistral install')
+    raise BuildError('no Mistral M10K database with the pinned digests; run `make toolchain-fes-zx81`, '
+                     'pass --cache-root holding the ZX81 toolchain lock\'s Mistral install, '
+                     'or set FES_ZX81_MISTRAL_DATABASE')
 
 
 def _tree_digest(root):
@@ -640,7 +649,7 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
     require_disk(root)
     repository, revision = _require_clean_source(root, identity_version=identity_version, model=model)
     tools = authenticate_tools(root, cache_root=cache_root)
-    database = rom_database(cache_root)
+    database = rom_database(cache_root, root)
     paths = {name: tool.path for name, tool in tools.items()}
     identities = {name: tool.identity for name, tool in tools.items()}
     quartus = paths['quartus']
@@ -676,7 +685,7 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
         if (create_build_record(root, repository, revision, identities, execution=execution, model=model) != record
                 or execution_inputs(paths, env) != execution
                 or authenticate_tools(root, cache_root=cache_root) != tools
-                or rom_database(cache_root) != database):
+                or rom_database(cache_root, root) != database):
             raise BuildError('Quartus build inputs changed during compilation')
         payload = output / 'core.rbf'
         payload.write_bytes(base)
