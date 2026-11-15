@@ -9,6 +9,7 @@ shifters matter" later.
 |---|---:|---:|---:|---:|
 | standalone, merge base | 4,076 | 9 | 4 | +0.570 ns |
 | standalone, as first written | 8,073 | 9 | 6 | −3.839 ns |
+| **standalone, option A's form** | **6,923** | 9 | 6 | **−1.222 ns** |
 | in-machine, identity on, as first written | **does not fit: 4,407 of 4,191 LABs** | | | |
 | in-machine, identity **off** — what ships and seals | **36,416** | 40 | 282 | **+0.459 ns** |
 
@@ -20,7 +21,27 @@ decode and format table entries, which exist whatever the identity does, and
 the two fits are through different Quartus hosts so the difference is not a
 within-slot delta.
 
-## Why that number is not the algorithm's cost
+## What the shifters cost, measured
+
+**The restructure is worth 1,150 ALMs and 2.6 ns.** The datapath in option
+A's form is **6,923 ALMs** against **8,073** as first written, and the
+standalone envelope's worst setup goes from −3.839 ns to −1.222 ns.
+
+So **14% of the as-written figure was shifters that option A does not have**,
+and the timing improvement is the larger result: a general shift on a
+critical path costs delay out of proportion to its area.
+
+**And the arithmetic's own cost is now measurable: +2,847 ALMs against the
+merge base**, in the same flow and seed, which is what the peak-or-trend
+question was actually asking. The design argument that Goldschmidt reuses
+slice 3's machinery is **not** borne out at that figure — slice 3's whole unit
+is 4,076 ALMs, so slice 4's arithmetic costs about 70% of everything before
+it — but it is now an answer about arithmetic rather than about coding style.
+
+The in-machine identity-on fit at this form decides whether the stop rule
+fires a second time.
+
+## Why the first number was not the algorithm's cost
 
 **Option A's defining choice is that the unit has no barrel shifter** — its
 own header says shifts are done as multiplies. The RTL as first written had
