@@ -10,17 +10,18 @@ from pathlib import Path
 import shutil
 import stat
 import tempfile
+import importlib.util
+
+# One projection implementation for producer BUILD_ID and the parent cache.
+_spec = importlib.util.spec_from_file_location('fes_input_identity',
+    Path(__file__).resolve().parents[1] / 'sources/misteross/scripts/input_identity.py')
+identity = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(identity)
 
 
 def functional_key(record):
     fields = json.loads(record)
-    if fields.get('format') != 2 or not fields.get('source_inputs'):
-        return None
-    functional = {key: value for key, value in fields.items()
-                  if key not in ('repository', 'revision', 'source_path')}
-    encoded = json.dumps(functional, ensure_ascii=False, sort_keys=True,
-                         separators=(',', ':')).encode()
-    return hashlib.sha256(b'fes-functional-inputs-v2\0' + encoded).hexdigest()
+    return identity.functional_key(fields)
 
 
 def plain(path, directory=False):
@@ -35,6 +36,9 @@ def store_for(root, record):
     if key is None:
         raise ValueError('shared artifact cache requires functional record v2')
     root = Path(root).absolute()
+    # Never reinterpret or relabel historical combined-key cache entries.
+    if 'identities' in json.loads(record):
+        root = root / 'design-v1'
     for ancestor in (*reversed(root.parents), root):
         if ancestor.exists() or ancestor.is_symlink():
             plain(ancestor, directory=True)
@@ -48,6 +52,8 @@ def publish(root, record_path, package):
     plain(package, directory=True)
     plain(record_path)
     record = record_path.read_bytes()
+    if json.loads(record).get('parameters', {}).get('selection_only'):
+        raise ValueError('selection-only inputs cannot enter the artifact cache')
     store = store_for(root, record)
     store.mkdir(parents=True, exist_ok=True)
     plain(store, directory=True)

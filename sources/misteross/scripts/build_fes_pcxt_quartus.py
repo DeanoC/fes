@@ -8,6 +8,7 @@ qualification and exact-artifact hardware acceptance remain separate gates.
 from __future__ import annotations
 
 import argparse
+
 from dataclasses import dataclass
 import hashlib
 import json
@@ -26,6 +27,8 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import quartus_fes_pcxt as board
+from scripts.input_identity import manifest_toolchain
+from scripts.input_identity import with_identities
 from scripts.export_core_package import (build_identity, encode_build_record,
     export_package, source_input_closure)
 from scripts.core_package import encode_manifest
@@ -63,6 +66,7 @@ def source_roots(root):
              'cores/fes-common/vendor/kf8253'}
     paths = [str(p) for p in board.input_paths(Path(root))]
     paths += [RECIPE, 'scripts/core_package.py', 'scripts/export_core_package.py',
+              'scripts/input_identity.py',
               'scripts/fes_build_common.py', 'scripts/functional_execution.py',
               'scripts/compiler_read_audit.py', 'scripts/source_provenance.py',
               'scripts/source_repository.py', ABI]
@@ -260,7 +264,9 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
               'recipe': RECIPE, 'recipe_sha256': sha(root / RECIPE),
               'abi_definition': ABI, 'abi_definition_sha256': sha(root / ABI),
               'dependencies': {}, 'tools': dict(tool_identities), 'parameters': parameters}
-    return encode_build_record(fields)
+    if execution.get("selection_only"):
+        fields["parameters"]["selection_only"] = True
+    return encode_build_record(with_identities(fields, root=root))
 
 
 def require_timing(summary, seeds, *, dos_profile=False):
@@ -343,7 +349,7 @@ def manifest(record, payload, *, dos_profile=False, metadata=None):
         'interfaces': interfaces,
         'build': {'id': build_identity(record), 'repository': fields['repository'],
                   'revision': fields['revision'], 'recipe_sha256': fields['recipe_sha256'],
-                  'toolchain': '; '.join(f'{k} {fields["tools"][k]}' for k in sorted(fields['tools']))}})
+                  'toolchain': manifest_toolchain(record)}})
 
 
 def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2, dos_profile=False):

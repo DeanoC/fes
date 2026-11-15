@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Mapping, Sequence
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.input_identity import manifest_toolchain
 from scripts.source_repository import canonical_repository
 from scripts.fes_build_common import BuildError, cuda_toolchain_configuration, FES_GPU_ARCHITECTURES, FES_GPU_BACKEND, FES_TOOLCHAIN_CONFIGURATION, _authenticate_tools as _authenticate_oss_tools, _cell_counts, _git, _i2c_evidence, _read_json, _require_gpu_backend, _run_tool, _sha256, _write_atomic, reject_async_m10k_reads, validate_timing_resources
 from scripts.compiler_read_audit import guard_functional_source
@@ -383,7 +384,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
     rbf = evidence['rbf']
     record_fields = json.loads(record)
     machine = model_for(record_fields['parameters'].get('model', 'zx81'))
-    toolchain = '; '.join((f'{name} {tools[name]}' for name in sorted(tools)))
+    toolchain = manifest_toolchain(record)
     interfaces = [{'id': 'fes.video.fixed-720p60', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.keyboard.hid', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.gamepad.ports', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.audio.pcm-s16-stereo-48k', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.media.zx81-tape', 'major': 1, 'minor': 0, 'required': True}]
     # ZX80's cassette entry is $0207, the address where ZX81 SAVE completes.
     # Tape write belongs to the models that run the ZX81 ROM SAVE path.

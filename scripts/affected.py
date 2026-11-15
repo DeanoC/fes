@@ -52,6 +52,7 @@ FPGA_PRODUCER_HELPERS = {
     'rom_map.py', 'rom_map_oracle.py',
     'fes_build_common.py', 'fes_de10nano_evidence.py', 'compiler_read_audit.py',
     'source_repository.py', 'source_provenance.py', 'functional_execution.py',
+    'input_identity.py', 'source_closure.py', 'source_closures.json', 'build_fes_menu_package.py',
     'core_package.py', 'export_core_package.py', 'search_placer_qor.py', 'pnr_recipe.py',
 }
 # Directory ownership includes cross-core consumers: RISC-V imports Pong

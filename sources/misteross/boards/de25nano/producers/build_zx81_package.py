@@ -9,6 +9,7 @@ import argparse
 import importlib.util
 import json
 import os
+
 from pathlib import Path
 import shutil
 import subprocess
@@ -21,6 +22,8 @@ if __package__ in (None, ''):
 from boards.de25nano.producers import build_menu_package as common
 from boards.de25nano.package.core_package import encode_manifest
 from boards.de25nano.package.export_core_package import build_identity, encode_build_record, export_package
+from scripts.input_identity import manifest_toolchain
+from scripts.input_identity import with_identities
 from scripts.fes_build_common import AuthenticatedTool, BuildError, _require_clean_source as require_clean_source
 from scripts.functional_execution import execution_digest
 from boards.de25nano.scanout import async_inputs, audio_reference
@@ -85,7 +88,7 @@ def create_build_record(root, repository, revision, identities, execution, captu
                    'source_closure', 'compiler_read_audit'):
         roots = sorted(set(roots) | set(common.script_imports(module, root)))
     closure = common.source_input_closure(root, roots, policy=common.SOURCE_POLICY)
-    return encode_build_record({'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,
+    fields = {'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,
         'source_path': root.relative_to(top).as_posix(), 'source_roots': roots, 'source_inputs': closure,
         'recipe': RECIPE, 'recipe_sha256': sha(root / RECIPE), 'abi_definition': ABI,
         'abi_definition_sha256': sha(root / ABI), 'dependencies': {}, 'tools': dict(identities),
@@ -103,7 +106,10 @@ def create_build_record(root, repository, revision, identities, execution, captu
             'hdmi_output_reset_review_policy': async_inputs.output_reset.POLICY,
             'audio_clock_reference_policy': audio_reference.POLICY,
             'pixel_clock_hz': 74250000, 'system_clock_hz': 100000000,
-            'execution_sha256': execution_digest(execution)}})
+            'execution_sha256': execution_digest(execution)}}
+    if execution.get('selection_only'):
+        fields['parameters']['selection_only'] = True
+    return encode_build_record(with_identities(fields, root=root))
 
 
 def manifest(record, payload):
@@ -121,7 +127,7 @@ def manifest(record, payload):
             [{'id': 'fes.fabric.de25-scanout', 'major': 1, 'minor': 3, 'required': True}],
         'build': {'id': build_identity(record), 'repository': fields['repository'], 'revision': fields['revision'],
             'recipe_sha256': fields['recipe_sha256'],
-            'toolchain': '; '.join(f'{name} {value}' for name, value in sorted(fields['tools'].items()))}})
+            'toolchain': manifest_toolchain(record)}})
 
 
 def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_output=None, compile_only=False,

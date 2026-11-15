@@ -54,6 +54,14 @@ FogCast `make build-fogcast` / `build-fogcast-api` (GOOS/GOARCH default to that
 machine). `load_verified_host(..., os_name='darwin', arch='arm64')` verifies it.
 The signed `FogCastHost.app` remains Darwin-only.
 
+Core design-v1 records distinguish the embedded design `BUILD_ID` from the
+recorded toolchain and full recording digests. A design may retain its accepted
+package while a newer compiler is available. Exact artifact identity remains
+the content-derived package ID and RBF/map hashes; expansion and video parts
+still require that exact shell. The manifest's toolchain description binds the
+full record digest, and original records are never rewritten on cache reuse.
+See [functional input identity](../sources/misteross/docs/architecture.md#functional-input-identity).
+
 ## On-wire identity
 
 The target `GET /v1/health` object may include `artifacts` (omitted when the

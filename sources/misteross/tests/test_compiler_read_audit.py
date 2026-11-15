@@ -75,6 +75,16 @@ class ClosurePolicyTests(unittest.TestCase):
 
 @unittest.skipUnless(audit.TRACER.is_file(), 'strace required for actual read auditing')
 class ReadAuditTests(unittest.TestCase):
+    def test_compiler_cannot_consume_excluded_packaging_or_toolchain_bytes(self):
+        for relative in ('scripts/export_core_package.py', 'scripts/input_identity.py',
+                         'cores/fixture/toolchain.lock'):
+            with self.subTest(relative=relative):
+                path = self.root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('excluded source bytes')
+                with self.assertRaisesRegex(audit.ReadAuditError, 'non-design input'):
+                    self.run_child('import pathlib,sys; pathlib.Path(sys.argv[1]).read_bytes()', path)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)

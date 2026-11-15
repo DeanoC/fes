@@ -644,56 +644,80 @@ ZX81, SMS, SG-1000, Apple II, C64, Spectrum and Atari ST use format 3 to seal
 one ROM map. The factory Coleco package and its MegaCart development producer
 use format 4 for two ordered ROM sources and one sealed map. ROM-less producers
 keep format 2.
-The external `build-inputs.json` record is format 2.
-`build_identity` still hashes a format-1 record with the original full-record
-SHA256; a format-2 record uses the domain-separated functional projection.
+The external `build-inputs.json` record is format 2. New source-closed producers
+set `parameters.identity_policy = "design-v1"` and record three validated full
+SHA256 digests under `identities`:
 
-`python3 tools/identity.py /absolute/build-inputs.json` reports
-separate domain-separated SHA256 fingerprints for design inputs and toolchain
-inputs, the original `build_id`, and a SHA256 of the exact canonical record.
-Add `--current /absolute/candidate-build-inputs.json` to compare original
-built-with tools, lock digests and execution parameters against a candidate
-record captured by the selected producer. It reports source changes and
-toolchain-only changes without compiling or rewriting either input. The report
-does not discover current pins or authenticate that the supplied candidate
-matches the checkout. It rejects legacy records without a source closure.
+- `design` binds the ABI, design source inputs, producer recipe, explicit P&R
+  choices and synthesis/design parameters. Its first 32 hex characters are
+  the embedded `BUILD_ID` and its full digest indexes reusable artifacts.
+- `toolchain` binds authenticated tool versions, controlled execution,
+  compiler locks, toolchain helpers and backend selection. Drift is advisory
+  for an existing design; deliberately rebuilding adopts the selected tools.
+- `record` hashes canonical record bytes before adding the derived
+  `identities` object. It includes the entire source closure, packaging code,
+  repository/revision and all execution/recording data. The SHA256 of the final
+  record bytes remains a separate receipt integrity check.
 
-The utility lives outside `scripts/` so it also stays outside unaudited
-broad script closures. These are diagnostic fingerprints, not replacement
-production identities.
-Design inputs retain the ABI, recipe, dependencies, routing recipe, source
-closure and all parameters except the explicitly classified execution fields
-(`execution_sha256`, `gpu_device`, `gpu_backend`, `toolchain_configuration`).
-Toolchain inputs contain those fields, authenticated tool identities, the
-explicit toolchain selector when present, and source files named
-`toolchain.lock`. Source-root enumeration is omitted from the fingerprints;
-the captured file paths and digests remain authoritative. All other source
-files, including mixed producer/build helpers and the exporter, remain
-conservatively classified as design inputs. Unknown parameters remain design
-inputs. A toolchain-only difference describes a candidate update, not a claim
-that it is newer or better, nor permission to reuse hardware acceptance.
+`scripts/input_identity.py` is the shared projection implementation for both
+board exporters and the parent cache. Its versioned exception lists classify
+only audited packaging/record modules and tool authentication/execution modules;
+unknown files and parameters remain design inputs. Producer scripts, shared
+build helpers, ROM/layout generators, constraints and firmware remain in the
+design closure. Packaging exceptions cover the codecs/exporters, URI and Git
+provenance helpers, closure enumeration and identity recording. Toolchain
+exceptions cover bootstrap/lock parsing/cache installation, controlled execution,
+read-audit wrappers, Quartus tool location and `toolchain.lock`/`quartus.lock`.
+This is a module-boundary audit, not an automatic semantic classification of
+arbitrary future Python edits. A helper that starts generating design inputs
+must move into the design class. Native compiler read auditing rejects reads
+of excluded packaging or toolchain source files; all existing Markdown and
+source-closure checks still apply. Python recording code may read those files
+to bind their exact bytes into provenance.
 
-The issue [#1878](https://github.com/DeanoC/fes/issues/1878) identifies real
-packaging churn, but the current record cannot yet prove a packaging-only
-change. `source_inputs` includes exporter scripts and compiler locks, and
-`recipe_sha256` hashes a Python producer that can mix packaging with HDL and
-tool-command generation. Merely hashing these fields separately would retain
-that churn. Removing scripts by filename would also discard real design
-dependencies. A production design-ID switch needs an audited classification
-of those reads and producer responsibilities first.
+The full original closure remains recorded and is verified against Git history
+on every cache hit. Packaging edits therefore change recording provenance
+without requiring a rebuild. They reuse an original sealed package, rather
+than relabelling its manifest or sidecar. `build.toolchain` retains the tool
+labels and appends `; record-sha256 <record digest>` for design-v1 artifacts.
+This binds complete recording identity into the existing manifest text field,
+so two executions/records yielding identical RBF bytes still have independent
+content-addressed packages and evidence. Package wire formats are unchanged.
+Exact-shell composition continues to bind the package ID and payload SHA256 as
+well as BUILD_ID; a shared design ID does not make different routed artifacts
+interchangeable. Runtime identity checks still correlate the loaded core with
+its selected manifest.
 
-The format-2 schema also rejects extra fields. These fingerprints therefore
-live in the report, outside canonical build records; adding them to a record
-would change its identity or require a schema migration. The exact-record
-digest is named `record_sha256`, since `package_id` already identifies sealed
-manifest/payload/map bytes. Today's `BUILD_ID` excludes Git provenance and is
-not a hash of the whole record. The parent artifact cache independently hashes
-that same combined functional projection; `bundle.py` matches and validates
-it before reuse. Changing only the embedded ID would not implement the desired
-reuse policy. Build records, producer closures, cache keys, backend identity,
-D12 and pin-bump gates remain unchanged by reporting. A later production
-migration must update those consumers together and qualify the migrated
-artifacts under the existing timing, seal and hardware rules.
+A design-only selection request captures committed inputs and current lock pins
+before authenticating or installing any compiler. It is explicitly marked
+`parameters.selection_only = true`; both exporters, package inspection and
+cache publication reject such a request as build evidence. A cache hit keeps
+its original authenticated execution, with built-with and currently-selected
+pins in the selection provenance receipt. A miss authenticates tools, checks
+the design key again, builds, and runs the normal timing/seal gates. A forced
+build must select its exact new execution record and cannot fall back to an
+older toolchain's artifact. Different outcomes claiming the same design and
+toolchain identity fail closed. Nightly paired checks require equal execution
+identities and normalize only the manifest's recording tag and Git provenance;
+they still compare RBF, ROM map and all other manifest bytes.
+
+`python3 tools/identity.py /absolute/build-inputs.json` reports the identities.
+Add `--source /absolute/committed/sources/misteross --core fes.zx81` (and
+`--board de25-nano` when needed) to report built-with versus currently selected
+pins without a compiler or build. Alternatively `--current /absolute/record`
+compares two captured records. A source-only report explicitly marks execution
+comparison unavailable: it does not pretend to authenticate installed tools.
+
+Historical format-1 and format-2 records retain their original identities and
+validation. Design-v1 cache entries use a separate `design-v1/` namespace;
+legacy entries are never relabelled or used as migrated builds. Each newly
+built design therefore needs one migration build with its new embedded ID,
+normal timing/seal checks and applicable hardware acceptance (or the existing
+measured D12 exception). A packaging-only change after migration needs none of
+that when the original sealed artifact is reused. A new toolchain merely
+being available is advisory; a committed pin bump is still deliberate adoption
+and must force-build every affected core before merge. No timing, seal or HIL
+gate is relaxed by the identity split.
 
 The package exporter and inspector also recognize format 4 with two ordered ROM
 requirements and one sealed map. The factory Coleco recipe selects
@@ -703,9 +727,9 @@ producer (`scripts/build_fes_coleco_megacart.py`) also emits format 4. Which
 format a new core uses, and when an older format is retired, is
 [core alignment](../../../docs/core-alignment.md).
 
-Record 2 keeps repository/revision and `source_path` as original build provenance, but derives
-its embedded 128-bit ID from a domain-separated functional projection excluding
-those provenance fields. For producers without an audited manifest entry, it
+Record 2 keeps repository/revision and `source_path` as original build provenance.
+The full source closure includes packaging and toolchain inputs even where
+they do not contribute to a design-v1 embedded ID. For producers without an audited manifest entry, it
 includes every tracked regular file under `scripts/` and the owning core/board
 modules of each declared input, including shared RTL, root or core compiler locks,
 the recipe/ABI digests, authenticated
@@ -786,8 +810,8 @@ Only a single routing device is supported in this lane; use
 flags size or label the request. They do not pin the lease. Execution
 inputs are rechecked before sealing and their full description is retained in
 `build-summary.json`; the canonical record includes their digest. Installation
-paths remain part of this conservative identity, so tool relocation does not
-silently reuse hardware qualification. This is an input identity, not a promise
+paths remain in toolchain and recording identity. Relocation can reuse an
+existing sealed design, but a new execution inherits no hardware qualification. This is an input identity, not a promise
 of identical placement bytes across runs. Authentication probes remain the
 existing toolchain checks; actual compiler invocations use the controlled env.
 
@@ -799,7 +823,7 @@ before reusing it. `verify_record_source_at_revision(root, record)` reads the
 recorded commit's exact module closure from Git objects without changing HEAD,
 the index or working files; absent history and altered member sets fail closed.
 It does not substitute for current tool authentication or payload verification.
-Existing FES whole-record matching continues to distinguish
+FES recording provenance continues to distinguish
 commits until that coordinated change lands. No new hardware acceptance is
 claimed by these host-side identity and exporter tests.
 

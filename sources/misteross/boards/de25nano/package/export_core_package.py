@@ -22,6 +22,7 @@ if __package__ in (None, ""):
 
 from scripts.compiler_read_audit import POLICY, excluded_markdown, read_execution_data
 from scripts.source_repository import canonical_repository
+from scripts.input_identity import functional_key, validate_identities, with_identities, manifest_toolchain
 from boards.de25nano.package.core_package import (
     MAX_MANIFEST_SIZE,
     MAX_ROM_MAP_SIZE,
@@ -88,6 +89,8 @@ def _validate_build_record(fields: object) -> dict:
     }
     if isinstance(fields, dict) and fields.get("format") == 2:
         expected |= {"source_roots", "source_inputs", "source_path"}
+        if "identities" in fields:
+            expected.add("identities")
         if "toolchain" in fields:
             if fields["toolchain"] != "quartus":
                 raise PackageExportError("explicit functional toolchain must be quartus")
@@ -169,6 +172,10 @@ def _validate_build_record(fields: object) -> dict:
             for key in ("recipe", "abi_definition"):
                 if fields[key] not in fields["source_inputs"]:
                     raise PackageExportError("recipe/ABI is excluded from source closure")
+    try:
+        validate_identities(fields)
+    except ValueError as exc:
+        raise PackageExportError(str(exc)) from exc
     return fields
 
 
@@ -195,9 +202,7 @@ def build_identity(record: bytes) -> str:
     if version != 2:
         return hashlib.sha256(record).hexdigest()[:32]
     fields = _decode_build_record(record)
-    functional = {key: value for key, value in fields.items() if key not in ("repository", "revision", "source_path")}
-    encoded = json.dumps(functional, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
-    return hashlib.sha256(b"fes-functional-inputs-v2\0" + encoded).hexdigest()[:32]
+    return functional_key(fields)[:32]
 
 
 def _reject_float(value: str) -> None:
@@ -366,6 +371,7 @@ def functional_record_fields(root: Path, fields: dict, roots: list[str], executi
     parameters = dict(fields["parameters"])
     if core_id is not None:
         parameters["pnr_recipe_sha256"] = pnr_recipe.recipe_digest(core_id)
+        parameters["pnr_design_sha256"] = pnr_recipe.design_recipe_digest(core_id)
     for path in (*pinned_inputs, fields["recipe"], fields["abi_definition"]):
         if path not in result["source_inputs"]:
             raise PackageExportError("explicit input excluded from source closure: " + path)
@@ -379,7 +385,9 @@ def functional_record_fields(root: Path, fields: dict, roots: list[str], executi
                                 gpu_device=device, source_closure_policy=POLICY)
     if isinstance(roots, AuditedRoots):
         result["parameters"]["source_closure_mode"] = "audited-v1"
-    return result
+    if execution.get("selection_only"):
+        result["parameters"]["selection_only"] = True
+    return with_identities(result, root=root)
 
 
 def verify_record_source_at_revision(root: Path, record: bytes) -> dict:
@@ -432,6 +440,8 @@ def verify_record_source_at_revision(root: Path, record: bytes) -> dict:
 
 
 def _verify_build_evidence(payload: Path, record: bytes, fields: dict, manifest_fields: dict) -> Path:
+    if fields["parameters"].get("selection_only"):
+        raise PackageExportError("selection-only inputs cannot seal a package")
     try:
         root = Path(_git(payload.parent, "rev-parse", "--show-toplevel")).resolve()
     except PackageExportError as exc:
@@ -449,6 +459,8 @@ def _verify_build_evidence(payload: Path, record: bytes, fields: dict, manifest_
             raise PackageExportError(f"build record {key} does not match manifest")
     if build["id"] != build_identity(record):
         raise PackageExportError("manifest build.id does not match canonical build-input record")
+    if "identities" in fields and build["toolchain"] != manifest_toolchain(fields):
+        raise PackageExportError("manifest toolchain does not bind the complete build record")
 
     recipe = _checked_input(root, fields["recipe"], "recipe")
     abi_definition = _checked_input(root, fields["abi_definition"], "ABI definition")

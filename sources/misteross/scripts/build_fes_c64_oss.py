@@ -26,6 +26,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import c64_slots, coleco_expansion, rom_map, fes_de10nano_evidence
+from scripts.input_identity import manifest_toolchain
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import (
@@ -640,7 +641,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
               tools: Mapping[str, str]) -> bytes:
     rbf = evidence["rbf"]
     record_fields = json.loads(record)
-    toolchain = "; ".join(f"{name} {tools[name]}" for name in sorted(tools))
+    toolchain = manifest_toolchain(record)
     required = [
         "fes.video.fixed-720p60", "fes.keyboard.hid", "fes.gamepad.ports",
         "fes.audio.pcm-s16-stereo-48k", "fes.media.c64-disk",

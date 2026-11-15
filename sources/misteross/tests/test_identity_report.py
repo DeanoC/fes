@@ -67,10 +67,9 @@ class IdentityReportTests(unittest.TestCase):
         original = fields()
         for group, key, value in (
             ('source_inputs', 'cores/core.sv', '1' * 64),
-            ('source_inputs', 'scripts/export_core_package.py', '1' * 64),
             ('source_inputs', 'cores/new.mem', '1' * 64),
             ('parameters', 'seed', 2),
-            ('parameters', 'pnr_recipe_sha256', '1' * 64),
+            ('parameters', 'pnr_design_sha256', '1' * 64),
             ('parameters', 'unknown_parameter', True),
         ):
             changed = copy.deepcopy(original)

@@ -664,7 +664,7 @@ assert lock == expected == pnr_recipe.lock_path(Path.cwd(), sys.argv[5]).resolve
                 module.resolve_core_package(
                     source, 'd' * 40, source / 'selection.toml', env=caller,
                     recipe=module.recipe_for('fes.pong'))
-            self.assertEqual(len(received), 2)
+            self.assertEqual(len(received), 3)
             for env in received:
                 self.assertEqual(env['KEEP'], '1')
                 self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', env)

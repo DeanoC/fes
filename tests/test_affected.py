@@ -16,6 +16,13 @@ class AffectedTests(unittest.TestCase):
         self.assertTrue(result['lanes']['fpga'])
         self.assertEqual(result['cores'], [])
 
+    def test_identity_and_closure_recording_helpers_select_fpga_software(self):
+        for name in ('input_identity.py', 'source_closure.py', 'source_closures.json', 'build_fes_menu_package.py'):
+            with self.subTest(name=name):
+                result = plan(['sources/misteross/scripts/' + name])
+                self.assertTrue(result['lanes']['fpga'])
+                self.assertEqual(result['cores'], [])
+
     def test_hil_inventory_selects_only_parent(self):
         result = plan(['config/hil-go-consumers.json'])
         self.assertEqual({name for name, enabled in result['lanes'].items() if enabled}, {'parent'})

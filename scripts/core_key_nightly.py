@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -31,6 +32,8 @@ def functional_manifest_sha256(text):
         raise ValueError('sealed manifest has no build provenance')
     for field in PROVENANCE_FIELDS:
         del build[field]
+    if isinstance(build.get('toolchain'), str):
+        build['toolchain'] = re.sub(r'; record-sha256 [0-9a-f]{64}$', '', build['toolchain'])
     encoded = json.dumps(manifest, sort_keys=True, separators=(',', ':'), default=str)
     return hashlib.sha256(encoded.encode()).hexdigest()
 
@@ -41,6 +44,8 @@ def decide(narrow, rebuild, reads, closure):
         return any(path == root or path.startswith(root + '/') for root in closure)
     uncovered = sorted({entry['path'] for entry in reads if not covered(entry['path'])})
     reasons = []
+    if narrow.get('toolchain_id') != rebuild.get('toolchain_id'):
+        reasons.append('toolchain differs; a paired comparison requires the same execution inputs')
     if narrow['key'] != rebuild['key']:
         reasons.append('functional key differs')
     if narrow['sha256'] != rebuild['sha256']:
@@ -75,6 +80,7 @@ with tempfile.TemporaryDirectory(prefix='nightly-core-',dir=work) as temporary:
  print(json.dumps({'sha256':inputs['core_rbf_sha256'],
   'key':inputs['source_selection']['functional_inputs_sha256'],
   'package_id':inputs['selection']['package_id'],'manifest_sha256':inputs['manifest_sha256'],
+  'toolchain_id':inputs['source_selection'].get('built_toolchain_id'),
   'rom_map_sha256':inputs.get('rom_map_sha256'),'manifest':manifest}))
 '''
     result = subprocess.run([sys.executable, '-c', program, str(repo), core, str(selection),
