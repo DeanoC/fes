@@ -140,10 +140,11 @@ they are Deano's:
   November in response to slice 3's seed sweep. The identity-off package fits
   and closes at 36,416 ALMs and +0.459 ns, so the no-387 core is unaffected;
   the 387 core is the one with no room.
-- **The whole-system area reduction** Deano deferred on 14 November and made
-  slice 6's charter. 101 LABs is within reach of the area audit's own
-  deferred wins — the keyboard redesign alone was about −650 ALMs — so slice 6
-  landing *before* slice 5 rather than after would change this answer.
+- **The whole-system area reduction** Deano made slice 6's charter, landing
+  *before* slice 5 rather than after. This is a legitimate route and the
+  figures below are what it would have to find — **but see the correction
+  immediately after this list, because an earlier version of this record made
+  it look far easier than it is.**
 - **The DE25**, whose hard floating-point DSP blocks could make the 387 far
   cheaper in fabric, which Deano raised on the same day.
 
@@ -153,3 +154,36 @@ netlist, every lockstep bucket, test386 and QEMU's grid, and the one
 simplification available was already taken — the remainders need no
 Goldschmidt at all, which removed a seed, an iteration count, a candidate and
 an error bound.
+
+## A correction, because it changed what an option looked like
+
+An earlier version of this record said that 101 LABs "is within reach of the
+area audit's own deferred wins — the keyboard redesign alone was about −650
+ALMs". **That is wrong: those wins are already banked, and they are inside
+the 4,292 figure rather than available against it.** The coordinating session
+caught it before it reached Deano.
+
+Checked mechanically rather than recalled — each win's merge commit against
+this slice's merge base `3dd62f1e2`:
+
+| win | PR | merged | merge commit is an ancestor of the merge base |
+|---|---|---|:--|
+| HID keyboard key state in M10K, **−796 ALMs** | [#1802](https://github.com/DeanoC/fes/pull/1802) | 13 Nov | `b8f0cf0c8` — **yes** |
+| OPL2's register memories in MLAB, −160 | [#1795](https://github.com/DeanoC/fes/pull/1795) | 14 Nov | `1c1baddf4` — **yes** |
+| the return stack in an MLAB | [#1638](https://github.com/DeanoC/fes/pull/1638) | 10 Nov | `492abb317` — **yes** |
+
+So **all three are spent**, and the real arithmetic of the slice-6-first
+option is:
+
+- **101 LABs over is about 1,010 ALMs** at ten ALMs a LAB on this device —
+  not a few hundred.
+- **Slice 5's transcendentals come on top of that**, unmeasured.
+- **The audit's identified candidates cannot pay for it, because they
+  already have.** Slice 6 would need roughly a thousand ALMs of reduction
+  that **nobody has identified yet**.
+
+The option stays on the list. What changes is that it is not "about 650 of
+the 1,010 is already in hand" — it is a thousand ALMs from an audit whose
+named wins are gone. Offering Deano the first reading would have been the
+worst kind of error a decision record can make, because it is the kind that
+survives review by sounding reasonable.

@@ -320,3 +320,34 @@ python3 fixed_constants.py 500000
 ```bash
 python3 seed_tables.py --check ../../../../sources/misteross/cores/fes-common/rtl/i386/fes_i386_x87.sv
 ```
+
+## One lesson in five places
+
+Five findings in this slice are the same failure, and the last two are its
+most expensive form.
+
+1. **Circular validation.** `E` and `k` were measured as maxima over the
+   cases that then verified them, which made "zero mismatches" partly true by
+   construction when they are RTL constants. Pinned and revalidated on an
+   unused seed.
+2. **A record reasoning from a number instead of recomputing it.** Three
+   claims reached the coordinating session as measured and were withdrawn:
+   the 64-bit FPREM step, the FSQRT early-termination decline, and remainder
+   widths from fitted bounds.
+3. **A gate never run until the end.** The locked-Yosys netlist bench failed
+   at its first attempt — `real` in a module body — which would have
+   surfaced at the seal.
+4. **A model that did not terminate rather than generating poor cases.** The
+   exact-square construction needed a random 66-bit value to have 34 trailing
+   zeros: 2^-34 a trial, about 26 trillion trials for 1,500 cases. **Its
+   timeout was read as slowness.**
+5. **A test that could pass having tested nothing.** The QEMU grid's
+   stub-page failure only broke the inner loop, leaving the difference count
+   at zero, so the row reported success having compared no cases.
+
+**The last two are the expensive class, because they remove a gate while
+appearing to add one.** A test that cannot fail is worse than no test: the
+record counts it as coverage, and the thing it was supposed to catch goes
+unmeasured with a passing line beside it. Both were found by review, not by
+the tests themselves — which is the argument for reviewing a gate's
+*construction* and not only its verdict.
