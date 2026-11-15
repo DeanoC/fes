@@ -34,9 +34,13 @@ for _ in range(20000):
         if partial:
             worst_q = max(worst_q, q.bit_length())
             if q.bit_length() > 65: viol += 1
-        if near:
-            if abs(2 * rem) > B: viol += 1   # FPREM1's remainder is in [-B/2, B/2]
-        elif rem < 0 or rem >= B: viol += 1
+        if partial:
+            # a partial step's remainder is the running dividend: [0, B)
+            if rem < 0 or rem >= B: viol += 1
+        elif near:
+            # only a COMPLETING FPREM1 step has the IEEE range [-B/2, B/2]
+            if 2 * abs(rem) > B: viol += 1
+        elif rem < 0 or rem >= B: viol += 1   # a completing FPREM: [0, B)
 print(f"{n} cases, {viol} violations, widest partial quotient = {worst_q} bits")
 print("the quotient fits the 64x64 product and the remainder is exact and in range"
       if viol == 0 else "VIOLATIONS -- the primitive does not carry")

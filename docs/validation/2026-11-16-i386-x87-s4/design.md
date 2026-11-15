@@ -201,12 +201,23 @@ figures are here to be overruled with.
 
 ## FPREM's partial step is the divide's primitive
 
-Confirmed in `model/fprem_primitive.py` over 40,000 operand pairs with exponent
-differences up to 300: a partial step's quotient is at most 64 bits, so
-`N × B` is exactly the shared multiplier's 128-bit product, and the remainder
-`A·2^k - N·B` is exact and less than `B` with no violations. That is the same
-primitive as the divide tail — a quotient estimate, one exact 64×64 product,
-and a bounded remainder finished by compare-subtract steps — so **FPREM and
-FPREM1 need no divider of their own**, only the quotient-bit capture for
-C0/C3/C1, the round-to-nearest variant for FPREM1, and the C2 decision on the
-exponent difference.
+Confirmed in `model/fprem_primitive.py` over 40,000 step evaluations with
+exponent differences up to 300, for both the truncating and the
+round-to-nearest quotient: zero violations. The remainder is exact and in
+range in each of the three cases that have *different* ranges, which is the
+part a single check would have got wrong — a partial step's remainder is the
+running dividend in `[0, B)`, a completing FPREM's is in `[0, B)`, and only a
+completing **FPREM1**'s is the IEEE `[-B/2, B/2]`. An earlier version of this
+check applied FPREM1's range to partial steps too and reported 7,860
+violations against a design that was correct; the violations were the
+checker's.
+
+**The measured partial quotient is up to 65 bits, not 64.** So `N × B` is not
+quite one multiplier pass: it is one 64×64 product plus a single shifted add
+of `B` for the top bit — the same arrangement the divide candidate already
+needs for its bits above 63, not a new one.
+
+With that, **FPREM and FPREM1 need no divider of their own.** What they add
+over the divide tail is the quotient-bit capture for C0/C3/C1, the
+round-to-nearest quotient for FPREM1, and the C2 decision on the exponent
+difference.
