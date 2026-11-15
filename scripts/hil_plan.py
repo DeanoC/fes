@@ -65,6 +65,14 @@ RULES = [
     ('sources/misteross/cores/*/sim/**', 'none', None),
     ('sources/libmister-runtime/tests/**', 'none', None),
     ('sources/misteross/scripts/sim_*', 'none', None),
+    # The HIL run guards are the harness that drives a hardware run from
+    # Powerboat: end of run, the cleanup gate and the run's verdict. They
+    # deploy no bytes to a kit, so a change to them needs no core's overlay.
+    # Their behaviour is checked in sources/misteross/tests/test_kit_hil.py,
+    # and their hardware evidence is the next run that uses them. The lease
+    # client kit.py beside them keeps its producer classification: the import
+    # graph reaches it from an acceptance producer.
+    ('sources/misteross/scripts/kit_hil.py', 'none', None),
     ('sources/misteross/tools/identity.py', 'none', None),
     # Definitions are checked through their generated deployed consumers below.
     ('sources/mister-packages/packages/board/de25_nano.yaml', 'none', None),

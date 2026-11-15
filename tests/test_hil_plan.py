@@ -244,6 +244,20 @@ class HilPlanTest(unittest.TestCase):
                 row = plan.classify_path(path)
                 self.assertEqual(row['class'], 'none', path)
 
+    def test_hil_run_guards_deploy_nothing_and_need_no_overlay(self):
+        # kit_hil.py drives a hardware run from Powerboat; no image, bundle or
+        # core package carries it, so its own change needs no core's overlay.
+        # Without a rule of its own it falls to sources/misteross/scripts/**,
+        # which asks for an overlay HIL of every core (issue #1849).
+        plan = hil_module()
+        guards = 'sources/misteross/scripts/kit_hil.py'
+        self.assertEqual(plan.classify_path(guards)['class'], 'none')
+        result = plan.plan([guards, 'sources/misteross/tests/test_kit_hil.py'], texts={})
+        self.assertEqual(result['decision'], 'NO_DEPLOY_CHANGE')
+        # The producers beside them keep their overlay requirement.
+        self.assertEqual(plan.classify_path('sources/misteross/scripts/build_fes_zx81.py')['class'],
+                         'overlay')
+
     def test_image_binary_appliance_fixtures_are_full(self):
         expected = {
             'release.files': ('sources/FogCast/appliance/release.go', 'appliance-trial'),
