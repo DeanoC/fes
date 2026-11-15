@@ -362,8 +362,10 @@ table as well, with what they do and do not show.
   round did rest on the pc386 bring-up exemption for a post-seal RTL fix,
   and resealing was cheaper than asking a reader to accept a waiver the
   repository's rules do not record.
-- Package `9f08910b0af8e1dc…`, `BUILD_ID` `622aa3935b181750ce5da9d81611817a`,
-  backend CUDA, device 5CSEBA6U23I7, status `pass`.
+- Package `ca35f82d2bb8186a…`, `BUILD_ID` `d65fad1dfb8d57c98f3fd14e03726b68`,
+  backend CUDA, device 5CSEBA6U23I7, status `pass`. That is the artifact the
+  seal row above records and the one Kit A run `a3` launched; the earlier
+  rounds' summaries are kept for the spread, not for retrieval.
 
 ## Reproduce
 
