@@ -405,6 +405,8 @@ end
 local boot = 0
 local warm_px, warm_at, desc_warm
 local pool_rows = 160
+-- Keep prewarmed wrapping keyed to the actual rendered description size.
+local description_size = 18
 local function warm_done()
   return desc_warm and warm_px and warm_at > #warm_px
 end
@@ -434,7 +436,7 @@ local function warm_more()
   end
   -- Wrapping the standing description is its own frame, after the face heights.
   if n == 0 and warm_at > #warm_px and not desc_warm then
-    wrapped("Choose an expansion on the shelf. The host checks that it fits this exact machine.", 15, 2, 470)
+    wrapped("Choose an expansion on the shelf. The host checks that it fits this exact machine.", description_size, 2, 470)
     desc_warm = true
   end
 end
@@ -555,7 +557,7 @@ local function picture(part)
   text(c and c.label or "Empty socket",620,248,22,C.ink,476,true)
   local description=c and c.description or "Choose an expansion on the shelf. The host checks that it fits this exact machine."
   if c and not c.ready then description=c.unavailable_reason end
-  lines(description,620,278,470,18,2,C.muted)
+  lines(description,620,278,470,description_size,2,C.muted)
   -- expansion_selection is this listener's save permission. Content
   -- readiness stays on the socket and the card. An omitted field is an
   -- older unpaired host and keeps the existing save.
