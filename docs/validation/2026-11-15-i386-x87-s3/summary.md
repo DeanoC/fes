@@ -353,8 +353,11 @@ that drives four passes of one multiplier.
 device, and −0.209 ns of setup slack** (+0.385 to +0.176). Those are
 differences of two fits through one slot that differ only by this slice's
 RTL, which is what the brief asks for and the first figures here that need no
-caveat. For scale, slice 2's own published in-machine cost was +1,608 --
-cross-slot, so read it as "about the same" rather than as one ALM apart.
+caveat. Slice 2's own published in-machine cost was +1,608, but that was measured
+through the other slot, so the right sentence is the weaker one: **two slices
+of this unit have each cost about 1,600 ALMs in the machine**, against a
+spike that predicted 1,687 for all of them. The one-ALM coincidence is not a
+result.
 
 **That is 95% of the fit spike's in-machine prediction of +1,687 for the
 whole of option A**, slow path and transcendentals included. The standalone
@@ -612,6 +615,32 @@ in a thirty-minute idle wait still holding the lease.
   because every title the census found computing except SpeedSys's FPU test
   also runs a transcendental. The bench and the lockstep are the gate here;
   the kit run is not.
+
+## A method note, from four review findings of one kind
+
+Codex found four P2s on this record, and all four were the same failure, so
+it is worth one paragraph rather than four fixes. None was a wrong
+measurement. Each was a **claim that drifted from the evidence somewhere else
+in the document**: stale comparison totals after the bench grew; a SoftFloat
+corroboration narrowed in one section and left standing in another; a
+provenance sentence saying every figure came through one toolchain slot while
+a subsection reported a fit from the other; and a margin drop computed across
+two slots in a record that quantifies those slots as differing by 0.184 ns on
+identical RTL -- about half the drop being attributed to the slice.
+
+That last one is the sharpest, because this record exists partly to prevent
+exactly that comparison, and it made it anyway. The common cause is a long
+record written in pieces over hours: each paragraph was right when written,
+and later paragraphs reasoned from prose rather than from the measurements.
+It is the #1855 pattern in a new form -- not one claim restated in several
+places and going stale, but one claim stated correctly and then reasoned past.
+
+What would have prevented all four: **compute every comparison from the
+fits' own table rather than from a sentence earlier in the document, and
+quote no delta whose two sides are not in that table.** Three of the four
+reached the coordinating session before they were caught, so the cost is not
+only a review round. A slice that reports numbers should keep them in one
+place and derive, not restate.
 
 ## Reproducing
 
