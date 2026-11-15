@@ -58,6 +58,18 @@ def selected_recipe(root=ROOT, core_id='fes.pcxt'):
     return entry
 
 
+def quartus_recipe_parameters(recipe):
+    """Separate artifact choices from compiler and execution metadata."""
+    design_recipe = {key: value for key, value in recipe.items()
+                     if key not in ('version', 'threads')}
+    return {
+        'quartus_recipe_sha256': hashlib.sha256(
+            json.dumps(design_recipe, sort_keys=True).encode()).hexdigest(),
+        'quartus_version': recipe['version'],
+        'quartus_threads': recipe['threads'],
+    }
+
+
 def source_roots(root):
     # Keep the complete core and vendor directories, including documentation.
     # Outside them capture every board input and the producer's Python helpers.
@@ -251,8 +263,8 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
                   'video_mailbox_contract': True,
                   'system_clock_hz': 100000000, 'pixel_clock_hz': 74250000,
                   'hdmi_phase_ps': 8979,
-                  'quartus_recipe_sha256': hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest(),
                   'execution_sha256': execution_digest(execution)}
+    parameters.update(quartus_recipe_parameters(entry['quartus']))
     if dos_profile:
         metadata, font = dos_assets(root)
         parameters.update(glabios_rom_sha256=metadata['bios']['sha256'],

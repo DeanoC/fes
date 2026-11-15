@@ -3,6 +3,7 @@ import json
 import unittest
 
 from scripts import export_core_package as exporter
+from scripts import build_fes_pcxt_quartus as pcxt_quartus
 from boards.de25nano.package import export_core_package as de25
 from scripts.input_identity import (
     PACKAGING_INPUTS, TOOLCHAIN_INPUTS, TOOLCHAIN_PARAMETERS, identities,
@@ -47,11 +48,37 @@ class InputIdentityTests(unittest.TestCase):
             self.assertNotEqual(before['identities']['toolchain'], after['identities']['toolchain'], key)
 
     def test_quartus_recipe_version_drift_is_toolchain_only(self):
+        recipe = {'version': 'Quartus Lite 17.0', 'seeds': [1, 2, 3], 'threads': 2}
         before = self.record()
-        before['parameters']['quartus_recipe_sha256'] = '0' * 64
+        before['parameters'].update(pcxt_quartus.quartus_recipe_parameters(recipe))
         before = with_identities(before)
+        changed = dict(recipe, version='Quartus Lite 17.1')
         after = copy.deepcopy(before)
-        after['parameters']['quartus_recipe_sha256'] = '1' * 64
+        after['parameters'].update(pcxt_quartus.quartus_recipe_parameters(changed))
+        after = with_identities(after)
+        self.assertEqual(before['identities']['design'], after['identities']['design'])
+        self.assertNotEqual(before['identities']['toolchain'], after['identities']['toolchain'])
+
+    def test_quartus_first_seed_drift_moves_design_identity(self):
+        recipe = {'version': 'Quartus Lite 17.0', 'seeds': [1, 2, 3], 'threads': 2}
+        before = self.record()
+        before['parameters'].update(pcxt_quartus.quartus_recipe_parameters(recipe))
+        before = with_identities(before)
+        changed = dict(recipe, seeds=[4, 2, 3])
+        after = copy.deepcopy(before)
+        after['parameters'].update(pcxt_quartus.quartus_recipe_parameters(changed))
+        after = with_identities(after)
+        self.assertNotEqual(before['identities']['design'], after['identities']['design'])
+        self.assertEqual(before['identities']['toolchain'], after['identities']['toolchain'])
+
+    def test_quartus_thread_count_is_toolchain_metadata(self):
+        recipe = {'version': 'Quartus Lite 17.0', 'seeds': [1, 2, 3], 'threads': 2}
+        before = self.record()
+        before['parameters'].update(pcxt_quartus.quartus_recipe_parameters(recipe))
+        before = with_identities(before)
+        changed = dict(recipe, threads=4)
+        after = copy.deepcopy(before)
+        after['parameters'].update(pcxt_quartus.quartus_recipe_parameters(changed))
         after = with_identities(after)
         self.assertEqual(before['identities']['design'], after['identities']['design'])
         self.assertNotEqual(before['identities']['toolchain'], after['identities']['toolchain'])
