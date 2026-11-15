@@ -72,49 +72,67 @@ BUILD_ID as well, so evidence gathered before it landed would not have survived 
 
 ### Result
 
-Twelve of the thirteen closures discharge D12's conditions 1 and 2, and the thirteenth
-(`fes.pcxt`/`fes.pcxt-dos`) takes the normal reseal and HIL path -- see "What this evidence
-does not cover". `base` is the merge base
-`1a4bb8d41`; each core's netlist and RBF are byte-identical between the base build and a build of
-this branch with the base's `BUILD_ID` forced.
+All twelve closures discharge D12's three conditions. Eleven were measured against merge base
+`1a4bb8d41`; `zx81` was re-measured against `e9218eb5e` after main's DeanoC/fes#1791 changed
+`cores/fes-zx81/rtl/top.v`, `zx81_machine.sv` and `zx81_machine_clock.v`. The other eleven carry
+forward under D12's merge-forward clause: their only closure hit in that window is
+`scripts/core_package.py`, which is neither compiled source nor a route-deciding input.
 
-| core | base `BUILD_ID` | RBF sha256 | netlist sha256 | reproduced |
+| core | base `BUILD_ID` | RBF sha256 (base = forced1 = forced2) | netlist sha256 | condition 3 `BUILD_ID` |
 | --- | --- | --- | --- | --- |
-| `sg1000` | `7934cd7de29e79d7fb035d0228f3a091` | `33c5bfb5d0825e81…` | `2391423461a89232…` | yes |
-| `zx81` | `206e0c11ead6c524a5921162bb0485a9` | `2b119ad28633092c…` | `66bf33174544549e…` | yes |
-| `sms` | `ae427058d7af3fc0d5b4d1bcdd931857` | `13bdd21e2bcf0a3d…` | `96bd06d9be2499e6…` | yes |
-| `coleco_socket_v2` | `4c89ac89fa17748f98eb933d11a42448` | `b96654ed2215a8f5…` | `625f45a5de90868b…` | yes |
-| `apple2` | `8f2b0f5c44d80fd3cc859d2279df535b` | `f13e1a07375ff8c7…` | `7bcf92be4a480162…` | yes |
-| `spectrum` | `48d10766ec24b2e78dc1d51617d5dfb7` | `dea25f242efbb936…` | `0bb6d9e18fc65beb…` | yes |
-| `atari_st` | `33b9e9dd654a7d81a08428145f176f07` | `ab47e3937b51bdbb…` | `d475f5413aa990bb…` | yes |
-| `c64` | `8016924c62c6148f47a59e405b61ab1f` | `b0eccc7fe8296302…` | `08644e85311fa460…` | yes |
-| `pong` | `1d32b88b34acf5c5e953c2e721bac236` | `b668bbea9891ac6d…` | `951d41c8b2a2d2ac…` | yes |
-| `menu` | `177d3678bfc8e8b4187ed489066bef2f` | `f85ec56563d14ee7…` | `fddf97b917a61b9f…` | yes |
-| `ramtest` | `7a60de20fc0fb448849cd24eed50a253` | `d3774d8027b61a94…` | `a5e0d01b501fb772…` | yes |
-| `riscv` | `e0a17b8e0d06d1b5b5fae611bdedc308` | `a7224f83777d917a…` | `99f92fafc5b0c591…` | yes |
+| `sg1000` | `7934cd7de29e79d7fb035d0228f3a091` | `33c5bfb5d0825e81bbecde46885c0cc64880da723a18d4fdd001d063f00aaa7e` | `2391423461a89232d884276d069603666efe1c58f9c2efdb4b6190261bc2eaab` | `0eeeff46645d95ff8e24df2172adf63e` |
+| `zx81` | `198cabcfee18c2607f738b7c23502e33` | `118c0032439e0fa5c8831aea6659ef1a8866cd895c580e1341b2296dd4dcc91a` | `82a85826e84fda84bdf695a6c7c394574c3dabb85d73639134fe3436f36cb247` | `2fb09f637972c70817b67001a7480911` |
+| `sms` | `ae427058d7af3fc0d5b4d1bcdd931857` | `13bdd21e2bcf0a3dabe0bad46f3d963169c31cb94b63e5fb808272cf75cdfde4` | `96bd06d9be2499e648faeb6c9cc5d6a3ce409626b94cbd5da49a876f6794d282` | `f37aac4ab73a9fe637e7ab5cfedce6c9` |
+| `coleco_v2` | `4c89ac89fa17748f98eb933d11a42448` | `b96654ed2215a8f5fde32c45ae4a458d7dc4d2dd31b67947431c17aad1e7d5fc` | `625f45a5de90868b8073d860a4ba98805dd93c1d1e5941e59b02bf822a47f316` | `3846446170600c0f492c5dc07319c7e7` |
+| `apple2` | `8f2b0f5c44d80fd3cc859d2279df535b` | `f13e1a07375ff8c706b95082b6a87d9ea95abcd635b245eb7117c81f6b9ac345` | `7bcf92be4a48016282c30219d8c16207285c0151de169ab64beaacec17eaaee7` | `a064651a5629eb6aed9e59dc4a19fcc6` |
+| `spectrum` | `48d10766ec24b2e78dc1d51617d5dfb7` | `dea25f242efbb936c2bbe6af2235021a3d67d02e852890befbb25bb4d4b93e7d` | `0bb6d9e18fc65beb4dab5d950b8149a4554b8697ae5facbedb8547e4f756ed21` | `58634e6beb2975b36164cc8cde00ae0d` |
+| `atari_st` | `33b9e9dd654a7d81a08428145f176f07` | `ab47e3937b51bdbb295ee8db16c8d9cdf90182109b42fd0bf32c64364c5aebd4` | `d475f5413aa990bbda774f9da4dbdd05f4792fd307e48a7fb75a2255cf3a9257` | `4ce3baac4b206caba4f1265264fc8e44` |
+| `c64` | `8016924c62c6148f47a59e405b61ab1f` | `b0eccc7fe829630294aaa7728e34df6ad405cb39b6cf869d84108bdc1c83ca65` | `08644e85311fa460b4e85b25f29c99240557a15f05e38bf8acedf590ede6e704` | `e5b26860f2d00eed8309eb2bdf063eeb` |
+| `pong` | `1d32b88b34acf5c5e953c2e721bac236` | `b668bbea9891ac6d8528c44a66e1d4920aa0d8b47f1d32557c1b83d93e727ad0` | `951d41c8b2a2d2ac64251e7582e16f3853f49fe1d85602fa81aad98eb2869193` | `a3e19a6710ce45d1a15f9824f9d87daa` |
+| `menu` | `177d3678bfc8e8b4187ed489066bef2f` | `f85ec56563d14ee7337464ec1608820721d8c0af3cecfd13b424294fd95e974e` | `fddf97b917a61b9f9527a2b9e430f8391727935955eb041baeaba8d4d8bd9257` | `918325bde7bb5366fd99f67e59ef5b30` |
+| `ramtest` | `7a60de20fc0fb448849cd24eed50a253` | `d3774d8027b61a943e77edac3f6815c7e8f3a526da1d18dd688bcf91f64fd925` | `a5e0d01b501fb7721240a64b8a9b71065940e8d5b23af7c2b72ff76173543347` | `4d8eb4efff711f03f1b842ed2b056b9a` |
+| `riscv` | `e0a17b8e0d06d1b5b5fae611bdedc308` | `a7224f83777d917af62b4b4a1d3db814e34f69028c1fb09254b8f09946303831` | `99f92fafc5b0c591a34968b535468610c479219066d579bfee046b7d42c33a50` | `89ce0e93c74934dc3ed7bfc1a131d990` |
 
-"reproduced" is the load-bearing column, and it is not the same as "matched". Each core's forced
-side was built **twice**. A single pair cannot tell an inert change from two runs that produced the
-same wrong netlist, and that is not hypothetical: the pinned Yosys `3a5accbd7` exits 0 with a
-materially different, smaller netlist about one run in six on this hardware, and segfaults in
-`OPT_CLEAN` about one in five (DeanoC/yosys#77). One such run made `spectrum` read as a condition-2
-failure here before repetition showed the change was inert. `base == forced1 == forced2` would need
-the bad variant three times.
+Every digest is the full sha256 of the artefact named. The RBF column is one value because the base
+build and **both** forced builds produced it byte for byte; the netlist column likewise. Condition
+3's `BUILD_ID` differs from the base's because it is the PR's own unforced build, and its RBF
+differs too -- a different `BUILD_ID` constant maps differently, which D12 anticipates. Condition 3's
+claim is that the producer's own timing and seal gates passed with this commit's real identity, not
+that its bytes match.
 
-### How it was run
+### The commands that produced them
 
-- `sg1000`, `zx81`, `sms`, `coleco_socket_v2`, `apple2`, `spectrum`, `atari_st`, `c64` on
-  `chip-30x0-ai-dev` with `--gpu-router CUDA`; `pong`, `menu`, `ramtest`, `riscv` on Powerboat with
-  HIP, because those four take no `--gpu-router` and `fes_build_common` pins
-  `FES_GPU_ROUTER = "HIP"`, so no NVIDIA-only host can build them (DeanoC/fes#1862 addresses that).
-- Per core, both sides in **one checkout path**, one tool install, build directory cleared between
-  runs. CLAUDE.md holds that HIP, CUDA and Metal give bit-identical route outcomes and that their
-  route evidence is interchangeable; each comparison is internally consistent regardless, since both
-  of its sides ran on one host against one install.
-- Every build's artifacts are checked for existing before any comparison: a run that exits 0 having
-  written nothing is treated as a failure, not as a match. That guard caught `ramtest`, whose
-  producer writes `build/fes-ramtest-100` and `build/fes-ramtest-130` rather than a single
-  directory.
+Recorded because D12 asks for "both digests, and the command that produced them". The harness
+scripts are committed beside this record in `harness/`; they carry absolute paths and host names, so
+they are a record of what ran rather than a portable tool -- run them unchanged and they would write
+into the same directories on the same two hosts.
+
+Eight cores on `chip-30x0-ai-dev` (CUDA), from `/data/d12s7/same`, one checkout path per core with
+the build directory cleared between runs:
+
+```
+git -C /data/d12s7/same checkout --detach <base|head>
+cd /data/d12s7/same/sources/misteross
+# base, and condition 3 at the head:
+python3 scripts/<producer>.py --cache-root /data/fes-toolchain-cache --gpu-router CUDA
+# forced, twice:
+python3 /data/d12s7/same/docs/validation/2026-11-12-1747-toolchain-installs/forced_build_id.py \
+    scripts.<producer> <base build-summary.json> -- \
+    --cache-root /data/fes-toolchain-cache --gpu-router CUDA
+```
+
+Four cores on Powerboat (HIP), from `/data/d12pb/same`, same shape without `--gpu-router` because
+`pong`, `menu`, `ramtest` and `riscv` accept no router flag and `fes_build_common` pins
+`FES_GPU_ROUTER = "HIP"` (DeanoC/fes#1862 addresses that), and with
+`--cache-root /home/deano/fes/out/cache/misteross-toolchains`. `ramtest` additionally takes
+`--memory-mhz 100`; its 130 MHz package is out of scope, see below. Where a toolchain had to be
+built first, `FES_TOOLCHAIN_GPU_ROUTER=HIP` is required -- `scripts/bootstrap.sh` defaults it to
+`OFF`, which builds CPU-router installs under different keys, reports success and then fails the
+producer's verification.
+
+Per-core logs, build records and artefacts are under `/data/d12s7/{confirm,c3,zx81new}` and
+`/data/d12pb/{results,c3}` on those hosts; they are not committed, being several gigabytes of RBFs
+and netlists.
 
 ### What this evidence does not cover
 
