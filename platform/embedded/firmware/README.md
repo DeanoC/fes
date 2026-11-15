@@ -36,8 +36,9 @@ sample. Ownership checks, six stores, final snapshots and the original parent
 clock remain required. A malformed or missing publication history cannot be
 used as a completed preparation receipt. Sanitized cold/warm models reproduce
 the measured staging delay and reject late completion, lost ownership,
-backwards clocks and expired parent work. This changed firmware still needs
-its own matched build and physical repeated-loading test.
+backwards clocks and expired parent work. The complete matched build and native
+file admission pass on source `82e607ab`; a fresh physical repeated-loading
+test remains required.
 
 The [publication-timed retirement contract](../../../docs/validation/2026-11-14-de25-publication-timing/README.md)
 separates command construction from completion observation: staging has two

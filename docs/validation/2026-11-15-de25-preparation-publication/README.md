@@ -47,6 +47,30 @@ the recovery loader with the original FIT on the spare card. The original
 native runtime was not booted. QSPI, factory media and the bottom kit were
 untouched. No launch/return/Park or general core-loading acceptance is inferred.
 
-Next integration: build and admit a new matched SDK, native entry, BL31,
-SPL/U-Boot and full-SOF composition for this source, then freeze a fresh bounded
-repeated-loading test using this actual restoration as its prerequisite.
+Next integration: freeze a fresh bounded repeated-loading test for the new
+matched build below, using this actual restoration as its prerequisite.
+
+The complete affected plan now passes across the recorded runs: 2,749 parent
+tests (15 skips), native lifecycle/producer/firmware-RTL integration, and 2,181
+FPGA tests (88 skips). The initial native integration attempt correctly rejected
+an observer edit during verification. Its failed result is retained; only that
+phase and the unstarted phases were rerun. The stable continuation's source
+hashes match the frozen commit `82e607abffa26a182c02ffad82d1056f210b380e`.
+This is phase-specific evidence, not a single immutable-checkout campaign.
+
+A normal SDK, CPU entry, BL31, SPL/U-Boot, full-SOF composition and complete
+native file admission pass on that frozen source. Chain:
+`f1f3509d0510744b128700471ef88f81f0d000eaeae30374b231c7fd19a88460`;
+boot ID `884dfd9259b18659`. FIT is 8,547,024 bytes, SHA-256
+`319f03803044a6e395596b9d756b2de09de49bec3a48e920678800bb2e52d537`.
+Full SOF SHA-256:
+`743833427aef04dfe91531c337371f571a9c7f80ed23e33db2ca44487f926f98`.
+The sealed computer/MENU payloads are unchanged. The private reservation still
+has 192 bytes spare and four unchanged 8 KiB stacks. Packaging holds the shared
+Quartus Pro lock, with no new synthesis, fitting, card write or device access.
+No physical acceptance transfers from the older image to this candidate.
+
+The [matched artifact archive](matched-retention-proof.json) verifies 46726 entries,
+SHA-256 `5cb62f0626d29b5bad63f4b1f0299743c0b4c7977a67757b3df18864464502d6`. It retains the frozen source bundle,
+normal producer outputs, native admission, compiler/layout checks and complete
+affected-run logs, including the rejected source-change attempt.
