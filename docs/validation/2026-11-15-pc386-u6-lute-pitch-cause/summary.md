@@ -302,25 +302,31 @@ them is pinned to a class:
   the measurements exactly as well as raising `jcc` taken 8 → 9, and the
   second would retime every taken branch on every preset. Separating them
   needs a loop that has one and not the other.
-- The calibration loop then needs **about four clocks more** on top, and
-  **only two of those four are measurement-backed**. The only class it has
-  that the delay loop does not is `test_m` (`CMP`/`TEST r/m, imm`), charged 6
-  where the reference costs that instruction 9.00 — a `test_m` of 8, so a
-  27-clock pass. The remaining two clocks are the order effect below, which
-  no additive class entry can express, so a 6 → 10 entry is *fitted*, not
-  measured.
+- The calibration loop then needs **about four clocks more** on top. The only
+  class it has that the delay loop does not is `test_m`
+  (`CMP`/`TEST r/m, imm`), charged 6 where that instruction costs the
+  reference 9.00 in the `B5` loop — but **that 9.00 is not a class
+  measurement**. `B5` adds a *five-byte* instruction to the delay loop, so
+  its delta carries whatever instruction fetch costs as well, and this record
+  does not separate fetch from a table entry. Under the fetch reading
+  `test_m` could stay at 6 and the two extra clocks be fetch. So **no entry
+  here is measurement-backed as a class value**: 6 → 8 is a fit, and 6 → 10
+  is a further fit that also absorbs the order effect below, which no
+  additive class entry can express at all.
 
 With the delay loop at 18 and the calibration pass at 29, the kit's ratio is
 0.621 against the reference's 0.6217, `N` falls from 27 to 22, the pass goes
 to about 42.4 µs against the reference's 41.50, and the note lands about
 **2% flat — inside the ±5.9% band**.
 
-**But the 29 is fitted to the game's loop, not measured.** The directly
-measured `cmp word [m], imm` is 9.00 clocks, a `test_m` entry of 8; with that
-the calibration pass is 27 charged against the reference's real 29.02, the
-ratio is 0.667, `N` falls only to 24, and the note is about **9% flat —
-still outside the band**. The extra two clocks are the order effect below,
-which no additive per-class table can express.
+**And the 29 is a fit to the game's own loop.** Taking the `B5` delta at face
+value instead — a `test_m` of 8 — charges the calibration pass 27 against the
+reference's real 29.02, the ratio is 0.667, `N` falls only to 24, and the
+note is about **9% flat, still outside the band**. The two clocks between
+those two fits are the order effect below, which no additive per-class table
+can express. So the table route reaches the band only by being fitted to this
+one game's loop, which is a reason to settle the fetch question before
+choosing any entry.
 
 That is the shape of a fix, not a fix: it moves every preset and every title
 and it is Deano's to weigh. **Nothing is changed in this PR, and the pitch
