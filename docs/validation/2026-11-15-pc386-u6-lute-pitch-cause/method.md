@@ -295,3 +295,27 @@ the missing term as instruction-fetch bus time — and says that term would
 also act on fes#1840. If `BQ` matches `BE`, the record keeps the "consistent
 with, not separated" wording already committed, and claims nothing about
 fes#1840. Any other pattern is reported as it falls, with no new rule.
+
+## Amendment, 15 November, after `c5` — and the lute under an override
+
+`c5` **falsified** the bus-cycle rule committed just above. `BE` = `BQ` =
+**1,625**: the eleven-byte, bus-bound loop costs the same at an odd start as
+at an even one, so alignment is free on the reference in both the cases
+tested, and the rule that predicted 1,465 for `BQ` is wrong. By the pass rule
+committed with it, the record keeps **"consistent with a missing fetch term,
+not separated from a table entry"** and claims nothing about fes#1840. The
+rule is reported falsified in place; it is not replaced.
+
+`BR` measured nothing and is void by a fault in its design, not a result: with
+`dec` before `cmp word [m],0`, the loop's `jne` tests the `cmp`, which is
+always equal, so the loop runs once.
+
+**The lute under an override, run `h1`.** The task behind this work asked for
+the game's own note under a frequency override, which the probe stands in for
+but does not replace. Run `h1` plays the lute at word 1 = **160** on Kit A
+through PR #1838's own tested command flow — 160 rather than 80 because the
+flow's fixed sleeps were timed at 12 MHz and a faster machine can only reach
+each point early. **Committed now, before the run:** key `6` at
+840.72 × 769/736 = **875.4 Hz**, from the measured pass rates alone, and the
+check is ±3%, the same margin as the reproduction gate. Analysed by
+`notes_pitch.py`, the same autocorrelation PR #1838 used.

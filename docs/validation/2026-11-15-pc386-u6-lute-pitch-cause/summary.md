@@ -106,3 +106,68 @@ Every other baseline, lease and restore check is unchanged.
 
 ## What the probe measured
 
+`C` is five repeats on every machine and every point, all equal; the three
+repeats of the whole probe at each kit point printed identical numbers, so
+the kit's spread is nil and the reference's is nil.
+
+| | reference, 12.5 MHz | kit, word 1 = 0 | = 80 (8 MHz) | = 120 (12 MHz) | = 160 (16 MHz) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `C` | 23,662 | 27,444 | 18,291 | 27,444 | 36,597 |
+| `CAL`, `N` | 567, **23** | 658, **27** | 438, **18** | 658, **27** | 878, **36** |
+| `BD` | 2,436 | 2,477 | 1,651 | 2,477 | 3,303 |
+| `BP` | 1,330 | 1,317 | 878 | 1,317 | 1,756 |
+| `B5` | **1,625** | **1,755** | 1,170 | **1,755** | 2,340 |
+| `B4` | **1,755** | **1,755** | 1,170 | **1,755** | 2,340 |
+| `P0` | 465 | 433 | 307 | 433 | 543 |
+| `PN` | 847 | 736 | 679 | 736 | 769 |
+| *predicted* `PN` | — | — | *680* | *737* | *769* |
+
+In clocks (`analyse.py`; the tick period cancels):
+
+| | reference | kit (all three overrides) | charged |
+| --- | ---: | ---: | ---: |
+| calibration pass `t_c` | **29.02** | **24.02** | 24 |
+| delay iteration `t_d` | **18.04** | **17.03** | 17 |
+| **`t_d / t_c`** | **0.6217** | **0.7091** | 0.7083 |
+| five `nop`s | 15.00 | 15.00 | 15 |
+| `cmp word [m],0` | **9.00** | **7.01** | 7 |
+| `cmp ax,[m]` | **7.00** | **7.01** | 7 |
+
+**The kit is paced exactly as it is charged**, at every frequency, to within
+0.2% — so the governor is doing what its table says, and the table is what is
+being measured. The reference charges the same work more, and unevenly: 5.0
+clocks more for the calibration pass, 1.0 more for the delay iteration.
+
+## The gates
+
+**Reproduction gate — passed.** At word 1 = 120 the probe's pass-rate ratio,
+reference over kit, is 847/736 = **1.1508**, against the notes' own
+962.76/840.72 = **1.1452**: **0.49% apart**, inside the committed ±3%. The
+probe measures what sets the pitch.
+
+**The frequency curve — as committed.** The predicted `PN` was 680, 737, 769
+at 8, 12 and 16 MHz; the kit gave **679, 736, 769**. The pass rate rises
+**13.3% for a doubling** of the clock, not 100%. The pitch does not follow
+the override, and that was predicted before the run from the calibration,
+with no fault anywhere needed to explain it.
+
+**Separation gate — passed.** At word 1 = 120:
+
+| | reference | kit | excess |
+| --- | ---: | ---: | ---: |
+| pass | 41.502 µs | 47.761 µs | +15.08% |
+| of which the calibrated delay, `N · t_d` | 33.190 | 38.318 | **+5.128 µs** |
+| of which everything else in the pass | 8.312 | 9.444 | **+1.132 µs** |
+
+The pitch deficit the probe reproduces is 13.10%, split **10.74 points to the
+calibrated delay** and **2.37 points to the rest of the pass**. The gate asked
+for one hypothesis to carry at least 9 points and the others under 3 each,
+and that is what the split gives: the two loops' *relative* charge, not the
+ISA charges and not a uniform speed error.
+
+The 2.37 points are the per-pass overhead. #1453's ISA charge on port 61h is
+14 clocks, 1.167 µs at 12 MHz, which is the same size as the whole 1.132 µs
+excess — and matches #1474's "about two points" — but the reference's own
+cost for those two port accesses was not measured separately, so the record
+says *overhead*, not *ISA*, and does not claim the ISA charge is all of it.
+
