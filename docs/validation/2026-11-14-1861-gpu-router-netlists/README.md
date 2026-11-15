@@ -194,13 +194,14 @@ for.
 | `fes.spectrum` | `fes_de10nano_evidence.py` | differ | `3f2dfb764a86b215ad4878203392ebd5823c2218e00e10f8f321eddaa85eccc7` | agree | **byte-identical** |
 | `fes.spectrum-plus3` | `fes_de10nano_evidence.py` | differ | `2646f83230b81acf14bf7ca62bafd1f77aa30602874e05d713ec4c5f4afa4fce` | agree | **byte-identical** |
 | `fes.spectrum128` | `fes_de10nano_evidence.py` | differ | `cd62753ae45dbfe930671831ed66ebec568ae4e0b1738fc3ee68ac5b2dda1957` | agree | **byte-identical** |
+| `fes.splash` | `fes_de10nano_evidence.py` | differ | 68858653e28f06b85f4bf3249a2d5e169becb650e9f235d2627cc7f4c4f7410e (after D12's `src` path exemption) | agree | **identical, src paths exempt** |
 | `fes.ts1000` | `fes_de10nano_evidence.py` | differ | `96bcf1f6411ab04324e86a58fd525bd5c722f3afbf02c7db67365be074cc6dca` | agree | **byte-identical** |
 | `fes.ts1500` | `fes_de10nano_evidence.py` | differ | `d29bb54e119907959fb104890f8d2d038fff625cf84b2cdea09cc7525bbf37a7` | agree | **byte-identical** |
 | `fes.zx80` | `fes_de10nano_evidence.py` | differ | `b7effcba3f7a30349ae55aef0eac6a857d00f04dc4fe1b959a0c482534df6f82` | agree | **byte-identical** |
 | `fes.zx81` | `fes_de10nano_evidence.py` | differ | `b5c296e5c76810f5655e70a945518dd511654e8b450fb7bbbb616e442f15604b` | agree | **byte-identical** |
 
 Revisions measured on main: `72d2fc4da`.
-Revisions measured on branch: `480c924f8`, `b5d3ae232`, `cf8ec7bec`.
+Revisions measured on branch: `480c924f8`, `760d8a8f0`, `b5d3ae232`, `cf8ec7bec`.
 Each row's pinned inputs were unmodified at the revision shown; `summarise.py` refuses to render a record with no revision or with a modified pinned input, and the driver refuses to write one.
 <!-- results:end -->
 
@@ -225,6 +226,28 @@ identical, over a top module of 1,422 cells and 1,804 nets, from one Yosys
 binary. Nothing was normalised or excluded. `fes.menu` is the same kind of case
 through the package producer, and the ZX81 models stand for the ten cores whose
 closure picks up only the shared helper.
+
+### `fes.splash` is the one artifact that needs D12's `src` exemption
+
+Splash's **raw** digests differ between the two sides, and the table says so
+rather than hiding it. The difference is entirely in `src` attributes naming
+the Yosys install directory: splash refuses a shared cache root and
+authenticates a local install at `<tree>/build/toolchain`, so the two sides
+necessarily use two installs at different paths, and Yosys records that path in
+the `src` of cells it reads from its own `share/yosys` models.
+
+D12 exempts exactly that — "file paths in `src` attributes (the checkout and
+the tool install directory: a toolchain at the same commit is the same
+toolchain wherever it is installed)". The two installs are byte-identical
+binaries of the same commit: the main side's is a copy of the branch side's,
+both `yosys` at sha256 `d1d8c98fac8b1155f50ef029…`.
+
+`netlist_digest.py` records `netlist_sha256_src_exempt` for every run, which
+replaces that run's own tree prefix **and nothing else**, so any difference
+that is not a tree path survives into it. Splash's exempted digests agree on
+both sides in both passes (`68858653e28f06b8…`). The other 14 artifacts share
+one install through the cache root and match byte for byte without the
+exemption, so for them the two digests are the same number.
 
 Each lock needed its own nextpnr built before its producer would authenticate,
 even for a Yosys-only run. Because the shared cache is content-addressed per

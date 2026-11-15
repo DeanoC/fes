@@ -33,6 +33,20 @@ BUILD_ID = "0" * 32
 PINNED = ("PINNED_INPUTS", "INPUTS")
 
 
+def exempt_digest(path: Path, tree: Path) -> str:
+    """The digest after D12's `src` path exemption, and nothing else.
+
+    D12 exempts "file paths in `src` attributes (the checkout and the tool
+    install directory)". Only fes.splash needs it: it refuses a shared cache
+    root, so the two sides use local installs at different paths and Yosys
+    records those in the src of cells read from its own share/yosys models.
+    Replacing the tree prefix is the whole normalisation, so any difference
+    that is not a tree path survives into this digest too.
+    """
+    text = path.read_text(errors="surrogateescape").replace(str(tree), "<TREE>")
+    return hashlib.sha256(text.encode(errors="surrogateescape")).hexdigest()
+
+
 def digest(path: Path) -> str:
     out = hashlib.sha256()
     with path.open("rb") as stream:
@@ -295,7 +309,8 @@ def main(argv=None) -> int:
     copied = out / "synth.json"
     copied.write_bytes(netlist.read_bytes())
     record = {"core": arguments.core, "tree": str(tree), "build_id": BUILD_ID,
-              "netlist_sha256": digest(copied), "tools": tools,
+              "netlist_sha256": digest(copied),
+              "netlist_sha256_src_exempt": exempt_digest(copied, tree), "tools": tools,
               **source_identity(tree, producer, allow_dirty=arguments.allow_dirty)}
     (out / "netlist.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
     print(json.dumps(record, indent=2, sort_keys=True))

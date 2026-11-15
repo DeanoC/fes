@@ -9,12 +9,24 @@ from __future__ import annotations
 import argparse
 import collections
 import glob
+import hashlib
 import json
 import os
 
 START = "<!-- results:start -->"
 END = "<!-- results:end -->"
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+# D12 exempts src file paths: the checkout and the tool install directory. Only
+# fes.splash needs it, because it refuses a shared cache root and so uses a
+# local install per tree; every other artifact shares one install and matches
+# byte for byte. netlist_digest.py records that digest per run, replacing the
+# tree path and nothing else, so a non-path difference still shows up here.
+def _exempt_src_paths(found):
+    digests = {side: record.get("netlist_sha256_src_exempt") for side, record in found.items()}
+    if not all(digests.values()):
+        return None
+    return digests["main"] if digests["main"] == digests["branch"] else None
 
 # What each core's producer closure picks up from this PR's diff.
 CHANGED = {
@@ -68,10 +80,16 @@ def table() -> str:
         inputs = ("differ" if main_record["pinned_inputs_sha256"]
                   != branch["pinned_inputs_sha256"] else "**identical**")
         same = main_record["netlist_sha256"] == branch["netlist_sha256"]
-        shown = main_record["netlist_sha256"] if same else (
-            f"main `{main_record['netlist_sha256'][:16]}…` vs "
-            f"branch `{branch['netlist_sha256'][:16]}…`")
-        verdict = "**byte-identical**" if same else "**DIFFERS**"
+        exempt = None if same else _exempt_src_paths(found)
+        if same:
+            shown, verdict = main_record["netlist_sha256"], "**byte-identical**"
+        elif exempt:
+            shown = f"{exempt} (after D12's `src` path exemption)"
+            verdict = "**identical, src paths exempt**"
+        else:
+            shown = (f"main `{main_record['netlist_sha256'][:16]}…` vs "
+                     f"branch `{branch['netlist_sha256'][:16]}…`")
+            verdict = "**DIFFERS**"
         repeats = second.get(core, {})
         if len(repeats) < 2:
             passes, verdict = "pass 2 missing", "**unconfirmed**"
