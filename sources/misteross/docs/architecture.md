@@ -688,7 +688,14 @@ package bytes can have multiple valid records without a provenance collision.
 Package wire formats and artifact keys are unchanged by recording metadata.
 Exact-shell composition continues to bind the package ID and payload SHA256 as
 well as BUILD_ID; a shared design ID does not make different routed artifacts
-interchangeable. Runtime identity checks still correlate the loaded core with
+interchangeable. Video-part cache keys bind the exact package and the part's
+design inputs. A complete sealed pair reuses its original toolchain and recipe
+provenance without authenticating a newly selected compiler. Its retained
+shell proof is checked against a sealed snapshot of every original proof file;
+part source history, archive hashes, timing, clock ownership and CRAM containment
+are still validated on reuse. Missing or changed proof files fail closed. A
+missing part still requires authenticated tools and the ordinary frozen-shell
+validation/build path. Source changes invalidate the part key. Runtime identity checks still correlate the loaded core with
 its selected manifest.
 
 A design-only selection request captures committed inputs and current lock pins

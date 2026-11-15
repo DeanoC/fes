@@ -128,3 +128,13 @@ def manifest_toolchain(record):
     """Describe the tools; recording location and provenance do not enter it."""
     fields = json.loads(record) if isinstance(record, bytes) else record
     return '; '.join(f'{name} {value}' for name, value in sorted(fields['tools'].items()))
+
+
+def video_design_inputs(current):
+    """Keep exact-shell/part choices, excluding recording and compiler metadata."""
+    result = {key: value for key, value in current.items()
+              if key not in ('revision', 'tools', 'execution', 'source_roots')}
+    if 'inputs' in result:
+        result['inputs'] = {path: value for path, value in result['inputs'].items()
+                            if input_role(path) == 'design'}
+    return result

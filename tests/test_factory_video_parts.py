@@ -250,6 +250,17 @@ class RealProducerEvidenceTests(unittest.TestCase):
                 self.assertEqual(value["profile"], case)
                 self.assertTrue(video.HEX64.fullmatch(value["part_id"]))
 
+    def test_sealed_part_reuse_preserves_original_tools_and_recording(self):
+        current = copy.deepcopy(self.cases['direct']['current'])
+        current['tools'] = {'not-installed': 'new compiler is only advisory'}
+        current['execution'] = {}
+        current['inputs']['scripts/export_core_package.py'] = 'f' * 64
+        value = self.inspect('direct', current=current, reuse_sealed=True)
+        self.assertEqual(value['profile'], 'direct')
+        current['inputs']['new-design-input.v'] = 'e' * 64
+        with self.assertRaisesRegex(ValueError, 'design recipe'):
+            self.inspect('direct', current=current, reuse_sealed=True)
+
     def test_actual_outside_bit_and_header_rejected(self):
         with self.assertRaisesRegex(ValueError, "outside its CRAM"):
             self.inspect("outside")
@@ -477,6 +488,32 @@ class VideoShellAdmissionTests(unittest.TestCase):
 
 
 class ResolverTransactionTests(unittest.TestCase):
+    def test_completed_parts_reuse_ignores_packaging_and_advisory_toolchain_drift(self):
+        self.current['inputs'] = {'rtl/core.v': '1' * 64,
+                                  'scripts/export_core_package.py': '2' * 64,
+                                  'cores/fes-coleco/toolchain.lock': '3' * 64}
+        self.shell()
+        self.resolve()
+        self.current['tools'] = {'yosys': 'new version not required for reuse'}
+        self.current['inputs']['scripts/export_core_package.py'] = '4' * 64
+        self.current['inputs']['cores/fes-coleco/toolchain.lock'] = '5' * 64
+        self.inspector.reset_mock()
+        self.resolve(self.root / 'again')
+        self.assertEqual(self.builder.call_count, 2)
+        probes = [call.args[2] for call in self.inspector.call_args_list if call.args[1] == 'canonical']
+        self.assertTrue(probes and all(args['selection_only'] for args in probes))
+
+    def test_cached_shell_proof_cannot_be_changed_while_reusing_parts(self):
+        self.shell()
+        self.resolve()
+        proof = self.cache.parent / 'core-video-shells' / self.package_id / 'timing.json'
+        proof.chmod(0o644)
+        proof.write_bytes(b'changed retained timing evidence')
+        proof.chmod(0o444)
+        with self.assertRaisesRegex(ValueError, 'retained shell evidence changed'):
+            self.resolve(self.root / 'again')
+        self.assertEqual(self.builder.call_count, 2)
+
     core_id = "fes.coleco"
     """Check cache/publication orchestration; real producer readers run above."""
     def setUp(self):
@@ -592,7 +629,7 @@ class ResolverTransactionTests(unittest.TestCase):
             result = original(source, mode, args, recipe, env)
             if mode == "canonical":
                 calls += 1
-                if calls > 1:
+                if calls > 2:
                     result["tools"] = {"yosys": "changed"}
             return result
         self.inspector.side_effect = changed
