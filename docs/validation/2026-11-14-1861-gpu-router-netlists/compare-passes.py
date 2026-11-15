@@ -5,8 +5,11 @@ Only cores the second pass actually wrote are considered: comparing a file
 against its own copy proves nothing.
 """
 import json, os, sys
-REPORTS = "/home/deano/fes/.claude/worktrees/gpu-router-default/docs/validation/2026-11-14-1861-gpu-router-netlists/reports"
-PASS2 = sys.argv[1]
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPORTS = os.path.join(HERE, "reports")
+# Both default to the committed reports so the command runs from any checkout.
+PASS2 = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "reports-pass2")
 first = {}
 for name in os.listdir(REPORTS):
     path = os.path.join(REPORTS, name, "netlist.json")

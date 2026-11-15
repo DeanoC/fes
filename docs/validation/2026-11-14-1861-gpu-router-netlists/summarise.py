@@ -14,6 +14,7 @@ import os
 
 START = "<!-- results:start -->"
 END = "<!-- results:end -->"
+HERE = os.path.dirname(os.path.abspath(__file__))
 
 # What each core's producer closure picks up from this PR's diff.
 CHANGED = {
@@ -27,8 +28,7 @@ HELPER_ONLY = "`fes_de10nano_evidence.py`"
 
 def table() -> str:
     sides: dict[str, dict[str, dict]] = collections.defaultdict(dict)
-    for path in sorted(glob.glob(os.path.join(os.path.dirname(__file__) or ".",
-                                              "reports/*/netlist.json"))):
+    for path in sorted(glob.glob(os.path.join(HERE, "reports/*/netlist.json"))):
         record = json.load(open(path))
         name = os.path.basename(os.path.dirname(path))
         side = "main" if name.endswith("-main") else "branch"
@@ -37,7 +37,9 @@ def table() -> str:
     # DeanoC/yosys#77 has a presentation that exits 0 with a different netlist,
     # which only repetition detects.
     second: dict[str, dict[str, str]] = collections.defaultdict(dict)
-    pass2 = os.environ.get("NETLIST_PASS2", "/data/fes1861-netlist/pass2")
+    # Default to the committed pass-2 reports, so the table reproduces from a
+    # fresh checkout. NETLIST_PASS2 points at a working directory mid-sweep.
+    pass2 = os.environ.get("NETLIST_PASS2") or os.path.join(HERE, "reports-pass2")
     for path in sorted(glob.glob(os.path.join(pass2, "*/netlist.json"))):
         record = json.load(open(path))
         name = os.path.basename(os.path.dirname(path))
@@ -104,7 +106,7 @@ def main(argv=None) -> int:
     if not arguments.write:
         print(rendered)
         return 0
-    readme = os.path.join(os.path.dirname(__file__) or ".", "README.md")
+    readme = os.path.join(HERE, "README.md")
     with open(readme) as stream:
         text = stream.read()
     head, _, rest = text.partition(START)
