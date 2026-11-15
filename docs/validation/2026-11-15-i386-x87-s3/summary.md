@@ -50,8 +50,13 @@ that instinct is wrong here. What recovers the margin is area recovered
 **elsewhere** -- the area audit's wins, which Deano deferred to a whole-system
 reduction phase, and which now buy slack as well as ALMs.
 
-The identity ships **off** in every package until slice 5, so nothing sealed
-or run on a kit today depends on that. What depends on it is slice 5.
+The identity ships **off** in every package until the switch flip, so nothing
+sealed or run on a kit today depends on that. **Deano moved that flip out of
+slice 5 and into a new slice 7 in response to this finding, and made slice 6
+a full design optimisation that may trade identity-on performance to get it
+closing** — so the sweep is the evidence that set slice 6's scope rather than
+a blocker for slice 5. [What the sweep changed](#what-the-sweep-changed-which-is-the-plan-rather-than-this-slice)
+has the detail.
 [The sweep](#the-identity-on-seed-sweep-closure-is-seed-dependent) has the
 numbers and [where the margin went](#where-the-margin-went-which-is-not-where-it-looks)
 has the paths.
@@ -437,9 +442,10 @@ was this session deciding alone that the misses did not count.
 every package until slice 5, so the sealed core and the kit run are the
 identity-off design, which fits at 86.8% and closes at **+0.576 ns** on its
 own fit; and the four verification gates are green and have nothing to do
-with placement. What does not close reliably is **the design slice 5 turns
-on**. That is this slice's most important finding and it is a finding about
-the phase rather than about the arithmetic.
+with placement. What does not close reliably is the design the identity
+switches on, which is now **slice 7's** rather than slice 5's. That is this
+slice's most important finding, it is a finding about the phase rather than
+about the arithmetic, and it changed the plan rather than stopping a slice.
 
 ### Where the ALMs go
 
