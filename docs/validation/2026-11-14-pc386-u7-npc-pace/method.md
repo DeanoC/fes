@@ -327,10 +327,22 @@ in the same way, in place, and the correction is what to read.
 
 **The committed check is not decided.** The rule above says it plainly: "If
 the spread is not well inside the band, the check is not decided by this
-method and the record says so, with the figures." Across the three reference
-windows that passed the speed gate the displacement spreads **32.1%**, more
-than three times the ±10% band, so the outcome of the check as committed is
-**not decided by this method**, and no later quantity changes that. The
+method and the record says so, with the figures." The displacement's spread
+fails that rule, and in the way that is hardest to argue with: **it is not
+reproducible**. Two sets of reference windows, each with every gate met, give
+
+| | displacement, three windows | spread | kit/reference |
+| --- | --- | --- | --- |
+| m1, m2, m6 | 0.04306, 0.05010, 0.05941 | **32.1%** | 1.096 |
+| r15a, r15b, r15d | 0.04716, 0.04712, 0.04592 | **2.7%** | 1.220 |
+
+so whether the figure passes its own spread rule depends on which three
+gate-clean windows are taken, and the ratio it reports moves with them. The
+walk cycle over those same two sets is 11.733/11.800/11.867 and
+11.800/11.800/11.800 — 1.1% and 0.0%. No cause was found for the difference;
+every window captured its full 1,800 frames, so it is not dropped frames. A
+figure like that cannot carry a band, so the outcome of the check as committed
+is **not decided by this method**, and no later quantity changes that. The
 figures are reported either way.
 
 There is a second, independent reason the committed quantity cannot carry a

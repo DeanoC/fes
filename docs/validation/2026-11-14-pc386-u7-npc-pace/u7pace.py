@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""u7pace.py GEOM GRAY --crop=TOP,BOTTOM [--speed=X0,Y0,X1,Y1] — NPC pace.
+"""u7pace.py GEOM GRAY --crop=TOP,BOTTOM [--speed=RECT --speed-sha=HEX] — NPC pace.
 
 fes#1853. `method.md` defines NPC pace as a non-player character's
 displacement per second of wall-clock time in a fixed scene with no input.
@@ -30,12 +30,17 @@ figures come out of the series:
                 no pixel scale at all and is the stronger of the two.
 
 The capture is of 86Box's whole window, so it carries the emulator's own
-speed readout. `--speed` names that rectangle and the run is rejected if its
-pixels change at any point in the window, which is `method.md`'s gate that
-86Box held 100% for the whole of it. Give the rectangle in capture pixels.
+speed readout. `--speed` names that rectangle, in capture pixels, and
+`--speed-sha` the SHA-256 of that rectangle rendering **100%**, which
+`speed-100.png` in the record holds for inspection. The gate is that every
+frame of the window matches that hash: constancy alone is not enough, because
+a run held steady at 97% would pass it and inflate the measured period. Both
+answers are reported separately — whether the readout was steady, and whether
+it was 100 — and `speed_gate` is the two together.
 
 Prints JSON so the record's figures can be rederived.
 """
+import hashlib
 import json
 import sys
 
@@ -51,17 +56,30 @@ LIT_SPAN = 0.5       # where between the dark and lit plateaus the mark sits
 def main():
     geom_path, gray_path = sys.argv[1], sys.argv[2]
     top = bottom = 0
-    speed_rect = None
+    decimate = 1
+    speed_rect = speed_sha = None
     for arg in sys.argv[3:]:
         if arg.startswith('--crop='):
             top, bottom = (int(v) for v in arg.split('=', 1)[1].split(','))
+        elif arg.startswith('--speed-sha='):
+            speed_sha = arg.split('=', 1)[1]
         elif arg.startswith('--speed='):
             speed_rect = [int(v) for v in arg.split('=', 1)[1].split(',')]
+        elif arg.startswith('--decimate='):
+            decimate = int(arg.split('=', 1)[1])
     geom = json.load(open(geom_path))
     w, h, fps = geom['w'], geom['h'], geom['fps']
     raw = np.fromfile(gray_path, dtype=np.uint8)
     n = raw.size // (w * h)
     frames = raw[:n * w * h].reshape(n, h, w)
+    # Deriving both sides at one rate: the captures ran at different rates and
+    # the method asks for one, so the faster side is thinned to the slower by
+    # keeping every Nth frame. It is derivation, not capture, and the record
+    # says so where it uses it.
+    if decimate > 1:
+        frames = frames[::decimate]
+        n = frames.shape[0]
+        fps = fps / decimate
 
     pic = frames[:, top:h - bottom, :].astype(np.int16)
     ph, pw = pic.shape[1], pic.shape[2]
@@ -86,11 +104,16 @@ def main():
     # The emulator's speed readout, over the measured window only. No click is
     # ever sent, so the message beside the percentage never changes and any
     # difference in the strip is the percentage itself moving off 100.
-    speed_steady = None
+    speed_steady = speed_is_100 = speed_gate = None
     if speed_rect:
         x0, y0, x1, y1 = speed_rect
         strip = frames[t0:t1, y0:y1, x0:x1]
         speed_steady = bool((strip == strip[0]).all())
+        if speed_sha:
+            hashes = {hashlib.sha256(strip[i].tobytes()).hexdigest()
+                      for i in range(strip.shape[0])}
+            speed_is_100 = (hashes == {speed_sha})
+        speed_gate = bool(speed_steady and speed_is_100)
 
     # One character is measured, not everything that moves. Its band is found
     # from the window itself: the column of most redrawing, widened by a tenth
@@ -140,7 +163,7 @@ def main():
 
     out = {'source': gray_path, 'frames': n, 'fps': fps,
            'lit_level': round(float(level), 1),
-           'picture': [pw, ph], 'crop': [top, bottom],
+           'picture': [pw, ph], 'crop': [top, bottom], 'decimate': decimate,
            'world_s': round(t0 / fps, 2), 'conversation_s': round(t1 / fps, 2),
            'window_s': round((t1 - t0) / fps, 2),
            'character_band_x': [lo_x, hi_x],
@@ -150,7 +173,9 @@ def main():
            'pace_heights_per_s': round(path / ph / span, 5),
            'cycle_s': None if cycle is None else round(cycle, 3),
            'cycle_correlation': None if peak is None else round(peak, 3),
-           'speed_readout_steady': speed_steady}
+           'speed_readout_steady': speed_steady,
+           'speed_readout_is_100': speed_is_100,
+           'speed_gate': speed_gate}
     json.dump(out, sys.stdout, indent=1)
     print()
 

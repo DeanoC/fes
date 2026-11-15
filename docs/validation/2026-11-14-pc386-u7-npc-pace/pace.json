@@ -3,7 +3,138 @@
  "what": "Ultima VII: The Black Gate NPC pace, kit preset 3 against an 86Box 386DX-25 reference",
  "metric": "the paced townsperson's walk-cycle period in seconds, from the autocorrelation of its position; see method.md second amendment",
  "band": "+/-10%",
- "reference": {
+ "reference_clock_sweep": {
+  "33MHz": {
+   "cycle_s": 9.467,
+   "cycle_correlation": 0.522,
+   "window_s": 37.73,
+   "world_s": 31.33,
+   "conversation_s": 69.07,
+   "speed_readout_steady": true
+  },
+  "40MHz": {
+   "cycle_s": 8.467,
+   "cycle_correlation": 0.606,
+   "window_s": 33.4,
+   "world_s": 28.07,
+   "conversation_s": 61.47,
+   "speed_readout_steady": false
+  }
+ },
+ "topbench": {
+  "reference_25MHz": 40,
+  "reference_25MHz_waitstates_0": 40,
+  "reference_25MHz_waitstates_1": 40,
+  "reference_33MHz": 46,
+  "reference_40MHz": 48,
+  "kit_preset3": 68,
+  "kit_no_preset": 303,
+  "note": "303 is the core with no governor preset applied -- the first kit run set settings for the first game only, which is why its second and third windows are not at preset 3",
+  "provenance": "reference figures from separate benchmark VMs (same board and clock, XT-IDE controller, benchmark drive); the kit figure from the same claim as its pace windows"
+ },
+ "verdict": {
+  "windows": "r15a, r15b, r15d against q1, q2, q3; all gates met, both sides at 15 fps, both disks 41c7b9d8",
+  "reference_cycles_s": [
+   11.8,
+   11.8,
+   11.8
+  ],
+  "reference_cycle_mean_s": 11.8,
+  "reference_cycle_spread_pct": 0.0,
+  "kit_cycles_s": [
+   8.733,
+   8.733,
+   8.733
+  ],
+  "kit_cycle_mean_s": 8.733,
+  "kit_cycle_spread_pct": 0.0,
+  "kit_minus_reference_pct": -26.0,
+  "band_pct": 10,
+  "result": "MISS (26.0%), on a quantity method.md did not commit; see committed_metric_outcome for the committed check",
+  "window_ratio_kit_over_reference": 0.7347,
+  "kit_scene_speed_vs_reference": 1.351,
+  "quantisation_pct": {
+   "both_sides_15fps": 0.57
+  },
+  "pace_equivalent_386dx_clock_mhz": "between 33.3 and 40, about 38 by a three-point fit"
+ },
+ "kit_mem_c": {
+  "free_conventional_bytes": 594272,
+  "largest_program_bytes": 594256,
+  "upper_total_k": 96,
+  "upper_free_k": 84,
+  "high_modules": [
+   "HIMEMX",
+   "COMMAND",
+   "CTMOUSE"
+  ],
+  "source": "kit/runs/u7pace/fr/p1-mem.png"
+ },
+ "reference_mem_c": {
+  "free_conventional_bytes": 595312,
+  "largest_program_bytes": 595296,
+  "upper_total_k": 96,
+  "upper_free_k": 84,
+  "high_modules": [
+   "HIMEMX",
+   "COMMAND",
+   "CTMOUSE"
+  ],
+  "source": "runs/r1/fr/r1-mem.png"
+ },
+ "speed_readouts": {
+  "m1": "100% every frame",
+  "m2": "100% every frame",
+  "m6": "100% every frame",
+  "33MHz": "100% every frame",
+  "40MHz": "100% in 486 of 501 window frames, 101% in 15",
+  "m3": "85-104%, 100% in 55% of frames",
+  "m4": "83-101%, 100% in 90%",
+  "m5": "91-104%, 100% in 73%"
+ },
+ "kit_disk_sha256_staged": "41c7b9d8ed5dab75de2792b62fab448bab29d20bcc1837bf79c6c23b1389c34f",
+ "committed_metric_outcome": {
+  "quantity": "displacement per second (heights/s), the quantity method.md committed",
+  "result": "NOT DECIDED",
+  "why": "its spread across one machine's own repeats is not reproducible, and no cause was found. Two sets of reference windows, each with every gate met: m1/m2/m6 give 0.04306, 0.05010, 0.05941 (spread 32.1%) and r15a/r15b/r15d give 0.04716, 0.04712, 0.04592 (spread 2.7%). The kit/reference ratio swings 1.096 to 1.220 with the choice of reference triple. The walk cycle over the same two sets is 11.733/11.800/11.867 and 11.800/11.800/11.800, spreads of 1.1% and 0.0%. A figure whose own repeat spread moves by an order of magnitude between gate-clean triples cannot carry a band. Frame counts were complete (1800 of 1800) in every window, so dropped capture frames are not it.",
+  "window_set_A": {
+   "runs": [
+    "m1",
+    "m2",
+    "m6"
+   ],
+   "reference": [
+    0.04306,
+    0.0501,
+    0.05941
+   ],
+   "spread_pct": 32.1,
+   "ratio_kit_over_reference": 1.096
+  },
+  "window_set_B": {
+   "runs": [
+    "r15a",
+    "r15b",
+    "r15d"
+   ],
+   "reference": [
+    0.04716,
+    0.04712,
+    0.04592
+   ],
+   "spread_pct": 2.7,
+   "ratio_kit_over_reference": 1.22
+  },
+  "kit": [
+   0.05698,
+   0.05711,
+   0.05699
+  ],
+  "kit_spread_pct": 0.2,
+  "band_pct": 10,
+  "direction": "both sets put the kit above the reference, as the cycle does; only the magnitude is unstable"
+ },
+ "prior_reference_runs": {
   "m1": {
    "cycle_s": 11.733,
    "cycle_correlation": 0.633,
@@ -95,7 +226,7 @@
    ]
   }
  },
- "kit": {
+ "prior_kit_windows_60fps": {
   "p1": {
    "cycle_s": 8.733,
    "cycle_correlation": 0.597,
@@ -157,113 +288,361 @@
    "run": "u7pace2"
   }
  },
- "reference_clock_sweep": {
-  "33MHz": {
-   "cycle_s": 9.467,
-   "cycle_correlation": 0.522,
-   "window_s": 37.73,
-   "world_s": 31.33,
-   "conversation_s": 69.07,
-   "speed_readout_steady": true
+ "reference": {
+  "r15a": {
+   "source": "runs/r15a/approach.gray",
+   "frames": 1800,
+   "fps": 15,
+   "lit_level": 66.6,
+   "picture": [
+    667,
+    400
+   ],
+   "crop": [
+    55,
+    41
+   ],
+   "decimate": 1,
+   "world_s": 38.07,
+   "conversation_s": 84.73,
+   "window_s": 46.67,
+   "character_band_x": [
+    486,
+    618
+   ],
+   "motion_frames": 69,
+   "jumps_dropped": 0,
+   "path_px": 825.0,
+   "measured_span_s": 43.73,
+   "pace_px_per_s": 18.865,
+   "pace_heights_per_s": 0.04716,
+   "cycle_s": 11.8,
+   "cycle_correlation": 0.707,
+   "speed_readout_steady": true,
+   "speed_readout_is_100": true,
+   "speed_gate": true
   },
-  "40MHz": {
-   "cycle_s": 8.467,
-   "cycle_correlation": 0.606,
-   "window_s": 33.4,
-   "world_s": 28.07,
-   "conversation_s": 61.47,
-   "speed_readout_steady": false
+  "r15b": {
+   "source": "runs/r15b/approach.gray",
+   "frames": 1800,
+   "fps": 15,
+   "lit_level": 66.6,
+   "picture": [
+    667,
+    400
+   ],
+   "crop": [
+    55,
+    41
+   ],
+   "decimate": 1,
+   "world_s": 37.93,
+   "conversation_s": 84.6,
+   "window_s": 46.67,
+   "character_band_x": [
+    486,
+    618
+   ],
+   "motion_frames": 69,
+   "jumps_dropped": 0,
+   "path_px": 824.4,
+   "measured_span_s": 43.73,
+   "pace_px_per_s": 18.85,
+   "pace_heights_per_s": 0.04712,
+   "cycle_s": 11.8,
+   "cycle_correlation": 0.706,
+   "speed_readout_steady": true,
+   "speed_readout_is_100": true,
+   "speed_gate": true
+  },
+  "r15c": {
+   "source": "runs/r15c/approach.gray",
+   "frames": 1800,
+   "fps": 15,
+   "lit_level": 66.6,
+   "picture": [
+    667,
+    400
+   ],
+   "crop": [
+    55,
+    41
+   ],
+   "decimate": 1,
+   "world_s": 37.73,
+   "conversation_s": 84.4,
+   "window_s": 46.67,
+   "character_band_x": [
+    486,
+    618
+   ],
+   "motion_frames": 69,
+   "jumps_dropped": 1,
+   "path_px": 765.9,
+   "measured_span_s": 45.67,
+   "pace_px_per_s": 16.772,
+   "pace_heights_per_s": 0.04193,
+   "cycle_s": 11.733,
+   "cycle_correlation": 0.627,
+   "speed_readout_steady": false,
+   "speed_readout_is_100": false,
+   "speed_gate": false
+  },
+  "r15d": {
+   "source": "runs/r15d/approach.gray",
+   "frames": 1800,
+   "fps": 15,
+   "lit_level": 66.6,
+   "picture": [
+    667,
+    400
+   ],
+   "crop": [
+    55,
+    41
+   ],
+   "decimate": 1,
+   "world_s": 37.6,
+   "conversation_s": 84.27,
+   "window_s": 46.67,
+   "character_band_x": [
+    486,
+    618
+   ],
+   "motion_frames": 71,
+   "jumps_dropped": 1,
+   "path_px": 838.9,
+   "measured_span_s": 45.67,
+   "pace_px_per_s": 18.37,
+   "pace_heights_per_s": 0.04592,
+   "cycle_s": 11.8,
+   "cycle_correlation": 0.629,
+   "speed_readout_steady": true,
+   "speed_readout_is_100": true,
+   "speed_gate": true
   }
  },
- "topbench": {
-  "reference_25MHz": 40,
-  "reference_25MHz_waitstates_0": 40,
-  "reference_25MHz_waitstates_1": 40,
-  "reference_33MHz": 46,
-  "reference_40MHz": 48,
-  "kit_preset3": 68,
-  "kit_no_preset": 303,
-  "note": "303 is the core with no governor preset applied -- the first kit run set settings for the first game only, which is why its second and third windows are not at preset 3",
-  "provenance": "reference figures from separate benchmark VMs (same board and clock, XT-IDE controller, benchmark drive); the kit figure from the same claim as its pace windows"
+ "reference_60fps_attempt": {
+  "r60a": {
+   "source": "runs/r60a/approach.gray",
+   "frames": 7200,
+   "fps": 60,
+   "lit_level": 66.6,
+   "picture": [
+    667,
+    400
+   ],
+   "crop": [
+    55,
+    41
+   ],
+   "world_s": 37.78,
+   "conversation_s": 84.93,
+   "window_s": 47.15,
+   "character_band_x": [
+    486,
+    618
+   ],
+   "motion_frames": 82,
+   "jumps_dropped": 2,
+   "path_px": 1326.5,
+   "measured_span_s": 47.13,
+   "pace_px_per_s": 28.145,
+   "pace_heights_per_s": 0.07036,
+   "cycle_s": 11.85,
+   "cycle_correlation": 0.518,
+   "speed_readout_steady": false,
+   "speed_readout_is_100": false,
+   "speed_gate": false
+  },
+  "r60b": {
+   "source": "runs/r60b/approach.gray",
+   "frames": 7200,
+   "fps": 60,
+   "lit_level": 66.6,
+   "picture": [
+    667,
+    400
+   ],
+   "crop": [
+    55,
+    41
+   ],
+   "world_s": 37.82,
+   "conversation_s": 84.75,
+   "window_s": 46.93,
+   "character_band_x": [
+    486,
+    618
+   ],
+   "motion_frames": 78,
+   "jumps_dropped": 1,
+   "path_px": 1194.1,
+   "measured_span_s": 45.93,
+   "pace_px_per_s": 25.997,
+   "pace_heights_per_s": 0.06499,
+   "cycle_s": 11.833,
+   "cycle_correlation": 0.621,
+   "speed_readout_steady": false,
+   "speed_readout_is_100": false,
+   "speed_gate": false
+  },
+  "r60c": {
+   "source": "runs/r60c/approach.gray",
+   "frames": 7200,
+   "fps": 60,
+   "lit_level": 66.6,
+   "picture": [
+    667,
+    400
+   ],
+   "crop": [
+    55,
+    41
+   ],
+   "world_s": 37.8,
+   "conversation_s": 84.63,
+   "window_s": 46.83,
+   "character_band_x": [
+    486,
+    618
+   ],
+   "motion_frames": 82,
+   "jumps_dropped": 1,
+   "path_px": 1423.1,
+   "measured_span_s": 45.73,
+   "pace_px_per_s": 31.117,
+   "pace_heights_per_s": 0.07779,
+   "cycle_s": 11.717,
+   "cycle_correlation": 0.621,
+   "speed_readout_steady": false,
+   "speed_readout_is_100": false,
+   "speed_gate": false
+  }
  },
- "verdict": {
-  "reference_cycles_s": [
-   11.733,
-   11.8,
-   11.867
+ "kit": {
+  "q1": {
+   "source": "kit/runs/u7pace2/q1-approach.gray",
+   "frames": 1800,
+   "fps": 15.0,
+   "lit_level": 45.7,
+   "picture": [
+    480,
+    270
+   ],
+   "crop": [
+    0,
+    0
+   ],
+   "decimate": 4,
+   "world_s": 22.13,
+   "conversation_s": 56.4,
+   "window_s": 34.27,
+   "character_band_x": [
+    311,
+    407
+   ],
+   "motion_frames": 68,
+   "jumps_dropped": 0,
+   "path_px": 496.4,
+   "measured_span_s": 32.27,
+   "pace_px_per_s": 15.384,
+   "pace_heights_per_s": 0.05698,
+   "cycle_s": 8.733,
+   "cycle_correlation": 0.708,
+   "speed_readout_steady": null,
+   "speed_readout_is_100": null,
+   "speed_gate": null
+  },
+  "q2": {
+   "source": "kit/runs/u7pace2/q2-approach.gray",
+   "frames": 1800,
+   "fps": 15.0,
+   "lit_level": 45.7,
+   "picture": [
+    480,
+    270
+   ],
+   "crop": [
+    0,
+    0
+   ],
+   "decimate": 4,
+   "world_s": 22.07,
+   "conversation_s": 56.4,
+   "window_s": 34.33,
+   "character_band_x": [
+    311,
+    407
+   ],
+   "motion_frames": 68,
+   "jumps_dropped": 0,
+   "path_px": 496.5,
+   "measured_span_s": 32.2,
+   "pace_px_per_s": 15.421,
+   "pace_heights_per_s": 0.05711,
+   "cycle_s": 8.733,
+   "cycle_correlation": 0.71,
+   "speed_readout_steady": null,
+   "speed_readout_is_100": null,
+   "speed_gate": null
+  },
+  "q3": {
+   "source": "kit/runs/u7pace2/q3-approach.gray",
+   "frames": 1800,
+   "fps": 15.0,
+   "lit_level": 45.7,
+   "picture": [
+    480,
+    270
+   ],
+   "crop": [
+    0,
+    0
+   ],
+   "decimate": 4,
+   "world_s": 22.13,
+   "conversation_s": 56.4,
+   "window_s": 34.27,
+   "character_band_x": [
+    311,
+    407
+   ],
+   "motion_frames": 68,
+   "jumps_dropped": 0,
+   "path_px": 496.5,
+   "measured_span_s": 32.27,
+   "pace_px_per_s": 15.387,
+   "pace_heights_per_s": 0.05699,
+   "cycle_s": 8.733,
+   "cycle_correlation": 0.707,
+   "speed_readout_steady": null,
+   "speed_readout_is_100": null,
+   "speed_gate": null
+  }
+ },
+ "rate_independence": {
+  "reference_60fps": [
+   11.85,
+   11.833,
+   11.717
   ],
-  "reference_cycle_mean_s": 11.8,
-  "reference_cycle_spread_pct": 1.14,
-  "kit_cycles_s": [
+  "reference_60fps_gate": "all three failed the 100% gate: x11grab at 60 fps on this host costs 86Box its real-time margin",
+  "reference_15fps": [
+   11.8,
+   11.8,
+   11.8
+  ],
+  "kit_60fps": [
    8.733,
    8.733,
    8.733
   ],
-  "kit_cycle_mean_s": 8.733,
-  "kit_cycle_spread_pct": 0.0,
-  "kit_minus_reference_pct": -26.0,
-  "band_pct": 10,
-  "result": "MISS (26.0% against a +/-10% band), not a decided verdict for the committed check",
-  "window_ratio_kit_over_reference": 0.7362,
-  "kit_scene_speed_vs_reference": 1.351,
-  "pace_equivalent_386dx_clock_mhz": "between 33.3 and 40, about 37 by interpolation",
-  "status": "the walk cycle is a quantity method.md did not commit, fixed before any kit capture but adopted after the committed quantity failed its own spread rule; reported as a measurement, not as the committed check decided",
-  "quantisation_pct": {
-   "reference_15fps": 0.57,
-   "kit_60fps": 0.19
-  }
- },
- "kit_mem_c": {
-  "free_conventional_bytes": 594272,
-  "largest_program_bytes": 594256,
-  "upper_total_k": 96,
-  "upper_free_k": 84,
-  "high_modules": [
-   "HIMEMX",
-   "COMMAND",
-   "CTMOUSE"
+  "kit_15fps_derived": [
+   8.733,
+   8.733,
+   8.733
   ],
-  "source": "kit/runs/u7pace/fr/p1-mem.png"
- },
- "reference_mem_c": {
-  "free_conventional_bytes": 595312,
-  "largest_program_bytes": 595296,
-  "upper_total_k": 96,
-  "upper_free_k": 84,
-  "high_modules": [
-   "HIMEMX",
-   "COMMAND",
-   "CTMOUSE"
-  ],
-  "source": "runs/r1/fr/r1-mem.png"
- },
- "speed_readouts": {
-  "m1": "100% every frame",
-  "m2": "100% every frame",
-  "m6": "100% every frame",
-  "33MHz": "100% every frame",
-  "40MHz": "100% in 486 of 501 window frames, 101% in 15",
-  "m3": "85-104%, 100% in 55% of frames",
-  "m4": "83-101%, 100% in 90%",
-  "m5": "91-104%, 100% in 73%"
- },
- "kit_disk_sha256_staged": "41c7b9d8ed5dab75de2792b62fab448bab29d20bcc1837bf79c6c23b1389c34f",
- "committed_metric_outcome": {
-  "quantity": "displacement per second (heights/s), the quantity method.md committed",
-  "reference": [
-   0.04306,
-   0.0501,
-   0.05941
-  ],
-  "reference_spread_pct": 32.1,
-  "kit": [
-   0.05571,
-   0.05573,
-   0.05571
-  ],
-  "ratio_kit_over_reference": 1.096,
-  "band_pct": 10,
-  "result": "NOT DECIDED",
-  "why": "the reference spread is 32.1%, more than three times the band, which method.md's own rule leaves undecided; and the two captures ran at 15 and 60 fps against validity gate 3 while the figure is summed per frame, so it is capture-rate dependent -- it gives ratio 1.096 where the frame-rate-independent cycle gives 0.740"
+  "note": "the cycle is unchanged by the rate on the side where both were measured; the kit figures are the same captures derived at the two rates"
  }
 }

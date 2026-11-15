@@ -11,9 +11,22 @@ Ultima VI and measured what it could, but reached no figure here, because the
 game would not start on the reference at all. That blocker is what this record
 clears first.
 
+## Status
+
+Each outcome is stated here once. The parts below give the evidence and do not
+restate the verdicts; nothing outside this table, and no heading, carries one.
+
+| | outcome |
+| --- | --- |
+| The Black Gate starts on a 386DX-25 reference | **done** |
+| A 386DX-25 board fixed by a rule committed before capture | **done**; the board that was fixed **does not meet** the rule, which is reported rather than worked around |
+| How the kit's 386 preset scores against that rule's range | **stated**: TopBench 68, above fifteen of the eighteen real entries, inside the range |
+| NPC pace, the quantity `method.md` committed | **not decided** — its spread across one machine's own repeats is not reproducible (32.1% on one gate-clean triple, 2.7% on another), which the method's own rule leaves undecided |
+| NPC pace, the character's walk-cycle period | **measured**: kit 8.733 s against reference 11.800 s, a **26.0% miss** against the same ±10% band, three windows a side, 0.0% spread on both. A quantity the method did not commit, fixed before any kit capture |
+
 ## Part 1 — the game starts on a 386DX-25 reference
 
-**Done.** The Black Gate now boots, loads and reaches its title screen on the
+The Black Gate now boots, loads and reaches its title screen on the
 reference, off the kit's own games image with the image's own boot
 configuration unchanged.
 
@@ -117,8 +130,6 @@ difference is named there rather than absorbed.
 
 ## Part 2 — the reference board, settled before any capture
 
-**Done, and the answer is uncomfortable rather than convenient.**
-
 [`method.md`](method.md) was committed before any pace capture, with the board
 rule, the board, the metric and the band. It is pushed ahead of every capture
 so the order is in the branch's history and not only in its prose.
@@ -194,22 +205,31 @@ ratio cannot be used that way. It is given here as what it is — a benchmark
 ratio — and Part 3 says why it does not carry over.
 
 
-## Part 3 — the pace: **the committed check is not decided; the measurement that can be made misses by 26%**
+## Part 3 — the pace
 
-Both statements are needed and neither replaces the other. The figures are in
+The Status table above gives the two outcomes; this part is the evidence for
+them, and the two together are the whole answer — neither replaces the other.
+The figures are in
 [`pace.json`](pace.json) and the analyser that produced them is
 [`u7pace.py`](u7pace.py), committed with the record.
 
-**The check as committed is not decided.** [`method.md`](method.md) fixed the
-quantity as displacement per second and fixed the rule that a spread wider
-than the band leaves the check undecided. Across the three reference windows
-that passed the speed gate the displacement spreads **32.1%**, more than three
-times the ±10% band. Its captures also ran at 15 and 60 frames a second
-against the method's own validity gate, and the figure is summed per frame, so
-it depends on the capture rate: displacement gives a kit/reference ratio of
-**1.096** where the quantity below gives **0.740**. That is a rig figure, not
-a game figure, and `method.md`'s correction to its second amendment retracts
-the substitution that had let the verdict move off it.
+**The check as committed is not decided**, and the reason is sharper than
+"the spread was wide": **the spread is not reproducible**. Two sets of
+reference windows, each with every gate met, give
+
+| reference windows | displacement, heights/s | spread | kit/reference |
+| --- | --- | --- | --- |
+| m1, m2, m6 | 0.04306, 0.05010, 0.05941 | **32.1%** | 1.096 |
+| r15a, r15b, r15d | 0.04716, 0.04712, 0.04592 | **2.7%** | 1.220 |
+
+so whether the figure passes its own precommitted spread rule depends on which
+three gate-clean windows you take, and the ratio it reports moves with them.
+The walk cycle over the same two sets is 11.733/11.800/11.867 and
+11.800/11.800/11.800. No cause was found: every window captured its full 1,800
+frames, so it is not dropped frames, and the character band the detector picks
+is the same in all of them. A figure like that cannot carry a band.
+`method.md`'s correction to its second amendment retracts the substitution
+that had let the verdict move off it.
 
 **The measurement that can be made is the character's walk cycle**, fixed
 before any kit capture — so it cannot have been chosen to make the kit pass or
@@ -237,39 +257,88 @@ both machines.
 
 ### The figures
 
+The verdict windows are **r15a, r15b, r15d** against **q1, q2, q3**, with
+every gate met: no input, 86Box reading 100% for every frame against the
+committed hash of [`speed-100.png`](speed-100.png), both sides derived at
+**15 frames a second**, and both sides' drive copies digested before their
+runs at the same **`41c7b9d8…`**.
+
 | | reference, 86Box 386DX-25 | kit, preset 3 |
 | --- | --- | --- |
-| walk cycle | **11.733, 11.800, 11.867 s** | **8.733, 8.733, 8.733 s** |
-| mean | 11.800 s | 8.733 s |
-| spread between windows | 1.14% | 0.00% |
-| world to conversation | 46.67, 46.67, 46.60 s | 34.33, 34.35, 34.35 s |
+| walk cycle | **11.800, 11.800, 11.800 s** | **8.733, 8.733, 8.733 s** |
+| spread between windows | 0.00% | 0.00% |
+| world to conversation | 46.67, 46.67, 46.67 s | 34.27, 34.33, 34.27 s |
 | TopBench | 40 | 68 |
 
-**The kit's cycle is 26.0% shorter than the reference's**, with spreads of
-1.1% and 0.0% on the two sides and a quantisation of one frame — 0.57% of the
-figure at 15 fps, 0.19% at 60. Against a ±10% band that is a **miss, by a
-wide margin and with no overlap between the two sides' windows**. It is not
-`method.md`'s committed check decided; it is a quantity the method did not
-commit, measured well. Whoever wants the check decided should commit this
-quantity in advance and measure again — everything needed to do that is in
-this record.
+**The kit's cycle is 26.0% shorter than the reference's**, with no spread on
+either side and a quantisation of one frame — 0.57% of the figure. Against a
+±10% band that is a **miss by a wide margin, with no overlap between the two
+sides' windows**. It is not `method.md`'s committed check decided; it is a
+quantity the method did not commit, measured well. Whoever wants the check
+decided should commit this quantity in advance and measure again — everything
+needed to do that is in this record.
+
+**Both sides are at one rate, and getting there took the long way.** The gate
+asks for the reference to be captured at the kit's 60 fps. Three runs at 60
+(`r60a`, `r60b`, `r60c`) **all failed the 100% gate**: `x11grab` at 60 fps on
+a 667×496 window costs 86Box its real-time margin on this host, so gates 2 and
+3 cannot both be met by capturing the reference faster. The gate's purpose —
+one rate on both sides — is met the other way instead, by **deriving the kit's
+captures at 15 fps**, keeping every fourth frame; `u7pace.py --decimate`. That
+is derivation, not capture, and it is reported as such.
+
+The rate turns out not to matter, which is measured rather than argued:
+
+| | at 60 fps | at 15 fps |
+| --- | --- | --- |
+| reference | 11.850, 11.833, 11.717 s (gate failed) | 11.800, 11.800, 11.800 s |
+| kit, the same three captures | 8.733, 8.733, 8.733 s | 8.733, 8.733, 8.733 s |
+
+The kit's figures are the same captures read at the two rates and do not move
+at all; the reference's two sets agree to within their quantisation.
 
 A second quantity, measured the same way and never used for the verdict,
 agrees: the time from the world appearing to the conversation starting is
-34.34 s on the kit against 46.65 s on the reference, a ratio of **0.736**
+34.29 s on the kit against 46.67 s on the reference, a ratio of **0.735**
 where the cycle's is **0.740**. **It is not independent corroboration**, and
-the arithmetic says why: the window is 3.95 cycles on the reference and 3.93
+the arithmetic says why: the window is 3.96 cycles on the reference and 3.93
 on the kit, so the conversation fires after a fixed number of the character's
 cycles and the two figures are one timeline read twice. What it does show is
 that the detector found the same timeline on two different captures.
 
-**The displacement figure `method.md` committed** spreads 32.1% across the
-three reference windows (0.04306, 0.05010, 0.05941 heights/s) while the kit's
-three agree to 0.04% (0.05571, 0.05573, 0.05571). Its kit/reference ratio is
-**1.096**, against the cycle's 0.740 — the two disagree about which machine is
-faster, which is what a capture-rate-dependent figure does when the two
-captures run at different rates. It is in `pace.json`, it is the quantity the
-method committed, and the outcome it gives is **not decided**.
+### What two failed rate figures say about measuring this game
+
+This is the second attempt to put a per-second rate on an Ultima scene and the
+second to fail, and the two failed the same way — on the spread **within one
+condition on one machine**:
+
+- [#1368](https://github.com/DeanoC/fes/issues/1368)'s Ultima VI walk: the
+  rate followed how the harness keyed the game, and over-keying settled on a
+  suppressed rate that looked like a plateau; within-rate spreads of 1.765 to
+  2.308 steps a second.
+- this record's Ultima VII displacement: a spread that is not reproducible,
+  32.1% across one gate-clean triple and 2.7% across another.
+
+**The conclusion #1368 drew from its failure does not carry over, and this
+record is the evidence against it.** It concluded that the walk needs a count
+the game itself keeps, read from memory on each side, rather than motion
+counted in frames. For NPC pace that is not necessary: the walk cycle is read
+from the same frames, by the same analyser, on the same captures, and repeats
+to **0.0%** on both machines.
+
+The difference is not frames against memory. It is **rate against period**. A
+rate summed per frame carries the capture rate and the detector's sensitivity
+into the number — which is why displacement disagrees with the cycle about how
+much faster the kit is, and why its spread moves with which windows you pick.
+A period taken from the autocorrelation of a position carries neither: it is
+the time between two recurrences of the same picture, and a detector that
+finds those recurrences at all gets the same answer however often it looks.
+
+So the observable to commit in advance, for this title and probably for any
+scene with a repeating actor, is **a period of something the game repeats**,
+not a rate of something the harness counts. Reading a counter out of guest
+memory would also work and would be stronger still, but this record shows it
+is not required to get a figure that repeats.
 
 ### Reading the miss
 
@@ -364,14 +433,15 @@ for main: `sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v` has
 changed since, so the figures above are for revision `1b4601831`.
 
 Both sides run the kit's own `u7bg-master.img` (SHA-256 `d9bfafd4…`) with
-`UMAP.COM` copied in, a fresh copy per run. The copies differ in exactly two
-bytes — the FAT directory entry's timestamp for `UMAP.COM`, in both copies of
-the table — and in nothing else, which was checked with `cmp -l`. The kit's
-staged copy is `41c7b9d8…`; the reference's windows ran `cff7e4b0…` (m2) and
-`41c7b9d8…` (m6 and the clock sweep). **m1's copy was not digested before it
-ran and its digest is not recoverable**, because the game wrote to it; it was
-made the same way from the same master, and that is all that can be said of
-it.
+`UMAP.COM` copied in, a fresh copy per run, each digested before it ran. **In
+the verdict windows the two sides' copies are byte-identical, `41c7b9d8…`
+both.** Earlier reference runs used copies made with a separate `mcopy`, which
+differ from it in exactly two bytes — the FAT directory entry's timestamp for
+`UMAP.COM`, in both copies of the table, checked with `cmp -l` — and one of
+them, `m1`, was never digested at all before it ran. That is why those runs
+are prior runs here and not the verdict set: `r15a`, `r15b` and `r15d` were
+each copied from the digested `u7bg-umap.img` and digested again before
+running.
 
 ### The memory map, side by side
 
@@ -431,14 +501,14 @@ the HMA, which is why both run the image's menu entry 1.
   40 MHz, so it cannot be brought to the real median of 57 by clock alone. How
   much of the 26% a mid-range reference would absorb is not measured.
 - **Five 86Box 386DX boards** (Part 2) are unmeasured, not measured and equal.
-- **The reference's emulation speed depends on Powerboat's load.** Three of
-  six 25 MHz windows failed the gate and are excluded; their cycles (12.067,
-  11.867, 11.867 s) are in `pace.json` and agree with the three that passed,
-  but they are not part of the verdict. The gate tests that the emulator's
-  own readout does not change within the window; reading the strips shows the
-  three that passed held **100% for every frame**, while the three excluded
-  ranged 85–104%, 83–101% and 91–104%. `method.md`'s third amendment gives
-  the counts.
+- **The reference's emulation speed depends on Powerboat's load.** Of eleven
+  25 MHz reference windows run, five failed the 100% gate and are excluded
+  (`m3`, `m4`, `m5`, `r15c`, and all three 60 fps attempts); their cycles are
+  in `pace.json` and agree with the ones that passed, but they are not part of
+  the verdict. The gate now checks the readout's value, not only that it held
+  still: every frame of a counted window matches the SHA-256 of
+  [`speed-100.png`](speed-100.png). The excluded 15 fps runs ranged 85–104%,
+  83–101% and 91–104%.
 - **The part of the reference's cycle that does not scale with clock.** The
   sweep fits cycle ≈ 2.9 s + 222/MHz, so roughly a quarter of the 25 MHz
   cycle is clock-independent and unattributed. The reference's
@@ -452,10 +522,14 @@ the HMA, which is why both run the image's menu entry 1.
   XT-IDE controller and the benchmark drive, because the pace reference's
   CMOS drive type is cut for the games image's geometry. The kit's 68 *is*
   from the same claim as its pace windows.
-- **The capture rates differ** — 15 fps on the reference, 60 on the kit —
-  which is a deviation from `method.md`'s third validity gate, recorded in
-  its third amendment.
-- **m1's drive digest** was not taken before it ran (above).
+- **How the one capture rate is reached.** The reference cannot be captured
+  at the kit's 60 fps on this host without losing the 100% gate (three runs
+  tried, all failed), so the kit's captures are *derived* at 15 fps instead.
+  The figure does not move with the rate, which is measured above, but the
+  gate as written asks for capture and this is derivation.
+- **Why the displacement spread is not reproducible.** 32.1% across one
+  gate-clean triple and 2.7% across another, with full frame counts and the
+  same detector band in all of them. No cause was found.
 - **The displacement metric** `method.md` first committed, which its second
   amendment set aside before any kit capture.
 - The reference's DOS layout is like the kit's, not identical: `reference.md`
