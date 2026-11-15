@@ -30,14 +30,27 @@ def table() -> str:
     for path in sorted(glob.glob(os.path.join(os.path.dirname(__file__) or ".",
                                               "reports/*/netlist.json"))):
         record = json.load(open(path))
-        side = "main" if os.path.basename(os.path.dirname(path)).endswith("-main") else "branch"
+        name = os.path.basename(os.path.dirname(path))
+        side = "main" if name.endswith("-main") else "branch"
         sides[record["core"]][side] = record
-    rows = ["| Core | Changed files in its closure | Pinned inputs | Netlist sha256 | Match |",
-            "| --- | --- | --- | --- | --- |"]
+    # Pass 2 lives beside the committed pass 1 and is required to agree with it:
+    # DeanoC/yosys#77 has a presentation that exits 0 with a different netlist,
+    # which only repetition detects.
+    second: dict[str, dict[str, str]] = collections.defaultdict(dict)
+    pass2 = os.environ.get("NETLIST_PASS2", "/data/fes1861-netlist/pass2")
+    for path in sorted(glob.glob(os.path.join(pass2, "*/netlist.json"))):
+        record = json.load(open(path))
+        name = os.path.basename(os.path.dirname(path))
+        side = "main" if name.endswith("-main") else "branch"
+        second[record["core"]][side] = record["netlist_sha256"]
+    rows = ["| Core | Changed files in its closure | Pinned inputs | Netlist sha256 "
+            "| Two passes | Match |",
+            "| --- | --- | --- | --- | --- | --- |"]
     for core, found in sorted(sides.items()):
         main_record, branch = found.get("main"), found.get("branch")
         if not (main_record and branch):
-            rows.append(f"| `{core}` | {CHANGED.get(core, HELPER_ONLY)} | — | — | one side only |")
+            rows.append(f"| `{core}` | {CHANGED.get(core, HELPER_ONLY)} | — | — | — "
+                        "| one side only |")
             continue
         for side, record in (("main", main_record), ("branch", branch)):
             if not record.get("revision"):
@@ -56,9 +69,16 @@ def table() -> str:
             f"main `{main_record['netlist_sha256'][:16]}…` vs "
             f"branch `{branch['netlist_sha256'][:16]}…`")
         verdict = "**byte-identical**" if same else "**DIFFERS**"
+        repeats = second.get(core, {})
+        if len(repeats) < 2:
+            passes, verdict = "pass 2 missing", "**unconfirmed**"
+        elif all(repeats[side] == found[side]["netlist_sha256"] for side in ("main", "branch")):
+            passes = "agree"
+        else:
+            passes, verdict = "**DISAGREE**", "**NOT REPRODUCIBLE**"
         cell = f"`{shown}`" if same else shown
         rows.append(f"| `{core}` | {CHANGED.get(core, HELPER_ONLY)} | {inputs} | {cell} "
-                    f"| {verdict} |")
+                    f"| {passes} | {verdict} |")
     per_side: dict[str, set[str]] = {"main": set(), "branch": set()}
     for found in sides.values():
         for side, record in found.items():

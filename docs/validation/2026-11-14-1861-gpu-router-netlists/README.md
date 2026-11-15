@@ -58,10 +58,30 @@ byte-identical (`3f2dfb76…`). That does not refute the sibling's measurement �
 different Yosys build, different flow — but it does mean a path effect is not
 reproducible for that core under this one.
 
-A crashed Yosys cannot be mistaken for a result either. `netlist_digest.py`
-deletes the netlist before synthesising and refuses to record a run that did
-not write one, so DeanoC/yosys#77 (3a5accbd can segfault in `OPT_CLEAN`) shows
-up as a failed run rather than as a stale file silently compared.
+### Two presentations of DeanoC/yosys#77, and why each core is measured twice
+
+`3a5accbd` is intermittently unreliable on some cores, in two distinct ways
+that the sibling session measuring #1806 established by auditing six runs of
+one core:
+
+- about **1 run in 5** segfaults in `OPT_CLEAN`;
+- about **1 run in 6** exits **0** and writes a materially different netlist —
+  in the audited case 1,061 cells smaller with 15% different fmax, from a run
+  that was not short of memory or time.
+
+`netlist_digest.py` deletes the netlist before synthesising and refuses to
+record a run that did not write one, so the crashing presentation shows up as a
+failed run rather than a stale file silently compared. **That guard does not
+catch the silent presentation**, which exits 0 with a plausible file.
+
+Only repetition catches that one. A single measurement per side is not enough:
+if both sides happened to hit the same bad variant, the comparison would read
+as a match on an artefact rather than on the cores' actual netlists. So **every
+core is measured twice per side**, in two independent passes, and
+`summarise.py` requires the two passes to agree before it will call a core
+byte-identical. Agreement across passes also makes each side's netlist
+demonstrably reproducible, which is the property the silent presentation would
+break.
 
 ```
 python3 netlist_digest.py --tree <tree>/sources/misteross --core fes.pong \
@@ -126,22 +146,22 @@ each and are not committed; the digests and the command are the record D12 asks
 for.
 
 <!-- results:start -->
-| Core | Changed files in its closure | Pinned inputs | Netlist sha256 | Match |
-| --- | --- | --- | --- | --- |
-| `fes.c64` | `fes_de10nano_evidence.py` | differ | `1b7efc74cd4f637d0e0ecdafc52ac06c49664de7ded7974938f07e0a7567ef83` | **byte-identical** |
-| `fes.coleco` | `fes_de10nano_evidence.py` | differ | `58e3e313595a9d481a3b43544766d145c56d92ff519f7955fd3c8699ffa52844` | **byte-identical** |
-| `fes.menu` | `build_fes_menu_package.py`, `build_fes_menu.py`, `fes_de10nano_evidence.py` | differ | `05ab4ada678920c408b045026fbd88073f05152867ba628ff253757bc23d0a31` | **byte-identical** |
-| `fes.pentagon` | `fes_de10nano_evidence.py` | differ | `b7e23071f5bb22020bd14c58b03b1e6a2b65b9254b7cf10ce52a3ce81b7bf334` | **byte-identical** |
-| `fes.pong` | `build_fes_pong.py`, `fes_de10nano_evidence.py` | differ | `e7948651bcc0cc2ffbbd3c52c8643c642bc6964826e2a0ae65d18e3fd90cf12b` | **byte-identical** |
-| `fes.ramtest` | `build_fes_ramtest.py`, `fes_de10nano_evidence.py` | differ | `0d59db94f2352a40c9b0e57ab69c6626ff5a3f7b33f5843ae9507e9bf3bf6c7a` | **byte-identical** |
-| `fes.riscv` | `build_fes_riscv.py`, `fes_de10nano_evidence.py` | differ | `e8db4d58afb81e7766d7e21c9ce6d1d18736196badb9dbc23fb742d8c4549be8` | **byte-identical** |
-| `fes.spectrum` | `fes_de10nano_evidence.py` | differ | `3f2dfb764a86b215ad4878203392ebd5823c2218e00e10f8f321eddaa85eccc7` | **byte-identical** |
-| `fes.spectrum-plus3` | `fes_de10nano_evidence.py` | differ | `2646f83230b81acf14bf7ca62bafd1f77aa30602874e05d713ec4c5f4afa4fce` | **byte-identical** |
-| `fes.spectrum128` | `fes_de10nano_evidence.py` | differ | `cd62753ae45dbfe930671831ed66ebec568ae4e0b1738fc3ee68ac5b2dda1957` | **byte-identical** |
-| `fes.ts1000` | `fes_de10nano_evidence.py` | differ | `96bcf1f6411ab04324e86a58fd525bd5c722f3afbf02c7db67365be074cc6dca` | **byte-identical** |
-| `fes.ts1500` | `fes_de10nano_evidence.py` | differ | `d29bb54e119907959fb104890f8d2d038fff625cf84b2cdea09cc7525bbf37a7` | **byte-identical** |
-| `fes.zx80` | `fes_de10nano_evidence.py` | differ | `b7effcba3f7a30349ae55aef0eac6a857d00f04dc4fe1b959a0c482534df6f82` | **byte-identical** |
-| `fes.zx81` | `fes_de10nano_evidence.py` | differ | `b5c296e5c76810f5655e70a945518dd511654e8b450fb7bbbb616e442f15604b` | **byte-identical** |
+| Core | Changed files in its closure | Pinned inputs | Netlist sha256 | Two passes | Match |
+| --- | --- | --- | --- | --- | --- |
+| `fes.c64` | `fes_de10nano_evidence.py` | differ | `1b7efc74cd4f637d0e0ecdafc52ac06c49664de7ded7974938f07e0a7567ef83` | pass 2 missing | **unconfirmed** |
+| `fes.coleco` | `fes_de10nano_evidence.py` | differ | `58e3e313595a9d481a3b43544766d145c56d92ff519f7955fd3c8699ffa52844` | pass 2 missing | **unconfirmed** |
+| `fes.menu` | `build_fes_menu_package.py`, `build_fes_menu.py`, `fes_de10nano_evidence.py` | differ | `05ab4ada678920c408b045026fbd88073f05152867ba628ff253757bc23d0a31` | pass 2 missing | **unconfirmed** |
+| `fes.pentagon` | `fes_de10nano_evidence.py` | differ | `b7e23071f5bb22020bd14c58b03b1e6a2b65b9254b7cf10ce52a3ce81b7bf334` | pass 2 missing | **unconfirmed** |
+| `fes.pong` | `build_fes_pong.py`, `fes_de10nano_evidence.py` | differ | `e7948651bcc0cc2ffbbd3c52c8643c642bc6964826e2a0ae65d18e3fd90cf12b` | agree | **byte-identical** |
+| `fes.ramtest` | `build_fes_ramtest.py`, `fes_de10nano_evidence.py` | differ | `0d59db94f2352a40c9b0e57ab69c6626ff5a3f7b33f5843ae9507e9bf3bf6c7a` | pass 2 missing | **unconfirmed** |
+| `fes.riscv` | `build_fes_riscv.py`, `fes_de10nano_evidence.py` | differ | `e8db4d58afb81e7766d7e21c9ce6d1d18736196badb9dbc23fb742d8c4549be8` | pass 2 missing | **unconfirmed** |
+| `fes.spectrum` | `fes_de10nano_evidence.py` | differ | `3f2dfb764a86b215ad4878203392ebd5823c2218e00e10f8f321eddaa85eccc7` | pass 2 missing | **unconfirmed** |
+| `fes.spectrum-plus3` | `fes_de10nano_evidence.py` | differ | `2646f83230b81acf14bf7ca62bafd1f77aa30602874e05d713ec4c5f4afa4fce` | pass 2 missing | **unconfirmed** |
+| `fes.spectrum128` | `fes_de10nano_evidence.py` | differ | `cd62753ae45dbfe930671831ed66ebec568ae4e0b1738fc3ee68ac5b2dda1957` | pass 2 missing | **unconfirmed** |
+| `fes.ts1000` | `fes_de10nano_evidence.py` | differ | `96bcf1f6411ab04324e86a58fd525bd5c722f3afbf02c7db67365be074cc6dca` | pass 2 missing | **unconfirmed** |
+| `fes.ts1500` | `fes_de10nano_evidence.py` | differ | `d29bb54e119907959fb104890f8d2d038fff625cf84b2cdea09cc7525bbf37a7` | pass 2 missing | **unconfirmed** |
+| `fes.zx80` | `fes_de10nano_evidence.py` | differ | `b7effcba3f7a30349ae55aef0eac6a857d00f04dc4fe1b959a0c482534df6f82` | pass 2 missing | **unconfirmed** |
+| `fes.zx81` | `fes_de10nano_evidence.py` | differ | `b5c296e5c76810f5655e70a945518dd511654e8b450fb7bbbb616e442f15604b` | pass 2 missing | **unconfirmed** |
 
 Revisions measured on main: `72d2fc4da`.
 Revisions measured on branch: `480c924f8`, `b5d3ae232`, `cf8ec7bec`.
