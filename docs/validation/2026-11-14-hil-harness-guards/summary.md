@@ -285,20 +285,33 @@ So the guards make the failure that cost two operator recoveries on
 make it impossible, and a future reader should not assume the kit is enforcing
 anything here.
 
-A fourth round found one more of this family: the release had moved out of a
-`finally` when round 3 restructured `clean` to propagate an unconfirmed
-release, so an unexpected exception — a `BrokenPipeError` from the log, a
-`UnicodeDecodeError` on a listing, a `KeyboardInterrupt` — could leave the
-shared kit leased. It releases unconditionally again, with the original
-exception preserved, and `release` itself no longer raises. That makes four
-consecutive rounds whose findings are all one question: is the lease actually
-held, and does the exit code say so. That is evidence about the shape of this
-code rather than about any single omission — correctness here is a sum of
-guards, so there can always be one more. The alternative shape is an
-agent-side operation that owns the lease and the removal together, where the
-kit itself refuses a mutation from a caller whose lease has lapsed. Whether
-that is worth building is Deano's call; it is out of scope for this PR, and
-the coordinating session is raising it with him.
+**Five rounds, one question, and two of the findings made by the fixes.** Every
+review round on PR #1850 asked the same thing — is the lease actually held for
+the whole interval, and does the exit code say so — and the series did not
+converge:
+
+| round | finding | introduced by |
+| --- | --- | --- |
+| 2 | the gate observed instead of excluding (claim-first) | the original design |
+| 3 | a lost renewal was never checked; an unconfirmed release was only logged | the original design |
+| 4 | the release had moved out of its `finally`, so an unexpected exception could leave the kit leased | **round 3's restructuring of `clean`** to propagate the unconfirmed release |
+| 5 | a nonzero `test -d` conflates a confirmed-absent root with a failed probe; the two post-claim refusal branches discard what `release()` returns | **round 2's per-root listing fix** (the probe did not exist before it) and round 3's `hold_for_cleanup` |
+
+Each fix was right in isolation and each was verified red before it. But two of
+the five rounds' findings were created by earlier fixes in the same series,
+which is the fact that matters: in a design where correctness is a sum of
+client-side guards, each new guard is another thing that can break another.
+That is evidence about the shape of the code, not about any single omission,
+and it is why this record states the invariant rather than only implementing
+it — the mechanism will change, the invariant is what has to be preserved.
+
+The round-5 findings are **acknowledged and left open**, not fixed: the
+alternative shape is an agent-side operation that owns the lease and the
+removal together, where the kit itself refuses a mutation from a caller whose
+lease has lapsed instead of the client checking for it. Whether that is worth
+building, and whether these guards should land as they are meanwhile, is
+Deano's call; the coordinating session is putting it to him. Another patch
+round is not how to settle it.
 
 ## A claim this record made, and why it was wrong
 
