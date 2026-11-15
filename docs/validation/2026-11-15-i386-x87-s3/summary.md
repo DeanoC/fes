@@ -335,6 +335,38 @@ The device has **2,228 ALMs left**, which is more than the standalone delta
 projected — a standalone fit over-predicted the machine delta here, and is
 not a machine prediction.
 
+### Where the ALMs go
+
+The per-entity fit is the #1584 method: the sealer's own Yosys program with
+`flatten` removed, so the fit report lists ALMs by entity. Identity on, same
+CUDA slot, seed 1. Dropping `flatten` is a different flow -- it fits at
+39,717 ALMs and +0.455 ns against the flattened 39,682 and +0.176 -- so these
+numbers attribute area and are not the timing result.
+
+| Entity | ALMs (own) |
+| --- | ---: |
+| `fes_i386_x87` | **3,851.4** (3,664.0) |
+| `fes_i386_x87_mul` | **187.4** (187.4) |
+| `fes_i386_cpu`, whole | 28,491.5 (9,081.9) |
+| `pc386_system`, whole | 39,053.4 |
+
+Slice 2 measured `fes_i386_x87` at 1,414 and `fes_i386_x87_mul` at 178
+through its own slot, so the arithmetic is roughly **+2,437 ALMs inside the
+unit** -- read across slots, so indicative. Two things in that are worth
+more than the total.
+
+**The multiplier did not grow**: 187 against 178, inside the flow's noise.
+That is the shared-multiplier design holding — every shift and every product
+in this slice goes through the one nine-DSP block and returns to the state
+`sh_ret` names, so the arithmetic bought its multiplies without a second
+multiplier, and the DSP count is unchanged from slice 2's at 9.
+
+**Almost all of it is the unit's own logic**, 3,664 of 3,851: the alignment
+and normalisation paths, the PC-aware rounder, the operand classification and
+the NaN rules, the exception sequencing and the sequencer itself. That is the
+same conclusion the spike comparison reaches from the other direction, and it
+is where a future reduction phase would have to look.
+
 ### Where the margin went, which is not where it looks
 
 The arithmetic is **not** the critical path. The fit reports the worst paths
