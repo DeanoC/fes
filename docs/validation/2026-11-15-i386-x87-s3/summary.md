@@ -358,15 +358,20 @@ it, the fix would have been a register stage in the sum or the rounding: a
 re-freeze, every gate again, and **no slack recovered at all**, because those
 paths already have a nanosecond. The paths were there to read the whole time.
 
-Two consequences follow. **Pipelining the x87 would recover nothing** — a register stage in the sum or the rounding
-would cost a re-freeze and every gate and buy no slack, because those paths
-already have a nanosecond. And the plausible-sounding argument that slice 4's
-reuse of the same adder and rounder will crowd the critical logic has **no
-support in this data**; what the data supports is duller and more general:
-adding logic anywhere in this machine at this utilisation costs timing
-everywhere. That is also an argument for the whole-system reduction phase
-beyond the area it recovers, because the audit's wins would buy slack as
-well as ALMs.
+Two consequences follow. **Pipelining the x87 would recover nothing**, for
+the reason above. And **slice 4's cost in slack will track its cost in area**
+rather than its reuse of the datapath: what the data supports is duller and
+more general than the crowding story, which is that adding logic anywhere in
+this machine at this utilisation costs timing everywhere, through placement.
+If slice 4's ALM cost really is a few hundred, that is the hopeful reading
+rather than the alarming one.
+
+It is also an argument for the whole-system reduction phase beyond the area
+it recovers. Deano deferred the audit's wins to a phase after the unit works,
+on the reasoning that piecemeal trimming costs design quality for a few
+hundred ALMs; that reasoning is untouched, but the payoff is larger than it
+looked, because at 1% of a period slack is the binding constraint and those
+wins buy slack as well as ALMs.
 
 ### The kit run
 
