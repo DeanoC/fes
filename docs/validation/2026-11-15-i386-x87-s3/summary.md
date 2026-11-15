@@ -1010,13 +1010,41 @@ were already in the address-mode cone, so giving them real memory shapes
 widened nothing. One `git show` of the merge base would have shown that
 before the mechanism was written down.
 
-**So the cone is three levels deeper and the cause is unidentified.** The
-depth measurement stands; the explanation does not. The next candidates are
-this slice's *other* decode-affecting changes -- the `x87_decode` and
-`x87_format` expansions in `fes_i386_pkg.sv`, which add many opcode cases
-and which this diagnostic did not touch -- and the possibility that the
-extra depth is the fitter's response to a fuller device rather than this
-slice's logic at all.
+**A second diagnostic settles it: the depth follows utilisation, not the
+decoder.** The remaining candidates were this slice's other
+decode-affecting changes (the `x87_decode` and `x87_format` expansions in
+`fes_i386_pkg.sv`) and the possibility that the depth is the fitter's
+response to a fuller device. One fit separates them: the branch with
+**`fes_i386_x87.sv` reverted to the merge base**, which removes this
+slice's arithmetic area while leaving every line of its decode RTL present
+*and still consumed* -- slice 2's unit reads `x87_op`, `x87_fmt` and
+`x87_part` through the same ports, so no decode logic is trimmed as dead.
+
+| Tree | utilisation | decode RTL | decode cone, six paths |
+| --- | ---: | --- | --- |
+| merge base | 90.8% | base | 10, 10, 10, 11, 10, 11 |
+| this branch | 94.7% | slice 3, full | **13** × 6 |
+| arms reverted | 94.7% | slice 3 minus 3 arms | **13** × 6 |
+| unit reverted | **91.1%** | **slice 3, full** | **11** × 6 |
+
+The last two rows are the result. Slice 3's complete decode RTL at
+merge-base utilisation gives **11 levels**, back inside the merge base's own
+range; slice 3's decode RTL *minus* arms at branch utilisation gives 13.
+**The cone's depth follows how full the device is, not what this slice
+wrote in the decoder** -- which also explains the first diagnostic's null
+result in retrospect, since it removed decode RTL while leaving utilisation
+high. The mechanism is ordinary: Quartus's physical synthesis duplicates
+and resynthesises under area pressure, and a levels count is sensitive to
+exactly that.
+
+**So "the decode cone is three levels deeper" stands as a measurement and
+falls as an attribution.** It is a consequence of the area this slice adds,
+like the slack is, and **decode is not a suspect**: both decode candidates
+are eliminated, the memory-form arms by the first diagnostic and the rest by
+the second holding all of it constant and live. What this does not do is
+prove a utilisation law independently -- it removes area rather than adding
+it. Padding the merge base to ~94.7% with its decode and consumers intact
+would measure that directly, and is slice 6's to run if it wants it.
 
 What follows from it, and what does not:
 
@@ -1033,16 +1061,16 @@ What follows from it, and what does not:
   three binding regions rather than the single cause; and the decoder's
   *area* did not grow, which is consistent with logic that was restructured
   deeper rather than simply added to.
-- **Where to start: by finding the cause, because the obvious candidate is
-  eliminated.** An earlier revision of this section named a specific fix --
-  folding the x87 memory arms into the shared memory-operand path -- as
-  slice 6's starting point, on the strength of the mechanism the diagnostic
-  then ruled out. **That instruction is withdrawn**, because it would have
-  sent slice 6 at code that is not the problem. What is known is that the
-  cone is three levels deeper and that those arms do not explain it; what is
-  not known is what does. The `x87_decode` and `x87_format` expansions in
-  `fes_i386_pkg.sv` are the untested candidate, and the same diagnostic
-  method settles it in half an hour.
+- **Slice 6 should do nothing about decode.** Two revisions of this section
+  named decode fixes -- first folding the x87 memory arms into the shared
+  memory-operand path, then bisecting the `x87_decode` and `x87_format`
+  expansions. **Both instructions are withdrawn**, because two diagnostics
+  eliminated both candidates: the cone's depth tracks utilisation, and
+  slice 3's decode RTL at merge-base utilisation fits in 11 levels. The
+  target is whole-machine area, which is what this section said before any
+  of it was measured and is now the only thing left pointing at the margin.
+  The value of the two fits is that slice 6 will not spend a day
+  restructuring a decoder that is not the problem.
 - **Doing it in slice 3 would cost a re-freeze and every gate again** -- the
   unit bench on RTL and netlist, the lockstep four ways, test386, a new
   Quartus seal, a kit run, and a fresh nine-seed sweep to find out whether it
