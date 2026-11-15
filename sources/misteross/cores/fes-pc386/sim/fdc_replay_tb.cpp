@@ -807,6 +807,40 @@ std::vector<Case> cases() {
         g.check(bytes == Guest::original(A144, stopped, 0, 1),
                 "a read of the cylinder the PCN names finds that cylinder");
     }});
+    // A seek past the drive's last track: the head stops at the mechanism's
+    // inward stop while the PCN counts every pulse, so the two come apart and
+    // the next transfer's implied seek starts from the wrong origin.
+    list.push_back({"seek_past_last_track", 4, 2, false, [](Guest &g) {
+        { const Disk boot_disk = A144; g.boot(&boot_disk); }
+        start(g);
+        g.command({0x03, 0xff, 0x02});                       // the fastest step rate
+        g.out(0x3f2, 0x1c);
+        g.command({0x0f, 0x00, 85});                         // five tracks past an 80-track drive
+        g.irq();
+        auto r = g.sense();
+        g.check(r.size() == 2 && r[1] == 85, "the PCN counts every pulse, to 85");
+        // The head stands on 79. A read of 79 asks for six steps out from a
+        // PCN of 85, which takes the head to 73, where no ID field carries 79.
+        g.command(rw(0xe6, 0, 79, 0, 1, 18));
+        g.check(g.wait([&] { return g.f.drq() || (g.f.in(0x3f4) & 0xc0) == 0xc0; }, 4000000,
+                       "the read ends"),
+                "a read after a seek past the last track ends");
+        if (g.f.drq()) {
+            g.dma_in(512, 511);
+            g.results();
+            g.check(false, "it exposes no sector");
+        } else {
+            auto past = g.results();
+            g.check(past.size() == 7 && past[0] == 0x40 && past[1] == 0x04,
+                    "a head at the stop with a PCN past it reports no data");
+        }
+        // Recalibrate brings the two together again at the track-zero sensor.
+        recalibrate(g, 0);
+        g.command(rw(0xe6, 0, 79, 0, 1, 18));
+        auto back = g.dma_in(512, 511);
+        g.results();
+        g.check(back == Guest::original(A144, 79, 0, 1), "and after Recalibrate the last track reads");
+    }});
     list.push_back({"status_registers", 4, 2, false, [](Guest &g) {
         g.check(g.show(0x3f0) == 0xff, "3F0h reads FFh");
         g.check(g.show(0x3f1) == 0xff, "3F1h reads FFh");

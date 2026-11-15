@@ -60,6 +60,15 @@ deciding = "The locked BIOS sends no SEEK of its own before a transfer (`rombios
 follow = "both"
 
 [[divergence]]
+id = "drive-track-limit"
+title = "A seek past the drive's last track"
+cases = ["seek_past_last_track"]
+reference = "Models no head, so a seek sets the one cylinder it keeps to whatever was asked for: a seek to 85 on an 80-track drive leaves it at 85, and a later read of cylinder 79 finds that cylinder because the command's C is the address."
+rtl = "The head stops at the drive's inward stop while the PCN counts every pulse, so a seek past the drive's range leaves the two apart: a seek to 85 leaves the head on 79 with the PCN at 85, and a read of 79 then steps six tracks out from that PCN and ends on 73, where no ID field carries the cylinder asked for, so it reports ST0 IC=01 with ST1 ND. A Recalibrate brings them back together at the track-zero sensor and the same read works."
+deciding = "A stop is the drive's, not the controller's, and the 82077AA keeps the two apart where it discusses tracks beyond the usual range: on a 300-track drive \"if a SEEK command was issued, the head would stop at track 255\", which is the register wrapping, while RECALIBRATE \"would return an error if the head was farther than 79 due to its limitation of issuing a maximum 80 step pulses\", which is the mechanism (290166-007, 5.2.5). The same split decides the other end of the travel, where TRK0 is a pin the controller senses. The limit is the configured drive type, the drive rather than the disk in it: CMOS 10h type 1 is the 40-track 360K drive and types 2 to 5 are 80-track."
+follow = "rtl"
+
+[[divergence]]
 id = "reset-pcn"
 title = "The PCN across a software reset"
 cases = ["reset_sense_pcn", "reset_during_seek"]

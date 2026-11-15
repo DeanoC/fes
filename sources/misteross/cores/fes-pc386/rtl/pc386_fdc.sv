@@ -450,6 +450,13 @@ module pc386_fdc #(
         end
     endtask
 
+    // The drive's inward stop, which is the mechanism and not the register.
+    // The limit is the configured drive type, the drive rather than the disk
+    // in it: type 1 is the 40-track 360K drive and types 2 to 5 are
+    // 80-track. A head cannot pass it however many more pulses arrive, while
+    // the PCN counts them all and wraps (5.2.5).
+    wire [7:0] last_track = drive_type[dsel] == 3'd1 ? 8'd39 : 8'd79;
+
     // Where a transfer's implied seek leaves the selected drive: it steps
     // by the distance from the named unit's PCN to the command's cylinder,
     // and the head stops at the track-zero sensor however many more steps
@@ -457,7 +464,8 @@ module pc386_fdc #(
     wire signed [10:0] implied_step = $signed({3'd0, command[2]}) - $signed({3'd0, pcn[d]});
     wire signed [10:0] implied_target = $signed({3'd0, physical_cyl[dsel]}) + implied_step;
     wire [7:0] implied_cyl = implied_target < 11'sd0 ? 8'd0 :
-                             implied_target > 11'sd255 ? 8'd255 : 8'(implied_target);
+                             implied_target > $signed({3'd0, last_track}) ? last_track :
+                             8'(implied_target);
 
     // The seek a read or write makes before its transfer: the controller
     // steps the selected drive there and takes the named unit's PCN with it,
@@ -711,7 +719,7 @@ module pc386_fdc #(
                     // the last track).
                     if (moved) begin
                         if (seek_up) begin
-                            if (physical_cyl[dsel] != 8'hff) physical_cyl[dsel] <= physical_cyl[dsel] + 8'd1;
+                            if (physical_cyl[dsel] < last_track) physical_cyl[dsel] <= physical_cyl[dsel] + 8'd1;
                             if (!recalibrating) pcn[d] <= pcn[d] + 8'd1;
                         end else begin
                             if (physical_cyl[dsel] != 8'd0)

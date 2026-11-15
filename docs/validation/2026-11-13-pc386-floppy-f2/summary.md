@@ -135,6 +135,21 @@ cannot satisfy.
   PCN value is thus (NCN + PCN) mod 256" (5.2.5). The head stops where the
   drive stops it; the counter does not stop, it wraps. So `physical_cyl`
   saturates, `pcn` counts every pulse, and that case matches again.
+- **A fifth round found the other end of the travel.** `physical_cyl`
+  saturated at 255, which is the register's width and not the mechanism's
+  limit, so a seek past the drive's range left the head and the PCN falsely
+  aligned: a seek to 85 on an 80-track drive would leave both at 85, and a
+  read of cylinder 79 would find it. A real head stops at the inward stop
+  while the controller keeps counting, so the two are genuinely apart and
+  that read steps from the wrong origin and finds nothing. The head now
+  stops at the drive's last track, as it already stopped at the track-zero
+  sensor. **The limit comes from the configured drive type, which is the
+  drive and not the disk in it:** CMOS 10h type 1 is the 40-track 360K drive
+  and types 2 to 5 are 80-track, so it holds for an empty drive and does not
+  depend on reading a geometry off an image. No format the bench supports
+  has more than 80 cylinders, so the stop never stands in front of a
+  readable track; a hypothetical image with more would have its upper tracks
+  unreachable, as it would on the real drive.
 - **And the implied seek now stops at the track-zero sensor.** The distance
   from the named unit's PCN to the command's cylinder can take the selected
   drive's head below zero under a DOR mismatch, which eight unsigned bits
@@ -176,6 +191,18 @@ cannot satisfy.
   access read the new disk. That is what the design asks for ("DOS, through
   the patched BIOS, then rereads the FAT and the boot sector").
 
+**What the three rounds of findings have in common**, which is worth more
+than any one of the fixes. The PCN, the drive's head position and the C of
+the command in hand were one register. Splitting them is what this slice
+needed, and each fix in turn exposed the next: separating them surfaced the
+Sense Interrupt that answered for the wrong unit, keeping the PCN across a
+software reset surfaced the PCN that was loaded with a destination instead
+of counting pulses, and counting pulses surfaced the head that ran past the
+drive's stop because only the register's width had been bounding it. Three
+quantities, three defects, each found by asking which of the three a line
+was really talking about. Anyone next in this controller should expect the
+same question to be the useful one.
+
 ## Suites
 
 Every suite ran on this branch, on the ROM the branch ends with
@@ -185,7 +212,7 @@ Every suite ran on this branch, on the ROM the branch ends with
 | --- | --- |
 | `floppy` (new) | PASS: 24 checks, all ok, all four swaps made, and the pattern FLOPTEST.COM wrote to B: is in sector 2399 of the image the bench wrote back ([log](floppy-suite.log)) |
 | `floppy-boot` (new) | PASS: FreeDOS boots from the 1.44M floppy in A: with CMOS 2Dh, 38h and 3Dh set to an A: launch, reaches the `A:\>` prompt 5.90 simulated s in, and DIR shows the boot floppy's label FDBOOT |
-| `fdc` | PASS: 39 cases, 20 matching Bochs, 16 listed divergences (the new `dor_mismatch`, `eot_no_step_pulse`, `reset_sense_pcn` and `reset_during_seek` among them), 3 RTL-only ([log](fdc-suite.log)) |
+| `fdc` | PASS: 40 cases, 20 matching Bochs, 17 listed divergences (the new `dor_mismatch`, `eot_no_step_pulse`, `reset_sense_pcn`, `reset_during_seek` and `seek_past_last_track` among them), 3 RTL-only ([log](fdc-suite.log)) |
 | `devices` | PASS, with three new CMOS cases: no drive, two drives with an A: launch, one 360K drive with a CD launch |
 | `boot` (oracle) | PASS, with the VGA replay clean (84,949 events, no mismatch) |
 | `a20` | PASS on the boot and games images |
@@ -315,9 +342,17 @@ table as well, with what they do and do not show.
   width +1.122 ns, recovery +6.291 ns, removal +0.453 ns, on the 61.44 MHz
   system clock with the 74.27 MHz pixel and 12.29 MHz audio clocks. Nothing
   was relaxed.
-- **The sealed commit is not the branch head**: everything committed after
-  `23218503b` is this record. No RTL, firmware or other seal input changed,
-  and all 119 of the seal's recorded input digests match the head's files.
+- **The sealed commit is not the branch head, and after this round the RTL
+  differs from it.** The figures above are the seal of `23218503b`; the head
+  adds the drive's inward stop in `pc386_fdc.sv`, its replay case and this
+  record. That is a post-seal RTL fix on a pc386 PR while pc386 is in
+  bring-up, which Deano's standing exemption covers (1 November, on #1335):
+  it waives only the rule that a seal must cover the exact head, because the
+  next PR to merge main reseals the tree and carries the kit runs. It waives
+  nothing about timing — the seal quoted here passed every analysis at
+  61.44 MHz from a clean checkout — and it does not reach shared kit-core
+  RTL, which `pc386_fdc.sv` is not. **So read the table as covering
+  `23218503b`, not the head.**
 - Package `9f08910b0af8e1dc…`, `BUILD_ID` `622aa3935b181750ce5da9d81611817a`,
   backend CUDA, device 5CSEBA6U23I7, status `pass`.
 
