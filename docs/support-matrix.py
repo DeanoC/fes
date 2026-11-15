@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import re
 import subprocess
 import tomllib
 
@@ -196,23 +197,57 @@ def derive_tier(row: dict) -> str:
     return 'stale'
 
 
+# A level-two ATX heading: Markdown allows up to three leading spaces, so the
+# boundary has to match those too or a later section folds into this one.
+HEADING2 = re.compile(r'^ {0,3}##(?!#)\s*(.*?)\s*$')
+LIST_ITEM = re.compile(r'^ {0,3}[-*+] +')
+
+
+def heading2(line: str) -> str | None:
+    """The text of a level-two heading, or None if this is not one."""
+    found = HEADING2.match(line)
+    return found.group(1) if found else None
+
+
 def ladder_section(text: str) -> str | None:
     """The forward plan's own Tiers section, flattened.
 
-    The heading has to be that line exactly and appear once: a section renamed
-    `## Tiers (superseded)` beside a new one would otherwise keep answering for
-    the ladder.
+    The heading has to be that heading exactly and appear once: a section
+    renamed `## Tiers (superseded)` beside a new one would otherwise keep
+    answering for the ladder.
     """
     lines = text.splitlines()
-    starts = [i for i, line in enumerate(lines) if line.strip() == LADDER_HEADING]
+    wanted = LADDER_HEADING.removeprefix('## ')
+    starts = [i for i, line in enumerate(lines) if heading2(line) == wanted]
     if len(starts) != 1:
         return None
     body = []
     for line in lines[starts[0] + 1:]:
-        if line.startswith('## '):
+        if heading2(line) is not None:
             break
         body.append(line)
     return ' '.join(' '.join(body).split())
+
+
+def markdown_list_item(lines: list[str], index: int) -> str | None:
+    """The whole list item that line `index` is part of, flattened.
+
+    A bullet may be wrapped over continuation lines, so comparing only the
+    physical line holding the citation would reject a formatting-only edit.
+    """
+    start = index
+    while start >= 0 and not LIST_ITEM.match(lines[start]):
+        if not lines[start].strip() or heading2(lines[start]) is not None:
+            return None
+        start -= 1
+    if start < 0:
+        return None
+    item = [LIST_ITEM.sub('', lines[start])]
+    for line in lines[start + 1:]:
+        if not line.strip() or LIST_ITEM.match(line) or heading2(line) is not None:
+            break
+        item.append(line)
+    return ' '.join(' '.join(item).split())
 
 
 def derive_check_level(row: dict) -> str:
@@ -800,15 +835,18 @@ def agents_rule_errors(text: str) -> list[str]:
     be in that bullet, so the policy cannot stay accepted while the rule around
     the marker has been weakened or removed.
     """
-    bullets = [line for line in text.splitlines() if AGENTS_RULE_CITE in line]
-    if not bullets:
+    lines = text.splitlines()
+    cited = [i for i, line in enumerate(lines) if AGENTS_RULE_CITE in line]
+    if not cited:
         return [
             f'{AGENTS} no longer carries the rule cited {AGENTS_RULE_CITE}; the check policy '
             'cannot say accepted while nothing states the obligation'
         ]
-    if len(bullets) > 1:
-        return [f'{AGENTS} states {AGENTS_RULE_CITE} {len(bullets)} times; one of them may contradict the other']
-    found = ' '.join(bullets[0].removeprefix('-').split())
+    if len(cited) > 1:
+        return [f'{AGENTS} states {AGENTS_RULE_CITE} {len(cited)} times; one of them may contradict the other']
+    found = markdown_list_item(lines, cited[0])
+    if found is None:
+        return [f'{AGENTS} rule {AGENTS_RULE_CITE} is not in a list item; the hard rules are a list']
     if found != AGENTS_RULE:
         return [
             f'{AGENTS} rule {AGENTS_RULE_CITE} is not the rule this page was accepted against; '

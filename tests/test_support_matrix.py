@@ -189,6 +189,39 @@ class SupportMatrixTests(unittest.TestCase):
                     any('AGENTS.md' in error for error in errors), (label, errors)
                 )
 
+    def test_a_rewrapped_agents_rule_still_passes(self):
+        """A formatting-only edit is not a change to the rule."""
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        by_id = {row['id']: row for row in data['cores']}
+        plan = (ROOT / SUPPORT_MATRIX.FORWARD_PLAN).read_text()
+        agents = (ROOT / SUPPORT_MATRIX.AGENTS).read_text()
+        bullet = next(line for line in agents.splitlines()
+                      if SUPPORT_MATRIX.AGENTS_RULE_CITE in line)
+        words = bullet.removeprefix('- ').split()
+        wrapped = '- ' + ' '.join(words[:12]) + '\n'
+        for i in range(12, len(words), 12):
+            wrapped += '  ' + ' '.join(words[i:i + 12]) + '\n'
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'docs' / 'plans').mkdir(parents=True)
+            (root / 'docs' / 'plans' / 'forward-plan.md').write_text(plan)
+            (root / 'AGENTS.md').write_text(agents.replace(bullet + '\n', wrapped))
+            self.assertEqual([], SUPPORT_MATRIX.agents_rule_errors(
+                (root / 'AGENTS.md').read_text()
+            ))
+            errors = SUPPORT_MATRIX.validate_check_policy(root, data, by_id, None)
+            self.assertEqual([], [e for e in errors if 'AGENTS.md' in e], errors)
+
+    def test_an_indented_heading_ends_the_ladder_section(self):
+        """Markdown allows up to three spaces before `##`, so the section must
+        end there too: otherwise a later section's text answers for the ladder."""
+        plan = (ROOT / SUPPORT_MATRIX.FORWARD_PLAN).read_text()
+        quote = SUPPORT_MATRIX.LADDER_QUOTES[0]
+        moved = plan.replace('## Tiers', '## Tiers\n\n   ## Later\n', 1)
+        section = SUPPORT_MATRIX.ladder_section(moved)
+        self.assertIsNotNone(section)
+        self.assertNotIn(quote, section)
+
     def test_an_accepted_check_policy_names_who_decided_it(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
         by_id = {row['id']: row for row in data['cores']}
