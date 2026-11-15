@@ -51,6 +51,35 @@
    }
   }
  },
+ "coleco_v2_control_main": {
+  "build_id": "aafe5d2738586e5238711651a99d9f35",
+  "note": "coleco_v2 built at MAIN e9218eb5e, not at this PR -- the control run",
+  "placer_seed": 5,
+  "timing": {
+   "audio": {
+    "achieved_mhz": 196.92791748046875,
+    "clock": "system_clock.clocks[1]",
+    "constraint_mhz": 12.288031578063965,
+    "requested_mhz": 12.288,
+    "status": "pass"
+   },
+   "pixel": {
+    "achieved_mhz": 106.48493194580078,
+    "clock": "pixel_clk",
+    "constraint_mhz": 74.25006866455078,
+    "requested_mhz": 74.25,
+    "status": "pass"
+   },
+   "status": "pass",
+   "system": {
+    "achieved_mhz": 52.2520637512207,
+    "clock": "system_clock.clocks[0]",
+    "constraint_mhz": 52.22477340698242,
+    "requested_mhz": 52.224,
+    "status": "pass"
+   }
+  }
+ },
  "menu": {
   "build_id": "3e4d709bda125de4cc22909a5be293e3",
   "placer_heap_timingweight": 10,

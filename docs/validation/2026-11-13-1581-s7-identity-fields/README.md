@@ -72,11 +72,12 @@ BUILD_ID as well, so evidence gathered before it landed would not have survived 
 
 ### Result
 
-**Eleven of twelve closures discharge D12's three conditions. `coleco_v2` does not, and this
-record does not claim it does.** Conditions 1 and 2 hold for all twelve. Condition 3 -- the PR's
-own unforced build passing the producer's normal timing and seal gates -- fails for `coleco_v2`
-at this branch's head, on all ten seeds in its recipe. See **Condition 3 for `coleco_v2`** below;
-the evidence is committed under [`condition-3/`](condition-3/).
+**Ten of twelve closures discharge D12's three conditions. `coleco_v2` and `c64` do not, and
+this record does not claim they do.** Conditions 1 and 2 hold for all twelve. Condition 3 -- the
+PR's own unforced build passing the producer's normal timing and seal gates -- fails for both,
+for two different reasons, and the control run below shows the cause is not this PR's changes
+but the identity constant they move. The evidence is committed under
+[`condition-3/`](condition-3/).
 
 Conditions 1 and 2 were measured against merge base `1a4bb8d41`; `zx81` was re-measured against
 `e9218eb5e` after main's DeanoC/fes#1791 changed `cores/fes-zx81/rtl/top.v`, `zx81_machine.sv` and
@@ -99,6 +100,57 @@ route-deciding input.
 | `ramtest` | `7a60de20fc0fb448849cd24eed50a253` | `d3774d8027b61a943e77edac3f6815c7e8f3a526da1d18dd688bcf91f64fd925` | `a5e0d01b501fb7721240a64b8a9b71065940e8d5b23af7c2b72ff76173543347` | `4d8eb4efff711f03f1b842ed2b056b9a` |
 | `riscv` | `e0a17b8e0d06d1b5b5fae611bdedc308` | `a7224f83777d917af62b4b4a1d3db814e34f69028c1fb09254b8f09946303831` | `99f92fafc5b0c591a34968b535468610c479219066d579bfee046b7d42c33a50` | `89ce0e93c74934dc3ed7bfc1a131d990` |
 
+### The control: main passes, by 27 kHz
+
+`coleco_v2` was built unforced at **main's** head `e9218eb5e` to ask whether the miss is
+pre-existing. It is not -- and the answer is worse than if it had been.
+
+Main passes: `rc=0`, seed 5, `BUILD_ID aafe5d2738586e5238711651a99d9f35`, RBF
+`347164e76223cb0a482c6669ad9339455c7d8393bb65a702be6d9bd893612cee`. But its binding clock
+clears by **0.052%**:
+
+| clock | achieved | constraint | margin |
+| --- | ---: | ---: | ---: |
+| `system_clock.clocks[0]` | 52.25206 | 52.22477 | **+0.052%** (27 kHz) |
+| `pixel_clk` | 106.48493 | 74.25007 | +43.4% |
+| `system_clock.clocks[1]` | 196.92792 | 12.28803 | +1502% |
+
+So `coleco_v2` on main today closes timing by twenty-seven kilohertz. It is not a core this PR
+broke; it is a core with no margin, on which any identity move is a coin toss. Main is one
+closure-touching commit away from the same failure at any time, by whoever happens to push it.
+
+**The repeat reproduces exactly.** A second unforced build at this branch's head returned the
+same verdict and the same ten per-seed ratios to every recorded digit -- best seed 2 at
+0.9795876837, down to seed 7 at 0.8594254767. The failure is deterministic, not seed luck, so
+re-running it is not a route to a pass.
+
+**What this corrects.** An earlier revision of this record implied `scripts/core_package.py`
+caused the failure. That is too strong: main carries that same change, with its own moved
+identity, and passes. What decides the outcome is the identity *value*, not which file moved it.
+`core_package.py` is still the reason every identity moved at once -- it sits in nearly every
+closure while compiling to no RTL -- but the failure belongs to the margin, not to the file.
+
+### Condition 3 for `c64`
+
+`c64` fails too, by a different mechanism, and the two should not be read as one finding.
+
+```
+build-fes-c64-oss: no placement met timing (best seed=9 weight=2000 worst_ratio=0.9894)
+```
+
+Of ten seeds, **three** produced a placement to time -- 0.9894, 0.9700, 0.9180 -- and **seven**
+hit the recipe's 600-second router budget and were killed (`exit 124`), recording
+`worst_ratio` 0.0. Those zeros are not near-misses; they are seeds that never finished routing.
+[`condition-3/ratios.py c64`](condition-3/ratios.py) says which is which, and
+[`condition-3/c64.router-timeouts.log`](condition-3/c64.router-timeouts.log) holds two of the
+router tails: seed 1 was killed at `iter=139 overused=1`, one overused wire from a completed
+route, and seed 6 reported a routed system-clock Fmax of 50.62 MHz against a 52.22 constraint,
+so it would have missed even given more time.
+
+So `c64`'s condition 3 is partly a routing-time problem and partly a timing one, and the
+recipe's 600 s budget is binding on it. Raising that budget is a recipe change -- a
+route-deciding input -- so it is not available inside this PR, and it is not attempted here.
+
 ### How close the passers came
 
 "Eleven of twelve passed" is true and misleading on its own, because a
@@ -110,7 +162,9 @@ figures are derived rather than transcribed:
 
 | core | tightest clock | achieved | constraint | margin |
 | --- | --- | ---: | ---: | ---: |
-| `coleco_v2` | — | — | — | **FAILED, best seed 0.9796** |
+| `coleco_v2` (this PR) | — | — | — | **FAILED, best seed 0.9796** |
+| `c64` (this PR) | — | — | — | **FAILED, 3 of 10 seeds timed, best 0.9894** |
+| `coleco_v2` (on **main**) | `system_clock.clocks[0]` | 52.252 | 52.225 | **+0.05%** |
 | `sms` | `system_clock.clocks[0]` | 53.067 | 52.225 | **+1.61%** |
 | `ramtest` (100) | `ram_clock.clocks[0]` | 103.670 | 100.000 | +3.67% |
 | `atari_st` | `system_clock.clocks[0]` | 54.215 | 52.225 | +3.81% |
@@ -142,8 +196,9 @@ The three lower readings are DeanoC/fes#1881's measurements, not re-derived here
 **Two ways to say which cores this bites, and they agree.** By the swing above,
 anything inside about 2.7pp of its constraint can flip. The DeanoC/fes#1881 work
 offers the blunter version, a binding clock sitting within roughly a megahertz of
-its constraint, and on this table both pick out the same core: `sms` clears by
-**0.843 MHz** (53.067 against 52.225), and nothing else among these is close. The
+its constraint, and on this table both pick out the same cores. `coleco_v2` **on main** clears
+by 0.027 MHz, the thinnest reading anywhere in this record, and `sms` by
+**0.843 MHz** (53.067 against 52.225); nothing else among these is close. The
 corollary matters more than the rule: for a core in that band, **a condition-3
 pass at a neighbouring commit is worth nothing**, because the identity it was
 measured under is not the identity that ships.
