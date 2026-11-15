@@ -8,6 +8,7 @@ from pathlib import Path
 import json
 import os
 import stat
+from scripts.input_identity import input_role
 
 TRACER = Path('/usr/bin/strace')
 POLICY = 'compiler-markdown-v1'
@@ -130,6 +131,8 @@ def verify_traces(directory, source_root, closure=None):
                 if path.is_symlink() or (not path.exists() and closure is not None):
                     raise ReadAuditError('compiler opened missing or linked source: ' + ascii(str(relative))[:320])
                 if path.is_file():
+                    if input_role(relative.as_posix()) != 'design':
+                        raise ReadAuditError('compiler read non-design input: ' + relative.as_posix())
                     _enforce_closure(relative.as_posix(), closure, 'read')
             if path.suffix.lower() not in ('.md', '.markdown'):
                 continue

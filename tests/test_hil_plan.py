@@ -33,6 +33,13 @@ def deployment(data):
 
 
 class HilPlanTest(unittest.TestCase):
+    def test_identity_report_has_no_deployed_consumer(self):
+        planner = hil_module()
+        self.assertEqual(planner.plan(['sources/misteross/tools/identity.py'], texts={})['decision'],
+                         'NO_DEPLOY_CHANGE')
+        self.assertEqual(planner.plan(['sources/misteross/tools/unknown.py'], texts={})['decision'],
+                         'FULL_IMAGE')
+
     def test_catalog_metadata_does_not_require_deployment(self):
         planner = hil_module()
         catalog = 'config/core-library.toml'

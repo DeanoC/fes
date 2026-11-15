@@ -65,6 +65,7 @@ RULES = [
     ('sources/misteross/cores/*/sim/**', 'none', None),
     ('sources/libmister-runtime/tests/**', 'none', None),
     ('sources/misteross/scripts/sim_*', 'none', None),
+    ('sources/misteross/tools/identity.py', 'none', None),
     # Definitions are checked through their generated deployed consumers below.
     ('sources/mister-packages/packages/board/de25_nano.yaml', 'none', None),
     ('sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'none', None),
