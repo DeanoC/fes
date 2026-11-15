@@ -33,7 +33,7 @@
   "provenance": "reference figures from separate benchmark VMs (same board and clock, XT-IDE controller, benchmark drive); the kit figure from the same claim as its pace windows"
  },
  "verdict": {
-  "windows": "r15a, r15b, r15d against q1, q2, q3; all gates met, both sides at 15 fps, both disks 41c7b9d8",
+  "windows": "r15a, r15b, r15d against q1, q2, q3. Gates met: no input during any window; 86Box read 100% for every frame against the committed readout hash; both sides' drive copies digested before their runs at the same 41c7b9d8. Gate NOT met, reported as a deviation: gate 3, the capture rate -- both sets are derived at 15 fps, but the reference was captured at 15 and the kit at 60, and the gate asks for capture.",
   "reference_cycles_s": [
    11.8,
    11.8,
@@ -50,13 +50,21 @@
   "kit_cycle_spread_pct": 0.0,
   "kit_minus_reference_pct": -26.0,
   "band_pct": 10,
-  "result": "MISS (26.0%), on a quantity method.md did not commit; see committed_metric_outcome for the committed check",
+  "result": "MISS (26.0%) on a quantity method.md did not commit, measured on windows that meet every gate but gate 3, which is reported as a deviation. Not the committed check decided; see committed_metric_outcome.",
   "window_ratio_kit_over_reference": 0.7347,
   "kit_scene_speed_vs_reference": 1.351,
   "quantisation_pct": {
    "both_sides_15fps": 0.57
   },
-  "pace_equivalent_386dx_clock_mhz": "between 33.3 and 40, about 38 by a three-point fit"
+  "pace_equivalent_386dx_clock_mhz": "between 33.3 and 40, about 38 by a three-point fit",
+  "gate_status": {
+   "no_input": "met",
+   "emulator_100_percent": "met",
+   "drive_image_digest": "met (41c7b9d8 both sides)",
+   "capture_rate_gate_3": "NOT met -- derived at one rate, captured at two; reported as a deviation",
+   "one_mover_counted": "met",
+   "single_emulator_on_host": "met"
+  }
  },
  "kit_mem_c": {
   "free_conventional_bytes": 594272,
@@ -96,20 +104,22 @@
  "committed_metric_outcome": {
   "quantity": "displacement per second (heights/s), the quantity method.md committed",
   "result": "NOT DECIDED",
-  "why": "its spread across one machine's own repeats is not reproducible, and no cause was found. Two sets of reference windows, each with every gate met: m1/m2/m6 give 0.04306, 0.05010, 0.05941 (spread 32.1%) and r15a/r15b/r15d give 0.04716, 0.04712, 0.04592 (spread 2.7%). The kit/reference ratio swings 1.096 to 1.220 with the choice of reference triple. The walk cycle over the same two sets is 11.733/11.800/11.867 and 11.800/11.800/11.800, spreads of 1.1% and 0.0%. A figure whose own repeat spread moves by an order of magnitude between gate-clean triples cannot carry a band. Frame counts were complete (1800 of 1800) in every window, so dropped capture frames are not it.",
+  "why": "for want of a valid second repeat set, NOT because irreproducibility was shown. The earlier claim that the spread is not reproducible is WITHDRAWN. Only r15a/r15b/r15d meet the drive-image gate (exact 41c7b9d8 copies, each digested before its run), and they spread 2.7%. The m1/m2/m6 observations spread 32.1%, but those copies FAIL that gate -- they differ from the required image in two FAT timestamp bytes and m1 was never digested before its run -- so they are out-of-gate observations, not a second valid spread, and cannot establish that valid reference spreads are inconsistent. With no second in-gate set to weigh against the first, the committed metric's outcome is not decided by the method. Note also that r15's own comparison carries the gate-3 capture-rate deviation recorded in verdict.gate_status.",
   "window_set_A": {
    "runs": [
     "m1",
     "m2",
     "m6"
    ],
+   "gate_status": "FAILS the drive-image gate; m1 also lacks a pre-run digest",
    "reference": [
     0.04306,
     0.0501,
     0.05941
    ],
    "spread_pct": 32.1,
-   "ratio_kit_over_reference": 1.096
+   "ratio_kit_over_reference": 1.096,
+   "use": "out-of-gate observation only; not acceptance evidence and not a valid repeat set"
   },
   "window_set_B": {
    "runs": [
@@ -117,13 +127,15 @@
     "r15b",
     "r15d"
    ],
+   "gate_status": "meets the drive-image gate; carries the gate-3 capture-rate deviation",
    "reference": [
     0.04716,
     0.04712,
     0.04592
    ],
    "spread_pct": 2.7,
-   "ratio_kit_over_reference": 1.22
+   "ratio_kit_over_reference": 1.22,
+   "use": "the in-gate set; one set alone cannot decide the committed check"
   },
   "kit": [
    0.05698,
@@ -132,7 +144,8 @@
   ],
   "kit_spread_pct": 0.2,
   "band_pct": 10,
-  "direction": "both sets put the kit above the reference, as the cycle does; only the magnitude is unstable"
+  "direction": "the in-gate set puts the kit above the reference, as the cycle does; the out-of-gate set agrees in direction but carries no weight",
+  "withdrawn_claim": "an earlier revision of this file and of summary.md said the committed metric's spread is not reproducible, comparing set A with set B. That comparison is invalid because set A is out of gate, and the claim is withdrawn here rather than removed silently."
  },
  "prior_reference_runs": {
   "m1": {
@@ -679,5 +692,6 @@
   "kit_speed_gate": "none: the kit is hardware and has no emulator speed readout, so its windows carry no speed fields",
   "note": "every window record below also carries its own speed_rect, speed_sha and decimate, so a gate result can be rederived without this block",
   "speed_sha_is": "the SHA-256 of the rectangle's DECODED 404x27 8-bit grayscale pixel bytes -- 10,908 bytes, the same bytes u7pace.py slices out of a capture frame -- NOT the SHA-256 of the PNG file. Decoded pixels: 92f3943e2eac8b376656f6b193aba5d817697ef26e037eb30e154f2d187ae7f3. The PNG file itself: 75f35c7e269ab82e0a5bfc6ba4f8d1802304d4a388eae3db01698453f4bae830. To rederive: ffmpeg -loglevel error -i speed-100.png -pix_fmt gray -f rawvideo - | sha256sum"
- }
+ },
+ "prior_reference_runs_note": "m1-m6 and the clock-sweep runs are prior runs. Their drive copies differ from the required 41c7b9d8 image in two FAT timestamp bytes (m1 was never digested), so they fail the drive-image gate and are observations only, not acceptance evidence."
 }
