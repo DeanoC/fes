@@ -162,5 +162,79 @@ about values the title could produce.
 
 ## Amendments
 
-None yet. Any amendment is dated here and says what had already been seen
-when it was made.
+### 15 November 2026, before the first run
+
+What I had seen when I made it: only the 12 November record and slice 2's
+area record, as disclosed above. **No run of this census had been made** —
+the simulation build was still compiling. Six changes, all of them because
+writing the rules down showed them to be wrong or unmeasurable as stated:
+
+1. **The probe-only rule is now mechanical, and it admits the infinity
+   test.** The method's prose allowed the 287/387 infinity test, but that
+   test's FLD1, FLDZ, FDIVP, FCHS and FCOMPP class as `load` and `arith`, so
+   the prose and the script disagreed. The committed rule is now the
+   script's: **probe only means no real or integer memory operand moved, no
+   FXCH and no transcendental.** The infinity test is register-only, so it
+   passes; one FLD m32 does not. A probe-only title gets **no** sufficiency
+   verdict (`null`), because sufficiency is a question about computation.
+   The DOOM control is unchanged in substance: zero memory FP operands,
+   zero FXCH, zero transcendentals.
+2. **`x87sig` reads the state before a popping store.** After FSTP, FISTP
+   or FBSTP, ST(0) is the register underneath, or an empty slot holding
+   stale bits, so the value the title stored is only in the state before the
+   step. As first written the per-form store rows would have described the
+   wrong register. An empty slot (tag 3) is now its own bucket, `empty`,
+   and not a width.
+3. **`x87cwset` catches every writer**, not a list of forms: FNSAVE
+   reinitialises the control word on a 387, and a DPMI host's lazy context
+   switch will do that inside Quake. Any step whose control word changes is
+   counted.
+4. **The calibration is reported, not required.** Σ`x87op` counts retired
+   ESCs only, while the stem total and the fault and held counts sit on
+   different sides of that line, so an exact identity is not a rule I can
+   state correctly in advance. The script emits all four numbers
+   (`calibration`) and the record reports the difference.
+5. **Drives are pinned by SHA-256** to the ones the 12 November census used,
+   because several title ids appear on two drives in the store and the
+   resolver would otherwise choose. Quake and Chris's benchmark on `bench`
+   `e69a4cb6`, Screamer and Terminal Velocity on `dpmi` `9e6ae3a3`,
+   Wolfenstein 3D and Ultima VI on `real` `a6977555`, Ultima VII: The Black
+   Gate on `xms` `5053c36b`, Serpent Isle on `fpu` `ff322ddc`, DOOM on
+   `dpmi4g` `b4be6e29`. The earlier census ran Quake from a `bench-q` copy
+   with its own `Q.BAT`; this run uses the store's `quakes` title on
+   `e69a4cb6` instead, which is a difference in the launch and is reported
+   as one.
+6. **Form names are lowercase** in the census keys (`d9.m0`, not `D9.m0`);
+   the table above is the mapping, not the spelling.
+
+### Predictions registered before the runs
+
+Written down now so that the record states whether they held, rather than
+presenting the outcome unprefaced. These are the coordinating session's and
+Deano's, not mine, and they are predictions, not rules — nothing in the
+classification depends on them:
+
+- **Quake's non-PC=24 arithmetic is library and runtime code, not engine
+  code.** Quake brackets its renderer with its own precision-control
+  changes, and its PC=64 operations should therefore be in code the engine
+  never configured — the C runtime, the startup path, incidental maths. In
+  particular the 1,018 PC=64 square roots the earlier census counted should
+  be libm `sqrt()` calls, not engine ones.
+- **That tail should be diffuse, not localised:** many code pages each with
+  small counts, rather than a few pages carrying most of the 553k. This
+  comes from the industry having run the experiment: the PS2's
+  floating-point hardware was fp32-only, and PC games ported to it hit
+  software emulation not in their hot loops — which developers had already
+  tuned — but in the **non-hot** code that used defaults, scattered through
+  library, startup and incidental paths nobody had thought about. On the PC
+  nobody had noticed, because wider-than-fp32 cost nothing visible outside
+  the hot areas.
+- **If the opposite shows** — a few sites carrying most of the PC=64 tail,
+  or PC=64 arithmetic inside the engine — the record says so plainly. A few
+  hot sites is the one shape in which a targeted design is conceivable; and
+  PC=64 inside the engine would be a *stronger* argument against a reduced
+  unit than the coverage one, because it would mean the engine itself needs
+  extended precision.
+
+These predictions change no count and no verdict. They are here to be
+checked.

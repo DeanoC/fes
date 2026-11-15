@@ -340,16 +340,30 @@ public:
         // write that leaves the value unchanged: FLDCW, FNINIT, FLDENV and
         // FRSTOR. "Does the title ever write the control word" is then a
         // count, not an inference from the value.
-        if (form == "d9.m5" || form == "dbe3" || form == "d9.m4" || form == "dd.m4")
+        // FLDCW, FNINIT, FLDENV, FRSTOR and FNSAVE (which reinitialises the
+        // control word to 037Fh on a 387), and any other step that changes
+        // the control word at all, so no writer can be missed by name.
+        if (form == "d9.m5" || form == "dbe3" || form == "d9.m4" || form == "dd.m4" || form == "dd.m6" ||
+            after87.control != before87.control)
             count("x87cwset:" + form + ':' + hex(cw0 & 0x1f3f, 4) + '>' + hex(after87.control & 0x1f3f, 4));
         // The significand width in use: 64 - ctz of ST(0) after the step.
         // A value rounded to 24 bits of significand has at least 40 trailing
         // zeros, so a bucket above le24 is a value a 24-bit significand
         // cannot hold.
-        const unsigned top = (after87.status >> 11) & 7;
-        const uint64_t sig = after87.r[top].significand;
-        const char *bucket = "zero";
-        if (sig) {
+        // A popping store (FSTP, FISTP, FBSTP) leaves ST(0) as the register
+        // underneath, or an empty slot whose contents are stale, so the value
+        // the title stored is in the state *before* the step. Loads and
+        // arithmetic are read after it.
+        const bool stored = (modrm >> 6) != 3 && ((op == 0xd9 && (reg == 2 || reg == 3)) ||
+                                                  (op == 0xdd && (reg == 2 || reg == 3)) ||
+                                                  (op == 0xdb && (reg == 2 || reg == 3 || reg == 7)) ||
+                                                  (op == 0xdf && (reg == 2 || reg == 3 || reg == 6 || reg == 7)));
+        const fes_i386::X87State &valued = stored ? before87 : after87;
+        const unsigned top = (valued.status >> 11) & 7;
+        const uint64_t sig = valued.r[top].significand;
+        const bool empty = ((valued.tag >> (2 * top)) & 3) == 3;
+        const char *bucket = empty ? "empty" : "zero";
+        if (sig && !empty) {
             unsigned width = 64;
             while (width > 1 && !(sig & (uint64_t(1) << (64 - width)))) --width;
             bucket = width <= 24 ? "le24" : width <= 53 ? "le53" : "le64";

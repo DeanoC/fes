@@ -256,10 +256,23 @@ def x87_summary(counts: dict[str, int]) -> dict:
     for form in ('db.m5', 'db.m7'):
         if ops.get(form):
             reasons.append(f'{ops[form]} {"FLD" if form == "db.m5" else "FSTP"} m80')
-    computing = bool(by_class.get('arith', 0) or by_class.get('trans', 0) or by_class.get('load', 0)
-                     or by_class.get('store', 0) or by_class.get('fxch', 0))
+    # Probe only, mechanically: no real or integer memory operand moved, no
+    # FXCH and no transcendental. The 287/387 infinity test (FLD1, FLDZ,
+    # FDIVP, FCHS, FCOMPP) is register-only, so a title that runs nothing but
+    # the detection probe and that test is probe-only under this rule even
+    # though FDIVP is classed as arithmetic.
+    memory_fp = sum(n for form, n in ops.items()
+                    if (X87_FORMS.get(form) or ('', 'none'))[1] in
+                    ('real32', 'real64', 'real80', 'int16', 'int32', 'int64', 'bcd80'))
+    computing = bool(memory_fp or by_class.get('fxch', 0) or by_class.get('trans', 0))
     return {
         'computes': computing,
+        'memory_fp_ops': memory_fp,
+        'calibration': {'x87op_total': retired,
+                        'esc_stem_total': sum(n for k, n in counts.items()
+                                              if re.match(r'^(?:67)?(?:66)?D[89A-F]\.\d(?::|$)', k)),
+                        'faulted': sum(n for k, n in counts.items() if k.startswith('x87fault:')),
+                        'held': sum(n for k, n in counts.items() if k.startswith('x87held:'))},
         'probe_only': not computing,
         'pc24_sufficient': (not reasons) if computing else None,
         'pc24_insufficient_because': reasons,

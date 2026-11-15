@@ -194,6 +194,29 @@ int main(int, char **argv) {
         c.begin(s4, "site");
         c.x87(s4, s4, retired(), x87(0x003f, 0x0000, uint64_t(1) << 63), x87(0x003f, 0x0000, uint64_t(1) << 63), 9.2);
         assert(c.counts.at("x87op:db.m7:pm3") == 1);
+        // A popping store (FSTP m32, D9 /3) takes its value from the state
+        // *before* the step: after it, ST(0) is the register underneath. Here
+        // the stored value has a 64-bit significand and what is left behind
+        // has a 24-bit one, so reading the wrong side would report le24.
+        put(0x238, {0xd9, 0x1d, 0, 0, 0, 0});
+        State sp = pm(0x238, 3);
+        c.begin(sp, "site");
+        c.x87(sp, sp, retired(), x87(0x003f, 0x0000, 3), x87(0x003f, 1 << 11, uint64_t(1) << 40), 9.25);
+        assert(c.counts.at("x87sig:d9.m3:le64") == 1);
+        assert(c.counts.count("x87sig:d9.m3:le24") == 0);
+        // An empty slot is its own bucket, not a width: a tag of 3 is empty,
+        // and its contents are stale.
+        put(0x240, {0xd9, 0x15, 0, 0, 0, 0});  // FST m32
+        State se = pm(0x240, 3);
+        {
+            X87State st;
+            st.control = 0x003f;
+            st.tag = 0xffff;  // every slot empty
+            st.r[0].significand = ~uint64_t(0);
+            c.begin(se, "site");
+            c.x87(se, se, retired(), st, st, 9.26);
+        }
+        assert(c.counts.at("x87sig:d9.m2:empty") == 1);
         // FDIV m64 (DC /6) at PC=64 on another page: the site key separates them.
         put(0x1240, {0xdc, 0x35, 0, 0, 0, 0});
         State s5 = pm(0x1240, 3);
@@ -467,6 +490,28 @@ class SummaryTest(unittest.TestCase):
         self.assertTrue(row['probe_only'])
         self.assertIsNone(row['pc24_sufficient'])
         self.assertEqual(row['by_class'], {'control': 8})
+
+    def test_the_infinity_test_is_probe_only(self):
+        """The 287/387 infinity test (FLD1, FLDZ, FDIVP, FCHS, FCOMPP) is
+        register-only, so a title that runs it and the detection probe and
+        nothing else is probe-only, even though FDIVP classes as arithmetic.
+        This is the shape the prior census found for DOOM and seven others."""
+        census = ('x87op:dbe3:rm 1 -\nx87op:dfe0:rm 4 -\nx87op:d9.m7:rm 3 -\n'
+                  'x87op:d9e8:rm 1 -\nx87op:d9ee:rm 1 -\nx87op:de.r7:rm 1 -\n'
+                  'x87op:d9e0:rm 1 -\nx87op:ded9:rm 1 -\n'
+                  'x87cw:div:037f 1 -\n')
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, 'census.txt').write_text(census)
+            row = summary.run('t', Path(tmp))['x87']
+        self.assertEqual(row['memory_fp_ops'], 0)
+        self.assertTrue(row['probe_only'])
+        self.assertIsNone(row['pc24_sufficient'])
+        # One FLD m32 is enough to make it a computing title.
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, 'census.txt').write_text(census + 'x87op:d9.m0:rm 1 -\n')
+            row = summary.run('t', Path(tmp))['x87']
+        self.assertEqual(row['memory_fp_ops'], 1)
+        self.assertFalse(row['probe_only'])
 
     def test_the_rows_are_stable(self):
         with tempfile.TemporaryDirectory() as tmp:
