@@ -861,11 +861,18 @@ scope.** The identity ships off through slices 5 and 6 as well, so no slice
 before 7 needs the identity-on machine to close, and the identity-on figures
 from slices 4 and 5 now serve the same purpose: telling slice 6 what to fix.
 
-**What slice 6 should fix, and what it should not.** The only evidence of what
-binds is in [the margin section](#where-the-margin-went-which-is-not-where-it-looks):
-the **L1 data cache** (`cpu_l1d_q_tx`, `cpu_l1d_stall`) and the register
-file's write path, with the x87 holding **1.0 to 1.5 ns on every seed
-examined**, including both that missed. The negative result matters as much as
+**What slice 6 should fix, and what it should not.** The evidence of what
+binds is in [the margin section](#where-the-margin-went-which-is-not-where-it-looks),
+and over the full nine seeds it is **three regions, not one**: the decoder's
+byte registers (`cpu_decode_by[n]`, worst on seeds 3, 4, 5 and 6), the front
+end's queue aligner (`cpu_frontend_align_acc`, worst on seed 9 and in the
+per-entity fit) and the **L1 data cache** (`cpu_l1d_q_tx`, `cpu_l1d_stall`,
+worst on seeds 1 and 2). That spread across unrelated regions is itself the
+finding: it is the signature of congestion at 94.8% rather than of one long
+path, and it is harder to argue with than the nine slack numbers. Across
+those same nine the x87's nearest path is **0.46 to 1.75 ns** behind the
+worst in its dump -- the 0.46 is seed 3, and an earlier draft of this
+paragraph said "1.0 to 1.5 ns" from a four-seed reading. The negative result matters as much as
 the positive one and is stated plainly because the first instinct on reading
 "the margin is thin" will be to optimise the arithmetic: **an x87 fix was
 looked for and there is not one.** A pipeline stage in the sum or the
