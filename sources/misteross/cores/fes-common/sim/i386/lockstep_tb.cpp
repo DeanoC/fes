@@ -10315,6 +10315,110 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.esc(0xd9, 0, 0x104);                                 // FLD m32
             a.esc(0xd9, 3, 0x328);                                 // FSTP m32
         }},
+        // ---- Slice 4's forms, through the CPU ----
+        // These are what the unit's own bench cannot reach: the bench supplies
+        // the operand format itself, so a memory divide that x87_decode
+        // accepts but x87_format does not map would pass there and raise
+        // FAULT_UNIMPLEMENTED here. Codex found exactly that on PR #1889, and
+        // `div-mem` is the case that would have caught it.
+        {"div-reg", [](Asm &a) {
+            a.op({0xdb, 0xe3});                                    // FNINIT
+            a.esc(0xd9, 0, 0x100);                                 // FLD m32
+            a.esc(0xdd, 0, 0x108);                                 // FLD m64
+            a.op({0xd8, 0xf1});                                    // FDIV ST,ST(1)
+            a.esc(0xd9, 0, 0x104);
+            a.op({0xd8, 0xf9});                                    // FDIVR ST,ST(1)
+            a.op({0xdc, 0xf1});                                    // FDIVR ST(1),ST
+            a.op({0xdc, 0xf9});                                    // FDIV ST(1),ST
+            a.op({0xde, 0xf9});                                    // FDIVP ST(1),ST
+            a.op({0xdf, 0xe0});                                    // FNSTSW AX
+        }},
+        {"div-mem", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);                                 // FLD m32
+            a.esc(0xd8, 6, 0x104);                                 // FDIV m32
+            a.esc(0xd8, 7, 0x104);                                 // FDIVR m32
+            a.esc(0xdc, 6, 0x108);                                 // FDIV m64
+            a.esc(0xdc, 7, 0x108);                                 // FDIVR m64
+            a.esc(0xda, 6, 0x124);                                 // FIDIV m32
+            a.esc(0xda, 7, 0x124);                                 // FIDIVR m32
+            a.esc(0xde, 6, 0x120);                                 // FIDIV m16
+            a.esc(0xde, 7, 0x120);                                 // FIDIVR m16
+            a.esc(0xd9, 3, 0x360);                                 // FSTP m32, so the
+            a.op({0xdf, 0xe0});                                    // result lands in RAM
+        }},
+        {"div-zero", [](Asm &a) {
+            // Divide-by-zero and the two invalid pairs, every exception
+            // masked, so the results and flags are compared rather than an
+            // IRQ 13 the bench cannot deliver.
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);                                 // a finite value
+            a.op({0xd9, 0xee});                                    // FLDZ
+            a.op({0xde, 0xf9});                                    // FDIVP: x / 0
+            a.op({0xdf, 0xe0});
+            a.op({0xdb, 0xe3});
+            a.op({0xd9, 0xee}); a.op({0xd9, 0xee});                // 0 / 0
+            a.op({0xde, 0xf9});
+            a.op({0xdf, 0xe0});
+        }},
+        {"sqrt", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.op({0xd9, 0xe8});                                    // FLD1
+            a.op({0xd9, 0xfa});                                    // FSQRT: an exact root
+            a.esc(0xd9, 0, 0x100);
+            a.op({0xd9, 0xfa});
+            a.esc(0xdd, 0, 0x108);
+            a.op({0xd9, 0xfa});
+            a.op({0xd9, 0xe8}); a.op({0xd9, 0xe0});                // FLD1, FCHS
+            a.op({0xd9, 0xfa});                                    // the root of -1: invalid
+            a.op({0xdf, 0xe0});
+        }},
+        {"prem", [](Asm &a) {
+            // A reduction that needs several partial steps, looped the way
+            // software does: FPREM, then FNSTSW AX, then test C2 and branch
+            // back. That compares every partial step's whole state, and the
+            // step size -- n = (expDiff & 31) | 32 -- against Bochs, which
+            // computes the same quantity in cpu/fpu/fprem.cc.
+            a.op({0xdb, 0xe3});
+            a.esc(0xdb, 5, 0x1a0);                                 // FLD m80: a big dividend
+            a.op({0xd9, 0xe8});                                    // FLD1 as the divisor
+            a.op({0xd9, 0xc9});                                    // FXCH, so ST(1) is the divisor
+            const size_t loop = a.b.size();
+            a.op({0xd9, 0xf8});                                    // FPREM
+            a.op({0xdf, 0xe0});                                    // FNSTSW AX
+            a.op({0xa9}); a.w(0x0400);                             // TEST AX, C2
+            a.op({0x75});                                          // JNZ back to the loop
+            a.b.push_back(uint8_t(int8_t(int(loop) - int(a.b.size()) - 1)));
+            a.esc(0xd9, 3, 0x368);                                 // FSTP m32
+        }},
+        {"prem1", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xdb, 5, 0x1a0);
+            a.op({0xd9, 0xe8});
+            a.op({0xd9, 0xc9});
+            const size_t loop = a.b.size();
+            a.op({0xd9, 0xf5});                                    // FPREM1
+            a.op({0xdf, 0xe0});
+            a.op({0xa9}); a.w(0x0400);
+            a.op({0x75});
+            a.b.push_back(uint8_t(int8_t(int(loop) - int(a.b.size()) - 1)));
+            a.esc(0xd9, 3, 0x36c);
+        }},
+        {"div-prec", [](Asm &a) {
+            // The same divide under each precision-control setting, which is
+            // what the early termination changes: the iteration count is
+            // chosen by PC, so this says the three paths agree with Bochs.
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 5, 0x140);                                 // FLDCW: PC 24
+            a.esc(0xd9, 0, 0x100);
+            a.esc(0xd8, 6, 0x104);                                 // FDIV m32
+            a.esc(0xd9, 5, 0x142);                                 // FLDCW: PC 53
+            a.esc(0xd8, 6, 0x104);
+            a.esc(0xd9, 5, 0x130);                                 // FLDCW: PC 64
+            a.esc(0xd8, 6, 0x104);
+            a.op({0xd9, 0xfa});                                    // FSQRT at PC 64
+            a.op({0xdf, 0xe0});
+        }},
         {"words", [](Asm &a) {
             a.op({0xdb, 0xe3});
             a.esc(0xd9, 5, 0x130);                                 // FLDCW
@@ -10572,6 +10676,10 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             {0x170, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xb9, 0x3f}},  // 2^-70
             {0x180, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x27, 0x63}},  // 2^9000
             {0x190, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xd4, 0x1f}},  // 2^-8300
+            // Slice 4's: a dividend whose exponent is 200 above the divisor's,
+            // so FPREM against 1.0 needs several partial steps and the chain
+            // exercises the step size against Bochs rather than one reduction.
+            {0x1a0, {0x00, 0x00, 0x00, 0x00, 0xf0, 0xbd, 0x57, 0x93, 0xc7, 0x40}},
         };
         for (const Operand &o : operands)
             for (unsigned i = 0; i < o.bytes.size(); ++i)

@@ -184,13 +184,16 @@ FPREM itself, partial semantics and all.
 
 ## What is left
 
-- **Every gate but the unit bench.** The table above is the honest state: the
-  arithmetic is built and checked against real hardware on the RTL and on the
-  netlist, and nothing else in the slice's gate list has run.
-- **The area answer to #1768's peak-or-trend question**, which is the
-  decision-relevant number and is not measured. The stop rule was set in
-  [the scope reading](scope.md) before any fit existed and has not fired
-  either way, because no fit has run.
+- **The seal and the kit run, which are blocked rather than unfinished.**
+  [The stop rule fired](STOP-RULE-FIRED.md): the identity-on machine fit does
+  not fit the device — 4,407 LABs against the 4,191 the 5CSEBA6 has — and the
+  rule this slice set before any fit existed says escalate before sealing.
+  Nothing is sealed and no kit is claimed.
+- **The identity-on seed sweep**, which has nothing to sweep: the fitter
+  stopped before placement, so there is no ALM figure, no timing and no seeds.
+- **QEMU's fprem test**, not run, and **a TestFloat harness**, which the
+  section above explains is a scope of its own.
+- **The per-entity (`--hierarchy`) fit**, not run.
 - **The decode landed per operation with the unit that runs it**, not in one
   commit. Adding `X87_SQRT` or `X87_PREM` to `x87_decode` un-stops the
   instruction — `fes_i386_decode` gates on `!= X87_UNIMPL` — so a branch with

@@ -1205,14 +1205,26 @@ package fes_i386_pkg;
     // out of this table and stop as not built.
     function automatic logic [2:0] x87_format(input logic [2:0] esc, input logic [2:0] rf);
         case ({esc, rf})
-            {3'b000, 3'd0}, {3'b000, 3'd1}, {3'b000, 3'd2},
-            {3'b000, 3'd3}, {3'b000, 3'd4}, {3'b000, 3'd5}: x87_format = X87F_F32;  // D8
-            {3'b100, 3'd0}, {3'b100, 3'd1}, {3'b100, 3'd2},
-            {3'b100, 3'd3}, {3'b100, 3'd4}, {3'b100, 3'd5}: x87_format = X87F_F64;  // DC
-            {3'b010, 3'd0}, {3'b010, 3'd1}, {3'b010, 3'd2},
-            {3'b010, 3'd3}, {3'b010, 3'd4}, {3'b010, 3'd5}: x87_format = X87F_I32;  // DA
-            {3'b110, 3'd0}, {3'b110, 3'd1}, {3'b110, 3'd2},
-            {3'b110, 3'd3}, {3'b110, 3'd4}, {3'b110, 3'd5}: x87_format = X87F_I16;  // DE
+            // Reg fields 0 to 5 are slice 3's arithmetic and compares and 6
+            // and 7 are slice 4's divides. **The whole field has to be here**:
+            // fes_i386_decode takes the format first and turns the operation
+            // back into X87_UNIMPL where it is X87F_NONE, so a divide accepted
+            // by x87_decode but missing from this table raises
+            // FAULT_UNIMPLEMENTED on the real CPU. The unit's bench cannot see
+            // that, because it supplies the format itself rather than going
+            // through the decoder; Codex found it on PR #1889.
+            {3'b000, 3'd0}, {3'b000, 3'd1}, {3'b000, 3'd2}, {3'b000, 3'd3},
+            {3'b000, 3'd4}, {3'b000, 3'd5}, {3'b000, 3'd6},
+            {3'b000, 3'd7}: x87_format = X87F_F32;  // D8
+            {3'b100, 3'd0}, {3'b100, 3'd1}, {3'b100, 3'd2}, {3'b100, 3'd3},
+            {3'b100, 3'd4}, {3'b100, 3'd5}, {3'b100, 3'd6},
+            {3'b100, 3'd7}: x87_format = X87F_F64;  // DC
+            {3'b010, 3'd0}, {3'b010, 3'd1}, {3'b010, 3'd2}, {3'b010, 3'd3},
+            {3'b010, 3'd4}, {3'b010, 3'd5}, {3'b010, 3'd6},
+            {3'b010, 3'd7}: x87_format = X87F_I32;  // DA
+            {3'b110, 3'd0}, {3'b110, 3'd1}, {3'b110, 3'd2}, {3'b110, 3'd3},
+            {3'b110, 3'd4}, {3'b110, 3'd5}, {3'b110, 3'd6},
+            {3'b110, 3'd7}: x87_format = X87F_I16;  // DE
             {3'b001, 3'd0}, {3'b001, 3'd2}, {3'b001, 3'd3}: x87_format = X87F_F32;
             {3'b101, 3'd0}, {3'b101, 3'd2}, {3'b101, 3'd3}: x87_format = X87F_F64;
             {3'b011, 3'd5}, {3'b011, 3'd7}: x87_format = X87F_F80;

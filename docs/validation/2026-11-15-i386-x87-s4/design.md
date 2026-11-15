@@ -354,18 +354,31 @@ quoting the model's number as the hardware's would be the same mistake this
 record has already made twice. The 74 remains the right figure for how wide
 the remainder's value ever gets; nothing in the slice needs a 131-bit adder.
 
-## What is in the branch, and what is not
+## What is in the branch
 
-The decode entries for X87_DIV, X87_SQRT and X87_PREM were written and then
-**reverted**, deliberately. Adding them to `x87_decode` un-stops the
-instructions — `fes_i386_decode` gates on `!= X87_UNIMPL` — so a branch with
-the decode and without the unit's handling would accept FDIV and then have
-nothing to execute it, breaking lockstep and test386 rather than leaving them
-passing. The slice-4 forms therefore still stop as `FAULT_UNIMPLEMENTED` on
-this branch, as slice 3 left them, and the decode lands in the same commit as
-the unit that runs it.
+All three operations are built and exact: FDIV and FDIVR in every ST(i),
+integer, memory and popping form, FSQRT, and FPREM and FPREM1. 738 unit-bench
+cases pass against the host's own x87 on the RTL and 730 on the locked-Yosys
+netlist, with the tail's remainder assertions armed.
 
-So what this branch carries today is the design, its models and its record.
-The RTL, the benches, the seal, the kit run and the area measurements are not
-in it, and the headings above say which numbers are measured, which are
-inferred and which are withdrawn.
+**The decode landed per operation with the unit that runs it**, not in one
+commit, and it was written and reverted once on purpose. Adding `X87_SQRT` or
+`X87_PREM` to `x87_decode` un-stops the instruction — `fes_i386_decode` gates
+on `!= X87_UNIMPL` — so a branch with the decode and without the unit's
+handling would accept FSQRT with nothing to execute it and break lockstep
+rather than leave it cleanly not-built. This is worth stating because it is
+the kind of thing a later reader tidies into a single decode commit.
+
+`x87_decode` is also not the only table a form has to be in. **`x87_format`
+has to map it too**: `fes_i386_decode` takes the format first and turns the
+operation back into `X87_UNIMPL` where it is `X87F_NONE`, so a memory divide
+accepted by one table and missing from the other raises
+`FAULT_UNIMPLEMENTED` on the real CPU. The unit's bench cannot see that,
+because it supplies the format itself. Codex found it on PR #1889, and the
+`div-mem` lockstep program is what catches it now.
+
+**What is not in the branch**: the seal, the kit run, the identity-on seed
+sweep, QEMU's fprem test, and a TestFloat harness. The seal and the kit run
+are blocked by [the escalation](STOP-RULE-FIRED.md) rather than unfinished:
+the identity-on machine does not fit the device, and the rule this slice set
+before any fit existed says escalate before sealing.
