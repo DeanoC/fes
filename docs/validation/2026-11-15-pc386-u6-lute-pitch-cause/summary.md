@@ -1,8 +1,9 @@
 # Why Ultima VI's lute is 2.4 semitones flat on the kit
 
 fes#1837. The method, with every prediction and pass rule, is in
-[`method.md`](method.md), committed before any capture and amended three
-times, each amendment dated and saying what had been seen.
+[`method.md`](method.md), committed before any capture and amended and
+corrected five times, each entry dated and saying what had been seen. One
+rule committed there is reported **falsified**; it was not replaced.
 
 **The cause.** The game times its own delay loop against the BIOS tick at
 start-up and then plays the lute from that calibration. The kit's cost model
@@ -10,18 +11,29 @@ charges the *calibration* loop and the *delay* loop at the wrong ratio
 relative to the reference machine — 0.709 against 0.622 — so the calibrated
 delay unit comes out about 14% too long and every note is flat by the same
 factor. That is **10.7 of the 13.1 points**. The other **2.4** are the
-per-pass overhead, essentially all of it #1453's ISA charge on port 61h,
-which matches #1474's "about two points" exactly.
+per-pass overhead, which is the size of #1453's ISA charge on port 61h and
+matches #1474's "about two points", though the reference's own cost for those
+two port accesses was not measured, so the record does not attribute the 2.4
+to the ISA charge.
 
-**So the fix is in the governor's clock table, not in the ISA charge model
-and not in the CPU's instruction timing.** It is not applied here: it moves
-every preset and every title, which is Deano's to weigh.
+**So the fault is in the governor's cost table — what it charges these forms
+relative to each other — and not in the ISA charge model, not in the CPU's
+instruction timing, and not in any uniform speed error.** The fix is not
+applied here: it moves every preset and every title, which is Deano's to
+weigh. **The pitch still fails #1368's band.**
 
 **The one number to check.** `cmp word [mem], imm` costs **9.00** clocks on
 the reference and **7** on the kit, while `cmp ax, [mem]` costs **7.00** on
-both — the same class of work, the same memory accesses, one byte more of
-encoding. The first of those two instructions is in the game's calibration
-loop and not in its delay loop.
+both — the same work and the same memory accesses, one byte more of encoding.
+The first of those two is in the game's calibration loop and not in its delay
+loop. (They are different cost classes, `test_m` and `cmp_load`, which the
+286 column happens to give the same number, so a table *can* separate them.)
+
+**What is not settled.** Whether the reference's extra cost is
+instruction-fetch time — which would also act on **fes#1840** — or simply
+different table entries. Both tests that would have separated them came back
+null, so this record neither claims nor excludes a shared cause with #1840.
+See "What this does not settle".
 
 ## The test #1837 proposed, and why it was replaced before any capture
 
@@ -79,9 +91,10 @@ the lute pass at `N = 0` (`P0`) and at the calibrated `N` (`PN`). `u6cal2.asm`
 adds `BO`, the delay loop at an odd start address. `analyse.py` turns the
 counts into clocks; the tick period cancels from every ratio.
 
-Binaries: `U6CAL.COM` `1aa15a91…` (runs `c3`, `c1cal`; run `c1` used the
-earlier `d9dcc85f…`, which lacked `B5`/`B4`), `U6CAL2.COM` `2fac2445…`
-(run `c4`).
+Binaries: `U6CAL.COM` `1aa15a91…`, 678 bytes (runs `c3`, `c1cal`; run `c1`
+used the earlier `d9dcc85f…`, which lacked `B5`/`B4`), `U6CAL2.COM`
+`2fac2445…` (run `c4`), `U6CAL3.COM` `22b17b0f…` (run `c5`). `u6cal3.asm`
+also carries `BE`, `BQ` and `BR`.
 
 ## The runs
 
@@ -90,8 +103,10 @@ earlier `d9dcc85f…`, which lacked `B5`/`B4`), `U6CAL2.COM` `2fac2445…`
 | `c1` | 86Box `award286`, Intel 286 at 12.5 MHz | reference, first probe |
 | `c2` | the same | **failed**: `refbox.py` could not read the window geometry at the first grab; no figures taken |
 | `c3` | the same | reference, amended probe |
-| `c4` | the same | reference, `BO` |
-| `c1cal` | Kit A, preset 1, sealed package `fc01c956…` | word 1 = 0, 80, 120, 160; three repeats each |
+| `c4` | the same | reference, `BO`, the delay loop at an odd start |
+| `c5` | the same | reference, `BE`/`BQ`/`BR`, the alignment and order variants |
+| `c1cal` | Kit A, preset 1, sealed package `fc01c956…` | the probe at word 1 = 0, 80, 120, 160; three repeats each |
+| `h1` | the same kit and package | Ultima VI's lute at word 1 = 160 |
 
 The reference is PR #1838's own VM (`vm/u6ref-286`), unchanged but for the
 drive, which is that record's reference image plus `U6CAL.COM`. The kit ran
@@ -106,9 +121,11 @@ Every other baseline, lease and restore check is unchanged.
 
 ## What the probe measured
 
-`C` is five repeats on every machine and every point, all equal; the three
-repeats of the whole probe at each kit point printed identical numbers, so
-the kit's spread is nil and the reference's is nil.
+All three repeats of the whole probe were read at every kit point and all
+twelve printed identical block counts; the reference's three repeats are
+identical too. `C` is five repeats within each run: equal in every run except
+at word 1 = 80, where it alternates between 18,288 and 18,291 — a spread of
+0.016%, against a ±5.9% band.
 
 | | reference, 12.5 MHz | kit, word 1 = 0 | = 80 (8 MHz) | = 120 (12 MHz) | = 160 (16 MHz) |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -137,6 +154,21 @@ In clocks (`analyse.py`; the tick period cancels):
 0.2% — so the governor is doing what its table says, and the table is what is
 being measured. The reference charges the same work more, and unevenly: 5.0
 clocks more for the calibration pass, 1.0 more for the delay iteration.
+
+The reference's alignment and order variants (`c4`, `c5`), all at 12.5 MHz:
+
+| | count | clocks | loop |
+| --- | ---: | ---: | --- |
+| `BD` | 2,436 | 18.04 | `dec [m]; jne`, even start |
+| `BO` | 2,436 | 18.04 | the same, **odd start** |
+| `B5` | 1,625 | 27.04 | `cmp word [m],0; dec [m]; jne`, even start |
+| `BE` | 1,625 | 27.04 | the same, built again in `u6cal3` |
+| `BQ` | 1,625 | 27.04 | the same, **odd start** |
+| `BR` | 49,560 | — | **void**: with `dec` first, the `jne` tests the `cmp`, which is always equal, so the loop runs once. A fault in the variant's design, not a result. |
+
+Alignment is free on the reference in both cases tested. The game's own
+calibration loop nevertheless costs **29.02** clocks against `B5`'s 27.04,
+with the same three classes, eleven bytes and three accesses.
 
 ## The gates
 
@@ -184,6 +216,14 @@ forms relative to each other, and the two entries that carry it are:
 | --- | ---: | ---: |
 | `jcc`, taken | 8 | ≈ 9 |
 | `test_m` (`CMP`/`TEST r/m, imm`) | 6 | ≈ 10 |
+
+**That `test_m` = 10 is fitted to the game's loop, not measured.** The
+directly measured cost of `cmp word [m], imm` is 9.00 clocks, which is a
+`test_m` entry of 8; with that and `jcc` taken at 9 the ratio is
+18.04/27.04 = 0.667, `N` falls only to 24, and the note is about **9% flat —
+still outside the band**. The 10 comes from matching the game's calibration
+loop at 29.02 clocks, which no additive per-class table can reach at the same
+time as the `B5` loop's 27.04 (below).
 
 With those two, the kit's calibration pass becomes 29 clocks and its delay
 iteration 18, a ratio of 0.6207 against the reference's 0.6217; `N` falls from
