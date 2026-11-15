@@ -2704,17 +2704,35 @@ module fes_i386_x87 (
                     // and needs at most a couple of bits of normalisation.
                     logic [63:0]       z2;
                     logic signed [5:0] z2e;
-                    logic [6:0]        sh, lz;
                     logic [63:0]       d;
+                    logic              lz1;
                     z2 = norm_hi(mul_p);
                     z2e = norm_e(6'sd1 + qz_e + qy_e, mul_p[127]);
-                    sh = 7'(6'sd1 - z2e);
-                    d = 64'hc000_0000_0000_0000 - (sh >= 7'd64 ? 64'd0 : (z2 >> sh));
-                    lz = clz64(d);
-                    qt_s <= d << lz;
-                    qt_e <= 6'sd1 - 6'(lz);
+                    // **Two-way muxes, not shifters.** a*y^2 is within 2^-9 of
+                    // one after the seed, so its exponent is 0 or -1 and the
+                    // alignment against three is one place or two; the
+                    // difference is then within 2^-9 of two, so it needs no
+                    // normalisation or exactly one place. Writing these as
+                    // `z2 >> sh` and `d << clz64(d)` built a 64-bit shifter
+                    // and a leading-zero count for a one-bit decision, on a
+                    // path option A says has no barrel shifter.
+                    //
+                    // The ranges are asserted rather than assumed, because
+                    // they come from the seed's accuracy and a seed-table edit
+                    // could break them silently.
+                    d = 64'hc000_0000_0000_0000 - (z2e == 6'sd0 ? (z2 >> 1) : (z2 >> 2));
+                    lz1 = !d[63];
+                    qt_s <= lz1 ? {d[62:0], 1'b0} : d;
+                    qt_e <= lz1 ? 6'sd0 : 6'sd1;
+`ifndef SYNTHESIS
+                    if (z2e != 6'sd0 && z2e != -6'sd1)
+                        $error("x87 sqrt: a*y^2 exponent %0d is outside {0, -1}", z2e);
+                    if (clz64(d) > 7'd1)
+                        $error("x87 sqrt: 3 - a*y^2 needs %0d places of normalisation, not 0 or 1",
+                               clz64(d));
+`endif
                     ua_mul <= qy_s;
-                    ub_mul <= d << lz;
+                    ub_mul <= lz1 ? {d[62:0], 1'b0} : d;
                     mul_start <= 1'b1;
                     seq <= Q_Y;
                 end
@@ -2748,8 +2766,18 @@ module fes_i386_x87 (
                     // pseudo-denormal -- while every inexact root passed.
                     logic [66:0]       qh, c0;
                     logic signed [5:0] qe;
+                    // The estimate is in (0.5, 2), so its exponent is 0 or
+                    // -1 and the placement is two places or one -- a mux. The
+                    // -1 case is the one that happens when the true root is an
+                    // exact power of two, which the iteration approaches from
+                    // below.
                     qe = norm_e(6'sd1 + {5'd0, sq_p} + qy_e, mul_p[127]);
-                    qh = drop67({3'd0, norm_hi(mul_p)} << (qe + 6'sd2), wprec);
+                    qh = drop67(qe == 6'sd0 ? ({3'd0, norm_hi(mul_p)} << 2)
+                                            : ({3'd0, norm_hi(mul_p)} << 1), wprec);
+`ifndef SYNTHESIS
+                    if (qe != 6'sd0 && qe != -6'sd1)
+                        $error("x87 sqrt: the estimate's exponent %0d is outside {0, -1}", qe);
+`endif
                     c0 = qh > {59'd0, sq_e(wprec)} ? qh - {59'd0, sq_e(wprec)} : 67'd0;
                     dv_c <= c0;
                     dv_k <= sq_steps(wprec);
