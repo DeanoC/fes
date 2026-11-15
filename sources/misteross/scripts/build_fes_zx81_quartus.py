@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Build and seal a ZX81-family package with the locked Quartus Lite.
 
-docs/design/zx81-quartus-seal.md (decisions D1-D6). One producer builds
+docs/architecture.md "FES ZX81 Quartus package" (design and decisions D1-D6:
+DeanoC/fes#1873). One producer builds
 fes.zx81, fes.zx80, fes.ts1000 and fes.ts1500 (--model). Quartus 17.0.2's own
 front end reads the RTL; no Yosys or nextpnr is involved. The ROM lanes are
 cores/fes-zx81/quartus/zx81_rom_link.v: blank altsyncram ROMs placed on the
@@ -42,6 +43,7 @@ from pathlib import Path
 import platform
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import sysconfig
@@ -394,23 +396,41 @@ def require_disk(path: Path) -> None:
         raise BuildError(f'only {free / 1e9:.1f} GB free under {path}; Quartus jobs need {MIN_FREE_BYTES / 1e9:.0f} GB')
 
 
+def _kill_step(process: subprocess.Popen) -> None:
+    """Kill the step's own process group (its session, started by _run) and reap the leader."""
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    process.wait()
+
+
 def _run(command, cwd: Path, env: dict, log: Path) -> None:
-    """Run one Quartus step under the time cap, with a heartbeat on stdout."""
+    """Run one Quartus step under the time cap, with a heartbeat on stdout.
+
+    The step runs in its own session, so its process group holds only the
+    processes this step started (quartus_sh's map, fit, asm and sta workers).
+    On the time cap, or if the producer itself is interrupted, that group and
+    nothing else is killed.
+    """
     name = Path(command[0]).name
     started = time.monotonic()
     with log.open('wb') as stream:
-        process = subprocess.Popen(command, cwd=cwd, env=env, stdout=stream, stderr=subprocess.STDOUT)
-        while True:
-            try:
-                returncode = process.wait(timeout=HEARTBEAT_S)
-                break
-            except subprocess.TimeoutExpired:
-                elapsed = time.monotonic() - started
-                if elapsed >= COMPILE_TIMEOUT_S:
-                    process.kill()
-                    process.wait()
-                    raise BuildError(f'{name} exceeded {COMPILE_TIMEOUT_S} s; log: {log}') from None
-                print(f'    {name} running {elapsed:.0f} s ({cwd.name})', flush=True)
+        process = subprocess.Popen(command, cwd=cwd, env=env, stdout=stream, stderr=subprocess.STDOUT,
+                                   start_new_session=True)
+        try:
+            while True:
+                try:
+                    returncode = process.wait(timeout=HEARTBEAT_S)
+                    break
+                except subprocess.TimeoutExpired:
+                    elapsed = time.monotonic() - started
+                    if elapsed >= COMPILE_TIMEOUT_S:
+                        raise BuildError(f'{name} exceeded {COMPILE_TIMEOUT_S} s; log: {log}') from None
+                    print(f'    {name} running {elapsed:.0f} s ({cwd.name})', flush=True)
+        except BaseException:
+            _kill_step(process)
+            raise
     if returncode != 0:
         raise BuildError(f'{name} failed (exit {returncode}); log: {log}')
 

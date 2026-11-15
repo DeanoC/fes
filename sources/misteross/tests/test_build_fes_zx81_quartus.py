@@ -234,6 +234,30 @@ class JobTests(unittest.TestCase):
                 with self.assertRaisesRegex(BuildError, "sleep exceeded"):
                     producer._run(["/bin/sleep", "5"], work, {"PATH": "/usr/bin:/bin"}, work / "slow.log")
 
+    def test_time_cap_kills_the_step_children(self) -> None:
+        import os
+        import tempfile
+        import time
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            child = work / "child.pid"
+            script = f"sleep 30 & echo $! > {child}; wait"
+            with patch.object(producer, "HEARTBEAT_S", 0.1), patch.object(producer, "COMPILE_TIMEOUT_S", 0.5), \
+                    patch("sys.stdout"):
+                with self.assertRaisesRegex(BuildError, "bash exceeded"):
+                    producer._run(["/bin/bash", "-c", script], work, {"PATH": "/usr/bin:/bin"}, work / "c.log")
+            pid = int(child.read_text())
+            for _ in range(50):
+                try:
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.05)
+            else:
+                os.kill(pid, 9)
+                self.fail("the step's child outlived the time cap")
+
     def test_disk_preflight(self) -> None:
         from unittest.mock import patch
         import collections

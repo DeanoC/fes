@@ -2033,7 +2033,7 @@ The existing BASIC and expansion simulations remain part of `make sim-fes-zx81`.
 
 `make build-fes-zx81-quartus MODEL=zx81|zx80|ts1000|ts1500` runs
 `scripts/build_fes_zx81_quartus.py`, the Quartus Prime Lite 17.0.2 producer for
-the ZX81 family (design: `docs/design/zx81-quartus-seal.md`). It
+the ZX81 family (design and decisions D1-D6: DeanoC/fes#1873). It
 authenticates `quartus_sh` against `cores/fes-zx81/quartus.lock` and Quartus's
 own front end reads the RTL; no Yosys or nextpnr is involved. The board shell is
 the same `cores/fes-zx81/rtl/top.v` (`QUARTUS=1`: HPS I2C at
