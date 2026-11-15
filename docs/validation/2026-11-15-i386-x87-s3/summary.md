@@ -485,6 +485,15 @@ in a thirty-minute idle wait still holding the lease.
   identity-on on this branch minus identity-on at its merge-base **through
   the same slot**, rather than against slice 2's published numbers. The next
   slice should do the same rather than read this as an omission.
+- **The unmasked exception masks are exercised on the register forms only.**
+  The seven mask settings in the bench's edge matrix run over register-form
+  add, subtract, multiply, compare, FSCALE, FRNDINT and FXTRACT; the memory
+  forms run every operand format and reg field but with all six exceptions
+  masked. The exception path does not depend on where the second operand came
+  from -- by the time the apply runs, a memory operand has already been
+  converted into the same registers -- but that is an argument and not a
+  measurement, and adding the cases now would change a gate input after the
+  freeze.
 - **The unmasked-exception rules are read off one real x87, not a 387.** The
   bias adjust, the pre- and post-operation split and the tininess rule were
   measured on an x86-64 host, which is a much later part. A 387 is believed
