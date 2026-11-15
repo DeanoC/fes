@@ -171,3 +171,72 @@ excess — and matches #1474's "about two points" — but the reference's own
 cost for those two port accesses was not measured separately, so the record
 says *overhead*, not *ISA*, and does not claim the ISA charge is all of it.
 
+## Where in the model the fault is
+
+The two loops use **the same three cost classes** — `unary_m` for `inc`/`dec`
+of memory, `test_m` for `cmp r/m, imm`, `jcc` for the branch — and the same
+memory accesses. The governor charges them additively: 24 and 17 clocks, a
+ratio of 0.7083. The reference costs them 29.02 and 18.04, a ratio of 0.6217.
+**The fault is in the cost table's 286 column**, in what it charges these
+forms relative to each other, and the two entries that carry it are:
+
+| class | 286 column now | would have to be |
+| --- | ---: | ---: |
+| `jcc`, taken | 8 | ≈ 9 |
+| `test_m` (`CMP`/`TEST r/m, imm`) | 6 | ≈ 10 |
+
+With those two, the kit's calibration pass becomes 29 clocks and its delay
+iteration 18, a ratio of 0.6207 against the reference's 0.6217; `N` falls from
+27 to 22, the pass to about 42.4 µs against the reference's 41.50, and the
+note lands about **2% flat — inside the ±5.9% band**. That is the shape of a
+fix, not a fix: it moves every preset and every title and it is Deano's to
+weigh. **Nothing is changed in this PR.**
+
+Both entries are *undercharges*, which is also fes#1840's direction.
+
+Intel's own 286 data sheet gives `CMP mem, immediate` and `CMP reg, mem` the
+same 6 clocks, and the table follows it. The reference does not: 9.00 against
+7.00. So this is not the table departing from its stated source — it is the
+stated source departing from the machine the acceptance contract names.
+
+## What this does not settle
+
+**Why the reference charges more is not separated.** The `cmp` pair —
+9.00 clocks for the five-byte immediate form, 7.00 for the four-byte register
+form, same class of work and same accesses — is *consistent with* the model
+having no instruction-fetch term, which it has not: the governor's ports
+(`fes_i386_governor.sv:47-76`) carry the instruction's class, its memory
+accesses, its I/O and its MMIO, and no instruction address and no instruction
+length, though `decoded_t` does carry `length` beside `gov`
+(`fes_i386_pkg.sv:602-604`). The nearest thing to a fetch term the model has
+is the data sheets' `m`, which `governor.toml` takes as one throughout.
+
+But it is **not separated from a table entry**, and the two tests that would
+have separated them both came back null: the six-byte delay loop costs the
+same at an odd start as at an even one (`BO` = `BD`), and so does the
+eleven-byte, bus-bound `cmp` loop (`BQ` = `BE`). A rule predicting otherwise
+was committed before run `c5` and is **falsified**; `method.md` reports it in
+place rather than replacing it.
+
+So this record **does not claim that fes#1840 shares this cause**, and does
+not exclude it either. What would separate them is a cost model that can be
+given an instruction's length, or a reference whose internals can be read.
+
+**One thing no per-class table can reproduce.** The game's calibration loop
+costs 29.02 clocks and the `B5` loop 27.04, with the same three classes, the
+same eleven bytes, the same three accesses and the same start parity — they
+differ only in the order of their instructions. An additive per-class table
+gives both the same number, so the reference's cost is not an additive
+function of instruction classes, and a table fitted to one of them is fitted,
+not correct. The two entries above are fitted to the game's loop.
+
+**Not examined.** #1457's stray speaker bursts on a 58.6 ms grid: this work
+did not look at them, and no port 61h/42h/43h trace was taken. The
+reference's own cost for the lute pass's two port-61h accesses was not
+measured separately, so the 2.37 points of overhead are not attributed to the
+ISA charge beyond the size coincidence noted above.
+
+**#1837's "reference scaled to 12.0 MHz" column is not valid** and is not
+used here: under a tick-calibrated delay the pitch does not scale with the
+clock, as the measured curve shows.
+
