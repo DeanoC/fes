@@ -190,8 +190,11 @@ The reference's alignment and order variants (`c4`, `c5`), all at 12.5 MHz:
 | `BR` | 49,560 | — | **void**: with `dec` first, the `jne` tests the `cmp`, which is always equal, so the loop runs once. A fault in the variant's design, not a result. |
 
 Alignment is free on the reference in both cases tested. The game's own
-calibration loop nevertheless costs **29.02** clocks against `B5`'s 27.04,
-with the same three classes, eleven bytes and three accesses.
+calibration loop nevertheless costs **29.02** clocks against `BQ`'s 27.04 —
+and `BQ` is the right comparison, because it shares the calibration loop's
+**odd start** as well as its three cost classes, its eleven bytes and its
+three accesses. The two differ only in the order of their instructions, and
+in 2.0 clocks.
 
 ## The gates
 
@@ -361,14 +364,10 @@ not exclude it either. What would separate them is a cost model that can be
 given an instruction's length, or a reference whose internals can be read.
 
 **One thing no per-class table can reproduce.** The game's calibration loop
-costs 29.02 clocks and the `B5` loop 27.04, with the same three classes, the
+costs 29.02 clocks and the `BQ` loop 27.04, with the same three classes, the
 same eleven bytes, the same three accesses and the same start parity — they
 differ only in the order of their instructions. An additive per-class table
-gives both the same number, so the reference's cost is not an additive
-function of instruction classes, and a table fitted to one of them is fitted,
-not correct. The two entries above are fitted to the game's loop.
-
-**Not examined.** #1457's stray speaker bursts on a 58.6 ms grid: this work
+gives both the same number, **Not examined.** #1457's stray speaker bursts on a 58.6 ms grid: this work
 did not look at them, and no port 61h/42h/43h trace was taken. The
 reference's own cost for the lute pass's two port-61h accesses was not
 measured separately, so the 2.37 points of overhead are not attributed to the
