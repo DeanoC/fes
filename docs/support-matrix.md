@@ -18,7 +18,7 @@ Coleco is Aging: work toward Current is in progress and still needs work. Spectr
 | Current | Owned RTL on or after 2026-10-16, and media is not the old generation. |
 | Aging | Owned RTL in the 60-day window, before 2026-10-16. |
 | Stale | No owned RTL in the 60-day window. |
-| Bring-up | Diagnostic or development profile. Any playable profile is a separate row. |
+| Bring-up | The machine is still in bring-up. Its package is a diagnostic or development profile, and what it is accepted for is the dated evidence on the row. |
 | Bring-up (queued) | No package yet. Queued by Deano 2026-10-29. |
 | Shared | CPU RTL used by other cores. Not a system package. |
 | Demo | Registered demo package, not a machine. |

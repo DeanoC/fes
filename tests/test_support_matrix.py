@@ -84,8 +84,13 @@ class SupportMatrixTests(unittest.TestCase):
         # bring-up here is a profile, not an absent recipe: fes.pcxt has one.
         meaning = next(t['meaning'] for t in SUPPORT_MATRIX.load_json(ROOT)['tiers']
                        if t['id'] == 'bring-up')
+        # It claims neither an absent recipe (fes.pcxt has one), nor an
+        # absent catalog standing (fes.pcxt is experimental in the library),
+        # nor a separate playable row (pc386 has none).
         self.assertNotIn('No recipe', meaning)
         self.assertNotIn('No catalog package', meaning)
+        self.assertNotIn('separate row', meaning)
+        self.assertIn('dated evidence on the row', meaning)
         self.assertIn('| pc386 | Bring-up | Quartus | Quartus | disk, keys, mouse, HDMI |',
                       SUPPORT_MATRIX.render(data))
 

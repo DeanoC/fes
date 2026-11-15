@@ -30,7 +30,7 @@
     {
       "id": "bring-up",
       "label": "Bring-up",
-      "meaning": "Diagnostic or development profile. Any playable profile is a separate row."
+      "meaning": "The machine is still in bring-up. Its package is a diagnostic or development profile, and what it is accepted for is the dated evidence on the row."
     },
     {
       "id": "bring-up-queued",
