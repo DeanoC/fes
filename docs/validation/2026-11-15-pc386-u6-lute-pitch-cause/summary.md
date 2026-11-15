@@ -210,27 +210,35 @@ of memory, `test_m` for `cmp r/m, imm`, `jcc` for the branch — and the same
 memory accesses. The governor charges them additively: 24 and 17 clocks, a
 ratio of 0.7083. The reference costs them 29.02 and 18.04, a ratio of 0.6217.
 **The fault is in the cost table's 286 column**, in what it charges these
-forms relative to each other, and the two entries that carry it are:
+forms relative to each other. Two adjustments are needed, and only one of
+them is pinned to a class:
 
-| class | 286 column now | would have to be |
-| --- | ---: | ---: |
-| `jcc`, taken | 8 | ≈ 9 |
-| `test_m` (`CMP`/`TEST r/m, imm`) | 6 | ≈ 10 |
+- The delay loop needs **one clock more** (17 → 18.04). It contains one
+  `unary_m` and one taken `jcc`, and nothing here says which of the two is
+  short, so that clock is **underdetermined**: raising `unary_m` 7 → 8 fits
+  the measurements exactly as well as raising `jcc` taken 8 → 9, and the
+  second would retime every taken branch on every preset. Separating them
+  needs a loop that has one and not the other.
+- The calibration loop then needs **about four clocks more** on top, and
+  those are pinned: the only class it has that the delay loop does not is
+  `test_m` (`CMP`/`TEST r/m, imm`), charged 6 where the reference costs the
+  instruction 9.00.
 
-**That `test_m` = 10 is fitted to the game's loop, not measured.** The
-directly measured cost of `cmp word [m], imm` is 9.00 clocks, which is a
-`test_m` entry of 8; with that and `jcc` taken at 9 the ratio is
-18.04/27.04 = 0.667, `N` falls only to 24, and the note is about **9% flat —
-still outside the band**. The 10 comes from matching the game's calibration
-loop at 29.02 clocks, which no additive per-class table can reach at the same
-time as the `B5` loop's 27.04 (below).
+With the delay loop at 18 and the calibration pass at 29, the kit's ratio is
+0.621 against the reference's 0.6217, `N` falls from 27 to 22, the pass goes
+to about 42.4 µs against the reference's 41.50, and the note lands about
+**2% flat — inside the ±5.9% band**.
 
-With those two, the kit's calibration pass becomes 29 clocks and its delay
-iteration 18, a ratio of 0.6207 against the reference's 0.6217; `N` falls from
-27 to 22, the pass to about 42.4 µs against the reference's 41.50, and the
-note lands about **2% flat — inside the ±5.9% band**. That is the shape of a
-fix, not a fix: it moves every preset and every title and it is Deano's to
-weigh. **Nothing is changed in this PR.**
+**But the 29 is fitted to the game's loop, not measured.** The directly
+measured `cmp word [m], imm` is 9.00 clocks, a `test_m` entry of 8; with that
+the calibration pass is 27 charged against the reference's real 29.02, the
+ratio is 0.667, `N` falls only to 24, and the note is about **9% flat —
+still outside the band**. The extra two clocks are the order effect below,
+which no additive per-class table can express.
+
+That is the shape of a fix, not a fix: it moves every preset and every title
+and it is Deano's to weigh. **Nothing is changed in this PR, and the pitch
+still fails #1368's band.**
 
 Both entries are *undercharges*, which is also fes#1840's direction.
 
