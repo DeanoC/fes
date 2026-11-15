@@ -648,6 +648,53 @@ The external `build-inputs.json` record is format 2.
 `build_identity` still hashes a format-1 record with the original full-record
 SHA256; a format-2 record uses the domain-separated functional projection.
 
+`python3 tools/identity.py /absolute/build-inputs.json` reports
+separate domain-separated SHA256 fingerprints for design inputs and toolchain
+inputs, the original `build_id`, and a SHA256 of the exact canonical record.
+Add `--current /absolute/candidate-build-inputs.json` to compare original
+built-with tools, lock digests and execution parameters against a candidate
+record captured by the selected producer. It reports source changes and
+toolchain-only changes without compiling or rewriting either input. The report
+does not discover current pins or authenticate that the supplied candidate
+matches the checkout. It rejects legacy records without a source closure.
+
+The utility lives outside `scripts/` so it also stays outside unaudited
+broad script closures. These are diagnostic fingerprints, not replacement
+production identities.
+Design inputs retain the ABI, recipe, dependencies, routing recipe, source
+closure and all parameters except the explicitly classified execution fields
+(`execution_sha256`, `gpu_device`, `gpu_backend`, `toolchain_configuration`).
+Toolchain inputs contain those fields, authenticated tool identities, the
+explicit toolchain selector when present, and source files named
+`toolchain.lock`. Source-root enumeration is omitted from the fingerprints;
+the captured file paths and digests remain authoritative. All other source
+files, including mixed producer/build helpers and the exporter, remain
+conservatively classified as design inputs. Unknown parameters remain design
+inputs. A toolchain-only difference describes a candidate update, not a claim
+that it is newer or better, nor permission to reuse hardware acceptance.
+
+The issue [#1878](https://github.com/DeanoC/fes/issues/1878) identifies real
+packaging churn, but the current record cannot yet prove a packaging-only
+change. `source_inputs` includes exporter scripts and compiler locks, and
+`recipe_sha256` hashes a Python producer that can mix packaging with HDL and
+tool-command generation. Merely hashing these fields separately would retain
+that churn. Removing scripts by filename would also discard real design
+dependencies. A production design-ID switch needs an audited classification
+of those reads and producer responsibilities first.
+
+The format-2 schema also rejects extra fields. These fingerprints therefore
+live in the report, outside canonical build records; adding them to a record
+would change its identity or require a schema migration. The exact-record
+digest is named `record_sha256`, since `package_id` already identifies sealed
+manifest/payload/map bytes. Today's `BUILD_ID` excludes Git provenance and is
+not a hash of the whole record. The parent artifact cache independently hashes
+that same combined functional projection; `bundle.py` matches and validates
+it before reuse. Changing only the embedded ID would not implement the desired
+reuse policy. Build records, producer closures, cache keys, backend identity,
+D12 and pin-bump gates remain unchanged by reporting. A later production
+migration must update those consumers together and qualify the migrated
+artifacts under the existing timing, seal and hardware rules.
+
 The package exporter and inspector also recognize format 4 with two ordered ROM
 requirements and one sealed map. The factory Coleco recipe selects
 `scripts/build_fes_coleco_socket_v2.py` with native video; it requires an exact
