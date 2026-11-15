@@ -33,8 +33,9 @@ host's FPU *is* an 80-bit x87, so the bench drives the unit's CPU interface
 and compares the whole architectural state -- the control, status and tag
 words and all eight registers -- with the host's own instruction, over the
 operand classes the 387 PRM names as pairs, in all four rounding modes and
-all three precisions. The bench counts them: **214,264 comparisons** against real hardware, over 499
-cases.
+all three precisions. The bench counts them: **242,776 comparisons** against real
+hardware, over **537 cases**, and the same bench runs on the seal's Yosys
+netlist.
 
 Eight rules came out of it that a manual reading would have got wrong, and
 each is in the RTL with the case that settles it:
@@ -117,6 +118,43 @@ operand, align them, and renormalise the result.
   subtract and multiply and to nothing else, so FRNDINT, FSCALE and FXTRACT
   pass the extended precision whatever the control word says.
 
+## Three faults of the shape slice 2 was bitten by
+
+Slice 2's three Codex findings were one shape: a state machine that writes
+flags and goes idle on one edge, with a summary derived from a *registered*
+word, leaves a cycle where the summary has not risen and a latch has not been
+set. Slice 3's bench therefore checks the cycle *of* the commit rather than
+the one after, and found three more of it.
+
+- **An unmasked overflow, underflow or precision exception did not latch
+  BUSY# at all.** The gate that holds the write back and the gate that raises
+  ERROR# are not the same set -- by rule 1 a post-operation exception writes
+  its result *and* reports -- and the first draft used one for both. The
+  `arith-latch-*` cases check, for each exception the arithmetic raises, that
+  ERROR# is up in the cycle the unit goes idle and that an ESC presented in
+  that cycle is held.
+- **A write to port F0h in the same cycle as the error summary's edge left
+  the latch set.** This one is a defect in **merged slice-2 logic**, found by
+  slice 3's bench and not introduced here: the apply sets the latch itself,
+  so the edge detector at the foot of the unit fires the cycle *after* it,
+  and an F0h write landing in that one cycle was undone. Reverting the `!f0`
+  gate takes the bench from 537/0 to a failed `latch-f0-edge` **and 47
+  comparisons in `edge-im` run against a unit still in its FNINIT state**,
+  because the stuck latch holds every later FLDCW. Under the pc386 reseal
+  exemption it needs no reseal of slice 2.
+- **The alignment clamp was off by one.** At a shift of 65 the round bit is
+  still the operand's own top bit; only from 66 is nothing left but the
+  sticky. The `align64` to `align67` cases pin it.
+
+A fourth, in merged slice-2 code, is **not** fixed here: a memory form the
+microcode moves in several chunks leaves the x87 data pointer at its last
+chunk rather than at the operand (FSTP m80 to 30Ch leaves FDP 314h).
+[#1877](https://github.com/DeanoC/fes/issues/1877) carries it with a
+reproduction that uses nothing of slice 3 -- two instructions appended to
+slice 2's own `stores` program fail the same way. Slice 3's lockstep programs
+store their results with FSTP m32, a single-chunk form, so they do not depend
+on the defect.
+
 ## Checks
 
 | Gate | Result |
@@ -127,6 +165,34 @@ operand, align them, and renormalise the result.
 | test386 | **(pending)** |
 | Quartus 17.0.2 seal | **(pending)** |
 | kit run on that seal | **(pending)** |
+
+Every gate runs from a clean worktree at the frozen head, so no later edit of
+the bench or the harness can reach the tree a counted run used.
+
+### What the lockstep adds that the unit's bench cannot
+
+The unit's bench drives the unit's own interface. Only the lockstep reaches
+the decode's new uops, the x87 pointers and the opcode a memory form leaves,
+and the CPU's issue interlock. Six programs were added to `run_x87_cases`:
+the register forms in all three destination flavours, the memory forms in all
+four operand formats (the 64-bit real through the `UC_FRD8` microcode loop),
+the compares each followed by FNSTSW AX, the rounding forms, precision
+control across all four control words, and the flag cases.
+
+Two things make that comparison bite. **FNSTSW AX puts the status word in a
+GPR**, which the lockstep compares at every retirement whether or not the
+unit is still busy -- the 387's own state is compared only where the unit is
+idle, and an ESC after an ESC is held until it is, so a run of ESCs gives few
+such points. **A result stored to memory** is compared the same way. The
+387's whole state is then compared at each program's end, after the unit has
+settled.
+
+One harness change was needed and is worth naming for the next slice:
+`x87_built_form` in `lockstep_tb.cpp` is a C++ mirror of `x87_decode`, and a
+form missing from it stops the run with *every* outcome flag clear and no
+mismatch of its own -- which reads as a program that simply did not halt. All
+six programs failed that way until it was extended, and the diagnostic the
+record's reproduction prints now names `unbuilt` for that reason.
 
 ## What is left
 
@@ -148,6 +214,17 @@ operand, align them, and renormalise the result.
   confines its change to its own forms rather than alter RTL slice 2 sealed
   and lockstepped; [#1872](https://github.com/DeanoC/fes/issues/1872) carries
   it with the host probe that settles it.
+- **The area figures are not differenced against slice 2's.** Slice 2's were
+  measured through the HIP toolchain slot and these through the CUDA one, and
+  the two slots' Yosys binaries differ (Powerboat gcc 14.2, the chip host gcc
+  13.3), so their netlists are the same logic with different net numbering
+  and Quartus fits them differently -- 36,055 against 36,069 ALMs and setup
+  +0.594 against +0.410 on identical RTL, which is the size of the deltas
+  this slice reports. Quartus itself is host-independent. So every figure
+  here says which slot it came from, and slice 3's own cost is measured as
+  identity-on on this branch minus identity-on at its merge-base **through
+  the same slot**, rather than against slice 2's published numbers. The next
+  slice should do the same rather than read this as an omission.
 - **The identity's record word** is still unbuilt, as slice 2 left it, so a
   kit can only run the sealed package with the identity **off**. This
   slice's kit run is therefore a **regression run: it exercises none of this
