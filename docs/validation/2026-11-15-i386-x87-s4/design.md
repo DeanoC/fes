@@ -116,14 +116,34 @@ What it settles:
    of **63 completes in one step** with C2 clear; **64 and 65 take two**. So a
    step returns a partial remainder with C2 set iff the difference is 64 or
    more, measured rather than read off the manual.
-2. **A partial step consumes at most 64 quotient bits.** In steady state the
-   result's exponent drops by exactly 64 a step (the diff-1000 case: 40 to
-   reach alignment, then 64, 64, 64 …). The *number* of instructions a full
-   reduction needs is data-dependent — 59, 119, 179, 239, 299 and 359 bits of
-   difference took 1, 3, 4, 6, 9 and 10 steps — because cancellation shrinks
-   the remainder unpredictably. That is architecturally visible and correct:
-   software loops while C2 is set. It is not latency variation *within* an
-   instruction.
+2. **A partial step reduces `n = (expDiff & 31) | 32` quotient bits — 32 to
+   63, not 64.** `model/fprem_step_size.c` prints the exponent difference
+   before and after every step: differences of 119, 179, 239, 299 and 359
+   reduce by 55, 54, 48, 43 and 42 and then settle on 32, where a fixed
+   64-bit step would have reduced 64 each time and finished in half the
+   instructions. **Bochs's `cpu/fpu/fprem.cc` at the pinned revision computes
+   exactly that quantity** — `if (expDiff >= 64) { int n = (expDiff & 0x1f) |
+   0x20; ... }` — so the host and the oracle agree bit for bit and lockstep
+   can be exact on partial steps with no divergence to record.
+
+   The exponent *drop* is `n` plus whatever the subtraction cancels, which is
+   what made a fixed 64 look plausible: at difference 999 the drops are 40
+   then 64, 64, 64, and those are `n` = 39 then 63, 63, 63 with one bit of
+   cancellation each. Reading the drop as the step size is the mistake, and
+   this record made it before the per-step probe was written.
+
+   **An earlier version of this section claimed 64 bits a step and a 65-bit
+   partial quotient needing a shifted add of `B`. Both are withdrawn.** The
+   quotient is at most 63 bits, so `N × B` is one 64×64 product and nothing
+   else; the 65 bits were an artefact of the first model shifting by a fixed
+   64 instead of by `n`.
+
+   The number of *instructions* a full reduction needs is still
+   data-dependent — 59, 119, 179, 239, 299 and 359 bits of difference took 1,
+   3, 4, 6, 9 and 10 steps — because cancellation shrinks the remainder
+   unpredictably. That is architecturally visible and correct: software loops
+   while C2 is set. It is not latency variation *within* an instruction.
+
 3. **The quotient bits are `q = C0·4 + C3·2 + C1`**, the quotient's low three
    bits, confirmed over q = 0 to 9 for both FPREM and FPREM1. The 387 PRM's
    q2/q1/q0 naming maps to C0/C3/C1 in that order, which is easy to get
@@ -212,10 +232,9 @@ check applied FPREM1's range to partial steps too and reported 7,860
 violations against a design that was correct; the violations were the
 checker's.
 
-**The measured partial quotient is up to 65 bits, not 64.** So `N × B` is not
-quite one multiplier pass: it is one 64×64 product plus a single shifted add
-of `B` for the top bit — the same arrangement the divide candidate already
-needs for its bits above 63, not a new one.
+**The partial quotient is at most 63 bits** (`n = (expDiff & 31) | 32`), so
+`N × B` is exactly one pass of the shared 64×64 multiplier. The variable
+shift by `n` is the multiply-based shift slice 3 already has.
 
 With that, **FPREM and FPREM1 need no divider of their own.** What they add
 over the divide tail is the quotient-bit capture for C0/C3/C1, the
