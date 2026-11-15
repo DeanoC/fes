@@ -200,6 +200,11 @@ def verdict(result):
     holds: a live run that ran out of commands without a `quit`, or one that
     reached its run limit.
 
+    Anything else the run recorded is searched too, at any depth: the
+    invariant is that no error in `result.json` can pass, and a verdict that
+    read only the events would be narrower than the `grep '"error"'` it
+    replaced.
+
     Raises `MalformedResult` for any shape it cannot judge, which the CLI
     turns into the no-verdict exit code. Reporting no error over a result
     whose errors are unreadable would be the same plausible success this guard
@@ -215,6 +220,17 @@ def verdict(result):
     for key in ('halted', 'close_error'):
         if result.get(key):
             reasons.append(f'{key}: {result[key]}')
+    # Everything else the run recorded, at any depth: a setup failure, a
+    # staging reply, an outer-run error the driver wrote beside its events.
+    # The invariant is that no error in result.json can pass, and the shell
+    # check this replaced was a plain `grep '"error"'` over the whole file —
+    # so inspecting only the events would be narrower than what it replaced.
+    # `events` is excluded because each one is reported below with its own
+    # sequence number and op.
+    HANDLED = ('events', 'reasons', 'halted', 'close_error')
+    outer = error_in({key: value for key, value in result.items() if key not in HANDLED})
+    if outer is not None:
+        reasons.append(f'result: {outer}')
     for event in result_events(result):
         found = error_in(event.get('result'))
         if found is None:

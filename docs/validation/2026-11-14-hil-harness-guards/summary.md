@@ -117,6 +117,16 @@ client `kit.py` the session drivers already import, and are checked in
    unlike a null `events`: a passing run has no reasons, so a null there hides
    nothing, while a null `events` means the commands were never recorded and
    an absence of errors in it proves nothing.
+
+   The verdict also searches everything else the run recorded, at any depth —
+   a setup failure, a staging reply, an outer-run error written beside the
+   events — because the invariant is that *no error in `result.json` can
+   pass*, and the shell check this replaced was a plain `grep '"error"'` over
+   the whole file. A verdict reading only the events would have been narrower
+   than the thing it replaced, which a review round caught: a driver recording
+   `{"error": "boom"}` at the top level got "run reported no command error"
+   and exit 0. `events` is excluded from that sweep only because each event is
+   reported separately with its own sequence number and op.
    *Prevents:* a refused admission reading as a pass.
 
 4. **Liveness.** `run_lock` is a per-run lock file, `kit-hil-run.lock`, that
@@ -145,7 +155,7 @@ after checking them against the real data are red on the extraction too. All of
 them pass on the branch head:
 
     cd sources/misteross && python3 -m unittest discover -s tests -p 'test_kit*.py'
-    # 83 tests, OK (68 of them this module's)
+    # 86 tests, OK (71 of them this module's)
 
 The cleanup gate is also exercised against a real local HTTP agent replying in
 `protocol.Status`'s own shape (`state`, `game_id`, `core_package.package_id`,
@@ -154,7 +164,7 @@ breaks the test rather than the next kit run.
 
 ## The verdict against every kit run on this host
 
-`kit_hil.py verdict` was run over all 129 `result.json` files under
+`kit_hil.py verdict` was run over all 129 `result.json` files then present under
 `~/fes-scratch/*/runs/` and `~/fes-scratch/*/kit/runs/`. 120 exit 0 and 9 exit
 non-zero, and every one of the 9 names a real failed command, a halt or a
 failed release — no false positive from `error_in`'s depth search (an
@@ -182,7 +192,16 @@ error were logged as clean runs with `HIL rc=0` and the kit released.**
 | `u6ref/.../g4` | `close_error`: HTTP 500 | `HIL rc=0`, then HALTED |
 
 `p5dbg/k2` is typical: a `load` failed at command 63 of 91, 28 further commands
-ran, and the wrapper released the kit on `rc=0`. Whether each of those runs'
+ran, and the wrapper released the kit on `rc=0`.
+
+That corpus is live scratch and shrinks as sessions clean up after themselves:
+a later re-run, after the whole-result sweep was added, found 56 files and
+flagged 5 — the same five of that remaining set as before, so **the broader
+search added no false positive on real data**, and `p5dbg`'s own trees had been
+removed by its session in the meantime. The 129/9 figure is what was measured
+when it was measured, not something a re-run will reproduce.
+
+Whether each of those runs'
 conclusions depended on the failed load is for its own session to say; what
 this shows is that the driver's exit code never carried the information, on any
 of them, which is what guard 3 changes.
@@ -474,7 +493,7 @@ trees under, which is the thing the guard exists to prevent.
 
 | gate | result |
 | --- | --- |
-| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 83 tests, OK |
+| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 86 tests, OK |
 | `tests/test_hil_plan.py` | 39 tests, OK |
 | `tests/test_affected.py`, `tests/test_test_changed.py` | 43 and 33 tests, OK |
 | `scripts/check_diff.py --base <main> --head HEAD` | exit 0 |

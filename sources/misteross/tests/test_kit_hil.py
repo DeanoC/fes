@@ -393,6 +393,44 @@ class RefusedAdmission(unittest.TestCase):
         self.assertEqual(len(reasons), 1)
         self.assertIn('INVALID_ARCHIVE', reasons[0])
 
+    def test_a_run_level_error_outside_the_events_is_the_runs_verdict(self):
+        """The invariant is "no error in result.json passes", not "no event error".
+
+        A driver can record a setup or outer-run failure beside its events,
+        and the shell check this replaced was a plain grep over the whole
+        file, so reading only the events would be narrower than that.
+        """
+
+        for payload in ({'error': 'boom'},
+                        {'setup': {'error': 'staging refused'}},
+                        {'events': [], 'stage': {'reply': {'error': 'HTTP 500'}}},
+                        {'events': [{'seq': 1, 'cmd': {'op': 'load'}, 'result': {'ok': True}}],
+                         'disk': {'error': 'no such image'}}):
+            with self.subTest(payload=payload):
+                reasons = kit_hil.verdict(payload)
+                self.assertTrue(reasons, 'a run-level error must not pass')
+                self.assertTrue(any(r.startswith('result:') for r in reasons))
+                with tempfile.TemporaryDirectory() as home:
+                    path = Path(home) / 'result.json'
+                    path.write_text(json.dumps(payload))
+                    self.assertEqual(kit_hil.main(['verdict', str(path)]), 1)
+
+    def test_a_run_level_error_is_not_reported_twice(self):
+        reasons = kit_hil.verdict({'events': [{'seq': 1, 'cmd': {'op': 'load'},
+                                               'result': {'error': 'HTTP 422'}}]})
+        self.assertEqual(len(reasons), 1, 'an event error is reported once, with its seq')
+        self.assertTrue(reasons[0].startswith('command 1 load:'))
+
+    def test_the_verdict_is_no_narrower_than_the_grep_it_replaced(self):
+        # Every real result.json on this host that the old shell check would
+        # have flagged must still be flagged, and the fixtures below stand for
+        # the shapes it caught: an "error" key anywhere in the file.
+        for payload in ({'error': 'x'}, {'a': {'error': 'x'}}, {'a': [{'error': 'x'}]},
+                        {'events': [{'seq': 1, 'result': {'error': 'x'}}]},
+                        {'reasons': ['x']}, {'halted': 'x'}, {'close_error': 'x'}):
+            with self.subTest(payload=payload):
+                self.assertTrue(kit_hil.verdict(payload))
+
     def test_a_clean_run_has_no_verdict_against_it(self):
         self.assertEqual(kit_hil.verdict(
             {'events': [{'seq': 1, 'cmd': {'op': 'load'}, 'result': {'load': {'state': 'active'}}},
