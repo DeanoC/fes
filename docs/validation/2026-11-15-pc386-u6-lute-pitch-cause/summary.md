@@ -339,4 +339,3 @@ ISA charge beyond the size coincidence noted above.
 **#1837's "reference scaled to 12.0 MHz" column is not valid** and is not
 used here: under a tick-calibrated delay the pitch does not scale with the
 clock, as the measured curve shows.
-
