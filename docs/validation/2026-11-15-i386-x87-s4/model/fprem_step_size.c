@@ -15,19 +15,24 @@ static int ex(long double v){ f80 r; memcpy(&r,&v,10); return (r.se&0x7fff)-1638
 int main(){
     for(int n=60;n<=360;n+=60){
         long double b=3.0L, a=__builtin_ldexpl(0x1.5555555555555554p0L,n);
-        int d0=ex(a)-ex(b);
+        int d0=ex(a)-ex(b), first_drop=0;
         printf("D=%3d:", d0);
         for(int s=0;s<14;s++){
             int before=ex(a)-ex(b);
             uint16_t sw=step(&a,b);
             int after=ex(a)-ex(b);
             printf(" %d->%d(-%d)", before, after, before-after);
+            if(s==0) first_drop = before-after;
             if(!((sw>>10)&1)) { printf(" done"); break; }
         }
         printf("\n");
-        // the candidate rules, evaluated on the first step
-        printf("      first drop=%d ; 32+(D%%32)=%d ; D%%64=%d ; 64=%d\n",
-               d0-0, 32+(d0%32), d0%64, 64);
+        // The candidate rules against the FIRST STEP'S OWN DROP, which is what
+        // has to be explained. Printing d0 here instead labelled the whole
+        // difference as the first drop -- D=119 read as a drop of 119 where
+        // the line above says 119->64 -- so the summary could not validate
+        // anything. Codex found it on PR #1889.
+        printf("      first drop=%d ; (D&31)|32=%d ; cancellation=%d\n",
+               first_drop, (d0 & 31) | 32, first_drop - ((d0 & 31) | 32));
     }
     return 0;
 }

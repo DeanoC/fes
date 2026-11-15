@@ -1576,6 +1576,76 @@ int main(int argc, char **argv) {
         }
     }
 
+    // ---- QEMU's fprem test, as the plan names it. ----
+    // qemu/tests/tcg/i386/test-i386-fprem.c runs FPREM and FPREM1 over a
+    // systematic cross product of operand fields and prints each result and
+    // status word; its own header says to "run this on real hardware, then
+    // under QEMU, and diff the outputs". That is exactly what this bench
+    // does, except that it compares the whole architectural state rather than
+    // printed fields, so the test is ported as its operand grid rather than
+    // run as a program.
+    //
+    // The grid is QEMU's own, field for field: the sign, nine exponents
+    // including 0, 1, 2, the bias either side, 7FFDh, 7FFEh and 7FFFh, the
+    // explicit integer bit either way, the quiet-NaN bit either way, and six
+    // mantissas at both ends of the range. 432 values an operand.
+    {
+        StubPage page;
+        const unsigned exps[] = {0, 1, 2, 0x3ffe, 0x3fff, 0x4000, 0x7ffd, 0x7ffe, 0x7fff};
+        const uint64_t mants[] = {0, 1, 2,
+                                  0x3ffffffffffffffdull, 0x3ffffffffffffffeull,
+                                  0x3fffffffffffffffull};
+        std::vector<std::array<uint8_t, 10>> grid;
+        for (unsigned neg = 0; neg < 2; ++neg)
+            for (unsigned e : exps)
+                for (unsigned one = 0; one < 2; ++one)
+                    for (unsigned qnan = 0; qnan < 2; ++qnan)
+                        for (uint64_t mant : mants) {
+                            // The fields as QEMU's union lays them out: the
+                            // mantissa's top bit is the quiet-NaN flag and the
+                            // one above it the explicit integer bit.
+                            const uint64_t sig = mant | (uint64_t(qnan) << 62)
+                                               | (uint64_t(one) << 63);
+                            std::array<uint8_t, 10> b{};
+                            std::memcpy(b.data(), &sig, 8);
+                            const uint16_t se = uint16_t(e | (neg << 15));
+                            std::memcpy(b.data() + 8, &se, 2);
+                            grid.push_back(b);
+                        }
+        for (unsigned one = 0; one < 2; ++one) {
+            const uint8_t ops[2] = {0xd9, uint8_t(one ? 0xf5 : 0xf8)};
+            const unsigned uop = (0x1u << 8) | (one ? 0xf5u : 0xf8u);
+            int diffs = 0, ran = 0;
+            std::string first;
+            Unit u;
+            // Every A against every eighth B: the full 432 x 432 is 186,624
+            // pairs an instruction and the stride keeps the run to a few
+            // minutes while still crossing every field of A with every field
+            // of B at least once.
+            for (size_t ia = 0; ia < grid.size(); ++ia)
+                for (size_t ib = ia % 8; ib < grid.size(); ib += 8) {
+                    uint8_t stack[2][10];
+                    std::memcpy(stack[0], grid[ia].data(), 10);
+                    std::memcpy(stack[1], grid[ib].data(), 10);
+                    Image want{}, got{};
+                    if (!host_form(page, host_cw(0), stack, 2, nullptr, ops, 2, want)) break;
+                    unit_form(u, host_cw(0), stack, 2, nullptr, uop, 0, got);
+                    ++ran;
+                    ++compared;
+                    if (!same_state(want, got, 0xffff)) {
+                        if (!diffs)
+                            first = "st0=" + hex80(stack[0]) + " st1=" + hex80(stack[1]) +
+                                    " got " + state_str(got, 0xffff) +
+                                    " want " + state_str(want, 0xffff);
+                        ++diffs;
+                    }
+                }
+            const std::string name = std::string("qemu-fprem") + (one ? "1" : "");
+            if (diffs) bad(name, std::to_string(diffs) + " of " + std::to_string(ran) + " " + first);
+            else ok(name + "-" + std::to_string(ran));
+        }
+    }
+
     // ---- Precision control. ----
     // PC applies to add, subtract, multiply, divide and square root and to
     // nothing else (387 PRM section 2.3.2), so FRNDINT, FSCALE, FXTRACT and

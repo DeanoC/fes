@@ -79,10 +79,29 @@ if __name__ == '__main__':
         sc+=[(1<<63,p),(M64,p),((1<<63)|1,p),(M64-1,p),(0xC000000000000000,p)]
         for i in range(128):
             b=(1<<63)|(i<<56); sc+=[(b,p),(b|((1<<56)-1),p)]
-        for _ in range(1500):
-            r=rnd.getrandbits(33)|(1<<32); v=r*r
-            v>>=max(0,v.bit_length()-64)
-            for d in(-1,0,1): sc.append((((v|(1<<63))+d)&M64,p))
+        # Exact squares AT THE RADICAND'S OWN SCALE, and their neighbours. An
+        # earlier version squared a 33-bit root and shifted the product right
+        # to 64 bits, which discards non-zero low bits, so the centre was
+        # usually NOT an exact square and the +-1 neighbours were not
+        # square-adjacent. Codex found it on PR #1889. Here A is built so that
+        # A << (67+p) is exactly T*T, and that is asserted before the
+        # neighbours are added.
+        made = 0
+        while made < 1500:
+            T = rnd.getrandbits(65) | (1 << 65)
+            sq = T * T
+            sh = 67 + p
+            if sq & ((1 << sh) - 1):
+                continue                 # not an exact square at this scale
+            A = sq >> sh
+            if A.bit_length() != 64:
+                continue
+            assert math.isqrt(A << sh) ** 2 == (A << sh)
+            for d in (-1, 0, 1):
+                v = (A + d) & M64
+                if v >> 63:
+                    sc.append((v, p))
+            made += 1
         sc+=[(rnd.getrandbits(64)|(1<<63),p) for _ in range(15000)]
     print(f"FSQRT: {len(sc)} cases\n{'iters':>5} {'muls':>5} {'max T-qhat':>12} {'steps k':>8} {'rem bits':>9} {'exact':>6}")
     for it in (1,2,3,4):

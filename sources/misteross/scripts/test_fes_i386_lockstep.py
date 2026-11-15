@@ -493,7 +493,8 @@ def run_x87(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-X87_CASES = 14
+X87_CASES = 21   # slice 2 and 3: 14; slice 4 adds div-reg, div-mem, div-zero,
+                 # sqrt, prem, prem1 and div-prec
 
 
 def divergence_table(entries: list[dict], path: Path) -> None:

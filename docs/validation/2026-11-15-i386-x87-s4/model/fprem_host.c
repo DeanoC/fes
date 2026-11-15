@@ -44,7 +44,8 @@ int main(){
             int c0=(sw>>8)&1, c1=(sw>>9)&1, c2=(sw>>10)&1, c3=(sw>>14)&1;
             printf("   step%-2d exp %5d -> %5d (reduced %3d)  C2=%d", s, e0, expof(a),
                    e0-expof(a), c2);
-            if(!c2) printf("  C0=%d C3=%d C1=%d  q&7=%d", c0,c3,c1, c3*4+c1*2+c0);
+            if(!c2) // q = C0*4 + C3*2 + C1, the PRM's q2/q1/q0 in that order.
+            printf("  C0=%d C3=%d C1=%d  q&7=%d", c0,c3,c1, c0*4+c3*2+c1);
             printf("\n");
             if(!c2) break;
         }

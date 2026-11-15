@@ -150,7 +150,11 @@ module fes_i386_x87 (
     output logic        busy_o,
     // The sequencer's state, for the unit's own bench and the CPU's trace;
     // nothing in the machine reads it, so the fit trims the wires.
-    output logic [4:0]  trace_seq,
+    // Six bits, not five: slice 4 took the sequencer past 31 states, and a
+    // truncated trace reported Q_SEED as a low-numbered slice-2 state --
+    // wrong precisely while diagnosing the new square-root path. Codex
+    // found it on PR #1889.
+    output logic [5:0]  trace_seq,
     // FINIT clears the x87 pointers as well as the words (387 PRM, FINIT),
     // and the CPU keeps them, so the unit says when: in the cycle FNINIT
     // commits, or FNSAVE, which leaves the unit as FINIT does. It is in
@@ -631,7 +635,7 @@ module fes_i386_x87 (
     logic [10:0] cur_op_raw;    // its 387 opcode, which commit stores
     logic        cur_ctrl;      // ... and whether it is a control form
     assign busy_o = busy;
-    assign trace_seq = 5'(seq);
+    assign trace_seq = 6'(seq);
 
     // ---- The board's BUSY# latch (387 PRM Appendix F.2). ----
     // ERROR# going active latches BUSY#, which holds the next waiting ESC or
@@ -1932,12 +1936,21 @@ module fes_i386_x87 (
                         logic [6:0]         n;
                         d = oa_e - ob_e;
                         one = cur_op_raw[3:0] == 4'h5;      // D9 F5 is FPREM1
-                        rnd_up = one && d == -18'sd1 && oa_m > ob_m;
+                        // A divisor of infinity gives the dividend back and
+                        // never rounds. It cannot be left to the difference
+                        // being "very negative": an infinity's exponent field
+                        // is 7FFFh, the LARGEST, so a dividend at 7FFEh is
+                        // exactly one below it and took FPREM1's round-up path
+                        // at a difference of -1. QEMU's grid found it, 4 cases
+                        // of 23,328, and only a dividend within one binade of
+                        // the top separates the two readings.
+                        rnd_up = one && d == -18'sd1 && oa_m > ob_m
+                              && cb != C_INF;
                         n = d >= 18'sd64 ? (7'd32 | {2'b0, d[4:0]}) : 7'(d[6:0]);
                         wsign <= pa[79];
                         pr_one <= one;
                         pcc_wr <= 1'b1;
-                        if (d < 18'sd0) begin
+                        if (d < 18'sd0 || cb == C_INF) begin
                             // FPREM1 at -1: a/b is in (0.25, 1), so compare A
                             // with B. Above gives a quotient of one, a
                             // magnitude of 2B - A and the other sign; equal
