@@ -1732,32 +1732,35 @@ bool x87_built_form(uint8_t esc, uint8_t modrm) {
             case 1 << 3 | 6: case 5 << 3 | 6:                            // FNSTENV, FNSAVE
             case 1 << 3 | 4: case 5 << 3 | 4:                            // FLDENV, FRSTOR
                 return true;
-            // Slice 3's arithmetic and compares: D8 and DC with a 32- or
-            // 64-bit real, DA and DE with a 32- or 16-bit integer, reg
-            // fields 0 to 5. Reg fields 6 and 7 are the divides, slice 4's.
-            case 0 << 3 | 0: case 0 << 3 | 1: case 0 << 3 | 2:
-            case 0 << 3 | 3: case 0 << 3 | 4: case 0 << 3 | 5:           // D8
-            case 4 << 3 | 0: case 4 << 3 | 1: case 4 << 3 | 2:
-            case 4 << 3 | 3: case 4 << 3 | 4: case 4 << 3 | 5:           // DC
-            case 2 << 3 | 0: case 2 << 3 | 1: case 2 << 3 | 2:
-            case 2 << 3 | 3: case 2 << 3 | 4: case 2 << 3 | 5:           // DA
-            case 6 << 3 | 0: case 6 << 3 | 1: case 6 << 3 | 2:
-            case 6 << 3 | 3: case 6 << 3 | 4: case 6 << 3 | 5:           // DE
+            // Slice 3's arithmetic and compares and slice 4's divides: D8
+            // and DC with a 32- or 64-bit real, DA and DE with a 32- or
+            // 16-bit integer, reg fields 0 to 7. Fields 6 and 7 are
+            // FDIV and FDIVR.
+            case 0 << 3 | 0: case 0 << 3 | 1: case 0 << 3 | 2: case 0 << 3 | 3:
+            case 0 << 3 | 4: case 0 << 3 | 5: case 0 << 3 | 6: case 0 << 3 | 7:  // D8
+            case 4 << 3 | 0: case 4 << 3 | 1: case 4 << 3 | 2: case 4 << 3 | 3:
+            case 4 << 3 | 4: case 4 << 3 | 5: case 4 << 3 | 6: case 4 << 3 | 7:  // DC
+            case 2 << 3 | 0: case 2 << 3 | 1: case 2 << 3 | 2: case 2 << 3 | 3:
+            case 2 << 3 | 4: case 2 << 3 | 5: case 2 << 3 | 6: case 2 << 3 | 7:  // DA
+            case 6 << 3 | 0: case 6 << 3 | 1: case 6 << 3 | 2: case 6 << 3 | 3:
+            case 6 << 3 | 4: case 6 << 3 | 5: case 6 << 3 | 6: case 6 << 3 | 7:  // DE
                 return true;
             default:
-                return false;   // the divides, FBLD and FBSTP
+                return false;   // FBLD and FBSTP, slice 5's
         }
     }
     switch (low) {
         case 0:  // D8: the arithmetic and compares into ST(0)
             return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8     // FADD, FMUL
                 || (modrm & 0xf8) == 0xd0 || (modrm & 0xf8) == 0xd8     // FCOM, FCOMP
-                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8;    // FSUB, FSUBR
+                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8     // FSUB, FSUBR
+                || (modrm & 0xf8) == 0xf0 || (modrm & 0xf8) == 0xf8;    // FDIV, FDIVR
         case 1:  // D9
             if (modrm == 0xd0 || modrm == 0xe0 || modrm == 0xe1 || modrm == 0xe4 || modrm == 0xe5
                 || modrm == 0xf6 || modrm == 0xf7)
                 return true;                                     // FNOP, FCHS, FABS, FTST, FXAM, FDECSTP, FINCSTP
             if (modrm == 0xf4 || modrm == 0xfc || modrm == 0xfd) return true;   // FXTRACT, FRNDINT, FSCALE
+            if (modrm == 0xf5 || modrm == 0xf8 || modrm == 0xfa) return true;   // FPREM1, FPREM, FSQRT
             if ((modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8) return true;  // FLD ST(i), FXCH
             return modrm >= 0xe8 && modrm <= 0xee;               // the constants
         case 2:  // DA
@@ -1766,14 +1769,16 @@ bool x87_built_form(uint8_t esc, uint8_t modrm) {
             return modrm == 0xe0 || modrm == 0xe1 || modrm == 0xe2 || modrm == 0xe3 || modrm == 0xe4;
         case 4:  // DC: the same arithmetic into ST(i)
             return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8
-                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8;
+                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8
+                || (modrm & 0xf8) == 0xf0 || (modrm & 0xf8) == 0xf8;   // FDIVR, FDIV ST(i)
         case 5:  // DD
             return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xd0 || (modrm & 0xf8) == 0xd8
                 || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8;   // ... and FUCOM, FUCOMP
         case 6:  // DE: the popping forms, and FCOMPP
             return modrm == 0xd9
                 || (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8
-                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8;
+                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8
+                || (modrm & 0xf8) == 0xf0 || (modrm & 0xf8) == 0xf8;   // FDIVRP, FDIVP
         case 7:  // DF
             return modrm == 0xe0;                                // FNSTSW AX
         default:
