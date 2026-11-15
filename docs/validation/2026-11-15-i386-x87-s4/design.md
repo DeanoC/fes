@@ -353,3 +353,19 @@ the 74 is the *value's* width and the 96 is the *representation's*, and
 quoting the model's number as the hardware's would be the same mistake this
 record has already made twice. The 74 remains the right figure for how wide
 the remainder's value ever gets; nothing in the slice needs a 131-bit adder.
+
+## What is in the branch, and what is not
+
+The decode entries for X87_DIV, X87_SQRT and X87_PREM were written and then
+**reverted**, deliberately. Adding them to `x87_decode` un-stops the
+instructions — `fes_i386_decode` gates on `!= X87_UNIMPL` — so a branch with
+the decode and without the unit's handling would accept FDIV and then have
+nothing to execute it, breaking lockstep and test386 rather than leaving them
+passing. The slice-4 forms therefore still stop as `FAULT_UNIMPLEMENTED` on
+this branch, as slice 3 left them, and the decode lands in the same commit as
+the unit that runs it.
+
+So what this branch carries today is the design, its models and its record.
+The RTL, the benches, the seal, the kit run and the area measurements are not
+in it, and the headings above say which numbers are measured, which are
+inferred and which are withdrawn.
