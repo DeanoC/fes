@@ -143,7 +143,9 @@ Four instruments, answering different questions.
 | exception-mask matrix, divide/sqrt/remainder rows | **passes under all seven mask settings** |
 | BUSY# latch trials for ZE, IE and PE from real divides and roots | **pass** |
 | lockstep, identity **off** | **1,933 no-387 cases pass, 0 failed**, and every other bucket passes |
-| lockstep, identity **on**, with slice 4's own programs | **19 pass, 2 FAIL** — `div-mem` and `div-prec`. **This gate is not met.** |
+| lockstep, identity **on**, with slice 4's own programs | **21 pass, 0 failed** |
+| in-machine fit, identity **off** — what ships and seals | **36,416 ALMs, +0.459 ns: fits and closes** |
+| in-machine fit, identity **on** | **does not fit: 4,407 of 4,191 LABs** ([escalation](STOP-RULE-FIRED.md)) |
 | test386 | **POST FFh reached**, halt at d0:ffb9 after 79,641,629 steps |
 | standalone area, against the merge base in the same flow | **+3,997 ALMs, +0 DSP, +2 M10K** ([the reading](area-first-reading.md)) |
 | TestFloat div, sqrt, rem | **attempted, unmet**: a scope of its own, see below |
@@ -152,12 +154,11 @@ Four instruments, answering different questions.
 | Quartus 17.0.2 seal | not run |
 | kit run | not run |
 
-### The identity-on lockstep fails, and that is this record's most important open item
+### The identity-on lockstep failed first, and the failure was real
 
-Slice 4's seven identity-on programs make the lockstep **fail**: 19 of 21
-cases pass and **`div-mem` and `div-prec` do not**. Before these programs
-existed the bucket was slice 2 and 3's 14 cases and passed; the failure is
-what writing real coverage bought, and it is **not** resolved.
+Slice 4's seven identity-on programs made the lockstep **fail on their first
+run**: 19 of 21, with `div-mem` and `div-prec` failing. **They pass now** —
+21 of 21 — and the cause was not the divider.
 
 What the run reports:
 
@@ -173,23 +174,24 @@ Read as *expected, got*: `div-prec` ends with the oracle's status word 3801h
 (**IE**) against the RTL's 3822h (**PE and C1**), and neither case reaches its
 HLT on the RTL.
 
-**Two readings are open and this record does not choose between them.**
+**It was the memory access shape, and the failure pattern said so**: both
+failing programs used memory divides and the five others passed.
+`fes_i386_decode`'s case on `{esc, reg field}` listed fields 0 to 5 for each
+of D8, DA, DC and DE, so the divides' fields 6 and 7 fell through to the
+default and the instruction read the wrong bytes.
 
-1. **The RTL diverges from Bochs on the CPU path** in a way the unit bench
-   cannot see, because that bench compares against the *host* and the host is
-   not Bochs. `div-prec`'s last operation is FSQRT of a negative value, which
-   must raise invalid — the unit bench checks exactly that and passes — so if
-   the RTL is reaching it with a different ST(0), the divergence is earlier
-   than the reported state.
-2. **The programs are wrong.** Neither halts on the RTL, which usually means
-   the case diverged before its end, so the reported final state may be a
-   consequence rather than the fault. A malformed program is as likely as a
-   malformed divider at this stage and has not been ruled out.
+**So a memory form has to be in three tables and only two of them have a
+guard.** `x87_decode` says whether the form is built; `x87_format` gives its
+operand format and turns it back into `X87_UNIMPL` when it does not; and the
+decode's shape case gives its memory access — where a missing field means the
+form **runs and reads the wrong operand** rather than stopping as not built.
+Codex found the second table from the diff; the lockstep found the third.
+Neither is visible from the unit's own bench, which supplies both the format
+and the operand itself.
 
-Either way **the identity-on lockstep gate is unmet**, and the earlier
-statement in this record that the lockstep passed was true only of the bucket
-before these programs were added. It is corrected here rather than left to
-read as coverage. — `div-reg`, `div-mem`,
+Both runs are kept beside this record — `lockstep-identity-on-failure-before-the-fix.txt`
+and `lockstep-identity-on-pass.txt` — because the pair is what says the
+programs were worth writing. — `div-reg`, `div-mem`,
 `div-zero`, `sqrt`, `prem`, `prem1` and `div-prec` — so the forms run through
 the CPU rather than through the unit's own interface, and the two remainder
 programs loop on C2 the way software does, which compares every partial step

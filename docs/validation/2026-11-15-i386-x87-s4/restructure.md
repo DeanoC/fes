@@ -10,6 +10,15 @@ shifters matter" later.
 | standalone, merge base | 4,076 | 9 | 4 | +0.570 ns |
 | standalone, as first written | 8,073 | 9 | 6 | −3.839 ns |
 | in-machine, identity on, as first written | **does not fit: 4,407 of 4,191 LABs** | | | |
+| in-machine, identity **off** — what ships and seals | **36,416** | 40 | 282 | **+0.459 ns** |
+
+**The identity-off package fits and closes.** That is the configuration that
+ships and that the seal is taken on, so slice 4's own seal and kit run can
+proceed as a regression run exactly as slice 3's did: only the identity-**on**
+configuration is blocked. The +24 ALMs against slice 3's 36,392 are the
+decode and format table entries, which exist whatever the identity does, and
+the two fits are through different Quartus hosts so the difference is not a
+within-slot delta.
 
 ## Why that number is not the algorithm's cost
 
