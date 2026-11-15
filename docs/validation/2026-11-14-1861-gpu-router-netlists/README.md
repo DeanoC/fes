@@ -6,16 +6,23 @@ recipe changes. The record of every core whose producer imports a changed file
 therefore moves through `source_inputs`, and with it `BUILD_ID`, so
 [D12](../../../AGENTS.md) applies.
 
-D12 asks for three things. This record covers the **first** only:
+D12 asks for three things. Where this record stands on each:
 
 1. the core's Yosys netlist is byte-identical to main apart from the `BUILD_ID`
-   constant and `src` file paths — **done, for all 14 cores, in two agreeing
-   passes, and with neither exemption needed**: the netlists are identical
-   outright;
+   constant and `src` file paths — **done for all 15 affected artifacts**, in
+   two agreeing passes, and for 14 of them with neither exemption needed: the
+   netlists are identical outright. `splash` is the exception and needs the
+   `src` path exemption, for the reason given below;
 2. a build with the PR's tooling and main's `BUILD_ID` reproduces main's RBF
-   byte for byte — **not started** (needs a GPU route per core);
+   byte for byte — **done for the five artifacts Deano scoped**, each after a
+   control run that had to reproduce the producer's own RBF first;
 3. the PR's own build passes the core's normal timing and seal gates —
-   **not started** (needs a GPU route per core).
+   **done for those same five**.
+
+So this directory discharges D12 in full for `splash`, `fes.menu`, `fes.zx81`,
+`fes.spectrum` and `fes.c64`, and condition 1 for all 15. The ten artifacts
+outside the scoped set carry condition 1 only, which is the priority call
+recorded under "Agreed scope" below rather than left implicit.
 
 ## Agreed scope for conditions 2 and 3
 

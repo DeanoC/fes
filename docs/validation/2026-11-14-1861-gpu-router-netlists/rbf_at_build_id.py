@@ -41,6 +41,47 @@ def digest(path: Path) -> str:
     return out.hexdigest()
 
 
+# The producers each declare the inputs that decide their build. A forced run
+# bypasses the producer's own clean-source check, so it has to make the same
+# guarantee itself: netlist_digest.py gained this after review and this helper
+# must not be weaker, or its reports cannot say which bytes produced the RBF.
+PINNED = ("PINNED_INPUTS", "INPUTS")
+
+
+def _git(tree: Path, *arguments: str) -> str:
+    return subprocess.run(("git", "-C", str(tree), *arguments),
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+
+def source_identity(tree: Path, producer, *, allow_dirty: bool) -> dict:
+    """Pin the route-deciding bytes, and refuse a run whose inputs are modified."""
+    inputs = None
+    for name in PINNED:
+        candidate = getattr(producer, name, None)
+        if candidate:
+            inputs = tuple(candidate)
+            break
+    if inputs is None and hasattr(producer, "inputs_for"):
+        inputs = tuple(producer.inputs_for(100))
+    if inputs is None:
+        raise SystemExit(f"{producer.__name__}: no pinned input list to hash")
+    listing = [[relative, digest(producer.ROOT / relative)] for relative in sorted(inputs)]
+    status = [line for line in _git(tree, "status", "--porcelain").splitlines() if line.strip()]
+    tracked = set(inputs)
+    dirty_inputs = sorted(line[3:] for line in status
+                          if line[3:].removeprefix("sources/misteross/") in tracked)
+    if dirty_inputs and not allow_dirty:
+        raise SystemExit("refusing to route from modified pinned inputs: "
+                         + ", ".join(dirty_inputs))
+    return {
+        "tree_clean": not status,
+        "dirty_pinned_inputs": dirty_inputs,
+        "pinned_inputs_sha256": hashlib.sha256(
+            json.dumps(listing, separators=(",", ":")).encode()).hexdigest(),
+        "pinned_input_count": len(listing),
+    }
+
+
 def _load(tree: Path, module: str):
     for stale in [n for n in sys.modules if n == "scripts" or n.startswith("scripts.")]:
         del sys.modules[stale]
@@ -68,7 +109,7 @@ def route_menu(tree: Path, cache_root: Path, build_id: str):
         winner = producer._route_placement(
             producer.ROOT, output, authenticated["nextpnr-mistral"].path,
             invocation, producer.menu.seed_for("ddr", 5))
-        return output, {n: t.identity for n, t in authenticated.items()}, winner
+        return output, {n: t.identity for n, t in authenticated.items()}, winner, producer
     finally:
         invocation.close()
 
@@ -119,7 +160,7 @@ def _zx81_model(model: str):
                 gpu_devices=(invocation.gpu_device,),
                 accept=zx81_expansion.accept_socket_route, core_id=machine.core_id,
                 env=invocation.env, audit_source_root=producer.ROOT)
-            return output, {n: t.identity for n, t in authenticated.items()}, winner
+            return output, {n: t.identity for n, t in authenticated.items()}, winner, producer
         finally:
             invocation.close()
     return route
@@ -168,7 +209,7 @@ def route_spectrum(tree: Path, cache_root: Path, build_id: str):
             required=pnr_recipe.required_clocks(machine.core_id),
             gpu_devices=(invocation.gpu_device,),
             env=invocation.env, audit_source_root=producer.ROOT, core_id=machine.core_id)
-        return output, {n: t.identity for n, t in authenticated.items()}, winner
+        return output, {n: t.identity for n, t in authenticated.items()}, winner, producer
     finally:
         invocation.close()
 
@@ -207,7 +248,7 @@ def route_c64(tree: Path, cache_root: Path, build_id: str):
             timeout=producer.ROUTE_TIMEOUT_SECONDS,
             required=producer.PLACER_QOR_CLOCKS, gpu_devices=(invocation.gpu_device,),
             env=invocation.env, audit_source_root=producer.ROOT, core_id="fes.c64")
-        return output, {n: t.identity for n, t in authenticated.items()}, winner
+        return output, {n: t.identity for n, t in authenticated.items()}, winner, producer
     finally:
         invocation.close()
 
@@ -228,6 +269,8 @@ def main(argv=None) -> int:
     parser.add_argument("--build-id", required=True,
                         help="32 lowercase hex characters, the same on both sides")
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--allow-dirty", action="store_true",
+                        help="route from modified pinned inputs (not evidence)")
     arguments = parser.parse_args(argv)
     if len(arguments.build_id) != 32 or any(
             c not in "0123456789abcdef" for c in arguments.build_id):
@@ -237,8 +280,11 @@ def main(argv=None) -> int:
     out.mkdir(parents=True, exist_ok=True)
     revision = subprocess.run(("git", "-C", str(tree), "rev-parse", "HEAD"),
                               capture_output=True, text=True, check=True).stdout.strip()
-    output, tools, winner = CORES[arguments.core](
+    output, tools, winner, producer = CORES[arguments.core](
         tree, arguments.cache_root.resolve(), arguments.build_id)
+    # Taken after routing, so a mid-run edit to a route-deciding input is caught
+    # rather than only one that was already there when the run started.
+    identity = source_identity(tree, producer, allow_dirty=arguments.allow_dirty)
     rbf = output / "core.rbf"
     if not rbf.is_file() or rbf.stat().st_size == 0:
         raise SystemExit(f"no RBF was written: {rbf}")
@@ -251,6 +297,7 @@ def main(argv=None) -> int:
         "placer_seed": getattr(winner, "seed", None),
         "placer_heap_timingweight": getattr(winner, "weight", None),
         "tools": tools,
+        **identity,
     }
     (out / "rbf.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
     print(json.dumps(record, indent=2, sort_keys=True))
