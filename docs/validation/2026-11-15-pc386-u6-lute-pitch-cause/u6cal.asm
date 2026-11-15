@@ -19,9 +19,13 @@
 ; and FF 0E / 75) and keep its loop-start address parity: the calibration
 ; loop starts at an odd linear address, the delay loop at an even one.
 ;
-; No game code and no game data are reproduced here: the two loops are
-; three and two generic instructions, and the lute pass is rebuilt from the
-; published description of the routine, with its own argument block.
+; What this does and does not reproduce. The two loops are three and two
+; generic instructions. `blk_pass`, however, follows the disassembled shape of
+; GAME.EXE's sound routine instruction for instruction -- that is what makes it
+; measure the thing that sets the pitch -- with its own argument block and
+; none of the game's data. It is about twenty instructions of a 205 KiB
+; program, written here as a measuring instrument; it is named so a reader can
+; judge it, not hidden.
 ;
 ; nasm -f bin -o U6CAL.COM u6cal.asm
 ;
@@ -111,6 +115,20 @@ start:
         mov     si, msg_bp
         call    puts
         call    blk_delay_pad
+        mov     ax, [blocks]
+        call    putu
+        call    crlf
+
+        ; ---- M3b: BC5, BC4
+        mov     si, msg_b5
+        call    puts
+        call    blk_cmp5
+        mov     ax, [blocks]
+        call    putu
+        call    crlf
+        mov     si, msg_b4
+        call    puts
+        call    blk_cmp4
         mov     ax, [blocks]
         call    putu
         call    crlf
@@ -244,6 +262,37 @@ blk_pass:
         jb      .blk
         ret
 
+; BC5: the calibration loop's `cmp word [m],0` added to the delay loop
+blk_cmp5:
+        call    t_start
+.blk:   mov     word [dcnt], 1000
+        align   2
+.loop:  db      0x83, 0x3e
+        dw      zero
+        db      0x00                    ; cmp word [zero], 0   (5 bytes)
+        db      0xff, 0x0e
+        dw      dcnt                    ; dec word [dcnt]
+        db      0x75, 0xf5              ; jne .loop
+        inc     word [blocks]
+        cmp     word [tick], 64
+        jb      .blk
+        ret
+
+; BC4: the same memory read, one byte less and no immediate
+blk_cmp4:
+        call    t_start
+.blk:   mov     word [dcnt], 1000
+        align   2
+.loop:  db      0x3b, 0x06
+        dw      zero                    ; cmp ax, [zero]       (4 bytes)
+        db      0xff, 0x0e
+        dw      dcnt                    ; dec word [dcnt]
+        db      0x75, 0xf6              ; jne .loop
+        inc     word [blocks]
+        cmp     word [tick], 64
+        jb      .blk
+        ret
+
 t_start:
         mov     word [blocks], 0
         mov     word [tick], 0
@@ -307,6 +356,8 @@ msg_cv: db 'CAL=', 0
 msg_n:  db ' N=', 0
 msg_bd: db 'BD=', 0
 msg_bp: db 'BP=', 0
+msg_b5: db 'B5=', 0
+msg_b4: db 'B4=', 0
 msg_p0: db 'P0=', 0
 msg_pn: db 'PN=', 0
 msg_done: db 'END', 13, 10, 0
@@ -322,6 +373,7 @@ blocks:   dw 0
 divisor:  dw 0
 dcnt:     dw 0
 douter:   dw 0
+zero:     dw 0
 ; the lute case's argument block, as the routine's caller lays it out:
 ; [bp+6] threshold step, [bp+0A] N, [bp+0C] outer multiplier, [bp+0E] note step
 args:     dw 0, 0, 0                    ; bp+0 .. bp+4

@@ -250,3 +250,48 @@ record will say **"consistent with a missing fetch term, not separated from a
 table entry"** — and will not claim that fes#1840 shares this cause.
 
 The kit cannot run `BO` as a comparison, for the structural reason in (1).
+
+## Amendment, 15 November, after `BO` came back null and before `c5`
+
+Seen by now: the reference runs `c1`, `c3` and `c4`, and the kit points at
+word 1 = 0, 80 and 120. **`BO` = `BD` = 2,436 exactly** — the six-byte delay
+loop costs the same at an odd start as at an even one — so the alignment test
+as designed is null, and by the rule committed above the record would say
+"consistent with a missing fetch term, not separated from a table entry".
+
+But the reference's four loop costs fit one rule that makes the null
+expected, and it is worth one more run rather than leaving the question open.
+Write a loop's cost as **max(the execution sum, 3 clocks × bus cycles)**,
+where bus cycles are the loop's data accesses plus one word fetch per 16-bit
+word its bytes span:
+
+| loop | bytes, start | execution sum | bus cycles × 3 | measured |
+| --- | --- | ---: | ---: | ---: |
+| `BD` | 6, even | 17 | 5 × 3 = 15 | 18.04 |
+| `BO` | 6, odd | 17 | 6 × 3 = 18 | 18.04 |
+| `BP` | 11, even | 32 | 8 × 3 = 24 | 33.04 |
+| `B4` | 10, even | 24 | 8 × 3 = 24 | 25.04 |
+| `B5` | 11, even | 24 | 9 × 3 = 27 | **27.04** |
+| the game's calibration loop | 11, **odd** | 24 | 10 × 3 = 30 | **29.02** |
+
+`BD` and `BO` are execution-bound, so alignment is invisible there — which is
+why the test was null. `B5` and the calibration loop are bus-bound, and they
+differ by exactly their start parity.
+
+**Run `c5`, reference only**, with three loops of identical content —
+`cmp word [m],0` / `dec word [m]` / `jne` — differing only in start address
+and order:
+
+- **BE**, even start. Predicted **1,625** (27 clocks), the same as `B5`.
+- **BQ**, odd start. Predicted about **1,465** (30 clocks) if the rule holds;
+  **1,625** if cost depends only on the instructions.
+- **BR**, even start, `dec` before `cmp`. Predicted **1,625**: order is not
+  part of the rule.
+
+**The rule this settles, committed now.** If `BQ` is near 1,465 and `BE` and
+`BR` near 1,625, then the reference charges a cost that depends on where the
+loop sits, which no per-class table entry can express, and the record names
+the missing term as instruction-fetch bus time — and says that term would
+also act on fes#1840. If `BQ` matches `BE`, the record keeps the "consistent
+with, not separated" wording already committed, and claims nothing about
+fes#1840. Any other pattern is reported as it falls, with no new rule.
