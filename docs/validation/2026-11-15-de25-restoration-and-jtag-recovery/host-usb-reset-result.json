@@ -1,0 +1,46 @@
+{
+  "status": "host-top-adapter-reset-and-enumeration-verified",
+  "USB_reset_issued": true,
+  "USB_reset_returned": true,
+  "board_recovery_proven": false,
+  "HPS_USB_controller_reset": false,
+  "after": {
+    "TRWU8J8G": {
+      "serial": "TRWU8J8G",
+      "idVendor": "09fb",
+      "idProduct": "6026",
+      "busnum": "3",
+      "devnum": "89",
+      "devpath": "11.3",
+      "sysfs": "/sys/devices/pci0000:80/0000:80:14.0/usb3/3-11/3-11.3",
+      "node": "/dev/bus/usb/003/089",
+      "device": 6,
+      "inode": 6819,
+      "uid": 0,
+      "gid": 46,
+      "mode": 432
+    },
+    "TRWU8CBL": {
+      "serial": "TRWU8CBL",
+      "idVendor": "09fb",
+      "idProduct": "6026",
+      "busnum": "3",
+      "devnum": "88",
+      "devpath": "11.1",
+      "sysfs": "/sys/devices/pci0000:80/0000:80:14.0/usb3/3-11/3-11.1",
+      "node": "/dev/bus/usb/003/088",
+      "device": 6,
+      "inode": 6802,
+      "uid": 0,
+      "gid": 0,
+      "mode": 436
+    }
+  },
+  "bottom_device_identity_inode_unchanged": true,
+  "observations": 40,
+  "FD_scan": {
+    "root_scan": true,
+    "UART_and_top_adapter_FDs_free": true,
+    "device_opened": false
+  }
+}

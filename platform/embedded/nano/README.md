@@ -1939,3 +1939,5 @@ infers a source set from payload keys, starts a download server, writes the card
 or treats source readback as installed-record/persistence proof. The live
 operator still needs a current claim, independently checked prior installed
 records, matched target/source admission, and the bounded physical trial driver.
+
+The [15 November original-file restoration and recovery check](../../../docs/validation/2026-11-15-de25-restoration-and-jtag-recovery/README.md) verifies a fresh recovery loader after a top-only host adapter reset without another physical cycle. It follows an initial recovery-programming failure before the four-second candidate ran. The observation grants no Secure SMMU, DMA/source-reuse or general recovery authority.
