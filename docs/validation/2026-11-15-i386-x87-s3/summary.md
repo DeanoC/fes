@@ -260,9 +260,10 @@ record's reproduction prints now names `unbuilt` for that reason.
 
 Every figure here is Quartus 17.0.2 at the seal's settings, seed 1. **The
 machine fits** -- which are the ones the deltas rest on -- all ran through
-**the chip host's CUDA toolchain slot**; the standalone fits of the unit, two
-subsections down, ran through Powerboat's HIP slot, and that subsection says
-why its comparison with slice 2 is indicative rather than exact. The machine
+**the chip host's CUDA toolchain slot**; the standalone fit of the unit, in
+"The unit on its own" below, ran through Powerboat's HIP slot, which is why
+that subsection calls its comparison with slice 2 indicative rather than
+exact. The machine
 fits were run on
 `3dcc08cc037c91d666e2b3283ecf64c4ca389ae0` — whose RTL is byte-identical to
 the frozen head's, the only differences between them being two testbench
