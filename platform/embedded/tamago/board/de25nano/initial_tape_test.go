@@ -2,6 +2,7 @@
 package de25nano
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"errors"
@@ -29,7 +30,7 @@ func (c *tapeCPUFixture) Invoke(r [7]uint64) ([4]uint64, error)   { c.calls++; r
 func TestProgramCPUSelectionRequiresCompiledAgreement(t *testing.T) {
 	base := &tapeCPUFixture{}
 	for _, pair := range [][2]bool{{false, false}, {false, true}, {true, false}, {true, true}} {
-		cpu, err := selectProgramCPU(base, func() (*nativefabric.ConfigurationArena, error) { return nil, errors.New("not yet reserved") }, pair[0], pair[1])
+		cpu, err := selectProgramCPU(base, func() (*nativefabric.InitialTapeArena, error) { return nil, errors.New("not yet reserved") }, pair[0], pair[1])
 		if pair[0] != pair[1] {
 			if err == nil || cpu != nil {
 				t.Fatal("mismatched selection accepted", pair)
@@ -71,7 +72,7 @@ func TestBoardTapeHookJoinsFixedArenaToActualCService(t *testing.T) {
 		t.Run(fmt.Sprintf("%d/%d", tc.size, tc.mode), func(t *testing.T) {
 			memory := make([]byte, 8<<20)
 			barriers := 0
-			arena, err := nativefabric.NewProgramArena(0x94800000, memory, func() error { barriers++; return nil })
+			arena, err := nativefabric.NewRetainedProgramArena(0x94800000, memory, func() error { barriers++; return nil })
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -86,6 +87,12 @@ func TestBoardTapeHookJoinsFixedArenaToActualCService(t *testing.T) {
 			if err := previous.Release(); err != nil {
 				t.Fatal(err)
 			}
+			storage := make([]byte, nativefabric.InitialTapeArenaBytes)
+			tape, err := nativefabric.NewInitialTapeArena(nativefabric.InitialTapeArenaBase, storage, arena, func() error { barriers++; return nil })
+			if err != nil {
+				t.Fatal(err)
+			}
+			protected := bytes.Clone(memory)
 			barriers = 0
 			image := make([]byte, tc.size)
 			for i := range image {
@@ -98,13 +105,16 @@ func TestBoardTapeHookJoinsFixedArenaToActualCService(t *testing.T) {
 			scope := nativefabric.BridgeSnapshot{Capabilities: nativefabric.BridgeCapabilities{Mask: 15, ControlMask: 2, HardwareDrainMask: 12, FabricHandshake: nativefabric.FabricHandshakeAbsent}, Owner: 17, Generation: 9, ResetMask: 13, MastersContained: true}
 			base := &tapeCPUFixture{}
 			base.invoke = tapetest.Caller(t, binaryPath, tc.mode, func() ([]byte, []byte) {
-				return memory[len(memory)-nativefabric.ProgramMetadataBytes:][:128], memory[:tc.size]
+				return storage[nativefabric.InitialTapeMetadataOffset:][:128], storage[:tc.size]
 			})
-			cpu, err := selectProgramCPU(base, func() (*nativefabric.ConfigurationArena, error) { return arena, nil }, true, true)
+			cpu, err := selectProgramCPU(base, func() (*nativefabric.InitialTapeArena, error) { return tape, nil }, true, true)
 			if err != nil {
 				t.Fatal(err)
 			}
 			receipt, err := cpu.(nativefabric.InitialTapePlatform).LoadInitialTape(context.Background(), scope, request)
+			if !bytes.Equal(memory, protected) {
+				t.Fatal("board hook overwrote retained configuration")
+			}
 			if tc.mode == 0 {
 				if err != nil || computer.ValidateInitialTapeReceipt(request, receipt) != nil || barriers != 3 {
 					t.Fatal(receipt, err, barriers)
@@ -130,7 +140,7 @@ func TestBoardTapeHookJoinsFixedArenaToActualCService(t *testing.T) {
 
 func TestBoardTapeHookRequiresReservedArena(t *testing.T) {
 	base := &tapeCPUFixture{invoke: func([7]uint64) ([4]uint64, error) { t.Fatal("unexpected firmware call"); return [4]uint64{}, nil }}
-	cpu, err := selectProgramCPU(base, func() (*nativefabric.ConfigurationArena, error) { return nil, errors.New("arena not yet reserved") }, true, true)
+	cpu, err := selectProgramCPU(base, func() (*nativefabric.InitialTapeArena, error) { return nil, errors.New("arena not yet reserved") }, true, true)
 	if err != nil {
 		t.Fatal(err)
 	}

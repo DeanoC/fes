@@ -119,7 +119,7 @@ bl31_entrypoint: .byte 0
 
     def test_shared_dma_rom_reader_and_usb_buffers_remain_noncacheable(self):
         for address in (0x80200000, 0x84000000, 0x94800000, 0x94ffffff,
-                        0x95000000, 0x957fffff, 0xbff00008, 0xbfffffff):
+                        0x95000000, 0x957fffff, 0x95800000, 0x959ff000, 0x959fffff, 0xbff00008, 0xbfffffff):
             self.assert_access(address, writable=True, executable=False, ns=True, attr=2)
         for address in (0, ram.BASE - 1, ram.LIMIT, 0x7ffff):
             self.assert_access(address, writable=True, executable=False, ns=False, attr=2)

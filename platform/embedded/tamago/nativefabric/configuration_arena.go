@@ -13,19 +13,17 @@ import (
 // this type establishes neither physical ownership nor bridge permission.
 // A retained program additionally needs secure source release before overwrite.
 type ConfigurationArena struct {
-	self                      *ConfigurationArena // canonical owner; copied handles cannot supply a new tape lease
-	mu                        sync.Mutex
-	address                   uint64
-	memory                    []byte
-	metadata                  []byte
-	barrier                   func() error
-	active                    *Region
-	ready                     bool
-	failed                    bool
-	retained                  bool
-	sourceMatches             func() bool // called only with mu held
-	tapeOwner, tapeGeneration uint64
-	tapeRegion                *Region
+	self          *ConfigurationArena // canonical owner; copied handles cannot supply a new tape lease
+	mu            sync.Mutex
+	address       uint64
+	memory        []byte
+	metadata      []byte
+	barrier       func() error
+	active        *Region
+	ready         bool
+	failed        bool
+	retained      bool
+	sourceMatches func() bool // called only with mu held
 }
 
 // NewProgramArena reserves the final page for the fixed secure descriptor.

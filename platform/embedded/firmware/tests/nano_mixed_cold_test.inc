@@ -87,7 +87,7 @@ static void mixed_write(uintptr_t a,uint32_t value)
             if(mixed_mode==51)bridge&=~8U;
         }
         unsigned commands=49+3*((917+511)/512)+(917+1)/2;
-        if(mixed_mode==46 && writes==commands)configuration_memory[0]^=1;
+        if(mixed_mode==46 && writes==commands)((uint8_t *)(uintptr_t)FES_NANO_TAPE_BASE)[0]^=1;
         return;
     }
 #endif

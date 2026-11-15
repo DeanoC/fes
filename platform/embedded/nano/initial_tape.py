@@ -1,11 +1,45 @@
 """Explicit initial-media service selection; no physical ownership authority."""
 import shlex
+import hashlib
+import json
+
+CPU_MAPPING = dict(format=2, scope='pinned-tamago-el1-resources-excluded-v2',
+                   ram_base=0x84000000, ram_bytes=256 << 20,
+                   control_base=0x20010400, control_bytes=256,
+                   dma_base=0x94800000, dma_bytes=8 << 20,
+                   reader_base=0x95000000, reader_bytes=8 << 20,
+                   firmware_base=0x50000, firmware_bytes=0x10000)
+
+MEMORY = dict(format=1, scope='nano-independent-initial-tape-memory-v1',
+              base=0x95800000, bytes=2 << 20, payload_bytes=0x4000,
+              metadata_base=0x959ff000, metadata_bytes=4096,
+              mapping='normal-uncached-XN', lifetime='pinned-until-reboot',
+              configuration_reused=False, physical_authority=False)
+
+
+def memory_digest(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
+
+
+def checked_memory(record):
+    value = record.get('initial_tape_memory')
+    digest = record.get('initial_tape_memory_sha256')
+    if record.get('initial_tape', False) is not True:
+        if value is not None or digest is not None:
+            raise ValueError('unselected initial tape cannot reserve storage')
+        return None
+    if (json.dumps(value, sort_keys=True) != json.dumps(MEMORY, sort_keys=True) or
+            digest != memory_digest(MEMORY) or
+            json.dumps(record.get('cpu_mapping'), sort_keys=True) != json.dumps(CPU_MAPPING, sort_keys=True)):
+        raise ValueError('initial tape requires its independent source-bound memory contract')
+    return dict(MEMORY)
 
 
 def checked(record, program_key='program'):
     selected = record.get('initial_tape', False)
     if type(selected) is not bool:
         raise ValueError('initial tape selection must be boolean')
+    checked_memory(record)
     if not selected:
         return False
     if record.get(program_key) != 'fpgaload' or any(record.get(k) is not True for k in
@@ -47,17 +81,9 @@ def linked(record):
     return selected
 
 
-# Prototype companion for the independent publisher. Producers do not select
-# this layout until the CPU mapper and fixed firmware supplier are wired to it.
 # Geometry is not physical ownership, a live mapping proof or activation.
 def staging_layout(cpu_mapping, boot_reserved, entry_image):
-    import json
-    expected = dict(format=2, scope='pinned-tamago-el1-resources-excluded-v2',
-                    ram_base=0x84000000, ram_bytes=256 << 20,
-                    control_base=0x20010400, control_bytes=256,
-                    dma_base=0x94800000, dma_bytes=8 << 20,
-                    reader_base=0x95000000, reader_bytes=8 << 20,
-                    firmware_base=0x50000, firmware_bytes=0x10000)
+    expected = CPU_MAPPING
     if json.dumps(cpu_mapping, sort_keys=True) != json.dumps(expected, sort_keys=True):
         raise ValueError('independent tape requires the complete paired-program resource layout')
     if not isinstance(boot_reserved, list):
@@ -87,8 +113,4 @@ def staging_layout(cpu_mapping, boot_reserved, entry_image):
     base, size = 0x95800000, 2 << 20
     if any(base < first + length and first < base + size for first, length in protected):
         raise ValueError('independent tape reservation overlaps a live or boot resource')
-    return dict(format=1, scope='nano-independent-initial-tape-memory-v1',
-                base=base, bytes=size, payload_bytes=0x4000,
-                metadata_base=base + size - 4096, metadata_bytes=4096,
-                mapping='normal-uncached-XN', lifetime='pinned-until-reboot',
-                configuration_reused=False, physical_authority=False)
+    return dict(MEMORY)

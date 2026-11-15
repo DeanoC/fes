@@ -1,6 +1,6 @@
 # Contained firmware and FPGA control prototype
 
-The latest [independent-tape checkpoint](../../../docs/validation/2026-11-15-de25-independent-tape-arena/README.md) restores and verifies the original FIT after the warm-core/tape stop. A separate tape-arena prototype passes host ownership, alias, race and C-protocol tests while preserving retained configuration data. Board mapping, fixed firmware supplier and matched profile wiring remain pending; no new image or general core-loading acceptance is claimed.
+The latest [independent-tape wiring checkpoint](../../../docs/validation/2026-11-15-de25-independent-tape-wiring/README.md) connects separate tape storage through the board mapping, fixed firmware supplier and matched producer contract. Host checks preserve the retained configuration reservation through successful and failed tape transfers. The original FIT remains restored and verified on TRWU8CBL; a new matched image and hardware trial are still required.
 
 
 This is exploratory firmware and native integration for the Linux-free base.

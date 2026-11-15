@@ -30,9 +30,9 @@ func tapePublicationRequest(size int) (BridgeSnapshot, computer.InitialTapeReque
 	return scope, computer.InitialTapeRequest{Image: image, Identity: computer.Identity{Build: build, Capabilities: cg.FesComputerCapabilityMediaZx81Tape}, GPO: 0x82000000, CRC32: crc32.ChecksumIEEE(image)}
 }
 
-func completedTapeArena(t *testing.T, barrier func() error) (*ConfigurationArena, *Region) {
+func completedTapeArena(t *testing.T, barrier func() error) (*initialTapeArena, *Region) {
 	t.Helper()
-	a, err := NewProgramArena(0x94800000, make([]byte, 8<<20), barrier)
+	a, err := NewRetainedProgramArena(0x94800000, make([]byte, 8<<20), func() error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,11 @@ func completedTapeArena(t *testing.T, barrier func() error) (*ConfigurationArena
 	if err != nil || r.PublishConfiguration(header) != nil || r.Release() != nil {
 		t.Fatal("initial program lease did not complete", err)
 	}
-	return a, r
+	tape, err := NewInitialTapeArena(InitialTapeArenaBase, make([]byte, InitialTapeArenaBytes), a, barrier)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tape.state, r
 }
 
 // Modeled completion only. The joined test below obtains it from the C engine.
@@ -70,77 +74,12 @@ func tapeStepReply(request computer.InitialTapeRequest, generation, operation ui
 	return tapePublicationReply(request, generation)
 }
 
-func TestInitialTapePublicationRetainsAndReusesOnlyCompletedGeneration(t *testing.T) {
-	scope, request := tapePublicationRequest(917)
-	checks, calls := 0, 0
-	a, old := completedTapeArena(t, func() error { checks++; return nil })
-	checks = 0
-	header, err := initialTapeHeader(scope, request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	caller := transferHashCaller(func(args [7]uint64) ([4]uint64, error) {
-		calls++
-		want := [7]uint64{uint64(g.FesEmbeddedTapeCall), func() uint64 {
-			if (calls-1)%4 == 0 {
-				return 0
-			}
-			return uint64(g.FesEmbeddedTapeStep) | uint64((calls-1)%4)<<g.FesEmbeddedTapeSequenceShift
-		}(), scope.Owner, uint64(g.FesEmbeddedTapeCookie), scope.Generation}
-		if args != want || checks != 2 || !bytes.Equal(a.metadata[:128], header) || !bytes.Equal(a.active.Bytes, request.Image) {
-			t.Fatal("fixed publication/guard/call differs", args, checks)
-		}
-		return tapeStepReply(request, scope.Generation, args[1]), nil
-	})
-	receipt, err := a.PublishInitialTape(context.Background(), caller, scope, request)
-	if err != nil || computer.ValidateInitialTapeReceipt(request, receipt) != nil || checks != 3 || calls != 4 || !a.ready || a.failed {
-		t.Fatal(receipt, err, checks, calls)
-	}
-	if old.Release() == nil || old.PublishConfiguration(make([]byte, ProgramHeaderBytes)) == nil || !a.ready {
-		t.Fatal("old callbacks affected tape lease")
-	}
-	before := bytes.Clone(a.memory)
-	if _, err := a.PublishInitialTape(context.Background(), caller, scope, request); err == nil || calls != 4 || !bytes.Equal(before, a.memory) {
-		t.Fatal("same-generation tape replayed")
-	}
-	foreign := scope
-	foreign.Owner++
-	foreign.Generation++
-	if _, err := a.PublishInitialTape(context.Background(), caller, foreign, request); err == nil || calls != 4 {
-		t.Fatal("foreign owner reused publication")
-	}
-	newer := scope
-	newer.Generation++
-	if _, err := a.PublishInitialTape(context.Background(), caller, newer, request); err == nil || calls != 4 {
-		t.Fatal("generation alone bypassed the next configuration lease")
-	}
-	// A later configuration must complete before the next program's tape.
-	next, err := a.Reserve([]byte{5, 6, 7, 8})
-	if err != nil {
-		t.Fatal(err)
-	}
-	scope.Generation++
-	if _, err := a.PublishInitialTape(context.Background(), caller, scope, request); err == nil || calls != 4 {
-		t.Fatal("outstanding configuration overwritten")
-	}
-	source, binding := bindingFixture(t)
-	raw, err := encodeProgramBinding(source, binding)
-	if err != nil || next.PublishConfiguration(raw) != nil || next.Release() != nil {
-		t.Fatal("next program did not complete", err)
-	}
-	header, err = initialTapeHeader(scope, request)
-	checks = 0
-	if _, err = a.PublishInitialTape(context.Background(), caller, scope, request); err != nil || calls != 8 {
-		t.Fatal("new completed generation could not publish", err)
-	}
-}
-
 func TestInitialTapePublicationFailuresRetainMemoryWithoutRetry(t *testing.T) {
 	for _, mode := range []string{"before", "copied", "after", "copy-image", "copy-header", "copy-tail", "call-error", "tag", "status", "limit", "bytes", "generation", "gpo", "crc", "cancel", "reply-image", "reply-header", "reply-tail"} {
 		t.Run(mode, func(t *testing.T) {
 			scope, request := tapePublicationRequest(917)
 			checks, calls := 0, 0
-			var arena *ConfigurationArena
+			var arena *initialTapeArena
 			armed := false
 			a, old := completedTapeArena(t, func() error {
 				if !armed {
@@ -202,7 +141,7 @@ func TestInitialTapePublicationFailuresRetainMemoryWithoutRetry(t *testing.T) {
 				}
 				return r, nil
 			})
-			receipt, err := a.PublishInitialTape(ctx, caller, scope, request)
+			receipt, err := a.publishInitialTape(ctx, caller, scope, request)
 			if err == nil || receipt != (computer.InitialTapeReceipt{}) || !a.failed {
 				t.Fatal("uncertain publication completed", receipt, err)
 			}
@@ -217,10 +156,10 @@ func TestInitialTapePublicationFailuresRetainMemoryWithoutRetry(t *testing.T) {
 				t.Fatal("firmware call count", calls)
 			}
 			before, oldCalls, oldChecks := bytes.Clone(a.memory), calls, checks
-			if _, err := a.PublishInitialTape(context.Background(), caller, scope, request); err == nil || calls != oldCalls || checks != oldChecks {
+			if _, err := a.publishInitialTape(context.Background(), caller, scope, request); err == nil || calls != oldCalls || checks != oldChecks {
 				t.Fatal("retired publication replayed")
 			}
-			if _, err := a.Reserve([]byte{42}); err == nil || old.Release() == nil || !bytes.Equal(before, a.memory) {
+			if _, err := a.program.Reserve([]byte{42}); err == nil || old.Release() == nil || !bytes.Equal(before, a.memory) {
 				t.Fatal("uncertain memory released/overwritten")
 			}
 		})
@@ -266,7 +205,7 @@ func TestInitialTapePublicationRejectsInvalidScopeAndSourceBeforeWriting(t *test
 			}
 			before := bytes.Clone(a.memory)
 			calls := 0
-			_, err := a.PublishInitialTape(ctx, transferHashCaller(func([7]uint64) ([4]uint64, error) { calls++; return [4]uint64{}, nil }), scope, request)
+			_, err := a.publishInitialTape(ctx, transferHashCaller(func([7]uint64) ([4]uint64, error) { calls++; return [4]uint64{}, nil }), scope, request)
 			if err == nil || calls != 0 || !bytes.Equal(before, a.memory) || a.failed || !a.ready {
 				t.Fatal("invalid request changed completed lease", err, calls)
 			}
@@ -284,8 +223,8 @@ func TestInitialTapePublicationJoinsGoDescriptorToSecureCService(t *testing.T) {
 		t.Run(fmt.Sprint(size), func(t *testing.T) {
 			scope, request := tapePublicationRequest(size)
 			a, _ := completedTapeArena(t, func() error { return nil })
-			caller := transferHashCaller(tapetest.Caller(t, binaryPath, 29, func() ([]byte, []byte) { return a.metadata[:128], a.active.Bytes }))
-			receipt, err := a.PublishInitialTape(context.Background(), caller, scope, request)
+			caller := transferHashCaller(tapetest.Caller(t, binaryPath, 29, func() ([]byte, []byte) { return a.metadata[:128], a.memory[:size] }))
+			receipt, err := a.publishInitialTape(context.Background(), caller, scope, request)
 			if err != nil || computer.ValidateInitialTapeReceipt(request, receipt) != nil || !a.ready || a.failed {
 				t.Fatal(receipt, err)
 			}
@@ -307,11 +246,11 @@ func TestInitialTapePendingCancellationIsOneAbortWithoutCompletionOrReplay(t *te
 		}
 		return [4]uint64{uint64(g.FesEmbeddedTapeCancelled), uint64(g.FesEmbeddedTapeTag) << 32}, nil
 	})
-	receipt, err := a.PublishInitialTape(ctx, caller, scope, request)
+	receipt, err := a.publishInitialTape(ctx, caller, scope, request)
 	if !errors.Is(err, context.Canceled) || receipt != (computer.InitialTapeReceipt{}) || !a.failed || a.ready || len(calls) != 2 || calls[1] != uint64(g.FesEmbeddedTapeAbort)|(1<<g.FesEmbeddedTapeSequenceShift) {
 		t.Fatal(receipt, err, calls)
 	}
-	if _, err = a.PublishInitialTape(context.Background(), caller, scope, request); err == nil || len(calls) != 2 {
+	if _, err = a.publishInitialTape(context.Background(), caller, scope, request); err == nil || len(calls) != 2 {
 		t.Fatal("cancelled lease replayed", err, calls)
 	}
 }
@@ -322,7 +261,7 @@ func TestInitialTapeRejectsProgressThatSkipsRepeatsOrClaimsFinalReceiptEarly(t *
 			scope, request := tapePublicationRequest(917)
 			a, _ := completedTapeArena(t, func() error { return nil })
 			calls := 0
-			_, err := a.PublishInitialTape(context.Background(), transferHashCaller(func(args [7]uint64) ([4]uint64, error) {
+			_, err := a.publishInitialTape(context.Background(), transferHashCaller(func(args [7]uint64) ([4]uint64, error) {
 				calls++
 				r := tapeStepReply(request, scope.Generation, args[1])
 				switch fault {

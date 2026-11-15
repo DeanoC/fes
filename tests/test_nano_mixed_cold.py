@@ -120,7 +120,11 @@ class NanoMixedColdTests(unittest.TestCase):
                     '#define FES_NANO_HPS_IO_REGISTERS FES_NANO_USB_BOARD_PINS\n'
                     '#define FES_NANO_HPS_IO_SHA FES_NANO_USB_BOARD_DIGEST\n')
             if initial_tape:
+                import initial_tape as tape_contract
                 profile += '#define FES_NANO_INITIAL_TAPE 1\n'
+                for suffix,key in (('BASE','base'),('ARENA_SIZE','bytes'),('PAYLOAD_BYTES','payload_bytes'),
+                                   ('METADATA_BASE','metadata_base'),('METADATA_BYTES','metadata_bytes')):
+                    profile += '#define FES_NANO_TAPE_'+suffix+' '+hex(tape_contract.MEMORY[key])+'ULL\n'
             if firmware_mmu:
                 profile += '#define FES_NANO_FIRMWARE_MMU 1\n'
             (base / 'fes_nano_cold_profile.h').write_text(profile)

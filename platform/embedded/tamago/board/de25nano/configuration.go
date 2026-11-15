@@ -15,6 +15,8 @@ import (
 var configurationMu sync.Mutex
 var configurationAttempted bool
 var configurationArena *nativefabric.ConfigurationArena
+var tapeArena *nativefabric.InitialTapeArena
+var tapeArenaAttempted bool
 
 // ReserveConfiguration copies into the build's explicitly excluded uncached
 // arena. The mapping stays pinned until reboot; a new lease can overwrite it
@@ -63,11 +65,52 @@ func configurationPublication() error {
 	return err
 }
 
-func initialTapeArena() (*nativefabric.ConfigurationArena, error) {
+func initialTapeArena() (*nativefabric.InitialTapeArena, error) {
 	configurationMu.Lock()
 	defer configurationMu.Unlock()
-	if !profileInitialTapeEnabled || configurationArena == nil {
+	if !profileInitialTapeEnabled || configurationArena == nil ||
+		profileInitialTapeBase != nativefabric.InitialTapeArenaBase || profileInitialTapeBytes != nativefabric.InitialTapeArenaBytes {
 		return nil, errors.New("DE25: completed pinned initial tape arena unavailable")
 	}
-	return configurationArena, nil
+	if tapeArena == nil {
+		if tapeArenaAttempted {
+			return nil, errors.New("DE25: independent tape arena initialization was already attempted")
+		}
+		tapeArenaAttempted = true
+		if err := InitDevices(); err != nil {
+			return nil, err
+		}
+		if err := initialTapePublication(); err != nil {
+			return nil, err
+		}
+		data := unsafe.Slice((*byte)(unsafe.Pointer(uintptr(profileInitialTapeBase))), profileInitialTapeBytes)
+		arena, err := nativefabric.NewInitialTapeArena(profileInitialTapeBase, data, configurationArena, initialTapePublication)
+		if err != nil {
+			return nil, err
+		}
+		tapeArena = arena
+	}
+	return tapeArena, nil
+}
+
+// Verify the complete paired resources around every tape publication and SMC.
+// Verify also checks the normal heap and the secure firmware exclusion.
+func initialTapeMapping() (arm64map.Observation, error) {
+	if !profileInitialTapeEnabled || profileInitialTapeBase != nativefabric.InitialTapeArenaBase ||
+		profileInitialTapeBytes != nativefabric.InitialTapeArenaBytes ||
+		profileConfigurationBase != 0x94800000 || profileConfigurationBytes != 8<<20 ||
+		profileReaderMemoryBase != 0x95000000 || profileReaderMemoryArenaBytes != 8<<20 {
+		return arm64map.Observation{}, errors.New("DE25: independent tape mapping unavailable")
+	}
+	return arm64map.Verify(profileRAMStart, profileRAMSize, []arm64map.Range{
+		{Base: profileInitialTapeBase, Bytes: profileInitialTapeBytes, Kind: arm64map.Uncached},
+		{Base: profileConfigurationBase, Bytes: profileConfigurationBytes, Kind: arm64map.Uncached},
+		{Base: profileReaderMemoryBase, Bytes: profileReaderMemoryArenaBytes, Kind: arm64map.Uncached},
+	})
+}
+
+func initialTapePublication() error {
+	memoryBarrier()
+	_, err := initialTapeMapping()
+	return err
 }

@@ -45,7 +45,7 @@ func (FabricCPUTransport) Invoke(request [7]uint64) ([4]uint64, error) {
 			request[3] != uint64(g.FesEmbeddedTapeCookie) || request[5] != 0 || request[6] != 0 {
 			return [4]uint64{}, errors.New("DE25: initial tape call differs from selected fixed service")
 		}
-		return arm64map.WithStableMapping(configurationMapping, func() [4]uint64 { return smc(request) })
+		return arm64map.WithStableMapping(initialTapeMapping, func() [4]uint64 { return smc(request) })
 
 	case 0xc2000300:
 		return smc(request), nil

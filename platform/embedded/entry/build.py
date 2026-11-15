@@ -271,6 +271,7 @@ def main():
     native_menu_program = None
     native_tenfoot_serial = False
     native_initial_tape = False
+    native_tape_memory = None
     native_reload = False
     native_storage_return = False
     native_window_memory = False
@@ -337,8 +338,12 @@ def main():
         native_window_service=window_service_option(receipt)
         native_tenfoot_serial=tenfoot_serial_option(receipt)
         native_initial_tape=hps.initial_tape.linked(receipt)
+        native_tape_memory=hps.initial_tape.checked_memory(receipt)
+        if native_tape_memory is not None and native_tape_memory != hps.initial_tape.staging_layout(
+                native_cpu_map, profile['reserved'], dict(base=args.image_address, bytes=16 << 20)):
+            raise ValueError('initial tape storage differs from the complete entry layout')
         if native_initial_tape and any(value not in payload.read_bytes() for value in
-                (b'initialTapeCPU.LoadInitialTape', b'ConfigurationArena).PublishInitialTape')):
+                (b'initialTapeCPU.LoadInitialTape', b'InitialTapeArena).PublishInitialTape')):
             raise ValueError('initial tape supplier/publication path is absent from native ELF')
         if native_tenfoot_serial and any(value not in payload.read_bytes() for value in
                 (b'FES_NATIVE_TENFOOT_BEGIN ',b'ProgramBackend).RoundTrip',b'tenfoot.RunPlatform',b'ProgramSerialPlatform).Next')):
@@ -413,6 +418,8 @@ def main():
         exclusions = [(ram_start, ram_end)] + [(r["start"], r["start"] + r["size"]) for r in profile["reserved"]]
         if native_configuration is not None:
             exclusions.append((native_configuration['base'],native_configuration['base']+native_configuration['size']))
+        if native_tape_memory is not None:
+            exclusions.append((native_tape_memory['base'],native_tape_memory['base']+native_tape_memory['bytes']))
         if native_reader_memory is not None:
             exclusions.append((native_cpu_map['reader_base'],native_cpu_map['reader_base']+native_cpu_map['reader_bytes']))
         for arena, base, size_key in ((network, "dma_start", "dma_size"),
@@ -590,6 +597,8 @@ def main():
               "hps_window_read_sha256":hps.digest(native_window_read) if native_window_read else None,
               "computer_storage_return":native_storage_return,
               "selected_programs":native_selected_programs,"tenfoot_serial":native_tenfoot_serial,"initial_tape":native_initial_tape,
+              "initial_tape_memory":native_tape_memory,
+              "initial_tape_memory_sha256":hps.initial_tape.memory_digest(native_tape_memory) if native_tape_memory else None,
               "hps_menu_project":receipt.get('hps_menu_project'),"hps_menu_program":native_menu_program,
               "hps_menu_program_sha256":hps.digest(native_menu_program) if native_menu_program else None,
               "hps_program_platform":native_program_platform,

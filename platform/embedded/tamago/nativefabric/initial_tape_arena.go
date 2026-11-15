@@ -23,7 +23,6 @@ const (
 
 // InitialTapeArena owns separate pinned storage. Its constructor establishes no
 // physical reservation, mapping, firmware ownership or permission to run a core.
-// This prototype is not yet selected by the board hook or fixed firmware supplier.
 // The platform must supply and check those, including the complete program map.
 // A completed new configuration is required for every publication; neither tape
 // completion nor an increasing caller generation releases the retained source.

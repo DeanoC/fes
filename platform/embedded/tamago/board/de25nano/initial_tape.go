@@ -10,14 +10,14 @@ import (
 )
 
 // This private wrapper is selected only by the matched board startup. Its
-// accessor supplies the existing pinned program arena after configuration;
+// accessor supplies the independently pinned tape arena after configuration;
 // neither construction nor metadata grants firmware or memory ownership.
 type initialTapeCPU struct {
 	nativefabric.CPUTransport
-	arena func() (*nativefabric.ConfigurationArena, error)
+	arena func() (*nativefabric.InitialTapeArena, error)
 }
 
-func selectProgramCPU(cpu nativefabric.CPUTransport, arena func() (*nativefabric.ConfigurationArena, error), selected, compiled bool) (nativefabric.CPUTransport, error) {
+func selectProgramCPU(cpu nativefabric.CPUTransport, arena func() (*nativefabric.InitialTapeArena, error), selected, compiled bool) (nativefabric.CPUTransport, error) {
 	if cpu == nil || selected != compiled || selected && arena == nil {
 		return nil, errors.New("DE25: initial tape selection differs from compiled platform")
 	}

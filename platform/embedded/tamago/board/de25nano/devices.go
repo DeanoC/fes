@@ -4,6 +4,7 @@
 package de25nano
 
 import (
+	"errors"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map"
 	"sync"
 )
@@ -28,6 +29,13 @@ func InitDevices() error {
 		}
 		if deviceMapError == nil && profileReaderMemoryBase != 0 {
 			deviceMapError = arm64map.NormalUncached(profileReaderMemoryBase, profileReaderMemoryArenaBytes, profileRAMStart, profileRAMSize)
+		}
+		if deviceMapError == nil && profileInitialTapeEnabled {
+			if profileInitialTapeBase != 0x95800000 || profileInitialTapeBytes != 2<<20 {
+				deviceMapError = errors.New("DE25: independent tape reservation differs from compiled profile")
+			} else {
+				deviceMapError = arm64map.NormalUncached(profileInitialTapeBase, profileInitialTapeBytes, profileRAMStart, profileRAMSize)
+			}
 		}
 	})
 	return deviceMapError

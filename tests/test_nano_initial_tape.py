@@ -3,6 +3,7 @@ import copy
 from pathlib import Path
 import unittest
 import test_nano_rom_context as rom
+import test_nano_combined_program as combined
 
 hps = rom.hps
 cold = rom.cold
@@ -10,12 +11,14 @@ cold = rom.cold
 
 class InitialTapeSelectionTests(unittest.TestCase):
     def record(self):
-        fixture = rom.NativeComputerContextTests(); fixture.setUp()
-        profile = fixture.profile()
+        fixture = combined.CombinedProgramTests(); fixture.setUp()
+        profile = fixture.profile
         profile.update(program='fpgaload', initial_tape=True, selected_programs=True,
             computer_reload=True, computer_storage_return=True, tenfoot_serial=True,
             usb_control=True, usb_shared=True, usb_input='gamepad',
             command=['go', 'build', '-ldflags', '-s -w -X main.expectedInitialTape=1'])
+        profile['initial_tape_memory']=copy.deepcopy(hps.initial_tape.MEMORY)
+        profile['initial_tape_memory_sha256']=hps.initial_tape.memory_digest(profile['initial_tape_memory'])
         return profile
 
     def test_valid_selection_and_explicit_link_assignment(self):
@@ -62,7 +65,7 @@ class InitialTapeSelectionTests(unittest.TestCase):
         r=self.record();r['usb_pio']=True
         with self.assertRaises(ValueError):cold.initial_tape_header(r)
         r['firmware_ram']=copy.deepcopy(cold.firmware_memory.CONTRACT)
-        self.assertEqual(cold.initial_tape_header(r),'#define FES_NANO_INITIAL_TAPE 1\n')
+        self.assertIn('#define FES_NANO_TAPE_BASE 0x95800000ULL\n',cold.initial_tape_header(r))
         r['firmware_ram']['base']+=4096
         with self.assertRaises(ValueError):cold.initial_tape_header(r)
         self.assertEqual(cold.initial_tape_header({}),'#define FES_NANO_INITIAL_TAPE 0\n')
@@ -72,3 +75,26 @@ class InitialTapeSelectionTests(unittest.TestCase):
         self.assertIn(helper,hps.inputs())
         self.assertIn(helper,cold.sources())
         self.assertTrue(all(isinstance(p,Path) for p in hps.inputs()))
+
+    def test_independent_memory_contract_cannot_be_omitted_mixed_or_unselected(self):
+        record=self.record()
+        for name in ('initial_tape_memory','initial_tape_memory_sha256'):
+            changed=copy.deepcopy(record);del changed[name]
+            with self.subTest(missing=name),self.assertRaises(ValueError):
+                hps.initial_tape.checked(changed)
+        for key,value in record['initial_tape_memory'].items():
+            changed=copy.deepcopy(record)
+            changed['initial_tape_memory'][key]=None
+            changed['initial_tape_memory_sha256']=hps.initial_tape.memory_digest(changed['initial_tape_memory'])
+            with self.subTest(field=key),self.assertRaises(ValueError):
+                hps.initial_tape.checked(changed)
+        for changed in (dict(record,initial_tape=False),dict(record,initial_tape_memory_sha256='0'*64)):
+            with self.assertRaises(ValueError):hps.initial_tape.checked(changed)
+        for mapping in (None,{},dict(record['cpu_mapping'],reader_bytes=2<<20),
+                        dict(record['cpu_mapping'],reader_base=0x95800000)):
+            with self.subTest(mapping=mapping),self.assertRaises(ValueError):
+                hps.initial_tape.checked(dict(record,cpu_mapping=mapping))
+        # The former borrowed-configuration profile has no replacement-memory
+        # proof. It must not be reinterpreted by a new producer.
+        del record['initial_tape_memory'];del record['initial_tape_memory_sha256']
+        with self.assertRaises(ValueError):cold.initial_tape_header(record)

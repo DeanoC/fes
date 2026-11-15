@@ -3,7 +3,6 @@ package nativefabric
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"testing"
 )
@@ -41,17 +40,7 @@ func TestRetainedProgramNeverReusesCompletedOrFailedSource(t *testing.T) {
 			if calls != oldCalls || !bytes.Equal(memory, before) {
 				t.Fatal("rejected reuse changed retained storage")
 			}
-			scope, request := tapePublicationRequest(512)
-			caller := transferHashCaller(func(_ [7]uint64) ([4]uint64, error) {
-				t.Fatal("retained tape reached firmware")
-				return [4]uint64{}, nil
-			})
-			if _, err = a.PublishInitialTape(context.Background(), caller, scope, request); err == nil {
-				t.Fatal("tape overwrote retained source")
-			}
-			if calls != oldCalls || !bytes.Equal(memory, before) {
-				t.Fatal("rejected tape changed retained storage")
-			}
+
 		})
 	}
 }

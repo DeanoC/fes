@@ -469,7 +469,12 @@ def build(args):
         raise ValueError('firmware ROM selection requires a sealed ROM source')
     if args.program == "fpga" and fpga is None:
         raise ValueError("fpga probe requires an explicit read-only service profile")
+    tape_memory = hps.initial_tape.staging_layout(cpu_map, profile['reserved'],
+        dict(base=0x96080000, bytes=16 << 20)) if args.initial_tape else None
+    tape_memory_sha = hps.initial_tape.memory_digest(tape_memory) if tape_memory else None
     initial_tape = hps.initial_tape.checked(dict(vars(args), hps_context=context,
+        cpu_mapping=cpu_map,
+        initial_tape_memory=tape_memory, initial_tape_memory_sha256=tape_memory_sha,
         hps_computer=computer_map, hps_rom=rom_map, hps_configuration=configuration_map,
         usb_control=usb_control, usb_shared=usb_shared, usb_input=usb_input))
     output = args.output.resolve()
@@ -511,6 +516,7 @@ def build(args):
                          f"profileFPGAProbeEnabled = {str(fpga is not None).lower()}\nprofileFPGAProbeBase = {fpga['base'] if fpga else 0}\nprofileFPGAProbeBytes = {fpga['size'] if fpga else 0}\n)\n")
     with generated.open('a') as stream:
         stream.write('const profileInitialTapeEnabled = '+str(initial_tape).lower()+'\n')
+        stream.write('const (\nprofileInitialTapeBase = '+str(tape_memory['base'] if tape_memory else 0)+'\nprofileInitialTapeBytes = '+str(tape_memory['bytes'] if tape_memory else 0)+'\n)\n')
         stream.write('const (\nprofileConfigurationBase = '+str(configuration_map['base'] if configuration_map else 0)+'\nprofileConfigurationBytes = '+str(configuration_map['size'] if configuration_map else 0)+'\nprofileConfigurationRetained = '+str(configuration_retained).lower()+'\n)\n')
         stream.write('const (\nprofileFabricControlBase = '+str(control_map['cpu_base'] if control_map else 0)+'\nprofileFabricControlBytes = '+str(control_map['span'] if control_map else 0)+'\n)\n')
         stream.write('const (\nprofileReaderMemoryBase = '+str(cpu_map['reader_base'] if cpu_map else 0)+'\nprofileReaderMemoryArenaBytes = '+str(cpu_map['reader_bytes'] if cpu_map else 0)+'\n)\n')
@@ -692,6 +698,7 @@ def build(args):
               "computer_reload":computer_reload,
               "computer_storage_return":computer_storage_return,
               "selected_programs":selected_programs,"tenfoot_serial":tenfoot_serial,"initial_tape":initial_tape,
+              "initial_tape_memory":tape_memory,"initial_tape_memory_sha256":tape_memory_sha,
               "hps_menu_project":str(menu_project) if menu_project else None,
               "hps_menu_program":menu_program_map,"hps_menu_program_sha256":hps.digest(menu_program_map) if menu_program_map else None,
               "menu_assets":{name:{"sha256":hashlib.sha256(raw).hexdigest(),"size":len(raw)} for name,raw in menu_assets.items()},

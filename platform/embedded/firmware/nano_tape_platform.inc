@@ -10,6 +10,11 @@
 #endif
 #include "nano_tape_service.h"
 _Static_assert(FES_NANO_CONFIG_BASE==0x94800000ULL && FES_NANO_CONFIG_ARENA_SIZE==(8U<<20) &&
+    FES_NANO_TAPE_BASE==0x95800000ULL && FES_NANO_TAPE_ARENA_SIZE==(2U<<20) &&
+    FES_NANO_TAPE_PAYLOAD_BYTES==0x4000ULL && FES_NANO_TAPE_METADATA_BASE==0x959ff000ULL &&
+    FES_NANO_TAPE_METADATA_BYTES==FES_NANO_PROGRAM_METADATA_BYTES &&
+    FES_NANO_TAPE_BASE>=FES_NANO_READER_CPU_BASE+FES_NANO_READER_ARENA_BYTES &&
+    FES_NANO_TAPE_METADATA_BASE+FES_NANO_TAPE_METADATA_BYTES==FES_NANO_TAPE_BASE+FES_NANO_TAPE_ARENA_SIZE &&
     FES_NANO_CONTROL_ABI==FES_NANO_PROGRAM_COMPUTER_ABI && FES_NANO_ROM_CPU_BASE==0x20010500UL,
     "initial tape fixed matched memory and computer control");
 /* The sealed cold computer contract accepts only this internal-RAM GP1.0
@@ -219,7 +224,7 @@ static int computer_tape_copy_image(void *context,uint32_t offset,uint8_t *out,u
     if(context!=&provider || !out || !bytes || bytes>FES_COMPUTER_MEDIA_CHUNK_MAX_BYTES ||
        offset>computer_tape.engine.bytes || bytes>computer_tape.engine.bytes-offset ||
        computer_tape.engine.bytes>FES_DE25_COMPUTER_ZX81_TAPE_MAX_BYTES)return -1;
-    dsbsy();memcpy(out,(const void *)(uintptr_t)(FES_NANO_CONFIG_BASE+offset),bytes);dsbsy();return 0;
+    dsbsy();memcpy(out,(const void *)(uintptr_t)(FES_NANO_TAPE_BASE+offset),bytes);dsbsy();return 0;
 }
 static int computer_tape_image(void *context,uint32_t offset,uint8_t *out,uint32_t bytes)
 {
@@ -237,14 +242,13 @@ static void computer_tape_barrier(void *context)
 static int computer_tape_header(void *context,uint8_t header[128])
 {
     if(context!=&provider)return -1;
-    dsbsy();memcpy(header,(const void *)(uintptr_t)(FES_NANO_CONFIG_BASE+FES_NANO_CONFIG_ARENA_SIZE-
-        FES_NANO_PROGRAM_METADATA_BYTES),128);dsbsy();return 0;
+    dsbsy();memcpy(header,(const void *)(uintptr_t)FES_NANO_TAPE_METADATA_BASE,128);dsbsy();return 0;
 }
 static int computer_tape_verify_image(void *context,uint32_t bytes,const uint8_t digest[48])
 {
     uint8_t observed[48];sha512_context hash;
     if(context!=&provider || !bytes || bytes>FES_DE25_COMPUTER_ZX81_TAPE_MAX_BYTES)return -1;
-    dsbsy();sha384_init(&hash);sha384_update(&hash,(const void *)(uintptr_t)FES_NANO_CONFIG_BASE,bytes);
+    dsbsy();sha384_init(&hash);sha384_update(&hash,(const void *)(uintptr_t)FES_NANO_TAPE_BASE,bytes);
     sha384_finish(&hash,observed);dsbsy();return memcmp(observed,digest,48) ? -1 : 0;
 }
 static int computer_tape_verify(void *context,uint32_t bytes,const uint8_t digest[48])

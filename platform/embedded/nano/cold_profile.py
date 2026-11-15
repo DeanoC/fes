@@ -83,7 +83,7 @@ def entry(entry_build):
     hps_context.checked_program_platform(receipt,program_key='native_program')
     selected_tape=hps_context.initial_tape.checked(receipt,program_key='native_program')
     if selected_tape and any(name not in (entry_build/'payload.elf').read_bytes() for name in
-            (b'initialTapeCPU.LoadInitialTape',b'ConfigurationArena).PublishInitialTape')):
+            (b'initialTapeCPU.LoadInitialTape',b'InitialTapeArena).PublishInitialTape')):
         raise ValueError('initial tape platform is absent from matched native entry')
     if context is not None and profile.name!=('sd-profile.json' if receipt.get('native_program')=='fpgaload' else 'probe-profile.json'):
         raise ValueError('HPS context diagnostic requires its source-derived serial/SD profile')
@@ -91,6 +91,14 @@ def entry(entry_build):
         raise ValueError('cold configuration arena is not excluded from entry staging')
     if reader_memory is not None and [cpu_map['reader_base'],cpu_map['reader_base']+cpu_map['reader_bytes']] not in receipt.get('staging_exclusions',[]):
         raise ValueError('cold reader arena is not excluded from entry staging')
+    tape_memory=hps_context.initial_tape.checked_memory(receipt)
+    if tape_memory is not None:
+        reserved=json.loads(profile.read_text())['reserved']
+        expected=hps_context.initial_tape.staging_layout(cpu_map,reserved,
+            dict(base=receipt['entry_image_address'],bytes=image.stat().st_size))
+        if (tape_memory!=expected or
+                [tape_memory['base'],tape_memory['base']+tape_memory['bytes']] not in receipt.get('staging_exclusions',[])):
+            raise ValueError('cold initial tape storage must be independently excluded from entry staging')
     return image,receipt_path
 
 
@@ -228,6 +236,8 @@ def _make(entry_build, *, firmware_ram=False, firmware_mmu=False, capability_obs
               'window_service':build.get('window_service',False),
               'tenfoot_serial':build.get('tenfoot_serial',False),
               'initial_tape':hps_context.initial_tape.checked(build,program_key='native_program'),
+              'initial_tape_memory':hps_context.initial_tape.checked_memory(build),
+              'initial_tape_memory_sha256':build.get('initial_tape_memory_sha256'),
               'selected_programs':build.get('selected_programs',False),
               'hps_program_platform':program_platform,'hps_program_platform_sha256':hps_context.digest(program_platform) if program_platform else None,
               'hps_menu_program':companion,'hps_menu_program_sha256':hps_context.digest(companion) if companion else None,
@@ -261,7 +271,13 @@ def initial_tape_header(profile):
     tape=hps_context.initial_tape.checked(dict(profile,program='fpgaload',usb_control=profile.get('usb_pio',False)))
     if tape and profile.get('firmware_ram')!=firmware_memory.CONTRACT:
         raise ValueError('initial tape requires the complete matched firmware OCRAM contract')
-    return '#define FES_NANO_INITIAL_TAPE '+str(int(tape))+'\n'
+    extra='#define FES_NANO_INITIAL_TAPE '+str(int(tape))+'\n'
+    memory=hps_context.initial_tape.checked_memory(profile)
+    if memory is not None:
+        for name,key in (('BASE','base'),('ARENA_SIZE','bytes'),('PAYLOAD_BYTES','payload_bytes'),
+                         ('METADATA_BASE','metadata_base'),('METADATA_BYTES','metadata_bytes')):
+            extra+='#define FES_NANO_TAPE_'+name+' '+hex(memory[key])+'ULL\n'
+    return extra
 
 
 def header(profile):

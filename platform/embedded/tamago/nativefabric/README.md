@@ -1,22 +1,26 @@
 # Native contained-fabric endpoint
 
-The independent initial-tape arena prototype has separate pinned storage at
-`0x95800000..0x95a00000`, with a 16 KiB payload and its own final metadata page.
-Its layout checker preserves the complete configuration reservation, both MENU
-slots, heap and boot windows. The publisher requires a newly completed,
-privately validated configuration for every tape lease and leaves that source
-and metadata unchanged. Copied tape handles share one private state; copied
-configuration owners and storage aliases reject before access. Late/uncertain
-publication remains retained and cannot replay. Race-enabled host tests and the
-actual generic C tape protocol engine pass, including minimum/maximum tapes.
+The independent initial-tape arena is now selected by the explicit Nano
+`--initial-tape` path. It owns `0x95800000..0x95a00000`, with a 16 KiB payload
+and its own final metadata page, preserving the full configuration reservation
+and both MENU slots. The publisher requires a newly completed private program
+lease and rechecks its protected source/header/ROM throughout publication.
+Tape completion cannot release that retained source. Copied tape handles share
+one private state; copied configuration owners and backing-storage aliases
+reject before access. Uncertain operations retain memory and cannot replay.
 
-This prototype is **not wired into the board hook, CPU/EL3 mappings, fixed
-firmware supplier or matched producer profile yet**. It has no boot image or
-hardware acceptance. The existing selected publisher still rejects retained
-configuration storage, as required by the recorded hardware failure. Replace
-that borrowed-storage path when the matched independent path is complete; do
-not remove its guard to bypass the ownership conflict.
+The board pins the entire uncached, execute-never tape mapping at startup.
+Every tape SMC is bracketed by live checks of tape, configuration, both MENU
+slots, normal heap and the inaccessible firmware reservation. The fixed EL3
+supplier reads only the independent tape addresses; its existing ownership,
+held-ROM, digest, frame and deadline checks remain. SDK, entry and cold producers
+bind the same typed memory contract and reject the former borrowed-storage
+selection. The borrowed configuration publisher has been removed.
 
+This is source integration with host, C-protocol and mapping-model evidence.
+A newly matched boot chain and physical tape/launch/return trial remain required;
+the last hardware failure and successful original-FIT restoration remain separate
+[evidence](../../../../docs/validation/2026-11-15-de25-independent-tape-wiring/README.md).
 
 The selected native Tenfoot image now accepts an explicit
 `--writable-storage-plan FILE --sd-transfer-clock 25000000`. That compiled
@@ -235,24 +239,17 @@ tests inject the platform delivery. The explicit Nano `--initial-tape` build now
 through a CPU wrapper; ordinary builds do not advertise it. Hardware timing
 and matched boot acceptance remain separate.
 
-`ConfigurationArena.PublishInitialTape` now implements the fixed publication
-lease separately. It requires a completed program lease in the pinned 8 MiB
-arena, checks the live mapping before/after publication and completion, and
-validates the secure tag, generation, byte count, CRC and exact final GPO.
-Uncertain results retain and retire the arena; stale configuration callbacks
-cannot release a tape lease. Another tape requires a new completed program
-lease and newer generation from the same owner. The actual Go header and
-receipt codec are joined to `nano_tape_service` and the real C transfer engine
-in portable tests with injected ownership, digest and endpoint callbacks.
-The strong firmware supplier and secure dispatcher now join behind an explicit
-firmware build flag, with separate real-provider/register-model tests. The board CPU wrapper and SDK/entry/cold selection now connect this path. The
-compiled board profile and linked selection must match; only the selected
-wrapper implements `InitialTapePlatform`. It requires the existing pinned
-program arena, and the SMC has full mapping guards on both sides. Mismatch,
-missing arena or uncertain response cannot fall back to per-word delivery.
-Host tests join the actual board wrapper/arena to the actual C service, with
-injected ownership/digest/endpoint callbacks. These checks establish neither
-physical authority nor board timing.
+`InitialTapeArena.PublishInitialTape` supplies the independent publication
+lease. It validates the secure tag, sequence, generation, byte count, CRC and
+exact final GPO. Another tape requires a new completed program lease and newer
+generation from the same owner. The Go descriptor and receipt codec are joined
+to `nano_tape_service` and the real C engine in portable tests. The actual strong
+supplier tests now stage tape separately and hash the complete configuration
+reservation before and after every successful or failed transfer. The compiled
+board profile and linked selection must match; only the selected wrapper
+implements `InitialTapePlatform`. Missing arena, mapping loss or uncertain reply
+cannot fall back to per-word delivery. These tests establish neither physical
+authority nor board timing.
 
 The native computer path now accepts an optional game tape in each retained
 program choice. The canonical selection adds
