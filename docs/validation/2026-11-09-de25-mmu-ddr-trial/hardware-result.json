@@ -1,0 +1,57 @@
+{
+  "status": "stopped-recovery-programming-jtag-chain-broken",
+  "native_boot_id": "bc9520b7a894923d",
+  "source_commit": "f8a8f7d16d8b8f578ed17ab033c6461c9c3f2a82",
+  "compiled_firmware_source": "966cb5a1e27ce53edf94a363c1909669cbef5558",
+  "consumed_procedure_retired": true,
+  "native_image_tested": false,
+  "cache_fix_hardware_result": "not-run",
+  "native_programming_attempted": false,
+  "sd_write_commands_sent": false,
+  "recovery_programming_attempted": true,
+  "recovery_programming_complete": false,
+  "recovery_live_scan_passed": true,
+  "programmer_execution_identity_verified": true,
+  "total_transport_programming_failures": 2,
+  "further_hardware_programming_requires_transport_fix": true,
+  "kernel_usb_rows": [],
+  "kernel_log_sha256": "19c4e28b2f54ea8f217db4e622b0a5c758efa7b77ce2dc0394b6d159568c0b2e",
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "post_stop_observation": {
+    "path": "out/nano-jtag-poststop-20261109",
+    "result_sha256": "885b310ab2a16cadf43889f726d6e924a1acd63741dc451034e11708ce89ddff",
+    "cleanup": {
+      "status": "passed",
+      "usb_permissions_exact": true,
+      "owned_private_server_gone": true,
+      "uart_owners": [],
+      "clock_readback": "15M",
+      "no_programming": true
+    },
+    "scan_passed": true,
+    "auto_adjust_before": 1,
+    "auto_adjust_at_6m": 1,
+    "programming": false
+  },
+  "core_load_acceptance": false,
+  "physical_display_verified": false,
+  "causing_component_proven": false,
+  "evidence_sha256": {
+    "out/nano-mmu-ddr-trial-20261109/trial/experiment-result.json": "61d0a4d6e5680ddec4ac400aa61773e36fada279f4bb16ecde6d5359b8f50bf6",
+    "out/nano-mmu-ddr-trial-20261109/trial/recovery-boot-result.json": "154706bd4c1052a7a250f2fa3df8a32546c1acfd856d470a144ed908d60da79d",
+    "out/nano-mmu-ddr-trial-20261109/trial/recovery-boot-program.log": "b80c0d1ea4b6f847709b6f588bc8e5fff6c792d89f78c16ae3861c2f3e544547",
+    "out/nano-mmu-ddr-trial-20261109/trial/recovery-boot-program.log.strace": "37caa98f76f1c93ce004bdfdefaaaeb1c53857dcdd37411b0d6870abd61007d7",
+    "out/nano-mmu-ddr-trial-20261109/trial/recovery-live-scan.log": "84a7b3d5656ad04eb3c4dd0e9238b9f707ab08da42bd6fb42e4634af76f6a091",
+    "out/nano-mmu-ddr-trial-20261109/trial/recovery-program-consumed.json": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+    "out/nano-mmu-ddr-trial-20261109/trial/recovery-program-consumed.json.scan.json": "214aa5626023d121cd555553cd096600ef41b4b82a854562bd492c4ebc379efc"
+  }
+}

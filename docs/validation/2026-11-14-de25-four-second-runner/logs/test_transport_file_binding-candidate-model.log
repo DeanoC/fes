@@ -1,0 +1,8 @@
+test_actual_four_role_bindings_use_identical_selected_images_without_devices (test_transport_file_binding.Tests.test_actual_four_role_bindings_use_identical_selected_images_without_devices) ... ok
+test_old_plan_binding_and_wrong_tool_bytes_reject_before_preflight (test_transport_file_binding.Tests.test_old_plan_binding_and_wrong_tool_bytes_reject_before_preflight) ... ok
+test_only_selected_candidate_and_failure_observation_change (test_transport_file_binding.Tests.test_only_selected_candidate_and_failure_observation_change) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.081s
+
+OK

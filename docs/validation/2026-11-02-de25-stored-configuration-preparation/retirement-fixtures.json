@@ -1,0 +1,286 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "case": "ready",
+      "generation": 1,
+      "accepted": true
+    },
+    {
+      "case": "configuring",
+      "generation": 1,
+      "accepted": true
+    },
+    {
+      "case": "configuration-error",
+      "generation": 1,
+      "accepted": true
+    },
+    {
+      "case": "timeout",
+      "generation": 1,
+      "accepted": true
+    },
+    {
+      "case": "error2",
+      "generation": 1,
+      "accepted": true
+    },
+    {
+      "case": "owner",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "generation",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "positive-status",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "header-client",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "header-job",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "header-length",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "received",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "poll-limit",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "word-limit",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "skips",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "missing-sent",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "oversized-data",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "no-retirement",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "status-before-retire",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "duplicate",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "no-ack",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "wrong-ack",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "wrong-retained",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "resume",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "identity",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "no-original-failure",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "partial-status-duplicate",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "partial-ack-duplicate",
+      "generation": 1,
+      "accepted": false
+    },
+    {
+      "case": "ready",
+      "generation": 4,
+      "accepted": true
+    },
+    {
+      "case": "configuring",
+      "generation": 4,
+      "accepted": true
+    },
+    {
+      "case": "configuration-error",
+      "generation": 4,
+      "accepted": true
+    },
+    {
+      "case": "timeout",
+      "generation": 4,
+      "accepted": true
+    },
+    {
+      "case": "error2",
+      "generation": 4,
+      "accepted": true
+    },
+    {
+      "case": "owner",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "generation",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "positive-status",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "header-client",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "header-job",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "header-length",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "received",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "poll-limit",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "word-limit",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "skips",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "missing-sent",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "oversized-data",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "no-retirement",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "status-before-retire",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "duplicate",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "no-ack",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "wrong-ack",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "wrong-retained",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "resume",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "identity",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "no-original-failure",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "partial-status-duplicate",
+      "generation": 4,
+      "accepted": false
+    },
+    {
+      "case": "partial-ack-duplicate",
+      "generation": 4,
+      "accepted": false
+    }
+  ],
+  "decoder_sha256": "93ee2c6364a920b8398335aadfe065ec48f414971034abefa152d1709d7e92fd"
+}

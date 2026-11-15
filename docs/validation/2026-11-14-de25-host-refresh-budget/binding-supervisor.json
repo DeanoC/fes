@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/table-refresh-budget-prototype/test_transport_file_binding.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.6009549938607961,
+  "log_sha256": "f1c1c1125d40f85b18ca051bdcfbb5fb47ad764ee6e17251a68ca52d58eda794"
+}

@@ -1,0 +1,86 @@
+{
+  "status": "physical-UART1-repair-two-traced-package-uploads-and-cleanup-passed",
+  "operator_source": "0c1790b75553eb5b8dc6386d5992f22afa1937ee",
+  "host_control_source": "03b8ec56d01cbf5ea64184c1987058228fa0ddf6",
+  "compiled_trace_source": "ca87b32780372567507f17d9b765087fecdde69d",
+  "attempts": 1,
+  "attempt_consumed": true,
+  "replayed": false,
+  "total_host_seconds": 129.90981378103606,
+  "post_power_loss_boot_passed": true,
+  "live_old_card_files_and_original_rollback_verified": true,
+  "UART_repair_verified": true,
+  "original_rollback_preservation_stages": [
+    "before-write",
+    "after-write"
+  ],
+  "original_R1107A_preserved": true,
+  "consumed_R1107B_verified": true,
+  "installed_fit_sha256": "ccb6a597052c69f982713c327eeaab02adda4bd8ef21905deed2db7e7d47f353",
+  "installed_manifest_sha256": "b63eb77506898bc53f6082e8575fe6387ea2525425754aced31ca7ccbff62fcf",
+  "installed_prefix_sha256": "b8ea5c763ffc9d6ccca750aa476cc0739cf896af995959437fa41f65183a039f",
+  "corrected_loader_boot_passed": true,
+  "UART1_trace_hardware_valid": true,
+  "TFTP_completed_returns": 2,
+  "return_marker_count": 68,
+  "package_file": "FES/PKGTEST.BIN",
+  "package_bytes": 1659392,
+  "package_sha256": "191f63a663d2ce12a83bc499e2a6f89332732a260b2bb3e0c8daf2ff71ecd5b7",
+  "identical_package_uploads_verified": 2,
+  "fresh_package_readbacks_verified": 2,
+  "post_network_protected_files": [
+    {
+      "target": "FES/R1107A.ITB",
+      "bytes": 953032,
+      "sha256": "c27efed4828f73ad000fe78649ae01d665e12452f457c3e569d25b20b5b031dd"
+    },
+    {
+      "target": "FES/R1107A.JSN",
+      "bytes": 1315,
+      "sha256": "4fa13be7cfecd0d756a492e945c6184c011814bafb903aeb626ee2155a00b8fb"
+    },
+    {
+      "target": "FES/R1107B.ITB",
+      "bytes": 954288,
+      "sha256": "0f15b11576e91a6cb705de1f1b97e0960a03437b1821628abbd74bd4367f9855"
+    },
+    {
+      "target": "FES/R1107B.JSN",
+      "bytes": 1464,
+      "sha256": "722ed9592c04f19dc19b7e6bd21c50c87aada7712fbd056f86b4e45551d7f0de"
+    },
+    {
+      "target": "FES/UPLOAD.BIN",
+      "bytes": 8198704,
+      "sha256": "78bd27743900f6ba94148496d638c5b867f4bbf88c904e5f224d904bb6c2c718"
+    }
+  ],
+  "original_network_stall_cause_proven": false,
+  "XGMAC_idle_DMA_proven": false,
+  "general_native_network_acceptance": false,
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "board_prompt_parked": true,
+  "board_state": "corrected UART1 recovery at verified prompt; original and consumed rollback pairs plus protected package/experimental FIT verified",
+  "claim_retained": true,
+  "original_factory_card_touched": false,
+  "bottom_kit_touched": false,
+  "hardware_actions": true,
+  "native_activation": false,
+  "core_load_acceptance": false,
+  "timing_signoff": false,
+  "next": "refresh the matched ordinary-package native boot-chain source bindings, upload all launch inputs using the corrected recovery path, then qualify native launch/return; keep full DE10 readiness open",
+  "verified_repair_write_count": 5,
+  "verified_UART_transfer_count": 3,
+  "raw_evidence": "out/nano-recovery-console-repair-board-20261107",
+  "physical_result_sha256": "73c0262353bf56eec3344cfe94eb70724e855724023c26b7c9775735775f247e",
+  "retention_target": "/home/deano/fes-retained/de25-recovery-console-repair-hardware-20261107-r1"
+}

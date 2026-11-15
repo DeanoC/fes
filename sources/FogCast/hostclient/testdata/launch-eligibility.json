@@ -13,6 +13,57 @@
     "reason": ""
   },
   {
+    "name": "missing-matching-video",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "coleco",
+      "state": "available",
+      "root_online": true,
+      "launchable": true,
+      "firmware_required": true,
+      "firmware_ready": true,
+      "rom_required": true,
+      "rom_ready": true,
+      "video_required": true
+    },
+    "block": "missing_video",
+    "reason": "Needs a matching video part"
+  },
+  {
+    "name": "missing-core-package",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "coleco",
+      "state": "available",
+      "root_online": true,
+      "launchable": true,
+      "package_unavailable": true
+    },
+    "block": "missing_package",
+    "reason": "Needs the installed core package"
+  },
+  {
+    "name": "matching-video-ready",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "coleco",
+      "state": "available",
+      "root_online": true,
+      "launchable": true,
+      "firmware_required": true,
+      "firmware_ready": true,
+      "rom_required": true,
+      "rom_ready": true,
+      "video_required": true,
+      "video_ready": true
+    },
+    "block": "",
+    "reason": ""
+  },
+  {
     "name": "browse-only",
     "game": {
       "id": "fixture-game",

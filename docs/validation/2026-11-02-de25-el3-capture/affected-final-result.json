@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "python3",
+    "out/nano-el3-capture-20261102/finish_plan.py"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 630.1759436099092,
+  "log_sha256": "e3ae6061f0a544171d842665f4ebdaa200ec28cd3c895d8831e2a3632ed110b8"
+}

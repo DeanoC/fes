@@ -1,0 +1,54 @@
+{
+  "status": "passed",
+  "scope": "host models only; no hardware, scan, claim, live preflight or grant",
+  "native_and_recovery_negative_cases": [
+    "source_commit",
+    "phase",
+    "sof_sha256",
+    "decoder_sha256",
+    "pass",
+    "secure_cold_boot_verified",
+    "fesboot_sent",
+    "final_sd_contained",
+    "native_sd_writes_verified",
+    "native_write_outcome_unknown",
+    "native_sd_write_possible",
+    "boot_trace.complete",
+    "boot_trace.errors",
+    "boot_trace.fat_file_observation.expected_plan",
+    "boot_trace.fat_file_observation.final_sd_contained",
+    "boot_trace.fat_file_observation.complete",
+    "fat_file_plan",
+    "recovery.source_commit",
+    "recovery.phase",
+    "recovery.sof_sha256",
+    "recovery.programming_complete",
+    "recovery.prompt_verified",
+    "recovery.usb_permissions_restored",
+    "recovery.prior_native_receipt_sha256",
+    "recovery.pass"
+  ],
+  "three_program_namespaces": [
+    [
+      "recovery-program-consumed.json",
+      "recovery",
+      "x"
+    ],
+    [
+      "native-program-consumed.json",
+      "native",
+      "x"
+    ],
+    [
+      "readback-program-consumed.json",
+      "recovery",
+      "x"
+    ]
+  ],
+  "script_sha256": {
+    "out/nano-fat-file-trial-20261110/gate_models.py": "f2631ebcd20cf580fca474e1b11a4c51420b17683aa571819fc96d5f2ee21727",
+    "out/nano-fat-file-trial-20261110/trial/write_gates.py": "807906e776627a1659aa82a34b22e0d654ec0207f8d85d6950c08d21120655c9",
+    "out/nano-fat-file-trial-20261110/trial/program_gate.py": "dd6b54e7aa56709bb4ba80de5559aa0e68599058ee2f2b531eb15f776e4f6582"
+  },
+  "live_authority": false
+}

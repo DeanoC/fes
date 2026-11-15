@@ -1,0 +1,32 @@
+{
+  "status": "passed",
+  "source_commit": "05006009e5a27deedd804e8711aa9bdecd3546b9",
+  "classification": "matched final SPL-to-BL31 handoff and bounded DDR candidate; no hardware execution",
+  "cached_sdk": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-ddr-cycle-20261102/native-sdk",
+  "cached_entry": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-ddr-cycle-20261102/native-entry",
+  "cached_sdk_receipt_sha256": "bbffa5d8621e2bcf97adf34c7a4b039348e10d8ec12b1addb3d0a0c5c094712f",
+  "cached_entry_receipt_sha256": "0c6e1a70fd316f450af9e56b97ad9eb36345d8bacd09267c4850f2d099bc7653",
+  "cached_entry_image_sha256": "0c0e103154866de5ce91c3651fda9036c0d259cc193219755447ae98ef1b4ac0",
+  "unchanged_selected_sdk_entry_sources_verified": true,
+  "secure_capture_trace": true,
+  "spl_atf_trace": true,
+  "atf_handoff": {
+    "bl32": 0,
+    "bl33": 2149580800,
+    "bytes": 90173,
+    "fdt": 0,
+    "format": 1,
+    "params_base": 3220176896,
+    "params_bytes": 1048576,
+    "scope": "loaded-bl31-handoff-v1",
+    "sha256": "7c8274ccec691ffb0a2f56f4acfa0ccc60b7a820d1fac3b2a4cad5b378a1ecbf",
+    "target": 2147483648
+  },
+  "bounded_ddr_read_selected": true,
+  "runtime_admission": false,
+  "steps": [
+    "bl31-atf",
+    "uboot-atf",
+    "hps-atf-compose"
+  ]
+}

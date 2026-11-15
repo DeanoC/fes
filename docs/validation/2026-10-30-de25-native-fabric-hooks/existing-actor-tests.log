@@ -1,0 +1,16 @@
+=== RUN   TestTenfootLaunchReturnAndFailures
+--- PASS: TestTenfootLaunchReturnAndFailures (9.91s)
+=== RUN   TestHeldFrameAndStaleStop
+--- PASS: TestHeldFrameAndStaleStop (1.53s)
+=== RUN   TestCanceledRequestPreservesOwner
+--- PASS: TestCanceledRequestPreservesOwner (0.14s)
+=== RUN   TestCloseRefusesOutstandingFrame
+--- PASS: TestCloseRefusesOutstandingFrame (0.77s)
+=== RUN   TestCancelAfterAdmissionRecoversBeforeRelease
+--- PASS: TestCancelAfterAdmissionRecoversBeforeRelease (0.78s)
+=== RUN   TestBadPartPreservesRunningComposition
+--- PASS: TestBadPartPreservesRunningComposition (5.65s)
+=== RUN   TestFailedScanoutPreservesOutstandingFrame
+--- PASS: TestFailedScanoutPreservesOutstandingFrame (0.01s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/modelbackend	19.820s

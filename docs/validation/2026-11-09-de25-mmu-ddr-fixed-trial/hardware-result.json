@@ -1,0 +1,480 @@
+{
+  "status": "physical-mmu-proof-and-native-entry-passed-configuration-start-rejected",
+  "source_commit": "3661618e267687d663f08a5da55c19f8d29dfbe3",
+  "compiled_firmware_source": "966cb5a1e27ce53edf94a363c1909669cbef5558",
+  "native_boot_id": "bc9520b7a894923d",
+  "raw_console_replay_matches": true,
+  "mmu_memory_proof_complete": true,
+  "normal_vector_restored": true,
+  "native_boot_complete": false,
+  "secure_loader_verified": true,
+  "el1_handoff": true,
+  "initial_menu_ready": false,
+  "configuration_data_bytes": 0,
+  "configuration_start_rejected": true,
+  "app_commands": [],
+  "service": null,
+  "mmu_trace": {
+    "records": [
+      {
+        "el": 12,
+        "midr": 1093652560,
+        "mpidr": 2164260864,
+        "mmfr0": 1052962,
+        "daif": 704,
+        "scr": 568,
+        "sctlr": 12916794,
+        "tcr": 0,
+        "root": 2147774464,
+        "mair": 4963046916272786084,
+        "witness": 2147799424,
+        "phase": "before",
+        "line": 111,
+        "writes": 0,
+        "memory": 0
+      },
+      {
+        "el": 12,
+        "midr": 1093652560,
+        "mpidr": 2164260864,
+        "mmfr0": 1052962,
+        "daif": 704,
+        "scr": 568,
+        "sctlr": 13441087,
+        "tcr": 2155885856,
+        "root": 2147774464,
+        "mair": 4456703,
+        "witness": 2147799424,
+        "phase": "after",
+        "line": 172,
+        "writes": 4,
+        "memory": 1
+      }
+    ],
+    "steps": [
+      {
+        "phase": "admit-before",
+        "operation": 0,
+        "line": 112
+      },
+      {
+        "phase": "admit-after",
+        "operation": 0,
+        "line": 113
+      },
+      {
+        "phase": "barrier-before",
+        "operation": 0,
+        "line": 114
+      },
+      {
+        "phase": "barrier-after",
+        "operation": 0,
+        "line": 115
+      },
+      {
+        "phase": "write-before",
+        "operation": 0,
+        "line": 116
+      },
+      {
+        "phase": "write-after",
+        "operation": 0,
+        "line": 117
+      },
+      {
+        "phase": "write-before",
+        "operation": 1,
+        "line": 118
+      },
+      {
+        "phase": "write-after",
+        "operation": 1,
+        "line": 119
+      },
+      {
+        "phase": "write-before",
+        "operation": 2,
+        "line": 120
+      },
+      {
+        "phase": "write-after",
+        "operation": 2,
+        "line": 121
+      },
+      {
+        "phase": "barrier-before",
+        "operation": 1,
+        "line": 122
+      },
+      {
+        "phase": "barrier-after",
+        "operation": 1,
+        "line": 123
+      },
+      {
+        "phase": "admit-before",
+        "operation": 0,
+        "line": 124
+      },
+      {
+        "phase": "admit-after",
+        "operation": 0,
+        "line": 125
+      },
+      {
+        "phase": "write-before",
+        "operation": 3,
+        "line": 126
+      },
+      {
+        "phase": "write-after",
+        "operation": 3,
+        "line": 158
+      },
+      {
+        "phase": "admit-before",
+        "operation": 0,
+        "line": 159
+      },
+      {
+        "phase": "admit-after",
+        "operation": 0,
+        "line": 160
+      },
+      {
+        "phase": "memory-before",
+        "operation": 0,
+        "line": 161
+      },
+      {
+        "phase": "clean-before",
+        "operation": 0,
+        "line": 162
+      },
+      {
+        "phase": "clean-after",
+        "operation": 0,
+        "line": 163
+      },
+      {
+        "phase": "clean-before",
+        "operation": 0,
+        "line": 164
+      },
+      {
+        "phase": "clean-after",
+        "operation": 0,
+        "line": 165
+      },
+      {
+        "phase": "memory-after",
+        "operation": 0,
+        "line": 166
+      },
+      {
+        "phase": "admit-before",
+        "operation": 0,
+        "line": 167
+      },
+      {
+        "phase": "admit-after",
+        "operation": 0,
+        "line": 168
+      }
+    ],
+    "transitions": [
+      {
+        "phase": "enabled",
+        "sctlr": 13441087,
+        "vbar": 2147512320,
+        "line": 157
+      },
+      {
+        "phase": "restored",
+        "sctlr": 13441087,
+        "vbar": 2147768320,
+        "line": 171
+      }
+    ],
+    "faults": [],
+    "status_before": {
+      "records": [
+        {
+          "index": 0,
+          "name": "dsu_detect",
+          "value": 0,
+          "line": 127
+        },
+        {
+          "index": 1,
+          "name": "dsu_interrupt",
+          "value": 0,
+          "line": 128
+        },
+        {
+          "index": 2,
+          "name": "dsu_status_before",
+          "value": 0,
+          "line": 129
+        },
+        {
+          "index": 3,
+          "name": "dsu_location0",
+          "value": 0,
+          "line": 130
+        },
+        {
+          "index": 4,
+          "name": "dsu_location1",
+          "value": 0,
+          "line": 131
+        },
+        {
+          "index": 5,
+          "name": "dsu_status_after",
+          "value": 0,
+          "line": 132
+        },
+        {
+          "index": 6,
+          "name": "ocram_detect",
+          "value": 0,
+          "line": 133
+        },
+        {
+          "index": 7,
+          "name": "ocram_interrupt",
+          "value": 0,
+          "line": 134
+        },
+        {
+          "index": 8,
+          "name": "ocram_status_before",
+          "value": 0,
+          "line": 135
+        },
+        {
+          "index": 9,
+          "name": "ocram_location0",
+          "value": 0,
+          "line": 136
+        },
+        {
+          "index": 10,
+          "name": "ocram_location1",
+          "value": 0,
+          "line": 137
+        },
+        {
+          "index": 11,
+          "name": "ocram_status_after",
+          "value": 0,
+          "line": 138
+        },
+        {
+          "index": 12,
+          "name": "ecc_config",
+          "value": 536720,
+          "line": 139
+        },
+        {
+          "index": 13,
+          "name": "ecc_initialized",
+          "value": 1,
+          "line": 140
+        },
+        {
+          "index": 14,
+          "name": "ecc_pending",
+          "value": 0,
+          "line": 141
+        },
+        {
+          "index": 15,
+          "name": "ecc_decoder",
+          "value": 0,
+          "line": 142
+        },
+        {
+          "index": 16,
+          "name": "pfr0",
+          "value": 286335522,
+          "line": 143
+        },
+        {
+          "index": 17,
+          "name": "midr",
+          "value": 1093652560,
+          "line": 144
+        },
+        {
+          "index": 18,
+          "name": "disr",
+          "value": 0,
+          "line": 145
+        },
+        {
+          "index": 19,
+          "name": "count",
+          "value": 2,
+          "line": 146
+        },
+        {
+          "index": 20,
+          "name": "selector_before",
+          "value": 0,
+          "line": 147
+        },
+        {
+          "index": 21,
+          "name": "features",
+          "value": 43430,
+          "line": 148
+        },
+        {
+          "index": 22,
+          "name": "control",
+          "value": 0,
+          "line": 149
+        },
+        {
+          "index": 23,
+          "name": "status_before",
+          "value": 0,
+          "line": 150
+        },
+        {
+          "index": 24,
+          "name": "misc",
+          "value": 0,
+          "line": 151
+        },
+        {
+          "index": 25,
+          "name": "status_after",
+          "value": 0,
+          "line": 152
+        },
+        {
+          "index": 26,
+          "name": "selector_after",
+          "value": 0,
+          "line": 153
+        }
+      ],
+      "pending": null,
+      "complete": true,
+      "valid": true,
+      "ras": "complete",
+      "reason": null,
+      "hardware_authority": false
+    },
+    "logging": {
+      "records": [
+        {
+          "phase": "arm-before",
+          "line": 155
+        },
+        {
+          "phase": "armed",
+          "line": 156
+        },
+        {
+          "phase": "restore-before",
+          "line": 169
+        },
+        {
+          "phase": "restored",
+          "line": 170
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "write_attempted": true,
+      "armed": true,
+      "restore_attempted": true,
+      "restored": true,
+      "failed": false,
+      "failure": null,
+      "hardware_authority": false
+    },
+    "status_fault": {
+      "records": [],
+      "pending": null,
+      "complete": false,
+      "valid": true,
+      "ras": null,
+      "reason": null,
+      "hardware_authority": false
+    },
+    "valid": true,
+    "complete": true,
+    "hardware_authority": false
+  },
+  "decode_logging": {
+    "records": [
+      {
+        "phase": "arm-before",
+        "line": 155
+      },
+      {
+        "phase": "armed",
+        "line": 156
+      },
+      {
+        "phase": "restore-before",
+        "line": 169
+      },
+      {
+        "phase": "restored",
+        "line": 170
+      }
+    ],
+    "valid": true,
+    "complete": true,
+    "write_attempted": true,
+    "armed": true,
+    "restore_attempted": true,
+    "restored": true,
+    "failed": false,
+    "failure": null,
+    "hardware_authority": false
+  },
+  "status_value_changes": {},
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "auto_adjust_readback": 1,
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "consumed_image_retired": true,
+  "programming_reservations": {
+    "recovery": {
+      "reservation_sha256": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+      "scan_sha256": "d09b6a525175d77ed71f3e76c756d59f526f8227ec77947ff67b303db3f8b21b"
+    },
+    "native": {
+      "reservation_sha256": "4cba051c741e4676e45ef40d9174919dcbe0675772853ef9d8edc34390d82b8c",
+      "scan_sha256": "662f9c0e40078bc6390856262102bf0372e24994bd9c680a9f227c2ad409d088"
+    }
+  },
+  "core_load_acceptance": false,
+  "physical_display_verified": false,
+  "error": "phase stopped: native",
+  "native_programming_passed": true,
+  "fesboot_sent": true,
+  "launcher_started": false,
+  "tape_attempted": false,
+  "logs": {
+    "raw_console_sha256": "e950c5ed8a0c93a078c080b2940eb6cced82e074c4c05a51752f215a16e9504f",
+    "native_result_sha256": "29dec75557cf09cafee2f23e0083f765336a9e27c64792bcbc5bf51d67b2fb65",
+    "experiment_result_sha256": "25228b3550014147338cf93bfc5df334cc8c6364748685112963b137072927b5"
+  },
+  "pass": false
+}

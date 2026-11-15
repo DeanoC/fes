@@ -1,0 +1,6 @@
+{
+  "passed": true,
+  "positive_actual_capture": true,
+  "rejected_corruptions": 7,
+  "hardware_actions": false
+}

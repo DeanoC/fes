@@ -1,0 +1,133 @@
+{
+  "status": "passed-bounded-native-two-core-install-launch-return-trial",
+  "source_head": "341642f6690d26a86208ed27b15ea5ebadf88f1c",
+  "target_code_commit": "b385f24cc54621f8760b6a65cc4d49f56b8609ef",
+  "native_boot_id": "6f54fe7c04d34128",
+  "whole_attempt_passed": true,
+  "recovery_programming_and_prompt_verified": true,
+  "staged_boot_refreshed": true,
+  "staged_boot_destination": "FES/UPLOAD.BIN",
+  "staged_boot_sha256": "4ffb2723c97535ab39ada25fbf9c70c01869706333d3dbe530b56c664065b2a5",
+  "preserved_files_checked_before": 15,
+  "preserved_files_checked_after": 15,
+  "native_programming_complete": true,
+  "secure_native_cold_boot_verified": true,
+  "native_usb_startup_verified": true,
+  "initial_tenfoot_ready_verified": true,
+  "native_writable_sd_admitted": true,
+  "installed_programs": [
+    "ZX81 trial",
+    "ZX80 trial"
+  ],
+  "prior_installed_title_preserved": "ZX81",
+  "installed_during_trial": 2,
+  "launch_identities": [
+    {
+      "PackageID": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+      "CoreID": "fes.zx81",
+      "ABI": "fes.computer",
+      "BuildID": "0792e51a2e51512bfb8fe44e93a69ddd",
+      "Platform": "de25_nano",
+      "Device": "A5EB013BB23BE4SCS",
+      "ProgrammingProfile": "de25-native-computer-v1",
+      "ActivationReceiptSHA256": "5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c",
+      "ProgrammedSHA256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+      "Major": 1,
+      "Minor": 0
+    },
+    {
+      "PackageID": "b32ce70af93f2ae4ff665490246e5c52fbb4d76eadb5445949e5c2b4434fba86",
+      "CoreID": "fes.zx80",
+      "ABI": "fes.computer",
+      "BuildID": "ea02ee8a9026deb05317a3e7d024adde",
+      "Platform": "de25_nano",
+      "Device": "A5EB013BB23BE4SCS",
+      "ProgrammingProfile": "de25-native-computer-v1",
+      "ActivationReceiptSHA256": "ac0cfb45e61b3ee1b6dd65868943539845b7ea8a142191dedb38888e1373bb30",
+      "ProgrammedSHA256": "826aaac1cd524136079e0b10d20a34ad75af631e5fef04f4b153849cde092e1a",
+      "Major": 1,
+      "Minor": 0
+    }
+  ],
+  "fpga_fetch_activity_verified_for_both": true,
+  "zx81_tape_bytes": 917,
+  "configurations": 7,
+  "computer_launches": 2,
+  "final_logical_generation": 7,
+  "final_firmware_generation": 41,
+  "final_reset_mask": 15,
+  "final_masters_contained": true,
+  "normal_final_park_verified": true,
+  "saved_wire_replay_verified": true,
+  "cleanup_independently_verified": true,
+  "cleanup": {
+    "status": "passed",
+    "board": "TRWU8CBL",
+    "roles": {
+      "recovery": {
+        "private_server_absent": true,
+        "archive_hashes_verified": true,
+        "clock_readback": {
+          "auto_adjust": 1,
+          "clock": "15M"
+        }
+      },
+      "native": {
+        "private_server_absent": true,
+        "archive_hashes_verified": true,
+        "clock_readback": {
+          "auto_adjust": 1,
+          "clock": "15M"
+        }
+      }
+    },
+    "restored_parameters": {
+      "JtagClockAutoAdjust": 1,
+      "JtagClock": "15M"
+    },
+    "exact_usb_permissions_restored": true,
+    "uart_owners": [],
+    "processes_inventoried": 518,
+    "hardware_commands_sent": 0,
+    "original_factory_card_touched": false
+  },
+  "prior_host_disconnect_attempts": 1,
+  "total_transport_programming_failures": 3,
+  "current_attempt_failures": 0,
+  "hardware_run": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/nano-boot-refresh-install-r2-20261111/trial/experiment.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 529.3253845269792,
+    "log_sha256": "de6ee8a4fba62de32c7a75cb64919eb34cae5fe86f6119a541baf8eb5e215262"
+  },
+  "evidence_sha256": {
+    "out/nano-boot-refresh-install-r2-20261111/trial/experiment-result.json": "91e1a9009f39c24923139aa92244a887be3cc9e3ccafab8af2893c8696eab0ac",
+    "out/nano-boot-refresh-install-r2-20261111/trial/native-result.json": "715758060c76d9596aa8e13e9975710ff2a8ad1b94316e1c194308ff827a163d",
+    "out/nano-boot-refresh-install-r2-20261111/trial/native-console.log": "a6f68caf6075ca0a00a5b70a605a6ede93144803c31b5510cef323a1756b2897",
+    "out/nano-boot-refresh-install-r2-20261111/trial/boot-refresh-result.json": "02940fc54e43b4e9b74048102b45ae6d9b9fe27e335776f7f65460c27cc7d120",
+    "out/nano-boot-refresh-install-r2-20261111/trial/boot-refresh-console.log": "42cc89ca861ea32f830ba6f98ab3ea9217bc9d8a2439addcb582b2848bb3f88c",
+    "out/nano-boot-refresh-install-r2-20261111/trial/recovery-boot-result.json": "d5565d02f7df4072f7130551c3fa6d8799dc8fd79be4e4f10a33c0d6d2b95425",
+    "out/nano-boot-refresh-install-r2-20261111/trial/preflight.json": "e1d4dd001a523bd8e02c42f0f211116ee8ec31be34eef81af048e592cd4e06d7",
+    "out/nano-boot-refresh-install-r2-20261111/hardware-trial-result.json": "fde718953bb33777f51ec13ac89a64be1ad6b0710c26c3bc1c9b713518bcfc36",
+    "out/nano-boot-refresh-install-r2-20261111/hardware-trial.log": "de6ee8a4fba62de32c7a75cb64919eb34cae5fe86f6119a541baf8eb5e215262",
+    "out/nano-boot-refresh-install-r2-20261111/cleanup-evidence.json": "f47a1e86cb258058dffaf50edd3343c4d254d25041bcbb9932d356ca8d456ea0",
+    "out/nano-boot-refresh-install-r2-20261111/cleanup-audit-result.json": "68a6556327e0200529fac8e8fda57f41be9e813bbca15ee5165cba49a955c80f",
+    "out/nano-boot-refresh-install-r2-20261111/cleanup-audit.log": "aeae3721ffe9f68dc046a405cb6c9713ad1204466df86248351a8078c902ac97",
+    "out/nano-boot-refresh-install-r2-20261111/usb-connection-resolution.json": "1f92bbbe4f1bd00c92d986156fdd384cdf455cf8c998eee9502640fc845fdcdd",
+    "out/nano-boot-refresh-install-r2-20261111/usb-stability-live-proof.json": "b9364b7f1030417021b90b80fa8b0962b4b700167b38f48c972fdeea45820337",
+    "out/nano-boot-refresh-install-r2-20261111/live-preflight-result.json": "7479a7ed9ac6749bb926d42edbb5b90102fe402c4caa956dc155aa5c97b3cbb7"
+  },
+  "physical_display_verified": false,
+  "physical_keyboard_actions_verified": false,
+  "independent_reboot_discovery_verified": false,
+  "persistence_verified": false,
+  "native_ethernet_qualified": false,
+  "ordinary_core_load_acceptance": false
+}

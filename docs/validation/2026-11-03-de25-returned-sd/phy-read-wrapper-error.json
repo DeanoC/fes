@@ -1,0 +1,11 @@
+{
+  "status": "wrapper-failed-after-saved-readout",
+  "error": "child and wrapper both selected phy-read-result.json; wrapper lacked permission to overwrite root-owned readout",
+  "original_readout_sha256": "b539e33bae2ca5ac8350e638114abb386489d5b243c8b90169f5d0760e5b54e0",
+  "retained_readout": "phy-registers.json",
+  "diagnostic_readout_passed": true,
+  "raw_sha256": "0e2d7e078cee1bf0c58682ae0bd424834b56ad3377034109646dec38128ceb19",
+  "diagnostic_not_repeated": true,
+  "sd_write_attempted": false,
+  "native_boot_attempted": false
+}

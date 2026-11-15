@@ -1,0 +1,5 @@
+version; echo FES_UPLOAD_41808627d7ef=$?
+U-Boot 2025.01-fes-nano-recovery-ksz9031-gd0f8813fd6bf (Jun 27 2025 - 01:40:35 +0000)socfpga_agilex5
+
+FES_UPLOAD_41808627d7ef=0
+SOCFPGA_AGILEX5 #

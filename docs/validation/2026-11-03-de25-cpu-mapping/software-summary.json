@@ -1,0 +1,272 @@
+{
+  "status": "passed",
+  "checkout_source_commit": "b790cdd1300b441d0f8717e7c64ddf8d5588e0e6",
+  "base": "4ca9b7a7baec453d912372600ddbdc3f83f78212",
+  "affected_scope_count": 7,
+  "affected_scopes": [
+    {
+      "index": 0,
+      "label": "test_affected.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "log": "software-0.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20041415898595005,
+      "log_sha256": "efba17472e3f018c58e1e7099c5f214ed30dcaea6b2cbb99ab8360704fadc84e",
+      "child_receipt_sha256": "eb3784b341b208c45183695ad307f236923dd789734181ade5afd46e07e468a1"
+    },
+    {
+      "index": 1,
+      "label": "test_test_changed.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "log": "software-1.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.2013334960211068,
+      "log_sha256": "d8e7617952291c9b0ba103732b1a87427faf43dff2735e4e09b58931346ce067",
+      "child_receipt_sha256": "73bbc65cbe302b57f13c1cb47857078da8acc4f2d3b8ea97aada4949e007fa34"
+    },
+    {
+      "index": 2,
+      "label": "committed whitespace",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "4ca9b7a7baec453d912372600ddbdc3f83f78212",
+        "--head",
+        "b790cdd1300b441d0f8717e7c64ddf8d5588e0e6"
+      ],
+      "log": "software-2.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20064328401349485,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "dbd729b1f4aed20489d5bb5581597791cc16a74540f721d098e0fd01de642ddc"
+    },
+    {
+      "index": 3,
+      "label": "working whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "log": "software-3.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2008416570024565,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "e02d99a37e6f17c3af902372ada4a6ce02003264c6a5d8011306efa469fbf043"
+    },
+    {
+      "index": 4,
+      "label": "parent Python regressions",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cpu-map-checks-final-20261103/parent_partitions.py"
+      ],
+      "log": "software-4.log",
+      "planned_argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/entry/build.py\", \"platform/embedded/nano/README.md\", \"platform/embedded/nano/cold_profile.py\", \"platform/embedded/nano/hps_boot.py\", \"platform/embedded/nano/hps_context.py\", \"platform/embedded/nano/native_trace.py\", \"platform/embedded/tamago/README.md\", \"platform/embedded/tamago/board/README.md\", \"platform/embedded/tamago/board/arm64map/README.md\", \"platform/embedded/tamago/board/arm64map/guard.go\", \"platform/embedded/tamago/board/arm64map/guard_test.go\", \"platform/embedded/tamago/board/arm64map/inspect.go\", \"platform/embedded/tamago/board/arm64map/inspect_test.go\", \"platform/embedded/tamago/board/arm64map/map_tamago.go\", \"platform/embedded/tamago/board/arm64map/map_tamago.s\", \"platform/embedded/tamago/board/arm64map/mapper.go\", \"platform/embedded/tamago/board/de25nano/configuration.go\", \"platform/embedded/tamago/board/de25nano/fabric.go\", \"platform/embedded/tamago/board/de25nano/readermemory.go\", \"platform/embedded/tamago/board/de25nano/resources.go\", \"platform/embedded/tamago/build.py\", \"platform/embedded/tamago/cmd/fpgaload/main.go\", \"platform/embedded/tamago/cmd/mapcheck/main.go\", \"platform/embedded/tamago/nativefabric/README.md\", \"platform/embedded/tamago/nativefabric/computer_reload_test.go\", \"platform/embedded/tamago/nativefabric/configuration_arena.go\", \"platform/embedded/tamago/nativefabric/configuration_arena_test.go\", \"platform/embedded/tamago/nativefabric/verify.py\", \"platform/embedded/tamago/run.py\", \"scripts/affected.py\", \"tests/test_nano_computer.py\", \"tests/test_nano_cpu_mapping.py\", \"tests/test_nano_hps_context.py\", \"tests/test_test_changed.py\"]"
+      ],
+      "verification_mode": "same-selected-suite-partitioned-by-module",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 225.5642916120123,
+      "log_sha256": "d1b2932e962821ad32dc830cf012f156b6c5529effc647edccb08aa89a6dbb48",
+      "child_receipt_sha256": "25f6f4a2e0ab5e0ecf39afe4bfc26b92b7b6073d93ac0b9d0aeca593cb8d6c58"
+    },
+    {
+      "index": 5,
+      "label": "working-tree generated consumer consistency",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "log": "software-5.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.404165592044592,
+      "log_sha256": "0abb26569563f932801c46ce2685573dd4f24c3301287f939963f0e6407a41cd",
+      "child_receipt_sha256": "07d6c7a0787d05e09039814ed1b9ac27e2c396529d7d68e4b4235032d30bd1ba"
+    },
+    {
+      "index": 6,
+      "label": "native runtime firmware and FPGA launch integration",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "log": "software-6.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 53.24056850397028,
+      "log_sha256": "cafcd01d1c860380c47ba793ff0f826ae0313da38fd9b13f8ddfdaacc7af7094",
+      "child_receipt_sha256": "258e7a0fd7b75f33a832626e2b69a5d33b4caf36c603b58fd5856f2aacf8a74b"
+    }
+  ],
+  "parent_selected_tests": 1319,
+  "parent_partition_cap_seconds": 300,
+  "parent_partitions": [
+    {
+      "index": 0,
+      "selected_tests": 440,
+      "elapsed": 102.47333932493348,
+      "log_sha256": "32ac24abf3e764710c530e53a9e3201e06b4fc7340c22022d6af7064353865fb"
+    },
+    {
+      "index": 1,
+      "selected_tests": 440,
+      "elapsed": 79.66248859302141,
+      "log_sha256": "f8029b2069ad67d979797424a0ef71d27c0081c6e6031f667d0c0668af720062"
+    },
+    {
+      "index": 2,
+      "selected_tests": 439,
+      "elapsed": 43.0345841270173,
+      "log_sha256": "cdab08a99ff7da5a19c3cec97b859ff6f56a2cce48ebf90f2597b8c5496b1e07"
+    }
+  ],
+  "skipped": [
+    [
+      "test_gpu_lease.GpuLeaseTests.test_macos_statfs_reports_the_lease_filesystem",
+      "statfs(2) layout is the macOS one"
+    ],
+    [
+      "test_media_inputs.UbootDerivationTest.test_locked_upstream_derives_locked_uboot",
+      "locked upstream uboot.img cache is absent"
+    ]
+  ],
+  "controller_fault_cases": 122,
+  "stateful_upload_cases": 18,
+  "qemu_mapping": {
+    "sctlr": 12916797,
+    "mmfr0": 4386,
+    "mpidr": 2147483648,
+    "table_reads": 3840,
+    "translations": 5648,
+    "descriptor_sha256": "5e8137c57614e6d1ed03570f873f3849336bcb59fda528ff306b987d787232a3",
+    "mapping_only": true,
+    "physical_admission": false
+  },
+  "additional_checks": {
+    "map-and-arena-v3": {
+      "argv": [
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=90s",
+        "./board/arm64map",
+        "./nativefabric"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.202206108951941,
+      "log_sha256": "9861a0a5f074740389d01435dd3f52e61219d08be7e735a0e26b85fee3e4aeef"
+    },
+    "native-entry-mapcheck-final": {
+      "argv": [
+        "python3",
+        "platform/embedded/tamago/run.py",
+        "mapcheck",
+        "--compiler",
+        "out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+        "--qemu",
+        "out/bootchain-tools/root/usr/bin/qemu-system-aarch64",
+        "--output",
+        "out/nano-cpu-map-20261102/qemu-mapcheck-final",
+        "--timeout",
+        "60"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.6008513040142134,
+      "log_sha256": "99cce6b28480416107073d95fa18e719fbc898bc5a8ee76fc8d45a1203a6dc41"
+    },
+    "make-check": {
+      "argv": [
+        "make",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.804856758913957,
+      "log_sha256": "0513025f57336f9224c65faa7c52572f22ae4e37d9d989953c7dbef076f0bfcf"
+    },
+    "selection-final": {
+      "argv": [
+        "python3",
+        "out/nano-cpu-map-20261102/check_selection.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.40095997403841466,
+      "log_sha256": "d2e24a36731b271d01be2ed2bba21e6886cf9154baf80c7a864cf966afbc2b6f"
+    },
+    "selection-native-inputs-v2": {
+      "argv": [
+        "python3",
+        "out/nano-cpu-map-20261102/selected_inputs.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.6013312729774043,
+      "log_sha256": "9254e9a14f9c8baa6397953c631a29699008e77218451785b334a17bd6d842be"
+    },
+    "postcheck": {
+      "argv": [
+        "sudo",
+        "-n",
+        "python3",
+        "out/nano-cpu-map-20261102/audit_trial.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20097659609746188,
+      "log_sha256": "90f15272f18efa36c060410a3356fcda5a9130ee65af1852f1a3754c612756c1"
+    }
+  },
+  "full_evidence_root": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cpu-map-20261102",
+  "software_evidence_root": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cpu-map-checks-final-20261103",
+  "runtime_admission": false
+}

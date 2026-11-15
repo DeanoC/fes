@@ -1,0 +1,43 @@
+{
+  "status": "failed",
+  "classification": "emulated network diagnostic",
+  "sources": {
+    "platform/embedded/zephyr/CMakeLists.txt": "088bbf9ae523ac16d463b04f28cc793b31ce314c3a6ce23d7989f60c434a2ff4",
+    "platform/embedded/zephyr/README.md": "1f5027f5e22589b7cb2bf4ed5c9c207dc6a7c1e28342582ce33ca22ba088c1b2",
+    "platform/embedded/zephyr/app.overlay": "6b5c74fe35d749d1274aaccc769912d88b0192f6e87c05c455b427bf3028fc4e",
+    "platform/embedded/zephyr/make_disk.py": "743d1d8c3caa96537b099a12175177e935cd9ac2f1acd5cd294b74395a3e2969",
+    "platform/embedded/zephyr/prj.conf": "01450ca5033eb4a551cf1f2a83b042df9c61ce5bc9065e331aaef57aaddefb6f",
+    "platform/embedded/zephyr/src/main.c": "1dce5cbe0764df22870f1afd39381fb0a29d1e00b3519f63dd890978cd5a64aa",
+    "platform/embedded/zephyr/verify.py": "79870ec93802d796ea6d8fe5e2c65bb8cd0ee2d79a32cd0e881399c4f5eeef26"
+  },
+  "elf_sha256": "728d78a1d3d96a070c5f4b68a49a7180ddb4b1335fccd0ac190998838173b6be",
+  "commands": [
+    [
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64",
+      "-machine",
+      "virt,gic-version=3",
+      "-cpu",
+      "cortex-a53",
+      "-m",
+      "128M",
+      "-smp",
+      "1",
+      "-nographic",
+      "-monitor",
+      "none",
+      "-kernel",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/build/zephyr/zephyr.elf",
+      "-netdev",
+      "user,id=network,hostfwd=tcp:127.0.0.1:56743-10.0.2.15:4242",
+      "-device",
+      "e1000,netdev=network,addr=1",
+      "-drive",
+      "if=none,id=storage,file=/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/good.img,format=raw",
+      "-device",
+      "nvme,drive=storage,serial=FESBASE,addr=2"
+    ]
+  ],
+  "storage_receipt": "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-base-storage-exact-config/result.json",
+  "error": "network: TCP readiness deadline; inspect console",
+  "elapsed_seconds": 25.361
+}

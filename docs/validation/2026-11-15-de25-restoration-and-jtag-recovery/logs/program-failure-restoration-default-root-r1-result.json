@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/four-second-program-failure-files-restoration/run_restoration.py",
+    "--procedure-sha256",
+    "f9f0b77cd1e82901f2b45f2239214ee46501ed819440462a198f870defd47cf3"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 3.0024099578149617,
+  "log_sha256": "f6673c2c70cdeb22c2dfa091015def476ceda77d17781a9a2c6dc569abdea85b"
+}

@@ -1,0 +1,33 @@
+{
+  "archive": "/home/deano/fes-retained/de25-window-scheduler-20261101/builds.tar.gz",
+  "size": 148155672,
+  "sha256": "c5f6275dfc559f11dab78bf31e4be2bdb462a97ef5b6a27d75176941e1cce996",
+  "members": 43681,
+  "every_member_verified": true,
+  "source": {
+    "source_commit": "f1776384dd3a85d1fb36d5d8c3a8267001607725",
+    "tree": "35a38b6784ce7141a97645ce1bf2b43917824e44",
+    "bundle_sha256": "38787567845359f86af6bf5a272266c7e0717a35d939aef2d5a9a594df50a1be",
+    "prerequisite_commit": "e8d0520dd1f209fa5135c50cafd70006774655c8",
+    "previous_object_store": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-20261101/source-restore.git",
+    "alternate_object_stores": [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-physical-core-20261101/source-restore/.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-context-20261101/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cpu-fpga-20261101/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-fpga-ready-20261101/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-phase2-20261101/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-phase2-timing-20261101/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-digest-native-20261101/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mailbox-20261101/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mailbox-parser-20261101/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-header-response-20261101/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-20261101/source-restore.git/objects"
+    ],
+    "restored_tree_verified": true,
+    "verified_reachable_objects": 8461,
+    "missing_objects": 0,
+    "scope": "incremental bundle; requires the documented prior source-retention chain"
+  },
+  "manifest_sha256": "37a49dd5550a81748126ce5544ce2e51f7452360c98d024642be0c522b6b537f",
+  "prior_retention": "/home/deano/fes-retained/de25-window-20261101"
+}

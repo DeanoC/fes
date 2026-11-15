@@ -1,0 +1,78 @@
+{
+  "status": "passed-host-observer-checkpoint",
+  "base": "ec70fb277",
+  "parent_tests": 1945,
+  "parent_skips": 3,
+  "final_focused_tests": 84,
+  "final_focused_includes_ordering_followup": true,
+  "broad_run_started_before_last_ordering_fix": true,
+  "historical_physical_capture_replays": [
+    "first-install",
+    "reboot-discovery"
+  ],
+  "models": {
+    "status": "passed-model-replay",
+    "models": [
+      {
+        "mode": "install",
+        "replay": {
+          "status": "passed-saved-installer-wire-and-poll-times",
+          "discovered": false,
+          "commands": 21,
+          "polling_offers": 21,
+          "hardware_actions": false,
+          "live_authority": false,
+          "persistence_verified": false
+        },
+        "raw_sha256": "9f2c19d9a372b4bfbfeb5b13deb885492905310a802ab43874d05ed56daa72be",
+        "raw_bytes": 149305,
+        "exit_generation": 7,
+        "final_firmware_generation": 41,
+        "menu_sessions": 5,
+        "retired": true,
+        "hardware_actions": false
+      },
+      {
+        "mode": "discovery",
+        "replay": {
+          "status": "passed-saved-installer-wire-and-poll-times",
+          "discovered": true,
+          "commands": 19,
+          "polling_offers": 19,
+          "hardware_actions": false,
+          "live_authority": false,
+          "persistence_verified": false
+        },
+        "raw_sha256": "0ecd237fccc8208de53ba98e039e8147aa2fd278578c9e559db5a5ba8c992af2",
+        "raw_bytes": 122123,
+        "exit_generation": 5,
+        "final_firmware_generation": 29,
+        "menu_sessions": 3,
+        "retired": true,
+        "hardware_actions": false
+      }
+    ],
+    "hardware_actions": false,
+    "persistence_verified": false
+  },
+  "target_selected_sources_unchanged": true,
+  "target_code_commit": "e4e695d5b",
+  "target_native_boot_id": "fc2cec132701a0d8",
+  "target_elf_sha256": "4de7353e848df49333fdc314b0f12d33f34f4f23ff8907e4c72c718aeaddd344",
+  "hardware_actions": false,
+  "two_core_hardware_acceptance": false,
+  "fresh_prior_record_readback_verified": false,
+  "operator_live_admission": false,
+  "retention": "/home/deano/fes-retained/de25-catalog-observer-20261111-r1",
+  "changed_source_sha256": {
+    "platform/embedded/nano/README.md": "386e66f2488cb9416686d55541adb637f1a8a01daf8b38c80cad31eb010f59d5",
+    "platform/embedded/nano/installer_client.py": "2779ed66df2900335790f154397712907020aa055454a6b1ddbbde1f0477be07",
+    "platform/embedded/nano/installer_cycle.py": "cf5d01a3b370a58cba1be7f7e929fa0b50d83a982f8e9fed89324e8d53c1cd21",
+    "platform/embedded/nano/installer_recovery.py": "e0dbdaded2fa7925ebafae07ca2e9cd1495c6523849a039152c9c548065a8005",
+    "platform/embedded/nano/paired_tenfoot_trace.py": "c2c242bd3d61cf103ce85302f39b94440a760cd40306946d2c4286e97264b67e",
+    "tests/test_nano_installer_client.py": "49439161e4a82220b0534afc29dc99e215f272f0bb3795025ba6f9747bfb792d",
+    "tests/test_nano_installer_cycle.py": "4f05fe9687e0ee3ee284e30d283aa967698a19dbe3ceffd72b99ad89881996f3",
+    "tests/test_nano_installer_recovery.py": "055e72849670d44fd1cb52051da60e9b6456b918355ddb1a546ea05a1db5fe25",
+    "tests/test_nano_installer_catalog.py": "cdd21d714c15a9bda7673ea7dcb5587d77ab1bf9f39d9615bb4462c63fad5a7b"
+  }
+}

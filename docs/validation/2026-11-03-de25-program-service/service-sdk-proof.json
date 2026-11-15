@@ -1,0 +1,51 @@
+{
+  "status": "passed",
+  "source_commit": "af37a76aed47e049b0a70909026dd55cce567b1a",
+  "native_elf_sha256": "731a6dba5c8b3598cec879ca5cdaf721fdd81d1688615c902ee044295ab6ca9d",
+  "scope": "actual native request loop, service calls and board UART polling; host-only linked proof",
+  "functions": {
+    "main.main": {
+      "symbol": "main.main",
+      "disassembly_sha256": "0630d9333bb7da77f02859075786656b2263aa5f73a9d666ff1d436c54c71475"
+    },
+    "main.servePrograms": {
+      "symbol": "main.servePrograms",
+      "disassembly_sha256": "fcfd3c1fdb79cd4572cb40faf9efccd7e7c51dac4ec17f0183889e8b142b5581"
+    },
+    "/nativefabric.NewProgramService": {
+      "symbol": "github.com/DeanoC/fes/platform/embedded/tamago/nativefabric.NewProgramService",
+      "disassembly_sha256": "906ed5a949fad1724cffccdc4112ac95b20fa6545fa33ed51fed47b824958df2"
+    },
+    "/nativefabric.(*ProgramService).Launch": {
+      "symbol": "github.com/DeanoC/fes/platform/embedded/tamago/nativefabric.(*ProgramService).Launch",
+      "disassembly_sha256": "ca5a9366e2f56d7514eb3fc8f6fc929709dc1f6700a381c190c22b43a9bc3829"
+    },
+    "/nativefabric.(*ProgramService).finish": {
+      "symbol": "github.com/DeanoC/fes/platform/embedded/tamago/nativefabric.(*ProgramService).finish",
+      "disassembly_sha256": "00473bd56c58197df69b1d8f88f2d5f29b7d90938d627807e6e0ffcae6f2775f"
+    },
+    "/nativefabric.(*programService).configure": {
+      "symbol": "github.com/DeanoC/fes/platform/embedded/tamago/nativefabric.(*programService).configure",
+      "disassembly_sha256": "384f19d9ddd2f6bfb732e33009952c539a70eda621a63cac4710e14fdcad0ac6"
+    },
+    "/nativefabric.(*ProgramConsole).Handle": {
+      "symbol": "github.com/DeanoC/fes/platform/embedded/tamago/nativefabric.(*ProgramConsole).Handle",
+      "disassembly_sha256": "8b87b51f137e9660196d515e4c0895c2dc1e579937f65d121426b86519f48709"
+    },
+    "/serial.read.abi0": {
+      "symbol": "github.com/DeanoC/fes/platform/embedded/tamago/serial.read.abi0",
+      "disassembly_sha256": "c0669fec4c2d90ef2dd91ad5c89daf297f48ee95c7a30ca7d65682ef353aaa81"
+    }
+  },
+  "selected_mode_flags_linked": true,
+  "catalogue_files_external": true,
+  "fixed_load_count_removed_from_selected_mode": true,
+  "ordinary_runtime_admission": false,
+  "hardware_acceptance": false,
+  "input_sha256": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-service-20261103/native-sdk/fpgaload.elf": "731a6dba5c8b3598cec879ca5cdaf721fdd81d1688615c902ee044295ab6ca9d",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-service-20261103/native-sdk/result.json": "9338c667f9ae93a9160683ac29e4f0f164a232195db793f57363debdfcb107f4",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-service-20261103/selected-sdk-proof.json": "38ab6d4c0a6a853fc2d8ff9711fe551c4f4c00429cd6c5481b536201dde62bf3",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-service-20261103/check_service_sdk.py": "8dc15bd0141b2f2d535f03f2cbc70148e9dd881e3ffd20effd8a0d645b7c030e"
+  }
+}

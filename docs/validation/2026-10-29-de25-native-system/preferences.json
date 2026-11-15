@@ -1,0 +1,6 @@
+{
+  "safe_area_pct": 0.05,
+  "layout": "shelf",
+  "attract_enabled": false,
+  "home": "library"
+}

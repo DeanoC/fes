@@ -1,0 +1,18 @@
+{
+  "status": "passed-actual-format14-wire-program-replay-and-restoration-retention",
+  "archive": "/home/deano/fes-retained/de25-secure-reader-physical-20261114-r1/physical-trial.tar.gz",
+  "archive_sha256": "fb071148e3927472741b7f791bdf59836169607a1be3df30e41bbfa3b5dc66fd",
+  "archive_bytes": 2675197,
+  "dependencies": {
+    "/home/deano/fes-retained/de25-secure-reader-procedure-prepared-20261114-r1/prepared-procedure.tar.gz": "cb74e2eae88c6a77e498a7626ac8dd2bed1477f74185bf1311fb16c637a5911a",
+    "/home/deano/fes-retained/de25-command-snapshot-procedure-prepared-20261113-r1/prepared-procedure.tar.gz": "1b5b82ea534a6af428682a59cad431042173292d3269735fc3b8215dff1bc793",
+    "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/retention-proof.json": "8fe071d0bbf46dac5244de48dc40dcbeddffb7b2eb81df69d817f50916a3ff57",
+    "/home/deano/fes-retained/de25-secure-reader-matched-20261113-r1/matched-chain.tar.gz": "a6fec28fbd3c3d99777679ddd1eb8d5121b9102b199cde742948d11f1d9efd35",
+    "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-boot/retention-result.json": "84f90337e402ab51a5e18ef8763765874be1ca72e8d10db7672e0ed816dc4091"
+  },
+  "baseline_restored": true,
+  "first_retained_secure_reader_menu_verified": true,
+  "source_reuse_authorized": false,
+  "general_core_load_acceptance": false,
+  "physical_monitor_observation": false
+}

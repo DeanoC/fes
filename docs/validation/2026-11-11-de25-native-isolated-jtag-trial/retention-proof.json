@@ -1,0 +1,22 @@
+{
+  "status": "retained-matched-programming-and-firmware-boot-stopped-at-usb",
+  "source_head": "a65a2a1307afde651935e9333ba713d183eb13a4",
+  "files": 183,
+  "archive_sha256": "af3cc583d41e86a9a8f26b4bbd2497b8950342f7659ef72be73180f7e906431e",
+  "source_bundle_sha256": "b0a45c4f1d1bf10af6a509868e143ac71d22f7f8af313ebd452674645aa0bcd6",
+  "base_bundle": "/home/deano/fes-retained/de25-menu-return-observation-20261110-r1/source.bundle",
+  "base_bundle_sha256": "d7166cde75bd88ea7f9d14ac4a5706b55c74cd215cc4f375abd1a5d6661a17d0",
+  "archive_readback_modes_verified": true,
+  "independent_source_restore_verified": true,
+  "strict_fsck_pack_verified": true,
+  "candidate_dependency": {
+    "path": "/home/deano/fes-retained/de25-native-installer-ui-prepared-20261110-r1",
+    "manifest_sha256": "0ccdfa5b0444be22540eb9e6231bb39f24b6f87b1adb925f141a00710b9dfb1d",
+    "retained_archive_sha256": "da7a6b070f39c8d54018a218f882d17f710720cd016e605c5d43b7e1266a956e"
+  },
+  "recovery_and_native_programming_complete": true,
+  "native_firmware_cold_boot_verified": true,
+  "native_app_ready": false,
+  "installer_attempted": false,
+  "core_load_acceptance": false
+}

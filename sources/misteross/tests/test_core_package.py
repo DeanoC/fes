@@ -5,6 +5,7 @@ import tarfile
 import tempfile
 import tomllib
 import unittest
+import copy
 from pathlib import Path
 
 from scripts.core_package import (
@@ -78,6 +79,26 @@ class CorePackageTests(unittest.TestCase):
 
     def tearDown(self):
         self.tempdir.cleanup()
+
+    def test_nano_format2_recognition_is_exact_and_rejects_cyclone_rom_formats(self):
+        fields = tomllib.loads(self.basic_manifest.decode())
+        fields["target"].update(platform="de25_nano", device="A5EB013BB23BE4SCS")
+        manifest = encode_manifest(fields)
+        package = read_package(self._directory(manifest=manifest))
+        self.assertEqual(package.fields["target"], fields["target"])
+        for platform, device in (("de10_nano", "A5EB013BB23BE4SCS"),
+                                 ("de25_nano", "5CSEBA6U23I7"),
+                                 ("de25_nano", "A5EB013BB23BE4SC")):
+            bad = copy.deepcopy(fields)
+            bad["target"].update(platform=platform, device=device)
+            with self.subTest(platform=platform, device=device), self.assertRaises(PackageError):
+                encode_manifest(bad)
+        for version in (3, 4):
+            fixture = ROOT / "tests" / "fixtures" / f"core-bundle-v{version}" / "manifests/valid-basic.toml"
+            bad = tomllib.loads(fixture.read_text())
+            bad["target"].update(platform="de25_nano", device="A5EB013BB23BE4SCS")
+            with self.subTest(version=version), self.assertRaises(PackageError):
+                encode_manifest(bad)
 
     def _directory(self, manifest: bytes | None = None, payload: bytes | None = None) -> Path:
         package = self.work / "package"

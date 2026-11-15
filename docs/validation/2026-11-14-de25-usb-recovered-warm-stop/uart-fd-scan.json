@@ -1,0 +1,7 @@
+{
+  "status": "passed-root-process-FD-scan-UART-free",
+  "device": "/dev/ttyUSB0",
+  "open_handles": [],
+  "processes_scanned": 590,
+  "device_opened": false
+}

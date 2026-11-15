@@ -1,0 +1,1598 @@
+test_binding.py FAIL
+test_actual_large_candidate_and_all_runtime_uploader_bindings (test_binding.Tests.test_actual_large_candidate_and_all_runtime_uploader_bindings) ... ERROR
+test_actual_latest_saved_baseline_replay_with_poisoned_dependency_cache (test_binding.Tests.test_actual_latest_saved_baseline_replay_with_poisoned_dependency_cache) ... ok
+test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) ... 
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='DATA_reply_words') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='arena_base') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='arena_bytes') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='armed_control') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='attempt_scope') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='attempts') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='automatic_reset') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='boot_fit') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='buffers') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='build_tag') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='callback_bytes') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='clock_origin') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='cold_retirement_queue_pointers') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='command_bound_us') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='command_offset') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='compiler_stack_records') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='continuation_attempts') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='continuation_before_configuration_commit') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='continuation_replay') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='continuation_scope') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_DATA_reopen') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_bound') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_client') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_command') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_inflight') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_job') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_mailbox') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_reply_words') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_tables') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_view') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='cpu_source_binding') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='event_offset') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='failure_retry') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='final_counter_owner_scope') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='format') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='generation_advance') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='job_ids') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='mapping_retirement') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='metadata_page') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='mode') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='ordinary_runtime_activation') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='other_streams') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='page_bytes') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='payload_max') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='physical_qualification') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='postconfiguration_control') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='preparation_bound_us') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='prepared_control') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='pretransfer_mailbox') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='queue_cursor') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='reader_route') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='replay') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='reply_selection') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_abort') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_allow_bypass') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_bound_us') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_bound_scope') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_clock') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_completion_bound_us') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_observation') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_observation_added_reads') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_observation_stages') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_ownership') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_policy') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_progress') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_progress_rows') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_publication') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_snapshot') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_snapshot_rows') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_staging_bound_us') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_controls') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_final_validation_bound_us') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_final_validation_origin') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_final_validation_policy') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_fresh_prewrite_registers') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_memory_reuse') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_register_batch_rows') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_table_guard_bytes') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_timing') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_timing_added_clock_reads') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_timing_phases') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='root_offset') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='scope') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='source_access') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='source_base') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='source_digest') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='source_release') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='source_release_bound_us') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='source_stream') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='status') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='table_recheck_words') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='terminal_recovery') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='transfer_bound_us') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='warm_abort') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='warm_arm_writes') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='warm_clock') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='warm_controls') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='warm_mailbox') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='warm_preparation') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='warm_queue_clear') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='warm_remap') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='wire_base') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='foreign_extra') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='boot_fit', field='format') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='boot_fit', field='max_bytes') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='boot_fit', field='readback_base') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='boot_fit', field='scope') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='boot_fit', field='upload_base') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='boot_fit', field='upload_end') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='boot_fit', field='verify_base') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='boot_fit', field='verify_end') ... FAIL
+  test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='boot_fit', field='foreign_extra') ... FAIL
+test_every_foreign_helper_class_and_old_limit_fail_closed (test_binding.Tests.test_every_foreign_helper_class_and_old_limit_fail_closed) ... ok
+
+======================================================================
+ERROR: test_actual_large_candidate_and_all_runtime_uploader_bindings (test_binding.Tests.test_actual_large_candidate_and_all_runtime_uploader_bindings)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 15, in test_actual_large_candidate_and_all_runtime_uploader_bindings
+    c=Capture('native-diagnostic',bundle,closure);self.assertTrue(c.selected);self.assertEqual(c.uboot['native_handoff']['cold_boot_profile']['boot_fit'],fit_layout.CONTRACT)
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/capture_binding.py", line 32, in __init__
+    require(c['phase1_sha256']==image['sha256'],'capture phase-one image differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/capture_binding.py", line 10, in require
+    if not v:raise ValueError(message)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: capture phase-one image differs
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='DATA_reply_words')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='arena_base')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='arena_bytes')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='armed_control')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='attempt_scope')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='attempts')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='automatic_reset')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='boot_fit')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='buffers')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='build_tag')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='callback_bytes')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='clock_origin')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='cold_retirement_queue_pointers')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='command_bound_us')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='command_offset')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='compiler_stack_records')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='continuation_attempts')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='continuation_before_configuration_commit')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='continuation_replay')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='continuation_scope')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_DATA_reopen')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_bound')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_client')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_command')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_inflight')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_job')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_mailbox')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_reply_words')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_tables')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='control_view')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='cpu_source_binding')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='event_offset')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='failure_retry')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='final_counter_owner_scope')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='format')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='generation_advance')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='job_ids')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='mapping_retirement')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='metadata_page')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='mode')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='ordinary_runtime_activation')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='other_streams')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='page_bytes')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='payload_max')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='physical_qualification')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='postconfiguration_control')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='preparation_bound_us')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='prepared_control')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='pretransfer_mailbox')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='queue_cursor')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='reader_route')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='replay')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='reply_selection')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_abort')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_allow_bypass')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_bound_us')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_bound_scope')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_clock')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_completion_bound_us')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_observation')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_observation_added_reads')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_observation_stages')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_ownership')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_policy')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_progress')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_progress_rows')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_publication')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_snapshot')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_snapshot_rows')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_command_staging_bound_us')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_controls')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_final_validation_bound_us')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_final_validation_origin')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_final_validation_policy')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_fresh_prewrite_registers')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_memory_reuse')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_register_batch_rows')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_table_guard_bytes')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_timing')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_timing_added_clock_reads')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='retirement_timing_phases')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='root_offset')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='scope')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='source_access')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='source_base')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='source_digest')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='source_release')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='source_release_bound_us')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='source_stream')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='status')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='table_recheck_words')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='terminal_recovery')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='transfer_bound_us')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='warm_abort')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='warm_arm_writes')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='warm_clock')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='warm_controls')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='warm_mailbox')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='warm_preparation')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='warm_queue_clear')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='warm_remap')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='wire_base')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='sdm_input_transfer', field='foreign_extra')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='boot_fit', field='format')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='boot_fit', field='max_bytes')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='boot_fit', field='readback_base')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='boot_fit', field='scope')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='boot_fit', field='upload_base')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='boot_fit', field='upload_end')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='boot_fit', field='verify_base')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='boot_fit', field='verify_end')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+======================================================================
+FAIL: test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture (test_binding.Tests.test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture) (contract='boot_fit', field='foreign_extra')
+----------------------------------------------------------------------
+ValueError: capture phase-one image differs
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_binding.py", line 48, in test_every_fault_and_boot_contract_field_and_unknown_extra_rejected_before_capture
+    with self.subTest(contract=contract,field=field),patch.object(json,'loads',side_effect=altered),self.assertRaisesRegex(ValueError,'contract'):
+                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "contract" does not match "capture phase-one image differs"
+
+----------------------------------------------------------------------
+Ran 4 tests in 5.704s
+
+FAILED (failures=112, errors=1)
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/publication/check-full-sof-models.py", line 9, in <module>
+    assert r.returncode==0,name;assert b'skipped=' not in r.stdout;rows.append(dict(test=name,tests=int(re.search(rb'Ran (\d+) tests?',r.stdout)[1]),log_sha256=hashlib.sha256(r.stdout).hexdigest()))
+           ^^^^^^^^^^^^^^^
+AssertionError: test_binding.py

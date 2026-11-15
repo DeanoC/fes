@@ -1,0 +1,12 @@
+test_changed_raw_bytes_or_archive_are_not_accepted (test_files_restoration_gate.Tests.test_changed_raw_bytes_or_archive_are_not_accepted) ... ok
+test_failed_wrong_or_native_restorations_reject_even_if_rearchived (test_files_restoration_gate.Tests.test_failed_wrong_or_native_restorations_reject_even_if_rearchived) ... ok
+test_missing_real_restoration_blocks_before_attempt_or_device_observation (test_files_restoration_gate.Tests.test_missing_real_restoration_blocks_before_attempt_or_device_observation) ... ok
+test_old_USB_probe_cannot_supply_file_restoration_authority (test_files_restoration_gate.Tests.test_old_USB_probe_cannot_supply_file_restoration_authority) ... ok
+test_open_UART_or_live_process_and_foreign_candidate_reject (test_files_restoration_gate.Tests.test_open_UART_or_live_process_and_foreign_candidate_reject) ... ok
+test_positive_file_only_fixture_grants_no_native_or_DMA_proof (test_files_restoration_gate.Tests.test_positive_file_only_fixture_grants_no_native_or_DMA_proof) ... ok
+test_snapshot_cannot_hide_empty_dependencies_or_add_authority (test_files_restoration_gate.Tests.test_snapshot_cannot_hide_empty_dependencies_or_add_authority) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.998s
+
+OK

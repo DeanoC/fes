@@ -1,0 +1,47 @@
+{
+  "source": {
+    "repository": "DeanoC/fes",
+    "commit": "c5189ef504b01276651ee531c81d23db90ff7b1a",
+    "file": "platform/embedded/firmware/generated/fes_embedded_control.hpp",
+    "note": "Base FES/runtime revision. This change adds an experimental standalone firmware consumer; production runtime is unchanged. Constants are not hardware acceptance."
+  },
+  "fabric": {
+    "id": "fes.fabric.embedded.control",
+    "major": 1,
+    "minor": 0
+  },
+  "constants": {
+    "FesEmbeddedFirmwareQuery": 3254780672,
+    "FesEmbeddedFirmwareMagic": 1178948419,
+    "FesEmbeddedFirmwareVersion": 65536,
+    "FesEmbeddedFirmwareFeatures": 15,
+    "FesEmbeddedMagic": 1178948421,
+    "FesEmbeddedVersion": 65536,
+    "FesEmbeddedRegMagic": 0,
+    "FesEmbeddedRegVersion": 4,
+    "FesEmbeddedRegAbi": 8,
+    "FesEmbeddedRegBuild0": 12,
+    "FesEmbeddedRegBuild1": 16,
+    "FesEmbeddedRegBuild2": 20,
+    "FesEmbeddedRegBuild3": 24,
+    "FesEmbeddedRegGenerationLo": 28,
+    "FesEmbeddedRegGenerationHi": 32,
+    "FesEmbeddedRegRequestGenerationLo": 36,
+    "FesEmbeddedRegRequestGenerationHi": 40,
+    "FesEmbeddedRegRequestCookieLo": 44,
+    "FesEmbeddedRegRequestCookieHi": 48,
+    "FesEmbeddedRegCommand": 52,
+    "FesEmbeddedRegStatus": 56,
+    "FesEmbeddedRegPending": 60,
+    "FesEmbeddedRegAckGenerationLo": 64,
+    "FesEmbeddedRegAckGenerationHi": 68,
+    "FesEmbeddedRegAckCookieLo": 72,
+    "FesEmbeddedRegAckCookieHi": 76,
+    "FesEmbeddedCommandEnable": 1,
+    "FesEmbeddedCommandDisable": 2,
+    "FesEmbeddedStatusEnabled": 1,
+    "FesEmbeddedStatusDraining": 2,
+    "FesEmbeddedStatusDrained": 4,
+    "FesEmbeddedStatusFault": 8
+  }
+}

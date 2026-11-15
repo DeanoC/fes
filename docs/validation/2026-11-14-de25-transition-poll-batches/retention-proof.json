@@ -1,0 +1,123 @@
+{
+  "status": "passed-independent-archive-readback",
+  "candidate_commit": "35cbbed63f6bffb33ba2a67f75e58a8c6a943693",
+  "archive": "/home/deano/fes-retained/de25-retirement-cost-designs-20261114-r2/software.tar.gz",
+  "archive_sha256": "72302a72bb2db07d403e1aae1db5941e2410fd7f20bda79251ec6dcfdcaafa23",
+  "archive_bytes": 25924139,
+  "files": 3278,
+  "hardware_actions": false,
+  "classification": "sanitized models, injected costs, standalone AArch64 objects and host firmware/native hooks; no matched boot image or hardware acceptance",
+  "host_integration_scope": "three completed group logs plus four separately completed source-bound groups; original full verifier remains timed out, not passed",
+  "experiments": "all private timing/owned-batch prototypes are unadmitted; only transition-poll batching selected",
+  "source_bundle_prerequisite": "5764c9495b6597da306546879194100021986a37; frozen tested source retained in the table-batch prepared archives",
+  "checks": {
+    "retire-ownership-cost-design": {
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 10.806193297030404,
+      "log_sha256": "fd13fd87db5fb19845a4cf9e4e0ce607d2d76b4d0fbefeb5882d22f02b950e87"
+    },
+    "retire-owned-batch-design": {
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.002756664995104,
+      "log_sha256": "167d422eea31f2ae504fef3fc5fc94361b4897ffc37baa2d37f6b74073c9a90a"
+    },
+    "retire-publication-bound-prototype": {
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.802850028965622,
+      "log_sha256": "6acdb10b256c51ad70b5d1d7db4f5f109cc6269f6885f9a4418ebf91eba117ed"
+    },
+    "retire-parent-budget-design": {
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.003170919138938,
+      "log_sha256": "77df8aee2a3d4d4c58a66d2706cd8f60172c6c37e298bb1efbf56191e7f17a15"
+    },
+    "retire-scoped-batch-bound-design": {
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.802789378911257,
+      "log_sha256": "03868d01c58c4b9f2e830e43f7c2529d436c57ca3454475b789da5d93f9578ff"
+    },
+    "retire-terminal-view-design": {
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.8026323572266847,
+      "log_sha256": "d2331ffe33712b8f4188db07d805aff857778fdbfd411b8e19a6317892917ac8"
+    },
+    "retire-transition-batch-focused": {
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.0012317588552833,
+      "log_sha256": "924a254c446dcb43bb2eb4c0cd4dc33effe2e7bb245ab632780a2cc3464ef7a2"
+    },
+    "retire-transition-batch-suite": {
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 87.257212911034,
+      "log_sha256": "0a54b6e4a9dafe4fd32b07c8d4266ef6cad70deaca613c76fd97ada24f572c80"
+    },
+    "retire-transition-batch-cost-cross": {
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 11.611661913106218,
+      "log_sha256": "fe75219731fdcc41e44470c5ac84f1e5959dbc87a90f50262bf85f872d1e0d01"
+    },
+    "retire-transition-input-profile": {
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20107370405457914,
+      "log_sha256": "b9c704355b3425dfbce047ef751e18d0afa2416336e9b48b88a9fb6763702c1e"
+    },
+    "retire-transition-consistency": {
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 8.804630073020235,
+      "log_sha256": "c811b799b0f8896889f012cbbfb30c433d6d7b67f85726c431f56ea661d4c07b"
+    },
+    "retire-transition-firmware-verify": {
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 9.805958876851946,
+      "log_sha256": "f41d2c22c2e62679e91121b1104e3b1ef7e7576bfbb59e85c52ea2f4d72107c9"
+    },
+    "retire-transition-committed-check": {
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 11.206819613929838,
+      "log_sha256": "4ffe37a0582de7ca316571feada015e041e0fcc1e04f967bf1c719a8c98bc0bc"
+    },
+    "retire-transition-native-hooks": {
+      "returncode": -15,
+      "timed_out": true,
+      "elapsed": 180.10034283413552,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "retire-transition-native-remaining": {
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 104.65536088286899,
+      "log_sha256": "6aab0617d85db7ae244739cf576301a7272ad75ee850e7f19e131f4de16aa3f4"
+    },
+    "retire-transition-final-retirement-suite": {
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 114.34302160190418,
+      "log_sha256": "c47db7f323854dd6326d31245e6e7a0548e1a5e93925398aec6f0df25a012a1f"
+    },
+    "retire-transition-final-cost-cross": {
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 10.805651735980064,
+      "log_sha256": "fe75219731fdcc41e44470c5ac84f1e5959dbc87a90f50262bf85f872d1e0d01"
+    },
+    "retire-transition-retention": {
+      "returncode": 1,
+      "timed_out": false,
+      "elapsed": 0.20061079412698746,
+      "log_sha256": "b222f86b1ddb4ba51f51a7368fd86be5946bada6123d16dda50405e0c51161e8"
+    }
+  }
+}

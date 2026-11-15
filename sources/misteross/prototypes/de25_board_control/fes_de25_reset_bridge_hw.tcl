@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+package require -exact qsys 20.1
+set_module_property NAME fes_de25_reset_bridge
+set_module_property VERSION 1.0
+set_module_property DISPLAY_NAME "FES qualified memory/device reset bridge"
+set_module_property INSTANTIATE_IN_SYSTEM_MODULE true
+set_module_property EDITABLE false
+add_fileset QUARTUS_SYNTH QUARTUS_SYNTH
+set_fileset_property QUARTUS_SYNTH TOP_LEVEL fes_de25_reset_bridge
+add_fileset_file fes_de25_reset_bridge.sv SYSTEM_VERILOG PATH fes_de25_reset_bridge.sv TOP_LEVEL_FILE
+add_interface clk clock sink
+add_interface_port clk clk clk Input 1
+add_interface in_reset reset sink
+set_interface_property in_reset associatedClock clk
+set_interface_property in_reset synchronousEdges DEASSERT
+add_interface_port in_reset in_reset_n reset_n Input 1
+add_interface_port in_reset in_reset_req reset_req Input 1
+add_interface out_reset reset source
+set_interface_property out_reset associatedClock clk
+set_interface_property out_reset synchronousEdges DEASSERT
+set_interface_property out_reset associatedResetSinks in_reset
+add_interface_port out_reset out_reset_n reset_n Output 1

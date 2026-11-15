@@ -1,0 +1,238 @@
+{
+  "status": "passed-read-only-original-files-and-baseline-restoration-after-host-refresh-stop",
+  "restoration_procedure_sha256": "f73e1395331417f348dd832f2665d333be57f5c1f8d9b63c2a1707d5b8f24f12",
+  "failed_trial_procedure_sha256": "2af464ad0bf0befe0c783d90397363c8db30f3b679564f44f0757e525ffc2006",
+  "failed_trial_archive_sha256": "9d8a3b013b6caadfb14a824cf60407a21029b82a5af22e03afe985a73ddb6251",
+  "elapsed_seconds": 520.4874195540324,
+  "original_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+  "original_phase1_sha256": "c01c97dde2fe75ce7e6145ccce2a52b6fa8449f43731ba0bd2ce94cbfc3d91d4",
+  "original_FIT_verified_by_read_only_audit_and_sealed_SPL": true,
+  "all_17_original_file_readbacks_verified": true,
+  "read_only_original_file_proof": {
+    "status": "verified-read-only-original-files",
+    "files": 17,
+    "original_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+    "SD_writes": 0,
+    "network_commands": 0,
+    "activation": false,
+    "native_boot_verified": false
+  },
+  "actual_nonce_bound_original_file_wire": {
+    "status": "passed-actual-nonce-bound-read-only-original-file-wire",
+    "files": [
+      {
+        "key": "6581aab8a5b415a8dceac77198cbb104d76108f9ae38a34ba45f164a630c891d",
+        "destination": "FES/INSTALLED/6581aab8a5b415a8dceac77198cbb104d76108f9ae38a34ba45f164a630c891d.JSN",
+        "sha256": "6581aab8a5b415a8dceac77198cbb104d76108f9ae38a34ba45f164a630c891d",
+        "bytes": 754
+      },
+      {
+        "key": "3667b4b5af2f1540e4f8bd53e577e17b99d22255569c2b8f83b1e0f2092fef8f",
+        "destination": "FES/INSTALLED/3667b4b5af2f1540e4f8bd53e577e17b99d22255569c2b8f83b1e0f2092fef8f.JSN",
+        "sha256": "3667b4b5af2f1540e4f8bd53e577e17b99d22255569c2b8f83b1e0f2092fef8f",
+        "bytes": 940
+      },
+      {
+        "key": "ed7a3e61d7fc989187b4932f239ed59fec64d527ebe396365cc0739e7aa75a85",
+        "destination": "FES/INSTALLED/ed7a3e61d7fc989187b4932f239ed59fec64d527ebe396365cc0739e7aa75a85.JSN",
+        "sha256": "ed7a3e61d7fc989187b4932f239ed59fec64d527ebe396365cc0739e7aa75a85",
+        "bytes": 754
+      },
+      {
+        "key": "boot",
+        "destination": "FES/UPLOAD.BIN",
+        "sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+        "bytes": 8379072
+      },
+      {
+        "key": "package",
+        "destination": "FES/PKGTEST.BIN",
+        "sha256": "191f63a663d2ce12a83bc499e2a6f89332732a260b2bb3e0c8daf2ff71ecd5b7",
+        "bytes": 1659392
+      },
+      {
+        "key": "metadata",
+        "destination": "FES/PROGRAM.JSN",
+        "sha256": "f03276391ec2ff380cc1be67633bed840b4908520a3dd4a84394ccedba00c26c",
+        "bytes": 3269
+      },
+      {
+        "key": "firmware",
+        "destination": "FES/FIRMWARE.BIN",
+        "sha256": "14ad84f4243efcd41587ff46ab932d11087043e8d455a1ed2a227b9657828dfa",
+        "bytes": 8192
+      },
+      {
+        "key": "package-alt",
+        "destination": "FES/PKGALT.BIN",
+        "sha256": "b46b3af120e9ef853220a9404b2fa5a9607df660c5a76e94e86031ea08d5e042",
+        "bytes": 1663488
+      },
+      {
+        "key": "metadata-alt",
+        "destination": "FES/PROGALT.JSN",
+        "sha256": "223955a3ec1bc9c148775a00eac598c81a037bc9f10c4944f8336fadc5673820",
+        "bytes": 3269
+      },
+      {
+        "key": "firmware-alt",
+        "destination": "FES/FIRMALT.BIN",
+        "sha256": "9374711cb6a5fd53c1c98d1d20ecb444d01d621a322f3d066ef216d515ac5161",
+        "bytes": 4096
+      },
+      {
+        "key": "tape",
+        "destination": "FES/GAME.P",
+        "sha256": "3664f171999bf597cc284754ac8f7ad2071bafd78fb1cd48c330d82dfbebaabb",
+        "bytes": 917
+      },
+      {
+        "key": "menu-package",
+        "destination": "FES/MENU.FCP",
+        "sha256": "8be58f92484c004da30cbf66c1beccf86252b0b1c2483d8384defc16a833c9b1",
+        "bytes": 1711104
+      },
+      {
+        "key": "menu-metadata",
+        "destination": "FES/MENU.JSN",
+        "sha256": "c751e4160e7ac440284e76672c849a23113d8422621a0a1f0fc64c1976e145c9",
+        "bytes": 2676
+      },
+      {
+        "key": "menu-selection",
+        "destination": "FES/MENUSEL.JSN",
+        "sha256": "03e353539c17319e89bf457d81624a32c5aedd28a19fd79828013c888d7e0365",
+        "bytes": 282
+      },
+      {
+        "key": "selection",
+        "destination": "FES/CORESEL.JSN",
+        "sha256": "b003ab10e32b3bb3121d910557bdfb9d1083c77cc05e933beaed67eb6d4ae09a",
+        "bytes": 63
+      },
+      {
+        "key": "ui-catalog",
+        "destination": "FES/UI.JSON",
+        "sha256": "3dd321e5e3af4ed77e2051f4c5c1e8e7cf049bc40e113afca00d3494eaacb1b0",
+        "bytes": 60
+      },
+      {
+        "key": "install-manifest",
+        "destination": "FES/INSTALL.JSN",
+        "sha256": "9cb348531e8d756312aad0a136611d874aeeccde525ef12419ac421c4f254dc0",
+        "bytes": 1817
+      }
+    ],
+    "raw_sha256": "66b1513d9ddf455a8c89fdbbc5e3d9c693588093e0909b213968b93dd5a1047e",
+    "raw_bytes": 118295,
+    "raw_commands": 383,
+    "file_receipt_commands": 376,
+    "SD_writes": 0,
+    "network_commands": 0,
+    "activation": false,
+    "native_boot_verified": false
+  },
+  "read_only_reset_gate": {
+    "status": "passed-read-only-NS-SMMU-reset-gate",
+    "commands": [
+      {
+        "command": "md.l 16000020 4",
+        "words": {
+          "369098784": 0,
+          "369098788": 0,
+          "369098792": 0,
+          "369098796": 4
+        }
+      },
+      {
+        "command": "md.l 16000044 2",
+        "words": {
+          "369098820": 0,
+          "369098824": 0
+        }
+      },
+      {
+        "command": "md.l 16000060 2",
+        "words": {
+          "369098848": 0,
+          "369098852": 0
+        }
+      },
+      {
+        "command": "md.l 16000080 3",
+        "words": {
+          "369098880": 0,
+          "369098884": 0,
+          "369098888": 0
+        }
+      },
+      {
+        "command": "md.l 16000090 4",
+        "words": {
+          "369098896": 0,
+          "369098900": 0,
+          "369098904": 0,
+          "369098908": 0
+        }
+      },
+      {
+        "command": "md.l 160000a0 2",
+        "words": {
+          "369098912": 0,
+          "369098916": 0
+        }
+      },
+      {
+        "command": "md.l 160100a8 2",
+        "words": {
+          "369164456": 0,
+          "369164460": 0
+        }
+      }
+    ],
+    "reads": 19,
+    "elapsed_seconds": 2.6231020600534976,
+    "register_writes": 0,
+    "network_commands": 0,
+    "SD_writes": 0,
+    "secure_bank_examined": false,
+    "reset_domain_qualified": false,
+    "DMA_authority": false
+  },
+  "SD_refresh_attempted": false,
+  "SD_image_writes": 0,
+  "network_commands_in_audit": 0,
+  "baseline_boot_verified": true,
+  "baseline_cycle_commands": 51,
+  "baseline_exit_generation": 5,
+  "baseline_final_Park_verified": true,
+  "independent_saved_wire_replay": {
+    "status": "passed-saved-installer-wire-and-poll-times",
+    "discovered": true,
+    "commands": 51,
+    "polling_offers": 502,
+    "hardware_actions": false,
+    "live_authority": false,
+    "persistence_verified": false
+  },
+  "program_and_wire_witness": {
+    "boot_boundary_verified": true,
+    "console_sha256": "a4c6c072dedcff09d449203d95330e8b4e9781c732a056eb9e2183a88820d6fd",
+    "all_wire_sha256": "cc2ca8017d9f24fc5da60d4fb299862a226d51f8b9409ce16018c7bc8694d02c",
+    "completed_program_epoch": "1606149:168726294"
+  },
+  "owned_process_records": 8,
+  "owned_processes_stopped": true,
+  "UART_closed_and_free": true,
+  "USB_identity_inode_permissions_restored": true,
+  "JTAG_auto_1_15M": true,
+  "after_fresh_human_confirmed_power_cycle": true,
+  "failed_diagnostic_retried": false,
+  "candidate_native_programming_issued": false,
+  "new_firmware_accepted": false,
+  "last_verified_board_state": "original native baseline final Park",
+  "general_core_load_acceptance": false,
+  "permanent_QSPI_written": false,
+  "factory_card_changed": false,
+  "bottom_kit_touched": false
+}

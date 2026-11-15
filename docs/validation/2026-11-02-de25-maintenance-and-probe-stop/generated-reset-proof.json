@@ -1,0 +1,25 @@
+{
+  "status": "passed",
+  "classification": "structural check of emitted reset HDL; additional synthesis-view interconnect model; no physical master containment",
+  "generation_head": "97d31dc534c4f0bcd429aa895c5c2462bee6f8ae",
+  "observed_from_head": "5db657c145376d0348c775ba82189d30f384ee6c",
+  "reset_net": "subsys_periph_fes_maintenance_reset_reset",
+  "held_maintenance_managers": [
+    "fpga_m",
+    "hps_f2sdram",
+    "hps_m"
+  ],
+  "source_sha256": {
+    "out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/synth/qsys_top.v": "02b9f33d34105777a5ca538651e47fd918498a33436fd71341ee8a879e8f5fb1",
+    "out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v": "de2e1debf30b297c97660407ab1b06530646190c131b52d64fce960b365472f7",
+    "out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/jtag_subsys/jtag_subsys/synth/jtag_subsys.v": "3a1c900c6731a6ce837ea1635ae1ebb41ce0b75de625f86ace9478b8368b552a",
+    "out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/fes_mailbox/fes_de25_embedded.sv": "e8a8f0f41aca9dfce55ef7177a5cbecefa410d849b93c6ce4547d159f4aa2f26"
+  },
+  "cpu_control_model": {
+    "status": "passed",
+    "cpu_reads_with_maintenance_reset_held": 3,
+    "cpu_writes_with_maintenance_reset_held": 3,
+    "hardware_access": false
+  },
+  "cpu_control_test_head": "e5aa8d617f9879587f00bc01d903a9848a3f2b3b"
+}

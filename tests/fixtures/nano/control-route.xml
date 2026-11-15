@@ -1,0 +1,41 @@
+<?xml version='1.0' encoding='utf-8'?>
+<EnsembleReport>
+  <connection name="subsys_periph_pb_cpu_0.m0/subsys_periph_fes_embedded.avs" kind="avalon" version="26.3" start="subsys_periph_pb_cpu_0.m0" end="subsys_periph_fes_embedded.avs">
+    <parameter name="baseAddress">
+      <type>java.math.BigInteger</type>
+      <value>0x00010400</value>
+      <derived>false</derived>
+      <enabled>true</enabled>
+      <visible>true</visible>
+      <valid>true</valid>
+    </parameter>
+    <parameter name="addressMapSysInfo">
+      <type>com.altera.entityinterfaces.moduleext.AddressMap</type>
+      <value />
+      <derived>true</derived>
+      <enabled>true</enabled>
+      <visible>false</visible>
+      <valid>true</valid>
+      <sysinfo_type>ADDRESS_MAP</sysinfo_type>
+    </parameter>
+  </connection>
+  <connection name="subsys_hps_agilex_hps.lwhps2fpga/subsys_periph_pb_cpu_0.s0" kind="avalon" version="26.3" start="subsys_hps_agilex_hps.lwhps2fpga" end="subsys_periph_pb_cpu_0.s0">
+    <parameter name="baseAddress">
+      <type>java.math.BigInteger</type>
+      <value>0x0000</value>
+      <derived>false</derived>
+      <enabled>true</enabled>
+      <visible>true</visible>
+      <valid>true</valid>
+    </parameter>
+    <parameter name="addressMapSysInfo">
+      <type>com.altera.entityinterfaces.moduleext.AddressMap</type>
+      <value>&lt;address-map&gt;&lt;slave name='subsys_periph.sysid.control_slave' start='0x10000' end='0x10008' datawidth='32' /&gt;&lt;slave name='subsys_periph.button_pio.s1' start='0x10060' end='0x10070' datawidth='32' /&gt;&lt;slave name='subsys_periph.dipsw_pio.s1' start='0x10070' end='0x10080' datawidth='32' /&gt;&lt;slave name='subsys_periph.led_pio.s1' start='0x10080' end='0x10090' datawidth='32' /&gt;&lt;slave name='subsys_periph.fes_mailbox.avs' start='0x100A0' end='0x100C0' datawidth='32' /&gt;&lt;slave name='subsys_periph.fes_ddr_probe.avs' start='0x10100' end='0x10180' datawidth='32' /&gt;&lt;slave name='subsys_periph.fes_computer.avs' start='0x10300' end='0x10320' datawidth='32' /&gt;&lt;slave name='subsys_periph.fes_embedded.avs' start='0x10400' end='0x10500' datawidth='32' /&gt;&lt;/address-map&gt;</value>
+      <derived>true</derived>
+      <enabled>true</enabled>
+      <visible>false</visible>
+      <valid>true</valid>
+      <sysinfo_type>ADDRESS_MAP</sysinfo_type>
+    </parameter>
+  </connection>
+</EnsembleReport>

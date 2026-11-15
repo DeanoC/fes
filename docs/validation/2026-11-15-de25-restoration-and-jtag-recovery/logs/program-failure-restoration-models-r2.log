@@ -1,0 +1,7 @@
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 0.142s
+
+OK
+Restoration terminal: verified-original-FIT-files-only-restoration FIT restored: True baseline cycle/Park: False
+Restoration terminal: stopped FIT restored: False baseline cycle/Park: False

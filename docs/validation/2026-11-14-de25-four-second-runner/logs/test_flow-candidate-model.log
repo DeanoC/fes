@@ -1,0 +1,21 @@
+test_active_native_failure_requires_reset_even_when_host_cleanup_passes (test_flow.FlowTests.test_active_native_failure_requires_reset_even_when_host_cleanup_passes) ... ok
+test_clock_expiry_and_plan_alias_mutation_stop_before_hooks (test_flow.FlowTests.test_clock_expiry_and_plan_alias_mutation_stop_before_hooks) ... ok
+test_complete_model_flow_restores_baseline_and_cannot_replay (test_flow.FlowTests.test_complete_model_flow_restores_baseline_and_cannot_replay) ... ok
+test_failed_rollback_or_baseline_does_not_promote (test_flow.FlowTests.test_failed_rollback_or_baseline_does_not_promote) ... ok
+test_invalid_clock_never_reserves_attempt (test_flow.FlowTests.test_invalid_clock_never_reserves_attempt) ... ok
+test_phase_leg_bounds_and_midtrial_clock_regression (test_flow.FlowTests.test_phase_leg_bounds_and_midtrial_clock_regression) ... ok
+test_preexecution_native_failure_rolls_back_but_remains_failed (test_flow.FlowTests.test_preexecution_native_failure_rolls_back_but_remains_failed) ... ok
+test_prewrite_failure_does_not_attempt_rollback (test_flow.FlowTests.test_prewrite_failure_does_not_attempt_rollback) ... ok
+test_uncertain_write_requires_fresh_recovery_and_exact_candidate (test_flow.FlowTests.test_uncertain_write_requires_fresh_recovery_and_exact_candidate) ... ok
+test_unknown_cleanup_or_bad_epoch_cannot_continue (test_flow.FlowTests.test_unknown_cleanup_or_bad_epoch_cannot_continue) ... ok
+test_changed_host_source_closes_before_console_commands (test_fit_swap.SwapTests.test_changed_host_source_closes_before_console_commands) ... ok
+test_every_preserved_member_and_wrong_old_fit_stop_before_write (test_fit_swap.SwapTests.test_every_preserved_member_and_wrong_old_fit_stop_before_write) ... ok
+test_forward_and_independent_reverse_restore_exact_bytes (test_fit_swap.SwapTests.test_forward_and_independent_reverse_restore_exact_bytes) ... ok
+test_receipt_scope_session_direction_and_command_mutations_reject (test_fit_swap.SwapTests.test_receipt_scope_session_direction_and_command_mutations_reject) ... ok
+test_reverse_rejects_unknown_or_unchanged_boot_before_write (test_fit_swap.SwapTests.test_reverse_rejects_unknown_or_unchanged_boot_before_write) ... ok
+test_write_uncertainty_and_postwrite_damage_cannot_be_promoted (test_fit_swap.SwapTests.test_write_uncertainty_and_postwrite_damage_cannot_be_promoted) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 4.246s
+
+OK

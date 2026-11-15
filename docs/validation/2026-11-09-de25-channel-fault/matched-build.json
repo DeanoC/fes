@@ -1,0 +1,112 @@
+{
+  "status": "matched-offboard-chain-built",
+  "source_head": "d1c0cf21a5012c91c0a6a4abe2dacaea5e85d876",
+  "native_boot_id": "833277b3abc25cab",
+  "sdk_sha256": "af256a93407ce23a0082dae95a4d90b47884fa2836925a7f77146f508c3dde25",
+  "entry_sha256": "1daac7f86426dc8e42f710b0efd2f416fb2fe320b917f97b044005f68b95c9c1",
+  "bl31_sha256": "1bb0eac7dd8148dcace3c827a4974fb76549e78315620e5be3b131f3b48e1c84",
+  "fit_sha256": "0ff40b54c5897d5135e52473f934ec09639290783c58f2157d40aa3085ca76a7",
+  "fit_bytes": 8309400,
+  "fit_bound": 8388608,
+  "fit_spare_bytes": 79208,
+  "sof_sha256": "52bc4f380fb5bcab4fe90dc38a750f3ea9416b15e8fbdadca6a44817c42ea289",
+  "core_payload_unchanged": true,
+  "matched_metadata_and_current_source_hashes_checked": true,
+  "diagnostic_only": true,
+  "transfer_recovery_or_retry_added": false,
+  "tape_policy_hardware_qualified": false,
+  "hardware_actions": false,
+  "hardware_acceptance": false,
+  "ordinary_core_load_acceptance": false,
+  "checks": {
+    "sdk": {
+      "receipt_sha256": "cc7c5f9ac7919189fadcb6ebf4177ab539a1224b8c0a240e063a65c3f8ea1a3b",
+      "argv": [
+        "python3",
+        "out/nano-channel-fault-20261109/build_sdk_r4.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 49.82003560708836,
+      "log_sha256": "0fa834d92889e0336f1a419cb90f11b0106cddd724775e9c1cede8736bb5b6ef"
+    },
+    "entry": {
+      "receipt_sha256": "a73164aa8db3b1969064e9481c6ab6549a4910b7460d52e2ef06701aea549076",
+      "argv": [
+        "python3",
+        "out/nano-channel-fault-20261109/build_entry_r4.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 43.230850955005735,
+      "log_sha256": "65be8cf2f202555eb327f6890be0473eed9b8b2abba61da15bb639413267ec93"
+    },
+    "bl31": {
+      "receipt_sha256": "76081dc0896d3fe175b0ce1bda15c6f34058835c5d879f6e9890976dd00699b1",
+      "argv": [
+        "python3",
+        "out/nano-channel-fault-20261109/build_bl31_r4.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 36.41581806191243,
+      "log_sha256": "201aa1e69bb69f3155414af1c2d627106713909e512aa2ca32b31a2c2ceca5d7"
+    },
+    "uboot": {
+      "receipt_sha256": "e011a8c3196ee311c6014b7bf103ba88361af69b659751e8354d32ca945903aa",
+      "argv": [
+        "python3",
+        "out/nano-channel-fault-20261109/build_uboot_r2.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 89.04001692100428,
+      "log_sha256": "977851261b88d117bd59c0ccbec67a2a91551612cfa418f6541f69ef35588b3d"
+    },
+    "composition": {
+      "receipt_sha256": "f56942a4818b06d626701fd6cd60b990040b7f3d354a1cdf250bc2924a573d9b",
+      "argv": [
+        "python3",
+        "out/nano-channel-fault-20261109/compose.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 47.01968658203259,
+      "log_sha256": "34487fb344ff3236a385fa0c5fbceb890cb9f8c601d20c57e7794abd66d20ae5"
+    },
+    "matched": {
+      "receipt_sha256": "8eafd6acba232b058b9999e2124dabc1691bcf765fa5f64dd890840ef1bd1261",
+      "argv": [
+        "python3",
+        "out/nano-channel-fault-20261109/verify_matched.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2004677599761635,
+      "log_sha256": "8cdd62a92beb615950ae3a6973331fcf6a3b4e6a1dface8386b250cc13575271"
+    },
+    "local-matched": {
+      "receipt_sha256": "708a9cfb8eb508e4474cf6ce4cd3f22a0990d6b5360e0d07fe13195081dde3cf",
+      "argv": [
+        "python3",
+        "out/nano-channel-fault-20261109/verify_matched.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20074985991232097,
+      "log_sha256": "8cdd62a92beb615950ae3a6973331fcf6a3b4e6a1dface8386b250cc13575271"
+    }
+  },
+  "fatal_capture_compiled_source_sha256": "ea01019fbac310ffb26f50502622558e7cc265b3fb641cbe51db85b8815b3e0a",
+  "previous_consumed_image": "1059bb64e5cac38b",
+  "prior_candidate_replayed": false,
+  "new_live_programming_reservations": 0,
+  "new_hardware_trial_started": false
+}

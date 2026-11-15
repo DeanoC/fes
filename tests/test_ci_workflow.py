@@ -107,6 +107,17 @@ class ParentWorkflowTests(unittest.TestCase):
         producer = workflow.split('  fpga-producer:\n', 1)[1].split('  simulation-tools:\n', 1)[0]
         self.assertIn('sudo apt-get install -y binutils mtools', producer)
 
+    def test_embedded_models_have_fat_and_rtl_tools_on_parent_runner(self):
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
+        parent = workflow.split('  parent-tests:\n', 1)[1].split('  consistency:\n', 1)[0]
+        step = parent.split('      - name: Install embedded model test dependencies\n', 1)[1].split(
+            '      - name: Run selected parent partition\n', 1)[0]
+        self.assertIn("if: matrix.partition == 'software'", step)
+        self.assertIn('timeout --signal=TERM --kill-after=30s 600s', step)
+        self.assertIn('install --no-install-recommends -y mtools verilator', step)
+        self.assertIn('mformat -V', step)
+        self.assertIn('verilator --version', step)
+
     def test_pcxt_com_nightly_is_main_only_and_reports_failure(self):
         repository = Path(__file__).resolve().parents[1]
         nightly = (repository / '.github/workflows/nightly.yml').read_text()
@@ -303,7 +314,7 @@ class ParentWorkflowTests(unittest.TestCase):
     def test_capture_dependency_step_reuses_installed_tool_and_preserves_failures(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
         step = workflow.split('      - name: Install capture test dependencies\n', 1)[1].split(
-            '      - name: Run selected parent partition\n', 1)[0]
+            '\n      - name:', 1)[0]
         script = textwrap.dedent(step.split('        run: |\n', 1)[1])
         for installed, apt_exit, timeout_exit, expected in (
             (True, 0, 0, 0), (False, 0, 0, 0), (False, 9, 0, 9), (False, 0, 124, 124)

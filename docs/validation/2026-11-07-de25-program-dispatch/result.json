@@ -1,0 +1,120 @@
+{
+  "format": 1,
+  "initial_parent_result": {
+    "returncode": 1,
+    "log_sha256": "e325e83d885c0e4f37a9ba8a70c9b38cddfa94c593b42759f661f93c6df42e3a",
+    "failure": "Unchanged entry-memory sanitizer test: SEGV inside ASan allocator; focused rerun and identical full parent recheck passed. Initial log and baseline source hashes retained; no memory guard or test changes.",
+    "exact_cause_confirmed": false
+  },
+  "status": "joined-firmware-role-dispatch-software-passed",
+  "implementation_source": "e64836112d4e2b1ecaad736c29703d465ccf7401",
+  "base_source": "78cec537cd312e01667d3a4345056e1cf327c1fd",
+  "source_sha256": {
+    "platform/embedded/firmware/README.md": "bbd6b6580eb17f671297c1cfa06993664dfc02229afcb2a43a2467f92ed22f2d",
+    "platform/embedded/firmware/nano_bridge_platform.h": "af3f6b11802a34eb96a3180606b05b6ec612244e229e143636b311144bac0813",
+    "platform/embedded/firmware/nano_owned_sip.inc": "ac2f041e6b90ee6a113992ffb618268a8a90c6f0d8df8768ea1705ac6cb63405",
+    "platform/embedded/firmware/nano_program_control.inc": "ea7ca04afd2f0ed43b0f4e61f9b940e6f55c69041f9b55ec748bbe6979998cd2",
+    "platform/embedded/firmware/nano_window_control.inc": "b50761e9ac67697956781557a4af45ca444de1aaacb0678f6023ca34ed8181d2",
+    "platform/embedded/firmware/prepare_nano_owned.py": "e65db50b33c3eeda4d86e9a334da4d3283dd45980c90b8ab64e072d462d8119c",
+    "platform/embedded/firmware/tests/nano_program_control_test.c": "e121f82cc766df65611bbaf60b89adbaba8e86540f13f444c8dd081458f1ea4e",
+    "platform/embedded/nano/cold_profile.py": "2217e18743bfbbb4698197a187060b4b69188097ac6a8894655f484bf0347d47",
+    "tests/test_nano_program_control.py": "ff0bcf8c3c16d0b446212caba8ce8c50a26267fe6f44c399acda90d57122335c"
+  },
+  "validation_complete": true,
+  "selected_checks": 12,
+  "receipts": {
+    "focused-complete": {
+      "receipt_sha256": "118743a5edc5753900ee88d08ecee03dfb1bd8bbc3de5017d16c718d199b671c",
+      "log_sha256": "b0cfea49055528fa2a9e4144faa8160e93ad2bb5fbd49e521c54d3d930f5c987",
+      "elapsed": 2.4020461679901928
+    },
+    "entry-memory-recheck": {
+      "receipt_sha256": "15779645fcdac6359f870b2310f9321350185cb66c84c2c4b6fc2a8fa8adfabb",
+      "log_sha256": "2640fc7356a21bf2801f7a868a095e94b6c5ff874a0d4edf864d97d5a5dcf73f",
+      "elapsed": 0.4005960179492831
+    },
+    "software-0": {
+      "receipt_sha256": "7cab92b813d407b8565324975d49ed95ad2e28324ac41d0e63479fd20cdf1df2",
+      "log_sha256": "a78daf7224ae9c312f5367a8633d690c0fa61a429e8c45d0ad3cd72c61436416",
+      "elapsed": 0.20066640805453062
+    },
+    "software-1": {
+      "receipt_sha256": "b6a299b3d5841a060b4bf9040ec24277e38044b3a03ed9de7a8550b34dd5c8b4",
+      "log_sha256": "e397a206658155d2b1c77f1eb631614a3bc137761ac5af179fcb36806dbbc49c",
+      "elapsed": 1.2008814981672913
+    },
+    "software-2": {
+      "receipt_sha256": "80c1ab6018d519da244e696f01e39739af2572e3df2e1020e273cf024ad258db",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 0.2006133790127933
+    },
+    "software-3": {
+      "receipt_sha256": "61efd6637d07bda4a4bf385f472bc426976faac5b0db2af1d02934a06aaa25f5",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 0.20067421300336719
+    },
+    "software-4-recheck": {
+      "receipt_sha256": "6dc213c19a33787a535a8623649c21d3fe07cffaba8ad54ca65305fce7b3ebd9",
+      "log_sha256": "559f60e5f4bcfc870e35fc95b171c969a112d0a5e92f0cb6b181055a272bc26f",
+      "elapsed": 276.7585859471001
+    },
+    "software-5": {
+      "receipt_sha256": "ab9d302fe95e0561fc38f5ec6671cf24727a31d37ff180d788a2ecbc6c2a62db",
+      "log_sha256": "32fa862c66e279643aaedec99c30c9fcbe50fca9e6ffb849cd844c6a8d59a5a1",
+      "elapsed": 5.202933633001521
+    },
+    "software-6": {
+      "receipt_sha256": "7ae70a9ed1d7da079bdfaf38d5594588cf49d493f35c49348260118157b6bda8",
+      "log_sha256": "cec58f088adde2894a99c8ff723606ee08adbf5a33d85ec72ec41ac8f5ccf934",
+      "elapsed": 6.403867789078504
+    },
+    "software-7": {
+      "receipt_sha256": "6cac30515f69280807c22fc092e793099a99bae83e74f4db6577490c7d6de0f7",
+      "log_sha256": "8804e4e6780305b642ecddd23bb9b223bb378d5117d3d297811fcef31a98c74f",
+      "elapsed": 122.47566185798496
+    },
+    "software-8": {
+      "receipt_sha256": "3af009a4a282193ed3b8e5fb1291cb824ba40cbd34801ab3d436f94d8e8b1b23",
+      "log_sha256": "9e252bd228131952e3627ee770236706b39c8423ddff2bd124226f0da16b816d",
+      "elapsed": 27.014929926022887
+    },
+    "software-9": {
+      "receipt_sha256": "c76c520964436019f6852db606d2f1feab89b1ef86ebd350fbd750604de56dd1",
+      "log_sha256": "1b72426ad9a38f653027ec56c8ad298ddb3b90058a29686c8343b1991aec980b",
+      "elapsed": 55.432031453819945
+    },
+    "software-10": {
+      "receipt_sha256": "9d70c1560533a92bc618d6b22921f1f39a696916968d55c4e7f19da40913f004",
+      "log_sha256": "d04aa23bd8948fb72cb66c85a0b5f3cfe6ee3cfc17a4d0d49af414c16560d00a",
+      "elapsed": 5.203185908030719
+    },
+    "software-11": {
+      "receipt_sha256": "21f5f98cdbf43e2d02414fa44516baab0c69becc900e609a0faec1765c69dad4",
+      "log_sha256": "a6b4c9f008c101eaea5c23dd45363fecd14f08266797c55a707d386506d3c61b",
+      "elapsed": 337.39540826599114
+    }
+  },
+  "parent_tests": 1641,
+  "parent_skips": 3,
+  "misteross_tests": 1595,
+  "misteross_skips": 79,
+  "joined_dispatcher_scenarios": 25,
+  "incomplete_compile_selections": 6,
+  "alternating_role_cycles_in_each_starting_order": 5,
+  "repeated_menu_cycles": 5,
+  "repeated_computer_cycles": 5,
+  "actual_owned_SiP_dispatcher": true,
+  "actual_descriptor_configuration_session_and_bridge_engines": true,
+  "captured_target_is_not_activation": true,
+  "activation_failure_is_terminal": true,
+  "role_specific_closure": true,
+  "platform_IO_and_digest_checks": "injected fixture",
+  "SD_return": "injected gate over actual cached bridge closure",
+  "cold_provider_calls_activation": false,
+  "cold_platform_mixed_roles_enabled": false,
+  "native_command_mixed_roles_enabled": false,
+  "matched_combined_boot_chain": false,
+  "hardware_actions": false,
+  "goal_complete": false,
+  "next": "Connect the strong cold provider to the trusted activation callback only after per-role stop/ROM/SD-return policy is installed and the previous return is consumed. Bind both source-derived resource sets and the union8MiB exclusion through native builder/entry/SPL/firmware, then connect actual ProgramService/Tenfoot presentation and qualify a bounded board cycle."
+}

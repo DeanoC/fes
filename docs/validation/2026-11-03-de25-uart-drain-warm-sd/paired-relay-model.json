@@ -1,0 +1,22 @@
+{
+  "status": "passed",
+  "cases": [
+    {
+      "kind": "actual-old",
+      "passed": false,
+      "error": "Kermit sender failed or left unsent bytes",
+      "transmitted_bytes": 1356,
+      "queued_host_bytes": 2
+    },
+    {
+      "kind": "actual-fixed",
+      "passed": true,
+      "error": null,
+      "transmitted_bytes": 1358,
+      "queued_host_bytes": 0
+    }
+  ],
+  "old_source_sha256": "3ba4f41c3e67166c74b21cd33c81734b24cab748ab76d7b1113becb51b88737d",
+  "new_source_sha256": "eaaf25994eec128c99f508d81f18ff78ca816697b50333a3fecfd9355597375c",
+  "classification": "paired actual old loop/current driver with captured bytes and sender-exit/short-write observation; no hardware"
+}

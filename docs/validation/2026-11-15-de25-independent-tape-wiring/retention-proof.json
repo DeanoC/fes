@@ -1,0 +1,8 @@
+{
+  "status": "passed-independent-source-and-model-archive-readback",
+  "archive": "/home/deano/fes-retained/de25-independent-tape-wiring-20261115-r1/source-models.tar.gz",
+  "archive_sha256": "4e525218d7fdc659f295f8d09d0121b8b0a28739846624a86aed877973e50ae6",
+  "files": 208,
+  "hardware_actions": false,
+  "hardware_acceptance": false
+}

@@ -1,0 +1,117 @@
+{
+  "status": "passed-software-and-readonly-candidate-preparation",
+  "base_commit": "1213c7feda8d4d6e62f59b02579c81d494d85909",
+  "source_sha256": {
+    "platform/embedded/tamago/board/de25nano/storage.go": "514575f063837a9381dc2d47a65865db25a3bcb5bb70d98f292dc84db7b73d1e",
+    "platform/embedded/tamago/build.py": "9b32c0e2264ac4ac0d159888df6a613151e43d7eb2fda32b232177762f8686f9",
+    "platform/embedded/tamago/cmd/sdwrite/main.go": "f3e92b4adab775f529046c2c8daaf2345f22134d15d22a0fa5467cd66aba8d8f",
+    "platform/embedded/tamago/cmd/storage/main.go": "0231dc92dd3f9b09fb40336baa8430829cbd5652cb2d70afddd755aa4edafd0c",
+    "platform/embedded/tamago/run.py": "d474f9e3c011a2b8935984f0937d66b584f608911e3fd9f3b71da46ff3f4841e",
+    "platform/embedded/tamago/sdcontrol/scratch.go": "ad7759827b607ad3eadde08b13e95d165f0b8eba9e4695bbb61bc127b2f9eeb0",
+    "platform/embedded/tamago/sdcontrol/scratch_test.go": "9f4df0771fb22a15b5d33b817799df6c5cf853b22da54323a1c3ea9578afe8c0",
+    "scripts/affected.py": "ef89bc86072bd0a8f5c674a311e9b980e423a976fcde49c4631ad30f60979f3e",
+    "tests/test_embedded_board_profile.py": "a8270f0997e0fa7595849b46088ba4f33d7e6975276b4e76dcdbffd77ca42ed9",
+    "tests/test_test_changed.py": "d0937ed023f68005822d0a9af02f0fea8fe6ff0278e87e6518e0d12d3dbe2b4a"
+  },
+  "all_eight_selected_checks_passed": true,
+  "checks_result": "out/nano-sd-scratch-20261110/software-checks-result.json",
+  "checks_sha256": "22fd4a750d4a3f879dafb4880e97f9e526111540668d1063760c6e4648a6d7ab",
+  "parent_tests": {
+    "tests": 1853,
+    "skipped": 3,
+    "passed": true,
+    "log_sha256": "fdf51a23832084f6de32cb0872c8485a4dce94fb49f059bd69e159f75d7ff7d4"
+  },
+  "final_planner_tests": {
+    "tests": 41,
+    "passed": true,
+    "receipt_sha256": "419054305ef7c31e44e70feb5ad4a9ab57c09822a6713147847132ab3ceaa39d"
+  },
+  "native_integration": {
+    "path": "/home/deano/fes/out/dev/de25-embedded-os/out/native-fabric-hooks-e1ea11b0c2f0481cbc198a26b4e87bde",
+    "sha256": "3a3b31f1a45dfd0e4380599f320af021fcf41066ac0069cef370a4c7407bcdaf",
+    "classification": "host C firmware and Verilated RTL with injected hardware; no physical acceptance"
+  },
+  "artifacts": {
+    "sdk-writer-final": {
+      "receipt": "out/nano-sd-scratch-20261110/sdk-writer-final/result.json",
+      "sha256": "c828ff0e3fe3545ced6d52231660c0b3477c0925e8744231c295bf9e9707dc53",
+      "status": "cross-built",
+      "elf_sha256": "984b0ed9eb4dcd65a7d34a73a61dcd54b50505a0611ae1eced1423b5abc059a3",
+      "sd_write_plan": {
+        "format": 1,
+        "scope": "nano-sd-scratch-write-v1",
+        "cid": "12345699aabbcc5566778811223344",
+        "sectors": 8192,
+        "mbr_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "original_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "sd_scratch_inspect": false
+    },
+    "sdk-inspect": {
+      "receipt": "out/nano-sd-scratch-20261110/sdk-inspect/result.json",
+      "sha256": "f03ad10604047e0e8ae9f7822b9ddfeecc9d855827204377b873464e517dd967",
+      "status": "cross-built",
+      "elf_sha256": "328a673683d8c0dac663304465bc05cee3218f68ec4c589be2b5976e09eea320",
+      "sd_write_plan": null,
+      "sd_scratch_inspect": true
+    },
+    "native-entry-inspect": {
+      "receipt": "out/nano-sd-scratch-20261110/native-entry-inspect/result.json",
+      "sha256": "1f3f58ec7ba93fe253ae1d82ef4d2c0c964f396d966fa21ae97f772085010969",
+      "status": "built"
+    },
+    "bl31-inspect-ddr": {
+      "receipt": "out/nano-sd-scratch-20261110/bl31-inspect-ddr/result.json",
+      "sha256": "9d055eeeb587f0cf2aa148d69ea2290106ce40ff3d570e0b2dc311c623808a2c",
+      "status": "built"
+    },
+    "uboot-inspect-ddr-r2": {
+      "receipt": "out/nano-sd-scratch-20261110/uboot-inspect-ddr-r2/result.json",
+      "sha256": "fd7d958e5b27e358953c4c68ac312557d744932d9a38ffc8433db02686710a9a",
+      "status": "built"
+    },
+    "inspect-kit-qualified": {
+      "receipt": "out/nano-sd-scratch-20261110/inspect-kit-qualified/result.json",
+      "sha256": "fef8a44ff50126a4bf98f8a8b5f7d8f3f3fbd53920f0288291808a644ec9bace",
+      "status": "prepared"
+    }
+  },
+  "native_inspector_fit_bytes": 2615096,
+  "unchanged_fit_limit_bytes": 8388608,
+  "inspector_sof_sha256": "4c65ef26b16b152a8ca6cac40392e00ab67db16b2c96a2667f29d8c137ae5440",
+  "inspector_fit_sha256": "7a1eacab4c01d9a53d00d3e84a00e400b632d10f0c0095f03f7151b8d16c1562",
+  "embedded_spl_independently_decoded": true,
+  "physical_card_image_install_proposed": false,
+  "synthetic_writer_not_for_deployment": true,
+  "failed_preparations_preserved": {
+    "secure-inspect": {
+      "result": "out/nano-sd-scratch-20261110/secure-inspect-result.json",
+      "sha256": "bc8c5b1d312839343add57c8737405fcea57b452b5ebbe66fe524e77394c1d40",
+      "log_sha256": "42211390267daa357bb74de2cbd3723b16a51bf56c81cc9ce62fba43ef5618e7"
+    },
+    "loader-inspect-ddr": {
+      "result": "out/nano-sd-scratch-20261110/loader-inspect-ddr-result.json",
+      "sha256": "9e4b89ed80ff12d3200791249bd411a4e04851a712a07d0bdc83fa7d88e5e52e",
+      "log_sha256": "c371e3349d99eb5ec2d97c6aad49de6f143dc145ed10e6e997c553e781166acf"
+    },
+    "package-inspect": {
+      "result": "out/nano-sd-scratch-20261110/package-inspect-result.json",
+      "sha256": "2ad9cda45994fe22f082a15f10f7025a5cc90a166fe3eacf4d13436330ba34e2",
+      "log_sha256": "89de408319eea089f132aa8b4bb4a254c53e0f59c23b8efaefef58f65ca68d06"
+    },
+    "package-inspect-base": {
+      "result": "out/nano-sd-scratch-20261110/package-inspect-base-result.json",
+      "sha256": "95230941a58c6c58f13d064b89a523d6642146fb44a9cf0a8776d790edb044a6",
+      "log_sha256": "89de408319eea089f132aa8b4bb4a254c53e0f59c23b8efaefef58f65ca68d06"
+    }
+  },
+  "hardware_operations": false,
+  "live_admission_or_programming_grant": false,
+  "native_sd_write_qualification": false,
+  "fat_write_qualification": false,
+  "normal_native_sd_writes_enabled": false,
+  "full_appliance_acceptance": false,
+  "next": "Fresh bounded read-only spare-card inspection; then independently review real card/layout/hash plan, build matched writer and arrange independent recovery readback",
+  "board_state": "No new observation or operation; prior active returned menu remains the last verified state; no new Park or containment inferred"
+}

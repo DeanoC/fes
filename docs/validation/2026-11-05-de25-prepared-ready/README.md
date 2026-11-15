@@ -1,0 +1,15 @@
+# Confirmed USB readiness observation and matched native candidate
+
+Source `91ae1bc0ccb585249c210362564373b5e77577db`, base `ba1acadb21f42c63e8536482391cf8a445604e67`.
+
+A confirmed physical USB lease can now supply one complete, fresh readiness observation through the trusted board hook. It checks the full clock/pin/owner policy before and after both PHY observations, the host/PIO/DMA/IRQ predicates, then an independent cold scope. The platform rechecks the same owner, epoch, generation and confirmed active state after the callback. A failed callback retires the lease without a weaker fallback. Initialization and ordinary injected providers retain their required individual observations. The new callback is boot-local; no nonsecure address or capability is accepted, and no hardware state is cached across calls.
+
+The actual compiled board/boot/private-master fixture drops from 5,699 to 3,172 register accesses per coherent observation. All 112 PHY transactions remain. Three cycles agree. Fault tests reject stale or foreign scopes without I/O, drift during live observations, post-callback ownership mutation, and callback failure without fallback. Work counts are software measurements, not hardware timing acceptance.
+
+A native regression reproduces the previous physical stop: firmware completion returns at 20.170364147 seconds. The unchanged 20-second guard rejects it, does not open the computer, retains staging, requires reboot and prevents a second launch. Firmware completion alone does not establish successful activation.
+
+All ten affected software commands passed, including runtime/firmware/FPGA integration and core producer tooling, together with generated consistency and focused fault/late-completion checks. SDK, entry, secure firmware and U-Boot were freshly rebuilt from the source commit. Actual sealed catalog and linked call-path checks verify the selected shared USB, SD and Tenfoot chain, including the complete readiness callback. One initial proof command ran before the composition receipt existed and stopped on that missing file; the retained follow-up ran after composition completed. No source repair, waived check or hardware attempt resulted from that orchestration error.
+
+The new single-attempt operator uses the existing bounded recovery and seven fixed uploads with fresh SD readbacks. It then requires the ZX81/ZX80/ZX81 serial App launch/return/quit sequence, current USB ownership, pause/resume receipts, and continued report delivery. The previous failed image remains retained and will not be retried. Candidate preparation performs no hardware programming. Ordinary FES package/ROM/media admission, physical controller actions, HDMI, native Ethernet and DE10-normal-kit readiness remain open.
+
+The sealed FPGA project prerequisite is `/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/matched-candidate.tar.gz`, SHA256 `1479d5fa439c77457a3c19959a97b810b8ce5a6aa0672bb4567519f2d7229d17`. The new JTAG composition only replaces its SPL and verifies unchanged FPGA payload; there is no new synthesis, timing or electrical qualification.

@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/publication/prepare-initial-tape-files-restoration.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.20091936807148159,
+  "log_sha256": "204a7b42143cbbed4d685d0e2182a1e928ea278d69f28be68512cbfd2cf7e96d"
+}

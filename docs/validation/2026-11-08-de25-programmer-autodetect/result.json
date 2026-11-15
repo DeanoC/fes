@@ -1,0 +1,60 @@
+{
+  "status": "passed",
+  "classification": "independent saved-output and cleanup audit of documented read-only programmer autodetect at6M",
+  "source_commit": "a5b13763dfcbf0f97acaa1f035cfb0d4c8785079",
+  "original_helper_passed": true,
+  "all_commands_returned_zero": true,
+  "jtag_id": "4362C0DD",
+  "command": [
+    "/data/altera_pro/26.3/quartus/bin/quartus_pgm",
+    "-c",
+    "DE25-Nano on localhost:35745 [3-11.1-iface0]",
+    "-a"
+  ],
+  "clock_during_query": "6M",
+  "clock_restored": "15M",
+  "private_server_gone": true,
+  "usb_permissions_exact": true,
+  "uart_owners": [],
+  "programming_attempted": false,
+  "hps_reset_attempted": false,
+  "card_write_attempted": false,
+  "audit_device_operations": false,
+  "programming_admission": false,
+  "image_attempts_remain": 2,
+  "programming_failure_explained": false,
+  "core_load_acceptance": false,
+  "current_tool_files": {
+    "/data/altera_pro/26.3/quartus/bin/jtagd": {
+      "bytes": 2448,
+      "sha256": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14"
+    },
+    "/data/altera_pro/26.3/quartus/bin/jtagconfig": {
+      "bytes": 2448,
+      "sha256": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14"
+    },
+    "/data/altera_pro/26.3/quartus/bin/quartus_pgm": {
+      "bytes": 2448,
+      "sha256": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14"
+    },
+    "/data/altera_pro/26.3/quartus/linux64/jtagd": {
+      "bytes": 2237848,
+      "sha256": "5cb7ee2332bcd93a666442c10917908ecce36e9a383c13005c5c9495e8e383d4"
+    },
+    "/data/altera_pro/26.3/quartus/linux64/jtagconfig": {
+      "bytes": 360088,
+      "sha256": "31ce723bdedc9a599d034a0f4d65e595cba4e65f7c99399a93e46feb9ddbbfac"
+    },
+    "/data/altera_pro/26.3/quartus/linux64/quartus_pgm": {
+      "bytes": 686760,
+      "sha256": "32f5511101a9dad0dd029a6b52ac68af56947411d0ba85312fed8403bb5a85e5"
+    }
+  },
+  "evidence_sha256": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-jtag-programmer-diag-20261108/result.json": "7a615cf164a7f10462373a6bdb7b58f739841cbdda39655b12bc3ebbb05080a1",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-jtag-programmer-diag-20261108/trial/transport.json": "da0936a9159738e4fa759a9715d8cba31227bb389bf2055f3c77601fb119358e",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-jtag-programmer-diag-20261108/trial/programmer-autodetect.log": "287706e2faf36b1bed12b823d495416fd6d80d52c10bdb7aece90dc8208580a1",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-jtag-programmer-diag-20261108/trial/clock-restored-readback.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-jtag-programmer-diag-20261108/programmer-help.txt": "f121705ba2a48d53dabf56686e486ae30d59d309cd051789d65248333a61faec"
+  }
+}

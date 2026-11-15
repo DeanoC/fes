@@ -1,0 +1,11 @@
+{
+  "status": "passed-clock-description-only-source-successor",
+  "from_commit": "96063aba1753450e9ab0762ee8cc6b887697a19c",
+  "to_commit": "5c5a9a5b48470c45dc450fb1834540209c333891",
+  "production_header_preprocessed_sha256": "7f57f87187988400fca830a6f991a4c848fdaccdd1c076759d2e85dd6fbf44c9",
+  "production_header_preprocessed_identical": true,
+  "fixture_executable_tokens_identical": true,
+  "python_assertions_identical_except_test_method_name": true,
+  "fresh_matched_image_still_required": true,
+  "hardware_actions": false
+}

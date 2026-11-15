@@ -1,0 +1,11 @@
+test_active_ambiguous_or_incomplete_proof_never_rolls_back_or_promotes (test_candidate_flow.Tests.test_active_ambiguous_or_incomplete_proof_never_rolls_back_or_promotes) ... ok
+test_complete_retains_only_proven_candidate_and_cannot_replay (test_candidate_flow.Tests.test_complete_retains_only_proven_candidate_and_cannot_replay) ... ok
+test_old_native_worker_or_hook_refused_before_effect (test_candidate_flow.Tests.test_old_native_worker_or_hook_refused_before_effect) ... ok
+test_partial_or_failed_rollback_remains_unqualified (test_candidate_flow.Tests.test_partial_or_failed_rollback_remains_unqualified) ... ok
+test_pending_file_restoration_blocks_candidate_without_fabricated_proof (test_candidate_flow.Tests.test_pending_file_restoration_blocks_candidate_without_fabricated_proof) ... ok
+test_safe_preexecution_failure_restores_files_without_old_native_dispatch (test_candidate_flow.Tests.test_safe_preexecution_failure_restores_files_without_old_native_dispatch) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 1.785s
+
+OK

@@ -1,0 +1,86 @@
+{
+  "status": "source-bound-isolation-helper-failure-localized",
+  "native_boot_id": "d0c7de5779234a9d",
+  "records": [
+    {
+      "phase": 0,
+      "name": "configuration-before",
+      "status": 0,
+      "line": 640
+    },
+    {
+      "phase": 1,
+      "name": "bridge-precheck",
+      "status": 0,
+      "line": 641
+    },
+    {
+      "phase": 2,
+      "name": "vendor-entry",
+      "status": 0,
+      "line": 642
+    },
+    {
+      "phase": 3,
+      "name": "bridge-disable",
+      "status": 0,
+      "line": 643
+    },
+    {
+      "phase": 4,
+      "name": "configuration-complete",
+      "status": -1,
+      "line": 644
+    },
+    {
+      "phase": 9,
+      "name": "vendor-return",
+      "status": 4,
+      "line": 645
+    },
+    {
+      "phase": 10,
+      "name": "configuration-before-after",
+      "status": 4,
+      "line": 646
+    },
+    {
+      "phase": 11,
+      "name": "configuration-after",
+      "status": 4,
+      "line": 648
+    }
+  ],
+  "configuration_before_passed": true,
+  "closed_bridge_precheck_passed": true,
+  "sticky_transport_status_zero": true,
+  "vendor_bridge_guard_passed": true,
+  "isolation_helper": "mailbox_send_fpga_config_comp",
+  "command": "MBOX_CMD_FPGA_CONFIG_COMP",
+  "command_opcode": 69,
+  "helper_return": -1,
+  "wrapper_collapses_any_nonzero_lower_level_return": true,
+  "raw_mailbox_return_available": false,
+  "SDM_response_proven": false,
+  "command_consumption_proven": false,
+  "cancel_called": false,
+  "reconfigure_called": false,
+  "bitstream_write_called": false,
+  "public_START_return": [
+    4,
+    0,
+    0,
+    0
+  ],
+  "all_prior_transport_programming_failures_preserved": 2,
+  "new_programming_failures": 0,
+  "mmu_faults": [],
+  "terminal_first_failure": true,
+  "source_function": "int mailbox_send_fpga_config_comp(void)\n{\n\tint ret;\n\n\tret = mailbox_send_cmd(MBOX_JOB_ID, MBOX_CMD_FPGA_CONFIG_COMP, NULL, 0U,\n\t\t\t\t CMD_CASUAL, NULL, NULL);\n\n\tif (ret != 0) {\n\t\tINFO(\"SOCFPGA: FPGA configuration complete response, Return Code: 0x%x\\n\",\n\t\t\tMBOX_RESP_ERR(-ret));\n\t\treturn MBOX_RET_ERROR;\n\t}\n\n\treturn MBOX_RET_OK;\n}\n",
+  "mailbox_source_sha256": "f6286fd8db7d2a2673824998d5811d784df2dcd9b64455921a35b0a75adbf4ec",
+  "reference_function_matches": true,
+  "raw_console_sha256": "f70ef547b514066f0c9628a4261e8a1a7a7012fc7374f653d4879d48e26a6195",
+  "next_step": "Capture the existing mailbox_send_cmd return before this wrapper normalizes it, with controlled negative/success comparisons. Keep every command, argument, timeout, mapping, guard and first-failure decision. Do not infer SDM rejection, no-response or an already-isolated state from generic-1.",
+  "hardware_actions": false,
+  "ordinary_core_load_acceptance": false
+}

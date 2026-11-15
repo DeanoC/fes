@@ -1,0 +1,19 @@
+{
+  "status": "passed-independent-cleanup-of-failed-readonly-identity",
+  "whole_attempt_passed": false,
+  "board": "TRWU8CBL",
+  "private_server_absent": true,
+  "clock_readback": {
+    "JtagClockAutoAdjust": 1,
+    "JtagClock": "15M"
+  },
+  "exact_usb_permissions_restored": true,
+  "uart_owners": [],
+  "processes_inventoried": 607,
+  "close_response_independently_verified": true,
+  "live_part_identity_verified": false,
+  "complete_backup": false,
+  "flash_write_commands_sent": false,
+  "programming_attempted": false,
+  "hardware_commands_sent": 0
+}

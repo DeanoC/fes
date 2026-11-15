@@ -1,0 +1,778 @@
+
+U-Boot SPL 2025.01-fes-nano-ff0e7da217a21406 (Jun 27 2025 - 01:40:35 +0000)
+FES_NANO_SPL BEGIN cause=00000004 per0=ff7fbfff bridge=0000004f cpus=0000000f release=00000000 kind=4 valid=1
+FES_NANO_SPL SCOPE mpidr=81000000 core=0 cause_now=00000004 cpus_now=0000000f release_now=00000000 reset_timeouts=00000000
+Reset state: Cold
+MPU           800000 kHz
+L4 Main	      400000 kHz
+L4 sys free   100000 kHz
+L4 MP         200000 kHz
+L4 SP         100000 kHz
+SDMMC         200000 kHz
+is_ddr_csr_clkgen_locked: ddr csr io96b_0 clkgenA is successfully locked
+io96b_cal_status: Calibration for IO96B instance 0x18400400 done at 0 msec!
+init_mem_cal: Initial DDR calibration IO96B_0 succeed
+DDR: Calibration success
+io96b_mb_init: num_instance 1
+io96b_mb_init: get memory interface IO96B 0
+io96b_mb_init: IO96B 0 mem_interface 0: ip_type_ret: 0x1
+io96b_mb_init: IO96B 0 mem_interface 0: instance_id_ret: 0x0
+io96b_mb_init: IO96B 0: num_mem_interface: 0x1
+LPDDR4: 1024 MiB
+ecc_enable_status: ECC enable status: 0
+DDR: size check success
+DDR: firewall init success
+DDR: init success
+Bloblist at 72000 not found (err=-2)
+WDT:   Not starting watchdog@10d00200
+Trying to boot from MMC1
+FES_NANO_SPL FIT verified before parsing
+## Checking hash(es) for config board-0 ... OK
+## Checking hash(es) for Image atf ... crc32+ OK
+## Checking hash(es) for Image uboot ... crc32+ OK
+## Checking hash(es) for Image fdt-0 ... crc32+ OK
+## Checking hash(es) for Image fes-entry ... crc32+ OK
+FES_NANO_SPL HANDOFF owner=352e7a18cb069ad5 epoch=18b1cc8f5 per0=ff7fbfbf bridge=0000000f sd=01f700f0
+FES_NANO_SPL BARRIER phase=before
+FES_NANO_SPL BARRIER phase=after
+FES_NANO_SPL ATF_STEP phase=entry
+FES_NANO_SPL ATF_STEP phase=hash-before
+FES_NANO_SPL ATF_STEP phase=hash-after
+FES_NANO_SPL ATF target=80000000 bl32=0 bl33=80200000 fdt=0 params=bff00008 cold=22248 cookie=464e433200000002 el=3 mpidr=81000000 sctlr=c50838 scr=f daif=3c0 bytes=315840 sha256=1cb4bb8d2c2c5639f529ea6d933930087a2b5f577b7727ec1b253c1e214bf65e
+FES_NANO_RAM ENTRY
+FES_NANO_RAM PASS
+FES_NANO_RAM DECODE phase=idle
+FES_NANO_RAM VENDOR phase=enter
+FES_NANO_RAM VENDOR phase=reset-before
+FES_NANO_RAM VENDOR phase=reset-after
+FES_NANO_RAM VENDOR phase=cpu-data-before
+FES_NANO_RAM VENDOR phase=cpu-data-after
+FES_NANO_RAM VENDOR phase=rw-cache-before
+FES_NANO_RAM VENDOR phase=rw-cache-after
+FES_NANO_RAM DECODE phase=setup-before
+FES_NANO_RAM DECODE phase=baseline-zero
+FES_NANO_RAM DECODE phase=enable-before
+FES_NANO_RAM DECODE phase=enabled
+FES_NANO_RAM VENDOR phase=nobits-cache-before
+FES_NANO_RAM CACHE phase=setway-before
+FES_NANO_RAM CACHE phase=setway-after
+FES_NANO_RAM DECODE phase=restore-before
+FES_NANO_RAM DECODE phase=restored
+FES_NANO_RAM VENDOR phase=nobits-cache-after
+FES_NANO_RAM VENDOR phase=bss-before
+FES_NANO_RAM VENDOR phase=bss-after
+FES_NANO_RAM VENDOR phase=stack-before
+FES_NANO_RAM VENDOR phase=stack-after
+FES_NANO_RAM VENDOR phase=setup-before
+NOTICE:  FES_NANO_EL3_CAPTURE phase=before pointer=22248 cookie=464e433200000002
+NOTICE:  FES_NANO_EL3_CAPTURE phase=after pointer=22248 cookie=464e433200000002
+NOTICE:  SOCFPGA: Boot Core = 0
+NOTICE:  SOCFPGA: CPU ID = 0
+NOTICE:  SOCFPGA: Setting CLUSTERECTRL_EL1
+FES_NANO_RAM VENDOR phase=setup-after
+FES_NANO_RAM RUNTIME phase=main-before
+NOTICE:  BL31: v2.12.0(release):fes-nano-owned-unready-580dcb5c4e10
+NOTICE:  BL31: Built : 08:42:23, Jun 11 2025
+FES_NANO_RAM RUNTIME phase=platform-before
+FES_NANO_RAM RUNTIME phase=owned-before
+NOTICE:  FES_NANO_USB_SETUP status=0 board_error=0 platform_error=0 data=held
+NOTICE:  FES_NANO_OWNED_BOOT provider=1 result=0 reset=0000000f
+NOTICE:  FES_NANO_SD_PLATFORM setup=1 ready=1
+FES_NANO_RAM RUNTIME phase=owned-after
+FES_NANO_RAM RUNTIME phase=gic-driver-before
+FES_NANO_RAM RUNTIME phase=gic-driver-after
+FES_NANO_RAM RUNTIME phase=gic-distributor-before
+FES_NANO_RAM RUNTIME phase=gic-distributor-after
+FES_NANO_RAM RUNTIME phase=gic-redistributor-before
+FES_NANO_RAM RUNTIME phase=gic-redistributor-after
+FES_NANO_RAM RUNTIME phase=gic-cpu-before
+FES_NANO_RAM RUNTIME phase=gic-cpu-after
+FES_NANO_RAM RUNTIME phase=mailbox-before
+FES_NANO_RAM RUNTIME phase=mailbox-after
+FES_NANO_RAM RUNTIME phase=platform-after
+FES_NANO_RAM RUNTIME phase=libraries-before
+FES_NANO_RAM RUNTIME phase=libraries-after
+FES_NANO_RAM RUNTIME phase=services-before
+FES_NANO_RAM RUNTIME phase=services-after
+FES_NANO_RAM RUNTIME phase=next-image-before
+FES_NANO_RAM RUNTIME phase=next-image-after
+FES_NANO_RAM RUNTIME phase=runtime-before
+FES_NANO_RAM RUNTIME phase=runtime-after
+FES_NANO_RAM RUNTIME phase=console-before
+FES_NANO_RAM RUNTIME phase=console-after
+FES_NANO_RAM RUNTIME phase=main-after
+FES_NANO_RAM RUNTIME phase=data-clean-before
+FES_NANO_RAM RUNTIME phase=data-clean-after
+FES_NANO_RAM RUNTIME phase=bss-clean-before
+FES_NANO_RAM EXIT_CACHE phase=clean-before
+FES_NANO_RAM EXIT_CACHE phase=clean-after
+FES_NANO_RAM RUNTIME phase=bss-clean-after
+FES_NANO_RAM RUNTIME phase=exit-before
+NOTICE:  FES_NANO_EL3_MMU phase=before el=c midr=412fd050 mpidr=81000000 mmfr0=101122 daif=2c0 scr=238 sctlr=c5183a tcr=0 root=80047000 mair=44e048e000098aa4 witness=8004d180 writes=0 memory=0
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=admit-before operation=0
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=admit-after operation=0
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=barrier-before operation=0
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=barrier-after operation=0
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=write-before operation=0
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=write-after operation=0
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=write-before operation=1
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=write-after operation=1
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=write-before operation=2
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=write-after operation=2
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=barrier-before operation=1
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=barrier-after operation=1
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=admit-before operation=0
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=admit-after operation=0
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=write-before operation=3
+FES_NANO_EL3_MMU_STATUS phase=before index=00 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=01 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=02 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=03 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=04 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=05 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=06 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=07 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=08 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=09 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=10 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=11 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=12 value=0000000000083090
+FES_NANO_EL3_MMU_STATUS phase=before index=13 value=0000000000000001
+FES_NANO_EL3_MMU_STATUS phase=before index=14 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=15 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=16 value=0000000011112222
+FES_NANO_EL3_MMU_STATUS phase=before index=17 value=00000000412fd050
+FES_NANO_EL3_MMU_STATUS phase=before index=18 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=19 value=0000000000000002
+FES_NANO_EL3_MMU_STATUS phase=before index=20 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=21 value=000000000000a9a6
+FES_NANO_EL3_MMU_STATUS phase=before index=22 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=23 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=24 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=25 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before index=26 value=0000000000000000
+FES_NANO_EL3_MMU_STATUS phase=before END ras=complete
+FES_NANO_EL3_MMU_LOG phase=arm-before
+FES_NANO_EL3_MMU_LOG phase=armed
+FES_NANO_EL3_MMU_MAILBOX phase=0 BEGIN
+FES_NANO_EL3_MMU_MAILBOX phase=0 values=0000000000000002,0000000000000002,0000000000000001,0000000000000001,0000000000000000,00000000c6faf14f,
+FES_NANO_EL3_MMU_TRANSITION phase=enabled sctlr=0000000000cd183f vbar=0000000080007000
+FES_NANO_EL3_MMU_MAILBOX phase=1 BEGIN
+FES_NANO_EL3_MMU_MAILBOX phase=1 values=0000000000000000,0000000000000000,0000000000000000,0000000000000000,0000000000000000,0000000000000000,
+FES_NANO_EL3_MMU_MAILBOX phase=2 BEGIN
+FES_NANO_EL3_MMU_MAILBOX phase=2 values=0000000000000002,0000000000000002,0000000000000001,0000000000000001,0000000000000000,00000000c6faf14f,
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=write-after operation=3
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=admit-before operation=0
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=admit-after operation=0
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=memory-before operation=0
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=clean-before operation=0
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=clean-after operation=0
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=clean-before operation=0
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=clean-after operation=0
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=memory-after operation=0
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=admit-before operation=0
+NOTICE:  FES_NANO_EL3_MMU_STEP phase=admit-after operation=0
+FES_NANO_EL3_MMU_LOG phase=restore-before
+FES_NANO_EL3_MMU_LOG phase=restored
+FES_NANO_EL3_MMU_TRANSITION phase=restored sctlr=0000000000cd183f vbar=0000000080046000
+NOTICE:  FES_NANO_EL3_MMU phase=after el=c midr=412fd050 mpidr=81000000 mmfr0=101122 daif=2c0 scr=238 sctlr=cd183f tcr=80803520 root=80047000 mair=4400ff witness=8004d180 writes=4 memory=1
+
+
+U-Boot 2025.01-fes-nano-ff0e7da217a21406 (Jun 27 2025 - 01:40:35 +0000)socfpga_agilex5
+
+CPU:   Intel FPGA SoCFPGA Platform (ARMv8 64bit Cortex-A55/A76)
+Model: SoCFPGA Agilex5 Terasic DE25-Nano
+DRAM:  1 GiB
+Core:  30 devices, 17 uclasses, devicetree: separate
+WDT:   Not starting watchdog@10d00200
+WDT:   Not starting watchdog@10d00300
+WDT:   Not starting watchdog@10d00400
+WDT:   Not starting watchdog@10d00500
+WDT:   Not starting watchdog@10d00600
+Loading Environment from <NULL>... OK
+In:    serial1@10c02100
+Out:   serial1@10c02100
+Err:   serial1@10c02100
+Fail to read JTAG Usercode. Default Board ID to 0
+SOCFPGA_AGILEX5 # fesboot
+FES_NANO_BOOT id=ff0e7da217a21406
+FES_NANO_LOADER phase=memory-before
+FES_NANO_MEMORY ram_top=c0000000 sp=bfb5e790 malloc=bfb67000..bff69000 reloc=bff69000 fdt=bfb60700
+lmb_dump_all:
+ memory.count = 0x1
+ memory[0]	[0x80000000-0xbfffffff], 0x40000000 bytes, flags: none
+ reserved.count = 0x3
+ reserved[0]	[0x0-0xffffff], 0x1000000 bytes, flags: no-map
+ reserved[1]	[0x80000000-0x801fffff], 0x200000 bytes, flags: no-map
+ reserved[2]	[0xbeb5eff0-0xbfffffff], 0x14a1010 bytes, flags: no-overwrite
+FES_NANO_LOADER phase=memory-after
+FES_NANO_LOADER phase=snapshot-before
+FES_NANO_LOADER phase=registers-before
+FES_NANO_LOADER phase=registers-after
+FES_NANO_LOADER phase=cpu0-before
+FES_NANO_CALL phase=smc-before
+FES_NANO_CALL phase=affinity-enter
+FES_NANO_CALL phase=cache-before
+FES_NANO_CALL phase=cache-after
+FES_NANO_CALL phase=affinity-return
+FES_NANO_CALL phase=smc-after
+FES_NANO_LOADER phase=cpu0-after
+FES_NANO_LOADER phase=cpu1-before
+FES_NANO_CALL phase=smc-before
+FES_NANO_CALL phase=affinity-enter
+FES_NANO_CALL phase=cache-before
+FES_NANO_CALL phase=cache-after
+FES_NANO_CALL phase=affinity-return
+FES_NANO_CALL phase=smc-after
+FES_NANO_LOADER phase=cpu1-after
+FES_NANO_LOADER phase=cpu2-before
+FES_NANO_CALL phase=smc-before
+FES_NANO_CALL phase=affinity-enter
+FES_NANO_CALL phase=cache-before
+FES_NANO_CALL phase=cache-after
+FES_NANO_CALL phase=affinity-return
+FES_NANO_CALL phase=smc-after
+FES_NANO_LOADER phase=cpu2-after
+FES_NANO_LOADER phase=cpu3-before
+FES_NANO_CALL phase=smc-before
+FES_NANO_CALL phase=affinity-enter
+FES_NANO_CALL phase=cache-before
+FES_NANO_CALL phase=cache-after
+FES_NANO_CALL phase=affinity-return
+FES_NANO_CALL phase=smc-after
+FES_NANO_LOADER phase=cpu3-after
+FES_NANO_LOADER phase=reset-before
+FES_NANO_LOADER phase=reset-after
+FES_NANO_LOADER phase=watchdog-before
+FES_NANO_LOADER phase=watchdog-after
+FES_NANO_LOADER phase=uart-before
+FES_NANO_LOADER phase=uart-after
+FES_NANO_LOADER phase=snapshot-after
+FES_NANO_LOADER phase=cpu-check-before
+FES_NANO_LOADER phase=cpu-check-after
+FES_NANO_LOADER phase=watchdog-stop-before
+FES_NANO_LOADER phase=watchdog-stop-after
+FES_NANO_LOADER phase=owned-before
+FES_NANO_OWNED phase=before-entry status=0 flags=46424f31000000df owner=352e7a18cb069ad5 generation=1
+FES_NANO_LOADER phase=owned-after
+## Flattened Device Tree blob at bfb60700
+   Booting using the fdt blob at 0xbfb60700
+Working FDT set to bfb60700
+   Loading Device Tree to 00000000beb55000, end 00000000beb5e6d7 ... OK
+Working FDT set to beb55000
+
+Starting kernel ...
+
+FES_NANO_OWNED phase=after-remove status=0 flags=46424f31000000df owner=352e7a18cb069ad5 generation=1
+FES_NANO_CALL phase=smc-before
+FES_NANO_CALL phase=affinity-enter
+FES_NANO_CALL phase=cache-before
+FES_NANO_CALL phase=cache-after
+FES_NANO_CALL phase=affinity-return
+FES_NANO_CALL phase=smc-after
+FES_NANO_CALL phase=smc-before
+FES_NANO_CALL phase=affinity-enter
+FES_NANO_CALL phase=cache-before
+FES_NANO_CALL phase=cache-after
+FES_NANO_CALL phase=affinity-return
+FES_NANO_CALL phase=smc-after
+FES_NANO_CALL phase=smc-before
+FES_NANO_CALL phase=affinity-enter
+FES_NANO_CALL phase=cache-before
+FES_NANO_CALL phase=cache-after
+FES_NANO_CALL phase=affinity-return
+FES_NANO_CALL phase=smc-after
+FES_NANO_CALL phase=smc-before
+FES_NANO_CALL phase=affinity-enter
+FES_NANO_CALL phase=cache-before
+FES_NANO_CALL phase=cache-after
+FES_NANO_CALL phase=affinity-return
+FES_NANO_CALL phase=smc-after
+FES_NANO_HANDOFF affinity=0 counter=400000000 cpus=0,1,1,1 per0=ff7fbfbf bridges=0000000f
+FES_NANO_HANDOFF PASS serial-only
+FES_ENTRY EL2 CLEAN
+FES_BOOT_STEP phase=loader_begin ticks=00000001c2a9f939 hz=0000000017d78400 el=2 sctlr=0000000030c50830
+FES_BOOT_STEP phase=decode_begin ticks=00000001c450fcb0 hz=0000000017d78400 el=2 sctlr=0000000030c51835
+FES_BOOT_STEP phase=inflate_end ticks=00000001e0c14e48 hz=0000000017d78400 el=2 sctlr=0000000030c51835
+FES_BOOT_STEP phase=checksum_end ticks=00000001e1348131 hz=0000000017d78400 el=2 sctlr=0000000030c51835
+FES_BOOT_STEP phase=decode_end ticks=00000001e16a5a04 hz=0000000017d78400 el=2 sctlr=0000000030c51835
+FES_BOOT_STEP phase=copy_end ticks=00000001e1ce61a4 hz=0000000017d78400 el=2 sctlr=0000000030c51835
+FES_BOOT_STEP phase=handoff ticks=00000001e2de3d03 hz=0000000017d78400 el=2 sctlr=0000000030c50830
+FES_ENTRY EL1 HANDOFF
+FES_BOOT_STEP phase=go_hwinit ticks=00000001e36bfc58 hz=0000000017d78400 el=1 sctlr=0000000030d01805
+FES_BOOT_STEP phase=go_vectors ticks=00000001e3a04aff hz=0000000017d78400 el=1 sctlr=0000000030d01805
+FES_BOOT_STEP phase=go_main ticks=00000001e40c1e8d hz=0000000017d78400 el=1 sctlr=0000000030d01805
+FES_NATIVE_HPS_CONTEXT PASS sha256=af09f008891978f6c49431dc4b6b3a04c47626f0e7ac64f905c4fdc6332a4f69 package_id=03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a build_id=0792e51a2e51512bfb8fe44e93a69ddd owner=352e7a18cb069ad5 generation=1 programming=unavailable
+NOTICE:  FES_NANO_HPS_IO_BEGIN part=0 owner=352e7a18cb069ad5 generation=1 count=164 busy=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=0 offset=1000 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=1 offset=1004 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=2 offset=1008 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=3 offset=100c expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=4 offset=1010 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=5 offset=1014 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=6 offset=1018 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=7 offset=101c expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=8 offset=1020 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=9 offset=1024 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=10 offset=1028 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=11 offset=102c expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=12 offset=1030 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=13 offset=1034 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=14 offset=1038 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=15 offset=103c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=16 offset=1040 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=17 offset=1044 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=18 offset=1048 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=19 offset=104c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=20 offset=1050 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=21 offset=1054 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=22 offset=1058 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=23 offset=105c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=24 offset=1060 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=25 offset=1064 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=26 offset=1068 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=27 offset=106c expected=9 observed=9
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=28 offset=1070 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=29 offset=1074 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=30 offset=1078 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=31 offset=107c expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=32 offset=1080 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=33 offset=1084 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=34 offset=1088 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=35 offset=108c expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=36 offset=1090 expected=4 observed=4
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=37 offset=1094 expected=4 observed=4
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=38 offset=1098 expected=5 observed=5
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=39 offset=109c expected=5 observed=5
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=40 offset=1100 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=41 offset=1104 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=42 offset=1108 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=43 offset=110c expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=44 offset=1110 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=45 offset=1114 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=46 offset=1118 expected=5 observed=5
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=47 offset=111c expected=5 observed=5
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=48 offset=1130 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=49 offset=1134 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=50 offset=1138 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=51 offset=113c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=52 offset=1140 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=53 offset=1144 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=54 offset=1148 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=55 offset=114c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=56 offset=1150 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=57 offset=1154 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=58 offset=1158 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=59 offset=115c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=60 offset=1160 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=61 offset=1164 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=62 offset=1168 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=63 offset=116c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=64 offset=1170 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=65 offset=1174 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=66 offset=1178 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=67 offset=117c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=68 offset=1180 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=69 offset=1184 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=70 offset=1188 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=71 offset=118c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=72 offset=1190 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=73 offset=1194 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=74 offset=1198 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=75 offset=119c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=76 offset=1200 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=77 offset=1204 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=78 offset=1208 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=79 offset=120c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=80 offset=1210 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=81 offset=1214 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=82 offset=1218 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=83 offset=121c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=84 offset=1220 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=85 offset=1224 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=86 offset=1228 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=87 offset=122c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=88 offset=1230 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=89 offset=1234 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=90 offset=1238 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=91 offset=123c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=92 offset=1240 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=93 offset=1244 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=94 offset=1248 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=95 offset=124c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=96 offset=1300 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=97 offset=1304 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=98 offset=1308 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=99 offset=130c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=100 offset=1310 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=101 offset=1314 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=102 offset=1318 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=103 offset=131c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=104 offset=1320 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=105 offset=1328 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=106 offset=132c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=107 offset=1330 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=108 offset=1334 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=109 offset=1338 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=110 offset=133c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=111 offset=1340 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=112 offset=1344 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=113 offset=1348 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=114 offset=1350 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=115 offset=1354 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=116 offset=1400 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=117 offset=1404 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=118 offset=1408 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=119 offset=140c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=120 offset=1410 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=121 offset=1414 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=122 offset=1418 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=123 offset=141c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=124 offset=1420 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=125 offset=1424 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=126 offset=1428 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=127 offset=142c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=128 offset=1430 expected=7500 observed=7500
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=129 offset=1434 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=130 offset=1438 expected=75 observed=75
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=131 offset=143c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=132 offset=1440 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=133 offset=1444 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=134 offset=1448 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=135 offset=144c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=136 offset=1450 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=137 offset=1454 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=138 offset=1458 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=139 offset=145c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=140 offset=1460 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=141 offset=1464 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=142 offset=1468 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=143 offset=146c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=144 offset=1470 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=145 offset=1474 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=146 offset=1478 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=147 offset=147c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=148 offset=1480 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=149 offset=1484 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=150 offset=1488 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=151 offset=148c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=152 offset=1490 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=153 offset=1494 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=154 offset=1498 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=155 offset=149c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=156 offset=14a0 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=157 offset=14a4 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=158 offset=14a8 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=159 offset=14ac expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=160 offset=14b0 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=161 offset=14b4 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=162 offset=14b8 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=163 offset=14bc expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=0 offset=1000 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=1 offset=1004 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=2 offset=1008 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=3 offset=100c expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=4 offset=1010 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=5 offset=1014 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=6 offset=1018 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=7 offset=101c expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=8 offset=1020 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=9 offset=1024 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=10 offset=1028 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=11 offset=102c expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=12 offset=1030 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=13 offset=1034 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=14 offset=1038 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=15 offset=103c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=16 offset=1040 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=17 offset=1044 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=18 offset=1048 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=19 offset=104c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=20 offset=1050 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=21 offset=1054 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=22 offset=1058 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=23 offset=105c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=24 offset=1060 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=25 offset=1064 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=26 offset=1068 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=27 offset=106c expected=9 observed=9
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=28 offset=1070 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=29 offset=1074 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=30 offset=1078 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=31 offset=107c expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=32 offset=1080 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=33 offset=1084 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=34 offset=1088 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=35 offset=108c expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=36 offset=1090 expected=4 observed=4
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=37 offset=1094 expected=4 observed=4
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=38 offset=1098 expected=5 observed=5
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=39 offset=109c expected=5 observed=5
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=40 offset=1100 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=41 offset=1104 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=42 offset=1108 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=43 offset=110c expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=44 offset=1110 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=45 offset=1114 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=46 offset=1118 expected=5 observed=5
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=47 offset=111c expected=5 observed=5
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=48 offset=1130 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=49 offset=1134 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=50 offset=1138 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=51 offset=113c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=52 offset=1140 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=53 offset=1144 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=54 offset=1148 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=55 offset=114c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=56 offset=1150 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=57 offset=1154 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=58 offset=1158 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=59 offset=115c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=60 offset=1160 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=61 offset=1164 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=62 offset=1168 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=63 offset=116c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=64 offset=1170 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=65 offset=1174 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=66 offset=1178 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=67 offset=117c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=68 offset=1180 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=69 offset=1184 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=70 offset=1188 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=71 offset=118c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=72 offset=1190 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=73 offset=1194 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=74 offset=1198 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=75 offset=119c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=76 offset=1200 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=77 offset=1204 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=78 offset=1208 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=79 offset=120c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=80 offset=1210 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=81 offset=1214 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=82 offset=1218 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=83 offset=121c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=84 offset=1220 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=85 offset=1224 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=86 offset=1228 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=87 offset=122c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=88 offset=1230 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=89 offset=1234 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=90 offset=1238 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=91 offset=123c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=92 offset=1240 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=93 offset=1244 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=94 offset=1248 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=95 offset=124c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=96 offset=1300 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=97 offset=1304 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=98 offset=1308 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=99 offset=130c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=100 offset=1310 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=101 offset=1314 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=102 offset=1318 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=103 offset=131c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=104 offset=1320 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=105 offset=1328 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=106 offset=132c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=107 offset=1330 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=108 offset=1334 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=109 offset=1338 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=110 offset=133c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=111 offset=1340 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=112 offset=1344 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=113 offset=1348 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=114 offset=1350 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=115 offset=1354 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=116 offset=1400 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=117 offset=1404 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=118 offset=1408 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=119 offset=140c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=120 offset=1410 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=121 offset=1414 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=122 offset=1418 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=123 offset=141c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=124 offset=1420 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=125 offset=1424 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=126 offset=1428 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=127 offset=142c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=128 offset=1430 expected=7500 observed=7500
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=129 offset=1434 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=130 offset=1438 expected=75 observed=75
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=131 offset=143c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=132 offset=1440 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=133 offset=1444 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=134 offset=1448 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=135 offset=144c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=136 offset=1450 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=137 offset=1454 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=138 offset=1458 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=139 offset=145c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=140 offset=1460 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=141 offset=1464 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=142 offset=1468 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=143 offset=146c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=144 offset=1470 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=145 offset=1474 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=146 offset=1478 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=147 offset=147c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=148 offset=1480 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=149 offset=1484 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=150 offset=1488 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=151 offset=148c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=152 offset=1490 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=153 offset=1494 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=154 offset=1498 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=155 offset=149c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=156 offset=14a0 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=157 offset=14a4 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=158 offset=14a8 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=159 offset=14ac expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=160 offset=14b0 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=161 offset=14b4 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=162 offset=14b8 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=163 offset=14bc expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_END part=0 status=0 reads=328 error=0 owner=352e7a18cb069ad5 generation=1 data=held
+NOTICE:  FES_NANO_HPS_IO_BEGIN part=1 owner=352e7a18cb069ad5 generation=1 count=164 busy=0
+NOTICE:  FES_NANO_HPS_IO_END part=1 status=0 reads=328 error=0 owner=352e7a18cb069ad5 generation=1 data=held
+FES_NATIVE_HPS_IO PASS map_sha256=297995427d26df7bb4c51f0c68ca50735468ea22aae7323d92aa6e781e18f0ae count=164 reads=328 owner=352e7a18cb069ad5 generation=1 data_held=1 runtime_admission=unavailable
+FES_NATIVE_SHARED_USB READY input=boot-keyboard owner=352e7a18cb069ad5 generation=2 descriptor_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 descriptor_bytes=0
+FES_BOOT_STEP phase=verifier_ready ticks=00000002258157b8 hz=0000000017d78400 el=1 sctlr=0000000030d01805
+FES_BOOT_STEP phase=sd_open_begin ticks=0000000225b9263f hz=0000000017d78400 el=1 sctlr=0000000030d01805
+FES_BOOT_STEP phase=sd_open_end ticks=0000000226b4f0a4 hz=0000000017d78400 el=1 sctlr=0000000030d01805
+FES_BOOT_STEP phase=fat_mount_end ticks=0000000227746449 hz=0000000017d78400 el=1 sctlr=0000000030d01805
+NOTICE:  FES_NANO_CORE_TRANSFER phase=arm owner=352e7a18cb069ad5 generation=4 completed=0 pending=0 total=1708032 base=94800000 counter=5e948acfb hash_ticks=ff046ab
+NOTICE:  FES_NANO_CORE_TRANSFER phase=start owner=352e7a18cb069ad5 generation=4 completed=0 pending=0 total=1708032 base=94800000 counter=5fcae10c1 hash_ticks=1fe2d6bb
+NOTICE:  FES_NANO_START phase=0 status=0
+NOTICE:  FES_NANO_START phase=1 status=0
+NOTICE:  FES_NANO_START phase=2 status=0
+NOTICE:  FES_NANO_START phase=3 status=0
+NOTICE:  FES_NANO_ISOLATION_IO fill=0 branch=3 cin=2 cout=2 bell=1 polls=2 header=0
+NOTICE:  FES_NANO_ISOLATION status=0
+NOTICE:  FES_NANO_START phase=4 status=0
+NOTICE:  FES_NANO_START phase=12 status=0
+NOTICE:  FES_NANO_START phase=13 status=0
+NOTICE:  FES_NANO_START phase=14 status=0
+NOTICE:  FES_NANO_START phase=5 status=0
+NOTICE:  FES_NANO_START phase=6 status=0
+NOTICE:  FES_NANO_START phase=7 status=2
+NOTICE:  FES_NANO_START phase=8 status=0
+NOTICE:  FES_NANO_START phase=9 status=0
+NOTICE:  FES_NANO_START phase=10 status=0
+NOTICE:  FES_NANO_START phase=11 status=0
+NOTICE:  FES_NANO_CORE_ENGINE credits=4 block_bytes=1048560 next_job=0 owner=352e7a18cb069ad5 generation=4
+NOTICE:  FES_NANO_CORE_MAILBOX phase=1 owner=352e7a18cb069ad5 generation=4 completed=0 pending=0 job=0 cin=5 cout=5 rin=6 rout=6 bell=0 status=c6faf14f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=352e7a18cb069ad5 generation=4 completed=0 pending=1048512 total=1708032 base=94800000 counter=61b840d7e hash_ticks=397b0476
+NOTICE:  FES_NANO_CORE_MAILBOX phase=2 owner=352e7a18cb069ad5 generation=4 completed=0 pending=1048512 job=0 cin=5 cout=5 rin=6 rout=6 bell=0 status=c6faf14f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=352e7a18cb069ad5 generation=4 completed=0 pending=1708032 total=1708032 base=94800000 counter=63b02abaa hash_ticks=532177c2
+NOTICE:  FES_NANO_CORE_MAILBOX phase=2 owner=352e7a18cb069ad5 generation=4 completed=0 pending=1708032 job=1 cin=9 cout=9 rin=7 rout=6 bell=1 status=c6faf14f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=352e7a18cb069ad5 generation=4 completed=0 pending=1708032 total=1708032 base=94800000 counter=661d225a6 hash_ticks=72e2bf42
+NOTICE:  FES_NANO_CORE_MAILBOX phase=3 owner=352e7a18cb069ad5 generation=4 completed=1048512 pending=659520 job=2 cin=d cout=d rin=8 rout=7 bell=1 status=c6faf14f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=352e7a18cb069ad5 generation=4 completed=1048512 pending=659520 total=1708032 base=94800000 counter=67cf1f2a8 hash_ticks=88d9731b
+NOTICE:  FES_NANO_CORE_MAILBOX phase=3 owner=352e7a18cb069ad5 generation=4 completed=1708032 pending=0 job=2 cin=d cout=d rin=8 rout=8 bell=0 status=c6faf14f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=status owner=352e7a18cb069ad5 generation=4 completed=1708032 pending=0 total=1708032 base=94800000 counter=6981ed61c hash_ticks=9ee69ff2
+NOTICE:  FES_NANO_FABRIC_ACTIVATION owner=352e7a18cb069ad5 generation=4 previous=0 rearm=0 complete=1 data_held=1
+NOTICE:  FES_NANO_CORE_TRANSFER phase=complete owner=352e7a18cb069ad5 generation=4 completed=1708032 pending=0 total=1708032 base=94800000 counter=6a8d8a57f hash_ticks=aeb435bb
+NOTICE:  FES_NANO_CONFIG_QUERY command=4 words=6
+NOTICE:  FES_NANO_CONFIG_STATUS status=0 words=6 state=0 version=1a0300 pins=c0000089 soft=3 error_location=0 error_details=f ready=1
+NOTICE:  FES_NANO_SMMU status=0 reads=26 idr0=80f7e3f idr1=e739d18 aidr=1 s_idr1=80000018 cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 identified=1 settled=1 bypass_controls_clear=1 access=unqualified
+NOTICE:  FES_NANO_DDR_FIREWALL status=0 owner=352e7a18cb069ad5 generation=4 reset=f mpfe_reset=0 reads=66 enable=1 base=95000000 bytes=8388608 access=unqualified
+NOTICE:  FES_NANO_DDR_REGION index=0 base=80100000 baseext=0 limit=bfffffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=1 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=2 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=3 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=4 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=5 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=6 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=7 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_FIREWALL_END layout_known=1 window_covered=1 access=unqualified
+NOTICE:  FES_NANO_WINDOW_SCOPE phase=control owner=352e7a18cb069ad5 generation=5 reset=d
+NOTICE:  FES_NANO_SMMU status=0 reads=26 idr0=80f7e3f idr1=e739d18 aidr=1 s_idr1=80000018 cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 identified=1 settled=1 bypass_controls_clear=1 access=unqualified
+NOTICE:  FES_NANO_DDR_FIREWALL status=0 owner=352e7a18cb069ad5 generation=5 reset=d mpfe_reset=0 reads=66 enable=1 base=95000000 bytes=8388608 access=unqualified
+NOTICE:  FES_NANO_DDR_REGION index=0 base=80100000 baseext=0 limit=bfffffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=1 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=2 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=3 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=4 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=5 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=6 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=7 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_FIREWALL_END layout_known=1 window_covered=1 access=unqualified
+NOTICE:  FES_NANO_WINDOW_GATE status=0 owner=352e7a18cb069ad5 generation=5 reset=d bytes=8388608 permit=owned-read
+NOTICE:  FES_NANO_SMMU status=0 reads=26 idr0=80f7e3f idr1=e739d18 aidr=1 s_idr1=80000018 cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 identified=1 settled=1 bypass_controls_clear=1 access=unqualified
+NOTICE:  FES_NANO_DDR_FIREWALL status=0 owner=352e7a18cb069ad5 generation=5 reset=d mpfe_reset=0 reads=66 enable=1 base=95000000 bytes=8388608 access=unqualified
+NOTICE:  FES_NANO_DDR_REGION index=0 base=80100000 baseext=0 limit=bfffffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=1 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=2 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=3 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=4 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=5 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=6 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=7 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_FIREWALL_END layout_known=1 window_covered=1 access=unqualified
+NOTICE:  FES_NANO_WINDOW_GATE status=0 owner=352e7a18cb069ad5 generation=5 reset=d bytes=8388608 permit=owned-read
+NOTICE:  FES_NANO_WINDOW_SCOPE phase=data owner=352e7a18cb069ad5 generation=6 reset=5
+FES_NATIVE_MENU_STATE {"scope":"nano-program-menu-v1","event":"frame","menu":1,"identity":{"PackageID":"385c0b5016521b802b528fe158892ed5776cd5fc2c11710e0e08f4bc034b9762","CoreID":"fes.de25-embedded-diagnostic","ABI":"fes.de25-embedded-diagnostic","BuildID":"87ebcfe5b831f68e83513ef78b9e8ade","Platform":"de25_nano","Device":"A5EB013BB23BE4SCS","ProgrammingProfile":"de25-embedded-hps-first-menu-prototype-v1","ActivationReceiptSHA256":"","ProgrammedSHA256":"1d61926aa9be41d94e2cd74c53fa7030dfa1f800608424fe15d779eea2088815","Major":1,"Minor":0},"source_sha256":"af09f008891978f6c49431dc4b6b3a04c47626f0e7ac64f905c4fdc6332a4f69","source_generation":4,"opened":{"Capabilities":{"Mask":15,"ControlMask":2,"HardwareDrainMask":12,"FabricHandshake":1},"Owner":3832134579842882261,"Generation":6,"ResetMask":5,"NeverEnabled":false,"MastersContained":false},"after":{"Capabilities":{"Mask":15,"ControlMask":2,"HardwareDrainMask":12,"FabricHandshake":1},"Owner":3832134579842882261,"Generation":6,"ResetMask":5,"NeverEnabled":false,"MastersContained":false},"frames":1,"frame":{"Generation":1,"Sequence":1,"Submitted":1,"Slot":0,"Underflows":0},"memory_sha256":"826831416127967558515d1a0d8c65c95e854eb687cbf929b2ad995758490706","control_sha256":"2f0f08b972f1c7543f8d8ecdeb23162f9c0e4b4d596d3fa61733f2ffdb3cc5ed","access_sha256":"46f2283bbb26b92c6d8ffdf67de6a329c3072deb2f578be8132b3879b4b60d3c"}
+FES_NATIVE_TENFOOT_BEGIN display=fpga-menu input=uart+shared-usb-boot-keyboard preferences=ram
+FES_NATIVE_TENFOOT_STATE {"scope":"nano-tenfoot-serial-v1","display":"serial-state-only","titles":[],"focus":0,"loading":true,"load_error":"","session":"","launch":"idle","launch_error":"","retry_stop":false,"native":{"State":"ready","Owner":3832134579842882261,"Generation":0,"Identity":{"PackageID":"","CoreID":"","ABI":"","BuildID":"","Platform":"","Device":"","ProgrammingProfile":"","ActivationReceiptSHA256":"","ProgrammedSHA256":"","Major":0,"Minor":0},"Held":true,"Error":""}}
+FES_NATIVE_MENU_STATE {"scope":"nano-program-menu-v1","event":"frame","menu":1,"identity":{"PackageID":"385c0b5016521b802b528fe158892ed5776cd5fc2c11710e0e08f4bc034b9762","CoreID":"fes.de25-embedded-diagnostic","ABI":"fes.de25-embedded-diagnostic","BuildID":"87ebcfe5b831f68e83513ef78b9e8ade","Platform":"de25_nano","Device":"A5EB013BB23BE4SCS","ProgrammingProfile":"de25-embedded-hps-first-menu-prototype-v1","ActivationReceiptSHA256":"","ProgrammedSHA256":"1d61926aa9be41d94e2cd74c53fa7030dfa1f800608424fe15d779eea2088815","Major":1,"Minor":0},"source_sha256":"af09f008891978f6c49431dc4b6b3a04c47626f0e7ac64f905c4fdc6332a4f69","source_generation":4,"opened":{"Capabilities":{"Mask":15,"ControlMask":2,"HardwareDrainMask":12,"FabricHandshake":1},"Owner":3832134579842882261,"Generation":6,"ResetMask":5,"NeverEnabled":false,"MastersContained":false},"after":{"Capabilities":{"Mask":15,"ControlMask":2,"HardwareDrainMask":12,"FabricHandshake":1},"Owner":3832134579842882261,"Generation":6,"ResetMask":5,"NeverEnabled":false,"MastersContained":false},"frames":2,"frame":{"Generation":1,"Sequence":2,"Submitted":2,"Slot":1,"Underflows":0},"memory_sha256":"826831416127967558515d1a0d8c65c95e854eb687cbf929b2ad995758490706","control_sha256":"2f0f08b972f1c7543f8d8ecdeb23162f9c0e4b4d596d3fa61733f2ffdb3cc5ed","access_sha256":"46f2283bbb26b92c6d8ffdf67de6a329c3072deb2f578be8132b3879b4b60d3c"}
+FES_NATIVE_TENFOOT_STATE {"scope":"nano-tenfoot-serial-v1","display":"serial-state-only","titles":["ZX81","ZX80"],"focus":0,"loading":false,"load_error":"","session":"idle","launch":"idle","launch_error":"","retry_stop":false,"native":{"State":"ready","Owner":3832134579842882261,"Generation":0,"Identity":{"PackageID":"","CoreID":"","ABI":"","BuildID":"","Platform":"","Device":"","ProgrammingProfile":"","ActivationReceiptSHA256":"","ProgrammedSHA256":"","Major":0,"Minor":0},"Held":true,"Error":""}}
+FES_NATIVE_MENU_STATE {"scope":"nano-program-menu-v1","event":"frame","menu":1,"identity":{"PackageID":"385c0b5016521b802b528fe158892ed5776cd5fc2c11710e0e08f4bc034b9762","CoreID":"fes.de25-embedded-diagnostic","ABI":"fes.de25-embedded-diagnostic","BuildID":"87ebcfe5b831f68e83513ef78b9e8ade","Platform":"de25_nano","Device":"A5EB013BB23BE4SCS","ProgrammingProfile":"de25-embedded-hps-first-menu-prototype-v1","ActivationReceiptSHA256":"","ProgrammedSHA256":"1d61926aa9be41d94e2cd74c53fa7030dfa1f800608424fe15d779eea2088815","Major":1,"Minor":0},"source_sha256":"af09f008891978f6c49431dc4b6b3a04c47626f0e7ac64f905c4fdc6332a4f69","source_generation":4,"opened":{"Capabilities":{"Mask":15,"ControlMask":2,"HardwareDrainMask":12,"FabricHandshake":1},"Owner":3832134579842882261,"Generation":6,"ResetMask":5,"NeverEnabled":false,"MastersContained":false},"after":{"Capabilities":{"Mask":15,"ControlMask":2,"HardwareDrainMask":12,"FabricHandshake":1},"Owner":3832134579842882261,"Generation":6,"ResetMask":5,"NeverEnabled":false,"MastersContained":false},"frames":3,"frame":{"Generation":1,"Sequence":3,"Submitted":3,"Slot":0,"Underflows":0},"memory_sha256":"826831416127967558515d1a0d8c65c95e854eb687cbf929b2ad995758490706","control_sha256":"2f0f08b972f1c7543f8d8ecdeb23162f9c0e4b4d596d3fa61733f2ffdb3cc5ed","access_sha256":"46f2283bbb26b92c6d8ffdf67de6a329c3072deb2f578be8132b3879b4b60d3c"}
+FES_NATIVE_MENU_STATE {"scope":"nano-program-menu-v1","event":"frame","menu":1,"identity":{"PackageID":"385c0b5016521b802b528fe158892ed5776cd5fc2c11710e0e08f4bc034b9762","CoreID":"fes.de25-embedded-diagnostic","ABI":"fes.de25-embedded-diagnostic","BuildID":"87ebcfe5b831f68e83513ef78b9e8ade","Platform":"de25_nano","Device":"A5EB013BB23BE4SCS","ProgrammingProfile":"de25-embedded-hps-first-menu-prototype-v1","ActivationReceiptSHA256":"","ProgrammedSHA256":"1d61926aa9be41d94e2cd74c53fa7030dfa1f800608424fe15d779eea2088815","Major":1,"Minor":0},"source_sha256":"af09f008891978f6c49431dc4b6b3a04c47626f0e7ac64f905c4fdc6332a4f69","source_generation":4,"opened":{"Capabilities":{"Mask":15,"ControlMask":2,"HardwareDrainMask":12,"FabricHandshake":1},"Owner":3832134579842882261,"Generation":6,"ResetMask":5,"NeverEnabled":false,"MastersContained":false},"after":{"Capabilities":{"Mask":15,"ControlMask":2,"HardwareDrainMask":12,"FabricHandshake":1},"Owner":3832134579842882261,"Generation":6,"ResetMask":5,"NeverEnabled":false,"MastersContained":false},"frames":4,"frame":{"Generation":1,"Sequence":4,"Submitted":4,"Slot":1,"Underflows":0},"memory_sha256":"826831416127967558515d1a0d8c65c95e854eb687cbf929b2ad995758490706","control_sha256":"2f0f08b972f1c7543f8d8ecdeb23162f9c0e4b4d596d3fa61733f2ffdb3cc5ed","access_sha256":"46f2283bbb26b92c6d8ffdf67de6a329c3072deb2f578be8132b3879b4b60d3c"}
+FES_NATIVE_INPUT_ACTION source=uart action=select state=ready owner=352e7a18cb069ad5 native_generation=0
+FES_NATIVE_SHARED_USB INPUT phase=pause state=ready native_generation=0 owner=352e7a18cb069ad5 generation=2 reports=35 polls=5659
+NOTICE:  FES_NANO_WINDOW_SCOPE phase=close owner=352e7a18cb069ad5 generation=6 reset=5
+NOTICE:  FES_NANO_MASTER_STOP status=0 owner=352e7a18cb069ad5 generation=6 reset=5 reader_reads=88 reader_polls=1 disable=0 probe_polls=2 cancel=0 complete=1 data=active
+NOTICE:  FES_NANO_WINDOW_READER_DRAIN owner=352e7a18cb069ad5 generation=6 reset=5 reader_generation=1 request_generation=1 cookie=1 ack_generation=1 ack_cookie=1 status=4 pending=0
+NOTICE:  FES_NANO_WINDOW_CLOSURE owner=352e7a18cb069ad5 generation=7 reset=f hardware_drained=8 data_remained_contained=0 producers_quiescent=1 fabric_acknowledged=0
+FES_NATIVE_MENU_STATE {"scope":"nano-program-menu-v1","event":"return","menu":1,"identity":{"PackageID":"385c0b5016521b802b528fe158892ed5776cd5fc2c11710e0e08f4bc034b9762","CoreID":"fes.de25-embedded-diagnostic","ABI":"fes.de25-embedded-diagnostic","BuildID":"87ebcfe5b831f68e83513ef78b9e8ade","Platform":"de25_nano","Device":"A5EB013BB23BE4SCS","ProgrammingProfile":"de25-embedded-hps-first-menu-prototype-v1","ActivationReceiptSHA256":"","ProgrammedSHA256":"1d61926aa9be41d94e2cd74c53fa7030dfa1f800608424fe15d779eea2088815","Major":1,"Minor":0},"source_sha256":"af09f008891978f6c49431dc4b6b3a04c47626f0e7ac64f905c4fdc6332a4f69","source_generation":4,"opened":{"Capabilities":{"Mask":15,"ControlMask":2,"HardwareDrainMask":12,"FabricHandshake":1},"Owner":3832134579842882261,"Generation":6,"ResetMask":5,"NeverEnabled":false,"MastersContained":false},"after":{"Capabilities":{"Mask":15,"ControlMask":2,"HardwareDrainMask":12,"FabricHandshake":1},"Owner":3832134579842882261,"Generation":7,"ResetMask":15,"NeverEnabled":false,"MastersContained":true},"frames":4,"frame":{"Generation":1,"Sequence":4,"Submitted":4,"Slot":1,"Underflows":0},"memory_sha256":"826831416127967558515d1a0d8c65c95e854eb687cbf929b2ad995758490706","control_sha256":"2f0f08b972f1c7543f8d8ecdeb23162f9c0e4b4d596d3fa61733f2ffdb3cc5ed","access_sha256":"46f2283bbb26b92c6d8ffdf67de6a329c3072deb2f578be8132b3879b4b60d3c"}
+FES_NATIVE_TENFOOT_STATE {"scope":"nano-tenfoot-serial-v1","display":"serial-state-only","titles":["ZX81","ZX80"],"focus":0,"loading":false,"load_error":"","session":"idle","launch":"launching","launch_error":"","retry_stop":false,"native":{"State":"loading","Owner":3832134579842882261,"Generation":0,"Identity":{"PackageID":"","CoreID":"","ABI":"","BuildID":"","Platform":"","Device":"","ProgrammingProfile":"","ActivationReceiptSHA256":"","ProgrammedSHA256":"","Major":0,"Minor":0},"Held":true,"Error":""}}
+NOTICE:  FES_NANO_CORE_TRANSFER phase=arm owner=352e7a18cb069ad5 generation=10 completed=0 pending=0 total=1654784 base=94800000 counter=b036d2113 hash_ticks=be26a91c
+NOTICE:  FES_NANO_CORE_TRANSFER phase=start owner=352e7a18cb069ad5 generation=10 completed=0 pending=0 total=1654784 base=94800000 counter=b163c0e6e hash_ticks=cd99d88a
+NOTICE:  FES_NANO_START phase=0 status=0
+NOTICE:  FES_NANO_START phase=1 status=0
+NOTICE:  FES_NANO_START phase=2 status=0
+NOTICE:  FES_NANO_START phase=3 status=0
+NOTICE:  FES_NANO_ISOLATION_IO fill=0 branch=3 cin=f cout=f bell=1 polls=2 header=0
+NOTICE:  FES_NANO_ISOLATION status=0
+NOTICE:  FES_NANO_START phase=4 status=0
+NOTICE:  FES_NANO_START phase=12 status=0
+NOTICE:  FES_NANO_START phase=13 status=0
+NOTICE:  FES_NANO_START phase=14 status=0
+NOTICE:  FES_NANO_START phase=5 status=0
+NOTICE:  FES_NANO_START phase=6 status=0
+NOTICE:  FES_NANO_START phase=7 status=2
+NOTICE:  FES_NANO_START phase=8 status=0
+NOTICE:  FES_NANO_START phase=9 status=0
+NOTICE:  FES_NANO_START phase=10 status=0
+NOTICE:  FES_NANO_START phase=11 status=0
+NOTICE:  FES_NANO_CORE_ENGINE credits=4 block_bytes=1048560 next_job=2 owner=352e7a18cb069ad5 generation=10
+NOTICE:  FES_NANO_CORE_MAILBOX phase=1 owner=352e7a18cb069ad5 generation=10 completed=0 pending=0 job=2 cin=12 cout=12 rin=b rout=b bell=0 status=c6faf14f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=352e7a18cb069ad5 generation=10 completed=0 pending=1048512 total=1654784 base=94800000 counter=b349cff94 hash_ticks=e6b41128
+NOTICE:  FES_NANO_CORE_MAILBOX phase=2 owner=352e7a18cb069ad5 generation=10 completed=0 pending=1048512 job=2 cin=12 cout=12 rin=b rout=b bell=0 status=c6faf14f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=352e7a18cb069ad5 generation=10 completed=0 pending=1654784 total=1654784 base=94800000 counter=b538a4658 hash_ticks=ffdbb1e5
+NOTICE:  FES_NANO_CORE_MAILBOX phase=2 owner=352e7a18cb069ad5 generation=10 completed=0 pending=1654784 job=3 cin=16 cout=16 rin=c rout=b bell=1 status=c6faf14f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=352e7a18cb069ad5 generation=10 completed=0 pending=1654784 total=1654784 base=94800000 counter=b7930b4ca hash_ticks=11e9f4773
+NOTICE:  FES_NANO_CORE_MAILBOX phase=3 owner=352e7a18cb069ad5 generation=10 completed=1048512 pending=606272 job=4 cin=1a cout=1a rin=d rout=c bell=1 status=c6faf14f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=352e7a18cb069ad5 generation=10 completed=1048512 pending=606272 total=1654784 base=94800000 counter=b9328c4e0 hash_ticks=13398d9de
+NOTICE:  FES_NANO_CORE_MAILBOX phase=3 owner=352e7a18cb069ad5 generation=10 completed=1654784 pending=0 job=4 cin=1a cout=1a rin=d rout=d bell=0 status=c6faf14f state=0 next=0 slot=-1 cmd_used=0 resp_used=0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=status owner=352e7a18cb069ad5 generation=10 completed=1654784 pending=0 total=1654784 base=94800000 counter=bad2d65d9 hash_ticks=148a8a737
+NOTICE:  FES_NANO_FABRIC_ACTIVATION owner=352e7a18cb069ad5 generation=10 previous=4 rearm=1 complete=1 data_held=1
+NOTICE:  FES_NANO_CORE_TRANSFER phase=complete owner=352e7a18cb069ad5 generation=10 completed=1654784 pending=0 total=1654784 base=94800000 counter=bbd6be14e hash_ticks=157f8c17e
+NOTICE:  FES_NANO_CONFIG_QUERY command=4 words=6
+NOTICE:  FES_NANO_CONFIG_STATUS status=0 words=6 state=0 version=1a0300 pins=c0000089 soft=3 error_location=0 error_details=f ready=1
+NOTICE:  FES_NANO_SMMU status=0 reads=26 idr0=80f7e3f idr1=e739d18 aidr=1 s_idr1=80000018 cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 identified=1 settled=1 bypass_controls_clear=1 access=unqualified
+NOTICE:  FES_NANO_DDR_FIREWALL status=0 owner=352e7a18cb069ad5 generation=10 reset=f mpfe_reset=0 reads=66 enable=1 base=95000000 bytes=8192 access=unqualified
+NOTICE:  FES_NANO_DDR_REGION index=0 base=80100000 baseext=0 limit=bfffffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=1 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=2 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=3 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=4 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=5 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=6 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_REGION index=7 base=0 baseext=0 limit=ffff limitext=0
+NOTICE:  FES_NANO_DDR_FIREWALL_END layout_known=1 window_covered=1 access=unqualified
+FES_NATIVE_SHARED_USB INPUT phase=resume state=running native_generation=1 owner=352e7a18cb069ad5 generation=2 reports=35 polls=5659
+FES_NATIVE_CORE_FETCH {"scope":"nano-computer-fetch-tape-v1","owner":3832134579842882261,"generation":1,"package_id":"03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a","build_id":"0792e51a2e51512bfb8fe44e93a69ddd","before":{"Cycles":0,"Address":0},"held":{"Cycles":0,"Address":0},"running":{"Cycles":11928,"Address":977},"delta":11928,"polls":1,"elapsed_ns":1291848575,"limit_ns":7000000000,"tape_bytes":917,"tape_elapsed_ns":1199775625,"tape_limit_ns":6000000000,"control_elapsed_ns":92072950}
+FES_NATIVE_TENFOOT_STATE {"scope":"nano-tenfoot-serial-v1","display":"serial-state-only","titles":["ZX81","ZX80"],"focus":0,"loading":false,"load_error":"","session":"idle","launch":"launching","launch_error":"","retry_stop":false,"native":{"State":"running","Owner":3832134579842882261,"Generation":1,"Identity":{"PackageID":"03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a","CoreID":"fes.zx81","ABI":"fes.computer","BuildID":"0792e51a2e51512bfb8fe44e93a69ddd","Platform":"de25_nano","Device":"A5EB013BB23BE4SCS","ProgrammingProfile":"de25-native-computer-v1","ActivationReceiptSHA256":"5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c","ProgrammedSHA256":"1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949","Major":1,"Minor":0},"rom_receipt_sha256":"5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c","tape_sha256":"3664f171999bf597cc284754ac8f7ad2071bafd78fb1cd48c330d82dfbebaabb","tape_bytes":917,"Held":false,"Error":""}}
+FES_NATIVE_TENFOOT_STATE {"scope":"nano-tenfoot-serial-v1","display":"serial-state-only","titles":["ZX81","ZX80"],"focus":0,"loading":false,"load_error":"","session":"active","launch":"ok","launch_error":"","retry_stop":false,"native":{"State":"running","Owner":3832134579842882261,"Generation":1,"Identity":{"PackageID":"03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a","CoreID":"fes.zx81","ABI":"fes.computer","BuildID":"0792e51a2e51512bfb8fe44e93a69ddd","Platform":"de25_nano","Device":"A5EB013BB23BE4SCS","ProgrammingProfile":"de25-native-computer-v1","ActivationReceiptSHA256":"5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c","ProgrammedSHA256":"1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949","Major":1,"Minor":0},"rom_receipt_sha256":"5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c","tape_sha256":"3664f171999bf597cc284754ac8f7ad2071bafd78fb1cd48c330d82dfbebaabb","tape_bytes":917,"Held":false,"Error":""}}
