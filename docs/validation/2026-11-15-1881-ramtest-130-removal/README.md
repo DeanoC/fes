@@ -1,12 +1,18 @@
-# RAM tester 130 MHz removal: historical D12 evidence and current gate status, 15 November 2026
+# RAM tester 130 MHz removal: D12 evidence, 15 November 2026
 
-PR [#1881](https://github.com/DeanoC/fes/pull/1881). This record contains
-historical D12 measurements for the PR head `984f6e29432976a4fc690da97c6cb1e1791a686b`.
-It does not discharge [AGENTS.md](../../../AGENTS.md)'s D12 for the current PR
-tree: main's `scripts/core_package.py` source-closure change altered the
-production build identity after the last gated build. The current tree's
-production-ID timing and seal gates have not been measured, so the current
-no-HIL conclusion is withdrawn pending those gates.
+PR [#1881](https://github.com/DeanoC/fes/pull/1881). Sections 1 to 4 are the
+historical D12 measurements for the PR head
+`984f6e29432976a4fc690da97c6cb1e1791a686b`. They did not discharge
+[AGENTS.md](../../../AGENTS.md)'s D12 for the tree as it then stood, because
+main's `scripts/core_package.py` source-closure change had altered the
+production build identity after the last gated build, and the no-HIL
+conclusion was withdrawn pending the current tree's production-ID timing and
+seal gates.
+
+**Section 5 supplies those gates**, at the head that will merge. With it, all
+three D12 conditions hold for the current tree and the no-HIL conclusion is
+restored. Read section 5 for the current determination; sections 1 to 4 remain
+the evidence for the earlier heads they name.
 
 Merge base: `8bbbed8017448873fb33bc42109bc65e296f40ed`. PR head:
 `984f6e29432976a4fc690da97c6cb1e1791a686b`. Both sides ran on Powerboat from
@@ -182,6 +188,74 @@ that gap, run the normal authenticated RAM Tester producer on the exact PR head
 and record its production `BUILD_ID`, package and RBF digests, winning seed,
 and every clock result. Reassess D12 and the HIL requirement from that
 exact-head evidence.
+
+## 5. Current-tree gates at `e27a20c86`
+
+Main advanced again to `333900cbb` (#1860) and was merged forward, so the head
+that will merge is `e27a20c86fa0465570fe85ac1874bdc16814162f`. That commit
+changes nine files, all under `docs/validation/2026-11-14-pc386-u7-npc-pace/`
+and none under `sources/misteross/`, so it touches no producer's source closure
+and moves no build identity. A `BUILD_ID` hashes its producer's transitive
+closure and nothing else, so a merge touching no closure file cannot move it.
+
+Conditions 1 and 2 were taken against merge base `8bbbed801`, and the current
+merge base is `333900cbb`. Rather than deduce that the comparison carries, the
+zeroed-`BUILD_ID` netlist was measured at that base too:
+
+| Run | Tree | `synth.json` SHA-256 |
+| --- | --- | --- |
+| base3 r1, r2 | current merge base `333900cbb` | `391b7a6b53a8f818…` (both) |
+
+`cmp` confirms it is identical to the original base's. Ten synthesis runs
+across three merge bases and two heads now agree on `391b7a6b53a8f818…`, so
+main's own netlist is byte-identical at every base this PR has had, and
+section 2's RBF comparison carries under D12's merge-forward clause.
+
+**Condition 3, the production-ID gate, measured at `e27a20c86`.** The normal
+authenticated producer was run with no forcing of any kind:
+`python3 scripts/build_fes_ramtest.py --cache-root <shared cache>`, on
+Powerboat with `FES_TOOLCHAIN_GPU_ROUTER=HIP`, a `gpu-run` leased GPU, and the
+output path left to the producer. It passed and exported a package.
+
+- production `BUILD_ID` `06f01b2c9c16de7d936136251d3f7a09`
+- package `4ee83633a9e456a05d06f5c2408a7cc48965f89e49bc9e0af40e194166c02da6`
+- `core.rbf` SHA-256 `0318faa9be02b3bfdb6c44c391a0e5d958c80ca7a76d3a5ef62cb8d53a61b4ea`, 2,337,005 bytes
+- winning seed 6 at weight 10, two ranking entries in `qor-ranking.json`
+
+| Clock | Achieved MHz | Constraint MHz | Status |
+| --- | ---: | ---: | --- |
+| memory `ram_clock.clocks[0]` | 100.97950 | 100.0 | pass |
+| capture `ram_clock.clocks[1]` | 299.94000 | 100.0 | pass |
+| pixel `display.pixel_clk` | 81.04385 | 74.25007 | pass |
+| reference `FPGA_CLK1_50` | — | 50.0 | pass |
+
+The runner checked the producer's exit status and then that
+`build-summary.json`, `core.rbf`, `qor-ranking.json` and `manifest.toml` were
+each non-empty, because an exit 0 that wrote no artifacts is a failure.
+
+**Margin worth recording.** Memory passes at 100.97950 against 100.0, under
+1% of headroom on the binding clock. The same core's earlier identities gave
+102.37511 at the merge base and 101.44046 at `984f6e29`. The identity constant
+is synthesised in and reshuffles placement, so the memory clock moves by a
+megahertz or so between identities with no functional change at all. On #1806
+the same `core_package.py` constant move made `coleco_v2` miss timing on all
+ten seeds. A future identity move on this core coming back failing would not be
+anomalous; this gate is a measurement, not a formality.
+
+## Conclusion
+
+All three of D12's conditions hold for `fes.ramtest` on PR #1881 at
+`e27a20c86`:
+
+1. the netlist is byte-identical to the merge base with nothing normalised,
+   measured at every base this PR has had;
+2. a build with the PR's tooling and the merge base's `BUILD_ID` reproduces
+   that base's RBF byte for byte, same winning seed;
+3. the PR's own unforced build at the merging head passes the core's normal
+   timing and seal gates, with its production identity recorded above.
+
+No reseal and no kit HIL are required for this change. This supersedes the
+withdrawal above, which was pending exactly these gates.
 
 ## Scope of this record
 
