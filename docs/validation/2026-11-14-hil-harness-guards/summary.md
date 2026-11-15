@@ -133,7 +133,7 @@ after checking them against the real data are red on the extraction too. All of
 them pass on the branch head:
 
     cd sources/misteross && python3 -m unittest discover -s tests -p 'test_kit*.py'
-    # 71 tests, OK (56 of them this module's)
+    # 77 tests, OK (62 of them this module's)
 
 The cleanup gate is also exercised against a real local HTTP agent replying in
 `protocol.Status`'s own shape (`state`, `game_id`, `core_package.package_id`,
@@ -234,6 +234,45 @@ of them, which is what guard 3 changes.
   keeps its overlay classification: the import graph reaches it from
   `pc386_wfw_kit_acceptance.py`, so that one is not a misclassification.
 
+## The invariant guard 2 rests on
+
+**The kit lease is held for the whole interval in which the cleanup reads or
+removes anything, and the command's exit code tells the truth about whether it
+was.**
+
+Everything else about guard 2 is mechanism. Three rounds of review each found
+the same gap in a different place, which is why the invariant is stated here
+rather than only implemented:
+
+1. The gate read the kit's state and the caller then removed files, so another
+   session could claim the kit in between — "safe when it looked, not when it
+   acted".
+2. Claiming first fixed the start of the interval but not its length: a claim
+   excludes others only while it is live, `kit.Session` renews in the
+   background and merely sets `failed` when a renewal is lost, and one ssh
+   command could run 180 s against a 90 s lease
+   (`kitlease.New(90*time.Second, ...)`,
+   `sources/FogCast/cmd/mister-agent/main.go:511`). So a slow `find` or `rm`
+   could outlive the grant and keep deleting under a kit someone else had
+   claimed.
+3. And an unconfirmed `/v1/kit/release` was only logged, so `clean` exited 0
+   and the documented `clean … || exit 5` tail proceeded with the lease
+   possibly still held — the exit code not telling the truth.
+
+What holds it now: `hold_for_cleanup` claims before it checks;
+`require_lease` — `kit.Session.mutate`'s own guard, applied to the steps the
+agent never sees — runs before the listing, before each `rm -r` and before the
+verification listing, and aborts with nothing further removed; `KitShell`'s
+per-command timeout is below the lease's own expiry so one command cannot
+outlast it; and an unconfirmed release raises, after any original failure has
+been preserved, so the command cannot report success over a lease that may
+still be held.
+
+If a fourth round finds another instance of this family, the question stops
+being which check to add and becomes whether a host-side script should hold a
+kit lease at all, or whether this belongs behind an agent-side operation that
+owns the lease itself — a design question for Deano, not another patch.
+
 ## A claim this record made, and why it was wrong
 
 **The earlier version of this record said of guard 2: "Fails closed. An
@@ -266,7 +305,13 @@ and the record no longer calls it more than that. The order is asserted
 directly in `test_the_lease_is_claimed_before_the_kit_is_listed`, which fails
 if anything is read or removed before the claim.
 
-The other four findings from the same review were defects rather than
+A second round on the claim-first head found two more of the same family, both
+right: the lost-renewal P1 and the unconfirmed-release P2 above. Five of their
+six cases are red on `3145d8cd3`; the sixth, that an unconfirmed release does
+not mask an original refusal, already passed there and is kept as a regression
+guard for the new ordering rather than claimed as a fix.
+
+The other four findings from the first round were defects rather than
 corrections: `verdict` ignored `drain`'s own `reasons`, so a live run that
 ended with no `quit` exited 0; a malformed command line raised out of `drain`
 instead of ending the run with a reason; a `result.json` holding `null` or `[]`
@@ -307,7 +352,7 @@ trees under, which is the thing the guard exists to prevent.
 
 | gate | result |
 | --- | --- |
-| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 71 tests, OK |
+| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 77 tests, OK |
 | `tests/test_hil_plan.py` | 39 tests, OK |
 | `tests/test_affected.py`, `tests/test_test_changed.py` | 43 and 33 tests, OK |
 | `scripts/check_diff.py --base <main> --head HEAD` | exit 0 |

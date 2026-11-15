@@ -283,7 +283,13 @@ with "operator recovery required" — so the guards against them live in
   succeeds only while the lease is free, so claiming first and checking second
   makes the check and the removal one held interval rather than two ordered
   events. Checking a free kit and then removing would establish only that the
-  kit was idle when it was looked at. Prefer it to a hand-rolled
+  kit was idle when it was looked at. It also re-checks that the lease is
+  still live before the listing, before each `rm -r` and before the
+  verification listing — a claim excludes others only while it is live, and a
+  lost renewal only sets a flag — and an unconfirmed release makes the command
+  fail, so `clean … || exit 5` cannot proceed over a lease that may still be
+  held. The invariant: the lease is held for the whole interval in which
+  anything is read or removed, and the exit code says whether it was. Prefer it to a hand-rolled
   `ssh rm -rf`: every wrapper that rolled its own left out at least one of
   those checks.
 - **The run's verdict.** Run `kit_hil.py verdict runs/RUN/result.json` and

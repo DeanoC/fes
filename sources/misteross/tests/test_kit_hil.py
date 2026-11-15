@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -452,11 +453,15 @@ class FakeKit:
 
 
 class FakeSession:
-    """The lease a cleanup claims, and whether it gave it back."""
+    """The lease a cleanup claims: its renewal, its deadline and its release."""
 
-    def __init__(self, client, owner, purpose, claim_error=None):
+    def __init__(self, client, owner, purpose, claim_error=None, close_error=None):
         self.client, self.owner, self.purpose = client, owner, purpose
-        self.claim_error, self.claimed, self.closed = claim_error, False, False
+        self.claim_error, self.close_error = claim_error, close_error
+        self.claimed, self.closed = False, False
+        self.token = 'private-lease'
+        self.failed = threading.Event()
+        self.deadline = time.monotonic() + 90
 
     def claim(self, *args, **kwargs):
         if self.claim_error is not None:
@@ -465,6 +470,8 @@ class FakeSession:
         return {'state': 'held'}
 
     def close(self):
+        if self.close_error is not None:
+            raise self.close_error
         self.closed = True
         return {'state': 'free'}
 
@@ -488,7 +495,7 @@ class GuardedRemoval(unittest.TestCase):
     LISTED = [RUN_TREE, RUN_DISK]
 
     def setUp(self):
-        self.said = []
+        self.said, self.sessions, self.close_error = [], [], None
 
     def hold_for(self, *turns, claim_error=None):
         """A hold that claims the kit and then sees `turns` in order."""
@@ -497,7 +504,8 @@ class GuardedRemoval(unittest.TestCase):
         self.sessions = []
 
         def factory(client, owner, purpose):
-            session = FakeSession(client, owner, purpose, claim_error=claim_error)
+            session = FakeSession(client, owner, purpose, claim_error=claim_error,
+                                  close_error=self.close_error)
             self.sessions.append(session)
             return session
 
@@ -696,6 +704,90 @@ class GuardedRemoval(unittest.TestCase):
                           hold=self.hold_for(IDLE, IDLE))
         self.assertEqual(self.sessions, [],
                          'a bad list is caught before the kit is touched at all')
+
+    def test_a_lost_renewal_stops_the_cleanup_before_it_lists(self):
+        """The lease must be held for the whole interval, not just claimed."""
+
+        kitfs = FakeKit(KIT_BEFORE)
+        hold = self.hold_for(IDLE, IDLE)
+
+        def losing_hold():
+            session = hold()
+            session.failed.set()      # a renewal failed while we held it
+            return session
+
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True, log=self.said.append,
+                          hold=losing_hold)
+        self.assertEqual(kitfs.removed, [])
+        self.assertEqual(sorted(kitfs.paths), sorted(KIT_BEFORE))
+        self.assertIn('no longer held', str(refused.exception))
+        self.assertIn('the kit listing', str(refused.exception))
+        self.assertTrue(self.sessions[0].closed)
+
+    def test_a_renewal_lost_mid_removal_stops_at_that_tree(self):
+        # A slow find or rm can outlast the kit's 90 s lease. Losing it after
+        # the first tree must not carry on to the second.
+        sessions = []
+
+        class Losing(FakeKit):
+            def remove(self, path):
+                super().remove(path)
+                sessions[0].failed.set()
+
+        kitfs = Losing(KIT_BEFORE)
+        hold = self.hold_for(IDLE, IDLE)
+
+        def watching_hold():
+            session = hold()
+            sessions.append(session)
+            return session
+
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True, log=self.said.append,
+                          hold=watching_hold)
+        self.assertEqual(kitfs.removed, [self.LISTED[0]],
+                         'the second tree must not be removed under a lost lease')
+        self.assertIn(f'removing {self.LISTED[1]}', str(refused.exception))
+
+    def test_an_expired_lease_deadline_stops_the_cleanup(self):
+        kitfs = FakeKit(KIT_BEFORE)
+        hold = self.hold_for(IDLE, IDLE)
+
+        def expired_hold():
+            session = hold()
+            session.deadline = time.monotonic() - 1
+            return session
+
+        with self.assertRaises(kit_hil.CleanupRefused):
+            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True, log=self.said.append,
+                          hold=expired_hold)
+        self.assertEqual(kitfs.removed, [])
+
+    def test_an_unconfirmed_release_fails_the_command(self):
+        # The removal finished, but the wrapper's `|| exit 5` is the only thing
+        # between an unreleased lease and a run reported complete.
+        self.close_error = kit.KitError('/v1/kit/release: HTTP 500', 500)
+        kitfs = FakeKit(KIT_BEFORE)
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True, log=self.said.append,
+                          hold=self.hold_for(IDLE, IDLE))
+        self.assertEqual(kitfs.removed, self.LISTED, 'the removal itself did finish')
+        self.assertIn('not confirmed released', str(refused.exception))
+        self.assertIn('the removal itself finished', str(refused.exception))
+
+    def test_an_unconfirmed_release_does_not_mask_the_original_refusal(self):
+        self.close_error = kit.KitError('/v1/kit/release: HTTP 500', 500)
+        kitfs = FakeKit([p for p in KIT_BEFORE if not p.startswith(RUN_TREE)])
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True, log=self.said.append,
+                          hold=self.hold_for(IDLE, IDLE))
+        self.assertIn('no longer on the kit', str(refused.exception),
+                      'the first failure is the one reported')
+
+    def test_an_ssh_command_cannot_outlast_the_kits_lease(self):
+        # The kit's production lease is 90 s (kitlease.New in mister-agent).
+        self.assertLess(kit_hil.KitShell('/nonexistent/ssh').timeout, 90)
 
     def test_a_missing_run_list_is_refused(self):
         with tempfile.TemporaryDirectory() as home:

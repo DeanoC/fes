@@ -306,7 +306,9 @@ def cleanup_gate(client, *, wait=GATE_WAIT, poll=GATE_POLL, now=time.monotonic, 
 class KitShell:
     """The kit's own ssh helper, as the wrappers invoke it."""
 
-    def __init__(self, ssh, timeout=180):
+    # One command must not be able to outlast the kit's 90 s lease: a slow
+    # find or rm that did would leave the removal running unprotected.
+    def __init__(self, ssh, timeout=60):
         self.ssh, self.timeout = str(ssh), timeout
         self.absent = []
 
@@ -406,16 +408,29 @@ def clean(shell, listed, created, *, roots=DATA_ROOTS, keep=(), hold=None, apply
 
     check_removable(listed, created, roots=roots, keep=keep)
     session = hold() if hold is not None else None
+    plan, failure = None, None
     try:
-        return _clean_held(shell, listed, roots=roots, apply=apply, log=log)
-    finally:
-        if session is not None and not release(session):
-            log('the cleanup lease was not confirmed released; the agent will expire it')
+        plan = _clean_held(shell, listed, roots=roots, apply=apply, log=log, session=session)
+    except CleanupRefused as error:
+        failure = error
+    released = release(session) if session is not None else True
+    if failure is not None:
+        raise failure
+    if not released:
+        # The removal may have finished, but the exit code has to tell the
+        # truth about the lease: a wrapper's `|| exit 5` is the only thing
+        # standing between an unreleased lease and a run reported complete.
+        raise CleanupRefused('the cleanup lease was not confirmed released, so the kit may '
+                             'still be held; check /v1/kit/lease before releasing the kit'
+                             + (f' (the removal itself finished: {json.dumps(plan)})'
+                                if plan else ''))
+    return plan
 
 
-def _clean_held(shell, listed, *, roots, apply, log):
+def _clean_held(shell, listed, *, roots, apply, log, session=None):
     """The listing and the removal, with the cleanup's lease already held."""
 
+    require_lease(session, 'the kit listing')
     before = shell.find(roots)
     if getattr(shell, 'absent', None):
         log(f'absent roots (nothing under them): {json.dumps(shell.absent)}')
@@ -429,8 +444,10 @@ def _clean_held(shell, listed, *, roots, apply, log):
         log(f'plan (nothing removed): {json.dumps(plan)}')
         return plan
     for path in listed:
+        require_lease(session, f'removing {path}')
         shell.remove(path)
         log(f'removed {path}')
+    require_lease(session, 'the check that the removal took exactly the listed trees')
     after = shell.find(roots)
     appeared = [path for path in after if path not in before]
     if appeared:
@@ -529,6 +546,28 @@ def hold_for_cleanup(client, owner, purpose, *, wait=GATE_WAIT, poll=GATE_POLL,
             + '; a removal under a loaded core preceded the stop/close that blocked this '
               'lease on 14 November 2026. Stop the core first.')
     return session
+
+
+def require_lease(session, step):
+    """Raise unless the cleanup's lease is still live. Call before each step.
+
+    A claim excludes other sessions only while it is live. `kit.Session`
+    renews in the background and, when a renewal fails, only sets `failed` —
+    nothing interrupts the caller — so a cleanup that does not look is a
+    cleanup that can keep deleting under a lease it no longer holds. The kit's
+    production lease expires after 90 s (`kitlease.New(90*time.Second, ...)`,
+    `sources/FogCast/cmd/mister-agent/main.go:511`), which a single slow ssh
+    command can outlast. This is `kit.Session.mutate`'s own guard, applied to
+    the steps the agent never sees.
+    """
+
+    if session is None:
+        return
+    if (not getattr(session, 'token', None) or session.failed.is_set()
+            or time.monotonic() >= session.deadline):
+        raise CleanupRefused(f'the cleanup lease is no longer held, so {step} would run '
+                             f'unprotected and another session may already have the kit; '
+                             f'nothing further is removed')
 
 
 def release(session):
