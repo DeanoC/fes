@@ -24,7 +24,8 @@ inventoried separately. The inventory is [`census-tables.md`](census-tables.md);
 | `M/boards/de25nano` | 17 sites + 11 macro-invisible readers = 28 |
 
 **The base, and how this record was got wrong once.** The sweep ran against `main` at
-`1b4601831`, and every line number was recorded against that tree. Main has moved twice since, so
+`1b4601831`, and every line number was recorded against that tree. Main has moved on since, and
+this branch has merged it forward more than once, so
 the numbers are carried forward to this branch's own tree rather than left at the sweep base: a
 checkout of *this branch* is the tree they are verified against, `verify_census.py` is what
 verifies them, and CI runs it on every change. Checking out `1b4601831` no longer reproduces them.
