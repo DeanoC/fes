@@ -586,8 +586,10 @@ and, separately, the worst into and out of the x87:
 
 These are the path list the fit keeps, which is one corner; the headline
 slack above is the worst of the system clock over **all** corners, so the two
-differ by up to about 0.19 ns. The list says *where* a path is, not what the
-worst slack is. Both questions are answered below, and the second is answered
+differ: by 0.275 ns on seed 3, 0.189 on seed 4, 0.032 on seed 9 and not at
+all on seed 6. The list says *where* a path is in the corner it dumps, not
+what the worst slack is, and on the seeds where the two differ the path that
+binds at the worst corner was not dumped and has not been read here. Both questions are answered below, and the second is answered
 in the fit where names survive.
 
 **How the fit selects these, because it changes what they mean.** The flow
