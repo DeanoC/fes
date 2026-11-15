@@ -63,6 +63,18 @@ class IdentityReportTests(unittest.TestCase):
                 self.assertTrue(result['toolchain_change_only'])
                 self.assertFalse(result['current_build_id_matches'])
 
+    def test_source_only_backend_drift_excludes_unauthenticated_execution(self):
+        original = fields()
+        for backend, changed in (('hip', False), ('cuda', True)):
+            current = copy.deepcopy(original)
+            current['parameters'].update(selection_only=True, gpu_backend=backend,
+                                         execution_sha256='f' * 64)
+            current['tools'] = {'yosys': 'selection-only'}
+            result = compare(encode_build_record(original), encode_build_record(current))
+            self.assertFalse(result['design_inputs_changed'])
+            self.assertEqual(result['toolchain_inputs_changed'], changed)
+            self.assertFalse(result['execution_comparison_available'])
+
     def test_design_and_unclassified_inputs_remain_conservative(self):
         original = fields()
         for group, key, value in (

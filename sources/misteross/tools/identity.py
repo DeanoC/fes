@@ -15,7 +15,7 @@ from scripts.export_core_package import (
 )
 
 
-from scripts.input_identity import with_identities, projections as input_projections
+from scripts.input_identity import with_identities, projections as input_projections, toolchain_selection
 
 
 def projections(record):
@@ -56,7 +56,7 @@ def compare(built, current):
     if after['selection_only']:
         # Selection does not authenticate the currently installed binaries or
         # execution environment. Compare only recorded source/pin choices.
-        toolchain_changed = input_projections(with_identities(left))[1]['source_inputs'] != input_projections(with_identities(right))[1]['source_inputs']
+        toolchain_changed = toolchain_selection(left) != toolchain_selection(right)
     else:
         toolchain_changed = before['toolchain_inputs_sha256'] != after['toolchain_inputs_sha256']
     return {

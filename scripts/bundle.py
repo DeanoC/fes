@@ -341,6 +341,10 @@ def _matching_package_candidates(source, record, recipe=None, *, store_override=
         if inspected.get("package_id") != identity:
             raise ValueError("matching package evidence differs from inspected package identity")
         matches.append((package, sidecar, inspected))
+    return _rank_package_candidates(matches, record)
+
+
+def _rank_package_candidates(matches, record):
     # Prefer an exact current build when available. Otherwise retain a stable
     # already-qualified artifact rather than requiring a compiler upgrade.
     selected_fields = json.loads(record)
@@ -396,8 +400,8 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
     if force:
         _build_package(source, recipe=recipe, **produce)
     candidates = _matching_package_candidates(source, record, recipe=recipe)
-    if not candidates and not force:
-        candidates = _matching_package_candidates(source, record, recipe=recipe,
+    if not force and (not candidates or 'identities' in json.loads(record)):
+        candidates += _matching_package_candidates(source, record, recipe=recipe,
             store_override=artifact_cache.store_for(ARTIFACT_CACHE_ROOT, record))
     if not candidates and not force:
         # A cache miss adopts the selected pin deliberately. Authentication is
@@ -411,6 +415,7 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
     if not candidates:
         raise ValueError(f"selected recipe did not produce a matching {recipe.core_id} package")
     if 'identities' in json.loads(record):
+        candidates = _rank_package_candidates(candidates, record)
         executions = {}
         for item in candidates:
             built = json.loads(item[1].read_bytes())
@@ -502,7 +507,8 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
             'selected_pins': json.loads(selected['parameters'].get('toolchain_pins', '{}')),
             'built_toolchain_inputs': toolchain_selection(original),
             'selected_toolchain_inputs': toolchain_selection(selected),
-            'toolchain_update_available': toolchain_selection(original) != toolchain_selection(selected),
+            'toolchain_update_available': (artifact_cache.identity.toolchain_selection(original) !=
+                                           artifact_cache.identity.toolchain_selection(selected)),
         })
     require_private_audit_cache(os.environ if env is None else env)
     artifact_cache.publish(ARTIFACT_CACHE_ROOT, original_record_path, package)

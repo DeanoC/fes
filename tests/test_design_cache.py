@@ -27,14 +27,14 @@ def _require_clean_source(root, **options):
 def _authenticate_tools(root, **options):
     raise RuntimeError('compiler deliberately unavailable in cache-only fixture')
 
-def create_build_record(root, repository, revision, tools, *, execution, identity_version=2):
+def create_build_record(root, repository, revision, tools, *, execution, identity_version=2, gpu_backend="hip"):
     inputs = source_input_closure(root, ['cores/fixture', 'scripts'])
     fields = dict(format=2, repository=repository, revision=revision,
         source_path='sources/misteross', source_roots=['cores/fixture', 'scripts'],
         source_inputs=inputs, recipe='scripts/fixture_producer.py',
         recipe_sha256=inputs['scripts/fixture_producer.py'], abi_definition='cores/fixture/core.json',
         abi_definition_sha256=inputs['cores/fixture/core.json'], dependencies={}, tools=tools,
-        parameters={'seed': 1, 'execution_sha256': hashlib.sha256(repr(execution).encode()).hexdigest()})
+        parameters={'seed': 1, 'gpu_backend': gpu_backend, 'execution_sha256': hashlib.sha256(repr(execution).encode()).hexdigest()})
     if execution.get('selection_only'):
         fields['parameters']['selection_only'] = True
     return encode_build_record(with_identities(fields, root=root))
@@ -76,7 +76,7 @@ from scripts import fixture_producer as producer
 from scripts.core_package import encode_manifest
 from scripts.export_core_package import export_package,build_identity
 from scripts.input_identity import manifest_toolchain
-root=Path.cwd(); output=root/'build/fixture'; output.mkdir(parents=True)
+root=Path.cwd(); output=root/'build/fixture'; output.mkdir(parents=True, exist_ok=True)
 record=producer.create_build_record(root,*producer._require_clean_source(root),
     {'fixture':'synthetic; no FPGA compiler'},execution={'gpu_device':'lease'})
 (output/'build-inputs.json').write_bytes(record)
@@ -89,7 +89,9 @@ fields['build'].update(id=build_identity(record),repository=inputs['repository']
 package=export_package(encode_manifest(fields),output/'core.rbf',root/'build/fixture-store')
 print(package)
 '''
+        self.export_program = program
         fixture = MODULE / 'tests/fixtures/core-bundle-v2'
+        self.fixture = fixture
         package = Path(subprocess.check_output([sys.executable, '-c', program,
             str(fixture / 'payloads/fes-fixture.rbf'), str(fixture / 'manifests/valid-basic.toml')],
             cwd=self.source, text=True).strip())
@@ -162,6 +164,35 @@ print(package)
         with patch.object(bundle, '_inspect_package_candidate', side_effect=inspect):
             matches = bundle._matching_package_candidates(self.source, request, recipe=self.recipe)
         self.assertEqual(matches[0][2]['package_id'], 'f' * 64)
+
+    def test_current_pin_in_shared_cache_outranks_old_local_package(self):
+        local = self.source / 'build/packages'
+        local.mkdir()
+        shutil.copytree(self.cached, local / self.cached.name)
+        sidecar = local / (self.cached.name + '.build-inputs.json')
+        sidecar.write_bytes(self.record)
+        sidecar.chmod(0o444)
+        self.lock.write_text(self.lock.read_text().replace('a' * 40, 'b' * 40))
+        self.commit()
+        package = Path(subprocess.check_output([sys.executable, '-c', self.export_program,
+            str(self.fixture / 'payloads/fes-fixture.rbf'),
+            str(self.fixture / 'manifests/valid-basic.toml')], cwd=self.source, text=True).strip())
+        current = bundle.artifact_cache.publish(self.cache,
+            package.with_suffix('.build-inputs.json'), package)
+        with patch.object(bundle, '_build_package') as build:
+            selected = self.resolve()
+        build.assert_not_called()
+        self.assertEqual(selected['directory'], current)
+        self.assertFalse(selected['inputs']['source_selection']['toolchain_update_available'])
+
+    def test_receipt_reports_source_only_backend_drift(self):
+        self.recipe = dataclasses.replace(self.recipe,
+            producer_options=(('gpu_backend', 'cuda'),))
+        selected = self.resolve()
+        receipt = selected['inputs']['source_selection']
+        self.assertTrue(receipt['toolchain_update_available'])
+        self.assertEqual(receipt['built_toolchain_inputs'], receipt['selected_toolchain_inputs'])
+        self.assertEqual(selected['directory'], self.cached)
 
     def test_live_source_report_compares_pins_without_authenticating_a_compiler(self):
         self.lock.write_text(self.lock.read_text().replace('a' * 40, 'b' * 40))
