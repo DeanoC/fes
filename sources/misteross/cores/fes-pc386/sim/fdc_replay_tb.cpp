@@ -807,6 +807,22 @@ std::vector<Case> cases() {
         g.check(bytes == Guest::original(A144, stopped, 0, 1),
                 "a read of the cylinder the PCN names finds that cylinder");
     }});
+    // A reset before the first step pulse must leave the disk-change line set.
+    list.push_back({"reset_before_first_step", 4, 2, true, [](Guest &g) {
+        { const Disk boot_disk = A144; g.boot(&boot_disk); }
+        start(g);
+        g.f.eject(0); g.tick();
+        g.insert(0, A144);
+        g.check((g.show(0x3f7) & 0x80) != 0, "the arriving disk sets the change line");
+        g.command({0x03, 0xdf, 0x02});                       // SRT 0Dh: 7.5 ms per step
+        g.command({0x0f, 0x00, 1});                          // the first step has not happened
+        g.out(0x3f2, 0x18); g.out(0x3f2, 0x1c);              // reset during its initial delay
+        g.tick(20);
+        g.irq();
+        for (int i = 0; i < 4; ++i) g.sense();
+        g.check((g.show(0x3f7) & 0x80) != 0,
+                "a reset before the first step pulse preserves the change line");
+    }});
     // A seek past the drive's last track: the head stops at the mechanism's
     // inward stop while the PCN counts every pulse, so the two come apart and
     // the next transfer's implied seek starts from the wrong origin.

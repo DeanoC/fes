@@ -664,7 +664,6 @@ module pc386_fdc #(
                             moved <= seek_steps != 8'd0;
                             seek_up <= seek_direction_up;
                             steps <= seek_steps == 8'd0 ? 8'd1 : seek_steps;
-                            if (seek_steps != 8'd0 && present[dsel]) changed[dsel] <= 0;
                             // RECALIBRATE "clears the contents of the PCN
                             // counter" and then steps to the sensor; the
                             // seeks walk their PCN with the head, one step at
@@ -718,6 +717,10 @@ module pc386_fdc #(
                     // thus (NCN + PCN) mod 256" (5.2.5, RELATIVE SEEK past
                     // the last track).
                     if (moved) begin
+                        // The disk-change line is cleared by the physical
+                        // step pulse, not when the command is dispatched.
+                        // A reset during the step delay emits no pulse.
+                        if (present[dsel]) changed[dsel] <= 0;
                         if (seek_up) begin
                             if (physical_cyl[dsel] < last_track) physical_cyl[dsel] <= physical_cyl[dsel] + 8'd1;
                             if (!recalibrating) pcn[d] <= pcn[d] + 8'd1;
