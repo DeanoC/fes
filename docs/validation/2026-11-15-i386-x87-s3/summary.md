@@ -362,13 +362,19 @@ slice 5 inherits when the identity is turned on, and where slices 4 and 5
 start from. Nothing is being sealed at 1% margin.
 
 **The forward-looking number is the one to read carefully, and it is the
-margin and not the area.** With the identity on, setup slack falls from
-+0.576 to **+0.176 ns — 1.08% of the period**, against slice 2's +0.603
-(3.7%) at 91.2% of the device. Implied Fmax falls from 63.69 to 62.11 MHz,
-so 0.67 MHz of headroom over the 61.44 MHz requirement rather than 2.25.
-The device has **2,228 ALMs left**, which is more than the standalone delta
-projected — a standalone fit over-predicted the machine delta here, and is
-not a machine prediction.
+margin and not the area.** Within this slot, turning the identity on takes
+setup slack from +0.576 to **+0.176 ns — 1.08% of the 16.276 ns period** and
+leaves the device with **2,228 ALMs**. That is a same-slot comparison and it
+stands on its own.
+
+What this record does **not** claim is a margin drop against slice 2.
+Comparing +0.176 with slice 2's published +0.603 would be a cross-slot
+comparison, and the slots differ by 0.184 ns of setup on identical RTL --
+about the size of the shift being attributed. The same-slot figure for that
+is the merge-base identity-on fit, which is still **pending**; until it
+lands, no Fmax or headroom delta against slice 2 is quoted here. The
+standalone delta over-predicted the machine delta, which is also a reminder
+that a standalone fit is not a machine prediction.
 
 ### The identity-on seed sweep: closure is seed-dependent
 
