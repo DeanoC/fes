@@ -353,22 +353,29 @@ latter's capture-rate deviation is recorded in item 4 above.
 
 The 32.1% spread and 1.096 ratio are retained as out-of-gate observations;
 they cannot establish a second valid spread or a change in the ratio across
-valid triples. The r15 set's observed spread is 2.7% and its ratio is 1.220,
-with the capture-rate deviation described above. The walk-cycle measurements
-from m1/m2/m6 (11.733/11.800/11.867 s) are likewise out of gate; they cannot
-be compared as a second valid set with the r15 values (11.800/11.800/11.800
-s). The complete frame counts and matching detector band do not cure the
-failed drive-image gate. Since the record has no fully gate-compliant set on
-which to decide the committed check, its outcome remains **not decided by this
-method**. The figures are reported with their gate status.
+valid triples. The walk-cycle measurements from m1/m2/m6
+(11.733/11.800/11.867 s) are likewise out of gate. The complete frame counts
+and matching detector band do not cure the failed drive-image gate.
 
-There is another reason the committed quantity cannot carry a verdict here:
-validity gate 3 requires the same capture rate on both sides, but the reference
-was captured at **15 frames a second** and the kit at **60**, with the kit later
-derived at 15 fps. This is a reported deviation, not a met gate. Displacement
-is calculated from frame-to-frame motion, so this mismatch makes the committed
-comparison noncompliant; the record does not isolate how much the rate alone
-changes that metric. In the r15/q observations, displacement gives a kit/
+**But the repeat count is not what leaves the committed check undecided, and
+saying so would invent a condition this method never set.** It asks for three
+windows a side, and `r15a`/`r15b`/`r15d` against `q1`/`q2`/`q3` are three a
+side; it asks that the spread be well inside the band, and theirs are **2.7%**
+and **0.2%** against ±10%, which it is. On those two rules the check would be
+decided, at a ratio of 1.220 — a miss of +22.0%.
+
+**What leaves it undecided is validity gate 3.** It requires the same capture
+rate on both sides; the reference was captured at **15 frames a second** and
+the kit at **60**, with the kit later derived at 15. A window counts only if
+every gate holds, so these windows do not count, and the committed check is
+**not decided by this method** for that reason. Displacement is summed from
+frame-to-frame motion, so the mismatch is not incidental to it, and this
+record does not isolate how much the rate alone moves that metric.
+
+**What would decide it** is therefore one capture rate on both sides, not a
+further set of repeats: either a host that can drive 86Box at the kit's 60 fps
+while holding 100% — which this one cannot, three runs tried — or a kit
+capture taken at 15 fps. In the r15/q observations, displacement gives a kit/
 reference ratio of **1.220** while the cycle gives **0.740**. Those figures
 disagree, but they do not measure a rate-only effect.
 

@@ -21,7 +21,7 @@ restate the verdicts; nothing outside this table, and no heading, carries one.
 | The Black Gate starts on a 386DX-25 reference | **done** |
 | A 386DX-25 board fixed by a rule committed before capture | **done**; the board that was fixed **does not meet** the rule, which is reported rather than worked around |
 | How the kit's 386 preset scores against that rule's range | **stated**: TopBench 68, above fifteen of the eighteen real entries, inside the range |
-| NPC pace, the quantity `method.md` committed | **not decided** — m1/m2/m6 fail the exact-drive gate (and m1 lacks a pre-run digest), so their 32.1% spread is not a valid second repeat set; r15a/r15b/r15d show 2.7% spread with the separately reported capture-rate deviation |
+| NPC pace, the quantity `method.md` committed | **not decided** — validity gate 3, one capture rate on both sides, is not met, so no window counts. The repeat count and the spread rule are both satisfied by r15a/r15b/r15d against q1/q2/q3 (2.7% and 0.2% against ±10%), on which the check would have been a miss of +22.0% |
 | NPC pace, the character's walk-cycle period | **measured**: kit 8.733 s against reference 11.800 s, a **26.0% miss** against the same ±10% band, three windows a side, 0.0% spread on both. A quantity the method did not commit, fixed before any kit capture |
 
 ## Part 1 — the game starts on a 386DX-25 reference
@@ -228,13 +228,22 @@ gate-3 deviation. The values are:
 
 The m1/m2/m6 values are out-of-gate observations, not a second valid spread;
 their 32.1% spread and 1.096 ratio cannot establish that valid reference
-spreads are inconsistent. The r15 triple's observed spread is 2.7%, with the
-capture-rate deviation stated above. The m1/m2/m6 walk-cycle values
-(11.733/11.800/11.867 s) are also out of gate and cannot serve as a second
-valid set against r15's 11.800/11.800/11.800 s. Every window's complete frame
-count and the same detector band do not cure the failed drive-image gate. With
-no fully gate-compliant set in this record on which to decide the committed
-metric, its outcome remains **not decided by the method**. `method.md`'s
+spreads are inconsistent. Their walk-cycle values (11.733/11.800/11.867 s) are
+out of gate for the same reason, and complete frame counts and a matching
+detector band do not cure it.
+
+**The repeat count is not what leaves the check undecided**, and saying so
+would invent a condition the method never set. It asks for three windows a
+side, and r15a/r15b/r15d against q1/q2/q3 are three a side; it asks that the
+spread be well inside the band, and theirs are **2.7%** and **0.2%** against
+±10%. On those two rules the check would be decided, at a ratio of 1.220 — a
+**miss of +22.0%**.
+
+**What leaves it undecided is validity gate 3**: one capture rate on both
+sides, which is not met (reference captured at 15 fps, kit at 60, kit derived
+at 15). A window counts only if every gate holds, so these windows do not
+count and the outcome is **not decided by the method** for that reason. What
+would decide it is one capture rate on both sides — not more repeats. `method.md`'s
 correction to its second amendment retracts the substitution that had let the
 verdict move off it.
 
@@ -553,7 +562,12 @@ the HMA, which is why both run the image's menu entry 1.
   gate as written asks for capture and this is derivation.
 - **The m1/m2/m6 displacement result.** Its 32.1% spread is an out-of-gate
   observation because the drive copies fail the exact-digest gate and m1 lacks
-  a pre-run digest. It does not establish a second valid spread against r15.
+  a pre-run digest. It does not establish a second valid spread against r15 —
+  but neither is a second set what the committed check is waiting on; gate 3
+  is.
+- **What the committed check would say if gate 3 were met.** On the in-gate
+  figures it is a miss of +22.0% (ratio 1.220). That is an observation, not a
+  verdict, because the windows do not count.
 - **The displacement metric** `method.md` first committed, which its second
   amendment set aside before any kit capture.
 - The reference's DOS layout is like the kit's, not identical: `reference.md`

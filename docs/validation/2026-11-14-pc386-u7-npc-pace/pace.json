@@ -104,7 +104,7 @@
  "committed_metric_outcome": {
   "quantity": "displacement per second (heights/s), the quantity method.md committed",
   "result": "NOT DECIDED",
-  "why": "for want of a valid second repeat set, NOT because irreproducibility was shown. The earlier claim that the spread is not reproducible is WITHDRAWN. Only r15a/r15b/r15d meet the drive-image gate (exact 41c7b9d8 copies, each digested before its run), and they spread 2.7%. The m1/m2/m6 observations spread 32.1%, but those copies FAIL that gate -- they differ from the required image in two FAT timestamp bytes and m1 was never digested before its run -- so they are out-of-gate observations, not a second valid spread, and cannot establish that valid reference spreads are inconsistent. With no second in-gate set to weigh against the first, the committed metric's outcome is not decided by the method. Note also that r15's own comparison carries the gate-3 capture-rate deviation recorded in verdict.gate_status.",
+  "why": "validity gate 3 -- one capture rate on both sides -- is NOT met: the reference was captured at 15 fps and the kit at 60, with the kit derived at 15. A window counts only if every gate holds, so these windows do not count and the check is not decided by the method. The repeat count is NOT the blocker and saying so would invent a condition the method never set: it asks for three windows a side, and r15a/r15b/r15d against q1/q2/q3 are three a side, with spreads of 2.7% and 0.2% against a +/-10% band, so the spread rule is satisfied too. On those two rules the check would be decided, at ratio 1.220 -- a miss of +22.0%. Separately, the earlier claim that the spread is not reproducible is WITHDRAWN: m1/m2/m6 fail the drive-image gate (two FAT timestamp bytes; m1 never digested) so they are observations only and cannot be weighed against r15.",
   "window_set_A": {
    "runs": [
     "m1",
@@ -145,7 +145,13 @@
   "kit_spread_pct": 0.2,
   "band_pct": 10,
   "direction": "the in-gate set puts the kit above the reference, as the cycle does; the out-of-gate set agrees in direction but carries no weight",
-  "withdrawn_claim": "an earlier revision of this file and of summary.md said the committed metric's spread is not reproducible, comparing set A with set B. That comparison is invalid because set A is out of gate, and the claim is withdrawn here rather than removed silently."
+  "withdrawn_claim": "an earlier revision of this file and of summary.md said the committed metric's spread is not reproducible, comparing set A with set B. That comparison is invalid because set A is out of gate, and the claim is withdrawn here rather than removed silently.",
+  "what_would_decide_it": "one capture rate on both sides, not more repeats: either a host that can drive 86Box at the kit's 60 fps while holding 100% (this one cannot -- three runs tried, all failed the speed gate), or a kit capture taken at 15 fps.",
+  "if_gate_3_were_met": {
+   "ratio_kit_over_reference": 1.22,
+   "miss_pct": 22.0,
+   "status": "observation, not a verdict: the windows do not count"
+  }
  },
  "prior_reference_runs": {
   "m1": {
