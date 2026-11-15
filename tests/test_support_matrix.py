@@ -139,6 +139,16 @@ class SupportMatrixTests(unittest.TestCase):
             "fes.menu is not on the forward plan's ladder but records quality_tier '1'", errors
         )
 
+    def test_an_unclassified_playable_core_fails_closed(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        row = next(row for row in data['cores'] if row['id'] == 'fes.coleco')
+        row['quality_tier'] = None
+
+        self.assertEqual('full', SUPPORT_MATRIX.derive_check_level(row))
+        errors = SUPPORT_MATRIX.validate(ROOT, data)
+        self.assertIn('fes.coleco is playable but has no quality_tier placement', errors)
+        self.assertIn("fes.coleco check_level 'reduced' != derived 'full'", errors)
+
     def test_a_reduced_row_cannot_be_shipped_or_in_the_image(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
         by_id = {row['id']: row for row in data['cores']}
@@ -174,6 +184,7 @@ class SupportMatrixTests(unittest.TestCase):
              agents.replace('never lower a gate on work being done to a core',
                             'never lower a gate on work being done to a core, except where a lane owner says so')),
             ('cite gone', agents.replace(cite, '')),
+            ('rule commented out', agents.replace(bullet, f'<!--\n{bullet}\n-->')),
             ('rule stated twice', agents + '\n' + bullet + '\n'),
             ('file gone', None),
         ]
@@ -319,6 +330,14 @@ class SupportMatrixTests(unittest.TestCase):
         beside = agents.replace(bullet, f'```\n{bullet}\n```\n{bullet}')
         self.assertEqual([], SUPPORT_MATRIX.agents_rule_errors(beside))
 
+    def test_a_commented_agents_rule_is_not_the_rule(self):
+        agents = (ROOT / SUPPORT_MATRIX.AGENTS).read_text()
+        bullet = next(line for line in agents.splitlines()
+                      if SUPPORT_MATRIX.AGENTS_RULE_CITE in line)
+        commented = agents.replace(bullet, f'<!--\n{bullet}\n-->')
+        self.assertTrue(any('no longer carries' in error
+                            for error in SUPPORT_MATRIX.agents_rule_errors(commented)))
+
     def test_setext_underline_only_matches_underlines(self):
         cases = {'---': True, '===': True, '-': True, '  ----  ': True,
                  '    ----': False, '- a bullet': False, '--- text': False,
@@ -388,6 +407,28 @@ class SupportMatrixTests(unittest.TestCase):
                 self.assertTrue(
                     any(expected in error for error in errors), (expected, errors)
                 )
+
+    def test_commented_forward_plan_ladder_is_not_recognized_or_counted(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        by_id = {row['id']: row for row in data['cores']}
+        plan = (ROOT / SUPPORT_MATRIX.FORWARD_PLAN).read_text()
+        quote = SUPPORT_MATRIX.LADDER_QUOTES[0]
+        agents = (ROOT / SUPPORT_MATRIX.AGENTS).read_text()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'docs' / 'plans').mkdir(parents=True)
+            plan_path = root / SUPPORT_MATRIX.FORWARD_PLAN
+            (root / SUPPORT_MATRIX.AGENTS).write_text(agents)
+
+            # A commented copy beside the real ladder is not a duplicate.
+            plan_path.write_text(plan + f'\n<!--\n{quote}\n-->\n')
+            errors = SUPPORT_MATRIX.validate_check_policy(root, data, by_id, None)
+            self.assertFalse(any('may supersede' in error for error in errors), errors)
+
+            # Commenting out the plan removes its heading and its cited words.
+            plan_path.write_text(f'<!--\n{plan}\n-->\n')
+            errors = SUPPORT_MATRIX.validate_check_policy(root, data, by_id, None)
+            self.assertTrue(any('exactly one' in error for error in errors), errors)
 
     def test_every_release_package_records_its_scope(self):
         data = SUPPORT_MATRIX.load_json(ROOT)

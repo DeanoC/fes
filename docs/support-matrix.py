@@ -222,33 +222,61 @@ LIST_ITEM = re.compile(r'^ {0,3}[-*+] +')
 FENCE = re.compile(r'^ {0,3}(?P<fence>`{3,}|~{3,})(?P<info>.*)$')
 
 
-def outside_fences(lines: list[str]) -> list[str]:
-    """`lines` with fenced code blocks blanked, indices preserved.
+def outside_markdown(lines: list[str]) -> list[str]:
+    """Blank fenced blocks and HTML comments, preserving line indices.
 
-    Blanking rather than dropping keeps every index aligned with the original,
-    which the list-item walk relies on.
+    The rule and ladder scanners consume Markdown, not examples or commented
+    text. Blanking rather than dropping keeps every index aligned with the
+    list-item walk. Fence and comment state are tracked together so fence
+    markers inside comments, and comment markers inside fences, stay inert.
     """
     out = []
     fence = None
+    comment = False
     for line in lines:
         found = FENCE.match(line)
-        if fence is None:
-            # A backtick fence's info string may not contain a backtick; a
-            # tilde fence's may contain anything.
-            if found and not (found.group('fence')[0] == '`' and '`' in found.group('info')):
-                fence = found.group('fence')
-            out.append('' if fence else line)
+        if fence is not None:
+            # A closing fence is the same character, at least as long, info-free.
+            closing = (
+                found
+                and found.group('fence')[0] == fence[0]
+                and len(found.group('fence')) >= len(fence)
+                and not found.group('info').strip()
+            )
+            out.append('')
+            if closing:
+                fence = None
             continue
-        # A closing fence is the same character, at least as long, info-free.
-        closing = (
-            found
-            and found.group('fence')[0] == fence[0]
-            and len(found.group('fence')) >= len(fence)
-            and not found.group('info').strip()
-        )
-        out.append('')
-        if closing:
-            fence = None
+
+        # A backtick fence's info string may not contain a backtick; a tilde
+        # fence's may contain anything. Fence openers inside comments are text.
+        if not comment and found and not (
+            found.group('fence')[0] == '`' and '`' in found.group('info')
+        ):
+            fence = found.group('fence')
+            out.append('')
+            continue
+
+        visible = []
+        cursor = 0
+        while cursor < len(line):
+            if comment:
+                end = line.find('-->', cursor)
+                if end < 0:
+                    break
+                visible.append(' ')
+                cursor = end + 3
+                comment = False
+                continue
+            start = line.find('<!--', cursor)
+            if start < 0:
+                visible.append(line[cursor:])
+                break
+            visible.append(line[cursor:start])
+            visible.append(' ')
+            cursor = start + 4
+            comment = True
+        out.append(''.join(visible))
     return out
 
 
@@ -294,7 +322,7 @@ def ladder_section(text: str) -> str | None:
     renamed `## Tiers (superseded)` beside a new one would otherwise keep
     answering for the ladder.
     """
-    lines = outside_fences(text.splitlines())
+    lines = outside_markdown(text.splitlines())
     wanted = LADDER_HEADING.removeprefix('## ')
     starts = [i for i, line in enumerate(lines) if heading2(line) == wanted]
     if len(starts) != 1:
@@ -333,8 +361,8 @@ def derive_check_level(row: dict) -> str:
 
     Shared RTL is checked through the packages that embed it; a row with no
     built artifact has nothing to check; bootstrap firmware always carries its
-    own evidence. Otherwise tier 1 and tier 2 cells carry full evidence and the
-    rest carry it only for changes aimed at them.
+    own evidence. A known reduced ladder placement carries reduced evidence;
+    missing or unknown placements fail closed at full evidence until classified.
     """
     if row['tier_role'] == 'shared':
         return 'via-consumer'
@@ -342,7 +370,12 @@ def derive_check_level(row: dict) -> str:
         return 'none'
     if row['tier_role'] == 'firmware':
         return 'full'
-    return 'full' if row.get('quality_tier') in QUALITY_TIER_FULL else 'reduced'
+    quality = row.get('quality_tier')
+    if quality in QUALITY_TIER_FULL:
+        return 'full'
+    if quality in QUALITY_TIER_IDS:
+        return 'reduced'
+    return 'full'
 
 
 def _git(root: Path, *args: str) -> str:
@@ -913,7 +946,7 @@ def agents_rule_errors(text: str) -> list[str]:
     be in that bullet, so the policy cannot stay accepted while the rule around
     the marker has been weakened or removed.
     """
-    lines = outside_fences(text.splitlines())
+    lines = outside_markdown(text.splitlines())
     cited = [i for i, line in enumerate(lines) if AGENTS_RULE_CITE in line]
     if not cited:
         return [
@@ -950,7 +983,7 @@ def validate_check_policy(root: Path, data: dict, by_id: dict, rendered: str | N
         errors.append(f'{FORWARD_PLAN} is missing, so the quality ladder has no source')
     else:
         raw = plan.read_text()
-        flat = ' '.join(raw.split())
+        flat = ' '.join(' '.join(outside_markdown(raw.splitlines())).split())
         section = ladder_section(raw)
         if section is None:
             errors.append(
@@ -1019,6 +1052,12 @@ def validate_check_policy(root: Path, data: dict, by_id: dict, rendered: str | N
     laddered = {cid for ids in QUALITY_TIER_IDS.values() for cid in ids}
     for cid, row in by_id.items():
         quality = row.get('quality_tier')
+        if (
+            row.get('tier_role') == 'play'
+            and row.get('tier') != 'bring-up-queued'
+            and quality is None
+        ):
+            errors.append(f'{cid} is playable but has no quality_tier placement')
         if cid not in laddered and quality is not None:
             errors.append(f'{cid} is not on the forward plan\'s ladder but records quality_tier {quality!r}')
         if 'check_level' not in row:
