@@ -918,10 +918,14 @@ wrong.
 -- the decoder, the front end's queue aligner, and the L1D, as
 [where the margin went](#where-the-margin-went-which-is-not-where-it-looks)
 sets out -- which is the signature of placement and congestion at this
-utilisation rather than of logic depth anywhere. What recovers the margin is
-**area recovered elsewhere in the machine**, which is what makes the
-deferred whole-system reduction a prerequisite for slice 7 rather than a
-tidy-up after it: it buys slack as well as ALMs.
+utilisation as much as of logic depth in any one place. So the main thing
+that recovers the margin is **area recovered elsewhere in the machine**,
+which is what makes the deferred whole-system reduction a prerequisite for
+slice 7 rather than a tidy-up after it: it buys slack as well as ALMs.
+**With one specific exception, measured below**: the decode cone is three
+logic levels deeper here than at the merge base, and it is this slice's own
+work, so it is a concrete target rather than part of the general
+congestion.
 
 **One question was open and bears directly on this; it has been measured.**
 `fes_i386_decode.sv` is a file this slice edits, and the decode path that
@@ -938,25 +942,48 @@ query on each:
 | from `cpu_decode_by*` | +0.727 | +0.524 | **−0.203** |
 | anywhere in the machine | +0.720 | +0.317 | **−0.403** |
 
-**The decode path lost 0.203 ns where the machine's worst path lost 0.403.**
-At the merge base decode was effectively tied for critical, 7 ps behind the
-worst path in the design; on this branch it sits 0.207 ns behind it. A slice
-that had deepened decode would have made it worse than the machine around
-it, and this is the opposite: decode degraded by half as much as the design
-did, which is what uniform congestion looks like. **So the reading that this
-slice lengthened the decode path is not supported**, and the first paragraph
-above stands unchanged.
+The slack row was read first and read wrongly: decode lost 0.203 ns where
+the machine's worst lost 0.403, which looks like decode degrading *less*
+than its surroundings. It is not, because those are two different paths --
+the machine's worst moved region between the fits, to the L1D. The question
+was about depth, so the measurement that answers it is depth, from the same
+query:
 
-Two limits on that, because this record has already asserted this question
-twice and been wrong twice. Slack is placement as well as logic, so this
-measures how critical the path is and not its depth directly; and the
-endpoints are differently numbered nets in the two netlists (`_38176_`
-against `_40448_`), so "the same endpoint" was never available here -- what
-is matched is the query, the seed and the flow. The counter-indication this
-record previously offered from the decoder's *area* is withdrawn
-separately: repeating the merge-base per-entity fit moved it from 728.5 to
-698.9 against the branch's 713.4, flipping the sign, so the decoder's area
-settles nothing either way.
+| Logic levels, identity on, seed 1 | merge base | this branch |
+| --- | ---: | ---: |
+| paths from `cpu_decode_by*` | **10** (two at 11) | **13** |
+
+**The decode cone is three logic levels deeper on this branch**, on a
+matched query at the same seed through the same flow. Depth is a property of
+the synthesised logic rather than of placement, `fes_i386_decode.sv` is a
+file this slice edits, and the decode path is the one that misses on four of
+the nine seeds. **So the reading that this slice lengthened the decode path
+is supported, and the earlier draft of this paragraph -- which concluded the
+opposite from the slack row alone -- was wrong.**
+
+What follows from it, and what does not:
+
+- **The first paragraph's claim is unchanged in its own scope.** It is about
+  the *arithmetic*, and the arithmetic is still nowhere near binding. A
+  register stage in the sum or the rounding still buys nothing.
+- **But "no change inside slice 3 could recover the margin" is false.** The
+  decode cone is slice 3's own work, it is three levels deeper, and it binds
+  on four of nine seeds. **Slice 6 should start there**, and restructuring
+  the x87 memory operand decode is a candidate that does not touch the
+  arithmetic at all.
+- **This does not establish that the extra levels caused the misses.** Seed
+  1 still binds in the L1D and seed 9 in the aligner, so decode is one of
+  three binding regions rather than the single cause; and the decoder's
+  *area* did not grow, which is consistent with logic that was restructured
+  deeper rather than simply added to.
+
+The third counter-indication this record offered -- that `fes_i386_decode`
+fits 15 ALMs *smaller* here -- is withdrawn on its own terms: repeating the
+merge-base per-entity fit moved it from 728.5 to 698.9 against the branch's
+713.4, flipping the sign. All three counter-indications are kept above
+because they are why two earlier readings were withdrawn, and because the
+question was settled in the end by measuring the thing in dispute rather
+than by argument around it.
 
 **One part of the spike's estimate is still intact, and it is the memory.**
 The spike predicted **+1,687 ALMs, 9 DSP and 17 M10K** in-machine for the
