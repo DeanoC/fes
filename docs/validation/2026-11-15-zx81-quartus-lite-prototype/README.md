@@ -115,8 +115,13 @@ python3 -I ../../docs/validation/2026-11-15-zx81-quartus-lite-prototype/scripts/
 python3 -I ../../docs/validation/2026-11-15-zx81-quartus-lite-prototype/scripts/check_bytes.py . $S/zx81-pin-s1 8
 ```
 
-For the compressed case, pass `compressed` after `pin`. `zx81q_fit.sh` exits
-with `quartus_sh`'s status, which is 124 if the one-hour cap expires.
+For the compressed case, pass `compressed` after `pin`. Every Quartus step
+(`zx81q_fit.sh`, and the `quartus_cdb` and `quartus_asm` steps of
+`mif_selftest.sh`) runs through `run_quartus_job.sh`. That runner refuses to
+start with under 30 GB free, caps the step at one hour, prints a heartbeat
+every minute, and ends with a FINISHED or FAILED line. It exits with the
+step's status, which is 124 if the cap expires. `ddr_cfg_from_vo.py` accepts
+only the literal `gnd` and `vcc` constants in a `cfg_*` port.
 `check_bytes.py`, `mif_selftest.sh` and `ddr_cfg_from_vo.py` exit non-zero on
 any mismatch. The scripts hard-code this host's Mistral database path;
 `zx81q_fit.sh` honours `QUARTUS_ROOTDIR`. They are prototype code and not a

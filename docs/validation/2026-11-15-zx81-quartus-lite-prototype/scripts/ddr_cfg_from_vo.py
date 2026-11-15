@@ -13,7 +13,13 @@ want = hps_ddr_layout(Path('.'))
 failed = False
 for port in HPS_DDR_CFG_PORTS:
     bits = re.search(r'\.' + port + r'\(\{([^}]*)\}\)', block).group(1).split(',')
-    value = int(''.join('1' if b.strip() == 'vcc' else '0' for b in bits), 2)  # MSB first
+    tokens = [b.strip() for b in bits]
+    if len(tokens) != HPS_DDR_CFG_PORTS[port][1] or set(tokens) - {'gnd', 'vcc'}:
+        # Only the literal constants prove a tie-off; a net, x or any other spelling fails.
+        print(port, 'is not a constant:', tokens)
+        failed = True
+        continue
+    value = int(''.join('1' if b == 'vcc' else '0' for b in tokens), 2)  # MSB first
     print(port, hex(value), 'layout', hex(want[port]), 'OK' if value == want[port] else 'MISMATCH')
     failed |= value != want[port]
 sys.exit(1 if failed else 0)

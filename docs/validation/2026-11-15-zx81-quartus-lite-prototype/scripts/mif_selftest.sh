@@ -5,6 +5,7 @@
 # bit is a ROM-map destination.
 set -e
 Q=${QUARTUS_ROOTDIR:-/home/deano/intelFPGA_lite/17.0/quartus}/bin
+here=$(cd "$(dirname "$0")" && pwd)
 cd "$1"; cp output_files/top.rbf fit.rbf
 python3 - <<'PY'
 import json, random
@@ -16,10 +17,12 @@ for lane in range(8):
         f'DATA_RADIX = HEX;\nCONTENT BEGIN\n{rows}END;\n')
 json.dump(pats, open('patterns.json', 'w'))
 PY
-$Q/quartus_cdb top -c top --update_mif > update_mif.log 2>&1
-$Q/quartus_asm top -c top > asm.log 2>&1
+# Each step runs through run_quartus_job.sh: 30 GB preflight, 1 h cap,
+# heartbeat and a FINISHED/FAILED line.
+"$here/run_quartus_job.sh" update_mif.log "$Q/quartus_cdb" top -c top --update_mif
+"$here/run_quartus_job.sh" asm.log "$Q/quartus_asm" top -c top
 cd "$2"; project="$1"
-python3 -I "$(dirname "$0")/check_bytes.py" . "$project" 8
+python3 -I "$here/check_bytes.py" . "$project" 8
 python3 -I - "$project" <<'PY'
 import sys; sys.path.insert(0, '.')
 from pathlib import Path
