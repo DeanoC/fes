@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/publication/check-publication-loading-models.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 37.22778761293739,
+  "log_sha256": "947eb4893f6958fd51ce084854865a57a1e9687673c60d2ef3120a55e31b24bb"
+}

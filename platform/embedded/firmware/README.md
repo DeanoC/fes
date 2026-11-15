@@ -1,5 +1,8 @@
 # Contained firmware and FPGA control prototype
 
+The latest [warm-core/tape trial](../../../docs/validation/2026-11-15-de25-warm-core-and-tape-stop/README.md) passes MENU and warm ZX81 configuration transfer, retirement and continuation. Launch then stops because initial tape publication tries to reuse the retained configuration arena; a source-bound host counterexample reproduces the refusal without writes or firmware calls. The trial is archived, all hardware handles are closed, and a fresh reset is requested for original-FIT restoration. General core loading is still unqualified.
+
+
 This is exploratory firmware and native integration for the Linux-free base.
 It supplies a pinned TF-A source transformation, a freestanding C++14 control
 adapter, and verification against actual FPGA RTL. These tools build firmware
