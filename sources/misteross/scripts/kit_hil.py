@@ -408,12 +408,20 @@ def clean(shell, listed, created, *, roots=DATA_ROOTS, keep=(), hold=None, apply
 
     check_removable(listed, created, roots=roots, keep=keep)
     session = hold() if hold is not None else None
-    plan, failure = None, None
+    plan, failure, released = None, None, True
     try:
-        plan = _clean_held(shell, listed, roots=roots, apply=apply, log=log, session=session)
-    except CleanupRefused as error:
-        failure = error
-    released = release(session) if session is not None else True
+        # The release is unconditional: anything at all out of the removal —
+        # a BrokenPipeError from the log, a UnicodeDecodeError on a listing, a
+        # KeyboardInterrupt — must still give the shared kit back, and must
+        # still reach the caller afterwards.
+        try:
+            plan = _clean_held(shell, listed, roots=roots, apply=apply, log=log,
+                               session=session)
+        except CleanupRefused as error:
+            failure = error
+    finally:
+        if session is not None:
+            released = release(session)
     if failure is not None:
         raise failure
     if not released:
@@ -571,11 +579,16 @@ def require_lease(session, step):
 
 
 def release(session):
-    """Give the cleanup's lease back, and never mask what it was taken for."""
+    """Give the cleanup's lease back, and never mask what it was taken for.
+
+    Called from a `finally`, so it must not raise: a failure here is reported
+    through the return value and becomes the command's exit code, while
+    whatever the cleanup was already failing with keeps its place.
+    """
 
     try:
         session.close()
-    except kitlib.KitError:
+    except Exception:  # noqa: BLE001 - a release failure must not replace the cause
         return False
     return True
 

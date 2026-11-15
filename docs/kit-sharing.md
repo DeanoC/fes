@@ -288,8 +288,12 @@ with "operator recovery required" — so the guards against them live in
   verification listing — a claim excludes others only while it is live, and a
   lost renewal only sets a flag — and an unconfirmed release makes the command
   fail, so `clean … || exit 5` cannot proceed over a lease that may still be
-  held. The invariant: the lease is held for the whole interval in which
-  anything is read or removed, and the exit code says whether it was. Prefer it to a hand-rolled
+  held, and the lease is released unconditionally even when the removal fails
+  unexpectedly. The invariant: the lease is held for the whole interval in
+  which anything is read or removed, and the exit code says whether it was.
+  That invariant is enforced client-side by these checks, not by the kit — the
+  removal is `rm -r` over ssh that the agent never sees — so it makes the
+  failure unlikely and always visible, not impossible. Prefer it to a hand-rolled
   `ssh rm -rf`: every wrapper that rolled its own left out at least one of
   those checks.
 - **The run's verdict.** Run `kit_hil.py verdict runs/RUN/result.json` and

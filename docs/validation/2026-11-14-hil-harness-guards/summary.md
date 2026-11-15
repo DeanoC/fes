@@ -133,7 +133,7 @@ after checking them against the real data are red on the extraction too. All of
 them pass on the branch head:
 
     cd sources/misteross && python3 -m unittest discover -s tests -p 'test_kit*.py'
-    # 77 tests, OK (62 of them this module's)
+    # 80 tests, OK (65 of them this module's)
 
 The cleanup gate is also exercised against a real local HTTP agent replying in
 `protocol.Status`'s own shape (`state`, `game_id`, `core_package.package_id`,
@@ -268,10 +268,37 @@ outlast it; and an unconfirmed release raises, after any original failure has
 been preserved, so the command cannot report success over a lease that may
 still be held.
 
-If a fourth round finds another instance of this family, the question stops
-being which check to add and becomes whether a host-side script should hold a
-kit lease at all, or whether this belongs behind an agent-side operation that
-owns the lease itself — a design question for Deano, not another patch.
+**Where the guarantee comes from, stated honestly.** It is enforced
+client-side, by a sum of checks in this Python, and not by the kit. The
+removal is `rm -r` over ssh: the agent never sees it, so the agent cannot
+refuse it. Holding the lease does not stop the removal — it stops another
+*session* from claiming the kit and loading a core into it while the removal
+runs, which is a different thing. A caller whose lease lapses between a check
+and an action is defended against by `require_lease` running before each
+action, not by the kit rejecting the action; between one of those checks and
+the ssh command that follows it there is still a window, bounded by the
+per-command timeout being shorter than the lease rather than closed outright.
+If the lease lapses inside that window, nothing on the kit will stop the `rm`.
+
+So the guards make the failure that cost two operator recoveries on
+14 November 2026 very unlikely and always visible in the exit code; they do not
+make it impossible, and a future reader should not assume the kit is enforcing
+anything here.
+
+A fourth round found one more of this family: the release had moved out of a
+`finally` when round 3 restructured `clean` to propagate an unconfirmed
+release, so an unexpected exception — a `BrokenPipeError` from the log, a
+`UnicodeDecodeError` on a listing, a `KeyboardInterrupt` — could leave the
+shared kit leased. It releases unconditionally again, with the original
+exception preserved, and `release` itself no longer raises. That makes four
+consecutive rounds whose findings are all one question: is the lease actually
+held, and does the exit code say so. That is evidence about the shape of this
+code rather than about any single omission — correctness here is a sum of
+guards, so there can always be one more. The alternative shape is an
+agent-side operation that owns the lease and the removal together, where the
+kit itself refuses a mutation from a caller whose lease has lapsed. Whether
+that is worth building is Deano's call; it is out of scope for this PR, and
+the coordinating session is raising it with him.
 
 ## A claim this record made, and why it was wrong
 
@@ -352,7 +379,7 @@ trees under, which is the thing the guard exists to prevent.
 
 | gate | result |
 | --- | --- |
-| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 77 tests, OK |
+| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 80 tests, OK |
 | `tests/test_hil_plan.py` | 39 tests, OK |
 | `tests/test_affected.py`, `tests/test_test_changed.py` | 43 and 33 tests, OK |
 | `scripts/check_diff.py --base <main> --head HEAD` | exit 0 |

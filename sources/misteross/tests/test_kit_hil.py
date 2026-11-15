@@ -785,6 +785,45 @@ class GuardedRemoval(unittest.TestCase):
         self.assertIn('no longer on the kit', str(refused.exception),
                       'the first failure is the one reported')
 
+    def test_any_exception_out_of_the_removal_still_releases_the_lease(self):
+        """A release in a finally: an unexpected failure must not keep the kit."""
+
+        for error in (BrokenPipeError('stdout closed'),
+                      UnicodeDecodeError('utf-8', b'\xff', 0, 1, 'bad listing'),
+                      KeyboardInterrupt(),
+                      MemoryError()):
+            with self.subTest(error=type(error).__name__):
+                class Exploding(FakeKit):
+                    def find(self, roots):
+                        raise error
+
+                self.sessions = []
+                with self.assertRaises(type(error)):
+                    kit_hil.clean(Exploding(KIT_BEFORE), self.LISTED, CREATED, apply=True,
+                                  log=self.said.append, hold=self.hold_for(IDLE, IDLE))
+                self.assertTrue(self.sessions[0].closed,
+                                'the shared kit must be given back whatever happened')
+
+    def test_a_release_that_raises_something_unexpected_fails_the_command(self):
+        # release() runs in a finally, so it must report rather than raise.
+        self.close_error = OSError('connection reset')
+        kitfs = FakeKit(KIT_BEFORE)
+        with self.assertRaises(kit_hil.CleanupRefused) as refused:
+            kit_hil.clean(kitfs, self.LISTED, CREATED, apply=True, log=self.said.append,
+                          hold=self.hold_for(IDLE, IDLE))
+        self.assertIn('not confirmed released', str(refused.exception))
+
+    def test_a_release_failure_does_not_replace_an_unexpected_exception(self):
+        self.close_error = kit.KitError('/v1/kit/release: HTTP 500', 500)
+
+        class Exploding(FakeKit):
+            def find(self, roots):
+                raise BrokenPipeError('stdout closed')
+
+        with self.assertRaises(BrokenPipeError):
+            kit_hil.clean(Exploding(KIT_BEFORE), self.LISTED, CREATED, apply=True,
+                          log=self.said.append, hold=self.hold_for(IDLE, IDLE))
+
     def test_an_ssh_command_cannot_outlast_the_kits_lease(self):
         # The kit's production lease is 90 s (kitlease.New in mister-agent).
         self.assertLess(kit_hil.KitShell('/nonexistent/ssh').timeout, 90)
