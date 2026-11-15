@@ -46,8 +46,8 @@ record against the tree it is read in, and is the evidence for every count below
 It makes two claims. First, all **374** inventory rows hold, on their stated line, the `Matched`
 text recorded for them — the check that matters, because a line number can stay in range while
 pointing at the wrong line, and that is how two earlier revisions of this record went wrong. Second,
-all **747** `path:line` citations written in the prose and the `What` cells of these three files
-(**987** line endpoints, counting every number of a comma list and both ends of a range) resolve to a
+all **749** `path:line` citations written in the prose and the `What` cells of these three files
+(**1003** line endpoints, counting every number of a comma list and both ends of a range) resolve to a
 real file **and still hold the text they held when the record was written**.
 
 That second half is the part a reader should not take on trust, because until the #1829 review it was
@@ -61,7 +61,7 @@ deliberately:
 
 What the fingerprints prove is bounded, and worth stating: they pin what each cited line said when
 they were taken, so any later drift is reported against them. They are not a retroactive claim that
-every one of those 747 citations was apt on the day it was written. Without the file the checker says
+every one of those 749 citations was apt on the day it was written. Without the file the checker says
 so in its output rather than passing quietly.
 
 Both pass with no exceptions, which took eight corrections beyond re-pointing the base. The
@@ -208,8 +208,9 @@ Confirmed present, with the line verified where noted:
   2. the recipe's C++ bench actually contains an `FES_*_OSS` conditional.
 
   Only `machine_tb.cpp`, `gp_tb.cpp`, `expansion_tb.cpp` and `vdp_machine_tb.cpp` have such a
-  conditional. Condition 1 alone matches eight recipes — `:633`, `:733`, `:773`, `:912`, `:936`,
-  `:1732`, `:1768`, `:2086`, the first and last with the define inside a `$(if …)` — but seven of
+  conditional. Condition 1 alone matches eight recipes —
+  `sources/misteross/Makefile:633,733,773,912,936,1732,1768,2096`, the first and last with the
+  define inside a `$(if …)` — but seven of
   them compile `graphics_tb.cpp`, `megacart_machine_tb.cpp`, `sgm_shell_ram_tb.cpp`,
   `diagnostic_machine_tb.cpp`, `gp_media_tb.cpp` or `stream_tb.cpp`, none of which has an arm to
   choose, so for those the missing `-CFLAGS` means nothing. Reading the reported hits one at a time
@@ -305,7 +306,7 @@ Confirmed present, with the line verified where noted:
     `What` cell or in this record's prose, was checked for existing and being non-blank and nothing
     more. So a base edit that moved a cited construct onto another non-blank line passed — which is
     precisely the defect the first two revisions of this record shipped, and it means re-running the
-    checker after a base move did not protect the exact-site checklist it advertises. All 987 line
+    checker after a base move did not protect the exact-site checklist it advertises. All 1003 line
     endpoints are now content-checked against a committed fingerprint file. Second, `.tcl` was not
     in the extension list, so three live citations went unread: `fes_de25_computer_hw.tcl:15` and
     `:77`, and `fes_de25_zx81_standard_hw.tcl:39`, all in `de25.md`. All three are correct; they
@@ -364,7 +365,7 @@ whenever the area cut changes.
 
 Checked mechanically here, over the whole inventory: every primary line against its recorded matched
 text (374 of 374, one of them matched up to the ellipsis its cell uses), and every `path:line`
-citation in these three files against the tree (747 of 747, now by content and not merely by
+citation in these three files against the tree (749 of 749, now by content and not merely by
 existence). Both are re-runnable as
 `verify_census.py`. That check is what caught the wrong base,
 once Codex had pointed at two instances of it, and it is cheap enough to repeat whenever the base
