@@ -1,0 +1,5 @@
+Booting the FreeDOS floppy in A: on the rtl CPU (this takes minutes)
+disk A 1.44M /home/deano/fes/.claude/worktrees/silly-mcnulty-a4e35c/sources/misteross/build/sim/fes-pc386/freedos-floppy.img
+screen rows: 25
+PASS floppy-boot
+exit=0

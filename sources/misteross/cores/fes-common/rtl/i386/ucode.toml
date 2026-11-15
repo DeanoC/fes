@@ -980,24 +980,28 @@ uops = [
     { cls = "alu", op = "mov", mkind = "store", in_a = true, rm = true, fpn = 6, b = "sys", sys = "fds" },
     { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 0, b = "sys", sys = "ones" },
     { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 1, b = "sys", sys = "ones" },
-    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 2, b = "sys", sys = "ones" },
-    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 3, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "16", mkind = "store", mbytes = "2", in_a = true, rm = true, fpn = 7, fpj = 2, b = "sys", sys = "ones" },
     { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 4, b = "sys", sys = "ones" },
     { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 5, b = "sys", sys = "ones" },
-    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 6, b = "sys", sys = "ones" },
-    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 7, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "16", mkind = "store", mbytes = "2", in_a = true, rm = true, fpn = 7, fpj = 6, b = "sys", sys = "ones" },
     { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 8, b = "sys", sys = "ones" },
     { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 9, b = "sys", sys = "ones" },
-    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 10, b = "sys", sys = "ones" },
-    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 11, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "16", mkind = "store", mbytes = "2", in_a = true, rm = true, fpn = 7, fpj = 10, b = "sys", sys = "ones" },
     { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 12, b = "sys", sys = "ones" },
     { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 13, b = "sys", sys = "ones" },
-    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 14, b = "sys", sys = "ones" },
-    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 15, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "16", mkind = "store", mbytes = "2", in_a = true, rm = true, fpn = 7, fpj = 14, b = "sys", sys = "ones" },
     { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 16, b = "sys", sys = "ones" },
     { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 17, b = "sys", sys = "ones" },
-    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 18, b = "sys", sys = "ones" },
-    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 19, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "16", mkind = "store", mbytes = "2", in_a = true, rm = true, fpn = 7, fpj = 18, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 20, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 21, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "16", mkind = "store", mbytes = "2", in_a = true, rm = true, fpn = 7, fpj = 22, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 24, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 25, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "16", mkind = "store", mbytes = "2", in_a = true, rm = true, fpn = 7, fpj = 26, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 28, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpn = 7, fpj = 29, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "16", mkind = "store", mbytes = "2", in_a = true, rm = true, fpn = 7, fpj = 30, b = "sys", sys = "ones" },
 ]
 
 # FLDENV and FRSTOR with no 387: DC decodes the control word's load; the
@@ -1026,24 +1030,28 @@ uops = [
     { cls = "alu", op = "mov", mkind = "load", rm = true, fpn = 6 },
     { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 0 },
     { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 1 },
-    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 2 },
-    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 3 },
+    { cls = "alu", op = "mov", size = "16", mkind = "load", mbytes = "2", rm = true, fpn = 7, fpj = 2 },
     { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 4 },
     { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 5 },
-    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 6 },
-    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 7 },
+    { cls = "alu", op = "mov", size = "16", mkind = "load", mbytes = "2", rm = true, fpn = 7, fpj = 6 },
     { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 8 },
     { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 9 },
-    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 10 },
-    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 11 },
+    { cls = "alu", op = "mov", size = "16", mkind = "load", mbytes = "2", rm = true, fpn = 7, fpj = 10 },
     { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 12 },
     { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 13 },
-    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 14 },
-    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 15 },
+    { cls = "alu", op = "mov", size = "16", mkind = "load", mbytes = "2", rm = true, fpn = 7, fpj = 14 },
     { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 16 },
     { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 17 },
-    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 18 },
-    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 19 },
+    { cls = "alu", op = "mov", size = "16", mkind = "load", mbytes = "2", rm = true, fpn = 7, fpj = 18 },
+    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 20 },
+    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 21 },
+    { cls = "alu", op = "mov", size = "16", mkind = "load", mbytes = "2", rm = true, fpn = 7, fpj = 22 },
+    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 24 },
+    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 25 },
+    { cls = "alu", op = "mov", size = "16", mkind = "load", mbytes = "2", rm = true, fpn = 7, fpj = 26 },
+    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 28 },
+    { cls = "alu", op = "mov", size = "32", mkind = "load", mbytes = "4", rm = true, fpn = 7, fpj = 29 },
+    { cls = "alu", op = "mov", size = "16", mkind = "load", mbytes = "2", rm = true, fpn = 7, fpj = 30 },
 ]
 
 # The reads of an 8-byte operand (m64real, m64int) and a 10-byte one
@@ -1051,6 +1059,23 @@ uops = [
 # highest part (the dword at 4; the word at 8), and the ROM loads the rest
 # down to the dword at 0, whose uop writes the x87 pointers as it retires,
 # its offset the data pointer's. A fault in any part leaves them unchanged.
+[[routine]]
+# FST and FSTP m64, FISTP m64 with a 387 fitted: the unit's second dword,
+# at 4. The decode uop stores the first, at 0.
+name = "fst8"
+uops = [
+    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpj = 1, b = "sys", sys = "ones", x87p = "ipdp" },
+]
+
+[[routine]]
+# FSTP m80 with a 387 fitted: the unit's second dword, at 4, and its top
+# word, at 8.
+name = "fst10"
+uops = [
+    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, fpj = 1, b = "sys", sys = "ones" },
+    { cls = "alu", op = "mov", size = "16", mkind = "store", mbytes = "2", in_a = true, rm = true, fpj = 2, b = "sys", sys = "ones", x87p = "ipdp" },
+]
+
 [[routine]]
 name = "frd8"
 uops = [

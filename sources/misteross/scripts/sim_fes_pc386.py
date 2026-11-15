@@ -16,6 +16,28 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            differ, every other case must match, and the RTL meets each case's
            own checks, including the non-DMA and timing cases Bochs does not
            model. Needs Verilator and the oracle's Bochs (--download).
+  floppy   runs cores/fes-pc386/sim/floppy_test.asm (FLOPTEST.COM) at the
+           FreeDOS prompt with both floppy drives fitted (fes#1694, slice
+           F2): A: a 1.44M disk labelled DISK1, B: a 1.2M disk labelled
+           BDISK. It checks the CMOS equipment word and INT 13h AH=15h
+           against the drive types, reads each disk's boot sector, and takes
+           the change line across the swaps the program asks for through the
+           debug port: a write-protected DISK2 (AH=16h reports the change,
+           the next read gets the new disk and clears the line, and a write
+           fails with "write protected"), then DISK1 again, which DOS must
+           see by itself, then a 360K disk in the 1.2M drive and the 1.2M
+           disk again. It reads, writes, verifies and formats on A: at 1.44M
+           and on B: at 1.2M and 360K, and has a transfer that would cross a
+           64 KiB boundary refused. A sector written to B: must be in the
+           image the bench writes back. Every check must print ok. With --cpu rtl the
+           oracle boots and fes_i386_cpu runs from the prompt, so the INT 13h
+           transfers, DMA channel 2 and IRQ 6 are its; writes floppy-rtl/.
+  floppy-boot
+           boots the FreeDOS floppy in A: with the launch's boot device set
+           to A: (CMOS 2Dh, 38h and 3Dh), reaches the A: prompt and runs DIR,
+           which must show the boot floppy's volume label. With --cpu rtl the
+           whole boot, the BIOS's floppy path included, runs on fes_i386_cpu;
+           writes floppy-boot-rtl/.
   audio    cores/fes-pc386/sim/audio_tb.cpp checks the speaker, Sound Blaster
            DSP commands and DMA, OPL2 timers and the 48 kHz mixer.
   opl2     cores/fes-pc386/sim/opl2_tb.cpp compares the OPL2 sample for sample
@@ -165,6 +187,8 @@ that governor preset; each report uses `<suite>-preset<n>`, with
 
 Examples:
   python3 scripts/sim_fes_pc386.py --suite devices
+  python3 scripts/sim_fes_pc386.py --suite floppy --download
+  python3 scripts/sim_fes_pc386.py --suite floppy-boot --download
   python3 scripts/sim_fes_pc386.py --suite fdc --download
   python3 scripts/sim_fes_pc386.py --suite opl2
   python3 scripts/sim_fes_pc386.py --suite boot --download
@@ -387,7 +411,7 @@ def parse_boot(text: str) -> dict:
     report = {'post': [], 'debug': [], 'panic': [], 'io': {}, 'io_wait': {}, 'inta': {}, 'screen': [], 'end': None,
               'prompt_cycle': None, 'cpu_resets': 0, 'snaps': {}, 'present': {}, 'vga': {}, 'marks': {},
               'game_launch': None, 'opl2': None, 'opl2_mismatch': None, 'audio_samples': None, 'sb': None, 'mouse': None,
-              'ems': None, 'rtl_begin': None}
+              'ems': None, 'rtl_begin': None, 'floppy': []}
     rtl = {'stops': [], 'pmode': [], 'gaps': [], 'smc': [], 'notes': [], 'counters': None}
     for line in text.splitlines():
         kind, _, rest = line.partition(' ')
@@ -406,6 +430,9 @@ def parse_boot(text: str) -> dict:
             event, cycle, site, instruction, address = rest.split()
             rtl['smc'].append({'event': event, 'cycle': int(cycle), 'site': site, 'instruction': instruction,
                                'address': address})
+        elif kind in ('FLOPPY', 'FLOPPY-SWAP', 'FLOPPY-OUT'):
+            report['floppy'].append(('swap ' if kind == 'FLOPPY-SWAP' else
+                                     'out ' if kind == 'FLOPPY-OUT' else 'disk ') + rest)
         elif kind == 'NOTE':
             rtl['notes'].append(rest)
         elif kind == 'RTL-BEGIN':
@@ -986,6 +1013,104 @@ def run_ems(args, linked: list[Path]) -> dict:
     return {'run': run, 'checks': checks + [f'EMS board: {ems}'], 'failures': failures}
 
 
+# FLOPTEST.COM's checks in the order it runs them (sim/floppy_test.asm), the
+# sector it writes to B: (cylinder 79, head 1, sector 15 of a 1.2M disk) and
+# the 16 bytes it fills it with.
+FLOPPY_CHECKS = ('equip', 'type-a', 'type-b', 'label-a', 'label-b', 'nochange-a', 'change-a', 'reread-a',
+                 'cleared-a', 'wp-a', 'verify-a', 'dma-boundary', 'dos-a1', 'dos-a2', 'write-a', 'format-a',
+                 'label-b360', 'write-b360', 'format-b360', 'back-b', 'verify-b', 'format-b', 'write-b', 'DONE')
+FLOPPY_WRITE_LBA = (79 * 2 + 1) * 15 + 15 - 1
+FLOPPY_WRITE_PATTERN = b'FES FLOPPY WRITE'
+
+
+def run_floppy(args, linked: list[Path]) -> dict:
+    """FLOPTEST.COM at the FreeDOS prompt with both drives fitted: the CMOS
+    configuration, the BIOS change line across four swaps, a write-protected
+    disk, a 360K medium in the 1.2M drive, a format, and a write to B: that
+    must reach the image."""
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    rtl = '-rtl' if args.cpu == 'rtl' else ''
+    suite = f'floppy{rtl}'
+    disk = fixture_with(args, suite, 'floppy_test.asm', 'FLOPTEST.COM')
+    disk1 = freedos.image(args.download, args.jobs, 'floppy-a')
+    disk2 = freedos.image(args.download, args.jobs, 'floppy-a2')
+    disk_b = freedos.image(args.download, args.jobs, 'floppy-b')
+    disk_b360 = freedos.image(args.download, args.jobs, 'floppy-b360')
+    written = OUTPUT / suite / 'floppy-b-out.img'
+    print(f'Running FLOPTEST.COM with A: and B: fitted on the {args.cpu} CPU', flush=True)
+    run = run_machine(testbench, suite,
+                      ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                       '--floppy', f'A:{disk1}', '--floppy', f'B:{disk_b}',
+                       '--floppy-out', f'B:{written}',
+                       '--swap', f'SWAP 1:A:{disk2}:ro', '--swap', f'SWAP 2:A:{disk1}',
+                       '--swap', f'SWAP 3:B:{disk_b360}', '--swap', f'SWAP 4:B:{disk_b}',
+                       '--type', 'floptest|', '--expect', 'FLOPPY DONE ok', '--cpu', args.cpu,
+                       # The boot is the oracle's; the RTL takes over at the
+                       # prompt, so FLOPTEST.COM's INT 13h, the DMA transfers
+                       # and IRQ 6 run on it.
+                       *(['--rtl-at-prompt', '1'] if rtl else [])], images)
+    lines = [entry['text'] for entry in run['debug'] if entry['port'] == '0e9']
+    failures = list(run['failures'])
+    checks = [line for line in lines if line.startswith('FLOPPY ')]
+    failures += [line for line in checks if not line.endswith(' ok')]
+    names = [line.split()[1] for line in checks]
+    if names != list(FLOPPY_CHECKS):
+        failures.append(f'FLOPTEST.COM ran {names}, expected {list(FLOPPY_CHECKS)}')
+    swaps = [line for line in run['floppy'] if line.startswith('swap ')]
+    if len(swaps) != 4:
+        failures.append(f'expected four swaps, the bench made {len(swaps)}: {swaps}')
+    # The sector FLOPTEST.COM wrote must be in the image the bench wrote back.
+    try:
+        bytes_written = written.read_bytes()
+    except OSError as error:
+        bytes_written = b''
+        failures.append(f'the bench wrote no B: image: {error}')
+    if bytes_written:
+        sector = bytes_written[FLOPPY_WRITE_LBA * 512:(FLOPPY_WRITE_LBA + 1) * 512]
+        if sector != FLOPPY_WRITE_PATTERN * 32:
+            failures.append(f'B: sector {FLOPPY_WRITE_LBA} of the written image is not the pattern: '
+                            f'{sector[:32]!r}')
+        else:
+            checks.append(f'B: image: the pattern is in sector {FLOPPY_WRITE_LBA}')
+        if len(bytes_written) != disk_b.stat().st_size:
+            failures.append(f'the written B: image is {len(bytes_written)} bytes, '
+                            f'not {disk_b.stat().st_size}')
+        if bytes_written[:512] != disk_b.read_bytes()[:512]:
+            failures.append('the written B: image\'s boot sector changed')
+    for source in (disk1, disk2, disk_b, disk_b360):
+        if not source.is_file():
+            failures.append(f'missing floppy fixture {source}')
+    if rtl:
+        failures += rtl_failures(run, 'floppy run')
+    return {'run': run, 'checks': checks + run['floppy'], 'failures': failures}
+
+
+def run_floppy_boot(args, linked: list[Path]) -> dict:
+    """Boot the FreeDOS floppy in A: with the launch's boot device set to A:,
+    and run a command at its prompt."""
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    rtl = '-rtl' if args.cpu == 'rtl' else ''
+    suite = f'floppy-boot{rtl}'
+    disk = freedos.image(args.download, args.jobs, 'boot')
+    floppy = freedos.image(args.download, args.jobs, 'floppy-boot')
+    print(f'Booting the FreeDOS floppy in A: on the {args.cpu} CPU (this takes minutes)', flush=True)
+    run = run_machine(testbench, suite,
+                      ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                       '--floppy', f'A:{floppy}', '--boot-device', '1',
+                       '--prompt', 'A:\\>', '--type', 'dir|', '--expect', 'bytes free',
+                       '--cpu', args.cpu], images)
+    failures = list(run['failures'])
+    screen = run['screen']
+    if not any('A:\\>' in row for row in screen):
+        failures.append('the floppy boot never reached the A: prompt')
+    if not any('FDBOOT' in row for row in screen):
+        failures.append('DIR did not show the boot floppy\'s volume label FDBOOT')
+    failures += rtl_boot_failures(run, args.cpu)
+    return {'run': run, 'checks': run['floppy'] + [f'screen rows: {len(screen)}'], 'failures': failures}
+
+
 def run_c2xx(args, linked: list[Path]) -> dict:
     """C2TEST.COM at the FreeDOS prompt: INT 15h C2xx with keyboard bytes at the 8042."""
     images = firmware.images(args.download, args.jobs)
@@ -1015,6 +1140,8 @@ def default_limit_seconds(suite: str) -> int:
     """Return the suite's default simulated-time hang guard."""
     if suite == 'sound':
         return 14
+    if suite in ('floppy', 'floppy-boot'):
+        return 30
     if suite in ('boot', 'governor', 'wait', 'speaker', 'x87', 'scroll', 'cpu-profile'):
         return 8
     if suite == 'rtl-stops':
@@ -2027,7 +2154,8 @@ def wfw_checks(report: dict) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--suite', choices=('devices', 'fdc', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
+    parser.add_argument('--suite', choices=('devices', 'fdc', 'floppy', 'floppy-boot', 'storage', 'audio', 'opl2',
+                                            'benches', 'boot', 'rtl-stops',
                                             'a20', 'c2xx', 'ems', 'wait', 'speaker', 'x87', 'scroll', 'cpu-profile',
                                             'sound', 'game', 'wfw', 'vga', 'system', 'governor', 'all'),
                         default='all',
@@ -2072,8 +2200,9 @@ def main() -> int:
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
     if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'wfw', 'a20', 'c2xx', 'ems', 'wait', 'speaker',
-                                                'scroll'):
-        parser.error('--cpu rtl runs the boot, game, wfw, a20, c2xx, ems, wait, speaker and scroll suites only')
+                                                'scroll', 'floppy', 'floppy-boot'):
+        parser.error('--cpu rtl runs the boot, game, wfw, a20, c2xx, ems, wait, speaker, scroll, floppy and '
+                     'floppy-boot suites only')
     if args.oracle_profile and not (args.suite == 'game' and args.cpu == 'oracle'):
         parser.error('--oracle-profile is for the game suite with --cpu oracle')
     if args.rtl_at_prompt and not (args.suite == 'game' and args.cpu == 'rtl'):
@@ -2133,6 +2262,10 @@ def main() -> int:
                 report = run_a20(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'c2xx':
                 report = run_c2xx(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'floppy':
+                report = run_floppy(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'floppy-boot':
+                report = run_floppy_boot(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'ems':
                 report = run_ems(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'wait':
