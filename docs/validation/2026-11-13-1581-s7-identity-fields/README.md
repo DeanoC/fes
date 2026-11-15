@@ -99,6 +99,30 @@ route-deciding input.
 | `ramtest` | `7a60de20fc0fb448849cd24eed50a253` | `d3774d8027b61a943e77edac3f6815c7e8f3a526da1d18dd688bcf91f64fd925` | `a5e0d01b501fb7721240a64b8a9b71065940e8d5b23af7c2b72ff76173543347` | `4d8eb4efff711f03f1b842ed2b056b9a` |
 | `riscv` | `e0a17b8e0d06d1b5b5fae611bdedc308` | `a7224f83777d917af62b4b4a1d3db814e34f69028c1fb09254b8f09946303831` | `99f92fafc5b0c591a34968b535468610c479219066d579bfee046b7d42c33a50` | `89ce0e93c74934dc3ed7bfc1a131d990` |
 
+### Does a merge invalidate these identities?
+
+Only if it touches a closure. A `BUILD_ID` hashes its producer's transitive
+source closure, so a merge that changes no file inside a closure moves no
+identity, and condition 3 measured before it still describes what ships. The
+fear that every merge forces a re-measurement is wrong, and acting on it is a
+treadmill -- but the *converse* error is the one that cost this record a review
+round, so the question is answered mechanically rather than by reading paths:
+
+```
+python3 docs/validation/2026-11-13-1581-s7-identity-fields/closure_touched.py <base> <head>
+```
+
+It prints every producer, its closure size and any hit, exits non-zero if any
+core is affected, and refuses to answer for a producer whose closure it cannot
+find rather than reporting a false clean.
+
+For main's `333900cbb` (DeanoC/fes#1860, merged forward here): 9 files changed,
+**0** under `sources/misteross/`, no closure hits across all twelve. So no
+identity moved and the condition-3 results below stand at the merged head. This
+is why `scripts/core_package.py` was different in kind -- it is not compiled and
+decides no route, but it *is* in nearly every closure, so it moved every
+identity and took `coleco_v2`'s timing with it.
+
 ### Condition 3 for `coleco_v2`
 
 `coleco_v2`'s own unforced build at this branch's head misses timing. The producer's verdict, in
