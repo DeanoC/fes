@@ -315,10 +315,10 @@ that drives four passes of one multiplier.
 | the merge-base, identity off | (pending) | | | | | |
 | the merge-base, identity on | (pending) | | | | | |
 
-The slack is the worst of every clock over every corner, and every one is
-positive. So **it fits the device and it meets the clock with the identity
-on**: this is not the stop-and-report case the plan provides for, and nothing
-was relaxed to get there.
+The slack is the worst of every clock over every corner, and on seed 1 every
+one is positive. **But closure with the identity on is seed-dependent, and
+two of the first four seeds miss the clock.** The seed sweep below is the
+finding to read before anything else in this section.
 
 **What gets sealed is the identity-off row, and that is not a one-percent
 margin.** The identity is tied to 0 in the package, so the sealed core and
@@ -335,6 +335,41 @@ so 0.67 MHz of headroom over the 61.44 MHz requirement rather than 2.25.
 The device has **2,228 ALMs left**, which is more than the standalone delta
 projected — a standalone fit over-predicted the machine delta here, and is
 not a machine prediction.
+
+### The identity-on seed sweep: closure is seed-dependent
+
+Slice 2 established nine-of-nine closure at 91.2% of the device, and set the
+question for this slice: does that hold as utilisation rises? It does not.
+Same flow, same settings, same CUDA slot, identity on, seeds 1 to 9 (5 to 9
+still running as this is written):
+
+| Seed | ALMs | % device | DSP | M10K | memory bits | worst setup | worst hold |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 39,682 | 94.68% | 49 | 286 | 1,356,111 | **+0.176** | +0.082 |
+| 2 | 39,689 | 94.70% | 49 | 286 | 1,356,111 | **+0.398** | +0.116 |
+| 3 | 39,728 | 94.79% | 49 | 286 | 1,356,111 | **−0.283** | +0.057 |
+| 4 | 39,771 | 94.90% | 49 | 286 | 1,356,111 | **−0.348** | +0.063 |
+
+**Two of four miss.** The DSP, M10K and memory-bit counts are identical on
+every seed, which is the check that these are real results and not
+interference between concurrent runs: a seed should move ALMs, registers and
+slack and nothing else, and that is all it moved. No seed here is a dead run.
+
+**The x87 is not on the failing paths.** Seed 3's worst path is −0.008 ns
+into an anonymous net while its x87 paths keep **+0.456**; seed 4's worst is
+−0.159 while its x87 paths keep **+1.458**. That is the same shape as seed 1,
+where the machine's worst was in the L1D at +0.317 and the x87 held +1.023.
+So the misses are whole-machine congestion at about 94.8%, and **nothing in
+slice 3's arithmetic would fix them** -- not a pipeline stage, not a narrower
+datapath. What would fix them is area recovered elsewhere.
+
+**What this does and does not put in question.** The identity is tied to 0 in
+every package until slice 5, so the sealed core and the kit run are the
+identity-off design, which fits at 86.8% and closes at **+0.576 ns** on its
+own fit; and the four verification gates are green and have nothing to do
+with placement. What does not close reliably is **the design slice 5 turns
+on**. That is this slice's most important finding and it is a finding about
+the phase rather than about the arithmetic.
 
 ### Where the ALMs go
 
