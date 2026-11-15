@@ -961,6 +961,38 @@ the nine seeds. **So the reading that this slice lengthened the decode path
 is supported, and the earlier draft of this paragraph -- which concluded the
 opposite from the slack row alone -- was wrong.**
 
+**Which cone, and whether it is the one that misses.** The decode paths end
+in the decode output registers (`_40448_`, `_40453_`), which drive
+`cpu_dc`, the decoded control bundle. Mapping those net bits back through
+the netlist's concatenations and `decoded_t`'s packed layout names the
+endpoints exactly, and they are all **address-mode fields**:
+
+| Seed | decode endpoint | field in `decoded_t` |
+| --- | --- | --- |
+| 3 | `cpu_dc[273]` | `base[2:0]` |
+| 4 | `cpu_dc[268]` | `index[2:0]` |
+| 5, 6 | `cpu_dc[290:291]` | `lea_disp[31:0]` |
+| 1 (closes; near-critical) | `cpu_dc[269:270]` | `index[2:0]` |
+
+So **the deeper paths are the ones that miss**, not merely paths in the same
+region: every failing seed's decode endpoint is the base register, the index
+register or the displacement -- the ModRM address decode -- and seed 1's
+near-critical decode path ends in the same fields. They are **not** the
+`x87_*` or `mkind` fields this slice adds directly; `cpu_mkind` is a
+separate output and is nowhere in these path lists.
+
+**The mechanism that fits, labelled as inference rather than measurement.**
+This slice gives D8, DA, DC and DE memory-operand shapes, which is what
+`mkind = 2'd1` and the `moff`/size arms in `fes_i386_decode.sv` do. Those
+opcodes previously produced no memory operand; now they do, so the address
+decode that computes `base`, `index` and `lea_disp` has to cover a wider set
+of opcodes than before. That would deepen exactly the cone that got deeper.
+It is consistent with every measurement here and with the decoder's area not
+growing -- more cases selecting the same outputs is depth, not width -- but
+it is **not proved**. What would prove it is a diagnostic fit of this branch
+with only the decode memory-form arms reverted: if the cone returns to ten
+levels, the attribution is settled. That fit has not been run.
+
 What follows from it, and what does not:
 
 - **The first paragraph's claim is unchanged in its own scope.** It is about
@@ -976,6 +1008,22 @@ What follows from it, and what does not:
   three binding regions rather than the single cause; and the decoder's
   *area* did not grow, which is consistent with logic that was restructured
   deeper rather than simply added to.
+- **The shapes of fix are all in this slice's own code**, which is why it is
+  worth saying where they are even though none is taken here: fold the x87
+  memory arms into the shared memory-operand path so the address-mode
+  selection gains no cases; or derive the x87 memory shape from ModRM fields
+  that are already computed, off this cone; or add a decode stage, which is
+  architectural and much the most expensive. The first is the least invasive
+  and changes no behaviour.
+- **Doing it in slice 3 would cost a re-freeze and every gate again** -- the
+  unit bench on RTL and netlist, the lockstep four ways, test386, a new
+  Quartus seal, a kit run, and a fresh nine-seed sweep to find out whether it
+  recovered anything. That is most of a day, on a change whose benefit cannot
+  be predicted, for a design that **ships with the identity off** and so is
+  unaffected until slice 7. This record's recommendation is therefore to hand
+  it to slice 6, which is already chartered for exactly this work and will be
+  re-fitting and re-sealing anyway, with the measurement and the mechanism
+  recorded here so that slice does not have to rediscover either.
 
 The third counter-indication this record offered -- that `fes_i386_decode`
 fits 15 ALMs *smaller* here -- is withdrawn on its own terms: repeating the
