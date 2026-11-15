@@ -616,6 +616,50 @@ in a thirty-minute idle wait still holding the lease.
   also runs a transcendental. The bench and the lockstep are the gate here;
   the kit run is not.
 
+## What the sweep changed, which is the plan rather than this slice
+
+Deano changed the x87 plan in response to the sweep, on 15 November
+([#1768](https://github.com/DeanoC/fes/issues/1768#issuecomment-6899342397)):
+
+1. **Turning the identity on leaves slice 5 and becomes a new slice 7.**
+   Slice 5 is now the transcendentals and FBLD/FBSTP alone; the identity's
+   record word, its FogCast setting and switching `x87_present` on are slice
+   7's.
+2. **Slice 6 becomes a full design optimisation** rather than the governor's
+   ESC classes and acceptance, and **may trade performance on the
+   identity-on configuration** to get it closing. It carries the whole-system
+   area reduction deferred on 14 November.
+3. **Two core versions on the DE10 are acceptable** — one without the 387 and
+   one with it — rather than forcing one package to close both ways.
+4. **A DE25 version may need only one**, since that board's hard
+   floating-point DSP blocks could make a 387 much cheaper in fabric.
+
+**So this sweep is no longer a warning; it is the evidence that set slice 6's
+scope.** The identity ships off through slices 5 and 6 as well, so no slice
+before 7 needs the identity-on machine to close, and the identity-on figures
+from slices 4 and 5 now serve the same purpose: telling slice 6 what to fix.
+
+**What slice 6 should fix, and what it should not.** The only evidence of what
+binds is in [the margin section](#where-the-margin-went-which-is-not-where-it-looks):
+the **L1 data cache** (`cpu_l1d_q_tx`, `cpu_l1d_stall`) and the register
+file's write path, with the x87 holding **1.0 to 1.5 ns on every seed
+examined**, including both that missed. The negative result matters as much as
+the positive one and is stated plainly because the first instinct on reading
+"the margin is thin" will be to optimise the arithmetic: **an x87 fix was
+looked for and there is not one.** A pipeline stage in the sum or the
+rounding would cost a re-freeze and every gate and buy no slack at all.
+
+**One part of the spike's estimate is still intact, and it is the memory.**
+The spike predicted **+1,687 ALMs, 9 DSP and 17 M10K** in-machine for the
+whole of option A. The ALM budget was spent by slice 3 alone and the DSP
+count has not moved from slice 2's 9, but the memory has barely been touched:
+**4 M10K of the 17** (282 to 286, of the device's 553). Slice 4's Goldschmidt
+seed tables and slice 5's microcode ROM are exactly what that budget was for,
+and the spike's own finding was that microcode transcendentals cost ROM
+rather than logic. Worth stating with the caveat that it is the same
+estimating method that produced the 1,687 — so read it as the one part not
+yet falsified rather than as a reliable forecast.
+
 ## A method note, from four review findings of one kind
 
 Codex found four P2s on this record, and all four were the same failure, so
