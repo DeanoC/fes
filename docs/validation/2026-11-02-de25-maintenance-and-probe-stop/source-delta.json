@@ -1,0 +1,15 @@
+{
+  "producer_generation_head": "97d31dc534c4f0bcd429aa895c5c2462bee6f8ae",
+  "full_software_head": "e5aa8d617f9879587f00bc01d903a9848a3f2b3b",
+  "changed_paths": [
+    "tests/test_affected.py",
+    "tests/test_consistency.py"
+  ],
+  "production_sources_and_generated_consumers_unchanged": true,
+  "reused_commands": [
+    "test_*.py"
+  ],
+  "reused_log_sha256": "44bf1e3318754f3fa358538a618589f08aca6e75e60494c4e7a2a49859b1db47",
+  "full_campaign_reexecuted_on_final_head": false,
+  "required_followup": "all other final-plan commands, including the corrected parent consumer expectation"
+}

@@ -1,0 +1,13 @@
+{
+  "status": "rejected-before-composition",
+  "source_head": "4e3260456df6da10c502c47d09185d6c751dd9db",
+  "fit_bytes": 8395432,
+  "fit_sha256": "c58359bac2f9976a422ec3bad4ef48362053273df3ee7934244c4c91a3eb9d2e",
+  "fit_bound": 8388608,
+  "excess_bytes": 6824,
+  "entry_bytes": 7618560,
+  "compressed_payload_bytes": 7484352,
+  "hardware_actions": false,
+  "limit_changed": false,
+  "retry_or_live_authority": false
+}

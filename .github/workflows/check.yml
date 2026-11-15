@@ -127,6 +127,15 @@ jobs:
             '
           fi
           ffmpeg -version
+      - name: Install embedded model test dependencies
+        if: matrix.partition == 'software'
+        run: |
+          sudo timeout --signal=TERM --kill-after=30s 600s bash -e -c '
+            apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3 update
+            apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3 install --no-install-recommends -y mtools verilator
+          '
+          mformat -V
+          verilator --version
       - name: Run selected parent partition
         env:
           TEST_VIDEO: ${{ fromJSON(needs.plan.outputs.test_modes).video }}

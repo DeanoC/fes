@@ -1,0 +1,102 @@
+{
+  "status": "offline-trial-preparation-validated",
+  "checkout_before_documentation": "b017ff12605a8ad88b90ef52b0f8860b91aceaae",
+  "compiled_source": "fed4e4e35b372321970efab495161c3cec804d4d",
+  "native_boot_id": "bec0efa961847c4d",
+  "python_model_tests": 45,
+  "go_real_package_race_tests": 1,
+  "hardware_actions": false,
+  "physical_acceptance": false,
+  "operator_available": false,
+  "live_authority": false,
+  "checks": {
+    "programming-model": {
+      "result": "out/nano-mac-keyboard-trial-20261110/programming-model-result.json",
+      "sha256": "4ed8d7bdea072f37e04602464d7a9ff93cf52e9b58ab537dd890edeef113d09f",
+      "log_sha256": "0b0458fff33d1b6718765b2d1a7faf9bf243e6a0d63902b94177d99a6229aba5",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "serial-model": {
+      "result": "out/nano-mac-keyboard-trial-20261110/serial-model-result.json",
+      "sha256": "927b0e5eec945e29ed0efb95a2f91be547d2aeb97d75d6f2ffe3956d28a7e877",
+      "log_sha256": "0111cc38796b25091d8f63a672de14f9332e853989ef595a9f7dc294ab080999",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "receipt-model": {
+      "result": "out/nano-mac-keyboard-trial-20261110/receipt-model-result.json",
+      "sha256": "9029408fac08806d8857846651a0536bfef4a1c2e619d327af19b145271059b5",
+      "log_sha256": "933d6743929d17d2b952c7a151a3bdc4808d00a9fa7918f3e529f33c8db430f1",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "startup-model": {
+      "result": "out/nano-mac-keyboard-trial-20261110/startup-model-result.json",
+      "sha256": "23fd53ea5a484b8b5bc6310617daed2882b7e63037fcb642941f1ad1dc3e265f",
+      "log_sha256": "d1aaab86fa02d87997171aeb3220b40f5e28046ec4d1674848f9ec5f589f297c",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "mmu-model": {
+      "result": "out/nano-mac-keyboard-trial-20261110/mmu-model-result.json",
+      "sha256": "7d4d09092da4324b3cc6ad2420bf772233a359dfd8131b1a1f06c20c213a8f99",
+      "log_sha256": "c3dc4ce80790d0a5a68dcff2d3009be59564c24dfe01144e0f6b50051e539cc3",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "failure-decoder": {
+      "result": "out/nano-mac-keyboard-trial-20261110/failure-decoder-result.json",
+      "sha256": "afb59ff67bc8c16b169bb187d24ab5475a10db97f968406cb0fa2d0fba50c161",
+      "log_sha256": "65378dcad145da2497120819bebfc3c46534dce9714ce064b3d809a56654aca2",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "steps-model": {
+      "result": "out/nano-mac-keyboard-trial-20261110/steps-model-result.json",
+      "sha256": "f89ea75f4260d15b22868d7101b281820c1aac8beb4e888411c46e06d42f4b43",
+      "log_sha256": "b8420fd9ecd0023a2136ae61a7dae10b07ea451f8311dc829e0cfec9b6ef68c8",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "clock-model": {
+      "result": "out/nano-mac-keyboard-trial-20261110/clock-model-result.json",
+      "sha256": "60566d97233628e58d02a1da4bdf8aa1576a0fab501f9d42246c3929c76658c0",
+      "log_sha256": "f165ca3af9e162928344667698dab40c859c3e0e84487021290cba1984d96d8d",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "package-tape": {
+      "result": "out/nano-mac-keyboard-trial-20261110/package-tape-result.json",
+      "sha256": "6aff701867bf98bce5243db55d2cea81339235d8fb551c4369909c64073a08c0",
+      "log_sha256": "b5065d4cf00d77390f537c8c6387be900522e2e645623f496caf1ffe9e366139",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "offline-boundary": {
+      "result": "out/nano-mac-keyboard-trial-20261110/offline-boundary-result.json",
+      "sha256": "7bf304c601b83f2b9b38760946f643ac0fd9a4afd96c7c4ad586e6dc9a17eb88",
+      "log_sha256": "57f8fcb0756b6bc881448e1191521d978f9cca0f2a544bdb3a3ce489ef5a9040",
+      "returncode": 0,
+      "timed_out": false
+    },
+    "admission-preliminary": {
+      "result": "out/nano-mac-keyboard-trial-20261110/admission-preliminary-result.json",
+      "sha256": "a28fd7ed47c4b55403f6e280dfb7428680e1073a7f10eea841c7b727c8fe51c6",
+      "log_sha256": "529d7e4ad9048a8a833af410bbd3ddfc67b9153e07e3552149a784c86cfdd5d0",
+      "returncode": 0,
+      "timed_out": false
+    }
+  },
+  "preliminary_file_admission": {
+    "file_count": 5610,
+    "tree_count": 8,
+    "negative_checks": [
+      "wrong-admission-digest",
+      "lost-ownership"
+    ],
+    "record_live_authority": false,
+    "sha256": "103750f86099c8a9cfc7e58fbf54a99c61f91718cc3c1fde2453d8686afa1098"
+  },
+  "final_file_admission": "Private final receipt regenerated after this documentation commit; not physical authority."
+}

@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/four-second-program-failure-files-restoration/test_restore_scope.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 1,
+  "timed_out": false,
+  "elapsed": 0.401073306100443,
+  "log_sha256": "b9accb74b80ce4ef80d10f890b0082609e53ca2d1fc141931cf0f506d391102e"
+}

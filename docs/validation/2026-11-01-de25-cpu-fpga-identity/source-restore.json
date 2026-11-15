@@ -1,0 +1,11 @@
+{
+  "source_commit": "fe58a6dc9a2348f9df4b65bd0cc185874136c213",
+  "tree": "cdd9b4faf75def20d928589e88ee4d25e9af5cd4",
+  "bundle_sha256": "35418bc41d7bf5bc22f0c0ac32834c7678cd7b3ffe90d073bf01f50d98a079ae",
+  "prerequisite_commit": "30c8f7cb97d98caa776e3504e1e7a92843fcd22e",
+  "previous_object_store": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-context-20261101/source-restore.git",
+  "restored_tree_verified": true,
+  "verified_reachable_objects": 7960,
+  "missing_objects": 0,
+  "scope": "incremental bundle; requires the documented prior source-retention chain"
+}

@@ -1,0 +1,287 @@
+{
+  "status": "passed-off-board-existing-staging-file-admission",
+  "base": "d4972027c0b2629bbedd3d95e9f676f2fecb45c8",
+  "checks": {
+    "operator-models": {
+      "returncode": 0,
+      "tests": [
+        6
+      ],
+      "log_sha256": "326ec1006fe0860424d6c3dd6d4f2871650ccd52eebfa260203b375b11336066"
+    },
+    "read-flow-models": {
+      "returncode": 0,
+      "tests": [
+        3
+      ],
+      "log_sha256": "f0986ae0f72a91dbc1525c2bd95bfa7cd15f355b34f42645783ec2088b085a6a"
+    },
+    "operator-transport": {
+      "returncode": 0,
+      "tests": [
+        6
+      ],
+      "log_sha256": "8955089a492734baaef1ef02d90c4c0133aca48932c8ecb6ba7174983dbd2818"
+    },
+    "receipt-models": {
+      "returncode": 0,
+      "tests": [
+        4
+      ],
+      "log_sha256": "baf3313aa57ff949f1f33110573d3496c8c0b798ade10a6d058f7da49b7d2ecc"
+    },
+    "operator-structure-r4": {
+      "returncode": 0,
+      "tests": [],
+      "log_sha256": "b87916e20aec23ccc30ac9d32cd9cb233ee688a7f1a4a5753191e43bfe0585d3"
+    },
+    "connection-models": {
+      "returncode": 0,
+      "tests": [
+        4
+      ],
+      "log_sha256": "abfa982187561cb9b4041050fdeed238982c57b20ae453c0ad28403d8072c6ce"
+    },
+    "orchestration-models": {
+      "returncode": 0,
+      "tests": [
+        6
+      ],
+      "log_sha256": "10e464466e39fc3a92fc84336306373410ed44df660c086b4a3c5e20627ad12a"
+    },
+    "epoch-models": {
+      "returncode": 0,
+      "tests": [
+        6
+      ],
+      "log_sha256": "c0f9de40bc576e0b829c942d2372c7f733b18c6cb3d6421b001c1319433295ab"
+    },
+    "program-gate-models": {
+      "returncode": 0,
+      "tests": [
+        2
+      ],
+      "log_sha256": "1ab4ec0fb4cc189e17bd51b4d68e4096971cff634a2db73f228554d7bebc83a9"
+    },
+    "candidate-inputs": {
+      "returncode": 0,
+      "tests": [],
+      "log_sha256": "3e0fbbf11847eed6a5e4efdc06dd276c40add7636f2b1f0d34b237fa665ff620"
+    },
+    "file-admission": {
+      "returncode": 0,
+      "tests": [],
+      "log_sha256": "63d1989507387faf3595716d856a3257ba1ad379f08ea09d89f02df6c688a5c3"
+    },
+    "freeze-operator": {
+      "returncode": 0,
+      "tests": [],
+      "log_sha256": "dc7c2281e6ba3bf7f82ae942118fd024cffa9b593b7c872b15d2881e86e861b7"
+    },
+    "unresolved-preflight-refusal": {
+      "returncode": 0,
+      "tests": [],
+      "log_sha256": "78fa79b4206b00bba1e7a9315228ffadc5117b3ceaf533cdcb3f58091fd98172"
+    }
+  },
+  "file_admission": {
+    "status": "passed",
+    "scope": "off-board files only; no live lease or device operations",
+    "native_boot_id": "fc2cec132701a0d8",
+    "record": {
+      "path": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/native-file-admission-final-r2.json",
+      "sha256": "a49bd953708edb01024c5b1c532ead20f2fc13197d38e7f38a16c966a1d4844b",
+      "extra_inputs": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "/data/altera_pro/26.3/quartus/linux64/quartus_pfg",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-catalog-observer-20261111/expected-prior-installed-record.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-catalog-observer-20261111/staged-export/FES/CORESEL.JSN",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-catalog-observer-20261111/staged-export/FES/FIRMALT.BIN",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-catalog-observer-20261111/staged-export/FES/FIRMWARE.BIN",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-catalog-observer-20261111/staged-export/FES/GAME.P",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-catalog-observer-20261111/staged-export/FES/INSTALL.JSN",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-catalog-observer-20261111/staged-export/FES/MENU.FCP",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-catalog-observer-20261111/staged-export/FES/MENU.JSN",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-catalog-observer-20261111/staged-export/FES/MENUSEL.JSN",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-catalog-observer-20261111/staged-export/FES/PKGALT.BIN",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-catalog-observer-20261111/staged-export/FES/PKGTEST.BIN",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-catalog-observer-20261111/staged-export/FES/PROGALT.JSN",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-catalog-observer-20261111/staged-export/FES/PROGRAM.JSN",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-catalog-observer-20261111/staged-export/FES/UI.JSON",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-catalog-observer-20261111/trial-assets.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-source-20261111/native-sdk/fpgaload.elf",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-source-20261111/native-sdk/result.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/bl31-build-process.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/bl31-build-result.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/bl31-build.log",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/bl31-command.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/build_bl31.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/build_chain.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/build_entry.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/build_uboot.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/compose-build-process.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/compose-build-result.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/compose-build.log",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/compose.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/composition-command.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/entry-build-process.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/entry-build-result.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/entry-build.log",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/entry-command.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/final-proof.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/matched-final-process.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/matched-final-result.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/matched-final.log",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/native-bl31/result.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/native-bl31/source/build/agilex5/release/bl31/bl31.elf",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/native-bl31/source/build/agilex5/release/bl31.bin",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/native-composition/result.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/native-entry/entry.img",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/native-entry/payload.elf",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/native-entry/result.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/native-uboot/build/.config",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/native-uboot/build/spl/u-boot-spl-dtb.hex",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/native-uboot/build/u-boot.itb",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/native-uboot/result.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/prepare_staging.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/prepare_upload_plan.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/publication.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/real-spare-storage-plan.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/retain.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/retention-process.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/retention-proof.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/retention-result.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/retention.log",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/run.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/staging-process.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/staging-proof.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/staging-result.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/staging.log",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/uboot-build-process.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/uboot-build-result.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/uboot-build.log",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/uboot-command.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/upload-plan-process.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/upload-plan-result.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/upload-plan.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/upload-plan.log",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-configuration-startup-chain-20261111/verify_matched.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/audit_cleanup.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/candidate-proof.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/check_candidate.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/check_operator_structure.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/connection_models.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/epoch_models.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/freeze_operator.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/orchestration_models.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/preflight_final.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/prepare_offline.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/program_gate_models.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/read_flow_models.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/retain.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/run.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/scan-probe",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/source-plan.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/boot_checks.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/bounded_log.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/common.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/connection_precondition.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/experiment.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/installer_checks.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/installer_exercise.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/native.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/operator_models.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/operator_transport_tests.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/pending_checks.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/private_jtag.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/program_gate.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/read_sources.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/receipt_models.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/recovery.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/saved_wire.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/source_read_checks.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/transport_guards.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/trial/trial_inputs.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-existing-staging-install-20261111/usb_stability_live.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hdmi-control-20261107/sealed-project/board/hps/build-inputs.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hdmi-control-20261107/sealed-project/board/hps/diagnostic-with-vendor-spl.sof",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hdmi-control-20261107/sealed-project/board/hps/hps-first-pair.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hdmi-control-20261107/sealed-project/board/hps/hps-first.core.rbf",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hdmi-control-20261107/sealed-project/board/hps/hps-first.hps.rbf",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hdmi-control-20261107/sealed-project/board/hps/project/output_files/golden_top.sof",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hdmi-control-20261107/sealed-project/board/hps/seal-result.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-installed-record-read-20261111/recovery-kit/RECOVERY.JSON",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-installed-record-read-20261111/recovery-kit/RECOVERY.readback",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-installed-record-read-20261111/recovery-kit/fat-boot-readback.log",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-installed-record-read-20261111/recovery-kit/fat-boot.log",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-installed-record-read-20261111/recovery-kit/fat-dir.log",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-installed-record-read-20261111/recovery-kit/fat-format.log",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-installed-record-read-20261111/recovery-kit/fat-manifest.log",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-installed-record-read-20261111/recovery-kit/fat-readback.log",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-installed-record-read-20261111/recovery-kit/nano-recovery-sd.img",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-installed-record-read-20261111/recovery-kit/network-recovery.sof",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-installed-record-read-20261111/recovery-kit/result.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-installed-record-read-20261111/recovery-kit/u-boot-spl-dtb.hex",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-installed-record-read-20261111/recovery-kit/u-boot.itb",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-installed-record-read-20261111/recovery-kit/u-boot.itb.readback",
+        "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/nano/hps_boot.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/nano/hps_context.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/nano/hps_io.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/nano/package.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/nano/sd-profile.json",
+        "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/nano/sof_hps.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/de25_board_control/build.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/de25_board_control/rom_transport.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/de25_board_control/seal.py",
+        "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/de25_board_control/verify.py"
+      ]
+    },
+    "full_validation_seconds": 70.14303301996551,
+    "reload_seconds": 1.5510410079732537,
+    "file_count": 5665,
+    "tree_count": 8,
+    "negative_checks": [
+      "wrong-admission-digest",
+      "lost-ownership"
+    ],
+    "record_live_authority": false,
+    "operator_available": false,
+    "hardware_actions": false,
+    "source_sha256": "7beb50f6b387bc549dd359757e004dd81d0cd96f91dde6b3cd971c5968e0e983"
+  },
+  "candidate": {
+    "status": "passed-current-two-core-target-and-recovery-inputs",
+    "native_boot_id": "fc2cec132701a0d8",
+    "fit_bytes": 8379032,
+    "fit_sha256": "215a5e342e48a7de9fdd86231398d646bd779d408ba8f6fc7f065dda9d2231c9",
+    "sof_sha256": "8158b3fa1ac2a7ecf0e2b2ca47c80a156da6f867842a28b94fb04cb403d46c2e",
+    "recovery_fit_sha256": "3722e24c551a794dd970e665cc4932b96cb62aefa353f39079285458d67d48e5",
+    "recovery_prefix_sha256": "80e36789a8de046c8e47899bbb6567d5afa58e3325c10d3944c7151a210d595c",
+    "hardware_actions": false,
+    "live_admission": false
+  },
+  "production_sources_unchanged": true,
+  "changed_source_sha256": {},
+  "reused_production_regression_evidence": "docs/validation/2026-11-11-de25-retained-staged-read/result.json",
+  "operator_source_sha256": "e769c52b14dbdf244f4f40ca37ff962f878e43992c30b578e4d2bbb896f82682",
+  "frozen_inputs": 5692,
+  "recovery_read_only": true,
+  "network_uploads": false,
+  "staged_source_writes": false,
+  "expected_native_installs": 2,
+  "expected_core_launches": 2,
+  "hardware_actions": false,
+  "live_admission": false,
+  "connection_resolution_present": false,
+  "live_preflight_present": false,
+  "programming_grants_created": false,
+  "usb_failure_resolved": false,
+  "persistence_verified": false,
+  "two_core_hardware_acceptance": false,
+  "private_operator": "out/nano-existing-staging-install-20261111",
+  "retention": "/home/deano/fes-retained/de25-existing-staging-operator-20261111-r1",
+  "preparation_doc_checks": {
+    "returncode": 0,
+    "log_sha256": "830ddaac7b4f5b6192fe52e4f5c60998899523a2228df4e91545487af8af9e1a"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "status": "passed-root-full-owned-process-record-scan",
+  "records": [
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/jtag-usb-reset-probe/attempt/recovery-rollback/transport.json",
+      "record_sha256": "8f808a9e82e5a3b1382023e2a17257d68c5e184993237334a79f27ec7e798c99",
+      "pid": 1876679,
+      "start_ticks": "171480130",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/jtag-usb-reset-probe/attempt/recovery-rollback/owned-worker.json",
+      "record_sha256": "7b1adff2c8817902f57b4d5c23e88cdcdba1f16d26e3d6981c7b7004e007bb25",
+      "pid": 1876480,
+      "start_ticks": "171479855",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/jtag-usb-reset-probe/attempt/recovery-rollback/owned-programmer.json",
+      "record_sha256": "aab78f9314f260d7147d351eda2d996286f9d85802844558cb8cdb141397f4f0",
+      "pid": 1877415,
+      "start_ticks": "171480625",
+      "original_process_stopped": true
+    }
+  ],
+  "root_only_preflight_directories_included": true,
+  "device_opened": false,
+  "processes_signalled": false
+}

@@ -1,0 +1,8 @@
+{
+  "status": "retained-and-independently-read-back",
+  "archive": "/home/deano/fes-retained/de25-command-snapshot-matched-20261113-r1/matched-chain.tar.gz",
+  "archive_sha256": "9587828cdddfd72ab618154a1bb73bb1ccaaa7b3bbcfff8ebfb369991f4247eb",
+  "archive_bytes": 516256215,
+  "hardware_actions": false,
+  "hardware_accepted": false
+}

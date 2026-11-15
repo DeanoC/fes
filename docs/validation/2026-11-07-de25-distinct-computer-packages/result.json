@@ -1,0 +1,104 @@
+{
+  "status": "off-board-distinct-standard-packages-and-configuration-contract-passed",
+  "runtime_source": "d07593783a9ebd18436856e5f83898a979209dd2",
+  "ZX80_producer_source": "36a38da8e9f792a7404ca91000826bb8f3b65153",
+  "ZX81_producer_source": "6c6dd62b503f143448a65e17ba346e410187e960",
+  "packages": [
+    {
+      "package_id": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+      "core_id": "fes.zx81",
+      "build_id": "0792e51a2e51512bfb8fe44e93a69ddd",
+      "core_sha256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+      "core_size": 1654784
+    },
+    {
+      "package_id": "b32ce70af93f2ae4ff665490246e5c52fbb4d76eadb5445949e5c2b4434fba86",
+      "core_id": "fes.zx80",
+      "build_id": "ea02ee8a9026deb05317a3e7d024adde",
+      "core_sha256": "826aaac1cd524136079e0b10d20a34ad75af631e5fef04f4b153849cde092e1a",
+      "core_size": 1658880
+    }
+  ],
+  "native_SDK_built": true,
+  "launch_return_sequence": [
+    "fes.zx81",
+    "fes.zx80",
+    "fes.zx81"
+  ],
+  "lifecycle_hardware": "modeled secure calls, register endpoint and SD lease",
+  "C_decoder_actual": true,
+  "content_failure_cases": [
+    "archive",
+    "crossed-metadata",
+    "ROM",
+    "crossed-receipt"
+  ],
+  "hardware_failure_cases": [
+    "write",
+    "identity",
+    "return"
+  ],
+  "configuration_bytes": 1624,
+  "full_file_provenance_preserved": true,
+  "old_platform_format_rejected": true,
+  "checks": {
+    "focused": {
+      "receipt_sha256": "6f395007a370337e1f27c9db3198671cb096ffba0d93cbcada8555916a0939cc",
+      "log_sha256": "b873cfbba7c391d2bc0ab3822ed88ad6c3973b34334d1815d1f4091c7abb8e73"
+    },
+    "native-race": {
+      "receipt_sha256": "9a08c2df69eced37c780e0049f22be9a5e09ac58204e832b85ed75de62b075b9",
+      "log_sha256": "fc54b6f92521be4b76e0c86bc8753e592fe5ab6a9813900d2b6c3e55bb594ba5"
+    },
+    "rom-rtl": {
+      "receipt_sha256": "b41d4384f8ae01e05f6c86cb1c31fb28e6ce6909a412899e28369cebfafda0de",
+      "log_sha256": "64b56ca9a11aed5b7024e9b87ef7e8b5c249d0054229c691e323b7778d84f574"
+    },
+    "timing": {
+      "receipt_sha256": "1a06d26e1c21b11e3438f053cee81cb8cae2843737b3cb23775c0c14d4dbb73f",
+      "log_sha256": "bb459fddf6fdf5a27b62f23d2da72344bf33ccfa17dcd3d4b4c56be12f30946c"
+    },
+    "consumer-bounds": {
+      "receipt_sha256": "a59ee9a212b0e6fd46ba38dc5700fb856bbc862a84ebaa80b53cbb1da2055b16",
+      "log_sha256": "4ae0bdb8c4801eb36a767de43a513a0a8682e7d56dc019cf2ec3cedf321d6d72"
+    },
+    "handoff-v2-tests": {
+      "receipt_sha256": "f052bbd4c327e7c5bcb36aa3791f4c7108c5cda8bbc131b4e64d5fd48eda044f",
+      "log_sha256": "2cfa04f87ac15c9e5ccf5a69ae5a0309493c502cb4265213e2aa4542bbe9fe42"
+    },
+    "platform-v2-tests": {
+      "receipt_sha256": "75f112e78a48a23e6acaea3f7223128fe93c612259aa724d1a7e9173c9093656",
+      "log_sha256": "2c37d50a88147ca2ebd5197d74ee37d462dab650d793512e849814c28d5a38f0"
+    },
+    "native-v2-race": {
+      "receipt_sha256": "5aa5d002a9b050d9e6950fec83e106d6b2c6382a8fe6353695a782cd20bf3f03",
+      "log_sha256": "1b51ce42f123736385504126d1afa8c4cd40e029f955ccaf876b21a7fd0fbc43"
+    },
+    "sdk-v2": {
+      "receipt_sha256": "cb15958b7926ac3fd8dc582f8bf0f28ec418517fb1106f6a02a548c7a610ff65",
+      "log_sha256": "f7375d3b9ee60bcc8977b97748252fe167e9589d846933bcf4913134f6f3f4b6"
+    },
+    "catalogue-v2": {
+      "receipt_sha256": "38420ffc4bdd7a93f7e41abbdd7f59809df6696a1767491f4a1cfd2fe5e83c2c",
+      "log_sha256": "1b4e1bd22a41e167bec682a9376103b44033f915360115c6161c3ccfb65de3eb"
+    },
+    "actual-distinct-v2": {
+      "receipt_sha256": "1e3118b1ab051574f2b01cae28d7e404fee192a84b4f106c3615cdd53c0f9dd2",
+      "log_sha256": "54ca436c5c317e3843e71603a1553b0a2c9e9e4af70d5cd77bbe0434f8851c9c"
+    },
+    "actual-native-race": {
+      "receipt_sha256": "fda85081e87d5970ac98f996697a287f28022d281aaf57a3fe80ffa132e2c4a6",
+      "log_sha256": "c40e9ec009ae4f92be92d431509b275ab8b9dca8106f452394ab55db7c939ede"
+    }
+  },
+  "failed_first_catalogue_retained": true,
+  "failed_initial_C_harness_run_retained": true,
+  "hardware_actions": false,
+  "new_native_boot_attempted": false,
+  "ordinary_physical_admission": false,
+  "core_load_acceptance": false,
+  "physical_DDR_drain_qualified": false,
+  "timing_signoff": false,
+  "matched_native_boot_chain_ready": false,
+  "fixture_source_sha256": "9df38bbc9f30a02e5ef84f2d9b2ff948851814ad29a1fd4ead3fe5fbaa2ec73b"
+}

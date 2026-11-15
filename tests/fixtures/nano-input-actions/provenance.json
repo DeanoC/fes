@@ -1,0 +1,16 @@
+{
+  "scope": "host-Go-observer-with-injected-service-status",
+  "physical_UART_capture": false,
+  "source_parent": "169a106345d1f1a7ec58eea04feef0d2267d36f7",
+  "observer_source_sha256": {
+    "platform/embedded/tamago/nativefabric/program_serial.go": "8be8529399f48022cfb6161051366a27b1a5f7ac16cdd52b065e2e132695bd9d",
+    "platform/embedded/tamago/nativefabric/program_input.go": "42e3fb9b8f113af26d5896a1a7193f29e8a9b6d42405d8771f1dc83e1c3b9b24"
+  },
+  "fixture_sha256": "c410002a9cd1fc91eaf2c1d1a2902ba9835c2a0ca5aa3b113d380ebfae2f8b8f",
+  "fixture_bytes": 733,
+  "records": 7,
+  "exporter_sha256": "83aa085357c216eb38d2d99ad318f925a7a7519e8912994cbe6de52f2c9ed0da",
+  "firmware_calls": 0,
+  "hardware_actions": false,
+  "replay_exporter_sha256": "4c443d76f50f9d5bba13a6582fc4015cf182cad8e1b732f2f199c25e5e6a0927"
+}

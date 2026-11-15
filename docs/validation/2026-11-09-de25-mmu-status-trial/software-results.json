@@ -1,0 +1,102 @@
+{
+  "status": "passed",
+  "checks": {
+    "programming-wrapper-corrected": {
+      "receipt_sha256": "512eaf9a8f31b935b1ab95dbf4adcfe753cc992da26836d56fde01c8d9e8e850",
+      "argv": [
+        "python3",
+        "out/nano-mmu-status-trial-20261109/operator_programming_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20083265495486557,
+      "log_sha256": "24e070ff00f68fbfbceef55eab9b70f80915bbbcb8a753ba29e9ee0463793226"
+    },
+    "serial-exchange": {
+      "receipt_sha256": "bf409fa1d30a788847b9fcec747f19bca7f232718836ee46852bfb9f21db6519",
+      "argv": [
+        "python3",
+        "out/nano-mmu-status-trial-20261109/operator_transport_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4009637529961765,
+      "log_sha256": "5ea23558467e8cf0b5e28d31fdc86126a176ed3ed0b899c8d656e8ecccb254bc"
+    },
+    "paired-receipts": {
+      "receipt_sha256": "9ca22895989ff24b035e7c807e0c7c5acd031ad351c6968c99d48818cefd2472",
+      "argv": [
+        "python3",
+        "out/nano-mmu-status-trial-20261109/paired_receipt_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20072553702630103,
+      "log_sha256": "6b4bbdef9affcd3680eb11fe43152887a60b424f9878a1ff6ae9c853cfc50925"
+    },
+    "startup-input": {
+      "receipt_sha256": "ca88c38067e00377b4dbb24019b0f89e880d0d664238cf5f45b6876e486a5a3e",
+      "argv": [
+        "python3",
+        "out/nano-mmu-status-trial-20261109/startup_input_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20086783706210554,
+      "log_sha256": "d1aaab86fa02d87997171aeb3220b40f5e28046ec4d1674848f9ec5f589f297c"
+    },
+    "mmu-consumers": {
+      "receipt_sha256": "9cce28a7eba725fe142305e0a6ac6f1b00d543ff6882c0cfbbf455a6a94f52d9",
+      "argv": [
+        "python3",
+        "out/nano-mmu-status-trial-20261109/mmu_operator_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2007267160806805,
+      "log_sha256": "c3dc4ce80790d0a5a68dcff2d3009be59564c24dfe01144e0f6b50051e539cc3"
+    },
+    "failure-decoder": {
+      "receipt_sha256": "27fe40f5646ef2c3cf8431a6e59c32420dc4edf528d9d9e800e69b61ad288487",
+      "argv": [
+        "python3",
+        "out/nano-mmu-status-trial-20261109/profile_decode_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20065317582339048,
+      "log_sha256": "62cfbeb2911bb226088bfb0918eb4b05008ea70b20bce854ee2ca8a564bd37a5"
+    },
+    "file-admission-final": {
+      "receipt_sha256": "a8e39e0988111d6fea41415827c59aa11296133bab1753f73626bd01b9f2e325",
+      "argv": [
+        "python3",
+        "out/nano-mmu-status-trial-20261109/prepare_final_admission.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 107.86857822001912,
+      "log_sha256": "d5effa642dfa207cf0d780f3867f80a800f7f815ba4fba8cd007a55de21eb506"
+    },
+    "usb-stability": {
+      "receipt_sha256": "3a8e330661fb370ee64fd8fd270ae218fd033c9d5828a2ea8a6d439d4256e052",
+      "argv": [
+        "python3",
+        "out/nano-mmu-status-trial-20261109/usb_stability.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 60.24527017795481,
+      "log_sha256": "3370512c3830b423386bc87e3a864d938d551f9c25a9e2ed79ab2ce51ca6f102"
+    }
+  },
+  "hardware_actions": false
+}

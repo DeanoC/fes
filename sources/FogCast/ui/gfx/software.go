@@ -104,7 +104,7 @@ func (s *Software) frameSurface() *image.RGBA {
 func (s *Software) Snapshot() *image.RGBA {
 	s.restorePrevious()
 	out := image.NewRGBA(image.Rect(0, 0, s.w, s.h))
-	copy(out.Pix, s.pix)
+	rasterCopy(out.Pix, s.pix)
 	return out
 }
 
@@ -123,7 +123,7 @@ func (s *Software) swapFramebuffer(next []byte) []byte {
 
 func (s *Software) restorePrevious() {
 	if s.previous != nil {
-		copy(s.pix, s.previous)
+		rasterCopy(s.pix, s.previous)
 		s.previous = nil
 	}
 }
@@ -195,6 +195,7 @@ func (s *Software) FillRect(rect Rect, c Color) {
 		}
 		if (x1-x0)*(y1-y0) < 256 {
 			for y := y0; y < y1; y++ {
+				rasterRow(y - y0)
 				row := s.pix[y*s.stride:]
 				for x := x0; x < x1; x++ {
 					blendOver(row, x*4, c.R, c.G, c.B, c.A)
@@ -219,6 +220,7 @@ func (s *Software) FillRect(rect Rect, c Color) {
 		}
 		r, g, b, a := &s.fillLUT[0], &s.fillLUT[1], &s.fillLUT[2], &s.fillLUT[3]
 		for y := y0; y < y1; y++ {
+			rasterRow(y - y0)
 			row := s.pix[y*s.stride+x0*4 : y*s.stride+x1*4]
 			if runtime.GOARCH == "arm" {
 				// A complete pixel per iteration removes the four per-channel
@@ -284,6 +286,7 @@ func (s *Software) Draw(tex Texture, src *Rect, dst Rect) {
 		xs[i] = sampleCoord(sr.X+(float32(x)+0.5-dst.X)*invW, bm.w) * 4
 	}
 	for y := y0; y < y1; y++ {
+		rasterRow(y - y0)
 		sy := sampleCoord(sr.Y+(float32(y)+0.5-dst.Y)*invH, bm.h)
 		srcRow := bm.pix[sy*bm.stride : sy*bm.stride+bm.w*4]
 		dstRow := s.pix[y*s.stride+x0*4 : y*s.stride+x1*4]
@@ -382,6 +385,7 @@ func (s *Software) blitCopy(bm *swBitmap, srcX, srcY, x0, y0, x1, y1, dstX, dstY
 	srcOffset := (srcX + x0 - dstX) * 4
 	rowBytes := (x1 - x0) * 4
 	for y := y0; y < y1; y++ {
+		rasterRow(y - y0)
 		sy := srcY + y - dstY
 		srcRow := bm.pix[sy*bm.stride+srcOffset : sy*bm.stride+srcOffset+rowBytes]
 		dstRow := s.pix[y*s.stride+x0*4 : y*s.stride+x0*4+rowBytes]
@@ -439,6 +443,7 @@ func (s *Software) scaledBitmap(tex uint64, source *swBitmap, src, dst Rect) *sw
 		xs[x] = sampleCoord(src.X+(float32(x0+x)+0.5-dst.X)*invW, source.w) * 4
 	}
 	for y := 0; y < h; y++ {
+		rasterRow(y)
 		sy := sampleCoord(src.Y+(float32(y0+y)+0.5-dst.Y)*invH, source.h)
 		sourceRow := source.pix[sy*source.stride : sy*source.stride+source.w*4]
 		row := bitmap.pix[y*bitmap.stride : (y+1)*bitmap.stride]
@@ -479,11 +484,15 @@ func cloneBitmap(img *image.RGBA) (*swBitmap, error) {
 	stride := w * 4
 	pix := make([]byte, stride*h)
 	for y := 0; y < h; y++ {
+		rasterRow(y)
 		off := img.PixOffset(b.Min.X, b.Min.Y+y)
 		copy(pix[y*stride:(y+1)*stride], img.Pix[off:off+stride])
 	}
 	opaque := true
 	for i := 3; i < len(pix); i += 4 {
+		if i&((32<<10)-1) == 3 {
+			rasterRow(0)
+		}
 		if pix[i] != 255 {
 			opaque = false
 			break
@@ -548,6 +557,7 @@ func fillRows(pix []byte, stride, x0, y0, x1, y1 int, r, g, b, a uint8) {
 		n *= 2
 	}
 	for y := y0 + 1; y < y1; y++ {
+		rasterRow(y - y0)
 		copy(pix[y*stride+x0*4:y*stride+x0*4+rowBytes], first)
 	}
 }

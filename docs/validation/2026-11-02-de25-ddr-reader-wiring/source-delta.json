@@ -1,0 +1,31 @@
+{
+  "software_baseline_head": "0775d3fcfaa1c9469e4cdfa8bb58e64944bc0b59",
+  "final_source_head": "17fb4b05cdc4998f4bd71a26358936c56444689f",
+  "baseline_groups_passed": 8,
+  "final_delta": [
+    {
+      "path": "sources/misteross/prototypes/de25_board_control/build.py",
+      "changed_functions": [
+        "verify_control"
+      ],
+      "before_sha256": "eebfe7bba1786a233256e05b9616e0643505b8fb81a64b10de1c7aa6d334353d",
+      "after_sha256": "bb019e2841c3a1762ad4cc133ae64e109ff30d5ebb1b68220b206d389687a6c3"
+    },
+    {
+      "path": "sources/misteross/prototypes/de25_board_control/test_handoff.py",
+      "changed_functions": [
+        "main"
+      ],
+      "before_sha256": "f8a70001f638481a3373693a20e5e482fd17e02bc246d22ac2fd16ee86fa83c9",
+      "after_sha256": "18afbcbf50c5caf6aa67636fe4c261680c00c66945fe7548304efe8626b1f5e6"
+    }
+  ],
+  "non_function_nodes_unchanged": true,
+  "artifact_emitter_functions_unchanged": true,
+  "rtl_and_runtime_sources_unchanged_since_software_baseline": true,
+  "baseline_groups_reexecuted_on_final_head": false,
+  "fresh_generated_identity_required": true,
+  "required_followup": "actual final-head generation, emitted HDL/route mutation cases and project RTL models",
+  "baseline_plan_sha256": "cb41ffa57220ca21dd58e9d30967c13fa7120b704343716dcaf9e0224ffec856",
+  "baseline_result_sha256": "e70ce9b8a3f9a78b4156908e48082c3f62b4c39c90759590bc5c63d59b43bb6c"
+}

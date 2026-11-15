@@ -1,0 +1,23 @@
+{
+  "status": "retained-native-programmer-scan-failure-after-verified-uploads",
+  "source_head": "4c09f3ba6cb0599090a024901fdf31ca1b69cc21",
+  "archive_sha256": "a15fc74095f439be9328651c914d1ca7553556ae01b416231b4c2ffd854079a7",
+  "source_bundle_sha256": "0ad334041c13e49bf0ee61474fe819df0dfe3f03cd3ae0c4a3c3a9667743af05",
+  "base_bundle": "/home/deano/fes-retained/de25-menu-return-observation-20261110-r1/source.bundle",
+  "base_bundle_sha256": "d7166cde75bd88ea7f9d14ac4a5706b55c74cd215cc4f375abd1a5d6661a17d0",
+  "base_commit": "b75db33eb4e794fc647b6a3ba58ad460f7309573",
+  "files": 167,
+  "archive_readback_verified": true,
+  "independent_source_restore_verified": true,
+  "strict_fsck_passed": true,
+  "source_pack_verification_passed": true,
+  "candidate_dependency": {
+    "path": "/home/deano/fes-retained/de25-native-installer-ui-prepared-20261110-r1",
+    "manifest_sha256": "0ccdfa5b0444be22540eb9e6231bb39f24b6f87b1adb925f141a00710b9dfb1d",
+    "retained_archive_sha256": "da7a6b070f39c8d54018a218f882d17f710720cd016e605c5d43b7e1266a956e"
+  },
+  "hardware_attempt_passed": false,
+  "sd_writes_attempted": true,
+  "native_boot_verified": false,
+  "installer_attempted": false
+}

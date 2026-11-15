@@ -1,0 +1,1608 @@
+{
+  "format": 1,
+  "status": "stopped-before-native-startup",
+  "firmware_source": "b95d8d6261e3e6128a51b0d74a225fa7d4eef8a6",
+  "native_source": "31d716957759c3dede3330877dac2ce7bcd2d643",
+  "operator_source": "7aa22f04d53562b0b1e1b10e16ab357c2539e278",
+  "attempts": 1,
+  "failures_on_compiled_input": 1,
+  "stop_first_failure": true,
+  "replayed": false,
+  "recovery_qualified": true,
+  "verified_uploads": 8,
+  "fresh_sd_readbacks": 8,
+  "sd_writes": true,
+  "native_programming_complete": true,
+  "fit_verified_before_parsing": true,
+  "atf_trace_bl31_sha256": "d042c46e0475e2af88494e014c85c87348a690c5bc4e3b42357ee4799e6bea82",
+  "secure_entry_crossing_proven": true,
+  "physical_ram_guard_passed": true,
+  "physical_ram_access_verified": false,
+  "native_cpu_exclusion_exercised": false,
+  "early_exception_observed": true,
+  "vendor_assembly_progress_observed": true,
+  "vendor_c_startup_observed": false,
+  "vendor_startup_completed": false,
+  "matched_prompt": false,
+  "fesboot_sent": false,
+  "native_startup": false,
+  "rom_completion": false,
+  "cpu_run": false,
+  "core_return": false,
+  "error": "native failure marker; no further command",
+  "raw_console_bytes": 9754,
+  "raw_console_sha256": "4ede4e8b2e9a0f8be47858fce9ff3f5d11406ebff25fc6a0269f3bc1fec0377f",
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "diagnosis": "Original EL3 SError remains terminal during the unchanged NOBITS invalidation interval. Fresh zero baseline and enabled decode logging now capture stable CAIUUESR0x20030071 and location0x50000: valid decode error, illegal DII access type. Both architectural RAS records still have CTLR/status/MISC0 zero. Original selector0 and decode control0 restoration are verified; no status or interrupt write occurs. The saved PC/r0 do not independently prove the causing transaction and FAR is not interpreted. No native command, BSS/stack/setup, ROM completion, Run or return; no retry",
+  "status_probe": {
+    "records": [
+      {
+        "index": 0,
+        "name": "midr",
+        "source": "cpu",
+        "target": "midr_el1",
+        "value": 1093652560,
+        "before_line": 58,
+        "line": 59
+      },
+      {
+        "index": 1,
+        "name": "pfr0",
+        "source": "cpu",
+        "target": "id_aa64pfr0_el1",
+        "value": 286335522,
+        "before_line": 60,
+        "line": 61
+      },
+      {
+        "index": 2,
+        "name": "sctlr",
+        "source": "cpu",
+        "target": "sctlr_el3",
+        "value": 12916794,
+        "before_line": 62,
+        "line": 63
+      },
+      {
+        "index": 3,
+        "name": "scr",
+        "source": "cpu",
+        "target": "scr_el3",
+        "value": 568,
+        "before_line": 64,
+        "line": 65
+      },
+      {
+        "index": 4,
+        "name": "tcr",
+        "source": "cpu",
+        "target": "tcr_el3",
+        "value": 0,
+        "before_line": 66,
+        "line": 67
+      },
+      {
+        "index": 5,
+        "name": "mair",
+        "source": "cpu",
+        "target": "mair_el3",
+        "value": 4963046916272786084,
+        "before_line": 68,
+        "line": 69
+      },
+      {
+        "index": 6,
+        "name": "ttbr0",
+        "source": "cpu",
+        "target": "ttbr0_el3",
+        "value": 1006169810345994,
+        "before_line": 70,
+        "line": 71
+      },
+      {
+        "index": 7,
+        "name": "dsu_status_before",
+        "source": "mmio",
+        "target": 469762312,
+        "value": 537067633,
+        "before_line": 72,
+        "line": 73
+      },
+      {
+        "index": 8,
+        "name": "dsu_location0",
+        "source": "mmio",
+        "target": 469762316,
+        "value": 327680,
+        "before_line": 74,
+        "line": 75
+      },
+      {
+        "index": 9,
+        "name": "dsu_location1",
+        "source": "mmio",
+        "target": 469762320,
+        "value": 0,
+        "before_line": 76,
+        "line": 77
+      },
+      {
+        "index": 10,
+        "name": "dsu_status_after",
+        "source": "mmio",
+        "target": 469762312,
+        "value": 537067633,
+        "before_line": 78,
+        "line": 79
+      },
+      {
+        "index": 11,
+        "name": "boot_attributes",
+        "source": "mmio",
+        "target": 469762960,
+        "value": 3228567040,
+        "before_line": 80,
+        "line": 81
+      },
+      {
+        "index": 12,
+        "name": "boot_base_low",
+        "source": "mmio",
+        "target": 469762964,
+        "value": 0,
+        "before_line": 82,
+        "line": 83
+      },
+      {
+        "index": 13,
+        "name": "boot_base_high",
+        "source": "mmio",
+        "target": 469762968,
+        "value": 0,
+        "before_line": 84,
+        "line": 85
+      },
+      {
+        "index": 14,
+        "name": "ocram_status_before",
+        "source": "mmio",
+        "target": 469811488,
+        "value": 0,
+        "before_line": 86,
+        "line": 87
+      },
+      {
+        "index": 15,
+        "name": "ocram_location0",
+        "source": "mmio",
+        "target": 469811492,
+        "value": 0,
+        "before_line": 88,
+        "line": 89
+      },
+      {
+        "index": 16,
+        "name": "ocram_location1",
+        "source": "mmio",
+        "target": 469811496,
+        "value": 0,
+        "before_line": 90,
+        "line": 91
+      },
+      {
+        "index": 17,
+        "name": "ocram_status_after",
+        "source": "mmio",
+        "target": 469811488,
+        "value": 0,
+        "before_line": 92,
+        "line": 93
+      },
+      {
+        "index": 18,
+        "name": "ecc_config",
+        "source": "mmio",
+        "target": 277659652,
+        "value": 536720,
+        "before_line": 94,
+        "line": 95
+      },
+      {
+        "index": 19,
+        "name": "ecc_control",
+        "source": "mmio",
+        "target": 277659656,
+        "value": 3,
+        "before_line": 96,
+        "line": 97
+      },
+      {
+        "index": 20,
+        "name": "ecc_initialized",
+        "source": "mmio",
+        "target": 277659660,
+        "value": 1,
+        "before_line": 98,
+        "line": 99
+      },
+      {
+        "index": 21,
+        "name": "ecc_pending",
+        "source": "mmio",
+        "target": 277659680,
+        "value": 0,
+        "before_line": 100,
+        "line": 101
+      },
+      {
+        "index": 22,
+        "name": "ecc_mode",
+        "source": "mmio",
+        "target": 277659688,
+        "value": 0,
+        "before_line": 102,
+        "line": 103
+      },
+      {
+        "index": 23,
+        "name": "ecc_double_address_a",
+        "source": "mmio",
+        "target": 277659692,
+        "value": 0,
+        "before_line": 104,
+        "line": 105
+      },
+      {
+        "index": 24,
+        "name": "ecc_double_address_b",
+        "source": "mmio",
+        "target": 277659700,
+        "value": 0,
+        "before_line": 106,
+        "line": 107
+      },
+      {
+        "index": 25,
+        "name": "ecc_decoder",
+        "source": "mmio",
+        "target": 277659780,
+        "value": 0,
+        "before_line": 108,
+        "line": 109
+      },
+      {
+        "index": 26,
+        "name": "firewall_enabled",
+        "source": "mmio",
+        "target": 277660672,
+        "value": 1,
+        "before_line": 110,
+        "line": 111
+      },
+      {
+        "index": 27,
+        "name": "firewall0_base",
+        "source": "mmio",
+        "target": 277660688,
+        "value": 0,
+        "before_line": 112,
+        "line": 113
+      },
+      {
+        "index": 28,
+        "name": "firewall0_limit",
+        "source": "mmio",
+        "target": 277660692,
+        "value": 524287,
+        "before_line": 114,
+        "line": 115
+      },
+      {
+        "index": 29,
+        "name": "firewall0_access",
+        "source": "mmio",
+        "target": 277660696,
+        "value": 0,
+        "before_line": 116,
+        "line": 117
+      },
+      {
+        "index": 30,
+        "name": "firewall1_base",
+        "source": "mmio",
+        "target": 277660700,
+        "value": 0,
+        "before_line": 118,
+        "line": 119
+      },
+      {
+        "index": 31,
+        "name": "firewall1_limit",
+        "source": "mmio",
+        "target": 277660704,
+        "value": 524287,
+        "before_line": 120,
+        "line": 121
+      },
+      {
+        "index": 32,
+        "name": "firewall1_access",
+        "source": "mmio",
+        "target": 277660708,
+        "value": 1,
+        "before_line": 122,
+        "line": 123
+      },
+      {
+        "index": 33,
+        "name": "firewall2_base",
+        "source": "mmio",
+        "target": 277660712,
+        "value": 0,
+        "before_line": 124,
+        "line": 125
+      },
+      {
+        "index": 34,
+        "name": "firewall2_limit",
+        "source": "mmio",
+        "target": 277660716,
+        "value": 524287,
+        "before_line": 126,
+        "line": 127
+      },
+      {
+        "index": 35,
+        "name": "firewall2_access",
+        "source": "mmio",
+        "target": 277660720,
+        "value": 1,
+        "before_line": 128,
+        "line": 129
+      },
+      {
+        "index": 36,
+        "name": "firewall3_base",
+        "source": "mmio",
+        "target": 277660724,
+        "value": 0,
+        "before_line": 130,
+        "line": 131
+      },
+      {
+        "index": 37,
+        "name": "firewall3_limit",
+        "source": "mmio",
+        "target": 277660728,
+        "value": 524287,
+        "before_line": 132,
+        "line": 133
+      },
+      {
+        "index": 38,
+        "name": "firewall3_access",
+        "source": "mmio",
+        "target": 277660732,
+        "value": 1,
+        "before_line": 134,
+        "line": 135
+      },
+      {
+        "index": 39,
+        "name": "dsu_detect",
+        "source": "mmio",
+        "target": 469762304,
+        "value": 8,
+        "before_line": 136,
+        "line": 137
+      },
+      {
+        "index": 40,
+        "name": "dsu_interrupt",
+        "source": "mmio",
+        "target": 469762308,
+        "value": 0,
+        "before_line": 138,
+        "line": 139
+      },
+      {
+        "index": 41,
+        "name": "ocram_detect",
+        "source": "mmio",
+        "target": 469811480,
+        "value": 0,
+        "before_line": 140,
+        "line": 141
+      },
+      {
+        "index": 42,
+        "name": "ocram_interrupt",
+        "source": "mmio",
+        "target": 469811484,
+        "value": 0,
+        "before_line": 142,
+        "line": 143
+      }
+    ],
+    "pending": null,
+    "complete": true,
+    "valid": true
+  },
+  "status_probe_reads": 43,
+  "status_probe_complete": true,
+  "status_probe_pending": null,
+  "status_acknowledged": false,
+  "sticky_status_freshness_proven": false,
+  "ras_probe": {
+    "records": [
+      {
+        "index": 0,
+        "name": "pfr0",
+        "operation": "read",
+        "target": "id_aa64pfr0_el1",
+        "requested": null,
+        "value": 286335522,
+        "before_line": 145,
+        "line": 146
+      },
+      {
+        "index": 1,
+        "name": "midr",
+        "operation": "read",
+        "target": "midr_el1",
+        "requested": null,
+        "value": 1093652560,
+        "before_line": 147,
+        "line": 148
+      },
+      {
+        "index": 2,
+        "name": "disr",
+        "operation": "read",
+        "target": "disr_el1",
+        "requested": null,
+        "value": 0,
+        "before_line": 149,
+        "line": 150
+      },
+      {
+        "index": 3,
+        "name": "count",
+        "operation": "read",
+        "target": "erridr_el1",
+        "requested": null,
+        "value": 2,
+        "before_line": 151,
+        "line": 152
+      },
+      {
+        "index": 4,
+        "name": "original_selector",
+        "operation": "read",
+        "target": "errselr_el1",
+        "requested": null,
+        "value": 0,
+        "before_line": 153,
+        "line": 154
+      },
+      {
+        "index": 5,
+        "name": "select0",
+        "operation": "select",
+        "target": "errselr_el1",
+        "requested": 0,
+        "value": 0,
+        "before_line": 155,
+        "line": 156
+      },
+      {
+        "index": 6,
+        "name": "features0",
+        "operation": "read",
+        "target": "erxfr_el1",
+        "requested": null,
+        "value": 43430,
+        "before_line": 157,
+        "line": 158
+      },
+      {
+        "index": 7,
+        "name": "control0",
+        "operation": "read",
+        "target": "erxctlr_el1",
+        "requested": null,
+        "value": 0,
+        "before_line": 159,
+        "line": 160
+      },
+      {
+        "index": 8,
+        "name": "status0_before",
+        "operation": "read",
+        "target": "erxstatus_el1",
+        "requested": null,
+        "value": 0,
+        "before_line": 161,
+        "line": 162
+      },
+      {
+        "index": 9,
+        "name": "misc0",
+        "operation": "read",
+        "target": "erxmisc0_el1",
+        "requested": null,
+        "value": 0,
+        "before_line": 163,
+        "line": 164
+      },
+      {
+        "index": 10,
+        "name": "status0_after",
+        "operation": "read",
+        "target": "erxstatus_el1",
+        "requested": null,
+        "value": 0,
+        "before_line": 165,
+        "line": 166
+      },
+      {
+        "index": 11,
+        "name": "selector0_after",
+        "operation": "read",
+        "target": "errselr_el1",
+        "requested": null,
+        "value": 0,
+        "before_line": 167,
+        "line": 168
+      },
+      {
+        "index": 12,
+        "name": "select1",
+        "operation": "select",
+        "target": "errselr_el1",
+        "requested": 1,
+        "value": 1,
+        "before_line": 169,
+        "line": 170
+      },
+      {
+        "index": 13,
+        "name": "features1",
+        "operation": "read",
+        "target": "erxfr_el1",
+        "requested": null,
+        "value": 43430,
+        "before_line": 171,
+        "line": 172
+      },
+      {
+        "index": 14,
+        "name": "control1",
+        "operation": "read",
+        "target": "erxctlr_el1",
+        "requested": null,
+        "value": 0,
+        "before_line": 173,
+        "line": 174
+      },
+      {
+        "index": 15,
+        "name": "status1_before",
+        "operation": "read",
+        "target": "erxstatus_el1",
+        "requested": null,
+        "value": 0,
+        "before_line": 175,
+        "line": 176
+      },
+      {
+        "index": 16,
+        "name": "misc1",
+        "operation": "read",
+        "target": "erxmisc0_el1",
+        "requested": null,
+        "value": 0,
+        "before_line": 177,
+        "line": 178
+      },
+      {
+        "index": 17,
+        "name": "status1_after",
+        "operation": "read",
+        "target": "erxstatus_el1",
+        "requested": null,
+        "value": 0,
+        "before_line": 179,
+        "line": 180
+      },
+      {
+        "index": 18,
+        "name": "selector1_after",
+        "operation": "read",
+        "target": "errselr_el1",
+        "requested": null,
+        "value": 1,
+        "before_line": 181,
+        "line": 182
+      },
+      {
+        "index": 19,
+        "name": "restore",
+        "operation": "restore",
+        "target": "errselr_el1",
+        "requested": null,
+        "value": 0,
+        "before_line": 183,
+        "line": 184
+      }
+    ],
+    "pending": null,
+    "complete": true,
+    "valid": true,
+    "outcome": "both-records",
+    "original_selector": 0,
+    "selector_may_have_changed": false,
+    "selector_restored": true,
+    "record_complete": true
+  },
+  "ras_both_records_observed": true,
+  "ras_selector_restored": true,
+  "ras_selector_writes": 3,
+  "core_error_detection_enabled": false,
+  "dsu_error_reporting_enabled": false,
+  "ccu_detection_controls": {
+    "dsu_detect": 8,
+    "dsu_interrupt": 0,
+    "ocram_detect": 0,
+    "ocram_interrupt": 0
+  },
+  "decode_logging": {
+    "records": [
+      {
+        "phase": "idle",
+        "line": 44
+      },
+      {
+        "phase": "setup-before",
+        "line": 52
+      },
+      {
+        "phase": "baseline-zero",
+        "line": 53
+      },
+      {
+        "phase": "enable-before",
+        "line": 54
+      },
+      {
+        "phase": "enabled",
+        "line": 55
+      },
+      {
+        "phase": "restore-before",
+        "line": 186
+      },
+      {
+        "phase": "restored",
+        "line": 187
+      }
+    ],
+    "valid": true,
+    "complete": true,
+    "write_attempted": true,
+    "restore_attempted": true,
+    "restored": true,
+    "failed": false
+  },
+  "decode_logging_enabled_observed": true,
+  "decode_logging_restored": true,
+  "passive_cleanup_tail": {
+    "bound_seconds": 2,
+    "complete": true,
+    "restoration": "restored",
+    "decode_log": {
+      "records": [
+        {
+          "phase": "idle",
+          "line": 44
+        },
+        {
+          "phase": "setup-before",
+          "line": 52
+        },
+        {
+          "phase": "baseline-zero",
+          "line": 53
+        },
+        {
+          "phase": "enable-before",
+          "line": 54
+        },
+        {
+          "phase": "enabled",
+          "line": 55
+        },
+        {
+          "phase": "restore-before",
+          "line": 186
+        },
+        {
+          "phase": "restored",
+          "line": 187
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "write_attempted": true,
+      "restore_attempted": true,
+      "restored": true,
+      "failed": false
+    },
+    "inventory_complete": true,
+    "ras_complete": true
+  },
+  "ccu_decode_error_status": 537067633,
+  "ccu_decode_error_location": 327680,
+  "ccu_decode_error_fresh_after_enable": true,
+  "diagnostic_guard_trace": {
+    "records": [
+      {
+        "kind": "entry",
+        "line": 42,
+        "phase": null
+      },
+      {
+        "kind": "pass",
+        "line": 43,
+        "phase": null
+      }
+    ],
+    "complete": true,
+    "valid": false,
+    "vendor_records": [
+      {
+        "phase": "enter",
+        "line": 45
+      },
+      {
+        "phase": "reset-before",
+        "line": 46
+      },
+      {
+        "phase": "reset-after",
+        "line": 47
+      },
+      {
+        "phase": "cpu-data-before",
+        "line": 48
+      },
+      {
+        "phase": "cpu-data-after",
+        "line": 49
+      },
+      {
+        "phase": "rw-cache-before",
+        "line": 50
+      },
+      {
+        "phase": "rw-cache-after",
+        "line": 51
+      },
+      {
+        "phase": "nobits-cache-before",
+        "line": 56
+      }
+    ],
+    "vendor_complete": false,
+    "exceptions": [
+      {
+        "line": 57,
+        "vector": 7,
+        "esr": 3187671057,
+        "elr": 2147597112,
+        "far": 16487774709653704706,
+        "spsr": 2147484365,
+        "r0": 328256,
+        "r1": 384704,
+        "r2": 64,
+        "r3": 63
+      }
+    ],
+    "status_probe": {
+      "records": [
+        {
+          "index": 0,
+          "name": "midr",
+          "source": "cpu",
+          "target": "midr_el1",
+          "value": 1093652560,
+          "before_line": 58,
+          "line": 59
+        },
+        {
+          "index": 1,
+          "name": "pfr0",
+          "source": "cpu",
+          "target": "id_aa64pfr0_el1",
+          "value": 286335522,
+          "before_line": 60,
+          "line": 61
+        },
+        {
+          "index": 2,
+          "name": "sctlr",
+          "source": "cpu",
+          "target": "sctlr_el3",
+          "value": 12916794,
+          "before_line": 62,
+          "line": 63
+        },
+        {
+          "index": 3,
+          "name": "scr",
+          "source": "cpu",
+          "target": "scr_el3",
+          "value": 568,
+          "before_line": 64,
+          "line": 65
+        },
+        {
+          "index": 4,
+          "name": "tcr",
+          "source": "cpu",
+          "target": "tcr_el3",
+          "value": 0,
+          "before_line": 66,
+          "line": 67
+        },
+        {
+          "index": 5,
+          "name": "mair",
+          "source": "cpu",
+          "target": "mair_el3",
+          "value": 4963046916272786084,
+          "before_line": 68,
+          "line": 69
+        },
+        {
+          "index": 6,
+          "name": "ttbr0",
+          "source": "cpu",
+          "target": "ttbr0_el3",
+          "value": 1006169810345994,
+          "before_line": 70,
+          "line": 71
+        },
+        {
+          "index": 7,
+          "name": "dsu_status_before",
+          "source": "mmio",
+          "target": 469762312,
+          "value": 537067633,
+          "before_line": 72,
+          "line": 73
+        },
+        {
+          "index": 8,
+          "name": "dsu_location0",
+          "source": "mmio",
+          "target": 469762316,
+          "value": 327680,
+          "before_line": 74,
+          "line": 75
+        },
+        {
+          "index": 9,
+          "name": "dsu_location1",
+          "source": "mmio",
+          "target": 469762320,
+          "value": 0,
+          "before_line": 76,
+          "line": 77
+        },
+        {
+          "index": 10,
+          "name": "dsu_status_after",
+          "source": "mmio",
+          "target": 469762312,
+          "value": 537067633,
+          "before_line": 78,
+          "line": 79
+        },
+        {
+          "index": 11,
+          "name": "boot_attributes",
+          "source": "mmio",
+          "target": 469762960,
+          "value": 3228567040,
+          "before_line": 80,
+          "line": 81
+        },
+        {
+          "index": 12,
+          "name": "boot_base_low",
+          "source": "mmio",
+          "target": 469762964,
+          "value": 0,
+          "before_line": 82,
+          "line": 83
+        },
+        {
+          "index": 13,
+          "name": "boot_base_high",
+          "source": "mmio",
+          "target": 469762968,
+          "value": 0,
+          "before_line": 84,
+          "line": 85
+        },
+        {
+          "index": 14,
+          "name": "ocram_status_before",
+          "source": "mmio",
+          "target": 469811488,
+          "value": 0,
+          "before_line": 86,
+          "line": 87
+        },
+        {
+          "index": 15,
+          "name": "ocram_location0",
+          "source": "mmio",
+          "target": 469811492,
+          "value": 0,
+          "before_line": 88,
+          "line": 89
+        },
+        {
+          "index": 16,
+          "name": "ocram_location1",
+          "source": "mmio",
+          "target": 469811496,
+          "value": 0,
+          "before_line": 90,
+          "line": 91
+        },
+        {
+          "index": 17,
+          "name": "ocram_status_after",
+          "source": "mmio",
+          "target": 469811488,
+          "value": 0,
+          "before_line": 92,
+          "line": 93
+        },
+        {
+          "index": 18,
+          "name": "ecc_config",
+          "source": "mmio",
+          "target": 277659652,
+          "value": 536720,
+          "before_line": 94,
+          "line": 95
+        },
+        {
+          "index": 19,
+          "name": "ecc_control",
+          "source": "mmio",
+          "target": 277659656,
+          "value": 3,
+          "before_line": 96,
+          "line": 97
+        },
+        {
+          "index": 20,
+          "name": "ecc_initialized",
+          "source": "mmio",
+          "target": 277659660,
+          "value": 1,
+          "before_line": 98,
+          "line": 99
+        },
+        {
+          "index": 21,
+          "name": "ecc_pending",
+          "source": "mmio",
+          "target": 277659680,
+          "value": 0,
+          "before_line": 100,
+          "line": 101
+        },
+        {
+          "index": 22,
+          "name": "ecc_mode",
+          "source": "mmio",
+          "target": 277659688,
+          "value": 0,
+          "before_line": 102,
+          "line": 103
+        },
+        {
+          "index": 23,
+          "name": "ecc_double_address_a",
+          "source": "mmio",
+          "target": 277659692,
+          "value": 0,
+          "before_line": 104,
+          "line": 105
+        },
+        {
+          "index": 24,
+          "name": "ecc_double_address_b",
+          "source": "mmio",
+          "target": 277659700,
+          "value": 0,
+          "before_line": 106,
+          "line": 107
+        },
+        {
+          "index": 25,
+          "name": "ecc_decoder",
+          "source": "mmio",
+          "target": 277659780,
+          "value": 0,
+          "before_line": 108,
+          "line": 109
+        },
+        {
+          "index": 26,
+          "name": "firewall_enabled",
+          "source": "mmio",
+          "target": 277660672,
+          "value": 1,
+          "before_line": 110,
+          "line": 111
+        },
+        {
+          "index": 27,
+          "name": "firewall0_base",
+          "source": "mmio",
+          "target": 277660688,
+          "value": 0,
+          "before_line": 112,
+          "line": 113
+        },
+        {
+          "index": 28,
+          "name": "firewall0_limit",
+          "source": "mmio",
+          "target": 277660692,
+          "value": 524287,
+          "before_line": 114,
+          "line": 115
+        },
+        {
+          "index": 29,
+          "name": "firewall0_access",
+          "source": "mmio",
+          "target": 277660696,
+          "value": 0,
+          "before_line": 116,
+          "line": 117
+        },
+        {
+          "index": 30,
+          "name": "firewall1_base",
+          "source": "mmio",
+          "target": 277660700,
+          "value": 0,
+          "before_line": 118,
+          "line": 119
+        },
+        {
+          "index": 31,
+          "name": "firewall1_limit",
+          "source": "mmio",
+          "target": 277660704,
+          "value": 524287,
+          "before_line": 120,
+          "line": 121
+        },
+        {
+          "index": 32,
+          "name": "firewall1_access",
+          "source": "mmio",
+          "target": 277660708,
+          "value": 1,
+          "before_line": 122,
+          "line": 123
+        },
+        {
+          "index": 33,
+          "name": "firewall2_base",
+          "source": "mmio",
+          "target": 277660712,
+          "value": 0,
+          "before_line": 124,
+          "line": 125
+        },
+        {
+          "index": 34,
+          "name": "firewall2_limit",
+          "source": "mmio",
+          "target": 277660716,
+          "value": 524287,
+          "before_line": 126,
+          "line": 127
+        },
+        {
+          "index": 35,
+          "name": "firewall2_access",
+          "source": "mmio",
+          "target": 277660720,
+          "value": 1,
+          "before_line": 128,
+          "line": 129
+        },
+        {
+          "index": 36,
+          "name": "firewall3_base",
+          "source": "mmio",
+          "target": 277660724,
+          "value": 0,
+          "before_line": 130,
+          "line": 131
+        },
+        {
+          "index": 37,
+          "name": "firewall3_limit",
+          "source": "mmio",
+          "target": 277660728,
+          "value": 524287,
+          "before_line": 132,
+          "line": 133
+        },
+        {
+          "index": 38,
+          "name": "firewall3_access",
+          "source": "mmio",
+          "target": 277660732,
+          "value": 1,
+          "before_line": 134,
+          "line": 135
+        },
+        {
+          "index": 39,
+          "name": "dsu_detect",
+          "source": "mmio",
+          "target": 469762304,
+          "value": 8,
+          "before_line": 136,
+          "line": 137
+        },
+        {
+          "index": 40,
+          "name": "dsu_interrupt",
+          "source": "mmio",
+          "target": 469762308,
+          "value": 0,
+          "before_line": 138,
+          "line": 139
+        },
+        {
+          "index": 41,
+          "name": "ocram_detect",
+          "source": "mmio",
+          "target": 469811480,
+          "value": 0,
+          "before_line": 140,
+          "line": 141
+        },
+        {
+          "index": 42,
+          "name": "ocram_interrupt",
+          "source": "mmio",
+          "target": 469811484,
+          "value": 0,
+          "before_line": 142,
+          "line": 143
+        }
+      ],
+      "pending": null,
+      "complete": true,
+      "valid": true
+    },
+    "ras_probe": {
+      "records": [
+        {
+          "index": 0,
+          "name": "pfr0",
+          "operation": "read",
+          "target": "id_aa64pfr0_el1",
+          "requested": null,
+          "value": 286335522,
+          "before_line": 145,
+          "line": 146
+        },
+        {
+          "index": 1,
+          "name": "midr",
+          "operation": "read",
+          "target": "midr_el1",
+          "requested": null,
+          "value": 1093652560,
+          "before_line": 147,
+          "line": 148
+        },
+        {
+          "index": 2,
+          "name": "disr",
+          "operation": "read",
+          "target": "disr_el1",
+          "requested": null,
+          "value": 0,
+          "before_line": 149,
+          "line": 150
+        },
+        {
+          "index": 3,
+          "name": "count",
+          "operation": "read",
+          "target": "erridr_el1",
+          "requested": null,
+          "value": 2,
+          "before_line": 151,
+          "line": 152
+        },
+        {
+          "index": 4,
+          "name": "original_selector",
+          "operation": "read",
+          "target": "errselr_el1",
+          "requested": null,
+          "value": 0,
+          "before_line": 153,
+          "line": 154
+        },
+        {
+          "index": 5,
+          "name": "select0",
+          "operation": "select",
+          "target": "errselr_el1",
+          "requested": 0,
+          "value": 0,
+          "before_line": 155,
+          "line": 156
+        },
+        {
+          "index": 6,
+          "name": "features0",
+          "operation": "read",
+          "target": "erxfr_el1",
+          "requested": null,
+          "value": 43430,
+          "before_line": 157,
+          "line": 158
+        },
+        {
+          "index": 7,
+          "name": "control0",
+          "operation": "read",
+          "target": "erxctlr_el1",
+          "requested": null,
+          "value": 0,
+          "before_line": 159,
+          "line": 160
+        },
+        {
+          "index": 8,
+          "name": "status0_before",
+          "operation": "read",
+          "target": "erxstatus_el1",
+          "requested": null,
+          "value": 0,
+          "before_line": 161,
+          "line": 162
+        },
+        {
+          "index": 9,
+          "name": "misc0",
+          "operation": "read",
+          "target": "erxmisc0_el1",
+          "requested": null,
+          "value": 0,
+          "before_line": 163,
+          "line": 164
+        },
+        {
+          "index": 10,
+          "name": "status0_after",
+          "operation": "read",
+          "target": "erxstatus_el1",
+          "requested": null,
+          "value": 0,
+          "before_line": 165,
+          "line": 166
+        },
+        {
+          "index": 11,
+          "name": "selector0_after",
+          "operation": "read",
+          "target": "errselr_el1",
+          "requested": null,
+          "value": 0,
+          "before_line": 167,
+          "line": 168
+        },
+        {
+          "index": 12,
+          "name": "select1",
+          "operation": "select",
+          "target": "errselr_el1",
+          "requested": 1,
+          "value": 1,
+          "before_line": 169,
+          "line": 170
+        },
+        {
+          "index": 13,
+          "name": "features1",
+          "operation": "read",
+          "target": "erxfr_el1",
+          "requested": null,
+          "value": 43430,
+          "before_line": 171,
+          "line": 172
+        },
+        {
+          "index": 14,
+          "name": "control1",
+          "operation": "read",
+          "target": "erxctlr_el1",
+          "requested": null,
+          "value": 0,
+          "before_line": 173,
+          "line": 174
+        },
+        {
+          "index": 15,
+          "name": "status1_before",
+          "operation": "read",
+          "target": "erxstatus_el1",
+          "requested": null,
+          "value": 0,
+          "before_line": 175,
+          "line": 176
+        },
+        {
+          "index": 16,
+          "name": "misc1",
+          "operation": "read",
+          "target": "erxmisc0_el1",
+          "requested": null,
+          "value": 0,
+          "before_line": 177,
+          "line": 178
+        },
+        {
+          "index": 17,
+          "name": "status1_after",
+          "operation": "read",
+          "target": "erxstatus_el1",
+          "requested": null,
+          "value": 0,
+          "before_line": 179,
+          "line": 180
+        },
+        {
+          "index": 18,
+          "name": "selector1_after",
+          "operation": "read",
+          "target": "errselr_el1",
+          "requested": null,
+          "value": 1,
+          "before_line": 181,
+          "line": 182
+        },
+        {
+          "index": 19,
+          "name": "restore",
+          "operation": "restore",
+          "target": "errselr_el1",
+          "requested": null,
+          "value": 0,
+          "before_line": 183,
+          "line": 184
+        }
+      ],
+      "pending": null,
+      "complete": true,
+      "valid": true,
+      "outcome": "both-records",
+      "original_selector": 0,
+      "selector_may_have_changed": false,
+      "selector_restored": true,
+      "record_complete": true
+    },
+    "decode_log": {
+      "records": [
+        {
+          "phase": "idle",
+          "line": 44
+        },
+        {
+          "phase": "setup-before",
+          "line": 52
+        },
+        {
+          "phase": "baseline-zero",
+          "line": 53
+        },
+        {
+          "phase": "enable-before",
+          "line": 54
+        },
+        {
+          "phase": "enabled",
+          "line": 55
+        },
+        {
+          "phase": "restore-before",
+          "line": 186
+        },
+        {
+          "phase": "restored",
+          "line": 187
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "write_attempted": true,
+      "restore_attempted": true,
+      "restored": true,
+      "failed": false
+    }
+  },
+  "last_vendor_checkpoint": "nobits-cache-before",
+  "compiled_nobits_range": [
+    327680,
+    384704
+  ],
+  "independent_replay_matched": true,
+  "exception": {
+    "line": 57,
+    "vector": 7,
+    "esr": 3187671057,
+    "elr": 2147597112,
+    "far": 16487774709653704706,
+    "spsr": 2147484365,
+    "r0": 328256,
+    "r1": 384704,
+    "r2": 64,
+    "r3": 63
+  },
+  "saved_pc_instruction_word": 3574101536,
+  "saved_pc_instruction": "dc ivac, x0",
+  "exception_class": 47,
+  "asynchronous_error": true,
+  "far_interpreted_as_fault_address": false,
+  "causing_instruction_proven": false,
+  "evidence_sha256": {
+    "out/nano-decode-log-board-20261106/candidate-check-v3-result.json": "fd1fe92b1bdf7208e0114fcc0ed65e9479ecba4fb72a0f768790173cd40fb886",
+    "out/nano-decode-log-board-20261106/candidate-check-v3.log": "3c9d0e377ac87531912653760c42d4d0585a9398cc8691184dce226683d01cb7",
+    "out/nano-decode-log-board-20261106/candidate-check-v4-result.json": "80535cf02627f3a4429f5eeb65cd3e4262b045f702e36fb61fd4bec954405cd5",
+    "out/nano-decode-log-board-20261106/candidate-check-v4.log": "1837a6ef137314484e2effb4a0baefea69c16a09971a7ee8312813aa59c38dd7",
+    "out/nano-decode-log-board-20261106/candidate-proof-result.json": "ab3ae291097440c75ffb969dfaa7054cb0441221afea93d186b30d354bd1449c",
+    "out/nano-decode-log-board-20261106/candidate-proof.json": "ce00c7bb870e66bb761b5561ccda4ce3b0592f4d2caa3c9a552d2f641c433fda",
+    "out/nano-decode-log-board-20261106/candidate-proof.log": "7305558b1c01fb41a2afcfcc445d4eda0deed572b345e77ee8389249bddb97ab",
+    "out/nano-decode-log-board-20261106/catalogue-result.json": "9d409c6e322e3fb6e4a54e95d4ab21f15c2643f44cb0fe575c2a0b4e6deb6d31",
+    "out/nano-decode-log-board-20261106/catalogue.log": "dd1dc58bbb77890f3d53b4aa2db475bcc37693f0a10c5658621889f7ef824f0e",
+    "out/nano-decode-log-board-20261106/cleanup-audit-result.json": "022a7a1b75f486feed24290bb2903e59ee5b4f299162b3bfea42c55a120fd6a7",
+    "out/nano-decode-log-board-20261106/cleanup-audit.log": "697f7641a68cae4a45acb61f8cffbb0fc7f26e06df604a89a911f458810ac9e5",
+    "out/nano-decode-log-board-20261106/cleanup-evidence.json": "7fecd92dbf5fcf639e54b7c9e3b602b1171d67c1e9529f2bf67e1ce82aedfe8c",
+    "out/nano-decode-log-board-20261106/clock-fixtures-result.json": "d49948df6870a3bcca0109aa15ebe68622915a056a182a1a6ba608770da982f2",
+    "out/nano-decode-log-board-20261106/clock-fixtures.log": "644872a3c36aa1d8dfbae8dbade7188af1c42345506f46c13b1092ce4d82b0d1",
+    "out/nano-decode-log-board-20261106/decode-tail-fixtures-result.json": "9684bbcda6e662cc91f209eadb753103f6cf98a2e71b0240314a21bcb84ec4cd",
+    "out/nano-decode-log-board-20261106/decode-tail-fixtures-v2-result.json": "a2251135c81e9eaac8392f09c77bfb07173a25bb8606222cd95142ec2befdedc",
+    "out/nano-decode-log-board-20261106/decode-tail-fixtures-v2.log": "ea68f84584ee60fca190bf8e0d3b0e65c7449e9295d6f04091f55d2f83835682",
+    "out/nano-decode-log-board-20261106/decode-tail-fixtures.log": "a0355650b3bdcfff810e57fbc37a1ae2b32cb7da0d040088cc3fbcc2ef09b938",
+    "out/nano-decode-log-board-20261106/device-admission-fixtures-result.json": "ea7c8de7200455309b63bd5a08558bc42490d2c8621c8f38075338bf13ebbfc5",
+    "out/nano-decode-log-board-20261106/device-admission-fixtures.log": "da2829d484c80476081917e89711e8e2206fd1320900acc37b4c6185b2453745",
+    "out/nano-decode-log-board-20261106/freeze-result.json": "5bb39a698e8c7e63a597c600ae654d126a318837a563ce071bd02b4496d54a8f",
+    "out/nano-decode-log-board-20261106/freeze.log": "0a83dc61509cfced8f2357761300c83aba7e99a3c77230c84a1621f5de60993f",
+    "out/nano-decode-log-board-20261106/hardware-result.json": "fa4c299b285d2de4c2111a6e955541b0e666a9104cc89dfa2874176f4f57425f",
+    "out/nano-decode-log-board-20261106/hardware.log": "b490d6f42f12e1660af3842cb49b3c8a1f82da3e9e62b158c89418164410c794",
+    "out/nano-decode-log-board-20261106/history.json": "89d8bcc3bfaaf3d5219811aef07ccd25260959686df7473685b2f2db9948e337",
+    "out/nano-decode-log-board-20261106/independent-boot-replay.json": "b6c28ac59b75873146abac85f08bb7e308e3413f795f71d060c54f98a4a4d5c1",
+    "out/nano-decode-log-board-20261106/operator-fixtures-decode-result.json": "3bb4dbc2b211bc20a6a61902401a9b2c847684b74983f990ac8240db3c1bfd0a",
+    "out/nano-decode-log-board-20261106/operator-fixtures-decode.log": "a01507b81d3063f969d4804a8742231b30183282a1671bb19fedd8145ac98bb2",
+    "out/nano-decode-log-board-20261106/preflight-result.json": "da32af87fa3ac7f140204b62cf8a0eebb33c31c9fc6192b9ee4e7fb4b8ab6fc4",
+    "out/nano-decode-log-board-20261106/preflight.log": "65dd11f5d733a3bce43e3284dc2d375509710c25311c03d9535b741bb3f65720",
+    "out/nano-decode-log-board-20261106/record_stop.py": "ac43f3ef0e7c3877c8cec05ac885dfcd00a2c44a405ef99a004b98544e49c65c",
+    "out/nano-decode-log-board-20261106/recovery-source-pin.json": "3af590f4e06f1094ca5193cb70c714a94f16e4c62258447b2e87e40427438800",
+    "out/nano-decode-log-board-20261106/source-fixtures-v3-result.json": "1c909c5948e09c6087c936c9a1c2c81d97514c4b6c0ae6ae2a00831925bc36e3",
+    "out/nano-decode-log-board-20261106/source-fixtures-v3.log": "14069a0367f6622b52c45f8e5f9c5bd39d7d514b0167183c2dd6b31e47500193",
+    "out/nano-decode-log-board-20261106/source-fixtures.json": "3572d93bfa5b93e00869bb95535fd242ceeb9bce7cebd750fa242b619be84ee7",
+    "out/nano-decode-log-board-20261106/source.json": "e5e8ecaf73178522d34d03483be7f5599b5fb5d3000013c7eeccfb57e7142f29",
+    "out/nano-decode-log-board-20261106/tail-fixtures-final-result.json": "446d949aa94a445367092429cf557a367037484fdd7df2061ec7c4a77385d9e9",
+    "out/nano-decode-log-board-20261106/tail-fixtures-final.log": "e1aceb71e53365a7e3b9d734075592fc643b087264c2cc1a9872dce5d525b240",
+    "out/nano-decode-log-board-20261106/transport-fixtures-v2-result.json": "561333fa4b497e3ca7525228ab9b47194626302b502df393f58f332cd61cf9e1",
+    "out/nano-decode-log-board-20261106/transport-fixtures-v2.log": "644872a3c36aa1d8dfbae8dbade7188af1c42345506f46c13b1092ce4d82b0d1",
+    "out/nano-decode-log-board-20261106/trial/clock-before-native.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-decode-log-board-20261106/trial/clock-before.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "out/nano-decode-log-board-20261106/trial/clock-confirm-6m.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-decode-log-board-20261106/trial/clock-restore-15m.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-decode-log-board-20261106/trial/clock-restored-readback.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "out/nano-decode-log-board-20261106/trial/clock-set-6m.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-decode-log-board-20261106/trial/clock_policy.py": "082ea1a2646bf9dbfecf0b378274801576600265282827cce48bbbaea8a6c4f5",
+    "out/nano-decode-log-board-20261106/trial/common.py": "91ef18037aeb7e982e1008b64fbef816d83600189f9e0b39e734a595916db327",
+    "out/nano-decode-log-board-20261106/trial/experiment-progress.json": "2cd1cd117cdb7fb081c90569c7c4345db5c803f80453189d16fd244b0f98796a",
+    "out/nano-decode-log-board-20261106/trial/experiment-result.json": "c0d4de1ee81a9e7ef8144fe2932d278fb8fa8989c05cac5c524c078ce901bbcf",
+    "out/nano-decode-log-board-20261106/trial/experiment.py": "49d476673321a4e8da62245293379581ef999c606f79c7c3bbbe1638122a4b4a",
+    "out/nano-decode-log-board-20261106/trial/live-firmware-alt.json": "9cf2e27c0c6525be7376b95df01eac42dd3733b779a6c1e0bb137138c60b6944",
+    "out/nano-decode-log-board-20261106/trial/live-firmware.json": "c0e98874673de27e287abc8d3449ea0a1d6e68f130c0fd722fdd5f7055066c20",
+    "out/nano-decode-log-board-20261106/trial/live-fit.json": "8e09a2b0a52aab120c84747ac217121ed3b043631a62a9ed101847a2b59612c4",
+    "out/nano-decode-log-board-20261106/trial/live-metadata-alt.json": "6a8db7dafc1f99c1e2c0e270fe64be72cdcb5a74c111a2006cc13cfc5f32313b",
+    "out/nano-decode-log-board-20261106/trial/live-metadata.json": "24c2aa63808d64bee64c83fd702a8ba516f4ff79c3035df7b7f293fde72050a6",
+    "out/nano-decode-log-board-20261106/trial/live-package.json": "5c588569c355336a2bce68002e5745daad83e06aa73570d53c8ec94dbfc9993e",
+    "out/nano-decode-log-board-20261106/trial/live-selection.json": "eb37b7a5565b9545fc8f50debecb7bb1941ad4b8c8f63ba730abd84a97d6914e",
+    "out/nano-decode-log-board-20261106/trial/live-ui-catalog.json": "054cf51c1d7cb98ca3382686b5118652cf1bcac13e43c733cd380b7f3912c41a",
+    "out/nano-decode-log-board-20261106/trial/native-clock-before.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-decode-log-board-20261106/trial/native-console.log": "4ede4e8b2e9a0f8be47858fce9ff3f5d11406ebff25fc6a0269f3bc1fec0377f",
+    "out/nano-decode-log-board-20261106/trial/native-jtag-query.log": "6ff60f9d1d94996b078fb4e50dee9798e9effb2382c49d7f125271c673d6eade",
+    "out/nano-decode-log-board-20261106/trial/native-program.log": "0fef8271ece1f9238473341906bb635749dfbb7aa3610a99f5a9fb3f9ba4df5c",
+    "out/nano-decode-log-board-20261106/trial/native-progress.json": "4a891626c3a88629c4b2916fa7a605041f3c62376784372b608bbefc2396aa53",
+    "out/nano-decode-log-board-20261106/trial/native-result.json": "6ab2b35d256e0851debf877584231350a8e45ba2784051fceb0c42612a4d0dd3",
+    "out/nano-decode-log-board-20261106/trial/native.py": "a924f7278e8c5dc181f209e32e8a422f20827d33ebd9109f1e8c9482cb8bd1cd",
+    "out/nano-decode-log-board-20261106/trial/preflight.json": "2d27a8d02cb27f7717b058514734dcc52bed6a40c58ef8bc730a8bc9e3f29914",
+    "out/nano-decode-log-board-20261106/trial/private-client-setup.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-decode-log-board-20261106/trial/private-device-admission.log": "122675b54d0d0d425a7c490ea7d3f88c07b59d519a82327013bfc4f9885a0816",
+    "out/nano-decode-log-board-20261106/trial/private-device-clock.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-decode-log-board-20261106/trial/private-server.log": "313024a2d27e45e1bf2ec046cf5695d802a800aa42e049777e9747e2299aa6ba",
+    "out/nano-decode-log-board-20261106/trial/private-top-enumeration.log": "122675b54d0d0d425a7c490ea7d3f88c07b59d519a82327013bfc4f9885a0816",
+    "out/nano-decode-log-board-20261106/trial/private_jtag.py": "c9b36356faf133d4a734d46743bf586eb0c74006c535a869e6a1fb36856e4023",
+    "out/nano-decode-log-board-20261106/trial/recovery-boot-clock-after.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-decode-log-board-20261106/trial/recovery-boot-clock-before.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-decode-log-board-20261106/trial/recovery-boot-console.log": "08f71211664d0b0670c09131e98e3574409bdcac5a9bcbf828ddf74c7e8fcbb6",
+    "out/nano-decode-log-board-20261106/trial/recovery-boot-jtag-query.log": "9a646ef00746dfc61d7aa60346c9ce9872e131601aaee9e4ce37289cd1a71d92",
+    "out/nano-decode-log-board-20261106/trial/recovery-boot-program.log": "db95d4ec5150a1d205729352f7ad94b5594666256dd47d65631e860ae8d17074",
+    "out/nano-decode-log-board-20261106/trial/recovery-boot-progress.json": "f2a6bcc2b5a534950cf311c400e93c02717bf3d2b58a5eb6276710561d14365f",
+    "out/nano-decode-log-board-20261106/trial/recovery-boot-result.json": "1b3cbd93d483204edac7ee9c8a1dd4c36b01a5cd55933ac746c6c4668d8d9c0c",
+    "out/nano-decode-log-board-20261106/trial/recovery.py": "90ed378a120d8eb4add927abf28b81f2b1d502453bb11a3e18b1936eda67b9c1",
+    "out/nano-decode-log-board-20261106/trial/recovery_pin.py": "20e169fe043d7d0d9d1073112577a7a95f1b077c8c4fd6af32ef20289b807f88",
+    "out/nano-decode-log-board-20261106/trial/service_checks.py": "d35ded0981a472ff0300de8e8de79a0181479d01928f39b7fea8ba33d43cee70",
+    "out/nano-decode-log-board-20261106/trial/transport.json": "63262f736ca3e59f16982d531f31d9d84eb7c10c322a04877938ff4864583f16",
+    "out/nano-decode-log-board-20261106/trial/trial_inputs.py": "f6bf45d4da7b54ff8cddf86ce9e50b5d583c790affa1785e05171f0e393dd64f",
+    "out/nano-decode-log-board-20261106/trial/upload-boot/progress.json": "af66813bb290f9ec67dc5b9ca947e6552b356adf0d93b38d6ed9d512ceb24912",
+    "out/nano-decode-log-board-20261106/trial/upload-boot/result.json": "1e05ac379bbc8220efedc89a6e50d2d71bef47bea2a10e5a8c8a5358f0813bae",
+    "out/nano-decode-log-board-20261106/trial/upload-firmware/progress.json": "bde3fe23e22e6c30441973341933be498e7d4711d0b0d32d526cf38602054b6d",
+    "out/nano-decode-log-board-20261106/trial/upload-firmware/result.json": "e47fd5ef421a78fcf35c087ff28b1478b1806cdf0392d8dba70b0cd7837b95a0",
+    "out/nano-decode-log-board-20261106/trial/upload-firmware-alt/progress.json": "a956383e767e0b3c492c8febe946eaf65a82c2b0432fbdf3a634030cb0e1cea9",
+    "out/nano-decode-log-board-20261106/trial/upload-firmware-alt/result.json": "dd9dfefa5f5473dc8d6b785f85d5d2539e11f5c15b186dd30030498d638a539a",
+    "out/nano-decode-log-board-20261106/trial/upload-metadata/progress.json": "f6521f61eda3ae31983ac92042bd6faa9d99219f6699830bc09fb0306e3f0d30",
+    "out/nano-decode-log-board-20261106/trial/upload-metadata/result.json": "14298bef687146e4e78ab05bff0c4171f97902eec790defc3d3f8bc0d334ad88",
+    "out/nano-decode-log-board-20261106/trial/upload-metadata-alt/progress.json": "6f4f3ad2c623bf9d1401c7e69f9d80efa3aa3edd0f69f480a9208de603ce5464",
+    "out/nano-decode-log-board-20261106/trial/upload-metadata-alt/result.json": "08ca30ba89a47d9b44fe781f8e6fa2f6be83648bf955b1d41993df34dbf831ab",
+    "out/nano-decode-log-board-20261106/trial/upload-package/progress.json": "9bd185f425ad1a6cf82519783c46516eb180deb5815ac165ee8f9aaf13fb25f2",
+    "out/nano-decode-log-board-20261106/trial/upload-package/result.json": "9d6b5606b1fdfdcba69a0b44403d6e4f4f21cfb9703cec47fd613510a63b3693",
+    "out/nano-decode-log-board-20261106/trial/upload-selection/progress.json": "86c6653b54236936d9be8f696c76511fe4898f85f53bb17f1b83769853b2f15b",
+    "out/nano-decode-log-board-20261106/trial/upload-selection/result.json": "8f458eeb547450cca7b59461312f51f989aee5104d260cfde2d2d93f4b917bb4",
+    "out/nano-decode-log-board-20261106/trial/upload-ui-catalog/progress.json": "859dbdf52c35d27f10f79453dea77eaf13fe5ee6beaca3446b44ce3f2e997c45",
+    "out/nano-decode-log-board-20261106/trial/upload-ui-catalog/result.json": "41c3ec6a4da25b4478fffd2dd95f629bbb56296a3a6f8a834d9e92d3990dddfd",
+    "out/nano-decode-log-board-20261106/trial/upload_both.py": "efa98f82de6ca3607926b1badf38c97d2f203cb5b17963cc55cbcb0a5745f212",
+    "out/nano-decode-log-board-20261106/trial/upload_checks.py": "497636cad5390e8f6820d11d18c698efd7d8af3883a714b6dd112a6014e61fa3",
+    "out/nano-decode-log-board-20261106/trial/uploads/console.log": "167aece91ccac3b1b8f0c317da04d9d9945bedccc03ef2198053e4686d7c5b57",
+    "out/nano-decode-log-board-20261106/trial/uploads/progress.json": "f132435e4eb5c6b24fdc9108bca48b91a76e80f124d29330e7229002b0ac5c19",
+    "out/nano-decode-log-board-20261106/trial/uploads/result.json": "489e8380750554b09238ea85f44a69f26761922e9944bf76e8324c596208b090",
+    "out/nano-decode-log-board-20261106/upload-receipt-fixtures-final-result.json": "a7f23ec3a7dc278f2dee2cbcdac3d7767217ea0d735320575b4e8b651da0733a",
+    "out/nano-decode-log-board-20261106/upload-receipt-fixtures-final.log": "13ab09d7d9e1965905765f34084820f0a7df11c67f9c6f2fa55bd12df5c94903",
+    "out/nano-decode-log-board-20261106/uploader-fixtures-final-result.json": "ff7626ca0294956087646bc0f69b87cb440e1cb47588a0822393fef83593865a",
+    "out/nano-decode-log-board-20261106/uploader-fixtures-final.log": "e65011cf9e6f3fb6cbe13b2de21593d65214c208e2f05e716d8073f9c2dfd814"
+  },
+  "hardware_actions": true,
+  "ordinary_admission": false,
+  "core_load_acceptance": false,
+  "physical_cpu_halt_proven": false,
+  "claim_retained": true,
+  "factory_card_touched": false,
+  "other_kit_touched": false
+}

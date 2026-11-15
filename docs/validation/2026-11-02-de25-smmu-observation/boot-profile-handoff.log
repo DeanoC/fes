@@ -1,0 +1,19 @@
+test_actual_adapter_is_installed_after_device_remove_before_cpu_cleanup (test_embedded_nano_handoff.NanoExportTests.test_actual_adapter_is_installed_after_device_remove_before_cpu_cleanup) ... ok
+test_actual_reset_cleanup_retains_owner_while_vendor_cleanup_retires_it (test_embedded_nano_handoff.NanoExportTests.test_actual_reset_cleanup_retains_owner_while_vendor_cleanup_retires_it)
+Run the pinned removal callback against the actual cold owner implementation. ... ok
+test_controlled_sd_selects_only_the_exact_source_profile (test_embedded_nano_handoff.NanoExportTests.test_controlled_sd_selects_only_the_exact_source_profile) ... ok
+test_firmware_identity_changes_loader_identity (test_embedded_nano_handoff.NanoExportTests.test_firmware_identity_changes_loader_identity) ... ok
+test_generated_spl_atf_call_passes_current_cookie_and_record (test_embedded_nano_handoff.NanoExportTests.test_generated_spl_atf_call_passes_current_cookie_and_record)
+Execute the generated caller; a valid record with the old cookie rejects at EL3. ... ok
+test_mutated_image_rejects_before_export_is_changed (test_embedded_nano_handoff.NanoExportTests.test_mutated_image_rejects_before_export_is_changed) ... ok
+test_stale_native_sources_and_unknown_profiles_reject_before_export (test_embedded_nano_handoff.NanoExportTests.test_stale_native_sources_and_unknown_profiles_reject_before_export) ... ok
+test_every_cpu_dma_bridge_timer_watchdog_and_uart_gate (test_embedded_nano_handoff.NanoHandoffTests.test_every_cpu_dma_bridge_timer_watchdog_and_uart_gate) ... ok
+test_live_reservations_cannot_overlap_go_or_staging (test_embedded_nano_handoff.NanoHandoffTests.test_live_reservations_cannot_overlap_go_or_staging) ... ok
+test_primary_a55_or_a76_with_other_cores_off (test_embedded_nano_handoff.NanoHandoffTests.test_primary_a55_or_a76_with_other_cores_off) ... ok
+test_exact_cold_proof_and_owner_continuity (test_embedded_nano_handoff.NanoOwnedSnapshotTests.test_exact_cold_proof_and_owner_continuity) ... ok
+test_unready_wrong_tag_and_every_missing_or_extra_flag_reject (test_embedded_nano_handoff.NanoOwnedSnapshotTests.test_unready_wrong_tag_and_every_missing_or_extra_flag_reject) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.413s
+
+OK

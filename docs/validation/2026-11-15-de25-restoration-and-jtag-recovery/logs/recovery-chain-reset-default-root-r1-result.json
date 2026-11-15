@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/recovery-chain-reset-probe/probe.py",
+    "--procedure-sha256",
+    "cd52d5e8790fe6d31cb31e85e8c4fa27c522ef364042f8e03008cfb06fd311ca"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 1.00117275910452,
+  "log_sha256": "e18c2b73a7f6857647a7ded33def1c86d01b0af3c80b18ec9eb206b3645946cd"
+}

@@ -1,0 +1,165 @@
+{
+  "base": "67b023808b24dfaeb4f60a453b6d40dbee026a94",
+  "builds": {
+    "bl31-build": {
+      "bl31_bin_sha256": "dac990cecc39e464ab54c1d4213a3e970f1a1b62a528e07dc8f3bf523a4218ed",
+      "receipt_sha256": "e79310806861b9ded36d2ddcaeb45858a94a93d79dfe931e7619c0f5f73ac333",
+      "status": "built"
+    },
+    "entry-build-v2": {
+      "entry_image_sha256": "0186607a37601dae3223ad05b8b2e56e60ba133527eb9692669495ecebda405c",
+      "receipt_sha256": "1431fb86b657b04ea3695d246e0602e35db69ec7422536e381ed762575d6d6e5",
+      "status": "built"
+    },
+    "package": {
+      "fit_sha256": "92b85f06253e1b18a403f7a8e0db90b42e5d603a1876c5249695365c29ac7f01",
+      "receipt_sha256": "07192de5bacd5f6d62deca808d1682f129e81b8aac915bb1e828b97cb910c2b2",
+      "sof_sha256": "07c378becf955fb81a2b3d6c06a3c5de95abe3d7b60fda77384bec4b1a2a57fa",
+      "status": "prepared"
+    },
+    "storage-build": {
+      "elf_sha256": "8e224b0dbad34afdbaba8b32bb6bbc26fa2fb9b43dc49843d78553bd5e5fc139",
+      "receipt_sha256": "a64f788142d31dbf6f91e6d9f68bb02ef7ff504648963a82acb685bc6c7790c6",
+      "status": "cross-built"
+    },
+    "uboot-build": {
+      "fit_sha256": "92b85f06253e1b18a403f7a8e0db90b42e5d603a1876c5249695365c29ac7f01",
+      "receipt_sha256": "db2ceb596ab58ef9a2ba5454a7299205e6a0cf53f0e9306389cb3dd61d19f01f",
+      "status": "built"
+    }
+  },
+  "checked_source_sha256": {
+    "platform/embedded/entry/README.md": "62ada272c1455cd83b983f0b818aa04c87ff2d1a5adcc2369177d2abcc8ec294",
+    "platform/embedded/entry/build.py": "7d793891f1e72f193a3897739ce420851df644c55eccadb7c1bf3590f5cd4fb1",
+    "platform/embedded/firmware/README.md": "1dfda59b0d1d81f78a8a37090390a95fcbfb170b43df811f4a6c5e8b4a3cc376",
+    "platform/embedded/firmware/nano_bridge_platform.h": "59ff6280043c16858361a8f462eaf7cc0c209940edfafd94b9f8e25c98180da6",
+    "platform/embedded/firmware/nano_bridge_platform.inc": "ca415b63033797a72862f4b87b00b706f80a13af2a3a12605f78536f0d934cbe",
+    "platform/embedded/firmware/nano_cold.c": "1a2c9e5f3a240c5951ab79fea574e2a7812db9d40928c8cfac8caa1638f5be71",
+    "platform/embedded/firmware/nano_cold.h": "6ae9ba8fa9da41dfc23caf422a618a1af5c1aad12479c4e5f80062c4b5b807f8",
+    "platform/embedded/firmware/nano_cold_platform.c": "269674358725e4702c07f2500eded438649583295551ccd9c566e46c5569054b",
+    "platform/embedded/firmware/nano_owned_sip.inc": "9dfed0ef9651747028baa21ff517a07e3a9e22e0a3b20f3ffafe3c804381092f",
+    "platform/embedded/firmware/nano_sd_platform.c": "909d1f635d00d386bd90ad776cae682a1c041b9097d961cac8f965cb383ac101",
+    "platform/embedded/firmware/nano_sd_platform.h": "5eb74049b5f6a3a222ee7b26f7d310e1714b92183538bed4c0f8decfaf8af4c0",
+    "platform/embedded/firmware/prepare_nano_owned.py": "f50cd969ceb1ed93a329b6b537111814d9eafb5580da9c7899b592a5221c8005",
+    "platform/embedded/firmware/tests/nano_cold_platform_test.c": "c578d8cf3d7ce7fb5a087d89890787aaa3220ed3bb72f89dbbdbfd1a72f65101",
+    "platform/embedded/firmware/tests/nano_sd_platform_test.c": "81b343cff5fc5f8303df851d0f502c762a1bc90b986e4351320b79029f41406f",
+    "platform/embedded/firmware/tests/nano_sd_rpc.c": "8208f406ce12d29cbc014c77bb158604ff52e6f94b59aa4466ce7d96abbc6ac0",
+    "platform/embedded/nano/cold_profile.py": "33e4b2e01329f89fb02e5f33bdd967848fada46fdb38b55663620c76121c1899",
+    "platform/embedded/nano/native_trace.py": "5aabc1ae470a8020ccc3c135f0d2ae2940b984b4757202bfd29c32c37e737b3b",
+    "platform/embedded/nano/package.py": "c15a7f94219580dcdf663962142a431efa1f0cd87de0acc63fc07ce20b7bfd06",
+    "platform/embedded/nano/prepare_uboot.py": "59f7f913edaefa61cab2433d2e4ab307f7588552f11435cbd765376aedf4c836",
+    "platform/embedded/nano/probe-profile.json": "b9b44ca396b049c9fdb985cc95439574f47d86d0c618b876c2508aa482249d15",
+    "platform/embedded/nano/sd-profile.json": "0d5976d94ac6cf8cb2963fc3fa836bb195ac3d6fb88a550ad25049eea3ad69ef",
+    "platform/embedded/tamago/board/README.md": "2dc53a6990f56550e9f4c78f0fe6ccf13ad993a24f5ca28dd917f25c7f640003",
+    "platform/embedded/tamago/board/de25nano/fabric.go": "ff7f51ce22f564d78994ce57924967a66b978eccb6aad838ff424000cb20da9a",
+    "platform/embedded/tamago/board/de25nano/storage.go": "a1b2f92770bfc89fdd45b609901f2c92e032e9c6b0d201ad16b1307cdedc5657",
+    "platform/embedded/tamago/build.py": "131837344620a214024f6ef3c97422b1b5c92795126e0b1da77a52af737d8ad8",
+    "platform/embedded/tamago/cmd/storage/main.go": "ef2558f150c6662de3ded1b7fda39a0b7af8a8f743ec9115b005b51cbf855076",
+    "tests/test_embedded_board_profile.py": "b82723c2dbc9c883b64fc14dbb9ec5a5d1284d6beaf47fc9b2a2da528b697b87",
+    "tests/test_embedded_nano_handoff.py": "aff5146ebd4acab1e497defc23ab99744fb21f14017ece263d3fa36f687cab34",
+    "tests/test_nano_cold.py": "4c76fc65ce3adf209a7ed70fa9c12e6f3093a319c16ac8554bccc6ae44c0bd6d",
+    "tests/test_nano_native_trace.py": "06a2cc2d4cd4cc469fdcd25bf950cc46003eff75de19f4b49bfc08e226931e28",
+    "tests/test_nano_sd_platform.py": "bb03b5ab429bd045caaf242d6268e7aaa535e043d81cb6996dba12ba566f3b58"
+  },
+  "checks": {
+    "pass": true,
+    "plan_sha256": "2977eeafedfe32ff53e65f3f46dec57386e419549c580190f98b5776985c5157",
+    "results": [
+      {
+        "elapsed": 0.4005919679766521,
+        "label": "test_affected.py",
+        "log": "affected-0.log",
+        "log_sha256": "723947440aebaea15c81f338a92171736e0393bc47cf226d2aabf958684c5046",
+        "returncode": 0,
+        "timed_out": false
+      },
+      {
+        "elapsed": 1.201755788992159,
+        "label": "test_test_changed.py",
+        "log": "affected-1.log",
+        "log_sha256": "51f41a0ec073b30066c3f6c7ab408cce1cea63d0b07b1712ba867574b763a0ec",
+        "returncode": 0,
+        "timed_out": false
+      },
+      {
+        "elapsed": 0.20149888703599572,
+        "label": "committed whitespace",
+        "log": "affected-2.log",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "returncode": 0,
+        "timed_out": false
+      },
+      {
+        "elapsed": 0.2010356440441683,
+        "label": "working whitespace",
+        "log": "affected-3.log",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "returncode": 0,
+        "timed_out": false
+      },
+      {
+        "elapsed": 174.52847674000077,
+        "label": "parent Python regressions",
+        "log": "affected-4.log",
+        "log_sha256": "4c1a123e8196a9e4f03e47780874dc2f802719b4a87e7044d7fe01aca1fb2c58",
+        "returncode": 0,
+        "timed_out": false
+      },
+      {
+        "elapsed": 3.8033749759197235,
+        "label": "working-tree generated consumer consistency",
+        "log": "affected-5.log",
+        "log_sha256": "f9cc139c06246c66ea8eb711f63bd695036b7a1019be50d8dacc5b37b851757e",
+        "returncode": 0,
+        "timed_out": false
+      },
+      {
+        "label": "native SD firmware lease and PIO lifecycle",
+        "returncode": 0,
+        "reused_receipt": "sd-go-result.json"
+      },
+      {
+        "elapsed": 57.654770597000606,
+        "label": "native runtime firmware and FPGA launch integration",
+        "log": "affected-7.log",
+        "log_sha256": "c14c3f9ccc63476739d18a0e8b82521a3ef9161d296b7217c411f6c35934a975",
+        "returncode": 0,
+        "timed_out": false
+      },
+      {
+        "elapsed": 11.013717732974328,
+        "label": "embedded producer identity and native control integration",
+        "log": "affected-8.log",
+        "log_sha256": "2baaccfe2bdac619c288eba2ef4129a454f9acca0980e633adba21d99e6784f0",
+        "returncode": 0,
+        "timed_out": false
+      },
+      {
+        "elapsed": 6.410902663017623,
+        "label": "embedded firmware and identity/drain RTL integration",
+        "log": "affected-9.log",
+        "log_sha256": "825995d81f79ae74ed0a6d85e132ff9ba7ce42bd1b620c29baf6aee5cb4e673a",
+        "returncode": 0,
+        "timed_out": false
+      },
+      {
+        "elapsed": 321.4600787120871,
+        "label": "test_*.py",
+        "log": "affected-10.log",
+        "log_sha256": "3918d6edea741b0bfad90b0dfee0ff095c4f6fd372297b9df0c47b34a334d287",
+        "returncode": 0,
+        "timed_out": false
+      }
+    ]
+  },
+  "classification": "source/model tests and matched cross-builds; hardware result separate",
+  "core_load_acceptance": false,
+  "fpga_programming_features": 0,
+  "known_failed_build": "entry-build: isolated cross assembler shared-library path missing; entry-build-v2 built with retained tool environment",
+  "native_sd_write_support": false,
+  "secondary_cpu_release_locked": true,
+  "test_counts": {
+    "10": 1571,
+    "4": 1210
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "scope": "one qualified recovery, seven owned uploads/readbacks and three serial App sessions; restore15M",
+  "ddr_traffic_requested": false,
+  "data_release_requested": false,
+  "core_load_acceptance": false,
+  "computer_reload": true,
+  "tenfoot_serial": true,
+  "previous_transport_stop_evidence_sha256": "8034d1f240b29c97d09dbd61c2d58bd1a079e6cdb9426ed53ce12467bac9d768",
+  "recovery_strategy": "owned-session-two-verified-writes-and-two-fresh-readbacks; no retry or fallback",
+  "prior_window_procedure_failures": 7,
+  "failures_on_head_before_attempt": 0,
+  "head_failure_limit": 1,
+  "attempt_limit": 1,
+  "source_commit": "98fd021ad7a42c6fb22230e1bd66a6e1a2365f6e",
+  "native_build_source_commit": "e225ea89b002fcc53a90c743f66c592d1f8d35ff",
+  "native_sof_sha256": "439229392aab2293d23e7eff343f63597e9e0be339d13aa7e7ae5fa50f5bd299",
+  "prior_failure_evidence_sha256": "ff07b0d0bd93c604afd36309a692012862e6d18fb5e730233817cfede87d37b6",
+  "fpga_source_commit": "7808f74c2fda87cc56a0fe92e5a17454fd31746a",
+  "target_clock": "6M",
+  "clock_change_attempted": true,
+  "pass": false,
+  "sd_write_commands_sent": true,
+  "started_utc": "2026-11-04T12:50:08.613578+00:00",
+  "stages": [
+    {
+      "clock_operation": "clock-before",
+      "returncode": 0,
+      "output": "15M"
+    },
+    {
+      "clock_operation": "clock-set-6M",
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "clock_operation": "clock-confirm-6M",
+      "returncode": 0,
+      "output": "6M"
+    },
+    {
+      "phase": "recovery-boot",
+      "returncode": 0
+    },
+    {
+      "phase": "uploads",
+      "returncode": 0
+    },
+    {
+      "clock_operation": "clock-before-native",
+      "returncode": 0,
+      "output": "6M"
+    },
+    {
+      "phase": "native",
+      "returncode": 1
+    },
+    {
+      "clock_operation": "clock-restore",
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "clock_operation": "clock-restored-readback",
+      "returncode": 0,
+      "output": "15M"
+    }
+  ],
+  "original_clock": "15M",
+  "stage": "native",
+  "upload_purposes": [
+    "package",
+    "metadata",
+    "package-alt",
+    "metadata-alt",
+    "selection",
+    "ui-catalog",
+    "boot"
+  ],
+  "selected_programs": true,
+  "upload_receipts_sha256": {
+    "package": "569882a6affce84b46bd9d949b2b431c6b9fb08f9221b7c3fa6441e7ddc3c82b",
+    "metadata": "4a373b0d3644b330f6dc0a536a5d9c4a1260f48623ed6c45bac7e64a59a057f7",
+    "package-alt": "610e4b79362f84f82f8291a742ee0bfdd15fc34d7e9b83a8c8d13a1ebaa26f19",
+    "metadata-alt": "7b8823336ce625dec16c17ee2af461e1e58803f337672ae0c005bb659c27f568",
+    "selection": "830f7d14d8aec25f2bfc3ef36dc91cccb4896b544eefc36715eafc46b45a3d3b",
+    "ui-catalog": "f777419cd75522c19d49c5a503f5d9e2c05509c06c9bbe43c00116739272763d",
+    "boot": "e8d4aea3dd381968ca08ee0451a82f982494577ff91ae2e247175ac2c02b678c"
+  },
+  "fresh_receipts_sha256": {
+    "package": "1d935fccc3d62fa089f461b6a83045c54f041955f9488353cef4c47c9f2cf2f3",
+    "metadata": "41154bfb7b243611cc89604f1fa05d2416ab809ac462c8a4bbaf4c69c1d0d7ad",
+    "package-alt": "568e3865a9868f71921839e37f36a6a9ab34e040a5e6d3a97e470b2e0c172932",
+    "metadata-alt": "e9a3524eab6f8748ac112b6046e06f71dcaaab4bbe71910c65352b0efca29fef",
+    "selection": "348ec139df31eb8c7b51d887290ffcc1766d50f5fbb790f9c9df66bf8fda6646",
+    "ui-catalog": "f1b67bb526ae94ae7b1b529d0534acb57d5f7c86bcb89065d6a3a0f024fa37d9",
+    "boot": "023101c255c0799e83804307208ed60656a4d39518d9fec30a15739aa22e330c"
+  },
+  "error": "phase stopped: native",
+  "restored_clock": "15M",
+  "original_clock_restored": true,
+  "private_server_stopped": true,
+  "usb_permissions_restored": true,
+  "finished_utc": "2026-11-04T12:55:50.298846+00:00"
+}

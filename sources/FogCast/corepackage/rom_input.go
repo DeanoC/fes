@@ -51,7 +51,8 @@ func (r ROMLinkIdentity) ValidFor(d Descriptor) bool {
 	return d.Format == 3 && d.ROM != nil && identifier(r.ROMID, "rom.id") == nil && r.ROMID == d.ROM.ID && (r.Role == "" || r.Role == d.ROM.Role) && r.MapSHA256 == d.ROM.SHA256 &&
 		hex64RE.MatchString(r.MapSHA256) && hex64RE.MatchString(r.SourceSHA256) && hex64RE.MatchString(r.ProgrammedSHA256) &&
 		r.SourceSize == d.ROM.SourceSize && r.SourceSize >= 1024 && r.SourceSize <= 256<<10 && r.SourceSize%1024 == 0 &&
-		r.ProgrammedSize > 0 && r.ProgrammedSize <= MaxPayloadSize
+		r.ProgrammedSize > 0 && r.ProgrammedSize <= MaxPayloadSize &&
+		(!nanoROM(d) || r.Role == "firmware" && r.ProgrammedSHA256 == d.Payload.SHA256 && r.ProgrammedSize == d.Payload.Size)
 }
 
 // romInputReceipt binds the transported sources. With slot cards it also
@@ -117,6 +118,9 @@ func prepareROMInput(ctx context.Context, in ROMInput) (preparedROMInput, error)
 	}
 	if d.Format != 3 || d.ROM == nil || int64(len(in.ROM)) != d.ROM.SourceSize {
 		return preparedROMInput{}, errors.New("ROM input requires format 3 and exact source size")
+	}
+	if nanoROM(d) {
+		return preparedROMInput{}, errors.New("Nano held-ROM delivery requires retained sources, not bitstream ROM staging")
 	}
 	inspection := Inspection{PackageID: packageIdentity(manifest, payload, mapping), Descriptor: d}
 	receipt := romInputReceipt{Format: 1, PackageID: inspection.PackageID, ROMID: d.ROM.ID, MapSHA256: d.ROM.SHA256, SourceSHA256: romDigest(in.ROM), SourceSize: int64(len(in.ROM))}

@@ -1,0 +1,1125 @@
+{
+  "status": "physical-menu-ready-core-configured-tape-deadline-failure",
+  "source_commit": "ec6b704500f8a84b4d824a62203d5a1de8f78d81",
+  "compiled_firmware_source": "599ffbdb07291fa6ab2b0e5f2f64d58a4c9e2888",
+  "native_boot_id": "bd103b1a199bc2be",
+  "raw_console_replay_matches": true,
+  "mmu_memory_proof_complete": true,
+  "native_boot_decoder_complete": false,
+  "secure_loader_verified": true,
+  "el1_handoff": true,
+  "sd_fat_started": true,
+  "configuration_complete": true,
+  "configuration_cycles_observed": 2,
+  "configurations": [
+    {
+      "generation": 4,
+      "bytes": 1712128,
+      "proof": {
+        "records": [
+          {
+            "stage": "configuration_arm",
+            "line": 1,
+            "values": {
+              "phase": "arm",
+              "owner": 161832615240342429,
+              "generation": 4,
+              "completed": 0,
+              "pending": 0,
+              "total": 1712128,
+              "base": 2491416576,
+              "counter": 25487477369,
+              "hash_ticks": 267826653
+            }
+          },
+          {
+            "stage": "configuration_start",
+            "line": 2,
+            "values": {
+              "phase": "start",
+              "owner": 161832615240342429,
+              "generation": 4,
+              "completed": 0,
+              "pending": 0,
+              "total": 1712128,
+              "base": 2491416576,
+              "counter": 25813240507,
+              "hash_ticks": 535709976
+            }
+          },
+          {
+            "stage": "configuration_engine",
+            "line": 20,
+            "values": {
+              "credits": 4,
+              "block_bytes": 1048560,
+              "next_job": 0,
+              "owner": 161832615240342429,
+              "generation": 4
+            }
+          },
+          {
+            "stage": "configuration_mailbox",
+            "line": 21,
+            "values": {
+              "phase": 1,
+              "owner": 161832615240342429,
+              "generation": 4,
+              "completed": 0,
+              "pending": 0,
+              "job": 0,
+              "cin": 5,
+              "cout": 5,
+              "rin": 6,
+              "rout": 6,
+              "bell": 0,
+              "status": 3338334543,
+              "state": 0,
+              "next": 0,
+              "slot": -1,
+              "cmd_used": 0,
+              "resp_used": 0
+            }
+          },
+          {
+            "stage": "configuration_write",
+            "line": 22,
+            "values": {
+              "phase": "write",
+              "owner": 161832615240342429,
+              "generation": 4,
+              "completed": 0,
+              "pending": 1048512,
+              "total": 1712128,
+              "base": 2491416576,
+              "counter": 26330684845,
+              "hash_ticks": 965353656
+            }
+          },
+          {
+            "stage": "configuration_mailbox",
+            "line": 23,
+            "values": {
+              "phase": 2,
+              "owner": 161832615240342429,
+              "generation": 4,
+              "completed": 0,
+              "pending": 1048512,
+              "job": 0,
+              "cin": 5,
+              "cout": 5,
+              "rin": 6,
+              "rout": 6,
+              "bell": 0,
+              "status": 3338334543,
+              "state": 0,
+              "next": 0,
+              "slot": -1,
+              "cmd_used": 0,
+              "resp_used": 0
+            }
+          },
+          {
+            "stage": "configuration_write",
+            "line": 24,
+            "values": {
+              "phase": "write",
+              "owner": 161832615240342429,
+              "generation": 4,
+              "completed": 0,
+              "pending": 1712128,
+              "total": 1712128,
+              "base": 2491416576,
+              "counter": 26859231053,
+              "hash_ticks": 1395891924
+            }
+          },
+          {
+            "stage": "configuration_mailbox",
+            "line": 25,
+            "values": {
+              "phase": 2,
+              "owner": 161832615240342429,
+              "generation": 4,
+              "completed": 0,
+              "pending": 1712128,
+              "job": 1,
+              "cin": 9,
+              "cout": 9,
+              "rin": 7,
+              "rout": 6,
+              "bell": 1,
+              "status": 3338334543,
+              "state": 0,
+              "next": 0,
+              "slot": -1,
+              "cmd_used": 0,
+              "resp_used": 0
+            }
+          },
+          {
+            "stage": "configuration_poll",
+            "line": 26,
+            "values": {
+              "phase": "poll",
+              "owner": 161832615240342429,
+              "generation": 4,
+              "completed": 0,
+              "pending": 1712128,
+              "total": 1712128,
+              "base": 2491416576,
+              "counter": 27511139305,
+              "hash_ticks": 1929381080
+            }
+          },
+          {
+            "stage": "configuration_mailbox",
+            "line": 27,
+            "values": {
+              "phase": 3,
+              "owner": 161832615240342429,
+              "generation": 4,
+              "completed": 1048512,
+              "pending": 663616,
+              "job": 2,
+              "cin": 13,
+              "cout": 13,
+              "rin": 8,
+              "rout": 7,
+              "bell": 1,
+              "status": 3338334543,
+              "state": 0,
+              "next": 0,
+              "slot": -1,
+              "cmd_used": 0,
+              "resp_used": 0
+            }
+          },
+          {
+            "stage": "configuration_poll",
+            "line": 28,
+            "values": {
+              "phase": "poll",
+              "owner": 161832615240342429,
+              "generation": 4,
+              "completed": 1048512,
+              "pending": 663616,
+              "total": 1712128,
+              "base": 2491416576,
+              "counter": 27967242478,
+              "hash_ticks": 2298807318
+            }
+          },
+          {
+            "stage": "configuration_mailbox",
+            "line": 29,
+            "values": {
+              "phase": 3,
+              "owner": 161832615240342429,
+              "generation": 4,
+              "completed": 1712128,
+              "pending": 0,
+              "job": 2,
+              "cin": 13,
+              "cout": 13,
+              "rin": 8,
+              "rout": 8,
+              "bell": 0,
+              "status": 3338334543,
+              "state": 0,
+              "next": 0,
+              "slot": -1,
+              "cmd_used": 0,
+              "resp_used": 0
+            }
+          },
+          {
+            "stage": "configuration_status",
+            "line": 30,
+            "values": {
+              "phase": "status",
+              "owner": 161832615240342429,
+              "generation": 4,
+              "completed": 1712128,
+              "pending": 0,
+              "total": 1712128,
+              "base": 2491416576,
+              "counter": 28424125484,
+              "hash_ticks": 2669633957
+            }
+          },
+          {
+            "stage": "fabric_activation",
+            "line": 31,
+            "values": {
+              "owner": 161832615240342429,
+              "generation": 4,
+              "previous": 0,
+              "rearm": 0
+            }
+          },
+          {
+            "stage": "configuration_complete",
+            "line": 32,
+            "values": {
+              "phase": "complete",
+              "owner": 161832615240342429,
+              "generation": 4,
+              "completed": 1712128,
+              "pending": 0,
+              "total": 1712128,
+              "base": 2491416576,
+              "counter": 28705124159,
+              "hash_ticks": 2935210397
+            }
+          }
+        ],
+        "errors": [],
+        "complete": true,
+        "programmed": null,
+        "activation": {
+          "stage": "fabric_activation",
+          "line": 31,
+          "values": {
+            "owner": 161832615240342429,
+            "generation": 4,
+            "previous": 0,
+            "rearm": 0
+          }
+        },
+        "owner": 161832615240342429,
+        "offset": 1712128,
+        "start_observation": {
+          "records": [
+            {
+              "phase": 0,
+              "status": 0,
+              "line": 3
+            },
+            {
+              "phase": 1,
+              "status": 0,
+              "line": 4
+            },
+            {
+              "phase": 2,
+              "status": 0,
+              "line": 5
+            },
+            {
+              "phase": 3,
+              "status": 0,
+              "line": 6
+            },
+            {
+              "phase": 4,
+              "status": 0,
+              "line": 9
+            },
+            {
+              "phase": 12,
+              "status": 0,
+              "line": 10
+            },
+            {
+              "phase": 13,
+              "status": 0,
+              "line": 11
+            },
+            {
+              "phase": 14,
+              "status": 0,
+              "line": 12
+            },
+            {
+              "phase": 5,
+              "status": 0,
+              "line": 13
+            },
+            {
+              "phase": 6,
+              "status": 0,
+              "line": 14
+            },
+            {
+              "phase": 7,
+              "status": 2,
+              "line": 15
+            },
+            {
+              "phase": 8,
+              "status": 0,
+              "line": 16
+            },
+            {
+              "phase": 9,
+              "status": 0,
+              "line": 17
+            },
+            {
+              "phase": 10,
+              "status": 0,
+              "line": 18
+            },
+            {
+              "phase": 11,
+              "status": 0,
+              "line": 19
+            }
+          ],
+          "complete": true,
+          "isolation": {
+            "status": 0,
+            "line": 8
+          },
+          "isolation_io": {
+            "fill": 0,
+            "branch": 3,
+            "cin": 2,
+            "cout": 2,
+            "bell": 1,
+            "polls": 2,
+            "header": 0,
+            "line": 7
+          },
+          "hardware_authority": false
+        },
+        "timing": {
+          "counter_frequency": 400000000,
+          "first_counter": 25487477369,
+          "last_counter": 28705124159,
+          "hash_ticks": 2935210397,
+          "interval_ticks": 3217646790,
+          "interval_hash_ticks": 2667383744
+        },
+        "unparsed_fragments_sha256": "63f5ece9c38d536368c3dfb6e8dc4f06aff98bd4769a9424be2499a261514a30"
+      }
+    },
+    {
+      "generation": 10,
+      "bytes": 1654784,
+      "proof": {
+        "records": [
+          {
+            "stage": "configuration_arm",
+            "line": 1,
+            "values": {
+              "phase": "arm",
+              "owner": 161832615240342429,
+              "generation": 10,
+              "completed": 0,
+              "pending": 0,
+              "total": 1654784,
+              "base": 2491416576,
+              "counter": 47406388810,
+              "hash_ticks": 3194058296
+            }
+          },
+          {
+            "stage": "configuration_start",
+            "line": 2,
+            "values": {
+              "phase": "start",
+              "owner": 161832615240342429,
+              "generation": 10,
+              "completed": 0,
+              "pending": 0,
+              "total": 1654784,
+              "base": 2491416576,
+              "counter": 47721541571,
+              "hash_ticks": 3452953474
+            }
+          },
+          {
+            "stage": "configuration_engine",
+            "line": 20,
+            "values": {
+              "credits": 4,
+              "block_bytes": 1048560,
+              "next_job": 2,
+              "owner": 161832615240342429,
+              "generation": 10
+            }
+          },
+          {
+            "stage": "configuration_mailbox",
+            "line": 21,
+            "values": {
+              "phase": 1,
+              "owner": 161832615240342429,
+              "generation": 10,
+              "completed": 0,
+              "pending": 0,
+              "job": 2,
+              "cin": 18,
+              "cout": 18,
+              "rin": 11,
+              "rout": 11,
+              "bell": 0,
+              "status": 3338334543,
+              "state": 0,
+              "next": 0,
+              "slot": -1,
+              "cmd_used": 0,
+              "resp_used": 0
+            }
+          },
+          {
+            "stage": "configuration_write",
+            "line": 22,
+            "values": {
+              "phase": "write",
+              "owner": 161832615240342429,
+              "generation": 10,
+              "completed": 0,
+              "pending": 1048512,
+              "total": 1654784,
+              "base": 2491416576,
+              "counter": 48230686235,
+              "hash_ticks": 3873705957
+            }
+          },
+          {
+            "stage": "configuration_mailbox",
+            "line": 23,
+            "values": {
+              "phase": 2,
+              "owner": 161832615240342429,
+              "generation": 10,
+              "completed": 0,
+              "pending": 1048512,
+              "job": 2,
+              "cin": 18,
+              "cout": 18,
+              "rin": 11,
+              "rout": 11,
+              "bell": 0,
+              "status": 3338334543,
+              "state": 0,
+              "next": 0,
+              "slot": -1,
+              "cmd_used": 0,
+              "resp_used": 0
+            }
+          },
+          {
+            "stage": "configuration_write",
+            "line": 24,
+            "values": {
+              "phase": "write",
+              "owner": 161832615240342429,
+              "generation": 10,
+              "completed": 0,
+              "pending": 1654784,
+              "total": 1654784,
+              "base": 2491416576,
+              "counter": 48748930373,
+              "hash_ticks": 4295268792
+            }
+          },
+          {
+            "stage": "configuration_mailbox",
+            "line": 25,
+            "values": {
+              "phase": 2,
+              "owner": 161832615240342429,
+              "generation": 10,
+              "completed": 0,
+              "pending": 1654784,
+              "job": 3,
+              "cin": 22,
+              "cout": 22,
+              "rin": 12,
+              "rout": 11,
+              "bell": 1,
+              "status": 3338334543,
+              "state": 0,
+              "next": 0,
+              "slot": -1,
+              "cmd_used": 0,
+              "resp_used": 0
+            }
+          },
+          {
+            "stage": "configuration_poll",
+            "line": 26,
+            "values": {
+              "phase": "poll",
+              "owner": 161832615240342429,
+              "generation": 10,
+              "completed": 0,
+              "pending": 1654784,
+              "total": 1654784,
+              "base": 2491416576,
+              "counter": 49379985145,
+              "hash_ticks": 4810928952
+            }
+          },
+          {
+            "stage": "configuration_mailbox",
+            "line": 27,
+            "values": {
+              "phase": 3,
+              "owner": 161832615240342429,
+              "generation": 10,
+              "completed": 1048512,
+              "pending": 606272,
+              "job": 4,
+              "cin": 26,
+              "cout": 26,
+              "rin": 13,
+              "rout": 12,
+              "bell": 1,
+              "status": 3338334543,
+              "state": 0,
+              "next": 0,
+              "slot": -1,
+              "cmd_used": 0,
+              "resp_used": 0
+            }
+          },
+          {
+            "stage": "configuration_poll",
+            "line": 28,
+            "values": {
+              "phase": "poll",
+              "owner": 161832615240342429,
+              "generation": 10,
+              "completed": 1048512,
+              "pending": 606272,
+              "total": 1654784,
+              "base": 2491416576,
+              "counter": 49815196627,
+              "hash_ticks": 5162494223
+            }
+          },
+          {
+            "stage": "configuration_mailbox",
+            "line": 29,
+            "values": {
+              "phase": 3,
+              "owner": 161832615240342429,
+              "generation": 10,
+              "completed": 1654784,
+              "pending": 0,
+              "job": 4,
+              "cin": 26,
+              "cout": 26,
+              "rin": 13,
+              "rout": 13,
+              "bell": 0,
+              "status": 3338334543,
+              "state": 0,
+              "next": 0,
+              "slot": -1,
+              "cmd_used": 0,
+              "resp_used": 0
+            }
+          },
+          {
+            "stage": "configuration_status",
+            "line": 30,
+            "values": {
+              "phase": "status",
+              "owner": 161832615240342429,
+              "generation": 10,
+              "completed": 1654784,
+              "pending": 0,
+              "total": 1654784,
+              "base": 2491416576,
+              "counter": 50251162988,
+              "hash_ticks": 5515448444
+            }
+          },
+          {
+            "stage": "fabric_activation",
+            "line": 31,
+            "values": {
+              "owner": 161832615240342429,
+              "generation": 10,
+              "previous": 4,
+              "rearm": 1
+            }
+          },
+          {
+            "stage": "configuration_complete",
+            "line": 32,
+            "values": {
+              "phase": "complete",
+              "owner": 161832615240342429,
+              "generation": 10,
+              "completed": 1654784,
+              "pending": 0,
+              "total": 1654784,
+              "base": 2491416576,
+              "counter": 50523415187,
+              "hash_ticks": 5772136718
+            }
+          }
+        ],
+        "errors": [],
+        "complete": true,
+        "programmed": null,
+        "activation": {
+          "stage": "fabric_activation",
+          "line": 31,
+          "values": {
+            "owner": 161832615240342429,
+            "generation": 10,
+            "previous": 4,
+            "rearm": 1
+          }
+        },
+        "owner": 161832615240342429,
+        "offset": 1654784,
+        "start_observation": {
+          "records": [
+            {
+              "phase": 0,
+              "status": 0,
+              "line": 3
+            },
+            {
+              "phase": 1,
+              "status": 0,
+              "line": 4
+            },
+            {
+              "phase": 2,
+              "status": 0,
+              "line": 5
+            },
+            {
+              "phase": 3,
+              "status": 0,
+              "line": 6
+            },
+            {
+              "phase": 4,
+              "status": 0,
+              "line": 9
+            },
+            {
+              "phase": 12,
+              "status": 0,
+              "line": 10
+            },
+            {
+              "phase": 13,
+              "status": 0,
+              "line": 11
+            },
+            {
+              "phase": 14,
+              "status": 0,
+              "line": 12
+            },
+            {
+              "phase": 5,
+              "status": 0,
+              "line": 13
+            },
+            {
+              "phase": 6,
+              "status": 0,
+              "line": 14
+            },
+            {
+              "phase": 7,
+              "status": 2,
+              "line": 15
+            },
+            {
+              "phase": 8,
+              "status": 0,
+              "line": 16
+            },
+            {
+              "phase": 9,
+              "status": 0,
+              "line": 17
+            },
+            {
+              "phase": 10,
+              "status": 0,
+              "line": 18
+            },
+            {
+              "phase": 11,
+              "status": 0,
+              "line": 19
+            }
+          ],
+          "complete": true,
+          "isolation": {
+            "status": 0,
+            "line": 8
+          },
+          "isolation_io": {
+            "fill": 0,
+            "branch": 3,
+            "cin": 15,
+            "cout": 15,
+            "bell": 1,
+            "polls": 2,
+            "header": 0,
+            "line": 7
+          },
+          "hardware_authority": false
+        },
+        "timing": {
+          "counter_frequency": 400000000,
+          "first_counter": 47406388810,
+          "last_counter": 50523415187,
+          "hash_ticks": 5772136718,
+          "interval_ticks": 3117026377,
+          "interval_hash_ticks": 2578078422
+        },
+        "unparsed_fragments_sha256": "48a405afaf3fc2bbc247a1003a615fb31a26fed70d092bf389f3009039dd0698"
+      }
+    }
+  ],
+  "smmu_observations": [
+    "NOTICE:  FES_NANO_SMMU status=0 reads=26 idr0=80f7e3f idr1=e739d18 aidr=1 s_idr1=80000018 cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 identified=1 settled=1 bypass_controls_clear=1 access=unqualified",
+    "NOTICE:  FES_NANO_SMMU status=0 reads=26 idr0=80f7e3f idr1=e739d18 aidr=1 s_idr1=80000018 cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 identified=1 settled=1 bypass_controls_clear=1 access=unqualified",
+    "NOTICE:  FES_NANO_SMMU status=0 reads=26 idr0=80f7e3f idr1=e739d18 aidr=1 s_idr1=80000018 cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 identified=1 settled=1 bypass_controls_clear=1 access=unqualified",
+    "NOTICE:  FES_NANO_SMMU status=0 reads=26 idr0=80f7e3f idr1=e739d18 aidr=1 s_idr1=80000018 cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 identified=1 settled=1 bypass_controls_clear=1 access=unqualified"
+  ],
+  "secure_smmu_id_visible": true,
+  "initial_menu_ready": true,
+  "startup_observation_seconds": 58.28575930302031,
+  "menu_frames_observed": 4,
+  "menu_window_drain_and_closure_observed": true,
+  "menu_observations": [
+    {
+      "scope": "nano-program-menu-v1",
+      "event": "frame",
+      "menu": 1,
+      "identity": {
+        "PackageID": "c69484491de11e1ee6d1c955b7d54e02e3fe513a0ad39d5376e23e539ba75444",
+        "CoreID": "fes.de25-embedded-diagnostic",
+        "ABI": "fes.de25-embedded-diagnostic",
+        "BuildID": "40bf9e4b00c1d25192fd06df5d97c5bd",
+        "Platform": "de25_nano",
+        "Device": "A5EB013BB23BE4SCS",
+        "ProgrammingProfile": "de25-embedded-hps-first-menu-prototype-v1",
+        "ActivationReceiptSHA256": "",
+        "ProgrammedSHA256": "a9baf204120486cf49ad6c0bd235893c111a49a829cfe7701996cd0ba063ab26",
+        "Major": 1,
+        "Minor": 0
+      },
+      "source_sha256": "af09f008891978f6c49431dc4b6b3a04c47626f0e7ac64f905c4fdc6332a4f69",
+      "source_generation": 4,
+      "opened": {
+        "Capabilities": {
+          "Mask": 15,
+          "ControlMask": 2,
+          "HardwareDrainMask": 12,
+          "FabricHandshake": 1
+        },
+        "Owner": 161832615240342429,
+        "Generation": 6,
+        "ResetMask": 5,
+        "NeverEnabled": false,
+        "MastersContained": false
+      },
+      "after": {
+        "Capabilities": {
+          "Mask": 15,
+          "ControlMask": 2,
+          "HardwareDrainMask": 12,
+          "FabricHandshake": 1
+        },
+        "Owner": 161832615240342429,
+        "Generation": 6,
+        "ResetMask": 5,
+        "NeverEnabled": false,
+        "MastersContained": false
+      },
+      "frames": 1,
+      "frame": {
+        "Generation": 1,
+        "Sequence": 1,
+        "Submitted": 1,
+        "Slot": 0,
+        "Underflows": 0
+      },
+      "memory_sha256": "125441e0ad19db5c5d8ca226c8e78ae89672b44fd6a6b36e799cfdd2b1d65353",
+      "control_sha256": "f5bff50ea84170496c170b110c0d1279c19d3af77f3f79981007fe9334068981",
+      "access_sha256": "2da018d3d93ddf1194619a1575e929a8844519fbf8cd26fd5d541054cf3a54d9"
+    },
+    {
+      "scope": "nano-program-menu-v1",
+      "event": "frame",
+      "menu": 1,
+      "identity": {
+        "PackageID": "c69484491de11e1ee6d1c955b7d54e02e3fe513a0ad39d5376e23e539ba75444",
+        "CoreID": "fes.de25-embedded-diagnostic",
+        "ABI": "fes.de25-embedded-diagnostic",
+        "BuildID": "40bf9e4b00c1d25192fd06df5d97c5bd",
+        "Platform": "de25_nano",
+        "Device": "A5EB013BB23BE4SCS",
+        "ProgrammingProfile": "de25-embedded-hps-first-menu-prototype-v1",
+        "ActivationReceiptSHA256": "",
+        "ProgrammedSHA256": "a9baf204120486cf49ad6c0bd235893c111a49a829cfe7701996cd0ba063ab26",
+        "Major": 1,
+        "Minor": 0
+      },
+      "source_sha256": "af09f008891978f6c49431dc4b6b3a04c47626f0e7ac64f905c4fdc6332a4f69",
+      "source_generation": 4,
+      "opened": {
+        "Capabilities": {
+          "Mask": 15,
+          "ControlMask": 2,
+          "HardwareDrainMask": 12,
+          "FabricHandshake": 1
+        },
+        "Owner": 161832615240342429,
+        "Generation": 6,
+        "ResetMask": 5,
+        "NeverEnabled": false,
+        "MastersContained": false
+      },
+      "after": {
+        "Capabilities": {
+          "Mask": 15,
+          "ControlMask": 2,
+          "HardwareDrainMask": 12,
+          "FabricHandshake": 1
+        },
+        "Owner": 161832615240342429,
+        "Generation": 6,
+        "ResetMask": 5,
+        "NeverEnabled": false,
+        "MastersContained": false
+      },
+      "frames": 2,
+      "frame": {
+        "Generation": 1,
+        "Sequence": 2,
+        "Submitted": 2,
+        "Slot": 1,
+        "Underflows": 0
+      },
+      "memory_sha256": "125441e0ad19db5c5d8ca226c8e78ae89672b44fd6a6b36e799cfdd2b1d65353",
+      "control_sha256": "f5bff50ea84170496c170b110c0d1279c19d3af77f3f79981007fe9334068981",
+      "access_sha256": "2da018d3d93ddf1194619a1575e929a8844519fbf8cd26fd5d541054cf3a54d9"
+    },
+    {
+      "scope": "nano-program-menu-v1",
+      "event": "frame",
+      "menu": 1,
+      "identity": {
+        "PackageID": "c69484491de11e1ee6d1c955b7d54e02e3fe513a0ad39d5376e23e539ba75444",
+        "CoreID": "fes.de25-embedded-diagnostic",
+        "ABI": "fes.de25-embedded-diagnostic",
+        "BuildID": "40bf9e4b00c1d25192fd06df5d97c5bd",
+        "Platform": "de25_nano",
+        "Device": "A5EB013BB23BE4SCS",
+        "ProgrammingProfile": "de25-embedded-hps-first-menu-prototype-v1",
+        "ActivationReceiptSHA256": "",
+        "ProgrammedSHA256": "a9baf204120486cf49ad6c0bd235893c111a49a829cfe7701996cd0ba063ab26",
+        "Major": 1,
+        "Minor": 0
+      },
+      "source_sha256": "af09f008891978f6c49431dc4b6b3a04c47626f0e7ac64f905c4fdc6332a4f69",
+      "source_generation": 4,
+      "opened": {
+        "Capabilities": {
+          "Mask": 15,
+          "ControlMask": 2,
+          "HardwareDrainMask": 12,
+          "FabricHandshake": 1
+        },
+        "Owner": 161832615240342429,
+        "Generation": 6,
+        "ResetMask": 5,
+        "NeverEnabled": false,
+        "MastersContained": false
+      },
+      "after": {
+        "Capabilities": {
+          "Mask": 15,
+          "ControlMask": 2,
+          "HardwareDrainMask": 12,
+          "FabricHandshake": 1
+        },
+        "Owner": 161832615240342429,
+        "Generation": 6,
+        "ResetMask": 5,
+        "NeverEnabled": false,
+        "MastersContained": false
+      },
+      "frames": 3,
+      "frame": {
+        "Generation": 1,
+        "Sequence": 3,
+        "Submitted": 3,
+        "Slot": 0,
+        "Underflows": 0
+      },
+      "memory_sha256": "125441e0ad19db5c5d8ca226c8e78ae89672b44fd6a6b36e799cfdd2b1d65353",
+      "control_sha256": "f5bff50ea84170496c170b110c0d1279c19d3af77f3f79981007fe9334068981",
+      "access_sha256": "2da018d3d93ddf1194619a1575e929a8844519fbf8cd26fd5d541054cf3a54d9"
+    }
+  ],
+  "menu_return_observation": {
+    "scope": "nano-program-menu-v1",
+    "event": "return",
+    "menu": 1,
+    "identity": {
+      "PackageID": "c69484491de11e1ee6d1c955b7d54e02e3fe513a0ad39d5376e23e539ba75444",
+      "CoreID": "fes.de25-embedded-diagnostic",
+      "ABI": "fes.de25-embedded-diagnostic",
+      "BuildID": "40bf9e4b00c1d25192fd06df5d97c5bd",
+      "Platform": "de25_nano",
+      "Device": "A5EB013BB23BE4SCS",
+      "ProgrammingProfile": "de25-embedded-hps-first-menu-prototype-v1",
+      "ActivationReceiptSHA256": "",
+      "ProgrammedSHA256": "a9baf204120486cf49ad6c0bd235893c111a49a829cfe7701996cd0ba063ab26",
+      "Major": 1,
+      "Minor": 0
+    },
+    "source_sha256": "af09f008891978f6c49431dc4b6b3a04c47626f0e7ac64f905c4fdc6332a4f69",
+    "source_generation": 4,
+    "opened": {
+      "Capabilities": {
+        "Mask": 15,
+        "ControlMask": 2,
+        "HardwareDrainMask": 12,
+        "FabricHandshake": 1
+      },
+      "Owner": 161832615240342429,
+      "Generation": 6,
+      "ResetMask": 5,
+      "NeverEnabled": false,
+      "MastersContained": false
+    },
+    "after": {
+      "Capabilities": {
+        "Mask": 15,
+        "ControlMask": 2,
+        "HardwareDrainMask": 12,
+        "FabricHandshake": 1
+      },
+      "Owner": 161832615240342429,
+      "Generation": 7,
+      "ResetMask": 15,
+      "NeverEnabled": false,
+      "MastersContained": true
+    },
+    "frames": 4,
+    "frame": {
+      "Generation": 1,
+      "Sequence": 4,
+      "Submitted": 4,
+      "Slot": 1,
+      "Underflows": 0
+    },
+    "memory_sha256": "125441e0ad19db5c5d8ca226c8e78ae89672b44fd6a6b36e799cfdd2b1d65353",
+    "control_sha256": "f5bff50ea84170496c170b110c0d1279c19d3af77f3f79981007fe9334068981",
+    "access_sha256": "2da018d3d93ddf1194619a1575e929a8844519fbf8cd26fd5d541054cf3a54d9"
+  },
+  "first_launch_requested": true,
+  "core_configured": "fes.zx81",
+  "core_running": false,
+  "normal_core_return": false,
+  "tape_attempted": true,
+  "tape_failure": {
+    "error": -6,
+    "owner": 161832615240342429,
+    "generation": 11,
+    "bytes": 917,
+    "opcode": 8,
+    "index": 132,
+    "offset": 16,
+    "reads": 6738,
+    "writes": 420,
+    "frame_phase": 1,
+    "next": 512,
+    "frame_failed": 1,
+    "complete": 0,
+    "began": 51143549618,
+    "tick": 51543541067,
+    "hz": 400000000
+  },
+  "tape_deadline_seconds": 1,
+  "tape_last_successful_clock_seconds": 0.9999786225,
+  "tape_failing_clock_sample_recorded": false,
+  "tape_failure_contained": true,
+  "final_app_state": {
+    "scope": "nano-tenfoot-serial-v1",
+    "display": "serial-state-only",
+    "titles": [
+      "ZX81",
+      "ZX80"
+    ],
+    "focus": 0,
+    "loading": false,
+    "load_error": "",
+    "session": "idle",
+    "launch": "launching",
+    "launch_error": "",
+    "retry_stop": false,
+    "native": {
+      "State": "reboot_required",
+      "Owner": 161832615240342429,
+      "Generation": 1,
+      "Identity": {
+        "PackageID": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+        "CoreID": "fes.zx81",
+        "ABI": "fes.computer",
+        "BuildID": "0792e51a2e51512bfb8fe44e93a69ddd",
+        "Platform": "de25_nano",
+        "Device": "A5EB013BB23BE4SCS",
+        "ProgrammingProfile": "de25-native-computer-v1",
+        "ActivationReceiptSHA256": "5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c",
+        "ProgrammedSHA256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949",
+        "Major": 1,
+        "Minor": 0
+      },
+      "rom_receipt_sha256": "5c40790f10fc8e0a69a4048b7f9e1c735c86d9f014ad0d3142c139bc3bbb7e2c",
+      "Held": true,
+      "Error": "native program service: instruction-fetch observation failed\ncomputer operation exceeded its time or poll limit: secure initial tape limit\ncomputer transport retired; platform containment required\nnative fabric: bridge firmware status 4"
+    }
+  },
+  "ordinary_core_load_acceptance": false,
+  "physical_display_verified": false,
+  "physical_input_verified": false,
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "auto_adjust_readback": 1,
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "programming_reservations": {
+    "recovery": {
+      "reservation_sha256": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+      "scan_sha256": "f187687678ffc3667f6a261f8fe0c9cb46fb4a752a7612b355a4aeb7b144656f"
+    },
+    "native": {
+      "reservation_sha256": "7e0e8bc0cbb927c5948f02e70ebecb984fa0f213d599a61a37bee3cd17c637e7",
+      "scan_sha256": "ea1fb34374929a1df5ee0ae353f334899b2ce7ed8531342b86b9df804e953805"
+    }
+  },
+  "historical_programming_failures": 2,
+  "new_programming_failures": 0,
+  "consumed_image_retired": true,
+  "hardware_actions": false,
+  "goal_complete": false,
+  "interpretation": "The selected control-address repair permits menu Ready with four frame submissions, secure SMMU ID visibility, window access and a drained menu closure before the first launch. ZX81 FPGA configuration/activation succeeds and the App retains a ROM receipt, but the first initial tape transfer exceeds the unchanged one-second limit after 512 of 917 bytes. The trace reports successful failure containment and reboot_required with resources held. No running-core or core-return cycle, HDMI capture or ordinary appliance acceptance is established.",
+  "next_step": "Investigate the sampled per-access ownership costs and uncached EL3 stack traffic while preserving every live CPU/ownership/USB/register guard and the original one-second tape budget. Do not replay this consumed image or extend its deadline.",
+  "logs": {
+    "native-console.log": "b306bafe27e785c4f0fb21774de9c863ab4368e527b59c6874570c5feaeeb100",
+    "native-result.json": "5170051b594780c49af50908d43902392ba1dbcc61e61f5f242c59e13eb47895",
+    "experiment-result.json": "00c314c76495c1f0b0b133a0f66034766fc519dd57afca13575b782fc6746607",
+    "uploads/result.json": "c208cf4f791f5b59476cb04caab33a0638948af32996a9c8f1ac58ff14afe2f9"
+  },
+  "error": "native failure marker; no further command",
+  "pass": false
+}

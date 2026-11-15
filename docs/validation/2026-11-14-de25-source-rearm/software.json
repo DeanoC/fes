@@ -1,0 +1,205 @@
+{
+  "format": 1,
+  "classification": "software-only default-off repeated-source prototype",
+  "producer_base": "47a9938e38981d290a3de50c160696072465cb71",
+  "source_identity": "selected file hashes; subsequent publication must preserve these bytes",
+  "selected_source_sha256": {
+    "platform/embedded/firmware/input_tables.c": "b842dc2ea784ec5c2aef846c7da22b971b2e9fa1f688f29e24bc14299fbec58f",
+    "platform/embedded/firmware/input_transfer.c": "4ae4a5e625ee4d0e8bbd3014dfb7cc00fa2ce6b8e3fd3b97865f789bb42b2a5d",
+    "platform/embedded/firmware/input_transfer_service.c": "ba906890e095fb614bc2563478ed328547ac365f3dcecd59f0c40d0874577729",
+    "platform/embedded/firmware/sdm_input_probe_setup.c": "1ccd8a84f52c9a42b0d75d25817faaf209cac3f010e12d48ea5f03a316f5acb6",
+    "platform/embedded/firmware/command_queue.c": "3edc80c3b0101129dfbd13d6f1afbe378d5215a219db0f1731a734d0aa5b85a0",
+    "platform/embedded/firmware/source_retire.c": "bf6041c66f47b3f5c5fc7c47a3abd2a08dd05dea7249d61cf8629a37e3dc9b89",
+    "platform/embedded/firmware/nano_sdm_reader.c": "caafaa455805eddeb362cca4aa071ace0888a9e73cbe6d34e0de39bab1b61166",
+    "platform/embedded/firmware/input_tables.h": "9711d6c53eb890609ee8fd34e481a1029b2e67f5fcf58ed8f154c8b72feb1040",
+    "platform/embedded/firmware/input_transfer.h": "a27071356549965af5b315b8bc497b5e617d4397475a7076f1ea5fe0639cc327",
+    "platform/embedded/firmware/input_transfer_service.h": "ceb096f9bf6f3d5acb9a395a2a658ac423678c11e4ad8386ced3c4d52187eaf1",
+    "platform/embedded/firmware/sdm_input_probe_setup.h": "b7216f75ba8974768d1a85137852a182f97ca0ac32d389e53abe7114ee262faf",
+    "platform/embedded/firmware/command_queue.h": "d2c4ffc60f2795cd553429872d16ee2b7079e9f47dab6afaefea39136afa86ec",
+    "platform/embedded/firmware/nano_sdm_source_platform.inc": "d002f32f8d92d6226dc56b0930e8b00adf30c81c6189abcfe6fbe1f19c5aa495",
+    "platform/embedded/firmware/nano_sdm_input_finish.inc": "6c4dbade3f0a4ae47e8694536663b7f2624e6726c7f2fd258f971a07de15ca45",
+    "platform/embedded/firmware/source_retire.h": "4211804f47c5508b093611dcf0082db399f82a6f0ee4bdfa46d90c733fc97ff7",
+    "platform/embedded/firmware/nano_sdm_retire_platform.inc": "011bb1208dc093a8a6407bcbea911ff260b64dc049dd207a78f6668cff1b77ab",
+    "platform/embedded/firmware/nano_sdm_control_platform.inc": "760e21b8ba2d733e8267d90180d02e65af1db0d631ca067e1272e85297f0b5bc",
+    "platform/embedded/firmware/nano_sdm_control_mailbox.inc": "e81dd1c28a6a2bd18c605c79235bd423400dc0edd163faec84cdde65cff5d192",
+    "platform/embedded/firmware/nano_sdm_reader.h": "c61c536725e2ba0a2a443a0b441763ba5a5bd745590b8349849fea5516d7068c",
+    "platform/embedded/firmware/nano_sdm_reader_platform.inc": "cf0575ba15bff264e3589db005fea1ab9c7d76cde9ed9bbf77bddc4852504110",
+    "platform/embedded/firmware/nano_sdm_release_platform.inc": "0794c914d89ecd4642d4e8857870703375d5897165412990596a4c4638ba2ee5",
+    "platform/embedded/firmware/nano_sdm_rearm_platform.inc": "a5b85634f56e469f421ae80b99473c6b4b174c461c3610b6b562fc40159d8d97",
+    "platform/embedded/firmware/sdm_input_vendor_service.c": "d34a041ba1999dee1427877092fa57a9bddc9759ca59f0b6629398b2b14a2898",
+    "platform/embedded/firmware/tests/sdm_retire/warm_probe_test.c": "382b6d289ad2baee10bbeb5dc9355b74943dcb1fd4c4fed077d7623b319dae3c",
+    "platform/embedded/firmware/tests/sdm_retire/warm_service_test.c": "81118fe2f04e7bc2c1f32561951828dc622b3acf8afcae77ac839aad934da8e8",
+    "platform/embedded/firmware/nano_sdm_input_profile.py": "74b90a6a23ab1a8dc18611c6f7f1e4bbb2207e6f8d29048aa476f480f7be76e4",
+    "platform/embedded/firmware/tests/sdm_retire/continue_test.c": "824fe43d79e14e11e351b1122cd9bc26b59a2a191f192c0f2ec834dbd31d3982",
+    "platform/embedded/firmware/tests/sdm_retire/joined_test.c": "03d93e0d48f99519534f436891d0b747c43e644ee838279f29ef5e2de0372073",
+    "platform/embedded/firmware/tests/sdm_retire/retire_generation_test.c": "65c835245c0ccbca6d39f665732b9655c65f511c863b934af03df2c82b8f2233",
+    "platform/embedded/firmware/tests/sdm_retire/retire_observation_test.c": "003d4c0dc0ebbf8d5ff85fe7cd82e3deb3efd0589cdc773c3281df8d109e99e4",
+    "platform/embedded/firmware/tests/sdm_retire/retire_progress_faults.c": "a6ca3ba1c6b36de7a318c8a7dd6b233943fbbbc6edf4250fa3d511081711d4f4",
+    "platform/embedded/firmware/tests/sdm_retire/retire_test.c": "b76aefc46cffa4ab828c854f82f8e0f13a07acf95c5fbcbb1c4c09d2916e5243",
+    "platform/embedded/firmware/tests/sdm_retire/retire_validation_delay_test.c": "b1c18672c79a2f164c39692a531f918c69b9a60cb29a53ad13d1fff3819b3150",
+    "platform/embedded/firmware/tests/sdm_retire/source_release_test.c": "3e86455133bc135bac38a50a0b12116ad30ed6a0896b4b66485cb3b6de90ff06",
+    "platform/embedded/firmware/tests/sdm_retire/write_gate_test.c": "68a103b3a8ca968a01e90bdad53dd194f2476a6d3bba895e1333cddb7d3300f3",
+    "tests/test_nano_source_retirement.py": "d346040b2e817eccb465431233fd71109a198982bd86898fe392b4d8aed9bde0"
+  },
+  "checks": {
+    "warm-source-focused-final": {
+      "result": {
+        "argv": [
+          "env",
+          "FES_NANO_TFA_ROOT=/home/deano/fes/out/dev/de25-embedded-os/out/terasic-git-restore-tfa",
+          "FES_NANO_SHA_REFERENCE=/home/deano/fes/out/dev/de25-embedded-os/out/terasic-git-restore-tfa/plat/intel/soc/common/lib/sha/sha.c",
+          "python3",
+          "-m",
+          "unittest",
+          "-v",
+          "test_nano_source_retirement",
+          "test_nano_sdm_input_profile",
+          "test_nano_sdm_reader_profile",
+          "test_nano_sdm_continuation"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-source-release",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 80.8621153649874,
+        "log_sha256": "bb36c2862395aa09310ed0dcda1bfb67c9b5dda2ea99a72aef052f0eeb37d869"
+      },
+      "result_path": "/home/deano/fes/out/dev/de25-source-release/out/publication/warm-source-focused-final-result.json",
+      "result_sha256": "44e0074c9fe3c62bff769ab17dbae7b1f493d1f24e0641c218d374cb997c7924"
+    },
+    "warm-source-retained-history": {
+      "result": {
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "-v",
+          "test_nano_source_retirement.SourceRetirementTests.test_real_service_and_supplier_rearm_between_menu_and_computer",
+          "test_nano_source_retirement.SourceRetirementTests.test_real_source_release_supplier_requires_returned_owned_source",
+          "test_nano_sdm_input_profile"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-source-release",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 13.210340854944661,
+        "log_sha256": "b73c9caaaf4e6acc808c714f47d4f857c7bc2b34c5672cbe4e9e7497dcaa350d"
+      },
+      "result_path": "/home/deano/fes/out/dev/de25-source-release/out/publication/warm-source-retained-history-result.json",
+      "result_sha256": "7983ae1721bda1d7cecc9edd3abf78ece5c0c1adba5995368300695e1870a520"
+    },
+    "warm-source-enabled-compile-v3": {
+      "result": {
+        "argv": [
+          "python3",
+          "out/publication/compile-warm-source-v3.py"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-source-release",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 1.80210677604191,
+        "log_sha256": "121ad1d9d288c9d6f2516036e6325083e0e28750e227f8933382610d19f3a778"
+      },
+      "result_path": "/home/deano/fes/out/dev/de25-source-release/out/publication/warm-source-enabled-compile-v3-result.json",
+      "result_sha256": "732d1dc26998f7653d9bb095d427008ff8c63924efcfc051047fb065d8a8a51e"
+    },
+    "warm-source-consistency": {
+      "result": {
+        "argv": [
+          "env",
+          "PATH=/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin:/usr/local/bin:/usr/bin:/bin",
+          "make",
+          "PYTHON=/home/deano/fes/out/dev/de25-embedded-opt-in/out/source-release-test-venv/bin/python",
+          "check"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-source-release",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 11.008216221118346,
+        "log_sha256": "12571985016edac45856ed9f907b9f59b5df2ac554eaabfd3cabc217e4e86829"
+      },
+      "result_path": "/home/deano/fes/out/dev/de25-source-release/out/publication/warm-source-consistency-result.json",
+      "result_sha256": "1273c8da69f58d3d9fe64f6aa21eeb9c2023a3be15e5644eae0449d9bee569e5"
+    }
+  },
+  "models": {
+    "warm_probe_generations": 64,
+    "joined_service_generations": 12,
+    "joined_service_negative_cases": 40,
+    "source_release_cases": 66,
+    "command_generations": 384,
+    "retirement_generations": 256,
+    "retirement_negative_cases": 132
+  },
+  "compile": {
+    "result_sha256": "1b80cf21ed10734372bf581db703082f771286323301fb709b18b7b2ac95326c",
+    "classification": "manually enabled compile-only rearm; no admitted profile, linked BL31, whole EL3 stack qualification, boot image or hardware test",
+    "objects": {
+      "nano_cold_platform": {
+        "path": "/home/deano/fes/out/dev/de25-source-release/out/warm-source-enabled-compile-v3/source/build/agilex5/release/bl31/nano_cold_platform.o",
+        "sha256": "8e4cc7f21a079c79d765ca92a65102ca9d3c3b0df3258a16784e01040d8c42a2",
+        "symbols_sha256": "4b47ccbae65d26b949855c7fc539819a49d9aeddcfaac168b3c0d6ee8ff5bd60"
+      },
+      "socfpga_sip_svc": {
+        "path": "/home/deano/fes/out/dev/de25-source-release/out/warm-source-enabled-compile-v3/source/build/agilex5/release/bl31/socfpga_sip_svc.o",
+        "sha256": "72a20e6a56c12120fd687dc44b233b5fbb9fcd405c0483d35ed30c0934ce5cfd",
+        "symbols_sha256": "c1987f67939ae274dcd398c79d6a81c6c71994300c891cf7416a77207ea6ac3f"
+      },
+      "input_tables": {
+        "path": "/home/deano/fes/out/dev/de25-source-release/out/warm-source-enabled-compile-v3/source/build/agilex5/release/bl31/input_tables.o",
+        "sha256": "bfa5c55bd3888abb41efe88697d69210bb433c3c89f311c684de0c1935f4e861",
+        "symbols_sha256": "e0edf5213da17643b419e8d22dc1dcd3b90481d13f08f0e8b7502d8c8abbc517"
+      },
+      "input_transfer": {
+        "path": "/home/deano/fes/out/dev/de25-source-release/out/warm-source-enabled-compile-v3/source/build/agilex5/release/bl31/input_transfer.o",
+        "sha256": "00206f3cc7f187bcb48ee2a40271fae6b49e1a3dda6651636715ee08956bf44c",
+        "symbols_sha256": "08160c7604bdc0d8d2f42f1732ef779b8fa6a3129c54ef7f56bb3edc6ef84ec0"
+      },
+      "input_transfer_service": {
+        "path": "/home/deano/fes/out/dev/de25-source-release/out/warm-source-enabled-compile-v3/source/build/agilex5/release/bl31/input_transfer_service.o",
+        "sha256": "99a140f7c7e32f7365348f56d293c29feacd541f51a10071bb79f6fbc294f966",
+        "symbols_sha256": "c5f17a467f5fb8eb198cf068287959a4d90c407da1d68ece7c63c895b5306890"
+      },
+      "probe_setup": {
+        "path": "/home/deano/fes/out/dev/de25-source-release/out/warm-source-enabled-compile-v3/source/build/agilex5/release/bl31/probe_setup.o",
+        "sha256": "66f471da9a29ef16897c32043eae165d26c1551849e7199e6ad6859e8e0d49c0",
+        "symbols_sha256": "9ae9a19d6800af9f4195c693bbcb614ee1b60a75ccd95d93c8da65579c86d980"
+      },
+      "command_queue": {
+        "path": "/home/deano/fes/out/dev/de25-source-release/out/warm-source-enabled-compile-v3/source/build/agilex5/release/bl31/command_queue.o",
+        "sha256": "e860e46a8bdd9aaa25c0a89127fd160af35985f4bc7c144ee33df3ce069bc8cc",
+        "symbols_sha256": "2536e4c32b576aeebacfb8e28cd85a87266e1e38841ee6e140bf1c8119b70e7d"
+      },
+      "source_retire": {
+        "path": "/home/deano/fes/out/dev/de25-source-release/out/warm-source-enabled-compile-v3/source/build/agilex5/release/bl31/source_retire.o",
+        "sha256": "9eff076e120551cd37c50ab912ef1c9eafcda93609ff72b025232e731bf7638e",
+        "symbols_sha256": "d8e95e6024b8bfe3649f445d7c91a79e74db9d433c67f28b5a607e5ffd3c0ba9"
+      },
+      "nano_sdm_reader": {
+        "path": "/home/deano/fes/out/dev/de25-source-release/out/warm-source-enabled-compile-v3/source/build/agilex5/release/bl31/nano_sdm_reader.o",
+        "sha256": "868cf6ac7e3070b2e260b1379d7356a5aeef8ba9354bad5280d7767d65749a57",
+        "symbols_sha256": "ae71a17f225b26d05a7026caa1575fcafd00ddb868c47501b9e9d1f81f96d3d2"
+      }
+    },
+    "transfer_prepare_individual_stack": {
+      "bytes": 896,
+      "kind": "static",
+      "unit": "input_transfer_service"
+    }
+  },
+  "source_release_exported": false,
+  "linked_bl31": false,
+  "whole_stack_qualified": false,
+  "boot_image": false,
+  "hardware_actions": false,
+  "known_failed_records": [
+    "warm-service-generations (fixture compile)",
+    "warm-service-failure-paths (stale-reply counterexample)",
+    "warm-source-focused (two nonexistent module names)",
+    "warm-source-enabled-compile (stale private generated-header copy)"
+  ],
+  "remaining": [
+    "selected source-bound repeated-load contract",
+    "SDK/entry and paired auditor integration",
+    "matched boot chain and fresh native file admission",
+    "new bounded physical menu/core/menu trial"
+  ]
+}

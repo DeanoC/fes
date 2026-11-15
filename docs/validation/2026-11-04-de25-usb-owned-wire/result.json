@@ -1,0 +1,196 @@
+{
+  "status": "validated off-board; fresh matched chain composed; hardware not run",
+  "base": "ecc90090cfe14d9e806a1b1b196edac91f1a064a",
+  "usb_wire_commit": "c0cf35bac",
+  "current_source": "faa14c06b086178f27771113807976c018fc1096",
+  "native_sdk_source": "c0cf35bac",
+  "source_sha256": {
+    "platform/embedded/firmware/README.md": "d9f096a569c63f6e4401d5ae38e27f478a80e7eaae730d9bf709a2a02fb4fc7a",
+    "platform/embedded/firmware/generated/fes_embedded_usb.h": "ade0e1cff50f78b4720baeb5f04458d7c0acf7d45b864fabd62b648461ce8595",
+    "platform/embedded/firmware/nano_bridge_platform.h": "3e85befcdd362d09de2617a094ef1386be7f256d77b9706bae4306d1885de880",
+    "platform/embedded/firmware/nano_bridge_platform.inc": "6f25ca440578def1efac7680b1aeeb79048a5782687528cd293061250145c0f3",
+    "platform/embedded/firmware/nano_owned_sip.inc": "371ca473e1b005c44695e017b3846b3774cef92daea42ef45e8d9e4a53fc4ccd",
+    "platform/embedded/firmware/nano_usb_service.c": "f8c01fca1200796243fbb9f265e257344bf054d88a54ce19a347f484793b694d",
+    "platform/embedded/firmware/nano_usb_service.h": "3a2eb240d223d270ea9a3d4efa4554d5ae4292176bf89e8b0f2d058a950325f1",
+    "platform/embedded/firmware/prepare_nano_owned.py": "05e31f5ffe90cae98cd1b598d2bda64b81b97a4745b4451bef9fccaeb8fc3632",
+    "platform/embedded/firmware/tests/nano_cold_platform_test.c": "1f79fc2856dd479f2ab1a78da72c6d350c4d63bab8fdbd0565e4ce8c770e1f5e",
+    "platform/embedded/firmware/tests/nano_sd_rpc.c": "c1cbd8fa08e254d39044194111bd9b258043ee44b3e11b8a986448b65518494d",
+    "platform/embedded/firmware/tests/nano_usb_board_test.c": "c837d09b2c1620e9d9f1b1310a1d2a721467775f1323c6156785370e28b4f790",
+    "platform/embedded/firmware/tests/nano_usb_rpc.c": "6d6e2bb83b431fbee173b5cc3efec2499a5d06d866d03069153542223c2112cc",
+    "platform/embedded/firmware/verify_owned_sip.py": "5826f0159fd63ab12a46880c9052a65266662495646db3749487ebb52dd576ec",
+    "platform/embedded/nano/cold_profile.py": "06008475f49b99cd280c2728f7789da3b902b737a14a1b976967ff0944f60ff3",
+    "platform/embedded/tamago/board/de25nano/fabric.go": "a7a9111cd82fd124b8e9de61e29aa5e161fa0f6d24747b0b5474772973c22271",
+    "platform/embedded/tamago/board/de25nano/usb.go": "1b6097d118569d10438fede58a5396347f72b45fca69e1e42f3d524780e7dec7",
+    "platform/embedded/tamago/dwc2/README.md": "bb7ea1f8cec6088af05b181691434b49444dfc7953b052ec65f8ffb473bbe220",
+    "platform/embedded/tamago/dwc2/host.go": "465fb42be99a13caeefd1b835e21c22a62640041921d73ffe962ce5d589c001d",
+    "platform/embedded/tamago/dwc2/owned_test.go": "3d3dcba2893c3b628253c694117a5546bcf5033961bf406701e1794b77289e2e",
+    "platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_usb.go": "f2cd673abb26569c0ca135861e907c9e11f116a6a60eb3884d14880cbf638f03",
+    "platform/embedded/tamago/nativefabric/verify.py": "acf4d42376d90185b46dcfbbf2dfc996149ee90872b6b2c8bc9de51bcff9e910",
+    "platform/embedded/tamago/sdcontrol/session_test.go": "ff3ae9b75cd98776d816138b6a6f1690808bf9670a3190a376aacc2102a7caab",
+    "platform/embedded/tamago/usbcontrol/README.md": "e8be10c179d9c9d41be6e6459b243c32222cccb004b799c2abaf2e30ab94d25c",
+    "platform/embedded/tamago/usbcontrol/control.go": "b7456fb481a7880f501e9f85df7313758e7817beea9279d616d721fee75cc203",
+    "platform/embedded/tamago/usbcontrol/control_test.go": "5fec968f8d625abbe1b66c3b6f536ca3eff6edffb907c5caacbfc72fcf3aea17",
+    "platform/embedded/tamago/usbcontrol/source.go": "87be502bced9b542dc60a0310f6474a865233d2094376c51917bd66f9bdfb5db",
+    "scripts/affected.py": "f5d06a7f0025302be3e23a4e3c66b14be9c35948b478c77580a874a5534c4ac9",
+    "scripts/consistency.py": "39afe8ab4b3efdffebc39a2ecc6b31e50d62d56ff44db3eb2d3dcc0b2da0b6d0",
+    "sources/mister-packages/README.md": "9debe5cf99091bd068f4abb3e217a2161a873335835f9362a1df1ac64b1aa17b",
+    "sources/mister-packages/docs/embedded-usb.md": "ba38389e5b06a27678b58474fe8ba686a8b574c7a615b8d5317df2a156ca189a",
+    "sources/mister-packages/packages/fabric/fes_fabric_embedded_usb.yaml": "4335972e813a50be0f40eb2f4829c8e6d9adb357b15c99dd953dbf315234911d",
+    "sources/mister-packages/testdata/oracles/fes-embedded-usb.json": "626cd8d5de837b52156989e3cd23906426524eb382ad13e989c55586ffe2d8ec",
+    "tests/test_consistency.py": "5798188789b9483ac7cfb616e43dc20a268b2473926d86fb52a58b964c0a61f6",
+    "tests/test_nano_cold.py": "097923c9807e81507c59fae518b5c4909430d324cdd498a60ca274e66449ceba",
+    "tests/test_nano_configuration.py": "d1f8e6a831b5ae26c026eb1a96ba755cf7d60047820ed32b4413bcf76e742b5e",
+    "tests/test_nano_hps_context.py": "8a1369e63816991fd5f2f1cfb2abdbb056d2f4ec3c77c54e5a3060b4266ff9ba"
+  },
+  "classification": "Actual C firmware dispatcher/platform with modeled registers; actual Go DWC2 driver with modeled USB device; native integration through Verilated FPGA; AArch64 cross-builds. No physical USB or App launch acceptance.",
+  "initial_full_parent_run": {
+    "source": "c0cf35bac",
+    "tests": 1511,
+    "failures": 3,
+    "skipped": 42,
+    "result": "failed; retained unchanged",
+    "failures_repaired": [
+      "generated consumer count and validated-source fixture",
+      "missing USB service link input in cold provider test",
+      "missing USB service link input in configuration test"
+    ]
+  },
+  "corrected_suites": {
+    "nano_tests": 241,
+    "consistency_tests": 11,
+    "result": "passed; all original failing cases included",
+    "full_parent_rerun": false
+  },
+  "remaining_checks": [
+    {
+      "label": "working-tree generated consumer consistency",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": ".",
+      "returncode": 0,
+      "elapsed": 2.0851793530164286
+    },
+    {
+      "label": "native SD firmware lease and PIO lifecycle",
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "90s",
+        "./sdcontrol",
+        "./sdhci",
+        "./fat",
+        "./packagestore"
+      ],
+      "cwd": "platform/embedded/tamago",
+      "returncode": 0,
+      "elapsed": 6.258390516974032
+    },
+    {
+      "label": "native runtime firmware and FPGA launch integration",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "cwd": ".",
+      "returncode": 0,
+      "elapsed": 88.56602035707328
+    },
+    {
+      "label": "embedded producer identity and native control integration",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "cwd": ".",
+      "returncode": 0,
+      "elapsed": 26.276289782952517
+    },
+    {
+      "label": "contract schemas and generated fixtures",
+      "argv": [
+        "make",
+        "test",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "cwd": "sources/mister-packages",
+      "returncode": 0,
+      "elapsed": 3.440352061064914
+    },
+    {
+      "label": "embedded firmware and identity/drain RTL integration",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/firmware/verify.py"
+      ],
+      "cwd": ".",
+      "returncode": 0,
+      "elapsed": 5.58894705795683
+    },
+    {
+      "label": "test_*.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "cwd": "sources/misteross",
+      "returncode": 0,
+      "elapsed": 330.2250082370592
+    }
+  ],
+  "fpga_tests": {
+    "tests": 1577,
+    "skipped": 75,
+    "result": "passed"
+  },
+  "matched_chain": {
+    "source_inventory_matches_current": true,
+    "profile_identical_across_entry_BL31_SPL": true,
+    "chain_sha256": "2bdeb77b7e7b4a4890ecff8ee1d41add45e163da9cae1ba17d008ace7910dd3c",
+    "composition_sha256": "18d3c37ea89c1186df8d0203cb303e857fd931c80b9d1944349a3534263b124b",
+    "fit_bytes": 7958520,
+    "files": {
+      "u-boot.itb": "751c53ba362f146687a718b54d76bca6cc5c1298a8288e5c63ce95bc4b0d835f",
+      "ENTRY.IMG": "33f03b642c9c5da69e90a06d92696a25ff85d7ab1e80bdf894207624ae7c8c0e",
+      "native-hps-first.sof": "7fa02052d31f712be3b799b98c028ceb8479145104bde8fd885e23ee3528fb6a"
+    }
+  },
+  "successful_receipts_sha256": {
+    "fault-regressions": "aab7079118f0e549bbcd30c83e15237a56c14cbbf2bf6c76ff4d407092e32471",
+    "consistency-regressions-fixed": "914f0d3b0c58e6eb5c668a75977c8c91498812536d184927e078512922849cac",
+    "repaired-regressions": "02b2a525ca437982776f549155b1ef4787fe72227b93774929bf823e4cc0fcc4",
+    "consistency-final": "aa1025b04950527b56f441371fc2c66b47e93b90b5ab0073bdee59c8ec8a191c",
+    "native-contract-checks": "dc6585bf988e010b5faf058d6e626eb9560143521ce3b5a07c57139538ba7964",
+    "fpga-regressions": "b3254756c462b3236b27f50ce04f1f4b02d6f87b97d47474d8dfc9dfc5138cd7",
+    "selection-cross-final": "e8e64e70ef82bbe1450dd0dc45448b54394066b87e1ca3312590a3f8654f47c1",
+    "sdk": "81aaa7e8b9f0e809ebb8b993f6cc754033f459e1a168fcb820b5fc11ea1708d3",
+    "native-entry": "c52f0c1f7d6355d18d510ee2be52548c9491a53e8f3861c9dea6180565baadfe",
+    "bl31-unbound": "05adf95ce1265cead053b4787daabf14466c08636d52855f27ccc4d10e949e5b",
+    "bl31-matched": "33c6ef5eb9df8bd539680eed7bc54a100f686a9b819761a32da62b3614217d90",
+    "uboot-matched": "2e57999eee2e76daca61b69aee091c320f80e340e4dec748c820102674f18ff0",
+    "composition": "1856611522617ca78a1a68b31109afc7407912ae4c36f7ae21c1a6be85c40209"
+  },
+  "hardware_touched": false,
+  "usb_enabled_in_boot_profile": false,
+  "goal_complete": false,
+  "remaining": [
+    "freeze catalogue/sidecars and operator fixtures for the composed chain",
+    "bounded full Tenfoot App hardware launch/return on TRWU8CBL",
+    "select secure USB board binding and native caller",
+    "hub/controller support and USB/storage/core ownership integration",
+    "ordinary package/ROM/media admission hardware qualification",
+    "physical display and native Ethernet qualification"
+  ]
+}

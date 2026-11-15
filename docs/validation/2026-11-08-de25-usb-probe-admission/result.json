@@ -1,0 +1,44 @@
+{
+  "actual_candidate": {
+    "compiled_source": "4f6694732defd1fee6df699a5a0878a40011135e",
+    "file_count": 4013,
+    "full_validation_seconds": 4.739946970017627,
+    "hardware_actions": false,
+    "live_authority": false,
+    "record_sha256": "084a18a0fc51fe1f065d035e440d6358455a40be8fcd8348f614c72c72f9abd1",
+    "reload_seconds": 0.5424116242211312,
+    "tree_count": 7
+  },
+  "base": "79dd78784ace191b184dd647b8d50039f160e8fa",
+  "board_touched": false,
+  "changes": [
+    "Default paired fpgaload admission is preserved. USB probes require explicit prepare/load/snapshot scope and a distinct record tag.",
+    "USB scope selects probe-profile.json and one complete sealed project; entry/cold USB capabilities, context and pins agree, with no program/ROM/menu/SD resources.",
+    "Scopes cannot be converted by rehashing a changed tag. Full validation, complete source/tree/artifact/extra-input snapshots and before/after claim checks remain.",
+    "The USB selector module is an explicit hashed dependency. Compiled boot-image source closures are unchanged; only host admission is extended."
+  ],
+  "checks": {
+    "affected_commands": 6,
+    "focused_tests": 16,
+    "generated_consistency": "52 generated consumers/37 fixture copies passed",
+    "parent_existing_skips": 3,
+    "parent_tests": 1719
+  },
+  "classification": "explicit USB-only off-board file admission; no board authority",
+  "default_scope": "nano-checked-native-files-v1",
+  "evidence_sha256": {
+    "out/nano-usb-admission-20261108/admission-tests-result.json": "e9ca2f8063e8b3dda168974efd154d8de5d82af02be2aa680384fe9b089dfdc5",
+    "out/nano-usb-admission-20261108/checks-summary.json": "ad8730788b24183677c4cf93206c66bb2a01fa206dcaf370795471e209f31300",
+    "out/nano-usb-admission-20261108/consistency-committed-result.json": "4be901d8208f09b7d77dd19ce91450625aeac5bcd96d23cd5059c53906e402e4",
+    "out/nano-usb-probe-trial-20261108/admission-proof.json": "ddfb829d24da8280fd9f4362b12b12c483620725d061461d709e6d20b3cab105"
+  },
+  "goal_complete": false,
+  "remaining": [
+    "Finish and freeze the one-boot-upload USB enumeration/Ready/Stop operator and its model/failure tests.",
+    "Fresh top-board ownership/USB/UART admission and retained one-attempt procedure before any hardware test.",
+    "Qualify USB startup, then complete secure tape hardware timing/ROM consumption and full DE10-like core loading."
+  ],
+  "source_commit": "7990523595f31e16f2fafeeeb2aa782b61e1139e",
+  "status": "passed",
+  "usb_scope": "nano-checked-usb-probe-files-v1"
+}

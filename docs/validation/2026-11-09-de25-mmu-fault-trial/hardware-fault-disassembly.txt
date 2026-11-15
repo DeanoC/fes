@@ -1,0 +1,27 @@
+
+out/nano-mmu-fault-capture-20261109/native-bl31/source/build/agilex5/release/bl31/bl31.elf:     file format elf64-littleaarch64
+
+
+Disassembly of section .ro:
+
+0000000080017078 <tf_log+0x4>:
+    80017078:	910003fd 	mov	x29, sp
+    8001707c:	a90153f3 	stp	x19, x20, [sp, #16]
+    80017080:	aa0003f4 	mov	x20, x0
+    80017084:	a9068be1 	stp	x1, x2, [sp, #104]
+    80017088:	d0000161 	adrp	x1, 80045000 <percpu_data>
+    8001708c:	a90793e3 	stp	x3, x4, [sp, #120]
+    80017090:	b9414421 	ldr	w1, [x1, #324]
+    80017094:	a9089be5 	stp	x5, x6, [sp, #136]
+    80017098:	f9004fe7 	str	x7, [sp, #152]
+    8001709c:	39400000 	ldrb	w0, [x0]
+    800170a0:	6b00003f 	cmp	w1, w0
+    800170a4:	54000243 	b.cc	800170ec <tf_log+0x78>  // b.lo, b.ul, b.last
+    800170a8:	94000980 	bl	800196a8 <plat_log_get_prefix>
+    800170ac:	aa0003f3 	mov	x19, x0
+    800170b0:	39400260 	ldrb	w0, [x19]
+    800170b4:	35000220 	cbnz	w0, 800170f8 <tf_log+0x84>
+    800170b8:	910283e0 	add	x0, sp, #0xa0
+    800170bc:	a90403e0 	stp	x0, x0, [sp, #64]
+    800170c0:	910183e0 	add	x0, sp, #0x60
+    800170c4:	f9002be0 	str	x0, [sp, #80]

@@ -1,0 +1,89 @@
+{
+  "scope": "off-board-array-reader-codec-and-next-window-profile",
+  "status": "codec-verified-live-array-reader-not-implemented",
+  "hardware_actions": false,
+  "flash_array_read_qualified": false,
+  "complete_backup": false,
+  "flash_write_authorized": false,
+  "transport_evidence": "docs/validation/2026-11-11-de25-sdm-system-console-hardware/result.json",
+  "capacity_evidence": "docs/validation/2026-11-11-de25-qspi-quad-id-hardware/capacity-proof.json",
+  "live_id_required": "20bb18",
+  "main_array_bytes": 16777216,
+  "maximum_words_per_read": 1024,
+  "proposed_windows": [
+    {
+      "offset": 0,
+      "words": 1024
+    },
+    {
+      "offset": 2097152,
+      "words": 1024
+    },
+    {
+      "offset": 16773120,
+      "words": 1024
+    }
+  ],
+  "required_SDM_operations": {
+    "CONFIG_STATUS": 4,
+    "QSPI_OPEN": 50,
+    "QSPI_SET_CS": 52,
+    "QSPI_READ_AF_ID": 53,
+    "QSPI_READ_ARRAY": 58,
+    "QSPI_CLOSE": 51
+  },
+  "proposed_read_packet": {
+    "header": 8250,
+    "arguments": [
+      "word-aligned byte offset",
+      "1..1024 word count"
+    ],
+    "response_header_for_1024_words": 4194304,
+    "exact_response_words": 1025
+  },
+  "gates": [
+    "fresh immutable source/tool/claim/parent-top USB/UART/node/private-server/clock/vendor-first/forced-scan admission",
+    "new session; CONFIG_STATUS and AFh identity verified before data reads",
+    "typed root-owned per-packet ownership guard; stop on lost owner or uncertain IO",
+    "only fixed selected windows; no arbitrary opcode, out-of-capacity read or hidden retry",
+    "strict response status/word count; partial OK is insufficient",
+    "same held config-packet service and exclusive flash client across session",
+    "single bounded close-only cleanup while ownership remains valid",
+    "little-endian binary serialization verified on the actual vendor Tcl engine",
+    "complete saved packet/address/word receipts and independently checked result files",
+    "separate CLI read session cross-checks each selected window after the packet session closes",
+    "unchanged configuration before/after, namespace/host cleanup independently verified"
+  ],
+  "complete_backup_followup": {
+    "passes": 2,
+    "bytes_each": 16777216,
+    "include_unused_main_array": true,
+    "independent_complete_hash_and_size_match": true,
+    "OTP_and_security_areas_not_covered": true,
+    "usable_rollback_artifact_required": true
+  },
+  "codec": {
+    "status": "passed",
+    "scope": "actual vendor Tcl8 binary codec against independent Python struct vector",
+    "little_endian": true,
+    "bytes": 36,
+    "sha256": "a9a36991a5239e020a9e1fc6630f61df9f5dbc7e3bfd31d56d770e96e9eb5b0c",
+    "high_bits_and_CR_LF_ESC_preserved": true,
+    "existing_file_rejected": true,
+    "device_access": false
+  },
+  "prototype_sha256": {
+    "out/nano-qspi-array-read-20261111/codec-models-result.json": "7d3c70921c21b7ab7a41f91a43c14d70f5e7846e09de2425f5b78a914221360d",
+    "out/nano-qspi-array-read-20261111/binary_codec.tcl": "80b4646f82252ec022d7c9a5b087ba247ca0caf97564006bd257de722dbf3148",
+    "out/nano-qspi-array-read-20261111/codec-models.log": "7ba8987d84477864cc9118e0f580e0c6b02dfdbf9ba0a8f09ed62f5cf0faeae0",
+    "out/nano-qspi-array-read-20261111/codec-proof.json": "0fa48ecc5da1523d7fd084647dea8a5df8f48d16293716c70d44200f1c5cc4c9",
+    "out/nano-qspi-array-read-20261111/codec-models-process.json": "8c45de45725c217e31428352fc1c33637be719846a1f129da2b05d9ae325b889",
+    "out/nano-qspi-array-read-20261111/codec-stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-qspi-array-read-20261111/codec_check.py": "febfa8d50d38d3b92ede423935f24e6dec3af000b18602e01b123fcd1b7ad787",
+    "out/nano-qspi-array-read-20261111/codec-stdout.txt": "fdaaa57b628ed5cd6be6418376395c8f5c3adeb3df674448915ead69b049b960",
+    "out/nano-qspi-array-read-20261111/run.py": "10e64dd990d75e256c8498a018dad8c33d5cbb0a84f08cc53cd86ac394a399e7",
+    "out/nano-qspi-array-read-20261111/codec_model.tcl": "9719e953a973a587087d66e42c695b5ff2b8d446667cf6b1283228000d1f59f3"
+  },
+  "cpu_RAM_map_changed": false,
+  "native_configuration_arena_changed": false
+}

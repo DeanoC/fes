@@ -1,0 +1,8 @@
+{
+  "status": "retained-and-independently-read-back",
+  "archive": "/home/deano/fes-retained/de25-secure-reader-matched-20261113-r1/matched-chain.tar.gz",
+  "archive_sha256": "a6fec28fbd3c3d99777679ddd1eb8d5121b9102b199cde742948d11f1d9efd35",
+  "archive_bytes": 118571818,
+  "hardware_actions": false,
+  "hardware_accepted": false
+}

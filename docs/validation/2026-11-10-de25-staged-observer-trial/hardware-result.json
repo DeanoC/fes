@@ -1,0 +1,188 @@
+{
+  "status": "passed-serial-keyboard-cycle-visible-launcher-return-failed",
+  "source_head": "29b61b9eaa91f28d7eb49e69ac7fac94a9ca416e",
+  "compiled_source": "db5fc2d66b1426e79e63a77577499d1139eda33e",
+  "observer_repair": "a63d46d90",
+  "native_boot_id": "a02d808ea11eb54f",
+  "owner": "bccd5532330f95cd",
+  "recovery_boot_verified": true,
+  "verified_ethernet_uploads": 13,
+  "fresh_sd_readbacks": 13,
+  "native_seconds": 354.64831,
+  "experiment_seconds": 481.603956,
+  "startup_ready_seconds": 58.745126749854535,
+  "configuration_cycles": 5,
+  "computer_launches": 2,
+  "menu_sessions": 3,
+  "physical_keyboard_stop_verified": true,
+  "physical_stop": {
+    "source": "usb-boot-keyboard",
+    "generation": 1,
+    "owner": 13604623723449521613,
+    "start": 67316,
+    "action_seen_end": 67455,
+    "action_seen_monotonic": 1344625.956631037,
+    "wait_seconds": 52.798475896939635,
+    "wait_bound_seconds": 60
+  },
+  "physical_usb_report_progress": 532,
+  "physical_input_controls_verified": false,
+  "operator_visible_return": "failed-screen-stayed-on-zx81",
+  "physical_display_verified": false,
+  "cycles": [
+    {
+      "selection": 0,
+      "launch_generation": 1,
+      "return_generation": 2
+    },
+    {
+      "selection": 1,
+      "launch_generation": 3,
+      "return_generation": 5
+    }
+  ],
+  "launch_fetch_observations": [
+    {
+      "scope": "nano-computer-fetch-tape-v1",
+      "owner": 13604623723449521613,
+      "generation": 1,
+      "package_id": "03c8fa017f5fcfb40d23d54a449e8464d89fa9919dc6bae301fd8c833955290a",
+      "build_id": "0792e51a2e51512bfb8fe44e93a69ddd",
+      "before": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "held": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "running": {
+        "Cycles": 11950,
+        "Address": 975
+      },
+      "delta": 11950,
+      "polls": 1,
+      "elapsed_ns": 1305369883,
+      "limit_ns": 7000000000,
+      "tape_bytes": 917,
+      "tape_elapsed_ns": 1213079485,
+      "tape_limit_ns": 6000000000,
+      "control_elapsed_ns": 92290398
+    },
+    {
+      "scope": "nano-computer-fetch-v1",
+      "owner": 13604623723449521613,
+      "generation": 3,
+      "package_id": "b32ce70af93f2ae4ff665490246e5c52fbb4d76eadb5445949e5c2b4434fba86",
+      "build_id": "ea02ee8a9026deb05317a3e7d024adde",
+      "before": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "held": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "running": {
+        "Cycles": 11942,
+        "Address": 613
+      },
+      "delta": 11942,
+      "polls": 1,
+      "elapsed_ns": 76801782,
+      "limit_ns": 1000000000
+    }
+  ],
+  "final_menu_return": {
+    "Capabilities": {
+      "Mask": 15,
+      "ControlMask": 2,
+      "HardwareDrainMask": 12,
+      "FabricHandshake": 1
+    },
+    "Owner": 13604623723449521613,
+    "Generation": 29,
+    "ResetMask": 15,
+    "NeverEnabled": false,
+    "MastersContained": true
+  },
+  "firmware_return_verified": false,
+  "cpu_park_verified": false,
+  "independent_cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "auto_adjust_readback": 1,
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "total_transport_programming_failures": 2,
+  "new_programming_failures": 0,
+  "prior_attempt_accounting": {
+    "prior_native_reservations": 1,
+    "prior_actual_native_programming_calls": 1,
+    "prior_native_capture_failures": 1,
+    "prior_native_programming_failures": 0,
+    "new_procedure_attempts_allowed": 1,
+    "old_trial_resumed": false,
+    "unchanged_native_artifacts": true,
+    "previous_source": "0888a321c1b5ad7be58e33506b51c0431de24c97",
+    "observer_repair_source": "a63d46d90",
+    "previous_decoder_sha256": "5e62408349bedff8bed831609d89a38d953f7972500c77a34181dc8528f12a54",
+    "current_decoder_sha256": "89d60a2e13a850574b4f64c02315f4b99ce97cd3b2706f288f246c798b8b1e4e"
+  },
+  "retention": {
+    "status": "passed",
+    "source_head": "29b61b9eaa91f28d7eb49e69ac7fac94a9ca416e",
+    "operator_source": "29b61b9eaa91f28d7eb49e69ac7fac94a9ca416e",
+    "path": "/home/deano/fes-retained/de25-staged-observer-trial-hardware-20261110-r1",
+    "files": 5923,
+    "full_archive_readback": true,
+    "archive_modes_verified": true,
+    "bundle_import_and_pack_verified": true,
+    "standalone_source_restore_and_strict_fsck": true,
+    "hardware_actions": false
+  },
+  "exact_saved_wire_replay": {
+    "status": "passed-exact-saved-wire-and-original-poll-times",
+    "source_head": "29b61b9eaa91f28d7eb49e69ac7fac94a9ca416e",
+    "console_sha256": "0b27666e9375ee9b1599110ea5808f3f705f45768168e5ff975fdec7014ffea5",
+    "commands": 5,
+    "polling_offers": 196,
+    "physical_keyboard_stop_bound_to_usb": true,
+    "service_matches_original_receipt": true,
+    "accepted": {
+      "scope": "bounded paired native menu/core/menu diagnostic",
+      "computer_launches": 2,
+      "menu_sessions": 3,
+      "final_bridge_generation": 29,
+      "final_logical_generation": 5,
+      "physical_display_verified": false,
+      "physical_input_controls_verified": false,
+      "physical_keyboard_return_verified": true,
+      "ordinary_admission": false,
+      "core_load_acceptance": false
+    },
+    "hardware_actions": false,
+    "live_authority": false,
+    "ordinary_admission": false
+  },
+  "evidence_sha256": {
+    "out/nano-staged-observer-trial-20261110/trial/experiment-result.json": "17fa468415734df093afafa85d3d2bbf5d07a8a0a2fbc3428d8a936440b4af29",
+    "out/nano-staged-observer-trial-20261110/trial/native-result.json": "e211edfa9577c170f7abdd496f67aeacb797006c0df66ccb5d8529cb496ce52b",
+    "out/nano-staged-observer-trial-20261110/trial/native-console.log": "0b27666e9375ee9b1599110ea5808f3f705f45768168e5ff975fdec7014ffea5",
+    "out/nano-staged-observer-trial-20261110/replay-proof.json": "f727b0669eca5194dde801ba9412dc16b47cc66d9893f1c7873fdeda19037fc0",
+    "out/nano-staged-observer-trial-20261110/cleanup-evidence.json": "d9a8541e38a23d3b20568d5956e421f30604b82c868c70aa0c0b4695a2dce9a6",
+    "out/nano-staged-observer-trial-20261110/hardware-retention-proof.json": "2cb5d713b1ba0eeb94cefce24dabf48897d8de97ffdebe0be52d55ddf296c03d",
+    "out/nano-staged-observer-trial-20261110/operator-observations.json": "9ad567a0110c9e221d502bbc03d3b08a5194adf166cee13475998d025e7d9020",
+    "docs/validation/2026-11-10-de25-staged-observer-trial/operator-display-observation.json": "5808d05079d7e29b066136eca7bcf9bd9751be15020dcad89b95f4fe226863e7"
+  },
+  "ordinary_admission": false,
+  "full_appliance_acceptance": false,
+  "whole_board_timing_signoff": false,
+  "visible_return_passed": false,
+  "operator_display_observation": "operator-display-observation.json"
+}

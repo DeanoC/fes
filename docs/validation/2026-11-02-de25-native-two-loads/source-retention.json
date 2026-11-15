@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "source_commit": "169d54c4899beb265b2d3136188ca45216b1ed64",
+  "source_bundle": "/home/deano/fes-retained/de25-native-activation-20261102/source.bundle",
+  "source_bundle_sha256": "b1ef9d60f438ef3f5f9d54322746b79f056b02df9e78b352a1e79cfa81a57002",
+  "source_bundle_bytes": 265337819,
+  "prerequisites": [],
+  "independent_restore": "/home/deano/fes-retained/de25-native-activation-20261102/source-restore.git",
+  "restore_head": "169d54c4899beb265b2d3136188ca45216b1ed64",
+  "alternates": false,
+  "full_fsck": true
+}

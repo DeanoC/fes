@@ -1,0 +1,61 @@
+{
+  "format": 1,
+  "classification": "file-only next-test upload plan; no execution or activation",
+  "board": "TRWU8CBL",
+  "files": [
+    {
+      "purpose": "boot",
+      "source": "out/nano-tenfoot-serial-20261104/native-composition/u-boot.itb",
+      "destination": "FES/UPLOAD.BIN",
+      "sha256": "c88c75e5829a59148c3ca962db945d179335b0763d142d0feaca924f27a3efc1",
+      "bytes": 7958520
+    },
+    {
+      "purpose": "package",
+      "source": "out/nano-tenfoot-serial-20261104/catalogue/FES/PKGTEST.BIN",
+      "destination": "FES/PKGTEST.BIN",
+      "sha256": "21546abc7f661d3fc96cbd1ce60e89ef6f7ba5eb863de6ab800cffd584b906ee",
+      "bytes": 1653760
+    },
+    {
+      "purpose": "metadata",
+      "source": "out/nano-tenfoot-serial-20261104/catalogue/FES/PROGRAM.JSN",
+      "destination": "FES/PROGRAM.JSN",
+      "sha256": "ec488f470d31ad6c822f5bc635662516abfb94885ba9cab3bc8ecf0a75ae4980",
+      "bytes": 2118
+    },
+    {
+      "purpose": "package-alt",
+      "source": "out/nano-tenfoot-serial-20261104/catalogue/FES/PKGALT.BIN",
+      "destination": "FES/PKGALT.BIN",
+      "sha256": "27597a804df6ce91766b917cb11a923ed2bfa1a70ff7a74860f11f35e457c414",
+      "bytes": 1645568
+    },
+    {
+      "purpose": "metadata-alt",
+      "source": "out/nano-tenfoot-serial-20261104/catalogue/FES/PROGALT.JSN",
+      "destination": "FES/PROGALT.JSN",
+      "sha256": "5e26d384751a4ca2b85af7632cdc1ae1db032a501b5ab01e43a1ef69215546ba",
+      "bytes": 2118
+    },
+    {
+      "purpose": "selection",
+      "source": "out/nano-tenfoot-serial-20261104/catalogue/FES/CORESEL.JSN",
+      "destination": "FES/CORESEL.JSN",
+      "sha256": "def298403eb4a6d873a7f2ec06e92bdd5dac1d64ec841c793fcc5079a68fc12f",
+      "bytes": 513
+    },
+    {
+      "purpose": "ui-catalog",
+      "source": "out/nano-tenfoot-serial-20261104/catalogue/FES/UI.JSON",
+      "destination": "FES/UI.JSON",
+      "sha256": "aa2b1ca51c62330b343d71b2b8c36c5eb1a8355fc87d3e26f6d53aac516f2456",
+      "bytes": 141
+    }
+  ],
+  "must_freshly_read_back_all_files_before_native_boot": true,
+  "execute": false,
+  "ordinary_admission": false,
+  "display": "serial-state-only",
+  "hardware_actions": false
+}

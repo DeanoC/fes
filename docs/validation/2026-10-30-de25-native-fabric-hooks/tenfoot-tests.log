@@ -1,0 +1,12 @@
+=== RUN   TestInjectedEndpointDirect
+--- PASS: TestInjectedEndpointDirect (1.14s)
+=== RUN   TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure
+=== RUN   TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure/launch-return
+=== RUN   TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure/identity-failure
+--- PASS: TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure (2.31s)
+    --- PASS: TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure/launch-return (1.17s)
+    --- PASS: TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure/identity-failure (1.14s)
+=== RUN   TestInjectedEndpointCancellationRetainsTransfer
+--- PASS: TestInjectedEndpointCancellationRetainsTransfer (0.70s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/modelbackend	5.172s

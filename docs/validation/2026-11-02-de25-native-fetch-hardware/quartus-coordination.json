@@ -1,0 +1,16 @@
+{
+  "checked_utc": "2026-11-02T17:48:06.710719+00:00",
+  "user_instruction": "Use the existing shared 3090 Quartus lock for every further compile to avoid collisions.",
+  "host": "fes-build-3090",
+  "shared_lock": "/tmp/lander-quartus-3090.lock",
+  "observed_uid": 1001,
+  "observed_gid": 1001,
+  "observed_mode": "0664",
+  "observed_holders": [],
+  "observation_only": true,
+  "lock_acquired": false,
+  "future_job_requirement": "Acquire this existing flock exclusively on the remote host and hold it for the whole Quartus job; never replace/unlink it or use a private substitute. Recheck holder/wait state at job time.",
+  "builds_this_turn": 0,
+  "current_native_test": "reused sealed FPGA/firmware; no new Quartus compilation",
+  "policy_lookup": "Current branch, primary old checkout and GitHub main248cc were read; no Quartus-specific lock directive there. Existing remote lock was found read-only and user instruction governs future jobs."
+}

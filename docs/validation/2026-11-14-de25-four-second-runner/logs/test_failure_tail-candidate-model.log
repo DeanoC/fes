@@ -1,0 +1,8 @@
+test_byte_bound_and_nonbyte_input_keep_failed_verdict (test_failure_tail.Tests.test_byte_bound_and_nonbyte_input_keep_failed_verdict) ... ok
+test_complete_fragmented_cause_without_command_or_new_verdict (test_failure_tail.Tests.test_complete_fragmented_cause_without_command_or_new_verdict) ... ok
+test_lost_owner_stops_without_read_or_write (test_failure_tail.Tests.test_lost_owner_stops_without_read_or_write) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.000s
+
+OK

@@ -1,0 +1,61 @@
+{
+  "scope": "matched v15 shared-cookie fix: recovery, verified experimental FIT upload, then one native boot at6M; restore original15M",
+  "source_commit": "c768ef002b2208fc67d3d3238f82a6a5d42cc5a5",
+  "native_sof_sha256": "27591af1b0b7b00545b74777c75ece3559e7b2a015aa17101b10aac9dc7009e1",
+  "target_clock": "6M",
+  "clock_change_attempted": true,
+  "pass": false,
+  "sd_write_commands_sent": true,
+  "started_utc": "2026-11-01T13:38:19.178497+00:00",
+  "stages": [
+    {
+      "clock_operation": "clock-before",
+      "returncode": 0,
+      "output": "15M"
+    },
+    {
+      "clock_operation": "clock-set-6M",
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "clock_operation": "clock-confirm-6M",
+      "returncode": 0,
+      "output": "6M"
+    },
+    {
+      "phase": "known recovery at6M",
+      "returncode": 0
+    },
+    {
+      "phase": "verified network upload",
+      "returncode": 0
+    },
+    {
+      "clock_operation": "clock-before-native",
+      "returncode": 0,
+      "output": "6M"
+    },
+    {
+      "phase": "one native candidate at6M",
+      "returncode": 1
+    },
+    {
+      "clock_operation": "clock-restore",
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "clock_operation": "clock-restored-readback",
+      "returncode": 0,
+      "output": "15M"
+    }
+  ],
+  "original_clock": "15M",
+  "stage": "one native candidate at6M",
+  "error": "phase stopped: one native candidate at6M",
+  "restored_clock": "15M",
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "finished_utc": "2026-11-01T13:38:57.849606+00:00"
+}

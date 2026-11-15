@@ -1,0 +1,2218 @@
+{
+  "serial": "TRWU8CBL",
+  "source_commit": "56f7283dfbcca2d690fe5663b6f0d4c41cba5940",
+  "phase": "native",
+  "sof_sha256": "962bbc1719707613472b0c3e0c3bd64f2b2e9e3ca802c3433e39d44aec3a3f24",
+  "fit_sha256": "8964415cd46eaff09dd7e76a6922b48337edbd0b46efec2e70a715669076157d",
+  "started_utc": "2026-11-09T16:46:32.074925+00:00",
+  "stage": "initial native Tenfoot Ready",
+  "programming_attempted": true,
+  "fesboot_sent": true,
+  "sd_write_commands_sent": false,
+  "selected_programs": true,
+  "paired_programs": true,
+  "ordinary_admission": false,
+  "upload_receipts_sha256": {
+    "package": "d47bdc6759deb3c4f7dc369b859f2a4d91a503064f7094cfa548ccd26a52a91a",
+    "firmware": "d6de16a3a9717fb8dc2224e173f7c7722954e4e23caee3505d74191f91c00379",
+    "metadata": "4629f61d0591a749df16f7f2ae62787c617575236b1b9ef530f80beabb7fd266",
+    "package-alt": "6273673d4d2845cecad40db715d7972dbeb0bdc34700d4dbc8aa934fb93c8286",
+    "firmware-alt": "c347b42e45949b0cf3e2fd541e24b06ccfe28f4786fc7a080abeece1560eeb4c",
+    "metadata-alt": "76ab2035d837d6c1c0c8e9a2c2b5e08c8c51c3848d2cc32f14e75e2f5aa70b26",
+    "menu-package": "886cf03f0ff5b997dfa0d3d9c603cd4db884042467c08bf427f825f5afde11a7",
+    "menu-metadata": "3e0f9f4b4ac2fbf7e86486d9da0fb213211ac3dd7bfcfc6884653dd079cd96c4",
+    "menu-selection": "b8562fce52f7adc2890481991c0a4ae2c8070e61167cefdf77de1ea32ef57141",
+    "selection": "4c6186fff66aa88b1a2e059b70903b1c08872293c3bf7548296621ac4f2c3370",
+    "ui-catalog": "f9290c982b48d1237ad52a933c82c46297bbcdc145e3386e89480af472529a24",
+    "tape": "f2de85be2f18d56e5bbbe01a915efd2f997819009ae9e6cf391c2b8f327fd0cc",
+    "boot": "d6a7c95ddbc28463202ae34dbd1a89e9627fb3e5942bb67f47f737e8c37f8ad0"
+  },
+  "fresh_receipts_sha256": {
+    "package": "495c415cd96bea80df0c39e5893a54622cb8212b9c6c4ffb76a6079aa1e2cdb0",
+    "firmware": "d449916849416eb97042871c34d17c8c4fedd1a51f022cbc329cf070c27f987c",
+    "metadata": "900a64d592d1640405cffe16154236fe5cd08f2b01c148bf00b083590f53ce91",
+    "package-alt": "ed072fed1668ae564932d210935079bb3f0791882e0705774737a5522e68c0c1",
+    "firmware-alt": "918ec03a95fe21f7723e50926abd75b24eec02dfe91d32d8fa656d029143e47e",
+    "metadata-alt": "aabc9be9089cebc142cf4909c4666cbfd552a9149a214b096e7fd77bf23fa0bf",
+    "menu-package": "dc5bea0994c7d5b9384e6766672eb5228860820e74854d32ddf676b98db590e4",
+    "menu-metadata": "dc81c1c707384641a8f573773999742a4b6a3b32715cd28a927955de8aaf92ae",
+    "menu-selection": "5b2726c7b0a4a189c20cc28e99118ee3da4565991db6926bc688264a865b67ce",
+    "selection": "109ac685e1d236f73f06d5eaa0b910448d29e34ebb94040df007ec513cc489fa",
+    "ui-catalog": "3cb900e9d0c79e79883a4a97759ed48db771bdea9003601708c97b14414b9b62",
+    "tape": "7b01e6a725741fdc0a7cab0e343a146c4d85b2e3deaa7d01d228d759192591be",
+    "boot": "e2c737005a50184c45bee5d1fbac555cc12d2177feedd453ced14723154ae50f"
+  },
+  "qualified_recovery_receipt_sha256": "86d3df2f051b3496a2d327afd8a18d01a8918b88a890bb1052c4872035543c9a",
+  "runner_sha256": "bbf655078177c33eb65c65e35da98b69db5eae46ff9c62970e4fa4d3d7a78a6c",
+  "pass": false,
+  "clock_checks": [
+    {
+      "clock": "3M",
+      "log_sha256": "85c63fac9c727e3795d2f5b57e91a62757cc2ce9d1f34f6f6a737fd710a0d6d5"
+    }
+  ],
+  "boot_trace": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "1059bb64e5cac38b"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 1773718768356440247,
+          "epoch": 6614667617,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "spl_barrier_before",
+        "line": 36,
+        "values": {
+          "phase": "before"
+        }
+      },
+      {
+        "stage": "spl_barrier_after",
+        "line": 37,
+        "values": {
+          "phase": "after"
+        }
+      },
+      {
+        "stage": "spl_atf_entry",
+        "line": 38,
+        "values": {
+          "phase": "entry"
+        }
+      },
+      {
+        "stage": "spl_atf_hash_before",
+        "line": 39,
+        "values": {
+          "phase": "hash-before"
+        }
+      },
+      {
+        "stage": "spl_atf_hash_after",
+        "line": 40,
+        "values": {
+          "phase": "hash-after"
+        }
+      },
+      {
+        "stage": "spl_atf",
+        "line": 41,
+        "values": {
+          "target": 2147483648,
+          "bl32": 0,
+          "bl33": 2149580800,
+          "fdt": 0,
+          "params": 3220176904,
+          "cold": 139848,
+          "cookie": 5066060512865812482,
+          "el": 3,
+          "mpidr": 2164260864,
+          "sctlr": 12912696,
+          "scr": 15,
+          "daif": 960,
+          "bytes": 315840,
+          "sha256": "a1c031755ced928c39922416c549c434a51c219776c02c5022f0dce2c05ac616"
+        }
+      },
+      {
+        "stage": "el3_capture_before",
+        "line": 67,
+        "values": {
+          "phase": "before",
+          "pointer": 139848,
+          "cookie": 5066060512865812482
+        }
+      },
+      {
+        "stage": "el3_capture_after",
+        "line": 68,
+        "values": {
+          "phase": "after",
+          "pointer": 139848,
+          "cookie": 5066060512865812482
+        }
+      },
+      {
+        "stage": "usb_setup",
+        "line": 78,
+        "values": {
+          "status": 0,
+          "board_error": 0,
+          "platform_error": 0
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 79,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "sd_platform",
+        "line": 80,
+        "values": {
+          "setup": 1,
+          "ready": 1
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 181,
+        "values": {
+          "id": "1059bb64e5cac38b"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 185,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 197,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 198,
+        "values": {
+          "id": "1059bb64e5cac38b"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 200,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216369552,
+          "malloc_start": 3216404480,
+          "malloc_end": 3220606976,
+          "reloc": 3220606976,
+          "fdt": 3216377600
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 256,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 1773718768356440247,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 266,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 1773718768356440247,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 291,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 292,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 293,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 301,
+        "values": {}
+      }
+    ],
+    "errors": [],
+    "loader_ready": true,
+    "complete": false,
+    "last_checkpoint": "el1",
+    "core_load_acceptance": false,
+    "loader_progress": {
+      "records": [
+        {
+          "phase": "memory-before",
+          "line": 199
+        },
+        {
+          "phase": "memory-after",
+          "line": 208
+        },
+        {
+          "phase": "snapshot-before",
+          "line": 209
+        },
+        {
+          "phase": "registers-before",
+          "line": 210
+        },
+        {
+          "phase": "registers-after",
+          "line": 211
+        },
+        {
+          "phase": "cpu0-before",
+          "line": 212
+        },
+        {
+          "phase": "cpu0-after",
+          "line": 219
+        },
+        {
+          "phase": "cpu1-before",
+          "line": 220
+        },
+        {
+          "phase": "cpu1-after",
+          "line": 227
+        },
+        {
+          "phase": "cpu2-before",
+          "line": 228
+        },
+        {
+          "phase": "cpu2-after",
+          "line": 235
+        },
+        {
+          "phase": "cpu3-before",
+          "line": 236
+        },
+        {
+          "phase": "cpu3-after",
+          "line": 243
+        },
+        {
+          "phase": "reset-before",
+          "line": 244
+        },
+        {
+          "phase": "reset-after",
+          "line": 245
+        },
+        {
+          "phase": "watchdog-before",
+          "line": 246
+        },
+        {
+          "phase": "watchdog-after",
+          "line": 247
+        },
+        {
+          "phase": "uart-before",
+          "line": 248
+        },
+        {
+          "phase": "uart-after",
+          "line": 249
+        },
+        {
+          "phase": "snapshot-after",
+          "line": 250
+        },
+        {
+          "phase": "cpu-check-before",
+          "line": 251
+        },
+        {
+          "phase": "cpu-check-after",
+          "line": 252
+        },
+        {
+          "phase": "watchdog-stop-before",
+          "line": 253
+        },
+        {
+          "phase": "watchdog-stop-after",
+          "line": 254
+        },
+        {
+          "phase": "owned-before",
+          "line": 255
+        },
+        {
+          "phase": "owned-after",
+          "line": 257
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "firmware_call_may_have_started": true
+    },
+    "affinity_calls": {
+      "records": [
+        {
+          "phase": "smc-before",
+          "line": 213,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 214,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 215,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 216,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 217,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 218,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 221,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 222,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 223,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 224,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 225,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 226,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 229,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 230,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 231,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 232,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 233,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 234,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 237,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 238,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 239,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 240,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 241,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 242,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 267,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 268,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 269,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 270,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 271,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 272,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-before",
+          "line": 273,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 274,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 275,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 276,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 277,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 278,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-before",
+          "line": 279,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 280,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 281,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 282,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 283,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 284,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-before",
+          "line": 285,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 286,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 287,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 288,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 289,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 290,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        }
+      ],
+      "valid": true,
+      "initial_complete": true,
+      "complete": true,
+      "instruction_may_have_started": true,
+      "cache_may_have_started": true,
+      "instruction_returns_observed": 8
+    },
+    "firmware_mmu_trace": {
+      "records": [
+        {
+          "el": 12,
+          "midr": 1093652560,
+          "mpidr": 2164260864,
+          "mmfr0": 1052962,
+          "daif": 704,
+          "scr": 568,
+          "sctlr": 12916794,
+          "tcr": 0,
+          "root": 2147774464,
+          "mair": 4963046916272786084,
+          "witness": 2147799424,
+          "phase": "before",
+          "line": 111,
+          "writes": 0,
+          "memory": 0
+        },
+        {
+          "el": 12,
+          "midr": 1093652560,
+          "mpidr": 2164260864,
+          "mmfr0": 1052962,
+          "daif": 704,
+          "scr": 568,
+          "sctlr": 13441087,
+          "tcr": 2155885856,
+          "root": 2147774464,
+          "mair": 4456703,
+          "witness": 2147799424,
+          "phase": "after",
+          "line": 178,
+          "writes": 4,
+          "memory": 1
+        }
+      ],
+      "steps": [
+        {
+          "phase": "admit-before",
+          "operation": 0,
+          "line": 112
+        },
+        {
+          "phase": "admit-after",
+          "operation": 0,
+          "line": 113
+        },
+        {
+          "phase": "barrier-before",
+          "operation": 0,
+          "line": 114
+        },
+        {
+          "phase": "barrier-after",
+          "operation": 0,
+          "line": 115
+        },
+        {
+          "phase": "write-before",
+          "operation": 0,
+          "line": 116
+        },
+        {
+          "phase": "write-after",
+          "operation": 0,
+          "line": 117
+        },
+        {
+          "phase": "write-before",
+          "operation": 1,
+          "line": 118
+        },
+        {
+          "phase": "write-after",
+          "operation": 1,
+          "line": 119
+        },
+        {
+          "phase": "write-before",
+          "operation": 2,
+          "line": 120
+        },
+        {
+          "phase": "write-after",
+          "operation": 2,
+          "line": 121
+        },
+        {
+          "phase": "barrier-before",
+          "operation": 1,
+          "line": 122
+        },
+        {
+          "phase": "barrier-after",
+          "operation": 1,
+          "line": 123
+        },
+        {
+          "phase": "admit-before",
+          "operation": 0,
+          "line": 124
+        },
+        {
+          "phase": "admit-after",
+          "operation": 0,
+          "line": 125
+        },
+        {
+          "phase": "write-before",
+          "operation": 3,
+          "line": 126
+        },
+        {
+          "phase": "write-after",
+          "operation": 3,
+          "line": 164
+        },
+        {
+          "phase": "admit-before",
+          "operation": 0,
+          "line": 165
+        },
+        {
+          "phase": "admit-after",
+          "operation": 0,
+          "line": 166
+        },
+        {
+          "phase": "memory-before",
+          "operation": 0,
+          "line": 167
+        },
+        {
+          "phase": "clean-before",
+          "operation": 0,
+          "line": 168
+        },
+        {
+          "phase": "clean-after",
+          "operation": 0,
+          "line": 169
+        },
+        {
+          "phase": "clean-before",
+          "operation": 0,
+          "line": 170
+        },
+        {
+          "phase": "clean-after",
+          "operation": 0,
+          "line": 171
+        },
+        {
+          "phase": "memory-after",
+          "operation": 0,
+          "line": 172
+        },
+        {
+          "phase": "admit-before",
+          "operation": 0,
+          "line": 173
+        },
+        {
+          "phase": "admit-after",
+          "operation": 0,
+          "line": 174
+        }
+      ],
+      "transitions": [
+        {
+          "phase": "enabled",
+          "sctlr": 13441087,
+          "vbar": 2147512320,
+          "line": 159
+        },
+        {
+          "phase": "restored",
+          "sctlr": 13441087,
+          "vbar": 2147770368,
+          "line": 177
+        }
+      ],
+      "faults": [],
+      "status_before": {
+        "records": [
+          {
+            "index": 0,
+            "name": "dsu_detect",
+            "value": 0,
+            "line": 127
+          },
+          {
+            "index": 1,
+            "name": "dsu_interrupt",
+            "value": 0,
+            "line": 128
+          },
+          {
+            "index": 2,
+            "name": "dsu_status_before",
+            "value": 0,
+            "line": 129
+          },
+          {
+            "index": 3,
+            "name": "dsu_location0",
+            "value": 0,
+            "line": 130
+          },
+          {
+            "index": 4,
+            "name": "dsu_location1",
+            "value": 0,
+            "line": 131
+          },
+          {
+            "index": 5,
+            "name": "dsu_status_after",
+            "value": 0,
+            "line": 132
+          },
+          {
+            "index": 6,
+            "name": "ocram_detect",
+            "value": 0,
+            "line": 133
+          },
+          {
+            "index": 7,
+            "name": "ocram_interrupt",
+            "value": 0,
+            "line": 134
+          },
+          {
+            "index": 8,
+            "name": "ocram_status_before",
+            "value": 0,
+            "line": 135
+          },
+          {
+            "index": 9,
+            "name": "ocram_location0",
+            "value": 0,
+            "line": 136
+          },
+          {
+            "index": 10,
+            "name": "ocram_location1",
+            "value": 0,
+            "line": 137
+          },
+          {
+            "index": 11,
+            "name": "ocram_status_after",
+            "value": 0,
+            "line": 138
+          },
+          {
+            "index": 12,
+            "name": "ecc_config",
+            "value": 536720,
+            "line": 139
+          },
+          {
+            "index": 13,
+            "name": "ecc_initialized",
+            "value": 1,
+            "line": 140
+          },
+          {
+            "index": 14,
+            "name": "ecc_pending",
+            "value": 0,
+            "line": 141
+          },
+          {
+            "index": 15,
+            "name": "ecc_decoder",
+            "value": 0,
+            "line": 142
+          },
+          {
+            "index": 16,
+            "name": "pfr0",
+            "value": 286335522,
+            "line": 143
+          },
+          {
+            "index": 17,
+            "name": "midr",
+            "value": 1093652560,
+            "line": 144
+          },
+          {
+            "index": 18,
+            "name": "disr",
+            "value": 0,
+            "line": 145
+          },
+          {
+            "index": 19,
+            "name": "count",
+            "value": 2,
+            "line": 146
+          },
+          {
+            "index": 20,
+            "name": "selector_before",
+            "value": 0,
+            "line": 147
+          },
+          {
+            "index": 21,
+            "name": "features",
+            "value": 43430,
+            "line": 148
+          },
+          {
+            "index": 22,
+            "name": "control",
+            "value": 0,
+            "line": 149
+          },
+          {
+            "index": 23,
+            "name": "status_before",
+            "value": 0,
+            "line": 150
+          },
+          {
+            "index": 24,
+            "name": "misc",
+            "value": 0,
+            "line": 151
+          },
+          {
+            "index": 25,
+            "name": "status_after",
+            "value": 0,
+            "line": 152
+          },
+          {
+            "index": 26,
+            "name": "selector_after",
+            "value": 0,
+            "line": 153
+          }
+        ],
+        "pending": null,
+        "complete": true,
+        "valid": true,
+        "ras": "complete",
+        "reason": null,
+        "hardware_authority": false
+      },
+      "logging": {
+        "records": [
+          {
+            "phase": "arm-before",
+            "line": 155
+          },
+          {
+            "phase": "armed",
+            "line": 156
+          },
+          {
+            "phase": "restore-before",
+            "line": 175
+          },
+          {
+            "phase": "restored",
+            "line": 176
+          }
+        ],
+        "valid": true,
+        "complete": true,
+        "write_attempted": true,
+        "armed": true,
+        "restore_attempted": true,
+        "restored": true,
+        "failed": false,
+        "failure": null,
+        "hardware_authority": false
+      },
+      "status_fault": {
+        "records": [],
+        "pending": null,
+        "complete": false,
+        "valid": true,
+        "ras": null,
+        "reason": null,
+        "hardware_authority": false
+      },
+      "mailbox_views": {
+        "records": [
+          {
+            "phase": 0,
+            "values": {
+              "cin": 2,
+              "cout": 2,
+              "rin": 1,
+              "rout": 1,
+              "bell": 0,
+              "status": 3338334543
+            },
+            "line": 158,
+            "begin_line": 157
+          },
+          {
+            "phase": 1,
+            "values": {
+              "cin": 0,
+              "cout": 0,
+              "rin": 0,
+              "rout": 0,
+              "bell": 0,
+              "status": 0
+            },
+            "line": 161,
+            "begin_line": 160
+          },
+          {
+            "phase": 2,
+            "values": {
+              "cin": 2,
+              "cout": 2,
+              "rin": 1,
+              "rout": 1,
+              "bell": 0,
+              "status": 3338334543
+            },
+            "line": 163,
+            "begin_line": 162
+          }
+        ],
+        "pending": null,
+        "valid": true,
+        "complete": true,
+        "hardware_authority": false
+      },
+      "valid": true,
+      "complete": true,
+      "hardware_authority": false
+    },
+    "firmware_ram_trace": {
+      "records": [
+        {
+          "kind": "entry",
+          "line": 42,
+          "phase": null
+        },
+        {
+          "kind": "pass",
+          "line": 43,
+          "phase": null
+        }
+      ],
+      "complete": true,
+      "valid": true,
+      "vendor_records": [
+        {
+          "phase": "enter",
+          "line": 45
+        },
+        {
+          "phase": "reset-before",
+          "line": 46
+        },
+        {
+          "phase": "reset-after",
+          "line": 47
+        },
+        {
+          "phase": "cpu-data-before",
+          "line": 48
+        },
+        {
+          "phase": "cpu-data-after",
+          "line": 49
+        },
+        {
+          "phase": "rw-cache-before",
+          "line": 50
+        },
+        {
+          "phase": "rw-cache-after",
+          "line": 51
+        },
+        {
+          "phase": "nobits-cache-before",
+          "line": 56
+        },
+        {
+          "phase": "nobits-cache-after",
+          "line": 61
+        },
+        {
+          "phase": "bss-before",
+          "line": 62
+        },
+        {
+          "phase": "bss-after",
+          "line": 63
+        },
+        {
+          "phase": "stack-before",
+          "line": 64
+        },
+        {
+          "phase": "stack-after",
+          "line": 65
+        },
+        {
+          "phase": "setup-before",
+          "line": 66
+        },
+        {
+          "phase": "setup-after",
+          "line": 72
+        }
+      ],
+      "vendor_complete": true,
+      "exceptions": [],
+      "status_probe": {
+        "records": [],
+        "pending": null,
+        "complete": false,
+        "valid": true
+      },
+      "ras_probe": {
+        "records": [],
+        "pending": null,
+        "complete": false,
+        "valid": true,
+        "outcome": null,
+        "original_selector": null,
+        "selector_may_have_changed": false,
+        "selector_restored": false,
+        "record_complete": false
+      },
+      "decode_log": {
+        "records": [
+          {
+            "phase": "idle",
+            "line": 44
+          },
+          {
+            "phase": "setup-before",
+            "line": 52
+          },
+          {
+            "phase": "baseline-zero",
+            "line": 53
+          },
+          {
+            "phase": "enable-before",
+            "line": 54
+          },
+          {
+            "phase": "enabled",
+            "line": 55
+          },
+          {
+            "phase": "restore-before",
+            "line": 59
+          },
+          {
+            "phase": "restored",
+            "line": 60
+          }
+        ],
+        "valid": true,
+        "complete": true,
+        "write_attempted": true,
+        "restore_attempted": true,
+        "restored": true,
+        "failed": false
+      },
+      "cache_maintenance": {
+        "records": [
+          {
+            "phase": "setway-before",
+            "line": 57
+          },
+          {
+            "phase": "setway-after",
+            "line": 58
+          }
+        ],
+        "valid": true,
+        "complete": true,
+        "maintenance_may_have_started": true
+      },
+      "runtime_startup": {
+        "records": [
+          {
+            "phase": "main-before",
+            "line": 73
+          },
+          {
+            "phase": "platform-before",
+            "line": 76
+          },
+          {
+            "phase": "owned-before",
+            "line": 77
+          },
+          {
+            "phase": "owned-after",
+            "line": 81
+          },
+          {
+            "phase": "gic-driver-before",
+            "line": 82
+          },
+          {
+            "phase": "gic-driver-after",
+            "line": 83
+          },
+          {
+            "phase": "gic-distributor-before",
+            "line": 84
+          },
+          {
+            "phase": "gic-distributor-after",
+            "line": 85
+          },
+          {
+            "phase": "gic-redistributor-before",
+            "line": 86
+          },
+          {
+            "phase": "gic-redistributor-after",
+            "line": 87
+          },
+          {
+            "phase": "gic-cpu-before",
+            "line": 88
+          },
+          {
+            "phase": "gic-cpu-after",
+            "line": 89
+          },
+          {
+            "phase": "mailbox-before",
+            "line": 90
+          },
+          {
+            "phase": "mailbox-after",
+            "line": 91
+          },
+          {
+            "phase": "platform-after",
+            "line": 92
+          },
+          {
+            "phase": "libraries-before",
+            "line": 93
+          },
+          {
+            "phase": "libraries-after",
+            "line": 94
+          },
+          {
+            "phase": "services-before",
+            "line": 95
+          },
+          {
+            "phase": "services-after",
+            "line": 96
+          },
+          {
+            "phase": "next-image-before",
+            "line": 97
+          },
+          {
+            "phase": "next-image-after",
+            "line": 98
+          },
+          {
+            "phase": "runtime-before",
+            "line": 99
+          },
+          {
+            "phase": "runtime-after",
+            "line": 100
+          },
+          {
+            "phase": "console-before",
+            "line": 101
+          },
+          {
+            "phase": "console-after",
+            "line": 102
+          },
+          {
+            "phase": "main-after",
+            "line": 103
+          },
+          {
+            "phase": "data-clean-before",
+            "line": 104
+          },
+          {
+            "phase": "data-clean-after",
+            "line": 105
+          },
+          {
+            "phase": "bss-clean-before",
+            "line": 106
+          },
+          {
+            "phase": "bss-clean-after",
+            "line": 109
+          },
+          {
+            "phase": "exit-before",
+            "line": 110
+          }
+        ],
+        "valid": true,
+        "complete": true
+      },
+      "exit_cache": {
+        "records": [
+          {
+            "phase": "clean-before",
+            "line": 107
+          },
+          {
+            "phase": "clean-after",
+            "line": 108
+          }
+        ],
+        "valid": true,
+        "complete": true,
+        "maintenance_may_have_started": true
+      }
+    },
+    "atf_observation": {
+      "target": 2147483648,
+      "bl32": 0,
+      "bl33": 2149580800,
+      "fdt": 0,
+      "params": 3220176904,
+      "cold": 139848,
+      "cookie": 5066060512865812482,
+      "el": 3,
+      "mpidr": 2164260864,
+      "sctlr": 12912696,
+      "scr": 15,
+      "daif": 960,
+      "bytes": 315840,
+      "sha256": "a1c031755ced928c39922416c549c434a51c219776c02c5022f0dce2c05ac616"
+    },
+    "hps_io_observation": {
+      "complete": false,
+      "map_sha256": "297995427d26df7bb4c51f0c68ca50735468ea22aae7323d92aa6e781e18f0ae",
+      "registers": 164,
+      "reads": 0,
+      "runtime_admission": false
+    }
+  },
+  "live_programming_grant": {
+    "format": 1,
+    "phase": "native",
+    "image_sha256": "962bbc1719707613472b0c3e0c3bd64f2b2e9e3ca802c3433e39d44aec3a3f24",
+    "transport": {
+      "serial": "TRWU8CBL",
+      "source_commit": "56f7283dfbcca2d690fe5663b6f0d4c41cba5940",
+      "claim_token": "7a124fae52bf7062",
+      "pid": 510470,
+      "start_ticks": "127419650",
+      "cable": "DE25-Nano on localhost:43113 [3-11.1-iface0]",
+      "config_sha256": "63af1353386ca82b41073f8ed005e482e018833d8ccdbd05f1486f8b06a65c2a",
+      "clock": "3M",
+      "auto_adjust": 0,
+      "client_sha256": {
+        "/data/altera_pro/26.3/quartus/linux64/libjtag_client.so": "83894ac5bb2e3e18809372e32940ccaf834a4de790e0c240b4068cab0de42fd9",
+        "/data/altera_pro/26.3/quartus/linux64/libjtag_client_dcrt.so": "03c1733b7fa5e87c64e0d83ff7796d67deed0b303b1eb9649a9de98a182505d5"
+      },
+      "probe_sha256": "025c30f4900a9e07c9ff0c202285cacba9f62936ffcea2cd211f4309caa1d01c"
+    },
+    "live_scan_sha256": "60ec5541d822f8ad5e06c542b71f114e5af5a5e01173e1eb5979719e4209f418",
+    "state": "consumed-before-programming"
+  },
+  "jtag_id": "4362C0DD",
+  "programming_complete": true,
+  "build_id": "1059bb64e5cac38b",
+  "secure_cold_boot_verified": true,
+  "error": "native failure marker; no further command",
+  "passive_failure_tail": {
+    "bound_seconds": 2,
+    "complete": true,
+    "restoration": "restored",
+    "affinity_calls": {
+      "records": [
+        {
+          "phase": "smc-before",
+          "line": 213,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 214,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 215,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 216,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 217,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 218,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 221,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 222,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 223,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 224,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 225,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 226,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 229,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 230,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 231,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 232,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 233,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 234,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 237,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 238,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 239,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 240,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 241,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 242,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 267,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 268,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 269,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 270,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 271,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 272,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-before",
+          "line": 273,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 274,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 275,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 276,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 277,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 278,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-before",
+          "line": 279,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 280,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 281,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 282,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 283,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 284,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-before",
+          "line": 285,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 286,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 287,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 288,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 289,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 290,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        }
+      ],
+      "valid": true,
+      "initial_complete": true,
+      "complete": true,
+      "instruction_may_have_started": true,
+      "cache_may_have_started": true,
+      "instruction_returns_observed": 8
+    },
+    "partial_call_record": false,
+    "loader_progress": {
+      "records": [
+        {
+          "phase": "memory-before",
+          "line": 199
+        },
+        {
+          "phase": "memory-after",
+          "line": 208
+        },
+        {
+          "phase": "snapshot-before",
+          "line": 209
+        },
+        {
+          "phase": "registers-before",
+          "line": 210
+        },
+        {
+          "phase": "registers-after",
+          "line": 211
+        },
+        {
+          "phase": "cpu0-before",
+          "line": 212
+        },
+        {
+          "phase": "cpu0-after",
+          "line": 219
+        },
+        {
+          "phase": "cpu1-before",
+          "line": 220
+        },
+        {
+          "phase": "cpu1-after",
+          "line": 227
+        },
+        {
+          "phase": "cpu2-before",
+          "line": 228
+        },
+        {
+          "phase": "cpu2-after",
+          "line": 235
+        },
+        {
+          "phase": "cpu3-before",
+          "line": 236
+        },
+        {
+          "phase": "cpu3-after",
+          "line": 243
+        },
+        {
+          "phase": "reset-before",
+          "line": 244
+        },
+        {
+          "phase": "reset-after",
+          "line": 245
+        },
+        {
+          "phase": "watchdog-before",
+          "line": 246
+        },
+        {
+          "phase": "watchdog-after",
+          "line": 247
+        },
+        {
+          "phase": "uart-before",
+          "line": 248
+        },
+        {
+          "phase": "uart-after",
+          "line": 249
+        },
+        {
+          "phase": "snapshot-after",
+          "line": 250
+        },
+        {
+          "phase": "cpu-check-before",
+          "line": 251
+        },
+        {
+          "phase": "cpu-check-after",
+          "line": 252
+        },
+        {
+          "phase": "watchdog-stop-before",
+          "line": 253
+        },
+        {
+          "phase": "watchdog-stop-after",
+          "line": 254
+        },
+        {
+          "phase": "owned-before",
+          "line": 255
+        },
+        {
+          "phase": "owned-after",
+          "line": 257
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "firmware_call_may_have_started": true
+    },
+    "partial_loader_record": false,
+    "exit_cache": {
+      "records": [
+        {
+          "phase": "clean-before",
+          "line": 107
+        },
+        {
+          "phase": "clean-after",
+          "line": 108
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "maintenance_may_have_started": true
+    },
+    "runtime_startup": {
+      "records": [
+        {
+          "phase": "main-before",
+          "line": 73
+        },
+        {
+          "phase": "platform-before",
+          "line": 76
+        },
+        {
+          "phase": "owned-before",
+          "line": 77
+        },
+        {
+          "phase": "owned-after",
+          "line": 81
+        },
+        {
+          "phase": "gic-driver-before",
+          "line": 82
+        },
+        {
+          "phase": "gic-driver-after",
+          "line": 83
+        },
+        {
+          "phase": "gic-distributor-before",
+          "line": 84
+        },
+        {
+          "phase": "gic-distributor-after",
+          "line": 85
+        },
+        {
+          "phase": "gic-redistributor-before",
+          "line": 86
+        },
+        {
+          "phase": "gic-redistributor-after",
+          "line": 87
+        },
+        {
+          "phase": "gic-cpu-before",
+          "line": 88
+        },
+        {
+          "phase": "gic-cpu-after",
+          "line": 89
+        },
+        {
+          "phase": "mailbox-before",
+          "line": 90
+        },
+        {
+          "phase": "mailbox-after",
+          "line": 91
+        },
+        {
+          "phase": "platform-after",
+          "line": 92
+        },
+        {
+          "phase": "libraries-before",
+          "line": 93
+        },
+        {
+          "phase": "libraries-after",
+          "line": 94
+        },
+        {
+          "phase": "services-before",
+          "line": 95
+        },
+        {
+          "phase": "services-after",
+          "line": 96
+        },
+        {
+          "phase": "next-image-before",
+          "line": 97
+        },
+        {
+          "phase": "next-image-after",
+          "line": 98
+        },
+        {
+          "phase": "runtime-before",
+          "line": 99
+        },
+        {
+          "phase": "runtime-after",
+          "line": 100
+        },
+        {
+          "phase": "console-before",
+          "line": 101
+        },
+        {
+          "phase": "console-after",
+          "line": 102
+        },
+        {
+          "phase": "main-after",
+          "line": 103
+        },
+        {
+          "phase": "data-clean-before",
+          "line": 104
+        },
+        {
+          "phase": "data-clean-after",
+          "line": 105
+        },
+        {
+          "phase": "bss-clean-before",
+          "line": 106
+        },
+        {
+          "phase": "bss-clean-after",
+          "line": 109
+        },
+        {
+          "phase": "exit-before",
+          "line": 110
+        }
+      ],
+      "valid": true,
+      "complete": true
+    },
+    "cache_maintenance": {
+      "records": [
+        {
+          "phase": "setway-before",
+          "line": 57
+        },
+        {
+          "phase": "setway-after",
+          "line": 58
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "maintenance_may_have_started": true
+    },
+    "decode_log": {
+      "records": [
+        {
+          "phase": "idle",
+          "line": 44
+        },
+        {
+          "phase": "setup-before",
+          "line": 52
+        },
+        {
+          "phase": "baseline-zero",
+          "line": 53
+        },
+        {
+          "phase": "enable-before",
+          "line": 54
+        },
+        {
+          "phase": "enabled",
+          "line": 55
+        },
+        {
+          "phase": "restore-before",
+          "line": 59
+        },
+        {
+          "phase": "restored",
+          "line": 60
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "write_attempted": true,
+      "restore_attempted": true,
+      "restored": true,
+      "failed": false
+    },
+    "inventory_complete": false,
+    "ras_complete": false
+  },
+  "usb_permissions_restored": true,
+  "console_sha256": "079bcd6eb322bda5b7c4526e9516904dba8f341bc25ea18599d51bf4fc77b7d8",
+  "finished_utc": "2026-11-09T16:47:59.206777+00:00",
+  "decoder_sha256": "9e5598f27432be8492b2be7f95931115453276a261e335b52eaa70c7d23b2072"
+}

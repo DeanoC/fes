@@ -1,0 +1,11 @@
+{
+  "status": "independently-retained-and-read-back",
+  "source_commit": "5764c9495b6597da306546879194100021986a37",
+  "classification": "matched preparation-only private-table batching; file admission only, hardware pending",
+  "archive": "/home/deano/fes-retained/de25-table-batch-matched-20261114-r1/matched-chain.tar.gz",
+  "archive_sha256": "8942f0a33f3c287b68ddc915d4b2fb2e172c2dc113926400a18c8cb5cb558631",
+  "archive_bytes": 189199323,
+  "files": 41749,
+  "hardware_actions": false,
+  "hardware_accepted": false
+}

@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "python3",
+    "out/table-batch-readonly-restoration/run_restoration.py",
+    "--procedure-sha256",
+    "f73e1395331417f348dd832f2665d333be57f5c1f8d9b63c2a1707d5b8f24f12",
+    "--execute"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 520.4874195540324,
+  "log_sha256": "fc912c26baa23b00d1bd7e995dd6d7629db7f8a8369816ea6121c3e15ba7f020"
+}

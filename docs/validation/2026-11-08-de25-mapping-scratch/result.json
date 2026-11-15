@@ -1,0 +1,103 @@
+{
+  "status": "software-validated",
+  "classification": "host implementation optimization and AArch64 QEMU; no new Nano hardware evidence",
+  "base": "762959ed6b854adc07cc964d962b054ada7bf310",
+  "source_sha256": {
+    "platform/embedded/tamago/board/arm64map/inspect.go": "f6bb2766e012465d8057e6cf0330ce8c06ec73c86e4c459662937ac4af638a8c",
+    "platform/embedded/tamago/board/arm64map/mapper.go": "9965b97e98b4926a42b865592db7d0c23cf2f098a3d37b1071dbd710d4943d04",
+    "platform/embedded/tamago/board/arm64map/inspect_bench_test.go": "62f022b507dfaa584fb0972133488d0b1010014118b2419b93d660931da9d7f8"
+  },
+  "comparison": {
+    "classification": "host model implementation benchmark; not board latency",
+    "baseline_source": "762959ed6b854adc07cc964d962b054ada7bf310",
+    "iterations_per_run": 10000,
+    "repetitions": 3,
+    "results": {
+      "map-baseline": {
+        "ns_per_op": [
+          8511,
+          6403,
+          6384
+        ],
+        "bytes_per_op": [
+          2304,
+          2304,
+          2304
+        ],
+        "allocations_per_op": [
+          108,
+          108,
+          108
+        ],
+        "observation": "{CPU:{EL:4 SCTLR:818944005 TCR:8589948185 TTBR0:2214608896 MAIR:65280 MMFR0:2 MPIDR:2164260864} DescriptorSHA256:[240 239 101 219 16 26 22 61 228 97 106 23 55 212 98 224 154 175 198 82 136 59 44 51 195 201 39 207 22 128 234 193] Bytes:65540 TableReads:100 Translations:148}",
+        "log_sha256": "406d02fe07d59de5dc4ed93fe456c45e00653931d7b72b53cdddd8bfd7bdc42d"
+      },
+      "map-optimized": {
+        "ns_per_op": [
+          5359,
+          5361,
+          5375
+        ],
+        "bytes_per_op": [
+          288,
+          288,
+          288
+        ],
+        "allocations_per_op": [
+          2,
+          2,
+          2
+        ],
+        "observation": "{CPU:{EL:4 SCTLR:818944005 TCR:8589948185 TTBR0:2214608896 MAIR:65280 MMFR0:2 MPIDR:2164260864} DescriptorSHA256:[240 239 101 219 16 26 22 61 228 97 106 23 55 212 98 224 154 175 198 82 136 59 44 51 195 201 39 207 22 128 234 193] Bytes:65540 TableReads:100 Translations:148}",
+        "log_sha256": "66a7ff64755c26c20fe7167ba5d5e4020f13191a21d7c629b274910a0066cf2e"
+      }
+    },
+    "host_median_reduction_percent": 16.273621739809464,
+    "hardware_admission": false,
+    "tape_timeout_fixed": false
+  },
+  "tests": {
+    "parent_regressions": 1691,
+    "parent_existing_skips": 3,
+    "native_top_level_passed_or_skipped": 400,
+    "native_result": "out/native-fabric-hooks-49643ab8358246f5b5b95ac431601742/result.json",
+    "native_result_sha256": "5a4f7314315d9b046e8c29f679ac20af448388b007b5d15b038dd3b88df00b75",
+    "native_test_source_sha256": {
+      "platform/embedded/tamago/board/arm64map/inspect.go": "f3be5a71c52edd40f063e7f6b536ccb28b5d4afaad119717daf4a5b5f9a70c68",
+      "platform/embedded/tamago/board/arm64map/mapper.go": "9965b97e98b4926a42b865592db7d0c23cf2f098a3d37b1071dbd710d4943d04",
+      "platform/embedded/tamago/board/arm64map/inspect_bench_test.go": "62f022b507dfaa584fb0972133488d0b1010014118b2419b93d660931da9d7f8"
+    },
+    "final_source_is_gofmt_of_native_test_source": true,
+    "final_mapping_tests": "passed with race detector",
+    "final_qemu_mapcheck": {
+      "result": "out/nano-mapping-scratch-20261108/qemu-final-mapcheck/result.json",
+      "result_sha256": "948be081a6941c4e410bea961b7196d569e6294f48ac8cc13cf73b153de6b048",
+      "elf_sha256": "f53a8e41e0983600343ee4c2add7455b3af9cb95802f0cb9beff74ce365562c7",
+      "observation": {
+        "sctlr": 12916797,
+        "mmfr0": 4386,
+        "mpidr": 2147483648,
+        "table_reads": 3840,
+        "translations": 5648,
+        "descriptor_sha256": "09382e4a1cb09ba95052b3a1702c94529e236ac5587bf36af4e8cff1d8839df1",
+        "mapping_only": true,
+        "physical_admission": false
+      }
+    }
+  },
+  "evidence": {
+    "out/nano-mapping-scratch-20261108/affected.log": "198de427cff47d6350fb44391541e86eb22755dcbf3b522a580f9ab4d6c73d8a",
+    "out/nano-mapping-scratch-20261108/allocation-regression.log": "cc94ff91be1dfbb02a42ac99f7b4f58a375121ae2c657b8e25537e3222eb50d1",
+    "out/nano-mapping-scratch-20261108/final-mapping-tests.log": "ebe822c9acc0b81d0ed4556a5aed4864544825fdd9009a92a874a7541b2ad508",
+    "out/nano-mapping-scratch-20261108/map-baseline.log": "406d02fe07d59de5dc4ed93fe456c45e00653931d7b72b53cdddd8bfd7bdc42d",
+    "out/nano-mapping-scratch-20261108/map-optimized.log": "66a7ff64755c26c20fe7167ba5d5e4020f13191a21d7c629b274910a0066cf2e",
+    "out/nano-mapping-scratch-20261108/native-entry-final-mapcheck.log": "cca1953790b5d53091e14550ca992be5a72343846dbdd854c88820b62a45ed02",
+    "out/nano-mapping-scratch-20261108/native-entry-mapcheck.log": "478aecf5f0c61f5bfd432d974f923927f528ce8918585aa336547b6648ee98e7"
+  },
+  "board_touched": false,
+  "deadline_changed": false,
+  "per_access_guards_changed": false,
+  "tape_timeout_fixed": false,
+  "goal_complete": false,
+  "next_action": "Profile and reduce secure ownership/transfer cost while preserving containment and the one-second media bound; do not replay the consumed ba2f board procedure or build another chain merely for this allocation reduction."
+}

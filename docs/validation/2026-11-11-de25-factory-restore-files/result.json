@@ -1,0 +1,218 @@
+{
+  "scope": "prepared-vendor-factory-restore-files-no-hardware-write",
+  "manifest": {
+    "scope": "vendor-produced-byte-exact-factory-main-array-restore-files",
+    "board": "TRWU8CBL",
+    "factory_rollback_image_prepared": true,
+    "full_array_bytes": 16777216,
+    "original_array_SHA256": "165afd94489af66ba86160d47b3d404263b4cb4a0c10a7a2a007a4f340cb7fc6",
+    "both_complete_backup_passes_required": true,
+    "originals_unchanged": true,
+    "JIC_verification": {
+      "bytes": 16777216,
+      "array_sha256": "165afd94489af66ba86160d47b3d404263b4cb4a0c10a7a2a007a4f340cb7fc6",
+      "JIC_sha256": "b796d5bd8379701244c78433f63b84d15cab41f8d5d4998158f370c5c07b1295",
+      "device": "A5EB013BB23B",
+      "flash": "MT25QU128",
+      "all_array_bytes_verified": true,
+      "stored_outer_crc16": 19363,
+      "outer_checksum_independently_verified": false
+    },
+    "RPD_all_bytes_match_backup": true,
+    "map_covers_all_main_array": true,
+    "vendor_parser_accepted": true,
+    "producer_sha256": {
+      "/data/altera_pro/26.3/quartus/bin/quartus_pfg": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+      "/data/altera_pro/26.3/quartus/linux64/quartus_pfg": "ed0026052cadd2ee56ae4e850c20a733ce0d0106bbd39687e15f045637404869"
+    },
+    "input_evidence_sha256": {
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-qspi-full-backup-long-20261111/frozen-procedure.json": "2fe11963bbf68318f4403b00ea0d4538ced69171053a8fafae6e0d1db1459a16",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-qspi-full-backup-long-20261111/pass1/result.json": "cf5eb5631925edc86ca0c2427e5adb44f7dbde757ab2802847001518927700b4",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-qspi-full-backup-long-20261111/pass2/result.json": "b143b93e651275b4f5beccf50ffae9b8c8b864189fe98b36465690c87147b41e",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-qspi-full-backup-long-20261111/pass1-cleanup-evidence.json": "0cc3548103f19e98b6cff4308e9db90bc73caa1a1b46aaf47a73b2ee6daa435f",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-qspi-full-backup-long-20261111/pass2-cleanup-evidence.json": "f485b3c8354a142db7b1da6dbcb31a7b69f898942729460d395b2d5311a6fda3"
+    },
+    "commands": [
+      [
+        "flock",
+        "-w60",
+        "-E75",
+        "/tmp/lander-quartus-3090.lock",
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-c",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-factory-restore-20261111/factory-main-array.pfg"
+      ],
+      [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-i",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-factory-restore-20261111/factory-main-array.jic"
+      ]
+    ],
+    "file_tool_source_sha256": {
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-qspi-rollback-layout-20261111/prepare_factory_restore.py": "df30675ec2a0cae319828b1b3818b5a2af2d983f643b805d41a77ced8a466043",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-qspi-rollback-layout-20261111/restore_format.py": "b1096bf23a14804367178c52f668d431e7ba8fb70f725995c3dca2a1f28c79fb"
+    },
+    "files": {
+      "factory-main-array.pfg": {
+        "bytes": 1198,
+        "sha256": "b58c33f92531789cbaffef9e336110f2132ca941d4c8c957d77809fe9e95eab1"
+      },
+      "pfg-generate.log": {
+        "bytes": 1939,
+        "sha256": "c07500ebcafdecfcdb50f39ad92830550f4856f94870b5689e6446f2feb32436"
+      },
+      "pfg-info.log": {
+        "bytes": 6991,
+        "sha256": "081987afd79d23ad20d83f1b619594e8f4355ace6a82c9222d450e091c417201"
+      },
+      "factory-main-array.map": {
+        "bytes": 308,
+        "sha256": "c722761f54fa0eabe89e4d257b388c265826ae127b01c85fa4d18b0f6566a0af"
+      },
+      "factory-main-array.jic": {
+        "bytes": 16777447,
+        "sha256": "b796d5bd8379701244c78433f63b84d15cab41f8d5d4998158f370c5c07b1295"
+      },
+      "factory-main-array.bin": {
+        "bytes": 16777216,
+        "sha256": "165afd94489af66ba86160d47b3d404263b4cb4a0c10a7a2a007a4f340cb7fc6"
+      },
+      "factory-main-array.rpd": {
+        "bytes": 16777216,
+        "sha256": "165afd94489af66ba86160d47b3d404263b4cb4a0c10a7a2a007a4f340cb7fc6"
+      }
+    },
+    "factory_restore_hardware_tested": false,
+    "flash_write_authorized": false,
+    "flash_write_commands_sent": false,
+    "hardware_actions": false,
+    "OTP_security_covered": false
+  },
+  "independent_audit": {
+    "status": "passed-independent-factory-restore-file-audit",
+    "hardware_actions": false,
+    "factory_rollback_image_prepared": true,
+    "factory_restore_hardware_tested": false,
+    "original_array_SHA256": "165afd94489af66ba86160d47b3d404263b4cb4a0c10a7a2a007a4f340cb7fc6",
+    "JIC_sha256": "b796d5bd8379701244c78433f63b84d15cab41f8d5d4998158f370c5c07b1295",
+    "RPD_sha256": "165afd94489af66ba86160d47b3d404263b4cb4a0c10a7a2a007a4f340cb7fc6",
+    "all16777216_bytes_match_both_independent_backups": true,
+    "target_and_full_map_verified": true,
+    "vendor_info_accepted": true,
+    "stored_outer_CRC_matches_vendor_info": true,
+    "outer_checksum_independently_computed": false,
+    "source_and_input_receipts_unchanged": true,
+    "output_modes600": true,
+    "flash_write_authorized": false,
+    "OTP_security_covered": false
+  },
+  "raw_layout_fixture_proof": {
+    "scope": "file-only-raw-partition-layout-feasibility",
+    "hardware_actions": false,
+    "factory_backup_used": false,
+    "usable_factory_rollback": false,
+    "returncode": 0,
+    "commands": [
+      "flock",
+      "-w60",
+      "-E75",
+      "/tmp/lander-quartus-3090.lock",
+      "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+      "-c",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-qspi-rollback-layout-20261111/raw-only-fixture/raw-only.pfg"
+    ],
+    "XML_vocabulary_from_vendor_GUI": true,
+    "raw_only_partition_layout_is_experimental": true,
+    "files": {
+      "raw-only.jic": {
+        "bytes": 16777447,
+        "sha256": "5bfcaee06638311064afa3fc656f4c5c57c279d0e61109bea08950ecd4611965"
+      },
+      "raw-only.map": {
+        "bytes": 308,
+        "sha256": "3051e1efd4927b5f5f982eb0220177d2cc1ec9df924c9a36b949c4b382b7bd06"
+      },
+      "raw-only.rpd": {
+        "bytes": 16777216,
+        "sha256": "f4209e802f3b227d080d3d879221473772a15c15d6669cd38b469f791ca5ee94"
+      },
+      "raw-only.pfg": {
+        "bytes": 1208,
+        "sha256": "2d86c19d8facaf2341c366b8b0cd0d6a4e079210566d75f37e804e3d4cfb1ea0"
+      },
+      "conversion.log": {
+        "bytes": 1975,
+        "sha256": "61bdfc418c06ed6784ee40d3fe57ce029d3abee54874c98cf300115d6303abe9"
+      },
+      "native-fixture.bin": {
+        "bytes": 16777216,
+        "sha256": "f4209e802f3b227d080d3d879221473772a15c15d6669cd38b469f791ca5ee94"
+      }
+    },
+    "JIC_created": true,
+    "JIC_array_matches_fixture": true,
+    "JIC_tags": [
+      1,
+      2,
+      3,
+      27,
+      28,
+      30,
+      26,
+      8
+    ],
+    "RPD_matches_fixture": true
+  },
+  "format_models": {
+    "bytes": 16777216,
+    "array_sha256": "f4209e802f3b227d080d3d879221473772a15c15d6669cd38b469f791ca5ee94",
+    "JIC_sha256": "5bfcaee06638311064afa3fc656f4c5c57c279d0e61109bea08950ecd4611965",
+    "device": "A5EB013BB23B",
+    "flash": "MT25QU128",
+    "all_array_bytes_verified": true,
+    "stored_outer_crc16": 17187,
+    "outer_checksum_independently_verified": false,
+    "status": "passed",
+    "hardware_actions": false,
+    "factory_backup_used": false,
+    "rejected": [
+      "truncated-header",
+      "truncated-data",
+      "trailing-byte",
+      "wrong-target",
+      "wrong-flash",
+      "different-first-byte",
+      "different-last-byte",
+      "partial-array",
+      "wrong-range-map",
+      "wrong-digest",
+      "symlink-input",
+      "relative-settings-path",
+      "unsafe-settings-name"
+    ],
+    "XML_matches_vendor_accepted_fixture": true
+  },
+  "source_gate_models": {
+    "status": "passed",
+    "scope": "synthetic-read-receipt-file-packaging-gates",
+    "hardware_actions": false,
+    "PFG_executed": false,
+    "actual_factory_backup_qualified": false,
+    "positive_model_accepted": true,
+    "rejected": [
+      "partial-summary",
+      "wrong-board",
+      "one-pass",
+      "unverified-cleanup",
+      "changed-receipt",
+      "missing-evidence",
+      "different-array",
+      "same-namespace",
+      "duplicate-key"
+    ]
+  },
+  "producer_guard_correction": "PFG is not used by the read operator, so the initial file-generation guard stopped before creating output. The corrected generator pins the separate already validated native-candidate PFG wrapper/ELF hashes; initial source/error and corrected source remain retained.",
+  "physical_restore_tested": false,
+  "flash_write_authorized": false,
+  "autonomous_native_boot_tested": false
+}

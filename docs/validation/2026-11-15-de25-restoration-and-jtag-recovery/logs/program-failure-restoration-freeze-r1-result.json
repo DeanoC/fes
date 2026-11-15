@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/four-second-program-failure-files-restoration/freeze.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 2.803032296942547,
+  "log_sha256": "0e87f15619c05215d9f58be845060eec6ed0a3d85f91f924de3440f38d1c4562"
+}

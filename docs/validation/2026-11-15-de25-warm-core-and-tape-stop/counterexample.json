@@ -1,0 +1,28 @@
+{
+  "status": "passed-reproduced-retained-configuration-initial-tape-refusal",
+  "source_commit": "dae213dbfc88ca6f9246f21e4179c6a332a2fb8d",
+  "physical_compiled_source": "82e607abffa26a182c02ffad82d1056f210b380e",
+  "command": [
+    "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+    "test",
+    "-race",
+    "-count=1",
+    "-timeout",
+    "90s",
+    "-overlay",
+    "/home/deano/fes/out/dev/de25-source-release/out/retained-tape-counterexample/overlay.json",
+    "-run",
+    "^TestRetainedSourceCannotSupplyInitialTapePublication$",
+    "-v",
+    "./nativefabric"
+  ],
+  "host_go_sha256": "8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9",
+  "test_sha256": "b70db0fd0eb9c5898189b1dd40ed0866321324fc74a30db05b3d1a90416b0f9e",
+  "log_sha256": "5b200b5e586822e00945866a5f3543e1245949c3ffb074c2a357336244a26401",
+  "firmware_calls": 0,
+  "barriers_after_completed_source": 0,
+  "retained_payload_and_metadata_unchanged": true,
+  "overlay_only": true,
+  "production_changes": false,
+  "hardware_actions": false
+}

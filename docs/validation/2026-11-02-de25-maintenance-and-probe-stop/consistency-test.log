@@ -1,0 +1,16 @@
+test_bootable_media_docs_and_agent_entrypoints_are_linked (test_consistency.ConsistencyTest.test_bootable_media_docs_and_agent_entrypoints_are_linked) ... ok
+test_bootable_media_operator_guide_covers_rollback_config_and_installed_hashes (test_consistency.ConsistencyTest.test_bootable_media_operator_guide_covers_rollback_config_and_installed_hashes) ... ok
+test_bootable_media_rollback_uses_leased_cli_entrypoint (test_consistency.ConsistencyTest.test_bootable_media_rollback_uses_leased_cli_entrypoint) ... ok
+test_emitter_ignores_ambient_go_overrides (test_consistency.ConsistencyTest.test_emitter_ignores_ambient_go_overrides) ... ok
+test_fogcast_core_bundle_fixture_uses_public_package_path (test_consistency.ConsistencyTest.test_fogcast_core_bundle_fixture_uses_public_package_path) ... ok
+test_generated_consumer_drift (test_consistency.ConsistencyTest.test_generated_consumer_drift) ... ok
+test_missing_shared_fixture_tree_roots_are_rejected (test_consistency.ConsistencyTest.test_missing_shared_fixture_tree_roots_are_rejected) ... ok
+test_nondirectory_shared_fixture_tree_roots_are_rejected (test_consistency.ConsistencyTest.test_nondirectory_shared_fixture_tree_roots_are_rejected) ... ok
+test_selected_sources_and_validation_coverage (test_consistency.ConsistencyTest.test_selected_sources_and_validation_coverage) ... ok
+test_shared_fixture_copy_drift (test_consistency.ConsistencyTest.test_shared_fixture_copy_drift) ... ok
+test_yaml_validation_failure_propagates (test_consistency.ConsistencyTest.test_yaml_validation_failure_propagates) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.143s
+
+OK

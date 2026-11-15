@@ -1,0 +1,16 @@
+.F......
+======================================================================
+FAIL: test_capture_and_transport_match_frozen_trial (__main__.Tests.test_capture_and_transport_match_frozen_trial) (name='capture_binding.py')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/four-second-program-failure-files-restoration/test_restore_scope.py", line 89, in test_capture_and_transport_match_frozen_trial
+    self.assertEqual((B/n).read_bytes(),(donor/n).read_bytes())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: b'"""[3553 chars]\']==18 and cold[\'sdm_input_transfer\'][\'sco[5161 chars]))\n' != b'"""[3553 chars]\']==21 and cold[\'sdm_input_transfer\'][\'sco[5161 chars]))\n'
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.135s
+
+FAILED (failures=1)
+Restoration terminal: verified-original-FIT-files-only-restoration FIT restored: True baseline cycle/Park: False
+Restoration terminal: stopped FIT restored: False baseline cycle/Park: False

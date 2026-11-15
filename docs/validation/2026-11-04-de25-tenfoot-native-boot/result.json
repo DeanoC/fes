@@ -1,0 +1,218 @@
+{
+  "format": 1,
+  "status": "passed",
+  "classification": "software integration, selected native SDK and entry packaging; no hardware acceptance",
+  "base_commit": "7808f74c2fda87cc56a0fe92e5a17454fd31746a",
+  "source_sha256": {
+    "platform/embedded/entry/build.py": "1e840bd5a13cba2c5e19c03eadcb3fe091dc0b3d437ea6f0b62617fc9bfe9061",
+    "platform/embedded/nano/README.md": "674c37705f7a2ee58c03c64f31b1a423b62488785802cb6fddfa1b232a26922b",
+    "platform/embedded/nano/cold_profile.py": "fca692b8b4954cc6a3cc01251d1b6c1b65928723a226ee9948bc5b6dbc0ef812",
+    "platform/embedded/nano/hps_boot.py": "a6d8772d81295f15e3852e7a31fa8525d8d1a18455a3701e7e16b2eab499f13f",
+    "platform/embedded/nano/upload.py": "378548e9a4456d55d477f80595b1a0fc5b808f720ef3073603273b0c4abe1830",
+    "platform/embedded/tamago/README.md": "df6081fe2fe6460715615c83fca2525d192075bd93a09eb3e45364f81e48d8a2",
+    "platform/embedded/tamago/build.py": "8e024b49cad5f220f93e761f2a0639bca78ddf8140651fb243d4c67fca94443a",
+    "platform/embedded/tamago/cmd/fpgaload/main.go": "cd50edf954f12f7da3df6c3eda1d8e6e3fb77e5a06077770b99e0d5a7f690b7d",
+    "platform/embedded/tamago/cmd/fpgaload/tenfoot.go": "9bb1e3fee1a63c56e3f6ecc79b3cf3cf428a8a6c53febeb44cca12f337c95240",
+    "platform/embedded/tamago/cmd/fpgaload/tenfoot_disabled.go": "f4cd0a21b354f165f2655f3e54508654be4588e7747712e06e6b8f5569d5c5b5",
+    "platform/embedded/tamago/nativefabric/program_serial.go": "97dd5cf8823a6cfe083344a4f2d600795700378fa8bc7e9dacd9c456b3a51e50",
+    "platform/embedded/tamago/nativefabric/program_serial_test.go": "aece2d3c475cf3986f2c86ec3137f2202c11f13ae2d5fa03646bfd04c7d44b44",
+    "platform/embedded/tamago/run.py": "665382ea3b14025be4eb91d8bd24128e5468c1d05acba4f9e04eda3470e3ab52",
+    "tests/test_nano_tenfoot_serial.py": "2a90191cd63bd570af12255839c7cbdd6a401cad5abe42578aa2ed0b0558968f",
+    "tests/test_nano_upload.py": "2b571094e5bbacf17b35faea054615a53660f3b15d432f13929535226a3365cb"
+  },
+  "checks": {
+    "serial-tests": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "./nativefabric",
+        "-run",
+        "^(TestProgramCatalog|TestSerial|TestFullTenfootSerial)",
+        "-count=1",
+        "-timeout=90s"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.604054868919775,
+      "log_sha256": "86ec39d3773ef99099449b02ed8f9e879fd48ddd61e8184d6ee174c7bba38521"
+    },
+    "selection-regressions": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_tenfoot_serial.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20059754489921033,
+      "log_sha256": "4b45d8502b9af3740c9a484964cdc0c94a685f931887a53d15364f5093c3b1af"
+    },
+    "upload-ui-tests": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_upload.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 12.610439961077645,
+      "log_sha256": "97f43956a53d0c7afa225255833f769c854eeab865245c9743e60e1c5336e55a"
+    },
+    "affected-final": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "PATH=/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "7808f74c2fda87cc56a0fe92e5a17454fd31746a",
+        "--jobs",
+        "2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 336.036615664023,
+      "log_sha256": "05e0f5cb02e229b5dbc9cff0bf845099bc24a57841f178703250bbde6292fe24"
+    },
+    "compile-app": {
+      "argv": [
+        "python3",
+        "out/nano-tenfoot-serial-20261104/compile_app.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.6020521690370515,
+      "log_sha256": "01a6d5e02d920f13b57d112b4f474ebaddc6ebed2cb7841848fdaaf3e10d52ab"
+    },
+    "selection-sdk2": {
+      "argv": [
+        "python3",
+        "platform/embedded/tamago/run.py",
+        "fpgaload",
+        "--compiler",
+        "out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+        "--board",
+        "de25-nano",
+        "--profile",
+        "platform/embedded/nano/sd-profile.json",
+        "--hps-first-project",
+        "out/nano-tenfoot-serial-20261104/core-zx81/sealed-project",
+        "--computer-control",
+        "--computer-reload",
+        "--computer-storage-return",
+        "--selected-programs",
+        "--tenfoot-serial",
+        "--output",
+        "out/nano-tenfoot-serial-20261104/native-sdk"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 25.01518174400553,
+      "log_sha256": "c7cc616f2fcd12f9a8242d3524937572ab14f9b75dee44716f29e4f201d1bf8a"
+    },
+    "native-entry": {
+      "argv": [
+        "python3",
+        "platform/embedded/entry/build.py",
+        "--target",
+        "de25-nano",
+        "--payload",
+        "out/nano-tenfoot-serial-20261104/native-sdk/fpgaload.elf",
+        "--nano-build",
+        "out/nano-tenfoot-serial-20261104/native-sdk",
+        "--profile",
+        "platform/embedded/nano/sd-profile.json",
+        "--image-address",
+        "0x96080000",
+        "--cross-prefix",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+        "--output",
+        "out/nano-tenfoot-serial-20261104/native-entry"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 30.419268063968047,
+      "log_sha256": "08ce2d6b7a8f6447e20bbb7bfb336e1abaaefff6fd9731bd08acb284d7278223"
+    },
+    "selection-control-sdk": {
+      "argv": [
+        "python3",
+        "platform/embedded/tamago/run.py",
+        "fpgaload",
+        "--compiler",
+        "out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+        "--board",
+        "de25-nano",
+        "--profile",
+        "platform/embedded/nano/sd-profile.json",
+        "--hps-first-project",
+        "out/nano-tenfoot-serial-20261104/core-zx81/sealed-project",
+        "--computer-control",
+        "--computer-reload",
+        "--computer-storage-return",
+        "--selected-programs",
+        "--output",
+        "out/nano-tenfoot-serial-20261104/control-sdk"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 28.219600126030855,
+      "log_sha256": "9473fb45dd835c7ee82cce7d71487d0f1848905e9061ebf02e27d842fb6a5bf6"
+    }
+  },
+  "selected_mode": {
+    "native_sdk_sha256": "6091b0aca6fda791e98b2bee344bae2551f2f532c430c76ac08e7e152d9cde14",
+    "entry_receipt_sha256": "8222fa4147568edd4273e94f8ab2750278f3e2985efaa1e4ce212776df575105",
+    "elf_sha256": "9eac63d35955521355815ed7e181a8b53694137dc86d6fbf0a573c5a1e8e8020",
+    "entry_bytes": 7413760,
+    "tenfoot_serial": true,
+    "display": "serial-state-only",
+    "input": "UART navigation",
+    "preferences": "RAM only"
+  },
+  "unselected_control": {
+    "receipt_sha256": "f99c8cd79730951014766fa85d0d5f3514ad61f87112ca109c5f1e00c54567c4",
+    "elf_sha256": "14a5b4ccac4d2039538a9c3f0568366de0b8d0d6eacdd3f35c131f7550967e81",
+    "app_marker_and_RunPlatform_absent": true
+  },
+  "fpga_producer_source": "7808f74c2fda87cc56a0fe92e5a17454fd31746a",
+  "fpga_zx81_export": "out/nano-tenfoot-serial-20261104/core-zx81/artifact-readback.json",
+  "hardware_actions": false,
+  "ordinary_package_admission": false,
+  "physical_hdmi": false,
+  "usb_hub_input": false,
+  "native_ethernet": false,
+  "matched_firmware_composition": "not yet qualified at this code checkpoint"
+}

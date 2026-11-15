@@ -1,0 +1,10 @@
+{
+  "pid": 1460058,
+  "process_start_ticks": "177348486",
+  "cap_seconds": 180,
+  "start_monotonic": 1773484.869641015,
+  "argv": [
+    "python3",
+    "out/initial-tape-files-restoration/freeze.py"
+  ]
+}

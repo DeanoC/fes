@@ -1,0 +1,7 @@
+{
+  "path": "/home/deano/fes/out/dev/de25-source-release/out/dispatch-rearm-trial/procedure.json",
+  "sha256": "a931bb2d0f233185df267f3d8a04ef053e3d58d86c288e120e0860211b1bb629",
+  "files": 32140,
+  "hardware_actions": false,
+  "authorized_for_execution": false
+}

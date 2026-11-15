@@ -1,0 +1,81 @@
+{
+  "status": "passed-original-baseline-restoration-after-command-snapshot-USB-failure",
+  "restoration_procedure_sha256": "ecdaae0038d56d5652775c9e63e197743187db9b95573984578402a54072b7fa",
+  "failed_trial_procedure_sha256": "e2b0a6aefbe48a269f473c5d18bb25c65e685f3194a623e330aa725046c71883",
+  "failed_trial_archive_sha256": "45dc2a12dd713ef92cd56b7c54eef9e670b03dcd12139c7f0dba6218b2eb694d",
+  "elapsed_seconds": 345.9373155371286,
+  "original_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+  "original_phase1_sha256": "c01c97dde2fe75ce7e6145ccce2a52b6fa8449f43731ba0bd2ce94cbfc3d91d4",
+  "original_FIT_verified_by_sealed_SPL": true,
+  "fresh_SD_file_readbacks_claimed": false,
+  "SD_refresh_attempted": false,
+  "baseline_boot_verified": true,
+  "baseline_cycle_commands": 51,
+  "baseline_exit_generation": 5,
+  "baseline_final_Park_verified": true,
+  "independent_saved_wire_replay": {
+    "status": "passed-saved-installer-wire-and-poll-times",
+    "discovered": true,
+    "commands": 51,
+    "polling_offers": 416,
+    "hardware_actions": false,
+    "live_authority": false,
+    "persistence_verified": false
+  },
+  "program_and_wire_witness": {
+    "boot_boundary_verified": true,
+    "console_sha256": "33723892663b5e61fa27158355d9f57240a8b8f59cd099d911ba66fa43388f69",
+    "all_wire_sha256": "09d9fea73a1b63cf5ce500422704dd96583358b727e85f8230f86651b8711d0f",
+    "completed_program_epoch": "1857539:160167247"
+  },
+  "owned_processes": [
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/command-snapshot-restore/attempt/native-baseline/transport.json",
+      "pid": 1857539,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/command-snapshot-restore/attempt/native-baseline/owned-worker.json",
+      "pid": 1852311,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/command-snapshot-restore/attempt/native-baseline/owned-programmer.json",
+      "pid": 1858752,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/command-snapshot-restore/attempt/native-baseline/file-admission/owned-worker.json",
+      "pid": 1856560,
+      "original_process_stopped": true
+    }
+  ],
+  "UART_closed_and_free": true,
+  "USB_identity_inode_permissions_restored": true,
+  "JTAG_auto_1_15M": true,
+  "after_fresh_human_confirmed_power_cycle": true,
+  "failed_candidate_retried": false,
+  "failed_candidate_retirement_qualified": false,
+  "baseline_drain_root_cause_fixed": false,
+  "last_verified_board_state": "original native baseline final Park",
+  "general_core_load_acceptance": false,
+  "permanent_QSPI_written": false,
+  "factory_card_changed": false,
+  "bottom_kit_touched": false,
+  "retention": {
+    "status": "passed-exact-post-reset-restoration-byte-hash-mode-retention",
+    "archive": "/home/deano/fes-retained/de25-command-snapshot-baseline-restored-physical-20261113-r1/restoration.tar.gz",
+    "archive_sha256": "57131fb0fef6fda4bd989141b4b6fe3d493d4d28d0b06c58546fe25bd5593ebc",
+    "dependencies": {
+      "/home/deano/fes-retained/de25-command-snapshot-baseline-restoration-prepared-20261113-r1/retention.json": "92d34e05b071c63dfa4c03b637c5ddd418b3182d3b2f40b8044bbe94c150f310",
+      "/home/deano/fes-retained/de25-command-snapshot-baseline-restoration-prepared-20261113-r1/prepared-restoration.tar.gz": "6a494ee2d11e0551beebe6faad00d1b2f1890d098965480547ca67a9753a6d66",
+      "/home/deano/fes-retained/de25-command-snapshot-procedure-prepared-20261113-r1/prepared-procedure.tar.gz": "1b5b82ea534a6af428682a59cad431042173292d3269735fc3b8215dff1bc793",
+      "/home/deano/fes-retained/de25-command-snapshot-failed-physical-20261113-r1/retention.json": "bffeb83f59c8abb07f7e5aeb68f1dcb3100f38635bf3ed64e40419a448047d5d",
+      "/home/deano/fes-retained/de25-command-snapshot-failed-physical-20261113-r1/failed-trial.tar.gz": "45dc2a12dd713ef92cd56b7c54eef9e670b03dcd12139c7f0dba6218b2eb694d"
+    },
+    "baseline_restored": true,
+    "failed_candidate_retirement_qualified": false,
+    "general_core_load_acceptance": false
+  },
+  "original_report_sha256": "6ddb1b97d17ef974f0fc2865917ccfdfa1c883d4c9cf2bcb0affe1dacedcedbe"
+}

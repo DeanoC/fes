@@ -1,0 +1,24 @@
+{
+  "allowed_sizes": [
+    4096,
+    8192
+  ],
+  "destination": "FES/FIRMWARE.BIN",
+  "format": 1,
+  "hardware_operations": false,
+  "initial_fixture_failure": "The existing all-purpose corruption test used a 16-byte payload. Its firmware case now uses a valid 4096-byte input before exercising corruption.",
+  "logs": {
+    "out/nano-rom-build-integration-20261105/firmware-upload-tests-v1.log": "5e7d2d1c54caf0e96736e573ec9668f727f645140a52f29161eee5cae453d9d4",
+    "out/nano-rom-build-integration-20261105/firmware-upload-tests-v2.log": "bb54b6da74ca5fb106c5e04db9c8af7cf6b277e99562afe087c633e619e8ae4c"
+  },
+  "scope": "nano-firmware-recovery-upload-host-checks-v1",
+  "source_sha256": {
+    "platform/embedded/nano/README.md": "6e9099662433a64a5d28137751c8a40d59e779d667810185172a38b4826e9182",
+    "platform/embedded/nano/upload.py": "87a643161c5a3fe7ae767d99512d0c8eb49b57ac1ec84c8ae412ea9d01d02e0b",
+    "tests/test_nano_upload.py": "0a7da399ac951791e2b3ebab7f30293cbca4cdb20c8e365d394fc7b605ccf3c6"
+  },
+  "tests": {
+    "count": 36,
+    "status": "passed"
+  }
+}

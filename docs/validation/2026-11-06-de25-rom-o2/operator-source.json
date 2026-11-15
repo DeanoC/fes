@@ -1,0 +1,51 @@
+{
+  "status": "corrected-operator-source-frozen",
+  "compiled_source": "ca2d6edf07f0a5ba081a2d98dc9b7d89e0c93fc5",
+  "operator_revision": "o2-matched-candidate-v1",
+  "prior_programmer_failures": 1,
+  "prior_host_setup_failures": 1,
+  "prior_native_deadline_failures": 3,
+  "prior_procedure_stops": 5,
+  "failures_on_compiled_head": 0,
+  "attempt_limit": 1,
+  "programmer_or_native_failure_limit": 2,
+  "clock": {
+    "original": "15M",
+    "target": "6M",
+    "restore": "15M"
+  },
+  "bounds": {
+    "work_seconds": 740,
+    "host_including_cleanup_seconds": 850
+  },
+  "source_sha256": {
+    "out/nano-rom-o2-board-20261106/audit_cleanup.py": "319804470838b2ccf3c94654989afa2c704e2c37423c3e237d16c9c6992502d0",
+    "out/nano-rom-o2-board-20261106/candidate_check.py": "0658df18b85814a431afaac4ce2126af19af28939a671ac584ce540a78d77faa",
+    "out/nano-rom-o2-board-20261106/clock_fixtures.py": "49b47f89c93e0b11b105afd27a9a0a003fc7e07422ac74a5084a43fe68518ef2",
+    "out/nano-rom-o2-board-20261106/device_admission_fixtures.py": "998f6376cbc725de34319b975418a732735cff5a0e2079c67106c05144d892f7",
+    "out/nano-rom-o2-board-20261106/fixtures-group.py": "a1cebd4192b5de25ddab0038b6c95a79740b2e1112c5ad161ca83af9108d6e3a",
+    "out/nano-rom-o2-board-20261106/history.json": "25c8154a843b9529a15a267de7cb9fd1e2749a3280335cff08e8ba86249ce9db",
+    "out/nano-rom-o2-board-20261106/make_upload_plan.py": "1edba89ae645816f3294b2aa436cbccb6d0b3aef669fb66634d8195c5be172bb",
+    "out/nano-rom-o2-board-20261106/operator_fixtures.py": "27b17de58cfa696827dca95bbcd7cd1a53df2273e5125eabb7b11a3b5e5f0591",
+    "out/nano-rom-o2-board-20261106/preflight.py": "a60850f138b5172aafdf32cce62f319c69fa259422441a7296896722f2d0a065",
+    "out/nano-rom-o2-board-20261106/run.py": "8dea93a99adab57fd4721de0379fa6fbbcd75877d64f4d7e8ed80a041df6ed3c",
+    "out/nano-rom-o2-board-20261106/tail_fixtures.py": "26af4eb6f6f89ab8813d627605862661c778f6133bd63c6e9ebcd5330521d03f",
+    "out/nano-rom-o2-board-20261106/transport_fixtures.py": "fe6625178eae4a9a1710968e3ebcebd15cb17c11651e9bcf66f00892d5631a3f",
+    "out/nano-rom-o2-board-20261106/trial/clock_policy.py": "082ea1a2646bf9dbfecf0b378274801576600265282827cce48bbbaea8a6c4f5",
+    "out/nano-rom-o2-board-20261106/trial/common.py": "26b6948aca476793243319b8c1618dd35a01d1d8340cc267dacf4b776b46aecb",
+    "out/nano-rom-o2-board-20261106/trial/experiment.py": "b942b47b393bcc4fbfc6129471e8dccfbc716f58978a195cdc3b590917786afb",
+    "out/nano-rom-o2-board-20261106/trial/native.py": "ca6be03d345fca20acdb488068319ac29963223aa7cdf6193b593b18886b56ba",
+    "out/nano-rom-o2-board-20261106/trial/private_jtag.py": "b55d206fdbd3fdb705cb6f1a3c785a4ebfe6fb433f702489bdeaf85cfd7c21a0",
+    "out/nano-rom-o2-board-20261106/trial/recovery.py": "90ed378a120d8eb4add927abf28b81f2b1d502453bb11a3e18b1936eda67b9c1",
+    "out/nano-rom-o2-board-20261106/trial/service_checks.py": "66143305c2e6992cdb980c96854df1689e3bdde6c30c55ed0f0249c8d8612e15",
+    "out/nano-rom-o2-board-20261106/trial/trial_inputs.py": "69ce4d9f45a8ee97faf23b315c79e946545be641f27b88e713a7c299505ca35d",
+    "out/nano-rom-o2-board-20261106/trial/upload_both.py": "efa98f82de6ca3607926b1badf38c97d2f203cb5b17963cc55cbcb0a5745f212",
+    "out/nano-rom-o2-board-20261106/trial/upload_checks.py": "497636cad5390e8f6820d11d18c698efd7d8af3883a714b6dd112a6014e61fa3",
+    "out/nano-rom-o2-board-20261106/upload-plan.json": "96017d66d81f6c4018c7960e848d3496aa5ae229c356282df9ecbd38652283b0",
+    "out/nano-rom-o2-board-20261106/upload_both_fixtures.py": "e8cdb5bde01d4110d240bb5785348f29720d2f9b2f8bad702e3b6148b2aa54c5",
+    "out/nano-rom-o2-board-20261106/upload_checks_fixtures.py": "6723c0eefa49cf8e409a95217303c54e76df6cc170e96a0ffcd95f5e37107c95",
+    "out/nano-rom-o2-board-20261106/upload_fixture_tools.py": "46792cd6a0e63444e730d21be1753f012d27d0128f9169b7b3e84f7ba129486c"
+  },
+  "hardware_actions": false,
+  "policy": "one newca2d O2 attempt; stop first failure; all predecessor9fd/a1f/46c attempts and receipts retained; independently verify cleanup"
+}

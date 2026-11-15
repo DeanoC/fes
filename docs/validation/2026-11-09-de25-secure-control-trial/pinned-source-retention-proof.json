@@ -1,0 +1,46 @@
+{
+  "status": "passed",
+  "source_head": "5a7999d3d15aa15c2adbb51544b87dab1f167a17",
+  "terminal_source_head": "8c82746a7adc3d4ac07b6584faef5057acbdde91",
+  "terminal_archive_sha256": "95a74ed3abbd5a3fa304eb2b8e711dc20b360edbb23a4343b1611de8a1284da2",
+  "terminal_bundle_sha256": "fc98f043da73aa1409472ef4319a134e9e33e79191aa2c3c8326a819dba5715a",
+  "source_bundle_sha256": "6cc34884539cafa9c88d2dd21dd4037863c0ab38d7dc24787abb65e60ecad2ac",
+  "source_bundle": "/data/projects/de25-embedded-retained-20261109/terminal-source-inputs/source.bundle",
+  "pinned_revisions": {
+    "refs": [
+      "0a91a980ab76459b9f5fa0ef672c98291051f5b9",
+      "6c6dd62b503f143448a65e17ba346e410187e960",
+      "79d616e85e19d65f0d645b67a85ffe7e142dcdfc"
+    ],
+    "records": [
+      {
+        "path": "out/nano-hdmi-control-20261107/sealed-project/board/hps/inputs.json",
+        "key": "board_fes_revision",
+        "revision": "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+        "file_sha256": "6a97163d7fa818769db5d37fcab432ca06d61df478b057fd17c83041366fe7a2"
+      },
+      {
+        "path": "out/nano-hdmi-control-20261107/sealed-project/board/hps/inputs.json",
+        "key": "overlay_fes_revision",
+        "revision": "6c6dd62b503f143448a65e17ba346e410187e960",
+        "file_sha256": "6a97163d7fa818769db5d37fcab432ca06d61df478b057fd17c83041366fe7a2"
+      },
+      {
+        "path": "out/nano-menu-direct-reply-build-20261107/sealed-project/board/hps/inputs.json",
+        "key": "board_fes_revision",
+        "revision": "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+        "file_sha256": "890bd047c46bc7feb98fa8627880899ca6e7e12ec9edbb2c6fb88bfbe1cc36ee"
+      },
+      {
+        "path": "out/nano-menu-direct-reply-build-20261107/sealed-project/board/hps/inputs.json",
+        "key": "overlay_fes_revision",
+        "revision": "0a91a980ab76459b9f5fa0ef672c98291051f5b9",
+        "file_sha256": "890bd047c46bc7feb98fa8627880899ca6e7e12ec9edbb2c6fb88bfbe1cc36ee"
+      }
+    ]
+  },
+  "standalone_source_restore_and_strict_fsck": true,
+  "all_pinned_commits_present": true,
+  "scope": "Supplement exact pinned board/overlay Git objects needed to reproduce source admission; original terminal archive remains unchanged",
+  "hardware_actions": false
+}

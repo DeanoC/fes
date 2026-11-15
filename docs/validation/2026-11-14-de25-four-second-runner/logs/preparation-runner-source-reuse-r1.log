@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-setup-release/out/publication/check-preparation-runner-source-reuse.py", line 7, in <module>
+    p=Q/name;assert p.is_file() and sha(p)==digest,name;paths[name]=digest
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: out/publication-boot/native-sdk/cpu-arm64-features.go

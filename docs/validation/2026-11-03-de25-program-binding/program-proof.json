@@ -1,0 +1,61 @@
+{
+  "status": "passed",
+  "source_commit": "d9ddb6ce43d8e2b514f6bdec0624ef2fedcc7c7c",
+  "classification": "actual linked per-load provider, source copies and direct hashing calls; no hardware acceptance",
+  "firmware_elf_sha256": "03581591bff450fc8d10932f7680ea4d742ebda3066128506b4517c982e4da2c",
+  "firmware_bin_sha256": "85cfbe84ba6cd9f9358b059e837f62137da3d828a98f1c05609ff694ddac9385",
+  "source_copies": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-binding-20261103/native-bl31/source/plat/intel/soc/common/nano_program.c": "52a554180af2f7549323eb0d90ffa1bfcb14d3843a88d6d8ed8936ac617af291",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-binding-20261103/native-bl31/source/plat/intel/soc/common/include/nano_program.h": "bf2138f1d5174dca4782bda403cae257dfd0a58929f1d93db7c9cf9c6429ee8c",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-binding-20261103/native-bl31/source/plat/intel/soc/common/nano_configuration.c": "140ab414ca6c728abb49102b49c2212ebe7f44134dc0cf7e1629ebb9c0155c10",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-binding-20261103/native-bl31/source/plat/intel/soc/common/include/nano_configuration.h": "bfd1d77134ab4c4352c2e86d7857da9e7de4324bfa2811c77c481f1132428d43",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-binding-20261103/native-bl31/source/plat/intel/soc/common/nano_cold_platform.c": "dc217c3508edee9a8d7f3587ad9eaf3d96898b3a67c85bc0c0f51c01095b6509"
+  },
+  "strong_symbols": {
+    "fes_nano_program_init": "T",
+    "fes_nano_program_capture": "T",
+    "fes_nano_program_expected": "T",
+    "fes_nano_program_build": "T"
+  },
+  "configuration_program_state": "b",
+  "direct_call_checks": {
+    "configuration_bind": {
+      "callees": [
+        "fes_nano_program_capture"
+      ],
+      "disassembly_sha256": "773ffa176424040189d5f80f761c6054118b31874a806bc6d411f335a3d99d42"
+    },
+    "configuration_check": {
+      "callees": [
+        "fes_nano_cold_owns",
+        "configuration_guard",
+        "fes_nano_program_expected",
+        "sha384_init",
+        "sha384_update",
+        "sha384_finish",
+        "configuration_guard",
+        "memcmp"
+      ],
+      "disassembly_sha256": "d54b2bbee8d3232a969c75982cb5f8f4ef98bccbe2b22a3682d4ea28ae2a9e97"
+    },
+    "configuration_complete": {
+      "callees": [
+        "fes_nano_platform_configuration_diagnostic_ready",
+        "fes_nano_bridges_observe",
+        "fes_nano_bridges_held_return",
+        "fes_nano_sd_returned",
+        "new_fabric_stop",
+        "memcpy",
+        "tf_log",
+        "fes_nano_program_build"
+      ],
+      "disassembly_sha256": "0316634d02f090129e659468dda40d86b3b610580b8b21b9fb88a759e62c3b45"
+    }
+  },
+  "former_fixed_digest_tables_absent": true,
+  "metadata_location": "0x94fff000",
+  "metadata_bytes": 4096,
+  "header_bytes": 640,
+  "bound_acknowledgement_bit": "0x80000000",
+  "ordinary_runtime_admission": false
+}

@@ -1,0 +1,38 @@
+{
+  "base": "70d7b2d1954ae8b9a824b22e3d9b30e757558c7a",
+  "classification": "host software and native QEMU bare metal; no hardware acceptance",
+  "commands": [
+    {
+      "command": "FES_MODEL_FIXTURES=<model fixtures> GOWORK=off go -C platform/embedded/tamago test -race -count=1 -v ./modelbackend ./fabricmodel ./runtimeadmission",
+      "exit_code": 0
+    },
+    {
+      "command": "GOWORK=off go -C platform/embedded/tamago vet ./modelbackend ./cmd/session-fixtures",
+      "exit_code": 0
+    },
+    {
+      "command": "GOWORK=off go -C sources/FogCast test -race ./ui/tenfoot -run 'Test(RunPlatform|AppPollsSessionParksAndStops|USBKeyboardBrowseDetailSearchAndLaunch)' -count=1 -v",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -m unittest discover -s tests -p test_embedded_qmp.py -v",
+      "exit_code": 0
+    },
+    {
+      "command": "make deadcode",
+      "exit_code": 0
+    },
+    {
+      "command": "make test-changed TEST_CHANGED_ARGS=--base=70d7b2d1954ae8b9a824b22e3d9b30e757558c7a",
+      "exit_code": 0
+    }
+  ],
+  "unittest_summaries": [
+    "Ran 21 tests in 0.164s",
+    "Ran 31 tests in 0.741s",
+    "Ran 2 tests in 2.669s",
+    "Ran 3 tests in 13.535s",
+    "Ran 33 tests in 47.442s",
+    "Ran 1066 tests in 244.340s"
+  ]
+}

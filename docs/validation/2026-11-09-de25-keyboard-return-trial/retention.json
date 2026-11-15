@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "source_head": "97509cf600ae6882c85d77c49e2cb68ad1ee8ab0",
+  "operator_source": "0f507a1f9bc14eff0d570b72fa7e4e0ebe01417f",
+  "path": "/home/deano/fes-retained/de25-keyboard-return-trial-hardware-20261109-r1",
+  "files": 5913,
+  "full_archive_readback": true,
+  "archive_modes_verified": true,
+  "bundle_import_and_pack_verified": true,
+  "standalone_source_restore_and_strict_fsck": true,
+  "hardware_actions": false
+}

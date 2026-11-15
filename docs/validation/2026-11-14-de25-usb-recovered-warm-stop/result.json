@@ -1,0 +1,291 @@
+{
+  "status": "retained-warm-source-prepare-deadline-stop",
+  "procedure_sha256": "f998f7ba2e2fbee3905bcccad3d8851553378a06b86db752f525ff5436cd319f",
+  "wrapper": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/usb-close-candidate-trial/run_trial.py",
+      "--procedure-sha256",
+      "f998f7ba2e2fbee3905bcccad3d8851553378a06b86db752f525ff5436cd319f",
+      "--execute"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 1,
+    "timed_out": false,
+    "elapsed": 437.87807021010667,
+    "log_sha256": "ce561d8f6d36bd86703ef14f8ce5c67b94849cc5e69afce64cdea33d10ee87f9"
+  },
+  "flow": {
+    "status": "stopped",
+    "fit_state": "candidate",
+    "candidate_cycle_Park_verified": false,
+    "candidate_left_installed": false,
+    "original_FIT_restored": false,
+    "old_native_baseline_dispatched": false,
+    "rollback_attempted": false,
+    "physical_reset_required": true,
+    "ordinary_admission": false,
+    "hardware_acceptance": false,
+    "error": "bounded role stopped: native-diagnostic",
+    "recovery_safe": false,
+    "roles_consumed": [
+      "recovery-before",
+      "native-diagnostic"
+    ],
+    "plan_sha256": "4a21f84187efab5abda2d4402e6d8a5abf9c7309186731d4cf8407a6c1627d05"
+  },
+  "forward_refresh": {
+    "status": "verified-reversible-fit-refresh",
+    "direction": "forward",
+    "plan_sha256": "4a21f84187efab5abda2d4402e6d8a5abf9c7309186731d4cf8407a6c1627d05",
+    "previous_boot_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+    "boot_sha256": "4831f267f89c66513c608c07ab720827f4f6df46a5d480c5fc5b4b82c179c7a4",
+    "preserved_files": 16,
+    "readbacks_before": 17,
+    "readbacks_after": 17,
+    "session": "f5ac214a34d9da71fba2c2bfbedef03d",
+    "physical_boot_accepted": false
+  },
+  "native_error": "native failure marker",
+  "native_boot_verified": true,
+  "initial_MENU_ready_independently_replayed": true,
+  "initial_source_bytes": 1708032,
+  "initial_source_posts": 2,
+  "initial_source_acks": 2,
+  "initial_transfer_elapsed_us": 11548828,
+  "initial_retirement": {
+    "build": "e29470c44b581055",
+    "owner": 16326798544276249345,
+    "epoch": 6805998421,
+    "generation": 4,
+    "bytes": 1708032,
+    "sha384": "faef83bbdc549d5a117cf09ecda3007150b45156cbb13ed7d138d0ab048c28a92964d0e9f8d1cafee563b202e0a0e606",
+    "status": 0,
+    "phase": 6,
+    "retired": 1,
+    "first_error": 0,
+    "writes": 5,
+    "producer": 12,
+    "consumer": 12,
+    "control": 0,
+    "abort": 1048576,
+    "elapsed_us": 1085662,
+    "bad_offset": 0,
+    "bad_value": 0,
+    "retained": 1,
+    "reuse": 0,
+    "activated": 0
+  },
+  "initial_continuation": {
+    "build": "e29470c44b581055",
+    "owner": 16326798544276249345,
+    "epoch": 6805998421,
+    "generation": 4,
+    "ready": 1,
+    "elapsed_us": 1300193,
+    "retained": 1,
+    "reuse": 0,
+    "activated": 0
+  },
+  "first_source_release": {
+    "status": "0",
+    "owner": "e29470c5def35b01",
+    "source_generation": "4",
+    "generation": "10",
+    "reuse_authorized": "1",
+    "elapsed_us": "929950"
+  },
+  "next_warm_source_setup": {
+    "build": "e29470c44b581055",
+    "stage": "2",
+    "status": "-110",
+    "owner": "e29470c5def35b01",
+    "epoch": "195ab4b55",
+    "generation": "10",
+    "warm": "1",
+    "attempted": "1",
+    "initialized": "1",
+    "preparing": "1",
+    "prepared": "0",
+    "arming": "0",
+    "armed": "0",
+    "failed": "1",
+    "first_error": "-110",
+    "timed": "1",
+    "start_us": "129709910",
+    "last_us": "130708442",
+    "reads": "48",
+    "writes": "0",
+    "clears": "0",
+    "stores": "2816",
+    "loads": "5120",
+    "ack_polls": "0",
+    "kind": "4",
+    "offset": "5400",
+    "value": "0",
+    "callback": "0",
+    "scope_reason": "0",
+    "retained": "1",
+    "grant": "0"
+  },
+  "next_warm_source_queue": {
+    "build": "e29470c44b581055",
+    "attempted": "0",
+    "initialized": "0",
+    "submitted": "0",
+    "failed": "0",
+    "error": "0",
+    "stage": "0",
+    "policy": "0",
+    "baseline": "12",
+    "target": "2",
+    "timed": "0",
+    "start_us": "0",
+    "last_us": "0",
+    "observed_us": "0",
+    "samples": "0",
+    "slots": "0",
+    "published": "0",
+    "polls": "0",
+    "reads": "0",
+    "completion_seen": "0",
+    "completion_us": "0",
+    "retained": "1",
+    "grant": "0"
+  },
+  "next_source_arm_start_observations": [
+    {
+      "phase": "arm",
+      "owner": "e29470c5def35b01",
+      "generation": "10",
+      "completed": "0",
+      "pending": "0",
+      "total": "1654784",
+      "base": "94800000",
+      "counter": "bf15c1854",
+      "hash_ticks": "cfb3e937"
+    },
+    {
+      "phase": "start",
+      "owner": "e29470c5def35b01",
+      "generation": "10",
+      "completed": "0",
+      "pending": "0",
+      "total": "1654784",
+      "base": "94800000",
+      "counter": "c0453e975",
+      "hash_ticks": "df4d1574"
+    }
+  ],
+  "further_DATA_transfer_after_source_release_observed": false,
+  "retained_old_engine_counters_not_second_transfer": true,
+  "reset_request_observed": false,
+  "host_deadline_expired": false,
+  "program_and_wire_witness": {
+    "boot_boundary_verified": true,
+    "console_sha256": "a7c9e8e52efc36e8c8c6343eb9d7e1293592e14576c8243d410e5fe87f3efdd2",
+    "all_wire_sha256": "eec9a5f7d5392d8e74be3c34c51d938a869a9474450153f8bd25120c23a9d9ba",
+    "completed_program_epoch": "2118045:171689997"
+  },
+  "private_server_tracing": false,
+  "owned_processes": [
+    {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/forward/native-input-preflight/native-baseline/owned-worker.json",
+      "pid": 2098045,
+      "start_ticks": "171670342",
+      "original_process_stopped": true
+    },
+    {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/forward/native-input-preflight/native-diagnostic/owned-worker.json",
+      "pid": 2097991,
+      "start_ticks": "171670106",
+      "original_process_stopped": true
+    },
+    {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/forward/owned-worker.json",
+      "pid": 2097720,
+      "start_ticks": "171669843",
+      "original_process_stopped": true
+    },
+    {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/native-diagnostic/file-admission/owned-worker.json",
+      "pid": 2118038,
+      "start_ticks": "171689882",
+      "original_process_stopped": true
+    },
+    {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/native-diagnostic/owned-programmer.json",
+      "pid": 2118652,
+      "start_ticks": "171690471",
+      "original_process_stopped": true
+    },
+    {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/native-diagnostic/owned-worker.json",
+      "pid": 2117855,
+      "start_ticks": "171689777",
+      "original_process_stopped": true
+    },
+    {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/native-diagnostic/transport.json",
+      "pid": 2118045,
+      "start_ticks": "171689997",
+      "original_process_stopped": true
+    },
+    {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/recovery-before/owned-programmer.json",
+      "pid": 2096629,
+      "start_ticks": "171667987",
+      "original_process_stopped": true
+    },
+    {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/recovery-before/owned-worker.json",
+      "pid": 2095729,
+      "start_ticks": "171667112",
+      "original_process_stopped": true
+    },
+    {
+      "path": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/recovery-before/transport.json",
+      "pid": 2095831,
+      "start_ticks": "171667251",
+      "original_process_stopped": true
+    }
+  ],
+  "UART_unheld": true,
+  "cleanup": [
+    {
+      "role": "recovery-before",
+      "cleanup": {
+        "transport_cleaned": true,
+        "clock_restored": true,
+        "owned_server_stopped": true,
+        "usb_permissions_restored": true,
+        "errors": []
+      },
+      "USB_identity_inode_permissions_match": true,
+      "JTAG_auto_1_15M": true
+    },
+    {
+      "role": "native-diagnostic",
+      "cleanup": {
+        "transport_cleaned": true,
+        "clock_restored": true,
+        "owned_server_stopped": true,
+        "usb_permissions_restored": true,
+        "errors": []
+      },
+      "USB_identity_inode_permissions_match": true,
+      "JTAG_auto_1_15M": true
+    }
+  ],
+  "original_FIT_restored": false,
+  "candidate_FIT_on_card": true,
+  "physical_reset_required": true,
+  "diagnostic_retry_authority": false,
+  "hardware_acceptance": false,
+  "general_core_load_acceptance": false,
+  "native_keyboard_reenumerated": true,
+  "final_USB_close_reached": false,
+  "previous_USB_recovery_is_not_current_private_SMMU_recovery_authority": true
+}

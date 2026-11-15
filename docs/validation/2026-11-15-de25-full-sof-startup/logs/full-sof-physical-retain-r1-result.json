@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/publication/retain-full-sof-physical.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 2.403149431105703,
+  "log_sha256": "c6c46d5fe4cacafb37536b2b25698617125ccc490d7918e31724167d5dd3e534"
+}

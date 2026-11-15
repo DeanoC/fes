@@ -1,0 +1,146 @@
+{
+  "status": "passed-candidate-only-operator-models",
+  "tests": 76,
+  "checks": [
+    {
+      "test": "test_binding.py",
+      "tests": 4,
+      "log_sha256": "67cf446eaa92dfdeb2ac2c56bfbbacd7bd5d8acbc718bb8b053d581734bb2f9b"
+    },
+    {
+      "test": "test_native_session.py",
+      "tests": 3,
+      "log_sha256": "7dc28bbf5d9fb88f465d3ce04dc6368910eae3068ab90f5a5de52441bf92ed91"
+    },
+    {
+      "test": "test_flow.py",
+      "tests": 16,
+      "log_sha256": "814a7248ac86785000e528314eda885deeeaff395443d4738ddcc8e96acab556"
+    },
+    {
+      "test": "test_candidate_flow.py",
+      "tests": 6,
+      "log_sha256": "5eac175c24a5a55769fd0216742c316bf9db06a1206ef88b239ab741a8a001ca"
+    },
+    {
+      "test": "test_native_preflight.py",
+      "tests": 5,
+      "log_sha256": "17ecdda28491025f53445d2bcc50fe174ed43ddff06860c94e4f5eabd5ea862f"
+    },
+    {
+      "test": "test_recovery_safety.py",
+      "tests": 1,
+      "log_sha256": "f1573eea018e21d420d79fa80d3d0b9d97cb5ef8ae8362f8751ef34ae7772651"
+    },
+    {
+      "test": "test_boot_boundary.py",
+      "tests": 8,
+      "log_sha256": "aeda6cbf30853550dfc5ee6fb2244b9db9081f12c14f772972e932cd03e09bc6"
+    },
+    {
+      "test": "test_failure_tail.py",
+      "tests": 3,
+      "log_sha256": "5ff9f3c15d81e529a2899bf12f4292d383691254b737eb7efb0eaae847fe4e63"
+    },
+    {
+      "test": "test_rearm_session.py",
+      "tests": 4,
+      "log_sha256": "e0a161301b9728ac282b4282f0651a4bb3125a2a73a100cc9c80edac2a6e170a"
+    },
+    {
+      "test": "test_dispatch_adapter.py",
+      "tests": 4,
+      "log_sha256": "3d0c0d21370849a4bc5765af052d146ef749ec354483851df7bd68567118946b"
+    },
+    {
+      "test": "test_refresh_budget.py",
+      "tests": 7,
+      "log_sha256": "8b22fe1c6113f7d1a37126d37214294b07fab7c68236d7cf59e0f07bdcd23ec8"
+    },
+    {
+      "test": "test_transport_file_binding.py",
+      "tests": 3,
+      "log_sha256": "8fcf66430e2801ba5062f1682a6fc20beb9ab489cb9f7bd53e757fc3d5fbd13a"
+    },
+    {
+      "test": "test_terminal_tail.py",
+      "tests": 1,
+      "log_sha256": "1c4f372759cdeb978d8926eb08a079ad84811f7dba704af3fd8eaa1d6dc9a8ab"
+    },
+    {
+      "test": "test_refresh_wire.py",
+      "tests": 4,
+      "log_sha256": "0837e48fb312f78555d7ae46f837a9cc4c3a3637121cd0ec5f91f7ab41fc94ba"
+    },
+    {
+      "test": "test_files_restoration_gate.py",
+      "tests": 7,
+      "log_sha256": "45128173b7877c874070b576f1ce1df0a49e182529d2d0771a0fc08b2dd29ae6"
+    }
+  ],
+  "source_sha256": {
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_queue_observation.py": "39a3268d41d786bf8007988a64c5cfabe6ee8d4ffd279febf2c4ce2c10497f53",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_refresh_budget.py": "1ea15180c41c4a572fdf0310b0fa651f1ce8c33f2caf2b93098728431d3a0ac7",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/transport.py": "7c01959363ec00d26554fab3c8f3ae660aa1c66ff96370384b86e72bd8ae1d3b",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/admission.py": "dad25b662dd8af35fb12bf5815203c98f104b04485ff512ce7af886f610b0996",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_input_observation.py": "22b63d429a69c2195192ad8e07806aed8fde364d3400d5c330e14a72fd372a6c",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/original_audit.py": "8d27f60b6e388a242c6ce786615627309940c3594e9eec72c5314458d00d1323",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/upload_binding.py": "76b0fa24bfd0e4294aa86b5746fef2ac7aa3e02caa77c223c0cd81c9ad30ff1b",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_retire_observation.py": "85d7c613e87d6f20fcd5c8eaf34949d62a1c6330ff743f3493439bd5b456d867",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_transport_file_binding.py": "bc65e884776bf356fedead0c1be5ef01c9ccca65bd798cbb142bae09f55d1d15",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_candidate_flow.py": "83edf7702bd0babd4d0cc5edebe47df983c0b9583b87e3d8b2aaa947945f056f",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_terminal_tail.py": "ac87599a49dc2be354c5a80077835d078860c81282b2e15d88f0a3d49fb0f8ab",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/upload_memory.py": "3fa66df04acd58974fa7244246fa8c446878fb1167dbcb7733f2fa44b689b749",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/capture_binding.py": "589d8f83da2ffc19e08ab1bd58554c86fb2903804924f1f72fd0072505d4bf39",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/reset_gate.py": "23c16d37611c21df2d5cf01cff20f1af666e8294a597c1d7108d483e4c03665e",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/candidate_flow.py": "7025d7b1d9008b56988a70b76a447903410d87a932e7e091b07e575fffdd7d09",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/worker.py": "35101f65ad4c82433daf9e8abcc2788957969b8556a36b016f8cf8abb1501278",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/context.py": "ffd7eff703f4d9b106d98fad06627f7b50ab3f882ff7c080d25331f10470e361",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/jtag_server_trace.py": "58f3665320c489a1cad640544b291d3aa3037a323fd163e109be25a330a07d0e",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/audit_wire.py": "4e2112a3d8111b054d4cfde2a469ff3fc3a5a9ee395d59a90b11fdfcf88257df",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/fit_layout.py": "96cfe0a3aab4ababc4d01a0ada12c9f17b67e21fe54b46f49ca2ad7b092b1164",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_native_session.py": "e5feca51d6ddfa7c2c785c77ce2d0b0ffcab824da5764bf1e1eb56c1644c3d39",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/boot_boundary.py": "c2f39bdf0755cb214b13db80739d5a28cb147699576ea2979c146decf675ec79",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/reset_console.py": "2e3357be7e8549e53d899516498f0577e98cd23c1a9b687b7893ebd5ad12abfb",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/native_program_dispatch.py": "c9707603d523ccd0880441305c4486f59c48918c0e42418b38d5f7d4f7e686c1",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_files_restoration_gate.py": "b492396fcd981e2bfda4d2d32974643f7949ccd0343ececc21493f10896d7e31",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/refresh_wire.py": "ab1d0abea45a0a8fd6939bbef642d70b5cb9b3aefc876ffcf9de6b23c825c866",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_reset_console.py": "e37bea06a01e83a3828fb2cd2ffe0b5004cecec94c18e49e2f5bbed26ec2cb3e",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/freeze_selected.py": "5ecb89e22360fd4d88bfd2693434b106893408b17c87108827d6dd012a3edbc6",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/remap_trace.py": "fa76c2069dbdb18a3117834336e34fc7a5bc26590d32128b4afd234a2f559b5d",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_server_trace_adapter.py": "3cfb386884e99bdd97ff3f87351d3e2b9265dfcaa3185585345e55421b7006c7",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_observers.py": "965370863485a8268b5855a184579350f4e2bd9b39a903a8c4b6073361b0b064",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/supervise.py": "81d6ed5c93eccdf5e2a584f45f9852e0f4bddc8b881ff0b8f1a437cb20772448",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/run_trial.py": "b324c32b5112386dd6e7568e3f62a95905712598f7a306f99275fa53bbbea5e6",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_dispatch_adapter.py": "16122dcbbb3f79dba58e0667f7b4030dfdf588755117740b42a812a0ae4bc97c",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/retire_observation.py": "8375c6128edbbf8588c0ff10321408dc542b0ebcdc5721a385976b0041fe4d56",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_native_preflight.py": "0f09abe24fe3c68ea4ab983f1d8426b17a2cb3d5d243246de066471782f8ad84",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/refresh_session.py": "e7c6896a44e608fe8a3e60b166b2fd1699d03b95b651069b7f3b8c6ced69d071",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/restoration_gate.py": "386ad17a99eac5e93631a9b079e11740440b3b4d5fba18ab97187ef0d96f8f6b",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_timing.py": "7c5326e16dc65657c7c9cb6f6ddf63d3ad52ed7b3bc4dce3f9a5f586860a86fd",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/timing_observation.py": "1dab08b9b66f65c5698541f07c278d23238075009d412f603c69b1b52eb8d6ed",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/recovery_session.py": "1c3094761bee188d6df910c79c210b699b3e6295fce9e52a2ee1731eb736121c",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/terminal_recovery_trace.py": "ba58d2fcf24eb45effc052510e756d6b74b30e6bd895c435aa9d3e643c9c1274",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/bounded_log.py": "e1d72926fed47296b2f0c65f4dc3dc81b7a9ad7b2b5e0ae1f0c0982cef8dda4c",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/upload.py": "536f3aab7c683f4a403a149dd54b183dddb15953717b9626210ae79766b65b6b",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_admission_roots.py": "5379fce32d7d8af1b48d4465a568fa9dab24e8343150afbc7abe8b175b292011",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_flow.py": "1ce176d4c285e83b96dd2f7a0c957644d99e2cf7c47e12360676c9b01641ae14",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/native_preflight.py": "3d7796b539a14369cd8420de34bcb2c3e2e13c74dc973d65b9f239035f5a22cc",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/native_session.py": "48c8ec70c40d1b0377997ad1b4a4602181080c49aeb3cfd0de2fa8a34378c941",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_boot_boundary.py": "90e7c8f78be2fb4d98890f6db468a4c4e7bf0b369b9f9e80cdaa10a6d9aa7a57",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/input_observation.py": "81bdd3b86e832101ba8a5b9f2d8435260aa252085130ca6352c34a7fc409f691",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/fit_swap.py": "4af10cce5adaadfd28759705948993856cea45d969b80cec8d2d55ec700feef7",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_refresh_wire.py": "5a1d604b09261d3e944606c4ef03419dc8f7d26f858e0856f2462c8cf966bc6f",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/restoration_wire.py": "3142b4a4a348deb4bea8c5183cee24758f3f53f305a3b10519e0ea362b8015ad",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_rearm_session.py": "77b0207892bddaf5ba5acae51064a0f676cfbefaca0aba88ce96de7dbe50f888",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_recovery_safety.py": "c7f059ce748137b555c84aa4e34505eb3b0fe7f335d0983f63132de3ec4fa5aa",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/queue_observation.py": "27966b4fdfabec75c72c2b17c6a7eebfed49fd924243d10809e72bb51c4e2a0d",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_fit_swap.py": "0bf91ed7df5f5b4d32f6735ff5604053d23dd8114051eef2956908d085322026",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_failure_tail.py": "710f1da25301512d2a4308eb312b8b5623765c1b9555389f34270293e4528bab",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/hooks.py": "8ff6a0b4ae19caf8bfb23c610cbb26eccbafaa049499f52f31384ed74a483862",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/test_binding.py": "94bf0f7778d07f4c562d81d1182477e229ba17e774ab9f9603af049b2419889f",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/rearm_session.py": "a63656ae4aab79d1a50514625731c5f30e7ebc13f632dbe10333b69b4ca94cb6",
+    "/home/deano/fes/out/dev/de25-source-release/out/preparation-budget-candidate-trial/flow.py": "29ba8e7c779612b011496f21b42b21580feef649f4edd045f0e81c7136efc33c"
+  },
+  "hardware_actions": false
+}

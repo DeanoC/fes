@@ -1,0 +1,97 @@
+{
+  "status": "software-and-matched-boot-chain-passed-hardware-pending",
+  "source_commit": "e9547a413594192de45e528d6688039f93d17c91",
+  "base": "4a4e9ccd0",
+  "board_touched": false,
+  "classification": "new driver software/cross-build validation only",
+  "changes": [
+    "Direct non-split control IN clears/counts raw NAK as a token notification instead of latching a terminal NAK and requesting premature retirement.",
+    "Expected-PID RX, complete transfer and channel retirement are still required; no packet/PID/HCTSIZ/deadline reset.",
+    "Periodic/split/OUT NAK and contradictory-completion semantics, fatal errors and ownership/link gates remain."
+  ],
+  "checks": {
+    "affected_commands": 6,
+    "parent_tests": 1719,
+    "parent_existing_skips": 3,
+    "focused_race_packages": [
+      "dwc2",
+      "usbcontrol"
+    ],
+    "new_top_level_tests": 4,
+    "event_orderings": [
+      "NAK before data",
+      "NAK with data/completion",
+      "NAK during retirement"
+    ],
+    "negative_cases": [
+      "NAK without data",
+      "RX without completion",
+      "missing RX",
+      "wrong PID",
+      "deadline",
+      "stall",
+      "DMA ownership change",
+      "disconnect",
+      "unexplained halt",
+      "stuck retirement",
+      "periodic and split contradictions"
+    ],
+    "generated_consistency": "passed"
+  },
+  "boot_chain": {
+    "native_boot_id": "3c23bd7f67779909",
+    "chain_sha256": "ce69684cc1a4d2666441b34fa56876d6f1f930c75556c28fd2398436fc0c1da4",
+    "file_digests": 2249,
+    "integrity_sha256": "ec12feb96fe338206453c982ae8c79d5b2dc597f05e151fb748078b121a6e8eb",
+    "core_payload_unchanged": true,
+    "artifacts": {
+      "sdk": {
+        "path": "out/nano-usb-control-nak-20261108/native-sdk/usbcheck.elf",
+        "bytes": 5378223,
+        "sha256": "9e34451243fa9f5f220df066e840c65687983a506ea163c804df2499029091b0"
+      },
+      "entry": {
+        "path": "out/nano-usb-control-nak-20261108/native-entry/entry.img",
+        "bytes": 2203648,
+        "sha256": "c86a45b60af5435f2dd150d8ca8f25a7dca25ea788a5261a5ab53218c0cadc3c"
+      },
+      "bl31": {
+        "path": "out/nano-usb-control-nak-20261108/native-bl31/source/build/agilex5/release/bl31.bin",
+        "bytes": 65597,
+        "sha256": "4bf4fb8230aa1fca6d7d2650ee856491837d034b16f87e84aa72b2425b8e4b14"
+      },
+      "fit": {
+        "path": "out/nano-usb-control-nak-20261108/native-uboot/build/u-boot.itb",
+        "bytes": 2725688,
+        "sha256": "3a3a272e672d86434ea59fac755684bd2bf6199c40b381117dd4633a977554c5"
+      },
+      "spl": {
+        "path": "out/nano-usb-control-nak-20261108/native-uboot/build/spl/u-boot-spl-dtb.hex",
+        "bytes": 458219,
+        "sha256": "14fefbb3019d08e1305335118a3daabcecfe5fa15fde902ff5bbe68c6f2f2eba"
+      },
+      "sof": {
+        "path": "out/nano-usb-control-nak-20261108/native-composition/native-hps-first.sof",
+        "bytes": 1578273,
+        "sha256": "3157252ef4d8d3624728f39772ee1d3b26b38f2ca199508d8db9050b5c7b26d6"
+      }
+    }
+  },
+  "evidence_sha256": {
+    "out/nano-usb-control-nak-20261108/checks-summary.json": "8a813e84d4e41b8f066052722778c550ea3a436e6b73ec904ce22aa13583063a",
+    "out/nano-usb-control-nak-20261108/focused-final-result.json": "a75af2eabf6a646521222b7e88738ddda11b1d0ced477a93204483960ec66d16",
+    "out/nano-usb-control-nak-20261108/regression-before-result.json": "28892568996bc2198ac930bcddaa04841914565903f2f77e9fa84da1a4a467e3",
+    "out/nano-usb-control-nak-20261108/regression-before.log": "68121b2cd97338a95adeb85fc5f18eeac92440975f90406d803011d983980d17",
+    "out/nano-usb-control-nak-20261108/chain-file-integrity.json": "ec12feb96fe338206453c982ae8c79d5b2dc597f05e151fb748078b121a6e8eb",
+    "out/nano-usb-control-nak-20261108/reference/sources.json": "1437930af0cfb04443a78043e5d11215a69141fd9d297f0fb8377b6fd3743ff4"
+  },
+  "hardware_acceptance": false,
+  "goal_complete": false,
+  "consumed_preceding_usb_boot": "0d772a49dead9616",
+  "preceding_hardware_retention": "/home/deano/fes-retained/de25-usb-runtime-board-stop-20261108-r1",
+  "remaining": [
+    "Freeze/admit a new one-attempt USB Ready/Stop procedure for changed boot bytes.",
+    "Fresh board test; no acceptance inherited from the failed image.",
+    "Return to combined initial-game-tape/core Run/return and normal appliance qualification."
+  ]
+}
