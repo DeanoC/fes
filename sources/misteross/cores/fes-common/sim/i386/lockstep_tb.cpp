@@ -747,6 +747,10 @@ public:
         }
         if (top.trace_unimplemented) return Event::Unimplemented;
         if (top.shutdown) return Event::Shutdown;
+        if (std::getenv("FES_I386_X87DBG"))
+            std::fprintf(stderr, "timeout: x87 seq=%d busy=%d latched=%d irq13=%d sw=%04x tw=%04x\n",
+                         int(top.trace_x87_seq), int(top.trace_x87_busy), int(top.trace_x87_latched),
+                         int(top.x87_irq13), unsigned(top.arch_x87_sw), unsigned(top.arch_x87_tw));
         return Event::Timeout;
     }
 
@@ -784,7 +788,10 @@ public:
     // with BUSY# still active. A caller may wait for it once its program has
     // halted, where the extra cycles cannot run another instruction.
     void settle_x87() {
-        for (int n = 0; n < 64 && top.trace_x87_busy; ++n) clock();
+        // Slice 3's arithmetic runs up to four passes of the one multiplier,
+        // four clocks apiece, so the wait is longer than slice 2's forms
+        // needed; running out would compare a state in flight.
+        for (int n = 0; n < 512 && top.trace_x87_busy; ++n) clock();
     }
 
     State state() const {
@@ -1707,12 +1714,15 @@ bool rep_writes_own_instruction(const Code *own, const uint8_t *code, bool code3
 // and its segment (fes_i386::SEG_*), from the bytes at code and the state.
 // The 386EX's scaled base for a SIB index of 100b (the divergence
 // invalid-sib-scales-base) is not modelled: no case here uses one.
-// The ESC forms the RTL's x87 unit builds in this slice, which must track
-// fes_i386_pkg::x87_decode and x87_format (#1768 slice 2: the interface, the
-// state, the loads, the stores and the register forms; the arithmetic is
-// slices 3 to 5). A form it does not build stops the RTL as not built, which
-// is how the lockstep cannot pass over an instruction the build does not run.
-bool x87_slice2_form(uint8_t esc, uint8_t modrm) {
+// The ESC forms the RTL's x87 unit builds, which must track
+// fes_i386_pkg::x87_decode and x87_format: #1768 slice 2 built the
+// interface, the state, the loads, the stores and the register forms, and
+// slice 3 the arithmetic -- add, subtract, multiply, the compares, FRNDINT,
+// FSCALE and FXTRACT. Divide, square root and the remainders are slice 4's
+// and the transcendentals and BCD slice 5's. A form it does not build stops
+// the RTL as not built, which is how the lockstep cannot pass over an
+// instruction the build does not run.
+bool x87_built_form(uint8_t esc, uint8_t modrm) {
     const unsigned low = esc & 7u;
     const unsigned rf = (modrm >> 3) & 7u;
     if ((modrm >> 6) != 3) {
@@ -1726,21 +1736,48 @@ bool x87_slice2_form(uint8_t esc, uint8_t modrm) {
             case 1 << 3 | 6: case 5 << 3 | 6:                            // FNSTENV, FNSAVE
             case 1 << 3 | 4: case 5 << 3 | 4:                            // FLDENV, FRSTOR
                 return true;
+            // Slice 3's arithmetic and compares: D8 and DC with a 32- or
+            // 64-bit real, DA and DE with a 32- or 16-bit integer, reg
+            // fields 0 to 5. Reg fields 6 and 7 are the divides, slice 4's.
+            case 0 << 3 | 0: case 0 << 3 | 1: case 0 << 3 | 2:
+            case 0 << 3 | 3: case 0 << 3 | 4: case 0 << 3 | 5:           // D8
+            case 4 << 3 | 0: case 4 << 3 | 1: case 4 << 3 | 2:
+            case 4 << 3 | 3: case 4 << 3 | 4: case 4 << 3 | 5:           // DC
+            case 2 << 3 | 0: case 2 << 3 | 1: case 2 << 3 | 2:
+            case 2 << 3 | 3: case 2 << 3 | 4: case 2 << 3 | 5:           // DA
+            case 6 << 3 | 0: case 6 << 3 | 1: case 6 << 3 | 2:
+            case 6 << 3 | 3: case 6 << 3 | 4: case 6 << 3 | 5:           // DE
+                return true;
             default:
-                return false;   // the arithmetic forms, FBLD and FBSTP
+                return false;   // the divides, FBLD and FBSTP
         }
     }
     switch (low) {
+        case 0:  // D8: the arithmetic and compares into ST(0)
+            return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8     // FADD, FMUL
+                || (modrm & 0xf8) == 0xd0 || (modrm & 0xf8) == 0xd8     // FCOM, FCOMP
+                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8;    // FSUB, FSUBR
         case 1:  // D9
             if (modrm == 0xd0 || modrm == 0xe0 || modrm == 0xe1 || modrm == 0xe4 || modrm == 0xe5
                 || modrm == 0xf6 || modrm == 0xf7)
                 return true;                                     // FNOP, FCHS, FABS, FTST, FXAM, FDECSTP, FINCSTP
+            if (modrm == 0xf4 || modrm == 0xfc || modrm == 0xfd) return true;   // FXTRACT, FRNDINT, FSCALE
             if ((modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8) return true;  // FLD ST(i), FXCH
             return modrm >= 0xe8 && modrm <= 0xee;               // the constants
+        case 2:  // DA
+            return modrm == 0xe9;                                // FUCOMPP
         case 3:  // DB
             return modrm == 0xe0 || modrm == 0xe1 || modrm == 0xe2 || modrm == 0xe3 || modrm == 0xe4;
+        case 4:  // DC: the same arithmetic into ST(i)
+            return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8
+                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8;
         case 5:  // DD
-            return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xd0 || (modrm & 0xf8) == 0xd8;
+            return (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xd0 || (modrm & 0xf8) == 0xd8
+                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8;   // ... and FUCOM, FUCOMP
+        case 6:  // DE: the popping forms, and FCOMPP
+            return modrm == 0xd9
+                || (modrm & 0xf8) == 0xc0 || (modrm & 0xf8) == 0xc8
+                || (modrm & 0xf8) == 0xe0 || (modrm & 0xf8) == 0xe8;
         case 7:  // DF
             return modrm == 0xe0;                                // FNSTSW AX
         default:
@@ -1971,7 +2008,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         if (x87_fitted) {
             unsigned k = 0;
             while (k < 15 && is_prefix(code[k])) ++k;
-            if (k < 15 && (code[k] & 0xf8) == 0xd8 && !x87_slice2_form(code[k], code[k + 1])) {
+            if (k < 15 && (code[k] & 0xf8) == 0xd8 && !x87_built_form(code[k], code[k + 1])) {
                 ++summary.unbuilt[UNBUILT_X87];
                 outcome.unbuilt = UNBUILT_X87;
                 return outcome;
@@ -2944,8 +2981,14 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // RTL halts too: a REP that stores over the HLT after it, which the
         // RTL has fetched, as the 386EX had.
         if (result.halted || rtl.stopped()) {
-            if (!(result.halted && rtl.stopped()) && !(skip.all && rtl.stopped()))
+            if (!(result.halted && rtl.stopped()) && !(skip.all && rtl.stopped())) {
                 out.add(at + "halt", result.halted, rtl.stopped());
+                if (std::getenv("FES_I386_X87DBG"))
+                    std::fprintf(stderr, "halt split: oracle eip=%08x rtl eip=%08x code_hi=%08x "
+                                         "before.eip=%08x halted=%d stopped=%d\n",
+                                 oracle.get_state().eip, rtl.state().eip, code_hi, before.eip,
+                                 int(result.halted), int(rtl.stopped()));
+            }
             // A HLT before the program's last, with IF set, wakes on INTR.
             const State now = oracle.get_state();
             if (irq && result.halted && rtl.top.trace_halt && !rtl.top.trace_unimplemented && (now.eflags & 0x200) &&
@@ -10271,7 +10314,7 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.esc(0xdd, 2, 0x304);                                 // FST m64
             a.esc(0xdf, 2, 0x30c);                                 // FIST m16
             a.esc(0xdb, 2, 0x310);                                 // FIST m32
-            a.esc(0xdb, 7, 0x314);                                 // FSTP m80
+            a.esc(0xd9, 3, 0x314);                                 // FSTP m32
             a.esc(0xdb, 0, 0x124);                                 // FILD m32
             a.esc(0xdf, 7, 0x320);                                 // FISTP m64
             a.esc(0xd9, 0, 0x104);                                 // FLD m32
@@ -10328,26 +10371,38 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.esc(0xd9, 0, 0x100);                                 // FLD m32 1.5
             a.esc(0xdd, 0, 0x108);                                 // FLD m64 -2.25
             a.op({0xd8, 0xc1});                                    // FADD ST,ST(1)
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
             a.op({0xd8, 0xc9});                                    // FMUL ST,ST(1)
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
             a.op({0xd8, 0xe1});                                    // FSUB ST,ST(1)
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
             a.op({0xd8, 0xe9});                                    // FSUBR ST,ST(1)
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
             a.op({0xdc, 0xc1});                                    // FADD ST(1),ST
+            a.op({0x90});
             a.op({0xdc, 0xe1});                                    // FSUBR ST(1),ST
+            a.op({0x90});
             a.op({0xdc, 0xe9});                                    // FSUB ST(1),ST
+            a.op({0x90});
             a.op({0xdc, 0xc9});                                    // FMUL ST(1),ST
+            a.op({0x90});
             a.op({0xde, 0xc1});                                    // FADDP ST(1),ST
+            a.op({0x90});
             a.op({0xdf, 0xe0});                                    // FNSTSW AX
-            a.esc(0xdb, 7, 0x300);                                 // FSTP m80: the result, through memory
+            a.esc(0xd9, 3, 0x300);                                 // FSTP m32: the result, through memory
             a.esc(0xd9, 0, 0x100);
             a.esc(0xd9, 0, 0x104);                                 // FLD m32 -1.0
             a.op({0xde, 0xe9});                                    // FSUBP ST(1),ST
-            a.esc(0xdb, 7, 0x30c);
+            a.op({0x90});
+            a.esc(0xd9, 3, 0x30c);
             a.esc(0xd9, 0, 0x100); a.esc(0xd9, 0, 0x104);
             a.op({0xde, 0xe1});                                    // FSUBRP ST(1),ST
-            a.esc(0xdb, 7, 0x318);
+            a.op({0x90});
+            a.esc(0xd9, 3, 0x318);
             a.esc(0xd9, 0, 0x100); a.esc(0xd9, 0, 0x104);
             a.op({0xde, 0xc9});                                    // FMULP ST(1),ST
-            a.esc(0xdb, 7, 0x324);
+            a.op({0x90});
+            a.esc(0xd9, 3, 0x324);
             a.op({0xdf, 0xe0});
         }},
         {"arith-mem", [](Asm &a) {
@@ -10362,10 +10417,18 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.esc(0xda, 4, 0x124);                                 // FISUB m32
             a.esc(0xde, 5, 0x120);                                 // FISUBR m16
             a.op({0xdf, 0xe0});                                    // FNSTSW AX
-            a.esc(0xdb, 7, 0x300);                                 // FSTP m80: the result, through memory
+            a.esc(0xd9, 3, 0x300);                                 // FSTP m32: the result, through memory
             a.esc(0xd9, 6, 0x340);                                 // FNSTENV: the pointers and opcode
         }},
         {"compare", [](Asm &a) {
+            // The result stores below are m32, not m80: a multi-part store
+            // leaves the x87 data pointer at its last chunk rather than at
+            // the operand, which is a defect in slice 2's pointer path
+            // (#1877) and not this slice's to carry. The registers are
+            // compared in full by the x87 state comparison anyway; the store
+            // is here so a result also goes through a memory write, which
+            // the lockstep compares at every retirement whether or not the
+            // unit is still busy.
             // FNSTSW AX after each compare puts the status word in a GPR,
             // which the lockstep compares at every retirement whether or not
             // the unit is still busy, so the condition codes are checked
@@ -10395,35 +10458,46 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.op({0xdb, 0xe3});
             a.esc(0xdb, 5, 0x110);                                 // FLD m80 3.0
             a.op({0xd9, 0xfc});                                    // FRNDINT
+            a.op({0x90});
             a.esc(0xd9, 0, 0x100);                                 // FLD m32 1.5
             a.op({0xd9, 0xfc});                                    // FRNDINT
+            a.op({0x90});
             a.esc(0xdb, 5, 0x150);                                 // FLD m80, an inexact value
             a.op({0xd9, 0xfc});                                    // FRNDINT
+            a.op({0x90});
             a.op({0xd9, 0xf4});                                    // FXTRACT, which pushes
+            a.op({0x90});
             a.op({0xd9, 0xfd});                                    // FSCALE
+            a.op({0x90});
             a.esc(0xdf, 0, 0x120);                                 // FILD m16
             a.op({0xd9, 0xfd});                                    // FSCALE
+            a.op({0x90});
             a.op({0xd9, 0xe5});                                    // FXAM
             a.op({0xdf, 0xe0});                                    // FNSTSW AX
-            a.esc(0xdb, 7, 0x300);                                 // FSTP m80, through memory
-            a.esc(0xdb, 7, 0x30c);
+            a.esc(0xd9, 3, 0x300);                                 // FSTP m32, through memory
+            a.esc(0xd9, 3, 0x30c);
         }},
         {"precision", [](Asm &a) {
             a.op({0xdb, 0xe3});
             a.esc(0xd9, 5, 0x140);                                 // FLDCW: PC 24
             a.esc(0xdb, 5, 0x150);
             a.op({0xd8, 0xc8});                                    // FMUL ST,ST(0)
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
             a.esc(0xd8, 0, 0x100);                                 // FADD m32
             a.esc(0xd9, 5, 0x142);                                 // FLDCW: PC 53
             a.op({0xd8, 0xc8});
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
             a.esc(0xd9, 5, 0x144);                                 // FLDCW: PC 64, round down
             a.op({0xd8, 0xc8});
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
             a.esc(0xd9, 5, 0x146);                                 // FLDCW: PC 64, round up
             a.op({0xd8, 0xc8});
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
             a.esc(0xd9, 5, 0x148);                                 // FLDCW: PC 64, toward zero
             a.op({0xd8, 0xc8});
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
             a.op({0xdf, 0xe0});
-            a.esc(0xdb, 7, 0x300);                                 // FSTP m80, through memory
+            a.esc(0xd9, 3, 0x300);                                 // FSTP m32, through memory
         }},
         {"arith-flags", [](Asm &a) {
             a.op({0xdb, 0xe3});
@@ -10434,16 +10508,19 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.esc(0xdb, 5, 0x170);                                 // FLD m80: 1 + 2^-70
             a.esc(0xd9, 0, 0x100);
             a.op({0xd8, 0xc1});                                    // FADD -> precision
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
             a.op({0xdf, 0xe0});
             a.op({0xdb, 0xe2});
             a.esc(0xdb, 5, 0x180);                                 // FLD m80: 2^9000
             a.op({0xd8, 0xc8});                                    // FMUL -> masked overflow
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
             a.op({0xdf, 0xe0});
             a.op({0xdb, 0xe2});
             a.esc(0xdb, 5, 0x190);                                 // FLD m80: 2^-8300
             a.op({0xd8, 0xc8});                                    // FMUL -> masked underflow
+            a.op({0x90});                                          // a non-ESC retiring while the unit works
             a.op({0xdf, 0xe0});
-            a.esc(0xdb, 7, 0x300);                                 // FSTP m80, through memory
+            a.esc(0xd9, 3, 0x300);                                 // FSTP m32, through memory
         }},
     };
 
@@ -10553,7 +10630,16 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             };
             // stderr: the runner reads stdout as its own protocol.
             std::cerr << "x87:" << c.label << " states (ip before settling " << hex(ip_before_settle)
-                      << ", busy " << busy_before_settle << ")\n";
+                      << ", busy " << busy_before_settle << ", limit " << outcome.limit
+                      << ", halted " << outcome.halted << ", eip " << hex(rtl.state().eip)
+                      << ", seq " << int(rtl.top.trace_x87_seq) << ", bytes " << hex(uint32_t(a.b.size()))
+                      << ", shutdown " << outcome.shutdown << ", vmoved " << outcome.vector_moved
+                      << ", wcode " << outcome.window_code << ", cstore " << outcome.code_store
+                      << ", repstore " << outcome.rep_self_store << ", exc " << outcome.exception
+                      << ", unbuilt " << outcome.unbuilt << ", interrupt " << outcome.interrupt
+                      << ", trace_unbuilt " << int(rtl.top.trace_unbuilt)
+                      << ", trace_unimpl " << int(rtl.top.trace_unimplemented)
+                      << ")\n";
             show("oracle", want);
             show("rtl   ", got);
         }
