@@ -6,7 +6,10 @@
 set -e
 Q=${QUARTUS_ROOTDIR:-/home/deano/intelFPGA_lite/17.0/quartus}/bin
 here=$(cd "$(dirname "$0")" && pwd)
-cd "$1"; cp output_files/top.rbf fit.rbf
+# Resolve both arguments before any cd, so relative paths mean what the caller meant.
+project=$(cd "$1" && pwd)
+misteross=$(cd "$2" && pwd)
+cd "$project"; cp output_files/top.rbf fit.rbf
 python3 - <<'PY'
 import json, random
 r = random.Random(99); pats = {}
@@ -21,7 +24,7 @@ PY
 # heartbeat and a FINISHED/FAILED line.
 "$here/run_quartus_job.sh" update_mif.log "$Q/quartus_cdb" top -c top --update_mif
 "$here/run_quartus_job.sh" asm.log "$Q/quartus_asm" top -c top
-cd "$2"; project="$1"
+cd "$misteross"
 python3 -I "$here/check_bytes.py" . "$project" 8
 python3 -I - "$project" <<'PY'
 import sys; sys.path.insert(0, '.')
