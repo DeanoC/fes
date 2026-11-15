@@ -21,7 +21,7 @@ restate the verdicts; nothing outside this table, and no heading, carries one.
 | The Black Gate starts on a 386DX-25 reference | **done** |
 | A 386DX-25 board fixed by a rule committed before capture | **done**; the board that was fixed **does not meet** the rule, which is reported rather than worked around |
 | How the kit's 386 preset scores against that rule's range | **stated**: TopBench 68, above fifteen of the eighteen real entries, inside the range |
-| NPC pace, the quantity `method.md` committed | **not decided** — its spread across one machine's own repeats is not reproducible (32.1% on one gate-clean triple, 2.7% on another), which the method's own rule leaves undecided |
+| NPC pace, the quantity `method.md` committed | **not decided** — m1/m2/m6 fail the exact-drive gate (and m1 lacks a pre-run digest), so their 32.1% spread is not a valid second repeat set; r15a/r15b/r15d show 2.7% spread with the separately reported capture-rate deviation |
 | NPC pace, the character's walk-cycle period | **measured**: kit 8.733 s against reference 11.800 s, a **26.0% miss** against the same ±10% band, three windows a side, 0.0% spread on both. A quantity the method did not commit, fixed before any kit capture |
 
 ## Part 1 — the game starts on a 386DX-25 reference
@@ -213,29 +213,38 @@ The figures are in
 [`pace.json`](pace.json) and the analyser that produced them is
 [`u7pace.py`](u7pace.py), committed with the record.
 
-**The check as committed is not decided**, and the reason is sharper than
-"the spread was wide": **the spread is not reproducible**. Two sets of
-reference windows, each with every gate met, give
+**The check as committed is not decided**, but the earlier claim that its
+spread is not reproducible is withdrawn. The m1/m2/m6 copies fail the committed
+drive-image gate: they differ in two FAT timestamp bytes from the exact
+`u7bg-umap.img` plus `UMAP.COM` copy with SHA-256 `41c7b9d8…`, and m1 was not
+digested before its run. The r15a/r15b/r15d copies match the required drive
+digest, though their capture-rate derivation is the separately reported
+gate-3 deviation. The values are:
 
-| reference windows | displacement, heights/s | spread | kit/reference |
+| reference windows and drive-gate status | displacement, heights/s | spread | kit/reference |
 | --- | --- | --- | --- |
-| m1, m2, m6 | 0.04306, 0.05010, 0.05941 | **32.1%** | 1.096 |
-| r15a, r15b, r15d | 0.04716, 0.04712, 0.04592 | **2.7%** | 1.220 |
+| m1, m2, m6 — fail exact-drive gate; m1 also lacks pre-run digest | 0.04306, 0.05010, 0.05941 | **32.1%** | 1.096 |
+| r15a, r15b, r15d — exact digests; capture-rate deviation reported | 0.04716, 0.04712, 0.04592 | **2.7%** | 1.220 |
 
-so whether the figure passes its own precommitted spread rule depends on which
-three gate-clean windows you take, and the ratio it reports moves with them.
-The walk cycle over the same two sets is 11.733/11.800/11.867 and
-11.800/11.800/11.800. No cause was found: every window captured its full 1,800
-frames, so it is not dropped frames, and the character band the detector picks
-is the same in all of them. A figure like that cannot carry a band.
-`method.md`'s correction to its second amendment retracts the substitution
-that had let the verdict move off it.
+The m1/m2/m6 values are out-of-gate observations, not a second valid spread;
+their 32.1% spread and 1.096 ratio cannot establish that valid reference
+spreads are inconsistent. The r15 triple's observed spread is 2.7%, with the
+capture-rate deviation stated above. The m1/m2/m6 walk-cycle values
+(11.733/11.800/11.867 s) are also out of gate and cannot serve as a second
+valid set against r15's 11.800/11.800/11.800 s. Every window's complete frame
+count and the same detector band do not cure the failed drive-image gate. With
+no fully gate-compliant set in this record on which to decide the committed
+metric, its outcome remains **not decided by the method**. `method.md`'s
+correction to its second amendment retracts the substitution that had let the
+verdict move off it.
 
 **The measurement that can be made is the character's walk cycle**, fixed
 before any kit capture — so it cannot have been chosen to make the kit pass or
-fail — but adopted after the committed quantity failed its own spread rule,
-which is the pattern this project retracts rather than endorses. Its figures
-follow, with the band applied for what that is worth.
+fail — but adopted after earlier displacement observations appeared to fail
+the committed spread rule. The later gate audit means m1/m2/m6 do not establish
+that failure. The cycle remains an uncommitted quantity, not a repair to the
+committed check; its figures follow with the band applied for what that is
+worth.
 
 ### The scene and the quantity
 
@@ -257,13 +266,14 @@ both machines.
 
 ### The figures
 
-The verdict windows are **r15a, r15b, r15d** against **q1, q2, q3**, with
-every gate met: no input, 86Box reading 100% for every frame against the
-committed hash of the readout pixels ([`speed-100.png`](speed-100.png) holds
-that rendering; `pace.json`'s `invocations` block says exactly what is
-hashed), both sides derived at
-**15 frames a second**, and both sides' drive copies digested before their
-runs at the same **`41c7b9d8…`**.
+The walk-cycle measurement uses **r15a, r15b, r15d** against **q1, q2, q3**.
+There was no input; 86Box read 100% for every frame against the committed hash
+of the readout pixels ([`speed-100.png`](speed-100.png) holds that rendering;
+`pace.json`'s `invocations` block says exactly what is hashed); and both
+sides' drive copies were digested before their runs at the same
+**`41c7b9d8…`**. Both sets are derived at **15 frames a second**, but the
+reference was captured at 15 fps and the kit at 60 fps, so validity gate 3 is
+reported as a deviation below, not as met.
 
 | | reference, 86Box 386DX-25 | kit, preset 3 |
 | --- | --- | --- |
@@ -308,31 +318,33 @@ on the kit, so the conversation fires after a fixed number of the character's
 cycles and the two figures are one timeline read twice. What it does show is
 that the detector found the same timeline on two different captures.
 
-### What two failed rate figures say about measuring this game
+### What these rate figures say about measuring this game
 
-This is the second attempt to put a per-second rate on an Ultima scene and the
-second to fail, and the two failed the same way — on the spread **within one
-condition on one machine**:
+This is the second attempt to put a per-second rate on an Ultima scene. The
+records do not establish the same failure mode:
 
 - [#1368](https://github.com/DeanoC/fes/issues/1368)'s Ultima VI walk: the
   rate followed how the harness keyed the game, and over-keying settled on a
   suppressed rate that looked like a plateau; within-rate spreads of 1.765 to
   2.308 steps a second.
-- this record's Ultima VII displacement: a spread that is not reproducible,
-  32.1% across one gate-clean triple and 2.7% across another.
+- this record's Ultima VII displacement: m1/m2/m6 suggest a 32.1% spread, but
+  fail the drive-image gate; r15a/r15b/r15d show a 2.7% spread with a disclosed
+  capture-rate deviation. The two sets do not establish non-reproducibility.
 
-**The conclusion #1368 drew from its failure does not carry over, and this
-record is the evidence against it.** It concluded that the walk needs a count
-the game itself keeps, read from memory on each side, rather than motion
-counted in frames. For NPC pace that is not necessary: the walk cycle is read
-from the same frames, by the same analyser, on the same captures, and repeats
-to **0.0%** on both machines.
+**The conclusion #1368 drew from its failure does not carry over for the walk
+cycle measurement.** It concluded that the walk needs a count the game itself
+keeps, read from memory on each side, rather than motion counted in frames.
+Here, the cycle is read from frames by the same analyser and repeats to
+**0.0%** on the r15 reference and q kit windows. That supports measuring a
+period from these captures, while the gate limitations above still apply.
 
 The difference is not frames against memory. It is **rate against period**. A
 rate summed per frame carries the capture rate and the detector's sensitivity
 into the number — which is why displacement disagrees with the cycle about how
-much faster the kit is, and why its spread moves with which windows you pick.
-A period taken from the autocorrelation of a position carries neither: it is
+much faster the kit is in the r15/q comparison. The 1.096 ratio from m1/m2/m6
+is out of gate and cannot show that the valid spread changes with window
+selection. A period taken from the autocorrelation of a position carries
+neither: it is
 the time between two recurrences of the same picture, and a detector that
 finds those recurrences at all gets the same answer however often it looks.
 
@@ -539,9 +551,9 @@ the HMA, which is why both run the image's menu entry 1.
   tried, all failed), so the kit's captures are *derived* at 15 fps instead.
   The figure does not move with the rate, which is measured above, but the
   gate as written asks for capture and this is derivation.
-- **Why the displacement spread is not reproducible.** 32.1% across one
-  gate-clean triple and 2.7% across another, with full frame counts and the
-  same detector band in all of them. No cause was found.
+- **The m1/m2/m6 displacement result.** Its 32.1% spread is an out-of-gate
+  observation because the drive copies fail the exact-digest gate and m1 lacks
+  a pre-run digest. It does not establish a second valid spread against r15.
 - **The displacement metric** `method.md` first committed, which its second
   amendment set aside before any kit capture.
 - The reference's DOS layout is like the kit's, not identical: `reference.md`

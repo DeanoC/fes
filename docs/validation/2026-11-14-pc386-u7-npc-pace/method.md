@@ -242,23 +242,28 @@ windows gave:
 | m2 | 46.67 s | 0.05010 heights/s | 11.800 s | yes |
 | m3 | 47.60 s | 0.04413 heights/s | 12.067 s | **no** |
 
-m3 fails the validity gate above (86Box did not hold 100% for the whole
+m3 fails the speed validity gate above (86Box did not hold 100% for the whole
 window) and is therefore not a window; it is given because it was run, and a
-fourth was taken in its place.
+fourth was taken in its place. The table reports the speed gate only. A later
+gate audit found that m1 and m2 also fail the drive-image gate: their copies
+differ from the required digest, and m1 has no pre-run digest. The correction
+below gives the full disposition.
 
-**What changes.** Of the two valid windows, the **displacement** figures
-differ by 16%, which is wider than the ±10% band, so the band cannot be
-applied to it — the same situation #1838's fourth amendment met with Ultima
-VI's walk, and the same answer: the figure is reported and the check is not
-decided by it. The reason is the measurement, not the game: displacement is
-summed from the centroid of changed pixels frame by frame, so it counts how
-often the character is redrawn as much as how far it goes.
+**What changes.** In the two windows whose speed gates passed, the
+**displacement** figures differ by 16%, which is wider than the ±10% band, so
+the band cannot be applied to those observations. The later drive-image audit
+means they are not valid windows under all the committed gates; the correction
+below gives the full disposition. The reason suspected at the time was the
+measurement, not the game: displacement is summed from the centroid of changed
+pixels frame by frame, so it counts how often the character is redrawn as much
+as how far it goes.
 
 **The character's walk cycle does not have that problem.** Its beat is closed,
 so the autocorrelation of its position has a sharp first peak at the time it
 takes to walk the beat once, with harmonics at twice and three times that lag.
-It needs no pixel scale and no event counting, and the two valid windows agree
-to **0.6%**, sixteen times inside the band. So:
+It needs no pixel scale and no event counting, and the two windows that passed
+the speed gate agree to **0.6%**. Their drive copies later failed gate 6, so
+this agreement is an observation, not a valid repeatability result. So:
 
 > **The verdict rests on the walk cycle: the kit's cycle must be within ±10%
 > of the reference's.** The displacement figure and the window length are
@@ -309,50 +314,63 @@ and not only in the summary. Each item says what it is.
 6. **The speed gate's exclusions are reported from the readouts themselves.**
    The gate tests that the emulator's readout does not change within the
    window; reading the distinct strips shows what it was. m1, m2, m6 and the
-   33.3 MHz sweep run read **100% for every frame**. m3, m4 and m5 vary — 85
-   to 104%, 83 to 101% and 91 to 104%, at 100% for 55%, 90% and 73% of their
-   frames — and are excluded. The 40 MHz sweep run reads 100% for 486 of its
-   501 window frames and 101% for 15, so it fails the gate as written; a
-   fast second shortens a measured period, so its true cycle is at or just
+   33.3 MHz sweep run read **100% for every frame**. This is only the speed
+   gate: m1/m2/m6 are not a fully valid triple because their drive copies fail
+   gate 6, as detailed in the correction below. m3, m4 and m5 vary — 85 to
+   104%, 83 to 101% and 91 to 104%, at 100% for 55%, 90% and 73% of their
+   frames — and fail the speed gate. The 40 MHz sweep run reads 100% for 486
+   of its 501 window frames and 101% for 15, so it fails the gate as written;
+   a fast second shortens a measured period, so its true cycle is at or just
    above the 8.467 s measured, and the summary says so where it uses it.
 
 ## Correction to the second amendment
 
 The second amendment moved the verdict from the quantity this file committed —
-displacement per second — to the character's walk cycle, after seeing
-reference repeats whose displacement spread failed the precommitted
-spread rule. That is the move #1838's record was caught making and retracted:
-a precommitted gate was replaced after repeats failed it. It is corrected here
-in the same way, in place, and the correction is what to read.
+displacement per second — to the character's walk cycle after seeing reference
+repeats whose displacement appeared to fail the precommitted spread rule. The
+later gate audit found that those repeats fail the drive-image gate, so they
+cannot establish that failure. The walk cycle still cannot replace the
+committed quantity; this correction records the gate failure and withdraws the
+unsupported spread comparison.
 
-**The committed check is not decided.** The rule above says it plainly: "If
-the spread is not well inside the band, the check is not decided by this
-method and the record says so, with the figures." The displacement's spread
-fails that rule, and in the way that is hardest to argue with: **it is not
-reproducible**. Two sets of reference windows, each with every gate met, give
+**The committed check is not decided, but the earlier spread argument is
+withdrawn.** The previous text called m1/m2/m6 a second gate-clean reference
+triple. That was incorrect: their drive copies do not satisfy gate 6. They
+were made with a separate `mcopy` and differ in exactly two bytes from the
+required `u7bg-umap.img` plus `UMAP.COM` copy, whose SHA-256 is
+`41c7b9d8…`; m1 also has no recorded pre-run digest. The values from those
+runs are observations, but they are not eligible under the committed
+exact-image and pre-run-digest gate.
+
+The comparison below cannot establish non-reproducibility. It shows one
+out-of-gate triple and a later set whose exact drive digests match; the
+latter's capture-rate deviation is recorded in item 4 above.
 
 | | displacement, three windows | spread | kit/reference |
 | --- | --- | --- | --- |
-| m1, m2, m6 | 0.04306, 0.05010, 0.05941 | **32.1%** | 1.096 |
-| r15a, r15b, r15d | 0.04716, 0.04712, 0.04592 | **2.7%** | 1.220 |
+| m1, m2, m6 (gate 6 fail; m1 lacks pre-run digest) | 0.04306, 0.05010, 0.05941 | **32.1%** | 1.096 |
+| r15a, r15b, r15d (exact drive digests; capture-rate deviation reported) | 0.04716, 0.04712, 0.04592 | **2.7%** | 1.220 |
 
-so whether the figure passes its own spread rule depends on which three
-gate-clean windows are taken, and the ratio it reports moves with them. The
-walk cycle over those same two sets is 11.733/11.800/11.867 and
-11.800/11.800/11.800 — 1.1% and 0.0%. No cause was found for the difference;
-every window captured its full 1,800 frames, so it is not dropped frames. A
-figure like that cannot carry a band, so the outcome of the check as committed
-is **not decided by this method**, and no later quantity changes that. The
-figures are reported either way.
+The 32.1% spread and 1.096 ratio are retained as out-of-gate observations;
+they cannot establish a second valid spread or a change in the ratio across
+valid triples. The r15 set's observed spread is 2.7% and its ratio is 1.220,
+with the capture-rate deviation described above. The walk-cycle measurements
+from m1/m2/m6 (11.733/11.800/11.867 s) are likewise out of gate; they cannot
+be compared as a second valid set with the r15 values (11.800/11.800/11.800
+s). The complete frame counts and matching detector band do not cure the
+failed drive-image gate. Since the record has no fully gate-compliant set on
+which to decide the committed check, its outcome remains **not decided by this
+method**. The figures are reported with their gate status.
 
-There is a second, independent reason the committed quantity cannot carry a
-verdict here, and it is a measurement defect rather than noise: the two
-captures ran at **15 and 60 frames a second**, against validity gate 3, and
-displacement is summed per frame, so the number depends on the capture rate.
-Measured, the two quantities disagree outright — displacement gives a kit/
-reference ratio of **1.096** where the cycle gives **0.740**. A figure that
-turns over when the capture rate changes is of the rig, not of the game,
-which is the lesson #1838's record drew from Ultima VI's walk.
+There is another reason the committed quantity cannot carry a verdict here:
+validity gate 3 requires the same capture rate on both sides, but the reference
+was captured at **15 frames a second** and the kit at **60**, with the kit later
+derived at 15 fps. This is a reported deviation, not a met gate. Displacement
+is calculated from frame-to-frame motion, so this mismatch makes the committed
+comparison noncompliant; the record does not isolate how much the rate alone
+changes that metric. In the r15/q observations, displacement gives a kit/
+reference ratio of **1.220** while the cycle gives **0.740**. Those figures
+disagree, but they do not measure a rate-only effect.
 
 **The walk cycle is therefore reported as a new quantity, not as a repaired
 gate for the old one.** What can be said for it, and what cannot:
@@ -364,10 +382,11 @@ gate for the old one.** What can be said for it, and what cannot:
   pixel scale and no capture rate enter it. Its quantisation is one frame —
   0.57% of the figure on the reference at 15 fps, 0.19% on the kit at 60 —
   far inside the band.
-- It is nevertheless a quantity **adopted after the committed one failed its
-  own spread rule**, and that is exactly the pattern this project retracts.
-  So its figures are reported as a measurement, with the band applied to them
-  for what that is worth, and **the check #1853 asks for is reported as not
-  decided by the method as committed**. Whoever wants it decided should
-  commit the cycle in advance and measure again; this record gives everything
-  needed to do that, including the analyser.
+- It is nevertheless a quantity **adopted after the committed one appeared to
+  fail its spread rule**. The later gate audit invalidates m1/m2/m6 as evidence
+  of that failure, so the cycle is not a repair for a failed committed metric.
+  Its figures are reported as a measurement, with the band applied for what
+  that is worth, and **the check #1853 asks for is reported as not decided by
+  the method as committed**. Whoever wants it decided should commit the cycle
+  in advance and measure again; this record gives everything needed to do
+  that, including the analyser.
