@@ -920,10 +920,13 @@ module fes_i386_x87 (
                 sp_hit = 1'b0;
         end
         // A denormal operand raises the denormal exception whatever the
-        // operation does with it, but an invalid operation reports only
-        // invalid. A real x87 agrees: the largest denormal plus zero gives
-        // that denormal back with DE alone (the host probe in the record).
-        if (sp_fl[0] == 1'b0 && (ca == C_DEN || cb == C_DEN)) sp_fl[1] = 1'b1;
+        // operation does with it -- a real x87 gives the largest denormal
+        // plus zero back with DE alone -- but not beside an operand that is
+        // empty, unsupported or a NaN, where the 387 reports that operand's
+        // own exception or none at all. The host bench found both halves.
+        if (ca != C_EMPTY && cb != C_EMPTY && ca != C_UNSUP && cb != C_UNSUP
+            && ca != C_QNAN && cb != C_QNAN && ca != C_SNAN && cb != C_SNAN
+            && (ca == C_DEN || cb == C_DEN)) sp_fl[1] = 1'b1;
     end
 
     // ---- The compares (387 PRM, the FCOM and FUCOM entries). ----
@@ -1392,6 +1395,61 @@ module fes_i386_x87 (
                             seq <= S_SHIFT;
                         end else
                             seq <= A_OP;
+                    end else if (cur == X87_SCALE) begin
+                        // FSCALE's own operand classes: the add's and the
+                        // multiply's rules do not apply, because the second
+                        // operand is a scale and not a term. An infinite
+                        // scale takes the result to an infinity or a zero,
+                        // and the two combinations that would ask for both
+                        // at once are invalid (387 PRM, the FSCALE entry).
+                        logic bad_pair;
+                        bad_pair = (ca == C_ZERO && cb == C_INF && !pb[79])
+                                || (ca == C_INF && cb == C_INF && pb[79]);
+                        wsign <= pa[79];
+                        if (ca == C_EMPTY || cb == C_EMPTY) begin
+                            pfl <= pfl | 6'b000001;
+                            psf <= 1'b1;
+                            ares <= INDEFINITE;
+                            seq <= S_APPLY;
+                        end else if (ca == C_UNSUP || cb == C_UNSUP || bad_pair) begin
+                            pfl <= pfl | 6'b000001;
+                            ares <= INDEFINITE;
+                            seq <= S_APPLY;
+                        end else if (ca == C_QNAN || ca == C_SNAN || cb == C_QNAN || cb == C_SNAN) begin
+                            pfl <= pfl | sp_fl;
+                            ares <= sp_v;
+                            seq <= S_APPLY;
+                        end else if (cb == C_INF) begin
+                            // A finite non-zero ST(0) scaled by an infinity.
+                            pfl <= pfl | (ca == C_DEN ? 6'b000010 : 6'd0);
+                            ares <= pb[79] ? {pa[79], 79'd0} : {pa[79], 15'h7fff, 1'b1, 63'd0};
+                            seq <= S_APPLY;
+                        end else if (ca == C_ZERO || ca == C_INF) begin
+                            // A zero or an infinity scales to itself, and a
+                            // denormal scale still raises the denormal
+                            // exception (the host bench).
+                            pfl <= pfl | (cb == C_DEN ? 6'b000010 : 6'd0);
+                            ares <= pa;
+                            seq <= S_APPLY;
+                        end else begin
+                            pfl <= pfl | (ca == C_DEN || cb == C_DEN ? 6'b000010 : 6'd0);
+                            if (ca == C_DEN) begin
+                                oa_e <= eff_e(pa) - 18'(lza);
+                                sh_src <= pa[63:0];
+                                sh_pow <= 6'(lza);
+                                sh_isprod <= 1'b0;
+                                sh_ret <= A_PNA;
+                                seq <= S_SHIFT;
+                            end else if (cb == C_DEN) begin
+                                ob_e <= eff_e(pb) - 18'(lzb);
+                                sh_src <= pb[63:0];
+                                sh_pow <= 6'(lzb);
+                                sh_isprod <= 1'b0;
+                                sh_ret <= A_PNB;
+                                seq <= S_SHIFT;
+                            end else
+                                seq <= A_OP;
+                        end
                     end else if (sp_hit) begin
                         // An empty register, an unsupported format, a NaN,
                         // an infinity or a pair of zeros: the result is the
@@ -1402,7 +1460,12 @@ module fes_i386_x87 (
                         ares <= sp_v;
                         seq <= S_APPLY;
                     end else begin
+                        // A denormal operand raises the denormal exception
+                        // even where the result is exact: a real x87 sets DE
+                        // for a pseudo-denormal operand as well, which is
+                        // what class_of calls a denormal.
                         wsign <= sign_a;
+                        pfl <= pfl | (ca == C_DEN || cb == C_DEN ? 6'b000010 : 6'd0);
                         if (ca == C_DEN) begin
                             oa_e <= eff_e(pa) - 18'(lza);
                             sh_src <= pa[63:0];
@@ -1444,7 +1507,8 @@ module fes_i386_x87 (
                         // The product, on the one multiplier. Both operands
                         // are normalised, so it lands in [1, 4) and needs a
                         // shift of one bit at most, which A_PROD does with a
-                        // wire.
+                        // wire. Its sign is the two operands' together.
+                        wsign <= sign_a ^ sign_b;
                         sh_src <= oa_m;
                         sh_b2 <= ob_m;
                         sh_isprod <= 1'b1;
@@ -1460,24 +1524,46 @@ module fes_i386_x87 (
                         logic signed [17:0] d;
                         logic [6:0]         k;
                         logic               a_big;
-                        d = oa_e - ob_e;
-                        a_big = d >= 18'sd0;
-                        k = (a_big ? d : -d) > 18'sd66 ? 7'd66 : 7'((a_big ? d : -d));
-                        al_big <= a_big ? oa_m : ob_m;
-                        al_small <= a_big ? ob_m : oa_m;
-                        al_k <= k;
-                        al_zero <= a_big ? cb == C_ZERO : ca == C_ZERO;
-                        add_neg <= sign_a != sign_b;
-                        wsign <= a_big ? sign_a : sign_b;
-                        we <= a_big ? oa_e : ob_e;
-                        if (k != 7'd0 && k < 7'd65 && !(a_big ? cb == C_ZERO : ca == C_ZERO)) begin
-                            sh_src <= a_big ? ob_m : oa_m;
-                            sh_pow <= 6'(7'd64 - k);
-                            sh_isprod <= 1'b0;
-                            sh_ret <= A_LOAD;
-                            seq <= S_SHIFT;
-                        end else
+                        if (ca == C_ZERO || cb == C_ZERO) begin
+                            // Exactly one operand is an exact zero, because
+                            // two of them were a special case above. The
+                            // result is the other operand -- but it still
+                            // goes through the rounding, because precision
+                            // control can shorten it, and a denormal comes
+                            // back as the denormal it was.
+                            al_big <= ca == C_ZERO ? ob_m : oa_m;
+                            al_small <= 64'd0;
+                            al_k <= 7'd0;
+                            al_zero <= 1'b1;
+                            add_neg <= 1'b0;
+                            wsign <= ca == C_ZERO ? sign_b : sign_a;
+                            we <= ca == C_ZERO ? ob_e : oa_e;
                             seq <= A_LOAD;
+                        end else begin
+                            // Which operand is the larger magnitude. Equal
+                            // exponents leave it to the significands, and a
+                            // subtract that takes the larger from the
+                            // smaller wraps round instead of going negative:
+                            // -2^63 plus (2^64 - 1) came out as -3*2^63.
+                            d = oa_e - ob_e;
+                            a_big = d > 18'sd0 || (d == 18'sd0 && oa_m >= ob_m);
+                            k = (a_big ? d : -d) > 18'sd66 ? 7'd66 : 7'((a_big ? d : -d));
+                            al_big <= a_big ? oa_m : ob_m;
+                            al_small <= a_big ? ob_m : oa_m;
+                            al_k <= k;
+                            al_zero <= 1'b0;
+                            add_neg <= sign_a != sign_b;
+                            wsign <= a_big ? sign_a : sign_b;
+                            we <= a_big ? oa_e : ob_e;
+                            if (k != 7'd0 && k < 7'd65) begin
+                                sh_src <= a_big ? ob_m : oa_m;
+                                sh_pow <= 6'(7'd64 - k);
+                                sh_isprod <= 1'b0;
+                                sh_ret <= A_LOAD;
+                                seq <= S_SHIFT;
+                            end else
+                                seq <= A_LOAD;
+                        end
                     end else if (cur == X87_RNDINT) begin
                         // FRNDINT: the fraction is the low bits, so a shift
                         // right by 63 minus the unbiased exponent leaves the
@@ -1529,7 +1615,13 @@ module fes_i386_x87 (
                             we <= oa_e;
                             seq <= A_RND;
                         end else if (eu >= 18'sd16) begin
-                            we <= pb[79] ? oa_e - 18'sd20000 : oa_e + 18'sd20000;
+                            // A scale of 2^16 or more takes any operand out
+                            // of range, so it saturates: 36000 is past the
+                            // exponent field's own span either way, because
+                            // the operand's exponent is between -62 (a
+                            // pre-normalised denormal) and 32766. A smaller
+                            // step left a denormal scaled by 2^63 finite.
+                            we <= pb[79] ? oa_e - 18'sd36000 : oa_e + 18'sd36000;
                             seq <= A_RND;
                         end else begin
                             sh_src <= ob_m;
@@ -1628,24 +1720,38 @@ module fes_i386_x87 (
                         pc1 <= 1'b0;
                         seq <= S_APPLY;
                     end else begin
-                        // Cancellation happens only where the exponents were
-                        // within one of each other, so the alignment dropped
-                        // nothing below the round bit and bit 0 is clear:
-                        // the magnitude is the 64 bits at 64:1, one position
-                        // below the significand's, which is the -1 here.
+                        // Bit 65 clear: the magnitude is the 64 bits at
+                        // 64:1, one position below the significand's, which
+                        // is the -1 here, and what is left below them is bit
+                        // 0 and the sticky.
+                        //
+                        // A shift of more than one place needs the exponents
+                        // to have been within one of each other, because
+                        // from a difference of two the subtrahend is at most
+                        // a quarter of the minuend and the difference stays
+                        // above 2^62. So where the shift is more than one
+                        // place the alignment dropped nothing -- bit 0 and
+                        // the sticky are both clear -- and where it is one
+                        // place or none they are the result's own guard and
+                        // sticky, which a borrowed sticky makes non-zero.
+                        // Dropping them was what turned -1 plus 2^-16382
+                        // into -(1 - 2^-64).
                         sh_src <= sw[64:1];
                         sh_pow <= 6'(clz64(sw[64:1]));
                         sh_isprod <= 1'b0;
                         sh_ret <= A_NORM;
                         we <= we - 18'sd1 - 18'(clz64(sw[64:1]));
+                        wg <= sw[0];
+                        wrd <= 1'b0;
+                        ws <= ub_s;
                         seq <= S_SHIFT;
                     end
                 end
                 A_NORM: begin
+                    // The guard and sticky A_SUM worked out stay as they are:
+                    // a shift of more than one place only happens where they
+                    // are both clear.
                     wm <= mul_p[63:0];
-                    wg <= 1'b0;
-                    wrd <= 1'b0;
-                    ws <= 1'b0;
                     seq <= A_RND;
                 end
                 // The product. Both operands were normalised, so it is in
@@ -1853,7 +1959,7 @@ module fes_i386_x87 (
                 // raises ERROR# and latches BUSY#, as a 387 on an AT does.
                 S_APPLY: begin
                     logic [5:0]  f;
-                    logic        stk, um, c1, ccw, wr, pop, push, c1_wr;
+                    logic        stk, um, c1, ccw, wr, pop, push, c1_wr, ovf;
                     logic [79:0] v;
                     logic [3:0]  nc;
                     cls_e        c0cls, cicls;
@@ -1861,6 +1967,7 @@ module fes_i386_x87 (
                     stk = psf;
                     c1 = pc1;
                     ccw = 1'b0;
+                    ovf = 1'b0;
                     // The control forms, FNOP and FFREE leave the condition
                     // codes as they are; every other form writes C1.
                     c1_wr = !(cur == X87_NOP || cur == X87_STCW || cur == X87_STSW || cur == X87_STENV
@@ -2002,9 +2109,15 @@ module fes_i386_x87 (
                             v = ares2;
                             wr = 1'b1;
                             if (!empty[push_i]) begin
+                                // A stack overflow, and only that, puts the
+                                // real indefinite in both: a NaN operand
+                                // gives both results the quieted NaN, so the
+                                // second write below tests the overflow and
+                                // not the invalid flag.
                                 f[0] = 1'b1;
                                 stk = 1'b1;
                                 c1 = 1'b1;
+                                ovf = 1'b1;
                                 v = INDEFINITE;
                             end
                         end
@@ -2147,7 +2260,7 @@ module fes_i386_x87 (
                         if (cur == X87_XTRACT) begin
                             // The push above wrote the significand; the
                             // exponent goes to the register ST(0) was.
-                            sres <= f[0] ? INDEFINITE : ares;
+                            sres <= ovf ? INDEFINITE : ares;
                             a2_idx <= top;
                             seq <= S_APPLY2;
                         end

@@ -18,9 +18,13 @@
 #include "Vfes_i386_x87.h"
 #include "verilated.h"
 
+#include <sys/mman.h>
+
 #include <cstdint>
 #include <cstdio>
+#include <initializer_list>
 #include <cstring>
+#include <cstdlib>
 #include <array>
 #include <random>
 #include <string>
@@ -437,6 +441,139 @@ void top_push_overlap_store(Unit &u) {
     if (n >= 64) bad("overlap.store", "the store held for ever");
     else if (stored != 0x3f800000u) bad("overlap.store", "stored " + hex(stored, 8));  // 1.0
     else ok("overlap.store");
+}
+
+
+// ---- Slice 3's arithmetic: the host reference. ----
+// Each case runs the form's own two opcode bytes on the host and compares the
+// whole architectural state: the control, status and tag words and all eight
+// registers, which is exactly what FNSAVE reports and what the unit's own
+// FNSAVE hands back.
+//
+// The instruction is *generated* rather than written as assembly, because the
+// forms differ only in those two bytes and GNU as does not name them the way
+// the hardware behaves: `fsub %st,%st(1)` assembles to DC E1, and DC E1 on the
+// hardware computes ST(0) - ST(1), which Intel calls FSUBR. The unit is given
+// the bytes, so the reference has to be driven by the bytes too. The
+// encodings were checked against a real x87 before this bench was written:
+// with ST(0) = 3 and ST(1) = 10, D8 E1 and DC E9 and DE E9 give "destination
+// minus the other operand", and D8 E9, DC E1 and DE E1 the reverse.
+struct Image {
+    uint16_t cw, sw, tw;
+    uint8_t  reg[8][10];
+};
+
+// The generated stub, called as
+//   sw = stub(cw, st1_operand, st0_operand, memory_operand, image)
+// It initialises the unit, sets the control word, pushes `pushes` extended
+// operands, runs the form, reads the status word and saves the state.
+using Stub = unsigned (*)(const void *, const void *, const void *, const void *, void *);
+
+class StubPage {
+  public:
+    StubPage() {
+        page_ = static_cast<uint8_t *>(mmap(nullptr, 4096, PROT_READ | PROT_WRITE,
+                                            MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+        if (page_ == MAP_FAILED) page_ = nullptr;
+    }
+    ~StubPage() {
+        if (page_) munmap(page_, 4096);
+    }
+    // Build and return a stub for one form. `ops` is the instruction's bytes.
+    Stub build(unsigned pushes, const uint8_t *ops, unsigned nops) {
+        if (!page_) return nullptr;
+        if (mprotect(page_, 4096, PROT_READ | PROT_WRITE) != 0) return nullptr;
+        std::vector<uint8_t> code;
+        auto emit = [&](std::initializer_list<uint8_t> bytes) {
+            for (uint8_t b : bytes) code.push_back(b);
+        };
+        emit({0xdb, 0xe3});                     // fninit
+        emit({0xd9, 0x2f});                     // fldcw (%rdi)
+        if (pushes > 1) emit({0xdb, 0x2e});     // fldt (%rsi): the ST(1) operand
+        if (pushes > 0) emit({0xdb, 0x2a});     // fldt (%rdx): the ST(0) operand
+        for (unsigned n = 0; n < nops; ++n) code.push_back(ops[n]);
+        emit({0xdf, 0xe0});                     // fnstsw %ax, before anything clears it
+        emit({0x41, 0xdd, 0x30});               // fnsave (%r8), which is no-wait
+        emit({0x0f, 0xb7, 0xc0});               // movzwl %ax, %eax
+        emit({0xc3});                           // ret
+        std::memcpy(page_, code.data(), code.size());
+        if (mprotect(page_, 4096, PROT_READ | PROT_EXEC) != 0) return nullptr;
+        return reinterpret_cast<Stub>(page_);
+    }
+
+  private:
+    uint8_t *page_ = nullptr;
+};
+
+// The 32-bit protected FNSAVE image: the words at 0, 4 and 8, and the eight
+// registers from 28, ST(0) first.
+void image_of(const uint8_t *raw, uint16_t sw, Image &out) {
+    std::memcpy(&out.cw, raw + 0, 2);
+    std::memcpy(&out.tw, raw + 8, 2);
+    out.sw = sw;
+    for (int n = 0; n < 8; ++n) std::memcpy(out.reg[n], raw + 28 + 10 * n, 10);
+}
+
+bool host_form(StubPage &page, uint16_t cw, const uint8_t *st1, const uint8_t *st0,
+               const void *mem, unsigned pushes, const uint8_t *ops, unsigned nops, Image &out) {
+    alignas(16) uint8_t raw[128] = {0};
+    alignas(16) uint8_t a[16] = {0}, b[16] = {0};
+    if (st0) std::memcpy(a, st0, 10);
+    if (st1) std::memcpy(b, st1, 10);
+    Stub stub = page.build(pushes, ops, nops);
+    if (!stub) return false;
+    const unsigned sw = stub(&cw, b, a, mem, raw);
+    image_of(raw, uint16_t(sw), out);
+    return true;
+}
+
+// The same form on the unit: the control word, the pushes as FLD m80 (a bit
+// copy, so it raises nothing either side), the form itself, then the unit's
+// own FNSAVE.
+void unit_form(Unit &u, uint16_t cw, const uint8_t *st1, const uint8_t *st0,
+               const uint8_t *mem, unsigned pushes, unsigned op, unsigned fmt, Image &out) {
+    u.clear_latch();
+    u.reg_form(OP_FNINIT);
+    u.present(OP_FLDCW, FMT_I16, true, true, 0);
+    u.commit(0, cw, true);
+    u.settle();
+    if (pushes > 1) u.load(OP_FLD_M80, FMT_F80, st1);
+    if (pushes > 0) u.load(OP_FLD_M80, FMT_F80, st0);
+    if (fmt == 0) u.reg_form(op);
+    else u.load(op, fmt, mem);
+    out.cw = u.cw();
+    out.sw = u.sw();
+    out.tw = u.tw();
+    // The registers in the order FNSAVE stores them, which is the order the
+    // host's image has: ST(0) first. The unit's regs_o is the eight physical
+    // registers, so TOP picks them out.
+    for (unsigned n = 0; n < 8; ++n) u.sti(n, out.reg[n]);
+}
+
+// The status-word bits an arithmetic form defines: the six exception flags,
+// the stack flag, ES, B, TOP and all four condition codes. C0, C2 and C3 are
+// defined for the compares and undefined elsewhere, so the mask narrows for
+// the forms that leave them alone.
+// A register the tag word marks empty holds whatever was last written to it,
+// which is architecturally undefined: the host's FNSAVE image carries the
+// bytes a previous case left there and the unit's register file carries its
+// own, so only the registers the tag word says are in use are compared.
+// `reg` is indexed from ST(0), and the tag word by physical register, which
+// TOP maps between.
+bool reg_live(const Image &im, unsigned i) {
+    const unsigned phys = ((im.sw >> 11) + i) & 7;
+    return ((im.tw >> (2 * phys)) & 3) != 3;
+}
+std::string state_str(const Image &im, uint16_t swmask) {
+    std::string s = "cw=" + hex(im.cw, 4) + " sw=" + hex(im.sw & swmask, 4) + " tw=" + hex(im.tw, 4);
+    for (unsigned n = 0; n < 8; ++n) s += reg_live(im, n) ? " " + hex80(im.reg[n]) : " --";
+    return s;
+}
+bool same_state(const Image &x, const Image &y, uint16_t swmask) {
+    if (x.cw != y.cw || (x.sw & swmask) != (y.sw & swmask) || x.tw != y.tw) return false;
+    for (unsigned n = 0; n < 8; ++n)
+        if (reg_live(x, n) && std::memcmp(x.reg[n], y.reg[n], 10) != 0) return false;
+    return true;
 }
 
 // Set the unit's rounding mode with FLDCW.
@@ -1159,6 +1296,101 @@ int main(int argc, char **argv) {
         u.store((1u << 8) | 0x3d, FMT_F32, out2);  // FNSTCW (D9 /7)
         if ((u.sw() & 0x4700) == cc_after_fxam) ok("control-keeps-cc");
         else bad("control-keeps-cc", "was=" + hex(cc_after_fxam, 4) + " now=" + hex(u.sw() & 0x4700, 4));
+    }
+
+
+    // ---- Slice 3: add, subtract, reverse subtract and multiply. ----
+    // Each form runs over the operand classes the 387 PRM names, as pairs, in
+    // every rounding mode, and the whole architectural state is compared with
+    // the host's. The status word's mask leaves out C0, C2 and C3, which are
+    // undefined for the arithmetic forms, and keeps C1, which says which way
+    // a rounding went.
+    {
+        StubPage page;
+        const uint16_t ARITH_SW = 0xfaff;   // everything but C0, C2 and C3
+        const uint16_t CMP_SW = 0xffff;     // the compares define all of them
+        struct Form {
+            const char *name;
+            unsigned    esc;      // ESC's low three bits
+            unsigned    modrm;    // ... and the ModRM byte
+            unsigned    pushes;
+            unsigned    fmt;      // 0 for a register form
+            uint16_t    swmask;
+        };
+        const Form forms[] = {
+            // D8: the destination is ST(0) and the other operand ST(1).
+            {"fadd.st0",   0x0, 0xc1, 2, 0, ARITH_SW},
+            {"fmul.st0",   0x0, 0xc9, 2, 0, ARITH_SW},
+            {"fsub.st0",   0x0, 0xe1, 2, 0, ARITH_SW},
+            {"fsubr.st0",  0x0, 0xe9, 2, 0, ARITH_SW},
+            // DC: the destination is ST(1), and E0h and E8h swap sense.
+            {"fadd.sti",   0x4, 0xc1, 2, 0, ARITH_SW},
+            {"fmul.sti",   0x4, 0xc9, 2, 0, ARITH_SW},
+            {"fsub.sti",   0x4, 0xe1, 2, 0, ARITH_SW},
+            {"fsubr.sti",  0x4, 0xe9, 2, 0, ARITH_SW},
+            // DE: the same, and then ST(0) is popped.
+            {"faddp",      0x6, 0xc1, 2, 0, ARITH_SW},
+            {"fmulp",      0x6, 0xc9, 2, 0, ARITH_SW},
+            {"fsubp",      0x6, 0xe1, 2, 0, ARITH_SW},
+            {"fsubrp",     0x6, 0xe9, 2, 0, ARITH_SW},
+            // The compares, ordered and unordered, with and without the pops.
+            {"fcom",       0x0, 0xd1, 2, 0, CMP_SW},
+            {"fcomp",      0x0, 0xd9, 2, 0, CMP_SW},
+            {"fcompp",     0x6, 0xd9, 2, 0, CMP_SW},
+            {"fucom",      0x5, 0xe1, 2, 0, CMP_SW},
+            {"fucomp",     0x5, 0xe9, 2, 0, CMP_SW},
+            {"fucompp",    0x2, 0xe9, 2, 0, CMP_SW},
+            // The one-operand forms. FSCALE takes ST(1) as its scale.
+            {"frndint",    0x1, 0xfc, 1, 0, ARITH_SW},
+            {"fxtract",    0x1, 0xf4, 1, 0, ARITH_SW},
+            {"fscale",     0x1, 0xfd, 2, 0, ARITH_SW},
+        };
+
+        // The pairs: every named pattern against every named pattern, and
+        // then random ones. `named` is the count at the front of `ext` that
+        // the store section put there by hand.
+        const size_t named = 22;
+        std::vector<std::pair<size_t, size_t>> pairs;
+        for (size_t ia = 0; ia < named && ia < ext.size(); ++ia)
+            for (size_t ib = 0; ib < named && ib < ext.size(); ++ib) pairs.emplace_back(ia, ib);
+        for (int n = 0; n < 200; ++n)
+            pairs.emplace_back(rng() % ext.size(), rng() % ext.size());
+
+        for (const Form &f : forms) {
+            for (unsigned rc = 0; rc < 4; ++rc) {
+                const uint16_t cw = host_cw(rc);
+                const uint8_t ops[2] = {uint8_t(0xd8 | f.esc), uint8_t(f.modrm)};
+                int diffs = 0, ran = 0;
+                std::string first;
+                Unit u;
+                for (const auto &pr : pairs) {
+                    const uint8_t *a = ext[pr.first].data();   // ST(0)
+                    const uint8_t *b = ext[pr.second].data();  // ST(1)
+                    Image want{}, got{};
+                    if (!host_form(page, cw, b, a, nullptr, f.pushes, ops, 2, want)) {
+                        bad(std::string(f.name) + "-rc" + std::to_string(rc), "no stub page");
+                        break;
+                    }
+                    unit_form(u, cw, b, a, nullptr, f.pushes, (f.esc << 8) | f.modrm, f.fmt, got);
+                    ++ran;
+                    if (!same_state(want, got, f.swmask)) {
+                        const std::string what = "st0=" + hex80(a) + " st1=" + hex80(b) +
+                                                 " got " + state_str(got, f.swmask) +
+                                                 " want " + state_str(want, f.swmask);
+                        if (!diffs) first = what;
+                        // X87_TB_VERBOSE names one form, or "all", and prints
+                        // every mismatch rather than only the first.
+                        const char *vb = std::getenv("X87_TB_VERBOSE");
+                        if (vb && (std::string(vb) == "all" || std::string(vb) == f.name))
+                            std::fprintf(stderr, "DIFF %s-rc%u %s\n", f.name, rc, what.c_str());
+                        ++diffs;
+                    }
+                }
+                const std::string name = std::string(f.name) + "-rc" + std::to_string(rc);
+                if (diffs) bad(name, std::to_string(diffs) + " of " + std::to_string(ran) + " " + first);
+                else ok(name);
+            }
+        }
     }
 
     std::printf("SUMMARY %d %d\n", passed, failed);
