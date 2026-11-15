@@ -401,6 +401,77 @@ class RefusedAdmission(unittest.TestCase):
         self.assertEqual(kit_hil.verdict({'reasons': []}), [])
         self.assertEqual(len(kit_hil.verdict({'reasons': 'a bare string reason'})), 1)
 
+    def test_a_mapping_of_events_cannot_hide_an_error(self):
+        """The shape that made the guard exit 0 over a result holding an error."""
+
+        payload = {'events': {'1': {'result': {'error': 'boom'}}}}
+        with self.assertRaises(kit_hil.MalformedResult) as bad:
+            kit_hil.verdict(payload)
+        self.assertIn('`events` must be a list', str(bad.exception))
+        with tempfile.TemporaryDirectory() as home:
+            path = Path(home) / 'result.json'
+            path.write_text(json.dumps(payload))
+            self.assertEqual(kit_hil.main(['verdict', str(path)]), 2,
+                             'an unreadable shape is the no-verdict code, never a pass')
+
+    def test_every_malformed_payload_shape_gives_no_verdict(self):
+        # Both directions matter: a shape that silently passes is worse, but a
+        # TypeError out of a tool whose job is the exit code is also wrong.
+        for payload in ({'events': None}, {'events': 'x'}, {'events': 3},
+                        {'events': [1]}, {'events': ['a']}, {'events': [None]},
+                        {'events': [{'cmd': 'load'}]}, {'events': [{'cmd': 3}]},
+                        {'reasons': 3}, {'reasons': {'a': 'b'}}, {'reasons': [1]},
+                        {'reasons': [{'op': 'load'}]}):
+            with self.subTest(payload=payload):
+                with self.assertRaises(kit_hil.MalformedResult):
+                    kit_hil.verdict(payload)
+                with tempfile.TemporaryDirectory() as home:
+                    path = Path(home) / 'result.json'
+                    path.write_text(json.dumps(payload))
+                    self.assertEqual(kit_hil.main(['verdict', str(path)]), 2)
+
+    def test_a_null_reasons_is_none_but_a_null_events_is_unreadable(self):
+        # Deliberately asymmetric: a passing run has no reasons, so a null
+        # there hides nothing; a null `events` means the commands were never
+        # recorded, and no errors in it proves nothing.
+        self.assertEqual(kit_hil.verdict({'reasons': None, 'events': []}), [])
+        with self.assertRaises(kit_hil.MalformedResult):
+            kit_hil.verdict({'reasons': None, 'events': None})
+
+    def test_a_result_nested_past_the_limit_gives_no_verdict(self):
+        deep = {'error': 'buried'}
+        for _ in range(kit_hil.MAX_RESULT_DEPTH + 2):
+            deep = {'nested': deep}
+        with self.assertRaises(kit_hil.MalformedResult):
+            kit_hil.verdict({'events': [{'seq': 1, 'result': deep}]})
+        with tempfile.TemporaryDirectory() as home:
+            path = Path(home) / 'result.json'
+            path.write_text(json.dumps({'events': [{'seq': 1, 'result': deep}]}))
+            self.assertEqual(kit_hil.main(['verdict', str(path)]), 2)
+
+    def test_an_unreadable_command_result_ends_the_run_rather_than_raising(self):
+        # drain's path: a reply it cannot read is the run's reason, not an
+        # exception out of `halting`.
+        deep = {'ok': True}
+        for _ in range(kit_hil.MAX_RESULT_DEPTH + 2):
+            deep = {'nested': deep}
+        self.assertIn('unreadable result', kit_hil.halting(deep))
+        clock, ran = Clock(), []
+        done, reasons = kit_hil.drain(
+            lambda: json.dumps({'op': 'grab'}), lambda op: ran.append(op) or deep,
+            mode='batch', log=lambda *_: None, now=clock.now, sleep=clock.sleep)
+        self.assertEqual(len(reasons), 1)
+        self.assertIn('unreadable result', reasons[0])
+
+    def test_well_formed_results_are_unaffected(self):
+        self.assertEqual(kit_hil.verdict({'events': [
+            {'seq': 1, 'cmd': {'op': 'load'}, 'result': {'load': {'state': 'active'}}}]}), [])
+        self.assertEqual(len(kit_hil.verdict({'events': [
+            {'seq': 1, 'cmd': {'op': 'load'}, 'result': {'error': 'HTTP 422'}}]})), 1)
+        self.assertEqual(len(kit_hil.verdict({'events': [
+            {'seq': 1, 'op': 'load', 'result': {'error': 'HTTP 422'}}]})), 1)
+        self.assertEqual(kit_hil.verdict({}), [])
+
     def test_a_result_that_is_not_an_object_is_not_a_pass(self):
         with tempfile.TemporaryDirectory() as home:
             path = Path(home) / 'result.json'

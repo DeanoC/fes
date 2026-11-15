@@ -69,28 +69,97 @@ class CleanupRefused(Exception):
     """The kit is not in a state in which a post-run tail may touch it."""
 
 
-def error_in(value):
+class MalformedResult(Exception):
+    """A result whose shape cannot be judged, so no verdict can be given.
+
+    A guard that can be defeated by a malformed version of what it inspects is
+    the failure it exists to catch: plausible-looking success over a failure.
+    So an unreadable shape is neither a pass nor a crash — it is the
+    no-verdict exit code, the same one an unreadable file gets.
+    """
+
+
+# A result.json is machine-written and shallow. A file nested past this is not
+# something to recurse into: the recursion limit would decide the exit code.
+MAX_RESULT_DEPTH = 64
+
+
+def error_in(value, depth=0):
     """Return the first error this result reports, at any depth, or None.
 
     The driver records a refused command as `{'error': ...}` in its event and
     in `result.json`; a nested reply can carry one too.
     """
 
+    if depth > MAX_RESULT_DEPTH:
+        raise MalformedResult(f'the result nests deeper than {MAX_RESULT_DEPTH} levels, '
+                              f'so it cannot be searched for errors')
     if isinstance(value, dict):
         reported = value.get('error')
         if reported not in (None, '', {}, []):
             return reported
         for nested in value.values():
-            found = error_in(nested)
+            found = error_in(nested, depth + 1)
             if found is not None:
                 return found
         return None
     if isinstance(value, list):
         for nested in value:
-            found = error_in(nested)
+            found = error_in(nested, depth + 1)
             if found is not None:
                 return found
     return None
+
+
+def result_reasons(result):
+    """Return the stored `reasons` as a list of strings, or raise.
+
+    `drain` returns a list of strings and the run stores it. A number, a
+    mapping or anything else there means the file was not written by what this
+    reads, so its absence of errors proves nothing.
+    """
+
+    stored = result.get('reasons')
+    if stored is None:
+        # A null here is read as "none", unlike a null `events`: a passing run
+        # has no reasons, so there is nothing a null could be hiding, while a
+        # null `events` means the commands were not recorded at all and an
+        # absence of errors in it proves nothing.
+        return []
+    if isinstance(stored, str):
+        return [stored]
+    if not isinstance(stored, list) or any(not isinstance(item, str) for item in stored):
+        raise MalformedResult(f'`reasons` must be a string or a list of strings, not '
+                              f'{type(stored).__name__}'
+                              + ('' if not isinstance(stored, list) else
+                                 ' of ' + ', '.join(sorted({type(item).__name__
+                                                            for item in stored}))))
+    return stored
+
+
+def result_events(result):
+    """Return the stored `events` as a list of event objects, or raise.
+
+    The shape that mattered: `{"events": {"1": {...}}}` iterates the mapping's
+    keys, every key is a string rather than an event, and a loop that skips
+    non-events would report no command error over a result that holds one.
+    """
+
+    stored = result.get('events')
+    if stored is None and 'events' not in result:
+        return []
+    if not isinstance(stored, list):
+        raise MalformedResult(f'`events` must be a list, not {type(stored).__name__}; '
+                              f'a mapping or a null here hides whatever it holds')
+    for index, event in enumerate(stored):
+        if not isinstance(event, dict):
+            raise MalformedResult(f'event {index} is a {type(event).__name__}, not an object, '
+                                  f'so what it reports cannot be read')
+        command = event.get('cmd')
+        if command is not None and not isinstance(command, dict):
+            raise MalformedResult(f'event {index} has a `cmd` that is a '
+                                  f'{type(command).__name__}, not an object')
+    return stored
 
 
 def halting(result):
@@ -102,7 +171,12 @@ def halting(result):
     adopter needs no second mechanism for it.
     """
 
-    found = error_in(result)
+    try:
+        found = error_in(result)
+    except MalformedResult as error:
+        # A command whose own reply cannot be read is not a command that
+        # passed; `drain` turns this into the run's reason.
+        return f'unreadable result: {error}'
     if found is not None:
         return found
     if isinstance(result, dict):
@@ -125,27 +199,29 @@ def verdict(result):
     run in `reasons` — `drain`'s own list, which carries the failures no event
     holds: a live run that ran out of commands without a `quit`, or one that
     reached its run limit.
+
+    Raises `MalformedResult` for any shape it cannot judge, which the CLI
+    turns into the no-verdict exit code. Reporting no error over a result
+    whose errors are unreadable would be the same plausible success this guard
+    exists to prevent.
     """
 
+    if not isinstance(result, dict):
+        raise MalformedResult(f'a result must be an object, not {type(result).__name__}')
     reasons = []
-    stored = result.get('reasons')
-    if isinstance(stored, str):
-        stored = [stored]
-    for reason in stored or ():
+    for reason in result_reasons(result):
         if reason:
             reasons.append(f'reasons: {reason}')
     for key in ('halted', 'close_error'):
         if result.get(key):
             reasons.append(f'{key}: {result[key]}')
-    for event in result.get('events', []):
-        if not isinstance(event, dict):
-            continue
+    for event in result_events(result):
         found = error_in(event.get('result'))
         if found is None:
             found = error_in({k: v for k, v in event.items() if k != 'result'})
         if found is not None:
             seq = event.get('seq', '?')
-            op = (event.get('cmd') or {}).get('op') if isinstance(event.get('cmd'), dict) else event.get('op')
+            op = (event.get('cmd') or {}).get('op') or event.get('op')
             reasons.append(f'command {seq} {op}: {found}')
     return reasons
 
@@ -697,11 +773,11 @@ def main(argv=None):
             print(f'{args.result}: no readable result, so the run has no verdict: {error}',
                   file=sys.stderr)
             return 2
-        if not isinstance(result, dict):
-            print(f'{args.result}: the result is {type(result).__name__}, not an object, so '
-                  f'the run has no verdict', file=sys.stderr)
+        try:
+            reasons = verdict(result)
+        except MalformedResult as error:
+            print(f'{args.result}: {error}, so the run has no verdict', file=sys.stderr)
             return 2
-        reasons = verdict(result)
         for reason in reasons:
             print(f'FAILED {reason}', file=sys.stderr)
         if not reasons:

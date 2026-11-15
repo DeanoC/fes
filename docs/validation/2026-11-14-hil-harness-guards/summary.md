@@ -106,6 +106,17 @@ client `kit.py` the session drivers already import, and are checked in
    hand its own `run` straight in. A `stop` that answers
    `{"recovery": "reboot_required"}` reports no error at all, and `halting`
    ends the run on that too, which is what the drivers' own `halted` key did.
+   The payload's own shape is part of that: a result is an object, `reasons`
+   a list of strings, `events` a list of objects whose `cmd` is an object, and
+   nothing nested past 64 levels. Anything else gives the no-verdict exit code
+   rather than a pass or a crash, because a guard that a malformed version of
+   its own input can defeat is the failure it exists to catch —
+   `{"events": {"1": {"result": {"error": "boom"}}}}` iterates the mapping's
+   keys, finds no event, and would otherwise report no command error over a
+   result that holds one. A null `reasons` is read as "none", deliberately
+   unlike a null `events`: a passing run has no reasons, so a null there hides
+   nothing, while a null `events` means the commands were never recorded and
+   an absence of errors in it proves nothing.
    *Prevents:* a refused admission reading as a pass.
 
 4. **Liveness.** `run_lock` is a per-run lock file, `kit-hil-run.lock`, that
@@ -134,7 +145,7 @@ after checking them against the real data are red on the extraction too. All of
 them pass on the branch head:
 
     cd sources/misteross && python3 -m unittest discover -s tests -p 'test_kit*.py'
-    # 75 tests, OK (60 of them this module's)
+    # 81 tests, OK (66 of them this module's)
 
 The cleanup gate is also exercised against a real local HTTP agent replying in
 `protocol.Status`'s own shape (`state`, `game_id`, `core_package.package_id`,
@@ -422,6 +433,25 @@ listed three roots found `saves` and the third never asked, because
 a root that exists must list cleanly, and a root that is absent contributes
 nothing and is named in the log.
 
+## After the reduction: one finding, and not of that family
+
+The review round on the reduced code found one finding, in the verdict rather
+than the cleanup: the lease-lifetime family that produced five rounds did not
+recur. That is the result the reduction was for, and it is evidence that the
+diagnosis was about the shape of the code rather than about any single
+omission.
+
+The finding itself was worth the push, because it was the same *kind* of
+failure as the `.fcore` run that started this work — plausible success over a
+real failure, this time through a malformed payload rather than a refused
+upload. It is fixed across the verdict path rather than at the line reported:
+the result's own shape, `reasons`, `events`, each event, each event's `cmd`,
+and a depth bound so a pathologically nested file cannot let the recursion
+limit decide the exit code. Both failure directions are covered — the shapes
+that silently passed and the shapes that raised a `TypeError` out of a tool
+whose only job is the right exit code — and `drain`'s own path turns a reply it
+cannot read into the run's reason instead of an exception.
+
 ## The gate against the real agents
 
 Kit B was released by the #1368 session at 17:44 EET, so `guard-idle` was run
@@ -444,7 +474,7 @@ trees under, which is the thing the guard exists to prevent.
 
 | gate | result |
 | --- | --- |
-| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 75 tests, OK |
+| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 81 tests, OK |
 | `tests/test_hil_plan.py` | 39 tests, OK |
 | `tests/test_affected.py`, `tests/test_test_changed.py` | 43 and 33 tests, OK |
 | `scripts/check_diff.py --base <main> --head HEAD` | exit 0 |
