@@ -72,11 +72,17 @@ BUILD_ID as well, so evidence gathered before it landed would not have survived 
 
 ### Result
 
-All twelve closures discharge D12's three conditions. Eleven were measured against merge base
-`1a4bb8d41`; `zx81` was re-measured against `e9218eb5e` after main's DeanoC/fes#1791 changed
-`cores/fes-zx81/rtl/top.v`, `zx81_machine.sv` and `zx81_machine_clock.v`. The other eleven carry
-forward under D12's merge-forward clause: their only closure hit in that window is
-`scripts/core_package.py`, which is neither compiled source nor a route-deciding input.
+**Eleven of twelve closures discharge D12's three conditions. `coleco_v2` does not, and this
+record does not claim it does.** Conditions 1 and 2 hold for all twelve. Condition 3 -- the PR's
+own unforced build passing the producer's normal timing and seal gates -- fails for `coleco_v2`
+at this branch's head, on all ten seeds in its recipe. See **Condition 3 for `coleco_v2`** below;
+the evidence is committed under [`condition-3/`](condition-3/).
+
+Conditions 1 and 2 were measured against merge base `1a4bb8d41`; `zx81` was re-measured against
+`e9218eb5e` after main's DeanoC/fes#1791 changed `cores/fes-zx81/rtl/top.v`, `zx81_machine.sv` and
+`zx81_machine_clock.v`. The other eleven carry forward under D12's merge-forward clause: their only
+closure hit in that window is `scripts/core_package.py`, which is neither compiled source nor a
+route-deciding input.
 
 | core | base `BUILD_ID` | RBF sha256 (base = forced1 = forced2) | netlist sha256 | condition 3 `BUILD_ID` |
 | --- | --- | --- | --- | --- |
@@ -92,6 +98,47 @@ forward under D12's merge-forward clause: their only closure hit in that window 
 | `menu` | `177d3678bfc8e8b4187ed489066bef2f` | `f85ec56563d14ee7337464ec1608820721d8c0af3cecfd13b424294fd95e974e` | `fddf97b917a61b9f9527a2b9e430f8391727935955eb041baeaba8d4d8bd9257` | `918325bde7bb5366fd99f67e59ef5b30` |
 | `ramtest` | `7a60de20fc0fb448849cd24eed50a253` | `d3774d8027b61a943e77edac3f6815c7e8f3a526da1d18dd688bcf91f64fd925` | `a5e0d01b501fb7721240a64b8a9b71065940e8d5b23af7c2b72ff76173543347` | `4d8eb4efff711f03f1b842ed2b056b9a` |
 | `riscv` | `e0a17b8e0d06d1b5b5fae611bdedc308` | `a7224f83777d917af62b4b4a1d3db814e34f69028c1fb09254b8f09946303831` | `99f92fafc5b0c591a34968b535468610c479219066d579bfee046b7d42c33a50` | `89ce0e93c74934dc3ed7bfc1a131d990` |
+
+### Condition 3 for `coleco_v2`
+
+`coleco_v2`'s own unforced build at this branch's head misses timing. The producer's verdict, in
+[`condition-3/coleco_v2.producer.log`](condition-3/coleco_v2.producer.log):
+
+```
+build-fes-coleco-socket-v2: no placement met timing (best seed=2 weight=2000 worst_ratio=0.9796)
+```
+
+All ten seeds in `fes.coleco`'s recipe ran and none met timing; the best is 2% short and the spread
+runs to 0.859, so this is not a tie one more seed would break. The per-seed figures are not
+transcribed here -- run [`condition-3/ratios.py`](condition-3/ratios.py), which derives them from
+the producer's own committed `coleco_v2.qor-ranking.json`.
+
+**What moved.** An earlier condition-3 run of this core, at `f07950e12`, passed on seed 1 in seven
+minutes, the search stopping at the first seed to meet timing. At this head seed 1 scores 0.8720:
+the whole distribution moved down, not one seed. Exactly one file inside `coleco_v2`'s 56-entry
+source closure differs between those commits, `scripts/core_package.py`, and its diff is DE25 nano
+format-3 package *validation* -- it emits no RTL and feeds no synthesis input. Its only effect on
+this build is that it is in the hashed closure, so the `BUILD_ID` moves, and the producer injects
+that as `chparam -set BUILD_ID 128'h<id> top`.
+
+That the netlists are otherwise equal was checked rather than assumed: 61 modules on both sides with
+identical names, one differing module (`top`, 5382 cells against 5387), the LUT mix shifted
+(`MISTRAL_ALUT5` -5, `ALUT3` -4, `ALUT6` +3, `ALUT2` +2), and the renamed cones landing in the bus
+readback and `audio.lrclk` logic -- which is where folding a different 128-bit constant through the
+identity readback path would land. Synthesis reproduces on this host: the determinism run showed two
+builds of one tree byte-identical in both `core.rbf` and `synth.json`.
+
+So a 128-bit constant with no functional meaning decides whether this core closes timing. That is
+the identity cost DeanoC/fes#1878 proposes to remove, appearing as a hard build failure rather than
+a wasted rebuild.
+
+**What this record does not do about it.** It does not add seeds, widen the weight list or touch the
+recipe: those are route-deciding inputs, and changing them here would void the comparison this
+record exists to make. It does not cite the `f07950e12` pass, which ran at the wrong base. It does
+not treat a later passing repeat as a replacement, because the gate was precommitted. Moving the
+core's nextpnr lock forward is the project's sanctioned remedy for a timing miss, but it changes a
+route-deciding input, so it belongs in its own PR with a reseal and kit HIL -- not here. The
+disposition is Deano's call.
 
 Every digest is the full sha256 of the artefact named. The RBF column is one value because the base
 build and **both** forced builds produced it byte for byte; the netlist column likewise. Condition
@@ -174,8 +221,11 @@ and netlists.
   the 100 MHz evidence cannot discharge D12 for it. Deano's decision is that the 130 rate was an
   original aspiration and 100 is the current target, so it is not measured here. If that package is
   ever sealed again it needs conditions 1, 2 and 3 of its own first.
-- Condition 3, the PR's own build passing the core's normal timing and seal gates, is satisfied by
-  each base and forced build completing its producer's own checks; no separate seal run was made.
+- Condition 3 is **not** satisfied by the base and forced builds completing their producer's
+  checks, which is what an earlier revision of this record claimed. A forced build carries the
+  base's `BUILD_ID`, so it is not this commit's own build and cannot discharge a condition about
+  this commit's identity (DeanoC/fes#1806 review). Condition 3 is a separate unforced run per core,
+  and the `condition 3 BUILD_ID` column holds its result.
 
 ## Review fixes
 
