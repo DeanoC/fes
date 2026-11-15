@@ -46,6 +46,16 @@ class InputIdentityTests(unittest.TestCase):
             self.assertEqual(before['identities']['design'], after['identities']['design'], key)
             self.assertNotEqual(before['identities']['toolchain'], after['identities']['toolchain'], key)
 
+    def test_quartus_recipe_version_drift_is_toolchain_only(self):
+        before = self.record()
+        before['parameters']['quartus_recipe_sha256'] = '0' * 64
+        before = with_identities(before)
+        after = copy.deepcopy(before)
+        after['parameters']['quartus_recipe_sha256'] = '1' * 64
+        after = with_identities(after)
+        self.assertEqual(before['identities']['design'], after['identities']['design'])
+        self.assertNotEqual(before['identities']['toolchain'], after['identities']['toolchain'])
+
     def test_abi_rtl_constraints_recipe_unknown_helpers_and_parameters_invalidate(self):
         before = self.record()
         for path in ('cores/core.sv', 'cores/clocks.sdc', 'cores/constraints.qsf',

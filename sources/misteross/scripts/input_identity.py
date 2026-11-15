@@ -31,7 +31,8 @@ TOOLCHAIN_INPUTS = frozenset({
 TOOLCHAIN_PARAMETERS = frozenset({
     'execution_sha256', 'gpu_device', 'gpu_backend', 'gpu_architectures',
     'toolchain_configuration', 'toolchain_lock', 'toolchain_lock_sha256',
-    'compiler', 'pnr_recipe_sha256', 'selection_only', 'toolchain_pins',
+    'compiler', 'pnr_recipe_sha256', 'quartus_recipe_sha256',
+    'selection_only', 'toolchain_pins',
 })
 
 
