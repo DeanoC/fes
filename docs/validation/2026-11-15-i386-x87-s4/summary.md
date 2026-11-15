@@ -142,7 +142,8 @@ Four instruments, answering different questions.
 | directed partial-step chains | **32 chains pass** (both instructions, exponent differences −5 to 999, odd divisors at the tie, full status mask, each step's result fed back) |
 | exception-mask matrix, divide/sqrt/remainder rows | **passes under all seven mask settings** |
 | BUSY# latch trials for ZE, IE and PE from real divides and roots | **pass** |
-| lockstep, every bucket | **passed, 0 failed** — including all **1,933 no-387 cases**; rerunning with slice 4's own identity-on programs |
+| lockstep, identity **off** | **1,933 no-387 cases pass, 0 failed**, and every other bucket passes |
+| lockstep, identity **on**, with slice 4's own programs | **19 pass, 2 FAIL** — `div-mem` and `div-prec`. **This gate is not met.** |
 | test386 | **POST FFh reached**, halt at d0:ffb9 after 79,641,629 steps |
 | standalone area, against the merge base in the same flow | **+3,997 ALMs, +0 DSP, +2 M10K** ([the reading](area-first-reading.md)) |
 | TestFloat div, sqrt, rem | **attempted, unmet**: a scope of its own, see below |
@@ -151,7 +152,44 @@ Four instruments, answering different questions.
 | Quartus 17.0.2 seal | not run |
 | kit run | not run |
 
-Slice 4 adds **seven identity-on lockstep programs** — `div-reg`, `div-mem`,
+### The identity-on lockstep fails, and that is this record's most important open item
+
+Slice 4's seven identity-on programs make the lockstep **fail**: 19 of 21
+cases pass and **`div-mem` and `div-prec` do not**. Before these programs
+existed the bucket was slice 2 and 3's 14 cases and passed; the failure is
+what writing real coverage bought, and it is **not** resolved.
+
+What the run reports:
+
+```
+x87 cases (the identity on): 19 pass, 2 fail
+FAIL x87:div-mem  @104a.write.7360 fc 0 ... div-mem.halt 1 0
+                  div-mem.x87.status 0 1  div-mem.x87.r7 0 1
+FAIL x87:div-prec @1044.eax 3801 3822 ... div-prec.halt 1 0
+                  div-prec.x87.status 0 1 div-prec.x87.tag 0 1
+```
+
+Read as *expected, got*: `div-prec` ends with the oracle's status word 3801h
+(**IE**) against the RTL's 3822h (**PE and C1**), and neither case reaches its
+HLT on the RTL.
+
+**Two readings are open and this record does not choose between them.**
+
+1. **The RTL diverges from Bochs on the CPU path** in a way the unit bench
+   cannot see, because that bench compares against the *host* and the host is
+   not Bochs. `div-prec`'s last operation is FSQRT of a negative value, which
+   must raise invalid — the unit bench checks exactly that and passes — so if
+   the RTL is reaching it with a different ST(0), the divergence is earlier
+   than the reported state.
+2. **The programs are wrong.** Neither halts on the RTL, which usually means
+   the case diverged before its end, so the reported final state may be a
+   consequence rather than the fault. A malformed program is as likely as a
+   malformed divider at this stage and has not been ruled out.
+
+Either way **the identity-on lockstep gate is unmet**, and the earlier
+statement in this record that the lockstep passed was true only of the bucket
+before these programs were added. It is corrected here rather than left to
+read as coverage. — `div-reg`, `div-mem`,
 `div-zero`, `sqrt`, `prem`, `prem1` and `div-prec` — so the forms run through
 the CPU rather than through the unit's own interface, and the two remainder
 programs loop on C2 the way software does, which compares every partial step
