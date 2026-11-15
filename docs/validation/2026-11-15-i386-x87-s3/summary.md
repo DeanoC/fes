@@ -26,6 +26,26 @@ the remainders, so folding them in would have made this slice's area
 unattributable, and attributable area is what these slices were asked to
 report.
 
+## The finding to read first
+
+The arithmetic is built, checked and sealable: 537 bench cases against a real
+x87 with no failures on the RTL and on the netlist, lockstep with nothing
+failing in any bucket three ways over, test386 to POST FFh, and the package
+as it ships fitting at 86.8% of the device and closing at +0.576 ns.
+
+**But with the `i386dx+387` identity on, this machine no longer closes
+reliably.** At about 94.7% of the device, two of the first four Quartus seeds
+miss the CPU clock, by −0.283 and −0.348 ns, where slice 2 closed on nine
+seeds of nine at 91.2%. The failing paths are not in the x87 -- its own paths
+keep +0.456 and +1.458 ns on those seeds -- so this is whole-machine
+congestion and no change to the arithmetic would fix it.
+
+The identity ships **off** in every package until slice 5, so nothing sealed
+or run on a kit today depends on that. What depends on it is slice 5.
+[The sweep](#the-identity-on-seed-sweep-closure-is-seed-dependent) has the
+numbers and [where the margin went](#where-the-margin-went-which-is-not-where-it-looks)
+has the paths.
+
 ## What the host settled
 
 The slice's rules are not read off a manual; they are measured. An x86-64
