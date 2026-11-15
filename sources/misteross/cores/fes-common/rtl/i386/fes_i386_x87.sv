@@ -295,10 +295,29 @@ module fes_i386_x87 (
     // free. docs/validation/2026-11-15-i386-x87-s4/design.md has the
     // measurements and model/fixed_constants.py is the check.
     (* ramstyle = "M10K" *) logic [9:0] rcp_tab [0:127];
+    // Literals, and not an initial loop that computes them: the locked Yosys
+    // rejects `real` in a module body ("syntax error, unexpected TOK_REAL"),
+    // which the netlist bench found on the first run. The values are
+    // 1/b for b = 0.5 + (i + 0.5)/256 as v/512, rounded to nearest;
+    // model/seed_tables.py emits exactly this block and --check verifies the
+    // RTL still holds it, so they are reproducible rather than magic.
     initial begin
-        // 1/b for b = 0.5 + (i + 0.5)/256, rounded to nearest, times 512.
-        for (int i = 0; i < 128; i++)
-            rcp_tab[i] = 10'($rtoi(512.0 / (0.5 + (real'(i) + 0.5) / 256.0) + 0.5));
+        rcp_tab[0] = 10'd1020; rcp_tab[1] = 10'd1012; rcp_tab[2] = 10'd1004; rcp_tab[3] = 10'd997; rcp_tab[4] = 10'd989; rcp_tab[5] = 10'd982; rcp_tab[6] = 10'd975; rcp_tab[7] = 10'd967;
+        rcp_tab[8] = 10'd960; rcp_tab[9] = 10'd953; rcp_tab[10] = 10'd946; rcp_tab[11] = 10'd940; rcp_tab[12] = 10'd933; rcp_tab[13] = 10'd926; rcp_tab[14] = 10'd920; rcp_tab[15] = 10'd913;
+        rcp_tab[16] = 10'd907; rcp_tab[17] = 10'd901; rcp_tab[18] = 10'd895; rcp_tab[19] = 10'd889; rcp_tab[20] = 10'd883; rcp_tab[21] = 10'd877; rcp_tab[22] = 10'd871; rcp_tab[23] = 10'd865;
+        rcp_tab[24] = 10'd859; rcp_tab[25] = 10'd854; rcp_tab[26] = 10'd848; rcp_tab[27] = 10'd843; rcp_tab[28] = 10'd838; rcp_tab[29] = 10'd832; rcp_tab[30] = 10'd827; rcp_tab[31] = 10'd822;
+        rcp_tab[32] = 10'd817; rcp_tab[33] = 10'd812; rcp_tab[34] = 10'd807; rcp_tab[35] = 10'd802; rcp_tab[36] = 10'd797; rcp_tab[37] = 10'd792; rcp_tab[38] = 10'd787; rcp_tab[39] = 10'd783;
+        rcp_tab[40] = 10'd778; rcp_tab[41] = 10'd773; rcp_tab[42] = 10'd769; rcp_tab[43] = 10'd764; rcp_tab[44] = 10'd760; rcp_tab[45] = 10'd755; rcp_tab[46] = 10'd751; rcp_tab[47] = 10'd747;
+        rcp_tab[48] = 10'd743; rcp_tab[49] = 10'd738; rcp_tab[50] = 10'd734; rcp_tab[51] = 10'd730; rcp_tab[52] = 10'd726; rcp_tab[53] = 10'd722; rcp_tab[54] = 10'd718; rcp_tab[55] = 10'd714;
+        rcp_tab[56] = 10'd710; rcp_tab[57] = 10'd707; rcp_tab[58] = 10'd703; rcp_tab[59] = 10'd699; rcp_tab[60] = 10'd695; rcp_tab[61] = 10'd692; rcp_tab[62] = 10'd688; rcp_tab[63] = 10'd684;
+        rcp_tab[64] = 10'd681; rcp_tab[65] = 10'd677; rcp_tab[66] = 10'd674; rcp_tab[67] = 10'd670; rcp_tab[68] = 10'd667; rcp_tab[69] = 10'd664; rcp_tab[70] = 10'd660; rcp_tab[71] = 10'd657;
+        rcp_tab[72] = 10'd654; rcp_tab[73] = 10'd650; rcp_tab[74] = 10'd647; rcp_tab[75] = 10'd644; rcp_tab[76] = 10'd641; rcp_tab[77] = 10'd638; rcp_tab[78] = 10'd635; rcp_tab[79] = 10'd632;
+        rcp_tab[80] = 10'd629; rcp_tab[81] = 10'd626; rcp_tab[82] = 10'd623; rcp_tab[83] = 10'd620; rcp_tab[84] = 10'd617; rcp_tab[85] = 10'd614; rcp_tab[86] = 10'd611; rcp_tab[87] = 10'd608;
+        rcp_tab[88] = 10'd605; rcp_tab[89] = 10'd603; rcp_tab[90] = 10'd600; rcp_tab[91] = 10'd597; rcp_tab[92] = 10'd594; rcp_tab[93] = 10'd592; rcp_tab[94] = 10'd589; rcp_tab[95] = 10'd586;
+        rcp_tab[96] = 10'd584; rcp_tab[97] = 10'd581; rcp_tab[98] = 10'd579; rcp_tab[99] = 10'd576; rcp_tab[100] = 10'd574; rcp_tab[101] = 10'd571; rcp_tab[102] = 10'd569; rcp_tab[103] = 10'd566;
+        rcp_tab[104] = 10'd564; rcp_tab[105] = 10'd561; rcp_tab[106] = 10'd559; rcp_tab[107] = 10'd557; rcp_tab[108] = 10'd554; rcp_tab[109] = 10'd552; rcp_tab[110] = 10'd550; rcp_tab[111] = 10'd547;
+        rcp_tab[112] = 10'd545; rcp_tab[113] = 10'd543; rcp_tab[114] = 10'd541; rcp_tab[115] = 10'd538; rcp_tab[116] = 10'd536; rcp_tab[117] = 10'd534; rcp_tab[118] = 10'd532; rcp_tab[119] = 10'd530;
+        rcp_tab[120] = 10'd527; rcp_tab[121] = 10'd525; rcp_tab[122] = 10'd523; rcp_tab[123] = 10'd521; rcp_tab[124] = 10'd519; rcp_tab[125] = 10'd517; rcp_tab[126] = 10'd515; rcp_tab[127] = 10'd513;
     end
     logic [9:0]  rcp_q;          // the seed, valid the cycle after ob_m settles
     always_ff @(posedge clk) rcp_q <= rcp_tab[ob_m[62:56]];
@@ -310,12 +329,41 @@ module fes_i386_x87 (
     // exactly 1, because the index is an interval's midpoint -- so ten bits
     // hold them and the left-aligned seed always has bit 63 set.
     (* ramstyle = "M10K" *) logic [9:0] rsq_tab [0:255];
+    // 1/sqrt(a) for a = (1 + (i + 0.5)/128) * 2^parity as v/1024, from the
+    // same generator. Literals for the same reason as the reciprocal's.
     initial begin
-        for (int pp = 0; pp < 2; pp++)
-            for (int i = 0; i < 128; i++)
-                rsq_tab[pp * 128 + i] =
-                    10'($rtoi(1024.0 / $sqrt((1.0 + (real'(i) + 0.5) / 128.0)
-                                             * (pp != 0 ? 2.0 : 1.0)) + 0.5));
+        rsq_tab[0] = 10'd1022; rsq_tab[1] = 10'd1018; rsq_tab[2] = 10'd1014; rsq_tab[3] = 10'd1010; rsq_tab[4] = 10'd1006; rsq_tab[5] = 10'd1003; rsq_tab[6] = 10'd999; rsq_tab[7] = 10'd995;
+        rsq_tab[8] = 10'd992; rsq_tab[9] = 10'd988; rsq_tab[10] = 10'd984; rsq_tab[11] = 10'd981; rsq_tab[12] = 10'd977; rsq_tab[13] = 10'd974; rsq_tab[14] = 10'd971; rsq_tab[15] = 10'd967;
+        rsq_tab[16] = 10'd964; rsq_tab[17] = 10'd960; rsq_tab[18] = 10'd957; rsq_tab[19] = 10'd954; rsq_tab[20] = 10'd951; rsq_tab[21] = 10'd948; rsq_tab[22] = 10'd944; rsq_tab[23] = 10'd941;
+        rsq_tab[24] = 10'd938; rsq_tab[25] = 10'd935; rsq_tab[26] = 10'd932; rsq_tab[27] = 10'd929; rsq_tab[28] = 10'd926; rsq_tab[29] = 10'd923; rsq_tab[30] = 10'd920; rsq_tab[31] = 10'd917;
+        rsq_tab[32] = 10'd914; rsq_tab[33] = 10'd912; rsq_tab[34] = 10'd909; rsq_tab[35] = 10'd906; rsq_tab[36] = 10'd903; rsq_tab[37] = 10'd901; rsq_tab[38] = 10'd898; rsq_tab[39] = 10'd895;
+        rsq_tab[40] = 10'd892; rsq_tab[41] = 10'd890; rsq_tab[42] = 10'd887; rsq_tab[43] = 10'd885; rsq_tab[44] = 10'd882; rsq_tab[45] = 10'd880; rsq_tab[46] = 10'd877; rsq_tab[47] = 10'd875;
+        rsq_tab[48] = 10'd872; rsq_tab[49] = 10'd870; rsq_tab[50] = 10'd867; rsq_tab[51] = 10'd865; rsq_tab[52] = 10'd862; rsq_tab[53] = 10'd860; rsq_tab[54] = 10'd858; rsq_tab[55] = 10'd855;
+        rsq_tab[56] = 10'd853; rsq_tab[57] = 10'd851; rsq_tab[58] = 10'd848; rsq_tab[59] = 10'd846; rsq_tab[60] = 10'd844; rsq_tab[61] = 10'd842; rsq_tab[62] = 10'd839; rsq_tab[63] = 10'd837;
+        rsq_tab[64] = 10'd835; rsq_tab[65] = 10'd833; rsq_tab[66] = 10'd831; rsq_tab[67] = 10'd829; rsq_tab[68] = 10'd826; rsq_tab[69] = 10'd824; rsq_tab[70] = 10'd822; rsq_tab[71] = 10'd820;
+        rsq_tab[72] = 10'd818; rsq_tab[73] = 10'd816; rsq_tab[74] = 10'd814; rsq_tab[75] = 10'd812; rsq_tab[76] = 10'd810; rsq_tab[77] = 10'd808; rsq_tab[78] = 10'd806; rsq_tab[79] = 10'd804;
+        rsq_tab[80] = 10'd802; rsq_tab[81] = 10'd800; rsq_tab[82] = 10'd799; rsq_tab[83] = 10'd797; rsq_tab[84] = 10'd795; rsq_tab[85] = 10'd793; rsq_tab[86] = 10'd791; rsq_tab[87] = 10'd789;
+        rsq_tab[88] = 10'd787; rsq_tab[89] = 10'd786; rsq_tab[90] = 10'd784; rsq_tab[91] = 10'd782; rsq_tab[92] = 10'd780; rsq_tab[93] = 10'd778; rsq_tab[94] = 10'd777; rsq_tab[95] = 10'd775;
+        rsq_tab[96] = 10'd773; rsq_tab[97] = 10'd771; rsq_tab[98] = 10'd770; rsq_tab[99] = 10'd768; rsq_tab[100] = 10'd766; rsq_tab[101] = 10'd765; rsq_tab[102] = 10'd763; rsq_tab[103] = 10'd761;
+        rsq_tab[104] = 10'd760; rsq_tab[105] = 10'd758; rsq_tab[106] = 10'd757; rsq_tab[107] = 10'd755; rsq_tab[108] = 10'd753; rsq_tab[109] = 10'd752; rsq_tab[110] = 10'd750; rsq_tab[111] = 10'd749;
+        rsq_tab[112] = 10'd747; rsq_tab[113] = 10'd745; rsq_tab[114] = 10'd744; rsq_tab[115] = 10'd742; rsq_tab[116] = 10'd741; rsq_tab[117] = 10'd739; rsq_tab[118] = 10'd738; rsq_tab[119] = 10'd736;
+        rsq_tab[120] = 10'd735; rsq_tab[121] = 10'd733; rsq_tab[122] = 10'd732; rsq_tab[123] = 10'd731; rsq_tab[124] = 10'd729; rsq_tab[125] = 10'd728; rsq_tab[126] = 10'd726; rsq_tab[127] = 10'd725;
+        rsq_tab[128] = 10'd723; rsq_tab[129] = 10'd720; rsq_tab[130] = 10'd717; rsq_tab[131] = 10'd714; rsq_tab[132] = 10'd712; rsq_tab[133] = 10'd709; rsq_tab[134] = 10'd706; rsq_tab[135] = 10'd704;
+        rsq_tab[136] = 10'd701; rsq_tab[137] = 10'd699; rsq_tab[138] = 10'd696; rsq_tab[139] = 10'd694; rsq_tab[140] = 10'd691; rsq_tab[141] = 10'd689; rsq_tab[142] = 10'd686; rsq_tab[143] = 10'd684;
+        rsq_tab[144] = 10'd681; rsq_tab[145] = 10'd679; rsq_tab[146] = 10'd677; rsq_tab[147] = 10'd675; rsq_tab[148] = 10'd672; rsq_tab[149] = 10'd670; rsq_tab[150] = 10'd668; rsq_tab[151] = 10'd666;
+        rsq_tab[152] = 10'd663; rsq_tab[153] = 10'd661; rsq_tab[154] = 10'd659; rsq_tab[155] = 10'd657; rsq_tab[156] = 10'd655; rsq_tab[157] = 10'd653; rsq_tab[158] = 10'd651; rsq_tab[159] = 10'd649;
+        rsq_tab[160] = 10'd647; rsq_tab[161] = 10'd645; rsq_tab[162] = 10'd643; rsq_tab[163] = 10'd641; rsq_tab[164] = 10'd639; rsq_tab[165] = 10'd637; rsq_tab[166] = 10'd635; rsq_tab[167] = 10'd633;
+        rsq_tab[168] = 10'd631; rsq_tab[169] = 10'd629; rsq_tab[170] = 10'd627; rsq_tab[171] = 10'd626; rsq_tab[172] = 10'd624; rsq_tab[173] = 10'd622; rsq_tab[174] = 10'd620; rsq_tab[175] = 10'd618;
+        rsq_tab[176] = 10'd617; rsq_tab[177] = 10'd615; rsq_tab[178] = 10'd613; rsq_tab[179] = 10'd611; rsq_tab[180] = 10'd610; rsq_tab[181] = 10'd608; rsq_tab[182] = 10'd606; rsq_tab[183] = 10'd605;
+        rsq_tab[184] = 10'd603; rsq_tab[185] = 10'd601; rsq_tab[186] = 10'd600; rsq_tab[187] = 10'd598; rsq_tab[188] = 10'd597; rsq_tab[189] = 10'd595; rsq_tab[190] = 10'd594; rsq_tab[191] = 10'd592;
+        rsq_tab[192] = 10'd590; rsq_tab[193] = 10'd589; rsq_tab[194] = 10'd587; rsq_tab[195] = 10'd586; rsq_tab[196] = 10'd584; rsq_tab[197] = 10'd583; rsq_tab[198] = 10'd581; rsq_tab[199] = 10'd580;
+        rsq_tab[200] = 10'd579; rsq_tab[201] = 10'd577; rsq_tab[202] = 10'd576; rsq_tab[203] = 10'd574; rsq_tab[204] = 10'd573; rsq_tab[205] = 10'd571; rsq_tab[206] = 10'd570; rsq_tab[207] = 10'd569;
+        rsq_tab[208] = 10'd567; rsq_tab[209] = 10'd566; rsq_tab[210] = 10'd565; rsq_tab[211] = 10'd563; rsq_tab[212] = 10'd562; rsq_tab[213] = 10'd561; rsq_tab[214] = 10'd559; rsq_tab[215] = 10'd558;
+        rsq_tab[216] = 10'd557; rsq_tab[217] = 10'd555; rsq_tab[218] = 10'd554; rsq_tab[219] = 10'd553; rsq_tab[220] = 10'd552; rsq_tab[221] = 10'd550; rsq_tab[222] = 10'd549; rsq_tab[223] = 10'd548;
+        rsq_tab[224] = 10'd547; rsq_tab[225] = 10'd546; rsq_tab[226] = 10'd544; rsq_tab[227] = 10'd543; rsq_tab[228] = 10'd542; rsq_tab[229] = 10'd541; rsq_tab[230] = 10'd540; rsq_tab[231] = 10'd538;
+        rsq_tab[232] = 10'd537; rsq_tab[233] = 10'd536; rsq_tab[234] = 10'd535; rsq_tab[235] = 10'd534; rsq_tab[236] = 10'd533; rsq_tab[237] = 10'd532; rsq_tab[238] = 10'd530; rsq_tab[239] = 10'd529;
+        rsq_tab[240] = 10'd528; rsq_tab[241] = 10'd527; rsq_tab[242] = 10'd526; rsq_tab[243] = 10'd525; rsq_tab[244] = 10'd524; rsq_tab[245] = 10'd523; rsq_tab[246] = 10'd522; rsq_tab[247] = 10'd521;
+        rsq_tab[248] = 10'd520; rsq_tab[249] = 10'd519; rsq_tab[250] = 10'd518; rsq_tab[251] = 10'd517; rsq_tab[252] = 10'd516; rsq_tab[253] = 10'd515; rsq_tab[254] = 10'd514; rsq_tab[255] = 10'd513;
     end
     logic [9:0]  rsq_q;
     logic        sq_p;           // the radicand's exponent parity
@@ -341,6 +389,13 @@ module fes_i386_x87 (
     logic        dv_s;           // the pre-scale: the quotient was below one
     logic        dv_lost;        // the square root dropped radicand bits into
                                  // the sticky at a reduced precision
+    logic [63:0] pr_q;           // the remainder step's quotient
+    logic [6:0]  pr_n;           // ... how many quotient bits it consumed
+    logic        pr_part;        // ... and whether it is a partial step
+    logic        pr_one;         // the form is FPREM1, so the quotient rounds
+    logic [6:0]  dv_dr;           // the scale the candidate is formed at: the
+                                  // precision's drop for a divide or a square
+                                  // root, and 65 + s - n for a remainder step
 
     // The error bound E and the step count k are constants per precision, not
     // measurements: a case outside the sample that exceeded E would be a wrong
@@ -527,7 +582,17 @@ module fes_i386_x87 (
         Q_RES,      // the result estimate q = a*y
         Q_CAND,     // the candidate, and start C0*C0
         Q_REM,      // the radicand's remainder
-        Q_FIN       // into A_RND
+        Q_FIN,      // into A_RND
+        // ---- Slice 4's remainders. ----
+        // FPREM and FPREM1 run on the divide's primitive: the divide's tail
+        // already produces the exact 66-bit truncation T of A*2^(65+s)/B, and
+        // the quotient a partial or complete step needs is just T shifted
+        // right, because floor(floor(x*2^k)/2^k) is floor(x). One more
+        // multiply gives the exact remainder for that quotient.
+        P_Q,        // form the step's quotient from T, start q*B
+        P_REM,      // the exact remainder
+        P_FIN       // FPREM1's round-to-nearest, the normalise, C2 and the
+                    // quotient bits
     } seq_e;
     seq_e        seq;
     seq_e        sh_ret;      // the state S_MUL returns to when the multiply is done
@@ -954,7 +1019,7 @@ module fes_i386_x87 (
     logic       a_mem;      // ... and its second operand comes from memory
     assign a_form = cur == X87_ARITH || cur == X87_CMP || cur == X87_RNDINT
                  || cur == X87_SCALE || cur == X87_XTRACT || cur == X87_DIV
-                 || cur == X87_SQRT;
+                 || cur == X87_SQRT || cur == X87_PREM;
     assign a_mem = (cur == X87_ARITH || cur == X87_CMP || cur == X87_DIV)
                 && cur_op_raw[7:6] != 2'b11;
     always_comb begin
@@ -1426,7 +1491,8 @@ module fes_i386_x87 (
                     cur_fmt <= iss_fmt;
                     // FSCALE's second operand is ST(1); its ModRM byte (D9 FDh)
                     // names no register, so the index comes from the form.
-                    cur_i <= iss_dec == X87_SCALE ? 3'd1 : iss_op[2:0];
+                    cur_i <= (iss_dec == X87_SCALE || iss_dec == X87_PREM) ? 3'd1
+                           : iss_op[2:0];
                     cur_pop <= iss_dec == X87_STP_M || iss_dec == X87_STP_ST;
                     cur_op_raw <= iss_op;
                     cur_ctrl <= ctrl_form;
@@ -1781,7 +1847,9 @@ module fes_i386_x87 (
                         wsign <= 1'b0;
                         we <= 18'sd16446
                             + ((oa_e - 18'sd16509 - 18'($signed({1'b0, sq_p}))) >>> 1);
-                        gs_it <= 2'd3;
+                        gs_it <= dv_iters(wprec);
+                        dv_lost <= 1'b0;
+                        dv_dr <= {1'b0, dv_drop(wprec)};
                         seq <= Q_SEED;
                     end else if (cur == X87_DIV) begin
                         // The divide. Both significands are normalised, so
@@ -1796,6 +1864,7 @@ module fes_i386_x87 (
                         we <= oa_e - ob_e + 18'sd16383 - 18'(oa_m < ob_m);
                         gs_it <= dv_iters(wprec);
                         dv_lost <= 1'b0;
+                        dv_dr <= {1'b0, dv_drop(wprec)};
                         // D_SEED and not the multiply directly: `rcp_q` is a
                         // registered read of ob_m, so the entry for THIS
                         // divisor is not out of the table until the cycle
@@ -2280,8 +2349,12 @@ module fes_i386_x87 (
                 // shifted adds of the divisor below.
                 D_CAND: begin
                     logic [66:0] qh, c0;
-                    qh = ({3'd0, gs_n} << (dv_s ? 3 : 2)) >> dv_drop(wprec);
-                    c0 = qh - {59'd0, dv_e(wprec)};
+                    qh = ({3'd0, gs_n} << (dv_s ? 3 : 2)) >> dv_dr;
+                    // Clamped, which the divide alone never needed: a
+                    // remainder step's quotient can be smaller than the error
+                    // bound, and an unclamped subtract would wrap it to a huge
+                    // candidate that the tail cannot bring back.
+                    c0 = qh > {59'd0, dv_e(wprec)} ? qh - {59'd0, dv_e(wprec)} : 67'd0;
                     dv_c <= c0;
                     dv_k <= dv_steps(wprec);
                     ua_mul <= c0[63:0];
@@ -2297,7 +2370,7 @@ module fes_i386_x87 (
                 D_REM: if (mul_done) begin
                     logic [31:0] chi;
                     chi = 32'(dv_c[66:64] * ob_m[31:0]);
-                    dv_rem <= (96'(oa_m) << (7'd65 + 7'(dv_s) - 7'(dv_drop(wprec))))
+                    dv_rem <= (96'(oa_m) << (7'd65 + 7'(dv_s) - dv_dr))
                             - (mul_p[95:0] + {chi, 64'd0});
                     seq <= D_TAIL;
                 end
@@ -2320,7 +2393,8 @@ module fes_i386_x87 (
                         dv_c <= dv_c + (67'd1 << i);
                     end
                     if (dv_k > 4'd1) dv_k <= dv_k - 4'd1;
-                    else seq <= cur == X87_SQRT ? Q_FIN : D_FIN;
+                    else seq <= cur == X87_SQRT ? Q_FIN
+                              : cur == X87_PREM ? P_FIN : D_FIN;
                 end
                 // The exact truncation, its guard and round bits, and the
                 // sticky the remainder gives for nothing. A_RND then applies
@@ -2333,7 +2407,7 @@ module fes_i386_x87 (
                 // everything the shorter target did not compute.
                 D_FIN: begin
                     logic [5:0] dr;
-                    dr = dv_drop(wprec);
+                    dr = dv_dr[5:0];
                     wm <= dr == 6'd0 ? dv_c[65:2] : (64'(dv_c) << (dr - 6'd2));
                     wg <= dr == 6'd0 ? dv_c[1] : 1'b0;
                     wrd <= dr == 6'd0 ? dv_c[0] : 1'b0;
@@ -2415,8 +2489,8 @@ module fes_i386_x87 (
                     logic [66:0]       qh, c0;
                     logic signed [5:0] qe;
                     qe = norm_e(6'sd1 + {5'd0, sq_p} + qy_e, mul_p[127]);
-                    qh = ({3'd0, norm_hi(mul_p)} << (qe + 6'sd2)) >> dv_drop(wprec);
-                    c0 = qh - {59'd0, sq_e(wprec)};
+                    qh = ({3'd0, norm_hi(mul_p)} << (qe + 6'sd2)) >> dv_dr;
+                    c0 = qh > {59'd0, sq_e(wprec)} ? qh - {59'd0, sq_e(wprec)} : 67'd0;
                     dv_c <= c0;
                     dv_k <= sq_steps(wprec);
                     ua_mul <= c0[63:0];
@@ -2434,8 +2508,8 @@ module fes_i386_x87 (
                     logic signed [8:0] qsh;
                     logic [31:0]       chi;
                     logic [95:0]       rad;
-                    qsh = 9'sd67 + 9'sd1 * 9'($signed({1'b0, sq_p}))
-                        - 9'sd2 * 9'($signed({1'b0, dv_drop(wprec)}));
+                    qsh = 9'sd67 + 9'($signed({1'b0, sq_p}))
+                        - 9'sd2 * 9'($signed({2'b0, dv_dr}));
                     rad = qsh >= 9'sd0 ? (96'(oa_m) << qsh[7:0]) : (96'(oa_m) >> (-qsh));
                     chi = 32'(dv_c[66:64] * dv_c[31:0]);
                     dv_rem <= rad - (mul_p[95:0] + {chi, 64'd0} + {chi, 64'd0});
@@ -2445,7 +2519,7 @@ module fes_i386_x87 (
                 end
                 Q_FIN: begin
                     logic [5:0] dr;
-                    dr = dv_drop(wprec);
+                    dr = dv_dr[5:0];
                     wm <= dr == 6'd0 ? dv_c[65:2] : (64'(dv_c) << (dr - 6'd2));
                     wg <= dr == 6'd0 ? dv_c[1] : 1'b0;
                     wrd <= dr == 6'd0 ? dv_c[0] : 1'b0;
