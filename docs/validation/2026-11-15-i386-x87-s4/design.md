@@ -239,25 +239,55 @@ comes back "library", the picture is consistent.
 
 ## FPREM's partial step is the divide's primitive
 
-Confirmed in `model/fprem_primitive.py` over 40,000 step evaluations with
-exponent differences up to 300, for both the truncating and the
-round-to-nearest quotient: zero violations. The remainder is exact and in
-range in each of the three cases that have *different* ranges, which is the
-part a single check would have got wrong — a partial step's remainder is the
-running dividend in `[0, B)`, a completing FPREM's is in `[0, B)`, and only a
-completing **FPREM1**'s is the IEEE `[-B/2, B/2]`. An earlier version of this
-check applied FPREM1's range to partial steps too and reported 7,860
-violations against a design that was correct; the violations were the
-checker's.
+`model/fprem_primitive.py` runs the **actual datapath** at the step's variable
+scale — the Goldschmidt estimate, the fixed error bound and the restoring
+tail, with `n = (expDiff & 31) | 32` — and compares against exact arithmetic
+computed independently of it. 120,000 step evaluations, exponent differences 0
+to 399, both the truncating and the round-to-nearest quotient: **zero
+mismatches**. Widest quotient 64 bits, widest remainder 64 bits, and **10
+multiplier passes** for one step.
 
-**The partial quotient is at most 63 bits** (`n = (expDiff & 31) | 32`), so
-`N × B` is exactly one pass of the shared 64×64 multiplier. The variable
-shift by `n` is the multiply-based shift slice 3 already has.
+An earlier version of this check compared Python's `divmod` against its own
+remainder, which is true by definition and proved nothing; its reported
+"zero violations" carried no information and the 7,860 violations before that
+were its own range bug. Both are superseded by the run above.
 
-With that, **FPREM and FPREM1 need no divider of their own.** What they add
-over the divide tail is the quotient-bit capture for C0/C3/C1, the
-round-to-nearest quotient for FPREM1, and the C2 decision on the exponent
-difference.
+The three remainder ranges genuinely differ, and the RTL carries this at the
+point of use: a partial step's remainder and a completing **FPREM**'s are in
+`[0, B)`, and only a completing **FPREM1**'s is the IEEE `[-B/2, B/2]`.
+Applying one range everywhere is the plausible wrong fix, and this record made
+it before the check was written properly.
+
+So **FPREM and FPREM1 need no divider of their own.** What they add over the
+divide tail is the variable shift by `n`, the quotient-bit capture for
+C0/C3/C1, the round-to-nearest quotient for FPREM1, and the C2 decision on the
+exponent difference.
+
+## Clocks per form, derived and to be measured
+
+The multiplier takes **4 clocks** a pass and a restoring step **1**. From the
+pass counts above, for normal operands:
+
+| form | precision | multiplier passes | steps | clocks (datapath) |
+|---|---|---:|---:|---:|
+| FDIV, FDIVR, FIDIV, FIDIVR | PC 24 | 7 | 3 | 31 |
+| | PC 53 | 9 | 3 | 39 |
+| | PC 64 | 9 | 8 | 44 |
+| FSQRT | PC 24 | 8 | 3 | 35 |
+| | PC 53 | 11 | 3 | 47 |
+| | PC 64 | 11 | 7 | 51 |
+| FPREM, FPREM1 | per step | 10 | 8 | 48 |
+
+**These are derived from the model's pass counts, not measured from the RTL,
+and they exclude the classify, operand-read, rounding and apply cycles the
+unit already spends on every operation.** Two caveats that matter for slice 6:
+a denormal operand adds pre-normalisation passes, so "fixed by precision
+control alone" holds for normal operands; and FPREM's figure is per
+*instruction*, with the instruction count for a full reduction
+data-dependent. The unit bench measures clocks per form, precision and operand
+class from the RTL, and those measurements supersede this table — which is
+here so slice 6 has something to compare against the 387's published figures
+rather than a derivation of its own.
 
 ## The constants are fixed, and validated on cases that did not choose them
 

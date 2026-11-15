@@ -1,46 +1,81 @@
-# Is FPREM's partial step the divide tail's primitive?
+# Does FPREM's partial step run on the divide tail's primitive?
 #
-# A partial step consumes at most 64 quotient bits (measured on the host:
-# model/fprem_host.c). So N = floor(A*2^64 / B) is at most 65 bits, N*B is
-# exactly the shared multiplier's 128-bit product, and the remainder
-# A*2^64 - N*B is exact and less than B. If that holds with no violations,
-# the remainders need no divider of their own.
-import random
-
+# An earlier version of this check compared Python's divmod against its own
+# remainder, which is true by definition and proved nothing. This one runs
+# the ACTUAL datapath -- the Goldschmidt estimate, the fixed error bound and
+# the restoring tail -- at the step's variable scale n = (expDiff & 31) | 32
+# (Bochs cpu/fpu/fprem.cc at the pinned revision, and the host, agree), and
+# counts the multiplier passes the variable shift costs.
+import random, sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 M64 = (1 << 64) - 1
+RCP = [min(1023, int(1.0 / (0.5 + (i + 0.5) / 256.0) * 512.0 + 0.5)) for i in range(128)]
+def mulhi(x, y): return ((x * y) >> 64) & M64
 
-def prem_step(A, eA, B, eB, round_near):
-    """One step. Returns (quotient, exact remainder, partial)."""
-    d = eA - eB
-    if d < 64:                               # completes: C2 clear
-        num = A << d
-        q, rem = divmod(num, B)
-        if round_near and (2 * rem > B or (2 * rem == B and (q & 1))):
-            q += 1; rem -= B                 # FPREM1 rounds the quotient to nearest
-        return q, rem, False
-    num = A << 64                            # partial: take 64 quotient bits
-    q, rem = divmod(num, B)
-    return q, rem, True
+E_CONST, K_CONST, ITERS = 128, 8, 3      # the divide's PC 64 constants, reused
 
-rnd = random.Random(21)
-viol = 0; n = 0; worst_q = 0
-for _ in range(20000):
+def prem_step(A, expDiff, B, near):
+    """One FPREM/FPREM1 step on the divide tail's primitive.
+    Returns (quotient, exact remainder, partial, multiplier_passes, q_bits)."""
+    partial = expDiff >= 64
+    n = ((expDiff & 31) | 32) if partial else expDiff
+    passes = 0
+    # the dividend aligned by n: a multiply-based shift, one pass (slice 3's)
+    num = A << n
+    passes += 1 if n else 0
+    # Goldschmidt estimate of num/B, on the shared multiplier
+    Rs = (RCP[(B >> 56) & 0x7F] << 54) & M64
+    # num is up to 64+n bits; estimate the quotient's top 64 bits from its
+    # leading 64, which is the same normalise-then-multiply the divide does
+    nb = num.bit_length()
+    lead = (num >> (nb - 64)) if nb > 64 else (num << (64 - nb))
+    N = mulhi(lead, Rs); D = mulhi(B, Rs); passes += 2
+    for _ in range(ITERS):
+        f = ((1 << 64) - D) & M64
+        if f == 0: f = M64
+        N = (mulhi(N, f) << 1) & M64
+        D = (mulhi(D, f) << 1) & M64
+        passes += 2
+    # place the estimate at the quotient's scale
+    qbits = nb - B.bit_length() + 1
+    qhat = (N >> (64 - qbits)) if qbits <= 64 else (N << (qbits - 64))
+    C = max(0, qhat - E_CONST)
+    rem = num - C * B                      # one 64x64 product (C fits 64 bits)
+    passes += 1
+    if rem < 0:
+        return None, None, partial, passes, qbits
+    for i in range(K_CONST - 1, -1, -1):
+        t = rem - (B << i)
+        if t >= 0: rem = t; C += (1 << i)
+    if near and not partial:
+        # FPREM1 rounds the quotient to nearest, which is one more compare
+        if 2 * rem > B or (2 * rem == B and (C & 1)):
+            C += 1; rem -= B
+    return C, rem, partial, passes, qbits
+
+rnd = random.Random(20261116)
+bad = 0; n_cases = 0; worst_q = 0; worst_passes = 0; worst_rem = 0
+for _ in range(60000):
     A = rnd.getrandbits(64) | (1 << 63)
     B = rnd.getrandbits(64) | (1 << 63)
-    eA = rnd.randrange(0, 300)
+    expDiff = rnd.randrange(0, 400)
     for near in (False, True):
-        q, rem, partial = prem_step(A, eA, B, 0, near)
-        n += 1
-        if partial:
-            worst_q = max(worst_q, q.bit_length())
-            if q.bit_length() > 65: viol += 1
-        if partial:
-            # a partial step's remainder is the running dividend: [0, B)
-            if rem < 0 or rem >= B: viol += 1
-        elif near:
-            # only a COMPLETING FPREM1 step has the IEEE range [-B/2, B/2]
-            if 2 * abs(rem) > B: viol += 1
-        elif rem < 0 or rem >= B: viol += 1   # a completing FPREM: [0, B)
-print(f"{n} cases, {viol} violations, widest partial quotient = {worst_q} bits")
-print("the quotient fits the 64x64 product and the remainder is exact and in range"
-      if viol == 0 else "VIOLATIONS -- the primitive does not carry")
+        q, rem, partial, passes, qbits = prem_step(A, expDiff, B, near)
+        n_cases += 1
+        if q is None: bad += 1; continue
+        n = ((expDiff & 31) | 32) if partial else expDiff
+        # the reference, computed independently of the datapath
+        num = A << n
+        tq, tr = divmod(num, B)
+        if near and not partial and (2 * tr > B or (2 * tr == B and (tq & 1))):
+            tq += 1; tr -= B
+        if q != tq or rem != tr: bad += 1
+        worst_q = max(worst_q, q.bit_length())
+        worst_passes = max(worst_passes, passes)
+        worst_rem = max(worst_rem, abs(rem).bit_length())
+print(f"{n_cases} step evaluations, exponent differences 0-399, both roundings")
+print(f"  mismatches against independent exact arithmetic: {bad}")
+print(f"  widest quotient: {worst_q} bits   widest remainder: {worst_rem} bits")
+print(f"  worst multiplier passes for one step: {worst_passes}")
+print("  the partial step runs on the divide tail's primitive"
+      if bad == 0 else "  THE PRIMITIVE DOES NOT CARRY")
