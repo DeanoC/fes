@@ -117,6 +117,37 @@ class RegistryTests(unittest.TestCase):
                     producer.selected_recipe(fake, producer.model_for(model).core_id)
 
 
+class DatabaseTests(unittest.TestCase):
+    def test_database_is_found_by_digest_in_cache_then_repo_local_install(self):
+        import tempfile
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            cached = work / "cache/tools/mistral/abc/install/share/mistral/source"
+            cached.mkdir(parents=True)
+            local = work / "root" / producer.REPO_LOCAL_MISTRAL
+            tried = []
+
+            def read(path, pins):
+                tried.append(path)
+                self.assertEqual(pins, producer.ROM_DATABASE_SHA256)
+                if path != local:
+                    raise ValueError("digest differs")
+                return {"database": "pinned"}
+
+            with patch.dict("os.environ", {}), patch.object(producer.rom_map, "read_database", side_effect=read):
+                import os
+                os.environ.pop("FES_ZX81_MISTRAL_DATABASE", None)
+                self.assertEqual(producer.rom_database(work / "cache", work / "root"), {"database": "pinned"})
+                self.assertEqual(tried, [cached, local])
+            with patch.dict("os.environ", {}), \
+                    patch.object(producer.rom_map, "read_database", side_effect=ValueError("digest differs")):
+                import os
+                os.environ.pop("FES_ZX81_MISTRAL_DATABASE", None)
+                with self.assertRaisesRegex(BuildError, "make toolchain-fes-zx81"):
+                    producer.rom_database(None, work / "root")
+
+
 class ProjectTests(unittest.TestCase):
     def qsf(self, model="zx81", seed=1) -> str:
         machine = producer.model_for(model)
