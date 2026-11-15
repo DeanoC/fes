@@ -675,8 +675,9 @@
  "invocations": {
   "reference": "tools/venv/bin/python -I u7pace.py runs/<run>/approach.geom runs/<run>/approach.gray --crop=55,41 --speed=263,25,667,52 --speed-sha=92f3943e2eac8b376656f6b193aba5d817697ef26e037eb30e154f2d187ae7f3",
   "kit": "tools/venv/bin/python -I u7pace.py kit/runs/u7pace2/<window>-approach.geom kit/runs/u7pace2/<window>-approach.gray --crop=0,0 --decimate=4",
-  "speed_rect_meaning": "x0,y0,x1,y1 in the 667x496 capture: 86Box's tool bar, from the left edge of the text to the window's right edge. speed-100.png in this directory is that rectangle rendering 100%, and its SHA-256 is the --speed-sha above.",
+  "speed_rect_meaning": "x0,y0,x1,y1 in the 667x496 capture: 86Box's tool bar, from the left edge of the text to the window's right edge. speed-100.png in this directory is that rectangle rendering 100%, kept for inspection.",
   "kit_speed_gate": "none: the kit is hardware and has no emulator speed readout, so its windows carry no speed fields",
-  "note": "every window record below also carries its own speed_rect, speed_sha and decimate, so a gate result can be rederived without this block"
+  "note": "every window record below also carries its own speed_rect, speed_sha and decimate, so a gate result can be rederived without this block",
+  "speed_sha_is": "the SHA-256 of the rectangle's DECODED 404x27 8-bit grayscale pixel bytes -- 10,908 bytes, the same bytes u7pace.py slices out of a capture frame -- NOT the SHA-256 of the PNG file. Decoded pixels: 92f3943e2eac8b376656f6b193aba5d817697ef26e037eb30e154f2d187ae7f3. The PNG file itself: 75f35c7e269ab82e0a5bfc6ba4f8d1802304d4a388eae3db01698453f4bae830. To rederive: ffmpeg -loglevel error -i speed-100.png -pix_fmt gray -f rawvideo - | sha256sum"
  }
 }

@@ -31,10 +31,14 @@ figures come out of the series:
 
 The capture is of 86Box's whole window, so it carries the emulator's own
 speed readout. `--speed` names that rectangle, in capture pixels, and
-`--speed-sha` the SHA-256 of that rectangle rendering **100%**, which
-`speed-100.png` in the record holds for inspection. Both are echoed into the
-output, so a gate result can be rederived from the record alone without
-knowing how it was invoked. The gate is that every
+`--speed-sha` the hash of that rectangle rendering **100%**. It is the
+SHA-256 of the rectangle's *decoded* 8-bit grayscale pixel bytes, the same
+bytes sliced out of a capture frame here — not of any file. `speed-100.png`
+in the record holds that rendering for inspection, and `pace.json`'s
+`invocations` block gives both hashes and the one-line command that turns the
+PNG back into the bytes this hashes. Both the rectangle and the hash are
+echoed into the output, so a gate result can be rederived from the record
+alone without knowing how it was invoked. The gate is that every
 frame of the window matches that hash: constancy alone is not enough, because
 a run held steady at 97% would pass it and inflate the measured period. Both
 answers are reported separately — whether the readout was steady, and whether

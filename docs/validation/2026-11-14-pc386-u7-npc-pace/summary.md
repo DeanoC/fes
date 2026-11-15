@@ -259,7 +259,9 @@ both machines.
 
 The verdict windows are **r15a, r15b, r15d** against **q1, q2, q3**, with
 every gate met: no input, 86Box reading 100% for every frame against the
-committed hash of [`speed-100.png`](speed-100.png), both sides derived at
+committed hash of the readout pixels ([`speed-100.png`](speed-100.png) holds
+that rendering; `pace.json`'s `invocations` block says exactly what is
+hashed), both sides derived at
 **15 frames a second**, and both sides' drive copies digested before their
 runs at the same **`41c7b9d8…`**.
 
@@ -517,7 +519,7 @@ the HMA, which is why both run the image's menu entry 1.
   in `pace.json` and agree with the ones that passed, but they are not part of
   the verdict. The gate now checks the readout's value, not only that it held
   still: every frame of a counted window matches the SHA-256 of
-  [`speed-100.png`](speed-100.png). The excluded 15 fps runs ranged 85–104%,
+  the readout pixels (above). The excluded 15 fps runs ranged 85–104%,
   83–101% and 91–104%.
 - **The part of the reference's cycle that does not scale with clock.** The
   sweep fits cycle ≈ 2.9 s + 222/MHz, so roughly a quarter of the 25 MHz
