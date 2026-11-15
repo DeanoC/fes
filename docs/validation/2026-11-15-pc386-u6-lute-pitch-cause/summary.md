@@ -367,7 +367,11 @@ given an instruction's length, or a reference whose internals can be read.
 costs 29.02 clocks and the `BQ` loop 27.04, with the same three classes, the
 same eleven bytes, the same three accesses and the same start parity — they
 differ only in the order of their instructions. An additive per-class table
-gives both the same number, **Not examined.** #1457's stray speaker bursts on a 58.6 ms grid: this work
+gives both the same number, so the reference's cost is not an additive
+function of instruction classes, and a table fitted to one of them is fitted,
+not correct. The two entries named above are fitted to the game's loop.
+
+**Not examined.** #1457's stray speaker bursts on a 58.6 ms grid: this work
 did not look at them, and no port 61h/42h/43h trace was taken. The
 reference's own cost for the lute pass's two port-61h accesses was not
 measured separately, so the 2.37 points of overhead are not attributed to the
