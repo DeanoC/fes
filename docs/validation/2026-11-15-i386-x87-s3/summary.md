@@ -630,7 +630,27 @@ what the worst slack is, and on the seeds where the two differ the path that
 binds at the worst corner was not dumped and has not been read here. Both questions are answered below, and the second is answered
 in the fit where names survive.
 
-**How the fit selects these, because it changes what they mean.** The flow
+**Which fit can answer which question, because getting this wrong cost a
+run here.** The two variants name different things, and neither names
+everything:
+
+| | flattened (the default) | per-entity (`--hierarchy`) |
+| --- | --- | --- |
+| sub-entity logic (`fes_i386_x87`, `fes_i386_decode`, `qalign`) | renamed away | **named**, with per-entity ALMs |
+| the CPU's own top-level registers (`decode_by`, `l1d_q_tx`) | **named**, as `cpu_decode_by[13]` | anonymous, `_04971_` |
+| path *endpoints* in CPU logic | anonymous, `_40448_` | anonymous |
+
+So an **area** question by entity needs the per-entity fit, and an
+**endpoint** question about CPU-level registers needs the flattened one.
+This record reached for the per-entity fit to chase the decode path
+*because* it keeps names, and found that it keeps them one level below
+where the decode registers live: Yosys preserves sub-module boundaries, but
+the logic directly inside `fes_i386_cpu` is renamed in both variants. That
+is the same shape as the other method errors collected at the end of this
+record -- a method that looks right until you check what it actually
+produced.
+
+**How the fit selects the x87 paths, because it changes what they mean.** The flow
 dumps three groups of three per fit: the three worst paths to the system
 clock, the three worst **into** a register matching the glob `*x87_*`, and
 the three worst **from** one. The selector is a register-name glob, not the
