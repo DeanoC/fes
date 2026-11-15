@@ -850,9 +850,15 @@ rounding would cost a re-freeze and every gate and buy no slack at all.
 
 **One part of the spike's estimate is still intact, and it is the memory.**
 The spike predicted **+1,687 ALMs, 9 DSP and 17 M10K** in-machine for the
-whole of option A. The ALM budget was spent by slice 3 alone and the DSP
-count has not moved from slice 2's 9, but the memory has barely been touched:
-**4 M10K of the 17** (282 to 286, of the device's 553). Slice 4's Goldschmidt
+whole of option A. The ALM budget was spent by slice 3 alone, and the DSP
+and M10K counts have not moved at all: the merge-base's identity-on fit
+already reads 49 DSPs and 286 M10Ks, exactly what this branch reads, so
+**slice 3 spent none of the memory budget and none of the DSPs** -- the four
+M10Ks between 282 and 286 are the identity-off to identity-on difference,
+which is slice 2's register file, not this slice's. **17 M10K of the 17
+remain** for the slices the budget was meant for. (An earlier draft credited
+those four to slice 3, by differencing identity-off against identity-on
+instead of the merge-base against the branch.) Slice 4's Goldschmidt
 seed tables and slice 5's microcode ROM are exactly what that budget was for,
 and the spike's own finding was that microcode transcendentals cost ROM
 rather than logic. Worth stating with the caveat that it is the same
