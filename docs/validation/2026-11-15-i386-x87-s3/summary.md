@@ -35,15 +35,16 @@ as it ships fitting at **87.0% of the device and closing at +0.896 ns** on
 the sealer's own timing report.
 
 **But with the `i386dx+387` identity on, this machine no longer closes
-reliably.** At about 94.7% of the device, two of the first four Quartus seeds
-miss the CPU clock, by −0.283 and −0.348 ns, where slice 2 closed on nine
-seeds of nine at 91.2%. The failing paths are not in the x87 -- its own paths
+reliably.** At about 94.8% of the device, **five of nine Quartus seeds miss
+the CPU clock**, by as much as −0.348 ns, where slice 2 closed on nine seeds
+of nine at 91.2% (through the other slot). Closure is the minority outcome,
+not an unlucky seed. The failing paths are not in the x87 -- its own paths
 keep +0.456 and +1.458 ns on those seeds -- so this is whole-machine
 congestion and no change to the arithmetic would fix it.
 
 **No change to slice 3 would fix it, and that was looked for rather than
-assumed.** The failing paths were read on both failing seeds before anything
-was concluded: there is no x87 path to shorten, because the x87's paths are
+assumed.** The failing paths were read on every failing seed, and in the fit
+that keeps entity names, before anything was concluded: there is no x87 path to shorten, because the x87's paths are
 already the fastest part of the region. A pipeline stage in the sum or the
 rounding would cost a re-freeze and every gate and buy nothing. The first
 instinct on reading "the margin is thin" is to optimise the arithmetic, and
@@ -379,7 +380,7 @@ the device.** That is a difference of two fits through one slot that differ
 only by this slice's RTL, which is what the brief asks for. The same
 subtraction on the setup column gives −0.209 ns (+0.385 to +0.176), **and
 that one does not carry**: it is one seed against one seed, and the sweep
-below spreads identical RTL across 0.75 ns of slack. The area delta is a
+below spreads identical RTL across 0.746 ns of slack. The area delta is a
 measurement; the slack delta is a coincidence of two placements.
 **With the identity off -- which is what ships -- the slice costs about
 +138 ALMs**, 36,254 to 36,392. Read that as "small", not as 138: the
@@ -441,7 +442,7 @@ is the merge-base identity-on fit, and it has landed: **+0.385 ns** against
 this slice's +0.176, a difference of **−0.209 ns**. **That number is seed 1
 against seed 1, and it should not be read as this slice's cost in slack.**
 The sweep below puts identical RTL between −0.348 and +0.398 across nine
-seeds, a spread of 0.75 ns, so a 0.209 ns difference between two single
+seeds, a spread of 0.746 ns, so a 0.209 ns difference between two single
 fits is inside the noise of the flow that produced it. Establishing a slack
 cost would need a merge-base sweep to difference against this one, and that
 has not been run. The area delta does not have this problem: **+1,609 ALMs**
@@ -463,8 +464,7 @@ comparison of *closure*, not of slack. The within-slot control -- a
 merge-base sweep on this slot -- has not been run, and running one is a call
 for Deano rather than this session. What follows stands on its own either
 way, because every row in it is the same slot.
-Same flow, same settings, same CUDA slot, identity on, seeds 1 to 9 (5 to 9
-still running as this is written):
+Same flow, same settings, same CUDA slot, identity on, all nine seeds:
 
 | Seed | ALMs | % device | DSP | M10K | memory bits | worst setup | worst hold |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -472,8 +472,18 @@ still running as this is written):
 | 2 | 39,689 | 94.70% | 49 | 286 | 1,356,111 | **+0.398** | +0.116 |
 | 3 | 39,728 | 94.79% | 49 | 286 | 1,356,111 | **−0.283** | +0.057 |
 | 4 | 39,771 | 94.90% | 49 | 286 | 1,356,111 | **−0.348** | +0.063 |
+| 5 | 39,789 | 94.94% | 49 | 286 | 1,356,111 | **−0.052** | +0.090 |
+| 6 | 39,796 | 94.96% | 49 | 286 | 1,356,111 | **−0.147** | +0.080 |
+| 7 | 39,753 | 94.85% | 49 | 286 | 1,356,111 | **+0.179** | +0.074 |
+| 8 | 39,759 | 94.87% | 49 | 286 | 1,356,111 | **+0.355** | +0.089 |
+| 9 | 39,809 | 94.99% | 49 | 286 | 1,356,111 | **−0.086** | +0.115 |
 
-**Two of four miss.** The DSP, M10K and memory-bit counts are identical on
+**Five of nine miss: 3, 4, 5, 6 and 9.** Closing is the minority outcome,
+and the four that close do so by between +0.176 and +0.398 ns, so even the
+good seeds hold 1 to 2.4% of the period. The spread across the nine is
+**0.746 ns of slack and 127 ALMs** on byte-identical RTL, and that spread is
+the reason this record refuses to read any single-seed slack difference as a
+cost. The DSP, M10K and memory-bit counts are identical on
 every seed, which is the check that these are real results and not
 interference between concurrent runs: a seed should move ALMs, registers and
 slack and nothing else, and that is all it moved. No seed here is a dead run.
@@ -498,7 +508,8 @@ recovered elsewhere.
 escalated rather than taken here.** Before any seed had run, this session
 settled that any negative slack on any seed, clock or corner would mean
 report and ask rather than seal -- precommitted so that the rule could not be
-reinterpreted once results were in. It fired on seeds 3 and 4, both options
+reinterpreted once results were in. It fired on seed 3, and four more seeds
+missed after the decision was taken; both options
 were put to the coordinating session with the evidence and a stated lean, and
 the decision to seal and run the kit was **the coordinating session's, on 15
 November**, on the grounds that the sealed artefact is the identity-off
@@ -506,6 +517,15 @@ design, that the verification gates are unaffected, and that a seal and a kit
 run are real evidence about a real artefact which withholding would not
 improve. The rule was followed by escalation, not narrowed: what it forbade
 was this session deciding alone that the misses did not count.
+
+**The completed sweep is worse than the evidence that decision was taken
+on, and that is said here rather than left for someone to notice.** When the
+seal and the kit run were authorised, four seeds had run and two had missed.
+Nine have now run and five have missed, so closure is the minority outcome
+rather than an even split. Nothing about the sealed artefact changes --
+it is the identity-off design, which is not affected by any of this -- but
+anyone weighing slice 6's scope should weigh the nine-seed picture, not the
+four-seed one that was in front of the decision.
 
 **What this does and does not put in question.** The identity is tied to 0 in
 every package until the switch flip, now slice 7, so the sealed core and the
@@ -589,7 +609,7 @@ fit, where that fit's own worst is +0.720. So the decode paths did not become
 critical because of slice 3; they were tied for critical already, and a
 denser machine stretched them. The margin did not go into the adder, the
 rounder or the sequencer. It went into the machine, through placement at
-94.7% lengthening paths that have nothing to do with the arithmetic.
+94.8% lengthening paths that have nothing to do with the arithmetic.
 
 **This record's own first draft of this section got it wrong, and the way it
 went wrong is worth more than the conclusion.** It said the slack was going
