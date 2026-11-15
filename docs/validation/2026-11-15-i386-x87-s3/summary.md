@@ -361,7 +361,7 @@ that drives four passes of one multiplier.
 | this branch, identity off (the RTL the package ships; the sealer's own fit of it is 36,480 and +0.896) | **36,392** | 86.83% | 40 | 282 | **+0.576** | +0.055 |
 | this branch, identity on | **39,682** | **94.68%** | 49 | 286 | **+0.176** | +0.082 |
 | the merge-base, identity on (slice 2's unit alone) | **38,073** | 90.84% | 49 | 286 | **+0.385** | +0.068 |
-| the merge-base, identity off | (pending) | | | | | |
+| the merge-base, identity off | **36,254** | 86.50% | 40 | 282 | **+0.382** | +0.090 |
 
 **So slice 3's own cost in the machine is +1,609 ALMs and +3.84 points of
 the device.** That is a difference of two fits through one slot that differ
@@ -370,6 +370,14 @@ subtraction on the setup column gives −0.209 ns (+0.385 to +0.176), **and
 that one does not carry**: it is one seed against one seed, and the sweep
 below spreads identical RTL across 0.75 ns of slack. The area delta is a
 measurement; the slack delta is a coincidence of two placements.
+**With the identity off -- which is what ships -- the slice costs +138
+ALMs**, 36,254 to 36,392, because the identity ties the arithmetic off and
+Quartus removes nearly all of it. That row also makes the point about the
+slack column on its own: the merge-base closes at **+0.382** and this
+branch, with 138 ALMs *more* logic, closes at **+0.576**. A slice cannot
+add logic and gain slack; what moved is the placement. Any slack figure in
+this table differenced against another is reading the seed, not the design.
+
 Slice 2's own published in-machine cost was +1,608, but that was measured
 through the other slot, so the right sentence is the weaker one: **two slices
 of this unit have each cost about 1,600 ALMs in the machine**, against a
