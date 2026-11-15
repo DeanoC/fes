@@ -112,10 +112,19 @@ def verdict(result):
 
     The invariant the wrappers need: never exit 0 with an error in
     `result.json`. A refused admission is reported in an event's result, a
-    halt in `halted`, a failed release in `close_error`.
+    halt in `halted`, a failed release in `close_error`, and whatever ended the
+    run in `reasons` — `drain`'s own list, which carries the failures no event
+    holds: a live run that ran out of commands without a `quit`, or one that
+    reached its run limit.
     """
 
     reasons = []
+    stored = result.get('reasons')
+    if isinstance(stored, str):
+        stored = [stored]
+    for reason in stored or ():
+        if reason:
+            reasons.append(f'reasons: {reason}')
     for key in ('halted', 'close_error'):
         if result.get(key):
             reasons.append(f'{key}: {result[key]}')
@@ -207,7 +216,17 @@ def drain(source, execute, *, mode='batch', idle_limit=IDLE_LIMIT, heartbeat=HEA
         idle_since = None
         if not line.strip():
             continue
-        op = json.loads(line)
+        try:
+            op = json.loads(line)
+            if not isinstance(op, dict):
+                raise ValueError(f'a command must be an object, not {type(op).__name__}')
+        except ValueError as error:
+            # A command file written by hand can hold a malformed line. It is
+            # this run's failure like any other, not an exception out of a
+            # function that promises (done, reasons).
+            reasons.append(f'command {done} is not a command: {error}')
+            log(f'END OF RUN: {reasons[-1]}')
+            return done, reasons
         if op.get('op') == 'quit':
             log(f'end of run: quit after {done - 1} commands')
             return done, reasons
@@ -289,6 +308,7 @@ class KitShell:
 
     def __init__(self, ssh, timeout=180):
         self.ssh, self.timeout = str(ssh), timeout
+        self.absent = []
 
     def run(self, command):
         try:
@@ -299,15 +319,44 @@ class KitShell:
         return done.returncode, done.stdout
 
     def find(self, roots):
-        code, out = self.run('find ' + ' '.join(roots) + ' 2>/dev/null | sort')
-        if code != 0 and not out:
-            raise CleanupRefused('the kit listing failed, so what is there is unknown')
-        return [line for line in out.splitlines() if line]
+        """List every root, or refuse. A root that is absent is empty, not unknown.
+
+        One `find` over all the roots exits nonzero when any single one is
+        unreadable while still printing the others, and a partial snapshot is
+        what a removal would then certify its diff against. So each root is
+        asked for separately: a root that does not exist contributes nothing
+        and says so, and a root that exists must list cleanly.
+        """
+
+        paths, self.absent = [], []
+        for root in roots:
+            check_path(root, 'data root')
+            code, _ = self.run(f"test -d '{root}'")
+            if code != 0:
+                self.absent.append(root)
+                continue
+            code, out = self.run(f"find '{root}' | sort")
+            if code != 0:
+                raise CleanupRefused(f'listing {root} failed, so what is under it '
+                                     f'is unknown; nothing removed')
+            paths.extend(line for line in out.splitlines() if line)
+        return sorted(paths)
 
     def remove(self, path):
         code, _ = self.run(f"rm -r -- '{path}'")
         if code != 0:
             raise CleanupRefused(f'rm -r {path} failed; nothing further removed')
+
+
+def check_path(path, what='path'):
+    """Raise unless this is a plain absolute path safe to quote into a shell."""
+
+    if not isinstance(path, str) or path != path.strip() or not path.startswith('/'):
+        raise CleanupRefused(f'{path!r} is not a plain absolute {what}')
+    if any(bad in path for bad in ("'", '"', '\\', '\n', '\r', '$', '`', '*', '?', ';', '|', '&')):
+        raise CleanupRefused(f'{path!r} is not a safe {what} to pass to a shell')
+    if '/../' in path or path.endswith('/..') or '//' in path:
+        raise CleanupRefused(f'{path!r} is not a normalised {what}')
 
 
 def check_removable(listed, created, *, roots=DATA_ROOTS, keep=()):
@@ -321,14 +370,11 @@ def check_removable(listed, created, *, roots=DATA_ROOTS, keep=()):
 
     if not listed:
         raise CleanupRefused('the run lists no trees to remove')
+    for root in roots:
+        check_path(root, 'data root')
     allowed = tuple(root.rstrip('/') + '/' for root in roots)
     for path in listed:
-        if path != path.strip() or not path.startswith('/'):
-            raise CleanupRefused(f'{path!r} is not a plain absolute path')
-        if any(bad in path for bad in ("'", '"', '\\', '\n', '\r', '$', '`', '*', '?')):
-            raise CleanupRefused(f'{path!r} is not safe to pass to a shell')
-        if '/../' in path or path.endswith('/..') or '//' in path:
-            raise CleanupRefused(f'{path!r} is not a normalised path')
+        check_path(path)
         if not path.startswith(allowed):
             raise CleanupRefused(f'{path!r} is outside {", ".join(roots)}')
         if path.rstrip('/') in tuple(root.rstrip('/') for root in roots):
@@ -339,24 +385,40 @@ def check_removable(listed, created, *, roots=DATA_ROOTS, keep=()):
             raise CleanupRefused(f'{path!r} is not in this run\'s own new paths')
 
 
-def clean(shell, listed, created, *, roots=DATA_ROOTS, keep=(), gate=None, apply=False,
+def clean(shell, listed, created, *, roots=DATA_ROOTS, keep=(), hold=None, apply=False,
           log=print):
-    """Remove exactly the trees a run created, and only with the kit idle.
+    """Remove exactly the trees a run created, under a held kit lease.
 
-    The gate comes first, because the removal is `rm -r` over ssh that the
-    agent never sees: that order is the whole point. Then the list is checked
-    against what the run created, every tree must still be there, and
-    afterwards the `find` diff must be exactly those trees with nothing
-    appeared — the checks `clean-r.sh` grew by hand, in one tested place.
+    `hold` takes the lease and returns the session to release — in practice
+    `hold_for_cleanup`, which claims before it checks so that the check and
+    the removal are one held interval. Checking a free kit and then removing
+    would only establish that the kit was idle when it was looked at, since
+    another session can claim it in between; the removal is `rm -r` over ssh
+    that the agent never sees, so nothing else would stop it.
+
+    The list is checked against what the run created before the lease is even
+    taken, every tree must still be there, and afterwards the `find` diff must
+    be exactly those trees with nothing appeared — the checks `clean-r.sh`
+    grew by hand, in one tested place.
 
     `apply` must be set to remove anything; the default reports the plan.
     """
 
-    if gate is not None:
-        state = gate()
-        log(f'gate: {json.dumps(state)}')
     check_removable(listed, created, roots=roots, keep=keep)
+    session = hold() if hold is not None else None
+    try:
+        return _clean_held(shell, listed, roots=roots, apply=apply, log=log)
+    finally:
+        if session is not None and not release(session):
+            log('the cleanup lease was not confirmed released; the agent will expire it')
+
+
+def _clean_held(shell, listed, *, roots, apply, log):
+    """The listing and the removal, with the cleanup's lease already held."""
+
     before = shell.find(roots)
+    if getattr(shell, 'absent', None):
+        log(f'absent roots (nothing under them): {json.dumps(shell.absent)}')
     missing = [path for path in listed if path not in before]
     if missing:
         raise CleanupRefused(f'{missing[0]!r} is no longer on the kit')
@@ -378,9 +440,6 @@ def clean(shell, listed, created, *, roots=DATA_ROOTS, keep=(), gate=None, apply
     if gone != expected:
         raise CleanupRefused(f'the removal took {len(gone)} paths, not the '
                              f'{len(expected)} the listed trees hold')
-    if gate is not None:
-        state = gate()
-        log(f'gate after: {json.dumps(state)}')
     log(f'removed {json.dumps(plan)}')
     return plan
 
@@ -415,6 +474,71 @@ def client_for(config_path, target=None):
     client = kitlib.Client(address, bearer)
     client.target_name = name
     return client
+
+
+def hold_for_cleanup(client, owner, purpose, *, wait=GATE_WAIT, poll=GATE_POLL,
+                     session_factory=None, now=time.monotonic, sleep=time.sleep):
+    """Claim the kit, then check it, and return the held lease.
+
+    The order is the point. `cleanup_gate` reads the kit's state, and a state
+    that was safe when it was read is not a state that is safe when the
+    removal acts on it: another session may claim the free kit in between and
+    load a core, which is the #1368 incident's own shape — a sequencing
+    assumption that happened to be wrong. A claim is the only exclusion the
+    agent offers, and it succeeds only while the lease is free, so claiming
+    first and checking second makes the check and the removal one held
+    interval instead of two ordered events.
+
+    The caller releases it; `clean` does that in a `finally`.
+    """
+
+    deadline = now() + wait
+    while True:
+        try:
+            lease = client.request('/v1/kit/lease')
+        except kitlib.KitError as error:
+            raise CleanupRefused(f'the kit agent did not answer, so its state is unknown: '
+                                 f'{error}') from None
+        state = lease.get('state')
+        if state == 'free':
+            break
+        held = {key: lease[key] for key in ('state', 'owner', 'purpose', 'reason') if key in lease}
+        if state != 'revoking' or now() >= deadline:
+            raise CleanupRefused(f'the kit lease is {state}, so it is not this run\'s to clean '
+                                 f'under. Lease: {json.dumps(held)}')
+        sleep(min(poll, max(0.0, deadline - now())))
+    session = (session_factory or kitlib.Session)(client, owner, purpose)
+    try:
+        session.claim()
+    except kitlib.KitError as error:
+        raise CleanupRefused(f'the kit lease could not be claimed for the cleanup, so nothing '
+                             f'excludes another session from it: {error}') from None
+    try:
+        status = client.request('/v1/status')
+    except kitlib.KitError as error:
+        release(session)
+        raise CleanupRefused(f'the kit agent did not answer under the claim: {error}') from None
+    core = loaded_core(status)
+    recovery = status.get('recovery') or ''
+    if core is not None or recovery or status.get('state') != 'idle':
+        release(session)
+        raise CleanupRefused(
+            f'under the cleanup\'s own lease the kit is {status.get("state")}'
+            + (f' with {core} loaded' if core else '')
+            + (f' reporting recovery {recovery!r}' if recovery else '')
+            + '; a removal under a loaded core preceded the stop/close that blocked this '
+              'lease on 14 November 2026. Stop the core first.')
+    return session
+
+
+def release(session):
+    """Give the cleanup's lease back, and never mask what it was taken for."""
+
+    try:
+        session.close()
+    except kitlib.KitError:
+        return False
+    return True
 
 
 def run_lock(path):
@@ -561,6 +685,9 @@ def parser():
                       help='a data root a removal may touch (default: FogCast\'s three)')
     wipe.add_argument('--keep', action='append', default=[],
                       help='a path or digest that must never be removed, repeatable')
+    wipe.add_argument('--owner', default='claude-kit-hil-clean',
+                      help='the lease owner to claim as (default %(default)s)')
+    wipe.add_argument('--purpose', help="the lease purpose (default: the run directory's name)")
     wipe.add_argument('--apply', action='store_true',
                       help='remove; without it the plan is reported and nothing is removed')
     return ask
@@ -575,7 +702,11 @@ def main(argv=None):
             print(f'{args.result}: no readable result, so the run has no verdict: {error}',
                   file=sys.stderr)
             return 2
-        reasons = verdict(result if isinstance(result, dict) else {})
+        if not isinstance(result, dict):
+            print(f'{args.result}: the result is {type(result).__name__}, not an object, so '
+                  f'the run has no verdict', file=sys.stderr)
+            return 2
+        reasons = verdict(result)
         for reason in reasons:
             print(f'FAILED {reason}', file=sys.stderr)
         if not reasons:
@@ -598,7 +729,10 @@ def main(argv=None):
             plan = clean(KitShell(args.ssh), listed, created,
                          roots=tuple(args.roots) if args.roots else DATA_ROOTS,
                          keep=tuple(args.keep), apply=args.apply,
-                         gate=lambda: cleanup_gate(client, wait=args.wait))
+                         hold=lambda: hold_for_cleanup(
+                             client, args.owner,
+                             args.purpose or f'cleanup of {args.run_dir.name}',
+                             wait=args.wait))
             plan['target'] = getattr(client, 'target_name', None) or args.target or 'selected'
             print(json.dumps(plan))
             return 0

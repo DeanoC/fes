@@ -254,8 +254,12 @@ with "operator recovery required" — so the guards against them live in
   the driver is alive and holds the kit, and when it will end the run by
   itself. A driver that uses neither must not idle silently: a silent wait is
   what read as a dead wrapper.
-- **The post-run tail.** Run `kit_hil.py guard-idle --config PRIVATE.toml`
-  before a tail removes anything, and halt the wrapper if it refuses (exit 3).
+- **The post-run tail.** `kit_hil.py guard-idle --config PRIVATE.toml` reads
+  whether the kit is safe to touch, and the wrapper halts if it refuses
+  (exit 3). It is a **read-only observation**: it reports the state at the
+  moment it looked, and it claims nothing, so it cannot keep another session
+  from claiming the kit and loading a core afterwards. Anything that removes
+  files must hold the lease instead — see `clean` below.
   Pass `--target dev` or `--target kit2` to name the kit rather than writing a
   private copy of the host TOML with `selected_target` rewritten; the gate
   prints which target answered and names it in every refusal.
@@ -274,7 +278,12 @@ with "operator recovery required" — so the guards against them live in
   could not survive shell quoting, anything named by `--keep` (a shared disk
   image), an empty list, a tree already gone, any path that appears during the
   removal, and a diff larger than the listed trees. Without `--apply` it
-  reports the plan and removes nothing. Prefer it to a hand-rolled
+  reports the plan and removes nothing. It **claims the kit lease before it
+  reads or removes anything** and releases it in a `finally`: a claim
+  succeeds only while the lease is free, so claiming first and checking second
+  makes the check and the removal one held interval rather than two ordered
+  events. Checking a free kit and then removing would establish only that the
+  kit was idle when it was looked at. Prefer it to a hand-rolled
   `ssh rm -rf`: every wrapper that rolled its own left out at least one of
   those checks.
 - **The run's verdict.** Run `kit_hil.py verdict runs/RUN/result.json` and

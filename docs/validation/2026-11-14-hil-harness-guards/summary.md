@@ -67,7 +67,10 @@ client `kit.py` the session drivers already import, and are checked in
    out for 30 s rather than refused. The guard is a separate pre-check and not
    something the agent enforces, because the removal is `ssh rm -rf` against
    the kit's FogCast data directories: the agent never sees it.
-   The gate's only caller that removes anything is `kit_hil.py clean`, which
+   `guard-idle` reads the kit's state and claims nothing, so it is an
+   observation and not an enforcement — see the correction below. The only
+   caller that removes anything is `kit_hil.py clean`, which holds the lease
+   across its whole listing and removal, and which
    takes the step the wrappers each hand-rolled: it reads the run's own
    `kit-new-tops.txt` and `kit-new-paths.txt`, gates, removes exactly those
    trees, checks the `find` diff is exactly them with nothing appeared, and
@@ -130,7 +133,7 @@ after checking them against the real data are red on the extraction too. All of
 them pass on the branch head:
 
     cd sources/misteross && python3 -m unittest discover -s tests -p 'test_kit*.py'
-    # 58 tests, OK (43 of them this module's)
+    # 71 tests, OK (56 of them this module's)
 
 The cleanup gate is also exercised against a real local HTTP agent replying in
 `protocol.Status`'s own shape (`state`, `game_id`, `core_package.package_id`,
@@ -231,6 +234,57 @@ of them, which is what guard 3 changes.
   keeps its overlay classification: the import graph reaches it from
   `pc386_wfw_kit_acceptance.py`, so that one is not a misclassification.
 
+## A claim this record made, and why it was wrong
+
+**The earlier version of this record said of guard 2: "Fails closed. An
+unreachable agent, an agent that is not `idle`, a lease that is not `free`, a
+loaded core and a pending recovery all refuse, because each of them means a
+removal would race the runtime." It said the gate *enforces* that nothing is
+removed under a loaded core. That was wrong, and a Codex P1 on PR #1850
+([finding](https://github.com/DeanoC/fes/pull/1850#discussion_r4574628833))
+caught it.**
+
+What the gate did was *read* the kit's state and then let the caller remove
+files. It required the lease to be `free` — which is to say, claimed by
+nobody — and then listed and `rm -r`'d while it stayed free, so another session
+could claim the kit between the check and the delete and load a core into it.
+The second gate, after the removal, could only report that this had happened.
+The guard proved the state was safe at the moment it looked, not that it was
+safe when it acted.
+
+That is the #1368 incident's own shape: a sequencing assumption that happened
+to be wrong. A record asserting a safety property the code does not have is
+worse than a missing guard, because the next session reads the record instead
+of the code.
+
+**What it does now.** `hold_for_cleanup` claims the kit lease *first* — a claim
+succeeds only while the lease is free, so it is the exclusion itself — and
+checks the state second, under its own held lease; `clean` releases it in a
+`finally`. Check and removal are one held interval instead of two ordered
+events. `guard-idle` is unchanged and still read-only: it is an observation,
+and the record no longer calls it more than that. The order is asserted
+directly in `test_the_lease_is_claimed_before_the_kit_is_listed`, which fails
+if anything is read or removed before the claim.
+
+The other four findings from the same review were defects rather than
+corrections: `verdict` ignored `drain`'s own `reasons`, so a live run that
+ended with no `quit` exited 0; a malformed command line raised out of `drain`
+instead of ending the run with a reason; a `result.json` holding `null` or `[]`
+was treated as an empty object and passed; and one `find` over all the roots
+accepted a partial listing when a single root was unreadable. Each has a case
+that is red on `b35a9cf3f`.
+
+On the last of those, the finding's literal remedy — refuse on any nonzero
+`find` exit — is not what was implemented, and the reason is worth recording:
+`find` also exits nonzero when a root merely does not exist, and
+`/media/fat/fogcast/saves` need not exist on a kit that has never saved, so
+that rule would refuse every cleanup on such a kit. The evidence here is
+inconclusive rather than reassuring: of the three runs checked, the two that
+listed three roots found `saves` and the third never asked, because
+`run-games.sh` lists only two roots. Each root is therefore probed on its own:
+a root that exists must list cleanly, and a root that is absent contributes
+nothing and is named in the log.
+
 ## The gate against the real agents
 
 Kit B was released by the #1368 session at 17:44 EET, so `guard-idle` was run
@@ -253,7 +307,7 @@ trees under, which is the thing the guard exists to prevent.
 
 | gate | result |
 | --- | --- |
-| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 58 tests, OK |
+| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 71 tests, OK |
 | `tests/test_hil_plan.py` | 39 tests, OK |
 | `tests/test_affected.py`, `tests/test_test_changed.py` | 43 and 33 tests, OK |
 | `scripts/check_diff.py --base <main> --head HEAD` | exit 0 |
