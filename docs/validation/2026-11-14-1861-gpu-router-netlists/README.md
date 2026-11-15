@@ -150,11 +150,21 @@ That cuts two ways here:
 Worth stating because some of these cores run close to their bound. Worst
 achieved/constraint ratio across clock domains, from `reports-seal/`:
 
-| Artifact | main | branch |
-| --- | --- | --- |
-| `fes.c64` | 1.007 | 1.053 |
-| `fes.zx81` | 1.013 | 1.020 |
-| `fes.spectrum` | 1.041 | 1.206 |
+<!-- margins:start -->
+| Artifact | main worst | branch worst | branch status |
+| --- | --- | --- | --- |
+| `fes.menu` | 1.167 | 1.188 | pass |
+| `fes.zx81` | 1.013 | 1.020 | pass |
+| `fes.spectrum` | 1.041 | 1.206 | pass |
+| `fes.c64` | 1.007 | 1.053 | pass |
+<!-- margins:end -->
+
+Rendered by `seal_margins.py` from `reports-seal/`, which carry each build's
+own `timing` block copied verbatim from its `build-summary.json`, with the
+per-domain achieved and constraint frequencies and the derived ratio. The
+numbers above are therefore auditable rather than quoted: an earlier version of
+this table was written by hand, existed nowhere else in the repository, and
+omitted `fes.menu` altogether.
 
 `fes.c64` clears its pixel constraint by 0.7% on main. Every branch seal passed,
 and in each case with *more* margin than main — but that is the luck of the
