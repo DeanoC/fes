@@ -31,13 +31,16 @@ The first of those two is in the game's calibration loop and not in its delay
 loop. (They are different cost classes, `test_m` and `cmp_load`, which the
 286 column happens to give the same number, so a table *can* separate them.)
 
-**The prediction that confirms it.** Before run `h1` the record committed
-key `6` at **878.4 Hz** for a word-1 override of 160 — the kit's own 840.72 Hz
-at 12 MHz scaled by the probe's two pass rates, 769/736, and nothing else.
-The kit then played it at **873.59 Hz**: **−0.55%**, with key `1` at −0.15%,
-at a frequency the game had never been played at. The prediction was
-committed, and then measured, in that order. (Key `6` is the committed
-figure; the key `1` number was worked out the same way after the run.)
+**The prediction that confirms it.** The record committed key `6` for a
+word-1 override of 160 — the kit's own 840.72 Hz at 12 MHz scaled by the
+probe's two pass rates, 769/736, and nothing else. **The figure committed
+before run `h1` began was 875.4 Hz; it carried an arithmetic slip, and the
+correct 878.4 Hz was committed while the run was already playing and before
+any of its audio was opened.** The kit then played it at **873.59 Hz** —
+−0.21% against the figure committed before the run, −0.55% against the
+corrected one, both well inside the ±3% window, at a frequency the game had
+never been played at. Key `1`'s figure was worked out the same way after the
+run and is a consistency check, not a prediction under the gate.
 
 **What is not settled.** Whether the reference's extra cost is
 instruction-fetch time — which would also act on **fes#1840** — or simply
@@ -159,9 +162,12 @@ at word 1 = 80, where it alternates between 18,288 and 18,291 — a spread of
 | `PN` | 847 | 736 | 679 | 736 | 769 |
 | *predicted* `PN` | — | — | *680* | *737* | *769* |
 
-In clocks (`analyse.py`). The tick period cancels from every *ratio* between
-machines, which is what the argument rests on; the absolute clock counts
-below also assume each machine's nominal tick (18.2065 Hz) and nominal clock.
+In clocks (`analyse.py`). A machine's tick period cancels from `t_d/t_c`,
+because both are measured against *its own* tick — that much needs no
+assumption. It does **not** cancel from the cross-machine comparisons: the
+847/736 reproduction ratio and the absolute pass times below assume the kit
+and the reference tick at the same nominal 18.2065 Hz, and the clock counts
+below also assume each machine's nominal clock.
 The probe's T0/T1 marker, which would have timed the kit's tick against wall
 time, was printed but never captured on video, so the kit's tick period is
 not independently measured here.
@@ -263,17 +269,21 @@ at 12 MHz, and a faster machine can only reach each point early). The
 no `error` for any command, and the run ended `HIL rc=0` with Kit A released
 and its baseline re-verified read-only afterwards.
 
-**Committed before the run, from the measured pass rates alone:** key `6` at
-840.72 × 769/736 = **878.4 Hz**, checked at ±3%, so 852.1 to 904.8.
+**Committed, from the measured pass rates alone:** key `6` at
+840.72 × 769/736 = **878.4 Hz**, checked at ±3%, so 852.1 to 904.8. The
+figure committed before the run began was **875.4 Hz**; it carried an
+arithmetic slip, corrected to 878.4 while the run was playing and before any
+of its audio was opened (`method.md` dates both). The measurement is inside
+the window on either figure.
 
-| | predicted | measured (median of 32 notes) | |
+| | predicted | measured (median of 31 notes) | |
 | --- | ---: | ---: | ---: |
 | key `6` | 878.4 Hz | **873.59 Hz** | **−0.55%** |
 | key `1` | 522.20 Hz* | **521.40 Hz** | −0.15% |
 
-\* Only key `6`'s 878.4 Hz was committed before the run. Key `1`'s figure is
-the same scaling applied to its own 499.79 Hz afterwards, and is shown as a
-consistency check, not as a prediction under the gate.
+\* Only key `6` was committed; key `1`'s figure is the same scaling applied
+to its own 499.79 Hz afterwards, and is a consistency check, not a
+prediction under the gate.
 
 31 notes in each band — the 30 presses plus one the closing `1`-`0` scale
 contributes — and the medians are over those 31. They are tight: 872.94 to
@@ -290,10 +300,11 @@ same autocorrelation PR #1838 used. The WAV stays on Powerboat.
 
 ## Where in the model the fault is
 
-The two loops use **the same three cost classes** — `unary_m` for `inc`/`dec`
-of memory, `test_m` for `cmp r/m, imm`, `jcc` for the branch — and the same
-memory accesses. The governor charges them additively: 24 and 17 clocks, a
-ratio of 0.7083. The reference costs them 29.02 and 18.04, a ratio of 0.6217.
+Between them the two loops use three cost classes — `unary_m` for
+`inc`/`dec` of memory, `jcc` for the branch, and `test_m` for `cmp r/m, imm`,
+**which is in the calibration loop only**; the delay loop is `unary_m` plus
+`jcc` and nothing else. The governor charges them additively: 24 and 17
+clocks, a ratio of 0.7083. The reference costs them 29.02 and 18.04, a ratio of 0.6217.
 **The fault is in what the cost model charges these two loops relative to
 each other.** Two shortfalls have to be made up, and **neither is pinned to a
 class**: each could be a table entry or the instruction-fetch time the model
