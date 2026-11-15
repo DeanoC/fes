@@ -139,3 +139,15 @@ def video_design_inputs(current):
         result['inputs'] = {path: value for path, value in result['inputs'].items()
                             if input_role(path) == 'design'}
     return result
+
+
+def toolchain_selection(fields):
+    """Compare declared compiler choices without authenticating an execution."""
+    return {
+        'source_inputs': {path: value for path, value in fields.get('source_inputs', {}).items()
+                          if input_role(path) == 'toolchain'},
+        'parameters': {key: value for key, value in fields.get('parameters', {}).items()
+                       if key in TOOLCHAIN_PARAMETERS - {
+                           'execution_sha256', 'selection_only', 'pnr_recipe_sha256', 'gpu_device'}},
+        'toolchain': fields.get('toolchain'),
+    }

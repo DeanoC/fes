@@ -340,11 +340,16 @@ def _matching_package_candidates(source, record, recipe=None, *, store_override=
         matches.append((package, sidecar, inspected))
     # Prefer an exact current build when available. Otherwise retain a stable
     # already-qualified artifact rather than requiring a compiler upgrade.
-    selected = json.loads(record).get('identities', {})
+    selected_fields = json.loads(record)
+    selected = selected_fields.get('identities', {})
     def rank(item):
         original = item[1].read_bytes()
-        built = json.loads(original).get('identities', {})
-        return (original != record, built.get('toolchain') != selected.get('toolchain'), item[2]['package_id'])
+        built_fields = json.loads(original)
+        built = built_fields.get('identities', {})
+        pin_mismatch = (artifact_cache.identity.toolchain_selection(built_fields) !=
+                        artifact_cache.identity.toolchain_selection(selected_fields))
+        return (original != record, pin_mismatch,
+                built.get('toolchain') != selected.get('toolchain'), item[2]['package_id'])
     return sorted(matches, key=rank)
 
 

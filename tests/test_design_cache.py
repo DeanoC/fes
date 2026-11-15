@@ -139,6 +139,30 @@ print(package)
         self.assertEqual(receipt['selected_pins']['cores/fixture/toolchain.lock']['yosys']['commit'], 'b' * 40)
         self.assertEqual((self.cached.parent / 'build-inputs.json').read_bytes(), self.record)
 
+    def test_current_pin_artifact_is_preferred_to_an_older_cached_compiler(self):
+        self.lock.write_text(self.lock.read_text().replace('a' * 40, 'b' * 40))
+        self.commit()
+        request = bundle.canonical_package_record(self.source, recipe=self.recipe, selection_only=True)
+        current = json.loads(request)
+        del current['parameters']['selection_only']
+        current['tools'] = json.loads(self.record)['tools']
+        current = bundle.artifact_cache.identity.with_identities(current)
+        current_record = bundle.artifact_cache.identity.canonical(current) + b'\n'
+        store = self.source / 'build/packages'
+        store.mkdir()
+        # Force lexicographic order to favour the old compiler; pin preference
+        # must override it. Package parsing is covered by the real-cache tests.
+        for package_id, record in (('a' * 64, self.record), ('f' * 64, current_record)):
+            (store / package_id).mkdir()
+            evidence = store / (package_id + '.build-inputs.json')
+            evidence.write_bytes(record)
+            evidence.chmod(0o444)
+        def inspect(source, package, *args, **kwargs):
+            return {'package_id': package.name}
+        with patch.object(bundle, '_inspect_package_candidate', side_effect=inspect):
+            matches = bundle._matching_package_candidates(self.source, request, recipe=self.recipe)
+        self.assertEqual(matches[0][2]['package_id'], 'f' * 64)
+
     def test_live_source_report_compares_pins_without_authenticating_a_compiler(self):
         self.lock.write_text(self.lock.read_text().replace('a' * 40, 'b' * 40))
         self.commit()
