@@ -34,7 +34,7 @@ the gap is explicit rather than silent.
 | `splash` | done (src exempt) | **done** | **done** |
 | `fes.menu` | done | **done** | **done** |
 | `fes.zx81` | done | **done** | **done** |
-| `fes.spectrum` | done | pending | pending |
+| `fes.spectrum` | done | **done** | **done** |
 | `fes.c64` | done | pending | pending |
 
 ### How condition 2 is measured, and the control that makes it mean anything
