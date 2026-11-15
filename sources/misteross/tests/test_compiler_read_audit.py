@@ -77,6 +77,7 @@ class ClosurePolicyTests(unittest.TestCase):
 class ReadAuditTests(unittest.TestCase):
     def test_compiler_cannot_consume_excluded_packaging_or_toolchain_bytes(self):
         for relative in ('scripts/export_core_package.py', 'scripts/input_identity.py',
+                         'scripts/source_closures.json',
                          'cores/fixture/toolchain.lock'):
             with self.subTest(relative=relative):
                 path = self.root / relative

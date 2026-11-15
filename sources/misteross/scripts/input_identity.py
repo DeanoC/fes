@@ -19,6 +19,7 @@ PACKAGING_INPUTS = frozenset({
     'scripts/source_repository.py',
     'scripts/source_provenance.py',
     'scripts/source_closure.py',
+    'scripts/source_closures.json',
     'boards/de25nano/package/export_core_package.py',
     'boards/de25nano/package/core_package.py',
 })

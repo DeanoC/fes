@@ -491,11 +491,13 @@ class ResolverTransactionTests(unittest.TestCase):
     def test_completed_parts_reuse_ignores_packaging_and_advisory_toolchain_drift(self):
         self.current['inputs'] = {'rtl/core.v': '1' * 64,
                                   'scripts/export_core_package.py': '2' * 64,
+                                  'scripts/source_closures.json': '2' * 64,
                                   'cores/fes-coleco/toolchain.lock': '3' * 64}
         self.shell()
         self.resolve()
         self.current['tools'] = {'yosys': 'new version not required for reuse'}
         self.current['inputs']['scripts/export_core_package.py'] = '4' * 64
+        self.current['inputs']['scripts/source_closures.json'] = '4' * 64
         self.current['inputs']['cores/fes-coleco/toolchain.lock'] = '5' * 64
         self.inspector.reset_mock()
         self.resolve(self.root / 'again')
