@@ -80,8 +80,12 @@ each is in the RTL with the case that settles it:
    moved by 24576**, the 387's bias adjust. 2^9000 squared with OM clear
    stores exponent field 264Fh, which is 34383 - 24576.
 3. **Unmasked underflow fires on any tiny result, exact or not**, while
-   masked underflow fires only where the denormalising lost bits: 2^-8200
-   squared is exactly a denormal and masked raises *nothing at all*.
+   masked underflow fires only where **rounding the denormalised value is
+   inexact**: 2^-8200 squared is exactly a denormal and masked raises
+   *nothing at all*. Inexact after the denormalising shift rather than lost
+   *by* it, which are not the same thing -- the smallest denormal at PC 24
+   survives the shift exactly and is then rounded away to zero, and a real
+   x87 reports underflow there.
 4. **Tininess is decided after rounding.** The value is rounded once at PC as
    though the exponent range were unbounded, and that exponent decides. A
    product whose exact value is below the smallest normal but whose rounding
