@@ -17,10 +17,12 @@ held-ROM, digest, frame and deadline checks remain. SDK, entry and cold producer
 bind the same typed memory contract and reject the former borrowed-storage
 selection. The borrowed configuration publisher has been removed.
 
-This is source integration with host, C-protocol and mapping-model evidence.
-A newly matched boot chain and physical tape/launch/return trial remain required;
-the last hardware failure and successful original-FIT restoration remain separate
-[evidence](../../../../docs/validation/2026-11-15-de25-independent-tape-wiring/README.md).
+The matched source now passes boot-chain/file admission and physical ZX81
+launch with a 917-byte tape. Return to MENU stops at secure source release;
+repeated loading and final Park remain unqualified. The full secure-system
+investigation is tracked in [#1867](https://github.com/DeanoC/fes/issues/1867).
+[Current evidence and preservation scope](../../../../docs/validation/2026-11-15-de25-merge-readiness/README.md)
+separate that historical artifact from the newly integrated tree.
 
 The selected native Tenfoot image now accepts an explicit
 `--writable-storage-plan FILE --sd-transfer-clock 25000000`. That compiled

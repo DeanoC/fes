@@ -79,11 +79,11 @@ so the room destination model does not import the database implementation.
 Embedded builds reject unsupported native package-inventory and Unix-socket
 operations explicitly; they do not substitute weaker artifact checks.
 
-The injected loop does not yet implement the Linux menu path's
-generation-bound pause/drain handoff. An embedded presenter must keep its
-software framebuffer separate from live DMA grants and implement that
-lifecycle before publishing frames across core transitions. The initial
-experiment only browses and navigates; it does not launch cores.
+The injected loop delegates physical ownership to its platform backend. An
+embedded presenter must keep its software framebuffer separate from live DMA
+grants and use the backend's generation-bound pause/drain handoff before
+publishing frames across core transitions. The DE25 native backend now exercises
+package launch and return; that experiment remains opt-in and incomplete.
 
 This boundary supports the experimental
 [Linux-free base](../../../platform/embedded/README.md). Its native QEMU image
@@ -92,9 +92,13 @@ USB boot-keyboard input and ramfb scanout. `cmd/fogcast-embedded-host` boots
 the current `fogcast.Open`/`Service.Scan` and HTTP handlers on a private loopback
 listener. It requires `FES_EXPERIMENTAL_DE25_EMBEDDED=1`, owns its listener and
 service cleanup, and does not depend on the removed local-kit server helpers.
-It is not a hardware
-runtime or full standalone appliance. USB input, physical scanout and FPGA
-lifecycle still need board implementations. The existing Linux launch path and
+The separate DE25 native implementation supplies board USB input, FPGA scanout
+and physical lifecycle controls. Bounded hardware diagnostics have run ZX81 and
+returned to the launcher, but the latest secure source-retirement candidate
+fails on return after tape loading. It is not a complete standalone appliance.
+The whole secure-system investigation remains open in
+[#1867](https://github.com/DeanoC/fes/issues/1867); current evidence and limits
+are recorded in the embedded base guide. The existing Linux launch path and
 package/session contracts are unchanged.
 
 `App.SetPreferenceStore` optionally loads settings from an explicit JSON store

@@ -1,6 +1,6 @@
 # Contained firmware and FPGA control prototype
 
-The latest [independent-tape wiring checkpoint](../../../docs/validation/2026-11-15-de25-independent-tape-wiring/README.md) connects separate tape storage through the board mapping, fixed firmware supplier and matched producer contract. Host checks preserve the retained configuration reservation through successful and failed tape transfers. The original FIT remains restored and verified on TRWU8CBL; a new matched image and hardware trial are still required.
+The latest [preservation checkpoint](../../../docs/validation/2026-11-15-de25-merge-readiness/README.md) records a matched boot chain and a physical ZX81 launch with initial tape. Return to MENU stops at secure source release; the complete cycle remains unqualified. [Issue #1867](https://github.com/DeanoC/fes/issues/1867) tracks the whole secure ownership, memory, lifecycle and recovery investigation. The candidate remains stopped on the spare card, with host handles closed and a physical reset required before restoration. This merge preparation makes no new board changes.
 
 
 This is exploratory firmware and native integration for the Linux-free base.
