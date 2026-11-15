@@ -88,9 +88,40 @@ class ModelTests(unittest.TestCase):
             producer.model_for("zx82")
 
 
+class RegistryTests(unittest.TestCase):
+    def test_every_model_row_selects_this_producer(self) -> None:
+        for key, machine in producer.MODELS.items():
+            recipe = producer.selected_recipe(ROOT, machine.core_id)
+            self.assertEqual(producer.recipe_seeds(recipe), (1, 2, 3), key)
+            self.assertEqual(recipe["lock_path"], producer.LOCK)
+            self.assertEqual(recipe["producer_arguments"], ["--model", key])
+
+    def test_registry_mismatch_is_refused(self) -> None:
+        import shutil
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            fake = Path(directory) / "a" / "b"
+            (fake.parents[1] / "config").mkdir(parents=True)
+            text = (ROOT.parents[1] / "config/core-recipes.toml").read_text()
+            shutil.copytree(ROOT / "cores/fes-zx81", fake / "cores/fes-zx81", dirs_exist_ok=True)
+            for old, new, message in (
+                    ('producer_options = { model = "ts1000" }', 'producer_options = { model = "zx81" }', "must select"),
+                    ('Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"\nseeds = [1, 2, 3]\nthreads = 4\n',
+                     'Version 17.0.1 Build 1 01/01/2017 SJ Lite Edition"\nseeds = [1, 2, 3]\nthreads = 4\n',
+                     "version differs")):
+                # The first match is the fes.zx81 row, the registry's first Lite row.
+                self.assertIn(old, text)
+                (fake.parents[1] / "config/core-recipes.toml").write_text(text.replace(old, new, 1))
+                with self.subTest(message), self.assertRaisesRegex(BuildError, message):
+                    model = "ts1000" if "select" in message else "zx81"
+                    producer.selected_recipe(fake, producer.model_for(model).core_id)
+
+
 class ProjectTests(unittest.TestCase):
     def qsf(self, model="zx81", seed=1) -> str:
-        return producer.project_qsf(ROOT, ROOT / "build/test-project", BUILD_ID, seed, producer.model_for(model))
+        machine = producer.model_for(model)
+        return producer.project_qsf(ROOT, ROOT / "build/test-project", BUILD_ID, seed, machine,
+                                    producer.selected_recipe(ROOT, machine.core_id))
 
     def test_project_selects_the_quartus_rom_link_and_no_socket(self) -> None:
         text = self.qsf()
@@ -120,7 +151,8 @@ class ProjectTests(unittest.TestCase):
         with self.assertRaisesRegex(BuildError, "not a declared sign-off seed"):
             self.qsf(seed=4)
         with self.assertRaisesRegex(BuildError, "32 lowercase hexadecimal"):
-            producer.project_qsf(ROOT, ROOT / "build/x", "XYZ", 1, producer.model_for("zx81"))
+            machine = producer.model_for("zx81")
+            producer.project_qsf(ROOT, ROOT / "build/x", "XYZ", 1, machine, producer.selected_recipe(ROOT, machine.core_id))
 
     def test_quartus_rom_link_keeps_the_lane_interface(self) -> None:
         text = (ROOT / producer.ROM_LINK).read_text()

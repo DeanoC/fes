@@ -1,6 +1,13 @@
 # ZX81 expansion bus
 
-The registered expansion bus is part of the standard ZX81 shell. Expansion
+The registered ZX81-family packages are now built by the Quartus Lite producer,
+which has no expansion socket, so the carts below are unavailable on them until
+DeanoC/fes#1875 builds the 16K RAM and Zon X carts into the shell, selected at
+launch. The QS Character Board leaves the product path and stays a diagnostic
+and simulation artifact. This page describes the bus as the advisory nextpnr
+shell (`build_fes_zx81_oss.py`) still builds it.
+
+The expansion bus is part of the nextpnr ZX81 shell. Expansion
 carts are launch-time composition (linked before programming). Mid-session
 `.p` tape select/load is a separate product path — see
 [ZX81 tape media](zx81-tape-media.md). Do not conflate bus carts with tape.

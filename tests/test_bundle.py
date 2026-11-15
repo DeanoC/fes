@@ -175,7 +175,7 @@ for core_id, module_name, options in json.loads(sys.argv[1]):
         module = self.module()
         with tempfile.TemporaryDirectory(prefix="fes quote ' space ") as temporary:
             source = Path(temporary)
-            for core in ('fes.pong', 'fes.zx81', 'fes.coleco'):
+            for core in ('fes.pong', 'fes.sms', 'fes.coleco'):
                 recipe = replace(module.recipe_for(core), cache_root=source / "cache with ' quote")
                 with patch.object(module, 'authenticate_misteross_origin'), \
                         patch.object(module.subprocess, 'check_output', side_effect=subprocess.CalledProcessError(1, ['producer'])):

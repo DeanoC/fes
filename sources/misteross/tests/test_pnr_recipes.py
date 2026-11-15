@@ -232,11 +232,14 @@ class PnrRecipeTests(unittest.TestCase):
     def test_every_registered_lock_pins_a_recipe_with_its_option_schema(self):
         from scripts.lockfile import load_lock
         registry = tomllib.loads((ROOT / "config/core-recipes.toml").read_text())
-        self.assertEqual(set(GOLDENS), {entry["core_id"] for entry in registry["recipes"] if entry.get("toolchain", "oss") == "oss"})
+        # Advisory OSS rows (config/advisory-pnr-recipes.toml) keep a nextpnr
+        # lane for cores whose registered producer is Quartus.
+        advisory = tomllib.loads((ROOT / "config/advisory-pnr-recipes.toml").read_text())
+        entries = [entry for entry in registry["recipes"] if entry.get("toolchain", "oss") == "oss"]
+        entries += advisory["recipes"]
+        self.assertEqual(set(GOLDENS), {entry["core_id"] for entry in entries})
         self.assertEqual(set(LOCK_SHA256), set(GOLDENS))
-        for entry in registry["recipes"]:
-            if entry.get("toolchain", "oss") != "oss":
-                continue
+        for entry in entries:
             core_id = entry["core_id"]
             with self.subTest(core=core_id):
                 lock = ROOT / "sources/misteross" / entry["lock_path"]
@@ -253,6 +256,27 @@ class PnrRecipeTests(unittest.TestCase):
                 pnr_recipe.validate_option_names(core_id, SOURCE_OPTION_SETS[option_count])
                 self.assertEqual(set(pnr_recipe.recipe_for(core_id)["flags"]),
                                  set(SCHEMAS_BY_OPTION_COUNT[option_count]))
+
+    def test_advisory_rows_replace_only_registered_de10_quartus_rows(self):
+        registry = tomllib.loads((ROOT / "config/core-recipes.toml").read_text())
+        advisory = tomllib.loads((ROOT / "config/advisory-pnr-recipes.toml").read_text())
+        quartus = {entry["core_id"] for entry in registry["recipes"]
+                   if entry.get("toolchain") == "quartus" and entry.get("board", "de10-nano") == "de10-nano"}
+        names = [entry["core_id"] for entry in advisory["recipes"]]
+        self.assertEqual(names, ["fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500"])
+        self.assertLessEqual(set(names), quartus)
+        for core_id in names:
+            self.assertEqual(pnr_recipe.lock_path(ROOT / "sources/misteross", core_id),
+                             ROOT / "sources/misteross/cores/fes-zx81/toolchain.lock")
+        with tempfile.TemporaryDirectory() as directory:
+            fake = Path(directory) / "config"
+            fake.mkdir()
+            (fake / "core-recipes.toml").write_bytes((ROOT / "config/core-recipes.toml").read_bytes())
+            text = (ROOT / "config/advisory-pnr-recipes.toml").read_text()
+            (fake / "advisory-pnr-recipes.toml").write_text(text.replace('core_id = "fes.ts1500"', 'core_id = "fes.pong"', 1))
+            with patch.object(pnr_recipe, "REGISTRY", fake / "core-recipes.toml"):
+                with self.assertRaisesRegex(pnr_recipe.RecipeError, "registered DE10 Quartus row"):
+                    pnr_recipe._registry()
 
     def test_source_option_sets_select_exact_schemas_and_shared_defaults(self):
         self.assertEqual(set(SOURCE_OPTION_SETS), {96, 105, 107})

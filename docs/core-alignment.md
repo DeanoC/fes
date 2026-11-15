@@ -54,7 +54,9 @@ of the current tree.
    boundary `$ROUTETHRU` map; their locks are byte-identical and share one
    cache slot. Seven registered locks select their own slot: Atari ST on
    nextpnr `5fe55f3d` (#910); Menu and ZX81 on nextpnr `1eecf877` (Menu moved
-   when its blitter took DSP multipliers); Pong on `552ba246` (fes#887);
+   when its blitter took DSP multipliers; the ZX81 family's nextpnr lane is
+   advisory, `config/advisory-pnr-recipes.toml`, and its registered recipes
+   select `cores/fes-zx81/quartus.lock`); Pong on `552ba246` (fes#887);
    RISC-V on `8f453ebc` (#945); Spectrum on nextpnr main `bd7a1c0d` (#1001;
    contains #276 as merged); and Coleco on Yosys `5391eeb1` with nextpnr
    `bec82e36` and the shared Mistral. The unregistered PC/XT diagnostic sits
@@ -178,7 +180,8 @@ Nine registered locks differ from the repository-level pin (Yosys
 `5fe55f3d` (#1007), Spectrum on nextpnr main `bd7a1c0d`, Atari ST on
 `5fe55f3d` (#910), and Coleco on Yosys `5391eeb1` with nextpnr `bec82e36`.
 The other four match it. The unregistered PC/XT diagnostic sits on nextpnr
-`2fa5ec4c`; registered PC/XT recipes select the Quartus lock. The following
+`2fa5ec4c`; registered PC/XT and ZX81-family recipes select their Quartus locks,
+and the ZX81 nextpnr pin is advisory. The following
 historical seal records remain tied to
 the artifacts they name; current recipe lock paths are shown in
 `config/core-recipes.toml`.

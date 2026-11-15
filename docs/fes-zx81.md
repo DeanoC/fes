@@ -67,10 +67,12 @@ package, runtime support and hardware acceptance.
 
 Quartus Prime Lite 17.0.2 (`make build-fes-zx81-quartus MODEL=...`) builds the
 same family as a format-3 package with blank ROM lanes and the same ROM map,
-without the expansion socket ([architecture](../sources/misteross/docs/architecture.md#fes-zx81-quartus-package); design and decisions in DeanoC/fes#1873). The
-registry switches to it in DeanoC/fes#1876.
-`make build-fes-zx81` is the standard Yosys/nextpnr-mistral producer for the
-1.7.0 socketed format-3 package. The package seals `rom-map.json` alongside
+without the expansion socket ([architecture](../sources/misteross/docs/architecture.md#fes-zx81-quartus-package); design and decisions in DeanoC/fes#1873).
+It is the registered producer for all four models. Until DeanoC/fes#1875 builds
+the 16K RAM and Zon X carts into the shell, the registered packages have no
+expansion socket and those carts are unavailable.
+`make build-fes-zx81` is the advisory Yosys/nextpnr-mistral producer
+(`config/advisory-pnr-recipes.toml`) for the 1.7.0 socketed format-3 package. The package seals `rom-map.json` alongside
 the blank ROM RBF. The host sends the selected binary and optional expansion;
 the target Go linker composes the expansion and patches ROM INIT before loading.
 Python and Mistral remain producer/oracle tools, not kit dependencies. OSS uses the first-party NMOS Z80 (`fes_z80_nmos`), a 52.224 MHz system clock, registered M10K and

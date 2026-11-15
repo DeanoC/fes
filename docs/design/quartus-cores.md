@@ -3,11 +3,14 @@
 Status: accepted policy (issue #1163, Deano, 27 October 2026), including the
 15% threshold under [What "significantly" means](#what-significantly-means).
 Registered recipes support a single OSS or Quartus producer for each core ID
-and board. PC/XT selects its Quartus diagnostic producer; explicit DE25 MENU
+and board. PC/XT selects its Quartus diagnostic producer, and the DE10 ZX81
+family selects its Quartus Lite package producer under Deano's 15 November 2026
+decision to use Quartus wherever nextpnr timing closure is hard (DeanoC/fes#1873);
+its nextpnr table stays advisory in `config/advisory-pnr-recipes.toml`. Explicit DE25 MENU
 selection uses Quartus Pro through the same package resolver. General
 same-board dual-variant catalog selection and `FES_OSS_ONLY` are not
 implemented. The remaining [rollout](#rollout) describes that broader policy.
-`AGENTS.md` (Toolchains) makes Quartus primary for DE25, pc386 and PC/XT; the
+`AGENTS.md` (Toolchains) makes Quartus primary for DE25, pc386, PC/XT and the ZX81 family; the
 "oracle" wording below predates that ([RTL front-end lanes](rtl-frontend-lanes.md), S6a).
 
 ## Decision

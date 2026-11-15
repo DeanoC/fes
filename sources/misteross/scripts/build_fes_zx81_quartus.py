@@ -11,7 +11,7 @@ m10k-1024x10-v1 rom-map.json and the kit splices the user's ROM unchanged.
 
 The package is published only when all of these hold:
 
-- every seed in SEEDS passes the complete TimeQuest gate
+- every seed in the registered [recipes.quartus] seeds passes the complete TimeQuest gate
   (scripts/quartus_timing_summary.py: setup, hold, recovery, removal and
   minimum pulse width at every corner, with no unanalysed clock), and an
   independent rebuild of the first seed reproduces its RBF byte for byte;
@@ -49,6 +49,7 @@ import sys
 import sysconfig
 import tempfile
 import time
+import tomllib
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -67,8 +68,6 @@ LOCK = 'cores/fes-zx81/quartus.lock'
 ABI = 'cores/fes-common/generated/fes_computer.vh'
 TARGET = '5CSEBA6U23I7'
 TOP = 'top'
-SEEDS = (1, 2, 3)
-THREADS = 4
 COMPILE_TIMEOUT_S = 3600
 HEARTBEAT_S = 60
 MIN_FREE_BYTES = 30 * 10**9
@@ -163,6 +162,35 @@ MODELS = {model.key: model for model in (
     Model('ts1500', 'fes.ts1500', 'TS1500', 'Timex Sinclair 1500: NTSC, 8 KiB ROM, 16 KiB internal RAM',
           '0.1.0', 'ZX81_MODEL_TS1500', 'ts1500-firmware', 8),
 )}
+
+
+def selected_recipe(root=ROOT, core_id: str = 'fes.zx81') -> dict:
+    """The core's registered DE10 row, which must select this producer and its model.
+
+    Its [recipes.quartus] table sets the sign-off seeds and fitter threads, and
+    its version must be the lock's version line.
+    """
+    machine = next((model for model in MODELS.values() if model.core_id == core_id), None)
+    if machine is None:
+        raise BuildError(f'{core_id} is not a ZX81-family model')
+    data = tomllib.loads((Path(root).parents[1] / 'config/core-recipes.toml').read_text(encoding='utf-8'))
+    rows = [row for row in data['recipes'] if row.get('core_id') == machine.core_id
+            and row.get('board', 'de10-nano') == 'de10-nano']
+    if (len(rows) != 1 or rows[0].get('toolchain') != 'quartus' or rows[0].get('producer_script') != RECIPE
+            or rows[0].get('producer_options') != {'model': machine.key}):
+        raise BuildError(f'{machine.core_id} must select {RECIPE} --model {machine.key} in the registry')
+    quartus = rows[0]['quartus']
+    if quartus['version'] != load_quartus_lock(root, LOCK).version:
+        raise BuildError(f'{machine.core_id} registry Quartus version differs from {LOCK}')
+    return rows[0]
+
+
+def recipe_seeds(recipe: dict) -> tuple[int, ...]:
+    return tuple(recipe['quartus']['seeds'])
+
+
+def recipe_threads(recipe: dict) -> int:
+    return recipe['quartus']['threads']
 
 
 def model_for(key: str) -> Model:
@@ -299,13 +327,15 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
         raise BuildError('Quartus package requires controlled functional execution inputs')
     machine = model_for(model)
     root = Path(root).resolve()
+    recipe = selected_recipe(root, machine.core_id)
     top = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=root, text=True).strip())
     roots = list(SOURCE_ROOTS)
     lock = load_quartus_lock(root, LOCK)
     parameters = {
         'core_id': machine.core_id, 'model': machine.key, 'model_define': machine.define or 'none',
         'device': TARGET, 'top': TOP, 'compiler': lock.compiler,
-        'seeds': ','.join(str(seed) for seed in SEEDS), 'threads': THREADS,
+        'seeds': ','.join(str(seed) for seed in recipe_seeds(recipe)), 'threads': recipe_threads(recipe),
+        'quartus_recipe_sha256': hashlib.sha256(json.dumps(recipe, sort_keys=True).encode()).hexdigest(),
         'sys_clock_hz': 52224000, 'pixel_clock_hz': 74250000, 'audio_clock_hz': 12288000,
         'reference_clock_hz': 50000000, 'machine_clock_hz': 6500000, 'cpu_clock_hz': 3250000,
         'expansion_socket': 'none',
@@ -343,10 +373,10 @@ def pattern_mif(data: bytes) -> str:
     return f'DEPTH = 1024;\nWIDTH = 10;\nADDRESS_RADIX = HEX;\nDATA_RADIX = HEX;\nCONTENT BEGIN\n{rows}END;\n'
 
 
-def project_qsf(root: Path, project: Path, build_id: str, seed: int, machine: Model) -> str:
+def project_qsf(root: Path, project: Path, build_id: str, seed: int, machine: Model, recipe: dict) -> str:
     if not re.fullmatch(r'[0-9a-f]{32}', build_id):
         raise BuildError('build ID must be 32 lowercase hexadecimal characters')
-    if seed not in SEEDS:
+    if seed not in recipe_seeds(recipe):
         raise BuildError(f'seed {seed} is not a declared sign-off seed')
     rel = Path(os.path.relpath(Path(root).resolve(), Path(project).resolve())).as_posix()
     lock = load_quartus_lock(root, LOCK)
@@ -357,7 +387,7 @@ def project_qsf(root: Path, project: Path, build_id: str, seed: int, machine: Mo
         'set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files',
         'set_global_assignment -name GENERATE_RBF_FILE ON',
         'set_global_assignment -name ON_CHIP_BITSTREAM_DECOMPRESSION OFF',
-        f'set_global_assignment -name NUM_PARALLEL_PROCESSORS {THREADS}',
+        f'set_global_assignment -name NUM_PARALLEL_PROCESSORS {recipe_threads(recipe)}',
         f'set_global_assignment -name SEED {seed}',
         'set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005',
         f'set_global_assignment -name LAST_QUARTUS_VERSION "{lock.qsf_version}"',
@@ -379,11 +409,11 @@ def project_qsf(root: Path, project: Path, build_id: str, seed: int, machine: Mo
     return '\n'.join(lines) + '\n\n' + pins
 
 
-def write_project(root: Path, project: Path, build_id: str, seed: int, machine: Model) -> Path:
+def write_project(root: Path, project: Path, build_id: str, seed: int, machine: Model, recipe: dict) -> Path:
     project.mkdir(parents=True, exist_ok=False)
     lock = load_quartus_lock(root, LOCK)
     (project / 'top.qpf').write_text(f'QUARTUS_VERSION = "{lock.series}";\nPROJECT_REVISION = "{TOP}";\n')
-    (project / 'top.qsf').write_text(project_qsf(root, project, build_id, seed, machine))
+    (project / 'top.qsf').write_text(project_qsf(root, project, build_id, seed, machine, recipe))
     for lane in range(8):
         (project / f'zx81_rom_lane{lane}.mif').write_text(blank_mif())
     return project
@@ -655,13 +685,15 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
         (output / 'build-inputs.json').write_bytes(record)
         print(f'{machine.core_id} Quartus build {build_id}: {output}', flush=True)
         runs = []
-        for name, seed in [*(('signoff', seed) for seed in SEEDS), ('repeat', SEEDS[0])]:
-            project = write_project(root, output / name / f'seed-{seed}', build_id, seed, machine)
+        recipe = selected_recipe(root, machine.core_id)
+        seeds = recipe_seeds(recipe)
+        for name, seed in [*(('signoff', seed) for seed in seeds), ('repeat', seeds[0])]:
+            project = write_project(root, output / name / f'seed-{seed}', build_id, seed, machine, recipe)
             compile_project(project, quartus, env)
             evidence = seed_evidence(project, machine)
             runs.append({'stage': name, 'seed': seed, **evidence})
             print(f'  {name} seed {seed}: pass, RBF {evidence["rbf_sha256"][:16]}', flush=True)
-        signoff = output / 'signoff' / f'seed-{SEEDS[0]}'
+        signoff = output / 'signoff' / f'seed-{seeds[0]}'
         if runs[0]['rbf_sha256'] != runs[-1]['rbf_sha256']:
             raise BuildError('independent Quartus rebuild changed the RBF')
         base = (signoff / 'output_files/top.rbf').read_bytes()
@@ -688,7 +720,7 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
         (output / 'manifest.toml').write_bytes(encoded)
         (output / 'build-summary.json').write_text(json.dumps({
             'classification': 'installable-quartus-package', 'build_id': build_id, 'revision': revision,
-            'core_id': machine.core_id, 'model': machine.key, 'seeds': list(SEEDS), 'runs': runs,
+            'core_id': machine.core_id, 'model': machine.key, 'seeds': list(seeds), 'runs': runs,
             'repeat_rbf_sha256': runs[-1]['rbf_sha256'], 'rom_map': map_evidence, 'rom_selftest': selftest,
             'session_display': session, 'hardware_acceptance': False,
             'limits': ['external I/O timing is unconstrained, as in the OSS lane',

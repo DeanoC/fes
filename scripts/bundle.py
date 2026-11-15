@@ -124,7 +124,9 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
         if recipe.toolchain == "quartus":
             if recipe.board == "de25-nano":
                 raise ValueError(f"cannot authenticate {recipe.core_id} DE25 Quartus inputs; set QUARTUS_ROOTDIR to the pinned Pro installation") from error
-            raise ValueError(f"cannot authenticate {recipe.core_id} Quartus inputs; set QUARTUS_ROOTDIR and FES_PCXT_YOSYS to the pinned installations") from error
+            extra = " and FES_PCXT_YOSYS" if recipe.lock_path == "cores/fes-pcxt/quartus.lock" else ""
+            raise ValueError(f"cannot authenticate {recipe.core_id} Quartus inputs; set QUARTUS_ROOTDIR{extra} "
+                             f"to the pinned installations ({recipe.lock_path})") from error
         raise ValueError(
             f"cannot derive authenticated {recipe.core_id} build inputs in {source}; "
             f"inspect the producer error and, if the shared toolchain slot is missing, run "
