@@ -170,7 +170,7 @@ edited", or it will under-count by two cores.
 
 Confirmed present, with the line verified where noted:
 
-- `M/scripts/quartus_x87_spike.py:341` — its `machine()` mode calls the pc386 sealer's
+- `M/scripts/quartus_x87_spike.py:367` — its `machine()` mode calls the pc386 sealer's
   `write_project()`, so it emits the same `QUARTUS=1` QSF and the same read of
   `cores/fes-pc386/rtl/top.sv`. Verified. Its `spike()` mode reads no guarded file.
 - `M/scripts/hip_zx81_bus_socket.py:54`, `:138` — the sibling of the `hip_zx81_bus_carts.py` the doc
@@ -245,7 +245,7 @@ Confirmed present, with the line verified where noted:
    claim that the guest rates reach the netlist through `-chparam` at `:239` is wrong twice — `:239`
    is also `_authenticate_tools`, and the word `chparam` appears nowhere in that file; the rates are
    passed as `parameters=guest_rates()` at `:284-286` and the `chparam` text is emitted by
-   `M/scripts/yosys_netlist.py:159`. S11's producer-list ranges are each off by one to three lines.
+   `M/scripts/yosys_netlist.py:160`. S11's producer-list ranges are each off by one to three lines.
 8. Two macro-dependent contracts the record does not mention. `sim_fes_coleco_quartus.py:45`, the
    `--baseline` mode, git-shows pre-S8 copies of `coleco_machine.sv` and `coleco_video_dpram.v` that
    still contain `` `ifdef QUARTUS ``, and demands two fixed failure strings, so it works only while
@@ -371,7 +371,7 @@ once Codex had pointed at two instances of it, and it is cheap enough to repeat 
 moves.
 
 Verified by hand: the four acceptance-pattern holes; the ramtest bare-`QUARTUS` spelling and the
-pattern's failure to match it; `quartus_x87_spike.py:341`; the three closure claims read straight
+pattern's failure to match it; `quartus_x87_spike.py:367`; the three closure claims read straight
 from `source_closures.json`; the DE25 byte-identity diff; the `test_tape_store.py` and
 `retarget_tape` contracts; the three `reviewed-inputs.json` pins and their enforcement in
 `static_reference.py:83-84` with its self-binding at `:27`; the dead guard at line 80 of
