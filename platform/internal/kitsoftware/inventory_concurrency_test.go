@@ -29,6 +29,29 @@ func (p *pausedUpload) Read(b []byte) (int, error) {
 	return p.source.Read(b)
 }
 
+type enteredRecorder struct {
+	*httptest.ResponseRecorder
+	entered chan struct{}
+	once    sync.Once
+}
+
+func (w *enteredRecorder) Header() http.Header {
+	w.once.Do(func() { close(w.entered) })
+	return w.ResponseRecorder.Header()
+}
+
+func awaitServer[T any](t *testing.T, ch <-chan T, name string) T {
+	t.Helper()
+	select {
+	case value := <-ch:
+		return value
+	case <-time.After(15 * time.Second):
+		t.Fatalf("timed out waiting for %s", name)
+		var zero T
+		return zero
+	}
+}
+
 // A listing or activation queued behind an upload must see the complete
 // published release, never its in-progress staging directory.
 func TestInventoryAndActivationWaitForConcurrentInstall(t *testing.T) {
@@ -67,12 +90,40 @@ func TestInventoryAndActivationWaitForConcurrentInstall(t *testing.T) {
 	upload := &pausedUpload{source: bytes.NewReader(candidateArchive.Bytes()), entered: make(chan struct{}), resume: make(chan struct{})}
 	var resumeOnce sync.Once
 	resume := func() { resumeOnce.Do(func() { close(upload.resume) }) }
-	defer resume()
+	runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	var workers sync.WaitGroup
+	defer func() {
+		resume()
+		cancel()
+		done := make(chan struct{})
+		go func() { workers.Wait(); close(done) }()
+		select {
+		case <-done:
+		case <-time.After(15 * time.Second):
+			t.Error("timed out waiting for test handlers to exit")
+		}
+	}()
 
-	postInstall := httptest.NewRequest(http.MethodPost, "/v1/kit/software/releases", upload)
+	postInstall := httptest.NewRequestWithContext(runCtx, http.MethodPost, "/v1/kit/software/releases", upload)
 	installed := make(chan *httptest.ResponseRecorder, 1)
-	go func() { w := httptest.NewRecorder(); server.ServeHTTP(w, postInstall); installed <- w }()
-	<-upload.entered
+	workers.Add(1)
+	go func() {
+		defer workers.Done()
+		w := httptest.NewRecorder()
+		server.ServeHTTP(w, postInstall)
+		installed <- w
+	}()
+	select {
+	case <-upload.entered:
+	case w := <-installed:
+		t.Fatalf("installation returned before reading upload: %d %s", w.Code, w.Body)
+	case <-time.After(15 * time.Second):
+		t.Fatal("timed out waiting for installation to read upload")
+	}
+	if server.Mu.TryLock() {
+		server.Mu.Unlock()
+		t.Fatal("upload did not hold the supervisor lock")
+	}
 
 	request := Request{ID: strings.Repeat("a", 64), Candidate: candidateID, Requester: "host", Generation: 0}
 	body, err := json.Marshal(request)
@@ -81,33 +132,33 @@ func TestInventoryAndActivationWaitForConcurrentInstall(t *testing.T) {
 	}
 	listed := make(chan *httptest.ResponseRecorder, 1)
 	activated := make(chan *httptest.ResponseRecorder, 1)
-	started := make(chan struct{}, 2)
+	listRecorder := &enteredRecorder{ResponseRecorder: httptest.NewRecorder(), entered: make(chan struct{})}
+	activateRecorder := &enteredRecorder{ResponseRecorder: httptest.NewRecorder(), entered: make(chan struct{})}
+	workers.Add(2)
 	go func() {
-		started <- struct{}{}
-		w := httptest.NewRecorder()
-		server.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1/kit/software/releases", nil))
-		listed <- w
+		defer workers.Done()
+		server.ServeHTTP(listRecorder, httptest.NewRequestWithContext(runCtx, http.MethodGet, "/v1/kit/software/releases", nil))
+		listed <- listRecorder.ResponseRecorder
 	}()
 	go func() {
-		started <- struct{}{}
-		w := httptest.NewRecorder()
-		server.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/kit/software/activate", bytes.NewReader(body)))
-		activated <- w
+		defer workers.Done()
+		server.ServeHTTP(activateRecorder, httptest.NewRequestWithContext(runCtx, http.MethodPost, "/v1/kit/software/activate", bytes.NewReader(body)))
+		activated <- activateRecorder.ResponseRecorder
 	}()
-	<-started
-	<-started
+	awaitServer(t, listRecorder.entered, "inventory handler entry")
+	awaitServer(t, activateRecorder.entered, "activation handler entry")
 	select {
 	case w := <-listed:
 		t.Fatalf("inventory completed during incomplete upload: %d %s", w.Code, w.Body)
 	case w := <-activated:
 		t.Fatalf("activation completed during incomplete upload: %d %s", w.Code, w.Body)
-	case <-time.After(100 * time.Millisecond):
+	default:
 	}
 	resume()
-	if w := <-installed; w.Code != http.StatusCreated {
+	if w := awaitServer(t, installed, "installation result"); w.Code != http.StatusCreated {
 		t.Fatalf("install: %d %s", w.Code, w.Body)
 	}
-	w := <-listed
+	w := awaitServer(t, listed, "inventory result")
 	if w.Code != http.StatusOK {
 		t.Fatalf("inventory: %d %s", w.Code, w.Body)
 	}
@@ -122,7 +173,7 @@ func TestInventoryAndActivationWaitForConcurrentInstall(t *testing.T) {
 	if len(releases) != 2 || !ids[base.ID] || !ids[candidateID] {
 		t.Fatalf("inventory did not contain both fully published releases: %v", ids)
 	}
-	w = <-activated
+	w = awaitServer(t, activated, "activation result")
 	if w.Code != http.StatusOK {
 		t.Fatalf("activation: %d %s", w.Code, w.Body)
 	}

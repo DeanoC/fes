@@ -95,6 +95,18 @@ func (r *blockedInventoryReader) Read(p []byte) (int, error) {
 	return r.reader.Read(p)
 }
 
+func awaitInventory[T any](t *testing.T, ch <-chan T, name string) T {
+	t.Helper()
+	select {
+	case value := <-ch:
+		return value
+	case <-time.After(15 * time.Second):
+		t.Fatalf("timed out waiting for %s", name)
+		var zero T
+		return zero
+	}
+}
+
 func TestInventoryAndUseWaitForInstallPublication(t *testing.T) {
 	m, archive := fixture(t)
 	store, err := New(privateRoot(t), compatibility(m))
@@ -108,10 +120,29 @@ func TestInventoryAndUseWaitForInstallPublication(t *testing.T) {
 	reader := &blockedInventoryReader{reader: bytes.NewReader(archive), started: make(chan struct{}), release: make(chan struct{})}
 	var releaseOnce sync.Once
 	unblock := func() { releaseOnce.Do(func() { close(reader.release) }) }
-	defer unblock()
+	runCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	var worker sync.WaitGroup
+	worker.Add(1)
+	defer func() {
+		unblock()
+		cancel()
+		done := make(chan struct{})
+		go func() { worker.Wait(); close(done) }()
+		select {
+		case <-done:
+		case <-time.After(15 * time.Second):
+			t.Error("timed out waiting for installation to exit")
+		}
+	}()
 	installed := make(chan error, 1)
-	go func() { _, _, err := store.Install(context.Background(), reader); installed <- err }()
-	<-reader.started
+	go func() { defer worker.Done(); _, _, err := store.Install(runCtx, reader); installed <- err }()
+	select {
+	case <-reader.started:
+	case err := <-installed:
+		t.Fatalf("installation returned before reading its archive: %v", err)
+	case <-time.After(15 * time.Second):
+		t.Fatal("timed out waiting for installation to read its archive")
+	}
 
 	for name, call := range map[string]func(context.Context) error{
 		"list": func(ctx context.Context) error { _, err := store.List(ctx); return err },
@@ -126,17 +157,17 @@ func TestInventoryAndUseWaitForInstallPublication(t *testing.T) {
 		}
 	}
 	unblock()
-	if err := <-installed; err != nil {
+	if err := awaitInventory(t, installed, "installation"); err != nil {
 		t.Fatal(err)
 	}
-	listed, err := store.List(context.Background())
+	listed, err := store.List(runCtx)
 	if err != nil || len(listed) != 1 || listed[0].ID != id {
 		t.Fatalf("published inventory: %v, %v", listed, err)
 	}
-	if _, err := store.Read(context.Background(), id); err != nil {
+	if _, err := store.Read(runCtx, id); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Path(context.Background(), id); err != nil {
+	if _, err := store.Path(runCtx, id); err != nil {
 		t.Fatal(err)
 	}
 }
