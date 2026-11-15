@@ -713,6 +713,9 @@ def main(argv=None):
     except Terminated as stop:
         print(f'build-fes-zx81-quartus: FAILED {args.model}: {stop}', file=sys.stderr, flush=True)
         return 128 + stop.signum
+    except KeyboardInterrupt:
+        print(f'build-fes-zx81-quartus: FAILED {args.model}: interrupted', file=sys.stderr, flush=True)
+        return 128 + signal.SIGINT
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
         print(f'build-fes-zx81-quartus: FAILED {args.model}: {error}', file=sys.stderr, flush=True)
         return 1

@@ -249,9 +249,7 @@ class JobTests(unittest.TestCase):
                     producer._run(["/bin/bash", "-c", script], work, {"PATH": "/usr/bin:/bin"}, work / "c.log")
             pid = int(child.read_text())
             for _ in range(50):
-                try:
-                    os.kill(pid, 0)
-                except ProcessLookupError:
+                if not _running(pid):
                     break
                 time.sleep(0.05)
             else:
@@ -286,14 +284,21 @@ class JobTests(unittest.TestCase):
             producer_process.send_signal(signal.SIGTERM)
             self.assertEqual(producer_process.wait(timeout=10), 128 + signal.SIGTERM)
             for _ in range(50):
-                try:
-                    os.kill(pid, 0)
-                except ProcessLookupError:
+                if not _running(pid):
                     break
                 time.sleep(0.05)
             else:
                 os.kill(pid, 9)
                 self.fail("the step's child outlived SIGTERM to the producer")
+
+    def test_interrupt_reports_failed(self) -> None:
+        from unittest.mock import patch
+        import io
+        with patch.object(producer, "build", side_effect=KeyboardInterrupt), \
+                patch("sys.stderr", new=io.StringIO()) as stderr, \
+                patch.object(producer.signal, "signal"):
+            self.assertEqual(producer.main(["--model", "zx80"]), 130)
+        self.assertIn("build-fes-zx81-quartus: FAILED zx80: interrupted", stderr.getvalue())
 
     def test_disk_preflight(self) -> None:
         from unittest.mock import patch
@@ -332,6 +337,16 @@ class RecordTests(unittest.TestCase):
         self.assertNotIn("fes.media.zx81-tape-write", interfaces)
         self.assertNotIn("fes.expansion.zx81-bus", interfaces)
         self.assertEqual(fields["rom"]["id"], "zx80-rom")
+
+
+def _running(pid: int) -> bool:
+    """True while pid exists and is not a zombie: a killed orphan may wait for
+    PID 1 to reap it, and os.kill(pid, 0) still succeeds on a zombie."""
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text()
+    except FileNotFoundError:
+        return False
+    return stat[stat.rindex(")") + 2] != "Z"
 
 
 def _producer_modules() -> set[str]:

@@ -215,7 +215,9 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 | splash / idle | `make sim-fes-splash` | `make build-fes-splash` | none | `sealed/fes-splash.rbf`, not a play package |
 
 Set `FES_ZX81_ROM` to the user-supplied edition 3 BASIC image for the BASIC,
-expansion and SAVE simulations or the Quartus oracle. Pull-request CI runs
+expansion and SAVE simulations. No ZX81-family package build takes a ROM: the
+OSS and Quartus producers both seal blank ROM lanes, and the user's ROM is
+linked at launch. Pull-request CI runs
 `make sim-fes-zx81-smoke`, which boots the open diagnostic firmware and runs the
 ROM-independent model and ZX80 tape-load probes.
 
