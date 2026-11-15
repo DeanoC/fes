@@ -1616,6 +1616,7 @@ int main(int argc, char **argv) {
             const uint8_t ops[2] = {0xd9, uint8_t(one ? 0xf5 : 0xf8)};
             const unsigned uop = (0x1u << 8) | (one ? 0xf5u : 0xf8u);
             int diffs = 0, ran = 0;
+            bool stub_failed = false;
             std::string first;
             Unit u;
             // Every A against every eighth B: the full 432 x 432 is 186,624
@@ -1628,7 +1629,14 @@ int main(int argc, char **argv) {
                     std::memcpy(stack[0], grid[ia].data(), 10);
                     std::memcpy(stack[1], grid[ib].data(), 10);
                     Image want{}, got{};
-                    if (!host_form(page, host_cw(0), stack, 2, nullptr, ops, 2, want)) break;
+                    if (!host_form(page, host_cw(0), stack, 2, nullptr, ops, 2, want)) {
+                        // A stub page that cannot be made executable is a
+                        // FAILURE, not a reason to stop: breaking out left
+                        // `diffs` at zero and the row reported success having
+                        // compared nothing. Codex found it on PR #1889.
+                        stub_failed = true;
+                        break;
+                    }
                     unit_form(u, host_cw(0), stack, 2, nullptr, uop, 0, got);
                     ++ran;
                     ++compared;
@@ -1641,7 +1649,8 @@ int main(int argc, char **argv) {
                     }
                 }
             const std::string name = std::string("qemu-fprem") + (one ? "1" : "");
-            if (diffs) bad(name, std::to_string(diffs) + " of " + std::to_string(ran) + " " + first);
+            if (stub_failed) bad(name, "no stub page: " + std::to_string(ran) + " of the grid ran");
+            else if (diffs) bad(name, std::to_string(diffs) + " of " + std::to_string(ran) + " " + first);
             else ok(name + "-" + std::to_string(ran));
         }
     }

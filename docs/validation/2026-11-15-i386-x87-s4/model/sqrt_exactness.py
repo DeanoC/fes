@@ -86,13 +86,20 @@ if __name__ == '__main__':
         # square-adjacent. Codex found it on PR #1889. Here A is built so that
         # A << (67+p) is exactly T*T, and that is asserted before the
         # neighbours are added.
+        # T is CONSTRUCTED with the trailing zeros divisibility needs, not
+        # sampled until it happens to have them. T*T must be divisible by
+        # 2^(67+p), so T needs at least ceil((67+p)/2) = 34 trailing zeros;
+        # sampling a 66-bit T at random succeeds with probability 2^-34, which
+        # is about 26 trillion trials for 1,500 cases -- the rejection loop did
+        # not generate poor cases, it did not terminate. Codex found it on
+        # PR #1889, as the second fault in this construction.
+        sh = 67 + p
+        zeros = (sh + 1) // 2
         made = 0
         while made < 1500:
-            T = rnd.getrandbits(65) | (1 << 65)
+            T = ((rnd.getrandbits(66 - zeros) | (1 << (65 - zeros))) << zeros)
             sq = T * T
-            sh = 67 + p
-            if sq & ((1 << sh) - 1):
-                continue                 # not an exact square at this scale
+            assert sq & ((1 << sh) - 1) == 0
             A = sq >> sh
             if A.bit_length() != 64:
                 continue
