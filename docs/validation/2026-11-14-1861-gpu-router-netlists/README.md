@@ -35,7 +35,7 @@ the gap is explicit rather than silent.
 | `fes.menu` | done | **done** | **done** |
 | `fes.zx81` | done | **done** | **done** |
 | `fes.spectrum` | done | **done** | **done** |
-| `fes.c64` | done | pending | pending |
+| `fes.c64` | done | **done** | **done** |
 
 ### How condition 2 is measured, and the control that makes it mean anything
 
@@ -106,8 +106,35 @@ runs without a GPU. Both sides were sealed with the identical local install
   producer, which validates evidence before sealing. Pixel fmax is
   236.574 MHz on both sides.
 
-So this directory discharges D12 in full for `splash`, and condition 1 only for
-the other 14.
+### All five artifacts in the agreed scope are complete
+
+| Artifact | main BUILD_ID | RBF reproduced at it | bytes | seed |
+| --- | --- | --- | --- | --- |
+| `fes.menu` | `60bccd54…` | `6107b13e0425af1b…` | 2,172,530 | 5 |
+| `fes.zx81` | `a8e2be82…` | `e711c805d15f66f0…` | 2,741,554 | 1 |
+| `fes.spectrum` | `40163214…` | `402a213d752b3e58…` | 2,642,711 | 5 |
+| `fes.c64` | `310c8731…` | `f09ae0e34e414595…` | 3,749,707 | 4 |
+| `splash` | `b19d1242…` | `64f1f16daedba4ed…` | 1,963,321 | — (CPU route) |
+
+Each row is three runs: main's own producer seal, the tool on main at that
+`BUILD_ID` (the control, which had to reproduce the seal's RBF), and the branch
+at the same `BUILD_ID`. All four GPU-routed adapters passed their control, and
+all four branches reproduced main's RBF byte for byte. Condition 3 is each
+branch's own normal seal passing its gates, recorded in `reports-seal/`; all
+five pass.
+
+The placer seed is worth reading as evidence rather than bookkeeping. The
+search tries seeds in recipe order and stops at the first that meets timing, so
+the two sides agreeing on the seed — 5, 1, 5 and 4 respectively — means the
+change did not perturb the netlist in any way timing responded to. A real
+difference would have been liable to show up as the two sides stopping at
+different seeds, before the RBF comparison was even reached.
+
+So this directory discharges D12 in full for all five artifacts in the agreed
+scope, and condition 1 for all 15. The ten artifacts outside that scope
+(`zx80`, `ts1000`, `ts1500`, `spectrum128`, `spectrum-plus3`, `pentagon`,
+`fes.pong`, `fes.ramtest`, `fes.coleco`, `fes.riscv`) have condition 1 only,
+by Deano's priority call recorded above.
 
 ## Scope, and a correction to how it was derived
 
