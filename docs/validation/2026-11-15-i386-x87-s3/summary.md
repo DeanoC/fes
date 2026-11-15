@@ -31,7 +31,8 @@ report.
 The arithmetic is built, checked and sealable: 537 bench cases against a real
 x87 with no failures on the RTL and on the netlist, lockstep with nothing
 failing in any bucket three ways over, test386 to POST FFh, and the package
-as it ships fitting at 86.8% of the device and closing at +0.576 ns.
+as it ships fitting at **87.0% of the device and closing at +0.896 ns** on
+the sealer's own timing report.
 
 **But with the `i386dx+387` identity on, this machine no longer closes
 reliably.** At about 94.7% of the device, two of the first four Quartus seeds
@@ -256,7 +257,7 @@ reads.
 | ... governed at preset 3, `--same-as` the ungoverned report | **0 fail**, and it matched: 14 x87 cases, 1,933 no-387, 31 retirements with the 387's state compared |
 | ... on the chip host with the CUDA router, which the sealer requires and verifies | **0 fail**: 14 x87, 1,933 no-387, 84 directed |
 | test386 | **POST … E0 EE FF**, halted |
-| Quartus 17.0.2 seal | **(pending)** |
+| Quartus 17.0.2 seal | **pass**, package `48717256`, `BUILD_ID` e6261c37, seed 1, all five analyses positive (setup **+0.896**, hold +0.099, pulse width +1.122, recovery +6.19, removal +1.695) |
 | kit run on that seal | **(pending)** |
 
 Every gate runs from a clean worktree at the frozen head, so no later edit of
@@ -349,7 +350,7 @@ that drives four passes of one multiplier.
 
 | Fit | ALMs | % of device | DSP | M10K | worst setup (ns) | worst hold (ns) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| this branch, identity off (as the package ships) | **36,392** | 86.83% | 40 | 282 | **+0.576** | +0.055 |
+| this branch, identity off (the RTL the package ships; the sealer's own fit of it is 36,480 and +0.896) | **36,392** | 86.83% | 40 | 282 | **+0.576** | +0.055 |
 | this branch, identity on | **39,682** | **94.68%** | 49 | 286 | **+0.176** | +0.082 |
 | the merge-base, identity on (slice 2's unit alone) | **38,073** | 90.84% | 49 | 286 | **+0.385** | +0.068 |
 | the merge-base, identity off | (pending) | | | | | |
@@ -376,12 +377,19 @@ one is positive. **But closure with the identity on is seed-dependent, and
 two of the first four seeds miss the clock.** The seed sweep below is the
 finding to read before anything else in this section.
 
-**What gets sealed is the identity-off row, and that is not a one-percent
-margin.** The identity is tied to 0 in the package, so the sealed core and
-the kit run are the design at **+0.576 ns, 3.5% of the 16.276 ns period**,
-at 86.8% of the device. The identity-on row is forward-looking: it is what
-slice 5 inherits when the identity is turned on, and where slices 4 and 5
-start from. Nothing is being sealed at 1% margin.
+**What gets sealed is the identity-off design, and that is not a
+one-percent margin.** The identity is tied to 0 in the package, so the
+sealed core and the kit run are the identity-off design. Its margin is the
+**sealer's** figure, not the row above: the seal fits at **36,480 ALMs,
+87.05% of the device, and closes at +0.896 ns -- 5.5% of the 16.276 ns
+period** (system clock 61.44 MHz), with every one of the five analyses
+positive. The rows in this table come from the measurement flow
+(`quartus_x87_spike.py`), which is a different project from the sealer and
+reads 36,392 and +0.576 for the same RTL; the rows are for comparing fits
+with each other, and the sealer's report is what the artefact closes at. The identity-on row is
+forward-looking: it is what the switch flip in **slice 7** inherits, what
+slices 4 and 5 add to, and what slice 6's reduction has to pull back.
+Nothing is being sealed at 1% margin.
 
 **The forward-looking number is the one to read carefully, and it is the
 margin and not the area.** Within this slot, turning the identity on takes
@@ -393,10 +401,17 @@ What this record does **not** claim is a margin drop against slice 2.
 Comparing +0.176 with slice 2's published +0.603 would be a cross-slot
 comparison, and the slots differ by 0.184 ns of setup on identical RTL --
 about the size of the shift being attributed. The same-slot figure for that
-is the merge-base identity-on fit, which is still **pending**; until it
-lands, no Fmax or headroom delta against slice 2 is quoted here. The
-standalone delta over-predicted the machine delta, which is also a reminder
-that a standalone fit is not a machine prediction.
+is the merge-base identity-on fit, and it has landed: **+0.385 ns**, so
+within one slot this slice costs **−0.209 ns**. That is the figure to quote,
+and it is smaller than the cross-slot subtraction would have suggested. It
+also says something the area does not: the margin at identity-on was
+**already thin before this slice** -- the merge-base closes with 2.4% of the
+period at 90.8% of the device -- so slice 3 did not create the problem, it
+spent what was left of a margin that was narrow when it arrived. No Fmax or
+headroom delta against slice 2's *published* numbers is quoted here, because
+those were measured through the other slot. The standalone delta
+over-predicted the machine delta, which is also a reminder that a standalone
+fit is not a machine prediction.
 
 ### The identity-on seed sweep: closure is seed-dependent
 
@@ -439,10 +454,10 @@ improve. The rule was followed by escalation, not narrowed: what it forbade
 was this session deciding alone that the misses did not count.
 
 **What this does and does not put in question.** The identity is tied to 0 in
-every package until slice 5, so the sealed core and the kit run are the
-identity-off design, which fits at 86.8% and closes at **+0.576 ns** on its
-own fit; and the four verification gates are green and have nothing to do
-with placement. What does not close reliably is the design the identity
+every package until the switch flip, now slice 7, so the sealed core and the
+kit run are the identity-off design, which the sealer fits at 87.0% and
+closes at **+0.896 ns**; and the verification gates are green and have
+nothing to do with placement. What does not close reliably is the design the identity
 switches on, which is now **slice 7's** rather than slice 5's. That is this
 slice's most important finding, it is a finding about the phase rather than
 about the arithmetic, and it changed the plan rather than stopping a slice.
@@ -617,9 +632,10 @@ in a thirty-minute idle wait still holding the lease.
 - **The identity's record word** is still unbuilt, as slice 2 left it, so a
   kit can only run the sealed package with the identity **off**. This
   slice's kit run is therefore a **regression run: it exercises none of this
-  arithmetic**. Nothing real will exercise it until slice 5 lands either,
-  because every title the census found computing except SpeedSys's FPU test
-  also runs a transcendental. The bench and the lockstep are the gate here;
+  arithmetic**. Two separate things have to land before a kit can: the
+  identity flip, now **slice 7**, and slice 5's transcendentals -- because
+  every title the census found computing except SpeedSys's FPU test also
+  runs a transcendental. The bench and the lockstep are the gate here;
   the kit run is not.
 
 ## What the sweep changed, which is the plan rather than this slice
