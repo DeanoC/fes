@@ -73,6 +73,10 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertIn('Linux 0.99.15, 1.2.13 and 2.0.0', row['notes'])
         self.assertIn('not a catalog package', row['notes'])
         self.assertIn('Phase 6 (#1768)', row['features'])
+        # Each kit result names its own artifact; the level exits are the
+        # 6 November run, not the 10 November seal.
+        self.assertIn('254b2bf5', row['notes'])
+        self.assertIn('were not repeated on the later seal', row['notes'])
         self.assertEqual('Quartus', SUPPORT_MATRIX.de10_cell(row))
         self.assertIn('| pc386 | Bring-up | Quartus | Quartus | disk, keys, mouse, HDMI |',
                       SUPPORT_MATRIX.render(data))
@@ -86,6 +90,7 @@ class SupportMatrixTests(unittest.TestCase):
         # Tier 1 and tier 2 cells carry full evidence; the rest carry it only
         # for changes aimed at them.
         self.assertEqual('full', by_id['fes.pcxt-dos']['check_level'])
+        self.assertEqual('1-pending', by_id['fes.pc386']['quality_tier'])
         self.assertEqual('full', by_id['fes.pc386']['check_level'])
         self.assertEqual('full', by_id['fes.menu']['check_level'])
         for core_id in ('fes.pong', 'fes.ramtest', 'fes.riscv', 'fes.coleco',
@@ -103,12 +108,12 @@ class SupportMatrixTests(unittest.TestCase):
         data = SUPPORT_MATRIX.load_json(ROOT)
         by_id = {row['id']: row for row in data['cores']}
         by_id['fes.riscv']['check_level'] = 'full'
-        by_id['fes.c64']['quality_tier'] = '3'
+        by_id['fes.c64']['quality_tier'] = '2-pending'
         by_id['fes.menu']['quality_tier'] = '1'
         errors = SUPPORT_MATRIX.validate(ROOT, data)
         self.assertIn("fes.riscv check_level 'full' != derived 'reduced'", errors)
         self.assertTrue(any(error.startswith('quality_tier 1 rows') for error in errors), errors)
-        self.assertTrue(any(error.startswith('quality_tier 3 rows') for error in errors), errors)
+        self.assertTrue(any(error.startswith('quality_tier 2-pending rows') for error in errors), errors)
         self.assertIn(
             "fes.menu is not on the forward plan's ladder but records quality_tier '1'", errors
         )

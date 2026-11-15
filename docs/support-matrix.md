@@ -75,31 +75,31 @@ The first release lists only v1 cores in tenfoot Home, the rooms and the core ca
 
 Proposed, not in force. Until Deano accepts it, every row keeps the evidence the hard rules in [AGENTS.md](../AGENTS.md) already require of it. This page records a proposal; it does not relax a seal, a timing check or a HIL gate, and the D12 rule in AGENTS.md still reads as written.
 
-`quality_tier` cites a decision rather than inventing a taxonomy: the ladder, its bars, the tier 1 set and the utilities outside it are decided in [the forward plan](plans/forward-plan.md) (tiers apply per (core, board) cell; DE10-Nano is the tier 1 board). Two readings are this page's, not the plan's: tier 3 for Coleco, SMS, SG-1000 and Apple II, which the plan puts at tier 2 only once they meet the port, and tier 2 for pc386, which the plan places at tier 1 once #1368 and #1494 close without naming its tier before that. The freshness `tier` on each row answers a different question and stays derived from dates, so a tier 1 cell can be Aging and a row off the ladder can have RTL from this week.
+`quality_tier` cites a decision rather than inventing a taxonomy: the ladder, its bars, the tier 1 set, the two pending placements and the utilities outside it are all decided in [the forward plan](plans/forward-plan.md) (tiers apply per (core, board) cell; DE10-Nano is the tier 1 board). Where the plan names a condition rather than a tier, this page records the condition: pc386 is `1-pending` and not tier 2, and Coleco, SMS, SG-1000 and Apple II are `2-pending`, because the plan names no tier for any of them before their condition is met. The freshness `tier` on each row answers a different question and stays derived from dates, so a tier 1 cell can be Aging and a row off the ladder can have RTL from this week.
 
-`check_level` is the proposal. `full`: every change that moves the core's `BUILD_ID` carries that core's own evidence, as it does today. `reduced`: a repo-wide change that does not touch the core's own RTL, programs, lock or placement recipe is not expected to carry that core's D12 netlist and RBF comparison, its reseal or its HIL; a change aimed at the core, and any change that ships it, keeps every gate it has today. `via-consumer`: the row is RTL, not a package, so its evidence rides with the packages that embed it. `none`: there is no built artifact to carry evidence for yet.
+`check_level` is the proposal, and the D12 conditions are what it is about. `full`: every change that moves the core's `BUILD_ID` carries that core's own evidence, as it does today. `reduced`: on a change that does not touch the core's own RTL, programs, lock or placement recipe, the netlist comparison (D12's first condition, which needs no GPU route) is still expected, and the RBF reproduction, the timing and seal gate and the HIL (its second and third, and the reseal the rule falls back to) are not. A change aimed at the core, and any change that ships it, keeps every gate it has today. `via-consumer`: the row is RTL, not a package, so its evidence rides with the packages that embed it. `none`: there is no built artifact to carry evidence for yet.
 
-The cost this answers is a closure sweep, which is what D12 covers: a change with no RTL that moves a core's `BUILD_ID` through its build record or source closure. PR #1862 edits five producer scripts and one shared helper, touches no RTL, QSF, SDC, lock or placement recipe, and moves the `BUILD_ID` of all 14 cores whose producers import a changed file, so D12 applies to each of them (its netlist record is on that PR's own branch). Deano scoped its route-based conditions on 2026-11-15 to the firmware plus one representative per affected machine family, leaving `fes.pong`, `fes.ramtest`, `fes.coleco` and `fes.riscv` deliberately unmeasured because they are not shipped. That is this proposal, made once per PR by hand; recording it makes the same call checkable and the gap explicit in advance.
+The cost this answers is a closure sweep, which is what D12 covers: a change with no RTL that moves a core's `BUILD_ID` through its build record or source closure. PR #1862 edits five producer scripts and one shared helper, touches no RTL, QSF, SDC, lock or placement recipe, and moves the `BUILD_ID` of all 14 cores whose producers import a changed file, so D12 applies to each of them. Its first condition was measured for all 14; Deano scoped the route-based second and third on 2026-11-15 to the firmware plus one representative per affected machine family, leaving `fes.pong`, `fes.ramtest`, `fes.coleco` and `fes.riscv` unmeasured because they are not shipped. This proposal is close to that call but not the same one: it would drop the same two conditions for the same held-back cores by rule, while it keeps the sibling variants that call also dropped (zx80, ts1000, ts1500, spectrum128, spectrum-plus3, pentagon) at full. Whether the representative scoping should be a rule too is a separate question.
 
 Accepting this needs a sentence beside the D12 rule in [AGENTS.md](../AGENTS.md), which is Deano's wording to write. No agent should read `reduced` here as permission to skip a gate before then.
 
 | Quality tier | Meaning |
 | --- | --- |
 | Tier 1 | Release quality and supported. Decided set: ZX81 family, Spectrum family, C64, Atari ST, PC/XT. |
-| Tier 2 | Supported preview. pc386 reaches tier 1 when #1368 and #1494 close. |
-| Tier 3 | Experimental: builds, no promise. Coleco, SMS, SG-1000 and Apple II are tier 2 once they meet the port. |
+| Tier 1 pending | The plan puts pc386 at tier 1 once #1368 and #1494 close, and names no tier before that. |
+| Tier 2 pending | The plan puts Coleco, SMS, SG-1000 and Apple II at tier 2 once they meet the port, and names no tier before that. |
 | Outside the ladder | Utilities and demos: Pong, RAM Tester and RISC-V. |
 
 | Checks | Expected evidence |
 | --- | --- |
 | Full | Every change that moves the core's `BUILD_ID` carries that core's own evidence. |
-| Reduced | A sweep that does not touch the core itself carries no D12 evidence, reseal or HIL for it. Work on the core keeps every gate. |
+| Reduced | On a sweep that does not touch the core, the netlist comparison still holds; the RBF repeat, the seal gate and the HIL do not. Work on the core keeps every gate. |
 | Via consumer | Not a package. Evidence rides with the packages that embed it. |
 | None | No built artifact yet. |
 
 - **Tier 1:** `fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`, `fes.c64`, `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`, `fes.atari-st`, `fes.pcxt`, `fes.pcxt-dos`
-- **Tier 2:** `fes.pc386`
-- **Tier 3:** `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`
+- **Tier 1 pending:** `fes.pc386`
+- **Tier 2 pending:** `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`
 - **Outside the ladder:** `fes.pong`, `fes.ramtest`, `fes.riscv`
 
 - **Full checks:** `fes.menu`, splash / idle, `fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`, `fes.c64`, `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`, `fes.atari-st`, `fes.pcxt`, `fes.pcxt-dos`, `fes.pc386`
@@ -121,13 +121,14 @@ These cells are still open. The wording is in [`support-matrix.json`](support-ma
 
 - SMS and SG-1000 are outside the first-party catalog; their development recipes remain registered. Tier aging uses owned RTL on 2026-10-06 and kit diagnostics on 2026-09-29. The catalog flag was not used.
 - Pong catalog standing is supported. No owned RTL in the 60-day window, so the tier is stale. The catalog flag was not used.
-- Tier 3 for Coleco, SMS, SG-1000 and Apple II is this page's reading. The forward plan says they are tier 2 once they meet the port and does not name a tier before that, and their reduced check level rests on that reading.
 - ZX80, TS1000 and TS1500 share the ZX81 shell. Kit notes name fes.zx81 (2026-10-22), not those three. The 2026-10-25 model commit is after that note.
 - Apple II kit diagnostic is 2026-09-27. Owned RTL is 2026-10-06 (#549). No later kit note was found.
 - Open issues on each row are title matches, not a full blocker audit.
 - The check_level proposal needs a yes or no. It is recorded as proposed, not in force: accepting it means a sentence beside the D12 rule in AGENTS.md, which is Deano's wording.
 - ColecoVision is check_level reduced by the ladder (tier 3) while being under active work. Reduced exempts only sweeps it is not about, but if Coleco should carry full evidence for every sweep as well, it wants quality_tier 2 early rather than an exception.
 - RAM Tester is outside the ladder as a utility and is under active timing work (#1832, #1767). The same question as Coleco: reduced for sweeps, or full because the memory path is shared.
-- pc386 is recorded at quality_tier 2. The forward plan says it joins tier 1 when #1368 and #1494 close; nothing in the plan names its tier before that, so 2 is this page's reading of the tier 2 bar it meets.
 - SG-1000's newest owned RTL is an ABI migration (#1755) and Apple II's is the original-glyph campaign (#1819). The owned-RTL rule counts both as core activity, so the freshness tier cannot be read as development activity on either row.
 - Does a mechanical RTL sweep count as touching a core? #1714 edited eight RTL files across five cores to remove one obsolete mailbox. Under the wording here it touches each core's own RTL, so every gate applies and reduced buys nothing on it. If sweeps like that should also be exempt, the wording has to say so, and D12 does not cover them because they change RTL.
+- Should the 2-pending rows (Coleco, SMS, SG-1000, Apple II) carry full evidence on a closure sweep anyway? They are reduced here because the forward plan names no tier for them until they meet the port.
+- Should the per-family representative scoping be a rule as well? On PR #1862 the sibling variants (zx80, ts1000, ts1500, spectrum128, spectrum-plus3, pentagon) were dropped from the route conditions along with the held-back cores; check_level keeps them at full because they are tier 1.
+- fes.riscv's snapshot last_rtl_change (2026-10-05) reads its core directory only. `dcfa92c98` (2026-10-21) changed `fes_rv32_cpu.sv` in the shared riscv directory that this row holds under `paths`, and the subject names riscv, so whether that commit should move the row to Current inside the same snapshot is open. The owned-RTL check runs on shared rows only, so nothing catches it either way.

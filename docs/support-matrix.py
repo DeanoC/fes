@@ -112,16 +112,21 @@ LADDER_QUOTES = (
     'Coleco, SMS, SG-1000 and Apple II are tier 2 once they meet the port',
     'Pong, RAM Tester and RISC-V are utilities and demos, outside the ladder',
 )
+# Where the plan names a condition rather than a tier, the id names the
+# condition: it does not place the core at a tier the plan never gave it.
 QUALITY_TIER_IDS = {
     '1': frozenset({
         'fes.zx81', 'fes.zx80', 'fes.ts1000', 'fes.ts1500',
         'fes.spectrum', 'fes.spectrum128', 'fes.spectrum-plus3', 'fes.pentagon',
         'fes.c64', 'fes.atari-st', 'fes.pcxt', 'fes.pcxt-dos',
     }),
-    '2': frozenset({'fes.pc386'}),
-    '3': frozenset({'fes.coleco', 'fes.sms', 'fes.sg1000', 'fes.apple2'}),
+    '1-pending': frozenset({'fes.pc386'}),
+    '2-pending': frozenset({'fes.coleco', 'fes.sms', 'fes.sg1000', 'fes.apple2'}),
     'utility': frozenset({'fes.pong', 'fes.ramtest', 'fes.riscv'}),
 }
+# Checked as tier 1 is: the decided set, and the row whose only named
+# condition is tier 1.
+QUALITY_TIER_FULL = frozenset({'1', '1-pending'})
 CHECK_LEVELS = frozenset({'full', 'reduced', 'via-consumer', 'none'})
 CHECK_PROPOSED = 'proposed'
 CHECK_HEADING = 'Quality tier and checks (proposed)'
@@ -183,7 +188,7 @@ def derive_check_level(row: dict) -> str:
         return 'none'
     if row['tier_role'] == 'firmware':
         return 'full'
-    return 'full' if row.get('quality_tier') in ('1', '2') else 'reduced'
+    return 'full' if row.get('quality_tier') in QUALITY_TIER_FULL else 'reduced'
 
 
 def _git(root: Path, *args: str) -> str:

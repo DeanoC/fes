@@ -653,7 +653,7 @@
         "reason": "Deano 2026-10-29",
         "note": "Work toward Current is in progress and still needs work (media handling and the wider Coleco work)."
       },
-      "quality_tier": "3",
+      "quality_tier": "2-pending",
       "check_level": "reduced",
       "check_note": "Under active work (native shell and format 4, through 2026-10-28), so `reduced` here exempts only sweeps it is not about. Tier 2 once it meets the port."
     },
@@ -718,7 +718,7 @@
         "image_role": "none",
         "catalog_standing": null
       },
-      "quality_tier": "3",
+      "quality_tier": "2-pending",
       "check_level": "reduced",
       "check_note": "Last RTL `162e91d35` (2026-10-06, synchronous cartridge M10K lanes). `565eebdbc` (2026-10-14) is a shared-pin reseal with no RTL. Outside the first-party catalog."
     },
@@ -786,7 +786,7 @@
         "image_role": "none",
         "catalog_standing": null
       },
-      "quality_tier": "3",
+      "quality_tier": "2-pending",
       "check_level": "reduced",
       "check_note": "Last feature RTL `3afe947c7` (2026-10-06, synchronous cartridge M10K lanes). `c0deb8e39` (2026-11-12) is newer owned RTL but is the application-controller ABI migration, not SG-1000 work."
     },
@@ -857,7 +857,7 @@
         "image_role": "none",
         "catalog_standing": "experimental"
       },
-      "quality_tier": "3",
+      "quality_tier": "2-pending",
       "check_level": "reduced",
       "check_note": "Last feature RTL `03b040d02` (2026-10-06, synchronous firmware and font M10Ks). `e5e63d786` (2026-11-14) is the original-glyph campaign, not Apple II work."
     },
@@ -1475,7 +1475,7 @@
       },
       "quality_tier": "utility",
       "check_level": "reduced",
-      "check_note": "A demonstration machine outside the ladder. Its last core-specific RTL work is `dcfa92c98` (2026-10-21, execute-result capture); since then only the #1714 sweep touched it."
+      "check_note": "A demonstration machine outside the ladder. Its own core directory has had no RTL change since `71d8ce600` (2026-10-05) except the #1714 sweep; `dcfa92c98` (2026-10-21) retimed the shared `fes_rv32_cpu` this row names under `paths`."
     },
     {
       "id": "sim.pong",
@@ -1694,9 +1694,9 @@
       "board": "de10",
       "primary_toolchain": "quartus",
       "router": "No nextpnr route of the machine with its CPU; nextpnr builds of pc386 are parked (#1235). `scripts/synth_fes_pc386.py` packs the machine without the CPU and does not route. Not a recipe row.",
-      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker. `scripts/build_fes_pc386_quartus.py` seals the development package `fes.pc386`, the machine with `fes_i386_cpu`, with Quartus 17.0.2 from the pc386 lock's Yosys netlist. Each change's seal is the artifact the kit runs, and it is resealed per change rather than pinned.",
-      "features": "Media: an ATA disk image and the floppy controller (`pc386_fdc`) staged in the DDR window by the HPS until the fes.computer 1.1 contracts. Input: fes.keyboard.hid through the HID row model to the 8042's PS/2 keyboard (set 2 with XLAT, typematic), and fes.mouse.relative to the PS/2 aux mouse. HDMI: 720p presenter and display plane. Audio: PC speaker, OPL2 and Sound Blaster. CPU: `fes_i386_cpu` with a speed governor that takes its preset, frequency and turbo from the `fes.pc386.machine` record. No 387: the x87 unit is Phase 6 (#1768) and is not on this branch. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Phases M1-M5 are done. M5's development package `fes.pc386` (`make build-fes-pc386-quartus`, not a registered recipe and not a catalog package) puts `fes_i386_cpu` in the machine, and on Kit B it boots FreeDOS, plays the acceptance games at `max` (Wolfenstein 3D and DOOM levels to the exit, Ultima VI and Ultima VII saves across a relaunch), reaches Windows for Workgroups 3.11's Program Manager in 386 enhanced mode, and boots Linux 0.99.15, 1.2.13 and 2.0.0 to a login and a root shell. Windows 3.11 is a standing check on each change's seal. The games acceptance still owed is #1368, and Serpent Isle's black capture is #1494; the forward plan puts pc386 at tier 1 when those two close. The last open exit is the disk round trip with the runtime, which waits on the M0 contracts.",
+      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker. `scripts/build_fes_pc386_quartus.py` seals the development package `fes.pc386`, the machine with `fes_i386_cpu`, with Quartus 17.0.2 from the pc386 lock's Yosys netlist.",
+      "features": "Media: the runtime writes an ATA disk image into the DDR window through the fes.computer 1.1 mailbox and `fes_computer_storage` while execution is held, with a commit CRC pass (`pc386_disk`); the floppy controller (`pc386_fdc`) serves drives A: and B: on IRQ 6 and DMA channel 2. Input: fes.keyboard.hid through the HID row model (`pc386_hid_keyboard` inside the 8042) to the PS/2 keyboard (set 2 with XLAT, typematic), and fes.mouse.relative to the PS/2 aux mouse. HDMI: 720p presenter and display plane. Audio: PC speaker, OPL2 and Sound Blaster. CPU: `fes_i386_cpu` with a speed governor that takes its preset, frequency and turbo from the `fes.pc386.machine` record. No 387: the x87 unit is Phase 6 (#1768) and is not on this branch. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Phases M1-M5 are done. M5's development package `fes.pc386` (`make build-fes-pc386-quartus`, not a registered recipe and not a catalog package) puts `fes_i386_cpu` in the machine. Each kit result names its own artifact: on the 10 November seal of main 65ec1f22a, FreeDOS and the Wolfenstein 3D, Ultima VI, DOOM and Black Gate checks pass on Kit B at max; the Wolfenstein 3D and DOOM level exits and the Ultima VII save loads are the 6 November acceptance run on seal 254b2bf5 and were not repeated on the later seal. Windows for Workgroups 3.11 reaches Program Manager in 386 enhanced mode and Linux 0.99.15, 1.2.13 and 2.0.0 reach a login and a root shell, each on its own 12 November seal of main; Windows 3.11 is a standing check on each change's seal. The games acceptance still owed is #1368, and Serpent Isle's black capture is #1494; the forward plan puts pc386 at tier 1 when those two close.",
       "evidence": [
         "sources/misteross/cores/fes-pc386/README.md",
         "sources/misteross/scripts/build_fes_pc386_quartus.py",
@@ -1737,7 +1737,7 @@
         "image_role": "none",
         "catalog_standing": null
       },
-      "quality_tier": "2",
+      "quality_tier": "1-pending",
       "check_level": "full"
     },
     {
@@ -2025,21 +2025,22 @@
     "Spectrum and Atari ST derive to current. The same override confirms that tier. Their kit HIL pass on the latest RTL is pending and expected soon.",
     "C64 NTSC and Atari STE have no package. Their override tier is bring-up-queued.",
     "Spectrum +2 is a ROM variant of fes.spectrum128 (kind rom). It is the same core and the same model, with a different ROM. Deano 2026-10-29.",
-    "quality_tier and check_level are not inputs to the tier rule, and the tier is not an input to them. quality_tier cites the forward plan's decided ladder; check_level is derived from it and from the row's role, and is a proposal (2026-11-15), not a recorded decision."
+    "quality_tier and check_level are not inputs to the tier rule. quality_tier cites the forward plan's ladder; check_level is derived from it, from tier_role and from the bring-up-queued tier, which is the one place a tier feeds the check level. check_level is a proposal (2026-11-15), not a recorded decision."
   ],
   "needs_deano": [
     "SMS and SG-1000 are outside the first-party catalog; their development recipes remain registered. Tier aging uses owned RTL on 2026-10-06 and kit diagnostics on 2026-09-29. The catalog flag was not used.",
     "Pong catalog standing is supported. No owned RTL in the 60-day window, so the tier is stale. The catalog flag was not used.",
-    "Tier 3 for Coleco, SMS, SG-1000 and Apple II is this page's reading. The forward plan says they are tier 2 once they meet the port and does not name a tier before that, and their reduced check level rests on that reading.",
     "ZX80, TS1000 and TS1500 share the ZX81 shell. Kit notes name fes.zx81 (2026-10-22), not those three. The 2026-10-25 model commit is after that note.",
     "Apple II kit diagnostic is 2026-09-27. Owned RTL is 2026-10-06 (#549). No later kit note was found.",
     "Open issues on each row are title matches, not a full blocker audit.",
     "The check_level proposal needs a yes or no. It is recorded as proposed, not in force: accepting it means a sentence beside the D12 rule in AGENTS.md, which is Deano's wording.",
     "ColecoVision is check_level reduced by the ladder (tier 3) while being under active work. Reduced exempts only sweeps it is not about, but if Coleco should carry full evidence for every sweep as well, it wants quality_tier 2 early rather than an exception.",
     "RAM Tester is outside the ladder as a utility and is under active timing work (#1832, #1767). The same question as Coleco: reduced for sweeps, or full because the memory path is shared.",
-    "pc386 is recorded at quality_tier 2. The forward plan says it joins tier 1 when #1368 and #1494 close; nothing in the plan names its tier before that, so 2 is this page's reading of the tier 2 bar it meets.",
     "SG-1000's newest owned RTL is an ABI migration (#1755) and Apple II's is the original-glyph campaign (#1819). The owned-RTL rule counts both as core activity, so the freshness tier cannot be read as development activity on either row.",
-    "Does a mechanical RTL sweep count as touching a core? #1714 edited eight RTL files across five cores to remove one obsolete mailbox. Under the wording here it touches each core's own RTL, so every gate applies and reduced buys nothing on it. If sweeps like that should also be exempt, the wording has to say so, and D12 does not cover them because they change RTL."
+    "Does a mechanical RTL sweep count as touching a core? #1714 edited eight RTL files across five cores to remove one obsolete mailbox. Under the wording here it touches each core's own RTL, so every gate applies and reduced buys nothing on it. If sweeps like that should also be exempt, the wording has to say so, and D12 does not cover them because they change RTL.",
+    "Should the 2-pending rows (Coleco, SMS, SG-1000, Apple II) carry full evidence on a closure sweep anyway? They are reduced here because the forward plan names no tier for them until they meet the port.",
+    "Should the per-family representative scoping be a rule as well? On PR #1862 the sibling variants (zx80, ts1000, ts1500, spectrum128, spectrum-plus3, pentagon) were dropped from the route conditions along with the held-back cores; check_level keeps them at full because they are tier 1.",
+    "fes.riscv's snapshot last_rtl_change (2026-10-05) reads its core directory only. `dcfa92c98` (2026-10-21) changed `fes_rv32_cpu.sv` in the shared riscv directory that this row holds under `paths`, and the subject names riscv, so whether that commit should move the row to Current inside the same snapshot is open. The owned-RTL check runs on shared rows only, so nothing catches it either way."
   ],
   "display_groups": [
     {
@@ -2068,9 +2069,9 @@
     "ladder_source": "docs/plans/forward-plan.md",
     "note": [
       "Proposed, not in force. Until Deano accepts it, every row keeps the evidence the hard rules in [AGENTS.md](../AGENTS.md) already require of it. This page records a proposal; it does not relax a seal, a timing check or a HIL gate, and the D12 rule in AGENTS.md still reads as written.",
-      "`quality_tier` cites a decision rather than inventing a taxonomy: the ladder, its bars, the tier 1 set and the utilities outside it are decided in [the forward plan](plans/forward-plan.md) (tiers apply per (core, board) cell; DE10-Nano is the tier 1 board). Two readings are this page's, not the plan's: tier 3 for Coleco, SMS, SG-1000 and Apple II, which the plan puts at tier 2 only once they meet the port, and tier 2 for pc386, which the plan places at tier 1 once #1368 and #1494 close without naming its tier before that. The freshness `tier` on each row answers a different question and stays derived from dates, so a tier 1 cell can be Aging and a row off the ladder can have RTL from this week.",
-      "`check_level` is the proposal. `full`: every change that moves the core's `BUILD_ID` carries that core's own evidence, as it does today. `reduced`: a repo-wide change that does not touch the core's own RTL, programs, lock or placement recipe is not expected to carry that core's D12 netlist and RBF comparison, its reseal or its HIL; a change aimed at the core, and any change that ships it, keeps every gate it has today. `via-consumer`: the row is RTL, not a package, so its evidence rides with the packages that embed it. `none`: there is no built artifact to carry evidence for yet.",
-      "The cost this answers is a closure sweep, which is what D12 covers: a change with no RTL that moves a core's `BUILD_ID` through its build record or source closure. PR #1862 edits five producer scripts and one shared helper, touches no RTL, QSF, SDC, lock or placement recipe, and moves the `BUILD_ID` of all 14 cores whose producers import a changed file, so D12 applies to each of them (its netlist record is on that PR's own branch). Deano scoped its route-based conditions on 2026-11-15 to the firmware plus one representative per affected machine family, leaving `fes.pong`, `fes.ramtest`, `fes.coleco` and `fes.riscv` deliberately unmeasured because they are not shipped. That is this proposal, made once per PR by hand; recording it makes the same call checkable and the gap explicit in advance.",
+      "`quality_tier` cites a decision rather than inventing a taxonomy: the ladder, its bars, the tier 1 set, the two pending placements and the utilities outside it are all decided in [the forward plan](plans/forward-plan.md) (tiers apply per (core, board) cell; DE10-Nano is the tier 1 board). Where the plan names a condition rather than a tier, this page records the condition: pc386 is `1-pending` and not tier 2, and Coleco, SMS, SG-1000 and Apple II are `2-pending`, because the plan names no tier for any of them before their condition is met. The freshness `tier` on each row answers a different question and stays derived from dates, so a tier 1 cell can be Aging and a row off the ladder can have RTL from this week.",
+      "`check_level` is the proposal, and the D12 conditions are what it is about. `full`: every change that moves the core's `BUILD_ID` carries that core's own evidence, as it does today. `reduced`: on a change that does not touch the core's own RTL, programs, lock or placement recipe, the netlist comparison (D12's first condition, which needs no GPU route) is still expected, and the RBF reproduction, the timing and seal gate and the HIL (its second and third, and the reseal the rule falls back to) are not. A change aimed at the core, and any change that ships it, keeps every gate it has today. `via-consumer`: the row is RTL, not a package, so its evidence rides with the packages that embed it. `none`: there is no built artifact to carry evidence for yet.",
+      "The cost this answers is a closure sweep, which is what D12 covers: a change with no RTL that moves a core's `BUILD_ID` through its build record or source closure. PR #1862 edits five producer scripts and one shared helper, touches no RTL, QSF, SDC, lock or placement recipe, and moves the `BUILD_ID` of all 14 cores whose producers import a changed file, so D12 applies to each of them. Its first condition was measured for all 14; Deano scoped the route-based second and third on 2026-11-15 to the firmware plus one representative per affected machine family, leaving `fes.pong`, `fes.ramtest`, `fes.coleco` and `fes.riscv` unmeasured because they are not shipped. This proposal is close to that call but not the same one: it would drop the same two conditions for the same held-back cores by rule, while it keeps the sibling variants that call also dropped (zx80, ts1000, ts1500, spectrum128, spectrum-plus3, pentagon) at full. Whether the representative scoping should be a rule too is a separate question.",
       "Accepting this needs a sentence beside the D12 rule in [AGENTS.md](../AGENTS.md), which is Deano's wording to write. No agent should read `reduced` here as permission to skip a gate before then."
     ],
     "levels": [
@@ -2082,7 +2083,7 @@
       {
         "id": "reduced",
         "label": "Reduced",
-        "meaning": "A sweep that does not touch the core itself carries no D12 evidence, reseal or HIL for it. Work on the core keeps every gate."
+        "meaning": "On a sweep that does not touch the core, the netlist comparison still holds; the RBF repeat, the seal gate and the HIL do not. Work on the core keeps every gate."
       },
       {
         "id": "via-consumer",
@@ -2102,14 +2103,14 @@
         "meaning": "Release quality and supported. Decided set: ZX81 family, Spectrum family, C64, Atari ST, PC/XT."
       },
       {
-        "id": "2",
-        "label": "Tier 2",
-        "meaning": "Supported preview. pc386 reaches tier 1 when #1368 and #1494 close."
+        "id": "1-pending",
+        "label": "Tier 1 pending",
+        "meaning": "The plan puts pc386 at tier 1 once #1368 and #1494 close, and names no tier before that."
       },
       {
-        "id": "3",
-        "label": "Tier 3",
-        "meaning": "Experimental: builds, no promise. Coleco, SMS, SG-1000 and Apple II are tier 2 once they meet the port."
+        "id": "2-pending",
+        "label": "Tier 2 pending",
+        "meaning": "The plan puts Coleco, SMS, SG-1000 and Apple II at tier 2 once they meet the port, and names no tier before that."
       },
       {
         "id": "utility",
