@@ -138,9 +138,10 @@ def layout_graph_with_constants(graph: dict) -> dict:
     # nextpnr packs static cfg bits onto MISTRAL_CONST nets. Resolve only its
     # explicit zero/one cells; arbitrary signals remain nonconstant and fail.
     # Since nextpnr #327 the packer instead disconnects a constant HPS input
-    # and bitgen programs it from the pin's PIN_0/PIN_1 state, so a cfg bit on
-    # a net nothing drives resolves from the cell's own pin map. A driven net,
-    # or a pin in any other state, stays nonconstant and fails.
+    # and bitgen programs it from the pin's PIN_0/PIN_1 state, so an fpga2sdram
+    # input bit on a net nothing drives, or a disconnected single-bit input,
+    # resolves from the cell's own pin map. A driven net, or a pin in any
+    # other state, stays nonconstant and fails.
     cells = graph["modules"]["top"]["cells"]
     constants = {}
     for cell in cells.values():
@@ -167,17 +168,25 @@ def layout_graph_with_constants(graph: dict) -> dict:
         if cell.get("type") != "cyclonev_hps_interface_fpga2sdram":
             continue
         states = _pinmap_states(cell)
+        directions = cell.get("port_directions", {})
         connections = dict(cell.get("connections", {}))
-        for port in HPS_DDR_CFG_PORTS:
-            bits = connections.get(port)
-            if not isinstance(bits, list):
+        for port, bits in cell.get("connections", {}).items():
+            if not isinstance(bits, list) or (directions.get(port) != "input"
+                                              and port not in HPS_DDR_CFG_PORTS):
+                continue
+            if not bits:
+                # A disconnected single-bit input is named without an index.
+                tie = _PINMAP_CONSTANTS.get(states.get(port))
+                if tie is not None:
+                    connections[port] = [tie]
                 continue
             resolved = []
             for index, bit in enumerate(bits):
-                if type(bit) is int and bit in constants:
+                if type(bit) is int and bit in constants and port in HPS_DDR_CFG_PORTS:
                     bit = constants[bit]
                 elif type(bit) is int and bit not in driven:
-                    bit = _PINMAP_CONSTANTS.get(states.get(f"{port}[{index}]"), bit)
+                    key = f"{port}[{index}]" if f"{port}[{index}]" in states or len(bits) > 1 else port
+                    bit = _PINMAP_CONSTANTS.get(states.get(key), bit)
                 resolved.append(bit)
             connections[port] = resolved
         normalized[name] = {**cell, "connections": connections}

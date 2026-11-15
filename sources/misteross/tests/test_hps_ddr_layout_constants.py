@@ -85,6 +85,21 @@ class HpsDdrLayoutConstantTests(unittest.TestCase):
         with self.assertRaisesRegex(BuildError, "cfg_port_width is 0x"):
             _check(_routed(style="pinmap", state_override=flipped))
 
+    def test_disconnected_single_bit_inputs_resolve_by_their_bare_name(self):
+        graph = _routed(style="pinmap")
+        cell = graph["modules"]["top"]["cells"]["memory.f2sdram"]
+        cell["connections"]["cmd_valid_1"] = []
+        cell["port_directions"]["cmd_valid_1"] = "input"
+        pins = json.loads(bytes.fromhex(cell["attributes"]["FES_PINMAP_V1"]).decode())["pins"]
+        for state, expected in ((1, ["0"]), (2, ["1"]), (0, []), (3, [])):
+            with self.subTest(state=state):
+                pins["cmd_valid_1"] = [state, "cmd_valid_1"]
+                cell["attributes"]["FES_PINMAP_V1"] = json.dumps(
+                    {"count": len(pins), "pins": pins}).encode().hex()
+                normalized = evidence.layout_graph_with_constants(graph)
+                self.assertEqual(normalized["modules"]["top"]["cells"]["memory.f2sdram"]
+                                 ["connections"]["cmd_valid_1"], expected)
+
     def test_a_malformed_pin_map_is_refused(self):
         graph = _routed(style="pinmap")
         graph["modules"]["top"]["cells"]["memory.f2sdram"]["attributes"]["FES_PINMAP_V1"] = "zz"
