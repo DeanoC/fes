@@ -40,6 +40,16 @@ seeds of nine at 91.2%. The failing paths are not in the x87 -- its own paths
 keep +0.456 and +1.458 ns on those seeds -- so this is whole-machine
 congestion and no change to the arithmetic would fix it.
 
+**No change to slice 3 would fix it, and that was looked for rather than
+assumed.** The failing paths were read on both failing seeds before anything
+was concluded: there is no x87 path to shorten, because the x87's paths are
+already the fastest part of the region. A pipeline stage in the sum or the
+rounding would cost a re-freeze and every gate and buy nothing. The first
+instinct on reading "the margin is thin" is to optimise the arithmetic, and
+that instinct is wrong here. What recovers the margin is area recovered
+**elsewhere** -- the area audit's wins, which Deano deferred to a whole-system
+reduction phase, and which now buy slack as well as ALMs.
+
 The identity ships **off** in every package until slice 5, so nothing sealed
 or run on a kit today depends on that. What depends on it is slice 5.
 [The sweep](#the-identity-on-seed-sweep-closure-is-seed-dependent) has the
@@ -382,6 +392,19 @@ where the machine's worst was in the L1D at +0.317 and the x87 held +1.023.
 So the misses are whole-machine congestion at about 94.8%, and **nothing in
 slice 3's arithmetic would fix them** -- not a pipeline stage, not a narrower
 datapath. What would fix them is area recovered elsewhere.
+
+**The sweep triggered this slice's own stop rule, and the decision was
+escalated rather than taken here.** Before any seed had run, this session
+settled that any negative slack on any seed, clock or corner would mean
+report and ask rather than seal -- precommitted so that the rule could not be
+reinterpreted once results were in. It fired on seeds 3 and 4, both options
+were put to the coordinating session with the evidence and a stated lean, and
+the decision to seal and run the kit was **the coordinating session's, on 15
+November**, on the grounds that the sealed artefact is the identity-off
+design, that the verification gates are unaffected, and that a seal and a kit
+run are real evidence about a real artefact which withholding would not
+improve. The rule was followed by escalation, not narrowed: what it forbade
+was this session deciding alone that the misses did not count.
 
 **What this does and does not put in question.** The identity is tied to 0 in
 every package until slice 5, so the sealed core and the kit run are the
