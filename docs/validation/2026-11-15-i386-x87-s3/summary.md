@@ -300,15 +300,26 @@ record's reproduction prints now names `unbuilt` for that reason.
 ## Area and timing
 
 Every figure here is Quartus 17.0.2, seed 1, through the measurement flow
-(`scripts/quartus_x87_spike.py`). **That flow is not the sealer**, and the
-difference was checked rather than assumed: it fits `pc386_system`, where
-the sealer fits `top`, the DE10 level above it. Same device, same 61.44 MHz
-system clock and 16.276 ns period, but a different project and so a
-different placement and a different critical path -- which is why the
-sealer's own identity-off report reads 36,480 ALMs and +0.896 ns where the
-table below reads 36,392 and +0.576. **The rows here are for differencing
-against each other; the sealer's report is what the shipped artefact closes
-at.** **The machine fits** -- which are the ones the deltas rest on -- all ran through
+(`scripts/quartus_x87_spike.py`). **That flow is the sealer's project with
+one macro changed**, and this record got it wrong once before it was
+checked: an earlier draft said the flow fits `pc386_system` where the sealer
+fits `top`, read off the Yosys `hierarchy -top pc386_system` line. Both
+elaborate the machine with Yosys and then compile **`top`**, the DE10 level,
+from the same generated `top.qsf`. Diffing the two project files leaves, once
+tree paths are set aside, exactly one assignment:
+
+    seal   FES_PC386_BUILD_ID=128'he6261c37237b7de8d7ddeb7f9006157c
+    spike  FES_PC386_BUILD_ID=128'h00000000000000000000000000000000
+
+The measurement flow zeroes the build id so that fits of different builds are
+comparable at all; the sealer embeds the real one. Same device, same SDC,
+same 61.44 MHz clock and 16.276 ns period. That 128-bit constant, plus the
+placement it perturbs, is the whole of the difference between the sealer's
+identity-off report at **36,480 ALMs and +0.896 ns** and the table below at
+**36,392 and +0.576** -- 88 ALMs and 0.32 ns, which is the size of this
+flow's seed-to-seed spread rather than a difference of designs. **The rows
+here difference against each other; the sealer's report is what the shipped
+artefact closes at.** **The machine fits** -- which are the ones the deltas rest on -- all ran through
 **the chip host's CUDA toolchain slot**; the standalone fit of the unit, in
 "The unit on its own" below, ran through Powerboat's HIP slot, which is why
 that subsection calls its comparison with slice 2 indicative rather than
@@ -403,7 +414,7 @@ sealed core and the kit run are the identity-off design. Its margin is the
 87.05% of the device, and closes at +0.896 ns -- 5.5% of the 16.276 ns
 period** (system clock 61.44 MHz), with every one of the five analyses
 positive. The rows in this table come from the measurement flow
-(`quartus_x87_spike.py`), which is a different project from the sealer and
+(`quartus_x87_spike.py`), the same project with the build id zeroed, which
 reads 36,392 and +0.576 for the same RTL; the rows are for comparing fits
 with each other, and the sealer's report is what the artefact closes at. The identity-on row is
 forward-looking: it is what the switch flip in **slice 7** inherits, what
