@@ -19,6 +19,36 @@ D12 asks for three things. This record covers the **first** only:
 
 So this directory does not by itself discharge D12.
 
+## Scope, and a correction to how it was derived
+
+The first version of this record resolved the affected set from the
+`producer_script` entries in `config/core-recipes.toml`, which gave 14
+registered cores. **That method misses a producer that is not a registered
+recipe core**, and one such producer is affected: `fes.splash`
+(`scripts/build_fes_splash.py`) lists the changed
+`scripts/fes_de10nano_evidence.py` in its own `PINNED_INPUTS`, and it seals the
+image-pinned idle RBF, so it is a shipped artifact rather than a diagnostic.
+The scope is therefore **15 artifacts, not 14**, and the correct query is over
+the producers themselves:
+
+```
+$ for f in scripts/build_*.py; do     grep -qE "['\"]scripts/fes_de10nano_evidence\.py['\"]" "$f" && echo "$f"; done
+```
+
+Nine producers pin a changed file. Eight of them seal the 14 registered cores
+in the table below; the ninth is splash.
+
+Splash differs from the rest in three ways that matter to the measurement: it
+authenticates the repository-wide `toolchain.lock` rather than a per-core lock,
+it uses `gpu_router=OFF` (a CPU-reference nextpnr, no GPU), and it **refuses a
+shared cache root** — it requires a local install at `<tree>/build/toolchain`.
+Its build record is also `format: 1`, and `build_identity` hashes a format-1
+record whole, including `revision`, so splash's `BUILD_ID` moves on *every*
+commit to the repository regardless of this PR. That makes D12's exemption for
+the `BUILD_ID` constant do the work for splash in any case, but it does not
+excuse leaving the netlist unmeasured, so it is measured on the same terms as
+the others.
+
 ## Method
 
 `netlist_digest.py` runs a producer's own Yosys command and nothing else: no

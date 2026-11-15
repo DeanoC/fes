@@ -22,6 +22,7 @@ CHANGED = {
     "fes.menu": "`build_fes_menu_package.py`, `build_fes_menu.py`, `fes_de10nano_evidence.py`",
     "fes.ramtest": "`build_fes_ramtest.py`, `fes_de10nano_evidence.py`",
     "fes.riscv": "`build_fes_riscv.py`, `fes_de10nano_evidence.py`",
+    "fes.splash": "`fes_de10nano_evidence.py`",
 }
 HELPER_ONLY = "`fes_de10nano_evidence.py`"
 

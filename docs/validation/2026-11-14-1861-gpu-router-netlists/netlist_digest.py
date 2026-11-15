@@ -237,8 +237,29 @@ def synth_coleco(tree: Path, cache_root: Path):
     return output / "synth.json", {n: t.identity for n, t in authenticated.items()}, producer
 
 
+def synth_splash(tree: Path, cache_root: Path):
+    """The splash seals the image-pinned idle RBF and is not a recipe core.
+
+    It authenticates the repository-wide lock with gpu_router=OFF and refuses a
+    shared cache, so it needs a local install at <tree>/build/toolchain. Its
+    Yosys program sets no BUILD_ID at all, so this comparison does not even
+    need the zeroed constant the others use.
+    """
+    producer = _load(tree, "build_fes_splash")
+    os.environ.pop("FES_TOOLCHAIN_CACHE_ROOT", None)
+    authenticated = producer.authenticate_oss_tools(producer.ROOT)
+    output = producer._prepare_output(producer.ROOT)
+    commands = producer.build_commands(
+        producer.ROOT, {"yosys": authenticated["yosys"].path}, synth_only=True)
+    _fresh(output / "synth.json")
+    producer.board._run_tool(commands[0], producer.ROOT, output / "yosys.log",
+                             output_relative=producer.OUTPUT_RELATIVE)
+    return output / "synth.json", {n: t.identity for n, t in authenticated.items()}, producer
+
+
 CORES = {
     "fes.pong": synth_pong,
+    "fes.splash": synth_splash,
     "fes.coleco": synth_coleco,
     "fes.spectrum": _spectrum_model("48"),
     "fes.spectrum128": _spectrum_model("128"),
