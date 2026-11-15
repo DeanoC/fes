@@ -45,15 +45,18 @@ congestion and no change to the arithmetic would fix it.
 **No change to slice 3's arithmetic would fix it, and that was looked for
 rather than assumed.** The failing paths were read on every failing seed and
 in the non-flattened fit before anything was concluded. There is no x87 path
-to shorten: the arithmetic's paths run 1.4 to 3.5 ns behind the binding one
-on every fit measured, so a pipeline stage in the sum or the rounding would
+to shorten: on every identity-on fit measured the nearest x87 path is
+between **0.46 and 1.75 ns behind** the worst path in the same dump, so a pipeline stage in the sum or the rounding would
 cost a re-freeze and every gate and buy nothing. The first instinct on
 reading "the margin is thin" is to optimise the arithmetic, and that
 instinct is wrong here. **The decoder is a separate matter and this record
-does not close it**: slice 3 also adds x87 memory operand shapes to
-`fes_i386_decode.sv`, and the decode path that misses on four seeds is two
-to three logic levels deeper than the merge-base's. An earlier draft said
-those paths pre-dated this slice; that claim is withdrawn in
+does not close it, in either direction**: slice 3 also adds x87 memory
+operand shapes to `fes_i386_decode.sv`, and the decode path that misses on
+four seeds is two to three logic levels deeper than the merge-base's --
+though that comparison is between different endpoints, and the decoder's own
+area went *down* by 15 ALMs. An earlier draft claimed those paths pre-dated
+this slice, and a later one that this slice deepened them; both are
+withdrawn in
 [where the margin went](#where-the-margin-went-which-is-not-where-it-looks),
 which says what would settle it. What recovers the margin is area recovered
 **elsewhere** -- the area audit's wins, which Deano deferred to a whole-system
@@ -554,19 +557,29 @@ CUDA slot, seed 1. Dropping `flatten` is a different flow -- it fits at
 39,717 ALMs and +0.455 ns against the flattened 39,682 and +0.176 -- so these
 numbers attribute area and are not the timing result.
 
-| Entity | ALMs (own) |
-| --- | ---: |
-| `fes_i386_x87` | **3,851.4** (3,664.0) |
-| `fes_i386_x87_mul` | **187.4** (187.4) |
-| `fes_i386_cpu`, whole | 28,491.5 (9,081.9) |
-| `pc386_system`, whole | 39,053.4 |
+The merge-base was run through the **same** flow, slot and seed, so this is
+a same-slot delta and not the cross-slot estimate an earlier draft gave:
 
-Slice 2 measured `fes_i386_x87` at 1,414 and `fes_i386_x87_mul` at 178
-through its own slot, so the arithmetic is roughly **+2,437 ALMs inside the
-unit** -- read across slots, so indicative. Two things in that are worth
-more than the total.
+| Entity | this branch, ALMs (own) | merge-base, ALMs (own) | delta |
+| --- | ---: | ---: | ---: |
+| `fes_i386_x87` | **3,851.4** (3,664.0) | 1,601.9 (1,416.9) | **+2,249.5** |
+| `fes_i386_x87_mul` | 187.4 (187.4) | 185.0 (185.0) | +2.4 |
+| `fes_i386_decode` | 713.4 (713.4) | 728.5 (728.5) | **−15.1** |
+| `fes_i386_cpu`, whole | 28,491.5 (9,081.9) | 26,645.7 (9,382.1) | +1,845.8 |
+| whole fit | 39,717 | 38,135 | +1,582 |
 
-**The multiplier did not grow**: 187 against 178, inside the flow's noise.
+**+2,249 ALMs inside the unit**, measured rather than estimated. (An earlier
+draft put it at "roughly +2,437, read across slots, so indicative", against
+slice 2's published 1,414; that figure is superseded by this one.) The
+per-entity flow drops `flatten`, so its whole-fit delta of +1,582 and the
+flattened machine's +1,609 are two different flows' answers to the same
+question and agree to under 2%.
+
+**The decoder did not grow; it shrank by 15 ALMs**, which bears on the open
+question about decode path depth above: whatever this slice did to
+`fes_i386_decode.sv`, it did not cost area there.
+
+**The multiplier did not grow**: 187.4 against the merge-base's 185.0.
 That is the shared-multiplier design holding — every shift and every product
 in this slice goes through the one nine-DSP block and returns to the state
 `sh_ret` names, so the arithmetic bought its multiplies without a second
@@ -629,24 +642,30 @@ would have mattered most.** An earlier version said the decode paths were
 already tied for critical in the merge-base and so did not become critical
 because of slice 3, resting on `cpu_decode_by[5]` sitting at +0.727 there
 against that fit's own worst of +0.720. The slack comparison is the
-single-seed kind this record refuses elsewhere, and the **logic depth points
-the other way**: the merge-base's decode path is **10 levels**, and the ones
-that miss on this branch are **12 and 13**. Depth is a property of the
-synthesised logic rather than of placement, and slice 3 does add x87 memory
-operand shapes to `fes_i386_decode.sv`, so the likely reading is that this
-slice's *decode* work deepened that path by two or three levels.
+single-seed kind this record refuses elsewhere, so the claim does not stand
+on it. The depth looks like it points the other way -- the merge-base's
+decode path is **10 levels** and the ones that miss here are **12 and 13**,
+and slice 3 does add x87 memory operand shapes to `fes_i386_decode.sv` --
+but that comparison does not carry either. Depth is only comparable between
+the same endpoints, and these differ (`_38176_[146]` against `_40448_` and
+`_40453_`); each dump holds a fit's three worst-**slack** paths rather than
+its deepest decode path; and across this branch's own seeds the listed worst
+paths run from 9 levels to 16. The per-entity fits add a datum pointing back
+again: `fes_i386_decode` is **713.4 ALMs on this branch against 728.5 on the
+merge-base**, so the decoder did not grow. **This is not established either
+way** -- neither that the paths pre-date the slice, which is what was
+claimed and withdrawn, nor that the slice deepened them.
 
 That is a different statement from the one this section is really making,
 and both should be read exactly:
 
 - **Pipelining or narrowing the arithmetic would still recover nothing.**
-  The x87's own paths are 1.4 to 3.5 ns behind the binding one on every fit
-  measured. That conclusion is unaffected.
-- **"Nothing in slice 3 could help" is too strong.** The decoder is slice
-  3's work too, and a decode path that gained two levels is a candidate for
-  restructuring. This record does not claim it would close the clock -- the
-  aligner and the L1D bind on other seeds -- only that the question is open
-  and was wrongly closed here.
+  The x87's nearest path is 0.46 to 1.75 ns behind the binding one on every
+  identity-on fit measured, the minimum being seed 3's 0.46. That conclusion is unaffected.
+- **"Nothing in slice 3 could help" is too strong, and so is its opposite.**
+  The decoder is slice 3's work too, so it is worth measuring rather than
+  assuming. The evidence here runs both ways, and the binding region is the
+  aligner or the L1D rather than the decoder on three of the nine seeds.
 - **Settling it needs a targeted `report_timing` on both fits**, from
   `cpu_decode_by*` with the same query, which needs the fit databases and so
   a re-fit of each. That was not run: the gates for this slice were complete
@@ -859,8 +878,9 @@ and M10K counts have not moved at all: the merge-base's identity-on fit
 already reads 49 DSPs and 286 M10Ks, exactly what this branch reads, so
 **slice 3 spent none of the memory budget and none of the DSPs** -- the four
 M10Ks between 282 and 286 are the identity-off to identity-on difference,
-which is slice 2's register file, not this slice's. **17 M10K of the 17
-remain** for the slices the budget was meant for. (An earlier draft credited
+which is slice 2's register file, not this slice's. Whether the spike's 17
+was meant to cover those four is not something this record checked, so the
+claim is the measured one only: **this slice spent none.** (An earlier draft credited
 those four to slice 3, by differencing identity-off against identity-on
 instead of the merge-base against the branch.) Slice 4's Goldschmidt
 seed tables and slice 5's microcode ROM are exactly what that budget was for,
