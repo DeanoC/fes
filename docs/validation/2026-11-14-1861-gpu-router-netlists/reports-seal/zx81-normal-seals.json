@@ -1,0 +1,17 @@
+{
+  "branch": {
+    "build_id": "6d67e86526ed2ea3e2abac66bd3ed722",
+    "placer_seed": 1,
+    "rbf_bytes": 2728742,
+    "rbf_sha256": "2808cee7d9af5cabbb23f5a73d0bc5a9502f5e2907bc44d5271fef31014212c1",
+    "status": "pass"
+  },
+  "main": {
+    "build_id": "a8e2be82df8833ce666de50662cc4d06",
+    "placer_seed": 1,
+    "rbf_bytes": 2741554,
+    "rbf_sha256": "e711c805d15f66f0053930a87ea3ed215e502b4bda0ae147c12ba82887ef5948",
+    "status": "pass"
+  },
+  "note": "Each side's own producer at its own BUILD_ID. The RBFs differ because the constant is in the netlist; condition 2 is measured at an equal BUILD_ID in reports-cond2/. The branch row's status is condition 3."
+}

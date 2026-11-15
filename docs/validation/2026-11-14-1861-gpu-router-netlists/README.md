@@ -33,7 +33,7 @@ the gap is explicit rather than silent.
 | --- | --- | --- | --- |
 | `splash` | done (src exempt) | **done** | **done** |
 | `fes.menu` | done | **done** | **done** |
-| `fes.zx81` | done | pending | pending |
+| `fes.zx81` | done | **done** | **done** |
 | `fes.spectrum` | done | pending | pending |
 | `fes.c64` | done | pending | pending |
 
@@ -77,7 +77,14 @@ With the tool so checked, `fes.menu`'s condition 2 **passes**:
 | **branch, tool, forced** | `60bccd54…` | `2fc9786e3e6bb27e…` | `6107b13e0425af1b…` | 2,172,530 |
 
 The branch reproduces main's RBF byte for byte at main's `BUILD_ID`, on the
-same placer seed, from an identical netlist. Note the netlist digests here are
+same placer seed, from an identical netlist.
+
+`fes.zx81` passes the same way, and is the stronger case: its route needs a
+generated socket QSF **and** the `prepare_shell_netlist` transform between
+Yosys and the router, so a mirrored step omitted would still have produced an
+RBF. Its control reproduced main's normal-seal RBF exactly, and then the
+branch did too — `e711c805d15f66f0…`, 2,741,554 bytes, seed 1, identical
+netlist `9442dcd934bc914f…`. Note the netlist digests here are
 at main's real `BUILD_ID`, independently of the zeroed-constant comparison in
 the condition 1 table — the two agree.
 
