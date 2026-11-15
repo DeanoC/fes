@@ -211,7 +211,7 @@ reads.
 | Gate | Result |
 |---|---|
 | unit bench, against a real 80-bit FPU | **537 / 0**, 242,776 comparisons |
-| ... on the seal's Yosys netlist | **537 / 0** |
+| ... on the netlist the seal's Yosys program writes | **537 / 0** |
 | lockstep, RTL: every bucket | **0 fail** (1,933 no-387 cases with the identity off, 14 x87 cases with it on, 84 directed, and the corpus, random, protected-mode, task, debug, undefined and memory buckets) |
 | ... on the seal's Yosys netlist | **0 fail**, same buckets |
 | ... governed at preset 3, `--same-as` the ungoverned report | **(pending)** |
@@ -221,6 +221,15 @@ reads.
 
 Every gate runs from a clean worktree at the frozen head, so no later edit of
 the bench or the harness can reach the tree a counted run used.
+
+One qualification on the netlist row: the unit bench's netlist is written by
+the **same Yosys program and the same pinned commit** the seal uses, built on
+Powerboat, not by the chip host's build of it. That distinction is not
+pedantry here -- the two builds' netlists differ in net numbering, which is
+why the fits in this record all come from one slot -- but it does not weaken
+the gate: what the netlist run checks is that the design survives Yosys's
+flatten and renaming, and the seal's own prerequisite, the `--netlist`
+lockstep, *did* run on the chip's binary with the CUDA router and passed.
 
 ### What the lockstep adds that the unit's bench cannot
 
@@ -321,11 +330,34 @@ The device has **2,228 ALMs left**, which is more than the standalone delta
 projected — a standalone fit over-predicted the machine delta here, and is
 not a machine prediction.
 
-So the binding constraint for slices 4 and 5 has moved from area to timing,
-and the design argument that slice 4 is mostly reuse cuts both ways: reusing
-the same adder, rounder and multiplier is what should make it cheap in ALMs,
-and is also what puts more paths through the same critical logic, which is
-where slack goes.
+### Where the margin went, which is not where it looks
+
+The arithmetic is **not** the critical path. The fit reports the worst paths
+and, separately, the worst into and out of the x87:
+
+| Fit | worst path | ends at | worst into the x87 |
+| --- | ---: | --- | ---: |
+| identity off | +1.074 ns | `cpu_r_dst[30]`, the register file's write | +5.563 ns |
+| identity on | **+0.317 ns** | **`cpu_l1d_q_tx`, the L1 data cache** | **+1.023 ns** |
+
+(Slow corner; the +0.176 ns above is the worst over all four corners.)
+
+So the x87's own worst path keeps about **1 ns, six times the machine's
+worst**, and the binding path is in the L1D, which this slice does not touch.
+The margin did not go into the adder, the rounder or the sequencer: it went
+into the machine, through dense packing and placement at 94.7% lengthening
+paths that have nothing to do with the arithmetic.
+
+Two consequences, and the first was nearly got wrong here. **Pipelining the
+x87 would recover nothing** — a register stage in the sum or the rounding
+would cost a re-freeze and every gate and buy no slack, because those paths
+already have a nanosecond. And the plausible-sounding argument that slice 4's
+reuse of the same adder and rounder will crowd the critical logic has **no
+support in this data**; what the data supports is duller and more general:
+adding logic anywhere in this machine at this utilisation costs timing
+everywhere. That is also an argument for the whole-system reduction phase
+beyond the area it recovers, because the audit's wins would buy slack as
+well as ALMs.
 
 ### The kit run
 
