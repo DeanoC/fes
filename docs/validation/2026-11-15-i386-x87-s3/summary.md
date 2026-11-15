@@ -197,12 +197,17 @@ on the defect.
 
 ## Checks
 
+All of these are of `8751b81b438ea08e4fe4ba2f47a823c4db2b2e46`, the frozen
+head. The only commit after it is this record, which no gate and no seal
+reads.
+
 | Gate | Result |
 |---|---|
-| unit bench, against a real 80-bit FPU | **(pending)** |
-| unit bench on the seal's Yosys netlist | **(pending)** |
-| lockstep, identity off and on | **(pending)** |
-| test386 | **(pending)** |
+| unit bench, against a real 80-bit FPU | **537 / 0**, 242,776 comparisons |
+| ... on the seal's Yosys netlist | **537 / 0** |
+| lockstep, RTL: every bucket | **0 fail** (1,933 no-387 cases with the identity off, 14 x87 cases with it on, 84 directed) |
+| ... on the netlist, and governed at preset 3 | **(pending)** |
+| test386 | **POST … E0 EE FF**, halted |
 | Quartus 17.0.2 seal | **(pending)** |
 | kit run on that seal | **(pending)** |
 
