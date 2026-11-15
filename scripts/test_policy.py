@@ -39,6 +39,75 @@ NATIVE_COMPUTER_CONTRACT_INPUTS = frozenset({
     'sources/mister-packages/packages/programming/de25_embedded.yaml',
 })
 
+
+# One declaration of what the DE25 combined client proof captures into its
+# receipt. Three readers have to agree about this set:
+#
+#   boards/de25nano/link-proof/zx81-computer/proof.py hashes these files into
+#   tests/fixtures/de25-combined-proof.json; boards/de25nano/link-proof/
+#   build_test.py asserts the receipt still matches them; and affected.plan
+#   routes a change to one of them to the fpga lane that runs that assertion.
+#
+# They used to be three hand-copied lists that agreed by habit. That is how
+# DeanoC/fes#1842 happened: #1804 changed five captured runtime headers, the
+# planner did not select the lane that checks them, the staleness stayed
+# latent on main and surfaced as an unrelated pull request's regression. A new
+# capture line added to one list and not the others reopens exactly that, so
+# the declaration lives here and the three readers derive from it.
+DE25_COMBINED_PROOF_TREES = (
+    # (directory, patterns, recursive)
+    ('sources/misteross/boards/de25nano/link-proof/zx81-computer', ('*.cpp', '*.hpp'), False),
+    ('sources/libmister-runtime/src/native', ('*.hpp',), True),
+    ('sources/misteross/boards/de25nano/zx81-hps/cosim', ('*.hpp',), False),
+)
+DE25_COMBINED_PROOF_FILES = (
+    'sources/misteross/boards/de25nano/link-proof/zx81-computer/sim_top.v',
+    'sources/misteross/boards/de25nano/link-proof/zx81-computer/proof.py',
+    'sources/libmister-runtime/include/libmister-runtime/runtime.h',
+    'sources/libmister-runtime/src/native/de25_computer.cpp',
+    'sources/libmister-runtime/src/native/de25_pr_control.cpp',
+    'sources/misteross/boards/de25nano/zx81-hps/client_proof.py',
+)
+
+
+def de25_combined_proof_paths(root):
+    """Every file the DE25 combined client proof captures, resolved and sorted.
+
+    Sorted because the receipt records a dict keyed by path: an unsorted
+    directory walk serialises in filesystem order, so two runs of the same
+    proof over the same sources produce byte-different receipts and every
+    refresh shows a whole-file diff. Ordering carries no meaning here.
+    """
+    root = Path(root)
+    found = set()
+    for directory, patterns, recursive in DE25_COMBINED_PROOF_TREES:
+        base = root / directory
+        for pattern in patterns:
+            found.update(base.rglob(pattern) if recursive else base.glob(pattern))
+    found.update(root / name for name in DE25_COMBINED_PROOF_FILES)
+    return sorted(found)
+
+
+def de25_combined_proof_captures(path):
+    """True when a repository-relative path is a captured proof input."""
+    candidate = Path(path)
+    if candidate.as_posix() != str(path) or '..' in candidate.parts:
+        return False
+    relative = candidate.as_posix()
+    if relative in DE25_COMBINED_PROOF_FILES:
+        return True
+    for directory, patterns, recursive in DE25_COMBINED_PROOF_TREES:
+        prefix = directory + '/'
+        if not relative.startswith(prefix):
+            continue
+        remainder = relative[len(prefix):]
+        if not recursive and '/' in remainder:
+            continue
+        if any(fnmatchcase(Path(remainder).name, pattern) for pattern in patterns):
+            return True
+    return False
+
+
 # Video producer, package-admission and host library consumer inputs. Changes
 # here re-include the real-device video suites in the parent run.
 VIDEO_FILES = frozenset({

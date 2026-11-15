@@ -25,7 +25,11 @@
     "tremolo.sv: Tremolo rewritten to Nuked-OPL3's: position 0-209 stepping every 64 samples, depth shift 2 or 4, value for the next sample computed after the last operator.",
     "vibrato.sv: Vibrato rewritten to Nuked-OPL3's: eight positions stepping every 1024 samples, giving a signed f-number offset.",
     "mem_simple_dual_port_async_read.sv: Verilator PROCASSINIT waiver preserves the RAM power-on value and synchronous writes.",
-    "pipeline_sr.sv: Verilator MULTIDRIVEN waiver preserves the power-on value and clocked shift."
+    "pipeline_sr.sv: Verilator MULTIDRIVEN waiver preserves the power-on value and clocked shift.",
+    "mem_simple_dual_port_async_read.sv: a RAMSTYLE_MLAB parameter puts Quartus's ramstyle \"MLAB, no_rw_check\" on the array, the only form Quartus 17.0.2 infers as an asynchronous-read MLAB (276009 without no_rw_check); upstream's syn_ramstyle comment, which the Yosys netlist drops, is gone. The read and write are unchanged.",
+    "mem_single_bank.sv: passes RAMSTYLE_MLAB to the asynchronous-read memory.",
+    "control_operators.sv: RAMSTYLE_MLAB(1) on the asynchronous-read register memories Quartus left as logic (am_vib_egt_ksr_mult, ar_dr, sl_rr, fnum_low, block_fnum_high); the 9x1 kon memory stays registers.",
+    "envelope_generator.sv: RAMSTYLE_MLAB(1) on the envelope state memory, which Quartus left as logic."
   ],
   "files": [
     {
@@ -60,7 +64,7 @@
     {
       "path": "control_operators.sv",
       "upstream_path": "src/control_operators.sv",
-      "sha256": "290b0017c8d187694569b3f75a9e2c3574741db5407588b6adcc11136e82ce4f",
+      "sha256": "0809c39415a34ca5cd193e9ca140490695cf65e63aaa12176409e0bcbc0809a5",
       "upstream_sha256": "b1fdf7de931f3cf5502d1441949a0a61c406ffaffc4af394f17600dc5fb035ca"
     },
     {
@@ -71,7 +75,7 @@
     {
       "path": "envelope_generator.sv",
       "upstream_path": "src/envelope_generator.sv",
-      "sha256": "4be59e93d5eb7ffc0e781f1027cbde01ed899e066d7087c9274a8647cd6262cc",
+      "sha256": "64b24dccbdab85f32d96fbb557ae6a5d680661c9370c7aba8bfa594b8be419e3",
       "upstream_sha256": "bb69d72c35a3a6f4aa6e4bee91e0c8a3bd6b4254691bbf003b91a517a7394b7e"
     },
     {
@@ -87,13 +91,14 @@
     {
       "path": "mem_simple_dual_port_async_read.sv",
       "upstream_path": "src/mem_simple_dual_port_async_read.sv",
-      "sha256": "3cb5512134e2e127ec793f274b8b7fad68738929910236eac1fd2803f25eb45a",
+      "sha256": "ff8ae5bb2efa5ceac379b0e6c9dc78a224db7fd890eb90e4ae65073104e9d923",
       "upstream_sha256": "d5a6346e04979f8560cca680ee5648b358a1dd7ca6736a56c19801d1486713d4"
     },
     {
       "path": "mem_single_bank.sv",
       "upstream_path": "src/mem_single_bank.sv",
-      "sha256": "e8a70ba17fd0e708ea3b35ae739c64ff970064b79310b921bbadeb8917c9dea7"
+      "sha256": "fbb48556772295440f4ba41405c6e3a0f52c9b4f22fefd2f7b55839b2f674b70",
+      "upstream_sha256": "e8a70ba17fd0e708ea3b35ae739c64ff970064b79310b921bbadeb8917c9dea7"
     },
     {
       "path": "mem_single_bank_reset.sv",

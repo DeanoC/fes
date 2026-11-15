@@ -14,6 +14,7 @@ func (r *Instance) installGfx() *lua.LTable {
 	L.SetFuncs(t, map[string]lua.LGFunction{
 		"clear":   r.gfxClear,
 		"rect":    r.gfxRect,
+		"rects":   r.gfxRects,
 		"image":   r.gfxImage,
 		"text":    r.gfxText,
 		"measure": r.gfxMeasure,
@@ -24,6 +25,7 @@ func (r *Instance) installGfx() *lua.LTable {
 		"paint":   r.gfxPaint,
 		"extend":  r.gfxExtend,
 		"reuse":   r.gfxReuse,
+		"segment": r.gfxSegment,
 	})
 	return t
 }
@@ -42,6 +44,7 @@ func num(L *lua.LState, idx int) float32 { return float32(L.CheckNumber(idx)) }
 
 func (r *Instance) gfxClear(L *lua.LState) int {
 	f := r.drawing(L, "clear")
+	r.outsideSegment(L, "clear")
 	f.Clear = checkColor(L, 1)
 	f.HasClear = true
 	return 0
@@ -53,6 +56,33 @@ func (r *Instance) gfxRect(L *lua.LState) int {
 		Kind: OpRect, X: num(L, 1), Y: num(L, 2), W: num(L, 3), H: num(L, 4),
 		Color: checkColor(L, 5),
 	})
+	return 0
+}
+
+// gfx.rects(list, color) records one rectangle in color for each x, y, w, h
+// in the flat list {x1, y1, w1, h1, x2, ...}: the same ops as a gfx.rect call
+// for each, in one call.
+func (r *Instance) gfxRects(L *lua.LState) int {
+	f := r.drawing(L, "rects")
+	list := L.CheckTable(1)
+	color := checkColor(L, 2)
+	n := list.Len()
+	if n%4 != 0 {
+		L.ArgError(1, "rects needs x, y, w and h for each rectangle")
+	}
+	if len(f.Ops)+n/4 > r.budget.MaxOps {
+		L.RaiseError("gfx.rects: frame exceeds %d draw ops", r.budget.MaxOps)
+	}
+	for i := 1; i <= n; i += 4 {
+		x, okX := list.RawGetInt(i).(lua.LNumber)
+		y, okY := list.RawGetInt(i + 1).(lua.LNumber)
+		w, okW := list.RawGetInt(i + 2).(lua.LNumber)
+		h, okH := list.RawGetInt(i + 3).(lua.LNumber)
+		if !okX || !okY || !okW || !okH {
+			L.ArgError(1, "rects coordinates must be numbers")
+		}
+		f.Ops = append(f.Ops, Op{Kind: OpRect, X: float32(x), Y: float32(y), W: float32(w), H: float32(h), Color: color})
+	}
 	return 0
 }
 
@@ -70,6 +100,9 @@ func (r *Instance) gfxImage(L *lua.LState) int {
 		op.Src = &gfx.Rect{X: num(L, 6), Y: num(L, 7), W: num(L, 8), H: num(L, 9)}
 	}
 	if !img.Ready || img.Err != "" {
+		if img.Err == "" {
+			r.seg.uncacheable = true
+		}
 		return 0
 	}
 	f.Ops = append(f.Ops, op)
@@ -180,6 +213,7 @@ func (r *Instance) gfxReuse(L *lua.LState) int {
 	if !r.inDraw {
 		L.RaiseError("gfx.reuse may only be called inside draw()")
 	}
+	r.outsideSegment(L, "reuse")
 	if !r.frameReady {
 		L.Push(lua.LFalse)
 		return 1
@@ -195,6 +229,7 @@ func (r *Instance) gfxReuse(L *lua.LState) int {
 // A finished paint is still presented when the draw misses the soft budget.
 func (r *Instance) gfxPaint(L *lua.LState) int {
 	f := r.drawing(L, "paint")
+	r.outsideSegment(L, "paint")
 	r.keepSlowFrame = true
 	r.applyPaint(L, f, L.CheckTable(1))
 	return 0
@@ -209,6 +244,7 @@ func (r *Instance) gfxPaint(L *lua.LState) int {
 // the copy is the previous picture.
 func (r *Instance) gfxExtend(L *lua.LState) int {
 	f := r.drawing(L, "extend")
+	r.outsideSegment(L, "extend")
 	if !r.frameReady {
 		L.ArgError(1, "gfx.extend needs a presented frame")
 	}
@@ -226,6 +262,8 @@ func (r *Instance) gfxExtend(L *lua.LState) int {
 		f.Ops = ops
 		f.Hits = hits
 		r.extendCopied = true
+		r.seg.copied += len(r.frame.Ops)
+		r.seg.extended(L, f, len(r.frame.Ops), len(r.frame.Hits))
 	}
 	r.keepSlowFrame = true
 	r.applyPaint(L, f, L.CheckTable(1))

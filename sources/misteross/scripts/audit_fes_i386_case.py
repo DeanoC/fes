@@ -285,9 +285,10 @@ def run(args: argparse.Namespace) -> int:
     counts = out / 'counts'
     counts.mkdir()
     verilator = i386_verilator.locate(args.cache_root)
-    yosys = args.cache_root / 'slots' / verilator.slot / 'install/bin/yosys'
-    if not yosys.is_file():
-        raise AuditError('authenticated i386 slot lacks Yosys')
+    try:
+        yosys = i386_verilator.locate_yosys(args.cache_root)
+    except i386_verilator.VerilatorError as error:
+        raise AuditError(str(error)) from error
     inputs = oracle.link_inputs(args.jobs, args.download)
     netlist = frontend.synthesize_netlist(str(yosys), [lock.RTL / p for p in lock.CPU_RTL], lock.TOP, out)
     source_hash = sha(netlist)

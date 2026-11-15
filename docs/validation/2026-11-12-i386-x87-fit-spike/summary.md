@@ -43,8 +43,9 @@ no seal.
 - **Recommendation.**
   - Build option A in the fabric.
   - Land the area audit's wins before slice 2 adds the CPU side: the HID keyboard
-    redesign first (about −650), then the return stack in MLAB (about −250) and OPL2 in
-    MLAB (about −150).
+    redesign first (about −650), then OPL2 in MLAB (about −150). The return stack's
+    MLAB win the audit listed (about −250) is already on main: #1638 landed it on
+    10 November, so this spike's base includes it.
   - Deano decides; see [Open questions](#open-questions-for-deano).
 
 ## Method
@@ -271,9 +272,12 @@ with its neighbours.
      operand uops, the IRQ 13 latch and F0h/F1h, about 400 ALMs) it is about 38,900
      ALMs (92.8%), over the ceiling.
    - The machine already misses CPU timing on one seed of three with A, at −0.878 ns.
-   - The audit's wins come first: the HID keyboard's vectors (about −650), the return
-     stack in MLAB (about −250), OPL2's memories in MLAB (about −150). Together they put
-     A with its CPU side at about 37,850 ALMs (90.3%).
+   - The audit's wins come first: the HID keyboard's vectors (about −650) and OPL2's
+     memories in MLAB (about −150). Together they put A with its CPU side at about
+     38,100 ALMs (90.9%).
+   - The audit's third win, the return stack in MLAB (about −250), is not counted
+     here. #1638 merged it on 10 November (−418 ALMs at its seal), before this spike,
+     so `--variant base` already includes it.
 3. **Keep the 9-DSP multiply and the multiply-based shifts.** The narrow-DSP variants
    and the LUT shifters each cost 300–430 ALMs to save DSPs, which aren't scarce (74
    free).

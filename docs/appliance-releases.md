@@ -221,8 +221,9 @@ The assembler still emits that fixed image. Leftover capacity on a larger card
 is a live mutation: `scripts/appliance_expand_dry_run.py` can add aligned p3
 ext4 labelled `FESDATA3` without moving A2 or rewriting FAT. It sizes p3 to the
 card in the admitted reader; `--card-bytes`, if given, must match that card.
-FogCast bind-mounts cache, saves, core-data, launcher-cache and evidence from
-that partition, and bind-mounts `/media/fat/games` from its `games` directory.
+FogCast bind-mounts cache, saves, core-data, launcher-cache, evidence and
+disk-images from that partition, and bind-mounts `/media/fat/games` from its
+`games` directory.
 Existing FAT files are copied only when the p3 destination is absent. With no
 FESDATA3 partition, game libraries and other mutable trees stay on FAT. The
 bootloader, kernel and boot environment retain their locked bytes. The

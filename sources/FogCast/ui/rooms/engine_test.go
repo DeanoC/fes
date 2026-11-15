@@ -133,7 +133,7 @@ func (f *fakeServices) Game(_ context.Context, id string) (hostclient.Game, erro
 	return hostclient.Game{}, errors.New("not found")
 }
 
-func newRoom(t *testing.T, p Pack, opts Options) *Instance {
+func newRoom(t testing.TB, p Pack, opts Options) *Instance {
 	t.Helper()
 	if opts.Width == 0 {
 		opts.Width, opts.Height = 1280, 720
@@ -152,7 +152,7 @@ func newRoom(t *testing.T, p Pack, opts Options) *Instance {
 
 // stepUntil ticks until pred is true or the deadline passes, giving async
 // results time to land.
-func stepUntil(t *testing.T, r *Instance, pred func(Frame) bool) Frame {
+func stepUntil(t testing.TB, r *Instance, pred func(Frame) bool) Frame {
 	t.Helper()
 	now := time.Unix(1000, 0)
 	deadline := time.Now().Add(testwait.Timeout)

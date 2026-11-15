@@ -94,7 +94,7 @@ color_ok:
         lda #$33
         sta $01
         lda $d000
-        cmp #$3c
+        cmp #CHARACTER_PROBE
         php
         lda #$37
         sta $01
@@ -480,6 +480,8 @@ def build(*, without_cartridges: bool = False) -> bytes:
         start = source.index("char_ok:\n") + len("char_ok:\n")
         end = source.index("io_ok:\n", start)
         source = source[:start] + source[end:]
+    # Stage 4 reads the first character-ROM byte back through $D000.
+    source = source.replace("CHARACTER_PROBE", f"${character_image()[0]:02x}")
     kernal = assemble(source, 0xE000, 8192)
     if len(BASIC) != 8192 or len(kernal) != 8192:
         raise RuntimeError("firmware windows must be 8 KiB")

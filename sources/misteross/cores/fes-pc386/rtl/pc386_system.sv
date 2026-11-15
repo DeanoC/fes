@@ -12,7 +12,8 @@
 //   port 1  VRAM
 //   port 2  plane, presenter, capture; pc386_disk: the ATA image at window
 //           offset 0x08000000 and its CRC pass; pc386_status: the status
-//           ring at window offset 0x01000000
+//           ring at window offset 0x01000000; pc386_fdc: the floppy images
+//           at window offsets 0x01800000 (A:) and 0x01C00000 (B:)
 //
 // The mailbox (fes_computer_mailbox_core) answers identity, execution, the
 // keyboard's rows, mouse packets and the session-display plane, and hands the
@@ -27,8 +28,9 @@
 // CMOS setup is done, and the CPU starts after that.
 //
 // Hold stops the CPU at once: its warm reset lets port 0's traffic finish.
-// Once the CPU has been held 4 clocks with its memory idle and the drive has
-// landed every sector it accepted (drained), ddr_hold makes fes_hps_ddr hold
+// Once the CPU has been held 4 clocks with its memory idle, the drive has
+// landed every sector it accepted and the floppy controller has no store or
+// read beat in flight (drained), ddr_hold makes fes_hps_ddr hold
 // every port, and once port 0 has taken the hold the machine is reset with
 // them (machine_held). While the disk verifies, ddr_hold is low so that the
 // CRC pass can read port 2; the machine stays in reset. p0_reset..p2_reset
@@ -204,6 +206,10 @@ module pc386_system #(
     // (docs/pc386-machine-design.md, "Size and setting"); until the record
     // accepts that, it is reserved and zero.
     localparam [7:0] EMS_PAGES = 8'd128;
+    // The floppy drives (docs/design/pc386-removable-media.md, slice F1): the
+    // controller is fitted but no drive is, and CMOS reports none, until the
+    // storage endpoint's units 1 and 2 (slice F3) commit disks.
+    wire fdc_busy, fdc_fenced;
 
     // ---- Hold and the machine reset
     wire cpu_mem_idle, rom_idle;
@@ -212,7 +218,8 @@ module pc386_system #(
     initial ddr_hold = 1'b1;
     always @(posedge clk) begin
         quiet <= !exec_reset ? 3'd0 : quiet == 3'd4 ? 3'd4 : quiet + 3'd1;
-        drained <= exec_reset && (drained || (quiet == 3'd4 && cpu_mem_idle && rom_idle && !disk_writer_busy));
+        drained <= exec_reset && (drained || (quiet == 3'd4 && cpu_mem_idle && rom_idle && !disk_writer_busy &&
+                                              !fdc_busy));
         machine_held <= drained && (machine_held || p0_reset);
         ddr_hold <= drained && !verifying;
     end
@@ -267,8 +274,9 @@ module pc386_system #(
     wire [63:0] aux_writedata;
     wire [7:0] aux_byteenable;
 
-    // Channel 1 is the Sound Blaster's; 0, 2 and 3 have no device, so their
-    // acknowledges complete with FFh, as on an empty ISA bus.
+    // Channel 1 is the Sound Blaster's and channel 2 the floppy controller's,
+    // inside the AT core; 0 and 3 have no device, so their acknowledges
+    // complete with FFh, as on an empty ISA bus.
     wire drq1, dsp_done;
     wire [7:0] dsp_rdata;
     wire [15:0] sound_irq;
@@ -299,7 +307,11 @@ module pc386_system #(
         .dma_done(dma_done), .dma_rdata(dma_rdata), .dma_drq({2'b00, drq1}),
         .dma_ack_valid(dma_ack_valid), .dma_ack_write(dma_ack_write), .dma_ack_tc(dma_ack_tc),
         .dma_ack_channel(dma_ack_channel), .dma_ack_wdata(dma_ack_wdata), .dma_ack_done(dma_ack_done),
-        .dma_ack_rdata(dma_ack_rdata), .device_irq(sound_irq), .speaker(speaker), .nmi_mask(nmi_mask),
+        // IRQ 13 is the coprocessor's error, which the CPU's x87 unit
+        // raises through the board's latch (fes_i386_x87); the handler
+        // clears the latch by writing port F0h.
+        .dma_ack_rdata(dma_ack_rdata), .device_irq(sound_irq | {2'b00, x87_irq13, 13'd0}),
+        .speaker(speaker), .nmi_mask(nmi_mask),
         .sound_access(sound_access), .sound_write(sound_write), .sound_adlib(sound_adlib),
         .sound_address(sound_address), .sound_wdata(sound_wdata), .sound_rdata(sound_rdata),
         .post_valid(post_valid), .post_code(post_code),
@@ -310,6 +322,10 @@ module pc386_system #(
         // 640 KiB and 15 MiB of extended memory: 16 MiB of RAM, ram_top below.
         .base_kib(16'd640), .extended_kib(16'd15360), .above16m_64k(16'd0),
         .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma), .ems_pages(EMS_PAGES), .cmos_busy(cmos_busy),
+        // The i386dx+387 identity, off in the package until slice 5 of the
+        // x87 phase (#1768): with it clear the CPU is a 386 with an empty
+        // 387 socket, as it was before the unit existed.
+        .x87_present(x87_present), .x87_f0(x87_f0), .x87_f1(x87_f1),
         .wall_valid(wall_valid), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
         .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second), .wall_weekday(wall_weekday),
         .disk_present(disk_present), .disk_sectors(disk_sectors), .disk_cylinders(disk_cylinders),
@@ -319,6 +335,12 @@ module pc386_system #(
         .dirty_index(dirty_index), .dirty_word(dirty_word),
         .disk_frozen(disk_frozen), .disk_dirty_clear(disk_dirty_clear), .disk_dirty_clearing(disk_dirty_clearing),
         .disk_writer_busy(disk_writer_busy), .disk_fenced(disk_fenced), .disk_written(disk_written),
+        // No drives and a hard-disk launch until slice F3 brings the
+        // record's drive types and boot device (removable media, F3).
+        .floppy_type({3'd0, 3'd0}), .boot_device(2'd0),
+        .floppy_present(2'b00), .floppy_write_protect(2'b00),
+        .floppy_two_sided(2'b00), .floppy_cylinders({7'd0, 7'd0}), .floppy_spt({6'd0, 6'd0}),
+        .fdc_frozen(1'b0), .fdc_busy(fdc_busy), .fdc_fenced(fdc_fenced),
         .record_write(record_write), .record_index(record_index), .record_byte(record_byte),
         .record_load(record_load), .record_pair(record_pair), .record_word(record_word),
         .record_clock_index(record_clock_index), .record_clock_pair(record_clock_pair),
@@ -440,16 +462,32 @@ module pc386_system #(
     wire [5:0][15:0] cpu_sel;
     wire [31:0] cpu_eip;
     /* verilator lint_off PINCONNECTEMPTY */
+    // The i386dx+387 identity, and the AT board's coprocessor controls the
+    // machine decodes for the CPU's x87 unit. The identity is off in the
+    // package until slice 5 of the x87 phase (#1768), where the plan's
+    // slices put the transcendentals every computing title also runs; its
+    // record word and FogCast setting come with it.
+    wire x87_present = 1'b0;
+    wire x87_f0, x87_f1, x87_irq13;
+
     fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D)) cpu (
         .clk(clk), .cold_reset(cpu_cold), .reset(cpu_reset),
+        .x87_present(x87_present), .x87_f0(x87_f0), .x87_f1(x87_f1), .x87_irq13(x87_irq13), .trace_x87_busy(), .trace_x87_latched(), .trace_x87_seq(),
+        .arch_x87_cw(), .arch_x87_sw(), .arch_x87_tw(), .arch_x87_opcode(), .arch_x87_regs(),
+        .arch_x87_ip(), .arch_x87_cs(), .arch_x87_dp(), .arch_x87_ds(),
         // The reset state, Bochs's: CS F000h at FFFF0000h, EIP FFF0h, every
         // limit FFFFh and every attribute a present read/write data segment;
-        // CR0 clear (ET too: no 387), CR2 and CR3 0, GDTR and IDTR at 0
+        // CR0 clear but for ET, which follows the identity (a 386 samples
+        // ERROR# after RESET and sets ET when a 387 drives it low: 80386
+        // Hardware Reference Manual 3.7.2, 80387 Programmer's Reference
+        // Manual Appendix C.1; Bochs sets ET whenever its x87 is built, and
+        // the lockstep compares CR0); CR2 and CR3 0, GDTR and IDTR at 0
         // with limit FFFFh, LDTR an LDT and TR a busy 386 TSS at 0 with limit
         // FFFFh. The GPRs' zero is sized: an unsized '0 on a
         // parameterised cell's port asserts in the lock's Yosys under
         // hierarchy -chparam (DeanoC/yosys#71).
-        .init_gpr(256'd0), .init_eflags(32'h2), .init_cr0(32'h0), .init_cr2(32'h0), .init_cr3(32'h0),
+        .init_gpr(256'd0), .init_eflags(32'h2), .init_cr0(x87_present ? 32'h10 : 32'h0),
+        .init_cr2(32'h0), .init_cr3(32'h0),
         .init_dr(128'd0), .init_dr6(32'hffff1ff0), .init_dr7(32'h400),
         .init_gdtr_base(32'h0), .init_gdtr_limit(16'hffff), .init_idtr_base(32'h0), .init_idtr_limit(16'hffff),
         .init_eip(32'hfff0),
@@ -552,7 +590,7 @@ module pc386_system #(
         .m_readdatavalid(aux_readdatavalid)
     );
 
-    wire unused = ^{dma_ack_tc, mouse_dx[15:8], mouse_dy[15:8], start_latched, frame_start, frame_done, presenter_video, debug_port, opl2_sample,
+    wire unused = ^{fdc_fenced, dma_ack_tc, mouse_dx[15:8], mouse_dy[15:8], start_latched, frame_start, frame_done, presenter_video, debug_port, opl2_sample,
                     dsp_dac, frame_count, frame_buffer, frame_width, frame_height,
                     nmi_mask, cpu_mmio_address[fes_i386_pkg::PA-3:15], cpu_sel[5:2], cpu_sel[0],
                     settings[15:3], settings[31:26], settings[63:49], settings[127:104], settings[47:33], settings[79:76],

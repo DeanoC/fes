@@ -510,7 +510,8 @@ local function picture(part)
     enabled = false
   end
   local idle = state == "idle" and not hardware_unavailable and systems.by_id[selected_core] ~= nil
-  button("setup", "Set up system", 24, 480, 200, 38, idle, function() hardware.setup({core_id=selected_core}) end)
+  local setup_label = family().id == "zx81" and ("Set up " .. spec().mark) or "Set up system"
+  button("setup", setup_label, 24, 480, 200, 38, idle, function() hardware.setup({core_id=selected_core}) end)
   button("media", "Media for next start", 240, 480, 240, 38, idle and game and game.package_id and game.package_id ~= "", function()
     hardware.open_media({game_id=game.id, core_id=game.core_id, package_id=game.package_id, expected_media_id=game.media_id or ""})
   end)

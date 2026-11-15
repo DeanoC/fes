@@ -36,7 +36,9 @@
 //        [--mouse S:DX,DY,BUTTONS]...
 //        [--census F] [--profile F] [--profile-from S] [--profile-to S]
 //        [--cpu-profile F] [--cpu-profile-every S] [--rtl-from S] [--rtl-at-flip N] [--rtl-for S]
-//        [--ems-pages N] [--boot-key S:TEXT]
+//        [--ems-pages N] [--boot-key S:TEXT] [--x87 1]
+//        [--floppy A:F] [--floppy-type A:N] [--floppy-out A:F] [--floppy-read-only A]
+//        [--swap WHEN:A[:F[:ro]]]... [--boot-device N]
 //        [--rtl-at-prompt 1] [--keys-after-type 1] [--frame-every S] [--game-launch 1] [--stop-file F]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
@@ -59,6 +61,32 @@
 // MMIO into the RTL board for either CPU, whose memory is port 2's model; the
 // machine itself sends 8237 cycles there to the board. It prints at the end:
 //   EMS pages=<n> reads=<n> writes=<n>   the CPU's frame accesses
+// --x87 1 is the i386dx+387 identity: the machine's x87_present input, so
+// CMOS 14h bit 1 (INT 11h's coprocessor bit) is set. The oracle's 387 is
+// fitted, as on an AT, either way (Oracle::set_at_coprocessor).
+// The floppy drives (docs/design/pc386-removable-media.md, slice F2) stand
+// in for slice F3's record and media endpoint. No drive is fitted unless the
+// run names one, so a run that says nothing about the floppy is the machine
+// the seal builds. --floppy-type gives a drive its CMOS 10h type (0 none,
+// 1 360K, 2 1.2M, 3 720K, 4 1.44M, 5 2.88M), which the RTC writes into CMOS
+// 10h and 14h; a drive given a disk and no type is 1.44M as A: and 1.2M as
+// B:, the design's defaults.
+// --floppy puts a raw image in a drive at launch: its format is its exact
+// size, from 160K to 2.88M, and a drive that cannot read that format is an
+// error. --floppy-read-only inserts it write-protected, and --floppy-out
+// writes the drive's image back at the end, for a write check. --swap ejects
+// the disk and, with a file, puts that one in, in the runtime's order:
+// freeze, wait for the fence, eject, write, commit, resume. Its WHEN is a
+// simulated time in seconds or the text of a debug-port line to swap on, so
+// that a program can ask for its own swap, and a fourth field ro inserts the
+// new disk write-protected.
+// --boot-device is the launch's boot device (0 hard disk, 1 A:, 2 CD), which
+// the machine turns into CMOS 2Dh, 38h and 3Dh. It prints:
+//   FLOPPY <A|B> <format> <file>[ read-only]  a disk in a drive
+//   FLOPPY <A|B> empty                        the drive is empty
+//   FLOPPY-SWAP <seconds> <A|B>               a swap starts
+//   FLOPPY-OUT <A|B> <file> <bytes>           the image written back
+//
 // --preset, --frequency and --turbo are --cpu rtl's governor settings
 // (fes_i386_governor; fes.pc386.machine words 0, 1 and 3), max by default.
 //
@@ -178,6 +206,71 @@ std::vector<uint8_t> read_file(const std::string &path) {
     return std::vector<uint8_t>(std::istreambuf_iterator<char>(input), {});
 }
 
+// ---- Floppy media (docs/design/pc386-removable-media.md, "Media formats")
+// A raw image is identified by its exact size; any other size is refused.
+struct FloppyFormat {
+    size_t bytes;
+    unsigned cylinders, heads, spt;
+    const char *name;
+    unsigned drives;            // bit n set: CMOS drive type n reads it
+};
+constexpr unsigned D360 = 1u << 1, D12 = 1u << 2, D720 = 1u << 3, D144 = 1u << 4, D288 = 1u << 5;
+const FloppyFormat FLOPPY_FORMATS[] = {
+    {163840, 40, 1, 8, "160K", D360 | D12},
+    {184320, 40, 1, 9, "180K", D360 | D12},
+    {327680, 40, 2, 8, "320K", D360 | D12},
+    {368640, 40, 2, 9, "360K", D360 | D12},
+    {737280, 80, 2, 9, "720K", D720 | D144 | D288},
+    {1228800, 80, 2, 15, "1.2M", D12},
+    {1474560, 80, 2, 18, "1.44M", D144 | D288},
+    {1720320, 80, 2, 21, "1.68M", D144 | D288},
+    {2949120, 80, 2, 36, "2.88M", D288},
+};
+const char *const FLOPPY_DRIVE_NAMES[] = {"none", "360K", "1.2M", "720K", "1.44M", "2.88M"};
+
+// A drive as the run asks for it: its CMOS type, the disk it holds at launch,
+// where to write that image back, and whether it is write-protected. No drive
+// is fitted unless the run names one, so a run that says nothing about the
+// floppy is the machine the seal builds; a drive given a disk and no type is
+// 1.44M as A: and 1.2M as B:, the design's defaults.
+struct FloppyUnit {
+    unsigned type = 0;
+    bool type_given = false;
+    std::string path, out;
+    bool write_protected = false;
+
+    unsigned fitted(unsigned drive) const {
+        if (type_given) return type;
+        return path.empty() ? 0 : drive == 0 ? 4 : 2;
+    }
+};
+
+const FloppyFormat &floppy_format(size_t bytes) {
+    for (const FloppyFormat &format : FLOPPY_FORMATS)
+        if (format.bytes == bytes) return format;
+    throw std::runtime_error("floppy image size " + std::to_string(bytes) +
+                             " is not one of the formats (160K to 2.88M)");
+}
+
+// Bytes into and out of the 256 MiB window, which is kept a MiB at a time.
+void window_write(pc386::Window &window, uint32_t offset, const uint8_t *data, size_t count) {
+    while (count) {
+        size_t take = std::min<size_t>(count, 0x100000u - (offset & 0xfffff));
+        std::memcpy(window.at(offset), data, take);
+        offset += uint32_t(take); data += take; count -= take;
+    }
+}
+std::vector<uint8_t> window_read(pc386::Window &window, uint32_t offset, size_t count) {
+    std::vector<uint8_t> bytes(count);
+    size_t done = 0;
+    while (done < count) {
+        size_t take = std::min<size_t>(count - done, 0x100000u - (offset & 0xfffff));
+        std::memcpy(bytes.data() + done, window.at(offset), take);
+        offset += uint32_t(take); done += take;
+    }
+    return bytes;
+}
+
 // The HID usages of the characters --type and --keys can send: E0h is left
 // Control and E1h left Shift. Shifted characters set the bool.
 bool hid(char c, uint8_t &usage, bool &shift) {
@@ -239,7 +332,7 @@ pc386::PortSignals port2(Vpc386_machine &top) {
 class Machine final : public fes_i386::Bus {
 public:
     Machine(const std::vector<uint8_t> &bios, const std::vector<uint8_t> &vgabios, const std::string &disk,
-            unsigned ems_pages)
+            unsigned ems_pages, bool x87, const FloppyUnit floppy[2], unsigned boot_device)
         : image(read_file(disk)), ems_pages(ems_pages) {
         if (ems_pages > 255) throw std::runtime_error("--ems-pages is 0 to 255");
         if (bios.size() != 0x10000) throw std::runtime_error("the BIOS must be 64 KiB");
@@ -262,6 +355,20 @@ public:
         top.above16m_64k = 0;
         top.sb_base_high = 0x22; top.sb_irq = 7; top.sb_dma = 1;
         top.ems_pages = uint8_t(ems_pages);
+        top.x87_present = x87;
+        // The floppy drives: their CMOS types and the disks they hold. The
+        // drives are fitted before reset, so the RTC writes CMOS 10h and 14h
+        // from them; the launch's boot device writes 2Dh, 38h and 3Dh.
+        top.boot_device = uint8_t(boot_device);
+        for (unsigned drive = 0; drive < 2; ++drive) {
+            if (floppy[drive].type > 5) throw std::runtime_error("a floppy drive type is 0 to 5");
+            floppy_type[drive] = floppy[drive].fitted(drive);
+            floppy_out[drive] = floppy[drive].out;
+        }
+        drive_inputs();
+        for (unsigned drive = 0; drive < 2; ++drive)
+            if (!floppy[drive].path.empty())
+                load_floppy(drive, floppy[drive].path, floppy[drive].write_protected);
         for (int n = 0; n < 4; ++n) clock();
         top.reset = 0;
         top.port2_reset = 0;
@@ -294,7 +401,90 @@ public:
     uint16_t cylinders = 0;
     uint8_t heads = 0, spt = 0;
     uint64_t cycles = 0;
+
+    // ---- The floppy drives and their disks (removable media F2)
+    // Each drive's CMOS type and the disk in it. The images sit whole in the
+    // window at 0x01800000 (A:) and 0x01C00000 (B:), where pc386_fdc reads
+    // and writes them through port 2.
+    static constexpr uint32_t FLOPPY_OFFSET = 0x01800000u, FLOPPY_STRIDE = 0x00400000u;
+    unsigned floppy_type[2] = {0, 0}, floppy_cylinders[2] = {0, 0}, floppy_heads[2] = {0, 0},
+             floppy_sectors[2] = {0, 0};
+    bool floppy_in[2] = {false, false}, floppy_read_only[2] = {false, false};
+    size_t floppy_bytes[2] = {0, 0};
+    std::string floppy_out[2], floppy_path[2];
+
+    void drive_inputs() {
+        top.floppy_type = uint8_t(floppy_type[0] | (floppy_type[1] << 3));
+        top.floppy_present = uint8_t((floppy_in[0] ? 1 : 0) | (floppy_in[1] ? 2 : 0));
+        top.floppy_write_protect = uint8_t((floppy_read_only[0] ? 1 : 0) | (floppy_read_only[1] ? 2 : 0));
+        top.floppy_two_sided = uint8_t((floppy_heads[0] == 2 ? 1 : 0) | (floppy_heads[1] == 2 ? 2 : 0));
+        top.floppy_cylinders = uint16_t(floppy_cylinders[0] | (floppy_cylinders[1] << 7));
+        top.floppy_spt = uint16_t(floppy_sectors[0] | (floppy_sectors[1] << 6));
+        top.eval();
+    }
+
+    // A disk goes into a drive: its bytes into the window, then its geometry
+    // and presence, as a Commit does on the kit.
+    void load_floppy(unsigned drive, const std::string &path, bool write_protected) {
+        if (floppy_type[drive] == 0)
+            throw std::runtime_error(std::string("drive ") + char('A' + drive) + ": is not fitted");
+        std::vector<uint8_t> bytes = read_file(path);
+        const FloppyFormat &format = floppy_format(bytes.size());
+        if (!(format.drives & (1u << floppy_type[drive])))
+            throw std::runtime_error(std::string("a ") + FLOPPY_DRIVE_NAMES[floppy_type[drive]] + " drive cannot read a " +
+                                     format.name + " disk (" + path + ")");
+        window_write(window, FLOPPY_OFFSET + drive * FLOPPY_STRIDE, bytes.data(), bytes.size());
+        floppy_cylinders[drive] = format.cylinders;
+        floppy_heads[drive] = format.heads;
+        floppy_sectors[drive] = format.spt;
+        floppy_bytes[drive] = bytes.size();
+        floppy_read_only[drive] = write_protected;
+        floppy_path[drive] = path;
+        floppy_in[drive] = true;
+        drive_inputs();
+        std::printf("FLOPPY %c %s %s%s\n", char('A' + drive), format.name, path.c_str(),
+                    write_protected ? " read-only" : "");
+    }
+
+    // A swap while the machine runs, in the order the runtime uses: freeze,
+    // wait for the fence to report no write held and nothing in flight,
+    // eject, write the new image, commit, resume.
+    template <typename Cycle>
+    void swap_floppy(unsigned drive, const std::string &path, bool write_protected, Cycle &&cycle) {
+        if (floppy_type[drive] == 0)
+            throw std::runtime_error(std::string("--swap names drive ") + char('A' + drive) + ":, which is not fitted");
+        top.fdc_frozen = 1;
+        bool fenced = false;
+        for (uint64_t i = 0; i < 10000000 && !fenced; ++i) {
+            top.eval();
+            fenced = top.fdc_fenced && !top.fdc_busy;
+            if (!fenced) cycle();
+        }
+        if (!fenced) throw std::runtime_error("the floppy controller never reached the fence for a swap");
+        floppy_in[drive] = false;
+        floppy_bytes[drive] = 0;
+        drive_inputs();
+        for (int n = 0; n < 8; ++n) cycle();
+        if (path.empty()) std::printf("FLOPPY %c empty\n", char('A' + drive));
+        else load_floppy(drive, path, write_protected);
+        top.fdc_frozen = 0;
+        cycle();
+    }
+
+    // The disks as they stand now, for --floppy-out.
+    void save_floppies() {
+        for (unsigned drive = 0; drive < 2; ++drive) {
+            if (floppy_out[drive].empty() || !floppy_bytes[drive]) continue;
+            std::vector<uint8_t> bytes = window_read(window, FLOPPY_OFFSET + drive * FLOPPY_STRIDE,
+                                                     floppy_bytes[drive]);
+            std::ofstream out(floppy_out[drive], std::ios::binary);
+            out.write(reinterpret_cast<const char *>(bytes.data()), std::streamsize(bytes.size()));
+            if (!out) throw std::runtime_error("cannot write " + floppy_out[drive]);
+            std::printf("FLOPPY-OUT %c %s %zu\n", char('A' + drive), floppy_out[drive].c_str(), bytes.size());
+        }
+    }
     bool cpu_reset_seen = false;
+    bool irq13 = false;  // the oracle's 387 ERROR#, after its last step
     std::map<std::tuple<std::string, unsigned, uint64_t>, uint64_t> io_times, io_waits;
     bool vga_write_open = false;  // the I/O access in flight is a VGA port write
     uint64_t vga_waits = 0;       // its clocks waiting for VGA FIFO space
@@ -396,6 +586,9 @@ public:
             pixel_edge_ps += PIXEL_HALF_PS;
         }
         link.carry(cycles);
+        // IRQ 13 from the 387's ERROR# (Oracle::x87_irq13), on the AT core's
+        // device IRQs beside the sound card's.
+        if (irq13) top.device_irq |= 1u << 13;
         // A VGA port write's byte waits while the VGA's front FIFO is full.
         if (vga_write_open && top.rootp->pc386_machine__DOT__vga__DOT__io_new &&
             top.rootp->pc386_machine__DOT__vga__DOT__fifo_full)
@@ -1262,6 +1455,16 @@ struct Options {
     struct Mouse { double at; int dx, dy, buttons; };
     std::vector<Mouse> mouse;
     unsigned cycles_per_instruction = 4;
+    bool x87 = false;  // --x87: the i386dx+387 identity, CMOS 14h bit 1
+    // The floppy drives (removable media F2): each drive's CMOS type, the
+    // disk it holds at launch, where to write it back, and the disks that
+    // arrive while the machine runs.
+    using Floppy = FloppyUnit;
+    Floppy floppy[2];
+    // A swap at a simulated time, or when a debug line carries its mark.
+    struct Swap { double at; std::string mark; unsigned drive; std::string path; bool write_protected; };
+    std::vector<Swap> swaps;
+    unsigned boot_device = 0;   // CMOS 3Dh: 0 hard disk, 1 A:, 2 CD
 };
 
 template <typename Top, typename Clock>
@@ -1330,6 +1533,12 @@ void mouse_input_self_test() {
     std::printf("PASS machine mouse input is accepted once after readiness\n");
 }
 
+unsigned floppy_drive(char letter) {
+    if (letter == 'A' || letter == 'a') return 0;
+    if (letter == 'B' || letter == 'b') return 1;
+    throw std::runtime_error("a floppy drive is A or B");
+}
+
 Options parse(int argc, char **argv) {
     Options options;
     for (int n = 1; n < argc; ++n) {
@@ -1372,6 +1581,41 @@ Options parse(int argc, char **argv) {
         else if (flag == "--frequency") options.frequency = unsigned(std::stoul(value));
         else if (flag == "--turbo") options.turbo = unsigned(std::stoul(value));
         else if (flag == "--ems-pages") options.ems_pages = unsigned(std::stoul(value));
+        else if (flag == "--x87") options.x87 = std::stoul(value) != 0;
+        // --floppy A:FILE, --floppy-type B:2, --floppy-out A:FILE,
+        // --floppy-read-only A, --swap SECONDS:A[:FILE], --boot-device N
+        else if (flag == "--floppy" || flag == "--floppy-type" || flag == "--floppy-out") {
+            size_t colon = value.find(':');
+            if (colon != 1) throw std::runtime_error(flag + " takes A:VALUE or B:VALUE");
+            unsigned drive = floppy_drive(value[0]);
+            std::string rest = value.substr(2);
+            if (flag == "--floppy") options.floppy[drive].path = rest;
+            else if (flag == "--floppy-out") options.floppy[drive].out = rest;
+            else {
+                options.floppy[drive].type = unsigned(std::stoul(rest));
+                options.floppy[drive].type_given = true;
+            }
+        } else if (flag == "--floppy-read-only") options.floppy[floppy_drive(value[0])].write_protected = true;
+        else if (flag == "--swap") {
+            std::vector<std::string> parts;
+            for (size_t start = 0; ; ) {
+                size_t end = value.find(':', start);
+                parts.push_back(value.substr(start, end - start));
+                if (end == std::string::npos) break;
+                start = end + 1;
+            }
+            if (parts.size() < 2 || parts[1].size() != 1)
+                throw std::runtime_error("--swap takes WHEN:A[:FILE[:ro]], WHEN a time in seconds or a debug marker");
+            Options::Swap swap{0, "", floppy_drive(parts[1][0]), "", false};
+            if (!parts[0].empty() && parts[0].find_first_not_of("0123456789.") == std::string::npos)
+                swap.at = std::stod(parts[0]);
+            else
+                swap.mark = parts[0];
+            if (parts.size() > 2) swap.path = parts[2];
+            if (parts.size() > 3 && parts[3] == "ro") swap.write_protected = true;
+            else if (parts.size() > 3) throw std::runtime_error("--swap's fourth field is ro");
+            options.swaps.push_back(swap);
+        } else if (flag == "--boot-device") options.boot_device = unsigned(std::stoul(value));
         else if (flag == "--boot-key") {
             size_t colon = value.find(':');
             if (colon == std::string::npos) throw std::runtime_error("--boot-key takes SECONDS:TEXT");
@@ -1422,7 +1666,8 @@ int main(int argc, char **argv) {
             || RtlCpu::physical(0x00100000u, true) != 0u)
             throw std::runtime_error("pc386 RTL physical address translation self-check failed");
         Options options = parse(argc, argv);
-        Machine machine(read_file(options.bios), read_file(options.vgabios), options.disk, options.ems_pages);
+        Machine machine(read_file(options.bios), read_file(options.vgabios), options.disk, options.ems_pages,
+                        options.x87, options.floppy, options.boot_device);
         if (!options.opl2_log.empty() && !(machine.opl2_log = std::fopen(options.opl2_log.c_str(), "w")))
             throw std::runtime_error("cannot write " + options.opl2_log);
         if (!options.trace.empty()) {
@@ -1431,6 +1676,9 @@ int main(int argc, char **argv) {
             std::fprintf(machine.trace, "# pc386 VGA trace: cycles from machine reset\n");
         }
         auto oracle = fes_i386::make_oracle(machine);
+        // Bochs's 387 is the oracle's coprocessor, wired as on an AT board:
+        // its ERROR# on IRQ 13, the BUSY# latch and ports F0h and F1h.
+        oracle->set_at_coprocessor(true);
         oracle->reset();
         // --cpu rtl: the RTL runs, and the oracle only between its stops and
         // their restarts (on_oracle).
@@ -1553,6 +1801,7 @@ int main(int argc, char **argv) {
         uint64_t next_key = 0;
         bool mouse_pending = false;
         size_t mouse_sent = 0;
+        std::vector<char> swap_done(options.swaps.size(), 0), swap_marked(options.swaps.size(), 0);
         auto mouse_due = [&] {
             return mouse_sent < options.mouse.size() &&
                    machine.cycles >= uint64_t(options.mouse[mouse_sent].at * CLOCK_HZ);
@@ -1592,16 +1841,30 @@ int main(int argc, char **argv) {
                 if (profiling || !options.census.empty()) before = oracle->get_state();
                 // The census (census.h): the stem at CS:EIP before the step,
                 // what the step did after it.
-                if (!options.census.empty()) census.begin(before, site(before));
+                fes_i386::X87State x87_before;
+                if (!options.census.empty()) {
+                    census.begin(before, site(before));
+                    x87_before = oracle->x87_state();
+                }
                 fes_i386::StepResult result = oracle->step();
-                if (!options.census.empty()) census.end(before, oracle->get_state(), result);
+                if (!options.census.empty()) {
+                    const fes_i386::State after = oracle->get_state();
+                    census.end(before, after, result);
+                    census.x87(before, after, result, x87_before, oracle->x87_state());
+                }
+                machine.irq13 = oracle->x87_irq13();
                 ++steps;
                 for (unsigned n = 0; n < options.cycles_per_instruction; ++n) machine.clock();
                 if (machine.cycles >= pixel_from) machine.start_pixel_clock();
                 if (result.shutdown) machine.top.cpu_shutdown = 1;
-                if (result.halted) {
+                if (result.halted || result.x87_held) {
+                    // Halted, or held at an ESC or WAIT by the BUSY# latch:
+                    // either waits for an interrupt.
                     fes_i386::State state = oracle->get_state();
-                    if (!(state.eflags & 0x200)) { reason = "halt-with-interrupts-off"; break; }
+                    if (!(state.eflags & 0x200)) {
+                        reason = result.halted ? "halt-with-interrupts-off" : "x87-held-with-interrupts-off";
+                        break;
+                    }
                     while (!machine.top.intr && machine.cycles < limit && !machine.cpu_reset_seen &&
                            !(keys.size() && machine.cycles >= next_key) && !mouse_pending && !mouse_due())
                         machine.clock();
@@ -1611,6 +1874,7 @@ int main(int argc, char **argv) {
                     machine.top.cpu_shutdown = 0;
                     std::printf("CPU-RESET %llu\n", (unsigned long long)machine.cycles);
                     oracle->reset();
+                    machine.irq13 = oracle->x87_irq13();
                 }
                 if (profiling) profile.step(before, oracle->get_state(), result, machine.cycles - step_from, guest_byte);
                 if (bool(machine.top.intr) != intr) { intr = machine.top.intr; oracle->set_intr(intr); }
@@ -1653,6 +1917,8 @@ int main(int argc, char **argv) {
                     }
                 }
             } else {
+                // The RTL is a 386 with an empty socket: no ERROR#.
+                machine.irq13 = false;
                 RtlCpu::Event event = rtl->run(64);
                 if (machine.cycles >= pixel_from) machine.start_pixel_clock();
                 if (event == RtlCpu::Event::Shutdown) {
@@ -1685,6 +1951,9 @@ int main(int argc, char **argv) {
             for (; debug_seen < machine.debug_lines.size(); ++debug_seen) {
                 const std::string &line = machine.debug_lines[debug_seen];
                 if (!options.until_debug.empty() && line.find(options.until_debug) != std::string::npos) finished = true;
+                for (size_t n = 0; n < options.swaps.size(); ++n)
+                    if (!options.swaps[n].mark.empty() && line.find(options.swaps[n].mark) != std::string::npos)
+                        swap_marked[n] = 1;
                 if (line.rfind("SNAP ", 0) == 0) {
                     snap_name = line.substr(5);
                     if (machine.trace)
@@ -1769,6 +2038,17 @@ int main(int argc, char **argv) {
                 game_input_finished = true;
                 game_input_finished_at = machine.cycles;
                 game_input_frame = machine.captured();
+            }
+            // A disk arrives or leaves at its time, or when its marker is
+            // printed, through the fence.
+            for (size_t n = 0; n < options.swaps.size(); ++n) {
+                const Options::Swap &swap = options.swaps[n];
+                if (swap_done[n]) continue;
+                if (swap.mark.empty() ? machine.cycles < uint64_t(swap.at * CLOCK_HZ) : !swap_marked[n]) continue;
+                swap_done[n] = 1;
+                std::printf("FLOPPY-SWAP %.3f %c\n", double(machine.cycles) / CLOCK_HZ, char('A' + swap.drive));
+                machine.swap_floppy(swap.drive, swap.path, swap.write_protected,
+                                    [&] { if (on_oracle) machine.clock(); else rtl->cycle(); });
             }
             // Keep each scheduled packet pending until one ready handshake edge.
             if (mouse_pending || mouse_due()) {
@@ -1940,6 +2220,7 @@ int main(int argc, char **argv) {
         if (snap_failures) reason = "presenter-mismatch";
         if (!options.wav.empty()) write_wav(options.wav, machine.link.samples);
         std::printf("MOUSE sent=%zu scheduled=%zu\n", mouse_sent, options.mouse.size());
+        machine.save_floppies();
         std::printf("EMS pages=%u reads=%llu writes=%llu\n", machine.ems_pages,
                     (unsigned long long)machine.ems_reads, (unsigned long long)machine.ems_writes);
         std::printf("END %s steps=%llu cycles=%llu seconds=%.3f\n", reason, steps,

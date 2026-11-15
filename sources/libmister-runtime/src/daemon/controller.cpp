@@ -14,8 +14,9 @@ namespace daemon {
 Controller::Controller(Runtime& runtime, std::string version)
 	: runtime_(runtime), version_(std::move(version)) {}
 
-std::string Controller::Handle(const std::string& line)
+std::string Controller::Handle(const std::string& line, Deferred& deferred)
 {
+	deferred = Deferred::none;
 	Request request;
 	const Error parsed = ParseRequest(line, &request);
 	if (!parsed.ok()) return Respond(request.protocol, parsed);
@@ -25,6 +26,7 @@ std::string Controller::Handle(const std::string& line)
 	CoreData data;
 	const CoreData* core_data = nullptr;
 	const CorePackageInspection* inspected = nullptr;
+	bool idle_display_health = false;
 	switch (request.operation) {
  case Operation::configure_menu:
   result=runtime_.ConfigureMenuPackage(request.package_path,request.package_id);break;
@@ -35,6 +37,11 @@ std::string Controller::Handle(const std::string& line)
  case Operation::menu_frame_commit:
   result={ErrorCode::invalid_request,"menu frame requires its own connection exchange","request"};break;
 	case Operation::status:
+		// Every status request paces the idle display's liveness re-read.
+		// The server runs it only once this reply has been sent, so a client
+		// never waits on the reads, let alone on a recovery, and the next
+		// status carries their result.
+		idle_display_health = true;
 		break;
 	case Operation::inspect_core:
 		result = runtime_.InspectCore(request.package_path,
@@ -186,7 +193,18 @@ std::string Controller::Handle(const std::string& line)
 		EmitFifoConsume("recover_idle", result.ok());
 		break;
 	}
+	// Composing the reply is not sending it: the health work is handed back
+	// to the server, which runs it after the bytes are on the socket.
+	if (idle_display_health) deferred = Deferred::idle_display_health;
 	return Respond(request.protocol, result, inspected, core_data);
+}
+
+// Runs on the connection thread once the reply has been sent. The reads then
+// cost that client nothing, and a menu frame can only be fenced out by a read
+// that is actually due.
+void Controller::RunDeferred(Deferred deferred)
+{
+	if (deferred == Deferred::idle_display_health) runtime_.CheckIdleDisplayHealth();
 }
 
 std::string Controller::GrantMenuWindow(const Request& request,int* fd)

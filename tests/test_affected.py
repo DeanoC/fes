@@ -145,6 +145,18 @@ class AffectedTests(unittest.TestCase):
             with self.subTest(paths=paths):
                 self.assertEqual(set(plan(paths)['cores']), set(CORES))
 
+    def test_shared_hps_ddr_guard_regression_selects_ramtest_simulation(self):
+        for relative in ('cores/fes-common/sim/hps_ddr_guard_tb.sv',
+                         'tests/test_fes_hps_ddr_guard.py',
+                         'tests/test_sim_fes_ramtest_hook.py'):
+            with self.subTest(relative=relative):
+                result = plan(['sources/misteross/' + relative])
+                self.assertEqual(result['cores'], ['ramtest'])
+        # Unknown shared RTL keeps the existing broad selection.
+        result = plan(['sources/misteross/cores/fes-common/rtl/fes_hps_ddr_guard.v'])
+        self.assertEqual(set(result['cores']), set(CORES))
+        self.assertIn('ramtest', result['cores'])
+
     def test_de25_board_metadata_and_diagnostic_have_no_existing_core_consumer(self):
         definition = 'sources/mister-packages/packages/board/de25_nano.yaml'
         board = 'sources/misteross/boards/de25nano/'
@@ -457,6 +469,8 @@ class AffectedTests(unittest.TestCase):
             'scripts/build_pc386_freedos_image.py': {'pc386'},
             'scripts/build_fes_pc386_quartus.py': {'pc386'},
             'scripts/yosys_netlist.py': {'pc386'},
+            # The pc386 sealer's lockstep gate pins it (#1581 S5).
+            'cores/fes-common/rtl/i386/toolchain.lock': {'pc386'},
             'cores/fes-common/sim/riscv/rv32_model.h': {'riscv'},
             'cores/fes-riscv/firmware/firmware.S': {'riscv'},
             'scripts/sim_fes_riscv.py': {'riscv'},
@@ -513,7 +527,6 @@ class AffectedTests(unittest.TestCase):
         for path in ('cores/fes-common/sim/i386/bochs_oracle.cpp', 'cores/fes-common/sim/i386/divergences.toml',
                      'cores/fes-common/sim/i386/bochs/instrument.h', 'cores/fes-common/sim/i386/frontend_tb.cpp',
                      'cores/fes-common/sim/i386/spike/spike_ag.sv', 'cores/fes-common/sim/i386/lockstep_tb.cpp',
-                     'cores/fes-common/rtl/i386/toolchain.lock',
                      'scripts/audit_fes_i386_case.py', 'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
                      'scripts/test_fes_i386_test386.py', 'scripts/test_fes_i386_frontend.py',
                      'scripts/test_fes_i386_lockstep.py', 'scripts/test_fes_i386_latency.py',
@@ -804,6 +817,50 @@ class AffectedTests(unittest.TestCase):
 
 
 
+
+    def test_de25_combined_proof_captured_inputs_select_the_lane_that_checks_them(self):
+        """Every captured input of the receipt must select the fpga lane.
+
+        `boards/de25nano/link-proof/build_test.py` hashes a set of sources into
+        `tests/fixtures/de25-combined-proof.json` and asserts the receipt still
+        matches them. That test runs in the fpga lane, so a captured file whose
+        change does not select that lane can go stale on main and surface as an
+        unrelated pull request's regression -- DeanoC/fes#1842, caused by #1804
+        changing five captured runtime headers.
+
+        The capture set is derived here the way the proof test derives it, not
+        copied, so adding a captured file that `affected.plan` does not route to
+        the fpga lane fails this test rather than going unnoticed.
+        """
+        root = Path(__file__).resolve().parents[1]
+        board = root/'sources/misteross/boards/de25nano/link-proof'
+        combined = board/'zx81-computer'
+        runtime = root/MODULE_ROOTS['runtime']
+        captured = list(combined.glob('*.cpp')) + list(combined.glob('*.hpp'))
+        captured += [combined/'sim_top.v', combined/'proof.py']
+        captured += list((runtime/'src/native').rglob('*.hpp'))
+        captured += list((board.parent/'zx81-hps/cosim').glob('*.hpp'))
+        captured += [runtime/'include/libmister-runtime/runtime.h',
+                     runtime/'src/native/de25_computer.cpp',
+                     runtime/'src/native/de25_pr_control.cpp',
+                     board.parent/'zx81-hps/client_proof.py']
+        self.assertTrue(captured, 'the capture set must not be empty')
+        for path in captured:
+            relative = path.relative_to(root).as_posix()
+            with self.subTest(path=relative):
+                self.assertTrue(path.is_file(), f'{relative} is captured but missing')
+                self.assertTrue(plan([relative])['lanes']['fpga'],
+                                f'{relative} is hashed into the DE25 combined proof '
+                                'receipt but does not select the fpga lane that '
+                                'checks it')
+
+    def test_runtime_sources_outside_the_de25_capture_do_not_select_fpga(self):
+        """The capture predicate must not widen the runtime module wholesale."""
+        for relative in ('sources/libmister-runtime/src/daemon/controller.cpp',
+                         'sources/libmister-runtime/src/daemon/protocol.cpp',
+                         'sources/libmister-runtime/src/native/de25_computer.cpp.orig'):
+            with self.subTest(path=relative):
+                self.assertFalse(plan([relative])['lanes']['fpga'])
 
 
 if __name__ == '__main__':

@@ -110,11 +110,13 @@ def publish_shared_toolchain(
     cuda_architectures: str | None = None,
     mistral_target: bool = True,
     mutate_after_probe: bool = False,
-) -> tuple[toolchain_cache.ToolchainRequest, toolchain_cache.ToolchainManifest]:
-    """Publish a complete five-tool lane through the real cache API.
+) -> tuple[toolchain_cache.ToolchainRequest, toolchain_cache.ToolchainResolution]:
+    """Publish the five tool installs a lock resolves to through the real cache API.
 
-    The slot is keyed by the selected lock, so it defaults to Pong's own lock;
-    pass the lock of any other producer under test."""
+    Installs are keyed by each tool's pin and build configuration, so a tool
+    another lock already published here is shared rather than published
+    again. The lock defaults to Pong's own; pass the lock of any other
+    producer under test."""
 
     cache = base / "shared-cache"
     selected_lock = SOURCE_ROOT / build_fes_pong.TOOLCHAIN_LOCK if lock_path is None else Path(lock_path)
@@ -141,47 +143,39 @@ def publish_shared_toolchain(
 
     cache.mkdir(mode=0o700, exist_ok=True)
     cache.chmod(0o700)
-    slot = toolchain_cache.slot_path(request)
-    for directory in (slot / "src", slot / "build", slot / "install" / "bin", slot / "evidence"):
-        directory.mkdir(parents=True, exist_ok=True)
     pins = load_lock(selected_lock)
-    tools = {}
+    mistral = toolchain_cache.install_directory(request, "mistral") / "install/bin/mistral-cv"
     for lock_name, binary_name in toolchain_cache.TOOL_BINARY_NAMES.items():
-        binary = slot / "install" / "bin" / binary_name
+        directory = toolchain_cache.install_directory(request, lock_name)
+        if (directory / "ready.json").exists():
+            continue
+        (directory / "install" / "bin").mkdir(parents=True)
+        evidence = directory / "evidence"
+        evidence.mkdir()
+        binary = directory / "install" / "bin" / binary_name
         _write_fake_tool(
             binary,
             lock_name,
             nextpnr_option_count=_nextpnr_option_count_for_lock(selected_lock),
             include_target=mistral_target,
-            mutation_target=slot / "install" / "bin/mistral-cv"
-            if mutate_after_probe and lock_name == "yosys"
-            else None,
+            mutation_target=mistral if mutate_after_probe and lock_name == "yosys" else None,
         )
-        tool_evidence = slot / "evidence" / lock_name
-        tool_evidence.mkdir(parents=True)
         commit = pins[lock_name].commit
         digest = hashlib.sha256(binary.read_bytes()).hexdigest()
-        (tool_evidence / f".built-{commit}").write_text(f"commit={commit}\n", encoding="utf-8")
-        (tool_evidence / f".digest-{commit}.sha256").write_text(f"{digest}\n", encoding="utf-8")
-        (tool_evidence / f".identity-{commit}.txt").write_text(
-            f"fake {lock_name} identity\n", encoding="utf-8"
-        )
+        (evidence / f".built-{commit}").write_text(f"commit={commit}\n", encoding="utf-8")
+        (evidence / f".digest-{commit}.sha256").write_text(f"{digest}\n", encoding="utf-8")
+        (evidence / f".identity-{commit}.txt").write_text(f"fake {lock_name} identity\n", encoding="utf-8")
         if lock_name == "nextpnr":
             lane_configuration = toolchain_cache.configuration_text(
                 toolchain_cache._normalise_configuration(request)
             )
-            (tool_evidence / f".config-{commit}.txt").write_text(
-                f"{lane_configuration}\n",
-                encoding="utf-8",
-            )
-        tools[lock_name] = {
-            "binary": f"bin/{binary_name}",
-            "commit": commit,
-            "identity": f"fake {lock_name} identity",
-        }
-
-    with toolchain_cache.acquire_build_lock(request):
-        manifest = toolchain_cache.publish_ready(request, tools=tools)
+            (evidence / f".config-{commit}.txt").write_text(f"{lane_configuration}\n", encoding="utf-8")
+        if lock_name == "mistral":
+            database = directory / "install" / toolchain_cache.MISTRAL_DATABASE
+            database.mkdir(parents=True)
+            (database / "fixture").write_text("database\n", encoding="utf-8")
+        with toolchain_cache.acquire_build_lock(request, lock_name):
+            toolchain_cache.publish_install(request, lock_name, identity=f"fake {lock_name} identity")
     return request, toolchain_cache.verify_ready(request)
 
 
@@ -377,13 +371,14 @@ class BuildFesPongTests(unittest.TestCase):
             self.assertEqual(
                 {name: tool.path for name, tool in authenticated.items()},
                 {
-                    "yosys": manifest.install / "bin/yosys",
-                    "mistral": manifest.install / "bin/mistral-cv",
-                    "nextpnr-mistral": manifest.install / "bin/nextpnr-mistral",
+                    "yosys": manifest.tools["yosys"].install / "bin/yosys",
+                    "mistral": manifest.tools["mistral"].install / "bin/mistral-cv",
+                    "nextpnr-mistral": manifest.tools["nextpnr"].install / "bin/nextpnr-mistral",
                 },
             )
             self.assertFalse(marker.exists(), "shared authentication must never execute PATH decoys")
-            for lock_name, record in manifest.tools.items():
+            for lock_name, install in manifest.tools.items():
+                record = install.record
                 if lock_name in {"yosys", "mistral", "nextpnr"}:
                     self.assertIn(f"commit={record['commit']}", authenticated[{
                         "yosys": "yosys",
@@ -461,10 +456,10 @@ class BuildFesPongTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             request, _ = publish_shared_toolchain(base, gpu_router="HIP")
-            ready = toolchain_cache.ready_path(request)
+            ready = toolchain_cache.ready_path(request, "yosys")
             ready.chmod(0o644)
             data = json.loads(ready.read_text(encoding="utf-8"))
-            data["tools"]["yosys"]["commit"] = "0" * 40
+            data["record"]["commit"] = "0" * 40
             ready.write_text(json.dumps(data, sort_keys=True) + "\n", encoding="utf-8")
             ready.chmod(0o444)
 
@@ -480,11 +475,11 @@ class BuildFesPongTests(unittest.TestCase):
                 with self.assertRaisesRegex(BuildError, "shared toolchain"):
                     build_fes_pong._authenticate_tools(ROOT, cache_root=request.cache_root)
 
-    def test_shared_lane_rejects_partial_slot_without_fallback(self) -> None:
+    def test_shared_lane_rejects_partial_install_without_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             request, _ = publish_shared_toolchain(base, gpu_router="HIP")
-            toolchain_cache.ready_path(request).unlink()
+            toolchain_cache.ready_path(request, "yosys").unlink()
 
             with patch.dict(
                 os.environ,

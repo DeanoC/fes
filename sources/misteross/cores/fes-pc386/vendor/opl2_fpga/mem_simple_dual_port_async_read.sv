@@ -48,7 +48,11 @@
 module mem_simple_dual_port_async_read #(
     parameter DATA_WIDTH = 0,
     parameter DEPTH = 0,
-    parameter logic [DATA_WIDTH-1:0] DEFAULT_VALUE = 0
+    parameter logic [DATA_WIDTH-1:0] DEFAULT_VALUE = 0,
+    // 1: the array carries Quartus's ramstyle "MLAB, no_rw_check", the only
+    // form Quartus 17.0.2 infers as an asynchronous-read MLAB. The read stays
+    // asynchronous and the write synchronous, so the RTL is the same either way.
+    parameter RAMSTYLE_MLAB = 0
 ) (
     input wire clka,
     input wire wea,
@@ -57,20 +61,38 @@ module mem_simple_dual_port_async_read #(
     input wire [DATA_WIDTH-1:0] dia,
     output logic [DATA_WIDTH-1:0] dob
 );
-    /* synthesis syn_ramstyle = "MLAB, no_rw_check" */
-    // Preserve the RAM's configuration value along with its synchronous writes.
+    generate
+    if (RAMSTYLE_MLAB) begin : mlab
+        // Preserve the RAM's configuration value along with its synchronous writes.
 `ifdef FES_PC386_VERILATOR_5054
-    /* verilator lint_off PROCASSINIT */
+        /* verilator lint_off PROCASSINIT */
 `endif
-    logic [DATA_WIDTH-1:0] ram [DEPTH-1:0] = '{default: DEFAULT_VALUE};
+        (* ramstyle = "MLAB, no_rw_check" *) logic [DATA_WIDTH-1:0] ram [DEPTH-1:0] = '{default: DEFAULT_VALUE};
 `ifdef FES_PC386_VERILATOR_5054
-    /* verilator lint_on PROCASSINIT */
+        /* verilator lint_on PROCASSINIT */
 `endif
 
-    always_ff @(posedge clka)
-        if (wea)
-            ram[addra] <= dia;
+        always_ff @(posedge clka)
+            if (wea)
+                ram[addra] <= dia;
 
-    always_comb dob = ram[addrb];
+        always_comb dob = ram[addrb];
+    end
+    else begin : regs
+`ifdef FES_PC386_VERILATOR_5054
+        /* verilator lint_off PROCASSINIT */
+`endif
+        logic [DATA_WIDTH-1:0] ram [DEPTH-1:0] = '{default: DEFAULT_VALUE};
+`ifdef FES_PC386_VERILATOR_5054
+        /* verilator lint_on PROCASSINIT */
+`endif
+
+        always_ff @(posedge clka)
+            if (wea)
+                ram[addra] <= dia;
+
+        always_comb dob = ram[addrb];
+    end
+    endgenerate
 endmodule
 `default_nettype wire

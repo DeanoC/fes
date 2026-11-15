@@ -1,0 +1,14 @@
+; Logic utilization (in ALMs)     ; 36,704 / 41,910 ( 88 % )                    ;
+; Total registers                 ; 32119                                       ;
+; Total block memory bits         ; 1,349,532 / 5,662,720 ( 24 % )              ;
+; Total RAM Blocks                ; 269 / 553 ( 49 % )                          ;
+; Total DSP Blocks                ; 38 / 112 ( 34 % )                           ;
+; Logic utilization (ALMs needed / total ALMs on device)      ; 36,704 / 41,910       ; 88 % ;
+; [a] ALMs used for LUT logic and registers ; 9,747 ; ;
+; [d] ALMs used for memory (up to half of total ALMs) ; 80 ; ;
+; Total LABs: partially or completely used ; 4,060 / 4,191 ; 97 % ;
+; [a] ALMs used for LUT logic and registers ; 9747 ; 0 ;
+; [d] ALMs used for memory (up to half of total ALMs) ; 80 ; 0 ;
+; Total LABs: partially or completely used ; 4060 / 4191 ( 97 % ) ; 0 / 4191 ( 0 % ) ;
+; Compilation Hierarchy Node ; ALMs needed [=A-B+C] ; [A] ALMs used in final placement ; [B] Estimate of ALMs recoverable by dense packing ; [C] Estimate of ALMs unavailable ; ALMs used for memory ; Combinational ALUTs ; Dedicated Logic Registers ; I/O Registers ; Block Memory Bits ; M10Ks ; DSP Blocks ; Pins ; Virtual Pins ; Full Hierarchy Name ; Entity Name ; Library Name ;
+; Name ; Type ; Mode ; Clock Mode ; Port A Depth ; Port A Width ; Port B Depth ; Port B Width ; Port A Input Registers ; Port A Output Registers ; Port B Input Registers ; Port B Output Registers ; Size ; Implementation Port A Depth ; Implementation Port A Width ; Implementation Port B Depth ; Implementation Port B Width ; Implementation Bits ; M10K blocks ; MLAB cells ; MIF ; Location ; Mixed Width RDW Mode ; Port A RDW Mode ; Port B RDW Mode ; ECC Mode ; ECC Pipeline Registers ; Fits in MLABs ;

@@ -1,0 +1,244 @@
+{
+ "captures": {
+  "kit_g3_1": {
+   "side": "kit",
+   "run": "g3 play 1",
+   "package": "fc01c956",
+   "when": "2026-11-14 15:54",
+   "notes": [
+    {
+     "n": 31,
+     "median": 840.65,
+     "min": 837.57,
+     "max": 840.85
+    },
+    {
+     "n": 31,
+     "median": 499.79,
+     "min": 499.67,
+     "max": 499.83
+    }
+   ]
+  },
+  "kit_g3_2": {
+   "side": "kit",
+   "run": "g3 play 2",
+   "package": "fc01c956",
+   "when": "2026-11-14 15:55",
+   "notes": [
+    {
+     "n": 31,
+     "median": 840.7,
+     "min": 839.49,
+     "max": 840.89
+    },
+    {
+     "n": 31,
+     "median": 499.77,
+     "min": 499.67,
+     "max": 499.84
+    }
+   ]
+  },
+  "kit_g3_3": {
+   "side": "kit",
+   "run": "g3 play 3",
+   "package": "fc01c956",
+   "when": "2026-11-14 15:56",
+   "notes": [
+    {
+     "n": 30,
+     "median": 840.69,
+     "min": 840.37,
+     "max": 840.82
+    },
+    {
+     "n": 31,
+     "median": 499.78,
+     "min": 499.71,
+     "max": 499.85
+    }
+   ]
+  },
+  "kit_g1": {
+   "side": "kit",
+   "run": "g1",
+   "package": "fc01c956",
+   "when": "2026-11-14 11:47",
+   "notes": [
+    {
+     "n": 31,
+     "median": 840.72,
+     "min": 840.42,
+     "max": 840.9
+    },
+    {
+     "n": 31,
+     "median": 499.79,
+     "min": 499.65,
+     "max": 499.87
+    }
+   ]
+  },
+  "kit_t1": {
+   "side": "kit",
+   "run": "t1 (10 November rerun)",
+   "package": "650bc477",
+   "when": "2026-11-10 18:40",
+   "notes": [
+    {
+     "n": 31,
+     "median": 840.7,
+     "min": 840.31,
+     "max": 840.85
+    },
+    {
+     "n": 31,
+     "median": 499.78,
+     "min": 499.71,
+     "max": 499.83
+    }
+   ]
+  },
+  "ref_m3": {
+   "side": "reference",
+   "run": "m3",
+   "when": "2026-11-14 11:43",
+   "notes": [
+    {
+     "n": 35,
+     "median": 962.29,
+     "min": 953.57,
+     "max": 971.53
+    },
+    {
+     "n": 32,
+     "median": 574.28,
+     "min": 567.6,
+     "max": 578.79
+    }
+   ]
+  },
+  "ref_m4": {
+   "side": "reference",
+   "run": "m4",
+   "when": "2026-11-14 11:58",
+   "notes": [
+    {
+     "n": 31,
+     "median": 963.23,
+     "min": 960.33,
+     "max": 964.21
+    },
+    {
+     "n": 31,
+     "median": 573.54,
+     "min": 571.34,
+     "max": 576.7
+    }
+   ]
+  },
+  "ref_m6_1": {
+   "side": "reference",
+   "run": "m6 play 1",
+   "when": "2026-11-14 14:10",
+   "notes": [
+    {
+     "n": 36,
+     "median": 963.02,
+     "min": 959.56,
+     "max": 964.77
+    },
+    {
+     "n": 31,
+     "median": 573.56,
+     "min": 570.4,
+     "max": 576.81
+    }
+   ]
+  },
+  "ref_m6_2": {
+   "side": "reference",
+   "run": "m6 play 2",
+   "when": "2026-11-14 14:11",
+   "notes": [
+    {
+     "n": 36,
+     "median": 962.85,
+     "min": 960.41,
+     "max": 965.12
+    },
+    {
+     "n": 31,
+     "median": 573.26,
+     "min": 567.07,
+     "max": 577.46
+    }
+   ]
+  },
+  "ref_m6_3": {
+   "side": "reference",
+   "run": "m6 play 3",
+   "when": "2026-11-14 14:12",
+   "notes": [
+    {
+     "n": 31,
+     "median": 962.95,
+     "min": 958.59,
+     "max": 965.92
+    },
+    {
+     "n": 31,
+     "median": 574.2,
+     "min": 569.61,
+     "max": 576.76
+    }
+   ]
+  }
+ },
+ "keys": [
+  "6",
+  "1"
+ ],
+ "shortfall": "None. Three kit captures on this package (g3's three plays inside one Use) against five reference captures (m3, m4 and m6's three plays). g1 and the 10 November run t1 are kept as earlier kit captures, t1 on a different seal.",
+ "comparison": [
+  {
+   "key": "6",
+   "kit_hz": 840.69,
+   "kit_captures": 3,
+   "kit_min": 840.65,
+   "kit_max": 840.7,
+   "reference_hz": 962.95,
+   "reference_captures": 5,
+   "reference_min": 962.29,
+   "reference_max": 963.23,
+   "kit_below_reference_pct": 12.7,
+   "semitones_flat": 2.35,
+   "reference_scaled_to_12MHz_hz": 924.43,
+   "kit_below_scaled_pct": 9.06,
+   "semitones_flat_scaled": 1.64,
+   "band_pct": 5.9,
+   "ratio": 1.1454,
+   "verdict": "fail"
+  },
+  {
+   "key": "1",
+   "kit_hz": 499.78,
+   "kit_captures": 3,
+   "kit_min": 499.77,
+   "kit_max": 499.79,
+   "reference_hz": 573.56,
+   "reference_captures": 5,
+   "reference_min": 573.26,
+   "reference_max": 574.28,
+   "kit_below_reference_pct": 12.86,
+   "semitones_flat": 2.38,
+   "reference_scaled_to_12MHz_hz": 550.62,
+   "kit_below_scaled_pct": 9.23,
+   "semitones_flat_scaled": 1.68,
+   "band_pct": 5.9,
+   "ratio": 1.1476,
+   "verdict": "fail"
+  }
+ ]
+}

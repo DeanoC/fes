@@ -30,6 +30,7 @@
 #include <unistd.h>
 #include <chrono>
 #include "native/video.hpp"
+#include "native/adv7513.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -2014,6 +2015,14 @@ HardwareResult NativeHardware::LoadCoreInternal(
     error={ErrorCode::io_failed,"menu blitter initial state is not idle","menu"};
    if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
    menu_status_={};menu_status_.available=true;menu_status_.package_id=admitted->opened_.package_id;
+   // The display and the transmitter have just been reprogrammed. The pixel
+   // PLL and the sink's detected mode settle over the following frames, so
+   // the first live read is one whole interval away, not immediate: a read
+   // taken now would call a healthy bring-up lost and spend the bounded
+   // reactivation budget at exactly the moment a kit needs it.
+   menu_health_checked_=true;menu_health_checked_at_=clock_.NowMs();
+   menu_health_sampled_=false;menu_health_read_failed_=false;
+   menu_health_sequence_mismatch_=false;menu_health_settling_.clear();
    menu_status_.geometry=info.geometry;menu_status_.blitter=blitter;menu_status_.frame_mapping=menu_window_->FrameMapping();menu_slot_=0;
    menu_status_.blitter_minor=blitter?MenuBlitterMinor(admitted->opened_.descriptor):0;
   } else if(session_display) {
@@ -2113,7 +2122,10 @@ Error NativeHardware::SetSessionDisplay(bool visible,bool launcher_focus)
   menu_status_.error=revoked.ok()?error:revoked;
   SetSessionDisplayInputFocus(true);return menu_status_.error;
  }
+ // Hiding the plane moves the committed sequence too, so the verdict stops
+ // describing it here just as it does on a present.
  menu_status_.displayed_sequence=info.displayed_sequence;
+ menu_status_.live.scanout_frame=MenuScanoutFrame::unknown;
  SetSessionDisplayInputFocus(false);menu_underflow_streak_=0;
  return {};
 }
@@ -2127,6 +2139,10 @@ HardwareResult NativeHardware::ConfigureMenuPackage(const std::string& directory
  if(result.error.ok()){
   menu_directory_=directory;menu_package_id_=id;
   menu_underflow_streak_=0;menu_reactivations_=0;menu_reactivation_window_start_=0;
+  // A new configuration is a new display: forget what the old one was
+  // failing with. The program itself set the settle deadline.
+  menu_health_budget_logged_=false;menu_health_reactivated_for_.clear();
+  menu_health_unrecoverable_.clear();
  }
  else if(result.mutation_attempted){menu_directory_.clear();menu_package_id_.clear();menu_status_.available=false;menu_status_.error=result.error;}
  return result;
@@ -2229,6 +2245,164 @@ void NativeHardware::SetSessionDisplayInputFocus(bool launcher_focus)
   input_.SetButtonDeliveryEnabled(enabled);
  }
 }
+// Reads the live display registers and, when the board owns the
+// transmitter, the ADV7513's link, PLL lock and detected mode. A board with
+// no transmitter has a valid display-only sample; a failed read from an owned
+// transmitter makes the sample incomplete.
+bool NativeHardware::ReadIdleDisplayLive(MenuDisplayLive* live)
+{
+ const auto deadline=Deadline(clock_,timeouts_.core_io_ms);
+ MenuDisplayInfo info;
+ if(!menu_display_->ReadInfo(deadline,&info).ok())return false;
+ live->read=true;
+ live->enabled=info.enabled&&info.configured;
+ live->faulted=info.faulted;live->quiesced=info.quiesced;
+ live->displayed_sequence=info.displayed_sequence;live->underflows_total=info.underflows;
+ VideoLinkHealth link;
+ const Error link_error=game_video_.ReadLinkHealth(deadline,&link);
+ if(!link_error.ok())return link_error.code==ErrorCode::unsupported_interface;
+ live->link=true;
+ live->hot_plug=(link.status&adv7513::kStatusHpd)!=0;
+ live->rx_sense=(link.status&adv7513::kStatusMonitorSense)!=0;
+ live->pll_lock=(link.pll&adv7513::kPllLocked)!=0;
+ live->vic=std::uint8_t(link.vic_raw>>adv7513::kVicShift);
+ return true;
+}
+void NativeHardware::LogIdleDisplayLive(const MenuDisplayLive& live)
+{
+ log_.Write({"menu_display_health","","fes.menu","scanout",
+  {ErrorCode::none,std::string("read=")+(live.read?"1":"0")+
+   " enabled="+(live.enabled?"1":"0")+" faulted="+(live.faulted?"1":"0")+
+   " quiesced="+(live.quiesced?"1":"0")+
+   " displayed_sequence="+std::to_string(live.displayed_sequence)+
+   " scanout_frame="+MenuScanoutFrameName(live.scanout_frame)+
+   " underflows_total="+std::to_string(live.underflows_total)+
+   " link="+(live.link?"1":"0")+" hpd="+(live.hot_plug?"1":"0")+
+   " rx_sense="+(live.rx_sense?"1":"0")+" pll_lock="+(live.pll_lock?"1":"0")+
+   " vic="+std::to_string(live.vic)}});
+}
+// A confirmed present proves only that one frame reached scanout. Nothing
+// re-read the display or the transmitter afterwards, so an idle Home that
+// stopped being scanned out stayed invisible to every log. This is that
+// missing re-read, paced to about once a second and never on a present.
+Error NativeHardware::CheckIdleDisplayHealth()
+{
+ // IdleDisplayHealthDue carries both the idle-menu-only condition and the
+ // pacing, so the runtime can ask the same question without fencing frames.
+ if(!IdleDisplayHealthDue())return {};
+ menu_health_checked_=true;menu_health_checked_at_=clock_.NowMs();
+ MenuDisplayLive live;
+ // A register that could not be read is not evidence of a lost scanout.
+ // Reprogramming the menu because a bus call failed would be its own fault
+ // loop, so an unreadable display or transmitter only logs, once per streak.
+ // It changes nothing published either: the live member stays what the
+ // registers last answered, because overwriting a measured sample with an
+ // unmeasured one would also retract a give-up that is still in force. A
+ // client that had stopped presenting into an abandoned loss would then see
+ // no live reads at all, find its own cached sequence unchanged, call that
+ // healthy and start presenting again -- into the loss the runtime gave up
+ // on.
+ if(!ReadIdleDisplayLive(&live)) {
+  if(!menu_health_read_failed_){menu_health_read_failed_=true;LogIdleDisplayLive(live);}
+  return {};
+ }
+ menu_health_read_failed_=false;
+ std::string lost;
+ if(!live.enabled)lost="menu scanout is disabled";
+ else if(live.faulted)lost="menu scanout reports a fault";
+ else if(live.quiesced)lost="menu scanout is quiesced";
+ else if(live.displayed_sequence!=menu_status_.displayed_sequence)
+  lost="menu scanout no longer shows the committed frame";
+ else if(live.link&&!live.pll_lock)lost="menu pixel PLL is unlocked";
+ else if(live.link&&!live.rx_sense)lost="menu HDMI sink sense is lost";
+ else if(live.link&&live.vic!=adv7513::kVic720p60)lost="menu HDMI mode is not 720p60";
+ // The verdict, published where it was made. live.displayed_sequence and
+ // menu_status_.displayed_sequence were both read inside this one check, so
+ // this is the only place the two can honestly be compared; a client holding
+ // a sample from up to a second ago and its own newest present is comparing
+ // two instants and would call every present a loss.
+ //
+ // It is the comparison itself, not which reason won the chain above. A
+ // disabled, faulted or quiesced display is tested first and would otherwise
+ // publish "matching" -- "scanout is showing the committed frame" -- beside a
+ // sample that says the plane is off, which is false in the log and false to
+ // anything that reads the member. The chain decides recovery; this decides
+ // only what the two sequence numbers said.
+ const bool mismatch=live.displayed_sequence!=menu_status_.displayed_sequence;
+ live.scanout_frame=mismatch?MenuScanoutFrame::mismatched:MenuScanoutFrame::matching;
+ // The raw displayed sequence advances with every present, so including it
+ // here would emit a line on every tick of an animating menu. The log records
+ // it; only a health transition, or the verdict flipping, is a change worth a
+ // line.
+ // The first measured sample after programming is always worth a line: the
+ // reset baseline is all-zero, so a display that reads back all-zero matches
+ // it exactly and would otherwise be logged neither now nor on any identical
+ // later tick.
+ const bool changed=!menu_health_sampled_||live.link!=menu_status_.live.link||
+  live.enabled!=menu_status_.live.enabled||live.faulted!=menu_status_.live.faulted||
+  live.quiesced!=menu_status_.live.quiesced||live.rx_sense!=menu_status_.live.rx_sense||
+  live.hot_plug!=menu_status_.live.hot_plug||live.pll_lock!=menu_status_.live.pll_lock||
+  live.vic!=menu_status_.live.vic||mismatch!=menu_health_sequence_mismatch_;
+ menu_status_.live=live;menu_health_sequence_mismatch_=mismatch;menu_health_sampled_=true;
+ if(changed)LogIdleDisplayLive(live);
+ if(lost.empty()) {
+  // A healthy read ends every streak and clears the latch, so a loss that
+  // really does come back is treated as new.
+  menu_health_budget_logged_=false;menu_health_settling_.clear();
+  menu_health_reactivated_for_.clear();menu_health_unrecoverable_.clear();
+  return {};
+ }
+ // PLL lock, Rx sense and the detected VIC settle over several frames after
+ // the pixel stream restarts. One reading of them is not a lost scanout;
+ // two consecutive readings of the same loss are. The display registers
+ // need no such window: they report their own state immediately.
+ const bool settling=live.link&&(lost=="menu pixel PLL is unlocked"||
+  lost=="menu HDMI sink sense is lost"||lost=="menu HDMI mode is not 720p60");
+ if(settling&&menu_health_settling_!=lost){menu_health_settling_=lost;return {};}
+ if(!settling)menu_health_settling_.clear();
+ // A reactivation that did not clear its own reason will not clear it next
+ // time either. Latch it once rather than reprogramming the idle Home twice
+ // every ten minutes for the rest of the kit's uptime.
+ // Every give-up below publishes itself in the live sample. A client that
+ // sees an unhealthy display and no such flag may present to force recovery;
+ // once the runtime has stopped trying, presenting only spends the budget
+ // this policy is protecting, so the status has to say so.
+ if(lost==menu_health_unrecoverable_){menu_status_.live.recovery_abandoned=true;return {};}
+ if(lost==menu_health_reactivated_for_) {
+  menu_health_unrecoverable_=lost;menu_health_reactivated_for_.clear();
+  menu_status_.live.recovery_abandoned=true;
+  log_.Write({"menu_display_health","","fes.menu","latched",
+   {ErrorCode::none,"reactivation did not clear it, so no further reactivation for: "+lost}});
+  return {};
+ }
+ const Error failure={ErrorCode::io_failed,lost,"menu"};
+ // The bounded budget is the whole recovery policy. Exhausted, the display
+ // stays exactly as it is: a reprogram loop is worse than a black screen
+ // that the kit log now names.
+ if(!MenuReactivationAllowed()) {
+  menu_status_.live.recovery_abandoned=true;
+  if(!menu_health_budget_logged_) {
+   menu_health_budget_logged_=true;
+   log_.Write({"menu_display_health","","fes.menu","budget",
+    {ErrorCode::none,"idle display reactivation budget is exhausted: "+lost}});
+  }
+  return {};
+ }
+ menu_health_budget_logged_=false;menu_health_reactivated_for_=lost;
+ log_.Write({"menu_display_health","","fes.menu","present",failure});
+ return FailMenuPresent(failure);
+}
+// Cheap enough for the runtime to ask before it fences out menu frames: it
+// reads a timestamp and touches no bus. The idle menu only. A session plane
+// belongs to a running machine: its display is owned by that session and is
+// never read or reprogrammed from here.
+bool NativeHardware::IdleDisplayHealthDue() const
+{
+ if(!menu_display_||!menu_status_.available||menu_status_.session||menu_unsafe_||
+  menu_directory_.empty()||active_package_==nullptr)
+  return false;
+ return !menu_health_checked_||clock_.NowMs()-menu_health_checked_at_>=kMenuHealthIntervalMs;
+}
 bool NativeHardware::MenuReactivationAllowed()
 {
  const auto now=clock_.NowMs();
@@ -2251,7 +2425,10 @@ Error NativeHardware::FailMenuPresent(const Error& error)
   const Error drained=menu_display_->Quiesce(Deadline(clock_,timeouts_.core_io_ms),
    active_package_?&active_package_->info().descriptor:nullptr,&info);
   SetSessionDisplayInputFocus(!drained.ok());
-  if(drained.ok())menu_status_.displayed_sequence=info.displayed_sequence;
+  if(drained.ok()){
+   menu_status_.displayed_sequence=info.displayed_sequence;
+   menu_status_.live.scanout_frame=MenuScanoutFrame::unknown;
+  }
   if(!drained.ok())menu_status_.error={menu_status_.error.code,menu_status_.error.message+"; session display quiesce failed: "+drained.message,"menu"};
   return menu_status_.error;
  }
@@ -2354,7 +2531,15 @@ Error NativeHardware::PresentMenuSlot(std::uint8_t slot,const MenuDraw& draw,Men
    if(baseline==saturated||info.underflows==saturated||delta>kMenuUnderflowPresentCap){error={ErrorCode::io_failed,"menu underflow exceeded the per-present cap","menu"};break;}
    if(delta>0){if(++menu_underflow_streak_>=kMenuUnderflowSustainPresents){error={ErrorCode::io_failed,"menu underflow persisted across presents","menu"};break;}}
    else menu_underflow_streak_=0;
+   // The committed frame has moved, so the last health check's verdict no
+   // longer speaks to what is on the wire. Dropping it to unknown is one
+   // store next to the one that moves the sequence -- nothing on this path
+   // reads a register or takes a lock for it -- and it drops only the
+   // verdict: the abandoned flag and the enabled/faulted/quiesced facts
+   // stay published, because a client that sees no live reads at all goes
+   // back to presenting into a loss the runtime gave up on.
    menu_slot_=slot;menu_status_.displayed_sequence=sequence;menu_status_.underflows=delta;info.underflows=delta;
+   menu_status_.live.scanout_frame=MenuScanoutFrame::unknown;
    if(draw.blit)menu_status_.blitted=true;
    info.clean_us=micros(clean_start,blit_start);info.blit_us=micros(blit_start,submit_start);
    info.submit_us=micros(submit_start,wait_start);

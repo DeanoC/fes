@@ -378,6 +378,13 @@ public:
 			*value = 0x10;
 			return {};
 		}
+		// The live transmitter registers a health check reads: 0x9e bit 4 is
+		// pixel PLL lock and 0x3e>>2 is the detected VIC (4 = 720p60).
+		if (address == 0x9e || address == 0x3e) {
+			if (!detail_read_error.ok()) return detail_read_error;
+			*value = address == 0x9e ? pll_status : vic_status;
+			return {};
+		}
 		assert(address == 0x42);
 		events_.push_back("video.link.ready");
 		if (on_link_ready) on_link_ready();
@@ -426,6 +433,9 @@ public:
 		timing_seen_ = false;
 		mode_seen_ = false;
 	}
+	std::uint8_t pll_status = 0x12;
+	std::uint8_t vic_status = 0x10;
+	mister::Error detail_read_error;
 	std::vector<std::uint64_t> deadlines;
 	mister::Error select_error;
 	std::string fail_event;
@@ -1916,6 +1926,14 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure(bool frame_mapping
   assert(hardware.menu_display().launcher_focus);
  };
  open_plane();
+ // The plane belongs to the running machine. The idle health check never
+ // reads a session display and can never reprogram one out from under it.
+ {
+  const auto owned=mmio.writes.size();
+  assert(hardware.CheckIdleDisplayHealth().ok());
+  assert(mmio.writes.size()==owned&&hardware.menu_display().available);
+  assert(!hardware.menu_display().live.read&&fpga.calls==1);
+ }
  const auto focused=mmio.writes.size();assert(hardware.SetComputerKeyboard(0).ok()&&mmio.writes.size()==focused);
  script.Present(0,0,0);mister::MenuDisplayInfo info;assert(PresentBackSlot(hardware,&info).ok());
  script.Reply();script.Info(9,1);assert(hardware.SetSessionDisplay(false,false).ok());
@@ -2464,6 +2482,496 @@ void TestNativeMenuBlitterPresent(std::uint16_t declared_minor)
  assert(operations.Granted()&&operations.granted.back()==83886080&&!hardware.menu_display().blitted);
  gp_script.Present(0,0,0);
  assert(PresentBackSlot(hardware,&displayed).ok()&&displayed.displayed_sequence==1&&operations.cleans==6);
+}
+
+// A confirmed present proves one frame reached scanout. These tests cover
+// the periodic re-read that notices when it stops, and the bounded
+// reactivation it is allowed to spend.
+void TestIdleDisplayHealthDetectsLostScanoutWithinBudget()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;OpenedCorePackage opened;PopulateHpsDdrApplication(&package,true,&opened);
+ std::string manifest=ReadText(package.path+"/manifest.toml");ReplaceAll(&manifest,"fes.pong","fes.menu");
+ manifest+="\n[[interfaces]]\nid = \"fes.video.menu-display\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ {std::ofstream output(package.path+"/manifest.toml",std::ios::trunc);output<<manifest;assert(output.good());}
+ assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ MenuGpScript script{&mmio};script.BringUp();
+ assert(hardware.ConfigureMenuPackage(package.path,opened.package_id).error.ok());
+ mister::MenuDisplayInfo displayed;
+ script.Present(0,0,0);
+ assert(PresentBackSlot(hardware,&displayed).ok()&&hardware.menu_display().displayed_sequence==1);
+ const auto links=[&]{
+  std::size_t count=0;for(const auto& event:events)if(event=="video.link.ready")++count;return count;
+ };
+ // A present never reads the transmitter, and the health check is the only
+ // thing that does. The scripted GP exchanges would desync on an extra read.
+ const auto present_links=links();
+ script.Present(1,0,0);assert(PresentBackSlot(hardware,&displayed).ok());
+ assert(links()==present_links&&hardware.menu_display().displayed_sequence==2);
+ assert(!hardware.menu_display().live.read);
+
+ // Programming the menu starts the settle window: the pixel PLL and the
+ // sink's detected mode need frames to come back, so no read happens at the
+ // activation moment however many status requests arrive.
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(!hardware.IdleDisplayHealthDue()&&!hardware.menu_display().live.read);
+ assert(links()==present_links);
+
+ // A healthy re-read records what the display and the ADV7513 report.
+ clock.now_+=kMenuHealthIntervalMs;
+ assert(hardware.IdleDisplayHealthDue());
+ script.Info(3,2);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ const auto healthy=hardware.menu_display().live;
+ assert(healthy.read&&healthy.link&&healthy.enabled&&!healthy.faulted&&!healthy.quiesced);
+ assert(healthy.displayed_sequence==2&&healthy.pll_lock&&healthy.rx_sense&&healthy.hot_plug);
+ assert(healthy.vic==4&&hardware.menu_display().available);
+ assert(links()==present_links+1);
+ // Paced: a second call inside the interval reads nothing at all.
+ const auto writes=mmio.writes.size();
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(mmio.writes.size()==writes&&links()==present_links+1);
+
+ const auto reactivate=[&]{
+  script.QuiesceRunningMenu();script.BringUp();
+  assert(hardware.LoadIdle().error.ok());
+  assert(hardware.menu_display().available&&fpga.programmed.back()=="core.rbf");
+ };
+ // A latched pixel-PLL fault gates video off until the core is reprogrammed.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(19,2);
+ const auto faulted=hardware.CheckIdleDisplayHealth();
+ assert(!faulted.ok()&&faulted.message=="menu scanout reports a fault");
+ assert(!hardware.menu_display().available&&!operations.Granted());
+ assert(hardware.menu_display().error.message=="menu scanout reports a fault");
+ reactivate();
+
+ // A disabled scanout is the same invisible loss, and spends the last of
+ // the budget.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(1,0);
+ const auto disabled=hardware.CheckIdleDisplayHealth();
+ assert(!disabled.ok()&&disabled.message=="menu scanout is disabled");
+ reactivate();
+
+ // Budget exhausted: the loss is reported once and nothing is reprogrammed.
+ clock.now_+=kMenuHealthIntervalMs;
+ const auto programs=fpga.calls;
+ script.Info(3,9);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().available&&fpga.calls==programs&&operations.Granted());
+ bool budget_logged=false;
+ for(const auto& record:log.records())
+  if(record.operation=="menu_display_health"&&record.phase=="budget")budget_logged=true;
+ assert(budget_logged);
+ // It stays reported once: the second refusal does not log again.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,9);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ std::size_t budget_records=0;
+ for(const auto& record:log.records())
+  if(record.operation=="menu_display_health"&&record.phase=="budget")++budget_records;
+ assert(budget_records==1);
+
+ // Once the window passes the budget is whole again, and a scanout showing
+ // another sequence than the committed frame is a loss like any other.
+ clock.now_+=kMenuReactivationWindowMs;
+ script.Info(3,9);
+ const auto stale=hardware.CheckIdleDisplayHealth();
+ assert(!stale.ok()&&stale.message=="menu scanout no longer shows the committed frame");
+ reactivate();
+
+ // An unreadable transmitter is not evidence of anything: it degrades to a
+ // failed sample and never reactivates on its own. Keep the last measured
+ // sample because an incomplete read cannot establish that the display is
+ // healthy.
+ clock.now_+=kMenuHealthIntervalMs;
+ i2c.detail_read_error={mister::ErrorCode::io_failed,"scripted ADV read failure"};
+ const auto before_adv=fpga.calls;
+ const auto before_adv_live=hardware.menu_display().live;
+ script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.read==before_adv_live.read);
+ assert(hardware.menu_display().live.link==before_adv_live.link);
+ assert(hardware.menu_display().live.displayed_sequence==before_adv_live.displayed_sequence);
+ assert(hardware.menu_display().available&&fpga.calls==before_adv);
+ // Repeated failures stay quiet rather than storming the reactivation path.
+ for(unsigned i=0;i<4;++i) {
+  clock.now_+=kMenuHealthIntervalMs;script.Info(3,0);
+  assert(hardware.CheckIdleDisplayHealth().ok());
+ }
+ assert(fpga.calls==before_adv&&hardware.menu_display().available);
+ i2c.detail_read_error={};
+
+ // A sink that stopped reporting Rx sense, or a mode that is no longer
+ // 720p60, is the same lost picture. These three signals settle over
+ // several frames, so one reading is not enough: a second, consecutive
+ // reading of the same loss is what reprograms.
+ clock.now_+=kMenuHealthIntervalMs;
+ i2c.pll_status=0x02;
+ script.Info(3,0);
+ const auto settling=fpga.calls;
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(fpga.calls==settling&&hardware.menu_display().available);
+ assert(!hardware.menu_display().live.pll_lock);
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,0);
+ const auto unlocked=hardware.CheckIdleDisplayHealth();
+ assert(!unlocked.ok()&&unlocked.message=="menu pixel PLL is unlocked");
+ i2c.pll_status=0x12;
+ reactivate();
+ // A fresh window, so this loss is judged on its own evidence.
+ clock.now_+=kMenuReactivationWindowMs;
+ i2c.vic_status=0x04;
+ script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,0);
+ const auto mode=hardware.CheckIdleDisplayHealth();
+ assert(!mode.ok()&&mode.message=="menu HDMI mode is not 720p60");
+ // That reactivation cannot clear a sink that reports this mode for this
+ // picture. Reporting the same reason again latches it: the idle Home is
+ // not reprogrammed twice every ten minutes for the rest of the uptime.
+ reactivate();
+ const auto latched=fpga.calls;
+ // An ADV7513 read failure leaves the link state unknown. It must not take
+ // the healthy path and clear the same-loss reactivation latch.
+ clock.now_+=kMenuHealthIntervalMs;
+ i2c.detail_read_error={mister::ErrorCode::io_failed,"scripted ADV read failure"};
+ const auto before_unknown=hardware.menu_display().live;
+ script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.link==before_unknown.link);
+ assert(hardware.menu_display().live.recovery_abandoned==before_unknown.recovery_abandoned);
+ assert(fpga.calls==latched&&hardware.menu_display().available);
+ i2c.detail_read_error={};
+ // The persistent mode loss remains the same reason. A read failure between
+ // its confirming samples must not allow another reactivation.
+ clock.now_+=kMenuHealthIntervalMs;script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(fpga.calls==latched);
+ clock.now_+=kMenuHealthIntervalMs;script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.recovery_abandoned&&fpga.calls==latched);
+ clock.now_+=kMenuHealthIntervalMs;script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(fpga.calls==latched&&hardware.menu_display().available);
+ std::size_t latch_records=0;
+ for(const auto& record:log.records())
+  if(record.operation=="menu_display_health"&&record.phase=="latched")++latch_records;
+ assert(latch_records==1);
+ // Even a whole new budget window does not reopen a latched reason.
+ clock.now_+=kMenuReactivationWindowMs;script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ clock.now_+=kMenuHealthIntervalMs;script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(fpga.calls==latched);
+ // A healthy read clears the latch, so a loss that genuinely returns later
+ // is treated as new evidence again.
+ i2c.vic_status=0x10;
+ clock.now_+=kMenuHealthIntervalMs;script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ i2c.vic_status=0x04;
+ clock.now_+=kMenuHealthIntervalMs;script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ clock.now_+=kMenuHealthIntervalMs;script.Info(3,0);
+ const auto again=hardware.CheckIdleDisplayHealth();
+ assert(!again.ok()&&again.message=="menu HDMI mode is not 720p60");
+ assert(!hardware.menu_display().available&&!operations.Granted());
+ i2c.vic_status=0x10;
+}
+
+// Both give-ups -- a latched reason and a spent budget -- leave the display
+// exactly as it is, so status is the only place a client can learn that the
+// runtime has stopped recovering. Without that the launcher reads an
+// unhealthy sample it is still expected to act on and presents a whole frame
+// every probe, spending from the present path the budget this policy kept.
+void TestIdleDisplayHealthPublishesWhenItStopsRecovering()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;OpenedCorePackage opened;PopulateHpsDdrApplication(&package,true,&opened);
+ std::string manifest=ReadText(package.path+"/manifest.toml");ReplaceAll(&manifest,"fes.pong","fes.menu");
+ manifest+="\n[[interfaces]]\nid = \"fes.video.menu-display\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ {std::ofstream output(package.path+"/manifest.toml",std::ios::trunc);output<<manifest;assert(output.good());}
+ assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ MenuGpScript script{&mmio};script.BringUp();
+ assert(hardware.ConfigureMenuPackage(package.path,opened.package_id).error.ok());
+ mister::MenuDisplayInfo displayed;
+ script.Present(0,0,0);
+ assert(PresentBackSlot(hardware,&displayed).ok()&&hardware.menu_display().displayed_sequence==1);
+ const auto reactivate=[&]{
+  script.QuiesceRunningMenu();script.BringUp();
+  assert(hardware.LoadIdle().error.ok()&&hardware.menu_display().available);
+ };
+
+ // A healthy display has given nothing up.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,1);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.read&&!hardware.menu_display().live.recovery_abandoned);
+
+ // The first confirmed loss is reactivated, so the runtime is still trying
+ // and the launcher's own present is still the right answer.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(1,0);
+ const auto disabled=hardware.CheckIdleDisplayHealth();
+ assert(!disabled.ok()&&disabled.message=="menu scanout is disabled");
+ assert(!hardware.menu_display().live.recovery_abandoned);
+ reactivate();
+
+ // The same reason, after the reactivation that was meant to clear it, is
+ // latched. Nothing is reprogrammed, and status says why.
+ clock.now_+=kMenuHealthIntervalMs;
+ const auto latched=fpga.calls;
+ script.Info(1,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.recovery_abandoned&&fpga.calls==latched);
+ assert(hardware.menu_display().available);
+ // Every later sample of that latched loss keeps saying it.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(1,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.recovery_abandoned&&fpga.calls==latched);
+
+ // A check that cannot read the registers at all measures nothing and so
+ // replaces nothing: the latch is still in force, and the sample that named
+ // it stays on the wire. Dropping the live member here would leave the
+ // client with no live reads, its own cached sequence unchanged, and every
+ // reason to call the display healthy and present into the loss again.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.toggle=!script.toggle;PushFesGpResponse(&mmio,script.toggle,0,true);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.read&&hardware.menu_display().live.recovery_abandoned);
+ assert(fpga.calls==latched&&hardware.menu_display().available);
+
+ // A healthy read clears the latch, and the flag goes with it.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(!hardware.menu_display().live.recovery_abandoned);
+
+ // A second reason inside the same window spends the last reactivation.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,9);
+ const auto stale=hardware.CheckIdleDisplayHealth();
+ assert(!stale.ok()&&stale.message=="menu scanout no longer shows the committed frame");
+ assert(!hardware.menu_display().live.recovery_abandoned);
+ reactivate();
+
+ // With the budget spent, a new reason is left exactly as it is -- and that
+ // give-up is published too, not only written to the kit log.
+ clock.now_+=kMenuHealthIntervalMs;
+ const auto spent=fpga.calls;
+ script.Info(1,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.recovery_abandoned&&fpga.calls==spent);
+ bool budget_logged=false;
+ for(const auto& record:log.records())
+  if(record.operation=="menu_display_health"&&record.phase=="budget")budget_logged=true;
+ assert(budget_logged&&hardware.menu_display().available);
+
+ // And a display that comes back is a healthy sample like any other.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,0);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(!hardware.menu_display().live.recovery_abandoned);
+}
+
+// Whether scanout still shows the committed frame is a comparison of two
+// numbers read in the same breath, so the runtime makes it and publishes the
+// answer. A client cannot: the sample it holds was taken up to a second ago
+// and its own present has moved the committed frame since, so comparing them
+// calls every ordinary present a loss and sends a whole frame to "recover"
+// from it, which moves the sequence again. A present therefore drops the
+// verdict to unknown rather than leaving a stale one to speak for a frame it
+// never saw.
+void TestIdleDisplayHealthPublishesTheCommittedFrameVerdict()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;OpenedCorePackage opened;PopulateHpsDdrApplication(&package,true,&opened);
+ std::string manifest=ReadText(package.path+"/manifest.toml");ReplaceAll(&manifest,"fes.pong","fes.menu");
+ manifest+="\n[[interfaces]]\nid = \"fes.video.menu-display\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ {std::ofstream output(package.path+"/manifest.toml",std::ios::trunc);output<<manifest;assert(output.good());}
+ assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ MenuGpScript script{&mmio};script.BringUp();
+ assert(hardware.ConfigureMenuPackage(package.path,opened.package_id).error.ok());
+ mister::MenuDisplayInfo displayed;
+
+ // Nothing has been measured yet, so there is no verdict to publish.
+ assert(hardware.menu_display().live.scanout_frame==mister::MenuScanoutFrame::unknown);
+ script.Present(0,0,0);
+ assert(PresentBackSlot(hardware,&displayed).ok()&&hardware.menu_display().displayed_sequence==1);
+
+ // A check that finds scanout on the committed frame says so.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,1);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.scanout_frame==mister::MenuScanoutFrame::matching);
+ assert(hardware.menu_display().live.displayed_sequence==1);
+
+ // The next present commits a new frame. The sample is now one behind the
+ // committed sequence -- which is exactly the pair a client would have
+ // subtracted -- so the verdict goes with it rather than reading as a loss.
+ // Only the verdict: the sample itself stays on the wire.
+ script.Present(1,0,0);
+ assert(PresentBackSlot(hardware,&displayed).ok()&&hardware.menu_display().displayed_sequence==2);
+ const auto stale=hardware.menu_display().live;
+ assert(stale.scanout_frame==mister::MenuScanoutFrame::unknown);
+ assert(stale.read&&stale.enabled&&stale.displayed_sequence==1);
+ // A present never reads a register for this, so the pacing is untouched and
+ // the verdict stays unknown until the next check is due.
+ assert(!hardware.IdleDisplayHealthDue());
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.scanout_frame==mister::MenuScanoutFrame::unknown);
+
+ // The next check re-establishes it against the frame that is now committed.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,2);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.scanout_frame==mister::MenuScanoutFrame::matching);
+
+ // And a genuine loss is still a loss: the verdict says mismatched and the
+ // bounded recovery runs for it exactly as before.
+ clock.now_+=kMenuHealthIntervalMs;
+ const auto before=fpga.calls;
+ script.Info(3,9);
+ const auto lost=hardware.CheckIdleDisplayHealth();
+ assert(!lost.ok()&&lost.message=="menu scanout no longer shows the committed frame");
+ assert(hardware.menu_display().live.scanout_frame==mister::MenuScanoutFrame::mismatched);
+ assert(!hardware.menu_display().available&&fpga.calls==before);
+}
+
+// The verdict is the comparison of the two sequence numbers, not a report of
+// which reason won the loss chain. A quiesced plane is tested before the
+// sequence, so deriving the verdict from the chain published "scanout is
+// showing the committed frame" next to a sample saying the plane is down --
+// false in the kit log and false to anything reading the member.
+void TestIdleDisplayHealthVerdictFollowsTheSequenceNotTheLossReason()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;OpenedCorePackage opened;PopulateHpsDdrApplication(&package,true,&opened);
+ std::string manifest=ReadText(package.path+"/manifest.toml");ReplaceAll(&manifest,"fes.pong","fes.menu");
+ manifest+="\n[[interfaces]]\nid = \"fes.video.menu-display\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ {std::ofstream output(package.path+"/manifest.toml",std::ios::trunc);output<<manifest;assert(output.good());}
+ assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ MenuGpScript script{&mmio};script.BringUp();
+ assert(hardware.ConfigureMenuPackage(package.path,opened.package_id).error.ok());
+ mister::MenuDisplayInfo displayed;
+ script.Present(0,0,0);
+ assert(PresentBackSlot(hardware,&displayed).ok()&&hardware.menu_display().displayed_sequence==1);
+
+ // Configured and enabled, but quiesced, and showing a frame that is not the
+ // committed one. Quiesced wins the chain and drives the recovery; the
+ // verdict still reports what the two sequence numbers said.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(FesApplicationMenuStateConfigured|FesApplicationMenuStateEnabled|
+  FesApplicationMenuStateQuiesced,9);
+ const auto lost=hardware.CheckIdleDisplayHealth();
+ assert(!lost.ok()&&lost.message=="menu scanout is quiesced");
+ const auto live=hardware.menu_display().live;
+ assert(live.quiesced&&live.displayed_sequence==9);
+ assert(live.scanout_frame==mister::MenuScanoutFrame::mismatched);
+}
+
+// An unreadable display is never recovered from -- a failed bus call is no
+// evidence of a lost scanout -- but the policy says it is logged. A reset
+// baseline is all-zero, so the first unreadable sample matched it exactly and
+// was logged neither then nor on any identical tick after it.
+void TestIdleDisplayHealthLogsTheFirstUnreadableSample()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;OpenedCorePackage opened;PopulateHpsDdrApplication(&package,true,&opened);
+ std::string manifest=ReadText(package.path+"/manifest.toml");ReplaceAll(&manifest,"fes.pong","fes.menu");
+ manifest+="\n[[interfaces]]\nid = \"fes.video.menu-display\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ {std::ofstream output(package.path+"/manifest.toml",std::ios::trunc);output<<manifest;assert(output.good());}
+ assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ MenuGpScript script{&mmio};script.BringUp();
+ assert(hardware.ConfigureMenuPackage(package.path,opened.package_id).error.ok());
+ mister::MenuDisplayInfo displayed;
+ script.Present(0,0,0);
+ assert(PresentBackSlot(hardware,&displayed).ok()&&hardware.menu_display().displayed_sequence==1);
+ const auto scanouts=[&]{
+  std::vector<std::string> lines;
+  for(const auto& record:log.records())
+   if(record.operation=="menu_display_health"&&record.phase=="scanout")
+    lines.push_back(record.error.message);
+  return lines;
+ };
+ assert(scanouts().empty());
+
+ // The display rejects the read. Nothing is reprogrammed -- a failed bus
+ // call is no evidence of a lost scanout -- and the sample is named once.
+ const auto reject=[&]{script.toggle=!script.toggle;PushFesGpResponse(&mmio,script.toggle,0,true);};
+ clock.now_+=kMenuHealthIntervalMs;
+ const auto programs=fpga.calls;
+ reject();
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(fpga.calls==programs&&hardware.menu_display().available&&operations.Granted());
+ assert(!hardware.menu_display().live.read);
+ assert(scanouts().size()==1u&&scanouts().back().find("read=0")!=std::string::npos);
+
+ // Every later unreadable tick says exactly what the first one said, and
+ // repeating it once a second is the noise this policy avoids.
+ clock.now_+=kMenuHealthIntervalMs;
+ reject();
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(scanouts().size()==1u&&fpga.calls==programs);
+
+ // Reading again is a transition, and transitions are what the log records.
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,1);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(hardware.menu_display().live.read&&hardware.menu_display().available);
+ assert(scanouts().size()==2u&&scanouts().back().find("read=1")!=std::string::npos);
+ clock.now_+=kMenuHealthIntervalMs;
+ script.Info(3,1);
+ assert(hardware.CheckIdleDisplayHealth().ok());
+ assert(scanouts().size()==2u);
 }
 
 void TestMenuUnderflowPolicyReactivatesThenSplashes()
@@ -5628,6 +6136,11 @@ int main(int argc,char** argv)
  TestNativeMenuBlitterPresent(0);
  TestNativeMenuBlitterPresent(1);
  TestMenuUnderflowPolicyReactivatesThenSplashes();
+ TestIdleDisplayHealthDetectsLostScanoutWithinBudget();
+ TestIdleDisplayHealthPublishesWhenItStopsRecovering();
+ TestIdleDisplayHealthPublishesTheCommittedFrameVerdict();
+ TestIdleDisplayHealthVerdictFollowsTheSequenceNotTheLossReason();
+ TestIdleDisplayHealthLogsTheFirstUnreadableSample();
 	TestComputerLiveMediaLifecycleThroughRuntime();
 	TestPcxtFloppyLifecycleThroughRuntime();
 	TestPcxtDosPackageInspectionAcceptsRuntimeFloppyContract();
