@@ -17,7 +17,46 @@ D12 asks for three things. This record covers the **first** only:
 3. the PR's own build passes the core's normal timing and seal gates —
    **not started** (needs a GPU route per core).
 
-So this directory does not by itself discharge D12.
+## Agreed scope for conditions 2 and 3
+
+Deano scoped the route-based evidence on 2026-11-15: **firmware plus one
+representative per affected machine family**, rather than all 15 artifacts.
+That is `fes.menu`, `splash`, `fes.zx81`, `fes.spectrum` and `fes.c64`. The
+sibling variants (`zx80`, `ts1000`, `ts1500`, `spectrum128`, `spectrum-plus3`,
+`pentagon`) share a producer, a lock and a constraint set with their
+representative and have identical netlists, and the held-back cores (`fes.pong`,
+`fes.ramtest`, `fes.coleco`, `fes.riscv`) are not shipped. Their conditions 2
+and 3 are deliberately not measured; that is a priority call, recorded here so
+the gap is explicit rather than silent.
+
+| Artifact | Condition 1 | Condition 2 | Condition 3 |
+| --- | --- | --- | --- |
+| `splash` | done (src exempt) | **done** | **done** |
+| `fes.menu` | done | pending | pending |
+| `fes.zx81` | done | pending | pending |
+| `fes.spectrum` | done | pending | pending |
+| `fes.c64` | done | pending | pending |
+
+### `splash` is complete, and needed no GPU
+
+Splash routes with `gpu_router=OFF`, a CPU-reference nextpnr, so its whole seal
+runs without a GPU. Both sides were sealed with the identical local install
+(`reports-seal/splash.json`):
+
+- **Condition 2.** The two RBFs are byte-identical: `64f1f16daedba4ed…`,
+  1,963,321 bytes, `cmp` clean. Note this is a stronger result than the rule
+  asks for. D12 wants a build with the PR's tooling and *main's* `BUILD_ID` to
+  reproduce main's RBF; splash's Yosys program sets no `BUILD_ID` at all, so
+  the RBF does not depend on it, and the two sides reproduce the same bytes even
+  though their `BUILD_ID`s genuinely differ (`b19d1242…` on main,
+  `85c40d0f…` on the branch — a format-1 record hashes the revision). No
+  constant had to be forced to get the comparison.
+- **Condition 3.** The branch build passed splash's own gates through the
+  producer, which validates evidence before sealing. Pixel fmax is
+  236.574 MHz on both sides.
+
+So this directory discharges D12 in full for `splash`, and condition 1 only for
+the other 14.
 
 ## Scope, and a correction to how it was derived
 
