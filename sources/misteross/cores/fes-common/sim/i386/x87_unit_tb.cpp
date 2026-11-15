@@ -1660,6 +1660,29 @@ int main(int argc, char **argv) {
             {"align66b", pat(0x3fff + 66, 0x8000000000000000ull), pat(0x3fff, 0xffffffffffffffffull)},
             // An empty ST(1), which is a stack underflow.
             {"empty", one, pat(0, 0)},
+            // More of the tininess boundary, where the rounding's own carry
+            // decides whether the result is tiny at all. The first is one
+            // step above the smallest normal times (1 - 2^-63) and the
+            // second is a product whose PC 24 rounding carries it back into
+            // range; between them they separate tininess before the
+            // rounding from tininess after it.
+            {"tiny-edge4", pat(0x0001, 0x8000000000000001ull), pat(0x3ffe, 0xfffffffffffffffeull)},
+            {"tiny-edge5", pat(0x0001, 0x8000000000000000ull), pat(0x3ffe, 0xffffff0000000000ull)},
+            {"tiny-edge6", pat(0x0001, 0x8000000000000001ull), pat(0x3ffe, 0xffffffffffffffffull)},
+            {"tiny-edge7", pat(0x0002, 0x8000000000000000ull), pat(0x3ffe, 0xffffffffffffffffull)},
+            {"tiny-edge8", pat(0x0000, 0x0000000000000001ull), pat(0x3fff, 0x8000000000000001ull)},
+            // Two quiet NaNs with different payloads, with equal payloads
+            // and opposite signs, and a signalling pair: the 387 delivers
+            // the one with the larger significand, and the tie has to go
+            // somewhere. `a_rev` swaps the two operands, so the reversed
+            // subtract runs each pair the other way round as well.
+            {"qnan-pair", pat(0x7fff, 0xc000000000000001ull), pat(0x7fff, 0xc000000000000002ull)},
+            {"qnan-tie", pat(0x7fff, 0xc000000000000003ull), pat(0xffff, 0xc000000000000003ull)},
+            {"qnan-tie2", pat(0xffff, 0xc000000000000003ull), pat(0x7fff, 0xc000000000000003ull)},
+            {"snan-pair", pat(0x7fff, 0xa000000000000001ull), pat(0x7fff, 0xa000000000000002ull)},
+            {"snan-qnan", pat(0x7fff, 0xa000000000000009ull), pat(0x7fff, 0xc000000000000001ull)},
+            {"qnan-snan", pat(0x7fff, 0xc000000000000001ull), pat(0x7fff, 0xa000000000000009ull)},
+            {"snan-tie", pat(0x7fff, 0xa000000000000003ull), pat(0xffff, 0xa000000000000003ull)},
         };
         struct Mask { const char *name; uint16_t clear; };
         const Mask masks[] = {
@@ -1671,6 +1694,7 @@ int main(int argc, char **argv) {
             {"fadd",  0x0, 0xc1, 2, ARITH_SW}, {"fmul",   0x0, 0xc9, 2, ARITH_SW},
             {"fsub",  0x0, 0xe1, 2, ARITH_SW}, {"fsubr",  0x0, 0xe9, 2, ARITH_SW},
             {"fmulp", 0x6, 0xc9, 2, ARITH_SW}, {"fscale", 0x1, 0xfd, 2, ARITH_SW},
+            {"fadd.sti", 0x4, 0xc1, 2, ARITH_SW}, {"fsubr.sti", 0x4, 0xe9, 2, ARITH_SW},
             {"frndint", 0x1, 0xfc, 1, ARITH_SW}, {"fxtract", 0x1, 0xf4, 1, ARITH_SW},
             {"fcom",  0x0, 0xd1, 2, 0xffff},
         };

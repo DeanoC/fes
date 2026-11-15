@@ -910,7 +910,13 @@ module fes_i386_x87 (
                 // operand whose payload is larger).
                 if (ca == C_SNAN && cb == C_QNAN) pick_a = 1'b0;
                 else if (ca == C_QNAN && cb == C_SNAN) pick_a = 1'b1;
-                else pick_a = pa[62:0] >= pb[62:0];
+                else if (pa[62:0] != pb[62:0]) pick_a = pa[62:0] > pb[62:0];
+                // Equal payloads: the positive one is delivered. The host
+                // bench settles it both ways round -- a negative ST(0) with
+                // a positive ST(1) of the same payload gives the positive
+                // one, and so does the other way round -- so it is the sign
+                // that decides and not which operand it is.
+                else pick_a = !pa[79];
             end else
                 pick_a = nan_a;
             sp_v = pick_a ? {pa[79:64], 2'b11, pa[61:0]} : {pb[79:64], 2'b11, pb[61:0]};
@@ -1012,7 +1018,6 @@ module fes_i386_x87 (
     logic               wsf;           // ... and the stack flag
     logic [1:0]         wprec;         // the precision this operation rounds to
     logic               wtiny;         // the denormalising shift has been taken
-    logic               wshloss;       // ... and it dropped bits of the result
     logic               wsat;          // FSCALE's scale saturated, so the true exponent is
                                        // out of the bias adjust's reach by construction
     logic [79:0]        ares, ares2;   // the result the apply writes, and FXTRACT's second
@@ -1272,7 +1277,6 @@ module fes_i386_x87 (
                     pc1 <= 1'b0;
                     pcc_wr <= 1'b0;
                     wtiny <= 1'b0;
-                    wshloss <= 1'b0;
                     wsat <= 1'b0;
                     wprec <= cur == X87_ARITH ? pc : PC_EXT;
                     if (a_mem && ld_shift) begin
@@ -1850,153 +1854,111 @@ module fes_i386_x87 (
                     // The guard and round bits the arithmetic left are below
                     // bit 0 once the shift has moved the significand down,
                     // so they join the sticky rather than being dropped.
-                    // `wshloss` is whether the denormalising itself lost
-                    // anything, which is what underflow is reported from:
-                    // the precision exception follows the whole rounding,
-                    // but underflow follows this shift alone. A real x87
-                    // parts them -- the smallest normal minus the smallest
-                    // denormal lands exactly on the denormal grid, so at
-                    // PC 24 it reports precision and not underflow, while
-                    // the smallest normal times (1 - 2^-64) falls between
-                    // two denormals and reports both.
                     wm <= mul_p[127:64];
                     wg <= mul_p[63];
                     wrd <= mul_p[62];
                     ws <= ws || wg || wrd || |mul_p[61:0];
-                    wshloss <= ws || wg || wrd || mul_p[63] || mul_p[62] || |mul_p[61:0];
                     seq <= A_RND;
                 end
                 // Rounding at the destination's precision, and then the
                 // exponent rules. A real x87 settles those, and the host
-                // probe the record sets out is where they come from:
+                // bench the record sets out is where they come from.
                 //
+                // The value is rounded once at PC as though the exponent
+                // range were unbounded, and that rounded exponent decides
+                // whether it is tiny: tininess after rounding. A product
+                // whose exact value is below the smallest normal but whose
+                // rounding carries it back up is not tiny and reports
+                // precision alone; one whose rounding does not is tiny and
+                // reports underflow as well. Precision control moves that
+                // line, because it moves where the rounding carries -- one
+                // pair of operands is tiny at PC 64 and not at PC 24, and
+                // another is the other way round, which is how the bench
+                // tells this rule from the alternatives.
+                //
+                // Then:
                 //   - masked overflow stores an infinity, or the precision's
                 //     largest finite value where the rounding is toward
                 //     zero, with OE and PE, and C1 says which way it went;
-                //   - unmasked overflow stores the result with its exponent
-                //     lowered by 24576, and unmasked underflow with it
-                //     raised by 24576, which is the 387's bias adjust;
-                //   - masked underflow denormalises the result and reports
-                //     UE only where the denormalising lost bits, so a tiny
-                //     exact result raises nothing at all, while unmasked
-                //     underflow reports UE on any tiny result, exact or not;
+                //   - unmasked overflow or underflow stores the result with
+                //     its exponent moved by 24576, which is the 387's bias
+                //     adjust, and reports OE or UE whether or not the result
+                //     is inexact. Where the adjust cannot reach -- FSCALE's
+                //     scale saturates, so its exponent is out of reach by
+                //     construction -- the masked result is stored instead,
+                //     and an infinity in every rounding mode;
+                //   - masked underflow denormalises the value as it was and
+                //     rounds it there, so the result goes through one
+                //     rounding and not two, and reports UE where that
+                //     rounding lost bits: a tiny exact result raises nothing;
                 //   - the precision exception never holds a result back.
-                //
-                // Tininess is decided before the rounding, because the
-                // denormalising has to happen first, but reported after it:
-                // a denormal the rounding takes up to the smallest normal is
-                // not tiny any more and raises PE alone.
                 A_RND: begin
                     logic [66:0]        rp;
                     logic [63:0]        mag;
                     logic signed [17:0] e2;
                     logic [6:0]         k;
-                    // The bias adjust can only move the exponent by 24576,
-                    // so where even that leaves it out of range -- which
-                    // FSCALE reaches, because its scale saturates -- the
-                    // result is the masked one instead. A real x87 gives
-                    // FSCALE of 2^9000 by 2^9000 an infinity with OE and PE
-                    // and C1 set, with OM clear, and not a wrapped exponent.
-                    if (!wtiny && we < 18'sd1 && (cw[4] || wsat || we < -18'sd24575)) begin
-                        k = (18'sd1 - we) > 18'sd66 ? 7'd66 : 7'((18'sd1 - we));
-                        wtiny <= 1'b1;
-                        we <= 18'sd1;
-                        al_k <= k;
-                        if (k < 7'd65) begin
-                            sh_src <= wm;
-                            sh_pow <= 6'(7'd64 - k);
-                            sh_isprod <= 1'b0;
-                            sh_ret <= A_TINY;
-                            seq <= S_SHIFT;
-                        end else begin
-                            // Below the round bit: nothing is left but the
-                            // sticky, which rounds to zero or to the
-                            // smallest denormal.
-                            wm <= 64'd0;
-                            wg <= 1'b0;
-                            wrd <= 1'b0;
-                            ws <= 1'b1;
-                            wshloss <= 1'b1;
+                    rp = round_pc(wm, wg, wrd, ws, wsign, rc, wprec);
+                    mag = rp[66] ? 64'h8000_0000_0000_0000 : rp[63:0];
+                    e2 = we + 18'(rp[66]);
+                    pc1 <= rp[64];
+                    if (wtiny) begin
+                        // The denormalised value, rounded here for the first
+                        // and only time: the exponent field is 0, or 1 where
+                        // the rounding took it up to the smallest normal.
+                        if (rp[65]) begin
+                            pfl[5] <= 1'b1;
+                            pfl[4] <= 1'b1;
                         end
-                    end else begin
-                        rp = round_pc(wm, wg, wrd, ws, wsign, rc, wprec);
-                        mag = rp[66] ? 64'h8000_0000_0000_0000 : rp[63:0];
-                        e2 = we + 18'(rp[66]);
-                        pc1 <= rp[64];
+                        ares <= {wsign, mag[63] ? 15'd1 : 15'd0, mag};
+                        seq <= S_APPLY;
+                    end else if (e2 > 18'sd32766) begin
+                        logic inf, fits;
+                        inf = !cw[3] || rc == 2'd0 || (rc == 2'd1 && wsign) || (rc == 2'd2 && !wsign);
+                        fits = e2 - 18'sd24576 <= 18'sd32766 && !wsat;
                         if (rp[65]) pfl[5] <= 1'b1;
-                        if (e2 > 18'sd32766) begin
-                            logic inf, fits;
-                            // Masked overflow stores an infinity, or the
-                            // largest finite value where the rounding is
-                            // toward zero. Where overflow is *unmasked* and
-                            // the bias adjust cannot reach -- FSCALE's
-                            // saturated scale -- a real x87 stores an
-                            // infinity whatever the rounding mode, because
-                            // there is no finite result to round toward: the
-                            // same operation with OM set rounds down to the
-                            // largest finite value, and with OM clear gives
-                            // an infinity.
-                            inf = !cw[3] || rc == 2'd0 || (rc == 2'd1 && wsign) || (rc == 2'd2 && !wsign);
-                            fits = e2 - 18'sd24576 <= 18'sd32766 && !wsat;
-                            pfl[3] <= 1'b1;
-                            if (cw[3] || !fits) begin
-                                pfl[5] <= 1'b1;
-                                pc1 <= inf;
-                                ares <= inf ? {wsign, 15'h7fff, 1'b1, 63'd0}
-                                            : {wsign, 15'h7ffe, max_sig(wprec)};
-                            end else
-                                ares <= {wsign, 15'(e2 - 18'sd24576), mag};
-                        end else if (wtiny) begin
-                            // Tininess is decided before the rounding, and
-                            // reported that way too: a real x87 sets UE for
-                            // the smallest normal times (1 - 2^-64), whose
-                            // exact product is below the smallest normal and
-                            // whose rounded one is the smallest normal
-                            // itself. So the test is the rounding's
-                            // inexactness alone, and not whether the result
-                            // came back up out of the denormals.
-                            ares <= {wsign, mag[63] ? 15'd1 : 15'd0, mag};
-                            // Masked underflow is reported where the
-                            // denormalising shift itself lost bits, or where
-                            // the rounded result is still a denormal and the
-                            // rounding was inexact. Every tiny case the host
-                            // bench runs fits that and nothing simpler does:
-                            // the smallest normal times (1 - 2^-64) falls
-                            // between two denormals and reports underflow
-                            // even though it rounds up to a normal; the
-                            // smallest normal minus the smallest denormal
-                            // lands on a denormal exactly and reports only
-                            // precision when PC shortens it; and the
-                            // smallest denormal at PC 24 reports both,
-                            // rounding either away to zero or up to the
-                            // smallest denormal that precision allows.
-                            //
-                            // The denormalising loss counts only where the
-                            // destination is the extended format. The same
-                            // product reports underflow at PC 64 and only
-                            // precision at PC 24 and PC 53, with the same
-                            // shift losing the same half bit and the same
-                            // rounded result, so the 387 is carrying the
-                            // result at the destination's precision and the
-                            // shorter ones subsume that loss in the rounding.
-                            // Ten tiny cases across the host bench fit this
-                            // and no rule without the PC term fits them all.
-                            // Precision control moves the denormal grid, so
-                            // the second and third differ only in PC.
-                            if (wshloss && wprec == PC_EXT || rp[65] && !mag[63]) pfl[4] <= 1'b1;
-                        end else if (we < 18'sd1 && e2 < 18'sd1) begin
-                            // Unmasked underflow: the bias adjust, and UE
-                            // whether or not the result is inexact. The
-                            // rounding's own carry can lift the exponent
-                            // back into range, and then there is no
-                            // underflow to report: the smallest normal
-                            // times (1 - 2^-63) at PC 24 rounds up to the
-                            // smallest normal and a real x87 reports
-                            // precision alone, with UM clear.
+                        pfl[3] <= 1'b1;
+                        if (cw[3] || !fits) begin
+                            pfl[5] <= 1'b1;
+                            pc1 <= inf;
+                            ares <= inf ? {wsign, 15'h7fff, 1'b1, 63'd0}
+                                        : {wsign, 15'h7ffe, max_sig(wprec)};
+                        end else
+                            ares <= {wsign, 15'(e2 - 18'sd24576), mag};
+                        seq <= S_APPLY;
+                    end else if (e2 < 18'sd1) begin
+                        if (cw[4] || wsat || we < -18'sd24575) begin
+                            // Denormalise the value as it was, not as the
+                            // rounding above left it, so the result goes
+                            // through one rounding only. The precision
+                            // exception is the denormalised rounding's too,
+                            // so nothing is recorded here.
+                            k = (18'sd1 - we) > 18'sd66 ? 7'd66 : 7'((18'sd1 - we));
+                            wtiny <= 1'b1;
+                            we <= 18'sd1;
+                            if (k < 7'd65) begin
+                                sh_src <= wm;
+                                sh_pow <= 6'(7'd64 - k);
+                                sh_isprod <= 1'b0;
+                                sh_ret <= A_TINY;
+                                seq <= S_SHIFT;
+                            end else begin
+                                // Below the round bit: nothing is left but
+                                // the sticky, which rounds to zero or to the
+                                // smallest denormal.
+                                wm <= 64'd0;
+                                wg <= 1'b0;
+                                wrd <= 1'b0;
+                                ws <= 1'b1;
+                            end
+                        end else begin
+                            if (rp[65]) pfl[5] <= 1'b1;
                             pfl[4] <= 1'b1;
                             ares <= {wsign, 15'(e2 + 18'sd24576), mag};
-                        end else
-                            ares <= {wsign, 15'(e2), mag};
+                            seq <= S_APPLY;
+                        end
+                    end else begin
+                        if (rp[65]) pfl[5] <= 1'b1;
+                        ares <= {wsign, 15'(e2), mag};
                         seq <= S_APPLY;
                     end
                 end
