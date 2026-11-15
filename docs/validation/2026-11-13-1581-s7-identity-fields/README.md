@@ -72,7 +72,9 @@ BUILD_ID as well, so evidence gathered before it landed would not have survived 
 
 ### Result
 
-Twelve of the thirteen cores discharge D12's conditions 1 and 2. `base` is the merge base
+Twelve of the thirteen closures discharge D12's conditions 1 and 2, and the thirteenth
+(`fes.pcxt`/`fes.pcxt-dos`) takes the normal reseal and HIL path -- see "What this evidence
+does not cover". `base` is the merge base
 `1a4bb8d41`; each core's netlist and RBF are byte-identical between the base build and a build of
 this branch with the base's `BUILD_ID` forced.
 
@@ -116,13 +118,25 @@ the bad variant three times.
 
 ### What this evidence does not cover
 
-- **`fes.pcxt` and `fes.pcxt-dos` are the thirteenth closure, and only condition 1 is done.** Their
-  QSF is generated deterministically from the tree, so it can be compared without running Quartus,
-  and it is byte-identical between the base and this branch for **all eight** combinations of
-  `package_profile`, `video_mailbox_contract` and `audio_contract` — so the result does not depend
-  on which combination the producer uses. The QSF carries no `BUILD_ID` line, only `SEED`, so this
-  is plain byte-identity with no exemption invoked. Condition 2 needs a real Quartus 17.0.2 compile
-  and has not been run.
+- **`fes.pcxt` and `fes.pcxt-dos` take the normal reseal and HIL path**, not D12's exemption.
+  Neither condition is measured, and the reason is a toolchain-authentication boundary rather than
+  cost: `cores/fes-pcxt/quartus.lock` pins the *binary* digest of the Yosys that may elaborate this
+  core, and on Powerboat resolving `cores/fes-pcxt/toolchain.lock` through the per-tool cache yields
+  a different build of that same commit, so the producer refuses before elaborating. The pinned
+  build is present on the host under another key; the installed Quartus matches its own pin exactly.
+  Satisfying it locally would mean editing the lock, which relaxes a seal, or forcing the cache to
+  serve an install other than the one resolution selected, which defeats the digest pin. Filed as
+  DeanoC/fes#1868.
+
+  What *is* measured for these two is supporting, not sufficient: their canonical QSF is
+  byte-identical between the base and this branch for **all eight** combinations of
+  `package_profile`, `video_mailbox_contract` and `audio_contract`, so Quartus's inputs are
+  unchanged however the producer is invoked, and that QSF carries no `BUILD_ID` line, only `SEED`.
+  But PC/XT elaborates its whole top with Yosys (`quartus_fes_pcxt.FRONT_END = 'yosys'`), so D12's
+  condition 1 for it is the **Yosys netlist**, not the QSF — the QSF is what the rule asks of a
+  *native* Quartus front end. An earlier revision of this record described the QSF comparison as
+  condition 1, which was wrong.
+
 - **The forced-build driver is unverified by a control.** Every forced build goes through
   `forced_build_id.py`, which patches `build_identity` and stubs the package export. No run here
   shows that an *unpatched* build reproduces what the driver produces, so a flaw in the patching
