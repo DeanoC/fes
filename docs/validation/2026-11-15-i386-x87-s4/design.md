@@ -258,3 +258,40 @@ With that, **FPREM and FPREM1 need no divider of their own.** What they add
 over the divide tail is the quotient-bit capture for C0/C3/C1, the
 round-to-nearest quotient for FPREM1, and the C2 decision on the exponent
 difference.
+
+## The constants are fixed, and validated on cases that did not choose them
+
+Everything above measures `E`, the error bound, and `k`, the step count, as
+maxima **over the same cases that then verify them**. That makes "zero
+mismatches" partly true by construction: in the RTL `E` and `k` are
+constants, and a case outside the sample that exceeded `E` would be a wrong
+result, not a larger measurement.
+
+So `model/fixed_constants.py` fixes them as the RTL will, rounded up to a
+power of two, and validates on an independent seed:
+
+| operation | precision | iterations | E | k | observed max \|T − q̂\| | headroom |
+|---|---|---:|---:|---:|---:|---:|
+| FDIV | PC 24 | 2 | 4 | 3 | 1 | 3 |
+| FDIV | PC 53 | 3 | 4 | 3 | 1 | 3 |
+| FDIV | PC 64 | 3 | 128 | 8 | 50 | 78 |
+| FSQRT | PC 24 | 2 | 4 | 3 | 1 | 3 |
+| FSQRT | PC 53 | 3 | 4 | 3 | 1 | 3 |
+| FSQRT | PC 64 | 3 | 64 | 7 | 22 | 42 |
+
+3,000,000 independent cases, 500,000 per operation and precision, on a seed no
+fitting run used. **Zero mismatches**, result and sticky bit, and the worst
+observed error stays well inside the bound everywhere — the tightest case is
+PC 64 divide at 50 against 128.
+
+**The widest remainder register is 74 bits**, set by FSQRT at PC 64 with these
+constants, against 72 for the divide. That supersedes the 71 and 73 quoted
+earlier in this record, which were computed from fitted bounds rather than the
+constants the RTL will carry. One 74-bit register serves both operations.
+
+The headroom is empirical and not a proof, so the RTL carries a **simulation-only
+assertion** that the remainder after the tail is in range, and the unit bench
+counts the cases that exercise it. That is what catches the RTL diverging from
+this model — the model's own value class normalises more freely than the RTL's
+registers will, which is exactly the kind of difference an assertion finds and
+a comparison of results does not.
