@@ -222,7 +222,7 @@ The pitch deficit the probe reproduces is 13.10%, split **10.74 points to the
 calibrated delay** and **2.37 points to the rest of the pass**.
 
 **Against fes#1837's own three candidates** the gate is met: its "governor's
-ISA charges" has 2.4 points, its "governor's pacing of the delay loop" has
+ISA charges" has at most 2.4 points, its "governor's pacing of the delay loop" has
 10.7, and and its third — "the loop costing the kit's 386 a different
 number of clocks than a 286, whatever the clock table says" — is excluded
 outright, because the kit's measured clocks *equal* its charges at every
@@ -303,9 +303,12 @@ them is pinned to a class:
   second would retime every taken branch on every preset. Separating them
   needs a loop that has one and not the other.
 - The calibration loop then needs **about four clocks more** on top, and
-  those are pinned: the only class it has that the delay loop does not is
-  `test_m` (`CMP`/`TEST r/m, imm`), charged 6 where the reference costs the
-  instruction 9.00.
+  **only two of those four are measurement-backed**. The only class it has
+  that the delay loop does not is `test_m` (`CMP`/`TEST r/m, imm`), charged 6
+  where the reference costs that instruction 9.00 — a `test_m` of 8, so a
+  27-clock pass. The remaining two clocks are the order effect below, which
+  no additive class entry can express, so a 6 → 10 entry is *fitted*, not
+  measured.
 
 With the delay loop at 18 and the calibration pass at 29, the kit's ratio is
 0.621 against the reference's 0.6217, `N` falls from 27 to 22, the pass goes
@@ -366,7 +369,12 @@ given an instruction's length, or a reference whose internals can be read.
 **One thing no per-class table can reproduce.** The game's calibration loop
 costs 29.02 clocks and the `BQ` loop 27.04, with the same three classes, the
 same eleven bytes, the same three accesses and the same start parity — they
-differ only in the order of their instructions. An additive per-class table
+differ only in the order of their instructions (`inc` for `dec` and `je` for
+`jne` are the same classes either way). The two costs come from different
+methods — the calibration loop is counted against one tick, `BQ` in 1000-pass
+blocks — and the kit is the control for that: there the same two methods read
+24.02 and 24.04 clocks, 0.08% apart, so the method does not make 2 clocks.
+An additive per-class table
 gives both the same number, so the reference's cost is not an additive
 function of instruction classes, and a table fitted to one of them is fitted,
 not correct. The two entries named above are fitted to the game's loop.
