@@ -222,10 +222,10 @@ Every suite ran on this branch, on the ROM the branch ends with
 **The RTL CPU**, which is the slice's lockstep check: the same scripts with
 `fes_i386_cpu` in the oracle's place, so the DMA-terminated INT 13h reads,
 DMA channel 2 and IRQ 6 are its. Both ran again after every round of
-fixes, the last at `23218503b`, and retired the same counts each time: the
+fixes, the last at `b1b51ee4f`, and retired the same counts each time: the
 normal path is untouched, since a drive's head and its unit's PCN only part
-company under a DOR mismatch or a reset that cuts a seek short, and no guest
-makes either.
+company under a DOR mismatch, a reset that cuts a seek short, or a seek past
+the drive's last track, and no guest makes any of the three.
 
 - **`floppy --cpu rtl`: PASS** ([log](floppy-rtl-suite.log)). The oracle boots
   and the RTL takes over at the prompt, as the `ems` suite does. All 24
