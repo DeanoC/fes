@@ -136,16 +136,51 @@ Four instruments, answering different questions.
 
 | gate | result |
 |---|---|
-| unit bench, RTL | **701 passed, 0 failed** |
-| unit bench, locked-Yosys netlist | **701 passed, 0 failed** |
-| lockstep, identity off and on | not run yet |
-| test386 to POST FFh | not run yet |
-| TestFloat div, sqrt, rem | not attempted yet |
-| QEMU's fprem test | not run yet |
-| directed partial-step chains | not written yet |
-| Quartus 17.0.2 seal | not run yet |
-| kit run | not run yet |
-| area, and the nine-seed sweep | not measured yet |
+| unit bench, RTL, tail assertions armed | **730 passed, 0 failed** |
+| unit bench, locked-Yosys netlist | **730 passed, 0 failed** |
+| directed partial-step chains | **24 chains pass** (both instructions, exponent differences −5 to 999, full status mask, each step's result fed back) |
+| exception-mask matrix, divide/sqrt/remainder rows | **passes under all seven mask settings** |
+| BUSY# latch trials for ZE, IE and PE from real divides and roots | **pass** |
+| lockstep, every bucket | **passed, 0 failed** — including all **1,933 no-387 cases** |
+| test386 | **POST FFh reached**, halt at d0:ffb9 after 79,641,629 steps |
+| standalone area, against the merge base in the same flow | **+3,997 ALMs, +0 DSP, +2 M10K** ([the reading](area-first-reading.md)) |
+| TestFloat div, sqrt, rem | **attempted, unmet**: a scope of its own, see below |
+| QEMU's fprem test | not run |
+| in-machine identity-on fit, and the nine-seed sweep | running / not run |
+| Quartus 17.0.2 seal | not run |
+| kit run | not run |
+
+**The lockstep's identity-on bucket is still slice 2 and 3's 14 cases**, so it
+exercises none of slice 4's arithmetic. The identity-**off** half is the
+meaningful result there: 1,933 no-387 cases pass, so nothing this slice did
+changed the empty-socket behaviour. Directed identity-on programs for the new
+forms are not written.
+
+## TestFloat: attempted, and it is a scope of its own
+
+Slice 3 reported this gate unmet because its session's permission classifier
+refused the build. **Nothing refused it here, and it still does not pass.**
+
+Berkeley SoftFloat (`07ebd29db0cfb55723a79fbbffe99103ef38e305`) and TestFloat
+(`a9c849f1b0eb0264b626d9686ffae167d996e3be`) clone cleanly, and the `8086`
+specialisation is the right one for an x87 rather than the `8086-SSE`
+default. But **that specialisation has no bf16 support at the pinned
+revision** — not two missing files, the header's declarations too — so
+SoftFloat builds only with the whole bf16 family excluded from the archive.
+`testfloat_ver` then links; **`testfloat_gen` does not**, because it links
+bf16 case generators.
+
+So the plan's gate needs a newer SoftFloat revision, or bf16 stubs, **and** a
+harness to drive generated `extF80_div`, `extF80_sqrt` and `extF80_rem`
+vectors through the unit's CPU interface and compare. That is a piece of work
+of its own, not a build step.
+
+**The host bench is reported as what it is: the same 80-bit oracle, driving
+the real CPU interface, over the PRM's operand classes rather than
+TestFloat's systematic grid. The difference worth naming is coverage, not
+reference.** For FPREM the host is arguably the *better* reference, because
+TestFloat's `rem` covers only FPREM1's IEEE remainder while the host executes
+FPREM itself, partial semantics and all.
 
 ## What is left
 
