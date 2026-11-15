@@ -213,8 +213,9 @@ reads.
 | unit bench, against a real 80-bit FPU | **537 / 0**, 242,776 comparisons |
 | ... on the netlist the seal's Yosys program writes | **537 / 0** |
 | lockstep, RTL: every bucket | **0 fail** (1,933 no-387 cases with the identity off, 14 x87 cases with it on, 84 directed, and the corpus, random, protected-mode, task, debug, undefined and memory buckets) |
-| ... on the seal's Yosys netlist | **0 fail**, same buckets |
-| ... governed at preset 3, `--same-as` the ungoverned report | **(pending)** |
+| ... on the netlist the seal's Yosys program writes | **0 fail**, same buckets |
+| ... governed at preset 3, `--same-as` the ungoverned report | **0 fail**, and it matched: 14 x87 cases, 1,933 no-387, 31 retirements with the 387's state compared |
+| ... on the chip host with the CUDA router, which the sealer requires and verifies | **0 fail**: 14 x87, 1,933 no-387, 84 directed |
 | test386 | **POST … E0 EE FF**, halted |
 | Quartus 17.0.2 seal | **(pending)** |
 | kit run on that seal | **(pending)** |
@@ -377,10 +378,16 @@ and, separately, the worst into and out of the x87:
 | identity off | +1.074 ns | `cpu_r_dst[30]`, the register file's write | +5.563 ns |
 | identity on | **+0.317 ns** | **`cpu_l1d_q_tx`, the L1 data cache** | **+1.023 ns** |
 
-(Slow corner; the +0.176 ns above is the worst over all four corners.)
+These are the slow corner's path list, which the fit keeps in full. The
++0.176 ns above is the worst setup over all four corners and comes from the
+Slow 1100mV 100C model, whose own worst *path* this record did not isolate:
+the list's worst is +0.317 and the arithmetic between them was not chased, so
+read the comparison below as between paths in one list rather than as a claim
+about the single worst path on the device.
 
-So the x87's own worst path keeps about **1 ns, six times the machine's
-worst**, and the binding path is in the L1D, which this slice does not touch.
+Within that list the x87's own worst path keeps about **1 ns, three times the
+list's worst**, and the list's worst is in the L1D, which this slice does not
+touch.
 The margin did not go into the adder, the rounder or the sequencer: it went
 into the machine, through dense packing and placement at 94.7% lengthening
 paths that have nothing to do with the arithmetic.
