@@ -11,6 +11,11 @@ from scripts.affected import (changed_paths, plan, LANES, CORES, MODULE_ROOTS,
 
 
 class AffectedTests(unittest.TestCase):
+    def test_identity_report_selects_software_without_core_simulations(self):
+        result = plan(['sources/misteross/tools/identity.py'])
+        self.assertTrue(result['lanes']['fpga'])
+        self.assertEqual(result['cores'], [])
+
     def test_hil_inventory_selects_only_parent(self):
         result = plan(['config/hil-go-consumers.json'])
         self.assertEqual({name for name, enabled in result['lanes'].items() if enabled}, {'parent'})

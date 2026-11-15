@@ -129,6 +129,8 @@ def fpga_cores(path):
     """
     relative = Path(path).relative_to(MODULE_ROOTS['fpga'])
     parts = relative.parts
+    if relative.as_posix() == 'tools/identity.py':
+        return (), 'read-only build record report; no compiler or RTL consumer'
     if len(parts) >= 3 and parts[:2] == ('boards', 'de25nano') and '..' not in parts:
         if len(parts) >= 4 and parts[2] == 'producers':
             name = parts[3]
