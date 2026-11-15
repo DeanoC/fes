@@ -1,0 +1,135 @@
+# RAM tester 130 MHz removal: D12 identity evidence, 15 November 2026
+
+PR [#1881](https://github.com/DeanoC/fes/pull/1881). This record discharges
+[AGENTS.md](../../../AGENTS.md)'s D12 for `fes.ramtest`: the change deletes and
+edits files in the core's source closure (`scripts/build_fes_ramtest.py` among
+them) with no RTL change, so it moves the core's `BUILD_ID` and needs the
+netlist comparison, the RBF reproduction and the PR's own gated build rather
+than a reseal and kit HIL.
+
+Merge base: `8bbbed8017448873fb33bc42109bc65e296f40ed`. PR head:
+`984f6e29432976a4fc690da97c6cb1e1791a686b`. Both sides ran on Powerboat from
+the one shared toolchain cache at
+`/home/deano/fes/out/cache/misteross-toolchains`, so every run below used the
+same tool installs: Yosys `3a5accbd`, Mistral `8fcc4cb4`, nextpnr-mistral
+`bec82e36` with `gpu-router=HIP`. Private worktrees and outputs are under
+`/data/fes-1881/`. [runs.jsonl](runs.jsonl) carries each run's command,
+working tree, digests and outcome.
+
+Yosys `3a5accbd` is unreliable on this hardware: it segfaults in `OPT_CLEAN`
+about one run in five, and about one run in six exits 0 having written a
+materially different, smaller netlist
+([DeanoC/yosys#77](https://github.com/DeanoC/yosys/issues/77)). Every
+synthesis below was therefore run at least twice per side, and a run that
+exited 0 without writing its artifact would have been treated as a failure.
+None did.
+
+## 1. Netlist byte-identity
+
+Measured two ways. The producer's Yosys step was run alone, with the tree as
+the working directory, so the `src` attributes in `synth.json` are relative
+and the two trees compare directly with nothing normalised away.
+
+**With `BUILD_ID` pinned to 32 zeros on both sides**, so both sides synthesise
+the same constant and D12's `BUILD_ID` exemption is not needed:
+
+| Run | Tree | `synth.json` SHA-256 | Bytes |
+| --- | --- | --- | ---: |
+| base r1 | merge base | `391b7a6b53a8f8187a7c0ce66e622892d17df92806a1f5f97c5dd64b87b2294f` | 35,448,484 |
+| base r2 | merge base | `391b7a6b53a8f8187a7c0ce66e622892d17df92806a1f5f97c5dd64b87b2294f` | 35,448,484 |
+| head r1 | PR head | `391b7a6b53a8f8187a7c0ce66e622892d17df92806a1f5f97c5dd64b87b2294f` | 35,448,484 |
+| head r2 | PR head | `391b7a6b53a8f8187a7c0ce66e622892d17df92806a1f5f97c5dd64b87b2294f` | 35,448,484 |
+
+`cmp` confirms byte-identity for all four base/head pairings.
+
+**With `BUILD_ID` set to the merge base's real value**
+`7a60de20fc0fb448849cd24eed50a253`, the PR head reproduces the merge base's
+own gated-build `synth.json` byte for byte:
+
+| Run | Tree | `synth.json` SHA-256 | Bytes |
+| --- | --- | --- | ---: |
+| merge base gated build | merge base | `a5e0d01b501fb7721240a64b8a9b71065940e8d5b23af7c2b72ff76173543347` | 35,517,271 |
+| head m1 at base `BUILD_ID` | PR head | `a5e0d01b501fb7721240a64b8a9b71065940e8d5b23af7c2b72ff76173543347` | 35,517,271 |
+| head m2 at base `BUILD_ID` | PR head | `a5e0d01b501fb7721240a64b8a9b71065940e8d5b23af7c2b72ff76173543347` | 35,517,271 |
+
+This is the stronger form: it compares against the artifact the merge base's
+production build actually wrote, not a pair of side-by-side experiments.
+
+The digest over the producer's own `PINNED_INPUTS` **does** differ between the
+sides — `f6c258971fd229c71fb133f4cde6bf97b1d91cb50b86bf80d02b43fe4a34983e` at
+the merge base against
+`fa29c2e1971a4827e28e4a1552cabcd2d713973a3518578e548b0b4ead98b16f` at the head. That contrast is the argument: those inputs
+are why the `BUILD_ID` moves, and the netlist did not follow them. Neither
+tree had a modified pinned input when its runs were taken.
+
+## 2. RBF reproduction with the merge base's `BUILD_ID`
+
+The PR head's netlist at the merge base's `BUILD_ID` — `a5e0d01b501fb772…`,
+the byte-identical netlist from section 1 — was routed with the PR's tooling,
+through the producer's own `route_after_synth` call with the producer's device,
+QSF, SDC, frequency, seed list, timing weight, criticality exponent, first-pass
+mode and route timeout, and a `gpu-run` leased GPU.
+
+| Side | Winning seed / weight | `core.rbf` SHA-256 | Bytes |
+| --- | --- | --- | ---: |
+| merge base gated build | 3 / 10 | `d3774d8027b61a943e77edac3f6815c7e8f3a526da1d18dd688bcf91f64fd925` | 2,320,202 |
+| PR head at base `BUILD_ID` | 3 / 10 | `d3774d8027b61a943e77edac3f6815c7e8f3a526da1d18dd688bcf91f64fd925` | 2,320,202 |
+
+`cmp` reports the two RBFs byte-identical, and the placement search selected
+the same seed on both sides. The route was not repeated: routing the same
+netlist with the same binary, seed, weight, constraints and timeout is
+deterministic, and `AGENTS.md`'s "Shared GPUs" section records that nextpnr
+route outcomes are bit-identical across backends. The repeated runs in this
+record are the Yosys steps, which is where the known non-determinism is.
+
+Independent corroboration: the #1806 session measured this core from a
+different merge base, `1a4bb8d41`, and recorded the same `BUILD_ID`
+`7a60de20fc0fb448849cd24eed50a253`, the same RBF `d3774d8027b61a94…` and the
+same netlist `a5e0d01b501fb772…`. `fes.ramtest`'s compiled source set and its
+route-deciding inputs are unchanged between those two bases, which is why the
+artifacts agree.
+
+## 3. The PR's own gated build
+
+`python3 scripts/build_fes_ramtest.py --cache-root <shared cache>` on the PR
+head, with no rate argument, since the PR removes `--memory-mhz`. It passed
+every gate the producer applies and exported a package:
+`build/packages/6c5559cfcb9e3776b27173a62f293d16f8de1d199e90cfa3f472cb3d7d4176f3`.
+
+`BUILD_ID` `a3d1efd69769c809559fc6b4f30262d6`, winning seed 6 at weight 10,
+`core.rbf` SHA-256 `732beb63a1cfda07660664c0f73f88ca939247308b69206a4c68f839970e4436`.
+
+| Clock | Achieved MHz | Constraint MHz | Status |
+| --- | ---: | ---: | --- |
+| memory `ram_clock.clocks[0]` | 101.44046 | 100.0 | pass |
+| capture `ram_clock.clocks[1]` | 279.01785 | 100.0 | pass |
+| pixel `display.pixel_clk` | 79.12645 | 74.25007 | pass |
+| reference `FPGA_CLK1_50` | — | 50.0 | pass |
+
+The merge base's own build, for comparison: `BUILD_ID`
+`7a60de20fc0fb448849cd24eed50a253`, seed 3, memory 102.37511, capture
+249.75024, pixel 78.22278, all pass.
+
+This build's `BUILD_ID`, winning seed and RBF all differ from the merge base's,
+and are expected to. The `BUILD_ID` constant is synthesised into the netlist,
+so a different `BUILD_ID` gives a different netlist and the placement search
+settles on a different seed — which is precisely why D12's RBF condition
+forces the merge base's `BUILD_ID` rather than comparing the two production
+RBFs. Section 2 is that forced comparison; this section is the separate
+requirement that the PR's own build passes its gates.
+
+## Conclusion
+
+All three of D12's conditions hold for `fes.ramtest` on PR #1881: the netlist
+is byte-identical to the merge base with nothing normalised, a build with the
+PR's tooling and the merge base's `BUILD_ID` reproduces the merge base's RBF
+byte for byte, and the PR's own build passes the core's normal timing and seal
+gates. No reseal and no kit HIL are required for this change.
+
+## Scope of this record
+
+This record covers artifact identity only. It is not hardware acceptance, and
+no kit was programmed. The PR keeps the RTL's 130 MHz branches and the Quartus
+comparison lane untouched for the reason D12 implies: deleting RTL lines would
+shift the line numbers inside `src` attributes, which the rule does not exempt,
+and netlist identity would genuinely fail.
