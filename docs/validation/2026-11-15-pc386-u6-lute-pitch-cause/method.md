@@ -185,3 +185,41 @@ PR #1838's pitch and spread figures, #1474's ratios across #1453, the ISA
 record's 89 + 475×units model and its account of the routine, fes#1840's
 TopBench figures, and the disassembly above. No capture of this probe had been
 run on any machine, and `U6CAL.COM` had not been executed anywhere.
+
+## Amendment, 15 November, after the first reference run
+
+Run `c1` on the reference had been taken and read: C = 23,662 (five repeats,
+all equal), CAL = 567, N = 23, BD = 2,436, BP = 1,330, P0 = 465, PN = 847. No
+kit capture of the probe existed, and the kit's figures in the table above
+were still only the charges.
+
+That run showed the `nop` padding does not separate H1 from H3 as written: the
+reference charges the five `nop`s 15.0 clocks, the table's own cost and nothing
+more, which is what a model with prefetch would also do, because the `nop`s'
+own execution time gives the fetch somewhere to hide. **Two variants are
+therefore added to the probe** — the same delay loop with one extra
+instruction in front of the `dec`, so the `jne` still tests the `dec`:
+
+- **B5** with `cmp word [m], 0` (5 bytes, the calibration loop's own
+  instruction);
+- **B4** with `cmp ax, [m]` (4 bytes: the same memory read, one byte less and
+  no immediate).
+
+`cost = 64T/1000 · (1/B − 1/BD)` gives that one instruction's clocks on each
+machine. If the two forms cost the same on the reference, the extra is a table
+entry (H3); if the 5-byte form costs materially more, it is per-byte (H1).
+
+**No gate and no prediction is changed.** The reproduction gate, the
+separation gate and the committed `PN` curve stand exactly as written above,
+and the reference run will be repeated with the amended probe so both sides
+run the same binary.
+
+## Amendment, 15 November: the Kit A baseline check
+
+`run-u6ref.sh` was written for Kit B and asks the kit's local-control socket
+for `"phase":"idle"`. Kit A's bundle does not serve that socket, so the check
+can never pass there and the wrapper refused to touch the kit — correctly.
+`run-u6cal.sh` is a copy with that one duplicate idleness check replaced by
+the host API's own `"state":"idle"`, which is the same fact from the source
+the next check (`games_lease_probe.py`, "idle free") already uses. Every other
+baseline, lease and restore check is unchanged.
