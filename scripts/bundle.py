@@ -150,6 +150,9 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
                            sort_keys=True).encode("utf-8") + b"\n"
     if artifact_cache.functional_key(record) is None or record != canonical:
         raise ValueError("producer returned a noncanonical format-2 build-input record")
+    if selection_only and (parsed.get("parameters", {}).get("selection_only") is not True
+                           or "identities" not in parsed):
+        raise ValueError("selected producer does not support selection-only design records")
     return record
 
 
