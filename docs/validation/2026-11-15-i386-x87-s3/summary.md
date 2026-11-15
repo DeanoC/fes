@@ -346,8 +346,22 @@ that drives four passes of one multiplier.
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | this branch, identity off (as the package ships) | **36,392** | 86.83% | 40 | 282 | **+0.576** | +0.055 |
 | this branch, identity on | **39,682** | **94.68%** | 49 | 286 | **+0.176** | +0.082 |
+| the merge-base, identity on (slice 2's unit alone) | **38,073** | 90.84% | 49 | 286 | **+0.385** | +0.068 |
 | the merge-base, identity off | (pending) | | | | | |
-| the merge-base, identity on | (pending) | | | | | |
+
+**So slice 3's own cost in the machine is +1,609 ALMs and +3.84 points of the
+device, and −0.209 ns of setup slack** (+0.385 to +0.176). Those are
+differences of two fits through one slot that differ only by this slice's
+RTL, which is what the brief asks for and the first figures here that need no
+caveat. For scale, slice 2's own published in-machine cost was +1,608 --
+cross-slot, so read it as "about the same" rather than as one ALM apart.
+
+**That is 95% of the fit spike's in-machine prediction of +1,687 for the
+whole of option A**, slow path and transcendentals included. The standalone
+comparison gives 103% of its 2,134. The two framings agree to a few per cent
+and say the same thing: **the budget the spike set for all of option A was
+spent by slice 3 alone.** The in-machine figure is the one that matters for
+fitting a device, and it is the one with no cross-slot objection to make.
 
 The slack is the worst of every clock over every corner, and on seed 1 every
 one is positive. **But closure with the identity on is seed-dependent, and
