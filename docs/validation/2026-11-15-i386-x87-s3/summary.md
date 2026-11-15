@@ -981,17 +981,42 @@ near-critical decode path ends in the same fields. They are **not** the
 `x87_*` or `mkind` fields this slice adds directly; `cpu_mkind` is a
 separate output and is nowhere in these path lists.
 
-**The mechanism that fits, labelled as inference rather than measurement.**
-This slice gives D8, DA, DC and DE memory-operand shapes, which is what
-`mkind = 2'd1` and the `moff`/size arms in `fes_i386_decode.sv` do. Those
-opcodes previously produced no memory operand; now they do, so the address
-decode that computes `base`, `index` and `lea_disp` has to cover a wider set
-of opcodes than before. That would deepen exactly the cone that got deeper.
-It is consistent with every measurement here and with the decoder's area not
-growing -- more cases selecting the same outputs is depth, not width -- but
-it is **not proved**. What would prove it is a diagnostic fit of this branch
-with only the decode memory-form arms reverted: if the cone returns to ten
-levels, the attribution is settled. That fit has not been run.
+**A mechanism was proposed here and the diagnostic ruled it out.** The
+proposal was that this slice's memory-operand shapes for D8, DA, DC and DE
+made the address decode cover a wider set of opcodes, deepening the cone
+that computes `base`, `index` and `lea_disp`. It fitted every measurement
+above. It was wrong, and the fit that was named as the test was run rather
+than left as a hedge: this branch with only those three decode arms
+reverted, flattened, identity on, seed 1, same slot.
+
+| Six dumped decode paths, logic levels | |
+| --- | --- |
+| merge base | 10, 10, 10, 11, 10, 11 |
+| this branch | **13** × 6 |
+| diagnostic, the arms reverted | **13** × 6 |
+
+**Identical to the branch**, against a reading agreed before the result was
+seen in which 10 or 11 meant settled, 13 meant ruled out and 12 meant
+ambiguous. So **those arms do not account for the three extra levels.** (The
+diagnostic's own area and slack are not quoted: with the arms gone the
+design no longer decodes x87 memory arithmetic, so only its levels mean
+anything.)
+
+**The premise was false, and the code says so.** Before this slice, D8, DA,
+DC and DE with a memory ModRM fell through to `default: op = ALU_LEA; lea =
+1'b1` -- they **already computed an address**, deliberately, so the x87 data
+pointer would be right for forms the empty socket did not implement. They
+were already in the address-mode cone, so giving them real memory shapes
+widened nothing. One `git show` of the merge base would have shown that
+before the mechanism was written down.
+
+**So the cone is three levels deeper and the cause is unidentified.** The
+depth measurement stands; the explanation does not. The next candidates are
+this slice's *other* decode-affecting changes -- the `x87_decode` and
+`x87_format` expansions in `fes_i386_pkg.sv`, which add many opcode cases
+and which this diagnostic did not touch -- and the possibility that the
+extra depth is the fitter's response to a fuller device rather than this
+slice's logic at all.
 
 What follows from it, and what does not:
 
@@ -1008,19 +1033,16 @@ What follows from it, and what does not:
   three binding regions rather than the single cause; and the decoder's
   *area* did not grow, which is consistent with logic that was restructured
   deeper rather than simply added to.
-- **Where to start, which the measurement names specifically.** The problem
-  is **case count in a shared selection, not x87 logic depth**: no x87 field
-  is on these paths, and what grew is the address-mode decode that this
-  slice's new memory forms now feed. So the recommended starting point is
-  to **fold the x87 memory arms into the shared memory-operand path, which
-  changes no behaviour and removes cases from the address-mode selection
-  rather than adding depth beside it.** Deriving the x87 memory shape from
-  ModRM fields already computed, off this cone, is the same idea by another
-  route. A decode stage would also work and is much the most expensive --
-  it is architectural, and it moves instruction timing, so the lockstep's
-  cycle expectations move with it. These are listed in that order on
-  purpose: the first is what the evidence points at, not merely the
-  cheapest of three.
+- **Where to start: by finding the cause, because the obvious candidate is
+  eliminated.** An earlier revision of this section named a specific fix --
+  folding the x87 memory arms into the shared memory-operand path -- as
+  slice 6's starting point, on the strength of the mechanism the diagnostic
+  then ruled out. **That instruction is withdrawn**, because it would have
+  sent slice 6 at code that is not the problem. What is known is that the
+  cone is three levels deeper and that those arms do not explain it; what is
+  not known is what does. The `x87_decode` and `x87_format` expansions in
+  `fes_i386_pkg.sv` are the untested candidate, and the same diagnostic
+  method settles it in half an hour.
 - **Doing it in slice 3 would cost a re-freeze and every gate again** -- the
   unit bench on RTL and netlist, the lockstep four ways, test386, a new
   Quartus seal, a kit run, and a fresh nine-seed sweep to find out whether it
