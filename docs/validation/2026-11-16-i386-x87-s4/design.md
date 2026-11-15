@@ -201,7 +201,7 @@ figures are here to be overruled with.
 
 ## FPREM's partial step is the divide's primitive
 
-Confirmed in `model/sqrt_prem.py` over 20,000 operand pairs with exponent
+Confirmed in `model/fprem_primitive.py` over 40,000 operand pairs with exponent
 differences up to 300: a partial step's quotient is at most 64 bits, so
 `N × B` is exactly the shared multiplier's 128-bit product, and the remainder
 `A·2^k - N·B` is exact and less than `B` with no violations. That is the same
