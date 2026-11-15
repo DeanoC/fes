@@ -136,16 +136,29 @@ class SupportMatrixTests(unittest.TestCase):
         )
 
     def test_the_quality_ladder_citation_must_still_be_in_the_forward_plan(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / 'docs' / 'plans').mkdir(parents=True)
-            (root / 'docs' / 'plans' / 'forward-plan.md').write_text('no ladder here\n')
-            data = SUPPORT_MATRIX.load_json(ROOT)
-            by_id = {row['id']: row for row in data['cores']}
-            errors = SUPPORT_MATRIX.validate_check_policy(root, data, by_id, None)
-            self.assertTrue(
-                any('no longer says' in error for error in errors), errors
-            )
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        by_id = {row['id']: row for row in data['cores']}
+        plan = (ROOT / SUPPORT_MATRIX.FORWARD_PLAN).read_text()
+        quote = SUPPORT_MATRIX.LADDER_QUOTES[0]
+        cases = {
+            # The ladder is gone.
+            'no ladder here\n': 'no longer says',
+            # The ladder's sentences moved out of the Tiers section.
+            plan.replace('## Tiers', '## Something else'): 'has no',
+            # A second statement of the same placement may supersede it.
+            plan + '\n' + quote + '\n': 'may supersede',
+            # The plan stops naming a pending placement's condition.
+            plan.replace('#1368 and #1494 close', 'its blockers close'): 'no longer names',
+        }
+        for text, expected in cases.items():
+            with self.subTest(expected=expected), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                (root / 'docs' / 'plans').mkdir(parents=True)
+                (root / 'docs' / 'plans' / 'forward-plan.md').write_text(text)
+                errors = SUPPORT_MATRIX.validate_check_policy(root, data, by_id, None)
+                self.assertTrue(
+                    any(expected in error for error in errors), (expected, errors)
+                )
 
     def test_every_release_package_records_its_scope(self):
         data = SUPPORT_MATRIX.load_json(ROOT)

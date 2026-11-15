@@ -114,6 +114,10 @@ LADDER_QUOTES = (
 )
 # Where the plan names a condition rather than a tier, the id names the
 # condition: it does not place the core at a tier the plan never gave it.
+LADDER_HEADING = '## Tiers'
+# The conditions the pending placements hang on. If the plan stops naming one,
+# that placement may have been decided and the rows need re-reading.
+LADDER_CONDITIONS = ('#1368', '#1494', 'once they meet the port')
 QUALITY_TIER_IDS = {
     '1': frozenset({
         'fes.zx81', 'fes.zx80', 'fes.ts1000', 'fes.ts1500',
@@ -172,6 +176,16 @@ def derive_tier(row: dict) -> str:
     if rtl and rtl >= WINDOW_START:
         return 'aging'
     return 'stale'
+
+
+def ladder_section(flat: str) -> str | None:
+    """The forward plan's own Tiers section, from whitespace-flattened text."""
+    start = flat.find(LADDER_HEADING)
+    if start < 0:
+        return None
+    rest = flat[start + len(LADDER_HEADING):]
+    end = rest.find('## ')
+    return rest if end < 0 else rest[:end]
 
 
 def derive_check_level(row: dict) -> str:
@@ -768,9 +782,33 @@ def validate_check_policy(root: Path, data: dict, by_id: dict, rendered: str | N
         errors.append(f'{FORWARD_PLAN} is missing, so the quality ladder has no source')
     else:
         flat = ' '.join(plan.read_text().split())
+        section = ladder_section(flat)
+        if section is None:
+            errors.append(f'{FORWARD_PLAN} has no {LADDER_HEADING!r} section to read the ladder from')
+            section = ''
         for quote in LADDER_QUOTES:
-            if quote not in flat:
-                errors.append(f'{FORWARD_PLAN} no longer says {quote!r}; re-read the ladder before trusting quality_tier')
+            # In the ladder's own section, so a decision recorded elsewhere in
+            # the plan cannot satisfy this check, and exactly once in the file,
+            # so an appended restatement of the same placement trips it. A
+            # superseding decision written in new words cannot be caught by
+            # reading text: when a pending row's condition closes, quality_tier
+            # has to be re-read by hand. needs_deano says so.
+            if quote not in section:
+                errors.append(
+                    f'{FORWARD_PLAN} no longer says {quote!r} under {LADDER_HEADING!r}; '
+                    're-read the ladder before trusting quality_tier'
+                )
+            if flat.count(quote) > 1:
+                errors.append(
+                    f'{FORWARD_PLAN} states {quote!r} {flat.count(quote)} times; '
+                    'a second statement may supersede the ladder this page cites'
+                )
+        for condition in LADDER_CONDITIONS:
+            if condition not in section:
+                errors.append(
+                    f'{FORWARD_PLAN} no longer names {condition} under {LADDER_HEADING!r}, '
+                    'so a pending quality_tier may have been decided'
+                )
     if policy.get('ladder_source') != str(FORWARD_PLAN):
         errors.append(f'check_policy ladder_source must be {FORWARD_PLAN}')
     if policy.get('status') != CHECK_PROPOSED:
