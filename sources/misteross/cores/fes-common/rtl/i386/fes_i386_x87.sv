@@ -610,8 +610,7 @@ module fes_i386_x87 (
         // the quotient a partial or complete step needs is just T shifted
         // right, because floor(floor(x*2^k)/2^k) is floor(x). One more
         // multiply gives the exact remainder for that quotient.
-        P_Q,        // form the step's quotient from T, start q*B
-        P_REM,      // the exact remainder
+        P_SH,       // the remainder's doubling loop: no Goldschmidt, no shifter
         P_FIN,      // FPREM1's round-to-nearest and the normalising shift
         P_ZERO,     // ... an exact zero remainder, which is packed not shifted
         P_PACK      // ... and the normalised magnitude, C2 and the quotient bits
@@ -1962,12 +1961,6 @@ module fes_i386_x87 (
                             // rounds to even and stays zero.
                             pr_part <= 1'b0;
                             pr_q <= {63'd0, rnd_up};
-                            // dv_c as well, because P_FIN takes the quotient
-                            // from it: this path does not run the datapath, so
-                            // without this the stale candidate would overwrite
-                            // the quotient and C1 would read zero where the
-                            // rounding made it one.
-                            dv_c <= {66'd0, rnd_up};
                             pr_one <= 1'b0;   // the rounding is already applied
                             pcc <= 4'd0;
                             pc1 <= rnd_up;    // C1 is the quotient's bit 0
@@ -1997,18 +1990,29 @@ module fes_i386_x87 (
                                 seq <= A_RND;
                             end
                         end else begin
+                            // **The remainder needs no Goldschmidt and no
+                            // shifter.** Its quotient is never used beyond
+                            // its low three bits, which are C0, C3 and C1, so
+                            // there is nothing to estimate: the exact
+                            // remainder of A * 2^n by B comes from n
+                            // doublings with a conditional subtract, one
+                            // clock each, and the quotient's bits fall out of
+                            // the same steps.
+                            //
+                            // That is strictly less hardware than reusing the
+                            // divide's tail at a variable scale, which is
+                            // what this slice did first: it needed a general
+                            // shift by 65 + s - n on a path option A says has
+                            // no barrel shifter, and that shifter was shared,
+                            // so the divide's and the square root's own
+                            // constant drops could not be muxed while it
+                            // existed.
                             pr_part <= d >= 18'sd64;
                             pr_n <= n;
-                            dv_s <= oa_m < ob_m;
-                            dv_lost <= 1'b0;
-                            gs_it <= 2'd3;
-                            // The candidate is formed at the step's own scale:
-                            // 65 + s - n of the 66-bit target's bits dropped.
-                            // The extended error bound covers every scale,
-                            // because a coarser scale has a smaller error.
-                            dv_dr <= 7'd65 + 7'(oa_m < ob_m) - n;
+                            pr_q <= {63'd0, oa_m >= ob_m};
+                            dv_rem <= {32'd0, oa_m >= ob_m ? oa_m - ob_m : oa_m};
                             we <= oa_e - 18'({11'd0, n});
-                            seq <= D_SEED;
+                            seq <= P_SH;
                         end
                     end else if (cur == X87_SQRT) begin
                         // The exponent halving. With the true exponent
@@ -2767,6 +2771,27 @@ module fes_i386_x87 (
                 // A_RND at all -- FPREM and FPREM1 ignore both rounding and
                 // precision control. FPREM1's quotient rounds to nearest,
                 // which can flip the sign and replace the magnitude.
+                // One doubling and a conditional subtract a clock. Both
+                // operands are normalised, so the dividend is below twice the
+                // divisor and the initial reduction in A_OP is enough to put
+                // the remainder below it; from there 2*rem is below twice the
+                // divisor at every step, so one compare-subtract keeps it in
+                // range. The quotient shifts in beside it.
+                P_SH: begin
+                    logic [95:0] r2, t;
+                    r2 = {dv_rem[94:0], 1'b0};
+                    t = r2 - {32'd0, ob_m};
+                    if (pr_n == 7'd0) seq <= P_FIN;
+                    else begin
+                        dv_rem <= t[95] ? r2 : t;
+                        pr_q <= {pr_q[62:0], ~t[95]};
+                        pr_n <= pr_n - 7'd1;
+                    end
+`ifndef SYNTHESIS
+                    if (dv_rem >= {32'd0, ob_m})
+                        $error("x87 remainder loop: rem=%h not below B=%h", dv_rem, ob_m);
+`endif
+                end
                 P_FIN: begin
                     logic [63:0] r0;
                     logic [64:0] twice, bb;
@@ -2804,9 +2829,9 @@ module fes_i386_x87 (
                     // one to two. The difference-below-zero path clears
                     // pr_one, which is how it says its rounding is done.
                     up = pr_one && !pr_part
-                      && (twice > bb || (twice == bb && dv_c[0]));
+                      && (twice > bb || (twice == bb && pr_q[0]));
                     flip = up;
-                    pr_q <= up ? dv_c[63:0] + 64'd1 : dv_c[63:0];
+                    if (up) pr_q <= pr_q + 64'd1;
                     if (up) begin
                         dv_rem <= {32'd0, ob_m - r0};
                         wsign <= wsign ^ 1'b1;
