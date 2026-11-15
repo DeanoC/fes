@@ -95,7 +95,8 @@ Three instruments, and they answer different questions.
   on the RTL and on the netlist the seal's Yosys writes.
 - **The lockstep** is the one that proves the unit is *wired up*: the
   decode's uops, the x87 pointers and the opcode a memory form leaves, and
-  the CPU's issue interlock. It also checks the oracle agrees.
+  the CPU's issue interlock. It also checks the oracle agrees, within the
+  limits the next section sets out.
 - **The fits and the seal** answer whether it fits the device and meets the
   clock, which the sections below report.
 
@@ -292,12 +293,76 @@ that drives four passes of one multiplier.
 
 ### The machine
 
-| Fit | ALMs | % of device | DSP | M10K | CPU setup (ns) | CPU hold (ns) |
+| Fit | ALMs | % of device | DSP | M10K | worst setup (ns) | worst hold (ns) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| this branch, identity off (as the package ships) | **36,392** | 86.8% | 40 | 282 | **+0.576** | +0.055 |
-| this branch, identity on | (pending) | | | | | |
+| this branch, identity off (as the package ships) | **36,392** | 86.83% | 40 | 282 | **+0.576** | +0.055 |
+| this branch, identity on | **39,682** | **94.68%** | 49 | 286 | **+0.176** | +0.082 |
 | the merge-base, identity off | (pending) | | | | | |
 | the merge-base, identity on | (pending) | | | | | |
+
+The slack is the worst of every clock over every corner, and every one is
+positive. So **it fits the device and it meets the clock with the identity
+on**: this is not the stop-and-report case the plan provides for, and nothing
+was relaxed to get there.
+
+**What gets sealed is the identity-off row, and that is not a one-percent
+margin.** The identity is tied to 0 in the package, so the sealed core and
+the kit run are the design at **+0.576 ns, 3.5% of the 16.276 ns period**,
+at 86.8% of the device. The identity-on row is forward-looking: it is what
+slice 5 inherits when the identity is turned on, and where slices 4 and 5
+start from. Nothing is being sealed at 1% margin.
+
+**The forward-looking number is the one to read carefully, and it is the
+margin and not the area.** With the identity on, setup slack falls from
++0.576 to **+0.176 ns — 1.08% of the period**, against slice 2's +0.603
+(3.7%) at 91.2% of the device. Implied Fmax falls from 63.69 to 62.11 MHz,
+so 0.67 MHz of headroom over the 61.44 MHz requirement rather than 2.25.
+The device has **2,228 ALMs left**, which is more than the standalone delta
+projected — a standalone fit over-predicted the machine delta here, and is
+not a machine prediction.
+
+So the binding constraint for slices 4 and 5 has moved from area to timing,
+and the design argument that slice 4 is mostly reuse cuts both ways: reusing
+the same adder, rounder and multiplier is what should make it cheap in ALMs,
+and is also what puts more paths through the same critical logic, which is
+where slack goes.
+
+### The kit run
+
+(pending)
+
+**Four ways the kit wrapper would have stranded the kit, all found before it
+touched one.** Two kits were wedged on 14 November by this class of thing, so
+every check in the wrapper was run against either the live kit or a real
+`result.json` before the run. Slice 2's own x87 runner is the right base,
+because it takes the baseline image and software as environment variables
+rather than parsing the status file. What was wrong:
+
+- **A release gate built on a guessed `result.json` schema.** The first
+  version looked for an event with `op == "load"`. There is none: a command
+  event is `{"seq", "cmd", "result"}` and a load's state is at
+  `result.load.state`. A clean run would have been read as "records no load",
+  the wrapper would have halted, and the kit would have stayed IN USE.
+  Caught by running the gate against slice 2's own passing `x7a` run, where
+  it must print nothing.
+- **A `"phase":"idle"` check that can no longer pass.** The kit's software
+  has moved and its local-control status path now answers 404, so the
+  snapshot line reads `LOCAL 404 page not found` and the grep never matches.
+  It would have halted every run. Dropped, and the guarantee kept: the lease
+  probe is live and authoritative and must read `idle free` both before the
+  claim and after the run.
+- **Two helper scripts importing the repository's `kit` module from deleted
+  worktrees.** They carried absolute paths into other sessions' trees.
+  Repointed at this slice's frozen worktree, which is also what makes the
+  module the one the gates ran against.
+- **A stale baseline regex** in the first wrapper this session adapted: the
+  form it matched (`baseline <40> overlay <64>; OS <64>`) still appears in
+  entries from early November, so reading the whole status file for it picks
+  up a baseline from a week ago and the post-run comparison is against the
+  wrong software.
+
+The command template ends in `{"op": "quit"}`, without which the driver sits
+in a thirty-minute idle wait still holding the lease.
 
 ## What is left
 
