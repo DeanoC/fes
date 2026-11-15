@@ -79,3 +79,69 @@ spike's 17-block budget still unspent.
   need a loop of its own. To be checked in the model, not assumed.
 - **The host-versus-Bochs partial-step comparison**, which decides how far
   each partial step reduces. Not yet run.
+
+## The latency is fixed per precision, which is deliberate
+
+The restoring steps are **not** an early-exit search. Each of the `k` steps is
+one compare-subtract that either takes its trial or does not, and the
+sequencer runs all `k` whatever the operands are, so a divide's latency is
+**fixed by the precision control field alone**: 2 steps at PC 24 and PC 53, 7
+at PC 64, on top of 6 or 8 multiplies. Nothing in the datapath is
+data-dependent.
+
+That is a choice and not an accident. A real 387's FDIV is quoted as a narrow
+range rather than a data-proportional cost, so a data-dependent latency would
+diverge from the part — and [#1837](https://github.com/DeanoC/fes/issues/1837)
+is what that divergence sounds like one layer up: Ultima VI's lute is flat
+because the governor's *relative* instruction costs are wrong and the game
+calibrates a delay loop against the BIOS tick. A program that calibrates
+against a divide loop, which FP-heavy titles do, would hear the same error. So
+the governor gets a number per precision class rather than a distribution, and
+that number is exact rather than a worst case.
+
+The early termination at 24 and 53 bits is therefore a *fixed* saving selected
+by PC, not an opportunistic one: 8 clocks of multiplier, deterministically.
+
+## FPREM and FPREM1, settled on the host
+
+`model/fprem_host.c` and `model/fprem2.c` execute FPREM (D9 F8) and FPREM1
+(D9 F5) on the host's own x87 and read the status word after each step. The
+host is the reference here: TestFloat's `rem` covers only FPREM1's IEEE
+remainder, so FPREM would otherwise have none, and the host executes the real
+instruction including its partial semantics rather than a single exact result.
+
+What it settles:
+
+1. **The completion boundary is exactly the plan's.** An exponent difference
+   of **63 completes in one step** with C2 clear; **64 and 65 take two**. So a
+   step returns a partial remainder with C2 set iff the difference is 64 or
+   more, measured rather than read off the manual.
+2. **A partial step consumes at most 64 quotient bits.** In steady state the
+   result's exponent drops by exactly 64 a step (the diff-1000 case: 40 to
+   reach alignment, then 64, 64, 64 …). The *number* of instructions a full
+   reduction needs is data-dependent — 59, 119, 179, 239, 299 and 359 bits of
+   difference took 1, 3, 4, 6, 9 and 10 steps — because cancellation shrinks
+   the remainder unpredictably. That is architecturally visible and correct:
+   software loops while C2 is set. It is not latency variation *within* an
+   instruction.
+3. **The quotient bits are `q = C0·4 + C3·2 + C1`**, the quotient's low three
+   bits, confirmed over q = 0 to 9 for both FPREM and FPREM1. The 387 PRM's
+   q2/q1/q0 naming maps to C0/C3/C1 in that order, which is easy to get
+   backwards from the manual alone.
+4. **FPREM and FPREM1 differ only in the quotient's rounding.** 3 mod 2 gives
+   q = 1 (C1 set) for FPREM, truncating toward zero, and q = 2 (C3 set) for
+   FPREM1, rounding to nearest — the 8087/287 rule against the IEEE one.
+5. **The invalid and the special cases**, with the status word read directly:
+   - `inf mod 2` → IE set, result the indefinite QNaN (C000…, exponent FFFF);
+   - `2 mod 0` → IE set, the same indefinite QNaN;
+   - `0 mod 2` → +0, **no exception at all**;
+   - `2 mod inf` → **the dividend unchanged**, C2 clear, no exception. A
+     divisor of infinity is not an invalid case and does not reduce.
+
+Whether the partial step reuses the divide's tail primitive — the bounded
+exact remainder and its compare-subtract steps — is the next thing to model.
+It looks like the same primitive (`floor(A·2^d/B)` with the exact remainder)
+and if it is, FPREM needs no loop of its own, which is a real area saving. It
+will be checked in the model rather than assumed, because FPREM's exactness
+and its C2 semantics are where a shared primitive would most plausibly fall
+short.
