@@ -10,14 +10,19 @@ Each citation inside a `What` cell is spelled `path:line`, never a bare `:123`
 whose file the reader has to infer, because this inventory is the exact-site
 checklist S8 works from.
 
-**Verification.** 370 of the 371 primary lines were re-checked here by searching
-each row's recorded `Matched` text on its stated line. The exception,
-`build_fes_zx81_oss.py:92`, holds a long `RTL_SOURCES` tuple the sweep
-abbreviated with an ellipsis, so it cannot be matched mechanically; it was
-confirmed by hand. Of the `path:line` citations inside the cells, every one
-resolves to a real file and a non-blank line. `verify_census.py` in this
-directory re-runs both checks, over this file and the record's prose, and is
-what the README's counts come from.
+**Verification.** Every primary line is re-checked by searching the row's
+recorded `Matched` text on its stated line, and `verify_census.py` in this
+directory is what does it -- over this file and the record's prose -- so the
+counts here and in the README come from the same run rather than from two
+tallies that can drift apart.
+
+This paragraph used to say "370 of the 371", with `build_fes_zx81_oss.py:92`
+excepted as hand-confirmed because its long `RTL_SOURCES` tuple is abbreviated
+with an ellipsis. That exception no longer exists: the checker matches an
+abbreviated cell up to its ellipsis, which is all the text the sweep kept, so
+that row is checked mechanically like the rest. Citations inside the cells are
+checked for resolving *and* for still holding the text they were cited for,
+which the earlier wording also understated.
 
 ### Producers and tools — 60 sites
 
