@@ -466,12 +466,16 @@ class KitShell:
         paths, self.absent = [], []
         for root in roots:
             check_path(root, 'data root')
-            # A bare `test -d` cannot tell a root that is absent from a probe
-            # that failed: an ssh helper exiting 255, or a directory that
-            # cannot be searched, would both read as "absent" and the diff
-            # would then be certified over a root never seen. Make the probe
-            # say which, and refuse anything that is not one of the two.
-            code, out = self.run(f"test -d '{root}' && echo PRESENT || echo ABSENT")
+            # Probe each root independently. A missing optional root
+            # contributes nothing, but a failed remote command or test error
+            # must not become indistinguishable from that ordinary absence.
+            # Preserve `test`'s status: `&& ... || ...` turns every error
+            # into ABSENT just as readily as a false test. A failed probe is
+            # unknown, not an empty root.
+            probe = (f"if test -d '{root}'; then printf '%s\\n' PRESENT; "
+                     f"else probe_status=$?; case \"$probe_status\" in "
+                     f"1) printf '%s\\n' ABSENT ;; *) exit \"$probe_status\" ;; esac; fi")
+            code, out = self.run(probe)
             answer = out.strip().splitlines()[-1].strip() if out.strip() else ''
             if code != 0 or answer not in ('PRESENT', 'ABSENT'):
                 raise CleanupRefused(f'the probe for {root} failed (exit {code}, said '
@@ -480,7 +484,10 @@ class KitShell:
             if answer == 'ABSENT':
                 self.absent.append(root)
                 continue
-            code, out = self.run(f"find '{root}' | sort")
+            # Sorting belongs here, after every remote listing has reported
+            # success. In `find | sort`, the remote shell reports sort's
+            # status and can hide find's partial-output failure.
+            code, out = self.run(f"find '{root}'")
             if code != 0:
                 raise CleanupRefused(f'listing {root} failed, so what is under it '
                                      f'is unknown; nothing removed')

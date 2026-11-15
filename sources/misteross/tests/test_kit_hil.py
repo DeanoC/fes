@@ -951,12 +951,44 @@ class KitListing(unittest.TestCase):
         # An ssh helper exiting 255, or a directory that cannot be searched,
         # must not read as "absent": the diff would then be certified over a
         # root that was never seen.
-        for reply in ((255, ''), (0, ''), (0, 'ssh: connect failed'), (1, 'ABSENT')):
+        for reply in ((255, ''), (0, ''), (0, 'ssh: connect failed'), (1, 'ABSENT'),
+                      (2, 'ABSENT')):
             with self.subTest(reply=reply):
                 shell = self.shell({'test -d': reply})
                 with self.assertRaises(kit_hil.CleanupRefused) as refused:
                     shell.find(kit_hil.DATA_ROOTS)
                 self.assertIn('unknown', str(refused.exception))
+
+    def test_a_test_error_is_not_translated_into_an_absent_root(self):
+        with tempfile.TemporaryDirectory() as home:
+            ssh = Path(home) / 'ssh-test-error'
+            ssh.write_text("#!/bin/sh\n"
+                           "exec /bin/bash -c 'test() { return 2; }; eval \"$1\"' _ \"$1\"\n")
+            ssh.chmod(0o755)
+            shell = kit_hil.KitShell(str(ssh))
+            with self.assertRaises(kit_hil.CleanupRefused) as refused:
+                shell.find((f'{home}/root',))
+            self.assertIn('unknown', str(refused.exception))
+
+    def test_find_partial_output_with_failure_is_not_hidden_by_sort(self):
+        with tempfile.TemporaryDirectory() as home:
+            root = Path(home) / 'root'
+            root.mkdir()
+            bin_dir = Path(home) / 'bin'
+            bin_dir.mkdir()
+            ssh = bin_dir / 'ssh'
+            ssh.write_text('#!/bin/sh\nexec /bin/sh -c "$1"\n')
+            ssh.chmod(0o755)
+            fake_find = bin_dir / 'find'
+            fake_find.write_text('#!/bin/sh\nprintf \'%s\\n\' "$1" "$1/partial"\nexit 1\n')
+            fake_find.chmod(0o755)
+            path = str(bin_dir) + os.pathsep + os.environ.get('PATH', '')
+            with unittest.mock.patch.dict(os.environ, {'PATH': path}):
+                shell = kit_hil.KitShell(str(ssh))
+                with self.assertRaises(kit_hil.CleanupRefused) as refused:
+                    shell.find((str(root),))
+            self.assertIn(str(root), str(refused.exception))
+            self.assertIn('nothing removed', str(refused.exception))
 
     def test_an_absent_root_is_empty_and_said_so_not_unknown(self):
         # /media/fat/fogcast/saves need not exist on a kit that never saved.

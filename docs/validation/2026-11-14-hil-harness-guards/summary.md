@@ -441,16 +441,16 @@ was treated as an empty object and passed; and one `find` over all the roots
 accepted a partial listing when a single root was unreadable. Each has a case
 that is red on `b35a9cf3f`.
 
-On the last of those, the finding's literal remedy — refuse on any nonzero
-`find` exit — is not what was implemented, and the reason is worth recording:
-`find` also exits nonzero when a root merely does not exist, and
-`/media/fat/fogcast/saves` need not exist on a kit that has never saved, so
-that rule would refuse every cleanup on such a kit. The evidence here is
-inconclusive rather than reassuring: of the three runs checked, the two that
-listed three roots found `saves` and the third never asked, because
-`run-games.sh` lists only two roots. Each root is therefore probed on its own:
-a root that exists must list cleanly, and a root that is absent contributes
-nothing and is named in the log.
+The first per-root implementation still had two fail-open edges. Its
+`test -d ... && echo PRESENT || echo ABSENT` probe translated every test error
+into an absent root, and `find ... | sort` returned `sort`'s success status
+when `find` failed after printing a partial listing. The probe now preserves
+the test status (only status 1 means absent; other failures refuse), while each
+present root is listed by a bare remote `find`. The complete result is sorted
+locally only after each remote listing succeeds. A genuinely absent optional
+root such as `saves` still contributes nothing and is named in the log; a
+partial listing or failed probe cannot certify a cleanup diff. Focused local
+fake-SSH tests exercise both shell-status cases without touching a kit.
 
 ## After the reduction: one finding, and not of that family
 
@@ -493,7 +493,7 @@ trees under, which is the thing the guard exists to prevent.
 
 | gate | result |
 | --- | --- |
-| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 90 tests, OK |
+| `sources/misteross`: `unittest discover -s tests -p 'test_kit*.py'` | 92 tests, OK |
 | `tests/test_hil_plan.py` | 39 tests, OK |
 | `tests/test_affected.py`, `tests/test_test_changed.py` | 43 and 33 tests, OK |
 | `scripts/check_diff.py --base <main> --head HEAD` | exit 0 |
