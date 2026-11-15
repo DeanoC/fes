@@ -259,6 +259,42 @@ class SupportMatrixTests(unittest.TestCase):
         deeper = plan.replace('## Tiers', '## Tiers\n\n### Inside\n', 1)
         self.assertIn(quote, SUPPORT_MATRIX.ladder_section(deeper))
 
+    def test_a_setext_heading_ends_the_ladder_section(self):
+        """A paragraph underlined with `=` or `-` is a heading, so the section
+        ends at the line above the underline, not after it."""
+        plan = (ROOT / SUPPORT_MATRIX.FORWARD_PLAN).read_text()
+        quote = SUPPORT_MATRIX.LADDER_QUOTES[0]
+        for label, underline in (('level two', '-----------'),
+                                 ('level one', '==========='),
+                                 ('single dash', '-'),
+                                 ('indented', '   ---')):
+            with self.subTest(label):
+                moved = plan.replace(
+                    '## Tiers', f'## Tiers\n\nReplacement\n{underline}\n', 1
+                )
+                section = SUPPORT_MATRIX.ladder_section(moved)
+                self.assertIsNotNone(section)
+                self.assertNotIn(quote, section)
+                # The heading's own text is not part of the section either.
+                self.assertNotIn('Replacement', section)
+
+    def test_setext_underline_only_matches_underlines(self):
+        cases = {'---': True, '===': True, '-': True, '  ----  ': True,
+                 '    ----': False, '- a bullet': False, '--- text': False,
+                 '': False, '| --- | --- |': False}
+        for line, expected in cases.items():
+            with self.subTest(line=line):
+                self.assertEqual(expected, SUPPORT_MATRIX.setext_underline(line))
+
+    def test_the_real_ladder_section_has_no_underline_lines(self):
+        """The guard above must not be truncating the live section: a Markdown
+        table's `| --- |` row is not an underline, and nothing else matches."""
+        section = SUPPORT_MATRIX.ladder_section(
+            (ROOT / SUPPORT_MATRIX.FORWARD_PLAN).read_text()
+        )
+        for quote in SUPPORT_MATRIX.LADDER_QUOTES:
+            self.assertIn(quote, section)
+
     def test_ends_section_only_matches_real_headings(self):
         cases = {'# Top': True, '## Two': True, '   # Indented': True, '##': True,
                  '#Top': False, '### Three': False, '    # Four spaces': False,

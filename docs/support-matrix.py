@@ -206,6 +206,14 @@ HEADING2 = re.compile(r'^ {0,3}##(?!#)(?:[ \t]+(.*?))?[ \t]*$')
 # section ends at `#` as well as at `##`.
 HEADING_UPTO2 = re.compile(r'^ {0,3}#{1,2}(?!#)(?:[ \t]+.*?)?[ \t]*$')
 HEADING_CLOSE = re.compile(r'[ \t]+#+$')
+# A Setext heading is a paragraph line underlined with `=` or `-`, so the
+# heading is the line ABOVE the underline and a section ends before it, not
+# after it. Boundary detection has to be permissive like this, because missing
+# a boundary folds a later section into this one and fails open. Identifying
+# `## Tiers` stays strict ATX on purpose: if the plan were ever rewritten in
+# Setext form the heading simply is not found, which fails closed with an
+# error naming the section.
+SETEXT_UNDERLINE = re.compile(r'^ {0,3}(?:=+|-+)[ \t]*$')
 LIST_ITEM = re.compile(r'^ {0,3}[-*+] +')
 
 
@@ -218,8 +226,30 @@ def heading2(line: str) -> str | None:
 
 
 def ends_section(line: str) -> bool:
-    """Whether this line closes a level-two section."""
+    """Whether this ATX heading line closes a level-two section."""
     return HEADING_UPTO2.match(line) is not None
+
+
+def setext_underline(line: str) -> bool:
+    """Whether this line underlines the paragraph above it into a heading."""
+    return SETEXT_UNDERLINE.match(line) is not None
+
+
+def take_until_heading(lines: list[str]) -> list[str]:
+    """`lines` up to the next heading of level one or two, ATX or Setext.
+
+    A Setext underline makes a heading of the line before it, so that line is
+    dropped as well: it is the heading, not part of this section.
+    """
+    body: list[str] = []
+    for line in lines:
+        if ends_section(line):
+            break
+        if setext_underline(line) and body and body[-1].strip():
+            body.pop()
+            break
+        body.append(line)
+    return body
 
 
 def ladder_section(text: str) -> str | None:
@@ -234,11 +264,7 @@ def ladder_section(text: str) -> str | None:
     starts = [i for i, line in enumerate(lines) if heading2(line) == wanted]
     if len(starts) != 1:
         return None
-    body = []
-    for line in lines[starts[0] + 1:]:
-        if ends_section(line):
-            break
-        body.append(line)
+    body = take_until_heading(lines[starts[0] + 1:])
     return ' '.join(' '.join(body).split())
 
 
@@ -258,6 +284,10 @@ def markdown_list_item(lines: list[str], index: int) -> str | None:
     item = [LIST_ITEM.sub('', lines[start])]
     for line in lines[start + 1:]:
         if not line.strip() or LIST_ITEM.match(line) or ends_section(line):
+            break
+        if setext_underline(line):
+            # The line before it was a heading, not part of this item.
+            item.pop()
             break
         item.append(line)
     return ' '.join(' '.join(item).split())
