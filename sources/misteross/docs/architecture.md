@@ -763,7 +763,8 @@ table and a `cores/<core>/toolchain.lock`, and each lock pins its own
 nextpnr. Before a producer records its recipe or routes, `scripts/pnr_recipe.py`
 reads the authenticated binary's `--help` and matches the complete sorted CLI
 option-name set to a reviewed schema. The 96-option set has 56 recipe flags,
-the 105-option set has 65, and Coleco's current 107-option set has 67. Their
+the 105-option set has 65, Coleco's current 107-option set has 67, and the
+ZX81 family's 134-option set (nextpnr `6162fcaa`) has 94. Their
 source declarations are in `common/kernel/command.cc` and `mistral/main.cc`.
 Schema lookup uses the option
 set, so a moving PR head remains eligible when its option set is unchanged.
@@ -786,6 +787,16 @@ The 107-option schema adds `phase-related-harmonic-clocks` and
 `mistral-ff-reset-reference`, both explicitly defaulting off. The former enables
 phase-related harmonic clock analysis; the latter enables the bounded FF reset
 recovery reference. Neither option is sent for Coleco's default recipe.
+
+The 134-option schema adds 27 options from nextpnr `6162fcaa`: nine
+`post-route-*` refinement budgets that default to 0, twelve `routed-placement-*`
+controls that are opt-in or name plan, route and record files, and six Mistral
+timing references (`mistral-ff-core-reference`, `mistral-gpio-core-reference`,
+`mistral-lut-core-reference`, `mistral-lut-route-min-reference`,
+`mistral-routed-delay-ranges` and `mistral-clock-edge-ranges`) that default off.
+`scripts/pnr_recipe.py` refuses a recipe that sets any of them away from its
+default: their plan and record files sit outside a producer's audited inputs.
+None is sent for the ZX81 family's recipes.
 
 To register a nextpnr pin, compare the exact candidate commit with a classified
 ancestor. Compare `--help` from the candidate binary and audit option
@@ -810,11 +821,11 @@ The `0a253257` schema review is recorded in the
 
 Each lock resolves to the shared installs of the tools it pins. Menu pins
 nextpnr `1eecf877` (moved when its blitter took DSP multipliers), ZX81's
-lock pins nextpnr `bec82e36` (moved from `1eecf877` when `fes.ts1500` missed
-timing there), Pong's lock pins `552ba246` (fes#887), RISC-V's `8f453ebc`
+lock pins nextpnr main `6162fcaa` (moved from `1eecf877` when `fes.ts1500`
+missed timing there), Pong's lock pins `552ba246` (fes#887), RISC-V's `8f453ebc`
 (fes#945), and Coleco's pins Yosys `5391eeb1` with nextpnr `bec82e36`
-(current main includes #296 and #299, retaining #289, #290, #292). ZX81 and
-Coleco share that `bec82e36` install; each of the other nextpnr pins is its own install. Apple II, Atari ST (fes#910) and C64 pin nextpnr
+(current main includes #296 and #299, retaining #289, #290, #292); each
+of those nextpnr pins is its own install. Apple II, Atari ST (fes#910) and C64 pin nextpnr
 `5fe55f3d` for nextpnr #276's F0/F1 boundary `$ROUTETHRU` map. Spectrum pins
 nextpnr main `bd7a1c0d`, which contains #276 as merged and keeps that map, in
 its own slot. Coleco keeps the F0/F1 map on `bec82e36`. The Apple II and C64
@@ -1152,7 +1163,7 @@ is not the product bitstream and is not a fallback when the HIP seal fails.
 Registered FES producers select compiler pins from their corresponding
 `cores/fes-<core>/toolchain.lock`. The shared cache holds one install per tool,
 commit and build configuration, not one per lock, so locks that pin the same
-Yosys or Verilator share it: Menu (nextpnr `1eecf877`), ZX81 (nextpnr `bec82e36`, shared with Coleco), Pong
+Yosys or Verilator share it: Menu (nextpnr `1eecf877`), ZX81 (nextpnr main `6162fcaa`), Pong
 (`552ba246`), RISC-V (`8f453ebc`), Apple II, C64 and Atari ST (`5fe55f3d`),
 Spectrum (nextpnr main `bd7a1c0d`) and Coleco (Yosys `5391eeb1` with nextpnr
 `bec82e36`) differ only in the installs those pins name.

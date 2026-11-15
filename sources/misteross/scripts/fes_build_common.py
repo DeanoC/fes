@@ -601,8 +601,8 @@ def _validate_registered_pnr_options(
     from scripts import pnr_recipe
 
     try:
-        core_id = pnr_recipe.core_for_lock(root, lock_path)
-        if core_id is not None:
+        # Several models can share one lock; each records its own recipe digest.
+        for core_id in pnr_recipe.cores_for_lock(root, lock_path):
             pnr_recipe.validate_nextpnr_tool(core_id, tools["nextpnr-mistral"].path)
     except (KeyError, pnr_recipe.RecipeError) as exc:
         raise BuildError(f"nextpnr recipe option validation failed: {exc}") from exc

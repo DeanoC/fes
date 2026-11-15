@@ -70,7 +70,29 @@ _ADDED_107_OPTIONS = {
     "phase_related_harmonic_clocks": False,
     "mistral_ff_reset_reference": False,
 }
-_ADDED_OPTIONS = {**_ADDED_105_OPTIONS, **_ADDED_107_OPTIONS}
+# nextpnr main 6162fcaa adds 27 more, declared in mistral/main.cc. The
+# post-route budgets default to 0 (no trials); every routed-placement control
+# and the six Mistral timing references are explicit opt-ins, and the paths
+# name plan, route and record files. FES producers keep all of them at these
+# defaults: the plan and record files sit outside the audited build inputs.
+_ADDED_134_OPTIONS = {
+    "routed_placement_record": "unset", "post_route_lut_branch_plan": "unset",
+    "post_route_lut_moves": 0, "post_route_private_lut_pins": 0,
+    "post_route_net_trials": 0, "post_route_final_lut_pins": 0,
+    "post_route_sole_lut_pins": 0, "post_route_lut_pairs": 0,
+    "post_route_lut_input_nets": 0, "post_route_static_ff_lut_pins": 0,
+    "routed_placement_plan": "unset", "routed_placement_propose": "unset",
+    "routed_placement_trials": "unset", "routed_placement_candidates": "unset",
+    "routed_placement_preserve_routes": False,
+    "routed_placement_record_calibration": False,
+    "routed_placement_preserve_branches": False,
+    "routed_placement_group_moves": False, "routed_placement_retarget_luts": False,
+    "routed_placement_check_plan": False, "routed_placement_routes": "unset",
+    "mistral_ff_core_reference": False, "mistral_gpio_core_reference": False,
+    "mistral_lut_core_reference": False, "mistral_lut_route_min_reference": False,
+    "mistral_routed_delay_ranges": False, "mistral_clock_edge_ranges": False,
+}
+_ADDED_OPTIONS = {**_ADDED_105_OPTIONS, **_ADDED_107_OPTIONS, **_ADDED_134_OPTIONS}
 
 # A nextpnr source option set selects one of these recipe-flag schemas. The
 # option names not present in either flag table are still included in the exact
@@ -79,6 +101,7 @@ _ADDED_OPTIONS = {**_ADDED_105_OPTIONS, **_ADDED_107_OPTIONS}
 _SCHEMA_96_OPTIONS = MappingProxyType(_DEFAULTS_96_OPTIONS)
 _SCHEMA_105_OPTIONS = MappingProxyType({**_DEFAULTS_96_OPTIONS, **_ADDED_105_OPTIONS})
 _SCHEMA_107_OPTIONS = MappingProxyType({**_SCHEMA_105_OPTIONS, **_ADDED_107_OPTIONS})
+_SCHEMA_134_OPTIONS = MappingProxyType({**_SCHEMA_107_OPTIONS, **_ADDED_134_OPTIONS})
 _OTHER_SOURCE_OPTIONS = frozenset({
     "Werror", "compress_rbf", "debug", "debug_placer", "debug_router",
     "detailed_timing_report", "device", "force", "freq", "gpu_device", "gui",
@@ -96,6 +119,7 @@ _SOURCE_OPTION_SET_SCHEMAS: Mapping[frozenset[str], Mapping[str, object]] = Mapp
     frozenset(_SCHEMA_96_OPTIONS) | _OTHER_SOURCE_OPTIONS: _SCHEMA_96_OPTIONS,
     frozenset(_SCHEMA_105_OPTIONS) | _OTHER_SOURCE_OPTIONS: _SCHEMA_105_OPTIONS,
     frozenset(_SCHEMA_107_OPTIONS) | _OTHER_SOURCE_OPTIONS: _SCHEMA_107_OPTIONS,
+    frozenset(_SCHEMA_134_OPTIONS) | _OTHER_SOURCE_OPTIONS: _SCHEMA_134_OPTIONS,
 })
 _RUNTIME_SCHEMAS: dict[
     tuple[str, str, str, tuple[str, int, int, int, int] | None], Mapping[str, object]
@@ -124,17 +148,32 @@ FLAG_BOOLEAN_FIELDS = frozenset({
     "remap_lut_pair_compose_copy", "arrival_pin_assignment",
     "isolated_lut_placement", "mistral_dsp_signed_lanes", "gpu_required",
     "phase_related_harmonic_clocks", "mistral_ff_reset_reference",
+    "routed_placement_preserve_routes", "routed_placement_record_calibration",
+    "routed_placement_preserve_branches", "routed_placement_group_moves",
+    "routed_placement_retarget_luts", "routed_placement_check_plan",
+    "mistral_ff_core_reference", "mistral_gpio_core_reference",
+    "mistral_lut_core_reference", "mistral_lut_route_min_reference",
+    "mistral_routed_delay_ranges", "mistral_clock_edge_ranges",
 })
 FLAG_INTEGER_FIELDS = frozenset({
     "placer_heap_cell_placement_timeout", "timing_report_paths",
     "replicate_enables", "remap_groups", "critical_cohort_budget",
+    "post_route_lut_moves", "post_route_private_lut_pins", "post_route_net_trials",
+    "post_route_final_lut_pins", "post_route_sole_lut_pins", "post_route_lut_pairs",
+    "post_route_lut_input_nets", "post_route_static_ff_lut_pins",
 })
 # nextpnr rejects values above these limits after loading the design.
-_FLAG_INTEGER_LIMITS = {"critical_cohort_budget": 64}
+_FLAG_INTEGER_LIMITS = {
+    "critical_cohort_budget": 64, "post_route_lut_moves": 16,
+    "post_route_private_lut_pins": 16, "post_route_net_trials": 64,
+    "post_route_final_lut_pins": 16, "post_route_sole_lut_pins": 16,
+    "post_route_lut_pairs": 16, "post_route_lut_input_nets": 16,
+    "post_route_static_ff_lut_pins": 16,
+}
 FLAG_INTEGER_OR_UNSET_FIELDS = frozenset({
     "gpu_batches", "remap_comb_candidate", "remap_decompose_candidate",
     "remap_lut_pair_candidate", "remap_lut_driver_candidate",
-    "remap_candidate",
+    "remap_candidate", "routed_placement_trials", "routed_placement_candidates",
 })
 FLAG_NUMBER_FIELDS = frozenset({
     "cstrweight", "starttemp", "placer_heap_alpha", "placer_heap_beta",
@@ -146,6 +185,8 @@ FLAG_STRING_FIELDS = frozenset({
     "remap_comb_critical", "remap_comb_plan", "remap_decompose_critical",
     "remap_lut_pair_critical", "remap_lut_driver_critical",
     "critical_cohort_report", "critical_cohort_model_out", "router2_profile",
+    "routed_placement_record", "post_route_lut_branch_plan", "routed_placement_plan",
+    "routed_placement_propose", "routed_placement_routes",
 })
 FLAG_LIST_FIELDS = frozenset({"gpu_opt", "balance_reduction_root", "set"})
 
@@ -291,6 +332,11 @@ def _effective_flags(core_id: str, recipe: Mapping[str, object],
     if (any(not _valid_flag_value(name, value) for name, value in effective.items())
             or not _valid_settings(effective) or not _valid_cohort_options(effective)):
         raise RecipeError(f"{core_id}: invalid nextpnr option value")
+    unsupported = sorted(name for name in _ADDED_134_OPTIONS
+                         if name in effective and effective[name] != _ADDED_134_OPTIONS[name])
+    if unsupported:
+        raise RecipeError(f"{core_id}: FES producers keep these nextpnr options at their "
+                          f"defaults: {unsupported}")
     return effective
 
 
@@ -361,8 +407,8 @@ def validate_nextpnr_tool(core_id: str, binary: str | Path) -> Mapping[str, obje
     return schema
 
 
-def core_for_lock(root: str | Path, lock_path: str | Path) -> str | None:
-    """Return the registered core whose per-core lock was authenticated."""
+def cores_for_lock(root: str | Path, lock_path: str | Path) -> tuple[str, ...]:
+    """Return every registered core whose recipe names the authenticated lock."""
     root = Path(root).resolve()
     lock_path = Path(lock_path)
     if not lock_path.is_absolute():
@@ -370,9 +416,9 @@ def core_for_lock(root: str | Path, lock_path: str | Path) -> str | None:
     try:
         relative = lock_path.resolve().relative_to(root).as_posix()
     except (OSError, ValueError):
-        return None
-    return next((entry["core_id"] for entry in _registry()[0]["recipes"]
-                 if entry.get("lock_path") == relative), None)
+        return ()
+    return tuple(entry["core_id"] for entry in _registry()[0]["recipes"]
+                 if entry.get("lock_path") == relative)
 
 
 def _lock_nextpnr(core_id: str, relative: object) -> str:

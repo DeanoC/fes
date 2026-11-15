@@ -28,10 +28,10 @@ ENV = {
 LOCK_SHA256 = {
     "fes.menu": "2adfe0457b7d90debb76f52593c5101a88171a9c0b37ca3c2b2146c199ae0df0",
     "fes.pong": "e9c28e573a5037cc7a3acef7637097691bf5bfac6f1a0cdca3bace84b9383edc",
-    "fes.zx81": "0db1035f83cd586b637c7cb2592ae49053414fb17d0ce46ed5bf5a8288dfdd60",
-    "fes.zx80": "0db1035f83cd586b637c7cb2592ae49053414fb17d0ce46ed5bf5a8288dfdd60",
-    "fes.ts1000": "0db1035f83cd586b637c7cb2592ae49053414fb17d0ce46ed5bf5a8288dfdd60",
-    "fes.ts1500": "0db1035f83cd586b637c7cb2592ae49053414fb17d0ce46ed5bf5a8288dfdd60",
+    "fes.zx81": "f65d4d3251532102347b75ad8d5533dcde8c371f5bb434e6aff8dae9d63956ba",
+    "fes.zx80": "f65d4d3251532102347b75ad8d5533dcde8c371f5bb434e6aff8dae9d63956ba",
+    "fes.ts1000": "f65d4d3251532102347b75ad8d5533dcde8c371f5bb434e6aff8dae9d63956ba",
+    "fes.ts1500": "f65d4d3251532102347b75ad8d5533dcde8c371f5bb434e6aff8dae9d63956ba",
     "fes.coleco": "cb2c2809dd1b9687fbb1f50d3c6ea3a8e01ebf328b1ea29c8d567854c93d0fdb",
     "fes.sms": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.sg1000": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
@@ -51,6 +51,7 @@ SOURCE_OPTION_SET_SHA256 = {
     96: "e23f3850fe127f9694053f5d0c8700fff655ec1b9e3504cb3f9da779d0446432",
     105: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
     107: "05aa13ab70d4fa57a517b2df56f2aa45ac1d1de6a1a7f3e53dc1ba6080982e77",
+    134: "cc26b79b1a31383666436d97d98358fb027c8376ddd98f83c994f89e9f933f89",
 }
 SOURCE_OPTION_SETS = {
     len(option_names): option_names
@@ -64,9 +65,10 @@ FLAGS_SHA256 = {
     56: "6d60ed8e921f893f4fc3db7faf7c71473e493c99fee7f503c6f96cc38fd20c3f",
     65: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
     67: "1a6b1280f5a3303b8ac0447b56e9af53d606633ec29ae9c4004ca700bf9d82b2",
+    94: "f41b404f5bdb3aa86ec61c4012b8508ef6685c069f31ebd9e0b968bc263fa5a8",
 }
 PCXT_FLAGS_SHA256 = "1df45a51d1ebb46353c90454cf28986b9c565f05185a5a4adfc4fcaac9508b5a"
-ZX81_FLAGS_SHA256 = "062bd30fd2598a5257fc4bc6f6145e76be394c1aea8002b6d532531fbd89f14b"
+ZX81_FLAGS_SHA256 = "5cb27f8a1efdf97f26b254d93904ee1d61fc7b30efbb6ea153a4dfb9d876202a"
 ZX81_FAMILY = {"fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500"}
 
 # The source-declared additions to the 105-option set, independently checked
@@ -79,6 +81,20 @@ ADDED_0A253257 = {
 ADDED_BEC82E36 = {
     "phase_related_harmonic_clocks", "mistral_ff_reset_reference",
 }
+TIP_6162FCAA = "6162fcaa3c433ebd8bd50bb42a3c8fb36d686565"
+ADDED_6162FCAA = {
+    "routed_placement_record", "post_route_lut_branch_plan", "post_route_lut_moves",
+    "post_route_private_lut_pins", "post_route_net_trials", "post_route_final_lut_pins",
+    "post_route_sole_lut_pins", "post_route_lut_pairs", "post_route_lut_input_nets",
+    "post_route_static_ff_lut_pins", "routed_placement_plan", "routed_placement_propose",
+    "routed_placement_trials", "routed_placement_candidates",
+    "routed_placement_preserve_routes", "routed_placement_record_calibration",
+    "routed_placement_preserve_branches", "routed_placement_group_moves",
+    "routed_placement_retarget_luts", "routed_placement_check_plan",
+    "routed_placement_routes", "mistral_ff_core_reference", "mistral_gpio_core_reference",
+    "mistral_lut_core_reference", "mistral_lut_route_min_reference",
+    "mistral_routed_delay_ranges", "mistral_clock_edge_ranges",
+}
 NO_PYTHON_GUI_OPTIONS = {
     "gui", "gui_no_aa", "on_failure", "post_route", "pre_pack", "pre_place",
     "pre_route", "run",
@@ -90,10 +106,10 @@ NO_PYTHON_GUI_OPTIONS = {
 GOLDENS = {
     "fes.menu": ("2dab30da3b734c32b1ff52bfd0cdc035cca4bfe1fcc3989461bf3432be25e958", "b840cd3425c9582751f1a7847d988db554f889f0a27f7a234ad25077ccd473df"),
     "fes.pong": ("c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
-    "fes.zx81": ("929a1867a60e7ea048379a56b0ad15d11fe6d50d30cf5f0b6771a4a56bc67035", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
-    "fes.zx80": ("929a1867a60e7ea048379a56b0ad15d11fe6d50d30cf5f0b6771a4a56bc67035", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
-    "fes.ts1000": ("929a1867a60e7ea048379a56b0ad15d11fe6d50d30cf5f0b6771a4a56bc67035", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
-    "fes.ts1500": ("929a1867a60e7ea048379a56b0ad15d11fe6d50d30cf5f0b6771a4a56bc67035", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
+    "fes.zx81": ("8227a7bf05e651c7aea692e00b40bd57c8a7f0069cd4d01d6322ee935eada329", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
+    "fes.zx80": ("8227a7bf05e651c7aea692e00b40bd57c8a7f0069cd4d01d6322ee935eada329", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
+    "fes.ts1000": ("8227a7bf05e651c7aea692e00b40bd57c8a7f0069cd4d01d6322ee935eada329", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
+    "fes.ts1500": ("8227a7bf05e651c7aea692e00b40bd57c8a7f0069cd4d01d6322ee935eada329", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
     "fes.coleco": ("5a6fccb367857e0282be870b60298989f1d845023f9198e79d979e06755c927d", "93de0822ff64f833c8e571cf08b0b7d312f005bde176ad43d308c3f7ec2142af"),
     "fes.sms": ("aaa419748321cab16db125a53dd74b54c0240bb5a021b32a3db417b56543bfe5", "9f5b6f7ee3c682d7927ee0ceb03bd307f891431c209d88aa12ac20004cf97126"),
     "fes.sg1000": ("0faae72f9ba02b06832ddf7b537823c87bc61acf31672e43bb9da36a6abd66e1", "abe6012bd8052f8814e813182b95509c08ff3c906e3f926a1c0edb49f4982b85"),
@@ -244,7 +260,9 @@ class PnrRecipeTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(lock.read_bytes()).hexdigest(), LOCK_SHA256[core_id])
                 pin = load_lock(lock)["nextpnr"].commit
                 self.assertEqual(pnr_recipe.nextpnr_pin(core_id), pin)
-                if core_id in {"fes.coleco", "fes.pcxt"} | ZX81_FAMILY:
+                if core_id in ZX81_FAMILY:
+                    option_count = 134
+                elif core_id in {"fes.coleco", "fes.pcxt"}:
                     option_count = 107
                 elif core_id in {"fes.pong", "fes.riscv", "fes.atari-st"}:
                     option_count = 105
@@ -255,8 +273,8 @@ class PnrRecipeTests(unittest.TestCase):
                                  set(SCHEMAS_BY_OPTION_COUNT[option_count]))
 
     def test_source_option_sets_select_exact_schemas_and_shared_defaults(self):
-        self.assertEqual(set(SOURCE_OPTION_SETS), {96, 105, 107})
-        self.assertEqual(set(SCHEMAS_BY_OPTION_COUNT), {96, 105, 107})
+        self.assertEqual(set(SOURCE_OPTION_SETS), {96, 105, 107, 134})
+        self.assertEqual(set(SCHEMAS_BY_OPTION_COUNT), {96, 105, 107, 134})
         for count, option_names in SOURCE_OPTION_SETS.items():
             digest = hashlib.sha256(json.dumps(
                 sorted(option_names), separators=(",", ":")).encode()).hexdigest()
@@ -264,14 +282,18 @@ class PnrRecipeTests(unittest.TestCase):
         old = SCHEMAS_BY_OPTION_COUNT[96]
         new = SCHEMAS_BY_OPTION_COUNT[105]
         newest = SCHEMAS_BY_OPTION_COUNT[107]
+        tip = SCHEMAS_BY_OPTION_COUNT[134]
         self.assertEqual(set(new) - set(old), ADDED_0A253257)
         self.assertEqual(set(newest) - set(new), ADDED_BEC82E36)
+        self.assertEqual(set(tip) - set(newest), ADDED_6162FCAA)
         self.assertEqual({name: new[name] for name in old}, dict(old))
         self.assertEqual({name: newest[name] for name in new}, dict(new))
+        self.assertEqual({name: tip[name] for name in newest}, dict(newest))
         self.assertEqual(len(old), 56)
         self.assertEqual(len(new), 65)
         self.assertEqual(len(newest), 67)
-        for schema in (old, new, newest):
+        self.assertEqual(len(tip), 94)
+        for schema in (old, new, newest, tip):
             self.assertEqual(hashlib.sha256(json.dumps(
                 dict(schema), sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
                 FLAGS_SHA256[len(schema)])
@@ -282,6 +304,7 @@ class PnrRecipeTests(unittest.TestCase):
             96: "9128800fa6e77c4138088a7107a95376ba47ff15",
             105: "f485b5857affc377199af1b5bfcd63d31330b50b",
             107: "bec82e36d436acec7cbeb248725acfde72b8f220",
+            134: TIP_6162FCAA,
         }
         for count, classified_options in SOURCE_OPTION_SETS.items():
             with self.subTest(option_count=count), tempfile.TemporaryDirectory() as directory, \
@@ -301,6 +324,7 @@ class PnrRecipeTests(unittest.TestCase):
             96: "9128800fa6e77c4138088a7107a95376ba47ff15",
             105: "f485b5857affc377199af1b5bfcd63d31330b50b",
             107: "bec82e36d436acec7cbeb248725acfde72b8f220",
+            134: TIP_6162FCAA,
         }
         for count, classified_options in SOURCE_OPTION_SETS.items():
             mismatches = {
@@ -359,6 +383,52 @@ class PnrRecipeTests(unittest.TestCase):
                 "fes.coleco", binary, SYNTH, recipe["seeds"][0], 0, output=OUTPUT)
             self.assertEqual(list(command), _legacy_argv(
                 "fes.coleco", recipe, slot=str(binary), seed=recipe["seeds"][0]))
+
+    def test_zx81_6162fcaa_schema_keeps_default_argv_and_new_options_off(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                _core_on_nextpnr(directory, "fes.zx81", TIP_6162FCAA):
+            binary = Path(directory) / "nextpnr-mistral"
+            _fake_nextpnr_help(binary, SOURCE_OPTION_SETS[134] - NO_PYTHON_GUI_OPTIONS)
+            schema = pnr_recipe.validate_nextpnr_tool("fes.zx81", binary)
+            recipe = pnr_recipe.recipe_for("fes.zx81", binary)
+            self.assertEqual(pnr_recipe.nextpnr_pin("fes.zx81"), TIP_6162FCAA)
+            self.assertEqual(set(recipe["flags"]), set(schema))
+            self.assertEqual({name: recipe["flags"][name] for name in ADDED_6162FCAA},
+                             pnr_recipe._ADDED_134_OPTIONS)
+            command = pnr_recipe.argv(
+                "fes.zx81", binary, SYNTH, recipe["seeds"][0], 0, output=OUTPUT)
+            self.assertEqual(list(command), _legacy_argv(
+                "fes.zx81", recipe, slot=str(binary), seed=recipe["seeds"][0]))
+            self.assertFalse(any(arg.startswith(("--post-route-", "--routed-placement-"))
+                                 for arg in command))
+
+    def test_6162fcaa_options_must_stay_at_their_defaults(self):
+        for name, value in (("post_route_lut_moves", 4),
+                            ("routed_placement_record", "record"),
+                            ("mistral_lut_core_reference", True)):
+            with self.subTest(option=name), tempfile.TemporaryDirectory() as directory, \
+                    _core_on_nextpnr(directory, "fes.zx81", TIP_6162FCAA,
+                                     values={name: value}):
+                binary = Path(directory) / "nextpnr-mistral"
+                _fake_nextpnr_help(binary, SOURCE_OPTION_SETS[134])
+                with self.assertRaisesRegex(pnr_recipe.RecipeError,
+                                            "keep these nextpnr options at their defaults"):
+                    pnr_recipe.validate_nextpnr_tool("fes.zx81", binary)
+
+    def test_a_shared_lock_validates_every_core_that_names_it(self):
+        from scripts import fes_build_common
+
+        root = ROOT / "sources/misteross"
+        lock = root / "cores/fes-zx81/toolchain.lock"
+        self.assertEqual(pnr_recipe.cores_for_lock(root, lock),
+                         ("fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500"))
+        tools = {"nextpnr-mistral": fes_build_common.AuthenticatedTool(
+            path=Path(SLOT), identity="commit=6162fcaa; sha256=fixture")}
+        with patch.object(pnr_recipe, "validate_nextpnr_tool") as validate:
+            fes_build_common._validate_registered_pnr_options(root, lock, tools)
+        self.assertEqual([call.args for call in validate.call_args_list],
+                         [(core, Path(SLOT)) for core in
+                          ("fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500")])
 
     def test_runtime_recipe_schema_is_selected_by_binary_identity(self):
         pin = pnr_recipe.nextpnr_pin("fes.menu")
