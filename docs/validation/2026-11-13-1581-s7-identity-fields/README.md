@@ -99,6 +99,48 @@ route-deciding input.
 | `ramtest` | `7a60de20fc0fb448849cd24eed50a253` | `d3774d8027b61a943e77edac3f6815c7e8f3a526da1d18dd688bcf91f64fd925` | `a5e0d01b501fb7721240a64b8a9b71065940e8d5b23af7c2b72ff76173543347` | `4d8eb4efff711f03f1b842ed2b056b9a` |
 | `riscv` | `e0a17b8e0d06d1b5b5fae611bdedc308` | `a7224f83777d917af62b4b4a1d3db814e34f69028c1fb09254b8f09946303831` | `99f92fafc5b0c591a34968b535468610c479219066d579bfee046b7d42c33a50` | `89ce0e93c74934dc3ed7bfc1a131d990` |
 
+### How close the passers came
+
+"Eleven of twelve passed" is true and misleading on its own, because a
+`BUILD_ID` move reshuffles placement and a core passes or fails on the headroom
+it had on its **tightest** clock. The producers' own timing blocks are copied
+verbatim into [`condition-3/clocks.json`](condition-3/clocks.json) and
+[`condition-3/margins.py`](condition-3/margins.py) prints the ranking, so these
+figures are derived rather than transcribed:
+
+| core | tightest clock | achieved | constraint | margin |
+| --- | --- | ---: | ---: | ---: |
+| `coleco_v2` | — | — | — | **FAILED, best seed 0.9796** |
+| `sms` | `system_clock.clocks[0]` | 53.067 | 52.225 | **+1.61%** |
+| `ramtest` (100) | `ram_clock.clocks[0]` | 103.670 | 100.000 | +3.67% |
+| `atari_st` | `system_clock.clocks[0]` | 54.215 | 52.225 | +3.81% |
+| `riscv` | `endpoint.clk` | 77.537 | 74.250 | +4.43% |
+| `apple2` | `system_clock.clocks[0]` | 56.004 | 52.225 | +7.24% |
+| `spectrum` | `display.control.clk` | 90.942 | 74.250 | +22.48% |
+| `menu` | `endpoint.blit_control.clk` | 92.997 | 74.250 | +25.25% |
+| `pong` | `core.game.clk` | 93.817 | 74.250 | +26.35% |
+| `sg1000` | `system_clock.clocks[0]` | 71.659 | 52.225 | +37.21% |
+
+`zx81` is absent because its condition 3 was taken at `574a73432` and is not
+re-measured here.
+
+**The swing is measurable, and it is bigger than some of these margins.** The
+same `ramtest` 100 MHz package was built at two identities a few commits apart:
+`ram_clock.clocks[0]` achieved 103.670 MHz here and 100.980 MHz at
+DeanoC/fes#1881's head — 2.7 percentage points of margin, from a change that
+compiles to no RTL. Earlier runs of that core recorded 102.38 and 101.44, so the
+figure drifts with identity rather than tracking anything functional.
+
+So `sms`, at +1.61%, is **inside** that band: it passed this time and could fail
+on the next identity move, exactly as `coleco_v2` did. That is the concrete case
+for DeanoC/fes#1878. The cost of the current identity rule is not only wasted
+rebuilds; it is that two cores' timing closure is decided by a constant with no
+functional meaning, and one of them has already lost.
+
+Credit for the observation to the DeanoC/fes#1881 work, which noticed its own
+memory margin had thinned across identities and said so rather than recording a
+bare pass.
+
 ### Does a merge invalidate these identities?
 
 Only if it touches a closure. A `BUILD_ID` hashes its producer's transitive
