@@ -258,7 +258,7 @@ reads.
 | ... on the chip host with the CUDA router, which the sealer requires and verifies | **0 fail**: 14 x87, 1,933 no-387, 84 directed |
 | test386 | **POST … E0 EE FF**, halted |
 | Quartus 17.0.2 seal | **pass**, package `48717256`, `BUILD_ID` e6261c37, seed 1, all five analyses positive (setup **+0.896**, hold +0.099, pulse width +1.122, recovery +6.19, removal +1.695) |
-| kit run on that seal | **(pending)** |
+| kit run on that seal | **pass**, Kit B run `x3a`: FreeDOS to `C:\>` and Wolfenstein 3D in play on the sealed package, `fes.pc386.machine 1.0` active, baseline restored and the kit logged FREE |
 
 Every gate runs from a clean worktree at the frozen head, so no later edit of
 the bench or the harness can reach the tree a counted run used.
@@ -299,8 +299,16 @@ record's reproduction prints now names `unbuilt` for that reason.
 
 ## Area and timing
 
-Every figure here is Quartus 17.0.2 at the seal's settings, seed 1. **The
-machine fits** -- which are the ones the deltas rest on -- all ran through
+Every figure here is Quartus 17.0.2, seed 1, through the measurement flow
+(`scripts/quartus_x87_spike.py`). **That flow is not the sealer**, and the
+difference was checked rather than assumed: it fits `pc386_system`, where
+the sealer fits `top`, the DE10 level above it. Same device, same 61.44 MHz
+system clock and 16.276 ns period, but a different project and so a
+different placement and a different critical path -- which is why the
+sealer's own identity-off report reads 36,480 ALMs and +0.896 ns where the
+table below reads 36,392 and +0.576. **The rows here are for differencing
+against each other; the sealer's report is what the shipped artefact closes
+at.** **The machine fits** -- which are the ones the deltas rest on -- all ran through
 **the chip host's CUDA toolchain slot**; the standalone fit of the unit, in
 "The unit on its own" below, ran through Powerboat's HIP slot, which is why
 that subsection calls its comparison with slice 2 indicative rather than
@@ -355,11 +363,14 @@ that drives four passes of one multiplier.
 | the merge-base, identity on (slice 2's unit alone) | **38,073** | 90.84% | 49 | 286 | **+0.385** | +0.068 |
 | the merge-base, identity off | (pending) | | | | | |
 
-**So slice 3's own cost in the machine is +1,609 ALMs and +3.84 points of the
-device, and −0.209 ns of setup slack** (+0.385 to +0.176). Those are
-differences of two fits through one slot that differ only by this slice's
-RTL, which is what the brief asks for and the first figures here that need no
-caveat. Slice 2's own published in-machine cost was +1,608, but that was measured
+**So slice 3's own cost in the machine is +1,609 ALMs and +3.84 points of
+the device.** That is a difference of two fits through one slot that differ
+only by this slice's RTL, which is what the brief asks for. The same
+subtraction on the setup column gives −0.209 ns (+0.385 to +0.176), **and
+that one does not carry**: it is one seed against one seed, and the sweep
+below spreads identical RTL across 0.75 ns of slack. The area delta is a
+measurement; the slack delta is a coincidence of two placements.
+Slice 2's own published in-machine cost was +1,608, but that was measured
 through the other slot, so the right sentence is the weaker one: **two slices
 of this unit have each cost about 1,600 ALMs in the machine**, against a
 spike that predicted 1,687 for all of them. The one-ALM coincidence is not a
@@ -401,15 +412,19 @@ What this record does **not** claim is a margin drop against slice 2.
 Comparing +0.176 with slice 2's published +0.603 would be a cross-slot
 comparison, and the slots differ by 0.184 ns of setup on identical RTL --
 about the size of the shift being attributed. The same-slot figure for that
-is the merge-base identity-on fit, and it has landed: **+0.385 ns**, so
-within one slot this slice costs **−0.209 ns**. That is the figure to quote,
-and it is smaller than the cross-slot subtraction would have suggested. It
-also says something the area does not: the margin at identity-on was
-**already thin before this slice** -- the merge-base closes with 2.4% of the
-period at 90.8% of the device -- so slice 3 did not create the problem, it
-spent what was left of a margin that was narrow when it arrived. No Fmax or
-headroom delta against slice 2's *published* numbers is quoted here, because
-those were measured through the other slot. The standalone delta
+is the merge-base identity-on fit, and it has landed: **+0.385 ns** against
+this slice's +0.176, a difference of **−0.209 ns**. **That number is seed 1
+against seed 1, and it should not be read as this slice's cost in slack.**
+The sweep below puts identical RTL between −0.348 and +0.398 across nine
+seeds, a spread of 0.75 ns, so a 0.209 ns difference between two single
+fits is inside the noise of the flow that produced it. Establishing a slack
+cost would need a merge-base sweep to difference against this one, and that
+has not been run. The area delta does not have this problem: **+1,609 ALMs**
+is a count, not a slack, and it moves by tens of ALMs across seeds rather
+than by its own size. So the honest pair of statements is that the area cost
+is measured and the slack cost is not. No Fmax or headroom delta against
+slice 2's *published* numbers is quoted here either, because those were
+measured through the other slot. The standalone delta
 over-predicted the machine delta, which is also a reminder that a standalone
 fit is not a machine prediction.
 
@@ -545,7 +560,36 @@ wins buy slack as well as ALMs.
 
 ### The kit run
 
-(pending)
+**Kit B, run `x3a`, 15 November, 20:48:50 to 20:51:47 EET: pass.** The
+sealed package `48717256` -- digest-checked at both ends of the copy, and
+its `core.rbf` matching the seal summary's `rbf.sha256` `926271cf` -- loaded
+on the kit's baseline image as a fresh library game on the user-supplied
+drive `a6977555`, FreeDOS booted to `C:\>`, Wolfenstein 3D started from the
+DOS prompt and ran, and the run stopped and restored cleanly. HIL `rc=0`,
+and the wrapper logged Kit B **FREE** at 20:51:47 with the baseline image
+and bundle unchanged, no reboot, the agent idle, the lease free, and the
+three FogCast data trees the run created removed.
+
+`rc=0` is not the verdict, and was not taken as one. What the run shows is
+in the frames:
+
+| Frame | What it shows |
+| --- | --- |
+| [`x3a-boot`](kitB-x3a-boot.png) | FreeDOS to `C:\>`: `C: HD1 … 127 MB`, HimemX 3.38, `Interface : XMS 3.00 80386 4G`, Fast A20, CuteMouse at the PS/2 port, boot menu at entry 1 |
+| [`x3a-s4`](kitB-x3a-wolf3d.png) | Wolfenstein 3D in play: Floor 1, HEALTH 100%, AMMO 8, LIVES 3, walls and a downed guard drawn correctly, full status bar |
+| `x3a-moved`, `x3a-turned` | the view moves and turns under the agent's input, so the renderer and the input path are live rather than one frozen frame |
+
+The load's eleven active interfaces are exactly the manifest's, **`fes.pc386.machine 1.0`
+among them**, which is the check that the kit ran this package and not a
+cached core.
+
+**What this run is evidence of, and what it is not.** The identity is off in
+this package, so the run exercises **none** of this slice's arithmetic: it
+is a regression check that the machine around the unit still boots and plays
+with slice 3's RTL in it, and that is all it is. The arithmetic's gates are
+the unit bench and the lockstep. A green kit run here would not have
+rescued a red bench, and the frames are worth reading for what they are:
+evidence that 1,609 ALMs of new logic did not disturb the machine.
 
 **Four ways the kit wrapper would have stranded the kit, all found before it
 touched one.** Two kits were wedged on 14 November by this class of thing, so
