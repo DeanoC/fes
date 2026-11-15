@@ -106,6 +106,7 @@ def synth_pong(tree: Path, cache_root: Path):
         commands = producer.build_commands(
             producer.ROOT, output, BUILD_ID,
             {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")})
+        _fresh(output / "synth.json")
         producer._run_tool(commands[0], producer.ROOT, output / "yosys.log",
                            env=invocation.env, audit_source_root=producer.ROOT,
                            output_relative=producer.OUTPUT_RELATIVE)
@@ -114,10 +115,29 @@ def synth_pong(tree: Path, cache_root: Path):
     return output / "synth.json", {name: tool.identity for name, tool in authenticated.items()}, producer
 
 
+def _fresh(netlist: Path) -> Path:
+    """Delete the netlist first, so a crashed Yosys cannot leave a stale one.
+
+    DeanoC/yosys#77: 3a5accbd can segfault in OPT_CLEAN. _run_tool does raise
+    on a non-zero exit (its only tolerance is a finished nextpnr route), but a
+    comparison must not rest on reading that correctly: if no netlist is
+    written, there must be nothing there to compare.
+    """
+    netlist.unlink(missing_ok=True)
+    return netlist
+
+
+def _require(netlist: Path) -> Path:
+    if not netlist.is_file() or netlist.stat().st_size == 0:
+        raise SystemExit(f"no netlist was written: {netlist}")
+    return netlist
+
+
 def _run_yosys(producer, authenticated, output, command, output_relative):
     """Each producer's own Yosys invocation, with its own audited environment."""
     from scripts.functional_execution import FunctionalInvocation
 
+    _fresh(output / "synth.json")
     # Producers reach the shared runner either directly or through `board`.
     run_tool = getattr(producer, "_run_tool", None) or producer.board._run_tool
     invocation = FunctionalInvocation(authenticated, 0)
@@ -189,6 +209,7 @@ def _spectrum_model(model: str):
     """Spectrum already has synth(): it pins the same BUILD_ID this program does."""
     def synth(tree: Path, cache_root: Path):
         producer = _load(tree, "build_fes_spectrum_oss")
+        _fresh(producer.ROOT / producer.model_for(model).output / "synth.json")
         evidence = producer.synth(producer.ROOT, cache_root=cache_root, model=model)
         output = producer.ROOT / producer.model_for(model).output
         return output / "synth.json", evidence["tools"], producer
@@ -197,6 +218,7 @@ def _spectrum_model(model: str):
 
 def synth_c64(tree: Path, cache_root: Path):
     producer = _load(tree, "build_fes_c64_oss")
+    _fresh(producer.ROOT / producer.OUTPUT_RELATIVE / "synth.json")
     evidence = producer.synth(producer.ROOT, cache_root=cache_root)
     output = producer.ROOT / producer.OUTPUT_RELATIVE
     return output / "synth.json", evidence["tools"], producer
@@ -248,6 +270,7 @@ def main(argv=None) -> int:
     out = arguments.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     netlist, tools, producer = CORES[arguments.core](tree, arguments.cache_root.resolve())
+    _require(netlist)
     copied = out / "synth.json"
     copied.write_bytes(netlist.read_bytes())
     record = {"core": arguments.core, "tree": str(tree), "build_id": BUILD_ID,

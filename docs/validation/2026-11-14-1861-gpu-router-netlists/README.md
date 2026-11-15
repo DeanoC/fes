@@ -37,6 +37,32 @@ than approximate:
 Both sides run against **one** cache root, so one tool install produces both
 netlists, as D12 requires.
 
+### The two sides are in different checkout paths
+
+D12 says to run both sides "in the same checkout path where that is possible",
+and here it was not: main is a separate worktree, so the two trees necessarily
+sit at different absolute paths. That is worth stating plainly rather than
+leaving implicit, because a sibling session measuring #1806 found `fes.spectrum`
+differing across two checkouts of identical content — 14,593 cells against
+13,532, and 15% different fmax — while being byte-identical within either path.
+
+For **this** record the extra variable only strengthens the result: every one of
+the fourteen comparisons **matched** across two different paths, so each is a
+match despite a variable D12 would have let us remove, not because of it. A
+mismatch is what would have needed re-running in one path before anything could
+be concluded, and none occurred.
+
+`fes.spectrum` is a direct counter-observation to a path effect on that same
+core: measured here across two paths, with one Yosys binary, its netlists are
+byte-identical (`3f2dfb76…`). That does not refute the sibling's measurement —
+different Yosys build, different flow — but it does mean a path effect is not
+reproducible for that core under this one.
+
+A crashed Yosys cannot be mistaken for a result either. `netlist_digest.py`
+deletes the netlist before synthesising and refuses to record a run that did
+not write one, so DeanoC/yosys#77 (3a5accbd can segfault in `OPT_CLEAN`) shows
+up as a failed run rather than as a stale file silently compared.
+
 ```
 python3 netlist_digest.py --tree <tree>/sources/misteross --core fes.pong \
     --cache-root /data/fes1861-netlist/cache --out reports/<core>-<side>
