@@ -1899,8 +1899,8 @@ on FAT outside every rootfs. Replacing the system image does not wipe
 
 When leftover card capacity has already been formatted as partition 3 with
 label `FESDATA3`, agent startup bind-mounts that ext4 volume over
-`/media/fat/fogcast/{cache,saves,core-data,launcher-cache,evidence}` and
-`/media/fat/games`. Existing FAT files in these trees are copied onto p3 only
+`/media/fat/fogcast/{cache,saves,core-data,launcher-cache,evidence,disk-images}`
+and `/media/fat/games`. Existing FAT files in these trees are copied onto p3 only
 when the p3 destination is absent; each copied file is published only after a
 complete same-directory temporary has been written and closed, and existing
 p3 files are preserved. The game library is imported once, with a completion
