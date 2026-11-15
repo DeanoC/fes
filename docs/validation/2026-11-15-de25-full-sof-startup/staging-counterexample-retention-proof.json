@@ -1,0 +1,7 @@
+{
+  "status": "passed-retained-real-controller-command-staging-counterexample",
+  "archive": "/home/deano/fes-retained/de25-warm-staging-counterexample-20261115-r1/counterexample.tar.gz",
+  "archive_sha256": "2cf8334f74051e4d20c5b34f8eaa06f09b4687f2da6ecf97c0d08ce33a6e9a17",
+  "files": 9,
+  "hardware_actions": false
+}

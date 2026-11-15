@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/publication/check-full-sof-prerequisite.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 1,
+  "timed_out": false,
+  "elapsed": 0.20480053103528917,
+  "log_sha256": "1b1bd4f4d105d057d5e52d88090207306140bcfc72be076bf065941300e3e038"
+}

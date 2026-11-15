@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/full-sof-loading-trial/run_trial.py",
+    "--procedure-sha256",
+    "7631401dd5864fce9281dc5f30e20ca0dc8c566c89361645299fc4e35305b4fb",
+    "--execute"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 1,
+  "timed_out": false,
+  "elapsed": 427.07381279184483,
+  "log_sha256": "c66cdeddddc1041e8b29f793f2bde15abc7fb5d8b2bebc7482059b1f702ad9fe"
+}

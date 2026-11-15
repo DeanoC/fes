@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/publication/complete-full-sof-analysis-retention.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.20085756294429302,
+  "log_sha256": "86c4595ff8541ef9c94a0beee932eecf08a41389ff9aa856a8998cd387fab489"
+}

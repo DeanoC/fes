@@ -443,3 +443,5 @@ pixel-copy code with QEMU RAMFB. It requires compatible preinitialized firmware
 and a dedicated profile reservation; no Nano bitstream or physical drain is
 provided. The reservation remains pinned until reboot, so this does not enable
 physical FPGA replacement or core launch.
+
+The [full-SOF native diagnostic](../../docs/validation/2026-11-15-de25-full-sof-startup/README.md) now passes matched native boot, initial MENU transfer/retirement/continuation and its owned source release. The next warm preparation completes table work within four seconds, then stops at the command queue's 100 ms pre-publication guard. No next configuration DATA or final USB shutdown is accepted. The failed trial is retained and a fresh reset is requested for restoration-only work.

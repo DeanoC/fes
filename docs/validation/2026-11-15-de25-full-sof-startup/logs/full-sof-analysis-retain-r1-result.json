@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/publication/retain-full-sof-analysis.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 1,
+  "timed_out": false,
+  "elapsed": 0.20053811185061932,
+  "log_sha256": "dba3bc6ac0d7f8ada0995eada699a9beec03c96c6201bdf240e572f9e975d7cf"
+}

@@ -1941,3 +1941,5 @@ operator still needs a current claim, independently checked prior installed
 records, matched target/source admission, and the bounded physical trial driver.
 
 The [15 November original-file restoration and recovery check](../../../docs/validation/2026-11-15-de25-restoration-and-jtag-recovery/README.md) verifies a fresh recovery loader after a top-only host adapter reset without another physical cycle. It follows an initial recovery-programming failure before the four-second candidate ran. The observation grants no Secure SMMU, DMA/source-reuse or general recovery authority.
+
+The [full-SOF native diagnostic](../../../docs/validation/2026-11-15-de25-full-sof-startup/README.md) now passes matched native boot, initial MENU transfer/retirement/continuation and its owned source release. The next warm preparation completes table work within four seconds, then stops at the command queue's 100 ms pre-publication guard. No next configuration DATA or final USB shutdown is accepted. The failed trial is retained and a fresh reset is requested for restoration-only work.

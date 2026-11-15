@@ -1,0 +1,38 @@
+{
+  "status": "passed-exact-queue-staging-clock-counterexample",
+  "source_inputs": {
+    "/home/deano/fes/out/dev/de25-source-release/out/publication/warm-staging-counterexample.c": "07d5eb75d5e8c26c647faa1191bac51bd9d2893bbfa92a119b79ba39a7e9f7ae",
+    "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/command_queue.c": "4a7aaf612589af9c7de2aa2fda5b6f9f13389d09b9b9cae8ec6a8914a70fc561",
+    "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/command_queue.h": "a0de3fbcff686dfccefc5994dfe8ecfc91e3dd1248f9d43eda5d8a6217addf71",
+    "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/tests/sdm_retire/command_snapshot_test.c": "d0bcbd7d11953fddc38b8980bc71aff4de3b4d3ffc963a0e7a06f2ab41825751"
+  },
+  "argv": [
+    "cc",
+    "-std=c11",
+    "-O1",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-misleading-indentation",
+    "-Wno-unused-function",
+    "-fsanitize=address,undefined",
+    "-fno-sanitize-recover=all",
+    "-I/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware",
+    "/home/deano/fes/out/dev/de25-source-release/out/publication/warm-staging-counterexample.c",
+    "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/firmware/command_queue.c",
+    "-o",
+    "/home/deano/fes/out/dev/de25-source-release/out/warm-staging-counterexample/counterexample"
+  ],
+  "model": {
+    "status": "reproduced-prepublication-command-clock-expiry",
+    "queue_error": -3,
+    "stage": 2,
+    "observed_us": 101123,
+    "reads": 8,
+    "slots": 0,
+    "published": 0,
+    "hardware_actions": false
+  },
+  "binary_sha256": "75922d477dbfbcce6e6d1478f33e9dbd639e6f8861d5391bc9347d95906ff0f6",
+  "hardware_actions": false
+}
