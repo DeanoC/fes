@@ -202,6 +202,9 @@ def derive_tier(row: dict) -> str:
 # optionally a closing hash sequence. `##Tiers` is ordinary text, not a
 # heading, and `## Tiers ##` is the closed form of the same heading.
 HEADING2 = re.compile(r'^ {0,3}##(?!#)(?:[ \t]+(.*?))?[ \t]*$')
+# A section ends at any heading of its own level or above, so a level-two
+# section ends at `#` as well as at `##`.
+HEADING_UPTO2 = re.compile(r'^ {0,3}#{1,2}(?!#)(?:[ \t]+.*?)?[ \t]*$')
 HEADING_CLOSE = re.compile(r'[ \t]+#+$')
 LIST_ITEM = re.compile(r'^ {0,3}[-*+] +')
 
@@ -212,6 +215,11 @@ def heading2(line: str) -> str | None:
     if not found:
         return None
     return HEADING_CLOSE.sub('', found.group(1) or '').strip()
+
+
+def ends_section(line: str) -> bool:
+    """Whether this line closes a level-two section."""
+    return HEADING_UPTO2.match(line) is not None
 
 
 def ladder_section(text: str) -> str | None:
@@ -228,7 +236,7 @@ def ladder_section(text: str) -> str | None:
         return None
     body = []
     for line in lines[starts[0] + 1:]:
-        if heading2(line) is not None:
+        if ends_section(line):
             break
         body.append(line)
     return ' '.join(' '.join(body).split())
@@ -242,14 +250,14 @@ def markdown_list_item(lines: list[str], index: int) -> str | None:
     """
     start = index
     while start >= 0 and not LIST_ITEM.match(lines[start]):
-        if not lines[start].strip() or heading2(lines[start]) is not None:
+        if not lines[start].strip() or ends_section(lines[start]):
             return None
         start -= 1
     if start < 0:
         return None
     item = [LIST_ITEM.sub('', lines[start])]
     for line in lines[start + 1:]:
-        if not line.strip() or LIST_ITEM.match(line) or heading2(line) is not None:
+        if not line.strip() or LIST_ITEM.match(line) or ends_section(line):
             break
         item.append(line)
     return ' '.join(' '.join(item).split())

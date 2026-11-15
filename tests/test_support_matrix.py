@@ -239,15 +239,33 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertIsNotNone(closed)
         self.assertIn(quote, closed)
 
-    def test_an_indented_heading_ends_the_ladder_section(self):
-        """Markdown allows up to three spaces before `##`, so the section must
-        end there too: otherwise a later section's text answers for the ladder."""
+    def test_a_later_heading_ends_the_ladder_section(self):
+        """A level-two section ends at any heading of its level or above, and
+        Markdown allows up to three spaces before the hashes. Otherwise the old
+        ladder text keeps answering from under an unrelated later section."""
         plan = (ROOT / SUPPORT_MATRIX.FORWARD_PLAN).read_text()
         quote = SUPPORT_MATRIX.LADDER_QUOTES[0]
-        moved = plan.replace('## Tiers', '## Tiers\n\n   ## Later\n', 1)
-        section = SUPPORT_MATRIX.ladder_section(moved)
-        self.assertIsNotNone(section)
-        self.assertNotIn(quote, section)
+        for label, inserted in (
+            ('level two', '   ## Later'),
+            ('level one', '# Replacement section'),
+            ('level one indented', '  # Replacement section'),
+        ):
+            with self.subTest(label):
+                moved = plan.replace('## Tiers', f'## Tiers\n\n{inserted}\n', 1)
+                section = SUPPORT_MATRIX.ladder_section(moved)
+                self.assertIsNotNone(section)
+                self.assertNotIn(quote, section)
+        # A deeper heading is inside the section, not a boundary.
+        deeper = plan.replace('## Tiers', '## Tiers\n\n### Inside\n', 1)
+        self.assertIn(quote, SUPPORT_MATRIX.ladder_section(deeper))
+
+    def test_ends_section_only_matches_real_headings(self):
+        cases = {'# Top': True, '## Two': True, '   # Indented': True, '##': True,
+                 '#Top': False, '### Three': False, '    # Four spaces': False,
+                 'text': False, '- a bullet': False}
+        for line, expected in cases.items():
+            with self.subTest(line=line):
+                self.assertEqual(expected, SUPPORT_MATRIX.ends_section(line))
 
     def test_an_accepted_check_policy_names_who_decided_it(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
