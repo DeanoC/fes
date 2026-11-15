@@ -37,6 +37,37 @@ the gap is explicit rather than silent.
 | `fes.spectrum` | done | pending | pending |
 | `fes.c64` | done | pending | pending |
 
+### How condition 2 is measured, and the control that makes it mean anything
+
+The producers derive `BUILD_ID` from their own build record and offer no
+override, and all four of the remaining cores put it in the netlist with
+`chparam`. So the two sides' natural seals necessarily differ: a different
+constant gives different RBF bytes. That difference is not condition 2.
+Condition 2 is whether anything *else* changed the hardware.
+
+`rbf_at_build_id.py` measures it by holding the `BUILD_ID` **equal** on both
+sides and comparing the RBFs. The route is a function of the netlist, device,
+QSF, SDC, frequency, seed list, weights, recipe and nextpnr binary; this PR
+changes none of those but the netlist, whose only difference is that constant.
+The tool calls each producer's own `build_commands` and its own route function
+rather than reimplementing the build — three of the four route against a QSF
+generated during the build, so a replica would have to reproduce producer
+internals, and one that drifted would read as valid evidence while being none.
+
+**The tool is checked against the producer before it is trusted.** Run on the
+main tree at main's own `BUILD_ID`, it must reproduce main's normal-seal RBF
+byte for byte. For `fes.menu` it does:
+
+| run | BUILD_ID | RBF sha256 | bytes |
+| --- | --- | --- | --- |
+| main, producer, normal seal | `60bccd54…` | `6107b13e0425af1b…` | 2,172,530 |
+| main, tool, forced to the same id | `60bccd54…` | `6107b13e0425af1b…` | 2,172,530 |
+
+Same seed, same bytes. Without that control the tool's branch-side answer
+would be unfalsifiable, which is the failure mode this record has already hit
+twice: a pass comparison that read one file twice, and a Yosys run that exited
+0 with a silently different netlist.
+
 ### `splash` is complete, and needed no GPU
 
 Splash routes with `gpu_router=OFF`, a CPU-reference nextpnr, so its whole seal
