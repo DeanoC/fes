@@ -1,0 +1,164 @@
+{
+ "target_mhz": 25.0,
+ "entries": [
+  {
+   "cpu": "Intel 80386DX",
+   "mhz": 16.0,
+   "score": 22,
+   "machine": "IBM PS/2 Model 80",
+   "at_class": true
+  },
+  {
+   "cpu": "AMD Am386DX",
+   "mhz": 16.0,
+   "score": 23,
+   "machine": "IBM PC/XT (Inboard 386)",
+   "at_class": false
+  },
+  {
+   "cpu": "Intel 386 DX",
+   "mhz": 20.0,
+   "score": 25,
+   "machine": "IBM PS/2 Model P70 (8573-121)",
+   "at_class": true
+  },
+  {
+   "cpu": "Intel 80386DX",
+   "mhz": 20.0,
+   "score": 26,
+   "machine": "IBM PS/2 Model 80",
+   "at_class": true
+  },
+  {
+   "cpu": "AMD Am386DX",
+   "mhz": 20.0,
+   "score": 46,
+   "machine": "Dell 310A",
+   "at_class": true
+  },
+  {
+   "cpu": "AMD Am386DX",
+   "mhz": 20.0,
+   "score": 49,
+   "machine": "Micronics 386-20",
+   "at_class": true
+  },
+  {
+   "cpu": "Intel 80386DX",
+   "mhz": 16.0,
+   "score": 50,
+   "machine": "M326 @ 16",
+   "at_class": true
+  },
+  {
+   "cpu": "Intel 80386DX",
+   "mhz": 20.0,
+   "score": 60,
+   "machine": "M326 @ 20",
+   "at_class": true
+  },
+  {
+   "cpu": "AMD Am386DX",
+   "mhz": 40.0,
+   "score": 67,
+   "machine": "386dx-40 clone",
+   "at_class": true
+  },
+  {
+   "cpu": "Intel 80386DX",
+   "mhz": 33.0,
+   "score": 71,
+   "machine": "Northstar Slimline 333",
+   "at_class": true
+  },
+  {
+   "cpu": "AMD Am386DX",
+   "mhz": 40.0,
+   "score": 77,
+   "machine": "386dx-40 clone",
+   "at_class": true
+  },
+  {
+   "cpu": "AMD Am386DX",
+   "mhz": 40.0,
+   "score": 86,
+   "machine": "386dx-40 clone",
+   "at_class": true
+  },
+  {
+   "cpu": "Intel 80386DX",
+   "mhz": 33.0,
+   "score": 90,
+   "machine": "M326 @ 33",
+   "at_class": true
+  },
+  {
+   "cpu": "AMD Am386DX",
+   "mhz": 40.0,
+   "score": 91,
+   "machine": "FOREX 386",
+   "at_class": true
+  },
+  {
+   "cpu": "AMD Am386DX",
+   "mhz": 40.0,
+   "score": 92,
+   "machine": "386dx-40 clone",
+   "at_class": true
+  },
+  {
+   "cpu": "AMD Am386DX",
+   "mhz": 40.0,
+   "score": 94,
+   "machine": "386dx-40 clone",
+   "at_class": true
+  },
+  {
+   "cpu": "AMD Am386DX",
+   "mhz": 40.0,
+   "score": 96,
+   "machine": "386dx-40 clone",
+   "at_class": true
+  },
+  {
+   "cpu": "AMD Am386DX",
+   "mhz": 40.0,
+   "score": 104,
+   "machine": "M326 @ 40",
+   "at_class": true
+  },
+  {
+   "cpu": "AMD Am386DX",
+   "mhz": 40.0,
+   "score": 106,
+   "machine": "386dx-40 clone",
+   "at_class": true
+  }
+ ],
+ "at_class_count": 18,
+ "scaled_to_target": [
+  31.2,
+  32.5,
+  34.4,
+  41.9,
+  48.1,
+  53.8,
+  53.8,
+  56.9,
+  57.5,
+  57.5,
+  58.8,
+  60.0,
+  61.3,
+  65.0,
+  66.2,
+  68.2,
+  75.0,
+  78.1
+ ],
+ "min": 31.2,
+ "q1": 46.6,
+ "median": 57.5,
+ "q3": 65.3,
+ "max": 78.1
+}
