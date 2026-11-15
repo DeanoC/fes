@@ -75,9 +75,17 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertIn('Phase 6 (#1768)', row['features'])
         # Each kit result names its own artifact; the level exits are the
         # 6 November run, not the 10 November seal.
-        self.assertIn('254b2bf5', row['notes'])
-        self.assertIn('were not repeated on the later seal', row['notes'])
+        # Each kit result names its own seal, and the rerun's gaps are kept.
+        for artifact in ('254b2bf5', '650bc477', '6ef05309', '9d784de2'):
+            self.assertIn(artifact, row['notes'])
+        self.assertIn('the Wolfenstein 3D playthrough was not rerun', row['notes'])
+        self.assertIn('seven launches of eight', row['notes'])
         self.assertEqual('Quartus', SUPPORT_MATRIX.de10_cell(row))
+        # bring-up here is a profile, not an absent recipe: fes.pcxt has one.
+        meaning = next(t['meaning'] for t in SUPPORT_MATRIX.load_json(ROOT)['tiers']
+                       if t['id'] == 'bring-up')
+        self.assertNotIn('No recipe', meaning)
+        self.assertNotIn('No catalog package', meaning)
         self.assertIn('| pc386 | Bring-up | Quartus | Quartus | disk, keys, mouse, HDMI |',
                       SUPPORT_MATRIX.render(data))
 

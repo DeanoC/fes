@@ -30,7 +30,7 @@
     {
       "id": "bring-up",
       "label": "Bring-up",
-      "meaning": "No catalog package. Diagnostic or development packages only."
+      "meaning": "Diagnostic or development profile. Any playable profile is a separate row."
     },
     {
       "id": "bring-up-queued",
@@ -1551,7 +1551,7 @@
       "router": "Quartus is the normal diagnostic package producer. Nextpnr remains an explicit advisory diagnostic.",
       "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. Quartus Lite 17.0.2 Build 602: common 100 MHz package profile, three-seed reported internal timing gate and independent RBF repeat. External IO/HPS/reset and exact-artifact hardware acceptance remain separate.",
       "features": "Media: read-only 360 KiB floppy through fes.computer 1.1 live media, with a guest FDC/DMA diagnostic. Input: no HID keyboard frontend. HDMI: fixed CGA Direct 720p diagnostic on the DE10-Nano shell. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Experimental Quartus format-2 diagnostic package outside the bootstrap image. Parent-merge package 187f31cefecc14e48c30868acb128d08dbafa703d8a352eb53b6b71a7e8d2a6f passed the Kit B empty, wrong, matching and ejected disk sector diagnostic. This diagnostic profile has no bootable BIOS, host keyboard or write support; those are provided by the separate experimental fes.pcxt-dos profile, which shares this core's RTL and carries PC/XT's qualification evidence. PC/XT is tier 1 by quality in the forward plan (decided) and is scoped to the release after v1. External board qualification remains open (#835); #840 tracks advisory nextpnr timing.",
+      "notes": "Experimental Quartus format-2 diagnostic package outside the bootstrap image. On Kit B, exact package 65dd840f from source a54ea0cd passed the empty, wrong, matching, eject and Stop disk sector diagnostic on 31 October, after #1286; the earlier parent-merge package 187f31ce passed the same sequence. Kit A accepted package 9d46fefc through normal import, launch and Stop. This diagnostic profile has no bootable BIOS, host keyboard or write support; those are provided by the separate experimental fes.pcxt-dos profile, which shares this core's RTL and carries PC/XT's qualification evidence. PC/XT is tier 1 by quality in the forward plan (decided) and is scoped to the release after v1. External board qualification remains open (#835); #840 tracks advisory nextpnr timing.",
       "evidence": [
         "sources/misteross/cores/fes-pcxt/README.md",
         "sources/misteross/cores/fes-pcxt/toolchain.lock",
@@ -1563,7 +1563,8 @@
         "docs/design/quartus-cores.md",
         "docs/validation/2026-10-29-pcxt-quartus-package/result.json",
         "docs/core-status.md",
-        "docs/plans/forward-plan.md"
+        "docs/plans/forward-plan.md",
+        "docs/validation/2026-10-30-pcxt-floppy-media/result-current-parent-merge.json"
       ],
       "tier_role": "bring-up",
       "family": "pc",
@@ -1580,9 +1581,9 @@
         "last_host_change": null,
         "last_host_sha": null,
         "last_host_subject": null,
-        "last_hil_pass": null,
-        "hil_note": null,
-        "hil_scope": null,
+        "last_hil_pass": "2026-10-31",
+        "hil_note": "docs/validation/2026-10-30-pcxt-floppy-media/result-current-parent-merge.json",
+        "hil_scope": "exact package 65dd840f from source a54ea0cd: a single read-only floppy sector read by the guest through the FDC and DMA2, across the empty, wrong, matching, eject and Stop sequence on Kit B. No DOS boot, no writes, no external interface timing",
         "open_issues": [
           "#835",
           "#840",
@@ -1696,7 +1697,7 @@
       "router": "No nextpnr route of the machine with its CPU; nextpnr builds of pc386 are parked (#1235). `scripts/synth_fes_pc386.py` packs the machine without the CPU and does not route. Not a recipe row.",
       "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker. `scripts/build_fes_pc386_quartus.py` seals the development package `fes.pc386`, the machine with `fes_i386_cpu`, with Quartus 17.0.2 from the pc386 lock's Yosys netlist.",
       "features": "Media: the runtime writes an ATA disk image into the DDR window through the fes.computer 1.1 mailbox and `fes_computer_storage` while execution is held, with a commit CRC pass (`pc386_disk`); the floppy controller (`pc386_fdc`) serves drives A: and B: on IRQ 6 and DMA channel 2. Input: fes.keyboard.hid through the HID row model (`pc386_hid_keyboard` inside the 8042) to the PS/2 keyboard (set 2 with XLAT, typematic), and fes.mouse.relative to the PS/2 aux mouse. HDMI: 720p presenter and display plane. Audio: PC speaker, OPL2 and Sound Blaster. CPU: `fes_i386_cpu` with a speed governor that takes its preset, frequency and turbo from the `fes.pc386.machine` record. No 387: the x87 unit is Phase 6 (#1768) and is not on this branch. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Phases M1-M5 are done. M5's development package `fes.pc386` (`make build-fes-pc386-quartus`, not a registered recipe and not a catalog package) puts `fes_i386_cpu` in the machine. Each kit result names its own artifact: on the 10 November seal of main 65ec1f22a, FreeDOS and the Wolfenstein 3D, Ultima VI, DOOM and Black Gate checks pass on Kit B at max; the Wolfenstein 3D and DOOM level exits and the Ultima VII save loads are the 6 November acceptance run on seal 254b2bf5 and were not repeated on the later seal. Windows for Workgroups 3.11 reaches Program Manager in 386 enhanced mode and Linux 0.99.15, 1.2.13 and 2.0.0 reach a login and a root shell, each on its own 12 November seal of main; Windows 3.11 is a standing check on each change's seal. The games acceptance still owed is #1368, and Serpent Isle's black capture is #1494; the forward plan puts pc386 at tier 1 when those two close.",
+      "notes": "Phases M1-M5 are done. M5's development package `fes.pc386` (`make build-fes-pc386-quartus`, not a registered recipe and not a catalog package) puts `fes_i386_cpu` in the machine. Each kit result names its own artifact. On seal 254b2bf5 of merge 317310c81 (6 November, Kit B, `max`): a DOOM level played to its exit switch and on into E1M2, a Wolfenstein 3D level played through to floor 2, and Ultima VII Black Gate and Serpent Isle saves loaded after a relaunch. On seal 650bc477 of main 65ec1f22a (10 November, Kit B): FreeDOS with the kit's date and time, Wolfenstein 3D above 30 fps, Ultima VI's speaker pitch at 286-12 and the Black Gate save and load at 386DX-25 pass again; the Wolfenstein 3D playthrough was not rerun, and Serpent Isle's save and load passed in seven launches of eight, the eighth black throughout (#1494). Windows for Workgroups 3.11 reaches Program Manager in 386 enhanced mode on build 6ef05309, and Linux 0.99.15, 1.2.13 and 2.0.0 reach a login and a root shell on build 9d784de2, each its own 12 November seal of main; Windows 3.11 is a standing check on each change's seal. Ultima VI's walking speed and Ultima VII's NPC pace are the checks still owed on #1368, and Serpent Isle's black capture is #1494; the forward plan puts pc386 at tier 1 when those two close.",
       "evidence": [
         "sources/misteross/cores/fes-pc386/README.md",
         "sources/misteross/scripts/build_fes_pc386_quartus.py",
@@ -1706,9 +1707,10 @@
         "docs/design/quartus-cores.md",
         "docs/core-status.md",
         "docs/plans/forward-plan.md",
-        "docs/validation/2026-11-10-pc386-game-acceptance-rerun/summary.md",
         "docs/validation/2026-11-12-pc386-windows-kit/summary.md",
-        "docs/validation/2026-11-12-pc386-linux-kit/summary.md"
+        "docs/validation/2026-11-12-pc386-linux-kit/summary.md",
+        "docs/validation/2026-11-06-pc386-game-acceptance/summary.md",
+        "docs/validation/2026-11-10-pc386-game-acceptance-rerun/summary.md"
       ],
       "tier_role": "bring-up",
       "family": "pc",
@@ -1759,8 +1761,8 @@
       },
       "board": "device",
       "primary_toolchain": "quartus",
-      "router": "CPU timing spikes use this lock with the GPU router. Not a package producer and not a recipe row.",
-      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker. Quartus 17.0.2 fits the same Yosys netlist (`scripts/quartus_fes_i386.py`). The far-transfer record is about 69\u201374 MHz nextpnr and about 98\u2013104 MHz Quartus. A nextpnr-only gap is filed on the flow (DeanoC/nextpnr#300, `docs/i386-cpu-design.md`). Recipe and package selection for a labelled variant are not implemented.",
+      "router": "nextpnr routes of this CPU are parked (#1235), and the Phase 1 spike numbers in the CPU design doc are labelled historical. Not a package producer and not a recipe row.",
+      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker; since #1235 no new nextpnr route of this CPU is made at all. Quartus 17.0.2 fits the same Yosys netlist (`scripts/quartus_fes_i386.py`), and every current seal of the CPU comes through the pc386 package. The far-transfer record, about 69-74 MHz nextpnr against about 98-104 MHz Quartus, is the historical spike behind that policy (DeanoC/nextpnr#300, `docs/i386-cpu-design.md`). Recipe and package selection for a labelled variant are not implemented.",
       "features": "Not a system package. No media, HDMI, Bluetooth or mesh of its own. The twelve-stage F1-WB pipeline, the L1s and BIU, protected mode and Phase 4's speed work (BTB, return stack, indirect prediction, early ALU and load forwarding) are built; Phase 5 (paging, V86, task switches and the debug registers) is in progress under tracker #1548, and the x87 unit is Phase 6 (#1768) and not on this branch. The pc386 machine is its consumer: the development package `fes.pc386` seals it with Quartus 17.0.2, and that seal is where this RTL's kit evidence is recorded.",
       "notes": "Shared CPU RTL. Device `5CSEBA6U23I7` in the spike harness. Yosys pin `e240a465` is newer than the repository lock's `3a5accbd`; it is the pc386 lock's pin, so one Yosys reads the CPU (#1581 D2, S4).",
       "evidence": [
@@ -2034,14 +2036,15 @@
     "Apple II kit diagnostic is 2026-09-27. Owned RTL is 2026-10-06 (#549). No later kit note was found.",
     "Open issues on each row are title matches, not a full blocker audit.",
     "The check_level proposal needs a yes or no. It is recorded as proposed, not in force: accepting it means a sentence beside the D12 rule in AGENTS.md, which is Deano's wording.",
-    "ColecoVision is check_level reduced by the ladder (tier 3) while being under active work. Reduced exempts only sweeps it is not about, but if Coleco should carry full evidence for every sweep as well, it wants quality_tier 2 early rather than an exception.",
+    "ColecoVision is check_level reduced by the ladder (2-pending) while being under active work. Reduced exempts only sweeps it is not about, but if Coleco should carry full evidence for every sweep as well, the ladder has to place it rather than name its condition.",
     "RAM Tester is outside the ladder as a utility and is under active timing work (#1832, #1767). The same question as Coleco: reduced for sweeps, or full because the memory path is shared.",
     "SG-1000's newest owned RTL is an ABI migration (#1755) and Apple II's is the original-glyph campaign (#1819). The owned-RTL rule counts both as core activity, so the freshness tier cannot be read as development activity on either row.",
     "Does a mechanical RTL sweep count as touching a core? #1714 edited eight RTL files across five cores to remove one obsolete mailbox. Under the wording here it touches each core's own RTL, so every gate applies and reduced buys nothing on it. If sweeps like that should also be exempt, the wording has to say so, and D12 does not cover them because they change RTL.",
     "Should the 2-pending rows (Coleco, SMS, SG-1000, Apple II) carry full evidence on a closure sweep anyway? They are reduced here because the forward plan names no tier for them until they meet the port.",
     "Should the per-family representative scoping be a rule as well? On PR #1862 the sibling variants (zx80, ts1000, ts1500, spectrum128, spectrum-plus3, pentagon) were dropped from the route conditions along with the held-back cores; check_level keeps them at full because they are tier 1.",
     "fes.riscv's snapshot last_rtl_change (2026-10-05) reads its core directory only. `dcfa92c98` (2026-10-21) changed `fes_rv32_cpu.sv` in the shared riscv directory that this row holds under `paths`, and the subject names riscv, so whether that commit should move the row to Current inside the same snapshot is open. The owned-RTL check runs on shared rows only, so nothing catches it either way.",
-    "A pending quality_tier has to be re-read by hand when its condition closes. The checker reads the forward plan's Tiers section and fails if a cited sentence moves, goes or is restated, and if the plan stops naming #1368, #1494 or the port condition; it cannot see a superseding decision written in new words. So when #1368 and #1494 close, pc386's 1-pending becomes tier 1 and its check level does not change, but the row still needs editing."
+    "A pending quality_tier has to be re-read by hand when its condition closes. The checker reads the forward plan's Tiers section and fails if a cited sentence moves, goes or is restated, and if the plan stops naming #1368, #1494 or the port condition; it cannot see a superseding decision written in new words. So when #1368 and #1494 close, pc386's 1-pending becomes tier 1 and its check level does not change, but the row still needs editing.",
+    "fes.pc386 keeps tier_role bring-up, so its tier stays Bring-up although its package runs games, Windows and Linux on a kit. The alternative is tier_role play, which would derive Current from its RTL dates; it is not a registered recipe or a catalog package, so this page kept bring-up and reworded that tier's meaning instead."
   ],
   "display_groups": [
     {
@@ -2071,8 +2074,8 @@
     "note": [
       "Proposed, not in force. Until Deano accepts it, every row keeps the evidence the hard rules in [AGENTS.md](../AGENTS.md) already require of it. This page records a proposal; it does not relax a seal, a timing check or a HIL gate, and the D12 rule in AGENTS.md still reads as written.",
       "`quality_tier` cites a decision rather than inventing a taxonomy: the ladder, its bars, the tier 1 set, the two pending placements and the utilities outside it are all decided in [the forward plan](plans/forward-plan.md) (tiers apply per (core, board) cell; DE10-Nano is the tier 1 board). Where the plan names a condition rather than a tier, this page records the condition: pc386 is `1-pending` and not tier 2, and Coleco, SMS, SG-1000 and Apple II are `2-pending`, because the plan names no tier for any of them before their condition is met. The freshness `tier` on each row answers a different question and stays derived from dates, so a tier 1 cell can be Aging and a row off the ladder can have RTL from this week.",
-      "`check_level` is the proposal, and the D12 conditions are what it is about. `full`: every change that moves the core's `BUILD_ID` carries that core's own evidence, as it does today. `reduced`: on a change that does not touch the core's own RTL, programs, lock or placement recipe, the netlist comparison (D12's first condition, which needs no GPU route) is still expected, and the RBF reproduction, the timing and seal gate and the HIL (its second and third, and the reseal the rule falls back to) are not. A change aimed at the core, and any change that ships it, keeps every gate it has today. `via-consumer`: the row is RTL, not a package, so its evidence rides with the packages that embed it. `none`: there is no built artifact to carry evidence for yet.",
-      "The cost this answers is a closure sweep, which is what D12 covers: a change with no RTL that moves a core's `BUILD_ID` through its build record or source closure. PR #1862 edits five producer scripts and one shared helper, touches no RTL, QSF, SDC, lock or placement recipe, and moves the `BUILD_ID` of all 14 cores whose producers import a changed file, so D12 applies to each of them. Its first condition was measured for all 14; Deano scoped the route-based second and third on 2026-11-15 to the firmware plus one representative per affected machine family, leaving `fes.pong`, `fes.ramtest`, `fes.coleco` and `fes.riscv` unmeasured because they are not shipped. This proposal is close to that call but not the same one: it would drop the same two conditions for the same held-back cores by rule, while it keeps the sibling variants that call also dropped (zx80, ts1000, ts1500, spectrum128, spectrum-plus3, pentagon) at full. Whether the representative scoping should be a rule too is a separate question.",
+      "`check_level` is the proposal, and the D12 conditions are what it is about. `full`: every change that moves the core's `BUILD_ID` carries that core's own evidence, as it does today. `reduced`: on a change that does not touch the core's own RTL, programs, lock or placement recipe, the netlist comparison (D12's first condition, which needs no GPU route) is still expected, and the RBF reproduction, the timing and seal gate and the HIL (its second and third, and the reseal the rule falls back to) are not. If that comparison fails, the core counts as touched and keeps every gate, which is what D12 already says. A change aimed at the core, and any change that ships it, keeps every gate it has today. `via-consumer`: the row is RTL, not a package, so its evidence rides with the packages that embed it. `none`: there is no built artifact to carry evidence for yet.",
+      "The cost this answers is a closure sweep, which is what D12 covers: a change with no RTL that moves a core's `BUILD_ID` through its build record or source closure. As of this proposal, PR #1862 edits five producer scripts and one shared helper, touches no RTL, QSF, SDC, lock or placement recipe, and moves the `BUILD_ID` of all 14 cores whose producers import a changed file, so D12 applies to each of them. Its first condition was measured for all 14; Deano scoped the route-based second and third on 2026-11-15 to the firmware plus one representative per affected machine family, leaving `fes.pong`, `fes.ramtest`, `fes.coleco` and `fes.riscv` unmeasured because they are not shipped. This proposal is close to that call but not the same one: it would drop the same two conditions for the same held-back cores by rule, while it keeps the sibling variants that call also dropped (zx80, ts1000, ts1500, spectrum128, spectrum-plus3, pentagon) at full. Whether the representative scoping should be a rule too is a separate question.",
       "Accepting this needs a sentence beside the D12 rule in [AGENTS.md](../AGENTS.md), which is Deano's wording to write. No agent should read `reduced` here as permission to skip a gate before then."
     ],
     "levels": [
@@ -2084,7 +2087,7 @@
       {
         "id": "reduced",
         "label": "Reduced",
-        "meaning": "On a sweep that does not touch the core, the netlist comparison still holds; the RBF repeat, the seal gate and the HIL do not. Work on the core keeps every gate."
+        "meaning": "On a sweep the core is not about, its netlist comparison still holds; the RBF repeat, seal gate and HIL do not. A moved netlist keeps every gate."
       },
       {
         "id": "via-consumer",
