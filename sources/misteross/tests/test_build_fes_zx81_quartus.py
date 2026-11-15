@@ -344,7 +344,8 @@ def _running(pid: int) -> bool:
     PID 1 to reap it, and os.kill(pid, 0) still succeeds on a zombie."""
     try:
         stat = Path(f"/proc/{pid}/stat").read_text()
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
+        # Reaped before or while the entry was read (read() can raise ESRCH).
         return False
     return stat[stat.rindex(")") + 2] != "Z"
 
