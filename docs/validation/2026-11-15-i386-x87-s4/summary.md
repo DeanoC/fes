@@ -150,6 +150,7 @@ testbench.
 | lockstep, identity **on**, with slice 4's own programs | **21 pass, 0 failed** |
 | in-machine fit, identity **off** — what ships and seals | **36,416 ALMs, +0.459 ns: fits and closes** (HIP slot) |
 | **Quartus 17.0.2 seal** | **passes every analysis** — see below |
+| **kit run on that seal** | **Kit B run `s4a` passed**, verified from `result.json` — see below |
 | in-machine fit, identity **on** | **does not fit: 4,407 of 4,191 LABs** ([escalation](STOP-RULE-FIRED.md)) |
 | test386 | **POST FFh reached**, halt at d0:ffb9 after 79,641,629 steps, no EE differences |
 | standalone area, against the merge base in the same flow | **+3,997 ALMs, +0 DSP, +2 M10K** ([the reading](area-first-reading.md)) |
@@ -345,6 +346,49 @@ would otherwise read off the two seals as slice 4's cost.
 `--gpu-router` only to select which authenticated toolchain slot it uses and
 routes nothing on a GPU, and the project treats HIP and CUDA route and timing
 evidence as interchangeable. Only the labelling does.
+
+## The kit run, and what it does not show
+
+Kit B, run **`s4a`**, 16 November 02:24–02:27 EET, on the sealed package
+`fb0def74`. **Core-only on the running baseline**: no install, no image
+change, no reboot, no host change. Claimed in `kitB-STATUS.md` with owner, PR
+and start time before anything was touched, and released there afterwards.
+
+**Verified from `runs/s4a/result.json`, not from the driver's exit code** —
+a driver reports `rc=0` while the kit refuses a package at admission, which is
+how a non-canonical `.fcore` once read as a pass:
+
+| check | result |
+|---|---|
+| events with an `error` | **0 of 35** |
+| the load's state | **`active`** |
+| package staged | `fb0def74…fcore` — the seal, by digest |
+| disk staged | requested `a6977555…`, reply `a6977555…` — matching |
+| active interfaces | display plane, HID keyboard, ATA disk, 48 kHz audio |
+| HDMI frames captured | 8 |
+
+And the restore, from the kit log rather than from the wrapper's say-so:
+software `c9ae79e2` active with nothing pending; the post snapshot has the
+same image, previous, pending, idle, launcher, images, **quirk** and `boot_id`
+keys as the pre-run probe, so no reboot and Kit B's
+`usb-storage.quirks=152d:0583:i` line is intact; agent idle and lease free;
+and the FogCast data trees identical to before, with the run's 3 new trees
+removed and none of the earlier ones gone.
+
+### What it does not show
+
+**The `i386dx+387` identity is off in this package**, as it is in every
+package until slice 7, so **this run exercises none of slice 4's arithmetic.**
+It is a no-regression check of the machine around the unit — that the slice's
+decode, format and shape table changes and its extra logic did not break a
+machine that boots DOS and runs a game. The arithmetic's evidence is the unit
+bench, the netlist bench and the lockstep; the kit run is not it, and a reader
+should not take a green kit row as coverage of the divide.
+
+That is the same thing slice 3's record said of its own kit run, and it stays
+true for the same reason — with one addition this slice measured: the
+identity-on package **cannot be built at all**, so there is no version of this
+run that could exercise the arithmetic on hardware today.
 
 ## The seal's order, and why it is the order
 
