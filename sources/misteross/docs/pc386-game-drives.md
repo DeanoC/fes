@@ -190,7 +190,10 @@ titles each one unlocks.
 | `x87ev:<7\|16>:cr0=<bits>:<stem>` | #NM and #MF, with CR0's MP, EM, TS and bit 5 (`cr0 & 2Eh`) before the step. |
 | `x87cr0:<before>><after>:<stem>` | Changes to those CR0 bits. |
 | `x87emuint:<vector>:<mode>` | INT 34h-3Eh: the Borland and Microsoft emulator fixups. |
-| `x87irq13:<vector>:<mode>[:es]` | Steps that delivered the AT's coprocessor interrupt (vector 75h), with `:es` when ES was already set, counted in every mode because the generic event keys are recorded only in protected mode. |
+| `x87irq13:75:<mode>[:es]` | Steps that delivered the AT's coprocessor interrupt at the BIOS's own vector (75h), with `:es` when ES was already set, counted in every mode because the generic event keys are recorded only in protected mode. Sound, and complete only while the guest keeps the BIOS's slave-PIC base. |
+| `x87errintr:<vector>:<mode>` | Any **maskable** external interrupt delivered while the 387 has an error pending, whatever the slave 8259's programmed vector base (IRQ 13 is base + 5, ICW2). Vector-independent, and a deliberate **superset**: an unrelated interrupt lands here too once ES is set, so it over-reports rather than missing a delivery, and exception reliance is read from it. NMIs are excluded, since an NMI cannot be IRQ 13. |
+| `x87exp:<form>:<double\|outside>` | For each retired store, whether the stored value's exponent is inside binary64's normal range. The significand bucket alone does not make an m64 store exact: a value whose significand fits can still overflow, underflow or round if its exponent is outside that range. m80 keeps the register format and is exact regardless. |
+| `x87census:version` | The x87 key set's version, always emitted, so a reader can tell what a census file was *able* to record rather than inferring it from which keys happen to be present — a run in which IRQ 13 never fires looks exactly like a file written before the key existed. `1`: no version key, no `x87irq13`, and `x87sig` read `FST`/`FSTP ST(i)` from the wrong side of the step. `2`: `x87irq13` in every mode, register popping stores read from the state before the step. `3`: `x87errintr` and `x87exp`. |
 | `x87io:<port>:<in\|out>:<mode>` | IN and OUT with an immediate or DX port F0h-FFh: the AT's coprocessor ports. |
 
 - <a id="x87-keys"></a>**x87 keys.** Counted on every oracle step, in real

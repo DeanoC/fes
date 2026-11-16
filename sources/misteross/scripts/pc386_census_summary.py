@@ -146,7 +146,11 @@ X87_FORMS: dict[str, tuple[str, str]] = {
     'dae9': ('compare', 'none'), 'ded9': ('compare', 'none'), 'dfe0': ('control', 'none'),
     # DD register forms: /0 FFREE, /1 (FXCH alias), /2 FST ST(i), /3 FSTP ST(i),
     # and the whole ModRM for /4 and /5, which are FUCOM and FUCOMP ST(i).
-    'dd.r0': ('simple', 'none'), 'dd.r1': ('simple', 'none'),
+    'dd.r0': ('simple', 'none'),
+    # DD C8+i is the 8087/287/387's undocumented FXCH alias, so it belongs in
+    # the fxch class like D9 C8+i: the probe-only rule tests that class, and a
+    # run using the alias would otherwise be called probe-only wrongly.
+    'dd.r1': ('fxch', 'none'),
     'dd.r2': ('store', 'none'), 'dd.r3': ('store', 'none'),
     **{f'dde{n:x}': ('compare', 'none') for n in range(16)},
     **{f'db.r{r}': ('simple', 'none') for r in range(8)},
@@ -202,6 +206,7 @@ X87_MNEMONIC = {
     'd9.m5': 'FLDCW', 'd9.m6': 'FNSTENV', 'd9.m7': 'FNSTCW', 'd9.r0': 'FLD ST(i)',
     'd9.r1': 'FXCH', 'dd.m0': 'FLD m64', 'dd.m2': 'FST m64', 'dd.m3': 'FSTP m64',
     'dd.m4': 'FRSTOR', 'dd.m6': 'FNSAVE', 'dd.m7': 'FNSTSW m16', 'dd.r0': 'FFREE',
+    'dd.r1': 'FXCH (DD alias)',
     'dd.r2': 'FST ST(i)', 'dd.r3': 'FSTP ST(i)', 'db.m0': 'FILD m32', 'db.m2': 'FIST m32',
     'db.m3': 'FISTP m32', 'db.m5': 'FLD m80', 'db.m7': 'FSTP m80',
     'df.m0': 'FILD m16', 'df.m2': 'FIST m16', 'df.m3': 'FISTP m16', 'df.m4': 'FBLD',

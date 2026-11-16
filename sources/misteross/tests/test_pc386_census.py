@@ -257,6 +257,12 @@ int main(int, char **argv) {
             c.x87(ri, ri, other, es, es, 9.30);
             assert(c.counts.at("x87errintr:08:rm") == 1);
             assert(c.counts.count("x87irq13:08:rm:es") == 0);
+            // An NMI with an error pending is NOT counted: an NMI cannot be
+            // IRQ 13, and the superset is meant to over-report maskable
+            // interrupts, not every event.
+            c.begin(ri, "site");
+            c.x87(ri, ri, with(EventKind::Nmi, 0x02, 0, false), es, es, 9.305);
+            assert(c.counts.count("x87errintr:02:rm") == 0);
             // With no error pending, only the BIOS-default vector is counted.
             X87State clear;
             clear.control = 0x003f;

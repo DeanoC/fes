@@ -285,6 +285,7 @@ are not always the frequent ones. `class` and `operand` are
 - FRSTOR (`dd.m4`)
 - FNSAVE (`dd.m6`)
 - FFREE (`dd.r0`)
+- FXCH (DD alias) (`dd.r1`)
 - FST ST(i) (`dd.r2`)
 - FIADD m16 (`de.m0`)
 - FIMUL m16 (`de.m1`)
@@ -299,7 +300,7 @@ are not always the frequent ones. `class` and `operand` are
 - FBLD (`df.m4`)
 - FBSTP (`df.m6`)
 
-A further 107 unexecuted entries in the classification carry no mnemonic: they are `ST(i)` register spellings of forms above and encodings the census cannot emit. They are listed here so the set is complete rather than described: `d9.m1`, `d9d1`, `d9d2`, `d9d3`, `d9d4`, `d9d5`, `d9d6`, `d9d7`, `d9d8`, `d9d9`, `d9da`, `d9db`, `d9dc`, `d9dd`, `d9de`, `d9df`, `d9e2`, `d9e3`, `d9e6`, `d9e7`, `d9ef`, `da.r0`, `da.r1`, `da.r2`, `da.r3`, `da.r4`, `da.r5`, `da.r6`, `da.r7`, `dae8`, `daea`, `daeb`, `daec`, `daed`, `daee`, `daef`, `db.m1`, `db.m4`, `db.m6`, `db.r0`, `db.r1`, `db.r2`, `db.r3`, `db.r4`, `db.r5`, `db.r6`, `db.r7`, `dbe0`, `dbe1`, `dbe5`, `dbe6`, `dbe7`, `dc.r2`, `dc.r3`, `dd.m1`, `dd.m5`, `dd.r1`, `dde5`, `dde6`, `dde7`, `dde8`, `ddea`, `ddeb`, `dded`, `ddee`, `ddef`, `ddf0`, `ddf1`, `ddf2`, `ddf3`, `ddf4`, `ddf5`, `ddf6`, `ddf7`, `ddf8`, `ddf9`, `ddfa`, `ddfb`, `ddfc`, `ddfd`, `ddfe`, `ddff`, `de.r2`, `de.r3`, `ded8`, `deda`, `dedb`, `dedc`, `dedd`, `dede`, `dedf`, `df.m1`, `df.r0`, `df.r1`, `df.r2`, `df.r3`, `df.r4`, `df.r5`, `df.r6`, `df.r7`, `dfe1`, `dfe2`, `dfe3`, `dfe4`, `dfe5`, `dfe6`, `dfe7`.
+A further 106 unexecuted entries in the classification carry no mnemonic: they are `ST(i)` register spellings of forms above and encodings the census cannot emit. They are listed here so the set is complete rather than described: `d9.m1`, `d9d1`, `d9d2`, `d9d3`, `d9d4`, `d9d5`, `d9d6`, `d9d7`, `d9d8`, `d9d9`, `d9da`, `d9db`, `d9dc`, `d9dd`, `d9de`, `d9df`, `d9e2`, `d9e3`, `d9e6`, `d9e7`, `d9ef`, `da.r0`, `da.r1`, `da.r2`, `da.r3`, `da.r4`, `da.r5`, `da.r6`, `da.r7`, `dae8`, `daea`, `daeb`, `daec`, `daed`, `daee`, `daef`, `db.m1`, `db.m4`, `db.m6`, `db.r0`, `db.r1`, `db.r2`, `db.r3`, `db.r4`, `db.r5`, `db.r6`, `db.r7`, `dbe0`, `dbe1`, `dbe5`, `dbe6`, `dbe7`, `dc.r2`, `dc.r3`, `dd.m1`, `dd.m5`, `dde5`, `dde6`, `dde7`, `dde8`, `ddea`, `ddeb`, `dded`, `ddee`, `ddef`, `ddf0`, `ddf1`, `ddf2`, `ddf3`, `ddf4`, `ddf5`, `ddf6`, `ddf7`, `ddf8`, `ddf9`, `ddfa`, `ddfb`, `ddfc`, `ddfd`, `ddfe`, `ddff`, `de.r2`, `de.r3`, `ded8`, `deda`, `dedb`, `dedc`, `dedd`, `dede`, `dedf`, `df.m1`, `df.r0`, `df.r1`, `df.r2`, `df.r3`, `df.r4`, `df.r5`, `df.r6`, `df.r7`, `dfe1`, `dfe2`, `dfe3`, `dfe4`, `dfe5`, `dfe6`, `dfe7`.
 
 For slice 6: the named instructions above are what the census titles never
 reach, so optimising them buys nothing measurable here. They must still be

@@ -307,7 +307,11 @@ public:
         //     direction: it cannot miss a delivery.
         if (delivery && result.events[0].vector == 0x75)
             count("x87irq13:75" + mode + ((sw0 & 0x80) ? ":es" : ""));
-        if (delivery && (sw0 & 0x80))
+        // An NMI is not IRQ 13 and cannot be: only a maskable external
+        // interrupt reaches the slave PIC's coprocessor line, so the
+        // superset is restricted to those. `delivery` stays broader, because
+        // an NMI still means no instruction ran.
+        if (delivery && result.events[0].kind == fes_i386::EventKind::ExternalInterrupt && (sw0 & 0x80))
             count("x87errintr:" + hex(result.events[0].vector, 2) + mode);
         if (delivery) return;
         unsigned at = 0;
