@@ -67,14 +67,39 @@ adds, as committed instrumentation in the same header:
    the control word" is answerable directly rather than inferred from the
    value.
 4. `x87sig:<form>:<bucket>` — the significand width in use. For each
-   retired ESC, `64 - ctz(significand)` of ST(0) after the step, bucketed
-   `le24`, `le53`, `le64`, and `zero` for a zero significand. This is the
-   measurement that distinguishes "runs at PC=24" from "holds only values a
-   24-bit significand can represent".
+   retired ESC, `64 - ctz(significand)` of ST(0), bucketed `le24`, `le53`,
+   `le64`, `zero` for a zero significand and `empty` for a slot the tag word
+   marks empty (whose contents are stale and are not a width). ST(0) is read
+   from the state **after** the step, except for the store forms —
+   `FST`/`FSTP m32`, `m64`, `FSTP m80`, `FIST`/`FISTP`, `FBSTP` and
+   `FST`/`FSTP ST(i)` — where the value stored is only in the state
+   **before** it, since a popping store leaves the register underneath in
+   ST(0). This is the measurement that distinguishes "runs at PC=24" from
+   "holds only values a 24-bit significand can represent".
+
+   *This definition was written as "ST(0) after the step", with no `empty`
+   bucket and no store exception, and is corrected here to match `census.h`.
+   Amendments 2 and 5 below record the two fixes, what they cost and when
+   they were made; this is the canonical statement brought into line with
+   them, not a further change. Anyone reproducing the census should read the
+   amendments as part of the method.*
 5. `x87pcsite:<pc>:<cs>:<page>` — for each retired arithmetic ESC, its
    precision control and the code page (CS and EIP>>12) it ran on, so a
    title's non-PC=24 arithmetic can be attributed to the engine or to a
    library or DPMI host.
+6. `x87exp:<form>:<double|outside>` — for each retired store, whether the
+   stored value's exponent is inside binary64's normal range, since an m64
+   destination can overflow, underflow or round a value whose significand
+   fits. Added at key version 3, **after** these nine runs, which therefore
+   do not carry it (amendment 10).
+7. `x87irq13:75:<mode>[:es]` and `x87errintr:<vector>:<mode>` — the AT's
+   coprocessor interrupt at the BIOS's own vector, and the
+   vector-independent superset of any external interrupt delivered with a
+   387 error pending, since the slave 8259's base is programmable
+   (amendment 12). Reliance is read from the superset.
+8. `x87census:version` — the key set's version, so a reader can tell what a
+   census file was able to record rather than inferring it from which keys
+   are present (amendment 9). **These nine runs are version 1.**
 
 Operand precision (m32 / m64 / m80) is **not** new instrumentation: it is
 determined by the opcode and the ModRM reg field, which the existing
