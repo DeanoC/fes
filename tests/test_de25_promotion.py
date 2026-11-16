@@ -42,6 +42,11 @@ class De25PromotionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "restore verification"):
             promoted_record(self.baseline, HEAD, menu, zx81)
 
+    def test_rejects_reusing_one_run_for_both_smokes(self):
+        menu = self.run_evidence("menu")
+        with self.assertRaisesRegex(ValueError, "distinct runs"):
+            promoted_record(self.baseline, HEAD, menu, menu)
+
     def test_rejects_wrong_head_or_kit(self):
         menu = self.run_evidence("menu", head="b" * 40)
         zx81 = self.run_evidence("zx81")

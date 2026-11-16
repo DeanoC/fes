@@ -29,6 +29,8 @@ def promoted_record(baseline: dict, head: str, menu_run: Path, zx81_run: Path,
         raise ValueError("promotion head must be a full commit SHA")
     if baseline.get("schema") != 1 or any(baseline.get(k) != v for k, v in IDENTITY.items()):
         raise ValueError("current D25 baseline identity is invalid")
+    if menu_run.resolve() == zx81_run.resolve():
+        raise ValueError("MENU and ZX81 promotion evidence must be distinct runs")
     for name, run in (("MENU", menu_run), ("ZX81", zx81_run)):
         verdict = (run / "verdict").read_text(encoding="utf-8").strip()
         if verdict != "PASS":
