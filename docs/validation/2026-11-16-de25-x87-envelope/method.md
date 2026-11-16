@@ -265,6 +265,46 @@ way is this fit.
 figure is the capacity number**, and the LAB row sits beside it **labelled as
 spread rather than fullness**, with the reason.
 
+## The controlled arithmetic A/B: rule precommitted before the 0 side ran
+
+**Added 16 Nov 2026, before the `X87_BACKEND = 0` fit was queued and before
+any output of it existed.** What had already been seen when this was written:
+the four `X87_BACKEND = 1` seeds (40,986 / 41,055 / 41,122 / 41,054 ALMs,
+median 41,055, spread 136) and the sibling's **uncontrolled** fit of #1889's
+head (41,387 ALMs, 88.43%, 33 DSP).
+
+**What is varied.** One tree, one rung, one seed, one host, one harness —
+`pc386_system` with `x87_present = 1'b1` throughout, and **only**
+`X87_BACKEND` differing between the two sides. That is what the sibling's
+comparison could not do: its base varies as well as the arithmetic.
+
+**The rule.** The 1 side has four seeds and the 0 side will have one, so this
+is a point against a distribution, not two distributions. Therefore:
+
+- The noise floor is the **1 side's own measured spread, 136 ALMs**. It is
+  taken from the side that has four seeds because it is the only spread
+  measured on this design, and it is fixed here before the 0 side exists.
+- **A difference is measurable only if |ALMs(0) − median ALMs(1)| > 136.**
+  Otherwise it is recorded as **not measurable** — not "the same", not "no
+  cost", not "within noise so equivalent". Only the first is supported by a
+  one-seed point.
+- **DSP, M20K and registers are reported as exact counts**, not against a
+  threshold. The expectation worth testing is the **nine-DSP** difference the
+  uncontrolled pair showed (33 against 42); a count is a count and needs no
+  noise floor, but it is still one seed.
+- If the 0 side needs more than one seed to settle, that is said rather than
+  the single point being leaned on.
+
+**No outcome is predicted.** The uncontrolled pair found about 330 ALMs
+between the two arithmetics, which is inside this 136-ALM spread plus the
+lane's own ±200 — so it predicts nothing either way, and a prediction derived
+from an uncontrolled comparison would be worth less than none.
+
+**The bands are unchanged** and apply to the 0-side fit as they did to the 1
+side: refusal or LABs > 100% is "does not fit"; fits-and-closes requires
+timing to pass at all four corners; fits-but-fails-timing is **not** a pass;
+LABs ≥ 99.5% or ALMs ≥ 92% is "not established pending more seeds".
+
 ## What this method does *not* claim
 
 - No kit run, no seal, no package and no game acceptance.
