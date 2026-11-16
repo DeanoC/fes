@@ -315,6 +315,15 @@ a seal cannot be produced without pointing at a lockstep run. It is worth
 naming because a required input is a far better guard than a rule someone has
 to remember at the end of a long day.
 
+**And it caught this slice doing exactly that.** Re-running the gates because
+the RTL had moved was discipline; bringing the *wrong kind* of evidence was
+not caught by discipline at all. The first seal attempt was refused with
+"lockstep report is not a `--netlist` run" — the sealer requires the lockstep
+against the Yosys netlist, not the RTL one, and produced nothing rather than a
+package backed by weaker evidence than it claims. Two things worth knowing for
+the next slice: that prerequisite is not optional, and `--package-output`
+cannot be pointed anywhere but `build/packages`.
+
 ## A note on the kit status files, which cost two readings
 
 The two status files use **different timezone conventions**: Kit A's entries
