@@ -513,6 +513,10 @@ func New(service Service, options ...ServerOption) http.Handler {
 		coordinator := requestSessionCoordinator(session, service, r, "")
 		duration, err := coordinator.tapCoreKey(r.Context(), body.SessionID, *body.Event)
 		if err != nil {
+			if errors.Is(err, host.ErrRemoteInputUnconfirmed) {
+				writeError(w, http.StatusServiceUnavailable, "INPUT_UNCONFIRMED", "input may have applied but could not be confirmed")
+				return
+			}
 			if errors.Is(err, host.ErrRemoteInputInvalid) {
 				writeError(w, http.StatusBadRequest, "BAD_REQUEST", "input tap or session is invalid")
 				return
