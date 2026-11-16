@@ -31,7 +31,9 @@ amendment dated and stating what had already been seen. Tracker:
 
 ## What was measured
 
-Five internal virtual-pin characterisation fits. No board shell, no pins, no
+Ten internal virtual-pin characterisation fits: the three designs below at
+61.44 MHz, the CPU's clock ladder on Agilex 5, and one superseded envelope
+kept for comparison. No board shell, no pins, no
 HPS, no PLL, no reset-release IP, no programming artifact, no seal and no
 hardware acceptance. Every fit passed setup, hold, recovery, removal and
 minimum pulse width at **every published operating condition** of its device —
@@ -96,14 +98,13 @@ Restricted Fmax at each device's worst slow corner, the fitter's own estimate:
 | M, Cyclone V (system clock) | **63.83 MHz** | 65.04 | — |
 | M, Agilex 5 (pixel clock) | 187.30 | 222.37 | — |
 
-On the speed half of Deano's question: on Agilex 5 this CPU's worst slow
-corner estimate is 124 MHz and the whole machine's 118; on the Cyclone V the
-same CPU's is 64, and the DE10 is pinned at 61.44. **Both are the fitter's
-estimates at a 61.44 MHz constraint, not closures**, and this record contains
-no closure for either device — the ladder that would produce one is listed
-under [what is not measured](#the-clock-ladder-and-what-is-not-measured).
-These are two devices' separate estimates and no ratio between them is stated
-here.
+The figures in that table are the **fitter's estimates at a 61.44 MHz
+constraint, not closures**. The closures come from the ladder below: the CPU
+closes at **130 MHz** on Agilex 5 and at **61.44 MHz** on the Cyclone V, which
+is the only rung that has been run there. The machine has **no ladder at all**,
+on either device, so its 117.80 MHz and 63.83 MHz are estimates and nothing
+more. These are each device's separate figures and no ratio between them is
+stated here.
 
 ## The 387's cost, and what it is not
 
@@ -213,11 +214,13 @@ is the fitter's estimate and not a closure. **"Closes at" means the highest
 rung passing every analysis at every published corner.** Those rungs and the
 extra seeds are queued; any that have not produced
 a result when this record is read are **not measured**, and are listed as that
-rather than trimmed quietly. So this record contains **no "closes at" figure**
-for either device — only the fitter's per-corner estimates above, labelled as
-estimates. Extra seeds of M and M+ were added beyond the precommitted set,
-because the budget rests on those two fits: an addition at the same rung, not
-a relaxation of anything.
+rather than trimmed quietly. The CPU's closure on Agilex 5 is in the ladder
+table below; the CPU on the Cyclone V has only its 61.44 MHz rung, and the
+machine has no ladder on either device, so **no closure is claimed for those
+three**. Extra seeds of M and M+ were queued beyond the precommitted set
+because the budget rests on those two fits — an addition at the same rung, not
+a relaxation — and were stopped unrun to free the shared builder lease for the
+front-end cross-check, which had been waiting on it for three hours.
 
 **The measurement that would settle the DE25 plan, and has not been made:**
 `pc386_system` from #1889's head — slice 4 on slice 3, the 387 with divide,
@@ -242,9 +245,10 @@ Two things the ladder shows that a single constraint could not.
 
 **Area is flat across every rung**: 29,300, 29,360, 29,304, 29,348 and 29,455
 ALMs at 61.44, 75, 90, 110 and 130 MHz — a 155 ALM spread on the same netlist,
-inside this lane's ±200 noise. So on this device, in this range, **the CPU's area and
-its clock are effectively independent**, and the budget above does not change
-with the clock chosen. That is worth having measured rather than assumed; it
+inside this lane's ±200 noise. So on this device, in this range, **the CPU's area and its clock are
+effectively independent**. That is a statement about the CPU only: M and M+
+have no ladder, so nothing here says the machine's area is independent of its
+clock. That is worth having measured rather than assumed; it
 was not safe to assume.
 
 **And the Fmax estimate is not even monotonic in the constraint**: 124.35 MHz
@@ -257,8 +261,11 @@ passes every analysis at every corner.
 
 So **`fes_i386_cpu` closes at 130 MHz on Agilex 5** — every rung of the
 precommitted ladder passed, the top one with +0.426 ns to spare — against
-**61.44 MHz on the Cyclone V**, whose own worst-corner estimate of 63.79 MHz
-leaves it no room for a higher rung.
+**61.44 MHz on the Cyclone V** — which is simply the only rung that has been
+run there. Its 75 MHz rung and above were queued and **not run**, so this
+record does not establish a Cyclone V ceiling either: its 63.79 MHz estimate
+suggests it would miss, but the Agilex ladder closed 130 MHz from a 124 MHz
+estimate, which is exactly why an estimate is not a verdict here.
 
 **The ladder therefore did not find the ceiling**, because its top rung was
 the last one it had. 150 and 170 MHz were added afterwards, and the method
@@ -320,6 +327,23 @@ produced a wrong number quietly:
   labelled, not replaced: it gave 29,114 ALMs against 29,300 — inside the ±200
   noise band — but 97.77 MHz against 124.35, because the hold padding was
   costing the design's own paths 27 MHz.
+
+## What the fits were built from
+
+One Yosys for every netlist here: the `cores/fes-pc386/toolchain.lock` slot,
+commit `e240a4653bb6578e0b267f730128f8a5dac28483`. The machine netlists carry
+the pinned firmware as their ROM contents, `pc386-rom.hex`
+`815620361ef28a2bbdd97b1964700a4678a26c0ffc9582bb95544473fe099d18`, and the
+sealer's own `guest_rates()` at `SYSTEM_CLOCK_HZ` for the N/D parameters and
+`ATA_RESET_CLOCKS`.
+
+The CPU netlist **reproduces byte for byte** — a fresh elaboration gave
+`3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024` again. The
+machine netlists do not, for the path-dependence reason in the method
+([DeanoC/yosys#80](https://github.com/DeanoC/yosys/issues/80)), which is fixed
+for future fits; each machine fit's own `inputs.json` carries the digest of the
+exact bytes it fitted, and the equivalence check in the method is why their
+figures stand.
 
 ## Files
 
