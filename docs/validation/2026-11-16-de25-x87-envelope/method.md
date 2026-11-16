@@ -89,9 +89,23 @@ is not replaced.
 
    - `fes_x87_core` present in the DE25 entity table and absent at
      `X87_BACKEND = 0`, which is all the entity table can show;
-   - the DE25 fit **building at all**, which is possible only if both seed
+   - ~~the DE25 fit **building at all**, which is possible only if both seed
      tables are gone: they are declared `ramstyle = "M10K"`, a Cyclone V block
-     Agilex 5 does not have, so a surviving table makes Quartus refuse;
+     Agilex 5 does not have, so a surviving table makes Quartus refuse;~~
+     **Withdrawn 16 Nov 2026.** This held only for the fits taken before
+     commit `4e6e1053b`, which retargets `ramstyle = "M10K"` to `"M20K"` in
+     the private snapshot so that the CPU's caches elaborate on Agilex 5 at
+     all. From that commit a surviving seed table no longer makes Quartus
+     refuse, so a fit that builds proves nothing about the tables. What had
+     been seen: the four unit seeds passing at `93c5d4362` with the refusal
+     property still in force, and the CPU fit failing on `fes_i386_l1i`'s
+     M10K request, which is what forced the retarget. The seed tables' absence
+     is instead read from the fit report's RAM summary **by name** — a DE25
+     fit should list the register-file pair and no seed table, and the
+     `X87_BACKEND = 0` control should list both tables. Note that `rcp_q` and
+     `rsq_q` are synchronous-read registers that Quartus may absorb into the
+     RAM block, so their absence by name is **not** evidence either way and
+     the named-register list below does not rely on them alone;
    - a query of the fitted netlist for the inline arithmetic's named registers
      — `ua_add`, `ub_add`, `qy_s` and the divide's — expecting none, with `wm`
      and `pa` as a positive control so that a zero means absent rather than

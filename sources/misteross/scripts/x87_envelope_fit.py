@@ -286,6 +286,22 @@ def prepare(output: Path | None, backend: str, period_ns: float, seed: int,
     return output
 
 
+def ram_blocks(text: str) -> list[str]:
+    """The memories the fit kept, by name, from the fitter's RAM summary. This
+    is how the seed tables' absence is evidenced after commit 4e6e1053b: the
+    M10K retarget means a surviving table no longer makes Quartus refuse, so
+    "the fit built" stopped being proof. A DE25 fit should list the register
+    file's two copies and no seed table; the X87_BACKEND = 0 control should
+    list both tables."""
+    # Matched on the rows themselves rather than on the section header: the
+    # string 'Fitter RAM Summary' also appears in the report's table of
+    # contents, and anchoring there picked that one up and matched 270 KB of
+    # the wrong report. A row is `; <name>_rtl_N|auto_generated|...`, which
+    # only the RAM tables produce.
+    names = re.findall(r'^;\s*([A-Za-z_]\w*?)_rtl_\d+\|auto_generated', text, re.M)
+    return sorted(set(names))
+
+
 def lab_resources(text: str) -> dict:
     """The fitter's LAB row. `Total LABs: partially or completely used`, with
     the logic and memory split beneath it."""
@@ -361,6 +377,7 @@ def compile_project(output: Path, tool: Path, version: str) -> dict:
         # until the fitter is under pressure. The board builder's resources()
         # has no LAB row; this reads it from the same report.
         record['resources'].update(lab_resources(text))
+        record['ram_blocks'] = ram_blocks(text)
         record['entities'] = entities(text)
         record['timing'] = json.loads((output / 'timing.json').read_text())
         # Amended rule 7, matched on exact leaf names from the dump above.
@@ -397,6 +414,7 @@ def compile_project(output: Path, tool: Path, version: str) -> dict:
                 text = fitted.read_text(errors='replace')
                 record['resources'] = b.resources(text)
                 record['resources'].update(lab_resources(text))
+                record['ram_blocks'] = ram_blocks(text)
                 record['entities'] = entities(text)
             except BaseException as parse_error:
                 record['resource_parse_error'] = str(parse_error)

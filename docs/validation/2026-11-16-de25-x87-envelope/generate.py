@@ -204,11 +204,12 @@ def exclusion_table(fits: Path) -> str:
         rows.append(f"| {record.parent.name} | "
                     f"{', '.join(sorted(n for n, v in absent.items() if v)) or 'none — as required'} | "
                     f"{', '.join(sorted(n for n, v in controls.items() if v)) or '**none — result void**'} | "
+                    f"{', '.join(r.get('ram_blocks') or []) or '-'} | "
                     f"{e.get('registers', '-')} |")
     if not rows:
         return '_no fit carries an exclusion record_'
-    return ('| Run | Sequenced-arithmetic registers still present | Positive controls found | Registers in fit |\n'
-            '| --- | --- | --- | ---: |\n' + '\n'.join(rows))
+    return ('| Run | Sequenced-arithmetic registers still present | Positive controls found | Memories the fit kept | Registers in fit |\n'
+            '| --- | --- | --- | --- | ---: |\n' + '\n'.join(rows))
 
 
 def main() -> int:
