@@ -121,7 +121,8 @@
 // retires, trace_retire rises and arch_* hold the state after it.
 module fes_i386_cpu #(
     parameter logic [31:0] RAM_BASE = 32'h3400_0000, // the HPS address of guest physical 0
-    parameter integer GOV_N = 1, GOV_D = 1000         // 100 kHz as a fraction of clk (fes_i386_governor)
+    parameter integer GOV_N = 1, GOV_D = 1000,        // 100 kHz as a fraction of clk (fes_i386_governor)
+    parameter bit GOV_REFERENCE_DIAGNOSTIC = 1'b0    // simulation-only experimental 286 timing model
 ) (
     input  logic             clk,
     input  logic             cold_reset,   // the machine's start: also empties the write buffer
@@ -755,7 +756,8 @@ module fes_i386_cpu #(
     // 16/32-bit displacement (ModRM mod 1 or 2).
     assign dc_q.gov = '{two: q_two, op: q_two ? q.bytes[1] : q.bytes[0], mreg: q_modrm[5:3],
                         rm_reg: q_modrm[7:6] == 2'b11, o32: q_opsize32, rep: q.prefixes.rep != 2'b00,
-                        ea3: am_has_base && am_has_index && q_modrm[7] != q_modrm[6] && !q_direct};
+                        ea3: am_has_base && am_has_index && q_modrm[7] != q_modrm[6] && !q_direct,
+                        prefix286: q.prefix286};
     assign dc_q.seq = q_seq;
     assign dc_q.step = 3'd0;
     assign dc_q.more = q_seq != fes_i386_pkg::SEQ_NONE;
@@ -3172,10 +3174,12 @@ module fes_i386_cpu #(
     function automatic logic [2:0] halves(input logic a0, input logic [3:0] bytes);
         halves = 3'((4'(a0) + bytes + 4'd1) >> 1);
     endfunction
-    fes_i386_governor #(.GOV_N(GOV_N), .GOV_D(GOV_D)) governor (
+    fes_i386_governor #(.GOV_N(GOV_N), .GOV_D(GOV_D), .REFERENCE_DIAGNOSTIC(GOV_REFERENCE_DIAGNOSTIC)) governor (
         .clk, .reset, .preset(gov_preset), .frequency(gov_frequency), .turbo(gov_turbo),
         .boundary(at_boundary), .eoi(wb_eoi), .element(wb_s.uop.str_cx), .taken(wb_s.taken && !wb_s.uop.seg2),
-        .gov(wb_s.gov), .accesses(gov_accesses), .dword(wb_s.uop.mem.bytes[2] || wb_s.uop.mem.bytes[3]),
+        .gov(wb_s.gov), .ilen(wb_s.ilen), .redirect(wb_s.taken && wb_s.uop.rep_stop == 2'd0),
+        .abandon(exc_take || int_go || tsw_go), .replay(rp_go),
+        .accesses(gov_accesses), .dword(wb_s.uop.mem.bytes[2] || wb_s.uop.mem.bytes[3]),
         .io(wb_commit && wb_s.uop.io != 2'd0), .io_port, .io_size,
         .mmio(gov_mmio), .mmio_halves(halves(wb_s.maddr[0], wb_s.uop.mem.bytes)),
         .mmio_st2(gov_mmio_st2), .mmio_st2_halves(halves(wb_s.target[0], wb_s.uop.mem.bytes)),

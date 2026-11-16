@@ -42,7 +42,8 @@
 // GOV_N/GOV_D is 100 kHz as a fraction of clk, which the producer sets from
 // the sealed clock with the guest rates.
 module fes_i386_governor #(
-    parameter integer GOV_N = 1, GOV_D = 1000
+    parameter integer GOV_N = 1, GOV_D = 1000,
+    parameter bit REFERENCE_DIAGNOSTIC = 1'b0
 ) (
     input  logic               clk,
     input  logic               reset,
@@ -59,6 +60,10 @@ module fes_i386_governor #(
     input  logic               element,
     input  logic               taken,
     input  fes_i386_pkg::gov_t gov,
+    input  logic [3:0]         ilen,
+    input  logic               redirect,
+    input  logic               abandon,
+    input  logic               replay,
     input  logic [1:0]         accesses,
     input  logic               dword,
     // ... its I/O access (io: the port and size, 0 a byte, 1 a word, 2 a
@@ -118,6 +123,8 @@ module fes_i386_governor #(
 
     // WB's retirement, as it happens.
     logic                  s1_boundary, s1_eoi, s1_element, s1_taken, s1_dword;
+    logic                  s1_redirect, s1_abandon, s1_replay;
+    logic [3:0]            s1_ilen;
     fes_i386_pkg::gov_t    s1_gov;
     logic [1:0]            s1_accesses;
     logic                  s1_io, s1_mmio_st2;
@@ -129,6 +136,10 @@ module fes_i386_governor #(
         s1_eoi <= eoi;
         s1_element <= element;
         s1_taken <= taken;
+        s1_redirect <= redirect;
+        s1_abandon <= abandon;
+        s1_replay <= replay;
+        s1_ilen <= ilen;
         s1_gov <= gov;
         s1_accesses <= on ? accesses : 2'd0;
         s1_dword <= dword;
@@ -162,12 +173,18 @@ module fes_i386_governor #(
         mmio_extra = clocks > 11'(local_bus) ? clocks - 11'(local_bus) : 11'd0;
     endfunction
     logic [3:0]  local_bus;
-    assign local_bus = 4'd2 + per_access;
+    assign local_bus = 4'd2 + (REFERENCE_DIAGNOSTIC && p_id == 3'd1 ? 4'd0 : per_access);
     logic [12:0] isa;
     assign isa = (s1_io ? {3'd0, io_extra} : 13'd0) + 13'(s1_mmio) * {2'd0, mmio_extra(s1_mmio_halves, isa_vga, local_bus)}
                + (s1_mmio_st2 ? {2'd0, mmio_extra(s1_mmio_st2_halves, isa_vga, local_bus)} : 13'd0);
 
     logic        s2_ends, s2_column1, s2_element, s2_ea;
+    logic        s2_boundary, s2_redirect, s2_abandon;
+    logic [3:0]  s2_ilen;
+    fes_i386_pkg::gov_t s2_gov;
+    logic [7:0] data_bus_acc, s2_data_bus;
+    logic [9:0] data_bus_sum;
+    assign data_bus_sum = 10'(data_bus_acc) + (10'(s1_accesses) << (s1_dword ? 2 : 1));
     logic [4:0]  s2_memory;
     logic [12:0] s2_isa;
     always_ff @(posedge clk) begin
@@ -175,13 +192,117 @@ module fes_i386_governor #(
         s2_column1 <= s1_class.branch && s1_taken;
         s2_element <= s1_boundary && s1_element && s1_class.elem;
         s2_ea <= s1_boundary && s1_eoi && s1_class.memory && s1_gov.ea3 && !s1_gov.rm_reg;
-        s2_memory <= 5'(s1_accesses) * 5'(per_access);
+        s2_memory <= REFERENCE_DIAGNOSTIC && p_id == 3'd1 ? 5'd0 : 5'(s1_accesses) * 5'(per_access);
         s2_isa <= isa;
+        s2_boundary <= s1_boundary;
+        s2_redirect <= s1_redirect && s1_boundary;
+        s2_abandon <= s1_abandon;
+        s2_ilen <= s1_ilen;
+        s2_gov <= s1_gov;
+        s2_data_bus <= data_bus_sum > 10'd255 ? 8'hff : data_bus_sum[7:0];
+        if (reset || s1_abandon || s1_replay || !on || s1_boundary) data_bus_acc <= 8'd0;
+        else data_bus_acc <= data_bus_sum > 10'd255 ? 8'hff : data_bus_sum[7:0];
     end
 
+    // A default-off experiment for the 286 reference only. Its state is
+    // updated on committed boundaries, never by speculative front-end work.
+    // This is a diagnostic surrogate, not a physical 286 or a production
+    // calibration. In particular, full REP/fault and opcode coverage remain
+    // to be validated before enabling it in a package.
+    logic [8:0] execution_clocks;
+    logic [7:0] refill_execution;
+    logic [5:0] reference_fetch, reference_prefix;
+    logic       rep_active, reference_on, reference_first;
+    assign reference_on = REFERENCE_DIAGNOSTIC && on && p_id == 3'd1;
+    // This reference re-decodes CMPS once per element; its other REP
+    // strings run in chunks. The chunked surrogate is not yet qualified.
+    assign reference_first = !rep_active || s2_gov.rep && !s2_gov.two &&
+                             (s2_gov.op == 8'ha6 || s2_gov.op == 8'ha7);
+    always_comb begin
+        execution_clocks = s2_ends ? {1'b0, s2_column1 ? word[15:8] : word[7:0]} : 9'd0;
+        if (reference_on && s2_ends && !s2_gov.two) begin
+            // General instruction-form costs from the 286 reference, not
+            // individual game loops. Unsupported forms retain the table.
+            if (s2_gov.op >= 8'h70 && s2_gov.op <= 8'h7f)
+                execution_clocks = s2_column1 ? 9'd7 : 9'd3;
+            if (s2_gov.op == 8'he2) execution_clocks = 9'd11;
+            if (s2_gov.rep && (s2_gov.op == 8'ha4 || s2_gov.op == 8'ha5)) execution_clocks = 9'd0;
+            if (s2_gov.rep && (s2_gov.op == 8'ha6 || s2_gov.op == 8'ha7 ||
+                               s2_gov.op == 8'hae || s2_gov.op == 8'haf)) execution_clocks = 9'd0;
+            // Reference instruction-form costs. Restrict these to ordinary
+            // 16-bit forms; unmeasured 386 extensions retain the table.
+            if (!s2_gov.o32) begin
+                if (!s2_gov.rm_reg && (s2_gov.op == 8'h3a || s2_gov.op == 8'h3b)) execution_clocks = 9'd7;
+                if (s2_gov.op == 8'h9c) execution_clocks = 9'd4;
+                if (s2_gov.op == 8'he8 || s2_gov.op == 8'he9 || s2_gov.op == 8'heb) execution_clocks = 9'd7;
+                if (s2_gov.op == 8'hc2 || s2_gov.op == 8'hc3) execution_clocks = 9'd10;
+                if (s2_gov.op <= 8'h3d && (s2_gov.op[2:0] == 3'b100 || s2_gov.op[2:0] == 3'b101))
+                    execution_clocks = 9'd2;
+                if (s2_gov.rm_reg && (s2_gov.op == 8'h80 || s2_gov.op == 8'h81 || s2_gov.op == 8'h82 || s2_gov.op == 8'h83))
+                    execution_clocks = 9'd2;
+                if (s2_gov.op == 8'ha0 || s2_gov.op == 8'ha1 ||
+                    (!s2_gov.rm_reg && (s2_gov.op == 8'h8a || s2_gov.op == 8'h8b)))
+                    execution_clocks = 9'd4;
+                if (s2_gov.op == 8'ha2 || s2_gov.op == 8'ha3 ||
+                    (!s2_gov.rm_reg && (s2_gov.op == 8'h88 || s2_gov.op == 8'h89)))
+                    execution_clocks = 9'd2;
+                if (s2_gov.rm_reg && (s2_gov.op == 8'hd0 || s2_gov.op == 8'hd1) &&
+                    (s2_gov.mreg == 3'd0 || s2_gov.mreg == 3'd1 || s2_gov.mreg >= 3'd4))
+                    execution_clocks = 9'd3;
+                if (s2_gov.op >= 8'h50 && s2_gov.op <= 8'h57 || s2_gov.op == 8'h68 || s2_gov.op == 8'h6a)
+                    execution_clocks = 9'd2;
+                if (s2_gov.op >= 8'h58 && s2_gov.op <= 8'h5f) execution_clocks = 9'd4;
+            end
+            if (!s2_gov.rm_reg && s2_gov.mreg == 3'd7 &&
+                (s2_gov.op == 8'h80 || s2_gov.op == 8'h81 || s2_gov.op == 8'h82 || s2_gov.op == 8'h83))
+                execution_clocks = 9'd7;
+        end
+        if (s2_element) execution_clocks = execution_clocks + {1'b0, word[15:8]};
+    end
+    always_comb begin
+        refill_execution = execution_clocks[8] ? 8'hff : execution_clocks[7:0];
+        // The reference's word ALU memory-destination forms have a different
+        // overlap budget from their execution charge. Keep this diagnostic
+        // adjustment by opcode/form rather than by a program or loop.
+        if (reference_on && s2_ends && !s2_gov.two && !s2_gov.o32 && !s2_gov.rm_reg &&
+            s2_gov.op[2:0] == 3'b001 && s2_gov.op <= 8'h31)
+            refill_execution = 8'd2;
+    end
+    assign reference_prefix = reference_on && s2_boundary && reference_first ? s2_gov.prefix286 : 6'd0;
+    always_ff @(posedge clk) begin
+        if (reset || !reference_on || s2_abandon) rep_active <= 1'b0;
+        else if (s2_boundary) begin
+            if (s2_ends) rep_active <= 1'b0;
+            else if (s2_element) rep_active <= 1'b1;
+        end
+    end
+    generate if (REFERENCE_DIAGNOSTIC) begin : gen_reference_queue
+        // A 16-byte cap matches this emulator's surrogate, not the six-byte
+        // instruction queue of a physical 286.
+        logic [4:0] queue_bytes;
+        logic [3:0] length;
+        logic [5:0] missing, words, present, next_queue;
+        logic [7:0] spare;
+        assign length = reference_first ? s2_ilen : 4'd0;
+        always_comb begin
+            missing = {2'b0, length} > {1'b0, queue_bytes} ? {2'b0, length} - {1'b0, queue_bytes} : 0;
+            words = (missing + 6'd1) >> 1;
+            present = {1'b0, queue_bytes} + (words << 1) - {2'b0, length};
+            spare = refill_execution > s2_data_bus ? (refill_execution - s2_data_bus) >> 1 : 0;
+            next_queue = spare >= 8 ? 6'd16 : present + (6'(spare) << 1);
+            if (next_queue > 16) next_queue = 16;
+        end
+        assign reference_fetch = reference_on && s2_boundary ? words << 1 : 0;
+        always_ff @(posedge clk) begin
+            if (reset || s2_abandon || !reference_on) queue_bytes <= 0;
+            else if (s2_boundary) queue_bytes <= s2_redirect ? 0 : next_queue[4:0];
+        end
+    end else begin : gen_no_reference_queue
+        assign reference_fetch = 6'd0;
+    end endgenerate
     always_ff @(posedge clk)
-        charge <= (s2_ends ? {5'd0, s2_column1 ? word[15:8] : word[7:0]} : 13'd0)
-                + (s2_element ? {5'd0, word[15:8]} : 13'd0) + {12'd0, s2_ea} + {8'd0, s2_memory} + s2_isa;
+        charge <= {4'd0, execution_clocks} + {7'd0, reference_fetch} + {7'd0, reference_prefix}
+                + {12'd0, s2_ea} + {8'd0, s2_memory} + s2_isa;
 
     // The debt, paid down by step each clock and never below zero.
     logic [27:0] debt;

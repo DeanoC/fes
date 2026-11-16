@@ -20,6 +20,7 @@ module frontend_tb_top (
     output logic [31:0]      q_linear,
     output logic [3:0]       q_length,
     output logic [3:0]       q_prefix_count,
+    output logic [5:0]       q_prefix286,
     output logic             q_opsize,
     output logic             q_adsize,
     output logic             q_seg_valid,
@@ -53,6 +54,7 @@ module frontend_tb_top (
     assign q_linear = q.linear;
     assign q_length = q.length;
     assign q_prefix_count = q.prefix_count;
+    assign q_prefix286 = q.prefix286;
     assign q_opsize = q.prefixes.opsize;
     assign q_adsize = q.prefixes.adsize;
     assign q_seg_valid = q.prefixes.seg_valid;

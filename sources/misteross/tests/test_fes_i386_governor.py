@@ -37,7 +37,7 @@ class GeneratedTest(unittest.TestCase):
             match = re.fullmatch(r'logic\s*(\[(\d+):0\])?\s*(\w+);', line.split('//')[0].strip())
             if match:
                 declared.append((match.group(3), int(match.group(2)) + 1 if match.group(2) else 1))
-        self.assertEqual(declared, [*governor.KEY_FIELDS, ('ea3', 1)])
+        self.assertEqual(declared, [*governor.KEY_FIELDS, ('ea3', 1), ('prefix286', 6)])
 
 
 class TableTest(unittest.TestCase):

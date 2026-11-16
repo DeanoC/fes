@@ -55,6 +55,7 @@ package fes_i386_pkg;
         logic [31:0]      linear;        // linear address of the first byte
         logic [3:0]       length;        // every byte, prefixes included
         logic [3:0]       prefix_count;
+        logic [5:0]       prefix286;      // diagnostic reference prefix clocks
         prefixes_t        prefixes;
         logic             too_long;      // over 15 bytes: #GP(0) at D
         // The branch target buffer (fes_i386_btb; fes_i386_qalign): bm, the
@@ -594,6 +595,7 @@ package fes_i386_pkg;
         logic       o32;
         logic       rep;
         logic       ea3;
+        logic [5:0] prefix286;  // diagnostic reference prefix clocks
     } gov_t;
 
     // An instruction decoded in DC, as D takes it (fes_i386_decode and

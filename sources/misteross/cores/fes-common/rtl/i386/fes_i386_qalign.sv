@@ -64,6 +64,7 @@ module fes_i386_qalign import fes_i386_pkg::*; (
     logic [4:0]  start;
     prefixes_t   acc;
     logic [3:0]  acc_count;    // prefixes consumed; at most 13
+    logic [5:0]  acc_prefix286; // diagnostic reference prefix clocks
     logic [31:0] acc_linear;   // linear address of the first consumed prefix
     logic        acc_xbad;     // a consumed prefix took Q into a half that does not follow
     ftag_t       acc_tag;      // the first consumed prefix's half's paging tag
@@ -152,6 +153,7 @@ module fes_i386_qalign import fes_i386_pkg::*; (
     logic [4:0]       total;     // at most 13 + 12, so bit 4 means over 15 bytes
     logic [4:0]       prefix_count, acc_count_next;
     prefixes_t        prefixes;
+    logic [5:0]       prefix286_increment;
 
     for (genvar j = 0; j < 32; j++) begin : g_source
         assign source[j] = half_valid[j / 16] ? bytes[j] : fill_data[j % 16];
@@ -163,6 +165,15 @@ module fes_i386_qalign import fes_i386_pkg::*; (
     assign prefix_count = 5'(acc_count) + (* no_carry *) 5'(prefix_here);
     assign acc_count_next = 5'(acc_count) + (* no_carry *) 5'd1;
     assign prefixes = prefix_here ? add_prefix(acc, rotated[0]) : acc;
+    // The diagnostic 286 reference adds four clocks per segment or LOCK
+    // prefix and two per size or REP prefix. This metadata does not affect Q.
+    always_comb begin
+        case (rotated[0])
+            8'h26, 8'h2e, 8'h36, 8'h3e, 8'h64, 8'h65, 8'hf0: prefix286_increment = 6'd4;
+            8'h66, 8'h67, 8'hf2, 8'hf3: prefix286_increment = 6'd2;
+            default: prefix286_increment = 6'd0;
+        endcase
+    end
 
     always_ff @(posedge clk) begin
         if (reset) begin
@@ -176,10 +187,12 @@ module fes_i386_qalign import fes_i386_pkg::*; (
         if (reset || redirect || issue) begin
             acc <= '0;
             acc_count <= 4'd0;
+            acc_prefix286 <= 6'd0;
             acc_xbad <= 1'b0;
         end else if (consume) begin
             acc <= add_prefix(acc, rotated[0]);
             acc_count <= acc_count_next[3:0];
+            acc_prefix286 <= acc_prefix286 + (* no_carry *) prefix286_increment;
             if (acc_count == 4'd0) begin
                 acc_linear <= linear_here;
                 acc_tag <= cur_tag;
@@ -200,6 +213,7 @@ module fes_i386_qalign import fes_i386_pkg::*; (
             q.linear <= acc_count == 4'd0 ? linear_here : acc_linear;
             q.length <= total[3:0];
             q.prefix_count <= prefix_count[3:0];
+            q.prefix286 <= acc_prefix286 + (* no_carry *) (prefix_here ? prefix286_increment : 6'd0);
             q.prefixes <= prefixes;
             q.too_long <= too_long_run || total[4];
             q.bytes <= prefix_here ? rotated[11:1] : rotated[10:0];
