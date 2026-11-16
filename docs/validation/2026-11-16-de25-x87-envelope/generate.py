@@ -154,15 +154,46 @@ def fit_table(fits: Path) -> str:
             return '-' if not (v and total) else f'{100.0 * v / total:.1f}%'
         corners = r.get('timing', {}).get('corners', [])
         worst = min((c.get('setup') for c in corners if c.get('setup') is not None), default=None)
-        rows.append(f"| {record.parent.name} | {r['x87_backend']} | {r['seed']} | "
+        # The label carries X87_BACKEND and x87_present, not just the run
+        # name. The sibling machine measurement produces a similar-looking
+        # ALM delta at X87_BACKEND=0, and a reader who meets two unlabelled
+        # deltas will average them.
+        backend_n = 1 if r['x87_backend'] == 'de25' else 0
+        kind = r.get('x87_present')
+        label = (f"{r.get('top', '?')} , X87_BACKEND={backend_n}"
+                 + (f", x87_present={kind}" if kind is not None else ""))
+        rows.append(f"| {record.parent.name} | {label} | {r['seed']} | "
                     f"{r['period_ns']:.3f} | {r['status']} | {used('alms')} | {pct('alms')} | "
                     f"{used('registers')} | {used('dsp_blocks')} | {used('m20k_blocks')} | "
                     f"{'-' if worst is None else f'{worst:+.3f} ns'} |")
     if not rows:
         return '_no fit records found_'
-    return ('| Run | Backend | Seed | Period (ns) | Status | ALMs | of device | Registers | DSP | M20K | Worst setup |\n'
+    return ('| Run | Top and parameters | Seed | Period (ns) | Status | ALMs | of device | Registers | DSP | M20K | Worst setup |\n'
             '| --- | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |\n'
             + '\n'.join(rows))
+
+
+def exclusion_table(fits: Path) -> str:
+    """What each fit kept, by exact register leaf name. The DE10 arithmetic is
+    inline in the sequencer's always_ff, so no entity table can show its
+    absence; this is the evidence instead, and the positive controls are what
+    make an absence mean absent rather than renamed."""
+    rows = []
+    for record in sorted(fits.glob('*/build.json')):
+        r = load(record)
+        if not r or 'exclusion' not in r:
+            continue
+        e = r['exclusion']
+        absent = e.get('absent_expected', {})
+        controls = e.get('positive_controls', {})
+        rows.append(f"| {record.parent.name} | "
+                    f"{', '.join(sorted(n for n, v in absent.items() if v)) or 'none — as required'} | "
+                    f"{', '.join(sorted(n for n, v in controls.items() if v)) or '**none — result void**'} | "
+                    f"{e.get('registers', '-')} |")
+    if not rows:
+        return '_no fit carries an exclusion record_'
+    return ('| Run | Sequenced-arithmetic registers still present | Positive controls found | Registers in fit |\n'
+            '| --- | --- | --- | ---: |\n' + '\n'.join(rows))
 
 
 def main() -> int:
@@ -190,6 +221,8 @@ def main() -> int:
     print(latency_table(args.evidence))
     print('\n### The Agilex 5 fit\n')
     print(fit_table(args.fits))
+    print('\n### What the selection left out\n')
+    print(exclusion_table(args.fits))
     return 0
 
 
