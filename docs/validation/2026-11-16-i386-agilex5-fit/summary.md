@@ -50,8 +50,13 @@ acceptance.
 of their device — four on Agilex 5, eight on Cyclone V. What "passed" covers,
 exactly, and it is not the same for the two designs:
 
-- **Setup, hold and minimum pulse width were analysed and positive at every
-  corner of every fit.** These are the analyses the closure rests on.
+- **Setup, hold and minimum pulse width were analysed at every corner of every
+  fit**, and they are the analyses the closure rests on. Among the thirteen
+  that passed, the worst setup slack is **+0.426 ns** (the 130 MHz rung) and
+  the worst hold slack is **0.000 ns exactly**, on the superseded zero-delay
+  envelope fit — which met the gate, since the gate requires non-negative, and
+  is one more reason that envelope was replaced. The two missing rungs have
+  **negative** setup slack by definition; that is what makes them misses.
 - **Recovery and removal were analysed on all three machine fits** — every
   corner, worst slack **+0.302 ns** (a removal path on M+) — because
   `pc386_system` has asynchronous resets to check.

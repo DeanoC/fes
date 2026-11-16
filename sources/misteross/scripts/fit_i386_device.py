@@ -45,6 +45,7 @@ import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
 
 if __package__ in (None, ""):
@@ -782,9 +783,32 @@ def write_sv_project(output: Path, device: "Device", design: dict, period_ns: fl
     return project
 
 
+@contextmanager
+def elaboration_heartbeat(label: str):
+    """Print while Yosys runs. yosys_netlist.run() blocks with no output of its
+    own and the Quartus deadline does not exist yet, so a slow or hung
+    elaboration would otherwise be indistinguishable from a wedged runner."""
+    stop = threading.Event()
+    started = time.monotonic()
+
+    def beat() -> None:
+        while not stop.wait(30):
+            print(f"i386 fit heartbeat: {label}; {int(time.monotonic() - started)} s elapsed",
+                  flush=True)
+
+    thread = threading.Thread(target=beat, daemon=True)
+    thread.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        thread.join(timeout=5)
+
+
 def cpu_netlist(output: Path, cache_root: Path, gpu_router: str) -> tuple[Path, dict]:
     yosys = yosys_netlist.authenticate(ROOT, cache_root=cache_root, gpu_router=gpu_router)
-    netlist = yosys_netlist.seal_netlist(yosys.path, output / "netlist", ROOT)
+    with elaboration_heartbeat("elaborating fes_i386_cpu"):
+        netlist = yosys_netlist.seal_netlist(yosys.path, output / "netlist", ROOT)
     return netlist, yosys_netlist.report_record(ROOT, yosys, gpu_router, netlist)
 
 
@@ -812,7 +836,7 @@ def machine_netlist(output: Path, cache_root: Path, gpu_router: str) -> tuple[Pa
     # Every path Yosys is given is fixed, not just the netlist's: the program
     # file and the log carry the output directory too, and the auto-names
     # follow any of them. The workspace is held while it is written and copied.
-    with elaboration_lease() as stable:
+    with elaboration_lease() as stable, elaboration_heartbeat("elaborating pc386_system"):
         yosys_netlist.run(yosys.path, sealer.machine_program(stable), cwd=ROOT,
                           program_file=stable.with_name("machine.ys"),
                           log=stable.with_name("yosys.log"))
