@@ -11,6 +11,7 @@ import unittest
 from unittest import mock
 from scripts import build_fes_pcxt_quartus as producer
 from scripts.quartus_tools import QuartusLock, load_quartus_lock
+from scripts.input_identity import with_identities
 from scripts.export_core_package import build_identity, encode_build_record, _validate_build_record
 
 
@@ -324,7 +325,9 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertFalse(fields['parameters']['enable_pcxt_floppy_write'])
         before = build_identity(record)
         fields.pop('toolchain')
-        self.assertNotEqual(build_identity(encode_build_record(fields)), before)
+        updated = with_identities(fields)
+        self.assertEqual(build_identity(encode_build_record(updated)), before)
+        self.assertNotEqual(json.loads(record)['identities']['toolchain'], updated['identities']['toolchain'])
         fields['toolchain'] = 'oss'
         with self.assertRaisesRegex(ValueError, 'toolchain'):
             _validate_build_record(fields)

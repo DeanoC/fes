@@ -1,0 +1,188 @@
+{
+  "status": "passed",
+  "head": "6a600b94c8679a5ade45ad4320b56df79a54ee1a",
+  "base": "34cbd202744b839dc73673ac09e6a8d4e5b3685d",
+  "plan_sha256": "0a713f9ac037978d421f2d0d384b81aeec209069f7d6f498f4499a2237bdcbf3",
+  "results": [
+    {
+      "index": 0,
+      "label": "test_affected.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "log": "software-0.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20053172705229372,
+      "log_sha256": "58a0459afee0eeddcfb0954ed21a7810aae0078228281aa2aa6b76df098be779",
+      "child_receipt_sha256": "98140cc3bf26e50d4ef96f0bd10da05fb90cdaac41b4019216e244f7391dce13"
+    },
+    {
+      "index": 1,
+      "label": "test_test_changed.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "log": "software-1.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.8007997850654647,
+      "log_sha256": "261d71fe721683b8225aead7eaff70efe91dbf2270d0a26ab94bd8589f71dfe2",
+      "child_receipt_sha256": "bbfa27a67c32d854b6f646ca24afa1a87402d17ac616d44fa8f707dbb83dcfc1"
+    },
+    {
+      "index": 2,
+      "label": "committed whitespace",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "34cbd202744b839dc73673ac09e6a8d4e5b3685d",
+        "--head",
+        "6a600b94c8679a5ade45ad4320b56df79a54ee1a"
+      ],
+      "log": "software-2.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2005348919192329,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "b27c19e0713880d4b05d40dc86e6c67e843697ed630a7e7ac738f35b0731f876"
+    },
+    {
+      "index": 3,
+      "label": "working whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "log": "software-3.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20060929597821087,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "193db5d78c26dd28fa883e137d9aa8121c7f18c23dc04d8e77088451c4984b05"
+    },
+    {
+      "index": 4,
+      "label": "parent Python regressions",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-repeat-load-20261102/parent_partitions.py"
+      ],
+      "log": "software-4.log",
+      "planned_argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/nano_computer_control.inc\", \"platform/embedded/firmware/tests/nano_cold_platform_test.c\", \"platform/embedded/tamago/board/README.md\", \"platform/embedded/tamago/board/de25nano/configuration.go\", \"platform/embedded/tamago/cmd/fpgaload/main.go\", \"platform/embedded/tamago/nativefabric/README.md\", \"platform/embedded/tamago/nativefabric/computer.go\", \"platform/embedded/tamago/nativefabric/computer_reload_test.go\", \"platform/embedded/tamago/nativefabric/computer_test.go\", \"platform/embedded/tamago/nativefabric/configuration_arena.go\", \"platform/embedded/tamago/nativefabric/configuration_arena_test.go\", \"platform/embedded/tamago/nativefabric/hpscontext.go\", \"platform/embedded/tamago/nativefabric/prepare_configuration.go\", \"platform/embedded/tamago/nativefabric/stored_configuration.go\", \"platform/embedded/tamago/nativefabric/stored_configuration_test.go\", \"platform/embedded/tamago/nativefabric/transfer.go\", \"sources/mister-packages/docs/embedded-bridges.md\", \"tests/test_nano_configuration.py\"]"
+      ],
+      "verification_mode": "same-selected-suite-partitioned-by-module",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 224.21972523501609,
+      "log_sha256": "542db9d5b9eb9be9bd5b0439fdca8159989436572b33e9ebe3c31a6fd491e82a",
+      "child_receipt_sha256": "841a197891d9f8c6950d85f13b50dfb9040d346e7a8e753e1c19edff413cae9c"
+    },
+    {
+      "index": 5,
+      "label": "working-tree generated consumer consistency",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "log": "software-5.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.80336397793144,
+      "log_sha256": "b0978554f9c0798b39bc46ad45737d2b26a1e2a982b713a8b45824e376c3604a",
+      "child_receipt_sha256": "91bb2fbce146f02969c670a29593caa66e4f777af3120f4987c824f379a11b1a"
+    },
+    {
+      "index": 6,
+      "label": "native runtime firmware and FPGA launch integration",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "log": "software-6.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 53.436787327053025,
+      "log_sha256": "2d31df5727f35e1809f64eab91b1a4653db2c29073221d4a8037a8afe274bb74",
+      "child_receipt_sha256": "b3c4181e2b9942f36eefc1113d04108842db4623fea38e5aee5dee2d05e3d28c"
+    },
+    {
+      "index": 7,
+      "label": "embedded producer identity and native control integration",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "log": "software-7.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 9.207489485037513,
+      "log_sha256": "f73d0ca6b843672febd9140959f3b60a4953ae4bb44a0264c0a821785b972808",
+      "child_receipt_sha256": "7179594b4a6b9ef11569a4efc149f8a4f3c6480bf4f848bf9dfa373f133768a3"
+    },
+    {
+      "index": 8,
+      "label": "embedded firmware and identity/drain RTL integration",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/firmware/verify.py"
+      ],
+      "log": "software-8.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.204045751946978,
+      "log_sha256": "3a905a186914619e3010fe766de0e80239407961165ae9a7af3b26a432715d72",
+      "child_receipt_sha256": "ece58bb4454e442d9223b35abd18d45c49e5eba0d681e7173e734bd54c6ff950"
+    },
+    {
+      "index": 9,
+      "label": "test_*.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "log": "software-9.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 318.4412476159632,
+      "log_sha256": "a0b6195a252376a20b3653c144f4b1cae87063a9759de2f8efe7c217ac9dc993",
+      "child_receipt_sha256": "b97ef14848b392365efc12d74ef629381464174e5f55c4414c965bf064defc98"
+    }
+  ]
+}

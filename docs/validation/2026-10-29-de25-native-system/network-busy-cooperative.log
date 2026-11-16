@@ -1,0 +1,23 @@
+HOST "GET /path-0 HTTP/1.1" 200 -
+REQUEST 0 STATUS 200 after=39.1676ms body="host received /path-0" err=<nil>
+HOST "GET /path-1 HTTP/1.1" 200 -
+HOST "GET /path-2 HTTP/1.1" 200 -
+REQUEST 2 STATUS 200 after=68.116976ms body="host received /path-2" err=<nil>
+HOST "GET /path-3 HTTP/1.1" 200 -
+REQUEST 1 STATUS 200 after=83.094544ms body="host received /path-1" err=<nil>
+HOST "GET /path-4 HTTP/1.1" 200 -
+HOST "GET /path-5 HTTP/1.1" 200 -
+REQUEST 5 STATUS 200 after=111.674928ms body="host received /path-5" err=<nil>
+HOST "GET /path-7 HTTP/1.1" 200 -
+REQUEST 3 STATUS 200 after=113.964416ms body="host received /path-3" err=<nil>
+HOST "GET /path-6 HTTP/1.1" 200 -
+REQUEST 4 STATUS 200 after=133.089312ms body="host received /path-4" err=<nil>
+HOST "GET /path-8 HTTP/1.1" 200 -
+HOST "GET /path-9 HTTP/1.1" 200 -
+REQUEST 9 STATUS 200 after=145.668192ms body="host received /path-9" err=<nil>
+REQUEST 7 STATUS 200 after=162.341824ms body="host received /path-7" err=<nil>
+REQUEST 6 STATUS 200 after=165.554592ms body="host received /path-6" err=<nil>
+REQUEST 8 STATUS 200 after=178.29808ms body="host received /path-8" err=<nil>
+WAVE_DONE 0
+CONCURRENT_DONE {Received:37 Transmitted:38 Dropped:0}
+qemu-system-aarch64: terminating on signal 15 from pid 2379093 (python3)

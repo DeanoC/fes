@@ -1,0 +1,68 @@
+{
+  "status": "passed-affected-integration-and-independent-log-retention",
+  "code_source_commit": "c9f5f9ad42bf549af55e0b5e1b3e21c66863ef89",
+  "publication_head_at_start": "46e5df6ba7e855a57da9ee333bdb40407df23866",
+  "documentation_only_head_during_completion": "e246674b3f29b203487d09dd6c259ad717dda975",
+  "selected_probe_setup_sha256": "32be42ec3bbbc148b6a28b10f12882253603fe41cd356ee467eba62d38b077db",
+  "wrapper": {
+    "argv": [
+      "make",
+      "-C",
+      "/home/deano/fes/out/dev/de25-setup-release",
+      "test-changed",
+      "TEST_CHANGED_ARGS=--base 00e546d9cdae5a2d12db012be741a561a0dc432e"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 2512.476389620919,
+    "log_sha256": "6f6f3b27d873730411a4473793605bbb89dcf825daa48c16af39d97bc7ee8ea4"
+  },
+  "unittest_suite_summaries": [
+    [
+      "48",
+      "OK"
+    ],
+    [
+      "43",
+      "OK"
+    ],
+    [
+      "1",
+      "OK"
+    ],
+    [
+      "1",
+      "OK"
+    ],
+    [
+      "2744",
+      "OK (skipped=15)"
+    ],
+    [
+      "2181",
+      "OK (skipped=88)"
+    ]
+  ],
+  "archive": "/home/deano/fes-retained/de25-warm-word-affected-20261114-r1/affected-checks.tar.gz",
+  "archive_sha256": "b54d40bc8c0ca10ceac0860d76aea4c4eef7dfd4e2851f4dcda5a99b8e17ca13",
+  "files": {
+    "warm-word-affected-r1.log": {
+      "sha256": "6f6f3b27d873730411a4473793605bbb89dcf825daa48c16af39d97bc7ee8ea4",
+      "bytes": 1141104,
+      "mode": 436
+    },
+    "warm-word-affected-r1-result.json": {
+      "sha256": "9dc9615822e50b27751ac4cde081c8ab4cd6f41e223ee9ad3f62b26d79b452ab",
+      "bytes": 397,
+      "mode": 436
+    },
+    "warm-word-affected-r1-process.json": {
+      "sha256": "1e00bad13b23b87bd29d75f54544d7591b9d888c8aa8f0b1d0017a31069b850c",
+      "bytes": 302,
+      "mode": 436
+    }
+  },
+  "hardware_actions": false,
+  "hardware_acceptance": false
+}

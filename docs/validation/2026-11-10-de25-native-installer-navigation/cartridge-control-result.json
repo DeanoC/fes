@@ -1,0 +1,118 @@
+{
+  "scope": "Controlled before/after comparison of an asynchronous test assertion; runtime behavior and timeouts unchanged",
+  "source_head": "f2b0e7a3ae68f810dab93de58c9ab1fbfcbc618e",
+  "base": "8e1be9a2fd2c2afeb4c2195e160ef187fd5ba7ea",
+  "evidence": {
+    "cartridge-base": {
+      "argv": [
+        "go",
+        "-C",
+        "sources/FogCast",
+        "test",
+        "-overlay",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-package-install-trial-20261110/base-control/overlay.json",
+        "-race",
+        "-count=20",
+        "-timeout",
+        "120s",
+        "./ui/tenfoot",
+        "-run",
+        "^TestKitCartridgeMachineSwapsCartridgeOverPlay$",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.414969404926524,
+      "log_sha256": "7e75c1558065acaa6834f6f871e71b2ed17ea827952d39d12f9dd85a7a54efe9"
+    },
+    "cartridge-current": {
+      "argv": [
+        "go",
+        "-C",
+        "sources/FogCast",
+        "test",
+        "-race",
+        "-count=20",
+        "-timeout",
+        "120s",
+        "./ui/tenfoot",
+        "-run",
+        "^TestKitCartridgeMachineSwapsCartridgeOverPlay$",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.007322532823309,
+      "log_sha256": "87db7a0b9288006f3c307375bdab9f14b33fd859a7aa98062de2789e9d445186"
+    },
+    "cartridge-settled-base": {
+      "argv": [
+        "go",
+        "-C",
+        "sources/FogCast",
+        "test",
+        "-overlay",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-package-install-trial-20261110/base-control/settled-base.json",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "60s",
+        "./ui/tenfoot",
+        "-run",
+        "^TestKitCartridgeMachineSwapsCartridgeOverPlay$",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 1,
+      "timed_out": false,
+      "elapsed": 11.23237148905173,
+      "log_sha256": "86ec19662590b7307342ff8dbade4cf7c9fddf57bb8ae8ca13d65fca704a2c99"
+    },
+    "cartridge-settled-current": {
+      "argv": [
+        "go",
+        "-C",
+        "sources/FogCast",
+        "test",
+        "-overlay",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-package-install-trial-20261110/base-control/settled-current.json",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "60s",
+        "./ui/tenfoot",
+        "-run",
+        "^TestKitCartridgeMachineSwapsCartridgeOverPlay$",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 1,
+      "timed_out": false,
+      "elapsed": 13.053640563972294,
+      "log_sha256": "b2d881c5d48e4a9f44511636a755da9a5c14014e19de2c7fafe0b4c1cd77145c"
+    },
+    "cartridge-barrier": {
+      "argv": [
+        "go",
+        "-C",
+        "sources/FogCast",
+        "test",
+        "-race",
+        "-count=20",
+        "-timeout",
+        "120s",
+        "./ui/tenfoot",
+        "-run",
+        "^TestKitCartridgeMachineSwapsCartridgeOverPlay$",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 14.223025743151084,
+      "log_sha256": "31ab81fb45ded59bf943fde093cc24750261a8a845060b40cf38857da867e9e0"
+    }
+  }
+}

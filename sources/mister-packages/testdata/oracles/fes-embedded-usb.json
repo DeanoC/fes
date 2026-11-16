@@ -1,0 +1,35 @@
+{
+  "source": {
+    "repository": "DeanoC/fes",
+    "commit": "31e90c1a084560703df31e7d565934e216cce232",
+    "file": "platform/embedded/firmware/generated/fes_embedded_usb.h",
+    "note": "Base FES revision before the additive USB SharedPio capability and explicit shared-mode client. No default composed boot selection or physical qualification."
+  },
+  "fabric": {
+    "id": "fes.fabric.embedded.usb",
+    "major": 1,
+    "minor": 1
+  },
+  "constants": {
+    "FesEmbeddedUsbCall": 3254780675,
+    "FesEmbeddedUsbCookie": 1178948437,
+    "FesEmbeddedUsbTag": 1179996977,
+    "FesEmbeddedUsbQuery": 0,
+    "FesEmbeddedUsbAcquire": 1,
+    "FesEmbeddedUsbConfirm": 2,
+    "FesEmbeddedUsbStop": 3,
+    "FesEmbeddedUsbOK": 0,
+    "FesEmbeddedUsbBusy": 1,
+    "FesEmbeddedUsbRejected": 2,
+    "FesEmbeddedUsbError": 4,
+    "FesEmbeddedUsbNotReady": 5,
+    "FesEmbeddedUsbSupported": 1,
+    "FesEmbeddedUsbActive": 2,
+    "FesEmbeddedUsbConfirmed": 4,
+    "FesEmbeddedUsbContained": 8,
+    "FesEmbeddedUsbDataHeld": 16,
+    "FesEmbeddedUsbClosedOnly": 32,
+    "FesEmbeddedUsbFlags": 127,
+    "FesEmbeddedUsbSharedPio": 64
+  }
+}

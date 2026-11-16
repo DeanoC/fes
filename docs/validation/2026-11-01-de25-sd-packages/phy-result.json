@@ -1,0 +1,57 @@
+{
+  "scope": "read-only standard PHY MDIO registers after failed first Ethernet startup; no reset, configuration, packets, download or SD write",
+  "commands": [
+    {
+      "command": "mii read 1 0",
+      "output": "mii read 1 0; echo FES_UPLOAD_b36717a328de=$?\r\n1140\r\nFES_UPLOAD_b36717a328de=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_fb9cb4b72925=$?\r\n796D\r\nFES_UPLOAD_fb9cb4b72925=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1",
+      "output": "mii read 1 1; echo FES_UPLOAD_0f3bcfa1b6a2=$?\r\n796D\r\nFES_UPLOAD_0f3bcfa1b6a2=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 2",
+      "output": "mii read 1 2; echo FES_UPLOAD_51e08193b58b=$?\r\n0022\r\nFES_UPLOAD_51e08193b58b=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 3",
+      "output": "mii read 1 3; echo FES_UPLOAD_3438d3c2acaa=$?\r\n1622\r\nFES_UPLOAD_3438d3c2acaa=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 4",
+      "output": "mii read 1 4; echo FES_UPLOAD_d3d8c6d2683f=$?\r\n01E1\r\nFES_UPLOAD_d3d8c6d2683f=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 5",
+      "output": "mii read 1 5; echo FES_UPLOAD_85e5b0bdeace=$?\r\nCDE1\r\nFES_UPLOAD_85e5b0bdeace=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 9",
+      "output": "mii read 1 9; echo FES_UPLOAD_8b218ad35552=$?\r\n0300\r\nFES_UPLOAD_8b218ad35552=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 a",
+      "output": "mii read 1 a; echo FES_UPLOAD_87b68f58335d=$?\r\n3C00\r\nFES_UPLOAD_87b68f58335d=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 11",
+      "output": "mii read 1 11; echo FES_UPLOAD_c2f53346a118=$?\r\n00F4\r\nFES_UPLOAD_c2f53346a118=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1a",
+      "output": "mii read 1 1a; echo FES_UPLOAD_86b5d1c01be1=$?\r\n0000\r\nFES_UPLOAD_86b5d1c01be1=0\r\nSOCFPGA_AGILEX5 # "
+    },
+    {
+      "command": "mii read 1 1f",
+      "output": "mii read 1 1f; echo FES_UPLOAD_724b61f78505=$?\r\n0348\r\nFES_UPLOAD_724b61f78505=0\r\nSOCFPGA_AGILEX5 # "
+    }
+  ],
+  "pass": true,
+  "started_utc": "2026-11-01T17:05:29.783366+00:00",
+  "prompt_parked": true,
+  "finished_utc": "2026-11-01T17:05:29.997101+00:00"
+}

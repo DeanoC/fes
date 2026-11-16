@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/initial-tape-files-restoration/test_restore_scope.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.4008273249492049,
+  "log_sha256": "f0637f9b0c47e8066e1ca01807893ca80ee8dded651bdf4987493d5916bccfe1"
+}

@@ -1,0 +1,19 @@
+{
+  "status": "retained-failed-inventory-attempt-no-retry",
+  "archive": "/home/deano/fes-retained/de25-source-rearm-physical-20261114-r1/physical-trial.tar.gz",
+  "archive_sha256": "b277179fd8a0a809d1c4449c4653f9b91afd7d04775915836ddec5d61740d641",
+  "archive_bytes": 2261429,
+  "dependencies": {
+    "/home/deano/fes-retained/de25-source-rearm-procedure-prepared-20261114-r1/prepared-procedure.tar.gz": "7cb82925e6a0e68b31535efee195ab9fd0cd260313f0fc63285e93d9fa3ac15c",
+    "/home/deano/fes-retained/de25-command-snapshot-procedure-prepared-20261113-r1/prepared-procedure.tar.gz": "1b5b82ea534a6af428682a59cad431042173292d3269735fc3b8215dff1bc793",
+    "/home/deano/fes/out/dev/de25-embedded-opt-in/out/rearm-trial/retention-proof.json": "418f6d232657acd21076fafe328ce5870dad4235f255a7789b31edbdec88264b",
+    "/home/deano/fes-retained/de25-rearm-start-matched-20261114-r1/matched-chain.tar.gz": "e5d7e1216b492d9ca22dad75ed068bc44be9924bf9d96e3f1c0f96d54d4ca63f",
+    "/home/deano/fes/out/dev/de25-embedded-opt-in/out/rearm-start-boot/retention-result.json": "394148819c52a6fb402848080541f25eedc16f2f6e5de8132f171f541824a5a2"
+  },
+  "physical_reset_required": true,
+  "baseline_restored": false,
+  "candidate_FIT_remains": true,
+  "candidate_native_programming_command_issued": false,
+  "hardware_acceptance": false,
+  "general_core_load_acceptance": false
+}

@@ -1,0 +1,11 @@
+{
+  "classification": "off-board source reason for single recovery session; actual timeout root cause unproved",
+  "vendor_revision": "d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413",
+  "vendor_tree": "023535ef4e026656d5c9171e16971e7720c93cfe",
+  "source_sha256": {
+    "drivers/net/dwc_eth_qos.c": "bfaa15bd2ef7140ca07423ac01d9a494c6285ab8dd75264d392c1a5f8c59a4f7",
+    "drivers/net/phy/phy.c": "2004d57c9a81f38fe4ea9c98b3945de43b24f195386791bfee99d738426046bd",
+    "drivers/net/phy/micrel_ksz90x1.c": "773b13c612c99c577586f6868875a75b1626b271f71d065892361f09c77d2144"
+  },
+  "observation": "eqos_start calls phy_connect/phy_config only when its phy pointer is absent; each fresh recovery loses that state. genphy_update_link can re-use an established link. All runtime link/DHCP/transfer/card gates remain unchanged; there is no timeout retry or fallback."
+}

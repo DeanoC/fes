@@ -1,0 +1,8 @@
+test_failures_close_once_never_retry_and_never_send_on_unadmitted_boot (test_native_session.SessionTests.test_failures_close_once_never_retry_and_never_send_on_unadmitted_boot) ... ok
+test_real_51_command_cycle_and_independent_replay_with_pending_invalid_preboot (test_native_session.SessionTests.test_real_51_command_cycle_and_independent_replay_with_pending_invalid_preboot) ... ok
+test_session_time_bound_precedes_any_command (test_native_session.SessionTests.test_session_time_bound_precedes_any_command) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 1.028s
+
+OK

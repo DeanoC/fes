@@ -1,0 +1,30 @@
+{
+  "status": "terminal-consumed-retired",
+  "native_boot_id": "38c6b2fe551dcd88",
+  "reason": "native failure marker; no further command",
+  "compiled_firmware_source": "479bc3756f5f0297391f778f10075d2275536f70",
+  "operator_source": "78f72761cd914430e1ce88b38c7407239d39ee49",
+  "replay_allowed": false,
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "auto_adjust_readback": 1,
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "programming_reservations": {
+    "recovery": {
+      "reservation_sha256": "2493b8ac2fafd14736cfe8443dbeae1913662745a8146fabce4ed49af6187307",
+      "scan_sha256": "2c21ba61ee264b200a566626c983511b8bfff4bc1718c121c4d10f04f9741be6"
+    },
+    "native": {
+      "reservation_sha256": "c6719c4b1439b52bb8da01c426650af0a6fd120e03f3976796be6da78b037401",
+      "scan_sha256": "eb0dab8825866764f67c7a3e317e9ee74b7228ae7bde3490bb723b7b22716750"
+    }
+  },
+  "goal_complete": false
+}

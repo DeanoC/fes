@@ -1,0 +1,28 @@
+{
+  "status": "source-software-and-matched-chain-passed",
+  "compiled_source": "5131d8bc650864d4ca6d0126ac1ab7802662324d",
+  "runtime_compiled_source": "e8fe4c9a6ea7b09494449ccd4801e77732fcb67a",
+  "native_boot_id": "7abe602398c4db44",
+  "checks_summary_sha256": "0dd0f24bce025e0ca2caec35922e15278eb866a2366d0961c6453fde962d9f84",
+  "unchanged_checks_sha256": "52e2fa2b978a7198fe325bb5cf458e840b10ffedbb1c86b42801457aeffece8b",
+  "source_inputs": {
+    "out/nano-ownership-parts-runtime-20261108/chain-file-integrity.json": "400bb8ebadf49a90fac75188b7feb2bbc600628d9bd14777ebcf6beb9c4667a5",
+    "out/nano-ownership-parts-runtime-20261108/firmware-file-proof.json": "295e75ac3b2c84cf594841266072dab28bb7b59d51c1578012470edbd6864e0c",
+    "out/nano-ownership-parts-runtime-20261108/runtime-entry-reuse.json": "77e05732db5e6c16bf24029f6e672c8d0076d0adecc8bf5ff9f7a6e02f7bd8ca",
+    "out/nano-ownership-parts-runtime-20261108/native-bl31/result.json": "5327006ffd4798a3426bf3399ec7bc2dc5deb6c0e7d9982f166073390279e7c6",
+    "out/nano-ownership-parts-runtime-20261108/native-uboot/result.json": "116a6047bcf5415350355e4e06a63422afc8cc9017f5fb4c0c9e0c8769dc673c",
+    "out/nano-ownership-parts-runtime-20261108/native-composition/result.json": "76957bc7baa3c6cdeeba9a52251425124f2bc9067cc0e832dc1ad367a459b73a",
+    "out/nano-ownership-parts-20261108/fpga-suffix-proof.json": "83212a2f55fd5de5aa6027cb248aed6b09d174604ba78a628da5ff2aaef7183d"
+  },
+  "inner_samples_only": true,
+  "live_checks_preserved": true,
+  "bounds_relaxed": false,
+  "source_permission_cached": false,
+  "original_partial_FPGA_sweep_receipt_preserved": true,
+  "new_image_attempts": 0,
+  "hardware_actions": false,
+  "hardware_acceptance": false,
+  "ordinary_core_load_acceptance": false,
+  "ocram_remaining_bytes": 7360,
+  "retention_target": "/home/deano/fes-retained/de25-ownership-parts-source-and-build-20261108-r1"
+}

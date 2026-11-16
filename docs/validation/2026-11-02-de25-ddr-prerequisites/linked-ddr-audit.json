@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "source_commit": "b05c00f0a6f26df0acfc03e762e85e71e86d6d81",
+  "required_defined_symbols": [
+    "fes_nano_ddr_firewall_observe",
+    "fes_nano_fabric_stop",
+    "fes_nano_probe_stop",
+    "cold_master_quiesce",
+    "cold_master_quiescent"
+  ],
+  "elf_sha256": "12218775463cbda257c65de77b1cd778cf30c36426ad9d2e330fbff4d4f0c38c",
+  "timing_summary_sha256": "454d0f8bea37c01e27129ee8d14ced62786fe4eb5da2db89eac510a979f7faa8",
+  "reported_slack_count": 46,
+  "minimum_reported_slack_ns": 0.0,
+  "classification": "actual matched enabled DDR firmware compile/link and nonnegative reported Quartus summary; no physical DDR or complete timing qualification"
+}

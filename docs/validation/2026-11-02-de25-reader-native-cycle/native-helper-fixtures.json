@@ -1,0 +1,236 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "case": "positive",
+      "accepted": true,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-0",
+      "accepted": false,
+      "entry_commands": 0
+    },
+    {
+      "case": "mutation-1",
+      "accepted": false,
+      "entry_commands": 0
+    },
+    {
+      "case": "mutation-2",
+      "accepted": false,
+      "entry_commands": 0
+    },
+    {
+      "case": "mutation-3",
+      "accepted": false,
+      "entry_commands": 0
+    },
+    {
+      "case": "mutation-4",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-5",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-6",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-7",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-8",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-9",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-10",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-11",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-12",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-13",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-14",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-15",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-16",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-17",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-18",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "partial",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "late-panic",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "late-duplicate",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "clock-change",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "missing-loader-proof",
+      "accepted": false,
+      "entry_commands": 0
+    },
+    {
+      "case": "missing-programmed",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "missing-closed",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "missing-timing",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "bad-counter",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "missing-engine",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "bad-engine",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "late-transport",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "missing-mailbox",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "missing-queue-poll",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "late-queue-state",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "serial-window",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "storage-timeout",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "missing-storage-record",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "missing-reader",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "missing-reader-body",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "missing-reader-write",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "early-reader-ack",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "late-reader-corrupt",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "reader-replay",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "reader-stale-closure",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "malformed-reader",
+      "accepted": false,
+      "entry_commands": 1
+    }
+  ],
+  "helper_sha256": "ee8addc094e7c504eb148ebadd0a61a5722c3d34f84c27d631d380cf9e816f74"
+}

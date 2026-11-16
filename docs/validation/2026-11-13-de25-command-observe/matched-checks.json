@@ -1,0 +1,116 @@
+{
+  "queue-observe-matched-build": {
+    "argv": [
+      "python3",
+      "out/command-observe-boot/build-all.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 483.63705114112236,
+    "log_sha256": "fb5bf8cfd4c6e16a948551aa80810f828a3f3645e687cac5d3d168b72e09e79f"
+  },
+  "queue-observe-build-prepare": {
+    "argv": [
+      "/usr/bin/python3",
+      "/home/deano/fes/out/dev/de25-embedded-opt-in/out/command-observe-boot/prepare.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 3.2029483618680388,
+    "log_sha256": "cad4487701bbc0b18ef259fc4d014d80c2a56042c5fc327b895ec758832338cf"
+  },
+  "queue-observe-build-sdk": {
+    "argv": [
+      "/usr/bin/python3",
+      "/home/deano/fes/out/dev/de25-embedded-opt-in/out/command-observe-boot/build-native.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 81.64605636289343,
+    "log_sha256": "864f4aaade440c5415463039e75cd01a62a27aab8f951d448b6abbb711c0f6d7"
+  },
+  "queue-observe-build-entry": {
+    "argv": [
+      "/usr/bin/python3",
+      "/home/deano/fes/out/dev/de25-embedded-opt-in/out/command-observe-boot/build-chain.py",
+      "entry"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 71.03917041909881,
+    "log_sha256": "6defb1f971abdec1bda88804bdf4bc979d859967797d2cb980fe056a43174ed6"
+  },
+  "queue-observe-build-bl31": {
+    "argv": [
+      "/usr/bin/python3",
+      "/home/deano/fes/out/dev/de25-embedded-opt-in/out/command-observe-boot/build-chain.py",
+      "bl31"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 46.42650547018275,
+    "log_sha256": "b35da5322b9b875e45faa1d4a158766f9d88ec61c4c096f7c2f872fdce12bab3"
+  },
+  "queue-observe-build-uboot": {
+    "argv": [
+      "/usr/bin/python3",
+      "/home/deano/fes/out/dev/de25-embedded-opt-in/out/command-observe-boot/build-chain.py",
+      "uboot"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 158.21239470294677,
+    "log_sha256": "609ce394f5e5b1566d62968e77add1f0d85cfd5c2435bcb5ba62f96e834a0382"
+  },
+  "queue-observe-build-compose": {
+    "argv": [
+      "/usr/bin/python3",
+      "/home/deano/fes/out/dev/de25-embedded-opt-in/out/command-observe-boot/compose.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 69.63553654006682,
+    "log_sha256": "3bd482079cfe7025fefa7b4dbe538113a8454262d9accca8983aa5581ef294c4"
+  },
+  "queue-observe-build-admission": {
+    "argv": [
+      "/usr/bin/python3",
+      "/home/deano/fes/out/dev/de25-embedded-opt-in/out/command-observe-boot/verify-chain.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 53.228926829993725,
+    "log_sha256": "72554faf58cb2e49b72b70232603009317be5102eab9dccde016e0035191cf82"
+  },
+  "queue-observe-software-bind-final": {
+    "argv": [
+      "python3",
+      "out/command-observe-boot/bind-software.py",
+      "queue-observe-software-bind-final"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 0.2011707630008459,
+    "log_sha256": "248ed364dc6235583aa751c0cc9b8bc1020066781fa0478f3e2ae8ea0d8fe66a"
+  },
+  "queue-observe-retain-final": {
+    "argv": [
+      "python3",
+      "out/command-observe-boot/retain.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 3.4038581899367273,
+    "log_sha256": "859ddc429a4cc1bdee898d6631440bcf225325d5f4716344a3848fe7c6dbbd43"
+  }
+}

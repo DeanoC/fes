@@ -1,0 +1,296 @@
+{
+  "status": "passed",
+  "source": "98ce71bb80a89a045d33f0d0e6265e1d69a114ec",
+  "base": "3c269a723592b16188e2f7bab9eabd72563a6a6e",
+  "classification": "Actual owned Go USB sources and DWC2 direct/gamepad/split-hub register models; actual Tenfoot/native backend launch/return; ARM64 software cross-builds; no physical combined-operation acceptance",
+  "source_sha256": {
+    "platform/embedded/tamago/dwc2/README.md": "8cc9dce52598e894cca518f12bcdaa102dffd421e77320ade115a36a058db538",
+    "platform/embedded/tamago/dwc2/host.go": "fac6c4c9f6adbee7de4fb33b9c6375c1aeff5202ec07162097d2307a45ff09ed",
+    "platform/embedded/tamago/dwc2/polling.go": "a525ec85b6b9ebb528d9552fe949a34fbece4b0370cf0d89e75c28ac240abdbb",
+    "platform/embedded/tamago/dwc2/polling_test.go": "874f65bc32788c10e8ace84f3e42b5e39072ff753c5538a443cac7050e86b41d",
+    "platform/embedded/tamago/input/polling.go": "bd48d1b18b53d785ab704fba688ff9db950c871e83065abc7c5b4185a96b6471",
+    "platform/embedded/tamago/nativefabric/README.md": "7e1132a54d5dcd8b5d75d93ba189743cfbccd623a154e729944b7bd47586f978",
+    "platform/embedded/tamago/nativefabric/program_backend.go": "1946fc63ed06caad07645c4eaff7e41d05adeb5ce7f465c53259333022f897f0",
+    "platform/embedded/tamago/nativefabric/program_input.go": "7cafd589d07058b47e1cdef02f8ae83f41baa7d36b041abf1d50b4ae10f9937e",
+    "platform/embedded/tamago/nativefabric/program_polling.go": "796c82b4c2b0a1e7861c28a8a252242291caf17f1e00dc28f1291f786f0daeac",
+    "platform/embedded/tamago/nativefabric/program_polling_test.go": "31b83bed144d3c83f3ef078026d22a918f52888f141c8835cc3849c06f2fd0ed",
+    "platform/embedded/tamago/usbcontrol/README.md": "abe8ecde96838a3df02c021d8482be4cca9d6205b9a858269094add8592907ab",
+    "platform/embedded/tamago/usbcontrol/polling.go": "70c15f2901aa506fa0993c5707eedf4306789f81623ce8ec028c30a6b7bfd51e",
+    "platform/embedded/tamago/usbcontrol/source.go": "a3bfb24d88c26b6ddaab22719da7d3a5acca89f7cb3ef0db2df387fd876ba931"
+  },
+  "software": {
+    "final-race": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "120s",
+        "./..."
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 38.82234970096033,
+      "log_sha256": "dd798be765e693281c0de34aab69b5b644b33b00a5951c75f4d91e8927cd05ed"
+    },
+    "generated-check": {
+      "argv": [
+        "make",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.80390553898178,
+      "log_sha256": "273915f27c798cb3223bae157afc4edf45e1d7cab1a6e05b5172f999f2f30d90"
+    },
+    "frame-gap-matrix": {
+      "argv": [
+        "env",
+        "GOWORK=off",
+        "GOTOOLCHAIN=local",
+        "GOPROXY=off",
+        "GOSUMDB=off",
+        "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-overlay",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-input-pause-20261105/frame-gap-overlay.json",
+        "./dwc2",
+        "-run",
+        "TestUIFramePacingSplitProbe",
+        "-count=1",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4009267690125853,
+      "log_sha256": "ba6e02e239dcc155fb5f9f866207a66765bc13ff97aa796adedd21a7a7f176e5"
+    },
+    "sdk-final": {
+      "argv": [
+        "python3",
+        "platform/embedded/tamago/run.py",
+        "usbcheck",
+        "--compiler",
+        "out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+        "--board",
+        "de25-nano",
+        "--profile",
+        "platform/embedded/nano/probe-profile.json",
+        "--hps-first-project",
+        "out/nano-tenfoot-serial-20261104/core-zx81/sealed-project",
+        "--output",
+        "out/nano-input-pause-20261105/native-sdk-final",
+        "--usb-input",
+        "gamepad"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.0022782400483266,
+      "log_sha256": "94cd76b5df94d132835b55491dd9f4e7c275e2884c3dc3b931399103e4bf0120"
+    },
+    "sdk-tenfoot-final": {
+      "argv": [
+        "python3",
+        "platform/embedded/tamago/run.py",
+        "fpgaload",
+        "--compiler",
+        "out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+        "--board",
+        "de25-nano",
+        "--profile",
+        "platform/embedded/nano/sd-profile.json",
+        "--hps-first-project",
+        "out/nano-tenfoot-serial-20261104/core-zx81/sealed-project",
+        "--computer-control",
+        "--computer-reload",
+        "--computer-storage-return",
+        "--selected-programs",
+        "--tenfoot-serial",
+        "--output",
+        "out/nano-input-pause-20261105/native-tenfoot-final"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 20.809097140911035,
+      "log_sha256": "e755c6d19a0291d66f4d58da448b048d496614f9c2ae80cdb139d4d65ccee2d7"
+    },
+    "software-0": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2006713879527524,
+      "log_sha256": "0cfe0fb8ccdd691073da736b904a9342a24d7383a0f034a520d9aac1efbd7a32"
+    },
+    "software-1": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.001170273986645,
+      "log_sha256": "4f82ee788dd2014b342c52dc78d4cf7a621033e5a5585554fb7f3805990c669c"
+    },
+    "software-2": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "3c269a723592b16188e2f7bab9eabd72563a6a6e",
+        "--head",
+        "98ce71bb80a89a045d33f0d0e6265e1d69a114ec"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20065626001451164,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-3": {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2006471089553088,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-4": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/tamago/dwc2/README.md\", \"platform/embedded/tamago/dwc2/host.go\", \"platform/embedded/tamago/dwc2/polling.go\", \"platform/embedded/tamago/dwc2/polling_test.go\", \"platform/embedded/tamago/input/polling.go\", \"platform/embedded/tamago/nativefabric/README.md\", \"platform/embedded/tamago/nativefabric/program_backend.go\", \"platform/embedded/tamago/nativefabric/program_input.go\", \"platform/embedded/tamago/nativefabric/program_polling.go\", \"platform/embedded/tamago/nativefabric/program_polling_test.go\", \"platform/embedded/tamago/usbcontrol/README.md\", \"platform/embedded/tamago/usbcontrol/polling.go\", \"platform/embedded/tamago/usbcontrol/source.go\"]"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 296.77417983696796,
+      "log_sha256": "05f6c70247ce0616f4f02abc6525fc5489425076a207f3290c651a7cf86d1173"
+    },
+    "software-5": {
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.603500394034199,
+      "log_sha256": "35e30eb5faf8482ba2a947bbbf643099d6f78e53da4a4c5b89cb75e27739599a"
+    },
+    "software-6": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 106.06325505394489,
+      "log_sha256": "431417af8a1450ea7cbc7edc0430828216fe22458a8dd00314fcca10b49612d8"
+    }
+  },
+  "all_selected_commands_match_plan": true,
+  "input_pause": {
+    "drain_milliseconds": 500,
+    "max_steps": 4096,
+    "simulated_gap_seconds": 100,
+    "lease_mutations": false,
+    "reenumeration": false,
+    "pid_retained": true,
+    "pause_discards_current_report": true,
+    "all_channels_checked_idle": true,
+    "pending_hub_operation_drained": true,
+    "menu_neutral_fence_after_failed_preflight": true,
+    "actual_tenfoot_cycles": 3,
+    "native_failure_keeps_usb_paused": true
+  },
+  "frontend_poll_matrix": {
+    "cases": 48,
+    "interval_milliseconds": 33,
+    "topologies": [
+      "high-speed-hub",
+      "nested-full-speed-hub",
+      "full-speed-hub"
+    ],
+    "initial_microframe_phases": 8,
+    "hub_health_cache_states": 2,
+    "driver_sha256": "31b96f46f7d8f5002d7271d47bb4d61289c884ac50c2a1c846744b7406e2f5e6",
+    "overlay_sha256": "8dc9c80b45fa9ca07536f6a521fe5f82a8084a5d497ebe723094a3b299c60166"
+  },
+  "selected_integration": {
+    "out/nano-fabric-stop-612e0a4f4a8a4f4cb311f845c2fce92b": {
+      "result_sha256": "83b48c9558c6cee0a145e5abafe1be5f9207f3ea5a7cde82154253cfc944e71d",
+      "classification": "actual C and both actual reader RTL models; injected ownership and memory; no hardware acceptance"
+    },
+    "out/native-fabric-hooks-7cbaef0ad30e41aab8bfd442176be96e": {
+      "result_sha256": "a640564bf879e16b54d9fcc0f15f89f5d9a7667eae7e682c47abf3eed7c4e242",
+      "classification": "host native Go lifecycle/tenfoot with actual patched TF-A C and Verilated FPGA RTL; simulated bridges, memory and SDM; no hardware acceptance"
+    }
+  },
+  "native_builds": {
+    "native-sdk-final": {
+      "receipt_sha256": "eb0d102ad29cb7867c33d87acfb3576112cc8011497238761495df8821d212ea",
+      "elf_sha256": "7d624063ddd9df60e344da6923fb880447e99de8651a1523cd6b801b19747dd4",
+      "usb_control": true,
+      "tenfoot_serial": false,
+      "compiled_production_sources_match_commit": true
+    },
+    "native-tenfoot-final": {
+      "receipt_sha256": "84a49f4369fcfa7de42a3fd1d920c5f1f0d57269902ee2337a99b1de24ab0a98",
+      "elf_sha256": "64064619270b03970d9b891c2c1ed7d0b5e0a46eb2dcc4b468603e80cd6664f9",
+      "usb_control": false,
+      "tenfoot_serial": true,
+      "compiled_production_sources_match_commit": true
+    }
+  },
+  "composed_board_startup_selected": false,
+  "new_boot_chain_built": false,
+  "hardware_programmed": false,
+  "core_loading_readiness": false
+}

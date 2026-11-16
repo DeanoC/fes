@@ -1,0 +1,453 @@
+{
+  "status": "passed",
+  "scope": "Bounded native physical controller Left press/release delivery, plus ZX81/ZX80/ZX81 fetch-checked load/return/Quit; diagnostic profile",
+  "source": "f68134edb666bdfdbe75c2f4e3c66f2ecefe040d",
+  "compiled_source": "90e4dbbf57a5dd2f4695e56482f2ebfef2cff7d0",
+  "serial": "TRWU8CBL",
+  "attempts": 1,
+  "retries": 0,
+  "fixed_uploads_and_readbacks": 7,
+  "cycles": [
+    {
+      "selection": 0,
+      "launch_generation": 1,
+      "return_generation": 2
+    },
+    {
+      "selection": 1,
+      "launch_generation": 3,
+      "return_generation": 4
+    },
+    {
+      "selection": 0,
+      "launch_generation": 5,
+      "return_generation": 6
+    }
+  ],
+  "input": {
+    "completed_writes": 2,
+    "released": true,
+    "physical_input_verified": false,
+    "descriptor_specific_report_decoded": true,
+    "scope": "nano-gamepad-input-cycle-v1",
+    "owner": 16283161642596778901,
+    "generation": 1,
+    "package_id": "93a2192a0b1f0c014917dba9d27485798f105beabd466e3026422380edbf5ca5",
+    "build_id": "a44922576284d6d92781c31b27ec4f45",
+    "descriptor_sha256": "171f93692f2d718af6c6e9fc5b7d8c2580ac33fa2e3044ee2393c07ec839dc11",
+    "mapping": {
+      "Up": 82,
+      "Down": 81,
+      "Left": 80,
+      "Right": 79,
+      "Buttons": [
+        22,
+        44,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "records": [
+      {
+        "scope": "nano-computer-gamepad-v1",
+        "owner": 16283161642596778901,
+        "generation": 1,
+        "package_id": "93a2192a0b1f0c014917dba9d27485798f105beabd466e3026422380edbf5ca5",
+        "build_id": "a44922576284d6d92781c31b27ec4f45",
+        "sequence": 1,
+        "descriptor_sha256": "171f93692f2d718af6c6e9fc5b7d8c2580ac33fa2e3044ee2393c07ec839dc11",
+        "report": "007f0080800f0000",
+        "state": {
+          "Axes": [
+            -32767,
+            -129,
+            0,
+            0,
+            0,
+            0
+          ],
+          "Buttons": 0,
+          "Hat": -1
+        },
+        "mapping": {
+          "Up": 82,
+          "Down": 81,
+          "Left": 80,
+          "Right": 79,
+          "Buttons": [
+            22,
+            44,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "before": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "rows": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "scope": "nano-computer-gamepad-v1",
+        "owner": 16283161642596778901,
+        "generation": 1,
+        "package_id": "93a2192a0b1f0c014917dba9d27485798f105beabd466e3026422380edbf5ca5",
+        "build_id": "a44922576284d6d92781c31b27ec4f45",
+        "sequence": 2,
+        "descriptor_sha256": "171f93692f2d718af6c6e9fc5b7d8c2580ac33fa2e3044ee2393c07ec839dc11",
+        "report": "7f7f0080800f0000",
+        "state": {
+          "Axes": [
+            -129,
+            -129,
+            0,
+            0,
+            0,
+            0
+          ],
+          "Buttons": 0,
+          "Hat": -1
+        },
+        "mapping": {
+          "Up": 82,
+          "Down": 81,
+          "Left": 80,
+          "Right": 79,
+          "Buttons": [
+            22,
+            44,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "before": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        "rows": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "elapsed_seconds": 17.815873390994966,
+    "bound_seconds": 60
+  },
+  "input_window": {
+    "request_hex": "",
+    "start": 41085,
+    "end": 42291,
+    "bound_seconds": 60,
+    "status": "received",
+    "elapsed_seconds": 17.814238128019497
+  },
+  "fetch_observations": [
+    {
+      "scope": "nano-computer-fetch-v1",
+      "owner": 16283161642596778901,
+      "generation": 1,
+      "package_id": "93a2192a0b1f0c014917dba9d27485798f105beabd466e3026422380edbf5ca5",
+      "build_id": "a44922576284d6d92781c31b27ec4f45",
+      "before": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "held": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "running": {
+        "Cycles": 38246,
+        "Address": 975
+      },
+      "delta": 38246,
+      "polls": 1,
+      "elapsed_ns": 244338817,
+      "limit_ns": 1000000000
+    },
+    {
+      "scope": "nano-computer-fetch-v1",
+      "owner": 16283161642596778901,
+      "generation": 3,
+      "package_id": "3901e5349ea384bfc2d2f3ab9c349e5d81892a39fb4dd0d68802cd4b1732eee9",
+      "build_id": "e37f06507e6bdc4c2198f06e6cd5d125",
+      "before": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "held": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "running": {
+        "Cycles": 38262,
+        "Address": 613
+      },
+      "delta": 38262,
+      "polls": 1,
+      "elapsed_ns": 244347133,
+      "limit_ns": 1000000000
+    },
+    {
+      "scope": "nano-computer-fetch-v1",
+      "owner": 16283161642596778901,
+      "generation": 5,
+      "package_id": "93a2192a0b1f0c014917dba9d27485798f105beabd466e3026422380edbf5ca5",
+      "build_id": "a44922576284d6d92781c31b27ec4f45",
+      "before": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "held": {
+        "Cycles": 0,
+        "Address": 0
+      },
+      "running": {
+        "Cycles": 38234,
+        "Address": 978
+      },
+      "delta": 38234,
+      "polls": 1,
+      "elapsed_ns": 244625100,
+      "limit_ns": 1000000000
+    }
+  ],
+  "usb_report_count": 213,
+  "master_stops_completed": 3,
+  "startup_checkpoints": 14,
+  "raw_sha256": "829f6057a9f5a566e5535384785ccd930e42ad045d9c9e9021254387e1772334",
+  "physical_input_delivery_observed": true,
+  "ordinary_admission": false,
+  "core_loading_readiness": false,
+  "display": "serial-state-only",
+  "emulation_fidelity_verified": false,
+  "cpu_halt_after_return_verified": false,
+  "cleanup": {
+    "status": "passed",
+    "scope": "independent read-only bounded-procedure host cleanup",
+    "clock_readback": "15M",
+    "exact_usb_permissions_restored": true,
+    "private_JTAG_process_gone": true,
+    "UART_free": true,
+    "claim_retained": true,
+    "hardware_retry": false,
+    "factory_restore": false,
+    "original_factory_card_untouched": true
+  },
+  "replay": {
+    "status": "passed",
+    "raw_bytes": 60581,
+    "raw_sha256": "829f6057a9f5a566e5535384785ccd930e42ad045d9c9e9021254387e1772334",
+    "key_exchanges": 8,
+    "cycles": [
+      {
+        "selection": 0,
+        "launch_generation": 1,
+        "return_generation": 2
+      },
+      {
+        "selection": 1,
+        "launch_generation": 3,
+        "return_generation": 4
+      },
+      {
+        "selection": 0,
+        "launch_generation": 5,
+        "return_generation": 6
+      }
+    ],
+    "cpu_checkpoints": 14,
+    "classification": "independent replay of physical App/configuration/owned-return evidence; diagnostic scope only",
+    "ordinary_admission": false,
+    "display": "serial-state-only"
+  },
+  "retention": {
+    "status": "passed",
+    "source": "f68134edb666bdfdbe75c2f4e3c66f2ecefe040d",
+    "compiled_source": "90e4dbbf57a5dd2f4695e56482f2ebfef2cff7d0",
+    "archive_sha256": "031832d45e681f4073f06b7b1a83c0d62cba9c2c494d8c91292fab7771b23928",
+    "archive_bytes": 231969721,
+    "regular_files_verified": 44052,
+    "symlinks_verified": 59,
+    "source_update_sha256": "09fc6486a2be6e0a9edaffc95907a739adb2294e692094a672dcbbf9ec3de01d",
+    "required_prior_source_bundles": {
+      "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/source.bundle": "daeee37ba8c039ffc165c2c92d7a639af01c441099fe1359ae207846fa75216f",
+      "/home/deano/fes-retained/de25-tenfoot-core-cycle-20261104-r2/source-update.bundle": "1def434cc2e97d68da24158e8b153e238ecdcf024c060c60c62c8f8a68b8d497",
+      "/home/deano/fes-retained/de25-usb-cycle-20261104-r1/source-update.bundle": "1c225f6f9a2ad4d40c9895e652d72b659ca8bcfc0800886604a15c6477791653",
+      "/home/deano/fes-retained/de25-usb-cycle-20261104-r1/publication.bundle": "557175aa3b2d55c76c1eb09ed1ceb3cc460121676d62c0283b307c07ea02fa96",
+      "/home/deano/fes-retained/de25-gamepad-tenfoot-20261104-r1/source-update.bundle": "3677473b9bdba14a6128b4be7a0566b152a58f296e758e3d8101f903bd976488",
+      "/home/deano/fes-retained/de25-gamepad-tenfoot-20261104-r1/publication.bundle": "a4d038b90fa7f40a4d265043f561b8a7716c637c72c47399146aa25a8a8b4cee",
+      "/home/deano/fes-retained/de25-usb-composition-20261104-r1/source-update.bundle": "0b6d1126ad2440411944f1a25c28ad735d92d1245fa718988ef5dc62f716916e",
+      "/home/deano/fes-retained/de25-usb-composition-20261104-r1/publication.bundle": "4c0b28a584c58979b7af0603963f64d41c85c0a50391889bdc8964f5743aa7f5",
+      "/home/deano/fes-retained/de25-usb-master-20261105-r1/source-update.bundle": "8cafec8cdc642c2aa53835a157eb001b97eba0bc58c0451cc0f55940602574cf",
+      "/home/deano/fes-retained/de25-usb-master-20261105-r1/publication.bundle": "7ded9e73b58e3f72e9bbbd85dd492fbb91886c574238566e8800b446e6240cb3",
+      "/home/deano/fes-retained/de25-usb-shared-service-20261105-r1/source-update.bundle": "5569a1680ef9aecc56f588df7983eb8573927cc320c1b9fe8e11e4c691201bb4",
+      "/home/deano/fes-retained/de25-usb-shared-service-20261105-r1/publication.bundle": "6ffaa301a62679042ec250111ca7768f6249221d8aa65ad9b86f83011b3944b5",
+      "/home/deano/fes-retained/de25-input-pause-20261105-r1/source-update.bundle": "54155969bf8954e88f77efbed83c0b077ad850b73ad2780f555751861d3f76ab",
+      "/home/deano/fes-retained/de25-input-pause-20261105-r1/publication.bundle": "46be10c99466f5ff7d8c320cab131da63bc5824edcffefd92a6e0d7302ea9845",
+      "/home/deano/fes-retained/de25-shared-startup-20261105-r1/source-update.bundle": "2aeadecea051300a690f7d909ef598c0e3dec2b3d5d64a83dc03f2afa4b34ad4",
+      "/home/deano/fes-retained/de25-shared-startup-20261105-r1/publication.bundle": "e9d025704c03a3849c708ff104c6c9e1fa30575f088fcc2d9141d1f47a38d3b2",
+      "/home/deano/fes-retained/de25-shared-observer-20261105-r1/source-update.bundle": "c34c691aed0bfc893a421cbf1051783d11f2884e757cb6739ced853d821a8cfd",
+      "/home/deano/fes-retained/de25-shared-observer-20261105-r1/publication.bundle": "8e6cab73a0447c3c9c4b146564f8fc3f5ac5baeabd6c8e12239b11211fb83097",
+      "/home/deano/fes-retained/de25-shared-observer-20261105-r1/operator-publication.bundle": "acbde0879673b9b5e9dd1c1bb9a0055afc7b0f5e2a1475c3717d9b66875983dd",
+      "/home/deano/fes-retained/de25-shared-usb-stop-20261105-r1/publication.bundle": "cdb95057ead958a1262d4414011fb45154bd24401419587fc124f90d92cae556",
+      "/home/deano/fes-retained/de25-coherent-snapshot-20261105-r1/source-update.bundle": "40301e6ece03b8de7c89059a660ef637691d000bd377d5d158512c0ac16a4c87",
+      "/home/deano/fes-retained/de25-coherent-snapshot-20261105-r1/publication.bundle": "17913e04534a46b427f765dba926cdc142706cdae25fe76f73e7792f6b5e7e26",
+      "/home/deano/fes-retained/de25-coherent-usb-stop-20261105-r1/publication.bundle": "1e190488614bb7817176d143e31dbb03a990a22828fed79b231376c4a6360a0f",
+      "/home/deano/fes-retained/de25-board-scan-20261105-r1/source-update.bundle": "32248e8956ab141a340abeccf212adeeda9856f076093139110b2ffe58e46e82",
+      "/home/deano/fes-retained/de25-board-scan-20261105-r1/publication.bundle": "ba4405129d5cf788ac4d238883f95759a48836467745a2c79a35f7a701bd53fc",
+      "/home/deano/fes-retained/de25-board-scan-stop-20261105-r1/publication.bundle": "7c95cde110d13eba98e4c4ed5ceb830a33f950ff1966be72fa6682529057c8aa",
+      "/home/deano/fes-retained/de25-prepared-ready-20261105-r1/source-update.bundle": "bef84c505299fc993186369c70216aaa7310ddc1a127a0794c101c0ba688ee11",
+      "/home/deano/fes-retained/de25-prepared-ready-20261105-r1/publication.bundle": "6a9210fb6140c31b0abffaf719084b6449eea6a6c6390f27d2e4606850d20672",
+      "/home/deano/fes-retained/de25-prepared-ready-control-stop-20261105-r1/publication.bundle": "557aaa5e314c548c02ee9a5cb31ce6e88e24ab77a666e001d2757cea69ffe1a5",
+      "/home/deano/fes-retained/de25-computer-guard-20261105-r1/source-update.bundle": "69d76d2c09cd365f2c37bbbf419ee0db968491a884476523d1b58dca4479e500",
+      "/home/deano/fes-retained/de25-computer-guard-20261105-r1/publication.bundle": "b4e778e762d1a07010ef291dbfaea4f52fb04d2bac20b5f08002c18d81adc2b8",
+      "/home/deano/fes-retained/de25-computer-guard-stop-20261105-r1/publication.bundle": "ef77670f55292d83159b11b99dabceba20516b468402e9ec510bb19a3f41e06e",
+      "/home/deano/fes-retained/de25-master-containment-20261105-r1/source-update.bundle": "8deba9b42ac6cebe5399eea919983e6df5aa27113e206a1e1f31e9360c2aef19",
+      "/home/deano/fes-retained/de25-master-containment-20261105-r1/publication.bundle": "9d9c6f6c867474750b9240793360feb6261faeabbe104469b11f52b4bceae979",
+      "/home/deano/fes-retained/de25-master-containment-stop-20261105-r1/publication.bundle": "f12e683830f9bbe38afc923a78e02a3dd5c4e452fe3a13bf1f93a2062e17e413",
+      "/home/deano/fes-retained/de25-policy-sampling-20261105-r1/source-update.bundle": "7470f732bd74588ce5ab8442e7621de635ccef9634a61acc7f88349e61b79a00",
+      "/home/deano/fes-retained/de25-policy-sampling-20261105-r1/publication.bundle": "8e1c4427fe1a87dd9fc8e4d9d8f1124469d4de1ccf80c0a58104b81de3a53afb",
+      "/home/deano/fes-retained/de25-policy-sampling-stop-20261105-r1/publication.bundle": "de780b0a6fd3341c77844f5c42e42556c482126ac1e4c5b0009820df693266e1",
+      "/home/deano/fes-retained/de25-master-clock-scope-20261105-r1/source-update.bundle": "3887c4f884af832b59f80f8d8524490d046e90cb1d6032859ffc8412b2e5f364",
+      "/home/deano/fes-retained/de25-master-clock-scope-20261105-r1/publication.bundle": "1bdfa56141a769e4e2510c7d2016a5941f9a5de578ac1314bdc4b611cb5c1073",
+      "/home/deano/fes-retained/de25-master-clock-scope-stop-20261105-r1/publication.bundle": "461b8ee8fca9f396f98522e75e23b8869f312ac49ab99e34626031053da29d93",
+      "/home/deano/fes-retained/de25-access-timing-20261105-r1/source-update.bundle": "af5d8650f4d0dba19282286eeb23844f3653d6440efad403da8c398e4f403926",
+      "/home/deano/fes-retained/de25-access-timing-20261105-r1/publication.bundle": "9f1fd972a88eb3edca3db61bebbf3ec2085d6ebb234c21edaa0c7dcb74cddaae",
+      "/home/deano/fes-retained/de25-access-timing-stop-20261105-r1/publication.bundle": "b7b0700037f2c73a33db22d6b085d45a097d48a89fb49e936dbb5cc126feb656",
+      "/home/deano/fes-retained/de25-coherent-owner-20261105-r1/source-update.bundle": "7957f4282355c1dcc1cb3472023a27a1ae653cc69a569a4a92bfed06d39b83cc",
+      "/home/deano/fes-retained/de25-coherent-owner-20261105-r1/publication.bundle": "cacf686f8675958f123550983c3ad22c6ff42f63d4e2d3919f802d48e63e905e",
+      "/home/deano/fes-retained/de25-coherent-owner-hardware-20261105-r1/publication.bundle": "ad46df3b17de4c3aef8bb2585ef7ca07ac2be1a4e4abc01b6b00211c98b30829",
+      "/home/deano/fes-retained/de25-fetch-launch-20261105-r1/source-update.bundle": "77da682bf0074e1c7e4d18429ca03f749f2cd7601d4c1584fe68d3b6b665857e",
+      "/home/deano/fes-retained/de25-fetch-launch-20261105-r1/publication.bundle": "8ca3941503a3100ded4d7d4648e6120b3c732f4f50defb29758420bfd230a22e",
+      "/home/deano/fes-retained/de25-fetch-launch-hardware-20261105-r1/publication.bundle": "d88788690ab240d51f733a82f5c3a71c6f8adaee9dea2f138ce36ca88d203b21"
+    },
+    "standalone_source_restore_with_prerequisites": true,
+    "strict_fsck_passed": true,
+    "hardware_attempts": 1,
+    "hardware_retries": 0,
+    "physical_controller_left_and_release_observed": true,
+    "ordinary_admission": false,
+    "core_loading_readiness": false,
+    "working_outputs_removed": false
+  },
+  "fpga_source_dependency": {
+    "path": "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/matched-candidate.tar.gz",
+    "sha256": "1479d5fa439c77457a3c19959a97b810b8ce5a6aa0672bb4567519f2d7229d17"
+  }
+}

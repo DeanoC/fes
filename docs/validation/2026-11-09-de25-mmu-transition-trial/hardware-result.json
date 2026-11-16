@@ -1,0 +1,147 @@
+{
+  "status": "physical-native-stop-between-sctlr-write-checkpoints",
+  "source_commit": "d7f542094d58226c7fe13972dc4152ed2c409e67",
+  "compiled_source": "6a247d75dde1019e7f6db1707029b0ac996177a7",
+  "native_boot_id": "59e96369a749fc7d",
+  "provider_passed": true,
+  "verified_uploads": 13,
+  "fresh_sd_reads": 13,
+  "native_programming_passed": true,
+  "mmu_trace": {
+    "records": [
+      {
+        "el": 12,
+        "midr": 1093652560,
+        "mpidr": 2164260864,
+        "mmfr0": 1052962,
+        "daif": 704,
+        "scr": 568,
+        "sctlr": 12916794,
+        "tcr": 0,
+        "root": 2147733504,
+        "mair": 4963046916272786084,
+        "witness": 385984,
+        "phase": "before",
+        "line": 111,
+        "writes": 0,
+        "memory": 0
+      }
+    ],
+    "steps": [
+      {
+        "phase": "admit-before",
+        "operation": 0,
+        "line": 112
+      },
+      {
+        "phase": "admit-after",
+        "operation": 0,
+        "line": 113
+      },
+      {
+        "phase": "barrier-before",
+        "operation": 0,
+        "line": 114
+      },
+      {
+        "phase": "barrier-after",
+        "operation": 0,
+        "line": 115
+      },
+      {
+        "phase": "write-before",
+        "operation": 0,
+        "line": 116
+      },
+      {
+        "phase": "write-after",
+        "operation": 0,
+        "line": 117
+      },
+      {
+        "phase": "write-before",
+        "operation": 1,
+        "line": 118
+      },
+      {
+        "phase": "write-after",
+        "operation": 1,
+        "line": 119
+      },
+      {
+        "phase": "write-before",
+        "operation": 2,
+        "line": 120
+      },
+      {
+        "phase": "write-after",
+        "operation": 2,
+        "line": 121
+      },
+      {
+        "phase": "barrier-before",
+        "operation": 1,
+        "line": 122
+      },
+      {
+        "phase": "barrier-after",
+        "operation": 1,
+        "line": 123
+      },
+      {
+        "phase": "admit-before",
+        "operation": 0,
+        "line": 124
+      },
+      {
+        "phase": "admit-after",
+        "operation": 0,
+        "line": 125
+      },
+      {
+        "phase": "write-before",
+        "operation": 3,
+        "line": 126
+      }
+    ],
+    "valid": true,
+    "complete": false,
+    "hardware_authority": false
+  },
+  "sctlr_write_return_verified": false,
+  "mmu_enable_instruction_completion": "unknown",
+  "memory_probe_entered": false,
+  "full_mmu_register_receipt": false,
+  "fesboot_sent": false,
+  "launcher_started": false,
+  "tape_attempted": false,
+  "error": "stage timeout: matched native prompt",
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "retention": {
+    "status": "passed",
+    "source_head": "d7f542094d58226c7fe13972dc4152ed2c409e67",
+    "operator_source": "d7f542094d58226c7fe13972dc4152ed2c409e67",
+    "path": "/home/deano/fes-retained/de25-mmu-transition-trial-hardware-20261109-r1",
+    "files": 88514,
+    "full_archive_readback": true,
+    "bundle_import_and_pack_verified": true,
+    "hardware_actions": false
+  },
+  "consumed_image_retired": true,
+  "core_load_acceptance": false,
+  "logs": {
+    "out/nano-mmu-transition-trial-20261109/trial/native-console.log": "bd813f96e038445df956af2c279230560aaf6ea80e96f2c063544fcef14fc18c",
+    "out/nano-mmu-transition-trial-20261109/trial/native-result.json": "2af9c51b9f4aad3bbabd79299cf2ff600e83910b25051810c6b7932b32f73e65",
+    "out/nano-mmu-transition-trial-20261109/trial/experiment-result.json": "2c6e09dbd40e48c9b4fd011a3e04baa2dfc4d7535c4dab47846a4abcc976e2aa"
+  },
+  "pass": false
+}

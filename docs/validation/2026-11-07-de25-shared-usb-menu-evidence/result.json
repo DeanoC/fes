@@ -1,0 +1,210 @@
+{
+  "status": "shared-usb-menu-evidence-software-and-native-entry-passed",
+  "validation_complete": true,
+  "source": "126a308bde1001eb4cdbb26828fc98dae13a6885",
+  "base": "978d063a0919d3d6de2180a0591bae3363a23c23",
+  "observed_utc": "2026-11-07T21:28:51.608867+00:00",
+  "classification": "actual strong firmware composition and native Go/Tenfoot/menu evidence with injected platform responses; actual C decoder/RTL integrations; SDK/entry cross-build only; no hardware acceptance",
+  "checks": [
+    {
+      "label": "software-0",
+      "receipt": "out/nano-mixed-usb-20261107/software-0-result.json",
+      "sha256": "51edf8f76e2caeff088082d649b8ce1c4f495a605b1624e2cf985302b4e079a7",
+      "elapsed_seconds": 0.40052304114215076
+    },
+    {
+      "label": "software-1",
+      "receipt": "out/nano-mixed-usb-20261107/software-1-result.json",
+      "sha256": "0691cefa17144f3ec08e7218d665d7cf60128b15a82cd15554d956762865a302",
+      "elapsed_seconds": 1.4009145321324468
+    },
+    {
+      "label": "software-2-final",
+      "receipt": "out/nano-mixed-usb-20261107/software-2-final-result.json",
+      "sha256": "2f7e7fe679c70f08c6df7402e907739ac957578b82201b1ec96ba48b7b93d797",
+      "elapsed_seconds": 0.2009285530075431
+    },
+    {
+      "label": "software-3",
+      "receipt": "out/nano-mixed-usb-20261107/software-3-result.json",
+      "sha256": "d9e3c4ad206d069e166ba5e162be4ef638bc4bbbcc3b287d613e371efd89cf74",
+      "elapsed_seconds": 0.200908926082775
+    },
+    {
+      "label": "software-4-final",
+      "receipt": "out/nano-mixed-usb-20261107/software-4-final-result.json",
+      "sha256": "cebd20865b7a3766632f85c8126882476466684c860401a0158be6810a76b4af",
+      "elapsed_seconds": 505.69214095314965
+    },
+    {
+      "label": "software-5",
+      "receipt": "out/nano-mixed-usb-20261107/software-5-result.json",
+      "sha256": "394bbb3352035318106f289d1c3ac6d6663fc66932ae88bfeb47bb879607d637",
+      "elapsed_seconds": 6.805721241980791
+    },
+    {
+      "label": "software-6-final",
+      "receipt": "out/nano-mixed-usb-20261107/software-6-final-result.json",
+      "sha256": "73c43c558e18c35c609562a2494266bd1f85f88a96bc5cef3186126870f2db34",
+      "elapsed_seconds": 287.59854272101074
+    },
+    {
+      "label": "software-7",
+      "receipt": "out/nano-mixed-usb-20261107/software-7-result.json",
+      "sha256": "fd9c3b10e709a14386086372b1747675f40b024918aba6610e8f9a356c05a00f",
+      "elapsed_seconds": 59.83281598193571
+    },
+    {
+      "label": "software-8",
+      "receipt": "out/nano-mixed-usb-20261107/software-8-result.json",
+      "sha256": "0abb4d73410159d0eb1588e36e0788b07540b95f9764a3c619a2d904d44fbac9",
+      "elapsed_seconds": 14.207766998093575
+    },
+    {
+      "label": "software-9",
+      "receipt": "out/nano-mixed-usb-20261107/software-9-result.json",
+      "sha256": "725baa8c8ae1400634353308aec4e341f43de9d5db3ca2425e96371ee6a8b326",
+      "elapsed_seconds": 719.8095669890754
+    },
+    {
+      "label": "recorded-cold-profiles",
+      "receipt": "out/nano-mixed-usb-20261107/recorded-cold-profiles-result.json",
+      "sha256": "0b07c56c449ac16dbdf7747fa750b91171377cd05ed89f2e791d6aa04ce4a218",
+      "elapsed_seconds": 7.033048155950382
+    },
+    {
+      "label": "menu-observation-race",
+      "receipt": "out/nano-mixed-usb-20261107/menu-observation-race-result.json",
+      "sha256": "9035b52149059d3d46366c8cd0ed7839b1b8eae32cb8154fbeb278ff86e72703",
+      "elapsed_seconds": 51.282701645977795
+    },
+    {
+      "label": "menu-wire-depth",
+      "receipt": "out/nano-mixed-usb-20261107/menu-wire-depth-result.json",
+      "sha256": "911dc0e12dda353472d023e122e93f77b92fc032d072ecba2f786a8b13099a98",
+      "elapsed_seconds": 1.4012471139431
+    },
+    {
+      "label": "model-request-bounds",
+      "receipt": "out/nano-mixed-usb-20261107/model-request-bounds-result.json",
+      "sha256": "9b160b2d2af4670ffc59a66155fb038584ed3c19559fc37ea1732b9faa263353",
+      "elapsed_seconds": 16.807944829808548
+    },
+    {
+      "label": "native-sdk",
+      "receipt": "out/nano-mixed-usb-20261107/native-sdk-result.json",
+      "sha256": "5c3ce4f0f3752e1344dfaac7e8d0ca8b83c6dce1eb233a0ad553347645f52afa",
+      "elapsed_seconds": 180.55912469886243
+    },
+    {
+      "label": "native-entry",
+      "receipt": "out/nano-mixed-usb-20261107/native-entry-result.json",
+      "sha256": "8d80371b66b4cddf8f4e8f65367d3edd837ffd19cfa1b721a3a686bc4dcdf120",
+      "elapsed_seconds": 132.73090061708353
+    }
+  ],
+  "counts": {
+    "software-4-final": {
+      "tests": 1653,
+      "skips": 3
+    },
+    "software-9": {
+      "tests": 1595,
+      "skips": 79
+    }
+  },
+  "source_sha256": {
+    "platform/embedded/firmware/README.md": "a5f109582ef508e2d85fad06e6914ebd66b08efff98c0cc5bb57e7a5911fdc56",
+    "platform/embedded/firmware/tests/nano_cold_platform_test.c": "66299d100fb254e0209b73cb7674696be89e3a9ffe42a08c176d31841e0f7b81",
+    "platform/embedded/firmware/tests/nano_mixed_cold_test.inc": "d14b1c102f4c46a0c5c9d1a866f2d53e89b4703a5880f40a8ba63a05163c1569",
+    "platform/embedded/firmware/tests/nano_mixed_usb_test.inc": "b1409a3b677914f04f73c3d5adfb9ac76f88d02cba67ee86be04846c508f8e82",
+    "platform/embedded/nano/README.md": "c41363c2c4ecd81375720114f8157e654873f90a240ceb3e2d8de12983ce98ab",
+    "platform/embedded/nano/menu_service_trace.py": "7d1f3a4e9a0a384cc2a00d30daee5ac4a970a8069b9ebe1e0d88fb6d66deb7e7",
+    "platform/embedded/tamago/cmd/fpgaload/tenfoot.go": "97b297127e6d1e4f356d8fadeaa05420201992a8ca44177ccdfe4ea5db975237",
+    "platform/embedded/tamago/modelbackend/backend_test.go": "4adf61b68b10bf8b235020615631ba8b9f53ab1c7ebd8aae1fbe314657a517cc",
+    "platform/embedded/tamago/nativefabric/README.md": "868c81a7938ced258bb6098af845d7ca8297a7b3f817781d96b1875f965cb319",
+    "platform/embedded/tamago/nativefabric/program_menu.go": "14ad7ca5ae2f678d668cab2f8ad5901241eb8049d68a86ca3da1bed2848da958",
+    "platform/embedded/tamago/nativefabric/program_menu_observation.go": "1e1efae6b9e01b361615c995a6783f9d8fe540667890b3b84b989745482b3aff",
+    "platform/embedded/tamago/nativefabric/program_menu_observation_test.go": "b2acd00fec3d09facb128deb21d578b63b8129e99fc867ab29d1e1b07f77bd8c",
+    "platform/embedded/tamago/nativefabric/program_menu_test.go": "d9b70f7035973a8795ad71c71de430d4a709133562240759a83c92ab4b926244",
+    "platform/embedded/tamago/nativefabric/verify.py": "9f31dd061026bcc0c9eca4cd5d43cc61db013be48fc59041842c949a3f4a93aa",
+    "tests/test_nano_menu_service_trace.py": "5518b3e3124f8040defbad2732a8feebb7d1dc0b7fdf1ca4aeb3b0bd56728664",
+    "tests/test_nano_mixed_cold.py": "860403328f96f0d060c55281db64209752857505d04b4cefe39578dea40e57cd"
+  },
+  "strong_cold_profiles": {
+    "ordinary_scenarios": 13,
+    "shared_usb_scenarios": 19,
+    "undersized_arena_rejections": 2,
+    "scope": "actual strong cold, private boot binding engine, owned dispatcher, SD, ROM, USB board/composition/master and stop callbacks; pinned vendor SHA; injected MMIO/raw bridge/mailbox; no USB enumeration"
+  },
+  "observations": {
+    "scope": "nano-program-menu-v1",
+    "cross_language_fixture": "menu-observations/observations.log",
+    "events": [
+      "frame",
+      "frame",
+      "return",
+      "frame",
+      "return"
+    ],
+    "menu_only_parser": "platform/embedded/nano/menu_service_trace.py",
+    "boot_verified": false,
+    "core_cycle_verified": false,
+    "physical_display_verified": false
+  },
+  "artifacts": {
+    "status": "passed",
+    "model_tests_exactly_once": {
+      "TestTenfootLaunchReturnAndFailures": 1,
+      "TestHeldFrameAndStaleStop": 1,
+      "TestCanceledRequestPreservesOwner": 1,
+      "TestCloseRefusesOutstandingFrame": 1,
+      "TestCancelAfterAdmissionRecoversBeforeRelease": 1,
+      "TestBadPartPreservesRunningComposition": 1,
+      "TestFailedScanoutPreservesOutstandingFrame": 1,
+      "TestSealedNanoTenfootModel": 1,
+      "TestInjectedEndpointDirect": 1,
+      "TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure": 1,
+      "TestCPUBridgeFailureStopsActorBeforeProgramming": 1,
+      "TestInjectedEndpointCancellationRetainsTransfer": 1,
+      "TestInjectedEndpointRejectsUnmappedPackageBeforeRetiringOwner": 1
+    },
+    "model_package_deadline_seconds": 90,
+    "request_deadline_seconds": 15,
+    "native_sources_verified": 2105,
+    "entry_sources_verified": 44,
+    "sdk_receipt_sha256": "1873ba3eb5d1bf70dfc926a7b08638f633822ac410b2d27e681d2a05ea4a4c78",
+    "entry_receipt_sha256": "eddd6073e496db5864ca0772b259d4b7941d3e427e3416009510aa4ab0245bfe",
+    "elf_sha256": "dddaef1a68585dda03a0678142d1008d78ab28b483b7853320035b10747f9d5b",
+    "entry_image_sha256": "0fc4638bf0323d238da185fa5aa823e3323f7cbfeee8f8789bab28d01adc13d1",
+    "entry_bytes": 7598080,
+    "sdk_links_observer": true,
+    "entry_payload_matches_sdk": true,
+    "matched_BL31_SPL_FIT": false,
+    "hardware_actions": false
+  },
+  "initial_failure": {
+    "receipt": "out/nano-mixed-usb-20261107/software-6-result.json",
+    "sha256": "4f1aa2bf4a4c9d06e2d0a11302529cfef4a8260b7419d6a9564cf2f6318b3ae8",
+    "old_source_baseline_also_failed": true,
+    "all_138_package_fixtures_unchanged": true,
+    "baseline_overlay_sha256": "e76a6435f07debb1a1baa7da105a42a026aa24bf2ed5c3e93ce67bc7cd1ebcdc",
+    "corrected_source": "126a308bd",
+    "repair": "independent15s request contexts; partition all13model-backend tests once into model/control and endpoint phases, preserving90s package deadlines; no runtime or hardware timeout changes",
+    "source": "b3c1cc9e1",
+    "replay_requires_pre_repair_test_body": true
+  },
+  "retained": "/home/deano/fes-retained/de25-shared-usb-menu-evidence-20261107-r1",
+  "remaining": [
+    "full paired bounded App/core/fetch/USB/boot/menu evidence integration and controller",
+    "checked menu companion CPU union mapping plus fpga-menu marker and finalParked generation handling",
+    "new matched BL31/SPL/FIT and PFG composition from exact new entry",
+    "actual menu upload/readbacks and fresh claimed TRWU8CBL bounded trial",
+    "broader core/media/audio/network/appliance and physical acceptance"
+  ],
+  "hardware_actions": false,
+  "matched_BL31_SPL_FIT": false,
+  "goal_complete": false,
+  "subagents_used": false,
+  "live_jobs": []
+}

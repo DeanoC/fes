@@ -1,0 +1,107 @@
+HOST "GET /path-0 HTTP/1.1" 200 -
+REQUEST 0 STATUS 200 after=23.723408ms body="host received /path-0" err=<nil>
+HOST "GET /path-1 HTTP/1.1" 200 -
+HOST "GET /path-2 HTTP/1.1" 200 -
+REQUEST 2 STATUS 200 after=20.9088ms body="host received /path-2" err=<nil>
+HOST "GET /path-4 HTTP/1.1" 200 -
+HOST "GET /path-3 HTTP/1.1" 200 -
+HOST "GET /path-5 HTTP/1.1" 200 -
+REQUEST 5 STATUS 200 after=22.085952ms body="host received /path-5" err=<nil>
+HOST "GET /path-6 HTTP/1.1" 200 -
+HOST "GET /path-9 HTTP/1.1" 200 -
+REQUEST 3 STATUS 200 after=22.949168ms body="host received /path-3" err=<nil>
+REQUEST 6 STATUS 200 after=23.67208ms body="host received /path-6" err=<nil>
+HOST "GET /path-7 HTTP/1.1" 200 -
+HOST "GET /path-8 HTTP/1.1" 200 -
+REQUEST 8 STATUS 200 after=24.724752ms body="host received /path-8" err=<nil>
+REQUEST 1 STATUS 200 after=62.049472ms body="host received /path-1" err=<nil>
+REQUEST 9 STATUS 200 after=65.190816ms body="host received /path-9" err=<nil>
+REQUEST 7 STATUS 200 after=65.427904ms body="host received /path-7" err=<nil>
+REQUEST 4 STATUS 200 after=65.599232ms body="host received /path-4" err=<nil>
+WAVE_DONE 0
+HOST "GET /path-3 HTTP/1.1" 200 -
+HOST "GET /path-1 HTTP/1.1" 200 -
+HOST "GET /path-2 HTTP/1.1" 200 -
+HOST "GET /path-4 HTTP/1.1" 200 -
+HOST "GET /path-5 HTTP/1.1" 200 -
+REQUEST 3 STATUS 200 after=1.991872ms body="host received /path-3" err=<nil>
+HOST "GET /path-0 HTTP/1.1" 200 -
+REQUEST 1 STATUS 200 after=2.371056ms body="host received /path-1" err=<nil>
+REQUEST 2 STATUS 200 after=3.055888ms body="host received /path-2" err=<nil>
+REQUEST 0 STATUS 200 after=3.651936ms body="host received /path-0" err=<nil>
+HOST "GET /path-7 HTTP/1.1" 200 -
+HOST "GET /path-8 HTTP/1.1" 200 -
+HOST "GET /path-6 HTTP/1.1" 200 -
+REQUEST 6 STATUS 200 after=4.140976ms body="host received /path-6" err=<nil>
+HOST "GET /path-9 HTTP/1.1" 200 -
+REQUEST 9 STATUS 200 after=5.379664ms body="host received /path-9" err=<nil>
+REQUEST 5 STATUS 200 after=43.406384ms body="host received /path-5" err=<nil>
+REQUEST 4 STATUS 200 after=43.610064ms body="host received /path-4" err=<nil>
+REQUEST 7 STATUS 200 after=46.737616ms body="host received /path-7" err=<nil>
+REQUEST 8 STATUS 200 after=46.7924ms body="host received /path-8" err=<nil>
+WAVE_DONE 1
+HOST "GET /path-1 HTTP/1.1" 200 -
+HOST "GET /path-3 HTTP/1.1" 200 -
+HOST "GET /path-5 HTTP/1.1" 200 -
+REQUEST 1 STATUS 200 after=2.517904ms body="host received /path-1" err=<nil>
+REQUEST 3 STATUS 200 after=2.473296ms body="host received /path-3" err=<nil>
+HOST "GET /path-2 HTTP/1.1" 200 -
+HOST "GET /path-6 HTTP/1.1" 200 -
+HOST "GET /path-7 HTTP/1.1" 200 -
+HOST "GET /path-4 HTTP/1.1" 200 -
+REQUEST 2 STATUS 200 after=4.326928ms body="host received /path-2" err=<nil>
+HOST "GET /path-9 HTTP/1.1" 200 -
+REQUEST 7 STATUS 200 after=4.584656ms body="host received /path-7" err=<nil>
+REQUEST 4 STATUS 200 after=4.902768ms body="host received /path-4" err=<nil>
+HOST "GET /path-0 HTTP/1.1" 200 -
+HOST "GET /path-8 HTTP/1.1" 200 -
+REQUEST 8 STATUS 200 after=7.586576ms body="host received /path-8" err=<nil>
+REQUEST 0 STATUS 200 after=8.349584ms body="host received /path-0" err=<nil>
+REQUEST 5 STATUS 200 after=43.769264ms body="host received /path-5" err=<nil>
+REQUEST 6 STATUS 200 after=47.151088ms body="host received /path-6" err=<nil>
+REQUEST 9 STATUS 200 after=47.273104ms body="host received /path-9" err=<nil>
+WAVE_DONE 2
+HOST "GET /path-1 HTTP/1.1" 200 -
+HOST "GET /path-2 HTTP/1.1" 200 -
+HOST "GET /path-3 HTTP/1.1" 200 -
+REQUEST 1 STATUS 200 after=2.002144ms body="host received /path-1" err=<nil>
+HOST "GET /path-0 HTTP/1.1" 200 -
+HOST "GET /path-6 HTTP/1.1" 200 -
+REQUEST 2 STATUS 200 after=2.52824ms body="host received /path-2" err=<nil>
+REQUEST 3 STATUS 200 after=2.741712ms body="host received /path-3" err=<nil>
+REQUEST 0 STATUS 200 after=3.217536ms body="host received /path-0" err=<nil>
+HOST "GET /path-4 HTTP/1.1" 200 -
+HOST "GET /path-9 HTTP/1.1" 200 -
+HOST "GET /path-5 HTTP/1.1" 200 -
+REQUEST 4 STATUS 200 after=3.53736ms body="host received /path-4" err=<nil>
+HOST "GET /path-7 HTTP/1.1" 200 -
+HOST "GET /path-8 HTTP/1.1" 200 -
+REQUEST 5 STATUS 200 after=4.351344ms body="host received /path-5" err=<nil>
+REQUEST 8 STATUS 200 after=6.183264ms body="host received /path-8" err=<nil>
+REQUEST 7 STATUS 200 after=6.57888ms body="host received /path-7" err=<nil>
+REQUEST 6 STATUS 200 after=43.564992ms body="host received /path-6" err=<nil>
+REQUEST 9 STATUS 200 after=47.196ms body="host received /path-9" err=<nil>
+WAVE_DONE 3
+HOST "GET /path-3 HTTP/1.1" 200 -
+HOST "GET /path-1 HTTP/1.1" 200 -
+HOST "GET /path-0 HTTP/1.1" 200 -
+REQUEST 3 STATUS 200 after=2.291088ms body="host received /path-3" err=<nil>
+REQUEST 1 STATUS 200 after=2.523488ms body="host received /path-1" err=<nil>
+HOST "GET /path-5 HTTP/1.1" 200 -
+HOST "GET /path-4 HTTP/1.1" 200 -
+HOST "GET /path-6 HTTP/1.1" 200 -
+HOST "GET /path-2 HTTP/1.1" 200 -
+REQUEST 0 STATUS 200 after=3.005728ms body="host received /path-0" err=<nil>
+REQUEST 2 STATUS 200 after=4.758048ms body="host received /path-2" err=<nil>
+HOST "GET /path-7 HTTP/1.1" 200 -
+REQUEST 4 STATUS 200 after=5.1764ms body="host received /path-4" err=<nil>
+HOST "GET /path-9 HTTP/1.1" 200 -
+HOST "GET /path-8 HTTP/1.1" 200 -
+REQUEST 8 STATUS 200 after=7.122976ms body="host received /path-8" err=<nil>
+REQUEST 5 STATUS 200 after=47.428784ms body="host received /path-5" err=<nil>
+REQUEST 6 STATUS 200 after=47.442096ms body="host received /path-6" err=<nil>
+REQUEST 7 STATUS 200 after=47.487728ms body="host received /path-7" err=<nil>
+REQUEST 9 STATUS 200 after=47.413744ms body="host received /path-9" err=<nil>
+WAVE_DONE 4
+CONCURRENT_DONE {Received:217 Transmitted:212 Dropped:0}
+qemu-system-aarch64: terminating on signal 15 from pid 2372612 (python3)

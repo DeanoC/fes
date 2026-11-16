@@ -57,6 +57,13 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
     add("always", "committed whitespace", ".", check)
     if selected == current:
         add("always", "working whitespace", ".", ["git", "diff", "--check", "HEAD", "--"])
+    if any(affected.embedded_menu_input(path) for path in impact["paths"]):
+        add("fpga", "owned menu scanout and actual Tenfoot pixels", ".",
+            [sys.executable, "sources/misteross/prototypes/embedded_control/verify_menu.py",
+             *(["--allow-dirty"] if local else [])],
+            tools=["go", "g++", "make", "verilator", "verilator_bin", "git"],
+            files=["sources/misteross/prototypes/embedded_control/verify_menu.py",
+                   "sources/misteross/prototypes/embedded_control/fes_embedded_menu_scanout.sv"])
     if impact["lanes"]["parent"]:
         modes = impact["test_modes"]
         add("parent", "parent Python regressions", ".",
@@ -71,6 +78,38 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
         add("parent", "working-tree generated consumer consistency", ".",
             [sys.executable, "-c", "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"],
             tools=["go"], files=["scripts/consistency.py"])
+        if any(affected.native_computer_input(path) for path in impact["paths"]):
+            add("parent", "native computer transport and command failures", "platform/embedded/tamago",
+                ["go", "test", "-race", "-count=1", "-timeout", "90s", "./computer/..."], tools=["go", "cc"],
+                files=["go.mod"])
+        if any(affected.native_sd_input(path) for path in impact["paths"]):
+            add("parent", "native SD firmware lease and PIO lifecycle", "platform/embedded/tamago",
+                ["go", "test", "-race", "-count=1", "-timeout", "90s", "./sdcontrol", "./sdhci", "./fat", "./packagestore", "./fatcheck", "./storagepolicy"],
+                tools=["go", "cc", "mformat", "mcopy", "mmd", "mtype"], files=["sdcontrol/session_test.go", "sdhci/sdhci.go", "packagestore/store_test.go"])
+        if any(affected.native_fabric_input(path) for path in impact["paths"]):
+            add("parent", "native runtime firmware and FPGA launch integration", ".",
+                [sys.executable, "platform/embedded/tamago/nativefabric/verify.py"],
+                tools=["go", "cc", "c++", "verilator"],
+                files=["platform/embedded/tamago/nativefabric/verify.py",
+                       "platform/embedded/firmware/tests/native_rpc.cpp"])
+        if any(affected.native_compatibility_input(path) for path in impact["paths"]):
+            add("parent", "native Go and runtime package compatibility parity", ".",
+                [sys.executable, "platform/embedded/runtime/verify_compatibility.py"],
+                tools=["go", "c++"], files=["platform/embedded/runtime/verify_compatibility.py",
+                    "sources/libmister-runtime/src/native/core_package.cpp"])
+        if any(affected.embedded_producer_check_input(path) for path in impact["paths"]):
+            add("parent", "embedded producer identity and native control integration", ".",
+                [sys.executable, "platform/embedded/tamago/nativefabric/verify_producer.py",
+                 *(["--allow-dirty"] if local else [])],
+                tools=["go", "cc", "c++", "g++", "make", "verilator", "verilator_bin", "git"],
+                files=["sources/misteross/prototypes/embedded_control/producer.py",
+                       "platform/embedded/tamago/nativefabric/verify_producer.py"])
+        if any(affected.embedded_board_control_check_input(path) for path in impact["paths"]):
+            add("parent", "DE25 Avalon control and native integration", ".",
+                [sys.executable, "sources/misteross/prototypes/de25_board_control/verify.py", "--standalone"],
+                tools=["go", "cc", "c++", "g++", "make", "verilator", "verilator_bin", "git", "tclsh"],
+                files=["sources/misteross/prototypes/de25_board_control/verify.py",
+                       "sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv"])
     if impact["lanes"]["host"]:
         host_run = [sys.executable, "scripts/host_tests.py", "--ui-if-needed"]
         if impact["test_modes"]["full_race"]:
@@ -95,6 +134,12 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
             ["make", "test", "PYTHON=" + sys.executable], tools=["go"], files=["Makefile"])
     if impact["lanes"]["fpga"]:
         fpga = affected.MODULE_ROOTS["fpga"]
+        if any(affected.embedded_control_input(path) for path in impact["paths"]):
+            add("fpga", "embedded firmware and identity/drain RTL integration", ".",
+                [sys.executable, "platform/embedded/firmware/verify.py"],
+                tools=["cc", "c++", "verilator"],
+                files=["platform/embedded/firmware/verify.py",
+                       "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"])
         # Shared native contract/transport changes need their frame and CDC
         # oracle even before the experimental path becomes a factory recipe.
         if "coleco" in impact["cores"]:
@@ -178,7 +223,9 @@ def execute(result):
     # These are native software tests even when the shell was used to cross-build.
     # Each lane is a standalone test command; inherited parent make flags can
     # add directory chatter to nested `make -n` output and break exact recipes.
-    for key in ("GOOS", "GOARCH", "GOARM", "MAKEFLAGS", "MFLAGS", "MAKELEVEL", "GNUMAKEFLAGS"):
+    # The selected interpreter is explicit in lane argv; an inherited relative
+    # PYTHON override is invalid after changing into a component directory.
+    for key in ("GOOS", "GOARCH", "GOARM", "MAKEFLAGS", "MFLAGS", "MAKELEVEL", "GNUMAKEFLAGS", "PYTHON"):
         environment.pop(key, None)
     result["results"] = []
     with tempfile.TemporaryDirectory(prefix="fes-test-paths-") as temporary:

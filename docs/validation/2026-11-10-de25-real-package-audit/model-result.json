@@ -1,0 +1,500 @@
+{
+  "status": "exact-artifact-launch-return-and-tape-fixture-passed-model-only",
+  "base": "1a242969dca104fd8597ddd3c5500b550da36fe1",
+  "test_source": "79fab5060fd4aadf2a25e536a941dbbb0b991c34",
+  "full_package_and_first_extended_tests_source": "6e2b90383",
+  "final_added_boundary_assertion": "79fab5060fd4aadf2a25e536a941dbbb0b991c34",
+  "changed_test_sha256": "c7f98cdd05fb999f78d5a20b51617b51d592751d7a8681b723963327c46043a6",
+  "source_original_sha256": "8c43a0391a1f6659a78af40054f84decb708b7aee3bff4743abd615260abd73b",
+  "fixture_diff_sha256": "f07dea8b9f3a4fd956a20da9cc4f43a5048003c69cc8a3d18c34f87c6c3948bf",
+  "jobs": {
+    "sealed-no-tape-control": {
+      "path": "out/nano-real-package-audit-20261110/sealed-no-tape-control-result.json",
+      "sha256": "8af8395948cd019c273573316409338313c108e275e3b089426837defc059f29",
+      "argv": [
+        "env",
+        "FES_NANO_DISTINCT_COMPUTER_BUILD=/home/deano/fes/out/dev/de25-embedded-os/out/nano-mac-startup-20261110/native-sdk",
+        "FES_NANO_DISTINCT_ROM_CATALOG=/home/deano/fes/out/dev/de25-embedded-os/out/nano-real-package-audit-20261110/without-tape",
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "180s",
+        "./nativefabric",
+        "-run",
+        "^TestBuiltDistinctROMPrograms",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.00462971185334,
+      "log_sha256": "c6ddd5fdb377e8e66e71851ae008e2ebbcaef2d7905d7f75da962307d9967f69"
+    },
+    "sealed-tape-model": {
+      "path": "out/nano-real-package-audit-20261110/sealed-tape-model-result.json",
+      "sha256": "877a2630c9efb0c91d235255475a3a4e2c06a42e873bffb628917e75fdbfffa4",
+      "argv": [
+        "env",
+        "FES_NANO_DISTINCT_COMPUTER_BUILD=/home/deano/fes/out/dev/de25-embedded-os/out/nano-mac-startup-20261110/native-sdk",
+        "FES_NANO_DISTINCT_ROM_CATALOG=/home/deano/fes/out/dev/de25-embedded-os/out/nano-controlled-mac-keyboard-trial-20261110/assets",
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "180s",
+        "-overlay=/home/deano/fes/out/dev/de25-embedded-os/out/nano-real-package-audit-20261110/tape-overlay.json",
+        "./nativefabric",
+        "-run",
+        "^TestBuiltDistinctROMPrograms",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 7.806165670976043,
+      "log_sha256": "fbae03fc4436472fb33cbf496fb059a54584d8697940a86d80f629c39a7314bb"
+    },
+    "sealed-complete-fixed": {
+      "path": "out/nano-real-package-audit-20261110/sealed-complete-fixed-result.json",
+      "sha256": "b45c549c0171e6dda4b847770f233027860416d930028c7f90c997626ebff8b8",
+      "argv": [
+        "env",
+        "FES_NANO_DISTINCT_COMPUTER_BUILD=/home/deano/fes/out/dev/de25-embedded-os/out/nano-mac-startup-20261110/native-sdk",
+        "FES_NANO_DISTINCT_ROM_CATALOG=/home/deano/fes/out/dev/de25-embedded-os/out/nano-controlled-mac-keyboard-trial-20261110/assets",
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "180s",
+        "./nativefabric",
+        "-run",
+        "^TestBuiltDistinctROMPrograms",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 11.21011440991424,
+      "log_sha256": "6132e4c1a90b86d9f3d014d8d6b3690bc965d1e08f679b8d28f9436550e52266"
+    },
+    "full-native-race": {
+      "path": "out/nano-real-package-audit-20261110/full-native-race-result.json",
+      "sha256": "c790a5a76d1ed5f718ef40970754a2176ec2381217a7cc59ac236bb0766d0fe7",
+      "argv": [
+        "env",
+        "FES_NANO_DISTINCT_COMPUTER_BUILD=/home/deano/fes/out/dev/de25-embedded-os/out/nano-mac-startup-20261110/native-sdk",
+        "FES_NANO_DISTINCT_ROM_CATALOG=/home/deano/fes/out/dev/de25-embedded-os/out/nano-controlled-mac-keyboard-trial-20261110/assets",
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "240s",
+        "./nativefabric"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 120.08428718778305,
+      "log_sha256": "67015e38ad7916b2a1129e8dccdb6e043dd5e7eb960fb5fa58452ef5babbdc24"
+    },
+    "sealed-no-tape-fixed": {
+      "path": "out/nano-real-package-audit-20261110/sealed-no-tape-fixed-result.json",
+      "sha256": "32aae2f4654bca6ac0e336af36aa54e46d036c00e73d4d7590027845b086bd25",
+      "argv": [
+        "env",
+        "FES_NANO_DISTINCT_COMPUTER_BUILD=/home/deano/fes/out/dev/de25-embedded-os/out/nano-mac-startup-20261110/native-sdk",
+        "FES_NANO_DISTINCT_ROM_CATALOG=/home/deano/fes/out/dev/de25-embedded-os/out/nano-real-package-audit-20261110/without-tape",
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "90s",
+        "./nativefabric",
+        "-run",
+        "^TestBuiltDistinctROMProgramsLaunchAndReturn$",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.4028989470098168,
+      "log_sha256": "e2e5d46f3101e784ce65c0c5305d53935b134a003afb94e9c83a44705e1d9cb8"
+    },
+    "tape-failure-boundaries": {
+      "path": "out/nano-real-package-audit-20261110/tape-failure-boundaries-result.json",
+      "sha256": "9a7946c2986693a8a9a34d81ca09e240180bf8ab00360db5ede4e39898225c2f",
+      "argv": [
+        "env",
+        "FES_NANO_DISTINCT_COMPUTER_BUILD=/home/deano/fes/out/dev/de25-embedded-os/out/nano-mac-startup-20261110/native-sdk",
+        "FES_NANO_DISTINCT_ROM_CATALOG=/home/deano/fes/out/dev/de25-embedded-os/out/nano-real-package-audit-20261110/assets",
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "90s",
+        "./nativefabric",
+        "-run",
+        "^TestBuiltDistinctROMProgramsTapeFailureDoesNotRunOrRetry$",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.206678307848051,
+      "log_sha256": "f61ae9eee4ef1643ce9dcc4fcbc2f9b07fd2081b2a5e626dcdb16fdf3c648f47"
+    },
+    "software-0": {
+      "path": "out/nano-real-package-audit-20261110/software-0-result.json",
+      "sha256": "0fc81e2e9916baa3280dd5f982030669a0cdc5dbeee3ce3a14947db31b4937fe",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4014506689272821,
+      "log_sha256": "eb657166f1578a2b9392731a72153d0d1d6ce1d50aadfc77f95e3d72ac138ac6"
+    },
+    "software-1": {
+      "path": "out/nano-real-package-audit-20261110/software-1-result.json",
+      "sha256": "6052ebabe43cc2055ca419895372fdc8e2433034c54fb7f08bf726a6c667e391",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.8024982591159642,
+      "log_sha256": "cb8614b0d952eec9e599683ec93ea23e3a90f3253b0b3563f533c302614210af"
+    },
+    "software-2": {
+      "path": "out/nano-real-package-audit-20261110/software-2-result.json",
+      "sha256": "eeeb8415ec30031539a7a85f797af0b3d86137afda905ea650b003df8dc96bbd",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "1a242969dca104fd8597ddd3c5500b550da36fe1",
+        "--head",
+        "6e2b9038369c6c7e66c640c21eca8d686981e39e"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20103914686478674,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-3": {
+      "path": "out/nano-real-package-audit-20261110/software-3-result.json",
+      "sha256": "b17cd3606a037fbf359721c0cc218c3dad2be81937f516d252765c6636994a12",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20084801991470158,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-4": {
+      "path": "out/nano-real-package-audit-20261110/software-4-result.json",
+      "sha256": "88b98211cda2e673ebb12011f8abc8cbc510cf497f0869646b8e8259d5d4d3dc",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/tamago/nativefabric/built_distinct_rom_test.go\"]"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 361.668037306983,
+      "log_sha256": "97ababb15ee6645068aecdefeef0111276a4346136228172cb7c893011f6afdc"
+    },
+    "software-5": {
+      "path": "out/nano-real-package-audit-20261110/software-5-result.json",
+      "sha256": "82444054fcb5d82ccdc5a5f03955908b1387ae94d5239bf813b93717bacde657",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.204872627975419,
+      "log_sha256": "0d3b9149ecd3c2180968462d0aaef1844c3af5a5185fce2b0ed1c02ec490ea89"
+    },
+    "software-6": {
+      "path": "out/nano-real-package-audit-20261110/software-6-result.json",
+      "sha256": "aee9a60d014208e3fe3f2840ae8cffaa7a4455e2187f8cff45558c4a63cdc46f",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 176.94510540296324,
+      "log_sha256": "f95eb57fb8c5313d08b15b6b495d551049a4e132f5ca99fb64c3bc6dd31ab64e"
+    },
+    "programming-model": {
+      "path": "out/nano-real-package-audit-20261110/programming-model-result.json",
+      "sha256": "892afa71077d3d90e04ae6ce07cfdde6dff7236d466c22411dcce098db9f309e",
+      "argv": [
+        "python3",
+        "out/nano-real-package-audit-20261110/operator_programming_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2013325970619917,
+      "log_sha256": "86a92f4cedf49e97e14ad755fcaa32ef29ca0a5f2352acd81c35a93f023dd5ce"
+    },
+    "serial-model": {
+      "path": "out/nano-real-package-audit-20261110/serial-model-result.json",
+      "sha256": "543e1d224bdbb30aa87f6ccb61074d72dffabd5787ba70dd6956bf39c526afca",
+      "argv": [
+        "python3",
+        "out/nano-real-package-audit-20261110/operator_transport_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.40109834796749055,
+      "log_sha256": "b2e42aafd458ae97cc010f18c0fe02879442c108ef7fff87d98ad5688fafadde"
+    },
+    "receipt-model": {
+      "path": "out/nano-real-package-audit-20261110/receipt-model-result.json",
+      "sha256": "e8736e0cb920cbf7c1a15f1cf36fe8fed55b79858bd2031095e3ea02148432f8",
+      "argv": [
+        "python3",
+        "out/nano-real-package-audit-20261110/paired_receipt_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20077463402412832,
+      "log_sha256": "f330cf765142f61deb8bf5eeffb2a67ed505ba9aeff4e818e68b4384b4c19778"
+    },
+    "startup-model": {
+      "path": "out/nano-real-package-audit-20261110/startup-model-result.json",
+      "sha256": "da8d9916a53bbfbc005d553b22a1bc6736dfbc6c5722ac9eb5bd363513043c3a",
+      "argv": [
+        "python3",
+        "out/nano-real-package-audit-20261110/startup_input_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20083491900004447,
+      "log_sha256": "d1aaab86fa02d87997171aeb3220b40f5e28046ec4d1674848f9ec5f589f297c"
+    },
+    "mmu-model": {
+      "path": "out/nano-real-package-audit-20261110/mmu-model-result.json",
+      "sha256": "a7716bcce35288fba5472155305892abadd46a4fcd5546751426f6da99861c16",
+      "argv": [
+        "python3",
+        "out/nano-real-package-audit-20261110/mmu_operator_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.200724276015535,
+      "log_sha256": "c3dc4ce80790d0a5a68dcff2d3009be59564c24dfe01144e0f6b50051e539cc3"
+    },
+    "failure-decoder": {
+      "path": "out/nano-real-package-audit-20261110/failure-decoder-result.json",
+      "sha256": "d22cf82285c3cc9a6c8c6aefcf5fe03c67d2ace83ccaa5f77b3496f61fabbf2c",
+      "argv": [
+        "python3",
+        "out/nano-real-package-audit-20261110/profile_decode_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2009439638350159,
+      "log_sha256": "62cfbeb2911bb226088bfb0918eb4b05008ea70b20bce854ee2ca8a564bd37a5"
+    },
+    "steps-model": {
+      "path": "out/nano-real-package-audit-20261110/steps-model-result.json",
+      "sha256": "e6a8b304ab5a5a6b08c329059ec4c6c871f04326ec586221807e4d471dce94a4",
+      "argv": [
+        "python3",
+        "out/nano-real-package-audit-20261110/stepped_receipt_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20103876595385373,
+      "log_sha256": "8796b7157103145480e0f1d8a7e42859bdd82790386478db1daf5ee111d3ac66"
+    },
+    "clock-model": {
+      "path": "out/nano-real-package-audit-20261110/clock-model-result.json",
+      "sha256": "09af48f10fe9d3f15cbbc907a47d7933a0bf3f6fff420d416dda108db87bfc46",
+      "argv": [
+        "python3",
+        "out/nano-real-package-audit-20261110/clock_glue_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20158595615066588,
+      "log_sha256": "f165ca3af9e162928344667698dab40c859c3e0e84487021290cba1984d96d8d"
+    },
+    "package-tape": {
+      "path": "out/nano-real-package-audit-20261110/package-tape-result.json",
+      "sha256": "ccb87d6f508e8243c6296a6d538d4f4989d9f46b75728da6d0b0e442b212aa56",
+      "argv": [
+        "env",
+        "FES_NANO_DISTINCT_COMPUTER_BUILD=/home/deano/fes/out/dev/de25-embedded-os/out/nano-mac-startup-20261110/native-sdk",
+        "FES_NANO_DISTINCT_ROM_CATALOG=/home/deano/fes/out/dev/de25-embedded-os/out/nano-real-package-audit-20261110/assets",
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "90s",
+        "-overlay=/home/deano/fes/out/dev/de25-embedded-os/out/nano-real-package-audit-20261110/test-overlay.json",
+        "./nativefabric",
+        "-run",
+        "^TestOperatorRealPackageTapePreflight$",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.805080082034692,
+      "log_sha256": "27e31309e90f53bcdd5c9d9c14789884ec2b2ea40a72b92dcfe924760b8f8027"
+    },
+    "offline-boundary-final": {
+      "path": "out/nano-real-package-audit-20261110/offline-boundary-final-result.json",
+      "sha256": "73b36cf3b55dff919c56beac84ca128205c6b39c8512654db5c627b53fd0fea3",
+      "argv": [
+        "python3",
+        "out/nano-real-package-audit-20261110/offline_boundary_tests.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2012428028974682,
+      "log_sha256": "f5d8db2ad0fa8a7ad7be885e1595824f968eb638b32d13be55933c129ace9c4e"
+    },
+    "final-committed-diff": {
+      "path": "out/nano-real-package-audit-20261110/final-committed-diff-result.json",
+      "sha256": "e4c21ba61a7ce4266819b4f6522dc65fff7693df3c7ebe0cf9b0e1fe3770ce94",
+      "argv": [
+        "python3",
+        "scripts/check_diff.py",
+        "--base",
+        "1a242969dca104fd8597ddd3c5500b550da36fe1",
+        "--head",
+        "79fab5060fd4aadf2a25e536a941dbbb0b991c34"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20103115611709654,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "original_failure": {
+    "result": {
+      "argv": [
+        "env",
+        "FES_NANO_DISTINCT_COMPUTER_BUILD=/home/deano/fes/out/dev/de25-embedded-os/out/nano-mac-startup-20261110/native-sdk",
+        "FES_NANO_DISTINCT_ROM_CATALOG=/home/deano/fes/out/dev/de25-embedded-os/out/nano-controlled-mac-keyboard-trial-20261110/assets",
+        "go",
+        "-C",
+        "platform/embedded/tamago",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "180s",
+        "./nativefabric",
+        "-run",
+        "^TestBuiltDistinctROMPrograms",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 1,
+      "timed_out": false,
+      "elapsed": 4.204147997079417,
+      "log_sha256": "7c182c91f310edb47480cbbe5794bb7e59c6af4ad98bc163361b77ef070740dc"
+    },
+    "result_sha256": "012e076aa44558bf68cbe258a26d8b43af003e2c8f11e6b67b6ae16370fbe106",
+    "classification": "missing media mailbox replies in artifact test fixture; not a demonstrated production runtime fault"
+  },
+  "runtime_reuse": {
+    "checkout": "79fab5060fd4aadf2a25e536a941dbbb0b991c34",
+    "changed_test_sha256": "c7f98cdd05fb999f78d5a20b51617b51d592751d7a8681b723963327c46043a6",
+    "changed_test_not_compiled_into_sdk": true,
+    "compiled_source_map_count": 2125,
+    "runtime_source_maps_match_current_tree": true,
+    "native_boot_id": "a02d808ea11eb54f",
+    "hardware_actions": false
+  },
+  "real_package_service_cycles": 3,
+  "tenfoot_app_cycles": 6,
+  "tenfoot_modeled_keyboard_cycles": 6,
+  "tape_failure_cases": 4,
+  "corrupt_content_cases": 4,
+  "configuration_identity_return_failure_cases": 3,
+  "hardware_actions": false,
+  "remote_builder_touched": false,
+  "physical_acceptance": false,
+  "live_authority": false,
+  "native_boot_id": "a02d808ea11eb54f",
+  "remaining": [
+    "fresh source-bound offline file admission after documentation checkpoint",
+    "operator availability and physical keyboard/HDMI return",
+    "native NIC and writable SD qualification",
+    "broader native package/appliance acceptance"
+  ]
+}

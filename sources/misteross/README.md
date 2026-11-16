@@ -21,6 +21,15 @@ Build contracts — identity, lanes, compilers, package bytes — live in
 Per-experiment results live in [the experiment catalog](docs/oss-experiments.md).
 Files under `docs/validation/` are dated records, not current instructions.
 The doc index is [docs/README.md](docs/README.md).
+The experimental embedded control/drain RTL is a standalone component under
+`cores/fes-common/rtl/fes_embedded_control.sv`. The FES
+[firmware verifier](../../platform/embedded/firmware/README.md) tests it against
+prepared TF-A functions. It has no RBF producer or shipped-core consumer.
+The [identity producer prototype](docs/architecture.md#embedded-control-endpoint)
+builds a source-bound host simulation of that component, not a DE25 bitstream.
+The separate [DE25 board-control diagnostic](prototypes/de25_board_control/README.md)
+can overlay the endpoint on an explicitly selected board build for integration
+experiments; it does not create a production package or program a board.
 
 ## What this module does not do
 
@@ -200,9 +209,9 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 | `fes.menu` | `python3 scripts/sim_fes_menu.py` | `make build-fes-menu-package` | none | image idle display, not a playable core |
 | `fes.pong` | `make sim-fes-pong` | `make build-fes-pong` | none on the product path | library, supported |
 | `fes.zx81` | `make sim-fes-zx81` (includes live session display) | `make build-fes-zx81` | `make build-fes-zx81-quartus` | library, supported |
-| `fes.zx80` | `make sim-fes-zx81` | `make build-fes-zx80` | none | library, experimental, package-only |
-| `fes.ts1000` | `make sim-fes-zx81` | `make build-fes-ts1000` | none | library, experimental, package-only |
-| `fes.ts1500` | `make sim-fes-zx81` | `make build-fes-ts1500` | none | library, experimental, package-only |
+| `fes.zx80` | `make sim-fes-zx81` | `make build-fes-zx80` | `make build-fes-zx81-quartus MODEL=zx80` | library, experimental, package-only |
+| `fes.ts1000` | `make sim-fes-zx81` | `make build-fes-ts1000` | `make build-fes-zx81-quartus MODEL=ts1000` | library, experimental, package-only |
+| `fes.ts1500` | `make sim-fes-zx81` | `make build-fes-ts1500` | `make build-fes-zx81-quartus MODEL=ts1500` | library, experimental, package-only |
 | `fes.coleco` | `make sim-fes-coleco` | `make build-fes-coleco` | `make build-fes-coleco-quartus` | library, supported |
 | `fes.sms` | `make sim-fes-sms` and `make sim-fes-sms-oss` | `make build-fes-sms` | `make build-fes-sms-quartus` | development; outside first-party catalog |
 | `fes.sg1000` | `make sim-fes-sg1000-rom-link` (plus `make sim-fes-sg1000` and `make sim-fes-sg1000-oss` diagnostics) | `make build-fes-sg1000` | `make build-fes-sg1000-quartus` | development; outside first-party catalog |
@@ -215,7 +224,9 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 | splash / idle | `make sim-fes-splash` | `make build-fes-splash` | none | `sealed/fes-splash.rbf`, not a play package |
 
 Set `FES_ZX81_ROM` to the user-supplied edition 3 BASIC image for the BASIC,
-expansion and SAVE simulations or the Quartus oracle. Pull-request CI runs
+expansion and SAVE simulations. No ZX81-family package build takes a ROM: the
+OSS and Quartus producers both seal blank ROM lanes, and the user's ROM is
+linked at launch. Pull-request CI runs
 `make sim-fes-zx81-smoke`, which boots the open diagnostic firmware and runs the
 ROM-independent model and ZX80 tape-load probes.
 

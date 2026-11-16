@@ -1,0 +1,12 @@
+{
+  "pid": 1306034,
+  "process_start_ticks": "177128206",
+  "cap_seconds": 180,
+  "start_monotonic": 1771282.065064568,
+  "argv": [
+    "python3",
+    "out/publication-loading-trial/admission.py",
+    "prepare",
+    "native-baseline"
+  ]
+}

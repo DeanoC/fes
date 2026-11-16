@@ -1,0 +1,181 @@
+{
+  "status": "publication-budget-repair-and-matched-chain-passed",
+  "scope": "matched publication-budget SDK/entry/firmware/SPL/composition with actual ELF and linked guard audit",
+  "input_hash_counts": {
+    "SDK": 2095,
+    "entry": 44,
+    "entry-native": 2095,
+    "BL31": 97,
+    "SPL": 97,
+    "composition": 26
+  },
+  "chain_sha256": "614d9ca788ca9a13f7468e375f5f42b839326ab52a53d0139b4156bd4bbc7632",
+  "package_id": "c69484491de11e1ee6d1c955b7d54e02e3fe513a0ad39d5376e23e539ba75444",
+  "build_id": "40bf9e4b00c1d25192fd06df5d97c5bd",
+  "native_boot_id": "0355dffba4d4c995",
+  "fit_sha256": "ff4d01c486a72a966c28302e870465663ae192134bbf1cb91da972a76b5f1980",
+  "fit_bytes": 8051232,
+  "entry_sha256": "852dfad842a8e343e51cc0034714db5cf63cb8d90a2790d19c7c11780f783914",
+  "bl31_sha256": "cb839fa7adca7ed07eadcfcfac96013ca0ffeb87c0cf2b5a11210ebf5ae11246",
+  "core_sha256": "a9baf204120486cf49ad6c0bd235893c111a49a829cfe7701996cd0ba063ab26",
+  "core_payload_unchanged": true,
+  "firmware_ram": {
+    "base": 327680,
+    "bss_base": 360448,
+    "bss_limit": 393216,
+    "cache_policy": "owned-cold-all-setway-before-nobits-v1",
+    "cookie": 5066077071256584193,
+    "exit_cache_policy": "owned-cold-dccsw-before-exit-v1",
+    "format": 5,
+    "limit": 393216,
+    "percpu_affinity_bytes": 4,
+    "percpu_affinity_offset": 24,
+    "percpu_alignment": 64,
+    "percpu_bytes": 256,
+    "percpu_count": 4,
+    "percpu_policy": "sealed-file-backed-ddr-percpu-v1",
+    "percpu_stride": 64,
+    "scope": "matched-spl-el3-ocram-nobits-v5",
+    "stack_end": 360448
+  },
+  "actual_bss_end": "0x5afc0",
+  "spl_final_guard_after_trace_before_atf": true,
+  "spl_guard_rejection_branch": true,
+  "private_ram_cookie_preserved": true,
+  "hardware_actions": false,
+  "core_load_acceptance": false,
+  "goal_complete": false,
+  "implementation_source": "fe5c4472f957cfff2432f53ee76a16e4a08bda2c",
+  "fpga_source": "0a91a980ab76459b9f5fa0ef672c98291051f5b9",
+  "native_sdk_entry_source": "fe5c4472f957cfff2432f53ee76a16e4a08bda2c",
+  "firmware_spl_source": "fe5c4472f957cfff2432f53ee76a16e4a08bda2c",
+  "checks": [
+    {
+      "label": "menu-session-focused",
+      "receipt": "out/nano-menu-publication-fix-20261107/menu-session-focused-result.json",
+      "sha256": "6780b19791bd3a65cab16dcc6e7666a8ef8fa6fc88aa4c422debf7db4343bd68",
+      "returncode": 0,
+      "elapsed": 19.462822614936158
+    },
+    {
+      "label": "menu-rtl-focused",
+      "receipt": "out/nano-menu-publication-fix-20261107/menu-rtl-focused-result.json",
+      "sha256": "a01cc24f4bb050dff979642d0363e8be93501291d118e16356d4ae0f373181bd",
+      "returncode": 0,
+      "elapsed": 108.21927652088925
+    },
+    {
+      "label": "software-0",
+      "receipt": "out/nano-menu-publication-fix-20261107/software-0-result.json",
+      "sha256": "fcd65e273f3d013da4a47c2bf4ce19bbe6e9b0874e5c5bfc7637b0e03c1900fd",
+      "returncode": 0,
+      "elapsed": 1.4171860571950674
+    },
+    {
+      "label": "software-1",
+      "receipt": "out/nano-menu-publication-fix-20261107/software-1-result.json",
+      "sha256": "3492066ed1f7da755d4b97ecc89ebf2945ab3259aec1e1f801a94284814e5e0d",
+      "returncode": 0,
+      "elapsed": 4.433374996064231
+    },
+    {
+      "label": "software-2",
+      "receipt": "out/nano-menu-publication-fix-20261107/software-2-result.json",
+      "sha256": "e3c3055a97c448b16fc3351b00b0e71c4ba81f9f20d3e2ced2130d4fa9c951f1",
+      "returncode": 0,
+      "elapsed": 0.2014143210835755
+    },
+    {
+      "label": "software-3",
+      "receipt": "out/nano-menu-publication-fix-20261107/software-3-result.json",
+      "sha256": "651904929c53557ff4ad3b85f94efcae2b1cb8c4eebc7edb7ea4c70c5d46a7b4",
+      "returncode": 0,
+      "elapsed": 0.2015269089024514
+    },
+    {
+      "label": "software-5",
+      "receipt": "out/nano-menu-publication-fix-20261107/software-5-result.json",
+      "sha256": "584c63770fbb6d9a1436cd7b27850504cc5bec0a2f1da1d44e9ef21112f00612",
+      "returncode": 0,
+      "elapsed": 540.107948875986
+    },
+    {
+      "label": "software-6",
+      "receipt": "out/nano-menu-publication-fix-20261107/software-6-result.json",
+      "sha256": "34b5d28e358f617d3ba09619bbc72844e2be32bc13f128d41be4a94ecaa140b8",
+      "returncode": 0,
+      "elapsed": 9.214435081928968
+    },
+    {
+      "label": "software-7",
+      "receipt": "out/nano-menu-publication-fix-20261107/software-7-result.json",
+      "sha256": "0f395837009c6512459a680649d90b9d0e7314284832d0cb12954e163982b8ea",
+      "returncode": 1,
+      "elapsed": 0.40059495298191905
+    },
+    {
+      "label": "integration-local-reference",
+      "receipt": "out/nano-menu-publication-fix-20261107/integration-local-reference-result.json",
+      "sha256": "8dfd3b1c1fad630fa2d4eadd2a6222d8d442299d4cf878d9f084e1637aeaddd9",
+      "returncode": 0,
+      "elapsed": 204.81592091498896
+    },
+    {
+      "label": "native-sdk-publication",
+      "receipt": "out/nano-menu-publication-fix-20261107/native-sdk-publication-result.json",
+      "sha256": "4e96350a3da6858dd1c232ea3764cf45f37da07df820911d14a96a0dde37c791",
+      "returncode": 0,
+      "elapsed": 43.691325896885246
+    },
+    {
+      "label": "native-entry-publication",
+      "receipt": "out/nano-menu-publication-fix-20261107/native-entry-publication-result.json",
+      "sha256": "696201e2910d3390697adb584512a8cd029191c489933deb510a9cd6507347d1",
+      "returncode": 0,
+      "elapsed": 65.53809234499931
+    },
+    {
+      "label": "bl31-publication",
+      "receipt": "out/nano-menu-publication-fix-20261107/bl31-publication-result.json",
+      "sha256": "e4786a555607ae35eb1c02e66fdba798b6edd16c4ff026574224fef470828b37",
+      "returncode": 0,
+      "elapsed": 236.41787580377422
+    },
+    {
+      "label": "uboot-publication",
+      "receipt": "out/nano-menu-publication-fix-20261107/uboot-publication-result.json",
+      "sha256": "68e711f709a2c922e1d859bb3e40cc980dc99f0760411dd447ad93f8afb3c01b",
+      "returncode": 0,
+      "elapsed": 243.4342760569416
+    },
+    {
+      "label": "compose-publication",
+      "receipt": "out/nano-menu-publication-fix-20261107/compose-publication-result.json",
+      "sha256": "29c03fa68771d755066a961bec89fe397011062b912f30280084639e0a3045d0",
+      "returncode": 0,
+      "elapsed": 79.61969051207416
+    },
+    {
+      "label": "audit-chain",
+      "receipt": "out/nano-menu-publication-fix-20261107/audit-chain-result.json",
+      "sha256": "1c2a80f3f547f2b5e3ca312b23b2cdf986332c09dfc270c9f6f7b1693385c94b",
+      "returncode": 0,
+      "elapsed": 0.20045326021499932
+    }
+  ],
+  "publication_timeout_seconds": 4,
+  "hardware_timeout_seconds": 1,
+  "max_polls": 64,
+  "outer_native_probe_seconds": 45,
+  "parent_tests": 1633,
+  "parent_skips": 3,
+  "actual_menu_rtl_cases": 39,
+  "actual_menu_rtl_skips": 0,
+  "committed_model_inputs": 489,
+  "original_integration_command": "failed during download before tests: temporary DNS resolution failure; receipt retained",
+  "replacement_integration": "passed with exact previously verified local pinned reference; source identity validator unchanged",
+  "hardware_acceptance": "not-run",
+  "native_menu_core_menu": false,
+  "physical_HDMI_qualified": false,
+  "timing_signoff": false
+}

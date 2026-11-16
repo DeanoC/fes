@@ -1,0 +1,15 @@
+{
+  "status": "passed-self-contained-JTAG-USB-reset-probe-retention",
+  "procedure_sha256": "cd52d5e8790fe6d31cb31e85e8c4fa27c522ef364042f8e03008cfb06fd311ca",
+  "archive": "/home/deano/fes-retained/de25-recovery-chain-reset-probe-prepared-20261115-r1/prepared-procedure.tar.gz",
+  "archive_sha256": "40f7c61c0869c5046a4bc2fd736936be2ab519c73b420a29ebaaacdef9ce6119",
+  "archive_bytes": 278724855,
+  "logical_files": 10972,
+  "verified_unique_blobs": 5069,
+  "hardware_actions": false,
+  "attempt_reserved": false,
+  "execution_approval_created": false,
+  "native_dispatch": false,
+  "human_authorization_recorded": true,
+  "physical_reset_qualified": false
+}

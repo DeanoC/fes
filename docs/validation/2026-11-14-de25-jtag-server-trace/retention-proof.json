@@ -1,0 +1,23 @@
+{
+  "status": "passed-frozen-server-traced-operator-retention",
+  "procedure_sha256": "e2bae5dd7ffd03fbfe5c67c9c6a5198e318a25f03c4678e461bde6a5086c9319",
+  "publication_source_head": "ea378a1bb608d4be7fa23e516578479e3490884a",
+  "archive": "/home/deano/fes-retained/de25-server-traced-loading-prepared-20261114-r1/prepared-procedure.tar.gz",
+  "archive_sha256": "9eb5859bdbb605096bbdb6af4b12ddbf41d281c0bac74404271cecb959e1a534",
+  "archive_bytes": 279414014,
+  "logical_files": 12239,
+  "verified_unique_blobs": 5119,
+  "frozen_files": 10910,
+  "superseded_unexecuted_procedure_sha256": "b8bbc02f4827ab5f66768e582da097a1c570a7f944c28be637d43fe2f467033c",
+  "models": 69,
+  "host_tracer_tests": 11,
+  "real_host_tracer_lifecycle": true,
+  "host_fixture_identity_injected": true,
+  "host_fixture_processes_stopped": true,
+  "hardware_actions": false,
+  "attempt_reserved": false,
+  "execution_approval_created": false,
+  "firmware_source_head": "8394acfa52b1cbd898010e33d8e70aa380dd632d",
+  "firmware_bytes_changed": false,
+  "physical_private_server_tracing_qualified": false
+}

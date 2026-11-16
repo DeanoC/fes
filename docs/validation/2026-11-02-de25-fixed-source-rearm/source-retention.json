@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "source_commit": "12b8f6227e9d5c3fa5ba9c880a50b92209e6efc0",
+  "source_bundle": "/home/deano/fes-retained/de25-native-reconfiguration-20261102/source.bundle",
+  "source_bundle_sha256": "5c8db9be5f1e49ef318c05047f85d198874a8660777ee77f61761014e8231f1e",
+  "source_bundle_bytes": 265314501,
+  "prerequisites": [],
+  "independent_restore": "/home/deano/fes-retained/de25-native-reconfiguration-20261102/source-restore.git",
+  "restore_head": "12b8f6227e9d5c3fa5ba9c880a50b92209e6efc0",
+  "alternates": false,
+  "full_fsck": true
+}

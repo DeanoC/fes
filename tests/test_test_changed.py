@@ -401,5 +401,149 @@ class TestChangedTest(unittest.TestCase):
         self.assertNotIn("results", document)
 
 
+    def test_native_compatibility_tracks_both_runtime_implementations(self):
+        for path in ('platform/embedded/tamago/runtimeadmission/computer_contract.go',
+                     'sources/libmister-runtime/src/native/core_package.cpp',
+                     'sources/mister-packages/packages/abi/fes_application.yaml'):
+            with self.subTest(path=path):
+                self.change(path)
+                command = next(c for c in self.plan()['commands']
+                               if c['label'] == 'native Go and runtime package compatibility parity')
+                self.assertEqual(command['cwd'], '.')
+                self.assertEqual(command['argv'][1:], ['platform/embedded/runtime/verify_compatibility.py'])
+                (self.root / path).unlink()
+        self.change('platform/embedded/tamago/runtimeadmission/README.md')
+        self.assertFalse(any(c['label'] == 'native Go and runtime package compatibility parity'
+                             for c in self.plan()['commands']))
+
+
+    def test_native_computer_schedules_portable_control_checks(self):
+        self.change('platform/embedded/tamago/computer/computer.go')
+        result = self.plan()
+        self.assertEqual(result['impact']['cores'], [])
+        command = next(c for c in result['commands'] if c['label'] == 'native computer transport and command failures')
+        self.assertEqual(command['cwd'], 'platform/embedded/tamago')
+        self.assertEqual(command['argv'], ['go', 'test', '-race', '-count=1', '-timeout', '90s', './computer/...'])
+        self.assertEqual([str(Path(command['cwd']) / path) for path in command['files']],
+                         ['platform/embedded/tamago/go.mod'])
+
+
+    def test_de25_board_control_schedules_standalone_avalon_check(self):
+        self.change("sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv")
+        result = self.plan()
+        self.assertEqual(result["impact"]["cores"], [])
+        command = next(c for c in result["commands"] if c["label"] == "DE25 Avalon control and native integration")
+        self.assertIn("--standalone", command["argv"])
+        self.assertIn("tclsh", command["tools"])
+
+
+    def test_embedded_producer_schedules_native_identity_integration(self):
+        self.change("sources/misteross/prototypes/embedded_control/producer.py")
+        result = self.plan()
+        self.assertEqual(result["impact"]["cores"], [])
+        command = next(c for c in result["commands"] if c["label"] == "embedded producer identity and native control integration")
+        self.assertIn("--allow-dirty", command["argv"])
+        git(self.root, "add", ".")
+        git(self.root, "commit", "-qm", "producer")
+        command = next(c for c in self.plan()["commands"] if c["label"] == "embedded producer identity and native control integration")
+        self.assertNotIn("--allow-dirty", command["argv"])
+
+
+    def test_menu_scanout_consumers_run_actual_pixel_integration(self):
+        paths = ('sources/misteross/prototypes/embedded_control/fes_embedded_menu_scanout.sv',
+                 'sources/misteross/prototypes/embedded_control/fes_embedded_menu_control.sv',
+                 'sources/misteross/prototypes/embedded_control/menu_bench.hpp',
+                 'sources/misteross/prototypes/embedded_control/menu_rpc.cpp',
+                 'platform/embedded/tamago/scanout/menu.go',
+                 'platform/embedded/tamago/scanout/menu_integration_test.go',
+                 'sources/misteross/cores/fes-menu/rtl/fes_menu_reader.v',
+                 'sources/misteross/prototypes/de25_board_control/fes_de25_read_width.sv',
+                 'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',
+                 'platform/embedded/tamago/scanout/testdata/frame/main.go')
+        for path in paths:
+            with self.subTest(path=path):
+                self.change(path)
+                command = next(c for c in self.plan()['commands']
+                               if c['label'] == 'owned menu scanout and actual Tenfoot pixels')
+                self.assertEqual(command['cwd'], '.')
+                self.assertEqual(command['argv'][1:],
+                                 ['sources/misteross/prototypes/embedded_control/verify_menu.py', '--allow-dirty'])
+                self.assertIn('go', command['tools'])
+                self.assertIn('verilator', command['tools'])
+                (self.root / path).unlink()
+        self.change(paths[0])
+        git(self.root, 'add', '.')
+        git(self.root, 'commit', '-qm', 'menu scanout')
+        command = next(c for c in self.plan()['commands']
+                       if c['label'] == 'owned menu scanout and actual Tenfoot pixels')
+        self.assertNotIn('--allow-dirty', command['argv'])
+
+
+    def test_window_stream_inputs_schedule_existing_producer_integration(self):
+        paths = ('sources/misteross/prototypes/embedded_control/fes_embedded_window_reader.sv',
+                 'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',
+                 'platform/embedded/tamago/scanout/surface.go',
+                 'platform/embedded/tamago/scanout/testdata/frame/main.go')
+        for path in paths:
+            with self.subTest(path=path):
+                self.change(path)
+                command = next(c for c in self.plan()['commands']
+                               if c['label'] == 'embedded producer identity and native control integration')
+                self.assertEqual(command['cwd'], '.')
+                self.assertEqual(command['argv'][1:],
+                                 ['platform/embedded/tamago/nativefabric/verify_producer.py', '--allow-dirty'])
+                self.assertIn('go', command['tools'])
+                self.assertIn('verilator', command['tools'])
+                (self.root / path).unlink()
+        self.change(paths[0])
+        git(self.root, 'add', '.')
+        git(self.root, 'commit', '-qm', 'window stream')
+        command = next(c for c in self.plan()['commands']
+                       if c['label'] == 'embedded producer identity and native control integration')
+        self.assertNotIn('--allow-dirty', command['argv'])
+
+
+    def test_native_sd_changes_schedule_c_go_pio_lifecycle(self):
+        self.change("platform/embedded/tamago/sdcontrol/session.go")
+        result = self.plan()
+        command = next(c for c in result["commands"] if c["label"] == "native SD firmware lease and PIO lifecycle")
+        self.assertEqual(command["cwd"], "platform/embedded/tamago")
+        self.assertEqual(command["argv"], ["go", "test", "-race", "-count=1", "-timeout", "90s", "./sdcontrol", "./sdhci", "./fat", "./packagestore", "./fatcheck", "./storagepolicy"])
+        self.assertIn("cc", command["tools"])
+        self.assertEqual(result["impact"]["cores"], [])
+        self.assertFalse(any(result["impact"]["test_modes"].values()))
+        parent = next(c for c in result["commands"] if c["label"] == "parent Python regressions")
+        self.assertEqual(parent["argv"][2:6], ["--video", "false", "--media", "false"])
+
+
+    def test_package_store_and_fat_changes_keep_native_storage_checks(self):
+        for path in ('platform/embedded/tamago/packagestore/store.go','platform/embedded/tamago/cmd/sdpackages/main.go','platform/embedded/tamago/fat/fat.go','platform/embedded/tamago/fatcheck/check.go','platform/embedded/tamago/cmd/sdfile/main.go','platform/embedded/tamago/storagepolicy/policy.go'):
+            with self.subTest(path=path):
+                self.change(path)
+                command=next(c for c in self.plan()['commands'] if c['label']=='native SD firmware lease and PIO lifecycle')
+                self.assertIn('./packagestore',command['argv'])
+                self.assertIn('mformat',command['tools'])
+
+
+    def test_sd_scratch_command_alone_schedules_owned_pio_checks(self):
+        self.change('platform/embedded/tamago/cmd/sdwrite/main.go')
+        command=next(c for c in self.plan()['commands'] if c['label']=='native SD firmware lease and PIO lifecycle')
+        self.assertIn('./sdcontrol',command['argv'])
+        self.assertIn('cc',command['tools'])
+
+
+    def test_native_fabric_changes_schedule_injected_firmware_rtl_integration(self):
+        for path in ('nativefabric/endpoint.go','board/arm64map/inspect.go','board/de25nano/fabric.go'):
+            with self.subTest(path=path):
+                changed='platform/embedded/tamago/'+path
+                self.change(changed)
+                result = self.plan()
+                self.assertTrue(any(c["label"] == "native runtime firmware and FPGA launch integration"
+                                    for c in result["commands"]))
+                self.assertEqual(result["impact"]["cores"], [])
+                (self.root/changed).unlink()
+
+
+
 if __name__ == "__main__":
     unittest.main()

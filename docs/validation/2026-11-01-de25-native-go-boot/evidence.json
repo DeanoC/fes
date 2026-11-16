@@ -1,0 +1,295 @@
+{
+  "format": 1,
+  "classification": "exact-artifact hardware serial diagnostic acceptance; actual Linux-free EL1 Go runtime; not active-device or core-load acceptance",
+  "test_source_commit": "6107628ca2f6aa24da167c25191dd3a1e22c9e0b",
+  "native_target_build_source_commit": "c07188ea36467f7c7abfa911819e6c7ede9c550b",
+  "board_serial": "TRWU8CBL",
+  "native_go_probe_passed": true,
+  "native_sd_fat32_accepted": false,
+  "native_usb_network_display_accepted": false,
+  "fpga_programming_accepted": false,
+  "physical_core_launch_return_accepted": false,
+  "native_identity": {
+    "build_id": "b9df2a8c60e2121d",
+    "sof_sha256": "062e2ea14d2ede08cbfb07e1b7b9467d8d98c93cd17b2ed198fee33f310e0c4f",
+    "fit_sha256": "2d9442589c50832a7c42b8c89add714eaba2b69cc49365a9ae7655df15708ae4"
+  },
+  "validation": {
+    "affected-cleanup-v16": {
+      "argv": [
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "c768ef002"
+      ],
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 241.57477701094467,
+      "log_sha256": "0ef05b9e94481ebcdeb6fae627e34d9d38ca3e0f9884675eec079232cbd6d385"
+    },
+    "bl31-cleanup-v16": {
+      "argv": [
+        "python3",
+        "platform/embedded/firmware/build_terasic.py",
+        "--reference-repo",
+        "out/terasic-git-restore-tfa",
+        "--cross-prefix",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+        "--nano-owned-bridges",
+        "--nano-cold-serial-entry",
+        "out/nano-handoff-entry-v1",
+        "--jobs",
+        "4",
+        "--output",
+        "out/nano-cold-serial-bl31-v16"
+      ],
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.001839546021074,
+      "log_sha256": "5eb68b9407830ace1e25ff6f0cd2de0123efc21f29205c6d2cf49a00a932ab41"
+    },
+    "uboot-cleanup-v16": {
+      "argv": [
+        "python3",
+        "platform/embedded/firmware/build_terasic_uboot.py",
+        "--reference-repo",
+        "out/terasic-git-restore-uboot",
+        "--bl31-build",
+        "out/nano-cold-serial-bl31-v16",
+        "--cross-prefix",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+        "--native-entry-build",
+        "out/nano-handoff-entry-v1",
+        "--jobs",
+        "4",
+        "--output",
+        "out/nano-cold-serial-uboot-v16"
+      ],
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 22.414318945026025,
+      "log_sha256": "e62e2e60f74b8423642108000e424d12ef06ec334adb577bd18a634cb948ffa5"
+    },
+    "package-cleanup-v16": {
+      "argv": [
+        "python3",
+        "platform/embedded/nano/package.py",
+        "--uboot-build",
+        "out/nano-cold-serial-uboot-v16",
+        "--entry-build",
+        "out/nano-handoff-entry-v1",
+        "--recovery-kit",
+        "out/nano-boot-recovery-kit-v3",
+        "--vendor-sof",
+        "/home/deano/fes-retained/de25-top-recovery-inventory-20261031/golden_top_hps.sof",
+        "--quartus-pfg",
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "--output",
+        "out/nano-cold-cleanup-v16-20261101"
+      ],
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.8024151088902727,
+      "log_sha256": "7604fc2be33634a74c7d8d4174ab334d9c130e8e963eb3e5a698e36c3eb52e40"
+    },
+    "upload-readiness-v16": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_upload.py",
+        "-v"
+      ],
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.4015880809165537,
+      "log_sha256": "0880b6fc9ec3e772dcec278c237bc2bcbf821f7ebe24a625bdd98aeb40283822"
+    },
+    "affected-upload-ready-v16": {
+      "argv": [
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "c07188ea3"
+      ],
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 230.76662909297738,
+      "log_sha256": "8e0fcd1fa2ca077d9ef0dca49c3216f52d8f78502091e6d10b5ac23007bb0210"
+    },
+    "package-upload-ready-v16": {
+      "argv": [
+        "python3",
+        "platform/embedded/nano/package.py",
+        "--uboot-build",
+        "out/nano-cold-serial-uboot-v16",
+        "--entry-build",
+        "out/nano-handoff-entry-v1",
+        "--recovery-kit",
+        "out/nano-boot-recovery-kit-v3",
+        "--vendor-sof",
+        "/home/deano/fes-retained/de25-top-recovery-inventory-20261031/golden_top_hps.sof",
+        "--quartus-pfg",
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "--output",
+        "out/nano-cold-cleanup-v16-v2-20261101"
+      ],
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.801980576943606,
+      "log_sha256": "62c74e51db67ec3e6dbddd44789ee225f3a1bf22f35c2486c7eba90de9a2db71"
+    }
+  },
+  "host_helper_fixtures": {
+    "helper-parser-result.json": {
+      "scope": "actual native helper with structured decoder and explicit host fixtures; no UART, device or programming",
+      "passed": true,
+      "cases": [
+        {
+          "case": 0,
+          "accepted": true,
+          "commands": 1
+        },
+        {
+          "case": 1,
+          "accepted": false,
+          "commands": 0
+        },
+        {
+          "case": 2,
+          "accepted": false,
+          "commands": 0
+        },
+        {
+          "case": 3,
+          "accepted": false,
+          "commands": 0
+        },
+        {
+          "case": 4,
+          "accepted": false,
+          "commands": 1
+        },
+        {
+          "case": 5,
+          "accepted": false,
+          "commands": 1
+        },
+        {
+          "case": 6,
+          "accepted": false,
+          "commands": 1
+        },
+        {
+          "case": 7,
+          "accepted": false,
+          "commands": 0
+        },
+        {
+          "case": 8,
+          "accepted": false,
+          "commands": 0
+        },
+        {
+          "case": 9,
+          "accepted": false,
+          "commands": 1
+        }
+      ],
+      "helper_sha256": "fba7ee0be4a44595a86a20333a894a9566882d2f5056d0fa4649c5c041c75444",
+      "decoder_sha256": "4c9dab5fde6356c14e610eb2028956251594ad80bd02e4e23b0435d0fcebdeea"
+    },
+    "experiment-fixtures.json": {
+      "passed": true,
+      "cases": [
+        {
+          "case": 0,
+          "passed": true,
+          "restore_attempted": true,
+          "native_attempts": 1
+        },
+        {
+          "case": 1,
+          "passed": false,
+          "restore_attempted": false,
+          "native_attempts": 0
+        },
+        {
+          "case": 2,
+          "passed": false,
+          "restore_attempted": true,
+          "native_attempts": 0
+        },
+        {
+          "case": 3,
+          "passed": false,
+          "restore_attempted": true,
+          "native_attempts": 0
+        },
+        {
+          "case": 4,
+          "passed": false,
+          "restore_attempted": true,
+          "native_attempts": 0
+        },
+        {
+          "case": 5,
+          "passed": false,
+          "restore_attempted": true,
+          "native_attempts": 0
+        },
+        {
+          "case": 6,
+          "passed": false,
+          "restore_attempted": true,
+          "native_attempts": 1
+        },
+        {
+          "case": 7,
+          "passed": false,
+          "restore_attempted": true,
+          "native_attempts": 1
+        },
+        {
+          "case": 8,
+          "passed": false,
+          "restore_attempted": true,
+          "native_attempts": 0
+        },
+        {
+          "case": 9,
+          "passed": false,
+          "restore_attempted": true,
+          "native_attempts": 1
+        },
+        {
+          "case": 10,
+          "passed": false,
+          "restore_attempted": true,
+          "native_attempts": 0
+        },
+        {
+          "case": 11,
+          "passed": false,
+          "restore_attempted": true,
+          "native_attempts": 1
+        }
+      ],
+      "helper_sha256": "c2af0b617700470d91ddb7d54b8b2f475971cd01441413eeb9c7b6d84c18753a"
+    }
+  },
+  "files": {
+    "native-console.log": "506147aaa13644167ef5166b5e96ebae0a10386f91575b7565aabd3f49f0a29e",
+    "native-result.json": "4bb3cfa07de859c72e6dcbf234dccb0933444ff0be28811040136593ce15f37f",
+    "experiment-result.json": "8d514ad7b4f58723e1970c7592aa700471573ba2a703c25f91cd2533412cfc79",
+    "retained-state.json": "a055c12e1b45fabdf2b5276e46afad43cf3287ea3a7371db64e6d40531041e5c",
+    "upload-result.json": "1a3a948bd5763f9b34d72de764427dae3b636b7d60ec118f8c7d5e40dfe2a4ee",
+    "unchanged-target-bytes.json": "2271d5feba7e9ed68a0e6c607bd699a1217d861797691af35318dcc5f85db6fe"
+  },
+  "next": "Native SD/FAT32 through explicit peripheral resume/stop ownership, then verified package/ROM loading; active FPGA and physical tenfoot launch/return remain open.",
+  "retention_directory": "/home/deano/fes-retained/de25-nano-cold-cookie-cleanup-20261101"
+}

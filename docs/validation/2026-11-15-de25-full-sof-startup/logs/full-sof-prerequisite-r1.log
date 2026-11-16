@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/publication/check-full-sof-prerequisite.py", line 4, in <module>
+    from fit_swap import Bundle
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/fit_swap.py", line 8, in <module>
+    from installer_boot_refresh import refresh_staged_boot
+ModuleNotFoundError: No module named 'installer_boot_refresh'

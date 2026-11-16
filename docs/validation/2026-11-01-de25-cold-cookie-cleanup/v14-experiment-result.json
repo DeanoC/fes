@@ -1,0 +1,61 @@
+{
+  "scope": "one-factor transport diagnostic: top TRWU8CBL cable6M versus prior15M; unchanged guarded v14 image/gates; restore original rate",
+  "source_commit": "53c5945edf3af8db3c92313fe4f1d884d44f00c7",
+  "native_sof_sha256": "b360202ec970fe3c0bc254590805eb631bbcba11c11681ef200655a2f4e0612e",
+  "target_clock": "6M",
+  "clock_change_attempted": true,
+  "pass": false,
+  "sd_write_commands_sent": false,
+  "started_utc": "2026-11-01T13:29:26.438600+00:00",
+  "stages": [
+    {
+      "clock_operation": "clock-before",
+      "returncode": 0,
+      "output": "15M"
+    },
+    {
+      "clock_operation": "clock-set-6M",
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "clock_operation": "clock-confirm-6M",
+      "returncode": 0,
+      "output": "6M"
+    },
+    {
+      "phase": "known recovery at6M",
+      "returncode": 0
+    },
+    {
+      "phase": "independent live-card check",
+      "returncode": 0
+    },
+    {
+      "clock_operation": "clock-before-native",
+      "returncode": 0,
+      "output": "6M"
+    },
+    {
+      "phase": "one native candidate at6M",
+      "returncode": 1
+    },
+    {
+      "clock_operation": "clock-restore",
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "clock_operation": "clock-restored-readback",
+      "returncode": 0,
+      "output": "15M"
+    }
+  ],
+  "original_clock": "15M",
+  "stage": "one native candidate at6M",
+  "error": "phase stopped: one native candidate at6M",
+  "restored_clock": "15M",
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "finished_utc": "2026-11-01T13:30:00.023070+00:00"
+}

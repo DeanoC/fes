@@ -1,0 +1,366 @@
+{
+  "README.md": {
+    "sha256": "86abf8fd6ad4c2fd2f99a38f27cafdec6bebc26750b95d39745abe7b4b3c19a9",
+    "bytes": 8921
+  },
+  "final-restoration-models.json": {
+    "sha256": "b8f2e8a31b3b45e4f0ce7d2727b9ee592561f81bc6e0aa8bb65ddd4b9205d74e",
+    "bytes": 5866
+  },
+  "final-restoration-prepared-retention.json": {
+    "sha256": "ebaa8202d76d39f3d85850af0b7082f81853b599a6c04fb27068ebb327a31bd3",
+    "bytes": 624
+  },
+  "final-restoration-procedure.json": {
+    "sha256": "377a0963ec31498978af035d479d260694069f96e5bd788855354a1002883bb4",
+    "bytes": 130
+  },
+  "final-restoration-result.json": {
+    "sha256": "15cb2a32c88a7c1c655fdafd4af57e86eba163429b7c250a0b8fb1981706e6e0",
+    "bytes": 464059
+  },
+  "final-restoration-retention.json": {
+    "sha256": "910419339e6861977586c52015c7e925dfd9d57ada1c0a3e88403a474c2cd861",
+    "bytes": 559
+  },
+  "full-sof-selection-proof.json": {
+    "sha256": "0cc642300eeb31514f846201eccf8f0be301772d17ff60548941184c47f15d77",
+    "bytes": 2382
+  },
+  "host-reset-recovery-result.json": {
+    "sha256": "accf449e700669bc083213b412043be9bc12ee18907a96e6c471b47d3f49187a",
+    "bytes": 1933
+  },
+  "host-reset-recovery-retention.json": {
+    "sha256": "81616240894b7a39b345b460086be84c33b8ff5d5cca0cda9c0ebb8083c990fd",
+    "bytes": 537
+  },
+  "host-usb-reset-plan.json": {
+    "sha256": "890d8e2dfc58c22eaf4727c3f7598297336cf5bccc8adcfa02b8108cfcdd7cb1",
+    "bytes": 2607
+  },
+  "host-usb-reset-result.json": {
+    "sha256": "59ce3c33dd2a2c7ce1ae16585ac251ee1fde0dbe0e91c4b461fe4e5ad32150c0",
+    "bytes": 1146
+  },
+  "host-usb-reset-retention-proof.json": {
+    "sha256": "b1dea247f4be8b7db004af9d07699c0ad41af3b3f30a05e0a191ee64dfb6dc44",
+    "bytes": 525
+  },
+  "initial-recovery-stop-result.json": {
+    "sha256": "36ca243b9b944d3c15d86c043545166cc020c970b720484122347f152cdaa191",
+    "bytes": 6990
+  },
+  "initial-recovery-stop-retention.json": {
+    "sha256": "e2f1f2eee01907b9eef9ff79471e2e7ad6d137f32ae0c3260156a5d6b81e8652",
+    "bytes": 771
+  },
+  "initial-trial-procedure-proof.json": {
+    "sha256": "49ac2c73e691dddac3d61c20b2033f1549f6cfeb9cfb52e4445a4abdc644ca92",
+    "bytes": 278
+  },
+  "initial-trial-retention-proof.json": {
+    "sha256": "b5f86c76a0ddc2d85ba345d0bb02950228d69fd3080be2be89cdce2c7f0589e4",
+    "bytes": 779
+  },
+  "logs/after-usb-reset-read-only-console.log": {
+    "sha256": "5c7c9e18373b1b8b2be963643f5290d2ec097552a8635ef98de55b86bdfca43b",
+    "bytes": 1400
+  },
+  "logs/after-usb-reset-recovery-program.log": {
+    "sha256": "b12079b3e37477cf91a07e5c70e59dc20277754df314582af2ef82833dae8dd6",
+    "bytes": 3041
+  },
+  "logs/candidate-files-restoration-collect-r1-result.json": {
+    "sha256": "063e5ab7e87dd9a8e9d356a000d37b27c3c50f8fad6d40d52686df885c09c2b1",
+    "bytes": 509
+  },
+  "logs/candidate-files-restoration-collect-r1.log": {
+    "sha256": "9d622709b8edce6a8df2687709193edf3b5563b0c764512d66a8f3ab18826eee",
+    "bytes": 268
+  },
+  "logs/candidate-files-restoration-physical-r1-result.json": {
+    "sha256": "5175b03524fc007ed670fdca07d9c2a659f68d8ed56e6d15bbc138fdb496a6f3",
+    "bytes": 462
+  },
+  "logs/candidate-files-restoration-physical-r1.log": {
+    "sha256": "0c19c2241a4205e981c8a182ed7edaaceca61872a3de66647396d8af8f5d2297",
+    "bytes": 770
+  },
+  "logs/candidate_flow.py": {
+    "sha256": "b18ab17f112e5057d9e58ad59bca7a84311d789324c36b1c0e0584717ac3a631",
+    "bytes": 2963
+  },
+  "logs/four-second-recovery-stop-retain-r1-result.json": {
+    "sha256": "7f3fb927b4af4efa3f59f2eb442c8e32a0156d0a0978b847cc90247ee68846df",
+    "bytes": 329
+  },
+  "logs/four-second-recovery-stop-retain-r1.log": {
+    "sha256": "61c390dad48fe48f4a67c420e54e06f11dbfe5a25cb19d91b85ed7f40c8733f3",
+    "bytes": 739
+  },
+  "logs/initial-recovery-program.log": {
+    "sha256": "2406af93016368773f13ecb165ed96253e42fb83430586adaaabfd4fe1012107",
+    "bytes": 3003
+  },
+  "logs/new-trial-native-program.log": {
+    "sha256": "026579f80e54e837d579c03b386438fc4aa26c76cd6be03fc5f26c60a552f189",
+    "bytes": 2349
+  },
+  "logs/preparation-after-reset-admit-candidate-r1-result.json": {
+    "sha256": "52c206fd045631904bef2e5d1adddba27669a00bfa02364024f6c14bdc136559",
+    "bytes": 345
+  },
+  "logs/preparation-after-reset-admit-candidate-r1.log": {
+    "sha256": "09ef94b5e81976bbb6bbadc43ce1b1792ebc7ed2eebfabd4f3fa8c49f767dc9e",
+    "bytes": 84
+  },
+  "logs/preparation-after-reset-admit-original-r1-result.json": {
+    "sha256": "2b619cfc14dc9a88d51400e73ad3c0e640d790d1345e2c3ffe64899bbcb25192",
+    "bytes": 343
+  },
+  "logs/preparation-after-reset-admit-original-r1.log": {
+    "sha256": "a4639c6eec8af1edf5fb5cf39addff10dff75c17011cb48aa28daafd3e66c5b3",
+    "bytes": 82
+  },
+  "logs/preparation-after-reset-default-root-r1-result.json": {
+    "sha256": "9e22dcf163b3a2216d57d26f9ad728f92b60370d99ea7f33065f0415f45da7c6",
+    "bytes": 424
+  },
+  "logs/preparation-after-reset-default-root-r1.log": {
+    "sha256": "0e4c88ac012755eb22c4eb0c553426e05b46854f7b5e954496dea0ee33ebae3a",
+    "bytes": 94
+  },
+  "logs/preparation-after-reset-freeze-r1-result.json": {
+    "sha256": "cc24f2a957bd3fcc86d1ba5e9cdf7fdd6ca0ffaa9d2d354e6c27dfa228884472",
+    "bytes": 334
+  },
+  "logs/preparation-after-reset-freeze-r1.log": {
+    "sha256": "15f7a5a3e5b9d08a70f1cc4ea8fb274a6faeb7b71e5150293a030e4d3a672f0d",
+    "bytes": 2003
+  },
+  "logs/preparation-after-reset-freeze-r2-result.json": {
+    "sha256": "94856732a317c850ee254214eb42d0f2c1e8b6421e64a8fba5e368fe64c90b5c",
+    "bytes": 334
+  },
+  "logs/preparation-after-reset-freeze-r2.log": {
+    "sha256": "15f7a5a3e5b9d08a70f1cc4ea8fb274a6faeb7b71e5150293a030e4d3a672f0d",
+    "bytes": 2003
+  },
+  "logs/preparation-after-reset-freeze-r3-result.json": {
+    "sha256": "6a57ad63a97118b4f4f7857dcd3a803fe186d09ec27d9740d5475ac8b65a98bd",
+    "bytes": 333
+  },
+  "logs/preparation-after-reset-freeze-r3.log": {
+    "sha256": "37c1ae7539e4037622aa36a0e524584f95049c07459682ce672a6ec0b91ceee8",
+    "bytes": 263
+  },
+  "logs/preparation-after-reset-models-r1-result.json": {
+    "sha256": "a81014c29e3a5f76c063f08b37b0aa355bc593c46a789f53429a3fb6c6e05836",
+    "bytes": 311
+  },
+  "logs/preparation-after-reset-models-r1.log": {
+    "sha256": "098efaaa9646f1e2b99a79abd7b181ce80bb3a1c058fbb037b5a7aa89707f36d",
+    "bytes": 2922
+  },
+  "logs/preparation-after-reset-models-r2-result.json": {
+    "sha256": "24bebc75f49c5ded97a1292f9b6fe0a6626c3d0f4f017c33feec107a13cda8ef",
+    "bytes": 311
+  },
+  "logs/preparation-after-reset-models-r2.log": {
+    "sha256": "1f65f32fc4afe5ae940cbee3c5777e930c0bd7e613a2002aae30bffd36422603",
+    "bytes": 487
+  },
+  "logs/preparation-after-reset-physical-r1-result.json": {
+    "sha256": "6cb8ce71dbb0456320c26f918aa643fd055418e400795f7478530dd6c0c5277e",
+    "bytes": 442
+  },
+  "logs/preparation-after-reset-physical-r1.log": {
+    "sha256": "f7b4ead6049b9dcf20b6c52c69a5eb99eeae6ada30e04fbab314214d845d59fe",
+    "bytes": 1644
+  },
+  "logs/preparation-after-reset-physical-retain-r1-result.json": {
+    "sha256": "97d86d1d9caff7665870989d5d7714f9c599a64b2c380118628ee5c815c66d9e",
+    "bytes": 336
+  },
+  "logs/preparation-after-reset-physical-retain-r1.log": {
+    "sha256": "3e00ad2ad63285ad2cb1aab3b77ca8ac72b699937a6582ec3eb4f5233682effd",
+    "bytes": 593
+  },
+  "logs/preparation-candidate-physical-r1-result.json": {
+    "sha256": "7bbbcbf8248648c109437b6561d455a2c1bc148cb128070ccd2f9c810bcae8e1",
+    "bytes": 452
+  },
+  "logs/preparation-candidate-physical-r1.log": {
+    "sha256": "5e76dafa6446ea7c0404ec41155eb08d32cc4b17d181e1bed7ea26d657815bde",
+    "bytes": 1076
+  },
+  "logs/program-failure-restoration-admit-r1-result.json": {
+    "sha256": "ea3639dbb39b451ee16a4cb289d05207038372ef9c1c94c1d142b540ffca0db9",
+    "bytes": 355
+  },
+  "logs/program-failure-restoration-admit-r1.log": {
+    "sha256": "a4639c6eec8af1edf5fb5cf39addff10dff75c17011cb48aa28daafd3e66c5b3",
+    "bytes": 82
+  },
+  "logs/program-failure-restoration-default-root-r1-result.json": {
+    "sha256": "864d97ef48235ae8fe082ca101adecf078c61776d6acfff11aa9a7ad3fa32999",
+    "bytes": 444
+  },
+  "logs/program-failure-restoration-default-root-r1.log": {
+    "sha256": "f6673c2c70cdeb22c2dfa091015def476ceda77d17781a9a2c6dc569abdea85b",
+    "bytes": 193
+  },
+  "logs/program-failure-restoration-freeze-r1-result.json": {
+    "sha256": "841eb8158697e4789077ecfc7f9cb5a1223daa4f57d58d994e3385fbc2005a16",
+    "bytes": 336
+  },
+  "logs/program-failure-restoration-freeze-r1.log": {
+    "sha256": "0e87f15619c05215d9f58be845060eec6ed0a3d85f91f924de3440f38d1c4562",
+    "bytes": 149
+  },
+  "logs/program-failure-restoration-models-r1-result.json": {
+    "sha256": "2356ee4cd2f43b6348f2741c64b2366db3c9978b61055a0343479e23f48b9c4a",
+    "bytes": 326
+  },
+  "logs/program-failure-restoration-models-r1.log": {
+    "sha256": "b9accb74b80ce4ef80d10f890b0082609e53ca2d1fc141931cf0f506d391102e",
+    "bytes": 1127
+  },
+  "logs/program-failure-restoration-models-r2-result.json": {
+    "sha256": "3d42eb7e1faea60294f72700d10d93211b45dc6c52e76203294d16206402f35a",
+    "bytes": 328
+  },
+  "logs/program-failure-restoration-models-r2.log": {
+    "sha256": "46e52c4216f54105abecd0a0cf0679a5eb3d0892a902294a92f8a02a82c51119",
+    "bytes": 297
+  },
+  "logs/program-failure-restoration-physical-r1-result.json": {
+    "sha256": "84558cf007cc60a451d0fd0c424394cfa1d7ea1f0e876550aa9cfbda8a65467c",
+    "bytes": 461
+  },
+  "logs/program-failure-restoration-physical-r1.log": {
+    "sha256": "0c19c2241a4205e981c8a182ed7edaaceca61872a3de66647396d8af8f5d2297",
+    "bytes": 770
+  },
+  "logs/program-failure-restoration-physical-retain-r1-result.json": {
+    "sha256": "031d87e9e39728a4ba02996a6c8a37606f9115ec34e6f2c2322d3ad31f31cbc7",
+    "bytes": 340
+  },
+  "logs/program-failure-restoration-physical-retain-r1.log": {
+    "sha256": "f6f5bb1a2a4743daeae8e2b20642e64d99ec35a146a54320286c5c9e09fd7887",
+    "bytes": 537
+  },
+  "logs/recovery-chain-reset-default-root-r1-result.json": {
+    "sha256": "1d050b6e4be03e221e6ca9ec430940167858111ad5f5dfce533c96552a7c32d5",
+    "bytes": 413
+  },
+  "logs/recovery-chain-reset-default-root-r1.log": {
+    "sha256": "e18c2b73a7f6857647a7ded33def1c86d01b0af3c80b18ec9eb206b3645946cd",
+    "bytes": 88
+  },
+  "logs/recovery-chain-reset-freeze-r1-result.json": {
+    "sha256": "d17fb30ab1f558c2e9b2004c7821ef931f6db88da7863ae0d2738a3171cd47b4",
+    "bytes": 318
+  },
+  "logs/recovery-chain-reset-freeze-r1.log": {
+    "sha256": "e8734ce7753c004632fd0dae5ccb1997bfdac64d864f0edbbc6a606cb43fc41a",
+    "bytes": 1594
+  },
+  "logs/recovery-chain-reset-freeze-r2-result.json": {
+    "sha256": "5adaa9c255360c25cdc4ab7121d08281855b041fa79ad10d6ecf1212531147a2",
+    "bytes": 318
+  },
+  "logs/recovery-chain-reset-freeze-r2.log": {
+    "sha256": "bb1e4e4fc61b689231f5e833ab51b15eedeb93cddd8fb2ae0a4d05626c319467",
+    "bytes": 109
+  },
+  "logs/recovery-chain-reset-model-r1-result.json": {
+    "sha256": "4e39e4ad3f7672b38a390e75baffb32438a5fa5b1efac8d4e73148ce68c34b70",
+    "bytes": 301
+  },
+  "logs/recovery-chain-reset-model-r1.log": {
+    "sha256": "7ba96cea382d3e10b27ae234f8c91e2e20d1eac3f210153f91cc16e3eaaacadf",
+    "bytes": 448
+  },
+  "logs/recovery-chain-reset-physical-r1-result.json": {
+    "sha256": "d84f165eb0e33fa407eba91ce02469e4e14477b900d6241555082107f29f503b",
+    "bytes": 431
+  },
+  "logs/recovery-chain-reset-physical-r1.log": {
+    "sha256": "b47d3924c63aedd3a80388524c8d429099682f2815ed4d4beecc38af12db9d80",
+    "bytes": 246
+  },
+  "logs/recovery-chain-reset-physical-retain-r1-result.json": {
+    "sha256": "7845937c50f4dd5fb93adc6a6e276fb3c1d1c330dcaf19f1c7741b99d65618ba",
+    "bytes": 332
+  },
+  "logs/recovery-chain-reset-physical-retain-r1.log": {
+    "sha256": "fad150bf224fb217850788e8e52e5c8f127ac095cbd2609b778434f1a4a00273",
+    "bytes": 515
+  },
+  "logs/recovery-chain-usb-reset-physical-r1-result.json": {
+    "sha256": "956492fd900defbe240dfb83834f8cdd34019f5ca2b99f3f83638de7afaf125f",
+    "bytes": 435
+  },
+  "logs/recovery-chain-usb-reset-physical-r1.log": {
+    "sha256": "f51855a0d43cf39389b385b146258d428f076519eb44f48c0a23c96ab99eb99d",
+    "bytes": 930
+  },
+  "logs/recovery-chain-usb-reset-retain-r1-result.json": {
+    "sha256": "a9b025ded00646b028736727138dafd7f7070a20cebfdf69f134709725bb4d1e",
+    "bytes": 307
+  },
+  "logs/recovery-chain-usb-reset-retain-r1.log": {
+    "sha256": "81bca2c68782e78df16a2271af3eb149c51150f2144aec026d152f17336e9a14",
+    "bytes": 501
+  },
+  "logs/recovery_start.py": {
+    "sha256": "6185cf1434d8528afba3f0a5c3bb8646d92c4bc02715ca857a447da6c3b082f9",
+    "bytes": 3483
+  },
+  "logs/test_recovery_start.py": {
+    "sha256": "fea25d1a04fb35090143bcd1c48bb19ff8cd5606719f967d42b75264e575a0eb",
+    "bytes": 948
+  },
+  "new-trial-models.json": {
+    "sha256": "9a4cf09b8cc0d09ba7416c405b60d1c7334fae876b82bdf4402e15a97fa1bab5",
+    "bytes": 13942
+  },
+  "new-trial-prepared-retention.json": {
+    "sha256": "db2cc3d13334dda780a80d4f64c32486348c35394b1426b1d1fb25f16964210f",
+    "bytes": 785
+  },
+  "new-trial-procedure.json": {
+    "sha256": "f2ab85c2f5c63a0baa1a3076c8cc26c231a8599886941f0dcf076b39cee2425c",
+    "bytes": 277
+  },
+  "new-trial-result.json": {
+    "sha256": "b4e545d737075d602d13792d7f3a0b48563269321cdc0a0f018946f13c30798a",
+    "bytes": 11793
+  },
+  "new-trial-retention.json": {
+    "sha256": "69fbc756d17c16a7d80cc474c2a7c5f8c85708bc16a5bfd9dbfade8712346ee9",
+    "bytes": 617
+  },
+  "recovery-probe-procedure-proof.json": {
+    "sha256": "4b2bf99550987af94828b000b116795b63829531244f6ec9f00d55790237a389",
+    "bytes": 130
+  },
+  "recovery-probe-retention-proof.json": {
+    "sha256": "7f9eb301a9116a0fcf4d17fa1e6108e1c15088ece9a27820e442537cc705a38a",
+    "bytes": 660
+  },
+  "restoration-procedure-proof.json": {
+    "sha256": "35ba0faef17d7d55c89934f43e4bbaf3ddb7b072cff1279d4bfadbaf2a956b23",
+    "bytes": 130
+  },
+  "restoration-retention-proof.json": {
+    "sha256": "be18d2af3bd7febb18d3e670ea7bc585ffe71a4415ee02a2bc996eebf1880fb0",
+    "bytes": 618
+  },
+  "restoration-retention.json": {
+    "sha256": "259eaa75bc3d292172f8a5ad566dfd42d6261e3413f0e6bae0057da8f4d17261",
+    "bytes": 6147
+  }
+}

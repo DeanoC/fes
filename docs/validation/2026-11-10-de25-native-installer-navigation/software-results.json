@@ -1,0 +1,200 @@
+{
+  "base": "8e1be9a2fd2c2afeb4c2195e160ef187fd5ba7ea",
+  "source_head": "f2b0e7a3ae68f810dab93de58c9ab1fbfcbc618e",
+  "complete": true,
+  "passed": true,
+  "checks": [
+    {
+      "index": 0,
+      "label": "test_affected.py",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_affected.py",
+          "-v"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 0.6019262110348791,
+        "log_sha256": "b70e3f148d5dc698a8e7aa1f320fb6be47fed71fdf7aa9667c83692f67292d09"
+      },
+      "passed": true,
+      "source_head": "49752d8b21cd1625ab0ee22892a20e628af36b87",
+      "carried_forward": true
+    },
+    {
+      "index": 1,
+      "label": "test_test_changed.py",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_test_changed.py",
+          "-v"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 2.8170385849662125,
+        "log_sha256": "367c9e8620ae0cd2882a5f0e6da961fa623c33d4affd76a1751911530f9ed28f"
+      },
+      "passed": true,
+      "source_head": "49752d8b21cd1625ab0ee22892a20e628af36b87",
+      "carried_forward": true
+    },
+    {
+      "index": 2,
+      "label": "committed whitespace",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/check_diff.py",
+          "--base",
+          "8e1be9a2fd2c2afeb4c2195e160ef187fd5ba7ea",
+          "--head",
+          "f2b0e7a3ae68f810dab93de58c9ab1fbfcbc618e"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 0.20284464000724256,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "passed": true,
+      "source_head": "f2b0e7a3ae68f810dab93de58c9ab1fbfcbc618e",
+      "carried_forward": false
+    },
+    {
+      "index": 3,
+      "label": "working whitespace",
+      "result": {
+        "argv": [
+          "git",
+          "diff",
+          "--check",
+          "HEAD",
+          "--"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 0.2039014478214085,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "passed": true,
+      "source_head": "49752d8b21cd1625ab0ee22892a20e628af36b87",
+      "carried_forward": true
+    },
+    {
+      "index": 4,
+      "label": "parent Python regressions",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/parent_tests.py",
+          "--video",
+          "false",
+          "--media",
+          "false",
+          "--paths-json",
+          "[\"platform/embedded/nano/README.md\", \"platform/embedded/nano/installer_trace.py\", \"platform/embedded/nano/tenfoot_trace.py\", \"platform/embedded/nano/upload.py\", \"platform/embedded/tamago/cmd/fpgaload/tenfoot.go\", \"platform/embedded/tamago/nativefabric/README.md\", \"platform/embedded/tamago/nativefabric/program_install_app_test.go\", \"platform/embedded/tamago/nativefabric/program_serial.go\", \"platform/embedded/tamago/nativefabric/program_serial_test.go\", \"sources/FogCast/README.md\", \"sources/FogCast/ui/tenfoot/core_library.go\", \"sources/FogCast/ui/tenfoot/core_library_test.go\", \"tests/test_nano_installer_trace.py\", \"tests/test_nano_upload.py\"]"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 586.980426092865,
+        "log_sha256": "800769fe8d6a370094026a2db8ab700d7a558db69784b3be7bbb543f7624befd"
+      },
+      "passed": true,
+      "source_head": "49752d8b21cd1625ab0ee22892a20e628af36b87",
+      "carried_forward": true
+    },
+    {
+      "index": 5,
+      "label": "working-tree generated consumer consistency",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "-c",
+          "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 14.240111035993323,
+        "log_sha256": "0d3b9149ecd3c2180968462d0aaef1844c3af5a5185fce2b0ed1c02ec490ea89"
+      },
+      "passed": true,
+      "source_head": "49752d8b21cd1625ab0ee22892a20e628af36b87",
+      "carried_forward": true
+    },
+    {
+      "index": 6,
+      "label": "native runtime firmware and FPGA launch integration",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "platform/embedded/tamago/nativefabric/verify.py"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 408.78124443185516,
+        "log_sha256": "cebf22f072cd724e98d27d33de573ede1c8656cff0e2f9b30a81bf4abda38a6e"
+      },
+      "passed": true,
+      "source_head": "49752d8b21cd1625ab0ee22892a20e628af36b87",
+      "carried_forward": true
+    },
+    {
+      "index": 7,
+      "label": "host Go and UI tests",
+      "result": {
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/host_tests.py",
+          "--ui-if-needed",
+          "--paths-json",
+          "[\"platform/embedded/nano/README.md\", \"platform/embedded/nano/installer_trace.py\", \"platform/embedded/nano/tenfoot_trace.py\", \"platform/embedded/nano/upload.py\", \"platform/embedded/tamago/cmd/fpgaload/tenfoot.go\", \"platform/embedded/tamago/nativefabric/README.md\", \"platform/embedded/tamago/nativefabric/program_install_app_test.go\", \"platform/embedded/tamago/nativefabric/program_serial.go\", \"platform/embedded/tamago/nativefabric/program_serial_test.go\", \"sources/FogCast/README.md\", \"sources/FogCast/ui/tenfoot/cartridge_test.go\", \"sources/FogCast/ui/tenfoot/core_library.go\", \"sources/FogCast/ui/tenfoot/core_library_test.go\", \"tests/test_nano_installer_trace.py\", \"tests/test_nano_upload.py\"]"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "returncode": 0,
+        "timed_out": false,
+        "elapsed": 122.64623875706457,
+        "log_sha256": "78397f07da1d2d8d21eec7d546c5295a322eb529413897a31b88e1624505f8c8"
+      },
+      "passed": true,
+      "source_head": "f2b0e7a3ae68f810dab93de58c9ab1fbfcbc618e",
+      "carried_forward": false
+    }
+  ],
+  "carry_forward_scope": "Only the FogCast cartridge test changed after the initial checks. Host suites and committed whitespace reran at the final head; production and native integration inputs are unchanged. Parent Python selection remains the full lane.",
+  "initial_failed_host_result": {
+    "argv": [
+      "/usr/bin/python3",
+      "scripts/host_tests.py",
+      "--ui-if-needed",
+      "--paths-json",
+      "[\"platform/embedded/nano/README.md\", \"platform/embedded/nano/installer_trace.py\", \"platform/embedded/nano/tenfoot_trace.py\", \"platform/embedded/nano/upload.py\", \"platform/embedded/tamago/cmd/fpgaload/tenfoot.go\", \"platform/embedded/tamago/nativefabric/README.md\", \"platform/embedded/tamago/nativefabric/program_install_app_test.go\", \"platform/embedded/tamago/nativefabric/program_serial.go\", \"platform/embedded/tamago/nativefabric/program_serial_test.go\", \"sources/FogCast/README.md\", \"sources/FogCast/ui/tenfoot/core_library.go\", \"sources/FogCast/ui/tenfoot/core_library_test.go\", \"tests/test_nano_installer_trace.py\", \"tests/test_nano_upload.py\"]"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+    "returncode": 1,
+    "timed_out": false,
+    "elapsed": 95.16245142905973,
+    "log_sha256": "431c147b8d3926375a7b882d11d8b8208994e8d71e624846d24be57cfd274b72"
+  },
+  "host_failure_resolution": "Controlled base/current reproduction and a response barrier in the test only; see cartridge-control-result.json",
+  "hardware_actions": false
+}

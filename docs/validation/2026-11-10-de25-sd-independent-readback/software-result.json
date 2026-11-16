@@ -1,0 +1,43 @@
+{
+  "status": "passed-fresh-recovery-only-preparation",
+  "base_commit": "ff86569d0",
+  "native_write_source": "9b495a4d04ccad6ca1e1168ba11e5505cef1e549",
+  "retained_native_build": "e4487fd3d4c10b80",
+  "operator_models": {
+    "status": "passed",
+    "scope": "host model only; actual retained native trace checked, no hardware/preflight/grant",
+    "negative_cases": [
+      "pass",
+      "final_sd_contained",
+      "native_sd_writes_verified",
+      "native_write_outcome_unknown",
+      "raw-failure",
+      "operation.native",
+      "operation.recovery",
+      "operation.retry"
+    ],
+    "allowed_programming_operation": [
+      [
+        "readback-program-consumed.json",
+        "recovery",
+        "x"
+      ]
+    ],
+    "source_sha256": {
+      "out/nano-sd-independent-readback-20261110/operator_models.py": "f8837246c8a091dbcf0262d0c880ccef4b1da011513c6b307e4a58e2fffe12a3",
+      "out/nano-sd-independent-readback-20261110/trial/program_gate.py": "11c57415029be928683a6b6890b93306c3e75cbc31ff501b3d95973dec3abb52",
+      "out/nano-sd-independent-readback-20261110/trial/common.py": "c7dbef367f297239c6b3746e984f0eef655c382e36ec02abd5b6f09ce5be2d26"
+    },
+    "live_authority": false
+  },
+  "frozen_files": 2406,
+  "host_parser_checks": "docs/validation/2026-11-10-de25-sd-readback-parser/software-result.json",
+  "programming_operations": [
+    "readback"
+  ],
+  "native_programming_in_this_attempt": false,
+  "sd_writes_in_this_attempt": false,
+  "hardware_attempted": false,
+  "live_authority": false,
+  "ordinary_admission": false
+}

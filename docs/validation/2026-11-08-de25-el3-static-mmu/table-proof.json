@@ -1,0 +1,42 @@
+{
+  "chain_sha256": "3a32bb5c96c7187ec55c1f1e0fc831a6382e3d41f7c0fd0fc846aa1b1cbd9ee7",
+  "core_load_accepted": false,
+  "ddr_limit": 3221225472,
+  "firmware_limit": 2149580800,
+  "format": 1,
+  "granule": 4096,
+  "hardware_authority": false,
+  "image_sha256": "af9cbc0a423ed97b29598a767be3bc400cdcea3c79e929c18e365cf8452de434",
+  "layout": {
+    "data_end": 2147754309,
+    "data_start": 2147753984,
+    "image_end": 2147758080,
+    "ro_end": 2147729408,
+    "tables": {
+      "ddr": 2147745792,
+      "firmware": 2147749888,
+      "gic": 2147741696,
+      "low": 2147733504,
+      "ocram": 2147737600,
+      "root": 2147729408
+    },
+    "tables_end": 2147753984,
+    "tables_start": 2147729408
+  },
+  "mair": 4456703,
+  "pa_bits": 32,
+  "runtime_enabled": false,
+  "scope": "experimental-el3-static-private-cache-v1",
+  "status": "static-table-layout-verified",
+  "table_bytes": 24576,
+  "table_sha256": {
+    "ddr": "e93f54d1740b5c2b599ad5001ff1472cd9e2d2c56e56dabfc3f6b5703bbf5a0c",
+    "firmware": "1f6c73847d140f2553e02d63e963d9f080224ccd7960003b6af234e14e952bba",
+    "gic": "2eb3cc769aac8aa9c3d23f4940e43087907d28e403f725680d22788085a27ed6",
+    "low": "6e8c3737601b922acdce59a041e9adf0d84d315f8aa9785a068c3c820761871c",
+    "ocram": "e05bd8cec4a650a47ed983fd4b7dbb11703e04c719e64a6a8b7371c1742ecd3a",
+    "root": "65188e1188fc69b37fe7b9bd0eea6336534c354e840acd23e471c4bd59310ed5"
+  },
+  "tcr": 2155885856,
+  "va_bits": 32
+}

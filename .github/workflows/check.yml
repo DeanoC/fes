@@ -91,7 +91,7 @@ jobs:
         # that read current guides run here for every change.
         run: |
           python3 scripts/check_doc_links.py
-          python3 -m unittest tests.test_check_doc_links tests.test_support_matrix tests.test_image_assembly tests.test_consistency tests.test_core_build tests.test_coordination tests.test_v1_firmware_licensing_doc -v
+          python3 -m unittest tests.test_check_doc_links tests.test_support_matrix tests.test_image_assembly tests.test_consistency tests.test_core_build tests.test_coordination tests.test_v1_firmware_licensing_doc tests.test_s8_census_checker -v
   parent-tests:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).parent
@@ -127,6 +127,15 @@ jobs:
             '
           fi
           ffmpeg -version
+      - name: Install embedded model test dependencies
+        if: matrix.partition == 'software'
+        run: |
+          sudo timeout --signal=TERM --kill-after=30s 600s bash -e -c '
+            apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3 update
+            apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3 install --no-install-recommends -y mtools verilator
+          '
+          mformat -V
+          verilator --version
       - name: Run selected parent partition
         env:
           TEST_VIDEO: ${{ fromJSON(needs.plan.outputs.test_modes).video }}

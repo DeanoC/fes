@@ -1,0 +1,10 @@
+{
+  "pid": 1484607,
+  "process_start_ticks": "177380615",
+  "cap_seconds": 120,
+  "start_monotonic": 1773806.156458877,
+  "argv": [
+    "python3",
+    "out/publication/run-independent-tape-layout.py"
+  ]
+}

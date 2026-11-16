@@ -1,0 +1,101 @@
+{
+  "scope": "provisional-console-array-windows-CLI-crosscheck-stopped",
+  "whole_attempt_passed": false,
+  "operator_source": "fb18301812ead2e9c0b01b03565da42bdf054ea3",
+  "board": "TRWU8CBL",
+  "console_packet_read_complete": true,
+  "root_packet_grants_checked": 22,
+  "bytes_read": 12288,
+  "windows": [
+    {
+      "offset": 0,
+      "bytes": 4096,
+      "sha256": "b20398f8fe201dce733f34935660c7d2e18fae3d075daae6dfa2b69ccc7a3cd9"
+    },
+    {
+      "offset": 2097152,
+      "bytes": 4096,
+      "sha256": "7c55cd44890b919ed78850d6c54ecf6e526231fe13e309ec7443d07b0204c549"
+    },
+    {
+      "offset": 16773120,
+      "bytes": 4096,
+      "sha256": "f47a8ec3e9aff2318d896942282ad4fe37d6391c82914f54a5da8a37de1300c6"
+    }
+  ],
+  "concatenated_sha256": "cc8eb4bcf7a09e04ed259b57fabaa3a656698faf75276b79e0f535175aacdc56",
+  "AF_identity": "20bb18",
+  "status_before_reads": [
+    0,
+    0
+  ],
+  "configuration_before_and_after": [
+    24576,
+    0,
+    1704704,
+    3221225609,
+    3,
+    0,
+    15
+  ],
+  "QSPI_close_acknowledged": true,
+  "CLI_crosscheck_passed": false,
+  "CLI_failure": "read-only command failed: cli-before",
+  "CLI_error_code": 87,
+  "CLI_response_observed": false,
+  "flash_array_read_qualified": false,
+  "complete_backup": false,
+  "flash_write_commands_sent": false,
+  "sd_write_commands_sent": false,
+  "image_programming_attempted": false,
+  "CPU_Park_reobserved": false,
+  "independent_cleanup": {
+    "status": "passed-independent-provisional-console-read-and-failed-CLI-cleanup",
+    "whole_attempt_passed": false,
+    "response_file_independently_verified": true,
+    "immutable_staged_scripts_verified": true,
+    "selected_private_packet_service": "/devices/A5E(A013BB23B|B013BB23BCS)|..@1#3-11.1-iface0#DE25-Nano#localhost:38891/(link)/JTAG/packet",
+    "discovered_service_paths": [
+      "SERVICE /devices/A5E(A013BB23B|B013BB23BCS)|..@1#3-11.1-iface0#DE25-Nano#localhost:38891/(link)/JTAG/(110:132 v1 #0)/phy_0",
+      "SERVICE /devices/A5E(A013BB23B|B013BB23BCS)|..@1#3-11.1-iface0#DE25-Nano#localhost:38891/(link)/JTAG/(110:132 v1 #1)/phy_1",
+      "SERVICE /devices/A5E(A013BB23B|B013BB23BCS)|..@1#3-11.1-iface0#DE25-Nano#localhost:38891/(link)/JTAG/packet"
+    ],
+    "private_namespace_members": [],
+    "private_server_absent": true,
+    "clock_restored": true,
+    "private_client_mode_restored": true,
+    "exact_usb_permissions_restored": true,
+    "uart_owners": [],
+    "flash_array_read_qualified": false,
+    "console_packet_read_complete": true,
+    "windows": [
+      [
+        0,
+        1024
+      ],
+      [
+        2097152,
+        1024
+      ],
+      [
+        16773120,
+        1024
+      ]
+    ],
+    "bytes_compared": 12288,
+    "packet_and_CLI_bytes_match": false,
+    "CLI_first_scan_failed": true,
+    "CLI_SDM_response_observed": false,
+    "guard_records_independently_replayed": true,
+    "flash_write_commands_sent": false,
+    "sd_write_commands_sent": false,
+    "complete_backup": false
+  },
+  "raw_result_sha256": "3bb42fdd51bb036e898a9c51106c777b5d75b73257c4a9b6b21f1f5309a4c34d",
+  "raw_cli_log_sha256": "4886f57e0445b919a411512fe9e7638c414f3f457920eae528071861bfd4a2f9",
+  "proofs_sha256": {
+    "reader-model-proof.json": "1a0719dae5958d2c6577d9e59e7d0f78d4fa92c065ff49e4e67845d177f742a9",
+    "loader-model-proof.json": "36a34fcfd270c1bc2e253c7cb4b196b7cda8155f6fb31aba2c0b47c5310548cf",
+    "cleanup-evidence.json": "83ca6b994453238a1e471a639c6c7f19e8441dd4a73752bbfe321ad34043075d"
+  }
+}

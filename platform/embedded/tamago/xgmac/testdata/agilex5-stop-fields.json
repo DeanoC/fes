@@ -1,0 +1,47 @@
+{
+  "scope": "register field facts; not NoC drain or board qualification",
+  "source": "https://docs.altera.com/v/u/resources/864455/agilextm-5-cs-and-r1-suffix-opn-hps-register-map",
+  "archive_sha256": "c4720c039263d5423662994fc41cd1c9a324f9fcf3bc1187a3a742f532537925",
+  "member_sha256": "871c382b1b390efe7d33d8cfa0dd9cab5f48571296aa71288687d5e20a89d208",
+  "archive_label": "RC24",
+  "member_version": "RC28_B0",
+  "mac_base": 276889600,
+  "status_offset": 12640,
+  "fields": {
+    "TPS": {
+      "register": "DMA_CH0_Status",
+      "bit": 1,
+      "width": 1
+    },
+    "RPS": {
+      "register": "DMA_CH0_Status",
+      "bit": 8,
+      "width": 1
+    },
+    "DDE": {
+      "register": "DMA_CH0_Status",
+      "bit": 9,
+      "width": 1
+    },
+    "FBE": {
+      "register": "DMA_CH0_Status",
+      "bit": 12,
+      "width": 1
+    },
+    "CDE": {
+      "register": "DMA_CH0_Status",
+      "bit": 13,
+      "width": 1
+    },
+    "TRCSTS": {
+      "register": "MTL_TxQ0_Debug",
+      "bit": 1,
+      "width": 2
+    },
+    "TXQSTS": {
+      "register": "MTL_TxQ0_Debug",
+      "bit": 4,
+      "width": 1
+    }
+  }
+}

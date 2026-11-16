@@ -1,0 +1,34 @@
+{
+  "status": "passed",
+  "source_commit": "726a16f4e2d979e68fb67e85e97c916e3e94ee4f",
+  "classification": "matched native computer control candidate; no hardware execution",
+  "fresh_sdk": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-activity-20261102/native-sdk",
+  "fresh_entry": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-computer-activity-20261102/native-entry",
+  "sdk_receipt_sha256": "1b40b511145173ce3df3880ec52e2117a595dcc7f98491cd519dfe1326588011",
+  "entry_receipt_sha256": "a4cd254c7454b75c0cce152d158f756de953d7d9b3b39542d02cca703a739ae6",
+  "entry_image_sha256": "9af14f10e080d066186be007ac808900f7d1dbefe5ec1cdaf9437a1e134ce982",
+  "fresh_selected_sdk_entry_sources_verified": true,
+  "secure_capture_trace": true,
+  "spl_atf_trace": true,
+  "atf_handoff": {
+    "bl32": 0,
+    "bl33": 2149580800,
+    "bytes": 81981,
+    "fdt": 0,
+    "format": 2,
+    "params_base": 3220176896,
+    "params_bytes": 1048576,
+    "scope": "loaded-bl31-handoff-v2",
+    "sha256": "c4e150fc2f39d2e9a833fe07e3f005493018d50236f0c539998eabd157a8b98f",
+    "target": 2147483648
+  },
+  "bounded_ddr_read_selected": false,
+  "computer_control_selected": true,
+  "hps_computer_sha256": "e6f40c8b236dfdeb1a41f09f04d87b932de8ff4fa9692f8339967a58503bc743",
+  "runtime_admission": false,
+  "steps": [
+    "bl31-atf",
+    "uboot-atf",
+    "hps-atf-compose"
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "status": "passed-USB-close-drain-affected-checks-and-retention",
+  "source_commit": "fdf6ce1650a3f1b882042688eed81b9c05ca1116",
+  "wrapper": {
+    "argv": [
+      "make",
+      "-C",
+      "/home/deano/fes/out/dev/de25-setup-release",
+      "test-changed",
+      "TEST_CHANGED_ARGS=--base f595868d8a5c1bfc51edd19586840a8002d0506d"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1149.1402643148322,
+    "log_sha256": "bbf337842be6c98faf803540915bdd427501d21f395f9ba50c97ad55a2f774b8"
+  },
+  "selected_phases": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "Go command inventory",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "native runtime firmware and FPGA launch integration",
+      "lane": "parent",
+      "returncode": 0
+    }
+  ],
+  "archive": "/home/deano/fes-retained/de25-usb-close-drain-affected-20261114-r1/affected-checks.tar.gz",
+  "archive_sha256": "f85a7bf5c4ee335600d5787f1aefa95af9ff67d58bd3879e1691338f80e36e2b",
+  "files": {
+    "usb-close-changed-r1.log": {
+      "sha256": "bbf337842be6c98faf803540915bdd427501d21f395f9ba50c97ad55a2f774b8",
+      "bytes": 800050,
+      "mode": 436
+    },
+    "usb-close-changed-r1-result.json": {
+      "sha256": "355aed64c4c81743bc5811d262f803b29c2eed4dfb76c160372a36e8ae83e8dd",
+      "bytes": 398,
+      "mode": 436
+    },
+    "usb-close-changed-r1-process.json": {
+      "sha256": "9051df7b3c4950bd2cd440a3cee9dc30178a761aa9e5a22d1c70d26469648203",
+      "bytes": 303,
+      "mode": 436
+    }
+  },
+  "hardware_actions": false,
+  "hardware_acceptance": false
+}

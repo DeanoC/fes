@@ -1,0 +1,28 @@
+
+/home/deano/fes/out/dev/de25-embedded-os/out/nano-secure-control-20261109/native-bl31/source/build/agilex5/release/bl31/bl31.elf:     file format elf64-littleaarch64
+
+
+Disassembly of section .ro:
+
+0000000080023a1c <fes_nano_mmu_platform_scope>:
+    80023a1c:	a9b97bfd 	stp	x29, x30, [sp, #-112]!
+    80023a20:	d2800602 	mov	x2, #0x30                  	// #48
+    80023a24:	90000061 	adrp	x1, 8002f000 <hps_io_registers+0x708>
+    80023a28:	910003fd 	mov	x29, sp
+    80023a2c:	9103e021 	add	x1, x1, #0xf8
+    80023a30:	910103e0 	add	x0, sp, #0x40
+    80023a34:	9400257e 	bl	8002d02c <memcpy>
+    80023a38:	a94407e0 	ldp	x0, x1, [sp, #64]
+    80023a3c:	a90107e0 	stp	x0, x1, [sp, #16]
+    80023a40:	910043e2 	add	x2, sp, #0x10
+    80023a44:	a94507e0 	ldp	x0, x1, [sp, #80]
+    80023a48:	a90207e0 	stp	x0, x1, [sp, #32]
+    80023a4c:	a94607e0 	ldp	x0, x1, [sp, #96]
+    80023a50:	a90307e0 	stp	x0, x1, [sp, #48]
+    80023a54:	90000061 	adrp	x1, 8002f000 <hps_io_registers+0x708>
+    80023a58:	b0c001c0 	adrp	x0, 5c000 <hps_io+0x170>
+    80023a5c:	9103c021 	add	x1, x1, #0xf0
+    80023a60:	911e0000 	add	x0, x0, #0x780
+    80023a64:	97fffe50 	bl	800233a4 <fes_nano_mmu_scope>
+    80023a68:	a8c77bfd 	ldp	x29, x30, [sp], #112
+    80023a6c:	d65f03c0 	ret

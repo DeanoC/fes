@@ -1,0 +1,10 @@
+{
+  "pid": 1347794,
+  "process_start_ticks": "177153433",
+  "cap_seconds": 360,
+  "start_monotonic": 1771534.339577966,
+  "argv": [
+    "python3",
+    "out/publication/retain-publication-loading-prepared.py"
+  ]
+}

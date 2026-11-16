@@ -1,0 +1,164 @@
+{
+  "status": "passed",
+  "source_commit": "c272cb2b320740220fc2b7bb1c8dfd92a0ffe6f6",
+  "board_revision": "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+  "started_utc": "2026-11-02T15:53:14.721493+00:00",
+  "worker_limit": 16,
+  "phase_cap_seconds": 120,
+  "overall_cap_seconds": 840,
+  "hardware_access": false,
+  "calls": [
+    {
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+        "--version"
+      ],
+      "bound_seconds": 120,
+      "pid": 2627276,
+      "returncode": 0,
+      "elapsed_seconds": 0.46575120906345546
+    },
+    {
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+        "--version"
+      ],
+      "bound_seconds": 120,
+      "pid": 2627320,
+      "returncode": 0,
+      "elapsed_seconds": 0.435602406039834
+    },
+    {
+      "argv": [
+        "/data/altera_pro/26.3/qsys/bin/qsys-script",
+        "--quartus-project=golden_top",
+        "--search-path=custom_ip/**/*,fes_mailbox,$",
+        "--script=integrate-mailbox.tcl"
+      ],
+      "bound_seconds": 120,
+      "pid": 2627352,
+      "returncode": 0,
+      "elapsed_seconds": 18.79509919101838
+    },
+    {
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_ipgenerate",
+        "--clear_ip_generation_dirs",
+        "golden_top"
+      ],
+      "bound_seconds": 120,
+      "pid": 2627859,
+      "returncode": 0,
+      "elapsed_seconds": 1.3155693570151925
+    },
+    {
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_ipgenerate",
+        "--generate_project_ip_files",
+        "--synthesis=verilog",
+        "golden_top"
+      ],
+      "bound_seconds": 120,
+      "pid": 2627912,
+      "returncode": 0,
+      "elapsed_seconds": 85.97835252690129
+    },
+    {
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-c",
+        "/home/deano/builds/de25-native-activity-20261102-c272cb2b3/source/out/ddr-board/board/hps/project/output_files/golden_top.sof",
+        "/home/deano/builds/de25-native-activity-20261102-c272cb2b3/source/out/ddr-board/board/hps/diagnostic-with-vendor-spl.sof",
+        "-o",
+        "hps_path=/home/deano/builds/de25-native-activity-20261102-c272cb2b3/source/out/ddr-board/board/hps/project/software/u-boot/spl/u-boot-spl-dtb.hex"
+      ],
+      "bound_seconds": 120,
+      "pid": 2660484,
+      "returncode": 0,
+      "elapsed_seconds": 1.427017141948454
+    },
+    {
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-c",
+        "/home/deano/builds/de25-native-activity-20261102-c272cb2b3/source/out/ddr-board/board/hps/project/output_files/golden_top.sof",
+        "/home/deano/builds/de25-native-activity-20261102-c272cb2b3/source/out/ddr-board/board/hps/hps-first.rbf",
+        "-o",
+        "hps_path=/home/deano/builds/de25-native-activity-20261102-c272cb2b3/source/out/ddr-board/board/hps/project/software/u-boot/spl/u-boot-spl-dtb.hex",
+        "-o",
+        "hps=on"
+      ],
+      "bound_seconds": 120,
+      "pid": 2660533,
+      "returncode": 0,
+      "elapsed_seconds": 4.280723327072337
+    },
+    {
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-i",
+        "/home/deano/builds/de25-native-activity-20261102-c272cb2b3/source/out/ddr-board/board/hps/hps-first.hps.rbf"
+      ],
+      "bound_seconds": 120,
+      "pid": 2661015,
+      "returncode": 0,
+      "elapsed_seconds": 0.39529670600313693
+    },
+    {
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-i",
+        "/home/deano/builds/de25-native-activity-20261102-c272cb2b3/source/out/ddr-board/board/hps/hps-first.core.rbf"
+      ],
+      "bound_seconds": 120,
+      "pid": 2661048,
+      "returncode": 0,
+      "elapsed_seconds": 0.3925417970167473
+    }
+  ],
+  "seal_result_sha256": "3be73de6ce5faa8712133cdc69c4b7809ed4708b1dc2af6477360751968b21e6",
+  "seal": {
+    "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+    "build_inputs_sha256": "f3ef110a5d47915fcae827fceac84ad395bfa0501c917c9a23399ebd48b19e96",
+    "classification": "sealed diagnostic only; physical HPS reconfiguration not qualified",
+    "combined_sof_sha256": "de796e75b9c351e9ce99235b6ee0ab234d339962707d72c798310d3b0c0abb4f",
+    "commands": [
+      [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-c",
+        "/home/deano/builds/de25-native-activity-20261102-c272cb2b3/source/out/ddr-board/board/hps/project/output_files/golden_top.sof",
+        "/home/deano/builds/de25-native-activity-20261102-c272cb2b3/source/out/ddr-board/board/hps/diagnostic-with-vendor-spl.sof",
+        "-o",
+        "hps_path=/home/deano/builds/de25-native-activity-20261102-c272cb2b3/source/out/ddr-board/board/hps/project/software/u-boot/spl/u-boot-spl-dtb.hex"
+      ],
+      [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-c",
+        "/home/deano/builds/de25-native-activity-20261102-c272cb2b3/source/out/ddr-board/board/hps/project/output_files/golden_top.sof",
+        "/home/deano/builds/de25-native-activity-20261102-c272cb2b3/source/out/ddr-board/board/hps/hps-first.rbf",
+        "-o",
+        "hps_path=/home/deano/builds/de25-native-activity-20261102-c272cb2b3/source/out/ddr-board/board/hps/project/software/u-boot/spl/u-boot-spl-dtb.hex",
+        "-o",
+        "hps=on"
+      ],
+      [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-i",
+        "/home/deano/builds/de25-native-activity-20261102-c272cb2b3/source/out/ddr-board/board/hps/hps-first.hps.rbf"
+      ],
+      [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-i",
+        "/home/deano/builds/de25-native-activity-20261102-c272cb2b3/source/out/ddr-board/board/hps/hps-first.core.rbf"
+      ]
+    ],
+    "hps_first_pair_sha256": "de1293b1328e1f4a0fef5703d28e0f3f4eae7e447fa616ed609ce45fc376925e",
+    "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+    "raw_sof_sha256": "a2bdc97ad74a3198e15e9f7539e62e37ee59cf50de82e63748fdef383f0e6544",
+    "rbf_sha256": "e9255d3dc149e7db17f012c3032f8c1da245d913ded3947a2342034eb1927ac0",
+    "rbf_size": 1646592,
+    "vendor_spl_sha256": "096f53ea0bb0ba6e7449b2acf012eae734840dbcdd2943b506567bad2f72f823"
+  },
+  "output": "/home/deano/builds/de25-native-activity-20261102-c272cb2b3/source/out/ddr-board/board/hps",
+  "finished_utc": "2026-11-02T16:02:26.972231+00:00"
+}

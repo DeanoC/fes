@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "/usr/bin/python3",
+    "out/usb-close-candidate-files-restoration/run_restoration.py",
+    "--procedure-sha256",
+    "b94fc4870e849bb85cbb2f81bfef6e713ab5146a6ab871d457f573370faf8f58",
+    "--execute"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 271.77833060501143,
+  "log_sha256": "0c19c2241a4205e981c8a182ed7edaaceca61872a3de66647396d8af8f5d2297"
+}

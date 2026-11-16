@@ -1,0 +1,188 @@
+{
+  "status": "passed-independent-tape-source-integration",
+  "source_snapshot": {
+    "base_commit": "a0c9cdcf1b4f59bfb534a38a7a7013b0bca66b0f",
+    "sources": {
+      "platform/embedded/entry/build.py": "37e1a25a1f7c50e5b014a0aa2101e210387394a1ad3613170fec2a7ef88ec03f",
+      "platform/embedded/firmware/nano_tape_platform.inc": "c2dfa162fcc669189b3629322a75ab32e37c6a3a99be0d41be1de7ee0670fb74",
+      "platform/embedded/firmware/tests/nano_mixed_cold_test.inc": "be4872f0025144a69d0a7780f9683b056d4a011743e76c213c8b9f5811ba5b50",
+      "platform/embedded/firmware/tests/nano_mixed_tape_test.inc": "b90ebff639b8f5bbdbb5e464fd4b45c215df9592faec2fa40a165369e7009339",
+      "platform/embedded/nano/cold_profile.py": "d9786f43eb24cf4e006fa962360c75e235b2a840be04d8b02a566ec0af32101b",
+      "platform/embedded/nano/initial_tape.py": "238b479f91cd776eb085f4e836b7c7ba6239effd9f68a54a3a66ef98b97a5610",
+      "platform/embedded/tamago/board/arm64map/tape_test.go": "117f66e66bced44d82fd111371c3070494057d5ffeb3c734db8af2c6b2c2fea7",
+      "platform/embedded/tamago/board/de25nano/configuration.go": "4520ac019bac8b8ce5e5efb03d7524c154ebf96923a30f80b2fa5fde14024e4e",
+      "platform/embedded/tamago/board/de25nano/devices.go": "e1d181e217d6c24b95dff856e7e18cd2e1c9520542d51f67f0bbd3f5936ef081",
+      "platform/embedded/tamago/board/de25nano/fabric.go": "0f917a1b942480536956af6e5c3b882840229a2e80c7600917c663ab0d6b8bcf",
+      "platform/embedded/tamago/board/de25nano/initial_tape.go": "2cb488863c5fe569678438752cb8eb3c4af4eba6f78840db028d341909d064ea",
+      "platform/embedded/tamago/board/de25nano/initial_tape_test.go": "43797272b16267d215966d02982a14e0f7ac8ec4b22042d38eb765bfa064569e",
+      "platform/embedded/tamago/build.py": "c4e7a5a836a763a1e451e8576e44f17ab37d4066afad0376ce316c82d796e3b4",
+      "platform/embedded/tamago/nativefabric/configuration_arena.go": "779698b6d79407f375d804aef62f78bbdde028b6e2ef5c6836cabc07dba5f7de",
+      "platform/embedded/tamago/nativefabric/initial_tape_arena.go": "0a7f7a63423755539beeeb9bf6299f11fa9e1aa94a8e3f687f55feaebfb9942f",
+      "platform/embedded/tamago/nativefabric/initial_tape_publication.go": "e6725bc115801192abcf02e32a87d4cf77ec5dc36e0bce1beb6af37c1736165b",
+      "platform/embedded/tamago/nativefabric/initial_tape_publication_test.go": "16ba3de4e21f187585ed746f6d90c17d7ffe7f52097e62dd36b3565fd30eb874",
+      "platform/embedded/tamago/nativefabric/retained_arena_test.go": "ade3fb7e10a09c5bef6509ada71f164c3bfc05548e0433992cda90852c1a4f93",
+      "tests/test_nano_firmware_mmu.py": "6f71f8e9fd1cdbeafbc46e80c61bf64429afd4708bff61bb80a7fb8121531cdb",
+      "tests/test_nano_initial_tape.py": "d61bf715e7ca7e0c7712e14f5df75c7442c10a5950d802c9130682285a619406",
+      "tests/test_nano_mixed_cold.py": "1dae82218aba1080ab08558a1154ff02689e5052024e3741d1b574431e233627"
+    },
+    "hardware_actions": false
+  },
+  "runs": {
+    "wired-tape-models-r2": {
+      "argv": [
+        "python3",
+        "out/publication/run-wired-tape-models.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 223.16397367813624,
+      "log_sha256": "6191dab36dd3e288eaad17ed9470991843e65e14e33ed0292e85e584f6cc2321"
+    },
+    "wired-tape-python-r2": {
+      "argv": [
+        "python3",
+        "out/publication/run-wired-tape-python.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 99.05786201101728,
+      "log_sha256": "aba62145a27945495a22b0ba9dbf1da9649ee582a65da0f8d6fec9f2744a9f4d"
+    },
+    "wired-tape-selection-r2": {
+      "argv": [
+        "python3",
+        "out/publication/run-wired-tape-selection.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2009122942108661,
+      "log_sha256": "b96c1a790811cc83afb2a8679bcddb17c3da120c6e44b9c9d9e7d98e7b542eca"
+    },
+    "wired-tape-symbol-r1": {
+      "argv": [
+        "python3",
+        "out/publication/check-wired-tape-symbol.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.8034358418080956,
+      "log_sha256": "5ee45242b923b389eee2e276868c44f3b0bc59441790eec97ec9d40696d08357"
+    },
+    "wired-tape-contract-r2": {
+      "argv": [
+        "python3",
+        "out/publication/check-wired-tape-contract.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.2019409099593759,
+      "log_sha256": "9b5a6ba752529b433e78b132d6e0b3b2c1f342bad9c8541d9975f278aa2a41da"
+    },
+    "wired-tape-docs-r2": {
+      "argv": [
+        "python3",
+        "out/publication/check-wired-tape-docs.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.6008554259315133,
+      "log_sha256": "92ebf1a7fb6cd3d9228bbf799c66eeb313055907861639c4361307ba1e70676e"
+    },
+    "wired-tape-affected-r1": {
+      "argv": [
+        "python3",
+        "out/publication/run-wired-tape-affected.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1899.4134609571192,
+      "log_sha256": "50d8a34a6fdd19a355e8425177ccb7037781e47b31da6901ab90d4596e6434b1"
+    }
+  },
+  "go_race": {
+    "tests": 342,
+    "subtests": 1252
+  },
+  "contract": {
+    "status": "passed-generated-C-and-compiled-Go-tape-layout",
+    "memory": {
+      "format": 1,
+      "scope": "nano-independent-initial-tape-memory-v1",
+      "base": 2508193792,
+      "bytes": 2097152,
+      "payload_bytes": 16384,
+      "metadata_base": 2510286848,
+      "metadata_bytes": 4096,
+      "mapping": "normal-uncached-XN",
+      "lifetime": "pinned-until-reboot",
+      "configuration_reused": false,
+      "physical_authority": false
+    },
+    "c_values": {
+      "base": 2508193792,
+      "bytes": 2097152,
+      "payload_bytes": 16384,
+      "metadata_base": 2510286848,
+      "metadata_bytes": 4096
+    },
+    "go_values": {
+      "base": 2508193792,
+      "bytes": 2097152,
+      "metadata_base": 2510286848,
+      "metadata_bytes": 4096,
+      "payload_bytes": 16384
+    },
+    "input_sdk_sha256": "703f7f6d9171f9da46df762e77b670df1d0acd316f07f47fb1fb9efa6efd797a",
+    "input_entry_sha256": "71f0e150c3e0b384fd3018ad5bc90b36ae2238aa65e07bf0ed1698c2f0ddcefd",
+    "sources": {
+      "platform/embedded/nano/initial_tape.py": "238b479f91cd776eb085f4e836b7c7ba6239effd9f68a54a3a66ef98b97a5610",
+      "platform/embedded/nano/cold_profile.py": "d9786f43eb24cf4e006fa962360c75e235b2a840be04d8b02a566ec0af32101b",
+      "platform/embedded/tamago/nativefabric/initial_tape_arena.go": "0a7f7a63423755539beeeb9bf6299f11fa9e1aa94a8e3f687f55feaebfb9942f"
+    },
+    "input_scope": "existing resource geometry only; old SDK is not admitted as a new tape image",
+    "hardware_actions": false,
+    "SDK_admission": false,
+    "hardware_acceptance": false
+  },
+  "original_FIT_restoration": {
+    "status": "passed-independent-original-file-restoration-retention",
+    "procedure_sha256": "fbe754ce00877f8ecc61c4b911742b318c6b8701c2d80f05ca6da07976a4d564",
+    "archive": "/home/deano/fes-retained/de25-initial-tape-original-files-restored-20261115-r1/restoration.tar.gz",
+    "archive_sha256": "ae977c7ee0df5d9348daff14c93e8203d1509a77b70f582dbc98f8d67b8be14b",
+    "files": 79,
+    "original_FIT_restored": true,
+    "original_native_runtime_booted": false,
+    "all_hardware_handles_closed": true,
+    "diagnostic_retry": false,
+    "hardware_acceptance": false
+  },
+  "hardware_actions": false,
+  "new_boot_image_built": false,
+  "hardware_acceptance": false,
+  "core_loading_ready": false,
+  "integration_receipts": [
+    {
+      "output": "/home/deano/fes/out/dev/de25-setup-release/out/nano-fabric-stop-d9f4fd29c4864b9ba4b1f4d2c34e34e5",
+      "result_sha256": "345751dec72ee468247b77e1d424605d23ca9799c5b8d1ddc64f3f5b082e1ebf"
+    },
+    {
+      "output": "/home/deano/fes/out/dev/de25-setup-release/out/native-fabric-hooks-1e3c767d817c40c3a9c4a9746211d35b",
+      "result_sha256": "be88f927283c6b78f9963b85dd2ba9ddd0b10892e38b38e12d889a793793d64b"
+    },
+    {
+      "output": "/home/deano/fes/out/dev/de25-setup-release/out/de25-producer-check-62bbd227468b4c56b220a06fa36564e9",
+      "result_sha256": "a9e086a3904b835d176de7e22d3c0e03e7b91cb89f03684ed58284f455a6c26e"
+    },
+    {
+      "output": "/home/deano/fes/out/dev/de25-setup-release/out/embedded-control-253b074bbf4447a689177a455708f5c4",
+      "result_sha256": "8ca4c82c467b2a10022540a954676b49784836ad522c9e9cc4917f860570d9e3"
+    }
+  ]
+}

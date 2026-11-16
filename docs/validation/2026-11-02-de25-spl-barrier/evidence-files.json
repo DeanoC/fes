@@ -1,0 +1,176 @@
+{
+  "source_commit": "eb52a604b37ba571bdfe0db18ca645653cb73f29",
+  "classification": "copied verified evidence; native experiment remains failed",
+  "files": {
+    "atf-pipeline-verification.json": {
+      "source": "out/nano-spl-barrier-20261102/atf-pipeline-verification.json",
+      "sha256": "5759095a95e6a15c15ec01bf99a8753dcb01fe54fea559793674ffe018f28c33",
+      "bytes": 848
+    },
+    "boot-upload-result.json": {
+      "source": "out/nano-spl-barrier-20261102/trial/upload-boot/result.json",
+      "sha256": "1e03d3434253ee3efb74c4ad7ecc9e878328676a64be40753904a1b43253ae52",
+      "bytes": 12648
+    },
+    "clock-restored-readback.log": {
+      "source": "out/nano-spl-barrier-20261102/trial/clock-restored-readback.log",
+      "sha256": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+      "bytes": 4
+    },
+    "console-_serial_putc.txt": {
+      "source": "out/nano-spl-barrier-20261102/console-_serial_putc.txt",
+      "sha256": "b60d9e4ab7e08c17194d6002ad6586a030fef527366a8acec0c81dd8695d5449",
+      "bytes": 1088
+    },
+    "console-ns16550_serial_putc.txt": {
+      "source": "out/nano-spl-barrier-20261102/console-ns16550_serial_putc.txt",
+      "sha256": "33e987b05201281b503c2d5fa09a85bfd3bc3f8214129c307e0008c185b2886e",
+      "bytes": 1311
+    },
+    "console-path-evidence.json": {
+      "source": "out/nano-spl-barrier-20261102/console-path-evidence.json",
+      "sha256": "da73863c3e611d0a2dc9a9c48f0095b5f7d1bd32afa0f47f631605a0f56202f0",
+      "bytes": 3910
+    },
+    "console-printf.txt": {
+      "source": "out/nano-spl-barrier-20261102/console-printf.txt",
+      "sha256": "1310651042effded8fcc54185420d70ace2a7d893236252ceb949bf60e3d4072",
+      "bytes": 1055
+    },
+    "console-puts.txt": {
+      "source": "out/nano-spl-barrier-20261102/console-puts.txt",
+      "sha256": "0e64302e976d8b7d2f5158bf636a5aaf569dfda24a2d268c714d09919fb51c7a",
+      "bytes": 635
+    },
+    "console-schedule.txt": {
+      "source": "out/nano-spl-barrier-20261102/console-schedule.txt",
+      "sha256": "6d8a453d5784d8abe986b723b184947038171de650d24f2bd07902bb6f26ede7",
+      "bytes": 2711
+    },
+    "console-serial_puts.txt": {
+      "source": "out/nano-spl-barrier-20261102/console-serial_puts.txt",
+      "sha256": "8cfcdc110634444a74518f3cfcec8edafd3d93fb6838d0acf910f6c45a8c728a",
+      "bytes": 881
+    },
+    "console-vprintf.txt": {
+      "source": "out/nano-spl-barrier-20261102/console-vprintf.txt",
+      "sha256": "24743b73d315db6b2075d4d5786231d8849059009218a61cb58a30bb42fe9f8b",
+      "bytes": 1052
+    },
+    "experiment-fixtures.json": {
+      "source": "out/nano-spl-barrier-20261102/trial/experiment-fixtures.json",
+      "sha256": "196ac1d7e415b1545e11d3b6e4b9b99f2f81e71266e7deb009e9446cb25e716b",
+      "bytes": 8018
+    },
+    "experiment-result.json": {
+      "source": "out/nano-spl-barrier-20261102/trial/experiment-result.json",
+      "sha256": "4e7c5763c965a75aef0d04ed99d7b048790c771516d80d83a3b529aac7ce1a3e",
+      "bytes": 1747
+    },
+    "hardware-evidence.json": {
+      "source": "out/nano-spl-barrier-20261102/hardware-evidence.json",
+      "sha256": "bf5387f224da8983c93bf5b9d5dfcaa6f093ec1b7748e4c8b12e65b7fd541d6e",
+      "bytes": 3556
+    },
+    "helper-verification.json": {
+      "source": "out/nano-spl-barrier-20261102/helper-verification.json",
+      "sha256": "bca02bb85bd80b0470874e5ae5d09f9e56afb0c872ab4dd38068e0c14e73bb6f",
+      "bytes": 892
+    },
+    "jtag-transport.json": {
+      "source": "out/nano-spl-barrier-20261102/trial/transport.json",
+      "sha256": "95f338d1ab344aa8a2da0750aabdc273bc114e90d1758cf58c6844c762201358",
+      "bytes": 1399
+    },
+    "linked-fes_nano_spl_atf_trace.txt": {
+      "source": "out/nano-spl-barrier-20261102/linked-fes_nano_spl_atf_trace.txt",
+      "sha256": "0911e6176fca75af2d12f56d389435e41debb1efac1ff1b37ac2628b7cbab42c",
+      "bytes": 7587
+    },
+    "linked-fes_nano_spl_handoff.txt": {
+      "source": "out/nano-spl-barrier-20261102/linked-fes_nano_spl_handoff.txt",
+      "sha256": "fbaa0942fd767b41dc15932e6c1e8595bd5270789c8429e9b4bc1ba6441c8f61",
+      "bytes": 5628
+    },
+    "linked-spl_invoke_atf.txt": {
+      "source": "out/nano-spl-barrier-20261102/linked-spl_invoke_atf.txt",
+      "sha256": "c39adf20b86a8924215b994b28ee5aadc917d191bea83296d70d4fe352749438",
+      "bytes": 2411
+    },
+    "live-package.json": {
+      "source": "out/nano-spl-barrier-20261102/trial/live-package.json",
+      "sha256": "f81fa7fd9fcec9f1425fc108074f761ae26a3e11f878a61f589aee7b54c4b474",
+      "bytes": 1520
+    },
+    "make-check.log": {
+      "source": "out/nano-spl-barrier-20261102/make-check.log",
+      "sha256": "e9d8989316f5311365a429c5c6221f9e058490da8f0fb7a5a1e219c90aee6aaa",
+      "bytes": 137
+    },
+    "native-build-result.json": {
+      "source": "out/nano-spl-barrier-20261102/native-build-result.json",
+      "sha256": "a9f110aeabe59539571e9fe4d7885289e6fdd64d7cfaff06fe07ccf0c742ac0c",
+      "bytes": 1269
+    },
+    "native-console.log": {
+      "source": "out/nano-spl-barrier-20261102/trial/native-console.log",
+      "sha256": "307ae7aa5fab536a24a355483c91915399367426e9cc40de1cdc5b07db42cebf",
+      "bytes": 1602
+    },
+    "native-input-verification.json": {
+      "source": "out/nano-spl-barrier-20261102/native-input-verification.json",
+      "sha256": "c3f33d0954947e9047ad19d17af3ba116e969fc5cbb1a0fa8e3cf665acaccc41",
+      "bytes": 15082
+    },
+    "native-result.json": {
+      "source": "out/nano-spl-barrier-20261102/trial/native-result.json",
+      "sha256": "a847a6c416526c49895fe665e64b5a9c3a71566bfa032df7e98b3e262e7a5a1d",
+      "bytes": 3598
+    },
+    "parent-coverage.json": {
+      "source": "out/nano-spl-barrier-20261102/parent-coverage.json",
+      "sha256": "fe9ea73c60007161af22ae045a99b31d90d604a8a7331f5d919df48142d7a2bf",
+      "bytes": 270740
+    },
+    "readback-fixtures.json": {
+      "source": "out/nano-spl-barrier-20261102/trial/readback-fixtures.json",
+      "sha256": "ca784ea3e8dfed94c2dbd19c6ccd96e9f1778921259fbe2c7d90f4a9d2b8af07",
+      "bytes": 2019
+    },
+    "rejected-preflight.json": {
+      "source": "out/nano-spl-barrier-20261102/trial/preflight-rejected-v2.json",
+      "sha256": "bec24696d0cc51b2c4d61d5e70f84775ad3b98723ce790ea2b1d3f453863f89f",
+      "bytes": 32375
+    },
+    "selection-proof.json": {
+      "source": "out/nano-spl-barrier-20261102/selection-proof.json",
+      "sha256": "0a5dfce0abb5af5a71a940ada2cf6dfb573ba648fe984e8e2c0c80024b478f76",
+      "bytes": 19897
+    },
+    "software-plan.json": {
+      "source": "out/nano-spl-barrier-20261102/software-plan.json",
+      "sha256": "6ded0cedae9d844689b26ce39bab0dd7180177b76cb107e18209724033ef3654",
+      "bytes": 4577
+    },
+    "software-result.json": {
+      "source": "out/nano-spl-barrier-20261102/software-result.json",
+      "sha256": "1d42a3734dd61c21867508c13b8be143bf1a02eccb1cc6617d0c6e619d13c8f0",
+      "bytes": 4307
+    },
+    "software-summary-reconstruction.json": {
+      "source": "out/nano-spl-barrier-20261102/software-summary-reconstruction.json",
+      "sha256": "b058c14bbd730a03a3937e7159903b0491c48fe1ef7ef11b170a9a2635531fd5",
+      "bytes": 390
+    },
+    "software-wrapper-result.json": {
+      "source": "out/nano-spl-barrier-20261102/software-wrapper-result.json",
+      "sha256": "375336c67b9d3d4d35ef324ffc1cf0dadf54f00c886c89194ce4fe8d7ff64d90",
+      "bytes": 245
+    },
+    "source.json": {
+      "source": "out/nano-spl-barrier-20261102/source.json",
+      "sha256": "744bced2936dbac8aa5ce61c7d05f5e9ee43043845e30ca34f679c1e172bc7dd",
+      "bytes": 187
+    }
+  }
+}

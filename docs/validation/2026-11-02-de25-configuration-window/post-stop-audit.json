@@ -1,0 +1,19 @@
+{
+  "audit_passed": true,
+  "parked_native_source": "f1776384dd3a85d1fb36d5d8c3a8267001607725",
+  "query_source": "b6301a49572c9b5856777ee299af45ae277ee9ac",
+  "general_status_response": true,
+  "jtag_reconfig_status_accepted": false,
+  "jtag_reconfig_error": 767,
+  "configuration_done": false,
+  "initialization_done": false,
+  "uart_free": true,
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "claim_retained": true,
+  "programming_requested": false,
+  "sd_writes_requested": false,
+  "runtime_admission": false,
+  "core_load_acceptance": false,
+  "finished_utc": "2026-11-02T00:09:28.771427+00:00"
+}

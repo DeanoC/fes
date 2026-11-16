@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from scripts import build_fes_coleco_oss as coleco
 from scripts.export_core_package import build_identity, PackageExportError
+from scripts.input_identity import input_role
 from scripts.functional_execution import _gpu_machine_files, execution_environment, execution_digest
 from scripts.fes_build_common import _run_tool
 from scripts.search_placer_qor import route_after_synth, SearchError
@@ -59,10 +60,15 @@ class FunctionalColecoTests(unittest.TestCase):
                     path = root / relative
                     original = path.read_bytes()
                     path.write_bytes(original + b"\n")
-                    self.assertNotEqual(build_identity(before), build_identity(record()))
+                    after = record()
+                    if input_role(relative) == 'design':
+                        self.assertNotEqual(build_identity(before), build_identity(after))
+                    else:
+                        self.assertEqual(build_identity(before), build_identity(after))
+                        self.assertNotEqual(json.loads(before)['identities']['record'], json.loads(after)['identities']['record'])
                     path.write_bytes(original)
             execution["gpu_device"] = 1
-            self.assertNotEqual(build_identity(before), build_identity(record()))
+            self.assertEqual(build_identity(before), build_identity(record()))
             (root / "scripts/untracked_helper.py").write_text("unexpected")
             with self.assertRaisesRegex(PackageExportError, "untracked"):
                 record()
@@ -127,7 +133,11 @@ class FunctionalColecoTests(unittest.TestCase):
                             path.write_bytes(original + b"\n")
                             changed = producer.create_build_record(module, repository, revision,
                                 {"yosys": "test"}, identity_version=2, execution=execution)
-                            self.assertNotEqual(build_identity(record), build_identity(changed))
+                            if input_role(relative) == 'design':
+                                self.assertNotEqual(build_identity(record), build_identity(changed))
+                            else:
+                                self.assertEqual(build_identity(record), build_identity(changed))
+                                self.assertNotEqual(json.loads(record)['identities']['toolchain'], json.loads(changed)['identities']['toolchain'])
                         finally:
                             path.write_bytes(original)
 

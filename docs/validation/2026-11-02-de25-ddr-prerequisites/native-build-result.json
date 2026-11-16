@@ -1,0 +1,14 @@
+{
+  "status": "passed",
+  "source_commit": "b05c00f0a6f26df0acfc03e762e85e71e86d6d81",
+  "classification": "matched sealed DDR image and source-bound native SPL/BL31/U-Boot composition; no hardware execution",
+  "data_bridge_release": false,
+  "runtime_admission": false,
+  "steps": [
+    "sdk-ddr",
+    "uboot-entry-ddr",
+    "bl31-ddr",
+    "uboot-ddr",
+    "hps-ddr-compose"
+  ]
+}

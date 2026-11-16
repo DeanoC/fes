@@ -1,0 +1,107 @@
+{
+  "status": "passed-focused-affected-consistency-and-cross-build",
+  "base_commit": "86c6e0edb037e9c9616b2c372ec791ad4b67affc",
+  "candidate_source_sha256": {
+    "platform/embedded/README.md": "999f3002f436e9071455b99d5c9c6af6734748d35717a9dcab586f0a26cd040e",
+    "platform/embedded/firmware/README.md": "b900090c9e8081019db584ef11ed73241576ab63c9403317d90494ceea0005b8",
+    "platform/embedded/firmware/command_queue.c": "4f5df8ed5ec3f5b40459c2f5e333a905147510a0c4b60a260c341a1b1672adb3",
+    "platform/embedded/firmware/command_queue.h": "7e872968ea987f61ec8f8ad04f93b92fdc74e853cc525515a4263d43efb3aa9f",
+    "platform/embedded/firmware/nano_sdm_input_profile.py": "cdaf6a7d1c2b8dc319bdc014ab0f036d5ebf3c79b5c2291f4c13f939cb420331",
+    "platform/embedded/firmware/probe_setup.c": "cbd35b617610040d9b9c8e1cb424a5737c81e80ec64adcf96e926f005ed58e14",
+    "platform/embedded/firmware/sdm_input_probe_setup.c": "e754c3456f6bc1c9edf9ef0b3a449b10971fed5119b33c1e4756daa75648c2fa",
+    "platform/embedded/firmware/source_retire.c": "78542f674a664824e80087356ac7de52909469e38c4630e299c66f6e884611c9",
+    "platform/embedded/firmware/tests/sdm_retire/command_progress_test.c": "b982f44896a48f20685a41efc135961cb1e51fa2a9af2baab76051ab1768980d",
+    "platform/embedded/firmware/tests/sdm_retire/command_snapshot_test.c": "3b9179b0b4be77c3d0f1acd8fb5951f04d636853ad807a6e5a1abe40722d9b2d",
+    "platform/embedded/firmware/tests/sdm_retire/retire_progress_faults.c": "e5bd903628946cd3c464b4d59e31333801007bfddd3898e921c1f56c4068d726",
+    "platform/embedded/firmware/tests/sdm_retire/retire_test.c": "4fd22f02ad641923722d7e7ead3362f1fc1d2adc82b47f823e6e8157201548c7",
+    "tests/fixtures/nano-sdm-input/retirement-cost-v8.json": "7df0c9fe0f1dc80acbdc71887737cc9e26dbeaf82d708034a45622689145c710",
+    "tests/test_nano_sdm_input_profile.py": "81198ccef4f8ce6f1df261985066edaed93a29112063459318b888e6bd9028ab",
+    "tests/test_nano_source_retirement.py": "af15853bf81bc1cc360d29a8b602ffe8907bc0e98f0957041351760ea397356c"
+  },
+  "checks": {
+    "queue-progress-models": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "test_nano_source_retirement",
+        "test_nano_sdm_input_profile",
+        "test_nano_sdm_input_observation",
+        "test_nano_sdm_retire_observation"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 30.01868029497564,
+      "log_sha256": "a81db65f19e56cbc37bf10730e81eae04a8a8012988c5b1d49311982ca6ff0be"
+    },
+    "queue-progress-costs": {
+      "argv": [
+        "python3",
+        "out/publication/collect-queue-progress-costs.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.402547301026061,
+      "log_sha256": "2a89a06c3f3fbcee4bf99930623d44dc2cf26315933dabee935eacb3b933e2a8"
+    },
+    "queue-progress-aarch64": {
+      "argv": [
+        "python3",
+        "out/publication/cross-queue-progress.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.0011068880558014,
+      "log_sha256": "06e4303b59c4b12988b84b1e5e0a2ab85a4c4a4bacc2204eb5e461dfd266df8e"
+    },
+    "queue-progress-projects": {
+      "argv": [
+        "python3",
+        "out/command-progress-boot/prepare.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.6022161769215018,
+      "log_sha256": "cad4487701bbc0b18ef259fc4d014d80c2a56042c5fc327b895ec758832338cf"
+    },
+    "queue-progress-affected": {
+      "argv": [
+        "make",
+        "test-changed",
+        "TEST_CHANGED_ARGS=--base 86c6e0edb037e9c9616b2c372ec791ad4b67affc --jobs 2"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1492.908718427876,
+      "log_sha256": "a12b9042554688fa0c5216deb850d8b828d871161ef55588af5b312e17ad9bee"
+    },
+    "queue-progress-makecheck": {
+      "argv": [
+        "make",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 9.80669178115204,
+      "log_sha256": "04b7d0133f86510765e0c9fdb3bd8a9269cfc9a03e91c02efd8cf2f5866bac79"
+    },
+    "queue-progress-doc-links": {
+      "argv": [
+        "python3",
+        "scripts/check_doc_links.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-opt-in",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4008416449651122,
+      "log_sha256": "112ab742576d07de470e5efa97b5e38a5efe2f0f6adabfdaeec5618439afe125"
+    }
+  },
+  "hardware_actions": false
+}

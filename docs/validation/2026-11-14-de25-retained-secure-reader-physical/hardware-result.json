@@ -1,0 +1,474 @@
+{
+  "status": "passed-format14-retained-secure-reader-menu-and-original-baseline-restoration",
+  "procedure_sha256": "9698b0326faf8db63178e9f066b2162d3058c5e82b0f73a47175c517560bea45",
+  "source_head": "71ec854f9d036130ffe29079fe60d115ea1f8ced",
+  "compiled_source_head": "ab9e10c00594a60cb8930323aa45e7e51202d568",
+  "chain_sha256": "eb154268e7db9d882d3d429090289fc6b654f896e302fd990b3cbc217e9b2146",
+  "candidate_FIT_sha256": "23f2bc37a3b9b81250095f46cfee378624874fa9ce74f1865d0fa3e8b37a9878",
+  "original_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+  "elapsed_seconds": 906.5238936890382,
+  "full_source_retirement_continuation": {
+    "passed": true,
+    "continuation_verified": true,
+    "continuation": {
+      "build": "eb154268e7db9d88",
+      "owner": 16939518594072611103,
+      "epoch": 6812144791,
+      "generation": 4,
+      "ready": 1,
+      "elapsed_us": 594637,
+      "retained": 1,
+      "reuse": 0,
+      "activated": 0
+    },
+    "retirement": {
+      "passed": true,
+      "source_flow_verified": true,
+      "retirement_verified": true,
+      "timing_validated": true,
+      "retirement_observation": {
+        "passed": true,
+        "errors": [],
+        "source_flow_verified": true,
+        "retirement_verified": true,
+        "input_observation": {
+          "passed": true,
+          "result": {
+            "build": "eb154268e7db9d88",
+            "status": 0,
+            "detail": 0,
+            "proof": 1,
+            "owner": 16939518594072611103,
+            "epoch": 6812144791,
+            "generation": 4,
+            "bytes": 1708032,
+            "accepted": 1708032,
+            "posted": 1708032,
+            "acknowledged": 1708032,
+            "completed": 1708032,
+            "posts": 2,
+            "acks": 2,
+            "buffers": 2,
+            "pending": 0,
+            "outstanding": 0,
+            "configured": 1,
+            "failed": 0,
+            "first_error": 0,
+            "service_error": 0,
+            "source_failed": 0,
+            "scope_reason": 0,
+            "bad_offset": 0,
+            "bad_value": 0,
+            "arm_writes": 12,
+            "elapsed_us": 11632272,
+            "sha384": "faef83bbdc549d5a117cf09ecda3007150b45156cbb13ed7d138d0ab048c28a92964d0e9f8d1cafee563b202e0a0e606",
+            "retained": 1,
+            "activated": 0
+          },
+          "errors": [],
+          "source_flow_verified": true,
+          "negotiated_credits": 4,
+          "negotiated_block_bytes": 1048560,
+          "recorded_DATA_requests": 2,
+          "recorded_DATA_bytes": 1708032,
+          "matching_source_digest": "faef83bbdc549d5a117cf09ecda3007150b45156cbb13ed7d138d0ab048c28a92964d0e9f8d1cafee563b202e0a0e606",
+          "remap_observation": {
+            "records": [
+              {
+                "kind": "remap",
+                "line": 655,
+                "values": {
+                  "kind": 1,
+                  "phase": 0,
+                  "operand": 0,
+                  "por1": 0,
+                  "bypass": 0,
+                  "ctrl": 3,
+                  "ids": 655370,
+                  "ar": 0,
+                  "aw": 0
+                }
+              },
+              {
+                "kind": "remap",
+                "line": 656,
+                "values": {
+                  "kind": 1,
+                  "phase": 1,
+                  "operand": 0,
+                  "por1": 0,
+                  "bypass": 0,
+                  "ctrl": 3,
+                  "ids": 655370,
+                  "ar": 2147483648,
+                  "aw": 2147483648
+                }
+              },
+              {
+                "kind": "remap",
+                "line": 669,
+                "values": {
+                  "kind": 2,
+                  "phase": 0,
+                  "operand": 2491416576,
+                  "por1": 0,
+                  "bypass": 0,
+                  "ctrl": 3,
+                  "ids": 655370,
+                  "ar": 2147483648,
+                  "aw": 2147483648
+                }
+              },
+              {
+                "kind": "remap",
+                "line": 670,
+                "values": {
+                  "kind": 2,
+                  "phase": 1,
+                  "operand": 343932928,
+                  "por1": 0,
+                  "bypass": 0,
+                  "ctrl": 3,
+                  "ids": 655370,
+                  "ar": 2147483648,
+                  "aw": 2147483648
+                }
+              },
+              {
+                "kind": "submit",
+                "line": 673,
+                "values": {
+                  "address": 343932928,
+                  "bytes": 1048512,
+                  "por1": 0,
+                  "bypass": 0,
+                  "ctrl": 3,
+                  "ids": 655370,
+                  "ar": 2147483648,
+                  "aw": 2147483648
+                }
+              },
+              {
+                "kind": "result",
+                "line": 674,
+                "values": {
+                  "status": 0
+                }
+              }
+            ],
+            "complete": true,
+            "mailbox_status": 0,
+            "mailbox_accepted": true,
+            "vendor_operand_subtraction_matches": true,
+            "submission_starts_at_transformed_pointer": true,
+            "stream_identity_stable": true,
+            "observations_atomic": false,
+            "source_attested": false,
+            "SDM_tcu_input": null,
+            "SDM_route_qualified": false,
+            "DMA_access_granted": false,
+            "independent_drain": false
+          },
+          "DMA_authority": false,
+          "ordinary_runtime_activation": false,
+          "buffer_reuse_authority": false,
+          "physical_isolation_qualification": false
+        },
+        "result": {
+          "build": "eb154268e7db9d88",
+          "owner": 16939518594072611103,
+          "epoch": 6812144791,
+          "generation": 4,
+          "bytes": 1708032,
+          "sha384": "faef83bbdc549d5a117cf09ecda3007150b45156cbb13ed7d138d0ab048c28a92964d0e9f8d1cafee563b202e0a0e606",
+          "status": 0,
+          "phase": 6,
+          "retired": 1,
+          "first_error": 0,
+          "writes": 5,
+          "producer": 12,
+          "consumer": 12,
+          "control": 0,
+          "abort": 1048576,
+          "elapsed_us": 402698,
+          "bad_offset": 0,
+          "bad_value": 0,
+          "retained": 1,
+          "reuse": 0,
+          "activated": 0
+        },
+        "recorded_DATA_requests": 2,
+        "recorded_DATA_bytes": 1708032,
+        "ordinary_runtime_activation": false,
+        "buffer_reuse_authority": false,
+        "DMA_authority": false,
+        "independent_interconnect_drain": false
+      },
+      "timing": {
+        "build": "eb154268e7db9d88",
+        "owner": 16939518594072611103,
+        "epoch": 6812144791,
+        "generation": 4,
+        "bytes": 1708032,
+        "sha384": "faef83bbdc549d5a117cf09ecda3007150b45156cbb13ed7d138d0ab048c28a92964d0e9f8d1cafee563b202e0a0e606",
+        "phase": 6,
+        "timed": 1,
+        "mask": 127,
+        "start_us": 50150321,
+        "last_us": 50553019,
+        "observed_us": 50553019,
+        "guards": 161,
+        "samples": 161,
+        "owners": 161,
+        "sources": 5,
+        "validated": 5,
+        "reads": 1186,
+        "writes": 5,
+        "polls": 4,
+        "first_us": [
+          50150321,
+          50193311,
+          50209920,
+          50269501,
+          50329202,
+          50450395,
+          50509981
+        ],
+        "latest_us": [
+          50191969,
+          50208583,
+          50268160,
+          50327743,
+          50449046,
+          50508641,
+          50553019
+        ],
+        "retained": 1,
+        "reuse": 0,
+        "activated": 0
+      },
+      "errors": [],
+      "recorded_DATA_requests": 2,
+      "recorded_DATA_bytes": 1708032,
+      "ordinary_runtime_activation": false,
+      "buffer_reuse_authority": false,
+      "DMA_authority": false,
+      "queue_observation_validated": true,
+      "queue": {
+        "build": "eb154268e7db9d88",
+        "owner": 16939518594072611103,
+        "epoch": 6812144791,
+        "generation": 4,
+        "bytes": 1708032,
+        "sha384": "faef83bbdc549d5a117cf09ecda3007150b45156cbb13ed7d138d0ab048c28a92964d0e9f8d1cafee563b202e0a0e606",
+        "phase": 6,
+        "stage": 10,
+        "policy": 1,
+        "completion_seen": 1,
+        "completion_us": 50426341,
+        "attempted": 1,
+        "initialized": 1,
+        "submitted": 1,
+        "failed": 0,
+        "error": 0,
+        "timed": 1,
+        "start_us": 50329175,
+        "last_us": 50447410,
+        "observed_us": 50447410,
+        "samples": 27,
+        "slots": 6,
+        "published": 1,
+        "polls": 1,
+        "reads": 0,
+        "read_samples": 1186,
+        "last_offset": 156,
+        "last_value": 12,
+        "consumer_samples": 21,
+        "consumer": 12,
+        "consumer_read": 1186,
+        "consumer_phase": 6,
+        "consumer_stage": 10,
+        "consumer_poll": 1,
+        "retained": 1,
+        "reuse": 0,
+        "activated": 0
+      },
+      "queue_stage": "complete",
+      "queue_sample_is_completion_proof": false
+    },
+    "errors": [],
+    "native_activation_verified": false,
+    "memory_reuse_authorized": false,
+    "ordinary_runtime_activation": false
+  },
+  "first_menu_opening_verified": true,
+  "retained_reader_observations": 2,
+  "nonsecure_abort_remained_set": true,
+  "source_retained": true,
+  "source_reuse_authorized": false,
+  "native_ready_Quit_exit_generation": 1,
+  "independent_replays": {
+    "native-diagnostic": {
+      "status": "passed-saved-retained-startup-ready-quit-and-park",
+      "commands": 1,
+      "exit_generation": 1,
+      "console_sha256": "826dd705df7fb712ac279c9f435c658aecf58cc86c9d380e40c8804919c6c323",
+      "native_configuration_and_menu_verified": true,
+      "memory_reuse_authorized": false,
+      "general_core_load_acceptance": false,
+      "physical_display_verified": false
+    },
+    "native-baseline": {
+      "status": "passed-saved-installer-wire-and-poll-times",
+      "discovered": true,
+      "commands": 51,
+      "polling_offers": 449,
+      "hardware_actions": false,
+      "live_authority": false,
+      "persistence_verified": false
+    }
+  },
+  "program_and_wire_witnesses": {
+    "native-diagnostic": {
+      "boot_boundary_verified": true,
+      "console_sha256": "826dd705df7fb712ac279c9f435c658aecf58cc86c9d380e40c8804919c6c323",
+      "all_wire_sha256": "b64bc0517de3572f8f2286698f972adc1dbdea6323804101d94a73404c04f6d9",
+      "completed_program_epoch": "2916452:163971326"
+    },
+    "native-baseline": {
+      "boot_boundary_verified": true,
+      "console_sha256": "7c6f8624f9b783071626a8f6b11af8ff4abd944183f652294a0dc4a147612f0a",
+      "all_wire_sha256": "0569c0d0c724b707f89a83f8b48ff2ff45d7d6759fda4a39d0a785f46973c09f",
+      "completed_program_epoch": "2928591:164002957"
+    }
+  },
+  "refresh": {
+    "forward": {
+      "status": "verified-reversible-fit-refresh",
+      "direction": "forward",
+      "plan_sha256": "3d3aaed5d7f86d7de7f541db9154e529a09fa09f420e9f19b6994241d8a364bd",
+      "previous_boot_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+      "boot_sha256": "23f2bc37a3b9b81250095f46cfee378624874fa9ce74f1865d0fa3e8b37a9878",
+      "preserved_files": 16,
+      "readbacks_before": 17,
+      "readbacks_after": 17,
+      "session": "92e945def6f13a390b33c318b1d45c8c",
+      "physical_boot_accepted": false
+    },
+    "rollback": {
+      "status": "verified-reversible-fit-refresh",
+      "direction": "rollback",
+      "plan_sha256": "3d3aaed5d7f86d7de7f541db9154e529a09fa09f420e9f19b6994241d8a364bd",
+      "previous_boot_sha256": "23f2bc37a3b9b81250095f46cfee378624874fa9ce74f1865d0fa3e8b37a9878",
+      "boot_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+      "preserved_files": 16,
+      "readbacks_before": 17,
+      "readbacks_after": 17,
+      "session": "1f8700bc6b6d0fcc8073c8a0831aed1c",
+      "physical_boot_accepted": false
+    }
+  },
+  "baseline_cycle_commands": 51,
+  "baseline_exit_generation": 5,
+  "baseline_restored": true,
+  "baseline_final_Park_verified": true,
+  "owned_processes": [
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/native-baseline/transport.json",
+      "pid": 2928591,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/native-baseline/owned-worker.json",
+      "pid": 2928419,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/native-baseline/owned-programmer.json",
+      "pid": 2929132,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/recovery-rollback/transport.json",
+      "pid": 2920130,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/recovery-rollback/owned-worker.json",
+      "pid": 2919813,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/recovery-rollback/owned-programmer.json",
+      "pid": 2920730,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/forward/owned-worker.json",
+      "pid": 2911788,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/native-diagnostic/transport.json",
+      "pid": 2916452,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/native-diagnostic/owned-worker.json",
+      "pid": 2916154,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/native-diagnostic/owned-programmer.json",
+      "pid": 2917079,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/recovery-before/transport.json",
+      "pid": 2910546,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/recovery-before/owned-worker.json",
+      "pid": 2910439,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/recovery-before/owned-programmer.json",
+      "pid": 2911018,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/rollback/owned-worker.json",
+      "pid": 2921596,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/native-diagnostic/file-admission/owned-worker.json",
+      "pid": 2916380,
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-trial/attempt/native-baseline/file-admission/owned-worker.json",
+      "pid": 2928577,
+      "original_process_stopped": true
+    }
+  ],
+  "UART_closed_and_free": true,
+  "USB_identity_inode_permissions_restored": true,
+  "JTAG_auto_1_15M": true,
+  "last_verified_board_state": "original native baseline final Park; test card installed",
+  "physical_monitor_observation": false,
+  "ordinary_runtime_activation": false,
+  "general_core_load_acceptance": false,
+  "independent_interconnect_drain_qualified": false,
+  "permanent_QSPI_written": false,
+  "factory_card_changed": false,
+  "bottom_kit_touched": false,
+  "root_owned_process_audit": {
+    "path": "/home/deano/fes/out/dev/de25-embedded-opt-in/out/secure-reader-physical/owned-process-root-scan.json",
+    "sha256": "d2182cf0cad2a77dad1ff751fd07659deb7deeb7269062a5d4cc7abfe0045725",
+    "process_records": 22,
+    "root_only_preflight_directories_included": true
+  }
+}

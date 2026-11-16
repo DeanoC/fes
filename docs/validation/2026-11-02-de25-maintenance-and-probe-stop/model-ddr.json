@@ -1,0 +1,121 @@
+{
+  "status": "passed",
+  "classification": "external AXI model; no physical DDR or bridge qualification",
+  "source_sha256": {
+    "fes_de25_embedded.sv": "e8a8f0f41aca9dfce55ef7177a5cbecefa410d849b93c6ce4547d159f4aa2f26",
+    "fes_embedded_control.sv": "95bc4ef8f470612d71dfa2737e96a988e8a8508e5db56857455bf294654667f3",
+    "generated/fes_embedded_control.vh": "20e1f042865b54a4cc6a7334b874fedc9f95aa87deb2757ce04a35cc023fc597",
+    "ddr_probe.cpp": "ef5c268a0668848a12aabf273a75441af8437926df31911a5fd33b111bd2fe61"
+  },
+  "tools": {
+    "verilator": "/usr/bin/verilator | Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2) | sha256:672a1ccf3468902f66387049f001b04f254bbcece7d5e816e3861715889bf252",
+    "cxx": "/usr/bin/g++ | g++ (Debian 14.2.0-19) 14.2.0 | sha256:6b3696e4dcb85e1c949c732a02befa50e3983ecf94ce7e8e58d9d503b954b79d",
+    "make": "/usr/bin/make | GNU Make 4.4.1 | sha256:8a229baf64671988cfb5af43ba3070c6ce7214cf32bcf96155115559d1466fa7",
+    "verilator-bin": "/usr/bin/verilator_bin | Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2) | sha256:619464a17a8c212219abceeeee23f529b72801ef594814ae32f4b9747fd38703",
+    "python": "/usr/bin/python3.13 | Python 3.13.5 | sha256:17b78e0a93175e86f9ac03141924fd7a7f0c0c52e66b34bfa0de20ffef989df1",
+    "verilator-support": "/usr/share/verilator/include | sha256:af3b6c1dce07e7d1f7568bfeaff49163239a8bd472c5f76765c0d4a0a5f9c83c"
+  },
+  "executable_sha256": "5768b3e6e19a1b1902ce03efd45527a427f6eebd71faa2afab1304f165ec4311",
+  "reader_memory": {
+    "backend": "hps-ddr",
+    "bus_base": 2499805184,
+    "bytes": 8192
+  },
+  "observed": {
+    "status": "passed",
+    "backend": "hps-ddr",
+    "build_id": "0da2eda78d12dcca7d6141e33365271d",
+    "control_abi": 270544961,
+    "bus_base": 2499805184,
+    "bytes": 8192,
+    "cases": [
+      "distinct-identity-and-closed-reset",
+      "held-address-and-descriptor-snapshot",
+      "disable-preserves-stalled-address",
+      "partial-burst-does-not-drain",
+      "final-data-and-exact-drain",
+      "response-backpressure-and-disable",
+      "first-beat",
+      "last-beat",
+      "whole-page",
+      "below-window",
+      "past-window",
+      "burst-past-window",
+      "unaligned",
+      "cross-page",
+      "address-wrap",
+      "synthetic-response-commands-rejected",
+      "partial-command-and-length-rejected",
+      "maximum-burst-data-and-drain",
+      "sticky-bus-fault-0",
+      "sticky-bus-fault-1",
+      "sticky-bus-fault-2",
+      "sticky-bus-fault-3",
+      "unsolicited-response-fails-closed"
+    ],
+    "physical_ddr": false,
+    "runtime_admission": false
+  },
+  "negative_identity_cases": 3,
+  "inherited_probe_stop": {
+    "status": "passed",
+    "classification": "actual C helper and Avalon RTL, injected ownership/memory responses; no physical drain or complete master containment",
+    "source_sha256": {
+      "platform/embedded/firmware/nano_probe_stop.c": "eeced562098d1386fca83de5dbab313b04bb90ffd6abc7a43622614721b244be",
+      "platform/embedded/firmware/nano_probe_stop.h": "9a100abf22ef6805d0693d1a7c86ec376339a623ca461e426becdb32879cae97",
+      "platform/embedded/firmware/tests/nano_probe_stop_test.cpp": "e062fb5b04ae5282509e1837ddf480855f72012d46a8608b99a6c20fa9900965",
+      "platform/embedded/firmware/generated/fes_de25_ddr_probe.h": "ab89732c139512edbdd0610783f1001dfd2ede9839d92ef767b1d5a34f2fc5cf",
+      "out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/fes_mailbox/fes_de25_ddr_probe.v": "884512e8259f8ac1becdeae5dd2845de450ee6ec3dc5b977f67fb11bb676d498",
+      "out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/fes_mailbox/generated/fes_de25_ddr_probe.vh": "5e79081cdf4daca60057540a3c3ce4eb12ad6f88eceb475a828779588ac717c3",
+      "sources/misteross/boards/de25nano/hps/probe_tb.cpp": "15ac69bcf589eb2db3c41db03e96247a030f27c8479bd8ed8b946f4c307935a7",
+      "sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp": "ab191c5b6bfbb455abf21a3b80f2925fbfa97f69e2ab2290781e748bdf205105"
+    },
+    "commands": [
+      [
+        "cc",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=undefined",
+        "-fno-sanitize-recover=all",
+        "-I/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/model-ddr/probe-stop/source",
+        "-c",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/model-ddr/probe-stop/source/nano_probe_stop.c",
+        "-o",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/model-ddr/probe-stop/stop.o"
+      ],
+      [
+        "verilator",
+        "--cc",
+        "--exe",
+        "--build",
+        "--top-module",
+        "fes_de25_ddr_probe",
+        "-Wall",
+        "--Mdir",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/model-ddr/probe-stop/obj",
+        "-I/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/model-ddr/probe-stop/source",
+        "-CFLAGS",
+        "-std=c++17 -O2 -fsanitize=undefined -fno-sanitize-recover=all -I/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/model-ddr/probe-stop/source",
+        "-LDFLAGS",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/model-ddr/probe-stop/stop.o -fsanitize=undefined",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/model-ddr/probe-stop/source/fes_de25_ddr_probe.v",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/model-ddr/probe-stop/source/tests/nano_probe_stop_test.cpp"
+      ],
+      [
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/model-ddr/probe-stop/obj/Vfes_de25_ddr_probe"
+      ]
+    ],
+    "observed": {
+      "status": "passed",
+      "cases": 129,
+      "read_failure_points": 108,
+      "hardware_access": false,
+      "bridge_authority": false
+    }
+  },
+  "hardware_access": false,
+  "bridge_release": false,
+  "runtime_admission": false
+}
