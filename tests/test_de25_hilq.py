@@ -37,6 +37,11 @@ class De25HilqTests(unittest.TestCase):
             "sources/misteross/boards/de25nano/producers/build_menu_package.py",
             "sources/misteross/boards/de25nano/producers/build_zx81_package.py"]))
 
+    def test_target_labels_select_the_matching_quartus_producer(self):
+        self.assertEqual(de25_producer([], ["core:de25-menu"]), "build_menu_package.py")
+        self.assertEqual(de25_producer([], ["core:de25-zx81"]), "build_zx81_package.py")
+        self.assertIsNone(de25_producer([], ["core:de25-menu", "core:de25-zx81"]))
+
     def test_recovery_requires_matching_board_and_card_identity(self):
         good = recovery_write_allowed(
             "TRWU8J8G", "TRWU8J8G", "de25-j8g", "de25-j8g",

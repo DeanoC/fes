@@ -9,10 +9,10 @@ while its ledger says recovery hold. Never select it as a fallback.
 Select D25 for DE25 PRs when their changed artifacts target
 `core:de25-menu`, `core:de25-zx81`, `core:de25-ALL`, DE25 board/runtime paths,
 or the DE25 image. DE10 PRs continue to use Kit A or Kit B. A kit mismatch
-cannot satisfy the HIL gate. The repo HIL planner reports these kit targets;
-the Powerboat HILQ queue and watcher have not yet been updated to dispatch D25
-automatically, so an operator must not assume that an automatic queue run has
-covered DE25.
+cannot satisfy the HIL gate. The repo HIL planner and Powerboat HILQ both route
+these changes to D25 only. HILQ launches the exact-head runner through
+lander-watch with an explicit cap and PR/head identity. A/B dispatch continues
+to use the existing queue and runner paths.
 
 Before accessing D25, acquire both
 `~/kit-status/de25-TRWU8J8G-STATUS.lock` and
@@ -25,12 +25,20 @@ interfaces and do not replace the kit claim.
 
 ## Run and capture
 
-Use the sealed DE25 package from the exact PR head. The package is imported
-through the normal FES package lifecycle, compatibility is checked against the
-target id, the core is launched, input is driven through the supported DE25
-input path, and Stop returns the runtime to idle. For a full image or boot-path
-change, build the exact DE25 image and run the corresponding boot checks as
-well; a package run does not qualify an image change.
+Use the sealed DE25 package from the exact PR head. Automatic exact-head HIL
+currently exercises the playable ZX81 package through the normal
+install/launch lifecycle, compatibility checks, and supported input path. The
+locked idle MENU is captured before and after as restore evidence. The D25
+smoke reads named ROM state only when the package descriptor declares a ROM,
+checks post-stop idleness through the paired session API, and fails closed if
+its generated API/ROM/idle probes do not compile and match the D25 host. The current J8G
+agent rejects MENU `core-load` at admission with `UNSUPPORTED_OPERATION`; until
+the runtime supports that operation, a MENU package has not passed exact-head
+HIL and main-baseline promotion must remain gated. Both paths compare the
+serial-bound target state before and after. For
+a full image or boot-path change, build the exact DE25 image and run the
+corresponding boot checks as well; a package run does not qualify an image
+change.
 
 The approved HDMI node is `/dev/v4l/by-id/fes-ms2109-hil`. Save before, active,
 input-response and restored frames. Review the frames to verify the screen
@@ -57,20 +65,18 @@ claimed and trigger the documented recovery path; do not report HIL PASS.
 
 ## Main baseline promotion and recovery
 
-DE25 main promotion must be recorded in `current-restore-de25.json`
-independently from the Kit A/B promotion. The DE25 promotion automation is not
-implemented yet. Its required sequence is to build from fetched main with the normal DE25
-Quartus Pro 26.3 package/image recipes, install on the managed kit, smoke the
-deployed MENU and ZX81 paths, and publish the new DE25 baseline record only
-after that kit passes and its restore is verified. Do not alter the Kit A/B
-baseline when promoting D25.
+DE25 main promotion is recorded in `current-restore-de25.json` independently
+from the Kit A/B promotion. The D25 promotion runner serializes on
+`hilq-state/de25-baseline-promote.lock`; it builds from fetched main with the
+DE25 Quartus Pro 26.3 MENU and ZX81 producers, runs both exact packages on J8G,
+and publishes only `current-restore-de25.json` after both smokes and the final
+restore verifier pass. It never edits the Kit A/B baseline.
 
-If J8G cannot boot or return to its managed baseline, use the retained J8G card
-backup and the documented managed-image recovery procedure from the LAN. Verify
-the serial and physical card identity before any write, preserve the factory
-and rollback materials, and verify boot, image, bundle, target id, runtime and
-capture afterward. The user has authorized recovery/reflash of J8G for this
-parity job. Never use this authorization on TRWU8CBL.
+Serial-console recovery remains a separate owner task. The J8G console path is
+owned by `root:dialout` and the current automation account cannot open it; do
+not attempt console recovery, card writes or reimaging until Deano has restored
+access and authorized that recovery workflow. Keep the retained J8G recovery
+materials intact. Never use J8G recovery authorization on TRWU8CBL.
 
 ## Add the second DE25 board later
 
