@@ -949,23 +949,31 @@ replaces**, against the precommitted floor of 136, so the difference is
 **measurable** by the rule fixed before the 0 side ran. It costs **9 more DSP
 blocks** and **about 1,750 more registers**, and uses 2 fewer M20Ks.
 
-Three things worth drawing out:
+Three things worth drawing out, the first being the one that generalises
+past this measurement:
 
-- **The direction is the opposite of the intuition.** A deeply pipelined
-  arithmetic unit reads as the bigger thing, and it is smaller in ALMs. What it
-  spends instead is DSP and registers — the nine 22/22/20-bit products for
-  FMUL, and the pipeline's own stages.
-- **The uncontrolled comparison had the right sign and the wrong magnitude.**
-  It put the sequencer about 330 ALMs larger, which sits *inside* this 136-ALM
-  floor plus the lane's ±200 and so established nothing. Controlling the base
-  moved it to 514 and over the floor. The uncontrolled version was not merely
-  imprecise; it was not evidence.
+- **The uncontrolled comparison could not have told us either way, and it
+  happened to point the right way.** It put the sequencer about 330 ALMs
+  larger: right sign, but *inside* this 136-ALM floor plus the lane's ±200, so
+  it established nothing. Controlling the base moved it to 514 and over the
+  floor. The reading is **not** "the uncontrolled version was roughly right" —
+  it is that it was **not evidence**, and a reader who met 330 would have had
+  no way to know. This is the sharpest instance of this record's pattern,
+  because every other one arrived as a wrong number and **this one arrived as
+  a nearly-right number that was still not evidence**. A nearly-right number
+  is the harder case: nobody goes back to it.
+- **The direction is the opposite of the intuition, and it is a trade rather
+  than a win.** A deeply pipelined arithmetic unit reads as the bigger thing
+  and is the ALM-cheaper one — but **it saves 514 ALMs by spending 9 DSP
+  blocks and about 1,750 registers**, the nine 22/22/20-bit FMUL products and
+  the pipeline's own stages. The −514 should not be quoted without the +9 and
+  the +1,750.
 - **The nine DSP blocks are confirmed as the duplicated multiplier.** The
   sequencer's 33 is unchanged from M+'s 33 — so slices 3 and 4 added no DSP
   beyond slice 2's shifter-multiplier — while the backend's FMUL adds exactly
   nine. That is now a controlled measurement rather than an inference from two
   differently based fits, and it is what makes sharing one multiplier slice 6's
-  first candidate.
+  first candidate. **Still uncosted**, deliberately.
 
 **Both sides fit and close.** The 0 side is band 2 on its own terms: 88.82% of
 ALMs, 98.42% of LABs touched, timing passing at all four corners with +7.620 ns

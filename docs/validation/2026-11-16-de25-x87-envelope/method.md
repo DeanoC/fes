@@ -294,6 +294,14 @@ is a point against a distribution, not two distributions. Therefore:
   noise floor, but it is still one seed.
 - If the 0 side needs more than one seed to settle, that is said rather than
   the single point being leaned on.
+- **Amended 16 Nov 2026, after the 0 side's first seed returned 41,569 and
+  before further 0-side seeds ran.** Further 0-side seeds are being taken, so
+  a second spread will exist. **The floor stays the 1 side's 136 ALMs as
+  precommitted** — it is *not* redefined as the larger of the two measured
+  spreads now that a result has cleared it. Both spreads are reported side by
+  side so a reader can see which test was applied, and if the 0-side spread
+  turns out wide enough to swallow 514 **that is a finding and the entry
+  becomes "not measurable"**, exactly as the rule says.
 
 **No outcome is predicted.** The uncontrolled pair found about 330 ALMs
 between the two arithmetics, which is inside this 136-ALM spread plus the
