@@ -515,6 +515,30 @@ def start_stage(command: list[str], **popen):
         blocked = signal.pthread_sigmask(signal.SIG_BLOCK, TERMINATING_SIGNALS)
     except (AttributeError, ValueError, OSError):
         return subprocess.Popen(command, **popen), lambda: None
+
+    # A child inherits its launching thread's mask across fork and exec, so
+    # blocking for the parent's sake would otherwise hand Quartus a mask in
+    # which SIGTERM is blocked: the cleanup's polite SIGTERM would be ignored,
+    # every termination would wait out the 15 s grace and end in SIGKILL mid
+    # compile. The mask is therefore reset in the child as part of creating it
+    # -- between fork and exec, where nothing has run yet -- rather than
+    # afterwards, which is too late by definition.
+    #
+    # preexec_fn runs in the forked child, where only async-signal-safe work
+    # is sound: this is one `pthread_sigmask` call and nothing else. It rests
+    # on the runner being single-threaded at launch, which it is -- stages are
+    # started from the main thread and the elaboration heartbeat thread is
+    # stopped and joined before any compiler stage begins. That assumption is
+    # stated in the log rather than assumed silently if it ever stops holding.
+    if threading.active_count() > 1:
+        print("i386 fit: launching a stage with "
+              f"{threading.active_count()} threads alive; the child's signal-mask reset "
+              "runs after fork and is only safe single-threaded", flush=True)
+
+    def unblock_in_child():
+        signal.pthread_sigmask(signal.SIG_UNBLOCK, TERMINATING_SIGNALS)
+
+    popen = dict(popen, preexec_fn=unblock_in_child)
     released = False
 
     def deliver():

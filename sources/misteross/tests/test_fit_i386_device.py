@@ -583,6 +583,59 @@ with fit.terminating_signals():
         # there by the release.
         self.assertEqual(self.signal_in_the_launch_window(True, "FESFITWINBLOCKED"), [])
 
+    @staticmethod
+    def blocked_in(pid):
+        """The signals a running process has blocked, read from the kernel."""
+        import signal
+        for line in Path(f"/proc/{pid}/status").read_text().splitlines():
+            if line.startswith("SigBlk"):
+                mask = int(line.split()[1], 16)
+                return {s for s in signal.Signals
+                        if 0 < s.value <= 64 and mask >> (s.value - 1) & 1}
+        raise AssertionError(f"no SigBlk line for {pid}")
+
+    def test_the_child_starts_with_the_terminating_signals_unblocked(self):
+        # A child inherits its launching thread's mask across fork and exec,
+        # so blocking for the parent's sake would hand Quartus a mask in which
+        # SIGTERM is ignored: every cleanup would wait out the 15 s grace and
+        # end in SIGKILL mid compile. The property is read from the kernel
+        # rather than inferred -- and the parent must still be blocked at the
+        # same moment, which is the window staying closed.
+        import signal
+        before = signal.pthread_sigmask(signal.SIG_BLOCK, [])
+        process, deliver = fit.start_stage(["sleep", "30"])
+        try:
+            self.assertTrue(set(fit.TERMINATING_SIGNALS) <=
+                            signal.pthread_sigmask(signal.SIG_BLOCK, []),
+                            "the parent is not blocked across the launch")
+            self.assertEqual(self.blocked_in(process.pid) & set(fit.TERMINATING_SIGNALS), set(),
+                             "the child inherited the parent's blocked mask")
+        finally:
+            deliver()
+            process.kill()
+            process.wait(timeout=30)
+            signal.pthread_sigmask(signal.SIG_SETMASK, before)
+
+    def test_a_stage_terminates_on_the_cleanup_sigterm_without_the_grace(self):
+        # The consequence of the inherited mask, as a behaviour rather than as
+        # a mask: a child that cannot receive SIGTERM is only killed after the
+        # 15 s wait. A stage that honours it dies promptly.
+        import signal
+        before = signal.pthread_sigmask(signal.SIG_BLOCK, [])
+        process, deliver = fit.start_stage(["sleep", "60"], start_new_session=True)
+        try:
+            deliver()
+            started = time.monotonic()
+            os.killpg(process.pid, signal.SIGTERM)
+            process.wait(timeout=15)
+            self.assertLess(time.monotonic() - started, 10)
+            self.assertNotEqual(process.returncode, 0)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=30)
+            signal.pthread_sigmask(signal.SIG_SETMASK, before)
+
     def test_the_launch_leaves_the_signal_mask_as_it_found_it(self):
         import signal
         before = signal.pthread_sigmask(signal.SIG_BLOCK, [])

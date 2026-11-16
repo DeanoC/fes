@@ -1000,3 +1000,45 @@ that PR are consistent with it. The transferable rule is the one this round
 earns: **a fix that narrows a window is not a fix that closes it**, and the
 question to ask of the second version is whether a structure exists in which the
 window cannot be, not whether the window is now small.
+
+## Amendment, 2026-11-16: the child's mask, and where this family ends
+
+The third finding in the lease family, from Codex review on `904bddcb2`, and a
+consequence of the previous fix rather than an independent fault. No figure in
+this record moves.
+
+Blocking the terminating signals across the launch closed the parent's window
+and handed the blocked mask to the child, because a child inherits its
+launching thread's mask across fork and exec. Quartus therefore started with
+SIGTERM blocked: the cleanup's polite SIGTERM could not be received, so every
+termination waited out the full 15-second grace and ended in SIGKILL mid
+compile. Quieter than an orphan, and not what the cleanup was designed to do.
+
+This counterexample needed no race at all, which is worth noting beside the
+previous one: the property is readable directly from the kernel. `SigBlk` in
+`/proc/<child>/status` showed bits set for SIGTERM and SIGHUP. Both are now
+clear there, **while the parent is still blocked at the same moment** -- the two
+assertions are made in one test, because either alone is satisfiable by
+breaking the other. A behavioural test sits beside them: a stage dies on the
+cleanup's SIGTERM in under ten seconds rather than after the grace.
+
+The reset happens in the child as part of creating it -- `preexec_fn`, between
+fork and exec -- rather than afterwards, which is too late by definition. That
+runs in the forked child where only async-signal-safe work is sound, so it is
+one `pthread_sigmask` call and nothing else. It rests on the runner being
+single-threaded at launch, which it is: stages start from the main thread and
+the elaboration heartbeat is stopped and joined before any compiler stage. The
+code checks that rather than trusting it, and says so in the log if it ever
+stops holding. `os.posix_spawn` with `setsigmask` would avoid the caveat
+without Python running in the child, but it cannot set the child's working
+directory, which every Quartus stage needs.
+
+**Where this family ends.** Three findings, each from the fix before it, is the
+#1850 pattern, and the test of whether it has ended is structural rather than a
+count of rounds. It has: the parent's mask and the child's are now set at the
+same moment, by one call, as two halves of creating a process -- not one
+patched after the other. There is no third party left to inherit anything, no
+interval between the two settings, and nothing deferred to a later step that a
+signal could arrive before. The rule from the previous round still stands as
+the one to apply next time: a fix that narrows a window is not a fix that
+closes it.

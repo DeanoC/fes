@@ -27,7 +27,7 @@ identity-on machine fit ran **nine seeds at 38,075–38,257 ALMs, 90.9–91.3% o
 the Cyclone V, every one meeting setup and hold, worst +0.454 ns**. (That PR's
 sealed package, 36,298 ALMs, has the identity **off**, so it is the DE10
 equivalent of fit M rather than of M+.)
-[#1889](https://github.com/DeanoC/fes/pull/1889)'s refusal was its own head,
+[#1889](https://github.com/DeanoC/fes/pull/1889), merged as `c6728f2cd`'s refusal was its own head,
 slice 4 stacked on slice 3, whose 387 has divide, square root and the
 remainders. Its standalone unit is **6,923 ALMs** in the form #1889 settled on
 — the 8,073 in that PR is the slice "as first written", a form it rebuilt —
@@ -38,7 +38,7 @@ it closes on Agilex 5 at 41,387 ALMs, 88.43%.
 
 The question, in his words: *"we need see the entire size of the 386 on the
 agilex 5, it may be bigger or smaller as different fabric and toolchain."* It
-gates the DE25 plan, because [#1889](https://github.com/DeanoC/fes/pull/1889)
+gates the DE25 plan, because [#1889](https://github.com/DeanoC/fes/pull/1889), merged as `c6728f2cd`
 showed the DE10 cannot hold the machine with the `i386dx+387` identity on —
 4,292 LABs needed against the Cyclone V's 4,191, 102.4%, the fitter stopping
 before placement — and [#1892](https://github.com/DeanoC/fes/pull/1892) fitted
@@ -331,7 +331,7 @@ headline rung, 73 ALMs from the first — is in the ladder table.
 
 ## The design the DE10 refused does fit on Agilex 5 — and it adds no LABs
 
-`pc386_system` from [#1889](https://github.com/DeanoC/fes/pull/1889)'s head
+`pc386_system` from [#1889](https://github.com/DeanoC/fes/pull/1889), merged as `c6728f2cd`'s head
 `5f901426e`, **pre-merge** (that PR targets `deano/i386-x87-s3`, whose base is
 conflicting; the tree fitted is the head's own, so this describes the
 slice-3-plus-slice-4 design on #1879's branch and no state of main), with
