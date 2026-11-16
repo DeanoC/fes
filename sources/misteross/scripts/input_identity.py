@@ -22,6 +22,14 @@ PACKAGING_INPUTS = frozenset({
     'scripts/source_closures.json',
     'boards/de25nano/package/export_core_package.py',
     'boards/de25nano/package/core_package.py',
+    # Audited at the module boundary like the rest of this set (DeanoC/fes#1806
+    # review). It is fitted *evidence* for two reviewed asynchronous HDMI inputs:
+    # its own docstring states it does not change constraints, waive Design
+    # Assistant rules or qualify external/reset timing, and every function reads
+    # or verifies Quartus reports (`review_reports`, `input_findings`,
+    # `bindings`, `collect`, `verify`). It inspects a finished build and supplies
+    # no source bytes to a compiler, so it cannot change what is built.
+    'boards/de25nano/scanout/async_inputs.py',
 })
 TOOLCHAIN_INPUTS = frozenset({
     'scripts/bootstrap.sh', 'scripts/lockfile.py', 'scripts/toolchain_cache.py',
