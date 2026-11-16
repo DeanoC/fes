@@ -30,7 +30,8 @@ currently exercises the playable ZX81 package through the normal
 install/launch lifecycle, compatibility checks, and supported input path. The
 locked idle MENU is captured before and after as restore evidence. The D25
 smoke reads named ROM state only when the package descriptor declares a ROM,
-and checks post-stop idleness through the paired session API. The current J8G
+checks post-stop idleness through the paired session API, and fails closed if
+its generated API/ROM/idle probes do not compile and match the D25 host. The current J8G
 agent rejects MENU `core-load` at admission with `UNSUPPORTED_OPERATION`; until
 the runtime supports that operation, a MENU package has not passed exact-head
 HIL and main-baseline promotion must remain gated. Both paths compare the
