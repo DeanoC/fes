@@ -111,7 +111,9 @@ was `40a448263b76fb75fd945070f220c86d8714e27de194bb453ed881d305cf2826`.
 The corrected oracle is under separate review. Full post-merge reports must be
 regenerated before they can be used by the producer.
 
-The source files used by the default-off shared candidate had these SHA-256s:
+The historical default-off candidate at commit `8cbb02309` had these
+SHA-256s. The experiments above used this pre-merge source, not the later
+merged source:
 
 | File | SHA-256 |
 | --- | --- |
@@ -119,6 +121,20 @@ The source files used by the default-off shared candidate had these SHA-256s:
 | `fes_i386_governor.sv` | `eff364d6b0d778e3f4606bbb506046b9ee152f878d0b6d3d0b4e414eca74f0e1` |
 | `fes_i386_pkg.sv` | `5db1ca51d91b92028aac0f6502b683b48671eedb79da8c8f01797fe7ee362a16` |
 | `fes_i386_qalign.sv` | `9b537a40f30a401884bb9a61e38326cff00985ebc95e5f51130df095e34b85d1` |
+
+The base merge at `e1f814977c24554172930f71c743930b7e7ac6d9` also brought
+x87 changes into the i386 CPU, package and decoder. Its relevant source hashes
+are below. The older simulation, netlist and hardware reports do not establish
+results for these merged bytes; revalidation is required.
+
+| File at `e1f814977` | SHA-256 |
+| --- | --- |
+| `fes_i386_cpu.sv` | `edf9bb9fcd286e2e80476357f208ee02784f6b1d61bb7f086a9e041584c1a5e9` |
+| `fes_i386_governor.sv` | `eff364d6b0d778e3f4606bbb506046b9ee152f878d0b6d3d0b4e414eca74f0e1` |
+| `fes_i386_pkg.sv` | `e86b99e88d4821898f43abb4d13ec8feb1b72cb5dd502080afbd3f324afec974` |
+| `fes_i386_qalign.sv` | `9b537a40f30a401884bb9a61e38326cff00985ebc95e5f51130df095e34b85d1` |
+| `fes_i386_decode.sv` | `5351d994595be178d1afb5c47106cf46ecdda8fc5b274d48d7ff921e842ecbf0` |
+| `fes_i386_x87.sv` | `da35a4d698d8ead84d0c95e26c02e3083ed2c59672d5a8655f46d83877442952` |
 
 The focused check is:
 
