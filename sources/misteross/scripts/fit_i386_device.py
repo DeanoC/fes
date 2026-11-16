@@ -222,7 +222,8 @@ def drop_duplicate_attributes(text: str) -> tuple[str, int]:
 
     Yosys writes both forms on the same casez. A bare Verilog attribute means
     the value 1, so the pair says one thing twice; Quartus 17.0.2 only warns,
-    but Quartus Pro 26.3 stops with Error (22074). Only a line that is nothing
+    but Quartus Pro 26.3 stops with Error (22074). Fork issue DeanoC/yosys#78.
+    Only a line that is nothing
     but a duplicate attribute is removed, and putting the removed lines back at
     their recorded positions must reproduce the original text exactly.
     """

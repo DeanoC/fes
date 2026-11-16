@@ -281,3 +281,35 @@ alive on a virtual pin, including the 640-bit `arch_x87_regs`, while M ties
 `x87_present` to 0 and leaves most of those outputs unconnected for the
 fitter to sweep. C is the CPU with its full observability surface held up; the
 CPU inside M is smaller than C by an amount this experiment does not measure.
+
+## Amendment, 16 November 2026: two more differences between the sides
+
+What had been seen: fit C had landed on Agilex 5 (29,114 ALMs, timing pass at
+61.44 MHz), and the DE10 CPU fit and both machine fits had failed before
+producing any figure. No DE10 figure and no machine figure existed.
+
+**The DE10 fit was not the intended experiment, and nearly said so quietly.**
+Quartus 17.0.2 rejects a braced node name in a `VIRTUAL_PIN` assignment
+(Critical Warning 136021) and leaves that port a real pin. All 1,306 of the
+CPU's assignments were ignored. The fit failed only because the device has 314
+pins; on a device with pins to spare it would have produced a fit of a
+completely different envelope and reported it as a result. The assignments are
+now unbraced, and **every fit gates on the report's own pin count**: more real
+pins than real clocks is a failure. The Agilex fit C already reported `Total
+pins 1 / 351`, so its envelope was the intended one.
+
+**The Agilex side drops one more thing from the netlist.** Yosys writes both a
+bare and a valued `parallel_case` on some `casez` statements. A bare Verilog
+attribute means the value 1, so the pair says one thing twice; Quartus 17.0.2
+warns, Quartus Pro 26.3 stops with `Error (22074)`. The Agilex side removes a
+bare `(* name *)` line when another line in the same attribute run gives
+`name = ...` — 30 of the machine netlist's 650 bare `parallel_case`
+attributes, the other 620 untouched — verified by putting the removed lines
+back and requiring the original text exactly. Fork issue:
+[DeanoC/yosys#78](https://github.com/DeanoC/yosys/issues/78).
+
+So the Agilex side now reads the netlist with **two** mechanical rewrites: the
+M10K block name and these duplicate attribute lines. The DE10 side reads it
+exactly as the pc386 seal lane does. Both rewrites are recorded per fit with
+their counts, both digests and a round-trip check, and the record will not
+claim the two sides read identical bytes.
