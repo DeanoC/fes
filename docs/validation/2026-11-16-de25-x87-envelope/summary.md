@@ -216,7 +216,7 @@ version of this record said "11 of 13 offsets hang", which read as a count of
 independent failures and was not one. The first failing offset is the claim
 the bench supports.)*
 
-## The pattern: eight ways a check can report without checking
+## The pattern: nine ways a check can report without checking
 
 These are listed together because the pattern is the finding, not any one of
 them. In each case a check existed, ran, and reported success while being
@@ -264,6 +264,34 @@ and the threshold. What makes it belong here is that **this exact failure had
 already been pointed out and already been fixed for the unit fits**, and the
 integration fit was then queued with the old path anyway. Knowing about a
 failure mode did not prevent reproducing it; the check did.
+
+**A ninth, which a tool would have committed on instruction.** PR #1907's
+`plan` check went red on the S8 reader census's
+`citation-fingerprints.json`, and the message it prints is
+`re-record with --record-fingerprints` — so the fix looked like running one
+command. Measuring first changed the answer:
+
+| Tree | Problems |
+| --- | ---: |
+| `origin/main` | 2 |
+| main + PR #1892 | 2 |
+| main + #1892 + **this work's two script edits only** | 7 |
+| this branch, 7 commits behind main | **328** |
+
+**Five of the 328 are this work's**; about 321 are drift from the branch being
+behind main, and resolve themselves when main is merged.
+`--record-fingerprints` rebuilds digests for citations **as they currently
+resolve** and never touches the record's prose — so it would have asserted
+*"the text at `Makefile:936` is what this record cited"* for 321 lines the
+census never saw, **and the check would have gone green over it**. The failure
+the fingerprint file exists to prevent, performed by the tool meant to
+maintain it, in another record's evidence where its author would never look.
+
+The fix was not to run the command but to fix the branch order, and the
+diagnosis is on the PR so nobody re-derives it. It is listed here because the
+instruction to re-record was reasonable, the error message recommended it, and
+only a measurement distinguished "the tool's normal workflow" from "silently
+falsify 321 citations".
 
 **An eighth, and it is not mine.** Band 4 was issued with **two different
 thresholds on two different quantities** — LABs ≥ 99.5% in the dated
