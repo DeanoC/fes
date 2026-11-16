@@ -121,7 +121,10 @@ ladder, precommitted here:
 - **"Closes at" means the highest rung at which every analysis passes at every
   published corner** — setup, hold, recovery, removal and minimum pulse width,
   across all corners `get_available_operating_conditions -all` returns, the
-  same gate #1892 used. Restricted Fmax at the slow corner is reported
+  same gate #1892 used. (Corrected by a later amendment to **every analysis
+  that has paths to analyse**: the CPU's resets are synchronous, so recovery
+  and removal find zero paths there and are not applicable rather than passed.
+  The rule's effect and every recorded verdict are unchanged.) Restricted Fmax at the slow corner is reported
   alongside each rung as the fitter's own estimate, clearly labelled as an
   estimate rather than as a closure.
 - Runtime caps: 90 minutes per CPU fit, 4 hours per machine fit. A fit that
@@ -746,3 +749,32 @@ to M and M+**, because being on one scale with the 37,255 is the entire point.
 has been withdrawn, and the honest position is that nobody knows. Stating a
 prediction now, after a morning spent retracting two of them, would be the
 same mistake in a new place.
+
+## Amendment, 16 November 2026: the closure rule means every *applicable* analysis
+
+What had been seen: all sixteen fits recorded, including #1889's head, and the
+summary already corrected to say that recovery and removal are inapplicable on
+the CPU fits rather than passed.
+
+The closure rule above still reads "every analysis passes at every published
+corner — setup, hold, recovery, removal and minimum pulse width". Taken
+literally that rule could never be met by `fes_i386_cpu`, whose resets are all
+synchronous: `fit_timing.tcl` finds **zero** recovery and removal paths there
+and records them `not_applicable_synchronous_reset`. So the rule as written
+would have failed every CPU rung, including the 130 MHz closure it was used to
+establish.
+
+**The rule, stated as it was actually applied and as the gate implements it:**
+a rung closes when **every analysis that has paths to analyse** passes at
+every published corner, and an analysis with zero paths is recorded as not
+applicable rather than counted as a pass. On `fes_i386_cpu` that is setup,
+hold and minimum pulse width; on `pc386_system`, which has asynchronous
+resets, it is all five. The gate has always distinguished the two — it writes
+a coverage word per check per corner, and `not_applicable_synchronous_reset`
+only where the path count is zero — so no verdict in this record changes. What
+changes is the method's wording, which overstated what had been required.
+
+This is a wording correction to a precommitted rule, which is worth flagging
+as such: the rule's *effect* is unchanged, every recorded verdict stands, and
+the coverage words in [timing.tsv](timing.tsv) let a reader check that for
+themselves rather than take this paragraph's word for it.
