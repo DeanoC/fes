@@ -27,7 +27,12 @@ def write_fit(directory: Path, *, device: str, family: str, alms: float, availab
         "resources": {"alms": {"used": alms, "available": available,
                                "percent_of_device": round(100 * alms / available, 2),
                                "report_label": "Logic utilization"}},
-        "timing": {"status": "pass", "corner_count": 4, "fmax": [{"corner": "Slow", "clocks": []}]},
+        "timing": {"status": "pass", "corner_count": 4,
+                   "corners": [{"corner": f"Corner {i}", "hold_only": False,
+                                "analyses": {c: {"coverage": "analyzed"} for c in
+                                             ("setup", "hold", "minimum_pulse_width")}}
+                               for i in range(4)],
+                   "fmax": [{"corner": "Slow", "clocks": []}]},
     }
     if stage is not None:
         fit["resources_stage"] = stage
@@ -334,6 +339,21 @@ class Collect(unittest.TestCase):
             lines = (fit / "timing.tsv").read_text().splitlines(keepends=True)
             kept = [l for l in lines if not (l.startswith("Corner 2\t") and "\thold\t" in l)]
             (fit / "timing.tsv").write_text("".join(kept))
+            self.assertEqual(record.main(["--record", str(root / "r"), f"--fit=x={fit}"]), 1)
+
+    def test_a_uniformly_truncated_table_is_refused(self):
+        # Every corner consistent with every other, and still missing what the
+        # verdict covers: fit.json is the authority, not the table's own
+        # internal agreement.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fit = write_fit(root / "f", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                            alms=1, available=2, device_alms=46800, ram_block="M20K")
+            record_json = json.loads((fit / "fit.json").read_text())
+            for entry in record_json["timing"]["corners"]:
+                entry["analyses"]["recovery"] = {"coverage": "analyzed"}
+            (fit / "fit.json").write_text(json.dumps(record_json))
+            # The table still has setup/hold/minimum_pulse_width at all four.
             self.assertEqual(record.main(["--record", str(root / "r"), f"--fit=x={fit}"]), 1)
 
     def test_a_table_without_the_closure_checks_is_refused(self):

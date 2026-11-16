@@ -176,6 +176,30 @@ def timing_rows(name: str, output: Path, fit: dict) -> list[str]:
             f"{name}: fit.json records a timing verdict over {expected} corner(s) but "
             f"{path} has rows for {len(checks)}; the table is truncated and the verdict "
             "would be published without the evidence for every corner")
+    # fit.json is the authority on which analyses the verdict covers: the gate
+    # writes one entry per analysis per corner. Match the rows against that,
+    # not against each other -- a table truncated the SAME way at every corner
+    # is self-consistent and still missing the evidence.
+    declared = {entry["corner"]: set(entry.get("analyses") or {})
+                for entry in ((fit.get("timing") or {}).get("corners") or [])
+                if entry.get("corner")}
+    if declared:
+        for corner, analyses in sorted(declared.items()):
+            present = checks.get(corner)
+            if present is None:
+                raise RecordError(
+                    f"{name}: fit.json records corner {corner!r} but {path} has no rows for it")
+            if present != analyses:
+                missing = sorted(analyses - present)
+                extra = sorted(present - analyses)
+                raise RecordError(
+                    f"{name}: corner {corner!r} in {path} has checks {sorted(present)} where "
+                    f"fit.json records {sorted(analyses)}"
+                    + (f"; missing {missing}" if missing else "")
+                    + (f"; unexpected {extra}" if extra else ""))
+        return [f"{name}\t{row}" for row in rows]
+    # No per-corner analysis list to match against: fall back to requiring the
+    # corners to agree with each other and to carry the closure's own checks.
     full = max(checks.values(), key=len) if checks else set()
     for corner, present in sorted(checks.items()):
         if present != full:
