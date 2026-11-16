@@ -7,11 +7,14 @@ Outside agent sessions have ignored these rules. Obey them.
 1. MUST claim the kit before you touch it, and log the result when you
    finish. There is no separate Powerboat host claim. Record owner, PR,
    and start time in that kit's Powerboat status file:
-   `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`. That
+   `~/kit-status/kitA-STATUS.md`, `kitB-STATUS.md`, or
+   `de25-TRWU8J8G-STATUS.md` for Kit D25. That
    log is the single source of truth. NEVER take a kit that is leased or
    claimed by someone else. NEVER use a Slack reservation, and NEVER
    require a person to be present.
 2. Kits A and B are both designated test kits. They are interchangeable.
+   DE25 changes use Kit D25 (`de25-j8g`, serial `TRWU8J8G`); never route
+   them to A/B or route DE10 work to D25.
 3. When a task installs a bundle, install that PR bundle on the kit's
    running image. A core-only run that does not change the bundle does not
    install one. Software goes before the image: before an image change,
@@ -103,6 +106,15 @@ keep a successful selection installed and do not restore a stock bundle
 automatically. This post-use bundle step is that explicit activation. It
 is not a file-swap restore, and it does not cancel another owner's pending
 activation. The stable supervisor owns the complete service group.
+
+DE25 uses the serial-bound ledger and restore baseline in
+[the DE25 kit HIL guide](de25-kit-hil.md). Claim both
+`~/kit-status/de25-TRWU8J8G-STATUS.lock` and
+`~/kit-status/de25-TRWU8J8G-STATUS.md.lock`, append the standard `KIT D25 IN USE`
+record, and hold the locks through restore verification. Capture only through
+`/dev/v4l/by-id/fes-ms2109-hil`; the raw MS2109 device is prohibited. Release
+the kit only after runtime idle, lease-free state, image and bundle identity,
+and the recorded restore diff all pass.
 
 Host, agent and runtime revisions may differ when their advertised contracts are
 supported. Diagnostics pin the active bundle and base-image digests; sealed
