@@ -188,6 +188,45 @@ class Envelope2(unittest.TestCase):
         self.assertEqual(record["real_pins"], 2)
 
 
+class ClockCoverage(unittest.TestCase):
+    """TimeQuest's own coverage rows, checked on the failure path too: a missed
+    rung bounds the closure from above, so the bound must not come from a clock
+    the analysis never looked at."""
+
+    CLEAN = ("; Illegal Clocks               ; 0 ; 0 ;\n"
+             "; Unconstrained Clocks         ; 0 ; 0 ;\n")
+
+    def _report(self, directory, text):
+        out = Path(directory) / "output_files"
+        out.mkdir(parents=True)
+        (out / "fes_i386_cpu.sta.rpt").write_text(text)
+        return Path(directory)
+
+    def test_full_coverage_passes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            record = {}
+            fit.check_clock_coverage(record, self._report(directory, self.CLEAN), "fes_i386_cpu")
+            self.assertEqual(len(record["unconstrained_clock_rows"]), 2)
+
+    def test_an_unconstrained_clock_is_a_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            text = ("; Illegal Clocks               ; 0 ; 0 ;\n"
+                    "; Unconstrained Clocks         ; 1 ; 0 ;\n")
+            with self.assertRaisesRegex(fit.FitError, "unconstrained or illegal clocks"):
+                fit.check_clock_coverage({}, self._report(directory, text), "fes_i386_cpu")
+
+    def test_a_report_without_the_coverage_rows_is_refused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(fit.FitError, "lacks unconstrained/illegal clock coverage"):
+                fit.check_clock_coverage({}, self._report(directory, "; Something ; 0 ; 0 ;\n"),
+                                         "fes_i386_cpu")
+
+    def test_a_missing_report_is_refused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(fit.FitError, "cannot be confirmed"):
+                fit.check_clock_coverage({}, Path(directory), "fes_i386_cpu")
+
+
 class Caps(unittest.TestCase):
     def test_each_design_gets_the_cap_the_method_promised(self):
         # A fit reported as "not measured within the cap" must have been given

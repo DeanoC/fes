@@ -594,6 +594,29 @@ def check_envelope(record: dict, fit_text: str, inputs: dict) -> None:
                        "did not take effect, so this is not the intended envelope")
 
 
+def check_clock_coverage(record: dict, project: Path, top: str) -> None:
+    """Every clock constrained and none illegal, from TimeQuest's own report.
+
+    This runs on the failure path too. A missed ladder rung is what bounds the
+    closure from above, so "this rung misses" has to mean the analysis covered
+    every clock -- otherwise the bound could come from a clock TimeQuest never
+    looked at.
+    """
+    if "unconstrained_clock_rows" in record:
+        return
+    report = project / "output_files" / f"{top}.sta.rpt"
+    if not report.is_file():
+        raise FitError("no TimeQuest report, so clock coverage cannot be confirmed")
+    sta = report.read_text(errors="replace")
+    clocks = re.findall(r"^;\s*(Illegal Clocks|Unconstrained Clocks)\s*;\s*(\d+)\s*;\s*(\d+)\s*;",
+                        sta, re.M)
+    record["unconstrained_clock_rows"] = clocks
+    if {row[0] for row in clocks} != {"Illegal Clocks", "Unconstrained Clocks"}:
+        raise FitError("TimeQuest report lacks unconstrained/illegal clock coverage")
+    if any(int(setup) or int(hold) for _, setup, hold in clocks):
+        raise FitError("TimeQuest reports unconstrained or illegal clocks")
+
+
 def compile_project(output: Path, project: Path, top: str, quartus_sh: Path,
                     metadata: dict, timeout_seconds: int) -> dict:
     inputs = json.loads((output / "inputs.json").read_text())
@@ -628,14 +651,7 @@ def compile_project(output: Path, project: Path, top: str, quartus_sh: Path,
         record["resources"] = resources(fit_text)
         check_envelope(record, fit_text, inputs)
         record["timing"] = json.loads((output / "timing.json").read_text())
-        sta = (project / "output_files" / f"{top}.sta.rpt").read_text(errors="replace")
-        clocks = re.findall(r"^;\s*(Illegal Clocks|Unconstrained Clocks)\s*;\s*(\d+)\s*;\s*(\d+)\s*;",
-                            sta, re.M)
-        record["unconstrained_clock_rows"] = clocks
-        if {row[0] for row in clocks} != {"Illegal Clocks", "Unconstrained Clocks"}:
-            raise FitError("TimeQuest report lacks unconstrained/illegal clock coverage")
-        if any(int(setup) or int(hold) for _, setup, hold in clocks):
-            raise FitError("TimeQuest reports unconstrained or illegal clocks")
+        check_clock_coverage(record, project, top)
         if record["timing"].get("status") != "pass":
             raise FitError(f"timing did not pass at {inputs['period_ns']} ns on every corner")
     except BaseException as error:
@@ -658,7 +674,10 @@ def compile_project(output: Path, project: Path, top: str, quartus_sh: Path,
         if (output / "timing.json").is_file():
             try:
                 record["timing"] = json.loads((output / "timing.json").read_text())
-            except (ValueError, OSError) as parse_error:
+                # A missed rung bounds the closure from above, so its analysis
+                # must have covered every clock for the bound to mean anything.
+                check_clock_coverage(record, project, top)
+            except (FitError, ValueError, OSError) as parse_error:
                 record["timing_parse_error"] = str(parse_error)
         (output / "fit.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
         raise

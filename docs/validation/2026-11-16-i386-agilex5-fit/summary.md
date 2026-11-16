@@ -293,7 +293,11 @@ The two missing rungs are also the only place where area moves: **30,000 and
 every rung that *closes* and stops at the rungs that do not — the fitter spends
 area trying to make a target it cannot reach. Both figures are reported with
 their stage: these are complete fits whose **timing gate failed**, not partial
-fits.
+fits. And because a missed rung is what bounds the closure from above, both had
+their envelope and their clock coverage verified rather than assumed: **1 real
+pin against 1 real clock** on each, and TimeQuest reporting **zero illegal and
+zero unconstrained clocks** — so the bound does not come from a clock the
+analysis never looked at.
 
 Also not measured, and stated as such:
 
