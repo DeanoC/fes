@@ -1262,6 +1262,31 @@ module fes_i386_decode (
                                     upc = fes_i386_ucode_pkg::UC_FRD10;
                                     eoi = 1'b0;
                                 end
+                                6'o00, 6'o01, 6'o02, 6'o03, 6'o04, 6'o05,
+                                6'o20, 6'o21, 6'o22, 6'o23, 6'o24, 6'o25:
+                                    // Slice 3's arithmetic and compares with
+                                    // a 32-bit real (D8 /0-/5) or a 32-bit
+                                    // integer (DA /0-/5) operand: one dword
+                                    // read, as FLD m32 and FILD m32 are.
+                                    mkind = 2'd1;
+                                6'o60, 6'o61, 6'o62, 6'o63, 6'o64, 6'o65: begin
+                                    // ... with a 16-bit integer (DE /0-/5):
+                                    // one word, as FILD m16 is.
+                                    size = 2'd1;
+                                    mbytes = 3'd2;
+                                    mkind = 2'd1;
+                                end
+                                6'o40, 6'o41, 6'o42, 6'o43, 6'o44, 6'o45: begin
+                                    // ... with a 64-bit real (DC /0-/5): the
+                                    // dword at 4, then the ROM's at 0, as
+                                    // FLD m64 is.
+                                    mkind = 2'd1;
+                                    moff = 7'd4;
+                                    x87p = 2'(fes_i386_pkg::X87P_NONE);
+                                    seq = fes_i386_pkg::SEQ_UCODE;
+                                    upc = fes_i386_ucode_pkg::UC_FRD8;
+                                    eoi = 1'b0;
+                                end
                                 6'o12, 6'o13, 6'o32, 6'o33: begin
                                     // FST and FSTP m32, FIST and FISTP m32:
                                     // one dword of the unit's value.
@@ -1304,11 +1329,12 @@ module fes_i386_decode (
                                     eoi = 1'b0;
                                 end
                                 default: begin
-                                    // The arithmetic forms, FBLD and FBSTP:
-                                    // a later slice's, stopped by known
-                                    // above. The offset goes to AG, as the
-                                    // empty socket's does, so the trace has
-                                    // the data pointer.
+                                    // The divides (reg fields 6 and 7),
+                                    // FBLD and FBSTP: a later slice's,
+                                    // stopped by known above. The offset
+                                    // goes to AG, as the empty socket's
+                                    // does, so the trace has the data
+                                    // pointer.
                                     op = 5'd14;  // ALU_LEA
                                     lea = 1'b1;
                                 end

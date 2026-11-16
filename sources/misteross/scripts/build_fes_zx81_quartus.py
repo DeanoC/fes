@@ -98,7 +98,7 @@ SOURCE_ROOTS = tuple(sorted({
     'cores/fes-zx81/rtl/zx81_model.vh', 'cores/fes-zx81/rtl/zx81_bus_pack.vh',
     *(f'scripts/{name}.py' for name in (
         'compiler_read_audit', 'core_package', 'cyclonev_rbf', 'export_core_package', 'fes_build_common',
-        'fes_de10nano_evidence', 'functional_execution', 'lockfile', 'nextpnr_lease', 'quartus_timing_summary',
+        'fes_de10nano_evidence', 'functional_execution', 'input_identity', 'lockfile', 'nextpnr_lease', 'quartus_timing_summary',
         'quartus_tools', 'quartus_vo_evidence', 'rfc3986_validator', 'rom_map', 'source_closure',
         'source_provenance', 'source_repository'))}))
 
