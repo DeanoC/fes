@@ -186,6 +186,34 @@ scope, and condition 1 for all 15. The ten artifacts outside that scope
 `fes.pong`, `fes.ramtest`, `fes.coleco`, `fes.riscv`) have condition 1 only,
 by Deano's priority call recorded above.
 
+## What design-v1 (#1882) changes here, and what it does not
+
+Main has since taken #1882, which splits identity: a `design-v1` `BUILD_ID`
+covers design inputs only, with packaging and toolchain inputs and parameters
+excluded. Two of the parameters this PR writes — `gpu_backend` and
+`gpu_architectures` — are now in `TOOLCHAIN_PARAMETERS`, so under that policy a
+backend no longer moves a design id, and HIP and CUDA builds of one design
+share one.
+
+That does **not** dissolve the scope below, and it was worth measuring rather
+than assuming. Every file this PR changes still classifies as a *design* input:
+
+```
+$ git diff --name-only origin/main...HEAD -- sources/misteross/     | sed 's|sources/misteross/||' | xargs -n1 python3 -c       'import sys;from scripts.input_identity import input_role;print(input_role(sys.argv[1]), sys.argv[1])'
+design  scripts/build_fes_menu.py
+design  scripts/build_fes_menu_package.py
+design  scripts/build_fes_pong.py
+design  scripts/build_fes_ramtest.py
+design  scripts/build_fes_riscv.py
+design  scripts/fes_de10nano_evidence.py
+```
+
+So the parameter half of this change is now identity-neutral, while the
+source-hash half still moves `BUILD_ID` for every artifact whose closure holds
+one of those files. The affected set and the evidence below are unchanged. Note
+also that the four producers this PR touches do not yet emit `design-v1`
+records at all, so they are on the older projection regardless.
+
 ## Scope, and a correction to how it was derived
 
 The first version of this record resolved the affected set from the
