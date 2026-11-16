@@ -178,6 +178,49 @@ module governor_integration_tb;
     accesses=2; boundary=1; eoi=1; element=1;
     @(negedge clk); element=0; boundary=0; eoi=0; accesses=0;
     finish_trial(167,116,"REP MOVS replay preserves chunk budget");
+    // CMP r/m,reg: execute 5 clocks, but preserve the 7-clock queue budget.
+    for (int op=56; op<=57; op++) begin
+      restart; instruction(8'(op),0,2,1,0);
+      @(negedge clk); boundary=0; eoi=0; accesses=0;
+      @(negedge clk);
+      if (candidate.execution_clocks != 5 || candidate.refill_execution != 7)
+        $fatal(1,"CMP RAM split budgets op=%h",op);
+      finish_trial(8,7,"CMP ordinary RAM");
+    end
+    // Disallowed encodings and non-RAM contexts retain the earlier path.
+    for (int op=56; op<=57; op++) for (int test=0; test<6; test++) begin
+      restart; instruction(8'(op),0,2,1,0);
+      if (test==0) ordinary_ram=0;
+      if (test==1) begin ordinary_ram=0; mmio=1; end
+      if (test==2) gov.ref_test_excluded=1;
+      if (test==3) gov.o32=1;
+      if (test==4) gov.rm_reg=1;
+      if (test==5) gov.two=1;
+      @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1; mmio=0;
+      @(negedge clk);
+      if (candidate.execution_clocks != baseline.execution_clocks ||
+          9'(candidate.refill_execution) != candidate.execution_clocks)
+        $fatal(1,"CMP unsupported fallback test=%0d candidate=%0d baseline=%0d",test,candidate.execution_clocks,baseline.execution_clocks);
+    end
+    // Both access orders disqualify a mixed RAM/non-RAM instruction.
+    for (int op=56; op<=57; op++) for (int reverse=0; reverse<2; reverse++) begin
+      restart;
+      @(negedge clk); gov='0; gov.op=8'(op); ilen=2; accesses=1; ordinary_ram=(reverse!=0); boundary=0; eoi=0;
+      @(negedge clk); accesses=1; ordinary_ram=(reverse==0); boundary=1; eoi=1;
+      @(negedge clk); accesses=0; boundary=0; eoi=0; ordinary_ram=1;
+      @(negedge clk);
+      if (candidate.s2_ordinary_ram || candidate.execution_clocks != baseline.execution_clocks ||
+          9'(candidate.refill_execution) != candidate.execution_clocks)
+        $fatal(1,"CMP mixed access fallback op=%0d reverse=%0d",op,reverse);
+    end
+    // Reverse-direction CMP remains on the pre-existing path.
+    for (int op=58; op<=59; op++) begin
+      restart; instruction(8'(op),0,2,1,0);
+      @(negedge clk); boundary=0; eoi=0; accesses=0;
+      @(negedge clk);
+      if (candidate.execution_clocks != 7 || candidate.refill_execution != 7)
+        $fatal(1,"CMP reverse direction changed");
+    end
     // TEST with a memory operand has separate execution and overlap clocks.
     restart;
     instruction(8'hf6,0,3,1,0);

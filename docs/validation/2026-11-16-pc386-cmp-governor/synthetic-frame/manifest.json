@@ -1,0 +1,57 @@
+{
+  "git_head": "20dae48f098d99fb429e994ce099c356a64fefd3",
+  "cpu_diagnostic_enabled": true,
+  "files": {
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-handler-frame-holdout/generate.py": "b3db4ab68f5784bb05ea8d4c44121383370011a93bf1b5deb77fe5318b79c0a4",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/pc386-gov-heldout/heldout.asm": "a621ba4ef97cf91ea1df773cf6e5830ce74155483b9cb0bfb8e2f14eacaab286",
+    "/home/deano/fes-scratch/u6ref/tools/nasm/nasm": "d75404632d151de8438081b817d09f56ab9eb4f688a151f55897f2a5396bf01b",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-wide-zero-v11/build/rtl-GOV_D3072-GOV_N5-GOV_REFERENCE_DIAGNOSTIC1/Vfes_i386_cpu": "a583e34c4ec711e86ed384f1a41386df4125cd919c63d9dc81869b6a2e46565b",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-wide-zero-v11/manifest.json": "5e96eb4ddb0a887aa7c75d7021e86762e30ac4c5b36b13a6a32b1f522ea1576d",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-handler-frame-holdout/reference.asm": "ca11151393140c132cbe6c0a7208edf8d65030bcc9890368883178dc4f85145a",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-handler-frame-holdout/rtl.asm": "9736aadcf3796c9acbe8d9c91ab07c169656625c9b4795cdf9756aad85a8387d",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-handler-frame-holdout/SURVEY.COM": "22434a7ca6e84882f9742974082fa67bc55c4f3bb06c2ba95c7655fc843d501d",
+    "/home/deano/.codex/worktrees/d31c/fes/out/dev/1902-handler-frame-holdout/rtl.bin": "cb1f9bd4fd34e14348ba59e87d3a7659d34623851e6c8607d6b02d60c3940ea2"
+  },
+  "cases": [
+    {
+      "name": "FULL_P0",
+      "kind": "full",
+      "count": 0,
+      "mode": "entry",
+      "body_sha256": "9fa03157a2fe217de80eab0a59e63e8b4b692e63b64a93d1d453a22bd74f368a",
+      "body_hex": "31c031d2f89c0e56ffe74d75f3",
+      "reference_offset": 324,
+      "rtl_offset": 112
+    },
+    {
+      "name": "REDUCED_P0",
+      "kind": "reduced",
+      "count": 0,
+      "mode": "entry",
+      "body_sha256": "9fa03157a2fe217de80eab0a59e63e8b4b692e63b64a93d1d453a22bd74f368a",
+      "body_hex": "31c031d2f89c0e56ffe74d75f3",
+      "reference_offset": 464,
+      "rtl_offset": 242
+    },
+    {
+      "name": "FULL_P8",
+      "kind": "full",
+      "count": 8,
+      "mode": "entry",
+      "body_sha256": "9fa03157a2fe217de80eab0a59e63e8b4b692e63b64a93d1d453a22bd74f368a",
+      "body_hex": "31c031d2f89c0e56ffe74d75f3",
+      "reference_offset": 604,
+      "rtl_offset": 372
+    },
+    {
+      "name": "REDUCED_P8",
+      "kind": "reduced",
+      "count": 8,
+      "mode": "entry",
+      "body_sha256": "9fa03157a2fe217de80eab0a59e63e8b4b692e63b64a93d1d453a22bd74f368a",
+      "body_hex": "31c031d2f89c0e56ffe74d75f3",
+      "reference_offset": 744,
+      "rtl_offset": 502
+    }
+  ]
+}
