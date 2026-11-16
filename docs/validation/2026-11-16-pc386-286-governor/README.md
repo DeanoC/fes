@@ -13,16 +13,22 @@ Run from this directory:
 ```sh
 sha256sum -c SHA256SUMS
 python3 verify.py
-# Optional: rebuild all source fixtures and compare original binary hashes.
+# Optional: rebuild indexed root and wide fixture sources and compare hashes.
 python3 verify.py --nasm /absolute/path/to/nasm
 ```
 
 The recorded assembler was NASM 2.16.03 (executable SHA-256
 `d75404632d151de8438081b817d09f56ab9eb4f688a151f55897f2a5396bf01b`).
 The optional rebuild has been checked with that executable. `verify.py` checks
-retained file hashes, equal repeats, asserted segment/copy controls, measured
-block counts, whole-loop conversion and retained CPU charge-marker arithmetic;
-it does not rerun an emulator or assert a tier threshold.
+this directory's indexed hashes, repeated results, controls and arithmetic. It
+also runs the wide-milestone verifier and reconstructs its candidate patches,
+checks the mixed-form and nesting indexes and reconstructs the form-holdout
+manifests, checks the CMP and event indexes, and runs the CMP segment evidence
+verifier. That last verifier needs the main-history Git base `9037d15e...`;
+a full main-history checkout includes it. `--nasm` also rebuilds the wide
+milestone's recorded sources, but does not rebuild every sibling fixture. These
+checks require Python 3, Git and `patch`. They do not rerun an emulator or
+assert a tier threshold.
 
 ## Reference setup and procedure
 

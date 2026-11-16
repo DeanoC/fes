@@ -1,4 +1,4 @@
-da11bf6d7d2b644545c2bef2c6eae50bb39c396b838bb52d331d7ba779b43b7c  ./README.md
+9d53ba4d341e01c7c288a3e55e415d558f864f985798ecec237e6db98cae0d6a  ./README.md
 08d968ba896a015af35bfbfaa0c3235fc2805fec231ccac64400be1d99646ac7  ./cpu-differential/default-off-differential.json
 0f2ae72e0144f03e3f9630c6bc94edf0773b03a330adad830ed4361499bea2c6  ./cpu-differential/default-off-differential.log
 bc514868069ac25a92a446fb1b2a3ac730626d4d4ba97f5fd460c4e129f48c84  ./cpu-differential/default-off-differential.py
@@ -66,6 +66,7 @@ e8397a77357abf8af847d6e8757f2c15a582f95604fc8176650c516f9103b09f  ./memory-test/
 b8cb591cf660c01d8db1d26806d9c0af86ff0f0a175d67529fb0ebfe604ee66d  ./memory-test/training/rtl.asm
 2b0c614b2469b2ea5421c81ccd471f9feca416dd750af222882f279337d7bd11  ./memory-test/training/rtl.json
 ba4550db11bc93fa83b4c1e10aa0a12fcd2fb2b00213b3b31917924dbcc4065f  ./memory-test/training/rtl.log
+5eda55dbd9b71088c9b1a8b3b6958d6f96d6c8432a29c003765ef48cbd68a6e4  ./mixed-form-milestone/SHA256SUMS
 901886976d1efff75aaaa65c00ae0c61b1f117395bb20993b5af64b36bf4f487  ./rep-chunk-matrix/M1.TXT
 901886976d1efff75aaaa65c00ae0c61b1f117395bb20993b5af64b36bf4f487  ./rep-chunk-matrix/M2.TXT
 901886976d1efff75aaaa65c00ae0c61b1f117395bb20993b5af64b36bf4f487  ./rep-chunk-matrix/M3.TXT
@@ -99,4 +100,5 @@ ad6129a35fba4b08e63b6200cb4f1bffecedb2ac75266abe72296976a4736850  ./sequence/H2.
 ad6129a35fba4b08e63b6200cb4f1bffecedb2ac75266abe72296976a4736850  ./sequence/H3.TXT
 60c33383543caf9bedffe92978a2efae7e3630ab3f1800b0ee7dd9775a60af9f  ./sequence/commands.jsonl
 a621ba4ef97cf91ea1df773cf6e5830ce74155483b9cb0bfb8e2f14eacaab286  ./sequence/heldout.asm
-9f5751a1ebd35dfaf869dd56c29062510b63eab60f7381fbc8e72740851f16fb  ./verify.py
+4e11af37cca584d66b1aa29013e512946826b0c542c604edf9803621a3b60edb  ./verify.py
+46109528186a9991f7b58e26820444665e48f3d5dbb86fd8691c28cd3fda4de5  ./wide-milestone/SHA256SUMS

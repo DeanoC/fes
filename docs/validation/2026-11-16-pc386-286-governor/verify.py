@@ -10,6 +10,7 @@ import hashlib
 import json
 import re
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -18,12 +19,41 @@ HERE = Path(__file__).resolve().parent
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
-def check_hashes():
-    for line in (HERE / 'SHA256SUMS').read_text().splitlines():
+def check_hashes(directory):
+    seen = set()
+    for line in (directory / 'SHA256SUMS').read_text().splitlines():
         expected, name = line.split('  ', 1)
-        path = HERE / name
-        if digest(path) != expected:
-            raise SystemExit(f'hash mismatch: {name}')
+        relative = Path(name)
+        if relative.is_absolute() or '..' in relative.parts or name in seen:
+            raise SystemExit(f'invalid or duplicate indexed path in {directory}: {name}')
+        seen.add(name)
+        if digest(directory / relative) != expected:
+            raise SystemExit(f'hash mismatch in {directory}: {name}')
+    if not seen:
+        raise SystemExit(f'empty index: {directory}')
+
+
+def related_checks(nasm):
+    # Each nested verifier checks more than its index: compressed historical
+    # manifests and source patches are reconstructed and independently hashed.
+    wide = HERE / 'wide-milestone'
+    command = [sys.executable, str(wide / 'verify.py'), '--check-patches']
+    if nasm:
+        command.extend(['--nasm', str(nasm)])
+    subprocess.run(command, check=True)
+    mixed = HERE / 'mixed-form-milestone'
+    check_hashes(mixed)
+    check_hashes(mixed / 'nesting')
+    subprocess.run([sys.executable, str(mixed / 'form-holdout/verify-manifests.py')], check=True)
+    for name, expected in (
+        ('2026-11-16-pc386-cmp-governor', 'b28f4ede2c32a10017f7c421ccd79d2a690a4837d70ec6c0e55947145705722c'),
+        ('2026-11-16-pc386-event-governor', 'fbd2978e77bcef8719c467476c6eab58fe90fa74adf73c59cd82271a873f9bb4'),
+    ):
+        directory = HERE.parent / name
+        if digest(directory / 'SHA256SUMS') != expected:
+            raise SystemExit(f'related index mismatch: {name}')
+        check_hashes(directory)
+    subprocess.run([sys.executable, str(HERE.parent / '2026-11-16-pc386-cmp-segment-governor/verify-evidence.py')], check=True)
 
 def rows(group, names, controls=()):
     data = [(HERE / group / name).read_bytes() for name in names]
@@ -79,7 +109,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--nasm', type=Path, help='optional NASM executable for a byte reproduction check')
     args = parser.parse_args()
-    check_hashes()
+    check_hashes(HERE)
     sequence = rows('sequence', ['H1.TXT', 'H2.TXT', 'H3.TXT'])
     if sequence != dict(BD=2436, A=1291, B=1155, C=1291, D=1416, E=1416):
         raise SystemExit('unexpected sequence counts')
@@ -164,7 +194,8 @@ def main():
             raise SystemExit(f'unexpected seed-41 result: {name}')
     if args.nasm:
         assemble(args.nasm)
-    print('Retained hashes, repeated outputs, controls and arithmetic pass; emulator provenance is not revalidated.')
+    related_checks(args.nasm)
+    print('Indexed retained evidence and child reconstruction checks pass; emulator provenance is not revalidated.')
 
 if __name__ == '__main__':
     main()

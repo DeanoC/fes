@@ -5,7 +5,7 @@ This checks transcription and assembly, not the reference emulator's provenance
 or hardware equivalence. Optionally verify final RTL with --source-root and
 reassemble the source with --nasm.
 """
-import argparse,gzip,hashlib,json,re,subprocess,tempfile
+import argparse,gzip,hashlib,json,re,subprocess,tempfile,zlib
 from pathlib import Path
 
 HERE=Path(__file__).resolve().parent
@@ -67,15 +67,21 @@ def main():
    matches=[v for k,v in final['sources'].items() if k.endswith('/rtl/'+name)]
    if len(matches)!=1 or sha(rtl/name)!=matches[0]:raise SystemExit('final RTL mismatch: '+name)
  if args.check_patches:
-  if not args.source_root:raise SystemExit('--check-patches requires --source-root')
   files=('fes_i386_pkg.sv','fes_i386_qalign.sv','fes_i386_cpu.sv','fes_i386_governor.sv')
+  base=load('source-patches/base.json')
+  if base['source_commit']!='22fdddd3704768946df40b6ff7333e9225486106' or set(base['files'])!=set(files):raise SystemExit('patch base metadata differs')
+  originals={}
+  for file in files:
+   info=base['files'][file];archive=(HERE/'source-patches/base'/f'{file}.gz').read_bytes()
+   if len(archive)>1_000_000 or info['size']>1_000_000 or hashlib.sha256(archive).hexdigest()!=info['gzip_sha256']:raise SystemExit('patch base archive mismatch: '+file)
+   decoder=zlib.decompressobj(wbits=31);data=decoder.decompress(archive,info['size']+1)
+   if not decoder.eof or decoder.unused_data or decoder.unconsumed_tail or len(data)!=info['size'] or hashlib.sha256(data).hexdigest()!=info['sha256']:raise SystemExit('patch base reconstruction mismatch: '+file)
+   originals[file]=data
   manifests=(('forms','forms-holdout/candidate-manifest.json'),('shift','forms-holdout/shift-manifest.json'),('zero','zero-holdout/candidate-manifest.json'),('pending','zero-wide-holdout/candidate-manifest.json'))
   for name,manifest in manifests:
    with tempfile.TemporaryDirectory(prefix='fes1902-patch-') as tmp:
     directory=Path(tmp)
-    for file in files:
-     src=f'22fdddd3704768946df40b6ff7333e9225486106:sources/misteross/cores/fes-common/rtl/i386/{file}'
-     (directory/file).write_bytes(subprocess.check_output(['git','-C',str(args.source_root),'show',src]))
+    for file in files:(directory/file).write_bytes(originals[file])
     subprocess.run(['patch','-s','-p1','-i',str(HERE/'source-patches'/f'{name}.patch')],cwd=directory,check=True)
     sources=load(manifest)['sources']
     for file in files:
@@ -87,5 +93,9 @@ def main():
    for name,digest in expected.items():
     output=Path(temp)/(name.replace('/','_')+'.bin');subprocess.run([str(args.nasm),'-f','bin','-o',str(output),str(HERE/(name+'.asm'))],check=True)
     if sha(output)!=digest:raise SystemExit('assembly mismatch: '+name)
- print('Retained hashes, controls, arithmetic, speed strips and optional source/assembly checks pass; reference provenance is not revalidated.')
+ checks=['retained hashes, controls, arithmetic and speed strips']
+ if args.check_patches:checks.append('patch reconstruction')
+ if args.source_root:checks.append('historical source identity')
+ if args.nasm:checks.append('recorded assembly')
+ print(', '.join(checks)+' pass; reference provenance is not revalidated.')
 if __name__=='__main__':main()

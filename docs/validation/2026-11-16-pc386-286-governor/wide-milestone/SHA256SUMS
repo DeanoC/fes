@@ -1,4 +1,4 @@
-b425de8b717d11962eb913227b44d26f85de68b2b49905b222a935b6f154de78  ./README.md
+e74fb366cc8b7363dfa9e49d05906171a2e6b98c8cbec190c5c2d6a437c2739f  ./README.md
 b61443509f343274b86443eefdf150a3422917b6c16f37605cff8e22300faf65  ./default-off/after-manifest.json
 48159145c8dbb09cd7162cc16814bc2360b5370e6941551f74b8eb6a960b69ec  ./default-off/before-manifest.json
 b78ad4409b87e316e15246085a867e99d890ea2a29c8665b00b264adf299efbf  ./default-off/comparison.json
@@ -58,6 +58,11 @@ a2d40ca52482d51b9441c8466a703af5a7d0036ded4638b3f367eb43acf0f465  ./forms-holdou
 f47c17b73c44ca8f19a1e0ea419fffe70f870ea6495b3306102fb75cd46a9c6a  ./memory.log
 84838b0ed21e59e64b7e5f5b56979f17fc7eff0fb931e614a675b34e134c99f3  ./paging.log
 84a7c84871d28ad1d7a6e2a26d27190c8c8c7115f9622a2285046b9840f8badc  ./reference_governor_tb.sv
+e128c7a1430dbf14436e8199f04548b57e3716c797ff169eef27f50b97d367d8  ./source-patches/base.json
+53bb5c88bbf03107e8e471245de8cc87a8467ea1865ed95d228eae5098904eca  ./source-patches/base/fes_i386_cpu.sv.gz
+892802e521e70a70ed1f35db049fc34b4b03adc5daaf1120f7c4dbf7ae5bf78c  ./source-patches/base/fes_i386_governor.sv.gz
+2767a316a67808ff2ac858904580cf8a51a61f5c1fb8bf8ab47ad4025c0c9e87  ./source-patches/base/fes_i386_pkg.sv.gz
+e03a4c197efff3aac892fbc8db3ce57fec5f44d439caae5add30f006379ff5fe  ./source-patches/base/fes_i386_qalign.sv.gz
 50fcfdc724aee452824d07c4e9e36d965fd26df62070ae891c28dc52643f3d37  ./source-patches/forms.patch
 22922641ed5b9f0bc3ba3a62d5a924d0543af25c35cf4d806dc2995285b9a3a8  ./source-patches/pending.patch
 f240aa59d2bb983979aa66a041a1228522ec33ea8d1f7dcb89dafaca56cbbcf7  ./source-patches/shift.patch
@@ -75,7 +80,7 @@ e4bea58aa3ef25a8476a237c3ea6f5dcd5be185151a4d7407aab9a9408d82785  ./training/ref
 9185b209d001a73790ceb7c1532b5a2b4f3d3059c212667bf000ba8a81204bae  ./training/rtl.asm
 27f6e2d8da0b246834777317ed3512a92ca914e934913754bf41f24ee6576cfa  ./training/rtl.json
 f72828a49a7449968e4f56b8b9a12e0553e44fb664a1451ed22d873e15d6bd8f  ./training/rtl.log
-0a8b764957a2fe8a6685285fed7c9cecbebe28ea04a4aa9761b3db1b643cbf21  ./verify.py
+d098ad650722a4721fb06121e92f78c8ffa88d78ed2e2f25683e94e661d935f4  ./verify.py
 a36e8fd74f4bd1dc144b49e0b448ef1a83c79ef17342281489cc8318c0e144cc  ./zero-holdout/ZERO1.TXT
 a36e8fd74f4bd1dc144b49e0b448ef1a83c79ef17342281489cc8318c0e144cc  ./zero-holdout/ZERO2.TXT
 a36e8fd74f4bd1dc144b49e0b448ef1a83c79ef17342281489cc8318c0e144cc  ./zero-holdout/ZERO3.TXT
