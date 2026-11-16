@@ -409,7 +409,10 @@ def project_qsf(root: Path, project: Path, build_id: str, seed: int, machine: Mo
         f'set_global_assignment -name TOP_LEVEL_ENTITY {TOP}',
         'set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files',
         'set_global_assignment -name GENERATE_RBF_FILE ON',
-        'set_global_assignment -name ON_CHIP_BITSTREAM_DECOMPRESSION OFF',
+        # The DE10-Nano MSEL switches select compressed FPP configuration, and the kit's
+        # FPGA manager derives its clock/data ratio from MSEL: an uncompressed RBF never
+        # reaches CONF_DONE (Kit A, 16 Nov 2026). require_compressed_rbf() enforces it.
+        'set_global_assignment -name ON_CHIP_BITSTREAM_DECOMPRESSION ON',
         f'set_global_assignment -name NUM_PARALLEL_PROCESSORS {recipe_threads(recipe)}',
         f'set_global_assignment -name SEED {seed}',
         'set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005',
@@ -585,6 +588,16 @@ def fit_evidence(fit: str, machine: Model) -> dict:
             'audio_pins': {name: location for name, location in AUDIO_PINS.items()}}
 
 
+def require_compressed_rbf(data: bytes) -> None:
+    """The kit configures in compressed FPP mode (DE10-Nano MSEL), so refuse anything else."""
+    try:
+        compressed = rbf_load(data).compressed
+    except ValueError as error:
+        raise BuildError(f'RBF is not a readable Cyclone V bitstream: {error}') from error
+    if not compressed:
+        raise BuildError('RBF must be compressed: the DE10-Nano MSEL selects compressed FPP configuration')
+
+
 def seed_evidence(project: Path, machine: Model) -> dict:
     built = project / 'output_files'
     for name in ('top.rbf', 'top.sta.rpt', 'top.fit.rpt'):
@@ -594,6 +607,7 @@ def seed_evidence(project: Path, machine: Model) -> dict:
     rbf = built / 'top.rbf'
     if not 1 <= rbf.stat().st_size <= MAX_PAYLOAD_SIZE:
         raise BuildError(f'RBF must be a nonempty bounded file: {rbf}')
+    require_compressed_rbf(rbf.read_bytes())
     sta = (built / 'top.sta.rpt').read_text(encoding='utf-8', errors='replace')
     fit = (built / 'top.fit.rpt').read_text(encoding='utf-8', errors='replace')
     return {'timing': quartus_timing_summary.validate_timing_report(sta, BuildError),

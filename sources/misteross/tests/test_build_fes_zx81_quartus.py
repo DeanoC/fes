@@ -178,6 +178,23 @@ class ProjectTests(unittest.TestCase):
             else:
                 self.assertNotIn("ZX81_MODEL_", text)
 
+    def test_project_writes_a_compressed_rbf(self) -> None:
+        text = self.qsf()
+        self.assertIn("set_global_assignment -name ON_CHIP_BITSTREAM_DECOMPRESSION ON", text)
+        self.assertNotIn("ON_CHIP_BITSTREAM_DECOMPRESSION OFF", text)
+
+    def test_uncompressed_rbf_is_refused(self) -> None:
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        with patch.object(producer, "rbf_load", return_value=SimpleNamespace(compressed=False)):
+            with self.assertRaisesRegex(BuildError, "must be compressed"):
+                producer.require_compressed_rbf(b"x")
+        with patch.object(producer, "rbf_load", return_value=SimpleNamespace(compressed=True)):
+            producer.require_compressed_rbf(b"x")
+        with patch.object(producer, "rbf_load", side_effect=ValueError("short")):
+            with self.assertRaisesRegex(BuildError, "not a readable"):
+                producer.require_compressed_rbf(b"x")
+
     def test_only_declared_seeds_and_valid_build_ids(self) -> None:
         with self.assertRaisesRegex(BuildError, "not a declared sign-off seed"):
             self.qsf(seed=4)
