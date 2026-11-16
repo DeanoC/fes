@@ -39,14 +39,14 @@ amendment dated and stating what had already been seen. Tracker:
 
 ## What was measured
 
-Fourteen internal virtual-pin characterisation fits: the three designs below
+Fifteen internal virtual-pin characterisation fits: the three designs below
 at the **61.44 MHz** system clock the pc386 seal uses, the CPU's clock ladder
 on Agilex 5 from 75 to 170 MHz, the direct-SystemVerilog cross-check, and one
 superseded envelope kept for comparison. No board shell, no pins, no HPS, no
 PLL, no reset-release IP, no programming artifact, no seal and no hardware
 acceptance.
 
-**Twelve of the fourteen passed** setup, hold, recovery, removal and minimum
+**Thirteen of the fifteen passed** setup, hold, recovery, removal and minimum
 pulse width at **every published operating condition** of their device — four
 on Agilex 5, eight on Cyclone V. The other two are the ladder's **150 and
 170 MHz rungs, which miss**, and they are in the record precisely because they
@@ -229,8 +229,10 @@ a result when this record is read are **not measured**, and are listed as that
 rather than trimmed quietly. The CPU's closure on Agilex 5 is in the ladder
 table below; the CPU on the Cyclone V has only its 61.44 MHz rung, and the
 machine has no ladder on either device, so **no closure is claimed for those
-three**. Extra seeds of M and M+, and the DE10's rungs above 61.44 MHz, were queued and
-then **stopped unrun** to free the shared builder lease for the front-end
+three**. A third CPU seed at the headline rung was run last, to verify the corrected
+timing gate end to end through the runner rather than only against a retained
+project. Extra seeds of M and M+, and the DE10's rungs above 61.44 MHz, were
+queued and then **stopped unrun** to free the shared builder lease for the front-end
 cross-check, which had been waiting on it for three hours. They are therefore
 not measured, and the one seed that did complete — the CPU's second seed at the
 headline rung, 73 ALMs from the first — is in the ladder table.
@@ -247,6 +249,7 @@ this record is `main`, whose 387 has no arithmetic.
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | 61.44 MHz | Agilex 5 | **yes**, all 4 corners | 29,300 | 62.61% | 3,626 | 77.48% | 124.35 MHz |
 | 61.44 MHz, seed 2 | Agilex 5 | **yes**, all 4 corners | 29,373 | 62.76% | 3,607 | 77.07% | 128.12 MHz |
+| 61.44 MHz, seed 3 | Agilex 5 | **yes**, all 4 corners | 29,400 | 62.82% | 3,593 | 76.77% | 124.55 MHz |
 | 75 MHz | Agilex 5 | **yes**, all 4 corners | 29,360 | 62.74% | 3,611 | 77.16% | 132.01 MHz |
 | 90 MHz | Agilex 5 | **yes**, all 4 corners | 29,304 | 62.62% | 3,590 | 76.71% | 125.69 MHz |
 | 110 MHz | Agilex 5 | **yes**, all 4 corners | 29,348 | 62.71% | 3,592 | 76.75% | 133.23 MHz |
@@ -260,9 +263,9 @@ Two things the ladder shows that a single constraint could not.
 
 **Area is flat across every rung that closes**: 29,300, 29,360, 29,304, 29,348 and 29,455
 ALMs at 61.44, 75, 90, 110 and 130 MHz — a 155 ALM spread on the same netlist,
-inside this lane's ±200 noise. A second seed at the headline rung lands 73 ALMs
-from the first (29,373 against 29,300), so seed scatter is of the same small
-size as rung scatter. So on this device, in this range, **the CPU's area and its clock are
+inside this lane's ±200 noise. Three seeds at the headline rung land within 100 ALMs of each other — 29,300,
+29,373 and 29,400 — so seed scatter is the same small size as rung scatter and
+the budget does not turn on the seed either. So on this device, in this range, **the CPU's area and its clock are
 effectively independent**. That is a statement about the CPU only: M and M+
 have no ladder, so nothing here says the machine's area is independent of its
 clock. That is worth having measured rather than assumed; it
