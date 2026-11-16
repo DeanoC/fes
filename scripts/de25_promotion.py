@@ -35,7 +35,10 @@ def promoted_record(baseline: dict, head: str, menu_run: Path, zx81_run: Path,
         verdict = (run / "verdict").read_text(encoding="utf-8").strip()
         if verdict != "PASS":
             raise ValueError(f"{name} exact-main HIL verdict is not PASS")
-        smoke = load(run / "out/result.json")
+        result_path = run / "out/result.json"
+        if not result_path.exists() and name == "MENU":
+            result_path = run / "out/menu-result.json"
+        smoke = load(result_path)
         if smoke.get("head") != head or smoke.get("kit") != "D25":
             raise ValueError(f"{name} smoke is not for this exact main head and D25")
         restore = load(run / "out/restore-verification.json")

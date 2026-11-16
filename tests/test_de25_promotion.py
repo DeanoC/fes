@@ -19,11 +19,12 @@ class De25PromotionTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def run_evidence(self, name, verdict="PASS", passed=True, head=HEAD, kit="D25", serial="TRWU8J8G"):
+    def run_evidence(self, name, verdict="PASS", passed=True, head=HEAD, kit="D25", serial="TRWU8J8G",
+                     result_name="result.json"):
         path = self.root / name
         (path / "out").mkdir(parents=True)
         (path / "verdict").write_text(verdict)
-        (path / "out/result.json").write_text(json.dumps({"head": head, "kit": kit}))
+        (path / "out" / result_name).write_text(json.dumps({"head": head, "kit": kit}))
         (path / "out/restore-verification.json").write_text(json.dumps({"passed": passed, "serial": serial}))
         return path
 
@@ -46,6 +47,11 @@ class De25PromotionTests(unittest.TestCase):
         menu = self.run_evidence("menu")
         with self.assertRaisesRegex(ValueError, "distinct runs"):
             promoted_record(self.baseline, HEAD, menu, menu)
+
+    def test_accepts_menu_smoke_result_filename(self):
+        menu = self.run_evidence("menu", result_name="menu-result.json")
+        zx81 = self.run_evidence("zx81")
+        self.assertEqual(promoted_record(self.baseline, HEAD, menu, zx81)["schema"], 1)
 
     def test_rejects_wrong_head_or_kit(self):
         menu = self.run_evidence("menu", head="b" * 40)
