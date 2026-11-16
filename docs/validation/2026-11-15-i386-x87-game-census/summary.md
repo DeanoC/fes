@@ -147,7 +147,9 @@ at the strength the measurement supports:
   still overflow, underflow or round if the exponent is outside binary64's
   normal range — and **these runs did not record the exponent**, so
   "preserved exactly" was an overclaim. `census.h` now records it
-  (`x87exp`), and a rerun would settle it; for these nine runs the honest
+  **jointly with the significand bucket** (`x87store`, key version 4 — a
+  separate `x87exp` marginal was tried first and could not settle it), and a
+  rerun on that key would; for these nine runs the honest
   reading of Screamer's 9,303 and Quake's 1,535 is *the significand fits,
   the exponent is unchecked*.
 - **Real `m64` from an `le64` source** is rounded to 53 bits in the store.

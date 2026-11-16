@@ -50,15 +50,15 @@ title's own window, on the drive the method pins.
 
 | Title | control-word low byte (masks) | instructions with any exception unmasked | ES ever set | IRQ 13 delivered | relies on exceptions | flags raised |
 | --- | --- | --- | --- | ---: | --- | --- |
-| Quake timedemo (DOSBench) (25.0 s) | 3f 31,997,178, 3a 139, 00 1 | 3a 139, 00 1 | no | 0 | no | d9fc:raised=20:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
-| Screamer (1995) (30.0 s) | 3f 1,266,207, 00 1 | 00 1 | no | 0 | no | d9.m3:raised=20:unmasked=00 1, db.m3:raised=01:unmasked=00 1, de.r6:raised=04:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
-| Chris's 3D Benchmark (20.0 s) | 3a 15,236,298, 3f 12, 00 1 | 3a 15,236,298, 00 1 | no | 0 | no | dc.r1:raised=20:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
-| Terminal Velocity (1995) (30.0 s) | 3f 6,849, 00 1 | 00 1 | no | 0 | no | d9fe:raised=20:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
-| DOOM (1993) (20.0 s) | 3f 10, 00 1 | 00 1 | no | 0 | no | none |
-| Wolfenstein 3D (1992) (20.0 s) | 32 13,598, 3f 6, 00 1 | 32 13,598, 00 1 | no | 0 | no | d8.m6:raised=20:unmasked=00 1 |
-| Ultima VI: The False Prophet (1990) (20.0 s) | - | none | no | 0 | no | none |
-| Ultima VII: The Black Gate (1992) (20.0 s) | - | none | no | 0 | no | none |
-| Ultima VII Part Two: Serpent Isle (1993) (20.0 s) | - | none | no | 0 | no | none |
+| Quake timedemo (DOSBench) (25.0 s) | 3f 31,997,178, 3a 139, 00 1 | 3a 139, 00 1 | no | not recorded | no | d9fc:raised=20:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
+| Screamer (1995) (30.0 s) | 3f 1,266,207, 00 1 | 00 1 | no | not recorded | no | d9.m3:raised=20:unmasked=00 1, db.m3:raised=01:unmasked=00 1, de.r6:raised=04:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
+| Chris's 3D Benchmark (20.0 s) | 3a 15,236,298, 3f 12, 00 1 | 3a 15,236,298, 00 1 | no | not recorded | no | dc.r1:raised=20:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
+| Terminal Velocity (1995) (30.0 s) | 3f 6,849, 00 1 | 00 1 | no | not recorded | no | d9fe:raised=20:unmasked=00 1, de.r7:raised=04:unmasked=00 1 |
+| DOOM (1993) (20.0 s) | 3f 10, 00 1 | 00 1 | no | not recorded | no | none |
+| Wolfenstein 3D (1992) (20.0 s) | 32 13,598, 3f 6, 00 1 | 32 13,598, 00 1 | no | not recorded | no | d8.m6:raised=20:unmasked=00 1 |
+| Ultima VI: The False Prophet (1990) (20.0 s) | - | none | no | not recorded | no | none |
+| Ultima VII: The Black Gate (1992) (20.0 s) | - | none | no | not recorded | no | none |
+| Ultima VII Part Two: Serpent Isle (1993) (20.0 s) | - | none | no | not recorded | no | none |
 
 ## The window
 

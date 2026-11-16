@@ -36,12 +36,21 @@ already shows DOOM retiring 11 ESCs with a 387 fitted — the
 FNINIT/FNSTCW/FNSTSW detection probe, which a fixed-point engine still
 runs. The committed control is:
 
-> **DOOM must retire zero load, store, FXCH, arithmetic and transcendental
-> forms.** Control forms (FNINIT, FNCLEX, FNSTCW, FLDCW, FNSTSW) and the
-> 287/387 infinity test are expected and do not fail the control. Any
-> arithmetic or any memory load or store of a real operand in DOOM's window
-> means the instrumentation is wrong and nothing else in this record is
-> reported.
+> **DOOM must retire zero load, store, FXCH, arithmetic, `FRNDINT` and
+> transcendental forms.** Control forms (FNINIT, FNCLEX, FNSTCW, FLDCW,
+> FNSTSW) are expected and do not fail the control. Any arithmetic or any
+> memory load or store of a real operand in DOOM's window means the
+> instrumentation is wrong and nothing else in this record is reported.
+
+*Amended 16 November 2026, after the runs: this rule originally added "and
+the 287/387 infinity test" to the expected forms. That was **incoherent** —
+the test's `FLD1` and `FLDZ` are loads and its `FDIVP` is arithmetic, so the
+same sentence both failed and excused it. Amendment 13 restored the strict
+predicate in the script, and the allowance is removed here to match: a title
+running the infinity test **would** fail this control. Nothing changes for
+DOOM, which [does not run it](summary.md): its 11 ESCs are `FNINIT` ×5,
+`FSETPM` ×4, `FNSTCW` and `FNSTSW`, with no arithmetic and no memory
+operand, so the control passes under the strict rule.*
 
 This departs from the brief's wording and the departure is deliberate.
 
@@ -319,10 +328,12 @@ credited there.
     significand fits binary64's 53 bits, but the conversion can still
     overflow, underflow or round if the exponent is outside binary64's
     normal range, and **these runs did not record the exponent**. `census.h`
-    now records it (`x87exp`); for these nine runs the honest reading is
-    *significand fits, exponent unchecked*, and the record says so. This cost
-    the census its headline store datum: Screamer's 9,303 m64 stores are no
-    longer offered as exact.
+    gained `x87exp` for it here — *superseded by amendment 14, which replaced
+    that key with the joint `x87store` because a separate exponent marginal
+    still could not settle exactness.* For these nine runs the honest reading
+    is *significand fits, exponent unchecked*, and the record says so. This
+    cost the census its headline store datum: Screamer's 9,303 m64 stores are
+    no longer offered as exact.
 11. **Real m80 stores were understated.** The m80 destination *is* the
     register format, so a wide value stored there is exact whatever its
     exponent — yet the prose counted only the `le53` share (Quake 2,543,

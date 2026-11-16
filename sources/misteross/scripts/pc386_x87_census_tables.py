@@ -79,7 +79,8 @@ def operand_row(name: str, r: dict) -> str:
 def exception_row(name: str, r: dict) -> str:
     unmasked = {k: v for k, v in r['exception_masks'].items() if k != '3f'}
     return (f"| {name} | {counts(r['exception_masks'])} | {counts(unmasked) if unmasked else 'none'} | "
-            f"{'yes' if r['es_set'] else 'no'} | {r['irq13']:,} | "
+            f"{'yes' if r['es_set'] else 'no'} | "
+            f"{(format(r['irq13'], ',') if r.get('irq13_recorded') else 'not recorded')} | "
             f"{'yes' if r['relies_on_exceptions'] else 'no'} | "
             f"{counts(r['exceptions']) if r['exceptions'] else 'none'} |")
 
