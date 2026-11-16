@@ -97,6 +97,12 @@ TOP = yosys_netlist.CPU_TOP
 # default is the default suite, the one the pc386 sealer accepts (#1581 S5).
 SUITE_ARGUMENTS = ('opcode', 'limit_per_file', 'random_programs', 'random_seeds', 'seed',
                    'pm_programs', 'task_programs', 'debug_programs', 'undefined_programs', 'no_latency', 'preset',
+                   # `backend` is here so that a DE25 run cannot be mistaken for
+                   # the default suite: the pc386 seal is of the DE10 build, and
+                   # a report from a differently parameterised CPU must not
+                   # satisfy --lockstep-report. Its default is 'de10', so the
+                   # default suite is unchanged.
+                   'backend',
                    'same_as')
 
 # What the CPU executes, by MOO stem without 66h/67h prefixes: every form of
