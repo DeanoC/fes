@@ -47,5 +47,41 @@
     "period_ns": 16.2760416667,
     "quartus": "26.3.0",
     "seed": 1
+  },
+  "machine-de25": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 30,
+        "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "769b2b52252dc7b30017c7480c74c93d959dfa424551336832b7505b685c3368",
+        "ram_attribute": "renamed 57 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 57,
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v",
+        "source_sha256": "8d9840ebd591372715ada99970933ed1e2f54e2e1b13034482715194240d2be4"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v"
+    },
+    "period_ns": 16.2760416667,
+    "quartus": "26.3.0",
+    "seed": 1
+  },
+  "machineplus-de25": {
+    "device": "A5EB013BB23BE4SCS",
+    "netlist": {
+      "fitted_netlist": {
+        "duplicate_attribute_count": 30,
+        "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+        "fitted_sha256": "b77fef099342a81074a3c0384f641eb47b14ee34c07594a71d89395bb446268a",
+        "ram_attribute": "renamed 57 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+        "ram_attribute_count": 57,
+        "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine-plus.netlist.v",
+        "source_sha256": "b90abd889b75d5dc8f1c17543750f3500a4420f5781f740561e31e4c59aff545"
+      },
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine-plus.netlist.v"
+    },
+    "period_ns": 16.2760416667,
+    "quartus": "26.3.0",
+    "seed": 1
   }
 }

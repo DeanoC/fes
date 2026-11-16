@@ -71,6 +71,54 @@ cpu-de10	Fast 1100mV 100C Model	0	recovery	not_applicable_synchronous_reset	0	nu
 cpu-de10	Fast 1100mV 100C Model	0	removal	not_applicable_synchronous_reset	0	null		
 cpu-de10	Fast 1100mV 100C Model	0	internal_setup	analyzed	1	7.441	_28519_[164]	m2_rw[3]
 cpu-de10	Fast 1100mV 100C Model	0	minimum_pulse_width	analyzed	1	6.934		
+machine-de25	Slow fix4 100C Model	0	setup	analyzed	1	8.713	cpu_decode_by[3]~DUPLICATE	_37690_[110]~DUPLICATE
+machine-de25	Slow fix4 100C Model	0	hold	analyzed	1	0.092	audio_opl2_index[4]	audio_opl2_queue_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a12~FITTER_CREATED_MLAB_CELL0~reg0
+machine-de25	Slow fix4 100C Model	0	recovery	analyzed	1	14.222	reset	machine_at_pit_u_KF8253_Counter_0_dec2_binary_q[3]
+machine-de25	Slow fix4 100C Model	0	removal	analyzed	1	0.806	reset	machine_at_pit_u_KF8253_Counter_1_dec2_binary_q[6]
+machine-de25	Slow fix4 100C Model	0	internal_setup	analyzed	1	8.713	cpu_decode_by[3]~DUPLICATE	_37690_[110]~DUPLICATE
+machine-de25	Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	6.193		
+machine-de25	Slow fix4 0C Model	0	setup	analyzed	1	7.796	cpu_decode_by[3]~DUPLICATE	_37690_[110]~DUPLICATE
+machine-de25	Slow fix4 0C Model	0	hold	analyzed	1	0.126	audio_opl2_index[4]	audio_opl2_queue_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a12~FITTER_CREATED_MLAB_CELL0~reg0
+machine-de25	Slow fix4 0C Model	0	recovery	analyzed	1	13.958	reset	machine_at_pic_master_u_Control_Logic_command_state[1]~DUPLICATE
+machine-de25	Slow fix4 0C Model	0	removal	analyzed	1	0.961	reset	machine_at_pit_u_KF8253_Counter_1_dec2_binary_q[6]
+machine-de25	Slow fix4 0C Model	0	internal_setup	analyzed	1	7.796	cpu_decode_by[3]~DUPLICATE	_37690_[110]~DUPLICATE
+machine-de25	Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.159		
+machine-de25	Slow fix4a 0C Model	0	setup	analyzed	1	7.787	cpu_decode_by[3]~DUPLICATE	_37690_[110]~DUPLICATE
+machine-de25	Slow fix4a 0C Model	0	hold	analyzed	1	0.125	audio_opl2_index[4]	audio_opl2_queue_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a12~FITTER_CREATED_MLAB_CELL0~reg0
+machine-de25	Slow fix4a 0C Model	0	recovery	analyzed	1	13.972	reset	machine_at_pic_master_u_Control_Logic_command_state[1]~DUPLICATE
+machine-de25	Slow fix4a 0C Model	0	removal	analyzed	1	0.945	reset	machine_at_pit_u_KF8253_Counter_1_dec2_binary_q[6]
+machine-de25	Slow fix4a 0C Model	0	internal_setup	analyzed	1	7.787	cpu_decode_by[3]~DUPLICATE	_37690_[110]~DUPLICATE
+machine-de25	Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	6.171		
+machine-de25	Fast fix4 0C Model	0	setup	analyzed	1	10.797	machine_presenter_h_b[0]~ERTM	machine_presenter_picture[5]~ERTM
+machine-de25	Fast fix4 0C Model	0	hold	analyzed	1	0.022	machine_presenter_p_b0[18]~ERTM	add_1027~11_ERTM
+machine-de25	Fast fix4 0C Model	0	recovery	analyzed	1	14.972	reset	machine_at_pit_u_KF8253_Counter_0_dec2_binary_q[3]
+machine-de25	Fast fix4 0C Model	0	removal	analyzed	1	0.477	reset	machine_at_pit_u_KF8253_Counter_1_dec2_binary_q[6]
+machine-de25	Fast fix4 0C Model	0	internal_setup	analyzed	1	10.797	machine_presenter_h_b[0]~ERTM	machine_presenter_picture[5]~ERTM
+machine-de25	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.332		
+machineplus-de25	Slow fix4 100C Model	0	setup	analyzed	1	8.689	machine_presenter_h_a[16]~ERTM	machine_presenter_picture[22]~ERTM
+machineplus-de25	Slow fix4 100C Model	0	hold	analyzed	1	0.096	machine_presenter_p_b0[10]~ERTM	add_1065~11_ERTM
+machineplus-de25	Slow fix4 100C Model	0	recovery	analyzed	1	14.043	reset	machine_at_pit_u_KF8253_Counter_2_dec2_bcd_q[3]
+machineplus-de25	Slow fix4 100C Model	0	removal	analyzed	1	0.520	reset	machine_at_pic_master_u_Control_Logic_interrupt_vector_address[1]
+machineplus-de25	Slow fix4 100C Model	0	internal_setup	analyzed	1	8.689	machine_presenter_h_a[16]~ERTM	machine_presenter_picture[22]~ERTM
+machineplus-de25	Slow fix4 100C Model	0	minimum_pulse_width	analyzed	1	6.193		
+machineplus-de25	Slow fix4 0C Model	0	setup	analyzed	1	7.785	machine_presenter_h_a[16]~ERTM	machine_presenter_picture[22]~ERTM
+machineplus-de25	Slow fix4 0C Model	0	hold	analyzed	1	0.125	machine_presenter_p_b0[10]~ERTM	add_1065~11_ERTM
+machineplus-de25	Slow fix4 0C Model	0	recovery	analyzed	1	13.722	reset	machine_at_pit_u_KF8253_Counter_2_dec2_bcd_q[3]
+machineplus-de25	Slow fix4 0C Model	0	removal	analyzed	1	0.601	reset	machine_at_pic_master_u_Control_Logic_interrupt_vector_address[1]
+machineplus-de25	Slow fix4 0C Model	0	internal_setup	analyzed	1	7.785	machine_presenter_h_a[16]~ERTM	machine_presenter_picture[22]~ERTM
+machineplus-de25	Slow fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.158		
+machineplus-de25	Slow fix4a 0C Model	0	setup	analyzed	1	7.877	machine_presenter_h_a[16]~ERTM	machine_presenter_picture[22]~ERTM
+machineplus-de25	Slow fix4a 0C Model	0	hold	analyzed	1	0.121	machine_presenter_p_b0[10]~ERTM	add_1065~11_ERTM
+machineplus-de25	Slow fix4a 0C Model	0	recovery	analyzed	1	13.737	reset	machine_at_pit_u_KF8253_Counter_2_dec2_bcd_q[3]
+machineplus-de25	Slow fix4a 0C Model	0	removal	analyzed	1	0.596	reset	machine_at_pic_master_u_Control_Logic_interrupt_vector_address[1]
+machineplus-de25	Slow fix4a 0C Model	0	internal_setup	analyzed	1	7.877	machine_presenter_h_a[16]~ERTM	machine_presenter_picture[22]~ERTM
+machineplus-de25	Slow fix4a 0C Model	0	minimum_pulse_width	analyzed	1	6.171		
+machineplus-de25	Fast fix4 0C Model	0	setup	analyzed	1	10.550	machine_display_control_enable	machine_display_scanout_reader_front[83]
+machineplus-de25	Fast fix4 0C Model	0	hold	analyzed	1	0.020	machine_presenter_p_b0[10]~ERTM	add_1065~11_ERTM
+machineplus-de25	Fast fix4 0C Model	0	recovery	analyzed	1	14.864	reset	machine_at_pit_u_KF8253_Counter_2_dec2_bcd_q[3]
+machineplus-de25	Fast fix4 0C Model	0	removal	analyzed	1	0.302	reset	machine_at_pic_master_u_Control_Logic_interrupt_vector_address[1]
+machineplus-de25	Fast fix4 0C Model	0	internal_setup	analyzed	1	10.550	machine_display_control_enable	machine_display_scanout_reader_front[83]
+machineplus-de25	Fast fix4 0C Model	0	minimum_pulse_width	analyzed	1	6.327		
 cpu-de25-zerodelay-envelope	Slow fix4 100C Model	0	setup	analyzed	1	7.119	x87_rf_a_rtl_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a75~reg0	x87_pop_i[2]~DUPLICATE
 cpu-de25-zerodelay-envelope	Slow fix4 100C Model	0	hold	analyzed	1	0.000	reset	_28438_[58]~DUPLICATE
 cpu-de25-zerodelay-envelope	Slow fix4 100C Model	0	recovery	not_applicable_synchronous_reset	0	null		

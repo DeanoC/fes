@@ -727,7 +727,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     output = args.output.resolve()
     try:
-        if args.cache_root is None and args.netlist is None:
+        # The direct-SystemVerilog flow needs no Yosys, so it needs no cache.
+        if args.cache_root is None and args.netlist is None and args.front_end != "systemverilog":
             raise FitError("--cache-root must be absolute (or set FES_TOOLCHAIN_CACHE_ROOT)")
         if args.cache_root is not None and not args.cache_root.is_absolute():
             raise FitError("--cache-root must be absolute")
