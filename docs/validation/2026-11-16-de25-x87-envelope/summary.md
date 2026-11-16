@@ -354,15 +354,27 @@ says it fits inside `fes.pc386`, and no fit of `pc386_system` with
 
 What *is* measured, by the sibling Agilex 5 measurement
 (`docs/validation/2026-11-16-i386-agilex5-fit/`, tracker #1898): `pc386_system`
-on Agilex 5 with main's 387 **on** — its fit M+ — **places, routes and closes
-timing at every published corner at 61.44 MHz**, at **37,255 of 46,800 ALMs,
-79.6%**. The DE10 never placed the identity-on machine at all. That outcome
-comparison is the one that holds across the two devices, and it supports the
-DE25 being the 387's home.
+on Agilex 5 with main's 387 **on** — its fit M+ — closes 61.44 MHz at every
+published corner at **37,255 of 46,800 ALMs, 79.6%**, leaving about **9,545
+ALMs**. The 387 in that fit is main's — **slice 2 only, no arithmetic at all**,
+every form `X87_UNIMPL` — and its whole cost in the machine was **+1,763 ALMs,
++9 DSP, +4 M20K**. Single seed.
 
-That leaves about **9,545 ALMs**, a fifth of the device. The 387 in that fit is
-main's — **slice 2 only, no arithmetic at all**, every form `X87_UNIMPL` — and
-its whole cost in the machine was **+1,763 ALMs, +9 DSP, +4 M20K**.
+**A second claim is withdrawn here**, and it was the sibling's reading that
+this record repeated: that "Agilex 5 placed what the DE10 could not". It did
+not, because M+ is not the design the DE10 refused. **The DE10 already holds
+slice 2's 387** — PR #1821 sealed exactly that at 36,298 of 41,910 ALMs with
+every analysis positive over all four corners and a kit run. What #1889
+refused is **slice 4 on slice 3**: divide, square root and the remainders,
+8,073 ALMs of standalone unit against its merge base's 4,076. M+ is main plus
+a one-character flip, so comparing its success to #1889's refusal compared two
+different designs.
+
+Two further labels on the 9,545 ALMs, which the sibling supplies and this
+record repeats rather than softening: it is **arithmetic to 100% of the
+device**, and **nothing above 79.6% has been fitted on Agilex 5 at all** — on
+the DE10 lane the practical ceiling is near 92%, with timing misses at 94.7%.
+So the remainder is not all usable.
 
 **A projection that stood here earlier is withdrawn.** It read the fitter's
 "Total LABs: partially or completely used" row as a capacity figure — 98.08%
@@ -396,6 +408,14 @@ design fits inside it.** What is genuinely open, rather than invented:
   round-to-integer, the transcendentals, BCD — and **a DE25 board shell**,
   which nobody has fitted and which the machine fits stand in for with 651
   ALMs of virtual-pin cells.
+- **The measurement that would settle it** is `pc386_system` **from PR #1889's
+  head** — the design that actually hit the wall — on Agilex 5 with
+  `x87_present` high, or better, with `X87_BACKEND = 1` and this work in it.
+  The sibling session has offered to run it through the same runner and
+  envelope as its other fits, which would put the numbers on one scale. It is
+  about twenty minutes of Quartus and it has **not been run**: it is a
+  different base from the one its task named, and queueing it is Deano's
+  call.
 
 ## What is not settled
 

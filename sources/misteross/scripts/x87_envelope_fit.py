@@ -199,7 +199,8 @@ def cpu_wrapper(present: int) -> str:
             'endmodule\n')
 
 
-def seal_source(output: Path, sources: dict, entity: str, cache_root: Path | None) -> dict:
+def seal_source(output: Path, sources: dict, entity: str, cache_root: Path | None,
+                parameters: dict | None = None) -> dict:
     """Elaborate the design through the seal's own Yosys passes and fit THAT,
     instead of handing Quartus the SystemVerilog.
 
@@ -221,9 +222,14 @@ def seal_source(output: Path, sources: dict, entity: str, cache_root: Path | Non
     work.mkdir(parents=True, exist_ok=True)
     for name, data in sources.items():
         (work / name).write_bytes(data)
+    # The parameter MUST reach the elaboration: on the unit top the netlist is
+    # built from fes_i386_x87 directly, and without -chparam it would be
+    # X87_BACKEND = 0 whatever --backend said -- a fit of the wrong design
+    # reported under the right label. The CPU top needs none, because its
+    # generated wrapper writes the parameter into the instantiation.
     netlist = yosys_netlist.seal_netlist(
         yosys.path if hasattr(yosys, 'path') else yosys, work, work,
-        sources=tuple(sources), top=entity)
+        sources=tuple(sources), top=entity, parameters=parameters)
     log = (work / 'yosys.log').read_text(errors='replace')
     bad = [line for line in log.splitlines() if 'implicitly declared' in line]
     if bad:
@@ -291,7 +297,8 @@ def prepare(output: Path | None, backend: str, period_ns: float, seed: int,
         # Replace the SystemVerilog with one elaborated netlist file. The
         # virtual-pin list is unchanged: the seal's recipe keeps the top's
         # ports.
-        netlist = seal_source(output, sources, entity, cache_root)
+        netlist = seal_source(output, sources, entity, cache_root,
+                              None if top == 'cpu' else {'X87_BACKEND': BACKENDS[backend]})
         for name in sources:
             (project / name).unlink()
         sources = netlist
@@ -435,7 +442,14 @@ def compile_project(output: Path, tool: Path, version: str) -> dict:
         # writes it from A_OP and FPREM is kept, so it is present by design.
         # PRESENT are positive controls: if the query cannot find these, it
         # cannot find anything, and a zero above would mean nothing.
-        skip = inputs.get('x87_present') == 0   # the 387 is swept; neither check applies
+        # The query matches exact register leaf names, which a flattened and
+        # unescaped netlist does not have -- it keeps none of the original
+        # names, not even the positive controls. So on the netlist flow the
+        # query is NOT APPLICABLE rather than failing, and the exclusion
+        # evidence comes from the SystemVerilog-flow fits, which keep names.
+        # At x87_present = 0 the 387 is swept and neither check applies.
+        skip = (inputs.get('x87_present') == 0
+                or inputs.get('flow') == 'yosys-seal-netlist')
         leaves = {line.strip().rsplit('|', 1)[-1]
                   for line in (output / 'registers.txt').read_text().splitlines()
                   if line.strip()}
@@ -445,7 +459,13 @@ def compile_project(output: Path, tool: Path, version: str) -> dict:
         absent = {n: held(n) for n in ('ua_add', 'ub_add', 'qy_s', 'rcp_q', 'rsq_q')}
         present = {n: held(n) for n in ('wm', 'pa', 'cw')}
         record['exclusion'] = {'absent_expected': absent, 'positive_controls': present,
-                               'registers': len(leaves)}
+                               'registers': len(leaves),
+                               'applicable': not skip,
+                               'not_applicable_because':
+                                   None if not skip else
+                                   ('the 387 is swept at x87_present = 0'
+                                    if inputs.get('x87_present') == 0 else
+                                    'a flattened netlist keeps no original register names')}
         if not skip and not all(present.values()):
             raise SystemExit('the register query found no positive control, so a zero '
                              f'elsewhere means nothing: {present}')
