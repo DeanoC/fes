@@ -458,10 +458,14 @@ is not what #1889 refused on.** The checks:
 - A LAB holds exactly 10 ALMs on **both** devices (46,800 / 4,680 and
   41,910 / 4,191), so a LAB percentage and an ALM percentage are not two views
   of the same occupancy — they differ by how densely the fitter packed.
-- M+ places 40,550 ALMs across 4,590 LABs: **8.1 of every 10** ALM slots, and
-  the fitter's own estimate is that **4,210 ALMs are recoverable by dense
-  packing** (9% of the device) with 915 unavailable. The LAB row counts a LAB
-  as used when one ALM in it is used.
+- M+ occupies 4,590 LABs, which hold 45,900 ALM slots, and the two rows give
+  two densities — **8.83 of every 10 slots** from the 40,550 ALMs used in
+  final placement, **8.12** from the 37,255 ALMs needed. (An earlier version
+  of this line paired the 40,550 with the 8.12, which is the same
+  mis-attachment the record retracted elsewhere; corrected here.) The gap
+  between the rows is the fitter's own estimate that **4,210 ALMs are
+  recoverable by dense packing** (9% of the device) with 915 unavailable. The
+  LAB row counts a LAB as used when one ALM in it is used.
 - The same CPU netlist used 3,512 LABs under one envelope and 3,626 under the
   other, a 114-LAB swing — larger than the 90 LABs the second budget reading
   called the remaining room.

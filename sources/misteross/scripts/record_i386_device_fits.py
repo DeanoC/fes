@@ -139,11 +139,24 @@ def collect(name: str, output: Path) -> dict:
     return entry
 
 
-def timing_rows(name: str, output: Path) -> list[str]:
+def timing_rows(name: str, output: Path, fit: dict) -> list[str]:
+    """That fit's per-corner rows, prefixed with its name.
+
+    A fit the record publishes as having timing -- a status, a corner count,
+    per-corner slacks -- must have the rows those came from. Returning none
+    silently would let the record carry a timing verdict with no evidence
+    behind it, which is the shape of claim this record exists to avoid.
+    """
     path = output / "timing.tsv"
     if not path.is_file():
+        if "timing" in fit:
+            raise RecordError(
+                f"{name}: fit.json carries a timing result but {path} is missing, so the "
+                "per-corner evidence behind it is not in the record")
         return []
     lines = path.read_text().splitlines()
+    if len(lines) < 2:
+        raise RecordError(f"{name}: {path} has a header and no rows")
     return [f"{name}\t{line}" for line in lines[1:]]
 
 
@@ -172,8 +185,9 @@ def main(argv: list[str] | None = None) -> int:
                 raise RecordError(f"--fit name {name!r} is given twice; each fit needs its own name")
             seen.add(name)
             output = Path(directory).resolve()
-            fits.append(collect(name, output))
-            rows.extend(timing_rows(name, output))
+            entry = collect(name, output)
+            fits.append(entry)
+            rows.extend(timing_rows(name, output, json.loads((output / "fit.json").read_text())))
         # Each fit records the revision it was prepared from. The collector's
         # own HEAD is not that revision if the checkout moved in between, so it
         # is reported separately and a disagreement is named, never smoothed.

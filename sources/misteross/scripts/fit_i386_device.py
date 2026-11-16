@@ -483,7 +483,10 @@ def run(command: list[str], project: Path, output: Path, label: str, deadline: f
 
 # One report row, within one line: a value may not run past the newline, or a
 # section header would take the next row's value as its own.
-_ROW = re.compile(r"^;[ \t]{0,4}(\S[^;\n]*?)[ \t]*;[ \t]*([^;\n]*?)[ \t]*;", re.M)
+# Leading indent varies: the packing breakdown rows are indented five or more
+# spaces inside the table, so the allowance is generous rather than fixed at
+# four, which silently skipped them.
+_ROW = re.compile(r"^;[ \t]*(\S[^;\n]*?)[ \t]*;[ \t]*([^;\n]*?)[ \t]*;", re.M)
 # The fitter's own label for each figure, in the order they are looked for.
 # The record names which label a figure came from, so a renamed report row
 # fails loudly instead of quietly reporting something else.
@@ -504,6 +507,19 @@ RESOURCE_LABELS = {
 # ALMs is envelope rather than design. The count is reported beside the ALMs so
 # a reader can judge that, and it is never subtracted from them.
 OPTIONAL_LABELS = {
+    # The packing breakdown the ALMs-needed row is computed from (A - B + C).
+    # The record's claims about how sparsely a design is spread rest on these,
+    # so they belong in the record rather than only in the retained report.
+    "alms_in_final_placement": ("[A] ALMs used in final placement [=a+b+c+d]",
+                                "ALMs used in final placement [=a+b+c+d]",
+                                "ALMs used in final placement"),
+    "alms_recoverable_by_packing": ("[B] Estimate of ALMs recoverable by dense packing",
+                                    "Estimate of ALMs recoverable by dense packing"),
+    "alms_unavailable": ("[C] Estimate of ALMs unavailable [=a+b+c+d]",
+                         "Estimate of ALMs unavailable [=a+b+c+d]",
+                         "Estimate of ALMs unavailable"),
+    # Not a number; reported as the fitter's own word.
+    "packing_difficulty": ("Difficulty packing design",),
     "virtual_pins": ("Total virtual pins", "Virtual pins"),
     # The fitter's own count of how much of the ALM figure is envelope. It is
     # reported beside the ALMs and never subtracted from them.
@@ -570,10 +586,15 @@ def resources(text: str) -> dict:
                        + "; its rows: " + ", ".join(sorted(rows)[:40]))
     for resource, labels in OPTIONAL_LABELS.items():
         for label in labels:
-            entry = _entry(label, rows[label]) if label in rows else None
-            if entry is not None:
-                found[resource] = entry
-                break
+            if label not in rows:
+                continue
+            entry = _entry(label, rows[label])
+            if entry is None:
+                # A row whose value is a word rather than a count, such as the
+                # fitter's packing difficulty. Keep it verbatim.
+                entry = {"report_label": label, "value": rows[label]}
+            found[resource] = entry
+            break
     return found
 
 

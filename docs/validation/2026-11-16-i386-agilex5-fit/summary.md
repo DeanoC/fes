@@ -233,8 +233,12 @@ densities — each is stated here with the row it comes from**:
 - **ALMs needed, the capacity row: 37,255** — **8.12 of every 10**.
 
 The gap between them is the fitter's own estimate that **4,210 ALMs are
-recoverable by dense packing**, with 915 unavailable. On either row, 98% of
-LABs are touched while at least a tenth of their slots stand free. The same CPU netlist
+recoverable by dense packing**, with 915 unavailable — and
+`40,550 − 4,210 + 915 = 37,255` is exactly how the fitter computes the
+capacity row, which is `[A] − [B] + [C]`. On either density, 98% of LABs are
+touched while at least a tenth of their slots stand free. **All four rows are
+in [quartus.json](quartus.json) for every fit**, so these claims can be
+checked rather than taken on trust. The same CPU netlist
 used 3,512 LABs under one envelope and 3,626 under the other, a 114-LAB swing
 on identical logic — larger than the 90 LABs that remain untouched.
 
@@ -321,6 +325,11 @@ slice-3-plus-slice-4 design on #1879's branch and no state of main), with
 | M+ (slice 2) | 37,255 | 79.60% | 4,590 | 98.08% | 33 | 138 | 35,233 | 120.47 MHz |
 | **#1889 head (slices 3+4)** | **41,387** | **88.43%** | **4,590** | **98.08%** | 33 | 140 | 37,166 | 106.16 MHz |
 
+Packing, from the rows the capacity figure is computed from: M+ places 40,550
+ALMs with 4,210 recoverable and 915 unavailable, difficulty **Low**; the
+slice-4 fit places **43,308** with only **2,814** recoverable and 893
+unavailable, difficulty **Medium**.
+
 **Band 2 of the precommitted bands: it fits and it closes.** Timing passes
 every analysis at all four published corners, 2 real pins against 2 real
 clocks, zero illegal and zero unconstrained clocks. At 88.43% it is below the
@@ -381,6 +390,15 @@ this fabric**, not that either is cheaper. Slice 6 should take the comparison
 as "roughly equal in ALMs, so decide on the other axes" — DSP, memory, latency
 and the duplicated 64×64 multiplier — rather than as a ranking. A seed sweep
 on this side would be needed to rank them, and has not been run.
+
+**And this is the one fit in the record the fitter found hard.** Its
+`Difficulty packing design` is **Medium**; every other fit here, on both
+devices, is **Low** — including the 170 MHz rung that misses. Its recoverable
+estimate also drops to 2,814 ALMs from M+'s 4,210, which is the same thing
+seen from the other side: at 88.43% the fitter has packed more tightly and has
+less slack left to recover. That is the first sign in this record of the
+device being worked, and it is the figure to watch if anything is added to
+this design.
 
 Worth one line on its own: this design's worst-corner Fmax estimate is
 **106.16 MHz** against M+'s 120.47, so the arithmetic costs about 14 MHz of

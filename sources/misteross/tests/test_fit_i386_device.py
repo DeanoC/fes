@@ -47,6 +47,10 @@ AGILEX_REPORT = """\
 ; Total virtual pins                       ; 4,700            ;
 ;   * ALMs containing virtual pins         ; 2,351 / 46,800 ( 5 % ) ;
 ; Total LABs:  partially or completely used                   ; 4,590 / 4,680         ; 98 %  ;
+;     [A] ALMs used in final placement [=a+b+c+d]             ; 40,550 / 46,800       ; 87 %  ;
+;     [B] Estimate of ALMs recoverable by dense packing       ; 4,210 / 46,800        ; 9 %   ;
+;     [C] Estimate of ALMs unavailable [=a+b+c+d]             ; 915 / 46,800          ; 2 %   ;
+; Difficulty packing design                                   ; Low                   ;       ;
 """
 CYCLONE_REPORT = """\
 ; Logic utilization (in ALMs)              ; 19,870 / 41,910 ( 47 % ) ;

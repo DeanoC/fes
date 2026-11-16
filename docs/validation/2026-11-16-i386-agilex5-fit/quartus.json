@@ -85,6 +85,24 @@
           "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
           "used": 29300.0
         },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 63.96,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 29932.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.76,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3164.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.41,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2532.0
+        },
         "alms_with_virtual_pins": {
           "available": 46800.0,
           "percent_of_device": 5.02,
@@ -118,6 +136,10 @@
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
         },
         "ram_blocks": {
           "available": 358.0,
@@ -239,6 +261,24 @@
           "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
           "used": 29373.0
         },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 63.96,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 29932.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.65,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3110.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.45,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2551.0
+        },
         "alms_with_virtual_pins": {
           "available": 46800.0,
           "percent_of_device": 5.02,
@@ -272,6 +312,10 @@
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
         },
         "ram_blocks": {
           "available": 358.0,
@@ -393,6 +437,24 @@
           "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
           "used": 29400.0
         },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 63.9,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 29905.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.51,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3046.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.43,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2541.0
+        },
         "alms_with_virtual_pins": {
           "available": 46800.0,
           "percent_of_device": 5.02,
@@ -426,6 +488,10 @@
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
         },
         "ram_blocks": {
           "available": 358.0,
@@ -544,6 +610,24 @@
           "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
           "used": 29360.0
         },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 63.85,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 29880.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.52,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3051.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.41,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2531.0
+        },
         "alms_with_virtual_pins": {
           "available": 46800.0,
           "percent_of_device": 5.02,
@@ -577,6 +661,10 @@
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
         },
         "ram_blocks": {
           "available": 358.0,
@@ -698,6 +786,24 @@
           "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
           "used": 29304.0
         },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 63.85,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 29882.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.62,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3096.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.38,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2518.0
+        },
         "alms_with_virtual_pins": {
           "available": 46800.0,
           "percent_of_device": 5.02,
@@ -731,6 +837,10 @@
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
         },
         "ram_blocks": {
           "available": 358.0,
@@ -852,6 +962,24 @@
           "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
           "used": 29348.0
         },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 63.95,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 29929.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.65,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3114.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.41,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2533.0
+        },
         "alms_with_virtual_pins": {
           "available": 46800.0,
           "percent_of_device": 5.02,
@@ -885,6 +1013,10 @@
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
         },
         "ram_blocks": {
           "available": 358.0,
@@ -1006,6 +1138,24 @@
           "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
           "used": 29455.0
         },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 64.13,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 30012.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.65,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3112.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.46,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2555.0
+        },
         "alms_with_virtual_pins": {
           "available": 46800.0,
           "percent_of_device": 5.02,
@@ -1039,6 +1189,10 @@
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
         },
         "ram_blocks": {
           "available": 358.0,
@@ -1164,6 +1318,24 @@
           "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
           "used": 30000.0
         },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 65.45,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 30630.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.82,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3193.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.48,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2563.0
+        },
         "alms_with_virtual_pins": {
           "available": 46800.0,
           "percent_of_device": 5.02,
@@ -1197,6 +1369,10 @@
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
         },
         "ram_blocks": {
           "available": 358.0,
@@ -1320,6 +1496,24 @@
           "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
           "used": 30169.0
         },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 66.03,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 30903.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.95,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3252.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.38,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2518.0
+        },
         "alms_with_virtual_pins": {
           "available": 46800.0,
           "percent_of_device": 5.02,
@@ -1353,6 +1547,10 @@
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
         },
         "ram_blocks": {
           "available": 358.0,
@@ -1535,6 +1733,24 @@
           "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
           "used": 29035.0
         },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 63.51,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 29721.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.9,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 3228.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.43,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2542.0
+        },
         "alms_with_virtual_pins": {
           "available": 46800.0,
           "percent_of_device": 5.02,
@@ -1568,6 +1784,10 @@
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
         },
         "ram_blocks": {
           "available": 358.0,
@@ -1723,6 +1943,24 @@
           "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
           "used": 31244.0
         },
+        "alms_in_final_placement": {
+          "available": 41910.0,
+          "percent_of_device": 73.19,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 30672.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 41910.0,
+          "percent_of_device": 6.16,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 2582.0
+        },
+        "alms_unavailable": {
+          "available": 41910.0,
+          "percent_of_device": 7.53,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 3154.0
+        },
         "alms_with_virtual_pins": {
           "available": 41910.0,
           "percent_of_device": 5.61,
@@ -1757,6 +1995,10 @@
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
         },
         "ram_blocks": {
           "available": 553.0,
@@ -1900,6 +2142,24 @@
           "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
           "used": 35492.0
         },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 82.8,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 38750.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 8.94,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 4183.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 1.98,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 925.0
+        },
         "alms_with_virtual_pins": {
           "available": 46800.0,
           "percent_of_device": 1.39,
@@ -1933,6 +2193,10 @@
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 1421.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
         },
         "ram_blocks": {
           "available": 358.0,
@@ -2078,6 +2342,24 @@
           "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
           "used": 37255.0
         },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 86.65,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 40550.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 9.0,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 4210.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 1.96,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 915.0
+        },
         "alms_with_virtual_pins": {
           "available": 46800.0,
           "percent_of_device": 1.39,
@@ -2111,6 +2393,10 @@
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 1421.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
         },
         "ram_blocks": {
           "available": 358.0,
@@ -2265,6 +2551,24 @@
           "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
           "used": 41387.0
         },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 92.54,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 43308.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.01,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 2814.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 1.91,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 893.0
+        },
         "alms_with_virtual_pins": {
           "available": 46800.0,
           "percent_of_device": 1.39,
@@ -2298,6 +2602,10 @@
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 1421.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Medium"
         },
         "ram_blocks": {
           "available": 358.0,
@@ -2494,6 +2802,24 @@
           "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
           "used": 37108.0
         },
+        "alms_in_final_placement": {
+          "available": 41910.0,
+          "percent_of_device": 89.59,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 37549.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 41910.0,
+          "percent_of_device": 4.56,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 1910.0
+        },
+        "alms_unavailable": {
+          "available": 41910.0,
+          "percent_of_device": 3.51,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 1469.0
+        },
         "alms_with_virtual_pins": {
           "available": 41910.0,
           "percent_of_device": 1.55,
@@ -2528,6 +2854,10 @@
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 1229.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
         },
         "ram_blocks": {
           "available": 553.0,
@@ -2648,6 +2978,24 @@
           "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
           "used": 29114.0
         },
+        "alms_in_final_placement": {
+          "available": 46800.0,
+          "percent_of_device": 63.0,
+          "report_label": "[A] ALMs used in final placement [=a+b+c+d]",
+          "used": 29484.0
+        },
+        "alms_recoverable_by_packing": {
+          "available": 46800.0,
+          "percent_of_device": 6.2,
+          "report_label": "[B] Estimate of ALMs recoverable by dense packing",
+          "used": 2900.0
+        },
+        "alms_unavailable": {
+          "available": 46800.0,
+          "percent_of_device": 5.41,
+          "report_label": "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+          "used": 2530.0
+        },
         "alms_with_virtual_pins": {
           "available": 46800.0,
           "percent_of_device": 5.02,
@@ -2681,6 +3029,10 @@
         "mlabs": {
           "report_label": "Total MLAB memory bits",
           "used": 512.0
+        },
+        "packing_difficulty": {
+          "report_label": "Difficulty packing design",
+          "value": "Low"
         },
         "ram_blocks": {
           "available": 358.0,

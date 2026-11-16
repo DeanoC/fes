@@ -284,6 +284,24 @@ class Collect(unittest.TestCase):
             self.assertNotIn("resources_stage", entry)
             self.assertNotIn("validation_errors", entry)
 
+    def test_a_fit_with_a_timing_result_and_no_rows_is_refused(self):
+        # The record would otherwise publish a timing verdict, a corner count
+        # and per-corner slacks with none of the evidence behind them.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fit = write_fit(root / "f", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                            alms=1, available=2, device_alms=46800, ram_block="M20K")
+            (fit / "timing.tsv").unlink()
+            self.assertEqual(record.main(["--record", str(root / "r"), f"--fit=x={fit}"]), 1)
+
+    def test_a_timing_file_with_only_a_header_is_refused(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fit = write_fit(root / "f", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                            alms=1, available=2, device_alms=46800, ram_block="M20K")
+            (fit / "timing.tsv").write_text("corner\thold_only\tcheck\n")
+            self.assertEqual(record.main(["--record", str(root / "r"), f"--fit=x={fit}"]), 1)
+
     def test_a_fit_argument_without_a_name_is_refused(self):
         with tempfile.TemporaryDirectory() as temporary:
             self.assertEqual(record.main(["--record", temporary + "/r", "--fit=/some/dir"]), 1)
