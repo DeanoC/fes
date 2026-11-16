@@ -2156,7 +2156,7 @@
     {
       "board": "DE25-Nano",
       "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
-      "clock_coverage_note": null,
+      "clock_coverage_note": "verified from the retained reports after the fact: this fit predates both checks",
       "clock_hz": 61440000,
       "corner_count": 4,
       "device": "A5EB013BB23BE4SCS",
@@ -2227,8 +2227,8 @@
       "real_clocks": [
         "clk"
       ],
-      "real_pins": null,
-      "real_pins_note": null,
+      "real_pins": 1,
+      "real_pins_note": "verified from the retained reports after the fact: this fit predates both checks",
       "resources": {
         "alms": {
           "available": 46800.0,

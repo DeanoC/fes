@@ -239,6 +239,37 @@ class Collect(unittest.TestCase):
             self.assertIs(fit["source_clean"], False)
             self.assertIn("tracked_diff", fit["fes_revision"])
 
+    def test_a_passing_fit_without_evidence_is_qualified_too(self):
+        # A fit whose VIRTUAL_PIN assignments were ignored would pass while
+        # measuring a different envelope, so a pass is no substitute for the
+        # evidence either.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            legacy = write_fit(root / "p", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                               alms=29114, available=46800, device_alms=46800, ram_block="M20K")
+            fit = json.loads((legacy / "fit.json").read_text())
+            del fit["real_pins"]
+            del fit["unconstrained_clock_rows"]
+            (legacy / "fit.json").write_text(json.dumps(fit))
+            out = root / "record"
+            record.main(["--record", str(out), f"--fit=legacy={legacy}"])
+            entry = json.loads((out / "quartus.json").read_text())["fits"][0]
+            self.assertEqual(entry["status"], "pass")
+            self.assertIn("without its own validation evidence", entry["resources_stage"])
+            self.assertIn("real_pins", entry["validation_errors"])
+            self.assertIn("clock_coverage", entry["validation_errors"])
+
+    def test_a_passing_fit_with_evidence_is_not_qualified(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            good = write_fit(root / "g", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                             alms=29300, available=46800, device_alms=46800, ram_block="M20K")
+            out = root / "record"
+            record.main(["--record", str(out), f"--fit=good={good}"])
+            entry = json.loads((out / "quartus.json").read_text())["fits"][0]
+            self.assertNotIn("resources_stage", entry)
+            self.assertNotIn("validation_errors", entry)
+
     def test_a_fit_argument_without_a_name_is_refused(self):
         with tempfile.TemporaryDirectory() as temporary:
             self.assertEqual(record.main(["--record", temporary + "/r", "--fit=/some/dir"]), 1)

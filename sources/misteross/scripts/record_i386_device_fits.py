@@ -33,6 +33,30 @@ def read(path: Path) -> dict:
         raise RecordError(f"cannot read {path}: {error}") from error
 
 
+def validation_gaps(entry: dict, fit: dict, inputs: dict) -> dict:
+    """What a fit has not evidenced about itself.
+
+    The absence of an error is not evidence that a check ran: a fit directory
+    made before the envelope and clock-coverage checks existed carries neither.
+    So each fit must show its real-pin count and both zero-valued TimeQuest
+    coverage rows affirmatively, whether it passed or missed.
+    """
+    gaps = {name: fit[name] for name in ("timing_parse_error", "resource_parse_error",
+                                         "clock_coverage_error") if fit.get(name)}
+    if entry.get("real_pins") is None:
+        gaps["real_pins"] = "no verified real-pin count"
+    elif entry["real_pins"] > len(inputs["real_clocks"]):
+        gaps["real_pins"] = (f"{entry['real_pins']} real pins against "
+                             f"{len(inputs['real_clocks'])} real clocks")
+    rows = {name: (setup, hold) for name, setup, hold
+            in (fit.get("unconstrained_clock_rows") or [])}
+    if set(rows) != {"Illegal Clocks", "Unconstrained Clocks"}:
+        gaps["clock_coverage"] = "no verified clock-coverage rows"
+    elif any(int(setup) or int(hold) for setup, hold in rows.values()):
+        gaps["clock_coverage"] = "TimeQuest reported unconstrained or illegal clocks"
+    return gaps
+
+
 def collect(name: str, output: Path) -> dict:
     fit = read(output / "fit.json")
     inputs = read(output / "inputs.json")
@@ -63,9 +87,20 @@ def collect(name: str, output: Path) -> dict:
     }
     if "resources" in fit:
         entry["resources"] = fit["resources"]
+        # Every fit's figures carry the evidence that its envelope was the
+        # intended one and that the analysis covered every clock -- a passing
+        # fit as much as a missed rung, since a fit whose VIRTUAL_PIN
+        # assignments were ignored would pass while measuring something else.
+        missing = validation_gaps(entry, fit, inputs)
         # A fit that stopped before the final report has counts from the route
         # or place stage. They are not a finished fit's figures and must not be
         # presented as unqualified ones.
+        if missing and fit["status"] == "pass":
+            entry["validation_errors"] = missing
+            entry["resources_stage"] = (
+                "passing fit without its own validation evidence ("
+                + ", ".join(sorted(missing)) + "); figures are the fitter's but the envelope "
+                "and clock coverage are not evidenced here")
         if "resources_stage" in fit:
             entry["resources_stage"] = fit["resources_stage"]
         elif fit["status"] != "pass":
@@ -80,28 +115,11 @@ def collect(name: str, output: Path) -> dict:
             # either check failed the runner leaves its error behind, and that
             # error must travel with the figures rather than be dropped while
             # the rung is published as a valid bound.
-            invalid = [name for name in ("timing_parse_error", "resource_parse_error",
-                                         "clock_coverage_error")
-                       if fit.get(name)]
-            # The absence of an error is not evidence that a check ran. A fit
-            # directory made before those checks existed carries neither the
-            # evidence nor an error, so a missed rung must show its pin count
-            # and both zero-valued coverage rows affirmatively.
-            if entry.get("real_pins") is None:
-                invalid.append("no verified real-pin count")
-            elif entry["real_pins"] > len(inputs["real_clocks"]):
-                invalid.append(f"{entry['real_pins']} real pins against "
-                               f"{len(inputs['real_clocks'])} real clocks")
-            rows = {name: (setup, hold) for name, setup, hold
-                    in (fit.get("unconstrained_clock_rows") or [])}
-            if set(rows) != {"Illegal Clocks", "Unconstrained Clocks"}:
-                invalid.append("no verified clock-coverage rows")
-            elif any(int(setup) or int(hold) for setup, hold in rows.values()):
-                invalid.append("TimeQuest reported unconstrained or illegal clocks")
-            if invalid:
-                entry["validation_errors"] = {name: fit.get(name, name) for name in invalid}
+            if missing:
+                entry["validation_errors"] = missing
                 entry["resources_stage"] = (
-                    "fit whose own validation did not complete (" + ", ".join(invalid)
+                    "fit whose own validation did not complete ("
+                    + ", ".join(sorted(missing))
                     + "); NOT usable as a timing bound or an area figure")
             elif timing.get("status") == "fail":
                 entry["resources_stage"] = (
