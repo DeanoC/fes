@@ -371,7 +371,10 @@ most expensive form.
 4. **A model that did not terminate rather than generating poor cases.** The
    exact-square construction needed a random 66-bit value to have 34 trailing
    zeros: 2^-34 a trial, about 26 trillion trials for 1,500 cases. **Its
-   timeout was read as slowness.**
+   timeout was read as slowness**, and the background runner's later SIGTERM
+   as a stale job. Constructing the trailing zeros instead, the same script
+   runs in **2.3 seconds** — which is the measure of how far "slow" was from
+   the truth, and the reason a timeout deserves a cause rather than a retry.
 5. **A test that could pass having tested nothing.** The QEMU grid's
    stub-page failure only broke the inner loop, leaving the difference count
    at zero, so the row reported success having compared no cases.
