@@ -148,7 +148,8 @@ testbench.
 | BUSY# latch trials for ZE, IE and PE from real divides and roots | **pass** |
 | lockstep, identity **off** | **1,933 no-387 cases pass, 0 failed**, and every other bucket passes |
 | lockstep, identity **on**, with slice 4's own programs | **21 pass, 0 failed** |
-| in-machine fit, identity **off** — what ships and seals | **36,416 ALMs, +0.459 ns: fits and closes** |
+| in-machine fit, identity **off** — what ships and seals | **36,416 ALMs, +0.459 ns: fits and closes** (HIP slot) |
+| **Quartus 17.0.2 seal** | **passes every analysis** — see below |
 | in-machine fit, identity **on** | **does not fit: 4,407 of 4,191 LABs** ([escalation](STOP-RULE-FIRED.md)) |
 | test386 | **POST FFh reached**, halt at d0:ffb9 after 79,641,629 steps, no EE differences |
 | standalone area, against the merge base in the same flow | **+3,997 ALMs, +0 DSP, +2 M10K** ([the reading](area-first-reading.md)) |
@@ -302,6 +303,41 @@ is usually plausible, the symptom is a wrong result rather than a crash. The
 practical defence is the one this bench has by construction: **run operations
 back to back**, because a single operation hides the class entirely.
 
+## The seal
+
+| | figure |
+|---|---|
+| package | `fb0def74e5bf9b5ac1e87e29a8ce14ffcc267edc32cf752dd65c894cd82b152c` |
+| build_id | `1ae2d16ccde57815edc1664646b1497b` |
+| toolchain slot | **HIP**, seed 1, Quartus 17.0.2 |
+| resources | **36,463 ALMs of 41,910 — 87.0%**, 40 DSP, 282 M10K, 31,866 registers |
+| timing | **pass**, total negative slack **0.0 on every analysis** |
+| setup / hold | **+0.753 ns** / +0.084 ns |
+| minimum pulse width / recovery / removal | +1.122 / +7.323 / +0.267 ns |
+| clocks | system 61.44 MHz, pixel 74.27, audio 12.29 |
+
+Nothing was relaxed and no analysis was waived: the sealer's own report is the
+source of every figure above.
+
+### The slot is on both numbers, because the comparison does not exist
+
+Slice 3's identity-off seal was **87.0% and +0.896 ns setup through the CUDA
+slot**; this one is **87.0% and +0.753 ns through the HIP slot**. Those two
+figures sit next to each other looking comparable and **they are not**: a
+within-slot comparison of the two identity-off seals **does not exist**, and
+making one would need one of them re-fitting in the other slot.
+
+The citation for why is in this slice's own measurements: the same RTL fits at
+**36,055 ALMs and +0.594 ns through one slot and 36,069 and +0.410 through
+the other**, because the two slots' Yosys binaries differ and Quartus fits
+their netlists differently. That spread is larger than the 0.143 ns someone
+would otherwise read off the two seals as slice 4's cost.
+
+**The slot choice itself needs no defence** — the pc386 sealer takes
+`--gpu-router` only to select which authenticated toolchain slot it uses and
+routes nothing on a GPU, and the project treats HIP and CUDA route and timing
+evidence as interchangeable. Only the labelling does.
+
 ## The seal's order, and why it is the order
 
 The RTL changed substantially **after** the lockstep and test386 last passed
@@ -314,6 +350,15 @@ fell into three times, and it cost it three full re-freezes.
 a seal cannot be produced without pointing at a lockstep run. It is worth
 naming because a required input is a far better guard than a rule someone has
 to remember at the end of a long day.
+
+**It refused this slice three times and was right every time**: the wrong
+*kind* of lockstep evidence, a package store it will not relocate, and a
+source closure that moved mid-build. **The last one is the least obvious: a
+seal needs the worktree quiet for its whole duration, including commits that
+touch no RTL**, because the closure is hashed rather than the RTL subset — a
+`docs/validation/` commit invalidated the first attempt after its compilation
+had already succeeded with 0 errors. Committing findings as they are found is
+the right habit everywhere except across a seal.
 
 **And it caught this slice doing exactly that.** Re-running the gates because
 the RTL had moved was discipline; bringing the *wrong kind* of evidence was
