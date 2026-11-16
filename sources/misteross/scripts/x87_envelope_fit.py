@@ -242,6 +242,15 @@ def seal_source(output: Path, sources: dict, entity: str, cache_root: Path | Non
 def prepare(output: Path | None, backend: str, period_ns: float, seed: int,
             top: str = 'unit', present: int = 1, flow: str = 'sv',
             cache_root: Path | None = None) -> Path:
+    # ONE normalized period for the SDC, the timing gate and the record. The
+    # SDC used to be written at three decimals while the gate was passed six
+    # and required equality within 1e-6, so a natural ladder value like
+    # 13.333333 ns for 75 MHz would have constrained 13.333 and then been
+    # rejected by its own gate after a valid fit -- which would have bitten
+    # exactly on the clock ladder. Codex found this on PR #1907 before the
+    # ladder ran. Six decimals is finer than Quartus's own resolution and is
+    # what both sides now see.
+    period_ns = round(float(period_ns), 6)
     b = board()
     metadata = b.board_tools().quartus_metadata()
     sources = {name: (RTL / name).read_bytes() for name in SOURCES}
@@ -281,7 +290,7 @@ def prepare(output: Path | None, backend: str, period_ns: float, seed: int,
     (project / 'timing.tcl').write_bytes(extra['timing.tcl'])
     (project / 'clocks.sdc').write_text(
         '# Internal virtual-pin fit only; no board I/O timing is established.\n'
-        f'create_clock -name x87_clock -period {period_ns:.3f} [get_ports clk]\n'
+        f'create_clock -name x87_clock -period {period_ns} [get_ports clk]\n'
         'derive_clock_uncertainty\n'
         'set data_inputs [remove_from_collection [all_inputs] [get_ports clk]]\n'
         'set_input_delay -clock x87_clock -max 0.000 $data_inputs\n'
@@ -413,7 +422,8 @@ def compile_project(output: Path, tool: Path, version: str) -> dict:
               'commands': []}
     deadline = time.monotonic() + b.TIMEOUT_SECONDS
     fitted = project / 'output_files' / f'{PROJECT}.fit.rpt'
-    period = f'{inputs["period_ns"]:.6f}'
+    # The same string the SDC holds, from the same stored value.
+    period = repr(float(inputs['period_ns']))
     try:
         for label, command in (('synthesis', [str(tools['quartus_syn']), PROJECT]),
                                ('fit', [str(tools['quartus_fit']), PROJECT]),
@@ -474,6 +484,16 @@ def compile_project(output: Path, tool: Path, version: str) -> dict:
             if leaked:
                 raise SystemExit('the DE25 fit still contains the sequenced arithmetic: '
                                  f'{sorted(leaked)}')
+            # And gate the RAM list, which the register test cannot cover:
+            # `rcp_q` and `rsq_q` are synchronous-read registers that Quartus
+            # may ABSORB into the RAM block, so they can read as absent while
+            # the seed table itself survives. Parsing the names and only
+            # recording them let a build pass while holding arithmetic the
+            # exclusion result claimed was gone. Codex found this on PR #1907.
+            tables = [n for n in record.get('ram_blocks', []) if n in ('rcp_tab', 'rsq_tab')]
+            if tables:
+                raise SystemExit('the DE25 fit still contains the sequenced arithmetic\'s '
+                                 f'seed tables: {tables}')
     except BaseException as error:
         record.update(status='fail', error=str(error))
         if fitted.is_file():
