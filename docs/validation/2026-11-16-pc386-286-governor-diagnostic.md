@@ -19,13 +19,17 @@ reference source code was copied into the FES implementation.
 `GOV_REFERENCE_DIAGNOSTIC` defaults to zero, and the pc386 producer does not
 enable it. The implementation is still incomplete: it substitutes costs for
 only some instruction forms and suppresses the existing 286 access wait charge
-globally when enabled. A later diagnostic models bounded REP chunks, but word
-alignment, trap-flag stepping, MMIO and reference timing of interrupted or
-faulted strings remain unmeasured. It does not model all prefixes, I/O, faults,
-interruptions or 386-only instructions comprehensively. Matching
-selected sequences does not establish correct behavior for other instructions
-or queue histories. Max, turbo and non-286 behavior require continued
-regression protection. This record does not authorize promotion or relaxing
+for accesses classified as ordinary RAM when enabled. Non-RAM or unclassified
+accesses retain the prior per-uop wait and MMIO subtraction. A later
+diagnostic models bounded REP chunks, but word alignment, trap-flag stepping,
+MMIO and reference timing of interrupted or faulted strings remain unmeasured.
+It does not model all prefixes, I/O, faults, interruptions or 386-only
+instructions comprehensively. The experimental queue still evolves on
+unsupported instructions and events, so their complete timing does not fall
+back to the prior model merely because their wait charges do. Matching selected
+sequences does not establish correct behavior for other instructions or queue
+histories. Max, turbo and non-286 behavior require continued regression
+protection. This record does not authorize promotion or relaxing
 existing timing, seal, lockstep or game gates.
 
 ## Reference measurements
@@ -84,8 +88,9 @@ from the fixed predictions by 0.017–0.033 clocks; they include setup and ISR
 overhead, and the reference speed was sampled rather than continuously
 recorded. The review-narrowed candidate reproduced those predicted charges.
 All prefixed TEST forms retain the prior diagnostic table and queue path,
-which still suppresses global 286 wait charges. A sampled whole-CPU comparison
-with the diagnostic off matched before and after source changes in max, 286,
+which still suppresses the 286 wait charge on ordinary RAM. A sampled
+whole-CPU comparison with the diagnostic off matched before and after source
+changes in max, 286,
 386 and turbo modes; it does not establish netlist or artifact equivalence.
 The packed CPU metadata changed, so previous artifact and timing evidence does
 not test the new source.
@@ -107,6 +112,24 @@ previous private diagnostic disk: it created three empty H files. A recursive
 file comparison found all common files unchanged; FAT metadata may differ.
 The failed run and the disk as found afterwards were retained. The successful
 rerun explicitly checked the absolute path to its own private disk.
+
+## Non-RAM wait fallback
+
+The diagnostic now preserves the prior per-uop wait and MMIO subtraction for
+uops containing non-RAM or unclassified accesses; ordinary-RAM uops still use
+its experimental accounting. A mixed RAM/non-RAM uop takes the conservative
+legacy wait for all its accesses, including a secondary store. A private
+direct-governor differential exercised 80,000 sampled cycles across presets,
+including both access orders of mixed
+RAM/non-RAM instructions and abandon/replay boundaries. The integration bench
+also checks mixed secondary stores and MMIO half-cycle subtraction. A
+whole-CPU 100-pass word-read crossing from RAM into emulated MMIO added one
+reference clock per
+pass compared with the earlier diagnostic, with matching architectural state;
+a RAM divide-fault control matched its earlier marker, charge and state
+outputs. These are simulation checks of the fallback, not measurements of VGA
+or physical bus timing. The experimental queue and other unmeasured forms
+still preclude production enablement.
 
 ## Simulation evidence
 

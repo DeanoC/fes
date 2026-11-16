@@ -7,6 +7,7 @@ module governor_integration_tb;
   logic reset=1, boundary=0,eoi=0,element=0,taken=0,redir=0,abandon=0,preserve_de=0,replay=0;
   gov_t gov='0;
   logic [3:0] ilen=0; logic [1:0] accesses=0; logic ordinary_ram=1; int saved_queue; logic [1:0] mmio=0;
+  logic st2=0; logic [2:0] mmio_halves=1, st2_halves=0;
   logic [2:0] preset=1; logic turbo=0;
   logic hold0,hold1; logic [11:0] debt0,debt1; logic [12:0] charge0,charge1;
   logic tally=0; int sum0=0,sum1=0;
@@ -15,20 +16,20 @@ module governor_integration_tb;
     .clk,.reset,.preset,.frequency(10'd0),.turbo,
     .boundary,.eoi,.element,.taken,.gov,.ilen,.redirect(redir),.abandon,.preserve_de,.replay,
     .accesses,.dword(1'b0),.ordinary_ram,.io(1'b0),.io_port(16'd0),.io_size(2'd0),.mmio,
-    .mmio_halves(3'd1),.mmio_st2(1'b0),.mmio_st2_halves(3'd0),.hold(hold0),.debt_clocks(debt0),.charge(charge0)
+    .mmio_halves,.mmio_st2(st2),.mmio_st2_halves(st2_halves),.hold(hold0),.debt_clocks(debt0),.charge(charge0)
   );
   fes_i386_governor #(.GOV_N(1),.GOV_D(1000),.REFERENCE_DIAGNOSTIC(1)) candidate (
     .clk,.reset,.preset,.frequency(10'd0),.turbo,
     .boundary,.eoi,.element,.taken,.gov,.ilen,.redirect(redir),.abandon,.preserve_de,.replay,
     .accesses,.dword(1'b0),.ordinary_ram,.io(1'b0),.io_port(16'd0),.io_size(2'd0),.mmio,
-    .mmio_halves(3'd1),.mmio_st2(1'b0),.mmio_st2_halves(3'd0),.hold(hold1),.debt_clocks(debt1),.charge(charge1)
+    .mmio_halves,.mmio_st2(st2),.mmio_st2_halves(st2_halves),.hold(hold1),.debt_clocks(debt1),.charge(charge1)
   );
   task automatic instruction(input byte op, input int regfield, nbytes, naccess, input bit branch_taken);
     @(negedge clk); gov='0; gov.op=op; gov.mreg=3'(regfield); ilen=4'(nbytes); accesses=2'(naccess);
     boundary=1; eoi=1; taken=branch_taken; redir=branch_taken;
   endtask
   task automatic restart;
-    @(negedge clk); tally=0; reset=1; boundary=0; eoi=0; accesses=0; mmio=0; abandon=0; preserve_de=0; replay=0; redir=0; taken=0; ordinary_ram=1; gov='0;
+    @(negedge clk); tally=0; reset=1; boundary=0; eoi=0; accesses=0; mmio=0; st2=0; mmio_halves=1; st2_halves=0; abandon=0; preserve_de=0; replay=0; redir=0; taken=0; ordinary_ram=1; gov='0;
     repeat(5) @(negedge clk); reset=0; repeat(8) @(negedge clk); sum0=0; sum1=0; tally=1;
   endtask
   task automatic finish_trial(input int expected0,expected1, input string label);
@@ -53,6 +54,38 @@ module governor_integration_tb;
     instruction(8'h83,7,5,1,0);
     instruction(8'h75,0,2,0,1);
     finish_trial(24,29,"consecutive");
+    restart;
+    instruction(8'hff,0,4,2,0); ordinary_ram=0;
+    finish_trial(9,13,"unknown RMW keeps both legacy waits");
+    restart;
+    @(negedge clk); gov='0; gov.op=8'hff; ilen=4; accesses=1; ordinary_ram=1; boundary=0; eoi=0;
+    @(negedge clk); accesses=1; ordinary_ram=0; boundary=1; eoi=1;
+    @(negedge clk); accesses=0; ordinary_ram=1; boundary=0; eoi=0;
+    finish_trial(9,12,"mixed RAM then unknown keeps one legacy wait");
+    restart;
+    @(negedge clk); gov='0; gov.op=8'hff; ilen=4; accesses=1; ordinary_ram=0; boundary=0; eoi=0;
+    @(negedge clk); accesses=1; ordinary_ram=1; boundary=1; eoi=1;
+    @(negedge clk); accesses=0; boundary=0; eoi=0;
+    finish_trial(9,12,"mixed unknown then RAM keeps one legacy wait");
+    restart;
+    @(negedge clk); gov='0; gov.op=8'hff; ilen=4; accesses=1; ordinary_ram=0; boundary=0; eoi=0;
+    @(negedge clk); accesses=0; ordinary_ram=1; abandon=1;
+    @(negedge clk); abandon=0;
+    instruction(8'hff,0,4,2,0);
+    finish_trial(10,12,"abandoned partial keeps committed unknown wait");
+    restart;
+    @(negedge clk); gov='0; gov.op=8'hff; ilen=4; accesses=1; ordinary_ram=0; boundary=0; eoi=0;
+    @(negedge clk); accesses=0; ordinary_ram=1; replay=1;
+    @(negedge clk); replay=0;
+    instruction(8'hff,0,4,2,0);
+    finish_trial(10,12,"replayed partial keeps committed unknown wait");
+    // Keep the diagnostic queue semantics explicit across mixed histories.
+    restart;
+    instruction(8'hff,0,4,2,0);
+    instruction(8'hff,0,4,2,0); ordinary_ram=0;
+    instruction(8'h8b,0,4,1,0); ordinary_ram=1; gov.o32=1;
+    instruction(8'hff,0,4,2,0);
+    finish_trial(33,38,"RAM/unknown/unsupported/RAM sequence");
     restart;
     @(negedge clk); gov='0; gov.op=8'hff; ilen=4; accesses=1; boundary=0; eoi=0;
     @(negedge clk); accesses=1; boundary=1; eoi=1;
@@ -82,8 +115,24 @@ module governor_integration_tb;
     instruction(8'h83,7,5,1,0);
     finish_trial(16,22,"replay preserves queued bytes");
     restart;
-    instruction(8'h8b,0,4,1,0); mmio=1;
-    finish_trial(12,15,"MMIO subtraction");
+    instruction(8'h8b,0,4,1,0); ordinary_ram=0; mmio=1;
+    finish_trial(12,15,"MMIO wait and subtraction");
+    // The physical attributes qualify the entire uop conservatively. A
+    // st2 access or a crossing can therefore charge both memory cycles on
+    // the legacy path even when only one touches non-RAM.
+    for (int shape=0; shape<3; shape++) begin
+      restart;
+      instruction(8'h8b,0,4,shape==0 ? 1 : 2,0); ordinary_ram=0;
+      if (shape==0) begin mmio=1; mmio_halves=2; end // crossing operand
+      if (shape==1) begin st2=1; st2_halves=1; end // secondary MMIO store
+      if (shape==2) begin mmio=1; mmio_halves=1; st2=1; st2_halves=2; end
+      @(negedge clk); boundary=0; eoi=0; accesses=0; mmio=0; st2=0;
+      @(negedge clk);
+      if (candidate.s2_memory != baseline.s2_memory || candidate.s2_isa != baseline.s2_isa ||
+          candidate.s2_memory != (shape==0 ? 1 : 2) ||
+          candidate.s2_isa != (shape==0 ? 15 : shape==1 ? 6 : 21))
+        $fatal(1,"mixed MMIO fallback shape=%0d memory=%0d isa=%0d",shape,candidate.s2_memory,candidate.s2_isa);
+    end
     restart;
     instruction(8'h01,0,4,2,0);
     instruction(8'h83,7,5,1,0);
@@ -315,7 +364,7 @@ module governor_integration_tb;
     @(negedge clk);
     if (candidate.reference_zero_shift || candidate.execution_clocks != 12)
       $fatal(1,"unknown operand did not retain prior diagnostic path");
-    finish_trial(14,14,"unknown zero-count operand");
+    finish_trial(14,16,"unknown zero-count operand, legacy waits plus reference fetch");
     restart;
     instruction(8'hd3,4,2,2,0); gov.ref_shift_nonzero=0; ordinary_ram=0; mmio=1;
     @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1; mmio=0;
@@ -427,28 +476,28 @@ module governor_integration_tb;
     @(negedge clk);
     if (candidate.s2_ordinary_ram || candidate.execution_clocks != 17)
       $fatal(1,"mixed-access PUSHA failed to retain prior path");
-    finish_trial(25,19,"mixed-access PUSHA fallback");
+    finish_trial(25,20,"mixed-access PUSHA fallback");
     restart;
     instruction(8'hd3,4,2,2,0); gov.ref_shift_nonzero=1; ordinary_ram=0;
     @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
     @(negedge clk);
     if (candidate.s2_ordinary_ram || candidate.execution_clocks != 12)
       $fatal(1,"nonzero shift outside RAM changed");
-    finish_trial(14,14,"nonzero shift outside RAM");
+    finish_trial(14,16,"nonzero shift outside RAM");
     restart;
     instruction(8'hf6,4,2,1,0); ordinary_ram=0;
     @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
     @(negedge clk);
     if (candidate.s2_ordinary_ram || candidate.execution_clocks != 16)
       $fatal(1,"MUL outside RAM changed");
-    finish_trial(17,18,"MUL outside RAM");
+    finish_trial(17,19,"MUL outside RAM");
     restart;
     instruction(8'hf6,0,3,1,0); ordinary_ram=0;
     @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
     @(negedge clk);
     if (candidate.s2_ordinary_ram || candidate.execution_clocks != 5 || candidate.refill_execution != 5)
       $fatal(1,"pre-existing TEST path outside RAM changed");
-    finish_trial(7,9,"pre-existing TEST path outside RAM");
+    finish_trial(7,10,"pre-existing TEST path outside RAM");
     restart;
     instruction(8'hf6,4,2,1,0); ordinary_ram=0;
     instruction(8'hf6,4,2,1,0); ordinary_ram=1;

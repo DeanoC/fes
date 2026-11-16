@@ -177,7 +177,11 @@ module fes_i386_governor #(
         mmio_extra = clocks > 11'(local_bus) ? clocks - 11'(local_bus) : 11'd0;
     endfunction
     logic [3:0]  local_bus;
-    assign local_bus = 4'd2 + (REFERENCE_DIAGNOSTIC && p_id == 3'd1 ? 4'd0 : per_access);
+    // The surrogate's RAM bus accounting does not cover other attributes.
+    // Keep the prior wait and MMIO subtraction for each non-RAM uop. The
+    // experimental queue still tracks every boundary, so this is not complete
+    // legacy behavior or reference validation for those instructions.
+    assign local_bus = 4'd2 + (REFERENCE_DIAGNOSTIC && p_id == 3'd1 && s1_ordinary_ram ? 4'd0 : per_access);
     logic [12:0] isa;
     assign isa = (s1_io ? {3'd0, io_extra} : 13'd0) + 13'(s1_mmio) * {2'd0, mmio_extra(s1_mmio_halves, isa_vga, local_bus)}
                + (s1_mmio_st2 ? {2'd0, mmio_extra(s1_mmio_st2_halves, isa_vga, local_bus)} : 13'd0);
@@ -197,7 +201,7 @@ module fes_i386_governor #(
         s2_column1 <= s1_class.branch && s1_taken;
         s2_element <= s1_boundary && s1_element && s1_class.elem;
         s2_ea <= s1_boundary && s1_eoi && s1_class.memory && s1_gov.ea3 && !s1_gov.rm_reg;
-        s2_memory <= REFERENCE_DIAGNOSTIC && p_id == 3'd1 ? 5'd0 : 5'(s1_accesses) * 5'(per_access);
+        s2_memory <= REFERENCE_DIAGNOSTIC && p_id == 3'd1 && s1_ordinary_ram ? 5'd0 : 5'(s1_accesses) * 5'(per_access);
         s2_isa <= isa;
         s2_boundary <= s1_boundary;
         s2_redirect <= s1_redirect && s1_boundary;
