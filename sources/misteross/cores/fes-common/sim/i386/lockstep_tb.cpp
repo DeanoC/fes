@@ -10407,6 +10407,54 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             a.op({0xd9, 0xfa});                                    // the root of -1: invalid
             a.op({0xdf, 0xe0});
         }},
+        // ---- Deepening the arithmetic the gate actually reaches ----
+        // The suite above reaches the backend 48 times in all, and two of
+        // those are square roots. Non-zero is the pass rule, but 48 is a thin
+        // gate for the one thing this configuration changes, so these cases
+        // exist to raise the count rather than to check a new behaviour: every
+        // add, subtract and multiply form -- into ST(0), into ST(i), and the
+        // popping ones -- each memory width, and a square-root chain. They are
+        // cheap, and a gate that barely touches what it is gating is the
+        // failure mode a count exists to expose.
+        {"arith-forms-reg", [](Asm &a) {
+            a.op({0xdb, 0xe3});                                    // FNINIT
+            a.esc(0xd9, 0, 0x100);                                 // FLD m32
+            a.esc(0xdd, 0, 0x108);                                 // FLD m64
+            a.esc(0xdb, 5, 0x110);                                 // FLD m80
+            // D8: into ST(0), against ST(1) and ST(2).
+            for (uint8_t m : {0xc1, 0xc2, 0xc9, 0xca, 0xe1, 0xe2, 0xe9, 0xea})
+                a.op({0xd8, m});
+            // DC: into ST(i).
+            for (uint8_t m : {0xc1, 0xc9, 0xe1, 0xe9}) a.op({0xdc, m});
+            // DE: the popping forms, refilling the stack as they pop.
+            a.esc(0xd9, 0, 0x104);
+            a.op({0xde, 0xc1});                                    // FADDP ST(1),ST
+            a.esc(0xd9, 0, 0x104);
+            a.op({0xde, 0xc9});                                    // FMULP ST(1),ST
+            a.esc(0xd9, 0, 0x104);
+            a.op({0xde, 0xe1});                                    // FSUBRP
+            a.esc(0xd9, 0, 0x104);
+            a.op({0xde, 0xe9});                                    // FSUBP
+        }},
+        {"arith-forms-mem", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 0, 0x100);                                 // FLD m32
+            for (unsigned reg : {0u, 1u, 4u, 5u}) {
+                a.esc(0xd8, reg, 0x104);                           // FADD/FMUL/FSUB/FSUBR m32
+                a.esc(0xdc, reg, 0x108);                           // ... m64
+                a.esc(0xde, reg, 0x120);                           // FIADD/.. m16
+                a.esc(0xda, reg, 0x124);                           // ... m32
+            }
+        }},
+        {"sqrt-chain", [](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xdb, 5, 0x110);                                 // FLD m80
+            for (int n = 0; n < 6; ++n) a.op({0xd9, 0xfa});         // FSQRT, repeatedly
+            a.esc(0xdd, 0, 0x108);                                 // FLD m64
+            for (int n = 0; n < 4; ++n) a.op({0xd9, 0xfa});
+            a.op({0xd8, 0xf1});                                    // FDIV ST,ST(1)
+            a.op({0xd9, 0xfa});                                    // FSQRT of the quotient
+        }},
         {"prem", [](Asm &a) {
             // A reduction that needs several partial steps, looped the way
             // software does: FPREM, then FNSTSW AX, then test C2 and branch
