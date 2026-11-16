@@ -87,6 +87,14 @@ only, and the split puts them where they belong:
 the core whose front-end identity this branch exists to record. That is the reseal this branch
 owes, and it replaces the twelve-core question entirely.
 
+**Deano's decision (16 Nov 2026): this lands with the PC/XT reseal to follow**, the same call he
+made for the earlier PC/XT front-end work. So this record does **not** claim a PC/XT seal, and
+nothing here should be read as one: the design identity in a PC/XT package built from this branch
+is new and unsealed until that reseal runs. It is tracked in DeanoC/fes#1893 rather than left to
+this record, because a reseal needs its own timing and seal evidence and a kit HIL, none of which
+is in scope here. The thin margins this campaign measured on `coleco_v2` and `sms`, which #1882
+does not address because it removes identity churn without adding margin, are DeanoC/fes#1894.
+
 ## D12
 
 `scripts/export_core_package.py` is in every audited closure, so this change moves the BUILD_ID of
