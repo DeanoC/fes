@@ -188,6 +188,29 @@ Its pinned-firmware guard fired on the first attempt, as its method says it
 would; the firmware build is the sibling's, after checking that
 `cores/fes-pc386/firmware.lock` is byte-identical on both branches.
 
+**That the scratch edits are really in the fitted design is checked two ways,
+one of which turned out not to be evidence at all.** The valid check is a
+`grep` of the snapshot the netlist was built from, confirming both edited
+lines. The *invalid* one, recorded because it was relied on for a while: the
+integration and a control netlist were built and their **SHA-256 hashes
+compared**, and the difference read as proof the edits took. It is not —
+`yosys_netlist`'s own docstring says Yosys's auto-numbered names follow the
+argv, so two netlists of **identical** source built at different output paths
+differ in hash anyway, which a later rebuild of the same source confirmed by
+producing a third hash. The hash comparison could not have distinguished the
+two cases and is withdrawn.
+
+What replaces it is a **structural** comparison, which naming cannot move:
+
+| Netlist | Lines |
+| --- | ---: |
+| `x87_present = 1'b1`, `X87_BACKEND = 1` | 133,035 |
+| control: `x87_present = 1'b0`, no backend | 121,641 |
+| difference | **+11,394** |
+
+A design carrying the envelope and the DE25 backend must be substantially
+larger than one with the 387 swept, and it is, by about 9.4%.
+
 ### The bands
 
 1. **Fitter refuses, or LABs > 100%** → the backend **does not fit** in the
