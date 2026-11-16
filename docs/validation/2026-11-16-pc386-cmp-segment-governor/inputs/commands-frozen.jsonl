@@ -1,0 +1,17 @@
+{"op": "sleep", "s": 45}
+{"op": "grab", "name": "boot"}
+{"op": "video_start", "name": "speed-trace", "s": 245}
+{"op": "type", "text": "FAILCASE > PF0.TXT\n"}
+{"op": "sleep", "s": 10}
+{"op": "grab", "name": "failure_control"}
+{"op": "type", "text": "SURVEY > PF1.TXT\n"}
+{"op": "sleep", "s": 70}
+{"op": "grab", "name": "run1"}
+{"op": "type", "text": "SURVEY > PF2.TXT\n"}
+{"op": "sleep", "s": 70}
+{"op": "grab", "name": "run2"}
+{"op": "type", "text": "SURVEY > PF3.TXT\n"}
+{"op": "sleep", "s": 70}
+{"op": "grab", "name": "run3"}
+{"op": "video_stop"}
+{"op": "quit"}

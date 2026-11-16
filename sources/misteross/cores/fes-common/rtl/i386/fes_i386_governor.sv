@@ -301,10 +301,6 @@ module fes_i386_governor #(
                 if (!s2_gov.ref_test_excluded) begin
                     // Reference costs for unprefixed ordinary 16-bit forms.
                     if (s2_gov.op == 8'ha8 || s2_gov.op == 8'ha9) execution_clocks = 9'd2;
-                    // Experiment: CMP r/m,reg has a shorter execution budget
-                    // than the overlap budget on measured ordinary 286 RAM.
-                    if (s2_ordinary_ram && !s2_gov.rm_reg &&
-                        (s2_gov.op == 8'h38 || s2_gov.op == 8'h39)) execution_clocks = 9'd5;
                     if (s2_ordinary_ram && !s2_gov.rep && (s2_gov.op == 8'haa || s2_gov.op == 8'hab))
                         execution_clocks = 9'd4;
                     if (s2_ordinary_ram && !s2_gov.ref_stack32 && s2_gov.op == 8'hc8 && s2_gov.ref_enter_valid)
@@ -338,6 +334,11 @@ module fes_i386_governor #(
                         endcase
                     end
                 end
+                // Separate experiment: allow only tracked 286 segment prefixes.
+                if ((!s2_gov.ref_test_excluded ||
+                     (s2_gov.ref_real_mode && !s2_gov.ref_zero_unsafe && !s2_gov.ea3)) &&
+                    s2_ordinary_ram && !s2_gov.rm_reg &&
+                    (s2_gov.op == 8'h38 || s2_gov.op == 8'h39)) execution_clocks = 9'd5;
                 if (!s2_gov.ref_test_excluded && !s2_gov.rm_reg && (s2_gov.op == 8'h84 || s2_gov.op == 8'h85 ||
                     ((s2_gov.op == 8'hf6 || s2_gov.op == 8'hf7) && s2_gov.mreg == 3'd0)))
                     execution_clocks = 9'd5;
@@ -373,7 +374,9 @@ module fes_i386_governor #(
         refill_execution = execution_clocks[8] ? 8'hff : execution_clocks[7:0];
         if (reference_on && s2_ends && !s2_gov.two && !s2_gov.o32 && !s2_gov.ref_test_excluded && !s2_gov.rm_reg &&
             (s2_gov.op == 8'h84 || s2_gov.op == 8'h85)) refill_execution = 8'd7;
-        if (reference_on && s2_ends && !s2_gov.two && !s2_gov.o32 && !s2_gov.ref_test_excluded &&
+        if (reference_on && s2_ends && !s2_gov.two && !s2_gov.o32 &&
+            (!s2_gov.ref_test_excluded ||
+             (s2_gov.ref_real_mode && !s2_gov.ref_zero_unsafe && !s2_gov.ea3)) &&
             s2_ordinary_ram && !s2_gov.rm_reg && (s2_gov.op == 8'h38 || s2_gov.op == 8'h39))
             refill_execution = 8'd7;
         // The reference's word ALU memory-destination forms have a different

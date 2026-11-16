@@ -187,15 +187,25 @@ module governor_integration_tb;
         $fatal(1,"CMP RAM split budgets op=%h",op);
       finish_trial(8,7,"CMP ordinary RAM");
     end
+    // A 286 segment prefix is accepted, but tracked unsafe prefixes are not.
+    for (int op=56; op<=57; op++) begin
+      restart; instruction(8'(op),0,3,1,0); gov.ref_test_excluded=1; gov.ref_real_mode=1; gov.prefix286=4;
+      @(negedge clk); boundary=0; eoi=0; accesses=0;
+      @(negedge clk);
+      if (candidate.execution_clocks != 5 || candidate.refill_execution != 7)
+        $fatal(1,"286 segment CMP split budgets op=%h",op);
+    end
     // Disallowed encodings and non-RAM contexts retain the earlier path.
-    for (int op=56; op<=57; op++) for (int test=0; test<6; test++) begin
+    for (int op=56; op<=57; op++) for (int test=0; test<8; test++) begin
       restart; instruction(8'(op),0,2,1,0);
       if (test==0) ordinary_ram=0;
       if (test==1) begin ordinary_ram=0; mmio=1; end
-      if (test==2) gov.ref_test_excluded=1;
+      if (test==2) begin gov.ref_test_excluded=1; gov.ref_zero_unsafe=1; gov.ref_real_mode=1; end
       if (test==3) gov.o32=1;
       if (test==4) gov.rm_reg=1;
       if (test==5) gov.two=1;
+      if (test==6) begin gov.ref_test_excluded=1; gov.ref_real_mode=0; end
+      if (test==7) begin gov.ref_test_excluded=1; gov.ref_real_mode=1; gov.ea3=1; end
       @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1; mmio=0;
       @(negedge clk);
       if (candidate.execution_clocks != baseline.execution_clocks ||
