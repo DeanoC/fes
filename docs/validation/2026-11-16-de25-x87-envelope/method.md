@@ -74,8 +74,28 @@ is not replaced.
 7. **The area figure names what it contains.** Device, Quartus Pro version,
    seed, corner set, raw ALMs, DSPs and M20Ks, and percentage of the device.
    It states which arithmetic the fit contains and that the other is excluded
-   by the selection, with the fit's own entity list as the evidence — the
-   reciprocal seed table and the sequencer's adder absent from a DE25 fit.
+   by the selection.
+
+   **Amended 16 Nov 2026**, after the first fits were attempted and before any
+   area figure was read. This rule named "the fit's own entity list" as the
+   evidence for exclusion. That is wrong and the rule could not have been met
+   as written: the DE10 arithmetic is **inline in the sequencer's `always_ff`**,
+   not an entity, so it is absent from the entity table in *both*
+   configurations and the table cannot distinguish them. What had been seen
+   when this was amended: Quartus Pro refused the first DE25 fit because the
+   square root's seed table had survived an incomplete guard, and the
+   `X87_BACKEND = 0` control would not fit on Agilex 5 at all. The evidence is
+   now three things, none of which is the entity table alone:
+
+   - `fes_x87_core` present in the DE25 entity table and absent at
+     `X87_BACKEND = 0`, which is all the entity table can show;
+   - the DE25 fit **building at all**, which is possible only if both seed
+     tables are gone: they are declared `ramstyle = "M10K"`, a Cyclone V block
+     Agilex 5 does not have, so a surviving table makes Quartus refuse;
+   - a query of the fitted netlist for the inline arithmetic's named registers
+     — `ua_add`, `ub_add`, `qy_s` and the divide's — expecting none, with `wm`
+     and `pa` as a positive control so that a zero means absent rather than
+     renamed.
    **No cross-device ratio against the DE10 figures**: Cyclone V and Agilex 5
    ALMs are different units.
 
@@ -107,3 +127,31 @@ Stated so that the rules above cannot be read as fitted to results:
   760**. The DE25 configuration does not, and that divergence was being
   characterised when this was written.
 - No lockstep run, no Quartus fit and no area figure had been produced.
+
+## Amendments after measuring began
+
+Each is dated and says what had already been seen, because a rule changed
+after a result is worthless unless the change is auditable.
+
+- **Rule 7's exclusion evidence**, 16 Nov 2026, above.
+- **The FPREM threshold**, 16 Nov 2026. The decision to keep FRNDINT, FSCALE,
+  FXTRACT, FPREM and FPREM1 on the sequencer rests on the argument that they
+  cost no arithmetic hardware the envelope does not already carry. For FPREM
+  that argument is **unverified and may be false**: `P_SH` and `P_FIN` use
+  `dv_rem` and a wide subtractor the slice 2 envelope did not have. It is
+  settled by an A/B fit with those arms held off, against the same seeds. The
+  threshold is committed here **before** that fit is run: a delta that falls
+  **inside the seed 1–4 ALM spread is not measurable**, and is reported as
+  such rather than as cheap; a delta larger than that spread is material, and
+  since the census finds no title in the corpus that executes FPREM, FPREM1 or
+  FXTRACT at all, a material cost means the form stops in the DE25
+  configuration — through decode and the lockstep SCOPE, not by disabling the
+  sequencer arms. What had been seen when this was written: no fit had
+  completed and no ALM figure existed.
+- **The lockstep count's depth**, 16 Nov 2026. Rule 4 says every reachable
+  `req_op` must be non-zero. A provisional run met it (ADD 8, SUB 10, MUL 12,
+  DIV 16, SQRT 2, 48 in all) and that is a thin gate for the one thing this
+  configuration changes. The rule is **not** narrowed and the figure is not
+  reported as adequate; directed cases were added to the x87 suite to raise
+  the count instead. What had been seen: that provisional run, on a superseded
+  commit.
