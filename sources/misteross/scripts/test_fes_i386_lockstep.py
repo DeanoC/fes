@@ -499,8 +499,10 @@ def run_x87(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-X87_CASES = 21   # slice 2 and 3: 14; slice 4 adds div-reg, div-mem, div-zero,
-                 # sqrt, prem, prem1 and div-prec
+X87_CASES = 24   # slice 2 and 3: 14; slice 4 adds div-reg, div-mem, div-zero,
+                 # sqrt, prem, prem1 and div-prec; and arith-forms-reg,
+                 # arith-forms-mem and sqrt-chain deepen the arithmetic the
+                 # DE25 backend gate reaches (#1903)
 
 
 def divergence_table(entries: list[dict], path: Path) -> None:
