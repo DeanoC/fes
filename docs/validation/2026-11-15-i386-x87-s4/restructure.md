@@ -85,3 +85,49 @@ that 740 bench cases already agree with.
   which is where option A puts a genuinely variable shift;
 - the square root's normalisations (`sh`, `lz`, the estimate's exponent) as
   two-way muxes with assertions on their range, which is one or two bits.
+
+## The per-entity fit, and what it can and cannot attribute
+
+The brief asked for a fit with `flatten` removed so the report lists ALMs by
+entity. Standalone unit, option A's form, `--hierarchy`, seed 1, same slot:
+
+| entity | ALMs (own) | registers (own) |
+|---|---:|---:|
+| `spike_x87_unit` (the bench envelope) | 6,899.2 (130.5) | 7,287.6 (136.3) |
+| `fes_i386_x87:dut` | 6,722.7 (**6,546.8**) | 7,084.0 (6,882.0) |
+| `fes_i386_x87_mul:mul` | **175.9** (175.9) | 202.0 (202.0) |
+| `altsyncram:rcp_tab_rtl_0` — the reciprocal seeds | **0.0** | 0.0 |
+| `altsyncram:rsq_tab_rtl_0` — the reciprocal-square-root seeds | **0.0** | 0.0 |
+| `altsyncram:rf_a`, `rf_b` — the register stack | **0.0** | 0.0 |
+| `spike_stimulus:stimulus` (the bench's driver, not the unit) | 46.0 | 67.3 |
+
+Dropping `flatten` is a different flow — it fits at 6,899 ALMs against the
+flattened 6,923 — so these figures are not interchangeable with the flattened
+ones, the same caveat slice 3's record makes about its own pair.
+
+### What it establishes
+
+**Both seed tables cost 0 ALMs**, read from the fitter's own hierarchy rather
+than inferred from a block count. That is the M10K claim verified: the
+tables are in memory, and the 2 extra M10K blocks are their whole cost. The
+register stack is likewise 0, as slice 2 built it.
+
+**The 9-DSP multiplier's glue is 175.9 ALMs**, and the DSP blocks themselves
+are counted separately — so the multiplier is almost free in logic, which is
+what sharing it was for.
+
+### What it cannot attribute, and this is the honest limit
+
+**6,546.8 of the unit's 6,722.7 ALMs are flat logic inside
+`fes_i386_x87.sv` itself**, because slices 2, 3 and 4 all live in that one
+module. So **the per-entity fit cannot apportion slice 4's +2,847 ALMs within
+the unit** — it can only say that the cost is in the unit's own logic rather
+than in its memories, its multiplier or the bench envelope.
+
+That is worth stating rather than glossing, because a per-entity fit is
+normally the tool for "which part cost what" and here it answers a narrower
+question. Attributing within the unit would need the logic split into modules
+per slice, which is a refactor nobody has asked for and which would change
+the fit it was measuring. **The +2,847 figure stands on the whole-unit delta
+against the merge base in the same flow, which is the measurement that does
+not depend on module boundaries.**
