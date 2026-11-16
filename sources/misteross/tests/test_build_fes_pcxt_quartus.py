@@ -181,7 +181,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                 request.assert_called_once_with(producer.ROOT, producer.ROOT / producer.TOOLCHAIN_LOCK,
                                                 cache_root=Path(directory) / 'cache', gpu_router='OFF',
                                                 tool='yosys')
-                resolve.assert_called_once_with('request', 'yosys')
+                resolve.assert_called_once_with('request', 'yosys', binary_sha256=lock.yosys_sha256)
                 # An install whose binary is not the one quartus.lock pins is refused.
                 hashes[yosys.resolve()] = 'e' * 64
                 with self.assertRaisesRegex(producer.BuildError, f"sha256 {'e' * 64}, but quartus.lock pins"):

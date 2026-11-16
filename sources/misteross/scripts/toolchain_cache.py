@@ -567,7 +567,16 @@ def _hold_install(request: ToolchainRequest, tool: str) -> None:
     if not ready.is_file():
         # Fail here rather than wait behind a build that holds the lock.
         raise CacheError(f"{tool} install is not ready: {ready}")
-    path = ensure_lock_file(request, tool)
+    _hold_install_key(request.cache_root, tool, tool_key(request, tool))
+
+
+def _hold_install_key(cache_root: Path, tool: str, key: str) -> None:
+    root = ensure_cache_root(cache_root)
+    ready = root / "tools" / tool / key / "ready.json"
+    _check_no_symlink_components(ready, allow_missing=False)
+    if not ready.is_file():
+        raise CacheError(f"{tool} install is not ready: {ready}")
+    path = root / "locks" / f"{key}.lock"
     held = _READER_LOCKS.get(str(path))
     if held is None:
         descriptor = _open_lock(path)
@@ -964,8 +973,13 @@ def _verify_install(
     request: ToolchainRequest, tool: str, pins: Mapping[str, Mapping[str, str]]
 ) -> InstallManifest:
     build = _build_identity(request, tool, pins)
+    return _verify_published_install(request.cache_root, tool, build, pins[tool])
+
+
+def _verify_published_install(cache_root: Path, tool: str, build: Mapping[str, Any],
+                              pin: Mapping[str, str]) -> InstallManifest:
     key = _key(tool, build)
-    expected_directory = _absolute(Path(request.cache_root), "cache root") / "tools" / tool / key
+    expected_directory = _absolute(Path(cache_root), "cache root") / "tools" / tool / key
     _check_no_symlink_components(expected_directory, allow_missing=False)
     manifest = read_manifest(expected_directory / "ready.json")
     if manifest.key != key or manifest.tool != tool:
@@ -982,7 +996,7 @@ def _verify_install(
     expected_binary = f"bin/{TOOL_BINARY_NAMES[tool]}"
     if record.get("binary") != expected_binary or record.get("path") != f"install/{expected_binary}":
         raise CacheError(f"ready manifest tool path is invalid: {tool}")
-    if record.get("commit") != pins[tool]["commit"]:
+    if record.get("commit") != pin["commit"]:
         raise CacheError(f"ready manifest tool commit does not match the selected lock: {tool}")
     if not isinstance(record.get("identity"), str) or not record["identity"].strip():
         raise CacheError(f"ready manifest tool identity is missing: {tool}")
@@ -1003,13 +1017,56 @@ def verify_install(request: ToolchainRequest, tool: str) -> InstallManifest:
     return _verify_install(request, tool, locked_pins(request))
 
 
-def resolve_install(request: ToolchainRequest, tool: str, *, hold: bool = True) -> InstallManifest:
+def resolve_install(request: ToolchainRequest, tool: str, *, hold: bool = True,
+                    binary_sha256: str | None = None) -> InstallManifest:
     """Verify one tool's install, holding it like ``resolve_ready`` does."""
 
     _check_tool(tool)
+    if binary_sha256 is not None:
+        return _resolve_binary_install(request, tool, binary_sha256, hold=hold)
     if hold:
         _hold_install(request, tool)
     return verify_install(request, tool)
+
+
+def _resolve_binary_install(request: ToolchainRequest, tool: str, digest: str,
+                            *, hold: bool) -> InstallManifest:
+    """Select an exact binary pin, independent of today's provisioning recipe.
+
+    The published recipe/key and full install closure remain authenticated.
+    This is an alternative selector, never a fallback from a failed recipe
+    request. Source pins and host architecture must still match the request.
+    """
+    if tool != "yosys":
+        raise CacheError("binary-pinned selection is supported only for Yosys")
+    if not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise CacheError("binary pin must be a SHA256 digest")
+    pin = locked_pins(request)[tool]
+    root = ensure_cache_root(request.cache_root)
+    directory = root / "tools" / tool
+    _check_no_symlink_components(directory, allow_missing=True)
+    for entry in sorted(directory.glob("*/ready.json")):
+        if not re.fullmatch(r"[0-9a-f]{64}", entry.parent.name):
+            continue
+        _check_no_symlink_components(entry, allow_missing=False)
+        manifest = read_manifest(entry)
+        if manifest.record.get("sha256") != digest:
+            continue
+        if manifest.build.get("pin") != pin:
+            raise CacheError("binary-pinned Yosys source differs from the selected lock")
+        host = manifest.build.get("host", {})
+        if any(host.get(field) != request.host_identity.get(field)
+               for field in ("system", "machine")):
+            raise CacheError("binary-pinned Yosys host architecture differs from the request")
+        if manifest.key != entry.parent.name or manifest.key != _key(tool, manifest.build):
+            raise CacheError("binary-pinned Yosys published key differs from its build identity")
+        if hold:
+            _hold_install_key(root, tool, manifest.key)
+        verified = _verify_published_install(root, tool, manifest.build, pin)
+        if verified.record.get("sha256") != digest:
+            raise CacheError("binary-pinned Yosys changed during selection")
+        return verified
+    raise CacheError(f"no ready {tool} install matches binary SHA256 {digest}")
 
 
 def resolve_ready(request: ToolchainRequest, *, hold: bool = True) -> ToolchainResolution:

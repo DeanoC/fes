@@ -108,14 +108,15 @@ def authenticate_tools(root, *, cache_root=None):
     if os.environ.get('FES_PCXT_YOSYS'):
         candidates = [Path(os.environ['FES_PCXT_YOSYS'])]
     elif cache_root:
-        # The Yosys install toolchain.lock pins, verified and held (shared
-        # lock, last use stamped) for this process, so a prune cannot remove
-        # it during the build.
+        # The binary pin selects the published install. Its full closure,
+        # source pin and original build key are verified and held against
+        # prune; today's provisioning recipe does not select another binary.
         try:
             request = toolchain_cache.request_from_environment(
                 root, root / TOOLCHAIN_LOCK, cache_root=Path(cache_root),
                 gpu_router='OFF', tool='yosys')
-            installed = toolchain_cache.resolve_install(request, 'yosys').binary
+            installed = toolchain_cache.resolve_install(
+                request, 'yosys', binary_sha256=lock.yosys_sha256).binary
         except toolchain_cache.CacheError as error:
             raise BuildError(f'the PC/XT Yosys install is not ready: {error}; provision it with '
                              '`make toolchain-fes-pcxt CACHE_ROOT=...`') from error

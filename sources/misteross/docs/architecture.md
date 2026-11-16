@@ -1593,6 +1593,13 @@ is not the product bitstream and is not a fallback when the HIP seal fails.
 
 ## Shared compiler installation
 
+The PC/XT Quartus sealer selects Yosys by the exact binary SHA256 in its
+Quartus lock. Shared-cache selection verifies the published install's source
+pin, original build key, host architecture and complete read-only closure,
+then holds its prune lock for the build. A newer provisioning recipe may
+create a different install of the same source commit; it does not replace
+the explicitly pinned binary. Missing or corrupt pinned installs fail closed.
+
 Registered FES producers select compiler pins from their corresponding
 `cores/fes-<core>/toolchain.lock`. The shared cache holds one install per tool,
 commit and build configuration, not one per lock, so locks that pin the same
