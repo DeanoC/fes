@@ -1048,8 +1048,18 @@ def _resolve_binary_install(request: ToolchainRequest, tool: str, digest: str,
     for entry in sorted(directory.glob("*/ready.json")):
         if not re.fullmatch(r"[0-9a-f]{64}", entry.parent.name):
             continue
-        _check_no_symlink_components(entry, allow_missing=False)
-        manifest = read_manifest(entry)
+        try:
+            _check_no_symlink_components(entry, allow_missing=False)
+            manifest = read_manifest(entry)
+        except CacheError as error:
+            # A supported prune may remove an unrelated install after glob
+            # enumeration. Only disappearance is benign: malformed manifests,
+            # symlinks and permission errors must still fail closed. A match
+            # is re-read and fully verified under its held lock below.
+            if (isinstance(error.__cause__, FileNotFoundError)
+                    or isinstance(error.__context__, FileNotFoundError)):
+                continue
+            raise
         if manifest.record.get("sha256") != digest:
             continue
         if manifest.build.get("pin") != pin:

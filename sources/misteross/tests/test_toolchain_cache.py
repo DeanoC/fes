@@ -85,6 +85,28 @@ class ToolchainCacheContractTests(unittest.TestCase):
             with self.assertRaisesRegex(toolchain_cache.CacheError, "published key"):
                 toolchain_cache.resolve_install(request, "yosys", binary_sha256=digest)
 
+    def test_binary_pin_ignores_unrelated_install_pruned_during_discovery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request = self._request(base / "source", base / "cache")
+            first = _publish(request, "yosys", content="first")
+            recipe = request.root / "scripts/bootstrap.sh"
+            recipe.write_text(recipe.read_text() + "\n# another install\n")
+            second = _publish(request, "yosys", content="second")
+            unrelated, wanted = sorted((first, second), key=lambda item: item.key)
+            vanished = unrelated.directory / "ready.json"
+            read_manifest = toolchain_cache.read_manifest
+            def prune_before_read(path):
+                if path == vanished:
+                    path.unlink()
+                return read_manifest(path)
+            with mock.patch.object(toolchain_cache, "read_manifest", side_effect=prune_before_read):
+                selected = toolchain_cache.resolve_install(
+                    request, "yosys", binary_sha256=wanted.record["sha256"])
+            self.assertEqual(selected.key, wanted.key)
+            self.assertFalse(vanished.exists())
+            self.assertTrue(wanted.binary.is_file())
+
     def test_binary_pin_verifies_full_install_closure_and_host(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
