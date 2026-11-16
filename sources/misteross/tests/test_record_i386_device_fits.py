@@ -287,6 +287,20 @@ class Collect(unittest.TestCase):
     def test_a_fit_argument_without_a_name_is_refused(self):
         with tempfile.TemporaryDirectory() as temporary:
             self.assertEqual(record.main(["--record", temporary + "/r", "--fit=/some/dir"]), 1)
+            self.assertEqual(record.main(["--record", temporary + "/r", "--fit==/some/dir"]), 1)
+
+    def test_a_repeated_fit_name_is_refused(self):
+        # Two identically named entries would be indistinguishable in
+        # quartus.json and timing.tsv, and quartus-inputs.json is keyed by name
+        # so it would silently keep only the last.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            one = write_fit(root / "1", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                            alms=1, available=2, device_alms=46800, ram_block="M20K")
+            two = write_fit(root / "2", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                            alms=3, available=4, device_alms=46800, ram_block="M20K")
+            self.assertEqual(record.main(["--record", str(root / "r"),
+                                          f"--fit=same={one}", f"--fit=same={two}"]), 1)
 
 
 if __name__ == "__main__":

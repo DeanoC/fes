@@ -157,11 +157,20 @@ def main(argv: list[str] | None = None) -> int:
         record = (REPO / args.record).resolve() if not args.record.is_absolute() else args.record
         record.mkdir(parents=True, exist_ok=True)
         fits = []
+        seen: set[str] = set()
         rows = ["fit\tcorner\thold_only\tcheck\tcoverage\tpaths\tworst_slack_ns\tfrom\tto"]
         for item in args.fit:
             if "=" not in item:
                 raise RecordError(f"--fit wants NAME=DIR, not {item!r}")
             name, _, directory = item.partition("=")
+            # A repeated name would leave two indistinguishable rows in
+            # quartus.json and timing.tsv while quartus-inputs.json, which is
+            # keyed by name, silently kept only the last.
+            if not name:
+                raise RecordError(f"--fit needs a name before the '=': {item!r}")
+            if name in seen:
+                raise RecordError(f"--fit name {name!r} is given twice; each fit needs its own name")
+            seen.add(name)
             output = Path(directory).resolve()
             fits.append(collect(name, output))
             rows.extend(timing_rows(name, output))

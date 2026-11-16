@@ -46,9 +46,23 @@ superseded envelope kept for comparison. No board shell, no pins, no HPS, no
 PLL, no reset-release IP, no programming artifact, no seal and no hardware
 acceptance.
 
-**Thirteen of the fifteen passed** setup, hold, recovery, removal and minimum
-pulse width at **every published operating condition** of their device — four
-on Agilex 5, eight on Cyclone V. The other two are the ladder's **150 and
+**Thirteen of the fifteen passed** at **every published operating condition**
+of their device — four on Agilex 5, eight on Cyclone V. What "passed" covers,
+exactly, and it is not the same for the two designs:
+
+- **Setup, hold and minimum pulse width were analysed and positive at every
+  corner of every fit.** These are the analyses the closure rests on.
+- **Recovery and removal were analysed on all three machine fits** — every
+  corner, worst slack **+0.302 ns** (a removal path on M+) — because
+  `pc386_system` has asynchronous resets to check.
+- **On every CPU fit they found zero paths** and are recorded as
+  `not_applicable_synchronous_reset`: `fes_i386_cpu`'s resets are synchronous,
+  so for the CPU those two analyses were **not applied rather than passed**,
+  and the CPU's 130 MHz closure does not rest on them.
+
+Each corner's coverage word is in [timing.tsv](timing.tsv) beside its slack, so
+a reader can see which analyses ran on which fit rather than take the word
+"passed" for all of them. The other two are the ladder's **150 and
 170 MHz rungs, which miss**, and they are in the record precisely because they
 do: they are what bounds the closure from above. Nothing was relaxed for any
 of them, and no rung's verdict was revisited.
