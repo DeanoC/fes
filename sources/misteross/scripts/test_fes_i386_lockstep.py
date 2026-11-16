@@ -531,7 +531,10 @@ def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs
     output.mkdir(parents=True, exist_ok=True)
     if yosys:
         design = [yosys_netlist.seal_netlist(yosys, output, ROOT, parameters=parameters)]
-        warnings = frontend.NETLIST_WARNINGS
+        # A flattened, purged netlist has no hierarchy, so the bench cannot
+        # read the x87's sim-only backend counters there; the define tells it
+        # so, as the x87 unit runner's netlist mode already does.
+        warnings = [*frontend.NETLIST_WARNINGS, '+define+FES_I386_NETLIST']
     else:
         design = [RTL / path for path in CPU_RTL]
         warnings = []

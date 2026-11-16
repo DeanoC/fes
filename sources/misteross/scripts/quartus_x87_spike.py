@@ -65,7 +65,8 @@ SPIKE_SOURCES = (SPIKE / 'spike_stimulus.sv', SPIKE / 'spike_x87.sv')
 # The real unit (#1768 slice 2) in the same envelope, for its area and slack
 # before the CPU side exists: --variant unit or unit-noregs.
 RTL = Path('cores/fes-common/rtl/i386')
-UNIT_SOURCES = (RTL / 'fes_i386_pkg.sv', RTL / 'fes_i386_x87_mul.sv', RTL / 'fes_i386_x87.sv',
+UNIT_SOURCES = (RTL / 'fes_i386_pkg.sv', RTL / 'fes_x87_pkg.sv', RTL / 'fes_i386_x87_mul.sv',
+                RTL / 'fes_i386_x87.sv',
                 SPIKE / 'spike_stimulus.sv', SPIKE / 'spike_x87_unit.sv')
 UNIT_TOP = 'spike_x87_unit'
 UNIT_VARIANTS = {

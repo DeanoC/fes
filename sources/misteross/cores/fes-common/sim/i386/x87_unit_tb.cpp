@@ -1187,6 +1187,70 @@ int main(int argc, char **argv) {
         if (got[9] == 0xbf) ok("flush-store-next");
         else bad("flush-store-next", hex80(got));
 
+        // A flush DURING a committed divide must not lose it either, and
+        // must not strand the unit. This is the case a straight-through
+        // flush mapping would have broken on the DE25 backend: arithmetic is
+        // entered after the instruction commits, the envelope deliberately
+        // lets a retired instruction run on through a later squash, and a
+        // backend cancelled mid-recurrence would never return a result. A
+        // load's flush case cannot reach it, because a load has no multi-
+        // cycle arithmetic to cancel.
+        {
+            uint8_t got2[10];
+            const uint8_t two[10]  = {0,0,0,0,0,0,0,0x80,0x00,0x40};  // 2.0
+            const uint8_t four[10] = {0,0,0,0,0,0,0,0x80,0x01,0x40};  // 4.0
+            u.clear_latch();
+            u.reg_form(OP_FNINIT);
+            u.load(OP_FLD_M80, FMT_F80, two);    // ST(1) <- 2.0
+            u.load(OP_FLD_M80, FMT_F80, four);   // ST(0) <- 4.0
+            // FDIV ST(0),ST(1): D8 F1. Commit it, then squash a younger
+            // instruction while its arithmetic is still running.
+            u.present(0x0f1, 0, true, true, 0);
+            u.commit(0, 0, true);
+            for (int n = 0; n < 4; ++n) u.tick();   // mid-operation
+            u.top.flush = 1;
+            u.tick();
+            u.top.flush = 0;
+            u.settle();
+            u.st0(got2);
+            if (u.top.busy_o) bad("flush-during-divide", "the unit stayed busy");
+            else if (got2[9] != 0x40 || got2[8] != 0x00) bad("flush-during-divide", hex80(got2));  // 4.0/2.0 = 2.0
+            else ok("flush-during-divide");
+            // And the unit takes a fresh operation afterwards.
+            u.reg_form(OP_FCHS);
+            u.st0(got2);
+            if (got2[9] == 0xc0) ok("flush-during-divide-next");   // FCHS of 2.0
+            else bad("flush-during-divide-next", hex80(got2));
+        }
+
+        // The port F1h reset while a divide is in flight: the unit comes back
+        // in its RESET state and answers the next operation, rather than
+        // waiting for a result that was thrown away.
+        {
+            uint8_t got3[10];
+            const uint8_t two[10]  = {0,0,0,0,0,0,0,0x80,0x00,0x40};
+            const uint8_t four[10] = {0,0,0,0,0,0,0,0x80,0x01,0x40};
+            u.clear_latch();
+            u.reg_form(OP_FNINIT);
+            u.load(OP_FLD_M80, FMT_F80, two);
+            u.load(OP_FLD_M80, FMT_F80, four);
+            u.present(0x0f1, 0, true, true, 0);
+            u.commit(0, 0, true);
+            for (int n = 0; n < 4; ++n) u.tick();
+            u.top.f1 = 1;
+            u.tick();
+            u.top.f1 = 0;
+            u.settle();
+            u.clear_latch();
+            u.reg_form(OP_FNINIT);
+            u.load(OP_FLD_M80, FMT_F80, two);
+            u.load(OP_FLD_M80, FMT_F80, four);
+            u.reg_form(0x0f1);
+            u.st0(got3);
+            if (got3[9] != 0x40 || got3[8] != 0x00) bad("f1-during-divide", hex80(got3));
+            else ok("f1-during-divide");
+        }
+
         // A flush after the load's commit must not lose it.
         u.reg_form(OP_FNINIT);
         u.present(OP_FLD_M80, FMT_F80, true, false, 2);

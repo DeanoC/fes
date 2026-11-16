@@ -124,7 +124,9 @@
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
 #include "Vfes_i386_cpu.h"
+#ifndef FES_I386_NETLIST
 #include "Vfes_i386_cpu___024root.h"
+#endif
 #include "i386_oracle.h"
 #include "pc386_ddr_model.h"
 #include "smc_stale.h"
@@ -402,11 +404,23 @@ public:
         top.cold_reset = 0;
     }
 
-    ~Rtl() {
+    // Read the x87's sim-only backend counters into the file-scope totals.
+    // This is called explicitly, just before the summary is printed, and NOT
+    // from a destructor: the one Rtl is a local of main and outlives the
+    // summary printf, so a destructor tally reported zero -- which is exactly
+    // the reading the count exists to distinguish from a real zero, and it
+    // took the rule to notice.
+    //
+    // A netlist build has no hierarchy left -- the seal's Yosys program
+    // flattens and purges -- so these registers have no accessor there. The
+    // count is an RTL-build measurement; FES_I386_NETLIST marks the other kind.
+    void tally_x87_backend() const {
+#ifndef FES_I386_NETLIST
         for (int n = 0; n < 8; ++n) {
             x87_backend_offered[n] += top.rootp->fes_i386_cpu__DOT__x87__DOT__bk_offered[n];
             x87_backend_taken[n] += top.rootp->fes_i386_cpu__DOT__x87__DOT__bk_taken[n];
         }
+#endif
     }
 
     Vfes_i386_cpu top;
@@ -11719,6 +11733,7 @@ int main(int argc, char **argv) {
     // The FAIL lines go through std::cout, unsynced with stdio: flush them
     // first, so the summary line is whole after them.
     std::cout.flush();
+    rtl.tally_x87_backend();
     std::printf("{\"mode\": \"%s\", \"seed\": %llu, \"latency\": %s, \"runs\": %llu, \"passed\": %llu, \"failed\": %llu, "
                 "\"retirements\": %llu, \"cycles\": %llu, \"halts\": %llu, \"interrupts\": %llu, \"faults\": %llu, \"fault_vectors\": {%s}, "
                 "\"shutdowns\": %llu, \"nested\": %llu, "
