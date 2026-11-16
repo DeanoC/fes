@@ -106,6 +106,26 @@ class Collect(unittest.TestCase):
             self.assertIn("missed rung", entry["resources_stage"])
             self.assertNotIn("incomplete", entry["resources_stage"])
 
+    def test_a_miss_whose_own_validation_failed_is_not_a_bound(self):
+        # A missed rung is only a usable upper bound if its analysis covered
+        # every clock. If that check failed, the error must travel with the
+        # figures instead of the rung being published as a valid bound.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bad = write_fit(root / "b", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                            alms=30000, available=46800, device_alms=46800, ram_block="M20K",
+                            status="fail")
+            fit = json.loads((bad / "fit.json").read_text())
+            fit["timing"]["status"] = "fail"
+            fit["timing_parse_error"] = "TimeQuest reports unconstrained or illegal clocks"
+            (bad / "fit.json").write_text(json.dumps(fit))
+            out = root / "record"
+            record.main(["--record", str(out), f"--fit=cpu-de25-150-MISS={bad}"])
+            entry = json.loads((out / "quartus.json").read_text())["fits"][0]
+            self.assertIn("NOT usable as a timing bound", entry["resources_stage"])
+            self.assertIn("timing_parse_error", entry["validation_errors"])
+            self.assertNotIn("missed rung", entry["resources_stage"])
+
     def test_a_failed_fit_without_a_stage_is_still_qualified(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -49,6 +49,9 @@ def collect(name: str, output: Path) -> dict:
         "virtual_port_count_as_run": inputs.get("virtual_port_count_as_run"),
         "virtual_port_count_note": inputs.get("virtual_port_count_note"),
         "real_pins": fit.get("real_pins"),
+        "real_pins_note": fit.get("real_pins_note"),
+        "unconstrained_clock_rows": fit.get("unconstrained_clock_rows"),
+        "clock_coverage_note": fit.get("clock_coverage_note"),
         "host": fit.get("host") or inputs.get("host"),
         "fes_revision": inputs.get("fes_revision"),
         "source_clean": (inputs["fes_revision"].get("clean")
@@ -72,10 +75,25 @@ def collect(name: str, output: Path) -> dict:
             # whose area is exactly what a reader wants beside the ones that
             # closed.
             timing = fit.get("timing", {})
-            entry["resources_stage"] = (
-                "complete fit; the timing gate failed, so this is a missed rung and not a "
-                "partial result" if timing.get("status") == "fail" else
-                "incomplete fit; stage not recorded")
+            # A missed rung is only a usable upper bound if its analysis
+            # covered every clock and its envelope was the intended one. When
+            # either check failed the runner leaves its error behind, and that
+            # error must travel with the figures rather than be dropped while
+            # the rung is published as a valid bound.
+            invalid = [name for name in ("timing_parse_error", "resource_parse_error",
+                                         "clock_coverage_error")
+                       if fit.get(name)]
+            if invalid:
+                entry["validation_errors"] = {name: fit[name] for name in invalid}
+                entry["resources_stage"] = (
+                    "fit whose own validation did not complete (" + ", ".join(invalid)
+                    + "); NOT usable as a timing bound or an area figure")
+            elif timing.get("status") == "fail":
+                entry["resources_stage"] = (
+                    "complete fit; the timing gate failed, so this is a missed rung and not a "
+                    "partial result")
+            else:
+                entry["resources_stage"] = "incomplete fit; stage not recorded"
     if "timing" in fit:
         entry["timing_status"] = fit["timing"].get("status")
         entry["corner_count"] = fit["timing"].get("corner_count")
