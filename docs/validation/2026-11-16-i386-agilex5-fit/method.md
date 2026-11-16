@@ -1,7 +1,7 @@
 # How large is the 386 on Agilex 5? The method, committed before measuring
 
 **Committed 16 November 2026, before any fit ran.** Amendments are dated and
-say what had already been seen when they were made. Tracker: fes#TBD.
+say what had already been seen when they were made. Tracker: [#1898](https://github.com/DeanoC/fes/issues/1898).
 
 The question (Deano's words): *"we need see the entire size of the 386 on the
 agilex 5, it may be bigger or smaller as different fabric and toolchain."*
