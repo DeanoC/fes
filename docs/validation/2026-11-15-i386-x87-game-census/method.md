@@ -158,8 +158,13 @@ For each title, from its own window's counts:
 - **Relies on exceptions**: ES set at least once (`x87es`), or IRQ 13
   delivered, in the window. Unmasked-but-never-fired is reported as
   "unmasked, none fired", which is not reliance.
-- **Probe only**: zero load, store, FXCH, arithmetic and transcendental
-  forms.
+- **Probe only**: zero load, store, FXCH, arithmetic, `FRNDINT` and
+  transcendental forms. *(`FRNDINT` is named explicitly as of 16 November
+  2026; when this rule was written the classification counted it as
+  arithmetic, and amendment 2 later split it into its own `round` class
+  because it ignores precision control. Naming it here keeps the rule's
+  **behaviour** as committed rather than letting a later reclassification
+  quietly narrow it. All nine titles classify identically either way.)*
 
 A rule this method does not have, and will not acquire after the fact: there
 is no threshold below which non-PC=24 arithmetic is ignored.
@@ -341,9 +346,13 @@ credited there.
     **suppressed** — a silent miss, and a contradiction of the rule this
     method states.
 
-    The original rule is restored, not patched. It is the stricter one and
-    it was pre-registered, so this is a return to the committed method
-    rather than a new rule: **all nine titles classify identically under
+    The original rule is restored, not patched, and restored in
+    **behaviour**: `FRNDINT` was classed as arithmetic when the rule was
+    written (`9601ee0da`), so the restored predicate names its later `round`
+    class explicitly rather than letting amendment 2's reclassification
+    narrow the rule by a side effect. It is the stricter rule and it was
+    pre-registered, so this is a return to the committed method rather than a
+    new one: **all nine titles classify identically under
     both**, checked before the change. The widening was never needed —
     **no title in the census runs the infinity test at all**, and DOOM, the
     case it was written for, retires 11 ESCs of which none is arithmetic.

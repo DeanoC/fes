@@ -351,7 +351,12 @@ def x87_summary(counts: dict[str, int]) -> dict:
             reasons.append(f'{ops[form]} {"FLD" if form == "db.m5" else "FSTP"} m80')
     # Probe only, mechanically, and this is the method's ORIGINAL committed
     # definition: zero load, store, FXCH, arithmetic, FRNDINT and
-    # transcendental forms. Amendment 1 had widened it to "no memory operand,
+    # transcendental forms. FRNDINT is in the predicate because the
+    # classification counted it as arithmetic when the rule was written
+    # (9601ee0da); amendment 2 split it into `round` for being outside
+    # precision control, and leaving it out here would let that
+    # reclassification narrow the rule by a side effect. Amendment 1 had
+    # widened it to "no memory operand,
     # no FXCH, no transcendental" so that the 287/387 infinity test (FLD1,
     # FLDZ, FDIVP, FCHS, FCOMPP), which is register-only, would still count as
     # a probe. That widening also admitted *unbounded* register-form

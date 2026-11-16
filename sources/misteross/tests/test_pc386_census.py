@@ -682,6 +682,20 @@ class SummaryTest(unittest.TestCase):
         self.assertEqual(summary.X87_FORMS['d9d0'], ('simple', 'none'))
         self.assertEqual(summary.x87_name('d9d0'), 'FNOP (`d9d0`)')
 
+    def test_frndint_alone_is_not_probe_only(self):
+        """FRNDINT was inside "arithmetic" when the probe-only rule was
+        written, so a run retiring it is computing. Dropping it when it was
+        split into its own `round` class would have narrowed the committed
+        rule by a side effect and handed such a run a `null` verdict."""
+        census = ('x87op:dbe3:rm 1 -\nx87op:d9fc:rm 5 -\nx87cwform:d9fc:0f3f 5 -\n'
+                  'x87sig:d9fc:le64 5 -\n')
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, 'census.txt').write_text(census)
+            row = summary.run('t', Path(tmp))['x87']
+        self.assertEqual(row['by_class'], {'control': 1, 'round': 5})
+        self.assertFalse(row['probe_only'])
+        self.assertIsNotNone(row['pc24_sufficient'])
+
     def test_the_rows_are_stable(self):
         with tempfile.TemporaryDirectory() as tmp:
             Path(tmp, 'census.txt').write_text(self.CENSUS)
