@@ -76,6 +76,18 @@ A third argument, that the area saving is smaller than the width suggests,
 is **weaker than this record first claimed**; [area.md](area.md) now gives
 only the component that is isolated by a measurement.
 
+**Two claims, and the record needs both.** Coverage — which precision each
+title selects — shows a reduced unit would be incorrect **by
+specification**: told PC=53, a 24-bit-significand unit rounds to 24. The
+stored-value widths show it would be incorrect **in fact**: Screamer alone
+writes 9,303 values into real `m64` whose significands exceed 24 bits and
+which the destination format preserves exactly, so those are bytes in memory
+a 24-bit unit could not have produced. Coverage alone would not establish
+divergence, because a workload whose every exact result fitted in 24 bits
+would be reproduced whatever precision it selected; the value evidence is
+what rules that out. See "Which evidence establishes what" below, a note
+this record had to rewrite after over-correcting in the other direction.
+
 **And the 53-bit case fails too**, which is worth stating because it is the
 obvious retreat from 24. A 53-bit-significand unit would cover Screamer and
 Terminal Velocity exactly, but **Chris's benchmark and Wolfenstein 3D run
@@ -92,38 +104,42 @@ closed, and closing it cost a census rather than a slice.
 `x87sig` is read from the state **before** a popping store, so the value
 stored is the one reported. Wide values going to memory, by store width:
 
-| Title | **real m64** | **real m80** | real m32 (rounds) | integer conversions |
-| --- | ---: | ---: | ---: | ---: |
-| Chris's 3D Benchmark | 4,304 | 4,221 | 556,971 | 386,900 |
-| Quake timedemo (DOSBench) | 6,727 | 3,887 | 11,549 | 3,167 |
-| Screamer (1995) | 9,303 | 0 | 10,854 | 0 |
-| Wolfenstein 3D (1992) | 1,202 | 0 | 240 | 1,141 |
-| Terminal Velocity (1995) | 0 | 0 | 3 | 0 |
+| Title | **real m64, preserved exactly** | real m64, rounded in the store | **real m80** | real m32 (rounds) | integer conversions |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Screamer (1995) | 9,303 | 0 | 0 | 10,854 | 0 |
+| Quake timedemo (DOSBench) | 1,535 | 5,192 | 3,887 | 11,549 | 3,167 |
+| Chris's 3D Benchmark | 0 | 4,304 | 4,221 | 556,971 | 386,900 |
+| Wolfenstein 3D (1992) | 151 | 1,051 | 0 | 240 | 1,141 |
+| Terminal Velocity (1995) | 0 | 0 | 0 | 3 | 0 |
 
-**Only the real m64 and m80 columns are evidence**: a value needing more
-than 24 significand bits, stored as a real into a memory slot wide enough to
-keep it. **Screamer 9,303, Quake 6,727 plus 3,887 as m80, Chris's
-benchmark 4,304 plus 4,221, Wolfenstein 3D 1,202.** A 24-bit datapath
-could not have produced those bytes.
+**The first two real columns are the evidence**, and they establish
+different strengths of claim:
+
+- **Preserved exactly (`le53` source into `m64`, or into `m80`)**: the
+  destination keeps every bit, so these bytes in memory are bytes a 24-bit
+  unit could not have written. **Screamer 9,303**, Quake 1,535 plus 2,543 as
+  m80, Wolfenstein 3D 151, Chris's benchmark 3,861 as m80. This is a
+  measurement.
+- **Rounded in the store (`le64` source into `m64`)**: the destination
+  rounds the source's significand to 53 bits. The stored value still exceeds
+  24 bits except where that rounding happens to leave trailing zeros, so
+  these count as a **sound inference, not a measurement**, and they are kept
+  in their own column — Quake 5,192, Chris's 4,304, Wolfenstein 3D 1,051.
+  Settling them would need the rounded destination value instrumented, which
+  this census does not do.
 
 Two columns that look like evidence and are not, both separated out after
 review found them folded in:
 
-- **real m32 rounds.** A store to `m32` rounds to 24 bits under rounding
-  control whatever the register held, so a wide register value stored to
-  `m32` may land on exactly the bytes a 24-bit unit would have written.
-  Whether those particular stores would differ is **not established** here;
-  settling it needs a value replay against a 24-bit model, a different
-  experiment and not one worth running given the real m64 column.
+- **real m32 rounds to 24 bits** under rounding control whatever the register
+  held, so a wide register value stored to `m32` may land on exactly the
+  bytes a 24-bit unit would have written. **Not established** here; settling
+  it needs a value replay against a 24-bit model.
 - **integer conversions are not a datapath width.** `FIST`, `FISTP` and
   `FBSTP` convert to an integer or BCD, so a wide *source* significand says
   nothing about the width a floating-point datapath needs. This mattered: an
   earlier revision reported Chris's benchmark at **68,890** wide m64 stores,
-  of which **64,586 were `FISTP m64`**. Its real m64 figure is 4,304.
-
-So this column is much smaller than this record first said, and the
-stored-value evidence is real but modest. The coverage result — four of five
-computing titles never using PC=24 at all — is what carries the conclusion.
+  of which **64,586 were `FISTP m64`**.
 
 ### Exceptions: three titles run with them unmasked
 
@@ -302,40 +318,59 @@ values:
 This is what "the PC in force when arithmetic executes" means in practice:
 neither title simply runs at whatever `FNINIT` left.
 
-### Which evidence carries this conclusion, and which only accompanies it
+### Which evidence establishes what — a note this record had to rewrite
 
-Worth its own note, because it is the most transferable thing this census
-produced and the correction trail below would otherwise read as three
-separate embarrassments rather than one lesson.
+**Rewritten 16 November 2026 after review.** An earlier revision of this
+note said the conclusion was "carried by coverage alone" and that the
+stored- and register-value evidence was "corroboration that can be removed
+without touching the conclusion". **That was wrong, and wrong in the
+direction that matters**: it discarded the only evidence that establishes
+divergence. The two kinds of evidence prove different things and the record
+needs both.
 
-Review removed **three** of this record's supporting columns in turn:
+**Coverage — which precision the title selects — establishes
+non-conformance, not divergence.** That Screamer runs 424,703 arithmetic
+operations at PC=53 shows a 24-bit-significand unit could not *implement*
+what the title asks for: told PC=53, it would round to 24. That is a
+specification violation on its face. But it does **not**, by itself, show
+any result would differ, because a workload whose every exact result happens
+to fit in 24 bits would be reproduced bit-for-bit by a 24-bit unit whatever
+precision it selected. And Screamer's needing a 387 to boot proves an FPU is
+required, not that its selected width is — the same distinction this record
+draws for Wolfenstein 3D above.
 
-1. the m80 traffic, which turned out to be **register spills** — 80.7% of it
-   carrying significands a 24-bit unit holds exactly;
-2. the register-form stores `FST`/`FSTP ST(i)`, which **move no memory
-   operand** and never belonged in a table about what reaches memory;
-3. the integer conversions `FIST`/`FISTP`/`FBSTP`, where a wide *source*
-   significand **says nothing about a floating-point datapath's width** —
-   and which were 64,586 of the 68,890 I had reported for Chris's benchmark.
+**The value evidence — significand widths actually observed — is what
+establishes divergence**, and it is therefore load-bearing, not decoration:
 
-**The answer did not move once.** It is carried by **coverage**: four of the
-five computing titles never execute a single arithmetic operation at
-24-bit precision, and Screamer runs 424,703 at PC=53 with **zero** at 24 in
-a title that does not boot without a 387. Everything else in this record —
-the stored-value widths, the register-file widths, the area figures — is
-**corroboration that can be removed without touching the conclusion**, and
-two of those three have now been removed.
+- **Screamer stores 9,303 values with significands above 24 bits into real
+  `m64`, every one of them in the `le53` bucket**, so each is preserved
+  exactly by the destination format. Those bytes in memory are bytes a
+  24-bit unit could not have written. This is the single strongest datum in
+  the census and it belongs to the title that also fails on coverage.
+- Quake stores 1,535 such values exactly into `m64` and 2,543 into `m80`;
+  Wolfenstein 3D 151; Chris's benchmark 3,861 into `m80`.
+- Every computing title also leaves values wider than 24 bits in the
+  register file, where later arithmetic reads them.
 
-The failure was not a claim drifting off its evidence, which is an error of
-maintenance. It was **decorating a sound conclusion with weak support**:
-that makes the conclusion look stronger than it is, hands a reviewer three
-things to knock down, and costs credibility on the parts that are solid. A
-record should say which evidence carries a conclusion and which merely
-accompanies it. This one now does.
+So the honest structure is: **coverage shows a reduced unit would be
+incorrect by specification; the stored-value widths show it would be
+incorrect in fact.** Neither alone closes the question and this record
+offers both.
 
-That the answer survived three withdrawals is itself worth something: a
-conclusion that holds after its supporting columns are taken away was never
-resting on them.
+**What review did remove, and it was right to.** Three columns were
+withdrawn because they did not measure what I claimed — the m80 traffic
+(80.7% register spills), the register-form stores (`FST`/`FSTP ST(i)` move no
+memory operand), and the integer conversions (`FIST`/`FISTP` convert to an
+integer, so a wide source says nothing about a floating-point datapath's
+width, and they were 64,586 of the 68,890 I reported for Chris's benchmark).
+Removing those was correct. **Then declaring the remaining value evidence
+removable was an over-correction**, and this note is the retraction of it.
+
+The transferable lesson survives in a sharper form: say what each piece of
+evidence establishes, rather than ranking evidence as carrying or
+accompanying. Three of my columns measured nothing I claimed; the rest
+establishes something *different* from coverage, which is not the same as
+establishing less.
 
 ### A correction to this census's own classification
 

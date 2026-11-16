@@ -165,21 +165,31 @@ def main(argv: list[str] | None = None) -> int:
                 '- **real m32** rounds to 24 bits under rounding control whatever the',
                 '  register held, so a wide register value may land on exactly the bytes a',
                 '  24-bit unit would have written.',
+                '- **real m64 is split by source width.** An m64 destination rounds the',
+                "  source's significand to 53 bits, so an `le53` source is stored exactly and",
+                '  is the measured figure. An `le64` source is rounded in the store; its',
+                '  stored value still exceeds 24 bits except where the rounding happens to',
+                '  leave trailing zeros, so that column is a sound inference rather than a',
+                '  measurement, and is kept separate.',
                 '- **integer** is `FIST`/`FISTP`/`FBSTP`: a conversion to an integer or BCD,',
                 '  so a wide source significand says nothing about the width a',
                 '  floating-point datapath needs to hold the result.',
                 '- `FST`/`FSTP ST(i)` move no memory operand and are not here; their own',
                 "  width buckets in these runs are unreliable (see the record's note).", '',
-                '| Title | **real m64** | **real m80** | real m32 (rounds) | integer conversions |',
-                '| --- | ---: | ---: | ---: | ---: |'])
+                '| Title | **real m64, preserved exactly** | real m64, rounded in the store | **real m80** | real m32 (rounds) | integer conversions |',
+                '| --- | ---: | ---: | ---: | ---: | ---: |'])
     for name, row in rows:
         r = row['x87']
-        wide = {}
-        for group, forms in (('r64', REAL64), ('r80', REAL80), ('r32', REAL32), ('int', INTEGER)):
-            wide[group] = sum(v for bucket, fs in r['significand_forms'].items() if bucket in ('le53', 'le64')
-                              for f, v in fs.items() if f in forms)
-        out.append(f"| {TITLES.get(name, name)} | {wide['r64']:,} | {wide['r80']:,} | "
-                   f"{wide['r32']:,} | {wide['int']:,} |")
+        def wide(forms, buckets=('le53', 'le64')):
+            return sum(v for bucket, fs in r['significand_forms'].items() if bucket in buckets
+                       for f, v in fs.items() if f in forms)
+        # An m64 destination rounds the source's significand to 53 bits, so an
+        # le53 source is preserved exactly and is the measured figure; an le64
+        # source is rounded in the store, and that its rounded value still
+        # exceeds 24 bits is an inference, not a measurement.
+        out.append(f"| {TITLES.get(name, name)} | {wide(REAL64, ('le53',)):,} | "
+                   f"{wide(REAL64, ('le64',)):,} | {wide(REAL80):,} | "
+                   f"{wide(REAL32):,} | {wide(INTEGER):,} |")
     out.append('')
 
     out.extend(['## FSQRT by precision control', '',

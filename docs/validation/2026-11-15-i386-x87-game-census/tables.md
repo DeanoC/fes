@@ -105,23 +105,29 @@ stored as. **Only the real m64 and m80 columns are evidence** that a
 - **real m32** rounds to 24 bits under rounding control whatever the
   register held, so a wide register value may land on exactly the bytes a
   24-bit unit would have written.
+- **real m64 is split by source width.** An m64 destination rounds the
+  source's significand to 53 bits, so an `le53` source is stored exactly and
+  is the measured figure. An `le64` source is rounded in the store; its
+  stored value still exceeds 24 bits except where the rounding happens to
+  leave trailing zeros, so that column is a sound inference rather than a
+  measurement, and is kept separate.
 - **integer** is `FIST`/`FISTP`/`FBSTP`: a conversion to an integer or BCD,
   so a wide source significand says nothing about the width a
   floating-point datapath needs to hold the result.
 - `FST`/`FSTP ST(i)` move no memory operand and are not here; their own
   width buckets in these runs are unreliable (see the record's note).
 
-| Title | **real m64** | **real m80** | real m32 (rounds) | integer conversions |
-| --- | ---: | ---: | ---: | ---: |
-| Quake timedemo (DOSBench) | 6,727 | 3,887 | 11,549 | 3,167 |
-| Screamer (1995) | 9,303 | 0 | 10,854 | 0 |
-| Chris's 3D Benchmark | 4,304 | 4,221 | 556,971 | 386,900 |
-| Terminal Velocity (1995) | 0 | 0 | 3 | 0 |
-| DOOM (1993) | 0 | 0 | 0 | 0 |
-| Wolfenstein 3D (1992) | 1,202 | 0 | 240 | 1,141 |
-| Ultima VI: The False Prophet (1990) | 0 | 0 | 0 | 0 |
-| Ultima VII: The Black Gate (1992) | 0 | 0 | 0 | 0 |
-| Ultima VII Part Two: Serpent Isle (1993) | 0 | 0 | 0 | 0 |
+| Title | **real m64, preserved exactly** | real m64, rounded in the store | **real m80** | real m32 (rounds) | integer conversions |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Quake timedemo (DOSBench) | 1,535 | 5,192 | 3,887 | 11,549 | 3,167 |
+| Screamer (1995) | 9,303 | 0 | 0 | 10,854 | 0 |
+| Chris's 3D Benchmark | 0 | 4,304 | 4,221 | 556,971 | 386,900 |
+| Terminal Velocity (1995) | 0 | 0 | 0 | 3 | 0 |
+| DOOM (1993) | 0 | 0 | 0 | 0 | 0 |
+| Wolfenstein 3D (1992) | 151 | 1,051 | 0 | 240 | 1,141 |
+| Ultima VI: The False Prophet (1990) | 0 | 0 | 0 | 0 | 0 |
+| Ultima VII: The Black Gate (1992) | 0 | 0 | 0 | 0 | 0 |
+| Ultima VII Part Two: Serpent Isle (1993) | 0 | 0 | 0 | 0 | 0 |
 
 ## FSQRT by precision control
 
