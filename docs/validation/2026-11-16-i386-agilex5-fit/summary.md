@@ -135,6 +135,21 @@ the M netlist contains **zero** x87-multiplier signals, because Yosys removes
 the whole unit when `x87_present` is 0, and the M+ netlist contains **66**, the
 same as the standalone CPU netlist.
 
+**And the pair's common baseline is demonstrated, not asserted.** M's fit
+predates this runner recording a revision, so its own record carries none —
+only its netlist digest — while M+'s records a deliberately modified checkout.
+Digests alone therefore cannot show the two shared a source baseline. So both
+were **re-elaborated from one clean checkout at this record's head**, minutes
+apart, with only the one-character flip between them and at the same
+output-path length so [yosys#80](https://github.com/DeanoC/yosys/issues/80)'s
+path dependence is held constant. The M+ − M line delta came out at **4,117
+lines, exactly the fitted pair's delta**, with the x87 multiplier absent from M
+and present in M+ with the same count in both pairs. The figures are in
+[m-plus-baseline.json](m-plus-baseline.json). So the pair differ by the x87
+unit and nothing else — which is what the 1,763 ALM figure attributes the
+difference to. What this does *not* do is make either fitted netlist
+reproducible; that is the yosys#80 limitation, stated above.
+
 **M+ − M and #1892's backend may not simply be added.** Both carry their own
 64x64 significand multiplier and their own rounding; a merged unit would share
 one, not build two. So their sum is an **upper bound on those two pieces** and
@@ -231,8 +246,11 @@ table below; the CPU on the Cyclone V has only its 61.44 MHz rung, and the
 machine has no ladder on either device, so **no closure is claimed for those
 three**. A third CPU seed at the headline rung was run last, to verify the corrected
 timing gate end to end through the runner rather than only against a retained
-project. Extra seeds of M and M+, and the DE10's rungs above 61.44 MHz, were
-queued and then **stopped unrun** to free the shared builder lease for the front-end
+project. The method precommitted **seeds 1–4 at the headline rung on both
+devices**; of those, Agilex seeds 1, 2 and 3 ran and **Agilex seed 4 and
+Cyclone V seeds 2, 3 and 4 did not**. Those four, together with extra seeds of
+M and M+ and the DE10's rungs above 61.44 MHz, were queued and then **stopped
+unrun** to free the shared builder lease for the front-end
 cross-check, which had been waiting on it for three hours. They are therefore
 not measured, and the one seed that did complete — the CPU's second seed at the
 headline rung, 73 ALMs from the first — is in the ladder table.
