@@ -236,7 +236,7 @@ square root and the remainders — through this runner on Agilex 5, with
 `x87_present` tied high. That is the design the DE10 refused. Everything in
 this record is `main`, whose 387 has no arithmetic.
 
-### The ladder as far as it has run
+### The ladder
 
 | Rung | Device | Closed? | ALMs | % | LABs | % | Worst-corner Fmax estimate |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
