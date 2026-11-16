@@ -117,14 +117,14 @@ stored as. **Only the real m64 and m80 columns are evidence** that a
 - `FST`/`FSTP ST(i)` move no memory operand and are not here; their own
   width buckets in these runs are unreliable (see the record's note).
 
-| Title | **real m64, preserved exactly** | real m64, rounded in the store | **real m80** | real m32 (rounds) | integer conversions |
+| Title | **real m80 (exact)** | real m64, significand fits | real m64, rounded in the store | real m32 (rounds) | integer conversions |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Quake timedemo (DOSBench) | 1,535 | 5,192 | 3,887 | 11,549 | 3,167 |
-| Screamer (1995) | 9,303 | 0 | 0 | 10,854 | 0 |
-| Chris's 3D Benchmark | 0 | 4,304 | 4,221 | 556,971 | 386,900 |
+| Quake timedemo (DOSBench) | 3,887 | 1,535 | 5,192 | 11,549 | 3,167 |
+| Screamer (1995) | 0 | 9,303 | 0 | 10,854 | 0 |
+| Chris's 3D Benchmark | 4,221 | 0 | 4,304 | 556,971 | 386,900 |
 | Terminal Velocity (1995) | 0 | 0 | 0 | 3 | 0 |
 | DOOM (1993) | 0 | 0 | 0 | 0 | 0 |
-| Wolfenstein 3D (1992) | 151 | 1,051 | 0 | 240 | 1,141 |
+| Wolfenstein 3D (1992) | 0 | 151 | 1,051 | 240 | 1,141 |
 | Ultima VI: The False Prophet (1990) | 0 | 0 | 0 | 0 | 0 |
 | Ultima VII: The Black Gate (1992) | 0 | 0 | 0 | 0 | 0 |
 | Ultima VII Part Two: Serpent Isle (1993) | 0 | 0 | 0 | 0 | 0 |

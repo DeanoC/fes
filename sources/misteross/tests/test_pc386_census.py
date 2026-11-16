@@ -247,11 +247,22 @@ int main(int, char **argv) {
             c.begin(ri, "site");
             c.x87(ri, ri, irq, es, es, 9.29);
             assert(c.counts.at("x87irq13:75:rm:es") == 1);
-            // Another external interrupt is not the coprocessor's.
+            assert(c.counts.at("x87errintr:75:rm") == 1);
+            // The slave PIC's vector base is programmable, so a delivery with
+            // an error pending is counted whatever its vector. That key is a
+            // SUPERSET -- an unrelated interrupt with ES set lands in it too --
+            // and reliance is read from it because it cannot miss a delivery.
             StepResult other = with(EventKind::ExternalInterrupt, 0x08, 0, false);
             c.begin(ri, "site");
             c.x87(ri, ri, other, es, es, 9.30);
+            assert(c.counts.at("x87errintr:08:rm") == 1);
             assert(c.counts.count("x87irq13:08:rm:es") == 0);
+            // With no error pending, only the BIOS-default vector is counted.
+            X87State clear;
+            clear.control = 0x003f;
+            c.begin(ri, "site");
+            c.x87(ri, ri, with(EventKind::ExternalInterrupt, 0x08, 0, false), clear, clear, 9.31);
+            assert(c.counts.count("x87errintr:08:rm") == 1);  // unchanged
         }
         // FDIV m64 (DC /6) at PC=64 on another page: the site key separates them.
         put(0x1240, {0xdc, 0x35, 0, 0, 0, 0});
@@ -612,6 +623,14 @@ class SummaryTest(unittest.TestCase):
             Path(tmp, 'census.txt').write_text('x87op:d8.m1:pm3 5 -\nx87irq13:75:pm3:es 2 -\n')
             row = summary.run('t', Path(tmp))['x87']
         self.assertEqual(row['irq13'], 2)
+        self.assertTrue(row['relies_on_exceptions'])
+        # The vector-independent superset also establishes reliance, because
+        # the slave PIC's base is programmable and IRQ 13 need not be 75h.
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, 'census.txt').write_text('x87op:d8.m1:pm3 5 -\nx87errintr:51:pm0 1 -\n')
+            row = summary.run('t', Path(tmp))['x87']
+        self.assertEqual(row['irq13'], 0)
+        self.assertEqual(row['interrupts_with_error_pending'], 1)
         self.assertTrue(row['relies_on_exceptions'])
 
     def test_the_rows_are_stable(self):

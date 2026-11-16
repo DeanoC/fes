@@ -189,7 +189,7 @@ def main(argv: list[str] | None = None) -> int:
                 '  floating-point datapath needs to hold the result.',
                 '- `FST`/`FSTP ST(i)` move no memory operand and are not here; their own',
                 "  width buckets in these runs are unreliable (see the record's note).", '',
-                '| Title | **real m64, preserved exactly** | real m64, rounded in the store | **real m80** | real m32 (rounds) | integer conversions |',
+                '| Title | **real m80 (exact)** | real m64, significand fits | real m64, rounded in the store | real m32 (rounds) | integer conversions |',
                 '| --- | ---: | ---: | ---: | ---: | ---: |'])
     for name, row in rows:
         r = row['x87']
@@ -200,8 +200,8 @@ def main(argv: list[str] | None = None) -> int:
         # le53 source is preserved exactly and is the measured figure; an le64
         # source is rounded in the store, and that its rounded value still
         # exceeds 24 bits is an inference, not a measurement.
-        out.append(f"| {TITLES.get(name, name)} | {wide(REAL64, ('le53',)):,} | "
-                   f"{wide(REAL64, ('le64',)):,} | {wide(REAL80):,} | "
+        out.append(f"| {TITLES.get(name, name)} | {wide(REAL80):,} | "
+                   f"{wide(REAL64, ('le53',)):,} | {wide(REAL64, ('le64',)):,} | "
                    f"{wide(REAL32):,} | {wide(INTEGER):,} |")
     out.append('')
 

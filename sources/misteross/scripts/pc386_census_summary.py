@@ -282,6 +282,10 @@ def x87_summary(counts: dict[str, int]) -> dict:
     # without a fresh transition.
     version = counts.get('x87census:version', 1)
     irq13 = sum(n for k, n in counts.items() if k.startswith('x87irq13:'))
+    # A superset of IRQ 13: any external interrupt delivered with a 387 error
+    # pending, whatever the slave PIC's programmed vector base. Reliance is
+    # read from this, which cannot miss a delivery.
+    err_intr = sum(n for k, n in counts.items() if k.startswith('x87errintr:'))
     r_es = any(k.startswith('x87es:') for k in counts)
     pc_sites: dict[str, Counter] = {}
     for key, n in counts.items():
@@ -362,9 +366,16 @@ def x87_summary(counts: dict[str, int]) -> dict:
         # x87irq13 key either, and would otherwise be indistinguishable from
         # a file written before the key existed.
         'irq13_recorded': version >= 2,
+        'irq13_any_vector': version >= 3,
+        'store_exponents_recorded': version >= 3,
         'register_store_widths_reliable': version >= 2,
+        'store_exponent_range': {k[len('x87exp:'):]: n for k, n in sorted(counts.items())
+                                 if k.startswith('x87exp:')},
         'significand_excluding_register_stores': dict(sorted(sig_conservative.items())),
-        'relies_on_exceptions': bool(r_es or irq13),
+        'interrupts_with_error_pending': err_intr,
+        'interrupts_with_error_pending_by_vector': {k[len('x87errintr:'):]: n for k, n in sorted(counts.items())
+                                                    if k.startswith('x87errintr:')},
+        'relies_on_exceptions': bool(r_es or irq13 or err_intr),
         'fsqrt_by_pc': dict(sorted(pc_by_class.get('sqrt', Counter()).items())),
         'pc_sites': {p: dict(sorted(c.items())) for p, c in sorted(pc_sites.items())},
         'cw_writes': dict(sorted(cw_sets.items())),

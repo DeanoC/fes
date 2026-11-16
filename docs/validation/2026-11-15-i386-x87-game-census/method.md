@@ -279,6 +279,30 @@ credited there.
    this record are version 1**, so both flags are false for them, correctly
    and for a stated reason rather than by inference.
 
+### 16 November 2026, after the runs — three more, also from review
+
+10. **"Preserved exactly" was an overclaim for real m64 stores.** An `le53`
+    significand fits binary64's 53 bits, but the conversion can still
+    overflow, underflow or round if the exponent is outside binary64's
+    normal range, and **these runs did not record the exponent**. `census.h`
+    now records it (`x87exp`); for these nine runs the honest reading is
+    *significand fits, exponent unchecked*, and the record says so. This cost
+    the census its headline store datum: Screamer's 9,303 m64 stores are no
+    longer offered as exact.
+11. **Real m80 stores were understated.** The m80 destination *is* the
+    register format, so a wide value stored there is exact whatever its
+    exponent — yet the prose counted only the `le53` share (Quake 2,543,
+    Chris's 3,861) rather than all of it (3,887 and 4,221). Corrected
+    upwards; this is the store evidence that stands unconditionally.
+12. **IRQ 13 was keyed to vector 75h**, which is only the BIOS's own
+    programming: the slave 8259's base is programmable (ICW2) and IRQ 13
+    arrives at base + 5. There are now two keys — `x87irq13` for vector 75h
+    exactly (sound, complete only under the BIOS's base) and `x87errintr`
+    for any external interrupt delivered with a 387 error pending
+    (vector-independent, and a **superset**, since an unrelated timer tick
+    also lands there once ES is set). Reliance is read from the superset,
+    which cannot miss a delivery.
+
 ### 16 November 2026 — one promise this record does not keep
 
 The method says each row will say "what the window reached (prompt, menu, or

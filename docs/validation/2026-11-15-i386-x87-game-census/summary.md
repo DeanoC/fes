@@ -79,10 +79,12 @@ only the component that is isolated by a measurement.
 **Two claims, and the record needs both.** Coverage — which precision each
 title selects — shows a reduced unit would be incorrect **by
 specification**: told PC=53, a 24-bit-significand unit rounds to 24. The
-stored-value widths show it would be incorrect **in fact**: Screamer alone
-writes 9,303 values into real `m64` whose significands exceed 24 bits and
-which the destination format preserves exactly, so those are bytes in memory
-a 24-bit unit could not have produced. Coverage alone would not establish
+observed value widths show it would be incorrect **in fact**: Screamer
+leaves a significand wider than 24 bits in the register file on **121,717
+steps**, and Quake and Chris's benchmark write **3,887** and **4,221** such
+values into real `m80`, where the format preserves them bit for bit. A
+24-bit-significand unit rounds every arithmetic result to 24 bits and so
+would not have produced any of them. Coverage alone would not establish
 divergence, because a workload whose every exact result fitted in 24 bits
 would be reproduced whatever precision it selected; the value evidence is
 what rules that out. See "Which evidence establishes what" below, a note
@@ -104,42 +106,51 @@ closed, and closing it cost a census rather than a slice.
 `x87sig` is read from the state **before** a popping store, so the value
 stored is the one reported. Wide values going to memory, by store width:
 
-| Title | **real m64, preserved exactly** | real m64, rounded in the store | **real m80** | real m32 (rounds) | integer conversions |
+| Title | **real m80 (exact)** | real m64, significand fits | real m64, rounded in the store | real m32 (rounds) | integer conversions |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Screamer (1995) | 9,303 | 0 | 0 | 10,854 | 0 |
-| Quake timedemo (DOSBench) | 1,535 | 5,192 | 3,887 | 11,549 | 3,167 |
-| Chris's 3D Benchmark | 0 | 4,304 | 4,221 | 556,971 | 386,900 |
-| Wolfenstein 3D (1992) | 151 | 1,051 | 0 | 240 | 1,141 |
+| Screamer (1995) | 0 | 9,303 | 0 | 10,854 | 0 |
+| Quake timedemo (DOSBench) | 3,887 | 1,535 | 5,192 | 11,549 | 3,167 |
+| Chris's 3D Benchmark | 4,221 | 0 | 4,304 | 556,971 | 386,900 |
+| Wolfenstein 3D (1992) | 0 | 151 | 1,051 | 240 | 1,141 |
 | Terminal Velocity (1995) | 0 | 0 | 0 | 3 | 0 |
 
-**The first two real columns are the evidence**, and they establish
-different strengths of claim:
+**What each column establishes**, corrected twice by review and now stated
+at the strength the measurement supports:
 
-- **Preserved exactly (`le53` source into `m64`, or into `m80`)**: the
-  destination keeps every bit, so these bytes in memory are bytes a 24-bit
-  unit could not have written. **Screamer 9,303**, Quake 1,535 plus 2,543 as
-  m80, Wolfenstein 3D 151, Chris's benchmark 3,861 as m80. This is a
-  measurement.
-- **Rounded in the store (`le64` source into `m64`)**: the destination
-  rounds the source's significand to 53 bits. The stored value still exceeds
-  24 bits except where that rounding happens to leave trailing zeros, so
-  these count as a **sound inference, not a measurement**, and they are kept
-  in their own column — Quake 5,192, Chris's 4,304, Wolfenstein 3D 1,051.
-  Settling them would need the rounded destination value instrumented, which
-  this census does not do.
+- **Real `m80` stores are exact unconditionally.** The m80 destination *is*
+  the register format — the same 64-bit significand and 15-bit exponent — so
+  every wide value stored there is preserved bit for bit whatever its
+  exponent. **Quake 3,887, Chris's benchmark 4,221.** These are bytes in
+  memory that a 24-bit-significand unit could not have produced, and they
+  need no further argument. An earlier revision counted only the `le53`
+  share of them (2,543 and 3,861) as exact, which **understated** its own
+  evidence; the `le64` share is equally exact here.
+- **Real `m64` stores are significand-exact, exponent unverified.** An
+  `le53` source's significand fits binary64's 53 bits, but the conversion can
+  still overflow, underflow or round if the exponent is outside binary64's
+  normal range — and **these runs did not record the exponent**, so
+  "preserved exactly" was an overclaim. `census.h` now records it
+  (`x87exp`), and a rerun would settle it; for these nine runs the honest
+  reading of Screamer's 9,303 and Quake's 1,535 is *the significand fits,
+  the exponent is unchecked*.
+- **Real `m64` from an `le64` source** is rounded to 53 bits in the store.
+  The stored value still exceeds 24 bits except where the rounding leaves
+  trailing zeros, so it is a sound inference, not a measurement.
+- **Real `m32` settles nothing**: it rounds to 24 bits under rounding
+  control whatever the register held.
+- **Integer conversions are not a datapath width**: `FIST`, `FISTP` and
+  `FBSTP` convert to an integer or BCD, so a wide *source* says nothing
+  about the width a floating-point datapath needs. An earlier revision
+  reported Chris's benchmark at 68,890 wide m64 stores, of which 64,586
+  were `FISTP m64`.
 
-Two columns that look like evidence and are not, both separated out after
-review found them folded in:
-
-- **real m32 rounds to 24 bits** under rounding control whatever the register
-  held, so a wide register value stored to `m32` may land on exactly the
-  bytes a 24-bit unit would have written. **Not established** here; settling
-  it needs a value replay against a 24-bit model.
-- **integer conversions are not a datapath width.** `FIST`, `FISTP` and
-  `FBSTP` convert to an integer or BCD, so a wide *source* significand says
-  nothing about the width a floating-point datapath needs. This mattered: an
-  earlier revision reported Chris's benchmark at **68,890** wide m64 stores,
-  of which **64,586 were `FISTP m64`**.
+**So the store-side evidence that stands without qualification is the m80
+traffic — Quake 3,887 and Chris's 4,221 — and Screamer's contribution to it
+is zero.** Screamer's divergence rests instead on its **register-file
+widths**, which is the stronger ground anyway and needs no store conversion
+at all: a 24-bit-significand unit rounds every arithmetic result to 24 bits,
+so a register observed holding a 53- or 64-bit significand is a value such a
+unit would not have. Screamer leaves one on **121,717 steps**.
 
 ### Exceptions: three titles run with them unmasked
 
@@ -345,15 +356,19 @@ draws for Wolfenstein 3D above.
 **The value evidence — significand widths actually observed — is what
 establishes divergence**, and it is therefore load-bearing, not decoration:
 
-- **Screamer stores 9,303 values with significands above 24 bits into real
-  `m64`, every one of them in the `le53` bucket**, so each is preserved
-  exactly by the destination format. Those bytes in memory are bytes a
-  24-bit unit could not have written. This is the single strongest datum in
-  the census and it belongs to the title that also fails on coverage.
-- Quake stores 1,535 such values exactly into `m64` and 2,543 into `m80`;
-  Wolfenstein 3D 151; Chris's benchmark 3,861 into `m80`.
-- Every computing title also leaves values wider than 24 bits in the
-  register file, where later arithmetic reads them.
+- **Every computing title leaves values wider than 24 bits in the register
+  file**, where later arithmetic reads them: Screamer on 121,717 steps,
+  Quake 163,792, Chris's benchmark 4,648,017, Wolfenstein 3D 9,942,
+  Terminal Velocity 3,323. A 24-bit unit rounds every arithmetic result to
+  24 bits, so these are values it would not have. This needs no reasoning
+  about store conversions and is the firmest datum in the census.
+- **Quake and Chris's benchmark store 3,887 and 4,221 wide values as real
+  `m80`**, which preserves the register format bit for bit — so those bytes
+  in memory could not have been written by a narrower unit.
+- The real `m64` stores (Screamer 9,303, Quake 1,535) are
+  **significand-exact with the exponent unverified**: see the store table's
+  note. They are consistent with divergence and do not establish it on
+  their own.
 
 So the honest structure is: **coverage shows a reduced unit would be
 incorrect by specification; the stored-value widths show it would be

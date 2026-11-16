@@ -294,9 +294,21 @@ public:
         // The AT's coprocessor interrupt, in every mode: the committed
         // reliance rule is ES set *or* IRQ 13 delivered, and the generic
         // event keys are recorded only in protected mode.
+        // Two keys, because neither alone is both sound and complete. The
+        // slave 8259's vector base is programmable (ICW2), so IRQ 13 arrives
+        // at base + 5 and is 75h only under the BIOS's own programming, and
+        // the census does not hold the PIC's state.
+        //   x87irq13: vector 75h exactly -- sound, and complete only while
+        //     the guest keeps the BIOS's base.
+        //   x87errintr: any external interrupt delivered while the 387 has an
+        //     error pending -- vector-independent, and a SUPERSET, since an
+        //     unrelated interrupt (a timer tick) also lands here once ES is
+        //     set. Reliance is read from the superset, which is the safe
+        //     direction: it cannot miss a delivery.
         if (delivery && result.events[0].vector == 0x75)
-            count("x87irq13:" + hex(result.events[0].vector, 2) + mode +
-                  ((sw0 & 0x80) ? ":es" : ""));
+            count("x87irq13:75" + mode + ((sw0 & 0x80) ? ":es" : ""));
+        if (delivery && (sw0 & 0x80))
+            count("x87errintr:" + hex(result.events[0].vector, 2) + mode);
         if (delivery) return;
         unsigned at = 0;
         while (at < 15 && (bytes_[at] == 0x66 || bytes_[at] == 0x67 || bytes_[at] == 0xf0 || bytes_[at] == 0xf2 ||
@@ -380,6 +392,16 @@ public:
             bucket = width <= 24 ? "le24" : width <= 53 ? "le53" : "le64";
         }
         count(std::string("x87sig:") + form + ':' + bucket);
+        // The significand bucket alone does not say a store was exact: an m64
+        // destination can still overflow, underflow or round a value whose
+        // significand fits, if its exponent is outside binary64's normal
+        // range. m80 keeps the register format and so is always exact.
+        // Biased 80-bit exponent 16383 +/- 1022 is binary64's normal range.
+        if (stored && !empty) {
+            const unsigned exponent = valued.r[top].sign_exponent & 0x7fff;
+            const bool in_double_range = exponent >= 16383 - 1022 && exponent <= 16383 + 1023;
+            count(std::string("x87exp:") + form + (in_double_range ? ":double" : ":outside"));
+        }
         // Arithmetic by precision control and code page, so a title's
         // non-PC=24 arithmetic can be attributed to its engine or to a
         // library or DPMI host.
@@ -422,7 +444,10 @@ public:
         //      from the wrong side of the step.
         //   2: x87irq13 recorded in every mode; the register popping stores
         //      read from the state before the step.
-        all["x87census:version"] = 2;
+        //   3: x87irq13 counted for any vector delivered with an error
+        //      pending, not only the BIOS's 75h; x87exp records whether a
+        //      stored value's exponent is in binary64's normal range.
+        all["x87census:version"] = 3;
         all["paging:steps"] = paged_steps;
         all["paging:page-cross"] = page_cross;
         for (const Tlb *t : {&dtlb, &itlb}) {
