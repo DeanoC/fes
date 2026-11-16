@@ -1259,16 +1259,18 @@ int main(int argc, char **argv) {
             u.reg_form(OP_FNINIT);
             u.load(OP_FLD_M80, FMT_F80, two);
             u.load(OP_FLD_M80, FMT_F80, four);
-            // Swept, and the next instruction is ANOTHER divide with a
-            // different answer, issued as soon as the unit will take it. That
-            // is what a stale result could corrupt: the abandoned divide's
-            // `raw_valid` pulses once, and if it arrives while the new
-            // operation is waiting in B_WAIT the new instruction takes the old
-            // value. 4.0/2.0 is 2.0 and 4.0/4.0 is 1.0, so a stale take is
-            // visible rather than coincidentally equal.
+            // Swept, with a FAST form chained immediately after, which is
+            // what a stale result corrupts. With `f1` removed from both the
+            // backend's reset and the cancel condition this fails at nine
+            // offsets, first at 36 clocks, returning the abandoned divide's
+            // quotient as the sum -- so the `f1` cancel is load-bearing, not
+            // belt-and-braces. An earlier version of this case chained a
+            // divide and could not fail; see the record.
             int f1_bad = 0;
             std::string f1_first;
-            for (int at : {2, 4, 8, 12, 16, 20, 24, 28, 32, 40, 48, 56, 64, 72}) {
+            // Every clock across the divide, not a sample: the offsets at
+            // which this can go wrong are a narrow window.
+            for (int at = 1; at < 85; ++at) {
                 u.clear_latch();
                 u.reg_form(OP_FNINIT);
                 u.load(OP_FLD_M80, FMT_F80, two);
@@ -1284,9 +1286,18 @@ int main(int argc, char **argv) {
                 u.clear_latch();
                 u.load(OP_FLD_M80, FMT_F80, four);
                 u.load(OP_FLD_M80, FMT_F80, four);
-                u.reg_form(0x0f1);                    // 4.0/4.0 = 1.0
+                // An FADD, deliberately, NOT a second divide. A divide is
+                // held in B_ISSUE by the slow lane's own admission interlock
+                // (`slow_ready && !slow_reserved`) until the abandoned one
+                // drains, so chaining a divide cannot see a stale result and
+                // this case passed with the cancel broken. A fast form is
+                // accepted at once, and `raw = fast_valid ? fast_raw :
+                // slow_raw` hands B_WAIT the old quotient if the abandoned
+                // divide completes first. 4.0+4.0 is 8.0 and the abandoned
+                // quotient is 2.0, so a stale take is visible.
+                u.reg_form(0x0c1);                    // FADD ST,ST(1): 8.0
                 u.st0(got3);
-                if ((got3[9] != 0x3f || got3[8] != 0xff) && !f1_bad++)
+                if ((got3[9] != 0x40 || got3[8] != 0x02) && !f1_bad++)
                     f1_first = "at " + std::to_string(at) + " clocks: " + hex80(got3);
             }
             if (f1_bad) bad("f1-during-divide",

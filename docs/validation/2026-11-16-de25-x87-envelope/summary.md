@@ -206,7 +206,7 @@ from 2 to 80 clocks: with the wrong mapping 11 of 13 offsets hang the unit,
 with the right one all pass. **The case is only known to work because it was
 made to fail on purpose.**
 
-## The pattern: four checks that reported without checking
+## The pattern: five checks that reported without checking
 
 These are listed together because the pattern is the finding, not any one of
 them. In each case a check existed, ran, and reported success while being
@@ -235,19 +235,26 @@ Quartus refusal is worth its own line — **a check that fails loudly beat a
 check that reports** — and it is why the exclusion evidence is now a query
 that fails the build rather than a table for a reader to inspect.
 
-**And one case that passes but has not been shown able to fail.** The
-`f1-during-divide` case sweeps the port F1h reset through a committed divide
-at fourteen offsets and chains a second divide with a different answer
-immediately after, so a stale result would be visible rather than
-coincidentally equal. It passes — and it **still passes** with `f1` deliberately
-removed from both the backend's reset and the cancel condition. Two breaks,
-neither detected. The reason appears to be a third mechanism: the CPU-side
-core has no completion queue, so the abandoned operation's single `raw_valid`
-pulse is lost long before the next operation reaches `B_WAIT`, and the `f1`
-cancel is redundant with that. So the RTL looks safe by construction, the
-`f1` cancel is belt-and-braces, and **the case is weaker evidence than the
-flush sweep**, which was shown able to fail. It is recorded that way rather
-than counted alongside it.
+**And a fifth, which is the same mistake made by the person fixing the
+fourth.** The `f1-during-divide` case was written to cover the port F1h reset
+arriving mid-operation. It passed — and it **still passed** with `f1`
+deliberately removed from both the backend's reset and the cancel condition.
+Two breaks, neither detected, which was written up here as "the RTL is safe by
+construction and the `f1` cancel is belt-and-braces".
+
+**That was wrong, and the reason is instructive.** The case chained a second
+*divide*, and a divide is held in `B_ISSUE` by the slow lane's own admission
+interlock until the abandoned one drains — so it can never see a stale result.
+A *fast* form is accepted at once, and `raw = fast_valid ? fast_raw : slow_raw`
+hands `B_WAIT` the old quotient if the abandoned divide completes first.
+Chaining an **FADD** instead, swept across every clock of the divide, the same
+two breaks fail at **nine offsets, first at 36 clocks**, returning the
+abandoned divide's quotient 2.0 as the sum of 4.0 and 4.0.
+
+So the `f1` cancel is **load-bearing**, and the case now chains a fast form.
+The first version of the case was vacuous in exactly the way the flush case
+had been one section earlier — written by someone who had just been caught by
+that, and caught again by the same thing.
 
 A sixth, of the same family, is in the next section: a lockstep that passed
 while the count it was gated on was never measured.
