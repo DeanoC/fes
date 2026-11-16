@@ -101,7 +101,7 @@ public:
 	Error InspectCorePackage(const std::string&, const std::string&,
 		CorePackageInspection*) override { return reason_; }
 	HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage>,
-		std::uint64_t, bool = false) override { return {reason_, false, ""}; }
+		std::uint64_t) override { return {reason_, false, ""}; }
 	HardwareResult LoadContainedDevelopmentRBF(const std::string&,
 		std::uint64_t) override { return {reason_, false, ""}; }
 
@@ -267,9 +267,9 @@ public:
 	{ return hardware_->RecheckProgrammedBitstream(package); }
 	Capabilities capabilities() const override { return hardware_->capabilities(); }
 	HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage> package,
-		std::uint64_t generation, bool development_load = false) override
+		std::uint64_t generation) override
 	{
-		return hardware_->LoadCore(std::move(package), generation, development_load);
+		return hardware_->LoadCore(std::move(package), generation);
 	}
 	HardwareResult LoadContainedDevelopmentRBF(const std::string& path,
 		std::uint64_t generation) override

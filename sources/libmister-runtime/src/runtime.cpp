@@ -501,6 +501,18 @@ public:
 			Log("load_core", "", "", "validate", error);
 			return error;
 		}
+		if (!data_root.empty() && package->info().declared_core == "fes.menu") {
+			const CorePackageInfo info = package->info();
+			const Error error{ErrorCode::unsupported_interface,
+				"MENU packages cannot be launched from the core library", "admission"};
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				busy_ = false;
+			}
+			condition_.notify_all();
+			Log("load_library_core", info.system, info.declared_core, "admission", error);
+			return error;
+		}
 		if ((package->info().descriptor.format == 3) != (rom_link != nullptr) ||
 			(package->info().descriptor.format == 4) != (rom_links != nullptr)) {
 			std::lock_guard<std::mutex> lock(mutex_);
@@ -611,8 +623,7 @@ public:
 			status_.package_id = info.package_id;
 		}
 		Log("load_core", info.system, info.declared_core, "starting");
-		HardwareResult result = hardware_.LoadCore(std::move(package), generation,
-			data_root.empty());
+		HardwareResult result = hardware_.LoadCore(std::move(package), generation);
 		if (!result.error.ok() && replacing && !result.mutation_attempted)
 			result.mutation_attempted = true;
 		if (!result.error.ok() && !result.bound_media_may_have_run)

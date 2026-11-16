@@ -2526,25 +2526,9 @@ void TestDe25MenuDevelopmentCoreLoad()
 	const auto admission=hardware.AdmitCorePackage(package.path,opened.package_id,&admitted);
 	if(!admission.ok())fprintf(stderr,"DE25 MENU development admission: %s\n",admission.message.c_str());
 	assert(admission.ok());
-	const auto loaded=hardware.LoadCore(std::move(admitted),1,true);
+	const auto loaded=hardware.LoadCore(std::move(admitted),1);
 	if(!loaded.error.ok())fprintf(stderr,"DE25 MENU development load: %s\n",loaded.error.message.c_str());
 	assert(loaded.error.ok());
-	assert(fpga.calls==1&&hardware.menu_display().available);
-	TempDirectory library_package;OpenedCorePackage library_opened;
-	PopulateHpsDdrApplication(&library_package,false,&library_opened);
-	std::string library_manifest=ReadText(library_package.path+"/manifest.toml");
-	ReplaceAll(&library_manifest,"fes.pong","fes.menu");
-	ReplaceAll(&library_manifest,"de10_nano","de25_nano");
-	ReplaceAll(&library_manifest,"5CSEBA6U23I7","A5EB013BB23BE4SCS");
-	ReplaceAll(&library_manifest,"fes-gp-v1","de25-linux-menu-v1");
-	library_manifest+="\n[[interfaces]]\nid = \"fes.video.menu-display\"\nmajor = 1\nminor = 0\nrequired = true\n";
-	library_manifest+="\n[[interfaces]]\nid = \"fes.fabric.de25-scanout\"\nmajor = 1\nminor = 3\nrequired = true\n";
-	{std::ofstream output(library_package.path+"/manifest.toml",std::ios::trunc);output<<library_manifest;assert(output.good());}
-	assert(OpenCorePackage(library_package.path,"",&library_opened).ok());
-	std::unique_ptr<mister::AdmittedCorePackage> library_admitted;
-	assert(hardware.AdmitCorePackage(library_package.path,library_opened.package_id,&library_admitted).ok());
-	const auto library_load=hardware.LoadCore(std::move(library_admitted),2,false);
-	assert(library_load.error.code==mister::ErrorCode::unsupported_interface);
 	assert(fpga.calls==1&&hardware.menu_display().available);
 }
 

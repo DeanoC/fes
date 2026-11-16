@@ -1735,13 +1735,13 @@ Error NativeHardware::RecheckProgrammedBitstream(AdmittedCorePackage* package)
 }
 
 HardwareResult NativeHardware::LoadCore(std::unique_ptr<AdmittedCorePackage> package,
-	std::uint64_t generation,bool development_load)
+	std::uint64_t generation)
 {
-	// MENU remains an idle configuration on DE10. On DE25 it is also the
-	// display package exercised by the normal volatile development core-load
-	// path; the library launch path continues to reject MENU packages.
+	// MENU remains an idle configuration on DE10. DE25 also uses this package
+	// as its volatile development load; Runtime rejects library launches before
+	// they reach this hardware operation.
 	return LoadCoreInternal(std::move(package),generation,
-		development_load && platform_ == NativePlatform::de25_nano);
+		platform_ == NativePlatform::de25_nano);
 }
 
 HardwareResult NativeHardware::LoadCoreInternal(

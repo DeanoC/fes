@@ -134,7 +134,7 @@ public:
 	Error RecheckProgrammedBitstream(AdmittedCorePackage*) override;
 	Capabilities capabilities() const override;
 	HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage>,
-		std::uint64_t generation, bool development_load = false) override;
+		std::uint64_t generation) override;
 	HardwareResult LoadContainedDevelopmentRBF(const std::string&,
 		std::uint64_t generation) override;
 	Error SetComputerKeyboard(std::uint64_t matrix) override;
