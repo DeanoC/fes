@@ -26,15 +26,17 @@ interfaces and do not replace the kit claim.
 ## Run and capture
 
 Use the sealed DE25 package from the exact PR head. Automatic exact-head HIL
-currently exercises the playable ZX81 package through the normal
-install/launch lifecycle, compatibility checks, and supported input path. The
-locked idle MENU is captured before and after as restore evidence. The D25
-smoke reads named ROM state only when the package descriptor declares a ROM,
-checks post-stop idleness through the paired session API, and fails closed if
-its generated API/ROM/idle probes do not compile and match the D25 host. The current J8G
-agent rejects MENU `core-load` at admission with `UNSUPPORTED_OPERATION`; until
-the runtime supports that operation, a MENU package has not passed exact-head
-HIL and main-baseline promotion must remain gated. Both paths compare the
+exercises MENU through the normal volatile `fogcast core-load` path and ZX81
+through the normal install/launch lifecycle, compatibility checks, and
+supported input path. The locked idle MENU is captured before and after as
+restore evidence. The D25 smoke reads named ROM state only when the package
+descriptor declares a ROM, checks post-stop idleness through the paired
+session API, and fails closed if its generated API/ROM/idle probes do not
+compile and match the D25 host. The MENU rejection was an explicit runtime
+policy in `NativeHardware::LoadCoreInternal`: MENU was restricted to idle
+configuration. The deployed agent endpoint and format-2 package reader were
+present. The DE25 runtime now admits MENU for volatile development `core-load`;
+catalog launches continue to reject MENU entries. Both paths compare the
 serial-bound target state before and after. For
 a full image or boot-path change, build the exact DE25 image and run the
 corresponding boot checks as well; a package run does not qualify an image
@@ -72,11 +74,56 @@ DE25 Quartus Pro 26.3 MENU and ZX81 producers, runs both exact packages on J8G,
 and publishes only `current-restore-de25.json` after both smokes and the final
 restore verifier pass. It never edits the Kit A/B baseline.
 
-Serial-console recovery remains a separate owner task. The J8G console path is
-owned by `root:dialout` and the current automation account cannot open it; do
-not attempt console recovery, card writes or reimaging until Deano has restored
-access and authorized that recovery workflow. Keep the retained J8G recovery
-materials intact. Never use J8G recovery authorization on TRWU8CBL.
+The independent D25 timer stays enabled only after the first promotion passes
+cleanly. A failed promotion leaves the timer disabled and the prior D25
+baseline unchanged.
+
+### J8G serial-checked recovery
+
+The only recovery console in this procedure is
+`/dev/serial/by-id/usb-TERASIC_DE25-Nano_TRWU8J8G-if02-port0` (J8G, observed
+as `/dev/ttyUSB2`). Start with a receive-only probe using
+`python3 scripts/de25_serial_recovery.py --probe --serial TRWU8J8G --output
+<evidence>/serial-probe.json`. The tool refuses any other serial identity or
+resolved port. It records Linux boot output and whether a login prompt exists;
+the production image removes the serial getty, so recovery uses the enabled
+kernel SysRq console path rather than an assumed login.
+
+When network restore fails, keep the D25 claim and both locks. Capture the last
+authenticated target and boot identity, then use
+`python3 scripts/de25_serial_recovery.py --reboot --serial TRWU8J8G --output
+<evidence>/serial-reboot.json`. This sends a serial BREAK followed by SysRq
+`b` and records the boot output. Wait for the same J8G target ID to return on
+the network, capture fresh post-reboot state, and create a recovery receipt
+with the before/after boot IDs and observed Linux boot marker:
+
+```sh
+EVIDENCE=/absolute/path/to/run/evidence
+python3 scripts/de25_serial_recovery.py \
+  --receipt-from "$EVIDENCE/serial-reboot.json" --serial TRWU8J8G \
+  --before-boot-id "$(jq -r '.boot_id' "$EVIDENCE/baseline-before.json")" \
+  --after-boot-id "$(jq -r '.boot_id' "$EVIDENCE/baseline-after.json")" \
+  --target-id "$(jq -r '.target_id' "$EVIDENCE/baseline-before.json")" \
+  --output "$EVIDENCE/serial-recovery-receipt.json"
+
+python3 scripts/de25_restore.py --baseline ~/fes-hil/baselines/current-restore-de25.json \
+  --before "$EVIDENCE/baseline-before.json" --after "$EVIDENCE/baseline-after.json" \
+  --serial-recovery "$EVIDENCE/serial-recovery-receipt.json"
+```
+
+The verifier permits
+the boot ID change only with that serial receipt; image, bundle, target ID,
+runtime idle, free lease and stable protected state must still match.
+
+If J8G does not return after the serial reboot, recover it from the retained
+LAN managed image through the appliance recovery/update path for J8G only, with
+the image digest checked against the serial-bound recovery record. Never select
+a device node by enumeration; positively identify J8G's SD device before an
+SD reflash. After image recovery, restore or activate the named baseline bundle
+as image compatibility requires, boot and identify J8G, and rerun
+`scripts/de25_restore.py` before FREE. Reimage/reflash is allowed for this
+disposable J8G dev kit. This does not authorize touching TRWU8CBL or its
+ttyUSB0/ttyUSB1 ports.
 
 ## Add the second DE25 board later
 
