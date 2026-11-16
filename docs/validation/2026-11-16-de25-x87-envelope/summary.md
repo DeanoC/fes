@@ -651,6 +651,55 @@ design fits inside it.** What is genuinely open, rather than invented:
   different base from the one its task named, and queueing it is Deano's
   call.
 
+## The two front ends agree to about 1%
+
+This record's fits read SystemVerilog directly; the sibling measurement's read
+the Yosys SEAL netlist. That was an **unbounded** difference between the two
+records' figures until the sibling measured it, on `fes_i386_cpu`, same rung,
+same seed, same envelope:
+
+| | Yosys netlist | direct SystemVerilog | |
+| --- | ---: | ---: | --- |
+| Dedicated logic registers | 20,842 | 20,893 | +0.24% |
+| ALMs needed | 29,300 | 29,035 | −0.90% |
+| ALUTs | 42,126 | 41,609 | −1.23% |
+| LABs used | 3,626 | 3,609 | −0.47% |
+| DSP blocks | 12 | 12 | identical |
+| M20K blocks | 53 | 53 | identical |
+| Block-memory bits | 408,320 | 408,320 | identical |
+| ALMs containing virtual pins | 2,351 | 2,351 | identical |
+
+Both closed 61.44 MHz at every corner. The register count is the quantity its
+method gated on, fixed before the fit ran, and +0.24% is well inside its ±5%
+threshold.
+
+So a reader may set figures from the two records beside each other carrying
+**about a 1% front-end uncertainty rather than an unknown one**. It does
+**not** make the scopes comparable, and it says nothing about whether two
+units' areas add.
+
+**A consequence for this work's own flow:** Quartus Pro's SystemVerilog front
+end *accepts* the i386 RTL, where the locked Quartus 17.0.2 rejects it
+outright. The reason the DE10 lane feeds Quartus a netlist does not apply on
+the Pro side — so direct SystemVerilog is a legitimate front end here, not a
+fallback, once the M10K requests are retargeted.
+
+## The CPU's clock, which bears on the latency finding
+
+The sibling also measured `fes_i386_cpu` closing **130 MHz** on Agilex 5 —
+every rung of its precommitted ladder passed, the top with +0.426 ns — with
+area flat across all five rungs to within 155 ALMs, and seed 2 at the headline
+rung within 73 ALMs of seed 1.
+
+That matters for the per-form latency above. **The 5.4% aggregate is derived
+at 61.44 MHz, which is the DE10's rung**, and the CPU is not what pins the
+clock on Agilex 5. A cycle gap costs proportionally less wall time at a higher
+clock, while the backend's fixed pipeline latency stays the same number of
+clocks — so the figure is not portable, which is why the cycle counts are the
+primary result and the percentage is labelled with its clock. If a DE25 CPU
+were targeted near 100 MHz for a two-backend-clocks ratio, that is inside what
+the CPU closes at and costs no measurable area.
+
 ## What is not settled
 
 - **FPREM's area cost is unmeasured.** The reason given for keeping FRNDINT,
