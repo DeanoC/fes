@@ -335,6 +335,43 @@ numbers mean; that is the prose around them.
 
 <!-- GENERATED -->
 
+## Whether it fits in the machine is **not** established by any fit that exists
+
+This record measures the envelope-plus-backend **on its own**. Nothing here
+says it fits inside `fes.pc386`, and the nearest measurements point the other
+way.
+
+The sibling Agilex 5 measurement (`docs/validation/2026-11-16-i386-agilex5-fit/`,
+tracker #1898) fitted `pc386_system` on Agilex 5 with the 387 **on** — its fit
+M+ — at **4,590 of 4,680 LABs, 98.08%**, passing all four corners at
+61.44 MHz. That is the good half, and it supports the DE25 being the 387's
+home: the DE10 stopped before placement at 102.4% of Cyclone V LABs, and this
+placed, routed and closed.
+
+The half that bears on this work: **90 LABs are left**, and the 387 in that
+fit is main's — **slice 2 only, with no arithmetic in it at all**, every
+arithmetic form `X87_UNIMPL`. Its whole cost in the machine, M+ − M, was
+**+1,763 ALMs and +166 LABs**. This backend alone is **2,660 ALMs** on the
+same device and toolchain (PR #1892), *larger than the entire slice-2
+envelope cost*. At the density that measurement itself gives — 1,763 ALMs per
+166 LABs, about 10.6 ALMs per LAB — 2,660 ALMs is roughly **250 LABs against
+the 90 available**.
+
+That arithmetic is **inference from a measured density, not a measurement**,
+and an integration fit is the only thing that settles it. But it does not
+point at fitting, and this record does not claim otherwise. It is also before
+a **DE25 board shell**, which is measured nowhere: the machine fit stands in
+for one with 651 ALMs of virtual-pin cells, and the DE10 equivalent is around
+770 ALMs.
+
+**One concrete saving is visible in these numbers.** M+ − M includes **+9 DSP
+blocks**, which are exactly `fes_i386_x87_mul`'s nine 22×22 products — the
+envelope's shifter-multiplier. This work's unit fit uses **18**, because the
+backend carries its own nine 22/22/20-bit products for FMUL. **A merged unit
+would share one multiplier rather than build two.** Nobody has costed that,
+and it is one idea rather than a plan, but it is the first place to look if
+the integration fit refuses.
+
 ## What is not settled
 
 - **FPREM's area cost is unmeasured.** The reason given for keeping FRNDINT,
@@ -345,10 +382,9 @@ numbers mean; that is the prose around them.
   is inline. The threshold for deciding it is committed in `method.md`, dated,
   ahead of the fit. No title in the measured corpus executes FPREM, FPREM1 or
   FXTRACT at all.
-- **The `X87_BACKEND = 0` control cannot be fitted on Agilex 5**, because its
-  seed tables carry a Cyclone V `ramstyle`. Changing that attribute would
-  change what the DE10 seal infers, which is not this scope's to move. So
-  there is no same-flow, same-device comparison between the two arithmetics.
+- **Whether the integrated design fits the machine is open**, as the section
+  above says, and the density inference points at it not fitting. No fit of
+  `pc386_system` with `X87_BACKEND = 1` exists.
 - **This figure is a unit fit and does not simply add to the sibling CPU
   measurement.** A virtual-pin fit of `fes_i386_x87` keeps `regs_o` (640
   register bits) and the trace outputs that the machine trims away. The
