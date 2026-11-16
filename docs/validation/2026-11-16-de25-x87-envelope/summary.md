@@ -1057,3 +1057,47 @@ committed fit records, which is where the generated table above comes from.
   independent failures.
 - **The pair cases are masked-only.** They do not sweep the exception masks,
   so the unmasked paths' interaction across a back-to-back pair is untested.
+
+## After main was merged (16 November, amendment)
+
+PR #1889 merged to main as `c6728f2cd` (#1879 as `9037d15e8`, the census #1887
+as `655c90e55`), and main was merged into this branch as `7ab177d9c`. Where
+this record says "PR #1889's head" as its base, that base is now main.
+
+**Everything in the generated results above, and all eight machine fits, was
+measured before that merge**, on slice 4's RTL as it stood at `79f34caa8` and
+its successors. The merge brought slice 4's review fixes into
+`fes_i386_x87.sv` (new arms `D_CHECK`, `D_EXACT`, `Q_CHECK`, among others), so
+the fitted design is not the merged one. The fits are kept as pre-merge
+measurements and have not been re-run. No confirmation fit on the merged tree
+exists yet; until one does, the ALM figures and the controlled A/B describe the
+pre-merge design only.
+
+What was re-run on the merged tree (`7ab177d9c`, RTL unchanged by `9ded25cc1`):
+
+| Check | DE10 backend | DE25 backend |
+| --- | --- | --- |
+| Lint at the parameter value | clean | clean |
+| Unit bench against the host x87 | 763 / 763 | 763 / 763 |
+| Lockstep, x87 cases | 120 pass, 0 fail | 120 pass, 0 fail |
+| Lockstep, no-387 cases | 1,933 pass, 0 fail | 1,933 pass, 0 fail |
+| Lockstep, memory cases | 27 pass, 0 fail | 27 pass, 0 fail |
+| Lockstep, x87 trace hash | `583e1508fb9c4027` | `583e1508fb9c4027` |
+| Lockstep, x87 cycles for 7,034 retirements | 77,322 | 80,376 |
+
+The two lockstep reports are in [`evidence/post-merge/`](evidence/post-merge/).
+They are not fed to `generate.py`: the recorded pre-merge reports ran 24 x87 cases (620
+retirements) and these ran 120 (7,034), so they are a different suite from the one the generated tables
+describe, and mixing them would compare unlike runs.
+
+**The unguarded-arm audit is now mechanical.** The merge delivered three
+DE10-only arms without the `X87_BACKEND == 0` guard, the same defect the
+square-root arms had earlier. `x87_envelope_fit.py` no longer carries a
+hand-written list of registers that must be absent from a DE25 fit: it derives
+the list from the RTL, as every register written only inside sequencer arms
+guarded by `X87_BACKEND == 0`. A test removes the guard from `Q_CHECK` and
+checks that exactly `dv_c` and `dv_sub` leave the list. Two limits: the
+derivation matches arms by the sequencer's naming and indentation, so a later
+slice that adds arms in another shape must extend it; and the gate runs only in
+this record's unit-fit harness, not in the machine-fit harness the eight
+integration fits used.
