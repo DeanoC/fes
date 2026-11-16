@@ -481,6 +481,9 @@ def run_x87(testbench: str, env: dict) -> dict:
     oracle's 387, with the 387's whole state compared at every retirement.
     Alongside these directed streams, run_x87_cases adds seeded mixed
     arithmetic, compare and FRNDINT guest programs over finite ext80 operands.
+    Slice 4 adds seven more directed streams for the divides, the square
+    root and the remainders, including a memory-divide program and two
+    that loop on C2 the way software does.
     The ordinary random and corpus programs run no ESC, so the x87 suite
     exercises the unit inside the CPU -- and the only thing that exercises
     the decode's uops for the arithmetic forms, the x87 pointers and the
@@ -496,7 +499,9 @@ def run_x87(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-X87_DIRECTED_CASES = 14
+# Slices 2 and 3 contribute 14 directed streams; slice 4 adds div-reg,
+# div-mem, div-zero, sqrt, prem, prem1 and div-prec.
+X87_DIRECTED_CASES = 14 + 7
 X87_RANDOM_CASES = 8 * 3 * 4
 X87_CASES = X87_DIRECTED_CASES + X87_RANDOM_CASES
 

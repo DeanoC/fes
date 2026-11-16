@@ -1,0 +1,6 @@
+8
+x87 cases (the identity on): 21 pass, 0 fail, 35 retirements with the 387's state compared
+no-387 cases: 1933 pass, 0 fail (5355 ESC instructions under the no-387 rule, 647 of them not stepped on the oracle)
+i386 lockstep passed (host simulation only; report: /home/deano/fes/.claude/worktrees/i386-x87-s4-eac381/sources/misteross/build/sim/fes-i386-lockstep/report.json)
+
+[exited with code 0]
