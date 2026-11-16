@@ -897,6 +897,16 @@ def main(argv: list[str] | None = None) -> int:
                         help="the toolchain slot whose Yosys writes the netlist; nothing runs on a GPU")
     parser.add_argument("--output", type=Path, required=True, help="a new directory")
     parser.add_argument("--netlist", type=Path, help="reuse this netlist instead of writing one")
+    parser.add_argument("--netlist-source", metavar="REVISION",
+                        help="the revision the reused netlist was elaborated from, when that is "
+                             "not this checkout. A reused netlist's digest identifies its bytes "
+                             "and says nothing about their source, and the fitting checkout's own "
+                             "HEAD is not it -- so without this the record cannot attribute the "
+                             "fit to any source and says so rather than guessing. Pass 'self' "
+                             "when the netlist was elaborated from this checkout.")
+    parser.add_argument("--netlist-source-note", metavar="TEXT",
+                        help="anything a reader needs about that source: a pre-merge head, a "
+                             "scratch edit, a different branch")
     parser.add_argument("--timeout-minutes", type=int,
                         help="runtime cap; the method's default per design, 90 minutes for the CPU "
                              "and 240 for the machine. A fit that hits its cap is reported as not "
@@ -955,7 +965,26 @@ def main(argv: list[str] | None = None) -> int:
                   + json.dumps(record["resources"], sort_keys=True), flush=True)
             return 0
         if args.netlist is not None:
-            netlist, provenance = args.netlist.resolve(), {"reused": str(args.netlist)}
+            netlist = args.netlist.resolve()
+            provenance = {"reused": str(args.netlist)}
+            given = args.netlist_source
+            if given == "self":
+                provenance["source_revision"] = fes_revision()
+                provenance["source_revision_note"] = (
+                    "declared as elaborated from this checkout" + (
+                        f"; {args.netlist_source_note}" if args.netlist_source_note else ""))
+            elif given:
+                provenance["source_revision"] = given
+                provenance["source_revision_note"] = (
+                    args.netlist_source_note
+                    or "declared by --netlist-source; not this checkout's HEAD")
+            else:
+                provenance["source_revision"] = None
+                provenance["source_revision_note"] = (
+                    "NOT STATED. The caller passed --netlist without --netlist-source, so this "
+                    "fit's netlist is identified only by its digest and its source revision is "
+                    "unknown. It must not be attributed to the checkout that ran the fitter, "
+                    "which is recorded separately as fes_revision.")
         else:
             # Before the elaboration, not only before the compile: a netlist of
             # the machine is tens of megabytes and the Yosys job should be

@@ -50,6 +50,13 @@ def validation_gaps(entry: dict, fit: dict, inputs: dict) -> dict:
     """
     gaps = {name: fit[name] for name in ("timing_parse_error", "resource_parse_error",
                                          "clock_coverage_error") if fit.get(name)}
+    netlist = fit.get("netlist") if isinstance(fit.get("netlist"), dict) else None
+    if netlist is None:
+        netlist = {}
+    if netlist.get("reused") and not netlist.get("source_revision"):
+        gaps["netlist_source_revision"] = (
+            "a reused netlist with no stated source revision: its digest identifies the bytes "
+            "and not where they came from, and the fitting checkout is not their source")
     if entry.get("real_pins") is None:
         gaps["real_pins"] = "no verified real-pin count"
     elif entry["real_pins"] != len(inputs["real_clocks"]):
@@ -70,7 +77,8 @@ def validation_gaps(entry: dict, fit: dict, inputs: dict) -> dict:
 def collect(name: str, output: Path) -> dict:
     fit = read(output / "fit.json")
     inputs = read(output / "inputs.json")
-    netlist = read(output / "netlist.json")
+    netlist_provenance = read(output / "netlist.json")
+    fit = dict(fit, netlist=netlist_provenance)
     entry = {
         "fit": name, "status": fit["status"], "top": fit["top"],
         "board": inputs["board"], "device": fit["device"], "family": fit["family"],
@@ -90,7 +98,7 @@ def collect(name: str, output: Path) -> dict:
         "fes_revision": inputs.get("fes_revision"),
         "source_clean": (inputs["fes_revision"].get("clean")
                          if isinstance(inputs.get("fes_revision"), dict) else None),
-        "netlist": netlist,
+        "netlist": netlist_provenance,
         "classification": fit["classification"],
         "hardware_acceptance": fit["hardware_acceptance"],
         "programming_artifact": fit["programming_artifact"],

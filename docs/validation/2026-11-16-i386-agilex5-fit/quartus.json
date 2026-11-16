@@ -65,7 +65,10 @@
           "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
           "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
         },
-        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v"
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
       },
       "period_ns": 16.2760416667,
       "programming_artifact": null,
@@ -241,7 +244,10 @@
           "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
           "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
         },
-        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v"
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
       },
       "period_ns": 16.2760416667,
       "programming_artifact": null,
@@ -417,7 +423,10 @@
           "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
           "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
         },
-        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v"
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
       },
       "period_ns": 16.2760416667,
       "programming_artifact": null,
@@ -590,7 +599,10 @@
           "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
           "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
         },
-        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v"
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
       },
       "period_ns": 13.3333333333,
       "programming_artifact": null,
@@ -766,7 +778,10 @@
           "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
           "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
         },
-        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v"
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
       },
       "period_ns": 11.1111111111,
       "programming_artifact": null,
@@ -942,7 +957,10 @@
           "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
           "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
         },
-        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v"
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
       },
       "period_ns": 9.0909090909,
       "programming_artifact": null,
@@ -1118,7 +1136,10 @@
           "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
           "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
         },
-        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v"
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
       },
       "period_ns": 7.6923076923,
       "programming_artifact": null,
@@ -1298,7 +1319,10 @@
           "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
           "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
         },
-        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v"
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
       },
       "period_ns": 6.6666666667,
       "programming_artifact": null,
@@ -1476,7 +1500,10 @@
           "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
           "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
         },
-        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v"
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
       },
       "period_ns": 5.8823529412,
       "programming_artifact": null,
@@ -1923,7 +1950,10 @@
           "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
           "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
         },
-        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v"
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
       },
       "period_ns": 16.2760416667,
       "programming_artifact": null,
@@ -2121,7 +2151,10 @@
           "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v",
           "source_sha256": "8d9840ebd591372715ada99970933ed1e2f54e2e1b13034482715194240d2be4"
         },
-        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v"
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Not byte-reproducible, for the path dependence in DeanoC/yosys#80; the M and M+ pair were re-elaborated from a clean checkout at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 and reproduced the pair's 4,117-line delta exactly, which is recorded in m-plus-baseline.json.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
       },
       "period_ns": 16.2760416667,
       "programming_artifact": null,
@@ -2321,7 +2354,10 @@
           "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine-plus.netlist.v",
           "source_sha256": "b90abd889b75d5dc8f1c17543750f3500a4420f5781f740561e31e4c59aff545"
         },
-        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine-plus.netlist.v"
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine-plus.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Not byte-reproducible, for the path dependence in DeanoC/yosys#80; the M and M+ pair were re-elaborated from a clean checkout at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 and reproduced the pair's 4,117-line delta exactly, which is recorded in m-plus-baseline.json. M+ additionally carries the one-character x87_present scratch diff, recorded in its inputs.json.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
       },
       "period_ns": 16.2760416667,
       "programming_artifact": null,
@@ -2781,7 +2817,10 @@
           "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v",
           "source_sha256": "8d9840ebd591372715ada99970933ed1e2f54e2e1b13034482715194240d2be4"
         },
-        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v"
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Not byte-reproducible, for the path dependence in DeanoC/yosys#80; the M and M+ pair were re-elaborated from a clean checkout at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 and reproduced the pair's 4,117-line delta exactly, which is recorded in m-plus-baseline.json.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
       },
       "period_ns": 16.2760416667,
       "programming_artifact": null,
@@ -2958,7 +2997,10 @@
           "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
           "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
         },
-        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v"
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+        "source_revision": "bc058b14b188c1616ba25d8a38c7e71d48bd7707",
+        "source_revision_note": "elaborated from this working tree during the session, before the runner recorded a source revision for a reused netlist. Verified reproducible: a fresh elaboration at record head bc058b14b188c1616ba25d8a38c7e71d48bd7707 gives the identical digest 3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024, so the bytes are this tree's `main` CPU sources and nothing else.",
+        "source_revision_recorded": "after the fit, from this session, not by the runner at fit time"
       },
       "period_ns": 16.2760416667,
       "programming_artifact": null,

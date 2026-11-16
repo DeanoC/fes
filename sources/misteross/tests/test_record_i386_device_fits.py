@@ -45,7 +45,9 @@ def write_fit(directory: Path, *, device: str, family: str, alms: float, availab
                          {"commit": revision, "clean": False,
                           "tracked_diff": "-a\n+b\n", "tracked_diff_sha256": "f" * 64}),
     }))
-    (directory / "netlist.json").write_text(json.dumps({"netlist_sha256": "a" * 64}))
+    (directory / "netlist.json").write_text(json.dumps(
+        {"netlist_sha256": "a" * 64, "reused": "/some/netlist.v",
+         "source_revision": "c" * 40}))
     # Four rows, because fit.json above records a four-corner verdict; the
     # collector refuses a table that does not cover every corner.
     # Four corners, each carrying the three checks a closure rests on, because
@@ -372,6 +374,34 @@ class Collect(unittest.TestCase):
                 lines[1] = "\t".join(parts)
                 (fit / "timing.tsv").write_text("\n".join(lines) + "\n")
                 self.assertEqual(record.main(["--record", str(root / "r"), f"--fit=x={fit}"]), 1)
+
+    def test_a_reused_netlist_with_no_stated_source_is_a_gap(self):
+        # A reused netlist's digest identifies its bytes and says nothing about
+        # where they came from, and the fitting checkout is not their source.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fit = write_fit(root / "f", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                            alms=1, available=2, device_alms=46800, ram_block="M20K")
+            net = json.loads((fit / "netlist.json").read_text())
+            del net["source_revision"]
+            (fit / "netlist.json").write_text(json.dumps(net))
+            out = root / "r"
+            record.main(["--record", str(out), f"--fit=x={fit}"])
+            entry = json.loads((out / "quartus.json").read_text())["fits"][0]
+            self.assertIn("netlist_source_revision", entry["validation_errors"])
+
+    def test_a_netlist_elaborated_here_is_not_a_gap(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fit = write_fit(root / "f", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                            alms=1, available=2, device_alms=46800, ram_block="M20K")
+            net = json.loads((fit / "netlist.json").read_text())
+            del net["reused"]
+            (fit / "netlist.json").write_text(json.dumps(net))
+            out = root / "r"
+            record.main(["--record", str(out), f"--fit=x={fit}"])
+            entry = json.loads((out / "quartus.json").read_text())["fits"][0]
+            self.assertNotIn("validation_errors", entry)
 
     def test_a_duplicated_row_is_refused(self):
         with tempfile.TemporaryDirectory() as temporary:
