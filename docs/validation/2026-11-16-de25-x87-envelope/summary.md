@@ -857,6 +857,44 @@ primary result and the percentage is labelled with its clock. If a DE25 CPU
 were targeted near 100 MHz for a two-backend-clocks ratio, that is inside what
 the CPU closes at and costs no measurable area.
 
+## The unit fits' harness constrains virtual pins at zero, and that costs
+
+**The four unit fits in this record constrain every virtual-port path at zero
+delay** (`set_input_delay`/`set_output_delay` at 0.000). The sibling
+measurement **cuts** those paths instead (`set_false_path`), and has since
+measured what the difference is worth, on two fits of identical CPU logic
+under the two envelopes:
+
+| | zero-delay | cut paths | |
+| --- | ---: | ---: | --- |
+| ALMs | 29,114 | 29,300 | +186 |
+| LABs | 3,512 | 3,626 | +114 |
+| Dedicated logic registers | 23,024 | 20,842 | **−2,182 (−10.5%)** |
+| Worst-corner Fmax | 97.77 MHz | 124.35 MHz | **+26.6 MHz** |
+
+So **the zero-delay form is the worse envelope**, and it is this record's unit
+fits that use it. What that means for the figures above:
+
+- **ALMs are barely affected** — under 200 on a 29,000-ALM design, inside this
+  lane's noise. So 6,510–6,518 stands, and it also answers a question this
+  record asked: how much of it is harness? Not much, on ALMs.
+- **The registers may be inflated by around 10%.** The zero-delay form makes
+  the fitter duplicate registers to meet a hold requirement that the
+  non-existent pins invented. 5,582–5,634 should be read with that in mind.
+- **The setup slack is understated**, and the Fmax implied by it is too low —
+  by something like 27 MHz on a CPU-sized design. The +4.6 to +6.8 ns reported
+  is a floor, not an estimate.
+
+**The integration fit is not affected**: it ran on the sibling's harness, which
+cuts the paths. So the headline — 87.58–87.87% of ALMs over four seeds, timing
+closing at every corner — needs no adjustment.
+
+Two consequences recorded rather than acted on, since they are a re-fit each:
+the unit fits would be worth re-running with cut paths, and **a zero-delay
+figure should not be compared against a cut-path one at all**, which is why
+this record's unit fits and the sibling's CPU and machine fits are kept in
+separate tables.
+
 ## What is not settled
 
 - **FPREM's area cost is unmeasured.** The reason given for keeping FRNDINT,
