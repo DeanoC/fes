@@ -112,6 +112,7 @@ func (a *App) consumeSuppressedPlayKeyFrom(source int, name string, usage uint8,
 					a.playKeySuppressed = make(map[physicalPlayKey]bool)
 				}
 				a.playKeySuppressed[key] = true
+				a.traceKeyRouteLocked("suppressed", source)
 			}
 		}
 		return true
@@ -182,6 +183,7 @@ func (a *App) beginSessionDisplayLocked(target protocol.SessionDisplay, openTape
 	a.sessionDisplayEpoch++
 	a.sessionDisplayBusy = true
 	a.sessionDisplayNonHandoff = !handoff && from.Focus == protocol.SessionFocusMachine && target.Focus == protocol.SessionFocusMachine
+	a.traceKeyRouteLocked("display-begin", 0)
 	prior, epoch := a.session, a.sessionDisplayEpoch
 	done := make(chan struct{})
 	a.sessionDisplayWait = done
@@ -232,6 +234,7 @@ func (a *App) beginSessionDisplayLocked(target protocol.SessionDisplay, openTape
 		if epoch != a.sessionDisplayEpoch || !samePlayHIDSession(a.session, prior) {
 			return
 		}
+		a.traceKeyRouteLocked("display-end", 0)
 		a.sessionDisplayBusy = false
 		a.sessionDisplayNonHandoff = false
 		a.sessionDisplayWait = nil

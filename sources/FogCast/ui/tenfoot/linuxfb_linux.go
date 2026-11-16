@@ -1234,7 +1234,9 @@ func startFrameTrace(ctx context.Context, app *App, dev gfx.Device, label string
 	trace := newFrameTrace()
 	app.mu.Lock()
 	app.frameTrace = trace
+	kitHost := app.kitHost
 	app.mu.Unlock()
+	processStart, _ := keyTraceProcessStart()
 	if display, ok := dev.(*gfx.MenuDisplay); ok {
 		display.SetTraceSink(trace.present)
 	}
@@ -1245,10 +1247,27 @@ func startFrameTrace(ctx context.Context, app *App, dev gfx.Device, label string
 	go func() {
 		defer close(stopped)
 		defer signal.Stop(signals)
+		requests := time.NewTicker(250 * time.Millisecond)
+		defer requests.Stop()
 		for {
 			select {
 			case <-traceCtx.Done():
 				return
+			case now := <-requests.C:
+				if kitHost && os.Geteuid() == 0 {
+					if consumeKeyTraceRequest(keyTraceArmRequest, os.Getpid(), processStart, 0, now) {
+						trace.armKeyRouting(now)
+						fmt.Fprintf(os.Stderr, "%s: key routing trace armed for one minute\n", label)
+					}
+					if consumeKeyTraceRequest(keyTraceDumpRequest, os.Getpid(), processStart, 0, now) {
+						path, err := trace.dump(os.Getenv("FOGCAST_FRAME_TRACE_DIR"))
+						if err != nil {
+							fmt.Fprintf(os.Stderr, "%s: frame trace dump failed: %v\n", label, err)
+						} else {
+							fmt.Fprintf(os.Stderr, "%s: frame trace written to %s\n", label, path)
+						}
+					}
+				}
 			case <-signals:
 				path, err := trace.dump(os.Getenv("FOGCAST_FRAME_TRACE_DIR"))
 				if err != nil {

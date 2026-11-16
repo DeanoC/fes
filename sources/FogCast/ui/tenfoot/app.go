@@ -2711,11 +2711,13 @@ func (a *App) releaseTransitionPlayKey(source int, name string, usage uint8) boo
 			a.playKeyPendingRelease = make(map[physicalPlayKey]playHIDKey)
 		}
 		a.playKeyPendingRelease[physical] = key
+		a.traceKeyRouteLocked("transition-release-deferred", source)
 		return true
 	}
 	event := remoteinput.Event{Player: key.player, Device: key.device, Kind: key.kind, Code: key.code, Action: remoteinput.ActionRelease}
 	a.rememberPlayHIDLocked(event)
 	a.queuePlayHIDLocked([]remoteinput.Event{event})
+	a.traceKeyRouteLocked("transition-release", source)
 	return true
 }
 
@@ -2756,12 +2758,14 @@ func (a *App) sendPhysicalPlayKey(source int, name string, usage uint8, event re
 	}
 	if event.Action == remoteinput.ActionRelease {
 		delete(a.playKeyAdmitted, physical)
+		a.traceKeyRouteLocked("released", source)
 	}
 	if event.Action == remoteinput.ActionPress {
 		if a.playKeyAdmitted == nil {
 			a.playKeyAdmitted = make(map[physicalPlayKey]playHIDKey)
 		}
 		a.playKeyAdmitted[physical] = playHIDKey{event.Player, event.Device, event.Kind, event.Code}
+		a.traceKeyRouteLocked("admitted", source)
 	}
 	return true
 }

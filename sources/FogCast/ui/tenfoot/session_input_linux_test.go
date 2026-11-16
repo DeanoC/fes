@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -550,6 +551,8 @@ func TestNativeKeyboardReleaseDuringActualNonHandoffSurroundTransition(t *testin
 	app, feed := kitDisplayApp(t, server)
 	t.Cleanup(unblock)
 	app.mu.Lock()
+	app.frameTrace = newFrameTrace()
+	app.frameTrace.armKeyRouting(time.Now())
 	app.session.CoreKeyboardHID = true
 	prior = app.session
 	app.mu.Unlock()
@@ -610,6 +613,23 @@ func TestNativeKeyboardReleaseDuringActualNonHandoffSurroundTransition(t *testin
 	send(b, 59, 0)
 	if count(remoteinput.ActionRelease) != 1 {
 		t.Fatalf("suppressed B release reached core: %+v", feed.snapshot())
+	}
+	var routes []string
+	var trace []frameTraceRecord
+	for _, record := range app.frameTrace.records() {
+		if record.Kind == "key-route" {
+			routes = append(routes, record.Route)
+			trace = append(trace, record)
+		}
+	}
+	want := []string{"admitted", "display-begin", "suppressed", "transition-release", "display-end"}
+	if !slices.Equal(routes, want) {
+		t.Fatalf("routing trace = %v, want %v", routes, want)
+	}
+	if trace[0].Source != first.fd || trace[2].Source != second.fd || trace[3].Source != first.fd ||
+		trace[1].Epoch == 0 || trace[2].Epoch != trace[1].Epoch || trace[3].Epoch != trace[1].Epoch || trace[4].Epoch != trace[1].Epoch ||
+		!trace[1].NonHandoff || !trace[2].NonHandoff || !trace[3].NonHandoff || !trace[4].NonHandoff {
+		t.Fatalf("routing source or transition binding is wrong: %+v", trace)
 	}
 }
 
