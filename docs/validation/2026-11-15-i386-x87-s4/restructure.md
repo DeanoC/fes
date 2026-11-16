@@ -126,8 +126,26 @@ than in its memories, its multiplier or the bench envelope.
 
 That is worth stating rather than glossing, because a per-entity fit is
 normally the tool for "which part cost what" and here it answers a narrower
-question. Attributing within the unit would need the logic split into modules
-per slice, which is a refactor nobody has asked for and which would change
-the fit it was measuring. **The +2,847 figure stands on the whole-unit delta
-against the merge base in the same flow, which is the measurement that does
-not depend on module boundaries.**
+question. **An absent measurement that looks like a withheld one is worse than
+either.** The +2,847 figure stands on the whole-unit delta against the merge
+base in the same flow, which is the measurement that does not depend on module
+boundaries at all, so nothing in the area conclusion leans on the attribution
+this fit cannot make.
+
+### Why that limit is slice 6's problem, and what would fix it
+
+**The limit is not academic: it is directly in slice 6's way.** Slice 6 has to
+find roughly 1,010 ALMs of reduction that nobody has identified, and the x87
+at about 6,900 ALMs standalone is the single largest contributor to the area
+it must reduce. This slice's three diagnostics established that the x87 is
+**not** where the *slack* goes — the nearest x87 path sat 0.46 to 1.75 ns
+behind the worst on every identity-on seed — but it is emphatically where the
+*area* went, and a per-entity fit that cannot see inside `fes_i386_x87.sv`
+leaves slice 6 unable to tell which of slices 2, 3 and 4 is worth attacking.
+
+So, stated as an option rather than a dead end: **splitting that module would
+give slice 6 an attributable target, and slice 6 is where such a refactor is
+in scope rather than here.** Doing it in slice 4 would change the fit it was
+measuring, which is why this slice does not; doing it in the slice chartered
+to optimise is the natural place, and it is cheap relative to a thousand ALMs
+of blind search.
