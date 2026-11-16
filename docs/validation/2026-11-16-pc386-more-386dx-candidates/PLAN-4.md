@@ -1,0 +1,3 @@
+# Remaining named ISA 386DX entries
+
+Before running this batch, choose `spc6000a`, `tandy4000`, and `deskpro386` in that order. The first two use the C&T 386/AT model and the latter uses the distinct `i386dx_deskpro386` CPU-family entry at 25 MHz. The measured 86Box 6.0 release's machine and CPU tables permit the stated CPU combinations; configuration, effective cache state, UMB mapping and game compatibility still need validation. Keep the same pre-existing TopBench rule, interpreter, 25 MHz, private input controls and evidentiary boundaries as PLAN-2. A failed setup or speed audit is inconclusive, not a rejected score. Stop a given setup if it cannot be made bootable within the bounded discovery attempts; do not run reference workloads concurrently.
