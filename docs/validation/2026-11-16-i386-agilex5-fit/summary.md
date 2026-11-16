@@ -15,8 +15,9 @@ is the 61.44 MHz rung's own restricted-Fmax **estimate**, not a closure.
 slices 3 and 4, closes on Agilex 5 at **41,387 ALMs, 88.43%** — adding 4,132
 ALMs over M+ and **zero LABs**. The question of whether the DE25 holds a
 *complete* 387 was answered first, and by a different design: the pipelined
-backend, reported at four seeds, 87.58–87.87% — **a figure relayed from the
-sibling session and not verified here** (see below).
+backend, at four seeds, 87.58–87.87% — **that session's measurement, published
+in its own record and cited here, not re-measured here** (see below, including
+what "complete" does and does not mean).
 
 **Background on that question, which this record spent the day calling
 unsettled:** `main`'s 387 is slice 2 — state,

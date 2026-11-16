@@ -82,6 +82,7 @@ foreach_in_collection corner $corners {
             }
             set coverage not_applicable_synchronous_reset
         }
+        if {$coverage eq "analyzed"} {set analysed($check) 1}
         puts $stream [join [list $name $hold_only $check $coverage $count $slack $from $to] "\t"]
         lappend analyses "\"$check\": {\"coverage\": \"$coverage\", \"paths\": $count, \"worst_slack_ns\": $slack}"
         if {$coverage ne "unsupported_hold_only_model"} {
@@ -115,6 +116,7 @@ foreach_in_collection corner $corners {
         if {$slack < 0 || [string match -* $slack]} {set failed 1}
         if {$slack < $pulse} {set pulse $slack}
     }
+    set analysed(minimum_pulse_width) 1
     puts $stream [join [list $name $hold_only minimum_pulse_width analyzed [llength $pulses] $pulse {} {}] "\t"]
     lappend analyses "\"minimum_pulse_width\": {\"coverage\": \"analyzed\", \"paths\": [llength $pulses], \"worst_slack_ns\": $pulse}"
     # The fitter's own restricted-Fmax estimate at this corner, per clock.
@@ -139,4 +141,19 @@ close $summary
 delete_timing_netlist
 project_close
 if {$failed} {error "timing FAIL at the fitted constraint; retained timing.tsv and the per-corner reports"}
-puts "PASS: setup/hold/recovery/removal/minimum-pulse-width across all $index published corners"
+# Name the analyses that actually had paths, not a fixed list: a design whose
+# resets are all synchronous has zero recovery and removal paths, and saying
+# they passed would overstate what was checked.
+set passed {}
+foreach check {setup hold recovery removal minimum_pulse_width} {
+    if {[info exists analysed($check)]} {lappend passed $check}
+}
+set skipped {}
+foreach check {setup hold recovery removal minimum_pulse_width} {
+    if {![info exists analysed($check)]} {lappend skipped $check}
+}
+set message "PASS: [join $passed /] across all $index published corners"
+if {[llength $skipped] > 0} {
+    append message "; [join $skipped /] had no paths to analyse and were not applicable"
+}
+puts $message
