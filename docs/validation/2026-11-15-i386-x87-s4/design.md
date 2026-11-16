@@ -215,20 +215,38 @@ clocks that justified it, are withdrawn.
 Two things were reported to the coordinating session on the strength of that
 wrong number, and both are corrected here: that FSQRT would compute at the
 extended target always, and that slice 6 might reconsider it. There is
-nothing to reconsider. The x87 precision census was also asked for an
-FSQRT-by-PC breakdown to test the decline's premise, and returned Quake at
-328 square roots at PC 24 against 1,018 at PC 64; **that figure stands on its
-own and is worth keeping** — it says the saving lands on a minority of
-Quake's square roots — but it is no longer load-bearing, because the saving
-is free.
+nothing to reconsider.
+
+**The census's final figure is emphatic, and it is worth stating for what it
+actually bears on now.** Across the whole nine-title corpus, **164 of 68,626
+square roots are at PC 24 — 0.24%**, with Chris's 3D Benchmark's 67,292 all
+at PC 64. (The earlier Quake-only reading, 328 at PC 24 against 1,018, is
+superseded.)
+
+That figure was gathered to test the decline's premise, and the premise it
+tested is **gone**: the decline was withdrawn because early termination for
+the square root costs nothing, not because the saving was judged worth
+buying. So the 0.24% does not justify a decline any more — **it measures how
+little the early termination this slice did take for FSQRT is worth in
+practice: about one square root in four hundred.** Which is the honest
+reading, and it is a different claim from the one the number was originally
+wanted for. It is kept because a later reader deciding what to optimise should
+know that FSQRT's precision path is almost never the short one, and because
+the contrast with divide is the interesting part.
 
 ### What the census does make load-bearing
 
 The same census reports **Quake's 835,000 divides at 97% PC 24**. So the
 divide's two-iteration path — 8 clocks saved, free in area — lands on roughly
-810,000 divides in one title, which is a much stronger result than "8 clocks"
-suggested. (Prior-record numbers of 12 November, with the census session's own
-runs still building; to be relabelled when it confirms.)
+810,000 divides in one title.
+
+**So the two early terminations this slice implements are at opposite extremes
+of usefulness, and both were taken because both are free.** Divide's lands on
+97% of the hottest FP operation in the corpus; the square root's lands on
+0.24% of its square roots. Neither was decided on that basis, and that is the
+point: deciding them on area made the measurement unnecessary, where deciding
+them on predicted usage would have got the square root wrong in the direction
+that *felt* safe.
 
 Worth recording as a prediction rather than hindsight: Quake running its
 divides at PC 24 and its square roots mostly at PC 64 in the same program is
@@ -382,3 +400,23 @@ sweep, QEMU's fprem test, and a TestFloat harness. The seal and the kit run
 are blocked by [the escalation](STOP-RULE-FIRED.md) rather than unfinished:
 the identity-on machine does not fit the device, and the rule this slice set
 before any fit existed says escalate before sealing.
+
+## Three more census results, which bear on what this slice built
+
+From the completed nine-title census, recorded here because they change how a
+later slice should read this one:
+
+- **71 of the 162 x87 forms were executed by no title at all.** They must be
+  **correct** but need not be **fast** — so the per-form clock table above is
+  not uniformly load-bearing, and slice 6 should know which rows a title
+  actually reaches before it spends anything making one quicker.
+- **Three titles run with exceptions unmasked** — Chris's 3D Benchmark over
+  15,236,298 instructions, Wolfenstein 3D over 13,598, Quake over 139 — and
+  **none raised one and none set ES.** So no title *relies* on the exception
+  path, though it is live state throughout.
+- That makes this slice's two new denormal rules — that a denormal operand
+  does not raise DE beside the operation's own divide-by-zero or invalid,
+  whether the denormal came from an operand class or from the memory
+  conversion — **correctness work rather than performance-critical.** Which is
+  the right reason to have got them exactly right rather than approximately:
+  nothing would have caught them being wrong, because nothing exercises them.
