@@ -1599,6 +1599,11 @@ pin, original build key, host architecture and complete read-only closure,
 then holds its prune lock for the build. A newer provisioning recipe may
 create a different install of the same source commit; it does not replace
 the explicitly pinned binary. Missing or corrupt pinned installs fail closed.
+Pruning reads binary pins from the selected Git ref's Quartus locks and keeps
+matching source/binary installs even when their bootstrap recipe or compiler
+differs from today's provisioning identity. Uncommitted lock edits do not
+change retention; aged installs become collectible when their committed pin
+is removed or moved.
 
 Registered FES producers select compiler pins from their corresponding
 `cores/fes-<core>/toolchain.lock`. The shared cache holds one install per tool,

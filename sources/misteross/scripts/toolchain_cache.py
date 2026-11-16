@@ -32,6 +32,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 from pathlib import Path
 from typing import Any, Iterator, Mapping
 
@@ -1983,6 +1984,30 @@ def referenced_recipe(root: Path, ref: str) -> str:
     return _sha256_bytes(_git(top, "show", f"{ref}:{name}").encode("utf-8"))
 
 
+def referenced_binary_pins(root: Path, ref: str) -> set[tuple[str, str, str]]:
+    """Read exact Yosys binary pins from committed Quartus locks at *ref*."""
+    root = Path(root).resolve()
+    top = Path(_git(root, "rev-parse", "--show-toplevel").strip())
+    prefix = root.relative_to(top).as_posix()
+    result = set()
+    for name in _git(top, "ls-tree", "-r", "--name-only", ref, "--", prefix or ".").splitlines():
+        if Path(name).name != "quartus.lock":
+            continue
+        try:
+            data = tomllib.loads(_git(top, "show", f"{ref}:{name}"))
+        except tomllib.TOMLDecodeError as error:
+            raise CacheError(f"invalid binary pin lock at {ref}:{name}") from error
+        if "yosys" not in data:
+            continue
+        pin = data["yosys"]
+        if (not isinstance(pin, dict) or set(pin) != {"commit", "sha256"}
+                or not isinstance(pin.get("commit"), str) or not re.fullmatch(r"[0-9a-f]{40}", pin["commit"])
+                or not isinstance(pin.get("sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", pin["sha256"])):
+            raise CacheError(f"invalid Yosys binary pin at {ref}:{name}; refusing to prune")
+        result.add(("yosys", pin["commit"], pin["sha256"]))
+    return result
+
+
 def _install_pins(tool: str, pins: Mapping[str, Mapping[str, str]]) -> dict[str, Any]:
     return {
         "pin": dict(pins[tool]),
@@ -2035,6 +2060,7 @@ def prune(
     now = time.time() if now is None else now
     horizon = now - keep_days * 86400
     references = referenced_pins(root, ref)
+    binary_pins = referenced_binary_pins(root, ref)
     recipe = referenced_recipe(root, ref)
     host = host_identity() if host is None else host
     compiler = _base_compiler(compiler_inventory(DEFAULT_GPU_ROUTER) if compiler is None else compiler)
@@ -2089,6 +2115,15 @@ def prune(
                 manifest = read_manifest(ready)
             except CacheError as exc:
                 remove(directory, lock, label, f"unreadable manifest: {exc}")
+                continue
+            if ((tool, _manifest_pins(manifest)) in references
+                    and isinstance(manifest.record.get("commit"), str)
+                    and isinstance(manifest.record.get("sha256"), str)
+                    and (tool, manifest.record.get("commit"), manifest.record.get("sha256")) in binary_pins):
+                # A binary-pinned consumer deliberately selects this install
+                # independently of today's provisioning recipe/compiler.
+                print(f"kept: {label} (binary-pinned at {ref})", file=output)
+                report["kept"].append(label)
                 continue
             if (
                 (tool, _manifest_pins(manifest)) in references

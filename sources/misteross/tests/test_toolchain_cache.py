@@ -1016,6 +1016,39 @@ class ToolchainCachePruneTests(unittest.TestCase):
             toolchain_cache.prune(self.cache, self.root, keep_days=14, ref="no-such-ref",
                                   host=HOST, compiler=COMPILER, output=io.StringIO())
 
+    def test_prune_preserves_committed_binary_pin_across_recipe_drift(self):
+        older_recipe = self.base / "older-bootstrap.sh"
+        older_recipe.write_text("# older\n" + (self.root / "scripts/bootstrap.sh").read_text())
+        older = self.request(bootstrap_path=older_recipe)
+        install = _publish(older, "yosys", content="approved binary")
+        _publish(self.request(), "yosys", content="new provisioning binary")
+        old = time.time() - 30 * 86400
+        os.utime(toolchain_cache.lock_path(older, "yosys"), (old, old))
+        lock = self.root / "cores/fes-core/quartus.lock"
+        lock.write_text(
+            '[quartus]\nedition = "lite"\n'
+            'version = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"\n'
+            'device_family = "cyclonev"\nquartus_sh_sha256 = "' + 'a' * 64 + '"\n'
+            '[yosys]\ncommit = "' + install.record['commit'] + '"\n'
+            'sha256 = "' + install.record['sha256'] + '"\n')
+        git = ["git", "-C", str(self.repository), "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+        subprocess.run([*git, "add", "-A"], check=True)
+        subprocess.run([*git, "commit", "-q", "-m", "binary pin"], check=True)
+        # Uncommitted edits must not erase a committed binary reference.
+        lock.write_text(lock.read_text().replace(install.record['sha256'], '0' * 64))
+        report, output = self.prune(apply=True)
+        self.assertIn(f"tools/yosys/{install.key}", report['kept'])
+        self.assertIn('binary-pinned at HEAD', output)
+        selected = toolchain_cache.resolve_install(
+            self.request(), 'yosys', binary_sha256=install.record['sha256'], hold=False)
+        self.assertEqual(selected.key, install.key)
+        # Once the committed pin moves, the aged old recipe is collectible.
+        subprocess.run([*git, "add", "-A"], check=True)
+        subprocess.run([*git, "commit", "-q", "-m", "move binary pin"], check=True)
+        report, _ = self.prune(apply=True)
+        self.assertIn(f"tools/yosys/{install.key}", report['removed'])
+        self.assertFalse(install.directory.exists())
+
     def test_legacy_slots_are_pruned_only_on_request_and_by_last_use(self):
         slots = self.cache / "slots"
         old_slot = slots / ("1" * 64)
