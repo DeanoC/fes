@@ -90,6 +90,15 @@ with the diagnostic off matched before and after source changes in max, 286,
 The packed CPU metadata changed, so previous artifact and timing evidence does
 not test the new source.
 
+The later [wide instruction and zero-count milestone](2026-11-16-pc386-286-governor/wide-milestone/README.md)
+retains both the initial failing matrix and separately frozen holdouts for
+MUL/DIV, PUSHA/POPA, LEA and group-2 shifts, including deferred prefix bytes.
+It includes committed-access RAM qualification, multi-uop and physical
+MMIO/crossing controls, bounded queue behavior, and a 4 fps reference-speed
+trace for the last holdout. Those samples do not close the remaining general
+memory-wait, interrupt/fault, game pitch, timing or hardware gates. Prior
+source-bound artifact evidence does not apply to this later RTL.
+
 An earlier REP run failed to restore ES after reading the DOS interrupt vector
 and is invalid for RAM-to-RAM conclusions. An intervening run checked segment
 equality but did not verify nonzero data. The measurements above use the later

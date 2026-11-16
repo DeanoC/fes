@@ -66,6 +66,7 @@ module fes_i386_governor #(
     input  logic               replay,
     input  logic [1:0]         accesses,
     input  logic               dword,
+    input  logic               ordinary_ram,  // this uop has no access or is wholly RAM
     // ... its I/O access (io: the port and size, 0 a byte, 1 a word, 2 a
     // dword), and which of its memory accesses are MMIO: mmio of those at its
     // operand (a read-modify-write's two), mmio_st2 its st2 store, with the
@@ -123,7 +124,7 @@ module fes_i386_governor #(
 
     // WB's retirement, as it happens.
     logic                  s1_boundary, s1_eoi, s1_element, s1_taken, s1_dword;
-    logic                  s1_redirect, s1_abandon, s1_replay;
+    logic                  s1_redirect, s1_abandon, s1_replay, s1_ordinary_ram;
     logic [3:0]            s1_ilen;
     fes_i386_pkg::gov_t    s1_gov;
     logic [1:0]            s1_accesses;
@@ -143,6 +144,7 @@ module fes_i386_governor #(
         s1_gov <= gov;
         s1_accesses <= on ? accesses : 2'd0;
         s1_dword <= dword;
+        s1_ordinary_ram <= ordinary_ram;
         s1_io <= on && io;
         s1_io_port <= io_port;
         s1_io_size <= io_size;
@@ -179,10 +181,11 @@ module fes_i386_governor #(
                + (s1_mmio_st2 ? {2'd0, mmio_extra(s1_mmio_st2_halves, isa_vga, local_bus)} : 13'd0);
 
     logic        s2_ends, s2_column1, s2_element, s2_ea;
-    logic        s2_boundary, s2_redirect, s2_abandon;
+    logic        s2_boundary, s2_redirect, s2_abandon, s2_ordinary_ram;
     logic [3:0]  s2_ilen;
     fes_i386_pkg::gov_t s2_gov;
     logic [7:0] data_bus_acc, s2_data_bus;
+    logic ordinary_ram_acc;
     logic [9:0] data_bus_sum;
     assign data_bus_sum = 10'(data_bus_acc) + (10'(s1_accesses) << (s1_dword ? 2 : 1));
     logic [4:0]  s2_memory;
@@ -198,10 +201,16 @@ module fes_i386_governor #(
         s2_redirect <= s1_redirect && s1_boundary;
         s2_abandon <= s1_abandon;
         s2_ilen <= s1_ilen;
+        s2_ordinary_ram <= ordinary_ram_acc && (s1_accesses == 0 || s1_ordinary_ram);
         s2_gov <= s1_gov;
         s2_data_bus <= data_bus_sum > 10'd255 ? 8'hff : data_bus_sum[7:0];
-        if (reset || s1_abandon || s1_replay || !on || s1_boundary) data_bus_acc <= 8'd0;
-        else data_bus_acc <= data_bus_sum > 10'd255 ? 8'hff : data_bus_sum[7:0];
+        if (reset || s1_abandon || s1_replay || !on || s1_boundary) begin
+            data_bus_acc <= 8'd0;
+            ordinary_ram_acc <= 1'b1;
+        end else begin
+            data_bus_acc <= data_bus_sum > 10'd255 ? 8'hff : data_bus_sum[7:0];
+            if (s1_accesses != 0) ordinary_ram_acc <= ordinary_ram_acc && s1_ordinary_ram;
+        end
     end
 
     // A default-off experiment for the 286 reference only. Its state is
@@ -211,11 +220,29 @@ module fes_i386_governor #(
     // to be validated before enabling it in a package.
     logic [8:0] execution_clocks;
     logic [7:0] refill_execution;
-    logic [5:0] reference_fetch, reference_prefix;
+    logic [12:0] reference_fetch;
+    logic [5:0] reference_prefix;
     logic       rep_active, reference_on, reference_first, reference_chunkable, reference_chunk_restart;
     logic [7:0] reference_element;
     logic [7:0] reference_chunk_clocks;
     assign reference_on = REFERENCE_DIAGNOSTIC && on && p_id == 3'd1;
+    // Reference leaves its fetch queue unchanged for zero CL-count group 2.
+    // Restrict this experiment to known RAM or register operands.
+    logic reference_zero_shift, reference_zero_kind;
+    logic [12:0] reference_pending_sum;
+    logic [11:0] reference_pending;
+    assign reference_pending_sum = {1'b0, reference_pending} + {9'd0, s2_gov.ref_prefix_count} +
+                                   13'(s2_gov.op == 8'hc0 || s2_gov.op == 8'hc1);
+    // The 4095-byte bound keeps a later fetch charge within the existing
+    // charge representation. At the bound, use the prior diagnostic path.
+    assign reference_zero_kind = reference_on && s2_boundary && s2_ends && !s2_gov.two &&
+        !s2_gov.o32 && !s2_gov.ref_zero_unsafe && s2_ordinary_ram && !s2_gov.ref_shift_nonzero &&
+        (s2_gov.op == 8'hc0 || s2_gov.op == 8'hc1 || s2_gov.op == 8'hd2 || s2_gov.op == 8'hd3);
+    assign reference_zero_shift = reference_zero_kind && !reference_pending_sum[12];
+    always_ff @(posedge clk) begin
+        if (reset || s2_abandon || !reference_on) reference_pending <= 0;
+        else if (s2_boundary) reference_pending <= reference_zero_shift ? reference_pending_sum[11:0] : 0;
+    end
     // This emulator uses a bounded execution budget for each ordinary REP
     // string chunk. CMPS is decoded per element, not by this chunk mechanism.
     assign reference_chunkable = s2_gov.rep && !s2_gov.two &&
@@ -249,6 +276,36 @@ module fes_i386_governor #(
             // effective 16-bit operands. Other encoding and memory contexts
             // remain diagnostic and require separate validation.
             if (!s2_gov.o32) begin
+                // Measured-reference experiment, limited to unprefixed 16-bit forms.
+                if (!s2_gov.ref_test_excluded) begin
+                    // Count zero keeps the prior diagnostic path pending validation.
+                    if (s2_ordinary_ram && !s2_gov.ea3 && s2_gov.ref_shift_nonzero &&
+                        (s2_gov.op == 8'hc0 || s2_gov.op == 8'hc1 ||
+                         (s2_gov.op >= 8'hd0 && s2_gov.op <= 8'hd3))) begin
+                        if (s2_gov.mreg == 3'd2 || s2_gov.mreg == 3'd3)
+                            execution_clocks = s2_gov.rm_reg ? 9'd9 : 9'd10;
+                        else execution_clocks = s2_gov.rm_reg ? 9'd3 : 9'd7;
+                    end
+                    if (s2_ordinary_ram && s2_gov.op == 8'h60) execution_clocks = 9'd18;
+                    if (s2_ordinary_ram && s2_gov.op == 8'h61) execution_clocks = 9'd24;
+                    if (s2_gov.op == 8'h8d) execution_clocks = 9'd2;
+                    if (s2_ordinary_ram && s2_gov.op == 8'hf6) begin
+                        case (s2_gov.mreg)
+                            3'd4: execution_clocks = 9'd13;
+                            3'd5, 3'd6: execution_clocks = 9'd14;
+                            3'd7: execution_clocks = 9'd19;
+                            default: ;
+                        endcase
+                    end
+                    if (s2_ordinary_ram && s2_gov.op == 8'hf7) begin
+                        case (s2_gov.mreg)
+                            3'd4: execution_clocks = 9'd21;
+                            3'd5, 3'd6: execution_clocks = 9'd22;
+                            3'd7: execution_clocks = 9'd27;
+                            default: ;
+                        endcase
+                    end
+                end
                 if (!s2_gov.ref_test_excluded && !s2_gov.rm_reg && (s2_gov.op == 8'h84 || s2_gov.op == 8'h85 ||
                     ((s2_gov.op == 8'hf6 || s2_gov.op == 8'hf7) && s2_gov.mreg == 3'd0)))
                     execution_clocks = 9'd5;
@@ -277,6 +334,7 @@ module fes_i386_governor #(
                 (s2_gov.op == 8'h80 || s2_gov.op == 8'h81 || s2_gov.op == 8'h82 || s2_gov.op == 8'h83))
                 execution_clocks = 9'd7;
         end
+        if (reference_zero_shift) execution_clocks = 9'd0;
         if (s2_element) execution_clocks = execution_clocks + {1'b0, reference_element};
     end
     always_comb begin
@@ -309,36 +367,36 @@ module fes_i386_governor #(
         // A 16-byte cap matches this emulator's surrogate, not the six-byte
         // instruction queue of a physical 286.
         logic [4:0] queue_bytes;
-        logic [3:0] length;
-        logic [5:0] missing, words, present, next_queue;
+        logic [12:0] length, missing, words, present;
+        logic [5:0] next_queue;
         logic [7:0] spare, spare_raw;
         logic [8:0] spare_total;
         logic spare_odd;
-        assign length = reference_first ? s2_ilen : 4'd0;
+        assign length = {1'b0, reference_pending} + (reference_first ? {9'd0, s2_ilen} : 13'd0);
         always_comb begin
-            missing = {2'b0, length} > {1'b0, queue_bytes} ? {2'b0, length} - {1'b0, queue_bytes} : 0;
-            words = (missing + 6'd1) >> 1;
-            present = {1'b0, queue_bytes} + (words << 1) - {2'b0, length};
+            missing = length > {8'd0, queue_bytes} ? length - {8'd0, queue_bytes} : 0;
+            words = (missing + 13'd1) >> 1;
+            present = {8'd0, queue_bytes} + (words << 1) - length;
             spare_raw = refill_execution > s2_data_bus ? refill_execution - s2_data_bus : 0;
             spare_total = {1'b0, spare_raw} + 9'(reference_chunkable && !reference_first && spare_odd);
             spare = spare_total[8:1];
-            next_queue = spare >= 8 ? 6'd16 : present + (6'(spare) << 1);
+            next_queue = spare >= 8 ? 6'd16 : 6'(present) + (6'(spare) << 1);
             if (next_queue > 16) next_queue = 16;
         end
-        assign reference_fetch = reference_on && s2_boundary ? words << 1 : 0;
+        assign reference_fetch = reference_on && s2_boundary && !reference_zero_shift ? words << 1 : 0;
         always_ff @(posedge clk) begin
             if (reset || s2_abandon || !reference_on) begin queue_bytes <= 0; spare_odd <= 0; end
-            else if (s2_boundary) begin
+            else if (s2_boundary && !reference_zero_shift) begin
                 queue_bytes <= s2_redirect ? 0 : next_queue[4:0];
                 spare_odd <= reference_chunkable && !s2_ends ? spare_total[0] : 0;
             end
         end
     end else begin : gen_no_reference_queue
-        assign reference_fetch = 6'd0;
+        assign reference_fetch = 13'd0;
     end endgenerate
     always_ff @(posedge clk)
-        charge <= {4'd0, execution_clocks} + {7'd0, reference_fetch} + {7'd0, reference_prefix}
-                + {12'd0, s2_ea} + {8'd0, s2_memory} + s2_isa;
+        charge <= {4'd0, execution_clocks} + reference_fetch + {7'd0, reference_prefix}
+                + {12'd0, s2_ea && !reference_zero_shift && !(reference_on && !s2_gov.ref_test_excluded && !s2_gov.two && !s2_gov.o32 && s2_gov.op == 8'h8d)} + {8'd0, s2_memory} + s2_isa;
 
     // The debt, paid down by step each clock and never below zero.
     logic [27:0] debt;

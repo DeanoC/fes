@@ -6,7 +6,7 @@ module governor_integration_tb;
   logic clk=0; always #1 clk=~clk;
   logic reset=1, boundary=0,eoi=0,element=0,taken=0,redir=0,abandon=0,replay=0;
   gov_t gov='0;
-  logic [3:0] ilen=0; logic [1:0] accesses=0; logic [1:0] mmio=0;
+  logic [3:0] ilen=0; logic [1:0] accesses=0; logic ordinary_ram=1; int saved_queue; logic [1:0] mmio=0;
   logic [2:0] preset=1; logic turbo=0;
   logic hold0,hold1; logic [11:0] debt0,debt1; logic [12:0] charge0,charge1;
   logic tally=0; int sum0=0,sum1=0;
@@ -14,13 +14,13 @@ module governor_integration_tb;
   fes_i386_governor #(.GOV_N(1),.GOV_D(1000)) baseline (
     .clk,.reset,.preset,.frequency(10'd0),.turbo,
     .boundary,.eoi,.element,.taken,.gov,.ilen,.redirect(redir),.abandon,.replay,
-    .accesses,.dword(1'b0),.io(1'b0),.io_port(16'd0),.io_size(2'd0),.mmio,
+    .accesses,.dword(1'b0),.ordinary_ram,.io(1'b0),.io_port(16'd0),.io_size(2'd0),.mmio,
     .mmio_halves(3'd1),.mmio_st2(1'b0),.mmio_st2_halves(3'd0),.hold(hold0),.debt_clocks(debt0),.charge(charge0)
   );
   fes_i386_governor #(.GOV_N(1),.GOV_D(1000),.REFERENCE_DIAGNOSTIC(1)) candidate (
     .clk,.reset,.preset,.frequency(10'd0),.turbo,
     .boundary,.eoi,.element,.taken,.gov,.ilen,.redirect(redir),.abandon,.replay,
-    .accesses,.dword(1'b0),.io(1'b0),.io_port(16'd0),.io_size(2'd0),.mmio,
+    .accesses,.dword(1'b0),.ordinary_ram,.io(1'b0),.io_port(16'd0),.io_size(2'd0),.mmio,
     .mmio_halves(3'd1),.mmio_st2(1'b0),.mmio_st2_halves(3'd0),.hold(hold1),.debt_clocks(debt1),.charge(charge1)
   );
   task automatic instruction(input byte op, input int regfield, nbytes, naccess, input bit branch_taken);
@@ -28,7 +28,7 @@ module governor_integration_tb;
     boundary=1; eoi=1; taken=branch_taken; redir=branch_taken;
   endtask
   task automatic restart;
-    @(negedge clk); tally=0; reset=1; boundary=0; eoi=0; accesses=0; mmio=0; abandon=0; replay=0; redir=0; taken=0; gov='0;
+    @(negedge clk); tally=0; reset=1; boundary=0; eoi=0; accesses=0; mmio=0; abandon=0; replay=0; redir=0; taken=0; ordinary_ram=1; gov='0;
     repeat(5) @(negedge clk); reset=0; repeat(8) @(negedge clk); sum0=0; sum1=0; tally=1;
   endtask
   task automatic finish_trial(input int expected0,expected1, input string label);
@@ -231,6 +231,168 @@ module governor_integration_tb;
     if (candidate.execution_clocks != 6 || candidate.refill_execution != 6)
       $fatal(1,"32-bit address TEST fallback changed");
     finish_trial(7,10,"32-bit address TEST fallback");
+    restart;
+    instruction(8'hd3,4,2,2,0); gov.ref_shift_nonzero=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (!candidate.reference_zero_shift || candidate.execution_clocks != 0)
+      $fatal(1,"zero-count RAM did not select zero handling");
+    finish_trial(14,0,"zero-count RAM");
+    restart;
+    instruction(8'hd3,4,2,2,0); gov.ref_shift_nonzero=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.reference_zero_shift || candidate.execution_clocks != 7)
+      $fatal(1,"nonzero memory shift did not select normal handling");
+    finish_trial(14,9,"nonzero-count RAM");
+    restart;
+    instruction(8'hd3,4,2,2,0); gov.ref_shift_nonzero=0; ordinary_ram=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
+    @(negedge clk);
+    if (candidate.reference_zero_shift || candidate.execution_clocks != 12)
+      $fatal(1,"unknown operand did not retain prior diagnostic path");
+    finish_trial(14,14,"unknown zero-count operand");
+    restart;
+    instruction(8'hd3,4,2,2,0); gov.ref_shift_nonzero=0; ordinary_ram=0; mmio=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1; mmio=0;
+    @(negedge clk);
+    if (candidate.reference_zero_shift || candidate.execution_clocks != 12)
+      $fatal(1,"MMIO did not retain prior diagnostic path");
+    repeat(8) @(negedge clk); tally=0;
+    restart;
+    instruction(8'h90,0,1,0,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(4) @(negedge clk);
+    saved_queue = int'(candidate.gen_reference_queue.queue_bytes);
+    instruction(8'hd3,4,2,2,0); gov.ref_shift_nonzero=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(4) @(negedge clk);
+    if (int'(candidate.gen_reference_queue.queue_bytes) != saved_queue)
+      $fatal(1,"zero-count RAM altered queue");
+    tally=0;
+    restart;
+    for (int i=0; i<8; i++) begin
+      @(negedge clk); gov='0; gov.op=8'h60; ilen=1; accesses=1;
+      boundary=(i==7); eoi=(i==7);
+    end
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 18 || candidate.s2_data_bus != 16)
+      $fatal(1,"PUSHA execution or bus accumulation");
+    finish_trial(25,20,"PUSHA eight committed stores");
+    restart;
+    for (int i=0; i<7; i++) begin
+      @(negedge clk); gov='0; gov.op=8'h61; ilen=1; accesses=1;
+      boundary=(i==6); eoi=(i==6);
+    end
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 24 || candidate.s2_data_bus != 14)
+      $fatal(1,"POPA execution or bus accumulation");
+    finish_trial(26,26,"POPA seven committed loads");
+    restart;
+    instruction(8'h8d,0,3,0,0); gov.ea3=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 2 || !candidate.s2_ea)
+      $fatal(1,"complex LEA input classification");
+    finish_trial(4,6,"complex LEA without diagnostic EA surcharge");
+    restart;
+    instruction(8'hf6,4,2,1,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 13 || candidate.refill_execution != 13)
+      $fatal(1,"byte MUL memory reference budget");
+    finish_trial(17,15,"byte MUL memory");
+    restart;
+    instruction(8'hf6,6,2,1,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 14 || candidate.refill_execution != 14)
+      $fatal(1,"byte DIV memory reference budget");
+    finish_trial(18,16,"byte DIV memory");
+    restart;
+    instruction(8'hc1,4,3,2,0); gov.ref_shift_nonzero=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(4) @(negedge clk);
+    if (candidate.reference_pending != 1 || candidate.gen_reference_queue.queue_bytes != 0)
+      $fatal(1,"immediate zero did not defer one fetch byte");
+    instruction(8'h90,0,2,0,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(4) @(negedge clk);
+    if (candidate.reference_pending != 0)
+      $fatal(1,"normal instruction failed to consume deferred byte");
+    tally=0;
+    restart;
+    instruction(8'hd3,4,4,2,0); gov.ref_shift_nonzero=0; gov.ref_prefix_count=2; gov.prefix286=8;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(4) @(negedge clk);
+    if (candidate.reference_pending != 2 || candidate.gen_reference_queue.queue_bytes != 0 || sum1 != 8)
+      $fatal(1,"two segment prefixes were not charged and deferred");
+    tally=0;
+    restart;
+    instruction(8'hd3,4,4,2,0); gov.ref_shift_nonzero=0; gov.ea3=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (!candidate.reference_zero_shift || candidate.execution_clocks != 0)
+      $fatal(1,"complex-EA zero not selected");
+    finish_trial(15,0,"complex-EA zero reference handling");
+    restart;
+    instruction(8'hd3,4,4,2,0); gov.ref_shift_nonzero=0; gov.ref_zero_unsafe=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.reference_zero_shift || candidate.execution_clocks != 12)
+      $fatal(1,"unsupported prefix did not retain prior path");
+    finish_trial(14,16,"unsupported-prefix fallback");
+    restart;
+    for (int i=0; i<4096; i++) begin
+      @(negedge clk); gov='0; gov.op=8'hc1; gov.mreg=4; gov.ref_shift_nonzero=0;
+      ilen=3; accesses=2; boundary=1; eoi=1;
+    end
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    repeat(5) @(negedge clk);
+    if (candidate.reference_pending != 0)
+      $fatal(1,"pending boundary did not drain");
+    finish_trial(57344,4110,"pending bound fallback does not wrap");
+    restart;
+    for (int i=0; i<8; i++) begin
+      @(negedge clk); gov='0; gov.op=8'h60; ilen=1; accesses=1; ordinary_ram=(i!=2);
+      boundary=(i==7); eoi=(i==7);
+    end
+    @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
+    @(negedge clk);
+    if (candidate.s2_ordinary_ram || candidate.execution_clocks != 17)
+      $fatal(1,"mixed-access PUSHA failed to retain prior path");
+    finish_trial(25,19,"mixed-access PUSHA fallback");
+    restart;
+    instruction(8'hd3,4,2,2,0); gov.ref_shift_nonzero=1; ordinary_ram=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
+    @(negedge clk);
+    if (candidate.s2_ordinary_ram || candidate.execution_clocks != 12)
+      $fatal(1,"nonzero shift outside RAM changed");
+    finish_trial(14,14,"nonzero shift outside RAM");
+    restart;
+    instruction(8'hf6,4,2,1,0); ordinary_ram=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
+    @(negedge clk);
+    if (candidate.s2_ordinary_ram || candidate.execution_clocks != 16)
+      $fatal(1,"MUL outside RAM changed");
+    finish_trial(17,18,"MUL outside RAM");
+    restart;
+    instruction(8'hf6,0,3,1,0); ordinary_ram=0;
+    @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
+    @(negedge clk);
+    if (candidate.s2_ordinary_ram || candidate.execution_clocks != 5 || candidate.refill_execution != 5)
+      $fatal(1,"pre-existing TEST path outside RAM changed");
+    finish_trial(7,9,"pre-existing TEST path outside RAM");
+    restart;
+    instruction(8'hf6,4,2,1,0); ordinary_ram=0;
+    instruction(8'hf6,4,2,1,0); ordinary_ram=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0; ordinary_ram=1;
+    @(negedge clk);
+    if (!candidate.s2_ordinary_ram || candidate.execution_clocks != 13)
+      $fatal(1,"adjacent RAM instruction inherited previous non-RAM access");
+    repeat(8) @(negedge clk); tally=0;
     preset=3; restart;
     instruction(8'hff,0,4,2,0); instruction(8'h83,7,5,1,0); instruction(8'h75,0,2,0,1);
     finish_trial(19,19,"non-286");

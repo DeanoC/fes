@@ -758,6 +758,9 @@ module fes_i386_cpu #(
                         rm_reg: q_modrm[7:6] == 2'b11, o32: q_opsize32, rep: q.prefixes.rep != 2'b00,
                         ea3: am_has_base && am_has_index && q_modrm[7] != q_modrm[6] && !q_direct,
                         ref_test_excluded: GOV_REFERENCE_DIAGNOSTIC && (code32 || q.prefix_count != 4'd0),
+                        ref_shift_nonzero: 1'b0,
+                        ref_zero_unsafe: GOV_REFERENCE_DIAGNOSTIC && (code32 || q.ref_bad_zero_prefix),
+                        ref_prefix_count: GOV_REFERENCE_DIAGNOSTIC ? q.prefix_count : 4'd0,
                         prefix286: q.prefix286};
     assign dc_q.seq = q_seq;
     assign dc_q.step = 3'd0;
@@ -2690,6 +2693,8 @@ module fes_i386_cpu #(
     end
     always_comb begin
         ex_out = ex_s;
+        if (GOV_REFERENCE_DIAGNOSTIC && ex_s.uop.cls == fes_i386_pkg::UOP_SHIFT)
+            ex_out.gov.ref_shift_nonzero = ex_s.exc.byp_c ? wb_s.result[4:0] != 5'd0 : ex_s.exc.sh.count != 5'd0;
         ex_out.result = ex_result;
         ex_out.eflags = ex_flags_out;
         // An I/O uop's port (b) and OUT's data or IN's merge (a) are used at
@@ -3181,6 +3186,10 @@ module fes_i386_cpu #(
         .gov(wb_s.gov), .ilen(wb_s.ilen), .redirect(wb_s.taken && wb_s.uop.rep_stop == 2'd0),
         .abandon(exc_take || int_go || tsw_go), .replay(rp_go),
         .accesses(gov_accesses), .dword(wb_s.uop.mem.bytes[2] || wb_s.uop.mem.bytes[3]),
+        // For an instruction's committed accesses, both physical lines
+        // must be RAM; no-access uops do not disqualify the instruction.
+        .ordinary_ram(gov_accesses == 0 || !wb_s.uop.st2 && wb_at0 == fes_i386_pkg::ATTR_RAM &&
+                      (!wb_cross || wb_at1 == fes_i386_pkg::ATTR_RAM)),
         .io(wb_commit && wb_s.uop.io != 2'd0), .io_port, .io_size,
         .mmio(gov_mmio), .mmio_halves(halves(wb_s.maddr[0], wb_s.uop.mem.bytes)),
         .mmio_st2(gov_mmio_st2), .mmio_st2_halves(halves(wb_s.target[0], wb_s.uop.mem.bytes)),

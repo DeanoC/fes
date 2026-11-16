@@ -1,0 +1,15 @@
+{
+  "EA_BX_SI_ZERO": "xor cx,cx\n shl word [bx+si+5],cl",
+  "EA_BX_DI_ZERO": "xor cx,cx\n shr byte [bx+di+0x1234],cl",
+  "IMM_ZERO_REG": "shr dx,0",
+  "IMM_ZERO_MEM": "rol byte [bx],0",
+  "DOUBLE_IMM": "shl byte [bx],0\n sar word [bx],0",
+  "SEG_ZERO_CL": "xor cx,cx\n ds shl word [bx],cl",
+  "MULTISEG_ZERO": "xor cx,cx\n db 0x26,0x3e\n shr word [bx],cl",
+  "SEG_IMM_ZERO": "ds shr word [bx],0",
+  "DOUBLE_SEG": "xor cx,cx\n ds shl word [bx],cl\n ds shr byte [bx],cl",
+  "IMM_THEN_ONE": "shr word [bx],0\n mov cl,1\n shl byte [bx],cl",
+  "IMM_THEN_JMP": "shr word [bx],0\n jmp $+2",
+  "SEG_ZERO_REG": "xor cx,cx\n ds rol dx,cl",
+  "EA_ODD_DISP": "mov cl,32\n sar word [bx+si+3],cl"
+}

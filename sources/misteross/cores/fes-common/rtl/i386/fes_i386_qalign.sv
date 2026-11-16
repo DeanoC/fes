@@ -65,6 +65,7 @@ module fes_i386_qalign import fes_i386_pkg::*; (
     prefixes_t   acc;
     logic [3:0]  acc_count;    // prefixes consumed; at most 13
     logic [5:0]  acc_prefix286; // diagnostic reference prefix clocks
+    logic        acc_bad_zero_prefix, bad_zero_prefix;
     logic [31:0] acc_linear;   // linear address of the first consumed prefix
     logic        acc_xbad;     // a consumed prefix took Q into a half that does not follow
     ftag_t       acc_tag;      // the first consumed prefix's half's paging tag
@@ -165,6 +166,8 @@ module fes_i386_qalign import fes_i386_pkg::*; (
     assign prefix_count = 5'(acc_count) + (* no_carry *) 5'(prefix_here);
     assign acc_count_next = 5'(acc_count) + (* no_carry *) 5'd1;
     assign prefixes = prefix_here ? add_prefix(acc, rotated[0]) : acc;
+    assign bad_zero_prefix = rotated[0] != 8'h26 && rotated[0] != 8'h2e &&
+                             rotated[0] != 8'h36 && rotated[0] != 8'h3e;
     // The diagnostic 286 reference adds four clocks per segment or LOCK
     // prefix and two per size or REP prefix. This metadata does not affect Q.
     always_comb begin
@@ -188,11 +191,13 @@ module fes_i386_qalign import fes_i386_pkg::*; (
             acc <= '0;
             acc_count <= 4'd0;
             acc_prefix286 <= 6'd0;
+            acc_bad_zero_prefix <= 1'b0;
             acc_xbad <= 1'b0;
         end else if (consume) begin
             acc <= add_prefix(acc, rotated[0]);
             acc_count <= acc_count_next[3:0];
             acc_prefix286 <= acc_prefix286 + (* no_carry *) prefix286_increment;
+            acc_bad_zero_prefix <= acc_bad_zero_prefix || bad_zero_prefix;
             if (acc_count == 4'd0) begin
                 acc_linear <= linear_here;
                 acc_tag <= cur_tag;
@@ -213,6 +218,7 @@ module fes_i386_qalign import fes_i386_pkg::*; (
             q.linear <= acc_count == 4'd0 ? linear_here : acc_linear;
             q.length <= total[3:0];
             q.prefix_count <= prefix_count[3:0];
+            q.ref_bad_zero_prefix <= acc_bad_zero_prefix || (prefix_here && bad_zero_prefix);
             q.prefix286 <= acc_prefix286 + (* no_carry *) (prefix_here ? prefix286_increment : 6'd0);
             q.prefixes <= prefixes;
             q.too_long <= too_long_run || total[4];

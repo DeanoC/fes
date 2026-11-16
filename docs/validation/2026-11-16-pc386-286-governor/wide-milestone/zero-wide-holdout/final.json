@@ -1,0 +1,54 @@
+{
+  "EA_BX_SI_ZERO": {
+    "charged": 16.028,
+    "cycles": 82070
+  },
+  "EA_BX_DI_ZERO": {
+    "charged": 16.028,
+    "cycles": 82126
+  },
+  "IMM_ZERO_REG": {
+    "charged": 14.025,
+    "cycles": 71871
+  },
+  "IMM_ZERO_MEM": {
+    "charged": 14.03,
+    "cycles": 71896
+  },
+  "DOUBLE_IMM": {
+    "charged": 16.028,
+    "cycles": 82126
+  },
+  "SEG_ZERO_CL": {
+    "charged": 20.025,
+    "cycles": 102591
+  },
+  "MULTISEG_ZERO": {
+    "charged": 26.028,
+    "cycles": 133326
+  },
+  "SEG_IMM_ZERO": {
+    "charged": 20.025,
+    "cycles": 102591
+  },
+  "DOUBLE_SEG": {
+    "charged": 26.025,
+    "cycles": 133310
+  },
+  "IMM_THEN_ONE": {
+    "charged": 25.025,
+    "cycles": 128191
+  },
+  "IMM_THEN_JMP": {
+    "charged": 25.026,
+    "cycles": 128196
+  },
+  "SEG_ZERO_REG": {
+    "charged": 20.028,
+    "cycles": 102606
+  },
+  "EA_ODD_DISP": {
+    "charged": 16.03,
+    "cycles": 82136
+  }
+}
