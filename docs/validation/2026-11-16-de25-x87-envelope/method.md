@@ -65,6 +65,30 @@ is not replaced.
    answers. The selection has to work in both directions: a DE25 build must
    exclude the sequenced arithmetic, and a DE10 build must exclude the
    backend, or #1889's existing figures stop meaning what they say.
+
+   **Amended 16 Nov 2026**, because the rule as written **cannot be checked**
+   and was wrongly reported as met. PR #1889's record carries **no trace
+   hashes** — `lockstep-identity-on-pass.txt` holds case counts only — so
+   there is nothing to compare against. And the three directed cases this work
+   added to the x87 suite change `x87_cases`' hash **by construction**, in
+   both configurations.
+
+   What had been seen when this was amended: a baseline lockstep run at this
+   branch's merge commit `717c3463a`, and runs of both configurations at head.
+   Seven of eight suites — directed, memory, no387, paging, pmode,
+   reset_store, unreal — are byte-identical across all three. `x87_cases`
+   differs from the baseline and is **identical between the two
+   configurations**, which is what places the change in the suite rather than
+   the RTL.
+
+   The rule is therefore replaced by what is checkable, and the replacement is
+   weaker than the original, which is said rather than hidden:
+   **(a)** every suite this work did not change has a trace hash identical to
+   a baseline generated at the merge commit; **(b)** the changed suite's hash
+   is identical between the two configurations; **(c)** the DE10 configuration
+   reports a backend operation count of zero, so the backend is genuinely not
+   reached. It does **not** establish equality with #1889's own runs, because
+   #1889 recorded no hashes to establish it against.
 6. **The integrated design fits Agilex 5 at 61.44 MHz**, the headline
    constraint the sibling `i386-agilex5-size` session committed to
    (`docs/validation/2026-11-16-i386-agilex5-fit/method.md`), with seeds 1–4,
