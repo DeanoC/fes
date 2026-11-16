@@ -105,7 +105,18 @@
 // A load's operation finishes after the instruction retires, as a real 387's
 // does with BUSY# still active: nothing the CPU does depends on it, and the
 // next ESC holds in D until the unit is idle.
-module fes_i386_x87 (
+module fes_i386_x87 #(
+    // Which arithmetic implementation the unit's A_RND state is fed from.
+    // 0 is this file's own sequenced datapath (the A_* and D_* states), which
+    // is the DE10's and the verified reference. 1 is the DE25's pipelined
+    // `fes_x87_core`, whose pre-rounding `raw_t` lands in the same working
+    // registers A_RND already reads. Only one is instantiated: at 1 the
+    // sequencer's adder, its Goldschmidt divide and its reciprocal seed table
+    // are unreachable and synthesis removes them. The rounding, the masked and
+    // unmasked rules, the stack, the conversions and the AT error path are
+    // the same code either way, which is the point of the split.
+    parameter int X87_BACKEND = 0
+) (
     input  logic        clk,
     input  logic        reset,
     input  logic        present,     // the i386dx+387 identity
@@ -593,6 +604,9 @@ module fes_i386_x87 (
     // second sequencer.
     typedef enum logic [5:0] {
         S_IDLE, S_ARG, S_PRE, S_SHIFT, S_MUL, S_POST, S_POST2, S_RDY, S_SAVE_RD, S_APPLY, S_APPLY2,
+        // ---- The DE25 backend's two states (X87_BACKEND = 1). ----
+        B_ISSUE,    // offer the operation to fes_x87_core
+        B_WAIT,     // ... and take its pre-rounding result into A_RND's registers
         A_CVT,      // a memory operand's conversion has finished: take it
         A_CAP,      // take both operands, so the classes below can read them
         A_SETUP,    // the dispatch, and the pre-normalising shifts
@@ -1400,6 +1414,66 @@ module fes_i386_x87 (
     logic [79:0] rimg;         // a save image's register, gathered by its chunks
     assign push_i = top - 3'd1;
     assign pop_i = top;
+    // ---- The DE25 arithmetic backend (X87_BACKEND = 1). ----
+    // `fes_x87_core` takes the operands as they stand -- it normalises
+    // denormals itself, so the A_PNA/A_PNB pre-normalising shifts are not on
+    // this path -- and returns the result BEFORE rounding. Its `raw_t` and
+    // A_RND's working registers are the same representation: the exponent is
+    // biased by 16383 and signed, the significand's bit 66 is the integer
+    // bit, and bits 2, 1 and 0 are the guard, round and sticky. The bit
+    // positions were checked against round_pc at all three precisions rather
+    // than assumed; the record records that check.
+    //
+    // The lanes raise IE, DE and ZE only -- never PE, UE or OE, which are the
+    // rounding's -- so OR-ing `bk_raw.flags` into `pfl` cannot double-count
+    // what A_RND is about to set.
+    logic                     bk_req_valid, bk_req_ready, bk_raw_valid;
+    logic [2:0]               bk_op;
+    logic                     bk_cancel;
+    fes_x87_pkg::raw_t        bk_raw;
+    // The CPU's `flush` must NOT reach the backend. Arithmetic is entered
+    // after the instruction commits (S_IDLE on `wb && wb_last`), and a
+    // retired instruction deliberately runs on through a later squash
+    // (`flush && started && !committed` below is the only thing that stops
+    // it), exactly as a 387 does with BUSY# still active. A straight-through
+    // flush would cancel a committed operation and leave the unit waiting for
+    // a result that was thrown away.
+    assign bk_cancel = reset || f1 || (flush && started && !committed);
+    generate
+        if (X87_BACKEND == 1) begin : g_de25
+            fes_x87_core core (
+                .clk, .reset(reset || f1), .flush(bk_cancel),
+                .req_valid(bk_req_valid), .ext_ready(1'b1), .req_ready(bk_req_ready),
+                .req_op(bk_op), .req_a(pa), .req_b(pb),
+                .req_pc(wprec), .req_rc(rc), .req_slot(4'd0),
+                .raw_valid(bk_raw_valid), .raw(bk_raw)
+            );
+        end else begin : g_de10
+            assign bk_req_ready = 1'b0;
+            assign bk_raw_valid  = 1'b0;
+            assign bk_raw        = '0;
+        end
+    endgenerate
+    // The decoded operation, from the same form bits the sequencer's datapath
+    // reads. `pb`'s sign already carries `a_sub` through `sign_b`, but the
+    // backend takes the operands as stored, so a subtract is OP_SUB rather
+    // than an add of a negated operand.
+    always_comb begin
+        if (cur == X87_SQRT)      bk_op = 3'(fes_x87_pkg::OP_SQRT);
+        else if (cur == X87_DIV)  bk_op = 3'(fes_x87_pkg::OP_DIV);
+        else if (a_mul)           bk_op = 3'(fes_x87_pkg::OP_MUL);
+        else if (a_sub)           bk_op = 3'(fes_x87_pkg::OP_SUB);
+        else                      bk_op = 3'(fes_x87_pkg::OP_ADD);
+    end
+    // The forms the backend answers. Everything else -- FRNDINT, FSCALE,
+    // FXTRACT, FPREM and FPREM1 -- stays on the sequencer, because each needs
+    // the shifter the conversions need anyway and none needs the adder or the
+    // divider. The transcendentals are built on neither and stop in decode.
+    assign bk_req_valid = seq == B_ISSUE;
+    logic bk_form;
+    assign bk_form = X87_BACKEND == 1
+                  && (cur == X87_ARITH || cur == X87_DIV || cur == X87_SQRT);
+
     assign busy = seq != S_IDLE || rw_en;
     assign env_load = started && (cur == X87_LDENV || cur == X87_RSTOR);
     // The cycle FNINIT or FNSAVE commits, which is when the CPU clears the
@@ -1943,8 +2017,20 @@ module fes_i386_x87 (
                     ob_m <= mul_p[63:0];
                     seq <= A_OP;
                 end
-                // The operation's first datapath step.
-                A_OP: begin
+                // The operation's first datapath step. With the DE25
+                // backend selected the four forms it answers divert here,
+                // which catches every path into A_OP -- the direct one and
+                // the two that come back from a denormal's pre-normalising
+                // shift. The shift is wasted work on this path, because the
+                // backend normalises its own operands out of `pa` and `pb`,
+                // which A_PNA and A_PNB do not touch; it costs cycles after
+                // the instruction has already retired and nothing waits on
+                // it. Correctness does not depend on skipping it, so it is
+                // left where it is rather than threaded through three more
+                // branches.
+                A_OP: if (bk_form) begin
+                    seq <= B_ISSUE;
+                end else begin
                     if (cur == X87_ARITH && a_mul) begin
                         // The product, on the one multiplier. Both operands
                         // are normalised, so it lands in [1, 4) and needs a
@@ -2438,6 +2524,30 @@ module fes_i386_x87 (
                 //     rounding and not two, and reports UE where that
                 //     rounding lost bits: a tiny exact result raises nothing;
                 //   - the precision exception never holds a result back.
+                // Offer the operation. `req_ready` can only be low here
+                // for a divide or a square root whose lane has not drained,
+                // which one ESC in flight makes unreachable; the handshake is
+                // held anyway, because that is the backend's contract.
+                B_ISSUE: if (bk_req_ready) seq <= B_WAIT;
+                // Take the result before rounding. `bk_raw` and `bk_raw_valid`
+                // are both lane outputs registered on the same edge, so this
+                // reads a settled value and not one assigned in this state --
+                // the hazard that has appeared in every slice of this unit.
+                B_WAIT: if (bk_raw_valid) begin
+                    wsign <= bk_raw.sign;
+                    we    <= bk_raw.exponent;
+                    wm    <= bk_raw.significand[66:3];
+                    wg    <= bk_raw.significand[2];
+                    wrd   <= bk_raw.significand[1];
+                    ws    <= bk_raw.significand[0];
+                    // The lanes raise IE, DE and ZE; A_RND adds PE, UE and
+                    // OE. `special` can only be set for an operand class
+                    // A_SETUP has already answered and never reaches here,
+                    // so the value it would carry is not read -- the unit
+                    // bench asserts that it stays clear.
+                    pfl   <= pfl | bk_raw.flags;
+                    seq   <= A_RND;
+                end
                 A_RND: begin
                     logic [66:0]        rp;
                     logic [63:0]        mag;

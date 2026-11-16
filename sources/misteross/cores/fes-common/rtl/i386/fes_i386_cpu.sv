@@ -121,7 +121,13 @@
 // retires, trace_retire rises and arch_* hold the state after it.
 module fes_i386_cpu #(
     parameter logic [31:0] RAM_BASE = 32'h3400_0000, // the HPS address of guest physical 0
-    parameter integer GOV_N = 1, GOV_D = 1000         // 100 kHz as a fraction of clk (fes_i386_governor)
+    parameter integer GOV_N = 1, GOV_D = 1000,        // 100 kHz as a fraction of clk (fes_i386_governor)
+    // Which arithmetic the x87 unit's rounding is fed from: 0 the unit's
+    // own sequenced datapath (the DE10's, and the verified reference),
+    // 1 the DE25's pipelined fes_x87_core. The envelope -- the stack,
+    // the words, the conversions, the commit and the AT error path --
+    // is the same code either way (fes_i386_x87).
+    parameter int X87_BACKEND = 0
 ) (
     input  logic             clk,
     input  logic             cold_reset,   // the machine's start: also empties the write buffer
@@ -868,7 +874,7 @@ module fes_i386_cpu #(
                                                               : {12'd0, wb_s.result[15:12]};
     assign x87_ld_opcode = !cr0_pe ? wb_s.result[10:0]
                          : wb_s.uop.size == fes_i386_pkg::SIZE_32 ? wb_s.result[26:16] : 11'd0;
-    fes_i386_x87 x87 (
+    fes_i386_x87 #(.X87_BACKEND(X87_BACKEND)) x87 (
         .clk, .reset, .present(x87_present), .f0(x87_f0), .f1(x87_f1),
         .error(x87_irq13), .latched(trace_x87_latched),
         .iss(x87_iss), .iss_wait(dc.x87_wait), .iss_op(dc.x87_op), .iss_fmt(dc.x87_fmt),
