@@ -216,7 +216,7 @@ version of this record said "11 of 13 offsets hang", which read as a count of
 independent failures and was not one. The first failing offset is the claim
 the bench supports.)*
 
-## The pattern: six checks that reported without checking, and one that worked
+## The pattern: eight ways a check can report without checking
 
 These are listed together because the pattern is the finding, not any one of
 them. In each case a check existed, ran, and reported success while being
@@ -264,6 +264,17 @@ and the threshold. What makes it belong here is that **this exact failure had
 already been pointed out and already been fixed for the unit fits**, and the
 integration fit was then queued with the old path anyway. Knowing about a
 failure mode did not prevent reproducing it; the check did.
+
+**An eighth, and it is not mine.** Band 4 was issued with **two different
+thresholds on two different quantities** — LABs ≥ 99.5% in the dated
+`method.md`, and ALMs ≥ 92% in a later message from the DE10 ceiling prior.
+The result clears both, so nothing turned on it; but had they disagreed, a
+"precommitted band" would have been two bands, and which one governed would
+have been decided after the result. The coordinating session logged it as its
+own error of the same family rather than tidying it away, and it is recorded
+here for the same reason: **a precommitment issued twice is not a
+precommitment**, and the failure is invisible exactly when the result clears
+both, which is when nobody looks.
 
 All of the first three were found the same way: by making the check fail on
 purpose, or by a tool refusing loudly. The last two were found by someone
@@ -609,31 +620,60 @@ Worst-corner Fmax on the system clock is **115.21 MHz**, against the 61.44 MHz
 constrained — so it is not closing marginally.
 
 **Against the precommitted bands:** it fits, LABs are ≤ 100%, and timing
-passes at all four corners, which is **band 2**. LABs at 97.39% are below band
-4's 99.5% threshold, so band 4 does not apply and the result is not downgraded
-to "not established". That reading follows the bands as written, before the
-result was seen.
+passes at all four corners, which is **band 2**.
+
+Band 4 — "not established, pending more seeds" — was issued with **two
+different thresholds on two different quantities**, which the result clears
+**both** ways, so the reading does not depend on which is applied:
+
+| Threshold | As issued | Measured | |
+| --- | ---: | ---: | --- |
+| LABs, in the dated `method.md` | ≥ 99.5% | 97.39% | clear |
+| ALMs, in a later message, from the DE10 ceiling prior | ≥ 92% | 87.58% | clear |
+
+Both are recorded because a reader should be able to see that the result did
+not turn on the choice. Had they disagreed, the committed one governs — it is
+the one in a dated file — and the coordinating session's own position was that
+it would have resolved the conflict *against* the headline. **No rule was
+changed after the result.**
+
+**No prediction was recorded before this ran and none has been retrofitted
+since. Both earlier projections — that it would not fit, and the LAB
+arithmetic behind that — were withdrawn *before* the fit, for reasons
+unrelated to its outcome.** The bands did exactly the job they existed for.
 
 ### What this result does and does not say
 
-- **Single seed.** Seed 1 only. The sibling measurement found seed 2 landing
-  within 73 ALMs of seed 1 on the CPU at this rung, which is reassuring but is
-  not this design.
-- **87.58% of ALMs is the largest thing fitted on Agilex 5 in this project.**
-  Nothing above 79.6% had been fitted on the device before. It is below the
-  DE10 lane's practical ceiling of around 92%, which is the nearest thing to a
-  prior for how far a fit can be pushed — but that prior is another device's.
+- **Single seed, and this is the first caveat for a reason.** Seed 1 only. A
+  single-seed pass at 87.58% is a **strong result, not a settled one**. The
+  sibling measurement found seed 2 within 73 ALMs of seed 1 on the CPU at this
+  rung, which is reassuring but is a different design. **More seeds are the
+  highest-value measurement outstanding.**
+- **87.58% of ALMs is the largest thing fitted on Agilex 5 in this project**,
+  and nothing above 79.6% had been fitted on the device before. It sits below
+  the DE10 lane's practical ceiling of around 92% — **but that ceiling is
+  another device's prior**, on different fabric with a different toolchain, and
+  it is stated here explicitly because it is the caveat a reader is otherwise
+  most likely to treat as a safety margin it has not earned. Agilex 5 has no
+  measured ceiling; this fit is the highest point on it so far.
 - **LABs at 97.39% are not 97.39% full.** A LAB counts as used when one of its
   ten ALM slots is used, so this is how sparsely the fitter spread the design,
   not how close the device is to capacity. The ALM row is the capacity figure.
 - **No DE25 board shell.** The 651 ALMs of virtual-pin cells stand in for one,
   and a real shell — HPS bridge, EMIF, scanout, audio, reset release — is
   measured nowhere. On the DE10 the equivalent is around 770 ALMs.
-- **42 DSP blocks, and the two-multiplier saving is still on the table.** The
-  CPU alone uses 12; this machine uses 42. The integrated x87 still builds
-  **two** 64×64 multipliers — the envelope's shifter-multiplier and the
-  backend's FMUL multiplier — and a merged unit would share one. Uncosted, and
-  now a saving rather than a necessity.
+- **The two 64×64 multipliers are the headline follow-up, and the first
+  candidate for slice 6's optimisation pass.** The CPU alone uses **12** DSP
+  blocks; this machine uses **42**. The integrated x87 builds *two* 64×64
+  multipliers — the envelope's shifter-multiplier (`fes_i386_x87_mul`, nine
+  22×22 products) and the backend's FMUL multiplier (nine 22/22/20-bit
+  products) — doing the same job. A merged unit would share one.
+
+  **The saving is deliberately not estimated.** That is a measurement, and this
+  record is in part a log of what happens to estimates. The DSP counts above
+  are the evidence that the duplication exists; what removing it costs or
+  saves is for slice 6 to measure. It was a risk while fitting looked doubtful;
+  it is now headroom nobody has had to spend.
 - **No prediction was recorded before this ran**, deliberately, and none is
   retrofitted now. The record's earlier projection that it would *not* fit was
   withdrawn before the fit, for reasons unrelated to the outcome.
