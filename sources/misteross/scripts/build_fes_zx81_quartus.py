@@ -323,7 +323,13 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
         'rom_lane_locations': ','.join(lane_locations(machine)),
         'rom_database_sha256': json.dumps(ROM_DATABASE_SHA256, sort_keys=True, separators=(',', ':')),
         'rom_selftest': SELFTEST_DOMAIN.decode(),
-        'execution_sha256': execution_digest(execution)}
+        'execution_sha256': execution_digest(execution),
+        # The tool that elaborates the logic, and what it targets. Quartus Lite
+        # elaborates this project itself, so there is no Yosys program to digest
+        # and tools carries no yosys entry (DeanoC/fes#1806).
+        'front_end': 'quartus-lite', 'device_family': 'cyclonev',
+        'quartus_qsf_sha256': hashlib.sha256(
+            canonical_project_qsf(root, machine).encode()).hexdigest()}
     fields = {'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,
               'source_path': root.relative_to(top).as_posix(), 'source_roots': roots,
               'source_inputs': source_input_closure(root, roots),
@@ -358,6 +364,24 @@ def project_qsf(root: Path, project: Path, build_id: str, seed: int, machine: Mo
     if seed not in SEEDS:
         raise BuildError(f'seed {seed} is not a declared sign-off seed')
     rel = Path(os.path.relpath(Path(root).resolve(), Path(project).resolve())).as_posix()
+    return _qsf_text(root, rel, machine, build_id=build_id, seed=seed)
+
+
+def canonical_project_qsf(root: Path, machine: Model) -> str:
+    """The project's shape, with the two lines that vary per build removed.
+
+    `quartus_qsf_sha256` records what this producer compiles, so it must not
+    move with a signoff seed or with the identity it is recorded beside. SEED
+    is dropped for the same reason PC/XT drops it -- one digest covers every
+    seed of a signoff -- and the FES_ZX81_BUILD_ID macro is dropped because it
+    carries the BUILD_ID itself: hashing it into a parameter of the record that
+    defines that BUILD_ID would be circular. `rel` is fixed, because the real
+    value is the build directory's position and says nothing about the project.
+    """
+    return _qsf_text(root, '..', machine, build_id=None, seed=None)
+
+
+def _qsf_text(root: Path, rel: str, machine: Model, *, build_id, seed) -> str:
     lock = load_quartus_lock(root, LOCK)
     lines = [
         'set_global_assignment -name FAMILY "Cyclone V"',
@@ -367,13 +391,14 @@ def project_qsf(root: Path, project: Path, build_id: str, seed: int, machine: Mo
         'set_global_assignment -name GENERATE_RBF_FILE ON',
         'set_global_assignment -name ON_CHIP_BITSTREAM_DECOMPRESSION OFF',
         f'set_global_assignment -name NUM_PARALLEL_PROCESSORS {THREADS}',
-        f'set_global_assignment -name SEED {seed}',
+        *([f'set_global_assignment -name SEED {seed}'] if seed is not None else []),
         'set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005',
         f'set_global_assignment -name LAST_QUARTUS_VERSION "{lock.qsf_version}"',
         *(f'set_global_assignment -name SEARCH_PATH "{rel}/{path}"' for path in INCLUDE_DIRECTORIES),
         'set_global_assignment -name VERILOG_MACRO "QUARTUS=1"',
         'set_global_assignment -name VERILOG_MACRO "FES_ZX81_ROM_LINK=1"',
-        f'set_global_assignment -name VERILOG_MACRO "FES_ZX81_BUILD_ID=128\'h{build_id}"',
+        *([f'set_global_assignment -name VERILOG_MACRO "FES_ZX81_BUILD_ID=128\'h{build_id}"']
+          if build_id is not None else []),
         *([f'set_global_assignment -name VERILOG_MACRO "{machine.define}=1"'] if machine.define else []),
         'set_parameter -name EXPANSION_SOCKET 0',
         f'set_global_assignment -name SDC_FILE "{rel}/{SDC}"',
