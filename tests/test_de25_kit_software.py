@@ -51,6 +51,7 @@ class De25KitSoftwareTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         runner = (root / "scripts/powerboat/hil-de25-core.sh").read_text()
         promoter = (root / "scripts/powerboat/de25-baseline-auto.sh").read_text()
+        sealer = (root / "scripts/powerboat/de25-seal-auto.sh").read_text()
         self.assertIn("scripts/kit_software.py", runner)
         self.assertIn("--head \"$HEAD\"", runner)
         self.assertIn("--action install --bundle \"$SW_BUNDLE\"", runner)
@@ -58,6 +59,7 @@ class De25KitSoftwareTests(unittest.TestCase):
         self.assertIn("verify-runtime --expected \"$SW_RUNTIME_SHA\"", runner)
         self.assertIn("--action activate --candidate \"$BASE_SW\"", runner)
         self.assertIn('"$Q/hil-de25-core.sh" D25', promoter)
+        self.assertIn('git -C "$R" fetch -q origin "$HEAD"', sealer)
 
 
 if __name__ == "__main__":
