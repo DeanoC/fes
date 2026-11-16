@@ -587,6 +587,77 @@ def compile_project(output: Path, project: Path, top: str, quartus_sh: Path,
     return record
 
 
+def cpu_sources() -> list[Path]:
+    """fes_i386_cpu's SystemVerilog, in the read order the seal uses."""
+    return [ROOT / path for path in yosys_netlist.CPU_SOURCES]
+
+
+def write_sv_project(output: Path, device: "Device", design: dict, period_ns: float,
+                     seed: int, metadata: dict) -> Path:
+    """The secondary front end: Quartus Pro reads the SystemVerilog itself.
+
+    This exists as a cross-check on the primary netlist flow, not as a second
+    area result. The method requires its register count to be compared against
+    the primary on the same device, and a large gap withdraws it rather than
+    reporting it, because a gap means swept or mis-elaborated logic. The
+    locked Quartus 17.0.2 front end rejects this RTL outright, so this flow
+    can only ever exist on the Pro side.
+    """
+    if design["top"] != "fes_i386_cpu":
+        raise FitError("the direct SystemVerilog flow is defined for fes_i386_cpu only")
+    project = output / "project"
+    project.mkdir()
+    top = design["top"]
+    sources = cpu_sources()
+    for path in sources:
+        shutil.copyfile(path, project / path.name)
+    shutil.copyfile(Path(__file__).with_name("fit_timing.tcl"), project / "timing.tcl")
+    (project / f"{top}.sdc").write_text(clock_constraints(design, period_ns))
+    (project / f"{top}.qpf").write_text(
+        f'QUARTUS_VERSION = "{metadata["series"]}"\nPROJECT_REVISION = "{top}"\n')
+    # The RTL declares its ports in the module header, with multi-dimensional
+    # packed types the netlist flow has already flattened away, so the
+    # netlist's port reader does not apply and the exact pin names Quartus
+    # will invent for them are not known here. Every pin is made virtual with
+    # a wildcard and the clock turned back, which needs no port list at all;
+    # the fit's pin gate then proves it worked, since a design whose
+    # VIRTUAL_PIN assignments did not take effect reports more real pins than
+    # real clocks and fails.
+    virtual = ["* (wildcard; the clock is assigned back)"]
+    assignments = [("FAMILY", f'"{device.family}"'), ("DEVICE", device.part),
+                   ("TOP_LEVEL_ENTITY", top), ("PROJECT_OUTPUT_DIRECTORY", "output_files"),
+                   ("LAST_QUARTUS_VERSION", f'"{metadata["qsf_version"]}"'),
+                   ("NUM_PARALLEL_PROCESSORS", "4"), ("SEED", str(seed)),
+                   ("SDC_FILE", f"{top}.sdc")]
+    qsf = ("# Secondary front end: Quartus reads the SystemVerilog directly. A\n"
+           "# cross-check on the netlist flow, not a second area result.\n")
+    qsf += "".join(f"set_global_assignment -name {key} {value}\n" for key, value in assignments)
+    qsf += "".join(f"set_global_assignment -name SYSTEMVERILOG_FILE {path.name}\n"
+                   for path in sources)
+    qsf += "set_instance_assignment -name VIRTUAL_PIN ON -to *\n"
+    for clock in design["clocks"]:
+        qsf += f"set_instance_assignment -name VIRTUAL_PIN OFF -to {clock}\n"
+    (project / f"{top}.qsf").write_text(qsf)
+    inputs = {
+        "classification": "internal virtual-pin characterisation fit, SECONDARY direct-SystemVerilog "
+                          "front end; a cross-check on the netlist flow, not a second area result; "
+                          "no seal, no board I/O, no hardware acceptance",
+        "front_end": "quartus-systemverilog",
+        "board": device.board, "device": device.part, "family": device.family,
+        "documented_device_alms": device.alms, "ram_block": device.ram_block,
+        "top": top, "seed": seed, "period_ns": period_ns,
+        "clock_hz": round(1e9 / period_ns), "real_clocks": list(design["clocks"]),
+        "pixel_period_ns": None,
+        "virtual_ports": virtual, "virtual_port_count": len(virtual),
+        "host": socket.gethostname(), "fes_revision": fes_revision(), "quartus": metadata,
+        "netlist_sha256": None,
+        "source_sha256": {path.name: sha(path.read_bytes()) for path in sources},
+        "project_sha256": {path.name: sha(path.read_bytes()) for path in sorted(project.iterdir())},
+    }
+    (output / "inputs.json").write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
+    return project
+
+
 def cpu_netlist(output: Path, cache_root: Path, gpu_router: str) -> tuple[Path, dict]:
     yosys = yosys_netlist.authenticate(ROOT, cache_root=cache_root, gpu_router=gpu_router)
     netlist = yosys_netlist.seal_netlist(yosys.path, output / "netlist", ROOT)
@@ -631,6 +702,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--netlist", type=Path, help="reuse this netlist instead of writing one")
     parser.add_argument("--timeout-minutes", type=int, default=90)
     parser.add_argument("--project-only", action="store_true", help="prepare, do not compile")
+    parser.add_argument("--front-end", choices=("netlist", "systemverilog"), default="netlist",
+                        help="netlist is the primary flow (the Yosys SEAL netlist, the same bytes "
+                             "on both devices bar two recorded attribute rewrites); systemverilog "
+                             "is the labelled secondary cross-check, Quartus reading the RTL "
+                             "itself, and is defined for fes_i386_cpu on the Pro side only")
     args = parser.parse_args(argv)
     output = args.output.resolve()
     try:
@@ -646,6 +722,29 @@ def main(argv: list[str] | None = None) -> int:
             metadata = {"series": lock.series, "qsf_version": lock.qsf_version, "release": lock.release,
                         "edition": lock.edition_name.lower(), "lock": device.quartus_lock}
         output.mkdir(parents=True, exist_ok=False)
+        if args.front_end == "systemverilog":
+            if metadata["edition"] != "pro":
+                raise FitError("the locked Quartus 17.0.2 front end rejects this RTL, so the "
+                               "direct SystemVerilog flow exists on the Pro side only")
+            (output / "netlist.json").write_text(json.dumps(
+                {"front_end": "quartus-systemverilog",
+                 "note": "no Yosys netlist; Quartus read the RTL itself"},
+                indent=2, sort_keys=True) + "\n")
+            project = write_sv_project(output, device, design, args.period_ns, args.seed, metadata)
+            print(f"i386 fit project (direct SystemVerilog): {project}", flush=True)
+            if args.project_only:
+                return 0
+            with compiler_lease():
+                require_disk(output)
+                with lock_context(device):
+                    _root, quartus_sh, version = locate_quartus(
+                        os.environ.get("QUARTUS_ROOTDIR", ""), ROOT, lock)
+                metadata["version_line"] = version
+                record = compile_project(output, project, design["top"], quartus_sh, metadata,
+                                         args.timeout_minutes * 60)
+            print(f"i386 fit FINISH (direct SystemVerilog) {design['top']} on {device.part}: "
+                  + json.dumps(record["resources"], sort_keys=True), flush=True)
+            return 0
         if args.netlist is not None:
             netlist, provenance = args.netlist.resolve(), {"reused": str(args.netlist)}
         else:

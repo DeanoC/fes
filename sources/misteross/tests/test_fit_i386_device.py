@@ -139,6 +139,46 @@ class Envelope(unittest.TestCase):
         self.assertEqual(fit.parse_ports(NETLIST, "other"), [("a", "input"), ("b", "output")])
 
 
+class SecondaryFrontEnd(unittest.TestCase):
+    """Quartus reading the SystemVerilog itself: a cross-check on the netlist
+    flow, not a second area result."""
+
+    def test_it_is_refused_for_the_machine(self):
+        with self.assertRaisesRegex(fit.FitError, "fes_i386_cpu only"):
+            fit.write_sv_project(Path("/nonexistent"), fit.DEVICES["de25"],
+                                 fit.DESIGNS["machine"], 16.276, 1, {})
+
+    def test_it_reads_the_cpu_rtl_in_the_seal_s_order(self):
+        sources = [path.name for path in fit.cpu_sources()]
+        self.assertEqual(sources[0], "fes_i386_pkg.sv")
+        self.assertEqual(sources[-1], "fes_i386_cpu.sv")
+        self.assertIn("fes_i386_x87.sv", sources)
+
+    def test_the_project_is_labelled_a_secondary_cross_check(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "out"
+            output.mkdir()
+            metadata = {"series": "26.3", "qsf_version": "26.3.0 Pro Edition", "edition": "pro"}
+            project = fit.write_sv_project(output, fit.DEVICES["de25"], fit.DESIGNS["cpu"],
+                                           16.276, 1, metadata)
+            qsf = (project / "fes_i386_cpu.qsf").read_text()
+            self.assertIn("set_global_assignment -name SYSTEMVERILOG_FILE fes_i386_cpu.sv", qsf)
+            self.assertIn("set_global_assignment -name SYSTEMVERILOG_FILE fes_i386_pkg.sv", qsf)
+            # The RTL's ports are multi-dimensional packed types whose final
+            # pin names are not known before elaboration, so every pin is made
+            # virtual by wildcard and the clock assigned back. The fit's pin
+            # gate is what proves it took effect.
+            self.assertIn("set_instance_assignment -name VIRTUAL_PIN ON -to *\n", qsf)
+            self.assertIn("set_instance_assignment -name VIRTUAL_PIN OFF -to clk\n", qsf)
+            inputs = json.loads((output / "inputs.json").read_text())
+            self.assertEqual(inputs["front_end"], "quartus-systemverilog")
+            self.assertIn("SECONDARY", inputs["classification"])
+            self.assertIn("not a second area result", inputs["classification"])
+            self.assertIsNone(inputs["netlist_sha256"])
+            self.assertEqual(inputs["virtual_ports"],
+                             ["* (wildcard; the clock is assigned back)"])
+
+
 class DuplicateAttributes(unittest.TestCase):
     """Yosys writes a bare and a valued parallel_case on the same casez.
     Quartus 17.0.2 warns; Quartus Pro 26.3 stops with Error (22074)."""
