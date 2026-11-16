@@ -309,6 +309,7 @@
   "machine-slice4-de25": {
     "device": "A5EB013BB23BE4SCS",
     "netlist": {
+      "elaboration_path": "fixed relative path build/diagnostic/s4-elab/ inside the extracted tree (DeanoC/yosys#80)",
       "fitted_netlist": {
         "duplicate_attribute_count": 30,
         "duplicate_attributes": "removed 30 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
@@ -318,7 +319,18 @@
         "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine-s4.netlist.v",
         "source_sha256": "4e75de36a861c284d94442efb121c69679ffa15923bbb2d8b86fad73a2d65760"
       },
-      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine-s4.netlist.v"
+      "front_end_identical_to_main_record": "verified byte-identical between the two trees before elaborating: scripts/yosys_netlist.py, scripts/build_fes_pc386_quartus.py and cores/fes-pc386/toolchain.lock",
+      "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/machine-s4.netlist.v",
+      "rom_hex_note": "firmware.lock verified byte-identical between the two trees; this record's built hex reused",
+      "rom_hex_sha256": "815620361ef28a2bbdd97b1964700a4678a26c0ffc9582bb95544473fe099d18",
+      "source_revision": "5f901426e60f47fb2463f31ed6c4ca2f7f62e3a4",
+      "source_revision_note": "NOT this record's checkout. The netlist was elaborated from PR #1889's head tree, extracted with `git archive 5f901426e`, PRE-MERGE: that PR targets deano/i386-x87-s3, whose base is conflicting, so no merge was attempted and the tree is the head's own. The fit therefore describes the slice-3-plus-slice-4 design on #1879's branch and no state of main. The fes_revision in quartus.json is the checkout that ran the fitter, which is a different thing and is not this fit's source.",
+      "source_revision_short": "5f901426e",
+      "source_scratch_diff": "--- a/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv\n+++ b/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv\n-    wire x87_present = 1'b0;\n+    wire x87_present = 1'b1;  // SCRATCH, DE25 A/B fit only: never committed\n",
+      "source_scratch_diff_sha256": "f2763dbd70d88c6dcdde4c6ea05aee314eb21bbd60da788833d96f38dc71d33d",
+      "yosys": {
+        "tool": "commit=e240a4653bb6578e0b267f730128f8a5dac28483"
+      }
     },
     "period_ns": 16.2760416667,
     "quartus": "26.3.0",

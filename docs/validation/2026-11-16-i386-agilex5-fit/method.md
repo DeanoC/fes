@@ -694,9 +694,15 @@ that changes this fit's purpose:** its integration fit of `pc386_system` with
 `x87_present = 1'b1` **and** `X87_BACKEND = 1` — the machine with a *complete*
 DE25 387, the pipelined backend — fits and closes on Agilex 5 across four
 seeds at **40,986 / 41,055 / 41,122 / 41,054 ALMs, 87.58–87.87%**, every
-corner, hold strictly positive, setup never below +7.58 ns. It ran on this
-runner, this envelope, this SDC and these report rows, so it is on the same
-scale as M and M+. That figure is theirs, cited here, not measured here.
+corner, hold strictly positive, setup never below +7.58 ns. It is reported to have run on this
+runner, this envelope, this SDC and these report rows, so it should be on the
+same scale as M and M+.
+
+**Those figures were relayed in a message and are not verified here.** At the
+time of writing they appear in no committed artifact that could be found, on
+that session's PR [#1907](https://github.com/DeanoC/fes/pull/1907) or
+elsewhere, and none of its fit output was read. They are cited as that
+session's report. Nothing measured in this record depends on them.
 
 **So the question this record kept naming as unsettled is settled, by a
 different design.** "Does the DE25 hold a complete 387" is answered **yes**,

@@ -12,8 +12,9 @@ is the 61.44 MHz rung's own restricted-Fmax **estimate**, not a closure.
 **And the design the DE10 refused fits too**: `pc386_system` from #1889's head,
 slices 3 and 4, closes on Agilex 5 at **41,387 ALMs, 88.43%** — adding 4,132
 ALMs over M+ and **zero LABs**. The question of whether the DE25 holds a
-*complete* 387 was answered first, and by a different design: the sibling
-session's pipelined backend, four seeds at 87.58–87.87%, which is what ships.
+*complete* 387 was answered first, and by a different design: the pipelined
+backend, reported at four seeds, 87.58–87.87% — **a figure relayed from the
+sibling session and not verified here** (see below).
 
 **Background on that question, which this record spent the day calling
 unsettled:** `main`'s 387 is slice 2 — state,
@@ -25,10 +26,10 @@ sealed package, 36,298 ALMs, has the identity **off**, so it is the DE10
 equivalent of fit M rather than of M+.)
 [#1889](https://github.com/DeanoC/fes/pull/1889)'s refusal was its own head,
 slice 4 stacked on slice 3, whose 387 has divide, square root and the
-remainders: 8,073 ALMs for the standalone unit against the merge base's 4,076.
-Nothing in this record fits that design. Settling it needs #1889's head through
-this runner, and that is listed under [what is not
-measured](#the-clock-ladder-and-what-is-not-measured).
+remainders: 8,073 ALMs for the standalone unit against the merge base's 4,076,
+requiring 4,292 LABs of 4,191 and never placing. **That design has since been
+fitted here** — see [the section on it](#the-design-the-de10-refused-does-fit-on-agilex-5--and-it-adds-no-labs):
+it closes on Agilex 5 at 41,387 ALMs, 88.43%.
 
 The question, in his words: *"we need see the entire size of the 386 on the
 agilex 5, it may be bigger or smaller as different fabric and toolchain."* It
@@ -57,7 +58,7 @@ of their device — four on Agilex 5, eight on Cyclone V. What "passed" covers,
 exactly, and it is not the same for the two designs:
 
 - **Setup, hold and minimum pulse width were analysed at every corner of every
-  fit**, and they are the analyses the closure rests on. Among the thirteen
+  fit**, and they are the analyses the closure rests on. Among the fourteen
   that passed, the worst setup slack is **+0.426 ns** (the 130 MHz rung) and
   the worst hold slack is **0.000 ns exactly**, on the superseded zero-delay
   envelope fit — which met the gate, since the gate requires non-negative, and
@@ -333,12 +334,26 @@ comfortably. That is the whole argument of the section above, occurring.
 
 It was queued as "the only measurement that would settle whether the DE25
 holds a complete 387". **It is not, and that question was answered first by a
-different design.** The sibling DE25 envelope session's integration fit —
+different design.** The sibling DE25 envelope session reports that its integration fit —
 `pc386_system` with `x87_present` high **and** `X87_BACKEND = 1`, the
 pipelined backend, on this runner and this envelope — fits and closes across
 four seeds at **40,986 / 41,055 / 41,122 / 41,054 ALMs, 87.58–87.87%**, every
-corner, setup never below +7.58 ns. Those are their figures, cited, not
-measured here; and that is the configuration the 16 November decision ships.
+corner, setup never below +7.58 ns. That is the configuration the 16 November
+decision ships.
+
+**The evidential status of those five numbers, stated because this record
+leans on them:** they were **relayed to this session in a message** and are
+**not verified here**. At the time of writing they appear in no committed
+artifact that could be found — not on
+[#1907](https://github.com/DeanoC/fes/pull/1907), that session's PR, and
+nowhere under `docs/validation/` on its branch — and no fit output of theirs
+was read. So they are **cited as that session's report, not as measured
+evidence in this record.** What would substantiate them is their own
+validation record carrying the per-seed figures and timing, which is theirs to
+publish; until it exists, a reader should treat the complete-387 conclusion as
+resting on their report rather than on anything here. Nothing in this record's
+own figures depends on them: the 41,387 below is measured here, and the A/B
+comparison is explicitly unresolved either way.
 
 What this fit is, therefore, is the **A/B of the two arithmetic
 implementations on one device**, same envelope, same front end, same rung:
