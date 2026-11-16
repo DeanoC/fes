@@ -129,6 +129,7 @@
         }
       },
       "seed": 1,
+      "source_clean": null,
       "status": "pass",
       "timing_status": "pass",
       "top": "fes_i386_cpu",
@@ -305,6 +306,7 @@
         }
       },
       "seed": 1,
+      "source_clean": null,
       "status": "pass",
       "timing_status": "pass",
       "top": "fes_i386_cpu",
@@ -460,6 +462,7 @@
         }
       },
       "seed": 1,
+      "source_clean": null,
       "status": "pass",
       "timing_status": "pass",
       "top": "pc386_system",
@@ -473,7 +476,13 @@
       "device": "A5EB013BB23BE4SCS",
       "documented_device_alms": 46800,
       "family": "Agilex 5",
-      "fes_revision": "beaaaa42aa4cce6e7d9d651357a6f8bc943556bd",
+      "fes_revision": {
+        "clean": false,
+        "commit": "beaaaa42aa4cce6e7d9d651357a6f8bc943556bd",
+        "note": "prepared from a modified checkout -- the one-character x87_present flip above -- and attached after the fit, because this fit predates the runner recording it. The commit field is not a reliable identity for this fit; the diff and the netlist digest are.",
+        "tracked_diff": "diff --git a/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv b/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv\nindex d6f27d302..06538e948 100644\n--- a/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv\n+++ b/sources/misteross/cores/fes-pc386/rtl/pc386_system.sv\n@@ -467,7 +467,7 @@ module pc386_system #(\n     // package until slice 5 of the x87 phase (#1768), where the plan's\n     // slices put the transcendentals every computing title also runs; its\n     // record word and FogCast setting come with it.\n-    wire x87_present = 1'b0;\n+    wire x87_present = 1'b1;  // SCRATCH, fit M+ only: never committed\n     wire x87_f0, x87_f1, x87_irq13;\n \n     fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D)) cpu (\n",
+        "tracked_diff_sha256": "01a13643690a3f4b3133e221dfba95c109db26c17bcffe914ab88065ce1f435d"
+      },
       "fit": "machineplus-de25",
       "fmax_estimate_by_corner": [
         {
@@ -615,6 +624,7 @@
         }
       },
       "seed": 1,
+      "source_clean": false,
       "status": "pass",
       "timing_status": "pass",
       "top": "pc386_system",
@@ -832,6 +842,7 @@
         }
       },
       "seed": 1,
+      "source_clean": null,
       "status": "pass",
       "timing_status": "pass",
       "top": "pc386_system",
@@ -964,6 +975,7 @@
         }
       },
       "seed": 1,
+      "source_clean": null,
       "status": "pass",
       "timing_status": "pass",
       "top": "fes_i386_cpu",

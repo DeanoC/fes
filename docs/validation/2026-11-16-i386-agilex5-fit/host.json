@@ -1,5 +1,5 @@
 {
-  "collected_at_revision": "42c2a23337ac029929a8a7b28e4153a3093b175d",
+  "collected_at_revision": "a61c7f8a0aa78ac52c9a650238d49f637ae6f22d",
   "comparison_note": "Cyclone V ALMs and Agilex 5 ALMs are different units, and M10K and M20K are different blocks. Figures are reported per device with that device's totals. No cross-device ratio is computed here.",
   "evidence_scope": "internal virtual-pin characterisation fits; no board I/O, no seal, no programming artifact and no hardware acceptance",
   "fes_revision": null,
@@ -7,10 +7,13 @@
     "50ea47e53c3d987e3f9b01e7c282904153882ac1",
     "beaaaa42aa4cce6e7d9d651357a6f8bc943556bd"
   ],
+  "fits_from_a_modified_checkout": [
+    "machineplus-de25"
+  ],
   "hosts": [
     "powerboat"
   ],
-  "revision_note": "the fits were prepared from different revisions, or some predate the revision being recorded; see each fit's own fes_revision",
+  "revision_note": "the fits were prepared from different revisions, or some predate the revision being recorded; see each fit's own fes_revision. A commit alone does not describe a fit prepared from a modified checkout: those fits are named in fits_from_a_modified_checkout and each carries its own tracked diff",
   "uname": {
     "machine": "x86_64",
     "node": "powerboat",

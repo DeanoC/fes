@@ -327,14 +327,31 @@ def clock_constraints(design: dict, period_ns: float) -> str:
     return "".join(lines)
 
 
-def fes_revision() -> str:
+def fes_revision() -> dict:
     """The revision the fit was prepared from, recorded in the fit rather than
     read when the record is collected: a checkout that moves between the two
-    would otherwise attribute a stale fit to whatever is checked out later."""
+    would otherwise attribute a stale fit to whatever is checked out later.
+
+    A commit alone is not the source that ran. `git rev-parse HEAD` returns the
+    clean commit even when tracked files are edited -- and the M+ fit is made
+    by editing one, deliberately. So the tracked diff is recorded with it, and
+    a fit from a dirty checkout says so and carries the diff that made it.
+    """
     try:
-        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip()
+        head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip()
     except (OSError, subprocess.SubprocessError):
-        return "unknown"
+        return {"commit": "unknown", "clean": None}
+    try:
+        diff = subprocess.check_output(["git", "diff", "HEAD"], cwd=REPO, text=True)
+    except (OSError, subprocess.SubprocessError):
+        return {"commit": head, "clean": None}
+    record = {"commit": head, "clean": not diff.strip()}
+    if diff.strip():
+        record["tracked_diff_sha256"] = sha(diff.encode())
+        record["tracked_diff"] = diff
+        record["note"] = ("prepared from a modified checkout; this commit alone does not describe "
+                          "the source that ran, and the diff above does")
+    return record
 
 
 def write_project(output: Path, device: Device, design: dict, netlist: Path,
@@ -437,10 +454,12 @@ OPTIONAL_LABELS = {
     # The fitter's own count of how much of the ALM figure is envelope. It is
     # reported beside the ALMs and never subtracted from them.
     "alms_with_virtual_pins": ("* ALMs containing virtual pins", "ALMs containing virtual pins"),
-    # Quartus 17.0.2 reports LAB occupancy; the Agilex 5 fitter does not report
-    # LABs at all, so a LAB figure exists on one side only and no LAB
-    # comparison between the devices is possible. #1889's 102.4% refusal was a
-    # LAB count, so this matters for reading that number against these.
+    # Both fitters report this row, under the same label. It is NOT a capacity
+    # figure: a LAB holds 10 ALMs on both devices and counts as used when one
+    # ALM in it is used, so this tracks how sparsely the fitter spread the
+    # design. The capacity figure is ALMs needed, above. #1889's refusal
+    # reports LABs *required* before placement, which is a third quantity and
+    # appears in no report here.
     "labs": ("Total LABs:  partially or completely used",
              "Total LABs: partially or completely used"),
     "mlabs": ("MLAB blocks", "Total MLAB memory bits"),

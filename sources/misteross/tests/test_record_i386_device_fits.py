@@ -13,7 +13,7 @@ from scripts import record_i386_device_fits as record
 def write_fit(directory: Path, *, device: str, family: str, alms: float, available: float,
               device_alms: int, ram_block: str, host: str = "powerboat",
               status: str = "pass", stage: str | None = None,
-              revision: str = "a" * 40) -> Path:
+              revision: str = "a" * 40, clean: bool = True) -> Path:
     directory.mkdir(parents=True)
     fit = {
         "status": status, "top": "fes_i386_cpu", "device": device, "family": family,
@@ -32,7 +32,9 @@ def write_fit(directory: Path, *, device: str, family: str, alms: float, availab
     (directory / "inputs.json").write_text(json.dumps({
         "board": "DE25-Nano", "documented_device_alms": device_alms, "ram_block": ram_block,
         "clock_hz": 61_440_000, "real_clocks": ["clk"], "virtual_port_count": 1306,
-        "fes_revision": revision,
+        "fes_revision": ({"commit": revision, "clean": True} if clean else
+                         {"commit": revision, "clean": False,
+                          "tracked_diff": "-a\n+b\n", "tracked_diff_sha256": "f" * 64}),
     }))
     (directory / "netlist.json").write_text(json.dumps({"netlist_sha256": "a" * 64}))
     (directory / "timing.tsv").write_text(
@@ -123,6 +125,24 @@ class Collect(unittest.TestCase):
             host = json.loads((out / "host.json").read_text())
             self.assertEqual(host["fes_revision"], "a" * 40)
             self.assertTrue(host["collected_at_revision"])
+            self.assertEqual(host["fits_from_a_modified_checkout"], [])
+
+    def test_a_fit_from_a_modified_checkout_is_named(self):
+        # The M+ fit is made by editing a tracked file, so its commit alone
+        # does not describe the source that ran.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            scratch = write_fit(root / "s", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                                alms=1, available=2, device_alms=46800, ram_block="M20K",
+                                clean=False)
+            out = root / "record"
+            record.main(["--record", str(out), f"--fit=machineplus-de25={scratch}"])
+            host = json.loads((out / "host.json").read_text())
+            self.assertEqual(host["fits_from_a_modified_checkout"], ["machineplus-de25"])
+            self.assertIn("modified checkout", host["revision_note"])
+            fit = json.loads((out / "quartus.json").read_text())["fits"][0]
+            self.assertIs(fit["source_clean"], False)
+            self.assertIn("tracked_diff", fit["fes_revision"])
 
     def test_a_fit_argument_without_a_name_is_refused(self):
         with tempfile.TemporaryDirectory() as temporary:

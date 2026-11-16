@@ -49,6 +49,8 @@ def collect(name: str, output: Path) -> dict:
         "real_pins": fit.get("real_pins"),
         "host": fit.get("host") or inputs.get("host"),
         "fes_revision": inputs.get("fes_revision"),
+        "source_clean": (inputs["fes_revision"].get("clean")
+                         if isinstance(inputs.get("fes_revision"), dict) else None),
         "netlist": netlist,
         "classification": fit["classification"],
         "hardware_acceptance": fit["hardware_acceptance"],
@@ -102,16 +104,24 @@ def main(argv: list[str] | None = None) -> int:
         # own HEAD is not that revision if the checkout moved in between, so it
         # is reported separately and a disagreement is named, never smoothed.
         collected_at = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip()
-        revisions = sorted({fit["fes_revision"] for fit in fits if fit.get("fes_revision")})
+        def commit(fit):
+            value = fit.get("fes_revision")
+            return value.get("commit") if isinstance(value, dict) else value
+        revisions = sorted({commit(fit) for fit in fits if commit(fit)})
+        dirty = sorted(fit["fit"] for fit in fits if fit.get("source_clean") is False)
         hosts = sorted({fit["host"] for fit in fits if fit["host"]})
         (record / "host.json").write_text(json.dumps({
             "fes_revision": revisions[0] if len(revisions) == 1 else None,
             "fit_revisions": revisions,
             "collected_at_revision": collected_at,
+            "fits_from_a_modified_checkout": dirty,
             "revision_note": ("every fit was prepared from one revision"
                               if len(revisions) == 1 else
                               "the fits were prepared from different revisions, or some predate "
-                              "the revision being recorded; see each fit's own fes_revision"),
+                              "the revision being recorded; see each fit's own fes_revision")
+                              + (". A commit alone does not describe a fit prepared from a modified "
+                                 "checkout: those fits are named in fits_from_a_modified_checkout "
+                                 "and each carries its own tracked diff" if dirty else ""),
             "hosts": hosts,
             "uname": platform.uname()._asdict(),
             "evidence_scope": "internal virtual-pin characterisation fits; no board I/O, no seal, "

@@ -41,6 +41,7 @@ AGILEX_REPORT = """\
 ; Total block memory bits                  ; 215,040          ;
 ; Total virtual pins                       ; 4,700            ;
 ;   * ALMs containing virtual pins         ; 2,351 / 46,800 ( 5 % ) ;
+; Total LABs:  partially or completely used                   ; 4,590 / 4,680         ; 98 %  ;
 """
 CYCLONE_REPORT = """\
 ; Logic utilization (in ALMs)              ; 19,870 / 41,910 ( 47 % ) ;
@@ -106,6 +107,10 @@ class Envelope(unittest.TestCase):
             self.assertEqual(inputs["clock_hz"], 61_440_000)
             self.assertEqual(inputs["virtual_port_count"], len(inputs["virtual_ports"]))
             self.assertTrue(inputs["host"])
+            # A commit alone is not the source that ran: the M+ fit is made by
+            # editing a tracked file, so a fit records whether its checkout was
+            # clean and carries the diff when it was not.
+            self.assertIn("clean", inputs["fes_revision"])
             # One of these fits never implies a programming artifact or acceptance.
             self.assertIn("no hardware acceptance", inputs["classification"])
 
@@ -266,13 +271,20 @@ class Resources(unittest.TestCase):
         self.assertEqual(found["virtual_pins"]["used"], 4_700)
         self.assertEqual(found["alms_with_virtual_pins"]["used"], 2_351)
 
-    def test_labs_are_read_where_the_fitter_reports_them(self):
-        # Quartus 17.0.2 reports LAB occupancy and the Agilex 5 fitter does
-        # not, so this figure exists on one side only -- which is why no LAB
-        # comparison between the two devices is possible.
+    def test_both_fitters_lab_rows_are_read(self):
+        # Both report this row under the same label. It is not a capacity
+        # figure -- a LAB holds 10 ALMs on both devices and counts as used when
+        # one ALM in it is used -- so it is recorded and never used as the
+        # budget. An earlier version of this test asserted the Agilex fitter
+        # reported no LABs at all, which was simply wrong.
         self.assertEqual(fit.resources(CYCLONE_REPORT)["labs"]["used"], 3_494)
         self.assertEqual(fit.resources(CYCLONE_REPORT)["labs"]["available"], 4_191)
-        self.assertNotIn("labs", fit.resources(AGILEX_REPORT))
+        self.assertEqual(fit.resources(AGILEX_REPORT)["labs"]["used"], 4_590)
+        self.assertEqual(fit.resources(AGILEX_REPORT)["labs"]["available"], 4_680)
+        # 10 ALMs per LAB on both devices, which is why the two percentages are
+        # not two views of one occupancy.
+        self.assertEqual(fit.DEVICES["de25"].alms / 4_680, 10.0)
+        self.assertEqual(fit.DEVICES["de10"].alms / 4_191, 10.0)
 
     def test_a_missing_optional_row_is_not_a_failure(self):
         self.assertNotIn("virtual_pins", fit.resources(CYCLONE_REPORT))
