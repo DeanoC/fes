@@ -208,6 +208,7 @@ router2_profile = "unset"
 core_id = "fes.zx81"
 identity_version = 2
 toolchain = "quartus"
+front_end = "quartus-lite"
 producer_script = "scripts/build_fes_zx81_quartus.py"
 producer_module = "scripts.build_fes_zx81_quartus"
 producer_arguments = ["--model", "zx81"]
@@ -221,6 +222,8 @@ quartus_role = "primary ZX81-family package producer; nextpnr is advisory (confi
 
 [recipes.quartus]
 version = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
+edition = "lite"
+device_family = "cyclonev"
 seeds = [1, 2, 3]
 threads = 4
 
@@ -228,6 +231,7 @@ threads = 4
 core_id = "fes.zx80"
 identity_version = 2
 toolchain = "quartus"
+front_end = "quartus-lite"
 producer_script = "scripts/build_fes_zx81_quartus.py"
 producer_module = "scripts.build_fes_zx81_quartus"
 producer_arguments = ["--model", "zx80"]
@@ -241,6 +245,8 @@ quartus_role = "primary ZX81-family package producer; nextpnr is advisory (confi
 
 [recipes.quartus]
 version = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
+edition = "lite"
+device_family = "cyclonev"
 seeds = [1, 2, 3]
 threads = 4
 
@@ -248,6 +254,7 @@ threads = 4
 core_id = "fes.ts1000"
 identity_version = 2
 toolchain = "quartus"
+front_end = "quartus-lite"
 producer_script = "scripts/build_fes_zx81_quartus.py"
 producer_module = "scripts.build_fes_zx81_quartus"
 producer_arguments = ["--model", "ts1000"]
@@ -261,6 +268,8 @@ quartus_role = "primary ZX81-family package producer; nextpnr is advisory (confi
 
 [recipes.quartus]
 version = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
+edition = "lite"
+device_family = "cyclonev"
 seeds = [1, 2, 3]
 threads = 4
 
@@ -268,6 +277,7 @@ threads = 4
 core_id = "fes.ts1500"
 identity_version = 2
 toolchain = "quartus"
+front_end = "quartus-lite"
 producer_script = "scripts/build_fes_zx81_quartus.py"
 producer_module = "scripts.build_fes_zx81_quartus"
 producer_arguments = ["--model", "ts1500"]
@@ -281,6 +291,8 @@ quartus_role = "primary ZX81-family package producer; nextpnr is advisory (confi
 
 [recipes.quartus]
 version = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
+edition = "lite"
+device_family = "cyclonev"
 seeds = [1, 2, 3]
 threads = 4
 

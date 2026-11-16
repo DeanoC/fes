@@ -104,12 +104,14 @@ class RegistryTests(unittest.TestCase):
             (fake.parents[1] / "config").mkdir(parents=True)
             text = (ROOT.parents[1] / "config/core-recipes.toml").read_text()
             shutil.copytree(ROOT / "cores/fes-zx81", fake / "cores/fes-zx81", dirs_exist_ok=True)
+            # The first match of each is the fes.zx81 row, the registry's first Lite row.
             for old, new, message in (
                     ('producer_options = { model = "ts1000" }', 'producer_options = { model = "zx81" }', "must select"),
-                    ('Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"\nseeds = [1, 2, 3]\nthreads = 4\n',
-                     'Version 17.0.1 Build 1 01/01/2017 SJ Lite Edition"\nseeds = [1, 2, 3]\nthreads = 4\n',
-                     "version differs")):
-                # The first match is the fes.zx81 row, the registry's first Lite row.
+                    ('version = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"\nedition = "lite"',
+                     'version = "Version 17.0.1 Build 1 01/01/2017 SJ Lite Edition"\nedition = "lite"',
+                     "version differs"),
+                    ('front_end = "quartus-lite"', 'front_end = "yosys"', "must elaborate with Quartus Lite"),
+                    ('device_family = "cyclonev"', 'device_family = "agilex5"', "edition or device family differs")):
                 self.assertIn(old, text)
                 (fake.parents[1] / "config/core-recipes.toml").write_text(text.replace(old, new, 1))
                 with self.subTest(message), self.assertRaisesRegex(BuildError, message):
@@ -182,6 +184,31 @@ class ProjectTests(unittest.TestCase):
         text = self.qsf()
         self.assertIn("set_global_assignment -name ON_CHIP_BITSTREAM_DECOMPRESSION ON", text)
         self.assertNotIn("ON_CHIP_BITSTREAM_DECOMPRESSION OFF", text)
+
+    def test_canonical_qsf_ignores_build_id_seed_and_run_path(self) -> None:
+        machine = producer.model_for("zx81")
+        recipe = producer.selected_recipe(ROOT, machine.core_id)
+        a_dir = ROOT / "build/a/signoff/seed-1"
+        b_dir = ROOT / "build/somewhere/else/deeper/repeat/seed-2"
+        a = producer.canonical_qsf(producer.project_qsf(ROOT, a_dir, BUILD_ID, 1, machine, recipe), ROOT, a_dir)
+        b = producer.canonical_qsf(producer.project_qsf(ROOT, b_dir, "f" * 32, 2, machine, recipe), ROOT, b_dir)
+        self.assertEqual(a, b)
+        self.assertNotIn(BUILD_ID, a)
+        self.assertIn('"<ROOT>/cores/fes-zx81/quartus/zx81_rom_link.v"', a)
+        digest = producer.canonical_qsf_sha256(ROOT, machine, recipe)
+        self.assertRegex(digest, "^[0-9a-f]{64}$")
+        other = producer.canonical_qsf_sha256(ROOT, producer.model_for("ts1500"), producer.selected_recipe(ROOT, "fes.ts1500"))
+        self.assertNotEqual(digest, other)
+
+    def test_project_must_match_the_recorded_qsf(self) -> None:
+        import tempfile
+        machine = producer.model_for("zx81")
+        recipe = producer.selected_recipe(ROOT, machine.core_id)
+        digest = producer.canonical_qsf_sha256(ROOT, machine, recipe)
+        with tempfile.TemporaryDirectory(dir=ROOT / "build") as directory:
+            producer.write_project(ROOT, Path(directory) / "ok", BUILD_ID, 2, machine, recipe, digest)
+            with self.assertRaisesRegex(BuildError, "differs from the canonical QSF"):
+                producer.write_project(ROOT, Path(directory) / "bad", BUILD_ID, 1, machine, recipe, "0" * 64)
 
     def test_uncompressed_rbf_is_refused(self) -> None:
         from types import SimpleNamespace

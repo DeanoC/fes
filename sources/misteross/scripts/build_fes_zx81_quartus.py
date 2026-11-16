@@ -111,6 +111,8 @@ ROM_DATABASE_SHA256 = {
     'libmistral/cyclonev.h': '185c24e2b75385d8e62a7144f12488eb68f7d8159af0a8a603cc4a3de1749ee9',
 }
 ROM_ENCODING = 'm10k-1024x10-v1'
+# Quartus Lite reads the RTL itself (#1806): no Yosys program, so no front_end_program_sha256.
+FRONT_END = 'quartus-lite'
 ROM_FIRST_ROW = 73
 ROM_COLUMN = 5
 # m10k-1024x10-v1: stored bit i of a 40-bit word holds logical bit PERMUTATION[i]
@@ -181,8 +183,15 @@ def selected_recipe(root=ROOT, core_id: str = 'fes.zx81') -> dict:
             or rows[0].get('producer_options') != {'model': machine.key}):
         raise BuildError(f'{machine.core_id} must select {RECIPE} --model {machine.key} in the registry')
     quartus = rows[0]['quartus']
-    if quartus['version'] != load_quartus_lock(root, LOCK).version:
+    lock = load_quartus_lock(root, LOCK)
+    if quartus['version'] != lock.version:
         raise BuildError(f'{machine.core_id} registry Quartus version differs from {LOCK}')
+    # The front end, its edition and its device family are declared twice: in the
+    # recipe the BUILD_ID hashes and in the lock Quartus is authenticated against.
+    if rows[0].get('front_end') != FRONT_END:
+        raise BuildError(f'{machine.core_id} must elaborate with Quartus Lite\'s own front end ({FRONT_END})')
+    if (quartus.get('edition'), quartus.get('device_family')) != (lock.edition, lock.device_family):
+        raise BuildError(f'{machine.core_id} registry edition or device family differs from {LOCK}')
     return rows[0]
 
 
@@ -366,6 +375,8 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
         'rom_selftest': SELFTEST_DOMAIN.decode(),
         'execution_sha256': execution_digest(execution)}
     parameters.update(quartus_recipe_parameters(recipe['quartus']))
+    parameters.update(front_end=FRONT_END, device_family=lock.device_family,
+                      quartus_qsf_sha256=canonical_qsf_sha256(root, machine, recipe))
     fields = {'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,
               'source_path': root.relative_to(top).as_posix(), 'source_roots': roots,
               'source_inputs': source_input_closure(root, roots),
@@ -435,11 +446,38 @@ def project_qsf(root: Path, project: Path, build_id: str, seed: int, machine: Mo
     return '\n'.join(lines) + '\n\n' + pins
 
 
-def write_project(root: Path, project: Path, build_id: str, seed: int, machine: Model, recipe: dict) -> Path:
+def canonical_qsf(text: str, root: Path, project: Path) -> str:
+    """The recorded form of a project QSF (#1806).
+
+    It leaves out what the record cannot cover: the BUILD_ID macro the record
+    derives, the seed, and the per-run project path. One digest therefore binds
+    every sign-off seed's QSF and the repeat run's.
+    """
+    rel = Path(os.path.relpath(Path(root).resolve(), Path(project).resolve())).as_posix()
+    lines = []
+    for line in text.splitlines():
+        if line.startswith('set_global_assignment -name SEED ') or 'FES_ZX81_BUILD_ID=' in line:
+            continue
+        lines.append(line.replace(f'"{rel}/', '"<ROOT>/'))
+    return '\n'.join(lines) + '\n'
+
+
+def canonical_qsf_sha256(root: Path, machine: Model, recipe: dict) -> str:
+    project = Path(root) / 'build/qsf-canonical/project'
+    text = project_qsf(root, project, '0' * 32, recipe_seeds(recipe)[0], machine, recipe)
+    return hashlib.sha256(canonical_qsf(text, root, project).encode()).hexdigest()
+
+
+def write_project(root: Path, project: Path, build_id: str, seed: int, machine: Model, recipe: dict,
+                  expected_qsf_sha256: str | None = None) -> Path:
     project.mkdir(parents=True, exist_ok=False)
     lock = load_quartus_lock(root, LOCK)
     (project / 'top.qpf').write_text(f'QUARTUS_VERSION = "{lock.series}";\nPROJECT_REVISION = "{TOP}";\n')
-    (project / 'top.qsf').write_text(project_qsf(root, project, build_id, seed, machine, recipe))
+    text = project_qsf(root, project, build_id, seed, machine, recipe)
+    if (expected_qsf_sha256 is not None
+            and hashlib.sha256(canonical_qsf(text, root, project).encode()).hexdigest() != expected_qsf_sha256):
+        raise BuildError('the project QSF differs from the canonical QSF the build record names')
+    (project / 'top.qsf').write_text(text)
     for lane in range(8):
         (project / f'zx81_rom_lane{lane}.mif').write_text(blank_mif())
     return project
@@ -725,7 +763,8 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
         recipe = selected_recipe(root, machine.core_id)
         seeds = recipe_seeds(recipe)
         for name, seed in [*(('signoff', seed) for seed in seeds), ('repeat', seeds[0])]:
-            project = write_project(root, output / name / f'seed-{seed}', build_id, seed, machine, recipe)
+            project = write_project(root, output / name / f'seed-{seed}', build_id, seed, machine, recipe,
+                                    json.loads(record)['parameters']['quartus_qsf_sha256'])
             compile_project(project, quartus, env)
             evidence = seed_evidence(project, machine)
             runs.append({'stage': name, 'seed': seed, **evidence})
