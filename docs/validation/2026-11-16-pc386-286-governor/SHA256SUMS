@@ -21,7 +21,7 @@ fa9dc529b6c9ff1f1100528886c783869f187b1c19f9acacb9074b28100a582a  ./memory-test/
 48159145c8dbb09cd7162cc16814bc2360b5370e6941551f74b8eb6a960b69ec  ./memory-test/default-off/after-manifest.json
 1ca93abd88973da961e3a5170fca3d79533c0df4c5f33997924b9a881ce6c172  ./memory-test/default-off/before-manifest.json
 92d8bc22f454bd2c6438f1d0ff19e962b7cfe2cc7881b0ab7b79b6b23305e131  ./memory-test/default-off/default-off-comparison.json
-e289379c356fe052d9d8add07e36209e1ff65cee8868b1dfe85491788d0cd84c  ./memory-test/default-off/default_off_compare.py
+f8954c1e45ae58efb080dd6b0874328838682cd53310098103c9f44aa925a2c8  ./memory-test/default-off/default_off_compare.py
 d157be10e57db3922ecc168bfe8db1f844001513bcead4b5864daa42f8977309  ./memory-test/default-off/off-0-0-0-after.log
 d157be10e57db3922ecc168bfe8db1f844001513bcead4b5864daa42f8977309  ./memory-test/default-off/off-0-0-0-before.log
 0558e48d40649a6daeeca759ffdc425a5814a5ad778842ddffe8a0152080a831  ./memory-test/default-off/off-1-0-0-after.log
