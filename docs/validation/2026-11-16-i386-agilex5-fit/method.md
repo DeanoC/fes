@@ -685,3 +685,58 @@ No recorded figure changes. Every recorded fit already satisfies the stricter
 rule — the CPU fits have one real pin against one real clock and the machine
 fits two against two — which is why this is a gate correction rather than a
 result correction.
+
+## Amendment, 16 November 2026: a sixteenth fit, and its bands before it runs
+
+What had been seen: the fifteen fits above, all recorded, with the budget and
+the ladder settled. **And, from the sibling DE25 envelope session, something
+that changes this fit's purpose:** its integration fit of `pc386_system` with
+`x87_present = 1'b1` **and** `X87_BACKEND = 1` — the machine with a *complete*
+DE25 387, the pipelined backend — fits and closes on Agilex 5 across four
+seeds at **40,986 / 41,055 / 41,122 / 41,054 ALMs, 87.58–87.87%**, every
+corner, hold strictly positive, setup never below +7.58 ns. It ran on this
+runner, this envelope, this SDC and these report rows, so it is on the same
+scale as M and M+. That figure is theirs, cited here, not measured here.
+
+**So the question this record kept naming as unsettled is settled, by a
+different design.** "Does the DE25 hold a complete 387" is answered **yes**,
+via the pipelined backend — which is what the 16 November decision ships
+there. Every sentence in this record that calls #1889's head "the only
+measurement that would settle the plan" is wrong as of that result, and the
+summary is corrected rather than left standing.
+
+**What the sixteenth fit is for instead.** `pc386_system` from
+[#1889](https://github.com/DeanoC/fes/pull/1889)'s head, `x87_present` tied
+high, is now the clean **A/B of the two arithmetic implementations on one
+device**: the DE10's sequencer design against the pipelined backend, same
+device, same envelope, same front end, same rung, with the backend side
+already measured at four seeds. Nobody has that comparison, and slice 6 has to
+decide what to optimise. It is run for that, and labelled as that.
+
+**What is fitted.** #1889's head `5f901426e` **as it stands, pre-merge**: that
+PR targets `deano/i386-x87-s3`, not main, and its base is currently
+conflicting. The tree wanted is the head's own, not a merge result, so no
+merge is attempted. Consequently the fit describes the **slice-3-plus-slice-4
+design on #1879's branch** and no state of main. Envelope, SDC, virtual-pin
+set, guest rates, ROM contents, report rows and the M10K rename: **identical
+to M and M+**, because being on one scale with the 37,255 is the entire point.
+
+**Interpretation bands, fixed here before any output exists.**
+
+1. The fitter refuses, or ALMs needed exceed 100% → **does not fit on Agilex 5
+   either**: a decisive negative.
+2. Fits, ALMs needed ≤ 100%, timing **passes every analysis at all four
+   corners** → **Agilex 5 holds the design the DE10 refused**: the decisive
+   positive.
+3. Fits, but timing **fails at any corner** → **"fits but does not close"**,
+   which is **not** a pass; the worst slack and its corner are reported.
+4. In band 2 or 3 with ALMs needed **≥ 92%** → recorded as **not established,
+   pending more seeds**, whatever the timing says. The DE10 lane's practical
+   ceiling is near 92%, #1821 brackets seed-dependence onset there between
+   91.3% and 91.7%, and nothing above 79.6% of ALMs had been fitted on Agilex
+   5 before the envelope session's 87.87%.
+
+**No outcome is predicted.** The inference that would have predicted a refusal
+has been withdrawn, and the honest position is that nobody knows. Stating a
+prediction now, after a morning spent retracting two of them, would be the
+same mistake in a new place.

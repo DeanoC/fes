@@ -215,10 +215,16 @@ only an integration fit on this device settles the question.
 M+ uses **4,590 of 4,680 LABs, 98.08%** — and that figure is *not* the
 capacity figure, which is why it is here rather than in the table above. A LAB
 holds exactly **10 ALMs on both devices** (46,800/4,680 and 41,910/4,191), and
-a LAB counts as used when one ALM in it is used. M+ places 40,550 ALMs across
-those 4,590 LABs: **8.1 of every 10 slots**, with the fitter estimating
-**4,210 ALMs recoverable by dense packing** and 915 unavailable. So 98% of
-LABs are touched while a fifth of their slots are free. The same CPU netlist
+a LAB counts as used when one ALM in it is used. M+ occupies 4,590 LABs, which hold 45,900
+ALM slots between them, and **the two resource rows give two different
+densities — each is stated here with the row it comes from**:
+
+- **ALMs used in final placement: 40,550** — **8.83 of every 10 slots**.
+- **ALMs needed, the capacity row: 37,255** — **8.12 of every 10**.
+
+The gap between them is the fitter's own estimate that **4,210 ALMs are
+recoverable by dense packing**, with 915 unavailable. On either row, 98% of
+LABs are touched while at least a tenth of their slots stand free. The same CPU netlist
 used 3,512 LABs under one envelope and 3,626 under the other, a 114-LAB swing
 on identical logic — larger than the 90 LABs that remain untouched.
 
@@ -234,8 +240,13 @@ arithmetic; M+ carries `main`'s slice 2, which the DE10 seals without
 difficulty. "Agilex 5 placed what the DE10 could not" would need #1889's head
 fitted here, and it has not been.
 
-**And the DE10 settles it directly.** The same design, fit M, on the device
-that refused #1889: **3,946 of 4,191 LABs, 94.15%** — and it placed, routed
+**And the DE10 settles it directly, on a fit whose total independently
+validates this method.** `pc386_system` there comes out at **88.54% of ALMs**,
+and the pc386 seal lane's own known figure for this design is about 88% — so
+this envelope and flow reproduced a number the lane already had by another
+route. That is the main reason a reader should credit the Agilex figures, which
+have no such independent check. The same fit, on the device that refused
+#1889: **3,946 of 4,191 LABs, 94.15%** — and it placed, routed
 and passed every analysis at all eight corners, at 88.54% of ALMs. So 94% of
 LABs used is a successful fit on this very device, which is what the LAB row
 being a capacity wall would have ruled out. Note too that the two M fits sit
@@ -244,13 +255,18 @@ percentages are 12 points apart.
 
 LAB occupancy and packing density of every fit:
 
-| Fit | ALMs needed | % | ALMs in final placement | LABs used | % | ALMs per LAB |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| C, Agilex 5 | 29,300 | 62.6% | — | 3,626 | 77.5% | 8.1 |
-| M, Agilex 5 | 35,492 | 75.8% | 38,750 | 4,424 | 94.5% | 8.0 |
-| M+, Agilex 5 | 37,255 | 79.6% | 40,550 | 4,590 | 98.1% | 8.1 |
-| C, Cyclone V | 31,244 | 74.6% | 30,672 | 3,494 | 83.4% | 8.9 |
-| M, Cyclone V | 37,108 | 88.5% | — | 3,946 | 94.2% | 9.4 |
+Two densities per fit, each from its own row, because they are not the same
+quantity: **needed/LAB** divides the capacity row by the LABs, **placed/LAB**
+divides the final-placement row. A dash means that fit's report did not carry
+the final-placement row.
+
+| Fit | ALMs needed | % | ALMs in final placement | LABs used | % | needed/LAB | placed/LAB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| C, Agilex 5 | 29,300 | 62.6% | — | 3,626 | 77.5% | 8.08 | — |
+| M, Agilex 5 | 35,492 | 75.8% | 38,750 | 4,424 | 94.5% | 8.02 | 8.76 |
+| M+, Agilex 5 | 37,255 | 79.6% | 40,550 | 4,590 | 98.1% | 8.12 | 8.83 |
+| C, Cyclone V | 31,244 | 74.6% | 30,672 | 3,494 | 83.4% | 8.94 | 8.78 |
+| M, Cyclone V | 37,108 | 88.5% | — | 3,946 | 94.2% | 9.40 | — |
 
 ## The clock ladder, and what is not measured
 
