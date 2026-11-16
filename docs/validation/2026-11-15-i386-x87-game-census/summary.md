@@ -407,6 +407,47 @@ accompanying. Three of my columns measured nothing I claimed; the rest
 establishes something *different* from coverage, which is not the same as
 establishing less.
 
+### Three ways a record goes wrong, from this one's own review
+
+This census was reviewed over many rounds and nearly every finding was a
+claim attached to the wrong measurement rather than a wrong number. Three
+distinct failures, because they have different remedies:
+
+**Drift** — a claim correct when written and left behind by a later change.
+The method's `x87sig` definition after the key was fixed; the canonical key
+table after three keys were added; the generated prose calling `le53` stores
+exact after the exactness column was added. *Remedy: derive the prose from
+the data, and regenerate it in the same edit as the computation.*
+
+**Decoration** — weak support presented as if load-bearing, which makes a
+conclusion look stronger than it is and hands a reviewer things to knock
+down. The m80 traffic led as the headline when four fifths of it was narrow
+values; the area argument stated as measured when slice 2 had not measured
+it. *Remedy: say what each piece of evidence establishes, and at what
+strength.*
+
+**Mis-attachment** — **the number is right and the claim about what it
+measures is wrong.** This was the commonest here and the hardest to see:
+integer conversions counted as floating-point store widths; register-form
+stores counted as memory stores; a significand bucket called "stored
+exactly" when exactness also needs the exponent; a generator filtering on
+its own lookup table, so omissions became findings; an exponent recorded as
+a marginal when the question was joint; the 53-bit case argued from
+precision control when the register file was the thing that settles it.
+*Remedy: state what a column measures before quoting it, and check a
+quantity against its own definition rather than against its plausibility.*
+
+Only the first is fixed by "generate rather than type", which is why that
+rule alone was not enough here.
+
+**And every one of these findings left the conclusion intact.** Three
+evidence columns were withdrawn, the area argument was weakened to a single
+isolated figure, and the 53-bit case was rebuilt on a different measurement
+— and the answer did not move once. That is not luck: it is what it looks
+like when a conclusion rests on something the corrections never touched,
+which here is coverage and the register-file widths. A reader should check
+that rather than take it, and the tables are generated so they can.
+
 ### A correction to this census's own classification
 
 **Dated 16 November 2026**, after the first two runs and before the rest.
