@@ -25,6 +25,7 @@ RULES = [
         'scripts/check_doc_links.py', 'scripts/coordination.py', 'scripts/de25_runtime.py',
         'scripts/de25_dma_descriptor.py',
         'scripts/hil_plan.py', 'scripts/hil_go_inventory.py', 'scripts/hil_go_imports.go',
+        'scripts/de25_restore.py',
         'scripts/consistency.py', 'scripts/generate.py',
         'scripts/host_affected.py', 'scripts/runtime_tests.py', 'scripts/input_diagnostic.py',
     )],
@@ -837,6 +838,13 @@ def plan(paths, texts=None, go_inventories=None, go_graph_changes=None, inventor
         decision = 'NO_DEPLOY_CHANGE'
     result = {'rows': rows, 'class': worst, 'components': components,
               'decision': decision}
+    if worst == 'none':
+        result['kit_targets'] = []
+    elif any(component.startswith('core:de25-') for component in components) or any(
+            'de25' in row['path'].lower() for row in rows):
+        result['kit_targets'] = ['D25']
+    else:
+        result['kit_targets'] = ['A', 'B']
     relevant = [row for row in rows if go_input(row)]
     if relevant or commands or inventory_errors:
         required = [command for command in commands

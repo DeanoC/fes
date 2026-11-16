@@ -11,6 +11,13 @@ This is the first Linux bring-up milestone. It contains no FPGA runtime,
 FogCast target agent, MENU display, playable core or managed appliance update
 service. A successful image build does not qualify those interfaces.
 
+The standard managed DE25 development kit is Kit D25 (`de25-j8g`, serial
+`TRWU8J8G`); its operator flow is documented in [the DE25 kit HIL guide](de25-kit-hil.md).
+DE25 package, runtime and image changes require exact-head D25 HIL and a
+verified restore, in addition to their normal Quartus Pro 26.3 timing and seal
+gates. Prefer `fes-build-3090` for Quartus builds. DE10 kits cannot satisfy a
+DE25 HIL check.
+
 ## Build and inspect
 
 Run these commands from the FES repository root on a Linux build host with
