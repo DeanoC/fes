@@ -1,5 +1,5 @@
 {
-  "collected_at_revision": "ee251abb8ba94e81c9bdc960ff5b7c37f121ca17",
+  "collected_at_revision": "a51898a429d2158e8993739f86fb52573cf5c580",
   "comparison_note": "Cyclone V ALMs and Agilex 5 ALMs are different units, and M10K and M20K are different blocks. Figures are reported per device with that device's totals. No cross-device ratio is computed here.",
   "evidence_scope": "internal virtual-pin characterisation fits; no board I/O, no seal, no programming artifact and no hardware acceptance",
   "fes_revision": null,

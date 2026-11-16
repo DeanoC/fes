@@ -157,17 +157,37 @@ def timing_rows(name: str, output: Path, fit: dict) -> list[str]:
     lines = path.read_text().splitlines()
     if len(lines) < 2:
         raise RecordError(f"{name}: {path} has a header and no rows")
-    rows = lines[1:]
-    # A truncated table is as misleading as a missing one: the verdict covers
-    # every corner, so the rows must too. Count the distinct corners the rows
-    # name and require the recorded corner count.
-    corners = {row.split("\t")[0] for row in rows if row.strip()}
+    rows = [row for row in lines[1:] if row.strip()]
+    # A truncated table is as misleading as a missing one, and a table can be
+    # truncated in two directions: missing corners, or missing checks within a
+    # corner. The verdict is published whole, so require both -- every recorded
+    # corner present, and every corner carrying the same set of checks,
+    # including the three the closure rests on.
+    checks: dict[str, set[str]] = {}
+    for row in rows:
+        field = row.split("\t")
+        # corner, hold_only, check, coverage, ... -- the check is field 2.
+        if len(field) < 3:
+            raise RecordError(f"{name}: {path} has a row with fewer than three fields: {row!r}")
+        checks.setdefault(field[0], set()).add(field[2])
     expected = (fit.get("timing") or {}).get("corner_count")
-    if expected is not None and len(corners) != expected:
+    if expected is not None and len(checks) != expected:
         raise RecordError(
             f"{name}: fit.json records a timing verdict over {expected} corner(s) but "
-            f"{path} has rows for {len(corners)}; the table is truncated and the verdict "
+            f"{path} has rows for {len(checks)}; the table is truncated and the verdict "
             "would be published without the evidence for every corner")
+    full = max(checks.values(), key=len) if checks else set()
+    for corner, present in sorted(checks.items()):
+        if present != full:
+            raise RecordError(
+                f"{name}: corner {corner!r} in {path} has checks {sorted(present)} where other "
+                f"corners have {sorted(full)}; the table is missing rows and the verdict would "
+                "be published without them")
+    required = {"setup", "hold", "minimum_pulse_width"}
+    if checks and not required <= full:
+        raise RecordError(
+            f"{name}: {path} carries checks {sorted(full)}, missing "
+            f"{sorted(required - full)}; the closure rests on those")
     return [f"{name}\t{row}" for row in rows]
 
 

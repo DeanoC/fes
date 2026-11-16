@@ -42,9 +42,13 @@ def write_fit(directory: Path, *, device: str, family: str, alms: float, availab
     (directory / "netlist.json").write_text(json.dumps({"netlist_sha256": "a" * 64}))
     # Four rows, because fit.json above records a four-corner verdict; the
     # collector refuses a table that does not cover every corner.
+    # Four corners, each carrying the three checks a closure rests on, because
+    # fit.json above records a four-corner verdict and the collector refuses a
+    # table truncated in either direction.
     (directory / "timing.tsv").write_text(
         "corner\thold_only\tcheck\tcoverage\tpaths\tworst_slack_ns\tfrom\tto\n"
-        + "".join(f"Corner {i}\t0\tsetup\tanalyzed\t1\t6.048\tx\ty\n" for i in range(4)))
+        + "".join(f"Corner {i}\t0\t{c}\tanalyzed\t1\t6.048\tx\ty\n"
+                  for i in range(4) for c in ("setup", "hold", "minimum_pulse_width")))
     return directory
 
 
@@ -81,7 +85,7 @@ class Collect(unittest.TestCase):
             rows = (out / "timing.tsv").read_text().splitlines()
             self.assertEqual(rows[0].split("\t")[0], "fit")
             self.assertTrue(rows[1].startswith("cpu-de25\tCorner 0\t"))
-            self.assertEqual(len(rows), 5, "header plus the fixture's four corners")
+            self.assertEqual(len(rows), 13, "header plus four corners of three checks")
 
     def test_a_partial_fit_names_the_stage_its_counts_came_from(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -316,9 +320,32 @@ class Collect(unittest.TestCase):
                              "the fixture's four rows match its four-corner verdict")
             # Truncate to one corner and the same fit must now be refused.
             lines = (fit / "timing.tsv").read_text().splitlines(keepends=True)
-            (fit / "timing.tsv").write_text("".join(lines[:2]))
+            (fit / "timing.tsv").write_text("".join(lines[:4]))
             self.assertEqual(record.main(["--record", str(root / "r2"), f"--fit=x={fit}"]), 1,
                              "one corner of rows against a four-corner verdict must be refused")
+
+    def test_a_corner_missing_a_check_is_refused(self):
+        # The other direction of truncation: all four corners present, but one
+        # of them has lost its hold row.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fit = write_fit(root / "f", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                            alms=1, available=2, device_alms=46800, ram_block="M20K")
+            lines = (fit / "timing.tsv").read_text().splitlines(keepends=True)
+            kept = [l for l in lines if not (l.startswith("Corner 2\t") and "\thold\t" in l)]
+            (fit / "timing.tsv").write_text("".join(kept))
+            self.assertEqual(record.main(["--record", str(root / "r"), f"--fit=x={fit}"]), 1)
+
+    def test_a_table_without_the_closure_checks_is_refused(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fit = write_fit(root / "f", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                            alms=1, available=2, device_alms=46800, ram_block="M20K")
+            (fit / "timing.tsv").write_text(
+                "corner\thold_only\tcheck\tcoverage\tpaths\tworst_slack_ns\tfrom\tto\n"
+                + "".join(f"Corner {i}\t0\trecovery\tanalyzed\t1\t1.0\tx\ty\n"
+                          for i in range(4)))
+            self.assertEqual(record.main(["--record", str(root / "r"), f"--fit=x={fit}"]), 1)
 
     def test_a_fit_argument_without_a_name_is_refused(self):
         with tempfile.TemporaryDirectory() as temporary:
