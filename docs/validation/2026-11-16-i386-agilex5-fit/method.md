@@ -863,3 +863,34 @@ real commits; the four fits listed in `fits_with_no_recorded_revision`
 (`cpu-de10`, `cpu-de25`, `cpu-de25-zerodelay-envelope`, `machine-de25`) predate
 the field entirely and carried no `fes_revision` key, which is a different and
 already-reported absence.
+
+## Amendment, 2026-11-16: the second half of the same hole, and one definition
+
+Written after the previous amendment was published, and about that amendment's
+own incompleteness rather than about any figure here.
+
+The previous fix taught *one* consumer that `"unknown"` is the absence of a
+revision and left the other checking truthiness. `--netlist-source self` stores
+`fes_revision()` whole, so on a copied checkout the reused-netlist gate saw the
+truthy dict `{"commit": "unknown", "clean": None}`, recorded no
+`netlist_source_revision` error, and would have published the fit as having
+stated where its netlist's bytes came from when it had stated nothing. The same
+failure the first fix was for, reached by a second path. Found by Codex review
+on `87321ade8`, not by me.
+
+Counterexample first, again: a reused netlist whose `source_revision` is that
+dict, and one whose `source_revision` is the bare string, both published with
+no validation error before the change. A paired test fixes the gate as a
+revision check rather than a shape check — `--netlist-source self` on a real
+checkout stores a dict too, and that must still pass.
+
+The fix is one definition instead of two tests. `revision_commit()` is now the
+only place that decides whether a recorded revision names a commit, and both
+consumers call it. The producer's note is qualified to match: a `self`
+declaration from a checkout that cannot name its own revision now says so
+rather than reading "declared as elaborated from this checkout" unqualified.
+
+The lesson recorded rather than the patch: two independent sites treating
+`"unknown"` as present was not two bugs, it was one missing definition. A
+truthiness check replaced by a slightly different truthiness check would have
+looked fixed.

@@ -40,6 +40,24 @@ def read(path: Path) -> dict:
         raise RecordError(f"cannot read {path}: {error}") from error
 
 
+def revision_commit(value) -> str | None:
+    """The commit a recorded revision names, or None when it names none.
+
+    `fes_revision()` writes {"commit": "unknown"} when `git rev-parse` fails,
+    which is what a tree copied to another host without a resolvable .git
+    gives, and `--netlist-source self` stores that whole dict. Both shapes are
+    truthy, so every consumer that asks "is there a revision?" must go through
+    here rather than test the value itself: the first version of this fix
+    taught one consumer that "unknown" is absent and left the other checking
+    truthiness, which published copied-tree fits as provenance-validated by a
+    second path.
+    """
+    commit = value.get("commit") if isinstance(value, dict) else value
+    if not isinstance(commit, str) or commit == "unknown":
+        return None
+    return commit or None
+
+
 def validation_gaps(entry: dict, fit: dict, inputs: dict) -> dict:
     """What a fit has not evidenced about itself.
 
@@ -53,7 +71,7 @@ def validation_gaps(entry: dict, fit: dict, inputs: dict) -> dict:
     netlist = fit.get("netlist") if isinstance(fit.get("netlist"), dict) else None
     if netlist is None:
         netlist = {}
-    if netlist.get("reused") and not netlist.get("source_revision"):
+    if netlist.get("reused") and not revision_commit(netlist.get("source_revision")):
         gaps["netlist_source_revision"] = (
             "a reused netlist with no stated source revision: its digest identifies the bytes "
             "and not where they came from, and the fitting checkout is not their source")
@@ -296,14 +314,7 @@ def main(argv: list[str] | None = None) -> int:
         # is reported separately and a disagreement is named, never smoothed.
         collected_at = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip()
         def commit(fit):
-            value = fit.get("fes_revision")
-            value = value.get("commit") if isinstance(value, dict) else value
-            # fes_revision() writes "unknown" when `git rev-parse` fails, which
-            # is what a tree copied to another host without a resolvable .git
-            # gives. That is the absence of a revision, not a revision named
-            # "unknown", and the string is truthy, so it is normalised here
-            # rather than counted as one and agreed upon.
-            return None if value == "unknown" else value
+            return revision_commit(fit.get("fes_revision"))
         # Only when EVERY fit supplies a commit: one fit with a revision beside
         # others with none would otherwise set the aggregate and read as
         # agreement, attributing the unversioned fits to that checkout.

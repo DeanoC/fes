@@ -974,10 +974,20 @@ def main(argv: list[str] | None = None) -> int:
             provenance = {"reused": str(args.netlist)}
             given = args.netlist_source
             if given == "self":
-                provenance["source_revision"] = fes_revision()
-                provenance["source_revision_note"] = (
-                    "declared as elaborated from this checkout" + (
-                        f"; {args.netlist_source_note}" if args.netlist_source_note else ""))
+                revision = fes_revision()
+                provenance["source_revision"] = revision
+                # "this checkout" names a source only when the checkout can
+                # name itself. On a tree copied without a resolvable .git the
+                # commit is "unknown", and the unqualified sentence would read
+                # as provenance where there is none; the collector refuses such
+                # a fit, and the note must not contradict it.
+                stated = ("declared as elaborated from this checkout"
+                          if revision.get("commit") != "unknown" else
+                          "declared as elaborated from this checkout, but the checkout could "
+                          "not name its own revision (`git rev-parse` failed, as a copied tree "
+                          "with no resolvable .git gives), so no source revision is stated")
+                provenance["source_revision_note"] = stated + (
+                        f"; {args.netlist_source_note}" if args.netlist_source_note else "")
             elif given:
                 provenance["source_revision"] = given
                 provenance["source_revision_note"] = (

@@ -409,6 +409,42 @@ class Collect(unittest.TestCase):
             entry = json.loads((out / "quartus.json").read_text())["fits"][0]
             self.assertIn("netlist_source_revision", entry["validation_errors"])
 
+    def test_a_reused_netlist_whose_source_revision_is_unknown_is_a_gap(self):
+        # The second half of the same bug. `--netlist-source self` stores
+        # fes_revision() itself, and on a copied checkout with no usable Git
+        # metadata that is the truthy dict {"commit": "unknown", "clean": None}.
+        # A truthiness gate passes it, so the fit publishes as having stated
+        # where its bytes came from when it has stated nothing.
+        for stored in ({"commit": "unknown", "clean": None}, "unknown"):
+            with self.subTest(stored=stored), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                fit = write_fit(root / "f", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                                alms=1, available=2, device_alms=46800, ram_block="M20K")
+                net = json.loads((fit / "netlist.json").read_text())
+                net["source_revision"] = stored
+                (fit / "netlist.json").write_text(json.dumps(net))
+                out = root / "r"
+                record.main(["--record", str(out), f"--fit=x={fit}"])
+                entry = json.loads((out / "quartus.json").read_text())["fits"][0]
+                self.assertIn("netlist_source_revision",
+                              entry.get("validation_errors", {}))
+
+    def test_a_reused_netlist_whose_source_revision_is_a_commit_is_not_a_gap(self):
+        # The gate must stay a revision check and not become a shape check:
+        # `--netlist-source self` on a real checkout stores a dict too.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fit = write_fit(root / "f", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                            alms=1, available=2, device_alms=46800, ram_block="M20K")
+            net = json.loads((fit / "netlist.json").read_text())
+            net["source_revision"] = {"commit": "c" * 40, "clean": True}
+            (fit / "netlist.json").write_text(json.dumps(net))
+            out = root / "r"
+            record.main(["--record", str(out), f"--fit=x={fit}"])
+            entry = json.loads((out / "quartus.json").read_text())["fits"][0]
+            self.assertNotIn("netlist_source_revision",
+                             entry.get("validation_errors", {}))
+
     def test_a_netlist_elaborated_here_is_not_a_gap(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
