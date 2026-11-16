@@ -809,3 +809,26 @@ declared to have asynchronous resets: they were swept or mis-elaborated".
 No recorded verdict changes: all four machine fits already have analysed
 recovery and removal rows at every corner, worst +0.302 ns, and the CPU fits
 are declared synchronous, which is what they are.
+
+## Amendment, 16 November 2026: a CI failure that is not this work's
+
+For the record, because a reader of the PR will see a red check in its
+history. The `fpga-simulation (de25-x87, sim-fes-de25-x87)` job failed twice on
+this branch and then passed, by **crashing Verilator itself** during
+elaboration — `corrupted size vs. prev_size in fastbins` on one run and
+`Verilator internal fault, sorry` on the next, two different signatures on
+byte-identical input, each inside 19 seconds and before any simulation ran.
+
+It is not caused by this work, and that is checkable rather than asserted:
+`git diff origin/main...HEAD` over every input that job uses —
+`boards/de25nano/x87/`, `sources/misteross/Makefile`, `.github/workflows/` and
+`scripts/ci_simulations.py` — is **empty**. This branch's diff is the record
+under `docs/validation/2026-11-16-i386-agilex5-fit/`, three new scripts and
+their two tests, and nothing else. The job passes on `main`, and passed on
+this branch on the following run with the same inputs.
+
+Filed as [#1925](https://github.com/DeanoC/fes/issues/1925), with the run
+links, both signatures and the observation that this lane's Verilator is
+workflow-provisioned rather than pinned by a toolchain lock — which is why a
+crash in the tool is not currently reproducible. It is recorded here rather
+than left for someone to attribute to this PR.
