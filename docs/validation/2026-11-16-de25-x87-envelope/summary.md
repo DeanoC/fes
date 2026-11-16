@@ -77,18 +77,49 @@ leave the unit waiting for a result that was thrown away.
 Measured on the x87 lockstep suite, both configurations, same clock:
 **DE10 10,993 cycles, DE25 11,584** — about **5.4% more** on that suite.
 
-The structural reason is the part worth carrying, because it predicts the
-result, survives the suite changing, and points at the remedy: **#1892's
-backend is a pipeline with a 15-clock response latency whose value is
-throughput, and the envelope holds one ESC instruction in flight, so there is
-never a second operation to amortise the pipeline against.** The sequencer's
-shorter dependent latency wins every time. #1892's headline rates — 200
-million independent fast operations a second — assume a concurrency this
-consumer does not have.
+Where the cycles go, measured per form in the unit bench as clocks from the
+instruction's commit to `busy_o` falling — which is what the next ESC waits
+for:
 
-**The remedy is envelope work, not backend work**: letting more than one ESC
-be in flight is what would turn the pipeline's throughput into something this
-consumer can use.
+| Form | DE10 sequencer | DE25 backend | Difference |
+| --- | ---: | ---: | ---: |
+| FADD | 10 | 19 | +9 |
+| FSUB | 17 | 19 | +2 |
+| FMUL | 15 | 19 | +4 |
+| FDIV | 64 | 79 | **+15** |
+| FSQRT | 72 | 79 | +7 |
+| FSCALE | 15 | 15 | 0 |
+| FRNDINT | 22 | 22 | 0 |
+| FPREM | 17 | 17 | 0 |
+
+The last three are the forms that stay on the sequencer in both
+configurations, and they are identical, as they must be. **The backend is
+slower on every form it answers.**
+
+There are **two** causes, and they have different remedies — which is why the
+per-form measurement was worth making rather than reasoning from the
+architecture:
+
+1. **A pipeline latency that nothing amortises.** For add, subtract and
+   multiply the gap is the backend's fixed ~15-clock response against a
+   sequencer that finishes a dependent add in 10. #1892's backend is built for
+   throughput — one operation accepted per clock — and the envelope holds one
+   ESC instruction in flight, so there is never a second operation in the
+   pipe. #1892's headline rate of 200 million independent fast operations a
+   second assumes a concurrency this consumer does not have.
+2. **An algorithmic difference on divide and square root.** The backend's exact
+   digit recurrence takes 65 clocks at PC64 where the sequencer's Goldschmidt
+   converges in a few multiplies. FDIV is the **largest absolute gap in the
+   table**, and no amount of concurrency closes it: it is not a pipeline that
+   is empty, it is a different algorithm.
+
+**So the remedy is not one thing.** An earlier version of this record said
+"the remedy is envelope work, not backend work — let more than one ESC be in
+flight". That is **half right and was asserted before it was measured**: more
+ESCs in flight would help the fast forms, and then only where the code has
+independent x87 operations, which x87 code chaining through ST(0) often does
+not. It would do nothing for FDIV, whose gap is the backend's divide
+algorithm. Closing that is backend work.
 
 What the 5.4% is **not**: it is measured on a 24-case x87 lockstep suite,
 which is about as x87-dense as a workload gets, and it is **not** 5.4% on

@@ -2334,6 +2334,40 @@ int main(int argc, char **argv) {
     if (held_for_ever) bad("protocol.hold", std::to_string(held_for_ever) + " uops held past the bench's wait");
     else ok("protocol.hold");
     std::printf("COMPARED %ld\n", compared);
+    // ---- Per-form latency, in CPU clocks ----
+    // Measured, not inferred. The claim this checks is that the DE25
+    // backend's pipeline cannot be amortised by a consumer that holds one ESC
+    // instruction in flight, so its DEPENDENT latency is what matters and may
+    // be worse than the sequencer's. Which forms it is worse on, and by how
+    // much, is a measurement: the first guess -- that more ESCs in flight
+    // would be the remedy -- is only sound if the adds and multiplies
+    // dominate, and x87 code chains through ST(0), so it might instead be the
+    // divide and square root, where 76 clocks of digit recurrence meet
+    // Goldschmidt.
+    //
+    // The number is clocks from the instruction's commit to `busy_o` falling,
+    // which is what the next ESC waits for.
+    {
+        struct LForm { const char *name; unsigned op; };
+        const LForm forms[] = {
+            {"fadd",  0x0c1}, {"fsub",  0x0e1}, {"fmul", 0x0c9}, {"fdiv", 0x0f1},
+            {"fsqrt", 0x1fa}, {"fscale", 0x1fd}, {"frndint", 0x1fc}, {"fprem", 0x1f8},
+        };
+        const uint8_t two[10]  = {0,0,0,0,0,0,0,0x80,0x00,0x40};
+        const uint8_t three[10] = {0,0,0,0,0,0,0,0xc0,0x00,0x40};
+        Unit u;
+        for (const LForm &f : forms) {
+            u.clear_latch();
+            u.reg_form(OP_FNINIT);
+            u.load(OP_FLD_M80, FMT_F80, two);
+            u.load(OP_FLD_M80, FMT_F80, three);
+            u.present(f.op, 0, true, true, 0);
+            u.commit(0, 0, true);
+            int clocks = 0;
+            while (u.top.busy_o && clocks < 4000) { u.tick(); ++clocks; }
+            std::printf("LATENCY %s %d\n", f.name, clocks);
+        }
+    }
     std::printf("SUMMARY %d %d\n", passed, failed);
     return failed ? 1 : 0;
 }
