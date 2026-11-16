@@ -187,3 +187,64 @@ the 1,010 is already in hand" — it is a thousand ALMs from an audit whose
 named wins are gone. Offering Deano the first reading would have been the
 worst kind of error a decision record can make, because it is the kind that
 survives review by sounding reasonable.
+
+---
+
+## How this escalation was resolved, 16 November
+
+**Deano decided the DE25 is the 387's home, the DE10 387 is not pursued
+further, and DE10 slice 5 is not being started.** So this slice is **the end
+of the DE10 x87 line and its verified reference implementation**, not a
+blocked step toward something that was never going to fit. A reader finding
+this file later should not have to search for what happened next.
+
+The three decisions, as the coordinating session relayed them:
+
+1. **The DE25 is the 387's home**; the DE10 387 is not pursued further.
+2. **The two share slice 2's envelope with a swappable arithmetic backend.**
+   The state machinery, the control, status and tag words, the pointers, the
+   BUSY# latch, the issue interlocks and the exception path are registers and
+   control rather than arithmetic — and they are the part the lockstep
+   verifies, so the DE25 inherits that verification rather than repeating it.
+3. **Transcendentals are built once, on the DE25 backend.**
+
+What settled it was a DE25 arithmetic backend Deano had already built
+([#1892](https://github.com/DeanoC/fes/pull/1892)): pipelined, on Agilex 5,
+reported at **2,660 ALMs at 200 MHz** across all four corners with one
+add/sub/mul/compare a clock, validated over 290,640 requests against the
+host's own x87 with no failures.
+
+**Those DE25 figures are that PR's, not this slice's measurements**, and the
+ALM comparison it draws — 2,660 against 5,035 for the same operations — uses
+a figure this record did not produce: this slice's own standalone numbers are
+4,076 ALMs for the merge base (slices 2 and 3) and 6,923 for slice 4's form,
+neither of which is 5,035, which presumably covers a different subset or
+envelope. The comparison is cited here as #1892's and should be read from
+there rather than from this record.
+
+**And the plausible assumption going in was wrong**, which is worth recording
+because this record's own plan raised it: Agilex's **hard floating-point DSP
+blocks are not why it is cheaper.** A pair of FP32 values lacks x87's
+precision and range, scaled expansions still need exact rounding tails, and
+Agilex FP32 flushing needs explicit handling. The win is capacity, fabric
+speed and the pipelined design. The plan record's open question — whether a
+DE25 "may not need two core versions, since its hard FP DSP blocks could make
+the 387 much cheaper in fabric" — is answered: much cheaper, for different
+reasons.
+
+### What that makes of this slice
+
+Everything here stands and nothing is wasted:
+
+- The arithmetic is **exact against real hardware** on 740 unit-bench cases on
+  the RTL and the netlist, QEMU's grid, the chained partial steps, the
+  exception matrix, the lockstep both ways, and test386 — so it is a
+  **reference** for the DE25 backend's own validation rather than only a
+  DE10 artefact.
+- The **eleven hardware-settled rules** (slice 3's eight and this slice's
+  three) and the **three decode tables** finding are properties of the x87 and
+  of this CPU, not of the DE10, so they carry across unchanged.
+- **The escalation did its job.** It is what made the DE25 the live question
+  rather than an experiment, and the measurement it rested on — that the
+  arithmetic alone costs +2,847 ALMs and the identity-on machine does not fit
+  in either form — is why.

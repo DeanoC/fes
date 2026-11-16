@@ -284,10 +284,14 @@ judgement settled it: the identity-off package is what ships and seals, so
 holding the whole slice on a configuration that does not ship would have been
 the wrong call. Both are in the results table.
 
-- **[The stop rule's escalation](STOP-RULE-FIRED.md) is open, and it is
-  Deano's phase decision rather than a gate on this PR.** The identity-on
-  machine does not fit the device in either form — 4,407 LABs as first
-  written, 4,292 in option A's form, against the 4,191 the 5CSEBA6 has.
+- **[The stop rule's escalation is resolved](STOP-RULE-FIRED.md#how-this-escalation-was-resolved-16-november).**
+  Deano decided on 16 November that the **DE25 is the 387's home**, the DE10
+  387 is not pursued further and **DE10 slice 5 is not being started** — so
+  this slice is the end of the DE10 x87 line and its **verified reference
+  implementation**, not a blocked step. The identity-on machine does not fit
+  the device in either form (4,407 LABs as first written, 4,292 in option A's,
+  against 4,191), and that measurement is what made the DE25 the live question
+  rather than an experiment.
 - **The identity-on seed sweep**, which has nothing to sweep: the fitter
   stopped before placement, so there is no ALM figure, no timing and no seeds.
 - **A TestFloat harness**, which the section above explains is a scope of its
