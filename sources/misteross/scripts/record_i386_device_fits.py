@@ -83,8 +83,23 @@ def collect(name: str, output: Path) -> dict:
             invalid = [name for name in ("timing_parse_error", "resource_parse_error",
                                          "clock_coverage_error")
                        if fit.get(name)]
+            # The absence of an error is not evidence that a check ran. A fit
+            # directory made before those checks existed carries neither the
+            # evidence nor an error, so a missed rung must show its pin count
+            # and both zero-valued coverage rows affirmatively.
+            if entry.get("real_pins") is None:
+                invalid.append("no verified real-pin count")
+            elif entry["real_pins"] > len(inputs["real_clocks"]):
+                invalid.append(f"{entry['real_pins']} real pins against "
+                               f"{len(inputs['real_clocks'])} real clocks")
+            rows = {name: (setup, hold) for name, setup, hold
+                    in (fit.get("unconstrained_clock_rows") or [])}
+            if set(rows) != {"Illegal Clocks", "Unconstrained Clocks"}:
+                invalid.append("no verified clock-coverage rows")
+            elif any(int(setup) or int(hold) for setup, hold in rows.values()):
+                invalid.append("TimeQuest reported unconstrained or illegal clocks")
             if invalid:
-                entry["validation_errors"] = {name: fit[name] for name in invalid}
+                entry["validation_errors"] = {name: fit.get(name, name) for name in invalid}
                 entry["resources_stage"] = (
                     "fit whose own validation did not complete (" + ", ".join(invalid)
                     + "); NOT usable as a timing bound or an area figure")

@@ -17,7 +17,10 @@ def write_fit(directory: Path, *, device: str, family: str, alms: float, availab
     directory.mkdir(parents=True)
     fit = {
         "status": status, "top": "fes_i386_cpu", "device": device, "family": family,
-        "seed": 1, "period_ns": 16.276, "host": host, "real_pins": 1,
+        "real_pins": 1,
+        "unconstrained_clock_rows": [["Illegal Clocks", "0", "0"],
+                                     ["Unconstrained Clocks", "0", "0"]],
+        "seed": 1, "period_ns": 16.276, "host": host,
         "quartus": {"release": "26.3.0", "edition": "pro", "lock": "boards/de25nano/quartus.lock"},
         "classification": "internal virtual-pin characterisation fit", "hardware_acceptance": "not-run",
         "programming_artifact": None,
@@ -125,6 +128,41 @@ class Collect(unittest.TestCase):
             self.assertIn("NOT usable as a timing bound", entry["resources_stage"])
             self.assertIn("timing_parse_error", entry["validation_errors"])
             self.assertNotIn("missed rung", entry["resources_stage"])
+
+    def test_a_miss_with_no_evidence_of_the_checks_is_not_a_bound(self):
+        # A fit directory made before those checks existed carries neither the
+        # evidence nor an error. The absence of an error is not evidence.
+        for drop in ("real_pins", "unconstrained_clock_rows"):
+            with self.subTest(missing=drop), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                old = write_fit(root / "o", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                                alms=30000, available=46800, device_alms=46800,
+                                ram_block="M20K", status="fail")
+                fit = json.loads((old / "fit.json").read_text())
+                fit["timing"]["status"] = "fail"
+                del fit[drop]
+                (old / "fit.json").write_text(json.dumps(fit))
+                out = root / "record"
+                record.main(["--record", str(out), f"--fit=cpu-de25-150-MISS={old}"])
+                entry = json.loads((out / "quartus.json").read_text())["fits"][0]
+                self.assertIn("NOT usable as a timing bound", entry["resources_stage"])
+                self.assertNotIn("missed rung", entry["resources_stage"])
+
+    def test_a_miss_whose_coverage_rows_are_nonzero_is_not_a_bound(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bad = write_fit(root / "b", device="A5EB013BB23BE4SCS", family="Agilex 5",
+                            alms=30000, available=46800, device_alms=46800, ram_block="M20K",
+                            status="fail")
+            fit = json.loads((bad / "fit.json").read_text())
+            fit["timing"]["status"] = "fail"
+            fit["unconstrained_clock_rows"] = [["Illegal Clocks", "0", "0"],
+                                               ["Unconstrained Clocks", "1", "0"]]
+            (bad / "fit.json").write_text(json.dumps(fit))
+            out = root / "record"
+            record.main(["--record", str(out), f"--fit=cpu-de25-150-MISS={bad}"])
+            entry = json.loads((out / "quartus.json").read_text())["fits"][0]
+            self.assertIn("NOT usable as a timing bound", entry["resources_stage"])
 
     def test_a_failed_fit_without_a_stage_is_still_qualified(self):
         with tempfile.TemporaryDirectory() as temporary:
