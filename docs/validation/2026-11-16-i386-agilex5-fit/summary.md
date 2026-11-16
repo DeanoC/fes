@@ -31,7 +31,7 @@ amendment dated and stating what had already been seen. Tracker:
 
 ## What was measured
 
-Ten internal virtual-pin characterisation fits: the three designs below at
+Twelve internal virtual-pin characterisation fits: the three designs below at
 61.44 MHz, the CPU's clock ladder on Agilex 5, and one superseded envelope
 kept for comparison. No board shell, no pins, no
 HPS, no PLL, no reset-release IP, no programming artifact, no seal and no
@@ -233,6 +233,7 @@ this record is `main`, whose 387 has no arithmetic.
 | Rung | Device | Closed? | ALMs | % | LABs | % | Worst-corner Fmax estimate |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | 61.44 MHz | Agilex 5 | **yes**, all 4 corners | 29,300 | 62.61% | 3,626 | 77.48% | 124.35 MHz |
+| 61.44 MHz, seed 2 | Agilex 5 | **yes**, all 4 corners | 29,373 | 62.76% | 3,607 | 77.07% | 144.03 MHz |
 | 75 MHz | Agilex 5 | **yes**, all 4 corners | 29,360 | 62.74% | 3,611 | 77.16% | 132.01 MHz |
 | 90 MHz | Agilex 5 | **yes**, all 4 corners | 29,304 | 62.62% | 3,590 | 76.71% | 125.69 MHz |
 | 110 MHz | Agilex 5 | **yes**, all 4 corners | 29,348 | 62.71% | 3,592 | 76.75% | 133.23 MHz |
@@ -245,7 +246,9 @@ Two things the ladder shows that a single constraint could not.
 
 **Area is flat across every rung**: 29,300, 29,360, 29,304, 29,348 and 29,455
 ALMs at 61.44, 75, 90, 110 and 130 MHz — a 155 ALM spread on the same netlist,
-inside this lane's ±200 noise. So on this device, in this range, **the CPU's area and its clock are
+inside this lane's ±200 noise. A second seed at the headline rung lands 73 ALMs
+from the first (29,373 against 29,300), so seed scatter is of the same small
+size as rung scatter. So on this device, in this range, **the CPU's area and its clock are
 effectively independent**. That is a statement about the CPU only: M and M+
 have no ladder, so nothing here says the machine's area is independent of its
 clock. That is worth having measured rather than assumed; it
@@ -327,6 +330,47 @@ produced a wrong number quietly:
   labelled, not replaced: it gave 29,114 ALMs against 29,300 — inside the ±200
   noise band — but 97.77 MHz against 124.35, because the hold padding was
   costing the design's own paths 27 MHz.
+
+## The front-end cross-check, and it passes
+
+The method's secondary flow — **Quartus Pro reading the SystemVerilog itself**,
+with the same M10K-to-M20K rename applied to the RTL that the primary applies
+to the netlist — ran at the same 61.44 MHz rung, same seed, same envelope. Two
+things came out of it.
+
+**Quartus Pro's SystemVerilog front end accepts this RTL**, where the locked
+Quartus 17.0.2 rejects it outright. The whole reason the DE10 lane feeds
+Quartus a Yosys netlist does not apply on the Pro side.
+
+**And the two front ends agree to within about 1%.** The comparison quantity
+and its threshold were fixed in the method before this fit ran: dedicated
+logic registers within ±5% of the primary's 20,842, or the fit is withdrawn as
+an area result.
+
+| Figure | Yosys netlist (primary) | Direct SystemVerilog | Difference |
+| --- | ---: | ---: | ---: |
+| Registers (the gated quantity) | 20,842 | 20,893 | **+0.24%** |
+| ALMs needed | 29,300 | 29,035 | −0.90% |
+| ALUTs | 42,126 | 41,609 | −1.23% |
+| LABs used | 3,626 | 3,609 | −0.47% |
+| DSP blocks | 12 | 12 | **0** |
+| M20K blocks | 53 | 53 | **0** |
+| Block-memory bits | 408,320 | 408,320 | **0** |
+| ALMs containing virtual pins | 2,351 | 2,351 | **0** |
+
+The gated quantity lands at **+0.24%**, well inside ±5%, so the secondary is
+reported as the cross-check it was meant to be. Both fits closed 61.44 MHz at
+every corner with one real pin.
+
+**What that buys.** [#1892](https://github.com/DeanoC/fes/pull/1892) and the
+DE25 envelope work fit through the direct-SystemVerilog front end; everything
+else here goes through the Yosys netlist. Without this fit, those figures and
+these would have differed by front end **and** by scope, two confounds at
+once. With it, the front-end part is measured at **under 1% on ALMs and zero
+on DSP, M20K and block-memory bits** — so a reader may set #1892's 2,660 ALMs
+beside these figures and carry about a 1% front-end uncertainty rather than an
+unknown one. It does not make the scopes comparable, and it says nothing about
+whether two units' areas add.
 
 ## What the fits were built from
 
