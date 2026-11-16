@@ -214,6 +214,50 @@ def retarget_ram_attribute(text: str) -> tuple[str, int]:
     return rewritten, count
 
 
+_ATTRIBUTE = re.compile(r"^\s*\(\*\s*([A-Za-z_][A-Za-z0-9_$]*)\s*(=[^*]*)?\*\)\s*$")
+
+
+def drop_duplicate_attributes(text: str) -> tuple[str, int]:
+    """Remove a bare (* name *) that repeats a valued (* name = ... *) beside it.
+
+    Yosys writes both forms on the same casez. A bare Verilog attribute means
+    the value 1, so the pair says one thing twice; Quartus 17.0.2 only warns,
+    but Quartus Pro 26.3 stops with Error (22074). Only a line that is nothing
+    but a duplicate attribute is removed, and putting the removed lines back at
+    their recorded positions must reproduce the original text exactly.
+    """
+    lines = text.splitlines(keepends=True)
+    kept: list[str] = []
+    removed: list[tuple[int, str]] = []
+    index = 0
+    while index < len(lines):
+        run = index
+        names: dict[str, bool] = {}
+        while run < len(lines):
+            match = _ATTRIBUTE.match(lines[run])
+            if match is None:
+                break
+            # True once this name has been seen with an explicit value.
+            names[match.group(1)] = names.get(match.group(1), False) or match.group(2) is not None
+            run += 1
+        for position in range(index, run):
+            match = _ATTRIBUTE.match(lines[position])
+            if match.group(2) is None and names.get(match.group(1)):
+                removed.append((position, lines[position]))
+                continue
+            kept.append(lines[position])
+        if run == index:
+            kept.append(lines[index])
+            run += 1
+        index = run
+    rebuilt = list(kept)
+    for position, line in removed:
+        rebuilt.insert(position, line)
+    if "".join(rebuilt) != text:
+        raise FitError("dropping duplicate attributes did not round trip; it changed more than those lines")
+    return "".join(kept), len(removed)
+
+
 def prepare_netlist(netlist: Path, device: "Device", work: Path) -> tuple[Path, dict]:
     """The netlist this device's fitter reads, and what was done to it."""
     original = netlist.read_bytes()
@@ -223,12 +267,18 @@ def prepare_netlist(netlist: Path, device: "Device", work: Path) -> tuple[Path, 
         record["fitted_sha256"] = record["source_sha256"]
         return netlist, record
     rewritten, count = retarget_ram_attribute(original.decode())
+    rewritten, duplicates = drop_duplicate_attributes(rewritten)
     work.mkdir(parents=True, exist_ok=True)
     retargeted = work / netlist.name
     retargeted.write_text(rewritten)
     record["ram_attribute"] = (f'renamed {count} occurrences of {M10K_ATTRIBUTE!r} to '
                                f'{M20K_ATTRIBUTE!r}; verified by round trip; nothing else changed')
     record["ram_attribute_count"] = count
+    record["duplicate_attributes"] = (
+        f"removed {duplicates} bare attribute lines that repeat a valued attribute beside them; "
+        "Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; "
+        "a bare Verilog attribute means the value 1, so the pair says one thing twice")
+    record["duplicate_attribute_count"] = duplicates
     record["fitted_sha256"] = sha(retargeted.read_bytes())
     return retargeted, record
 
@@ -299,7 +349,9 @@ def write_project(output: Path, device: Device, design: dict, netlist: Path,
     qsf = ("# Internal virtual-pin characterisation of " + top + " on " + device.part
            + ". Never assembled or programmed; no board pinout is implied.\n")
     qsf += "".join(f"set_global_assignment -name {key} {value}\n" for key, value in assignments)
-    qsf += "".join(f"set_instance_assignment -name VIRTUAL_PIN ON -to {{{port}}}\n" for port in virtual)
+    # Unbraced: Quartus 17.0.2 rejects a braced node name outright (Critical
+    # Warning 136021) and silently leaves the port as a real pin.
+    qsf += "".join(f"set_instance_assignment -name VIRTUAL_PIN ON -to {port}\n" for port in virtual)
     (project / f"{top}.qsf").write_text(qsf)
     inputs = {
         "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, "
@@ -457,7 +509,21 @@ def compile_project(output: Path, project: Path, top: str, quartus_sh: Path,
             require_disk(output)
             record["commands"].append(command)
             run(command, project, output, label, deadline)
-        record["resources"] = resources(fit_report.read_text(errors="replace"))
+        fit_text = fit_report.read_text(errors="replace")
+        record["resources"] = resources(fit_text)
+        # The envelope is only an envelope if the virtual pins took effect.
+        # Quartus 17.0.2 ignores a VIRTUAL_PIN whose node name is braced, and
+        # then every port is a real pin: the fit is a different experiment, and
+        # on a device with pins to spare it would fail silently.
+        pins = re.search(r"^;\s*Total pins\s*;\s*([\d,]+)\s*/", fit_text, re.M)
+        if pins is None:
+            raise FitError("fit report has no total pin count, so the virtual-pin envelope "
+                           "cannot be confirmed")
+        record["real_pins"] = int(pins.group(1).replace(",", ""))
+        if record["real_pins"] > len(inputs["real_clocks"]):
+            raise FitError(f"{record['real_pins']} real pins against "
+                           f"{len(inputs['real_clocks'])} real clocks: the VIRTUAL_PIN assignments "
+                           "did not take effect, so this is not the intended envelope")
         record["timing"] = json.loads((output / "timing.json").read_text())
         sta = (project / "output_files" / f"{top}.sta.rpt").read_text(errors="replace")
         clocks = re.findall(r"^;\s*(Illegal Clocks|Unconstrained Clocks)\s*;\s*(\d+)\s*;\s*(\d+)\s*;",

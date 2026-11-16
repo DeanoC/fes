@@ -90,9 +90,12 @@ class Envelope(unittest.TestCase):
             project = fit.write_project(output, fit.DEVICES["de25"], fit.DESIGNS["cpu"], netlist,
                                         1000.0 / 61.44, 1, metadata)
             qsf = (project / "fes_i386_cpu.qsf").read_text()
-            self.assertIn("set_instance_assignment -name VIRTUAL_PIN ON -to {init_gpr[*]}", qsf)
-            self.assertIn("set_instance_assignment -name VIRTUAL_PIN ON -to {arch_cpl[*]}", qsf)
-            self.assertNotIn("VIRTUAL_PIN ON -to {clk}", qsf)
+            # Unbraced: Quartus 17.0.2 rejects a braced node name outright and
+            # leaves the port as a real pin, which is a different experiment.
+            self.assertIn("set_instance_assignment -name VIRTUAL_PIN ON -to init_gpr[*]\n", qsf)
+            self.assertIn("set_instance_assignment -name VIRTUAL_PIN ON -to arch_cpl[*]\n", qsf)
+            self.assertNotIn("{", qsf.split("VIRTUAL_PIN")[1].split("\n")[0])
+            self.assertNotIn("VIRTUAL_PIN ON -to clk\n", qsf)
             self.assertIn("set_global_assignment -name DEVICE A5EB013BB23BE4SCS", qsf)
             self.assertIn('set_global_assignment -name FAMILY "Agilex 5"', qsf)
             inputs = json.loads((output / "inputs.json").read_text())
@@ -191,6 +194,57 @@ class RamAttribute(unittest.TestCase):
             self.assertNotEqual(record["fitted_sha256"], record["source_sha256"])
             self.assertEqual(record["ram_attribute_count"], 1)
             self.assertIn('ramstyle = "M20K"', fitted.read_text())
+
+
+class DuplicateAttributes(unittest.TestCase):
+    """Yosys writes a bare and a valued parallel_case on the same casez.
+    Quartus 17.0.2 warns; Quartus Pro 26.3 stops with Error (22074)."""
+
+    DUPLICATE = ("module m;\n"
+                 "    (* full_case = 32'd1 *)\n"
+                 "    (* parallel_case = 32'd1 *)\n"
+                 "    (* parallel_case *)\n"
+                 "    casez (s)\n"
+                 "    endcase\n"
+                 "endmodule\n")
+
+    def test_only_the_repeated_bare_attribute_goes(self):
+        kept, removed = fit.drop_duplicate_attributes(self.DUPLICATE)
+        self.assertEqual(removed, 1)
+        self.assertIn("(* parallel_case = 32'd1 *)", kept)
+        self.assertIn("(* full_case = 32'd1 *)", kept)
+        self.assertNotIn("(* parallel_case *)", kept)
+        self.assertIn("casez (s)", kept)
+
+    def test_a_lone_bare_attribute_stays(self):
+        # 620 of the machine netlist's 650 bare parallel_case attributes repeat
+        # nothing, and Quartus accepts them; only the duplicates are the problem.
+        text = "module m;\n    (* parallel_case *)\n    casez (s)\n    endcase\nendmodule\n"
+        kept, removed = fit.drop_duplicate_attributes(text)
+        self.assertEqual(removed, 0)
+        self.assertEqual(kept, text)
+
+    def test_a_bare_attribute_of_another_name_stays(self):
+        text = ("module m;\n    (* parallel_case = 32'd1 *)\n    (* full_case *)\n"
+                "    casez (s)\n    endcase\nendmodule\n")
+        kept, removed = fit.drop_duplicate_attributes(text)
+        self.assertEqual(removed, 0)
+        self.assertEqual(kept, text)
+
+    def test_the_valued_attribute_may_come_second(self):
+        text = ("module m;\n    (* parallel_case *)\n    (* parallel_case = 32'd1 *)\n"
+                "    casez (s)\n    endcase\nendmodule\n")
+        kept, removed = fit.drop_duplicate_attributes(text)
+        self.assertEqual(removed, 1)
+        self.assertNotIn("(* parallel_case *)\n", kept)
+
+    def test_attributes_of_separate_statements_are_separate_runs(self):
+        text = ("module m;\n    (* parallel_case = 32'd1 *)\n    casez (s)\n    endcase\n"
+                "    (* parallel_case *)\n    casez (t)\n    endcase\nendmodule\n")
+        kept, removed = fit.drop_duplicate_attributes(text)
+        self.assertEqual(removed, 0, "a valued attribute on one statement must not strip "
+                                     "a bare one on another")
+        self.assertEqual(kept, text)
 
 
 class Resources(unittest.TestCase):
