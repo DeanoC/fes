@@ -1,0 +1,400 @@
+{
+  "fits": [
+    {
+      "board": "DE25-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_hz": 61440000,
+      "corner_count": 4,
+      "device": "A5EB013BB23BE4SCS",
+      "documented_device_alms": 46800,
+      "family": "Agilex 5",
+      "fit": "cpu-de25",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "142.09",
+              "restricted_fmax": "142.09"
+            }
+          ],
+          "corner": "Slow fix4 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "124.35",
+              "restricted_fmax": "124.35"
+            }
+          ],
+          "corner": "Slow fix4 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "124.35",
+              "restricted_fmax": "124.35"
+            }
+          ],
+          "corner": "Slow fix4a 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "225.73",
+              "restricted_fmax": "225.73"
+            }
+          ],
+          "corner": "Fast fix4 0C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_netlist": {
+          "duplicate_attribute_count": 0,
+          "duplicate_attributes": "removed 0 bare attribute lines that repeat a valued attribute beside them; Quartus Pro 26.3 stops with Error (22074) on the pair, Quartus 17.0.2 only warns; a bare Verilog attribute means the value 1, so the pair says one thing twice",
+          "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+          "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+          "ram_attribute_count": 30,
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+          "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v"
+      },
+      "period_ns": 16.2760416667,
+      "programming_artifact": null,
+      "quartus": "26.3.0",
+      "quartus_edition": "pro",
+      "quartus_lock": "boards/de25nano/quartus.lock",
+      "ram_block": "M20K",
+      "real_clocks": [
+        "clk"
+      ],
+      "real_pins": 1,
+      "resources": {
+        "alms": {
+          "available": 46800.0,
+          "percent_of_device": 62.61,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 29300.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 42126.0
+        },
+        "block_memory_bits": {
+          "available": 7331840.0,
+          "percent_of_device": 5.57,
+          "report_label": "Total block memory bits",
+          "report_percent": "6",
+          "used": 408320.0
+        },
+        "dsp_blocks": {
+          "available": 188.0,
+          "percent_of_device": 6.38,
+          "report_label": "DSP Blocks Needed [=A+B+C-D]",
+          "used": 12.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 512.0
+        },
+        "ram_blocks": {
+          "available": 358.0,
+          "percent_of_device": 14.8,
+          "report_label": "M20K blocks",
+          "used": 53.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 20842.0
+        }
+      },
+      "seed": 1,
+      "status": "pass",
+      "timing_status": "pass",
+      "top": "fes_i386_cpu",
+      "virtual_port_count": 1306
+    },
+    {
+      "board": "DE10-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_hz": 61440000,
+      "corner_count": 8,
+      "device": "5CSEBA6U23I7",
+      "documented_device_alms": 41910,
+      "family": "Cyclone V",
+      "fit": "cpu-de10",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "64.46",
+              "restricted_fmax": "64.46"
+            }
+          ],
+          "corner": "Slow 1100mV 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "63.79",
+              "restricted_fmax": "63.79"
+            }
+          ],
+          "corner": "Slow 1100mV -40C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "65.01",
+              "restricted_fmax": "65.01"
+            }
+          ],
+          "corner": "Slow 1100mV 85C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "64.57",
+              "restricted_fmax": "64.57"
+            }
+          ],
+          "corner": "Slow 1100mV 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "135.08",
+              "restricted_fmax": "135.08"
+            }
+          ],
+          "corner": "Fast 1100mV -40C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "130.57",
+              "restricted_fmax": "130.57"
+            }
+          ],
+          "corner": "Fast 1100mV 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "116.6",
+              "restricted_fmax": "116.6"
+            }
+          ],
+          "corner": "Fast 1100mV 85C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "113.19",
+              "restricted_fmax": "113.19"
+            }
+          ],
+          "corner": "Fast 1100mV 100C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": "powerboat",
+      "netlist": {
+        "fitted_netlist": {
+          "fitted_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024",
+          "ram_attribute": "unchanged: the RTL already names this device's block",
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+          "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v"
+      },
+      "period_ns": 16.2760416667,
+      "programming_artifact": null,
+      "quartus": "17.0.2",
+      "quartus_edition": "lite",
+      "quartus_lock": "cores/fes-pc386/quartus.lock",
+      "ram_block": "M10K",
+      "real_clocks": [
+        "clk"
+      ],
+      "real_pins": 1,
+      "resources": {
+        "alms": {
+          "available": 41910.0,
+          "percent_of_device": 74.55,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 31244.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 43032.0
+        },
+        "block_memory_bits": {
+          "available": 5662720.0,
+          "percent_of_device": 7.23,
+          "report_label": "Total block memory bits",
+          "report_percent": "7",
+          "used": 409384.0
+        },
+        "dsp_blocks": {
+          "available": 112.0,
+          "percent_of_device": 20.54,
+          "report_label": "Total DSP Blocks",
+          "report_percent": "21",
+          "used": 23.0
+        },
+        "mlabs": {
+          "report_label": "Total MLAB memory bits",
+          "used": 512.0
+        },
+        "ram_blocks": {
+          "available": 553.0,
+          "percent_of_device": 16.27,
+          "report_label": "M10K blocks",
+          "used": 90.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 19268.0
+        },
+        "virtual_pins": {
+          "report_label": "Virtual pins",
+          "used": 4700.0
+        }
+      },
+      "seed": 1,
+      "status": "pass",
+      "timing_status": "pass",
+      "top": "fes_i386_cpu",
+      "virtual_port_count": 1306
+    },
+    {
+      "board": "DE25-Nano",
+      "classification": "internal virtual-pin characterisation fit; no seal, no board I/O, no hardware acceptance",
+      "clock_hz": 61440000,
+      "corner_count": 4,
+      "device": "A5EB013BB23BE4SCS",
+      "documented_device_alms": 46800,
+      "family": "Agilex 5",
+      "fit": "cpu-de25-zerodelay-envelope",
+      "fmax_estimate_by_corner": [
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "109.21",
+              "restricted_fmax": "109.21"
+            }
+          ],
+          "corner": "Slow fix4 100C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "97.9",
+              "restricted_fmax": "97.9"
+            }
+          ],
+          "corner": "Slow fix4 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "97.77",
+              "restricted_fmax": "97.77"
+            }
+          ],
+          "corner": "Slow fix4a 0C Model"
+        },
+        {
+          "clocks": [
+            {
+              "clock": "clk_clock",
+              "fmax": "171.47",
+              "restricted_fmax": "171.47"
+            }
+          ],
+          "corner": "Fast fix4 0C Model"
+        }
+      ],
+      "hardware_acceptance": "not-run",
+      "host": null,
+      "netlist": {
+        "fitted_netlist": {
+          "fitted_sha256": "ba89a8abeed86d88bb7f89d5d5a1de9a2ff40f8b8b2e94b3a6fe2a11bc975210",
+          "ram_attribute": "renamed 30 occurrences of 'ramstyle = \"M10K\"' to 'ramstyle = \"M20K\"'; verified by round trip; nothing else changed",
+          "ram_attribute_count": 30,
+          "source": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v",
+          "source_sha256": "3e485e237dbcc50dff66bdce5982238775457b3943fc6f4df28c4db72d74e024"
+        },
+        "reused": "/home/deano/fes/.claude/worktrees/happy-khorana-9c57db/sources/misteross/build/diagnostic/i386-agilex5/cpu.netlist.v"
+      },
+      "period_ns": 16.2760416667,
+      "programming_artifact": null,
+      "quartus": "26.3.0",
+      "quartus_edition": "pro",
+      "quartus_lock": "boards/de25nano/quartus.lock",
+      "ram_block": "M20K",
+      "real_clocks": [
+        "clk"
+      ],
+      "real_pins": null,
+      "resources": {
+        "alms": {
+          "available": 46800.0,
+          "percent_of_device": 62.21,
+          "report_label": "Logic utilization (ALMs needed / total ALMs on device)",
+          "used": 29114.0
+        },
+        "aluts": {
+          "report_label": "Combinational ALUT usage for logic",
+          "used": 42193.0
+        },
+        "block_memory_bits": {
+          "available": 7331840.0,
+          "percent_of_device": 5.57,
+          "report_label": "Total block memory bits",
+          "report_percent": "6",
+          "used": 408320.0
+        },
+        "dsp_blocks": {
+          "available": 188.0,
+          "percent_of_device": 6.38,
+          "report_label": "DSP Blocks Needed [=A+B+C-D]",
+          "used": 12.0
+        },
+        "ram_blocks": {
+          "available": 358.0,
+          "percent_of_device": 14.8,
+          "report_label": "M20K blocks",
+          "used": 53.0
+        },
+        "registers": {
+          "report_label": "Dedicated logic registers",
+          "used": 23024.0
+        }
+      },
+      "seed": 1,
+      "status": "pass",
+      "timing_status": "pass",
+      "top": "fes_i386_cpu",
+      "virtual_port_count": null
+    }
+  ]
+}
