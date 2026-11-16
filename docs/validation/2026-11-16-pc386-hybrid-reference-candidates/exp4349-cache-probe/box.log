@@ -1,0 +1,11 @@
+gamemodeauto: dlopen failed - libgamemode.so: cannot open shared object file: No such file or directory
+Qt: version 5.15.2, platform "xcb"
+Translations loaded.
+Translations loaded.
+Fontconfig warning: "/usr/share/fontconfig/conf.avail/05-reset-dirs-sample.conf", line 6: unknown element "reset-dirs"
+Failed to create Vulkan instance: -9
+Failed to create platform Vulkan instance
+[ALSOFT] (WW) Ignoring XDG config dir: 
+[ALSOFT] (WW) No capture backend available!
+[ALSOFT] (WW) pthread_setschedparam failed: Operation not permitted (1)
+[ALSOFT] (EE) Could not query RTKit: No such file or directory (2)

@@ -2,6 +2,7 @@ package input
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -9,6 +10,8 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
+
+var errTapUnavailable = errors.New("target keyboard tap is unavailable")
 
 // KeyboardHIDBinding is the active fes.computer generation that negotiated
 // fes.keyboard.hid 1.0. Every set_keyboard_hid post carries this identity.
@@ -175,6 +178,99 @@ func (s *keyboardHIDSink) applyFrom(ctx context.Context, source inputSource, f p
 		delete(s.pressed[source], usage)
 	}
 	return s.postLocked(ctx)
+}
+
+// tap applies a session-owned remote key at the target. The runtime's row
+// posts may themselves block or fail, so a successful return confirms only
+// accepted row posts, not guest timing. A changed generation is never sent a
+// release from the previous core.
+func (s *keyboardHIDSink) tap(ctx context.Context, f protocol.InputFrame, afterPress func()) error {
+	usage, ok := hidkeys.Usage(remoteinput.Code(f.Code))
+	if !ok || f.ServerMonoNS == 0 || f.Value != protocol.InputTapHoldMS {
+		return errTapUnavailable
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	pressCtx, cancelPress := context.WithTimeout(ctx, 500*time.Millisecond)
+	if err := s.lockTap(pressCtx); err != nil {
+		cancelPress()
+		return err
+	}
+	if s.binding == nil || s.binding.Generation != f.ServerMonoNS || s.poster == nil || s.heldUsageLocked(usage) {
+		s.mu.Unlock()
+		cancelPress()
+		return errTapUnavailable
+	}
+	binding := *s.binding
+	if s.pressed[sourceRemote] == nil {
+		s.pressed[sourceRemote] = make(map[uint8]bool)
+	}
+	s.pressed[sourceRemote][usage] = true
+	pressErr := s.postLocked(pressCtx)
+	s.mu.Unlock()
+	cancelPress()
+	if afterPress != nil {
+		afterPress()
+	}
+	if pressErr == nil {
+		timer := time.NewTimer(time.Duration(protocol.InputTapHoldMS) * time.Millisecond)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			pressErr = ctx.Err()
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+		}
+	}
+	// Release even after a cancelled/uncertain press. Do not let caller
+	// cancellation suppress it, and never affect a replacement binding.
+	releaseCtx, cancelRelease := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancelRelease()
+	if err := s.lockTap(releaseCtx); err != nil {
+		return errors.Join(pressErr, err)
+	}
+	defer s.mu.Unlock()
+	if s.binding == nil || *s.binding != binding {
+		return errors.Join(pressErr, errTapUnavailable)
+	}
+	delete(s.pressed[sourceRemote], usage)
+	if s.heldUsageLocked(usage) {
+		// A local press began during the tap. Preserve it, but do not claim
+		// that a release edge reached the target while the union is held.
+		pressErr = errors.Join(pressErr, errTapUnavailable)
+	}
+	return errors.Join(pressErr, s.postLocked(releaseCtx))
+}
+
+func (s *keyboardHIDSink) heldUsageLocked(usage uint8) bool {
+	for _, pressed := range s.pressed {
+		if pressed[usage] {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *keyboardHIDSink) lockTap(ctx context.Context) error {
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	for !s.mu.TryLock() {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
+	return nil
 }
 
 // releaseSource drops one source's held keys, for example a closed kit

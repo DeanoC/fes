@@ -1,0 +1,280 @@
+{
+ "apple2": {
+  "build_id": "171a8e4c5580a2110bd8f6f9f519b782",
+  "placer_heap_timingweight": 2000,
+  "placer_seed": 5,
+  "timing": {
+   "audio": {
+    "achieved_mhz": 212.40440368652344,
+    "clock": "system_clock.clocks[1]",
+    "constraint_mhz": 12.288031578063965,
+    "status": "pass"
+   },
+   "pixel": {
+    "achieved_mhz": 103.68065643310547,
+    "clock": "machine.main_ram.clk_b",
+    "constraint_mhz": 74.25006866455078,
+    "status": "pass"
+   },
+   "status": "pass",
+   "system": {
+    "achieved_mhz": 56.00358200073242,
+    "clock": "system_clock.clocks[0]",
+    "constraint_mhz": 52.22477340698242,
+    "status": "pass"
+   }
+  }
+ },
+ "atari_st": {
+  "build_id": "cdd6e907a2662a6e047dd42466eadb0e",
+  "placer_heap_timingweight": 2000,
+  "placer_seed": 4,
+  "timing": {
+   "audio": {
+    "achieved_mhz": 174.21603393554688,
+    "clock": "system_clock.clocks[1]",
+    "constraint_mhz": 12.288031578063965,
+    "status": "pass"
+   },
+   "pixel": {
+    "achieved_mhz": 80.95854949951172,
+    "clock": "pixel_clk",
+    "constraint_mhz": 74.25006866455078,
+    "status": "pass"
+   },
+   "status": "pass",
+   "system": {
+    "achieved_mhz": 54.21523666381836,
+    "clock": "system_clock.clocks[0]",
+    "constraint_mhz": 52.22477340698242,
+    "status": "pass"
+   }
+  }
+ },
+ "coleco_v2_control_main": {
+  "build_id": "aafe5d2738586e5238711651a99d9f35",
+  "note": "coleco_v2 built at MAIN e9218eb5e, not at this PR -- the control run",
+  "placer_seed": 5,
+  "timing": {
+   "audio": {
+    "achieved_mhz": 196.92791748046875,
+    "clock": "system_clock.clocks[1]",
+    "constraint_mhz": 12.288031578063965,
+    "requested_mhz": 12.288,
+    "status": "pass"
+   },
+   "pixel": {
+    "achieved_mhz": 106.48493194580078,
+    "clock": "pixel_clk",
+    "constraint_mhz": 74.25006866455078,
+    "requested_mhz": 74.25,
+    "status": "pass"
+   },
+   "status": "pass",
+   "system": {
+    "achieved_mhz": 52.2520637512207,
+    "clock": "system_clock.clocks[0]",
+    "constraint_mhz": 52.22477340698242,
+    "requested_mhz": 52.224,
+    "status": "pass"
+   }
+  }
+ },
+ "menu": {
+  "build_id": "3e4d709bda125de4cc22909a5be293e3",
+  "placer_heap_timingweight": 10,
+  "placer_seed": 5,
+  "timing": {
+   "pixel": {
+    "achieved_mhz": 92.99729919433594,
+    "clock": "endpoint.blit_control.clk",
+    "constraint_mhz": 74.25006866455078,
+    "requested_mhz": 74.25,
+    "status": "pass"
+   },
+   "reference": {
+    "clock": "FPGA_CLK1_50",
+    "constraint_mhz": 50.0,
+    "evidence": "boards/de10nano/clocks.sdc and routed PLL",
+    "requested_mhz": 50.0,
+    "status": "pass"
+   },
+   "status": "pass"
+  }
+ },
+ "pong": {
+  "build_id": "6fac23147c1f64aa1ec25879511e8f7f",
+  "placer_heap_timingweight": 10,
+  "placer_seed": 1,
+  "timing": {
+   "pixel": {
+    "achieved_mhz": 93.81742858886719,
+    "clock": "core.game.clk",
+    "constraint_mhz": 74.25006866455078,
+    "requested_mhz": 74.25,
+    "status": "pass"
+   },
+   "reference": {
+    "clock": "FPGA_CLK1_50",
+    "constraint_mhz": 50.0,
+    "evidence": "boards/de10nano/clocks.sdc and routed PLL",
+    "fractional_pll": {
+     "achieved_hz": 74249999.83243954,
+     "bel": "altera_pll.0.14.0",
+     "counter": "C6",
+     "error_ppm": -0.00225670649,
+     "k": 3908420153,
+     "m": 8,
+     "n": 1,
+     "reference_mhz": 50.0,
+     "requested_hz": 74250000.0
+    },
+    "requested_mhz": 50.0,
+    "status": "pass"
+   },
+   "status": "pass"
+  }
+ },
+ "ramtest100": {
+  "build_id": "00bea51da564e6e5770dff17deb189a6",
+  "placer_heap_timingweight": 10,
+  "placer_seed": 2,
+  "timing": {
+   "capture": {
+    "achieved_mhz": 294.9852294921875,
+    "clock": "ram_clock.clocks[1]",
+    "constraint_mhz": 100.0,
+    "requested_mhz": 100.0,
+    "status": "pass"
+   },
+   "memory": {
+    "achieved_mhz": 103.66991424560547,
+    "clock": "ram_clock.clocks[0]",
+    "constraint_mhz": 100.0,
+    "requested_mhz": 100.0,
+    "status": "pass"
+   },
+   "pixel": {
+    "achieved_mhz": 80.41170501708984,
+    "clock": "display.pixel_clk",
+    "constraint_mhz": 74.25006866455078,
+    "requested_mhz": 74.25,
+    "status": "pass"
+   },
+   "reference": {
+    "clock": "FPGA_CLK1_50",
+    "constraint_mhz": 50.0,
+    "evidence": "boards/de10nano/clocks.sdc and routed PLL",
+    "requested_mhz": 50.0,
+    "status": "pass"
+   },
+   "status": "pass"
+  }
+ },
+ "riscv": {
+  "build_id": "fb7677db95e50ef5fb168fd9040a89a4",
+  "placer_heap_timingweight": 10,
+  "placer_seed": 2,
+  "timing": {
+   "pixel": {
+    "achieved_mhz": 77.53740692138672,
+    "clock": "endpoint.clk",
+    "constraint_mhz": 74.25006866455078,
+    "requested_mhz": 74.25,
+    "status": "pass"
+   },
+   "reference": {
+    "clock": "FPGA_CLK1_50",
+    "constraint_mhz": 50.0,
+    "evidence": "boards/de10nano/clocks.sdc and routed PLL",
+    "requested_mhz": 50.0,
+    "status": "pass"
+   },
+   "status": "pass"
+  }
+ },
+ "sg1000": {
+  "build_id": "b77a09479e05ce0525f37658db695c6e",
+  "placer_heap_timingweight": 2000,
+  "placer_seed": 2,
+  "timing": {
+   "audio": {
+    "achieved_mhz": 271.076171875,
+    "clock": "system_clock.clocks[1]",
+    "constraint_mhz": 12.288031578063965,
+    "requested_mhz": 12.288,
+    "status": "pass"
+   },
+   "pixel": {
+    "achieved_mhz": 115.98237609863281,
+    "clock": "pixel_clk",
+    "constraint_mhz": 74.25006866455078,
+    "requested_mhz": 74.25,
+    "status": "pass"
+   },
+   "status": "pass",
+   "system": {
+    "achieved_mhz": 71.65890502929688,
+    "clock": "system_clock.clocks[0]",
+    "constraint_mhz": 52.22477340698242,
+    "requested_mhz": 52.224,
+    "status": "pass"
+   }
+  }
+ },
+ "sms": {
+  "build_id": "d13ff9c862f614739c9e0c6b47967bc8",
+  "placer_heap_timingweight": 1000,
+  "placer_seed": 3,
+  "timing": {
+   "audio": {
+    "achieved_mhz": 243.1315460205078,
+    "clock": "system_clock.clocks[1]",
+    "constraint_mhz": 12.288031578063965,
+    "requested_mhz": 12.288,
+    "status": "pass"
+   },
+   "pixel": {
+    "achieved_mhz": 103.85295104980469,
+    "clock": "pixel_clk",
+    "constraint_mhz": 74.25006866455078,
+    "requested_mhz": 74.25,
+    "status": "pass"
+   },
+   "status": "pass",
+   "system": {
+    "achieved_mhz": 53.067291259765625,
+    "clock": "system_clock.clocks[0]",
+    "constraint_mhz": 52.22477340698242,
+    "requested_mhz": 52.224,
+    "status": "pass"
+   }
+  }
+ },
+ "spectrum": {
+  "build_id": "ca858857f3a8c36f3336fab53fd4fe18",
+  "placer_heap_timingweight": 2000,
+  "placer_seed": 2,
+  "timing": {
+   "audio": {
+    "achieved_mhz": 206.73971557617188,
+    "clock": "system_clock.clocks[1]",
+    "constraint_mhz": 12.288031578063965,
+    "status": "pass"
+   },
+   "pixel": {
+    "achieved_mhz": 90.9421615600586,
+    "clock": "display.control.clk",
+    "constraint_mhz": 74.25006866455078,
+    "status": "pass"
+   },
+   "status": "pass",
+   "system": {
+    "achieved_mhz": 65.42362213134766,
+    "clock": "system_clock.clocks[0]",
+    "constraint_mhz": 52.22477340698242,
+    "status": "pass"
+   }
+  }
+ }
+}

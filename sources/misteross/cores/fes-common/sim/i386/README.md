@@ -26,7 +26,23 @@ LGPL-2.1-or-later), configured as a 386DX:
 `scripts/fes_i386_oracle.py` fetches that revision only when a runner is given
 `--download`, refuses a checkout that is not the clean pinned commit, configures
 it with the options above and builds the CPU, FPU and softfloat libraries plus
-Bochs' parameter tree. Nothing else of Bochs is compiled.
+Bochs' parameter tree. Before configuring the copied build tree it applies the
+maintained [386 stack-limit patch](bochs/flat-stack-limit.patch), licensed
+LGPL-2.1-or-later like Bochs. The clean pinned checkout is never modified. The
+patch bytes enter the build key and a copy is retained in the build tree; a
+patch that does not apply with zero fuzz fails the build. The patch corrects a
+flat 4 GiB SS write that straddles the segment limit: this is #SS before page
+translation, as specified by the [80386 manual, section 6.3.1.2](https://pdos.csail.mit.edu/6.828/2018/readings/i386/s06_03.htm)
+and [section 9.8.12](https://pdos.csail.mit.edu/6.828/2007/readings/i386/s09_08.htm).
+The directed paging controls check cold and cached segment access, crossing and
+adjacent in-limit 16- and 32-bit stack writes against the patched oracle and
+expected exception frames. Lockstep reports record the upstream revision and
+source digests for the built patch, provisioner, adapter and test suite, plus
+digests of the linked oracle objects and testbench as execution evidence. The
+pc386 sealer requires the declared source identity to match its target tree;
+it does not require host-specific binaries to be identical. Older reports lack
+these fields and must be regenerated. Nothing else of Bochs is compiled or
+packaged.
 
 ### Choice
 

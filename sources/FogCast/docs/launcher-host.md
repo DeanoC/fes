@@ -185,7 +185,13 @@ sink rejection or missing receipt returns 503 `INPUT_UNCONFIRMED` for the
 single-event route: the event may have applied. The host closes its connection
 without replay, clears its held-input snapshot and attempts to stop the bridge;
 the error does not confirm remote release. Waiting adds a bridge round trip to
-each event. The timed key tap retains its previous transport semantics. Against
+each event. An explicit timed key tap probes support and requests one
+generation-bound operation with a 60 ms target-side hold; its receipt confirms
+target sink acceptance, not guest consumption or a hardware timing bound.
+Unsupported bridges receive no tap press; taps require neutral
+remote controls so a disconnect cannot release another remote hold. Separate
+event requests still have
+transport jitter. Against
 an older kit bridge, ordinary session attachment still succeeds, but the first
 confirmed remote event fails closed before dispatch; install compatible kit
 software for remote play. The kit does not
