@@ -757,9 +757,14 @@ not, because M+ is not the design the DE10 refused. **The DE10 already holds
 slice 2's 387** — PR #1821 sealed exactly that at 36,298 of 41,910 ALMs with
 every analysis positive over all four corners and a kit run. What #1889
 refused is **slice 4 on slice 3**: divide, square root and the remainders,
-8,073 ALMs of standalone unit against its merge base's 4,076. M+ is main plus
-a one-character flip, so comparing its success to #1889's refusal compared two
-different designs.
+**6,923** ALMs of standalone unit against its merge base's 4,076. M+ is main
+plus a one-character flip, so comparing its success to #1889's refusal
+compared two different designs.
+
+*(Corrected: this said **8,073**, which this record repeated from the figure
+in circulation. 8,073 is slice 4 **as first written**; 6,923 is the form it
+settled on and the one that was fitted, so 8,073 overstates the sequencer by
+about 1,150 ALMs.)*
 
 Two further labels on the 9,545 ALMs, which the sibling supplies and this
 record repeats rather than softening: it is **arithmetic to 100% of the
@@ -894,6 +899,39 @@ the unit fits would be worth re-running with cut paths, and **a zero-delay
 figure should not be compared against a cut-path one at all**, which is why
 this record's unit fits and the sibling's CPU and machine fits are kept in
 separate tables.
+
+## A cross-record dependency, and an uncontrolled A/B
+
+The sibling measurement has fitted **PR #1889's head on Agilex 5** and it
+closes: **41,387 ALMs, 88.43%**, all four corners, 33 DSP, 140 M20K. So the
+sequencer design the DE10 refused fits on this device too.
+
+Set against this work's **40,986–41,122**, that looks like an A/B of the two
+arithmetic implementations — and in ALMs it finds no difference worth the
+name: about 330 ALMs, against this work's own 136-ALM seed spread and the
+lane's ±200. **But it is not a controlled comparison**, which the sibling's
+record says rather than leaving implied: its fit is #1889's head on #1879's
+branch, and this work's is this branch carrying #1889 *plus* #1892 *plus*
+eleven main commits. **The base varies as well as the arithmetic.**
+
+What the uncontrolled pair does show clearly is **nine DSP blocks**: 33 for the
+sequencer against this work's **42**. The sequencer's 33 is unchanged from
+M+'s, so slices 3 and 4 added no DSP beyond slice 2's multiplier, while this
+work's backend adds nine for its FMUL. **That is the duplicated 64×64
+multiplier appearing in the device's own counts** — slice 6's first
+optimisation candidate on evidence rather than on inspection.
+
+The controlled version is one fit: **`X87_BACKEND` 0 against 1 on this
+branch** with `x87_present` high, varying only the arithmetic on one tree at
+one rung. The 1 side is the four-seed fit above; the 0 side has **not been
+run**, and is recorded as such.
+
+**This record is now cited by another.** The sibling reads all four seed rows
+out of this directory rather than from a message, so the A/B in its record
+depends on what is published here. The four rows as published are
+40,986 / 41,055 / 41,122 / 41,054 ALMs at 87.58 / 87.72 / 87.87 / 87.72%, LABs
+4,558 / 4,602 / 4,597 / 4,555, and 42 DSP on every seed — checked against the
+committed fit records, which is where the generated table above comes from.
 
 ## What is not settled
 
