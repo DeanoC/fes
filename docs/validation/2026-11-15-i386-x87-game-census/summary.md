@@ -1,6 +1,12 @@
 # What the games ask of an FPU, and whether a reduced x87 is defensible
 
-15–16 November 2026. Oracle-only: no RTL, no kit, no fits. Tracker:
+15–16 November 2026. Oracle-only: no RTL, no kit, no fits.
+
+**Status: the two computing titles are measured; seven runs are still in
+flight, DOOM's negative control among them.** The method gates this record
+on that control — if DOOM moves a real or integer memory operand, the
+instrumentation is wrong and nothing here is reported. Until it has run,
+every conclusion below is **provisional on it**. Tracker:
 [#1886](https://github.com/DeanoC/fes/issues/1886). Phase 6's plan is
 [#1768](https://github.com/DeanoC/fes/issues/1768).
 
@@ -12,67 +18,127 @@ aimed at the actual use case — be worth building?
 
 ## Result
 
-**Quake moves 80-bit extended values through memory.** Its 25-second
-timedemo executes **47,161 `FLD m80` and 46,847 `FSTP m80`** — about 94,000
-explicit extended loads and stores. That is not a title computing more
-precisely than it needs; it is a title whose *data in memory* is in the
-387's 80-bit format. A reduced-significand unit cannot round-trip those
-values at all. There is no rounding argument to have, no "close enough",
-and no precision-control setting that makes it work: the bytes in memory are
-wider than the datapath.
+**No title in this census could be reproduced by a 24-bit-significand
+datapath, and the clearest case needs no interpretation: Screamer runs no
+arithmetic at 24 bits at all.** Its 434,103 add, subtract, multiply, divide
+and square-root operations are 424,703 at PC=53 and 1 at PC=64, with none at
+PC=24 — and Screamer is a title that does not boot without a 387. A reduced
+unit would be wrong for it from its first frame.
 
-Everything else that argues against a reduced unit is corroboration, not
-load-bearing:
+Quake is the other computing title and it fails too, though less starkly:
+11,926,211 of its arithmetic operations run at PC=24 and **462,063 at
+PC=64**. Both titles also leave significands wider than 24 bits in the
+register file — Quake on 165,520 steps (107,191 `le53`, 58,329 `le64`),
+Screamer on 131,491 — because precision control bounds add, subtract,
+multiply, divide and square root and **does not** bound `FILD`, `FLD m64`,
+the constant loads, `FRNDINT`, `FPREM`, `FSCALE` or the transcendentals.
 
-- **Coverage.** No title in the census is sufficient for a 24-bit
-  significand. Quake runs 483,513 arithmetic ESCs at PC=64 beside its
-  11,930,161 at PC=24, and **Screamer runs none at 24 at all** — 434,103 at
-  PC=53 and 30,503 at PC=64. Screamer alone rules a 24-bit datapath out,
-  and Screamer is a title that needs a 387 to boot at all.
-- **Wide values in the registers.** Quake leaves a significand wider than 24
-  bits in ST(0) on 165,520 steps (107,191 in `le53`, 58,329 in `le64`),
-  Screamer on 131,491. Precision control bounds add, subtract, multiply,
-  divide and square root; it does not bound `FILD`, `FLD m64`, the constant
-  loads, `FRNDINT`, `FPREM`, `FSCALE` or the transcendentals, and the
-  measurement shows those putting wider values in the file.
+Beyond coverage, three arguments stand independently of any count:
+
 - **Precision control is not fp32.** PC narrows the **significand** and
-  leaves the exponent 15-bit extended at every setting. So even for Quake's
-  97%-at-PC=24 arithmetic, a *24-bit-significand* unit would be exact while
-  an *fp32* unit would not: the exponent range, the overflow and underflow
-  thresholds and the denormal handling stay at extended width. The premise
-  "games are fp32, so build an fp32 FPU" does not hold even where the
-  precision matches.
+  leaves the exponent 15-bit extended at every setting. So a
+  *24-bit-significand* unit would be exact for Quake's PC=24 arithmetic,
+  while an *fp32* unit would not: the exponent range, the overflow and
+  underflow thresholds and the denormal handling stay at extended width.
+  The premise "games are fp32, so build an fp32 FPU" does not hold even
+  where the precision matches.
 - **There is no fallback to degrade into.** The `i386dx+387` identity tells
   the guest a 387 is present, so there is nothing to trap to. The PS2 had
   fp32-only floating-point hardware *with* software emulation behind it, so
-  default-precision code there ran slowly and could be profiled and fixed
-  per title. A reduced unit here would not run Quake's extended traffic
-  slowly — it would run it **wrong**, silently, wherever it is.
-- **The area saving is mostly not there.** 1,110 of slice 2's 1,735 ALMs
-  (64%) are measured not to shrink with the significand, and the exponent
-  path inside the remainder does not shrink either.
-  [area.md](area.md) has the figures and the bound.
+  default-precision code there ran slowly, and could be profiled and fixed
+  per title. A reduced unit here would not run wide code slowly — it would
+  run it **wrong**, silently, wherever it is.
+- **The area saving is substantially smaller than the width suggests**, and
+  part of what it cannot save is measured. [area.md](area.md) gives the
+  figures, the one component that is isolated, and what cannot be separated
+  without a fit of a narrow unit.
 
-**So there is no defensible reduced design.** Not a narrower one, not a
-hybrid with a wide fallback, and not a per-title variant. The honest
-statement is the blunt one: this idea is closed, and closing it cost a
-census rather than a slice.
+**So there is no defensible reduced design** — not a narrower one, not a
+hybrid with a wide fallback, and not a per-title variant. The idea is
+closed, and closing it cost a census rather than a slice.
 
-### What the earlier census could not have found, and why that matters
+### A headline this record withdraws
 
-The 12 November census ran Quake and reported its mix in detail, but it
-published its **top twelve forms by frequency**. `FLD m80` and `FSTP m80`,
-at about 47,000 each, were below that cut — in a run of 32 million x87
-instructions they are 0.15% each. So the single finding that settles the
-question was invisible to a census that was otherwise correct and more
-thorough than this one in several respects.
+**Retracted, 16 November 2026, in place.** An earlier revision of this
+record (commit `ac52d574d`) led with Quake's **47,161 `FLD m80` and 46,847
+`FSTP m80`** and said that Quake "moves 80-bit extended values through
+memory", so that a reduced significand could not round-trip data already
+extended in memory. **That claim was wrong**, and the measurement that
+refutes it is one this census had already collected and I had not looked at:
+the significand widths of those very operations.
 
-The lesson is worth more than the datum: **a census that reports a top-N by
-frequency will miss exactly the low-frequency, high-consequence forms that
-decide a design question.** 94,000 operations in 25 seconds is not rare in
-absolute terms; it was rare only relative to the hot path. This record's
-tables report **every** form that executed, and `census.jsonl` carries the
-full histograms.
+| Quake's m80 traffic | `FLD m80` | `FSTP m80` |
+| --- | ---: | ---: |
+| significand `le24` | 38,047 (80.7%) | 37,795 (80.7%) |
+| significand `le53` | 2,516 | 2,543 |
+| significand `le64` | 1,436 | 1,344 |
+| zero significand | 5,162 | 5,165 |
+
+**Four fifths of them carry values a 24-bit significand holds exactly.** The
+near-equal load and store counts, and the width distribution, are the shape
+of **register spills** — compilers of that era save x87 registers across
+calls in the extended format whatever the value's precision — not of a title
+relying on extended precision. A narrow unit would round-trip its *own*
+spills exactly, because it would spill its own narrower values. So the m80
+traffic is **not** an independent reason, and where it does carry wide values
+(3,952 loads) it is the wide-significand reason restated.
+
+The committed rule is unchanged: the method says any `FLD m80` or `FSTP m80`
+makes a title not sufficient, and the script still reports it among the
+verdict's reasons. **A rule is not rewritten because a result made it look
+overstated.** What changes is the prose: this reason is weak and is no
+longer led with, and the conclusion rests on coverage, the exponent range
+and the missing fallback — each of which was already sufficient.
+
+### The titles write the control word themselves
+
+The brief asked whether a title ever writes the control word, and to report
+the PC in force when arithmetic executes rather than the value at `FNINIT`.
+Measured directly, from control-word writes rather than inferred from
+values:
+
+- **Quake writes it 148,000 times in 25 seconds**, and the dominant pair is
+  `033f>0c3f` **25,735 times** with `0c3f>033f` **25,734 times** — the title
+  switching **to** PC=24 and back **to** PC=64, about 2,060 round trips a
+  simulated second. So Quake's PC=24 arithmetic is deliberate and bracketed,
+  and its PC=64 arithmetic runs outside those brackets. It also makes
+  rounding-mode changes (`033f>073f` and `033f>0b3f`, 10,644 each).
+- **Screamer** writes it heavily too, consistent with the earlier census's
+  61,006 `FLDCW`s, and switches rounding around its float-to-integer
+  conversions.
+
+This is what "the PC in force when arithmetic executes" means in practice:
+neither title simply runs at whatever `FNINIT` left.
+
+### A correction to this census's own classification
+
+**Dated 16 November 2026**, after the first two runs and before the rest.
+`FRNDINT` was classed as arithmetic and so entered the precision-control
+distribution. It should not: `FRNDINT` rounds under **rounding** control and
+**ignores** precision control (387 PRM; the plan record's "Accuracy"
+section). Counting it inflated the PC=64 arithmetic figures this record
+first published — Quake's to 483,513 from 462,063, and Screamer's to 30,503
+from 1, the differences being exactly its 25,400 and 39,902 executions.
+
+`FRNDINT` now has its own class, `round`: counted in the mix, absent from the
+precision distribution, with a test. **Neither verdict changes** — both
+titles were, and are, not sufficient. The figures in this record are the
+corrected ones.
+
+### What a full form table bought, and what a top-N census costs
+
+The 12 November census published its **top twelve forms by frequency**.
+Quake's `FLD m80` and `FSTP m80`, at about 47,000 each out of 32 million x87
+instructions, are 0.15% each and fell below that cut.
+
+The lesson is not the one the withdrawn headline suggested. What the full
+histogram and the per-form significand buckets actually bought was the
+ability to **test** the m80 claim and retract it. A top-N census would have
+hidden the forms; a census with the forms but without their value widths
+would have let a wrong and confident conclusion stand. **Reporting every
+form that executed, and the width of the values each one moved, is what made
+the error findable** — by me, before it reached a design decision, rather
+than by a reviewer afterwards.
 
 ### A prediction that failed, and why the conclusion does not rest on it
 
@@ -85,12 +151,22 @@ because that is the shape the PS2 experience had.
 **It failed.** Quake's PC=64 arithmetic is **concentrated**: 462,063
 operations across 28 code pages, with **78.2% of them on one page**.
 
-The irony is instructive and is the reason the record states it rather than
-softening it. Concentrated is normally the *better* news for a hybrid — 28
-sites is a set one could imagine special-casing, where a diffuse tail is
-hopeless. **So the prediction failing made a hybrid look more feasible, and
-the m80 traffic killed it anyway, on entirely different grounds.** The
-conclusion does not depend on the prediction in either direction.
+The irony is instructive, and is the reason the record states the failure
+rather than softening it. Concentrated is normally the *better* news for a
+hybrid — 28 sites, with one carrying four fifths of the traffic, is a set one
+could imagine special-casing, where a diffuse tail would be hopeless. **So
+the prediction failing made a hybrid look more feasible than predicted, and
+the conclusion still does not change**, because what rules a hybrid out is
+Screamer: a title with no PC=24 arithmetic at all, which no amount of
+special-casing one hot page in a different title addresses. The conclusion
+does not depend on the prediction in either direction — and it does not
+depend on the m80 reading this record withdrew above.
+
+And it should be said plainly that the PS2 precedent is still a sound
+argument about *fallbacks*; it was only the distribution it predicted that
+did not hold here. One failed prediction about one title's code layout is
+not a reason to doubt the precedent that a reduced unit with nothing to trap
+to is worse off than one with software emulation behind it.
 
 ### What this census does not establish
 

@@ -80,10 +80,35 @@ None of that is width-proportional:
   precision control, and that diverges from a 387 on operands it is
   supposed to handle.
 
-Against slice 2's 1,735, the measured non-width-proportional part is
-**967 + 143 = 1,110 ALMs, or 64%**, taking the CPU side as architectural
-too, which it is: issue, hold, the save and environment layouts and the
-readout are the same whatever the datapath's width.
+**But "none of it shrinks" is an argument from inspection, not a
+measurement, and this record does not dress it as one.** The 967-ALM floor
+is what survives with the result paths dead. It still contains **958
+registers**, which slice 2's record describes as "mostly 80-bit datapath
+stages", and the 64x64 shift wrapper with its nine DSPs — and both of those
+*do* scale with the significand's width. So the floor is not a measurement
+of width-independent logic; it is a measurement of what survives one
+particular ablation, and the two are different questions.
+
+What **is** isolated by a measurement is the CPU side: **143 ALMs** for the
+issue and hold conditions, the words substituted into the environment and
+save layouts and the `arch_x87_*` readout, from slice 2's identity-on
+against identity-off per-entity fit. That is architectural — it is the same
+whatever the datapath's width — and it is the only figure here that
+separates cleanly.
+
+The rest is architectural **by inspection**, which is worth stating but is
+not the same claim:
+
+- The **words** are fixed by the architecture: control, status, tag and
+  opcode are 16 bits whatever the datapath rounds to, and the pointers are
+  32 and 16 bits because the 386's addresses are.
+- The **exception path** is case-count: six flags, their masks, the summary
+  bit, ES, the IRQ 13 latch and the F0h/F1h decode. A narrower significand
+  removes none of them.
+- The **interlocks and the sequencer** count forms and states, not bits.
+- The **register stack's control** is eight entries and three pointers
+  regardless, though its storage narrows (M10K, not ALMs).
+- The **exponent path does not narrow at all** — the point above.
 
 ## What might shrink, and the bound on it
 
@@ -111,11 +136,17 @@ a 24-bit significand, fitted the same way — and this record runs no fits.
 
 So the honest statement, and it is the one the record makes:
 
-- **Measured: at least 1,110 of slice 2's 1,735 ALMs (64%) do not shrink
-  with the significand**, and the exponent path inside the remainder does
-  not shrink either.
-- **Bounded: at most about 700 ALMs of slice 2 and some part of slice 3's
-  2,250 are width-related**, and "some part" is as far as the evidence goes.
+- **Measured and isolated: 143 ALMs** of slice 2's 1,735 are the CPU side
+  and are architectural, independent of the datapath's width.
+- **Architectural by inspection, not by measurement:** the words, the
+  exception path, the interlocks, the sequencer and the whole exponent path.
+  These are most of the 967-ALM floor, but the floor also contains 958
+  registers and the shift wrapper, which do scale with width, so no ALM
+  figure here separates the two.
+- **Bounded above: about 700 ALMs of slice 2's unit are the two result
+  paths**, plus some part of slice 3's 2,250. "Some part" is as far as the
+  evidence goes, and the ablation flow and the in-machine flow are different
+  flows whose figures should not be mixed into a single percentage.
 - **Not established: the actual saving a 24-bit-significand unit would
   make.** It cannot be separated from these figures without a fit of such a
   unit. That is a measurement nobody should take before the coverage

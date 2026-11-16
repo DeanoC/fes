@@ -138,7 +138,7 @@ X87_FORMS = {
     'd9f3': ('trans', 'none'), 'd9f4': ('simple', 'none'), 'd9f5': ('trans', 'none'),
     'd9f6': ('simple', 'none'), 'd9f7': ('simple', 'none'), 'd9f8': ('trans', 'none'),
     'd9f9': ('trans', 'none'), 'd9fa': ('arith', 'none'), 'd9fb': ('trans', 'none'),
-    'd9fc': ('arith', 'none'), 'd9fd': ('trans', 'none'), 'd9fe': ('trans', 'none'),
+    'd9fc': ('round', 'none'), 'd9fd': ('trans', 'none'), 'd9fe': ('trans', 'none'),
     'd9ff': ('trans', 'none'),
     # DB/DA/DE/DD register forms that carry their whole ModRM.
     'dbe0': ('control', 'none'), 'dbe1': ('control', 'none'), 'dbe2': ('control', 'none'),
@@ -153,7 +153,12 @@ X87_FORMS = {
 # FXCH is d9.r1; the sqrt and the precision-controlled register forms above
 # are named individually. Forms the table does not name are counted as
 # 'unknown' and reported, never silently dropped.
-X87_ARITH_PC = ('arith',)  # the classes precision control acts on
+# The classes precision control acts on: add, subtract, multiply, divide and
+# square root. FRNDINT and the integer and real stores round under *rounding*
+# control only and ignore precision control (387 PRM; the x87 plan record's
+# "Accuracy" section), so FRNDINT has its own class, `round`, and is counted
+# in the mix but not in the PC distribution.
+X87_ARITH_PC = ('arith',)
 PRECISION = {0: '24', 1: 'reserved', 2: '53', 3: '64'}
 ROUNDING = {0: 'nearest', 1: 'down', 2: 'up', 3: 'zero'}
 

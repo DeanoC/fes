@@ -8,15 +8,15 @@ title's own window, on the drive the method pins.
 
 | Title | x87 retired | load / store / FXCH | arithmetic | compare | transcendental | control |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Quake timedemo (DOSBench) (25.0 s) | 31,997,318 | 22.34% / 9.12% / 20.09% | 38.80% | 2.97% | 0.04% | 4.57% |
-| Screamer (1995) (30.0 s) | 1,266,208 | 26.14% / 12.15% / 7.66% | 36.69% | 3.93% | 1.11% | 11.18% |
+| Quake timedemo (DOSBench) (25.0 s) | 31,997,318 | 22.34% / 9.12% / 20.09% | 38.72% | 2.97% | 0.04% | 4.57% |
+| Screamer (1995) (30.0 s) | 1,266,208 | 26.14% / 12.15% / 7.66% | 33.54% | 3.93% | 1.11% | 11.18% |
 
 ## Precision control, rounding control, and the verdict
 
 | Title | PC over arithmetic | RC over arithmetic | significands above 24 bits | FLD m80 / FSTP m80 | 24-bit significand sufficient? |
 | --- | --- | --- | --- | ---: | --- |
-| Quake timedemo (DOSBench) (25.0 s) | 24 11,930,161, 64 483,513 | zero 10,809,848, up 1,127,225, nearest 462,063, down 14,538 | le53 107,191, le64 58,329 | 47,161 / 46,847 | **no** |
-| Screamer (1995) (30.0 s) | 53 434,103, 64 30,503 | nearest 434,104, zero 30,502 | le53 95,302, le64 36,189 | 524 / 0 | **no** |
+| Quake timedemo (DOSBench) (25.0 s) | 24 11,926,211, 64 462,063 | zero 10,809,686, up 1,116,525, nearest 462,063 | le53 107,191, le64 58,329 | 47,161 / 46,847 | **no** |
+| Screamer (1995) (30.0 s) | 53 424,703, 64 1 | nearest 424,704 | le53 95,302, le64 36,189 | 524 / 0 | **no** |
 
 ## The operand precisions actually used
 

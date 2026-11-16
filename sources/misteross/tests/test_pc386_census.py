@@ -513,6 +513,24 @@ class SummaryTest(unittest.TestCase):
         self.assertEqual(row['memory_fp_ops'], 1)
         self.assertFalse(row['probe_only'])
 
+    def test_frndint_is_not_in_the_precision_distribution(self):
+        """FRNDINT (d9fc) rounds under rounding control and ignores precision
+        control, so it must not appear in pc_arith. Counting it there was a
+        measured error: it put Quake's PC=64 arithmetic at 483,513 where the
+        add/multiply/divide/square-root total is 462,063, the difference being
+        exactly its 25,400 executions."""
+        census = ('x87op:d8.m1:pm3 100 -\nx87op:d9fc:pm3 7 -\n'
+                  'x87cwform:d8.m1:003f 100 -\nx87cwform:d9fc:0f3f 7 -\n')
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, 'census.txt').write_text(census)
+            row = summary.run('t', Path(tmp))['x87']
+        # Counted in the mix, under its own class.
+        self.assertEqual(row['by_class'], {'arith': 100, 'round': 7})
+        # Absent from the precision distribution, which is add/sub/mul/div/sqrt.
+        self.assertEqual(row['pc_arith'], {'24': 100})
+        # And so it cannot by itself make a title insufficient.
+        self.assertTrue(row['pc24_sufficient'])
+
     def test_the_rows_are_stable(self):
         with tempfile.TemporaryDirectory() as tmp:
             Path(tmp, 'census.txt').write_text(self.CENSUS)
