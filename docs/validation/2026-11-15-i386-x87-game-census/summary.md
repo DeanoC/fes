@@ -90,12 +90,29 @@ would be reproduced whatever precision it selected; the value evidence is
 what rules that out. See "Which evidence establishes what" below, a note
 this record had to rewrite after over-correcting in the other direction.
 
-**And the 53-bit case fails too**, which is worth stating because it is the
-obvious retreat from 24. A 53-bit-significand unit would cover Screamer and
-Terminal Velocity exactly, but **Chris's benchmark and Wolfenstein 3D run
-every arithmetic operation at PC=64**, and Quake has 462,063 there. So the
-only width that covers the corpus is the 387's own 64, which is the unit
-slices 2 and 3 are already building.
+**And the 53-bit case fails too, on every computing title** — which is a
+stronger statement than this record first made, and the correction is worth
+keeping visible. An earlier revision argued only that Chris's benchmark and
+Wolfenstein 3D run at PC=64, so a 53-bit unit would cover Screamer and
+Terminal Velocity "exactly". **That was wrong by this record's own
+criterion.** Precision control bounds arithmetic results; it does not bound
+what loads, `FILD`, the constant loads, `FRNDINT`, `FPREM`, `FSCALE` and the
+transcendentals put in the register file. Measured, every computing title
+leaves significands wider than **53** bits there:
+
+| Title | values above 53 bits (`le64`) | values above 24 bits (`le53`) |
+| --- | ---: | ---: |
+| Chris's 3D Benchmark | 1,804,963 | 2,843,054 |
+| Quake timedemo | 58,121 | 105,671 |
+| Screamer | 36,189 | 85,528 |
+| Wolfenstein 3D | 5,554 | 4,388 |
+| Terminal Velocity | 756 | 2,567 |
+
+(Excluding the register-store forms whose widths these runs record
+unreliably.) So **a 53-bit-significand unit is ruled out by the same
+measurement that rules out a 24-bit one**, for all five titles rather than
+for the two that select PC=64. The only width that covers the corpus is the
+387's own 64 — the unit slices 2 and 3 are already building.
 
 **So there is no defensible reduced design** — not a narrower one at either
 width, not a hybrid with a wide fallback, and not a per-title variant. The idea is
