@@ -313,3 +313,45 @@ M10K block name and these duplicate attribute lines. The DE10 side reads it
 exactly as the pc386 seal lane does. Both rewrites are recorded per fit with
 their counts, both digests and a round-trip check, and the record will not
 claim the two sides read identical bytes.
+
+## Amendment, 16 November 2026: the envelope cuts virtual port paths
+
+**This changes the envelope after a fit had already run under the old one, so
+it is set out in full.** What had been seen when it was written:
+
+- Fit C on Agilex 5 had completed under the **zero-delay** envelope: 29,114
+  ALMs, timing pass at 61.44 MHz on all four corners, worst setup +6.048 ns,
+  worst-corner restricted Fmax 97.77 MHz. In that fit the worst setup path and
+  the worst register-to-register path were **the same path at every corner**,
+  so the virtual port paths were not binding there.
+- Fit C on the DE10 had failed, and not on capacity: 31,103 of 41,910 ALMs
+  (74%), 90 of 553 RAM blocks, 1 real pin. It failed in the router —
+  `Warning (16618): Fitter routing phase terminated due to routing congestion`,
+  with `Info (170089): 2e+04 ns of routing delay ... has been added to meet
+  hold timing` and `Info (188005)`: an excessive demand for routing resources
+  caused by that hold padding.
+- No machine fit had produced a figure on either device.
+
+**Why the envelope was wrong.** A virtual pin is not a board pin: it has no
+package, no board trace and no external device, so there is no delay to
+constrain it against and no meaningful arrival or required time for it. Giving
+one `set_input_delay`/`set_output_delay` of 0, with a `-min` as well, does not
+make its path meaningful — it invents a **hold** requirement on a path to a
+pin that does not exist, and the fitter pads routing delay to meet it. On the
+Cyclone V that padding consumed the routing the design needed. The old form
+established no board I/O contract, and neither does the new one.
+
+**The new envelope.** Every path from a virtual input and every path to a
+virtual output is cut with `set_false_path`. The clocks remain real inputs and
+are not cut. What each fit analyses is the design's **own register-to-register
+timing**, which is what this measurement is about.
+
+**Consequences, and what is not being done here.** This is an envelope
+correction, not a pass rule being swapped after a failure: no precommitted
+pass rule changes, the all-corner setup/hold/recovery/removal/minimum-pulse
+gate stands unchanged, and no rung's verdict is being revisited. But the two
+sides must share one envelope, so **fit C on Agilex 5 is re-run under the new
+envelope and both results are reported** — the zero-delay figures above are
+kept in the record, not replaced, with the envelope each came from named. If
+the two Agilex figures differ materially, that difference is itself reported
+as the envelope's own effect.

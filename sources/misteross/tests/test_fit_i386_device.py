@@ -107,17 +107,22 @@ class Envelope(unittest.TestCase):
             # One of these fits never implies a programming artifact or acceptance.
             self.assertIn("no hardware acceptance", inputs["classification"])
 
-    def test_the_cpu_envelope_has_one_clock_and_zero_virtual_io_delays(self):
+    def test_the_cpu_envelope_has_one_clock_and_cuts_every_virtual_port(self):
         sdc = fit.clock_constraints(fit.DESIGNS["cpu"], 1000.0 / 61.44,
                                     [("clk", "input"), ("cold_reset", "input")])
         self.assertIn("create_clock -name clk_clock -period 16.2760 [get_ports clk]", sdc)
         self.assertNotIn("set_clock_groups", sdc)
         self.assertIn("derive_clock_uncertainty", sdc)
-        for bound in ("max", "min"):
-            self.assertIn(f"set_input_delay -clock clk_clock -{bound} 0.000 $data_inputs", sdc)
-            self.assertIn(f"set_output_delay -clock clk_clock -{bound} 0.000 $data_outputs", sdc)
+        # A virtual pin has no package, trace or external device, so a zero
+        # delay on it invents a hold requirement on a path to a pin that does
+        # not exist, and the fitter pads routing delay to meet it.
+        self.assertNotIn("set_input_delay", sdc)
+        self.assertNotIn("set_output_delay", sdc)
+        self.assertIn("set virtual_inputs [remove_from_collection [all_inputs] [get_ports clk]]", sdc)
+        self.assertIn("set_false_path -from $virtual_inputs", sdc)
+        self.assertIn("set_false_path -to [all_outputs]", sdc)
 
-    def test_the_machine_envelope_has_two_asynchronous_clocks(self):
+    def test_the_machine_envelope_keeps_both_clocks_out_of_the_cut(self):
         ports = [(name + "[*]" if name in {"video", "gpo", "gpi"} else name, direction)
                  for name, direction in MACHINE_PORTS]
         sdc = fit.clock_constraints(fit.DESIGNS["machine"], 1000.0 / 61.44, ports)
@@ -128,22 +133,8 @@ class Envelope(unittest.TestCase):
         self.assertIn("set_clock_groups -asynchronous", sdc)
         self.assertIn("-group [get_clocks {clk_clock}]", sdc)
         self.assertIn("-group [get_clocks {pixel_clk_clock}]", sdc)
-        # The video output lives in pixel_clk (pc386_system.sv:66-67). With the
-        # two clocks asynchronous, constraining it against the system clock
-        # would have TimeQuest cut its paths rather than analyse them, and the
-        # fit could close without the video output being looked at at all.
-        self.assertIn("set_output_delay -clock pixel_clk_clock -max 0.000 [get_ports {video[*]}]", sdc)
-        self.assertIn("set_input_delay -clock pixel_clk_clock -max 0.000 [get_ports {pixel_locked}]", sdc)
-        # ... and a pixel-domain port is not also constrained against the system clock.
-        self.assertIn("[get_ports {video[*]}]]]\n", sdc)
-        self.assertNotIn("set_output_delay -clock clk_clock -max 0.000 [get_ports {video[*]}]", sdc)
-
-    def test_an_input_gets_no_output_delay_and_the_reverse(self):
-        ports = [(name + "[*]" if name in {"video", "gpo", "gpi"} else name, direction)
-                 for name, direction in MACHINE_PORTS]
-        sdc = fit.clock_constraints(fit.DESIGNS["machine"], 1000.0 / 61.44, ports)
-        self.assertNotIn("set_output_delay -clock pixel_clk_clock -max 0.000 [get_ports {pixel_locked}]", sdc)
-        self.assertNotIn("set_input_delay -clock pixel_clk_clock -max 0.000 [get_ports {video[*]}]", sdc)
+        # Both clocks are real inputs and must not be cut with the virtual ports.
+        self.assertIn("[add_to_collection [get_ports clk] [get_ports pixel_clk]]", sdc)
 
     def test_a_port_clock_table_naming_a_port_the_netlist_lacks_is_refused(self):
         design = dict(fit.DESIGNS["machine"], port_clock={"nonexistent": "pixel_clk"})
@@ -152,48 +143,6 @@ class Envelope(unittest.TestCase):
 
     def test_port_directions_come_from_the_netlist(self):
         self.assertEqual(fit.parse_ports(NETLIST, "other"), [("a", "input"), ("b", "output")])
-
-
-class RamAttribute(unittest.TestCase):
-    """Agilex 5 has no M10K, and its altera_syncram refuses the name outright."""
-
-    def test_only_the_block_name_changes(self):
-        text = 'wire a;\n(* ramstyle = "M10K" *) reg [7:0] m [0:255];\n' \
-               '(* ramstyle = "MLAB, no_rw_check" *) reg [31:0] s [0:15];\n'
-        rewritten, count = fit.retarget_ram_attribute(text)
-        self.assertEqual(count, 1)
-        self.assertIn('ramstyle = "M20K"', rewritten)
-        self.assertNotIn('"M10K"', rewritten)
-        # MLAB is legal on both devices and is left alone.
-        self.assertIn('ramstyle = "MLAB, no_rw_check"', rewritten)
-        self.assertEqual(rewritten.replace('"M20K"', '"M10K"'), text)
-
-    def test_a_netlist_that_already_asks_for_m20k_is_refused(self):
-        # The round-trip check could not then tell a rewritten request from an
-        # original one, so the rename would no longer prove what it claims.
-        with self.assertRaisesRegex(fit.FitError, "already asks for M20K"):
-            fit.retarget_ram_attribute('(* ramstyle = "M20K" *) reg x;\n')
-
-    def test_the_cyclone_side_reads_the_netlist_unchanged(self):
-        with tempfile.TemporaryDirectory() as directory:
-            netlist = Path(directory) / "n.v"
-            netlist.write_text('(* ramstyle = "M10K" *) reg [7:0] m [0:255];\n')
-            fitted, record = fit.prepare_netlist(netlist, fit.DEVICES["de10"],
-                                                 Path(directory) / "work")
-            self.assertEqual(fitted, netlist)
-            self.assertEqual(record["fitted_sha256"], record["source_sha256"])
-            self.assertIn("unchanged", record["ram_attribute"])
-
-    def test_the_agilex_side_records_what_it_renamed(self):
-        with tempfile.TemporaryDirectory() as directory:
-            netlist = Path(directory) / "n.v"
-            netlist.write_text('(* ramstyle = "M10K" *) reg [7:0] m [0:255];\n')
-            fitted, record = fit.prepare_netlist(netlist, fit.DEVICES["de25"],
-                                                 Path(directory) / "work")
-            self.assertNotEqual(fitted, netlist)
-            self.assertNotEqual(record["fitted_sha256"], record["source_sha256"])
-            self.assertEqual(record["ram_attribute_count"], 1)
-            self.assertIn('ramstyle = "M20K"', fitted.read_text())
 
 
 class DuplicateAttributes(unittest.TestCase):

@@ -286,16 +286,29 @@ def prepare_netlist(netlist: Path, device: "Device", work: Path) -> tuple[Path, 
 
 def clock_constraints(design: dict, period_ns: float,
                       ports: list[tuple[str, str]] | None = None) -> str:
-    """The SDC. Every port path is constrained, and each against the clock of
-    its own domain: with the machine's two clocks declared asynchronous, a
-    pixel-domain port constrained to the system clock would have its paths cut
-    instead of analysed, and the fit could pass without the video output ever
-    being looked at. These virtual delays set no board I/O contract."""
+    """The SDC: the clocks, and every virtual port path cut.
+
+    A virtual pin is not a board pin. It has no package, no board trace and no
+    external device, so there is no delay to constrain it against and no
+    meaningful arrival or required time for it. Giving one a zero input and
+    output delay does not make its path meaningful; it invents a hold
+    requirement on a path to a pin that does not exist, and the fitter then
+    pads routing delay to meet it. So every path from a virtual input and
+    every path to a virtual output is cut explicitly, and what the fit
+    analyses is the design's own register-to-register timing, which is what
+    this measurement is about. No board I/O contract is established either
+    way; the earlier zero-delay form established none either.
+
+    The clocks themselves are real inputs and are not cut. Where a design has
+    two, port_clock names which ports belong to the second one, so the record
+    can say which domain each cut port came from.
+    """
     clocks = design["clocks"]
     periods = {clocks[0]: period_ns}
     for clock in clocks[1:]:
         periods[clock] = PIXEL_PERIOD_NS
-    lines = ["# Internal virtual-pin fit. No board I/O timing is established.\n"]
+    lines = ["# Internal virtual-pin fit: the design's own register-to-register timing.\n",
+             "# Virtual ports are cut, not constrained. No board I/O timing is established.\n"]
     for clock in clocks:
         lines.append(f"create_clock -name {clock}_clock -period {periods[clock]:.4f} [get_ports {clock}]\n")
     lines.append("derive_clock_uncertainty\n")
@@ -303,28 +316,16 @@ def clock_constraints(design: dict, period_ns: float,
         groups = " \\\n".join(f"    -group [get_clocks {{{clock}_clock}}]" for clock in clocks)
         lines.append("set_clock_groups -asynchronous \\\n" + groups + "\n")
     domains = design["port_clock"]
-    directions = dict(ports) if ports is not None else None
-    if directions is not None:
-        unknown = set(domains) - set(directions)
+    if ports is not None:
+        unknown = set(domains) - {name for name, _direction in ports}
         if unknown:
             raise FitError("port_clock names ports the netlist does not have: "
                            + ", ".join(sorted(unknown)))
-    # Everything the table does not name belongs to the first clock's domain.
-    held = [f"[get_ports {clock}]" for clock in clocks]
-    held += [f"[get_ports {{{port}}}]" for port in sorted(domains)]
-    collection = "[add_to_collection " + " ".join(held) + "]" if len(held) > 1 else held[0]
-    lines.append(f"set data_inputs [remove_from_collection [all_inputs] {collection}]\n")
-    lines.append(f"set data_outputs [remove_from_collection [all_outputs] {collection}]\n")
-    first = f"{clocks[0]}_clock"
-    for bound in ("max", "min"):
-        lines.append(f"set_input_delay -clock {first} -{bound} 0.000 $data_inputs\n")
-        lines.append(f"set_output_delay -clock {first} -{bound} 0.000 $data_outputs\n")
-    for port, clock in sorted(domains.items()):
-        if directions is None:
-            raise FitError("a port_clock table needs the netlist's port directions")
-        command = "set_input_delay" if directions[port] == "input" else "set_output_delay"
-        for bound in ("max", "min"):
-            lines.append(f"{command} -clock {clock}_clock -{bound} 0.000 [get_ports {{{port}}}]\n")
+    held = " ".join(f"[get_ports {clock}]" for clock in clocks)
+    collection = f"[add_to_collection {held}]" if len(clocks) > 1 else held
+    lines.append(f"set virtual_inputs [remove_from_collection [all_inputs] {collection}]\n")
+    lines.append("set_false_path -from $virtual_inputs\n")
+    lines.append("set_false_path -to [all_outputs]\n")
     return "".join(lines)
 
 
