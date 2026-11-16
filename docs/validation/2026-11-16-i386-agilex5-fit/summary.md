@@ -3,8 +3,10 @@
 **The CPU, the pc386 machine and `main`'s 387 together take 79.6% of the
 DE25's ALMs, leaving 9,545 of its 46,800. And `fes_i386_cpu` closes at
 130 MHz on Agilex 5 and misses at 150** — 61.44, 75, 90, 110 and 130 MHz each
-passed every analysis at every published corner, the top one with +0.426 ns to
-spare; 150 MHz fails setup by −0.485 ns at two of the four and 170 MHz by
+passed every **applicable** analysis at every published corner, the top one
+with +0.426 ns to spare. For the CPU that is setup, hold and minimum pulse
+width: recovery and removal find zero paths there, because its resets are
+synchronous, and are recorded as not applicable rather than passed. 150 MHz fails setup by −0.485 ns at two of the four and 170 MHz by
 −1.039 ns at three. On the Cyclone V the same CPU closes at **61.44 MHz**, the
 only rung run there. Seed 1 throughout. The 124 MHz figure that appears below
 is the 61.44 MHz rung's own restricted-Fmax **estimate**, not a closure.
@@ -64,9 +66,10 @@ exactly, and it is not the same for the two designs:
   envelope fit — which met the gate, since the gate requires non-negative, and
   is one more reason that envelope was replaced. The two missing rungs have
   **negative** setup slack by definition; that is what makes them misses.
-- **Recovery and removal were analysed on all three machine fits** — every
-  corner, worst slack **+0.302 ns** (a removal path on M+) — because
-  `pc386_system` has asynchronous resets to check.
+- **Recovery and removal were analysed on all four machine fits** — M and M+
+  on Agilex 5, M on the Cyclone V, and the slice-4 fit — at every corner,
+  worst slack **+0.302 ns** (a removal path on M+), with the slice-4 fit's own
+  worst at +0.375 ns. `pc386_system` has asynchronous resets to check.
 - **On every CPU fit they found zero paths** and are recorded as
   `not_applicable_synchronous_reset`: `fes_i386_cpu`'s resets are synchronous,
   so for the CPU those two analyses were **not applied rather than passed**,
@@ -280,7 +283,8 @@ the final-placement row.
 The method precommitted a ladder — 61.44 MHz headline, then 75, 90, 110 and
 130 MHz, seeds 1–4 at the headline — because reported Fmax at one constraint
 is the fitter's estimate and not a closure. **"Closes at" means the highest
-rung passing every analysis at every published corner.** Those rungs and the
+rung passing every applicable analysis at every published corner** — and for
+the CPU, recovery and removal are not among them. Those rungs and the
 extra seeds were queued and then stopped unrun; any that have not produced
 a result when this record is read are **not measured**, and are listed as that
 rather than trimmed quietly. The CPU's closure on Agilex 5 is in the ladder
