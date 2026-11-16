@@ -51,6 +51,10 @@ CYCLONE_REPORT = """\
 """
 
 
+MACHINE_PORTS = [("clk", "input"), ("pixel_clk", "input"), ("pixel_locked", "input"),
+                 ("video", "output"), ("gpo", "input"), ("gpi", "output")]
+
+
 class Ports(unittest.TestCase):
     def test_ports_come_from_the_netlist_with_vectors_wildcarded(self):
         self.assertEqual(fit.netlist_ports(NETLIST, "fes_i386_cpu"),
@@ -101,16 +105,19 @@ class Envelope(unittest.TestCase):
             self.assertIn("no hardware acceptance", inputs["classification"])
 
     def test_the_cpu_envelope_has_one_clock_and_zero_virtual_io_delays(self):
-        sdc = fit.clock_constraints(fit.DESIGNS["cpu"], 1000.0 / 61.44)
+        sdc = fit.clock_constraints(fit.DESIGNS["cpu"], 1000.0 / 61.44,
+                                    [("clk", "input"), ("cold_reset", "input")])
         self.assertIn("create_clock -name clk_clock -period 16.2760 [get_ports clk]", sdc)
         self.assertNotIn("set_clock_groups", sdc)
         self.assertIn("derive_clock_uncertainty", sdc)
         for bound in ("max", "min"):
             self.assertIn(f"set_input_delay -clock clk_clock -{bound} 0.000 $data_inputs", sdc)
-            self.assertIn(f"set_output_delay -clock clk_clock -{bound} 0.000 [all_outputs]", sdc)
+            self.assertIn(f"set_output_delay -clock clk_clock -{bound} 0.000 $data_outputs", sdc)
 
     def test_the_machine_envelope_has_two_asynchronous_clocks(self):
-        sdc = fit.clock_constraints(fit.DESIGNS["machine"], 1000.0 / 61.44)
+        ports = [(name + "[*]" if name in {"video", "gpo", "gpi"} else name, direction)
+                 for name, direction in MACHINE_PORTS]
+        sdc = fit.clock_constraints(fit.DESIGNS["machine"], 1000.0 / 61.44, ports)
         self.assertIn("create_clock -name clk_clock -period 16.2760 [get_ports clk]", sdc)
         # The pixel clock is the shell's fixed 74.25 MHz and does not move with
         # the system clock; cores/fes-pc386/clocks.sdc times no path between them.
@@ -118,7 +125,30 @@ class Envelope(unittest.TestCase):
         self.assertIn("set_clock_groups -asynchronous", sdc)
         self.assertIn("-group [get_clocks {clk_clock}]", sdc)
         self.assertIn("-group [get_clocks {pixel_clk_clock}]", sdc)
-        self.assertIn("[add_to_collection [get_ports clk] [get_ports pixel_clk]]", sdc)
+        # The video output lives in pixel_clk (pc386_system.sv:66-67). With the
+        # two clocks asynchronous, constraining it against the system clock
+        # would have TimeQuest cut its paths rather than analyse them, and the
+        # fit could close without the video output being looked at at all.
+        self.assertIn("set_output_delay -clock pixel_clk_clock -max 0.000 [get_ports {video[*]}]", sdc)
+        self.assertIn("set_input_delay -clock pixel_clk_clock -max 0.000 [get_ports {pixel_locked}]", sdc)
+        # ... and a pixel-domain port is not also constrained against the system clock.
+        self.assertIn("[get_ports {video[*]}]]]\n", sdc)
+        self.assertNotIn("set_output_delay -clock clk_clock -max 0.000 [get_ports {video[*]}]", sdc)
+
+    def test_an_input_gets_no_output_delay_and_the_reverse(self):
+        ports = [(name + "[*]" if name in {"video", "gpo", "gpi"} else name, direction)
+                 for name, direction in MACHINE_PORTS]
+        sdc = fit.clock_constraints(fit.DESIGNS["machine"], 1000.0 / 61.44, ports)
+        self.assertNotIn("set_output_delay -clock pixel_clk_clock -max 0.000 [get_ports {pixel_locked}]", sdc)
+        self.assertNotIn("set_input_delay -clock pixel_clk_clock -max 0.000 [get_ports {video[*]}]", sdc)
+
+    def test_a_port_clock_table_naming_a_port_the_netlist_lacks_is_refused(self):
+        design = dict(fit.DESIGNS["machine"], port_clock={"nonexistent": "pixel_clk"})
+        with self.assertRaisesRegex(fit.FitError, "does not have: nonexistent"):
+            fit.clock_constraints(design, 16.276, [("clk", "input"), ("pixel_clk", "input")])
+
+    def test_port_directions_come_from_the_netlist(self):
+        self.assertEqual(fit.parse_ports(NETLIST, "other"), [("a", "input"), ("b", "output")])
 
 
 class RamAttribute(unittest.TestCase):

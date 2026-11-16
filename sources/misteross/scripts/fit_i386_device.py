@@ -99,9 +99,17 @@ DEVICES = {
 # a virtual pin. pc386_system's two clocks come from two separate PLLs in the
 # board shell and cores/fes-pc386/clocks.sdc does not time paths between
 # them, so they are declared asynchronous here too.
+# port_clock names the clock each non-clock port is constrained to. The two
+# machine clocks are asynchronous, so a pixel-domain port constrained to the
+# system clock would have its paths cut rather than analysed, and the fit could
+# report closure without ever looking at the video output.
+# pc386_system.sv:66-67 puts video in pixel_clk, and pixel_locked is that
+# domain's own reset input.
 DESIGNS = {
-    "cpu": {"top": "fes_i386_cpu", "clocks": ("clk",), "asynchronous": False},
-    "machine": {"top": "pc386_system", "clocks": ("clk", "pixel_clk"), "asynchronous": True},
+    "cpu": {"top": "fes_i386_cpu", "clocks": ("clk",), "asynchronous": False,
+            "port_clock": {}},
+    "machine": {"top": "pc386_system", "clocks": ("clk", "pixel_clk"), "asynchronous": True,
+                "port_clock": {"video[*]": "pixel_clk", "pixel_locked": "pixel_clk"}},
 }
 # pc386_system's pixel clock is 74.25 MHz in the shell, fixed; only the system
 # clock moves with --period-ns.
@@ -145,20 +153,21 @@ _RANGE = re.compile(r"\[\s*(\d+)\s*:\s*(\d+)\s*\]")
 _DECL_KEYWORDS = frozenset({"wire", "reg", "logic", "signed", "unsigned"})
 
 
-def netlist_ports(text: str, top: str) -> list[str]:
-    """The top module's ports as Quartus names them, each vector expanded to a
-    wildcard. Read from the netlist, so no RTL port list is duplicated here."""
+def parse_ports(text: str, top: str) -> list[tuple[str, str]]:
+    """The top module's ports, each with its direction, as Quartus names them:
+    a vector becomes a wildcard. Read from the netlist, so no RTL port list is
+    duplicated here."""
     start = re.search(rf"^\s*module\s+{re.escape(top)}\s*\(", text, re.M)
     if start is None:
         raise FitError(f"netlist has no module {top}")
-    ports: list[str] = []
+    ports: list[tuple[str, str]] = []
     for line in text[start.start():].splitlines()[1:]:
         if re.match(r"^\s*endmodule\b", line):
             break
         match = _PORT.match(line)
         if match is None:
             continue
-        body = match.group(2)
+        direction, body = match.group(1), match.group(2)
         vector = bool(_RANGE.search(body))
         # Tokenise rather than substitute: a port named arch_x87_regs contains
         # the keyword "reg", and replacing substrings would corrupt its name.
@@ -167,12 +176,17 @@ def netlist_ports(text: str, top: str) -> list[str]:
                 continue
             if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", token):
                 raise FitError(f"unreadable port declaration in {top}: {line.strip()!r}")
-            ports.append(f"{token}[*]" if vector else token)
+            ports.append((f"{token}[*]" if vector else token, direction))
     if not ports:
         raise FitError(f"{top} declares no ports in the netlist body; this reads the non-ANSI form "
                        "Yosys's write_verilog produces, where the header names the ports and the "
                        "body declares them")
     return ports
+
+
+def netlist_ports(text: str, top: str) -> list[str]:
+    """The top module's port names, in declaration order."""
+    return [name for name, _direction in parse_ports(text, top)]
 
 
 # The i386 and pc386 RTL asks for Cyclone V block RAM by name, and Agilex 5
@@ -219,26 +233,47 @@ def prepare_netlist(netlist: Path, device: "Device", work: Path) -> tuple[Path, 
     return retargeted, record
 
 
-def clock_constraints(design: dict, period_ns: float) -> str:
-    """The SDC. Virtual input and output delays are constrained explicitly, so
-    no port path is left unconstrained; they set no board I/O contract."""
+def clock_constraints(design: dict, period_ns: float,
+                      ports: list[tuple[str, str]] | None = None) -> str:
+    """The SDC. Every port path is constrained, and each against the clock of
+    its own domain: with the machine's two clocks declared asynchronous, a
+    pixel-domain port constrained to the system clock would have its paths cut
+    instead of analysed, and the fit could pass without the video output ever
+    being looked at. These virtual delays set no board I/O contract."""
     clocks = design["clocks"]
+    periods = {clocks[0]: period_ns}
+    for clock in clocks[1:]:
+        periods[clock] = PIXEL_PERIOD_NS
     lines = ["# Internal virtual-pin fit. No board I/O timing is established.\n"]
-    for index, clock in enumerate(clocks):
-        period = period_ns if index == 0 else PIXEL_PERIOD_NS
-        lines.append(f"create_clock -name {clock}_clock -period {period:.4f} [get_ports {clock}]\n")
+    for clock in clocks:
+        lines.append(f"create_clock -name {clock}_clock -period {periods[clock]:.4f} [get_ports {clock}]\n")
     lines.append("derive_clock_uncertainty\n")
     if design["asynchronous"]:
         groups = " \\\n".join(f"    -group [get_clocks {{{clock}_clock}}]" for clock in clocks)
         lines.append("set_clock_groups -asynchronous \\\n" + groups + "\n")
-    held = " ".join(f"[get_ports {clock}]" for clock in clocks)
-    lines.append(f"set data_inputs [remove_from_collection [all_inputs] [add_to_collection {held}]]\n"
-                 if len(clocks) > 1 else
-                 f"set data_inputs [remove_from_collection [all_inputs] {held}]\n")
+    domains = design["port_clock"]
+    directions = dict(ports) if ports is not None else None
+    if directions is not None:
+        unknown = set(domains) - set(directions)
+        if unknown:
+            raise FitError("port_clock names ports the netlist does not have: "
+                           + ", ".join(sorted(unknown)))
+    # Everything the table does not name belongs to the first clock's domain.
+    held = [f"[get_ports {clock}]" for clock in clocks]
+    held += [f"[get_ports {{{port}}}]" for port in sorted(domains)]
+    collection = "[add_to_collection " + " ".join(held) + "]" if len(held) > 1 else held[0]
+    lines.append(f"set data_inputs [remove_from_collection [all_inputs] {collection}]\n")
+    lines.append(f"set data_outputs [remove_from_collection [all_outputs] {collection}]\n")
     first = f"{clocks[0]}_clock"
     for bound in ("max", "min"):
         lines.append(f"set_input_delay -clock {first} -{bound} 0.000 $data_inputs\n")
-        lines.append(f"set_output_delay -clock {first} -{bound} 0.000 [all_outputs]\n")
+        lines.append(f"set_output_delay -clock {first} -{bound} 0.000 $data_outputs\n")
+    for port, clock in sorted(domains.items()):
+        if directions is None:
+            raise FitError("a port_clock table needs the netlist's port directions")
+        command = "set_input_delay" if directions[port] == "input" else "set_output_delay"
+        for bound in ("max", "min"):
+            lines.append(f"{command} -clock {clock}_clock -{bound} 0.000 [get_ports {{{port}}}]\n")
     return "".join(lines)
 
 
@@ -251,11 +286,11 @@ def write_project(output: Path, device: Device, design: dict, netlist: Path,
     shutil.copyfile(netlist, project / f"{top}.v")
     shutil.copyfile(Path(__file__), project / "fit_i386_device.py")
     shutil.copyfile(Path(__file__).with_name("fit_timing.tcl"), project / "timing.tcl")
-    (project / f"{top}.sdc").write_text(clock_constraints(design, period_ns))
     (project / f"{top}.qpf").write_text(
         f'QUARTUS_VERSION = "{metadata["series"]}"\nPROJECT_REVISION = "{top}"\n')
-    ports = netlist_ports(text, top)
-    virtual = [port for port in ports if port not in design["clocks"]]
+    ports = parse_ports(text, top)
+    (project / f"{top}.sdc").write_text(clock_constraints(design, period_ns, ports))
+    virtual = [port for port, _direction in ports if port not in design["clocks"]]
     assignments = [("FAMILY", f'"{device.family}"'), ("DEVICE", device.part),
                    ("TOP_LEVEL_ENTITY", top), ("PROJECT_OUTPUT_DIRECTORY", "output_files"),
                    ("LAST_QUARTUS_VERSION", f'"{metadata["qsf_version"]}"'),
