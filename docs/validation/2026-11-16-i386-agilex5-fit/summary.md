@@ -381,10 +381,12 @@ Worth one line on its own: this design's worst-corner Fmax estimate is
 estimate at the same rung. Both are estimates at 61.44 MHz, not closures; no
 machine ladder has been run on either.
 
-**The measurement that would settle the DE25 plan, and has not been made.**
-~~`pc386_system` from #1889's head through this runner on Agilex 5.~~ **Run —
-see the section above.** It fits and closes at 88.43%. Everything else in this
-record is `main`, whose 387 has no arithmetic.
+**`pc386_system` from #1889's head on Agilex 5 — run, and reported
+[above](#the-design-the-de10-refused-does-fit-on-agilex-5--and-it-adds-no-labs):
+it fits and closes at 41,387 ALMs, 88.43%.** Every other fit in this record is
+`main`, whose 387 has no arithmetic. What is still unmeasured here is a **seed
+sweep** of that design, which is what would turn its A/B against the pipelined
+backend from "about the same" into a ranking.
 
 ### The ladder
 
@@ -498,8 +500,13 @@ produced a wrong number quietly:
 - Quartus 17.0.2 **ignores** a `VIRTUAL_PIN` assignment whose node name is
   braced (Critical Warning 136021) and leaves the port a real pin. Every one of
   the CPU's was ignored, and the fit failed only because the Cyclone V has
-  314 pins. Every fit now **gates on the report's own pin count**: more real
-  pins than real clocks is a failure.
+  314 pins. Every fit now **gates on the report's own pin count**, and on the
+  **exact** count rather than a ceiling: `real_pins == len(real_clocks)`, in
+  the runner and again in the collector. Too few matters as much as too many —
+  one real pin on the machine's two-clock envelope would mean a clock input
+  had gone virtual or been removed, and the timing gate would then have
+  analysed the survivor alone and reported it as covered. The gate takes the
+  intended clock list and errors unless TimeQuest finds exactly that many.
 - The first envelope gave each virtual port a zero input and output delay,
   min and max, as #1892 does. A virtual pin has no package, trace or external
   device, so that invents a **hold** requirement on a path to a pin that does
