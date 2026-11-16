@@ -65,8 +65,10 @@ do not qualify the full standard core. DE25 migration uses the shared standard
 core and board adapters; that replacement still needs a matched Quartus build,
 package, runtime support and hardware acceptance.
 
-Quartus Prime Lite 17.0.2 (`make build-fes-zx81-quartus`) remains the legacy
-1.2 bring-up/oracle lane; it does not produce the standard socketed package.
+Quartus Prime Lite 17.0.2 (`make build-fes-zx81-quartus MODEL=...`) builds the
+same family as a format-3 package with blank ROM lanes and the same ROM map,
+without the expansion socket ([architecture](../sources/misteross/docs/architecture.md#fes-zx81-quartus-package); design and decisions in DeanoC/fes#1873). The
+registry switches to it in DeanoC/fes#1876.
 `make build-fes-zx81` is the standard Yosys/nextpnr-mistral producer for the
 1.7.0 socketed format-3 package. The package seals `rom-map.json` alongside
 the blank ROM RBF. The host sends the selected binary and optional expansion;
