@@ -86,7 +86,15 @@ everything accepted, including an already offered response.
   value is a legal `req_a`.
 - **PC and RC are passed as raw CW fields.** The envelope already has `rc`/`pc`
   as `cw[11:10]`/`cw[9:8]`.
-- **`flush` maps straight through.** Both mean "the pipeline squashed it".
+- **`flush` does *not* map straight through.** *(Corrected 16 Nov 2026, after
+  reading the sequencer's flush handling; the first version of this document
+  said it did.)* Arithmetic is entered **after** the instruction commits
+  (`S_IDLE` on `wb && wb_last`), and the envelope deliberately lets a retired
+  instruction run on through a later squash -- `if (flush && started &&
+  !committed)` is the only thing that stops it, as a 387 does with BUSY# still
+  active. Driving the backend from the CPU's `flush` would cancel a committed
+  operation and leave the unit waiting for a result that was thrown away. The
+  backend is cancelled by that condition plus reset and the port F1h reset.
 - **The ordering machinery is free but unused.** The CPU holds one ESC in
   flight (`x87_busy` interlock in `fes_i386_cpu`), so the envelope will issue
   at most one operation at a time. `req_tag`, the 16-entry completion RAM and
@@ -135,11 +143,19 @@ The backend is therefore not merely "masked-result only" in the sense of
 leaving the sticky status to the caller. It is masked-result in a way that
 **erases the unmasked result**. Fixing it means touching `fes_x87_round.sv`
 and `fes_x87_pipe.sv` and re-running #1892's bench and its 200 MHz four-corner
-fit. My preferred shape, for the coordinator to accept or reject: one extra
-request bit ("unbounded"), asserted by the adapter when OM or UM is clear,
-which makes the rounder skip denormal packing and the overflow substitution
-and apply the ±24576 bias itself — keeping the 18-bit exponent inside the
-backend rather than widening the response.
+fit. **WITHDRAWN, 16 Nov 2026.** The proposal that stood here -- one extra request
+bit making the rounder skip denormal packing and the overflow substitution --
+is not needed, and would have duplicated a rule that already exists in the
+place that owns it. The CPU consumer instead taps the backend **before** its
+rounder, at `raw_t`, and lets the envelope's own `A_RND` do the rounding and
+the masked/unmasked decision. `fes_x87_round` is not instantiated on that
+path and PR #1892's RTL is unchanged. The two representations turn out to be
+bit-identical: `wm` is `significand[66:3]`, `wg`, `wrd` and `ws` are bits 2, 1
+and 0, and the exponent carries the same 16383 bias -- checked against
+`round_pc` at all three precisions and against the tiny and overflow
+thresholds, not assumed. (The proposal was also wrong on its own terms: with
+OM masked and UM unmasked, an overflow must still return infinity, so one bit
+could not have expressed it.)
 
 **(d) BUSY#, the commit machinery and the exception latching are written
 against the sequencer.** As the brief says. `busy` on main is
@@ -154,7 +170,11 @@ pairs.
 
 ## 3. Lockstep: the assumption does not hold yet
 
-Two independent blockers, both measured, not inferred:
+Two independent blockers. The two facts are **measured** -- the empty grep and
+the `X87_UNIMPL` default, both read out of the source. Their consequences were
+**inferred** when this was written; both have since been confirmed by running
+the thing. *(Clarified 16 Nov 2026; the first version labelled the whole
+section "measured".)*
 
 **(i) There is nothing for a DE25 envelope to sit inside.** `grep -rl i386
 sources/misteross/boards/de25nano/` returns **nothing**. There is no DE25
@@ -182,6 +202,16 @@ Not yet checked, and I will check before any seal: whether the **locked i386
 Yosys** netlist bench accepts the backend's packed structs and `always_comb`
 functions. The DE10 lane's netlist gate uses a pinned Yosys; the DE25 flow is
 Quartus Pro. Which netlist gate applies here is an open question.
+
+## 3a. How it was resolved *(added 16 Nov 2026)*
+
+All three questions below were answered and the work was built on those
+answers; `method.md` beside this file carries the method and pass rules, and
+`summary.md` the results. In short: branch from #1889's head, seam in
+fes-common rather than a de25nano fork, and the rounder change withdrawn in
+favour of the raw tap. Lockstep *can* reach the backend on that base, and the
+run reports a per-operation count so that a green gate cannot be mistaken for
+a live one.
 
 ## 4. The three questions I need answered before writing RTL
 

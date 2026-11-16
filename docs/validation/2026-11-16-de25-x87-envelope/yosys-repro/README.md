@@ -58,4 +58,5 @@ should later cite a green netlist bench as covering the DE25 path.
 The dangerous part is not the miscompile but the **false coverage**: a silent
 miscompile is the worst kind of gate failure, because the gate reports
 success. The project rule that a toolchain workaround gets a fork issue and a
-locked-binary repro exists for this, and this directory is that repro.
+locked-binary repro exists for this, and this directory is that repro. The
+issue is [DeanoC/yosys#79](https://github.com/DeanoC/yosys/issues/79).
