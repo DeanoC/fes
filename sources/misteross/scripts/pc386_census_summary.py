@@ -414,7 +414,14 @@ def x87_summary(counts: dict[str, int]) -> dict:
         'interrupts_with_error_pending': err_intr,
         'interrupts_with_error_pending_by_vector': {k[len('x87errintr:'):]: n for k, n in sorted(counts.items())
                                                     if k.startswith('x87errintr:')},
-        'relies_on_exceptions': bool(r_es or irq13 or err_intr),
+        # Reliance is ES set, or an interrupt delivered with a 387 error
+        # pending. The bare x87irq13 key is NOT in this: vector 75h is IRQ 13
+        # only under the BIOS's own PIC mapping, and a guest that remaps the
+        # 8259s can deliver an unrelated IRQ there with ES clear, which would
+        # read as reliance on x87 exceptions when there is none. x87errintr
+        # already requires the error to be pending, which is the condition
+        # that actually means something, and it is vector-independent.
+        'relies_on_exceptions': bool(r_es or err_intr),
         'fsqrt_by_pc': dict(sorted(pc_by_class.get('sqrt', Counter()).items())),
         'pc_sites': {p: dict(sorted(c.items())) for p, c in sorted(pc_sites.items())},
         'cw_writes': dict(sorted(cw_sets.items())),

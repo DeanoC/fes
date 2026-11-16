@@ -635,11 +635,23 @@ class SummaryTest(unittest.TestCase):
             row = summary.run('t', Path(tmp))['x87']
         self.assertEqual(row['irq13'], 0)
         self.assertFalse(row['relies_on_exceptions'])
+        # Vector 75h with an error pending: both keys, and reliance.
         with tempfile.TemporaryDirectory() as tmp:
-            Path(tmp, 'census.txt').write_text('x87op:d8.m1:pm3 5 -\nx87irq13:75:pm3:es 2 -\n')
+            Path(tmp, 'census.txt').write_text('x87op:d8.m1:pm3 5 -\n'
+                                               'x87irq13:75:pm3:es 2 -\nx87errintr:75:pm3 2 -\n')
             row = summary.run('t', Path(tmp))['x87']
         self.assertEqual(row['irq13'], 2)
         self.assertTrue(row['relies_on_exceptions'])
+        # Vector 75h with ES CLEAR does not establish reliance. A guest that
+        # remaps the 8259s can deliver an unrelated IRQ at 75h, so the bare
+        # vector is not evidence of an x87 exception; only the error-pending
+        # key is, and it is vector-independent.
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, 'census.txt').write_text('x87op:d8.m1:pm3 5 -\nx87irq13:75:pm3 9 -\n')
+            row = summary.run('t', Path(tmp))['x87']
+        self.assertEqual(row['irq13'], 9)
+        self.assertEqual(row['interrupts_with_error_pending'], 0)
+        self.assertFalse(row['relies_on_exceptions'])
         # The vector-independent superset also establishes reliance, because
         # the slave PIC's base is programmable and IRQ 13 need not be 75h.
         with tempfile.TemporaryDirectory() as tmp:
