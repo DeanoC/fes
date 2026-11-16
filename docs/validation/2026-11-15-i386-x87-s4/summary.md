@@ -167,7 +167,7 @@ the one the kit log names.
 | in-machine fit, identity **on** | **does not fit** — 4,407 of 4,191 LABs as first written, **4,292 in option A's form** ([escalation](STOP-RULE-FIRED.md)) |
 | identity-on nine-seed sweep | **nothing to sweep**: the fitter stopped before placement, so there is no ALM figure, no timing and no seeds |
 | TestFloat div, sqrt, rem | **attempted, unmet**: a scope of its own, see below |
-| per-entity (`--hierarchy`) fit | not run |
+| per-entity (`--hierarchy`) fit | **run** — both seed tables at **0 ALMs**, verified from the fitter; it cannot apportion within the unit ([why](restructure.md)) |
 
 **This table was itself an instance of the failure it records.** An earlier
 version kept the original "not run" rows for the seal, the kit run and QEMU's
@@ -293,7 +293,6 @@ the wrong call. Both are in the results table.
 - **A TestFloat harness**, which the section above explains is a scope of its
   own. QEMU's fprem test is **not** outstanding: it is ported as its operand
   grid and passes, which the results table records.
-- **The per-entity (`--hierarchy`) fit**, not run.
 - **The decode landed per operation with the unit that runs it**, not in one
   commit. Adding `X87_SQRT` or `X87_PREM` to `x87_decode` un-stops the
   instruction — `fes_i386_decode` gates on `!= X87_UNIMPL` — so a branch with
