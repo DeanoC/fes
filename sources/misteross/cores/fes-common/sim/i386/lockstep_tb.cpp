@@ -9519,6 +9519,32 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
         user_write.rtl_alone = true; user_write.pte_ad = A | D; user_write.word = 1; user_write.zf = 1;
         cases.push_back(user_write);
     }
+    // The patched Bochs flat-4G path checks the multi-byte SS limit before
+    // paging. Test both cold and already-cached segment access, with and
+    // without the high page mapped, in full lockstep.
+    for (bool word : {true, false}) {
+        for (bool warm : {false, true}) for (bool mapped : {false, true}) {
+            static std::deque<std::string> names;
+            const char *label = names.emplace_back(std::string(word ? "pg-r3-pushfw-wrap" : "pg-r3-pushfd-wrap")
+                                + (warm ? "-warm" : "") + (mapped ? "-mapped" : "-unmapped")).c_str();
+            Case c{label, [word, warm](Asm &a, uint32_t) {
+                if (warm) {
+                    a.mov(4, 0x5001); // a legal cross-page push warms Bochs's flat-SS fast path
+                    a.op({0x66, 0x9c});
+                }
+                a.mov(4, 1); // ESP=1, word/dword push crosses 4 GiB
+                if (word) a.op({0x66, 0x9c}); else a.op({0x9c});
+            }, 12, 0, 0, {}, mapped ? std::vector<std::pair<uint32_t,uint32_t>>{{1023, PT1 | P | W | U}} : std::vector<std::pair<uint32_t,uint32_t>>{},
+               {}, true};
+            if (mapped) { c.ptes.emplace_back(0x7ff, 0x20000 | P | W | U); c.mem.push_back({0x20fff, {0xa5}}); }
+            cases.push_back(c);
+        }
+        Case valid{word ? "pg-r3-pushfw-inlimit-np" : "pg-r3-pushfd-inlimit-np", [word](Asm &a, uint32_t) {
+            a.mov(4, 0); // push starts fffffffe/fffffffc and ends at limit
+            if (word) a.op({0x66, 0x9c}); else a.op({0x9c});
+        }, 14, 6, -1, {}, {}, {}, true};
+        cases.push_back(valid);
+    }
     const char *only = std::getenv("FES_I386_CASE");
     for (const Case &c : cases) {
         if (only && std::string(only) != c.label) continue;
@@ -9656,6 +9682,31 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
             }
         }
         if (c.cr2 >= 0 && s.cr2 != uint32_t(c.cr2)) out.add(label + ".cr2", uint32_t(c.cr2), s.cr2);
+        if (label.rfind("pg-r3-pushf", 0) == 0) {
+            const uint32_t at = s.seg[fes_i386::SEG_SS].base + s.gpr[fes_i386::REG_ESP];
+            const auto rd32 = [&](uint32_t x) {
+                return uint32_t(rtl.ram[x]) | uint32_t(rtl.ram[x + 1]) << 8
+                     | uint32_t(rtl.ram[x + 2]) << 16 | uint32_t(rtl.ram[x + 3]) << 24;
+            };
+            const bool word = label.find("pushfw") != std::string::npos;
+            const bool crossing = label.find("wrap") != std::string::npos;
+            const bool mapped = label.find("-mapped") != std::string::npos;
+            const uint32_t expected_eip = CODE + uint32_t(a.b.size()) - 1 - (word ? 2u : 1u);
+            if (uint64_t(at) + 23 >= RAM_BYTES) out.add(label + ".frame-range", 0, at);
+            else {
+                if (rd32(at+4) != expected_eip) out.add(label + ".frame-eip", expected_eip, rd32(at+4));
+                if ((rd32(at+8) & 0xffff) != 0x7b) out.add(label + ".frame-cs", 0x7b, rd32(at+8));
+                if (rd32(at+16) != uint32_t(crossing)) out.add(label + ".frame-esp", uint32_t(crossing), rd32(at+16));
+                if ((rd32(at+20) & 0xffff) != 0x83) out.add(label + ".frame-ss", 0x83, rd32(at+20));
+            }
+            if (crossing && mapped) {
+                if (rtl.ram[0x20fff] != 0xa5) out.add(label + ".partial-write", 0xa5, rtl.ram[0x20fff]);
+                if (rtl.ram[PD + 4092] & (A | D)) out.add(label + ".high-pde-ad", 0, rtl.ram[PD + 4092] & (A | D));
+                if (rtl.ram[PT1 + 4092] & (A | D)) out.add(label + ".high-pte-ad", 0, rtl.ram[PT1 + 4092] & (A | D));
+            }
+        }
+        if (label == "pg-r3-pushfw-inlimit-np" && s.cr2 != 0xfffffffeu) out.add(label + ".cr2-full", 0xfffffffeu, s.cr2);
+        if (label == "pg-r3-pushfd-inlimit-np" && s.cr2 != 0xfffffffcu) out.add(label + ".cr2-full", 0xfffffffcu, s.cr2);
         end_run(bus, rtl, outcome.halted, out);
         oracle.set_a20(true);
         rtl.top.a20m = 0;
