@@ -231,22 +231,33 @@ this record is `main`, whose 387 has no arithmetic.
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | 61.44 MHz | Agilex 5 | **yes**, all 4 corners | 29,300 | 62.61% | 3,626 | 77.48% | 124.35 MHz |
 | 75 MHz | Agilex 5 | **yes**, all 4 corners | 29,360 | 62.74% | 3,611 | 77.16% | 132.01 MHz |
-| 90, 110, 130 MHz | Agilex 5 | queued | — | — | — | — | — |
+| 90 MHz | Agilex 5 | **yes**, all 4 corners | 29,304 | 62.62% | 3,590 | 76.71% | 125.69 MHz |
+| 110 MHz | Agilex 5 | **yes**, all 4 corners | 29,348 | 62.71% | 3,592 | 76.75% | 133.23 MHz |
+| 130 MHz | Agilex 5 | running | — | — | — | — | — |
 | 61.44 MHz | Cyclone V | **yes**, all 8 corners | 31,244 | 74.55% | 3,494 | 83.37% | 63.79 MHz |
 | 75, 90, 110, 130 MHz | Cyclone V | queued, and expected to miss | — | — | — | — | — |
 
-Two things the 75 MHz rung already shows. **Area barely moves**: 29,360 against
-29,300 ALMs, 60 apart, far inside this lane's ±200 noise. And **the Fmax
-estimate moves a lot**: 132.01 MHz at the worst slow corner against 124.35 at
-the looser constraint, on the same netlist. That is the fitter working harder
-against a tighter requirement, and it is exactly why the method treats a
-single constraint's Fmax as an estimate rather than a closure — and why the
-answer to "what does it close at" is the highest rung that passes, not the
-largest Fmax anyone has seen printed.
+Two things the ladder shows that a single constraint could not.
 
-So on the evidence here `fes_i386_cpu` **closes at 75 MHz on Agilex 5**, with
-higher rungs queued, against **61.44 MHz on the Cyclone V**, whose own
-worst-corner estimate of 63.79 MHz leaves it no room for a higher rung.
+**Area is flat across every rung**: 29,300, 29,360, 29,304 and 29,348 ALMs at
+61.44, 75, 90 and 110 MHz — a 60 ALM spread on the same netlist, far inside
+this lane's ±200 noise. So on this device, in this range, **the CPU's area and
+its clock are effectively independent**, and the budget above does not change
+with the clock chosen. That is worth having measured rather than assumed; it
+was not safe to assume.
+
+**And the Fmax estimate is not even monotonic in the constraint**: 124.35 MHz
+at the 61.44 rung, 132.01 at 75, 125.69 at 90, 133.23 at 110. Those are four
+estimates of one quantity from four fits of one netlist, spread over 9 MHz and
+moving in both directions. Which is exactly why the method made the closure a
+ladder: a single constraint's Fmax is the fitter's estimate under that
+constraint, and the answer to "what does it close at" is the highest rung that
+passes every analysis at every corner.
+
+So **`fes_i386_cpu` closes at 110 MHz on Agilex 5** on the evidence so far,
+with the 130 MHz rung still running, against **61.44 MHz on the Cyclone V**,
+whose own worst-corner estimate of 63.79 MHz leaves it no room for a higher
+rung.
 
 Also not measured, and stated as such:
 
