@@ -22,7 +22,8 @@ if __package__ in (None, ""):
 
 from scripts.compiler_read_audit import POLICY, excluded_markdown, read_execution_data
 from scripts.source_repository import canonical_repository
-from scripts.input_identity import functional_key, validate_identities, with_identities, manifest_toolchain
+from scripts.input_identity import (POLICY as IDENTITY_POLICY, functional_key, validate_identities,
+                                    with_identities, manifest_toolchain)
 from scripts.core_package import (
     MAX_MANIFEST_SIZE,
     MAX_ROM_MAP_SIZE,
@@ -191,7 +192,21 @@ def _validate_front_end(fields: dict, parameters: dict, tools: dict) -> None:
     logic, the digest of its canonical Yosys program. A format-1 record has no
     validated Quartus discriminator, so it carries none of them; its producer
     gains them when it moves to format 2.
+
+    Only a `design-v1` record is in scope. A legacy record predates the whole
+    front-end concept and its `build_identity` hashes every source input, so
+    requiring new parameters on one moves its identity and buys nothing: on
+    `build_fes_zx81_quartus.py` that is four ZX81 models' packages for a field
+    nothing reads yet (DeanoC/fes#1806 review). Such a producer gains them when
+    it opts into the policy, which is what this function already says about
+    format-1. PC/XT and the OSS producers are `design-v1`, so every record that
+    carries separated identities is still covered.
     """
+    if parameters.get("identity_policy") != IDENTITY_POLICY:
+        for name in FRONT_END_PARAMETERS:
+            if name in parameters:
+                raise PackageExportError(f"{name} requires a {IDENTITY_POLICY} record")
+        return
     if fields.get("toolchain") != "quartus":
         for name in FRONT_END_PARAMETERS:
             if name in parameters:
