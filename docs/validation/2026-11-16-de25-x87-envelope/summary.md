@@ -72,6 +72,36 @@ instruction run on through a later squash, as a 387 does with BUSY# still
 active; a straight-through mapping would cancel a committed operation and
 leave the unit waiting for a result that was thrown away.
 
+## The pipelined backend is slower here, and why
+
+Measured on the x87 lockstep suite, both configurations, same clock:
+**DE10 10,993 cycles, DE25 11,584** — about **5.4% more** on that suite.
+
+The structural reason is the part worth carrying, because it predicts the
+result, survives the suite changing, and points at the remedy: **#1892's
+backend is a pipeline with a 15-clock response latency whose value is
+throughput, and the envelope holds one ESC instruction in flight, so there is
+never a second operation to amortise the pipeline against.** The sequencer's
+shorter dependent latency wins every time. #1892's headline rates — 200
+million independent fast operations a second — assume a concurrency this
+consumer does not have.
+
+**The remedy is envelope work, not backend work**: letting more than one ESC
+be in flight is what would turn the pipeline's throughput into something this
+consumer can use.
+
+What the 5.4% is **not**: it is measured on a 24-case x87 lockstep suite,
+which is about as x87-dense as a workload gets, and it is **not** 5.4% on
+anything a game does. The x87 share of clocks in the census titles is nowhere
+near saturating. **The game-level consequence has not been measured.** What
+would measure it is the pc386 RTL game suite's preset benchmarks with the
+DE25 configuration selected, against the same titles on the DE10
+configuration — frames, not cycles.
+
+This does not reopen the DE25 decision. That decision was about **area**: the
+DE10 cannot hold the 387 at any speed, so a few per cent on x87-bound work
+does not compete with a core that does not fit.
+
 ## Three defects this found, and one it nearly missed
 
 **The exact cancellation.** The unit bench failed 240 of 740 cases with the
@@ -119,6 +149,33 @@ and before the backend is ever offered the operation. The flush is now swept
 from 2 to 80 clocks: with the wrong mapping 11 of 13 offsets hang the unit,
 with the right one all pass. **The case is only known to work because it was
 made to fail on purpose.**
+
+## The pattern: three checks that reported without checking
+
+These are listed together because the pattern is the finding, not any one of
+them. In each case a check existed, ran, and reported success while being
+structurally incapable of failing:
+
+1. **The flush-during-divide case** pulsed flush before the backend was ever
+   offered the operation, so a deliberately wrong flush mapping passed all 763
+   cases.
+2. **The square-root exclusion** was claimed from a guard list built by
+   grepping case-arm prefixes; the eight `Q_*` states were not in it, so every
+   fit started up to that point was measuring a design other than the one
+   being reported on.
+3. **The Quartus timing gate** took the wrong argument count and opened the
+   wrong project name, so it errored before analysing anything — and the first
+   fit produced a complete resource count with **no timing behind it**.
+
+All three were found the same way: by making the check fail on purpose, or by
+a tool refusing loudly. None would have been found by reading the code, and
+two of them had already produced numbers that looked like results. The
+Quartus refusal is worth its own line — **a check that fails loudly beat a
+check that reports** — and it is why the exclusion evidence is now a query
+that fails the build rather than a table for a reader to inspect.
+
+A fourth, of the same family, is in the next section: a lockstep that passed
+while the count it was gated on was never measured.
 
 ## Two gates that had stopped covering what they named
 
@@ -199,3 +256,9 @@ numbers mean; that is the prose around them.
   the backend's files. No reseal was done.
 - **Two lockstep runs appear in the logs** only because the first died on a DNS
   failure fetching the MOO vectors, not on anything in the design.
+- **The flush sweep's thirteen offsets are not independent trials.** The loop
+  reuses one `Unit`, so once an offset hangs the unit everything after it fails
+  too. The claim the bench supports is "the first hang is at 8 clocks; the
+  wrong mapping fails and the right one passes all thirteen", not a count of
+  independent failures.
+- **The pair cases are masked-only.** They do not sweep the exception masks.
