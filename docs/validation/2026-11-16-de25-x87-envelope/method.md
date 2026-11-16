@@ -157,6 +157,37 @@ nothing.
 and not reconstructed**, because comparability with its M and M+ is the whole
 point of this fit and a different envelope destroys it.
 
+### Exactly what is fitted
+
+Labelled by design and sha, never as "the integration fit", because a second
+fit was authorised alongside it and in a week nobody would be able to tell the
+two numbers apart:
+
+| | This fit | The sibling's second fit |
+| --- | --- | --- |
+| Design | `pc386_system`, `x87_present = 1'b1`, **`X87_BACKEND = 1`** | `pc386_system`, `x87_present = 1'b1` |
+| Base | this branch at `79f34caa8` | PR #1889's head, `5f901426e` |
+| Arithmetic | the **DE25 pipelined backend** | the **slice 3 + 4 sequencer** |
+| Question | does the DE25 backend fit in the machine | does the design the DE10 actually refused fit on Agilex 5 |
+
+This fit's two changes to `pc386_system.sv` are a **scratch commit in its own
+worktree, not merged RTL**, following the 8 November area audit's precedent:
+the identity-on wire (exactly as the sibling's M+ does it) and
+`.X87_BACKEND(1)` on the `fes_i386_cpu` instantiation.
+
+**It runs the sibling's harness, not this record's** —
+`fit_i386_device.py --design machine --device de25 --front-end netlist` with
+its `fit_timing.tcl`, from its branch. That removes the envelope difference
+rather than managing it: the same virtual-pin set, the same two-clock
+asynchronous SDC, the same cut-rather-than-constrained virtual-port paths and
+the same report rows. This record's own harness constrains those paths at
+zero, which would have made the number incomparable with M and M+ — the exact
+confound this fit exists to avoid.
+
+Its pinned-firmware guard fired on the first attempt, as its method says it
+would; the firmware build is the sibling's, after checking that
+`cores/fes-pc386/firmware.lock` is byte-identical on both branches.
+
 ### The bands
 
 1. **Fitter refuses, or LABs > 100%** → the backend **does not fit** in the
