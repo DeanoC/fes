@@ -106,7 +106,7 @@ help:
 		"  sim-fes-coleco-quartus  Test RAM/media with supplied Quartus 17 models and Icarus" \
 		"  coleco-diagnostic  Generate the open Coleco Graphics I cartridge and reference image" \
 		"  coleco-sprite-diagnostic  Generate the open Coleco Graphics II sprite cartridge and reference image" \
-		"  build-fes-zx81-quartus  Quartus oracle (quartus.lock) package for FES ZX81 (FES_ZX81_ROM=)" \
+		"  build-fes-zx81-quartus  Seal a ZX81-family package with Quartus Lite (MODEL=zx81|zx80|ts1000|ts1500; QUARTUS_ROOTDIR=, CACHE_ROOT=)" \
 		"  build-fes-zx81  Seal FES ZX81 HIP (CACHE_ROOT=; BEST_FMAX=1 GPU_DEVICES=1 uses one selected GPU)" \
 		"  build-fes-zx80  Seal experimental Sinclair ZX80 (package-only; same lock as fes.zx81)" \
 		"  build-fes-ts1000  Seal experimental Timex Sinclair 1000 (package-only; same lock as fes.zx81)" \
@@ -1079,7 +1079,7 @@ sim-fes-coleco-board-sprites sim-fes-coleco-board-sprites-oss: coleco-sprite-dia
 		build/diagnostics/fes-coleco/sprites-16k.rom build/diagnostics/fes-coleco/sprites.rom
 
 build-fes-zx81-quartus:
-	$(PYTHON) scripts/build_fes_zx81.py --root "$(CURDIR)"$(if $(strip $(FES_ZX81_ROM)), --rom "$(FES_ZX81_ROM)",)
+	$(PYTHON) scripts/build_fes_zx81_quartus.py --root "$(CURDIR)" --model "$(or $(MODEL),zx81)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
 build-fes-zx81:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_zx81_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(filter 1,$(BEST_FMAX)), --best-fmax$(if $(strip $(GPU_DEVICES)), --gpu-devices "$(GPU_DEVICES)",),)

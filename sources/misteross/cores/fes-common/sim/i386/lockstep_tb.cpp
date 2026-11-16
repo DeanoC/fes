@@ -9591,6 +9591,32 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
         user_write.rtl_alone = true; user_write.pte_ad = A | D; user_write.word = 1; user_write.zf = 1;
         cases.push_back(user_write);
     }
+    // The patched Bochs flat-4G path checks the multi-byte SS limit before
+    // paging. Test both cold and already-cached segment access, with and
+    // without the high page mapped, in full lockstep.
+    for (bool word : {true, false}) {
+        for (bool warm : {false, true}) for (bool mapped : {false, true}) {
+            static std::deque<std::string> names;
+            const char *label = names.emplace_back(std::string(word ? "pg-r3-pushfw-wrap" : "pg-r3-pushfd-wrap")
+                                + (warm ? "-warm" : "") + (mapped ? "-mapped" : "-unmapped")).c_str();
+            Case c{label, [word, warm](Asm &a, uint32_t) {
+                if (warm) {
+                    a.mov(4, 0x5001); // a legal cross-page push warms Bochs's flat-SS fast path
+                    a.op({0x66, 0x9c});
+                }
+                a.mov(4, 1); // ESP=1, word/dword push crosses 4 GiB
+                if (word) a.op({0x66, 0x9c}); else a.op({0x9c});
+            }, 12, 0, 0, {}, mapped ? std::vector<std::pair<uint32_t,uint32_t>>{{1023, PT1 | P | W | U}} : std::vector<std::pair<uint32_t,uint32_t>>{},
+               {}, true};
+            if (mapped) { c.ptes.emplace_back(0x7ff, 0x20000 | P | W | U); c.mem.push_back({0x20fff, {0xa5}}); }
+            cases.push_back(c);
+        }
+        Case valid{word ? "pg-r3-pushfw-inlimit-np" : "pg-r3-pushfd-inlimit-np", [word](Asm &a, uint32_t) {
+            a.mov(4, 0); // push starts fffffffe/fffffffc and ends at limit
+            if (word) a.op({0x66, 0x9c}); else a.op({0x9c});
+        }, 14, 6, -1, {}, {}, {}, true};
+        cases.push_back(valid);
+    }
     const char *only = std::getenv("FES_I386_CASE");
     for (const Case &c : cases) {
         if (only && std::string(only) != c.label) continue;
@@ -9728,6 +9754,31 @@ int run_paging_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
             }
         }
         if (c.cr2 >= 0 && s.cr2 != uint32_t(c.cr2)) out.add(label + ".cr2", uint32_t(c.cr2), s.cr2);
+        if (label.rfind("pg-r3-pushf", 0) == 0) {
+            const uint32_t at = s.seg[fes_i386::SEG_SS].base + s.gpr[fes_i386::REG_ESP];
+            const auto rd32 = [&](uint32_t x) {
+                return uint32_t(rtl.ram[x]) | uint32_t(rtl.ram[x + 1]) << 8
+                     | uint32_t(rtl.ram[x + 2]) << 16 | uint32_t(rtl.ram[x + 3]) << 24;
+            };
+            const bool word = label.find("pushfw") != std::string::npos;
+            const bool crossing = label.find("wrap") != std::string::npos;
+            const bool mapped = label.find("-mapped") != std::string::npos;
+            const uint32_t expected_eip = CODE + uint32_t(a.b.size()) - 1 - (word ? 2u : 1u);
+            if (uint64_t(at) + 23 >= RAM_BYTES) out.add(label + ".frame-range", 0, at);
+            else {
+                if (rd32(at+4) != expected_eip) out.add(label + ".frame-eip", expected_eip, rd32(at+4));
+                if ((rd32(at+8) & 0xffff) != 0x7b) out.add(label + ".frame-cs", 0x7b, rd32(at+8));
+                if (rd32(at+16) != uint32_t(crossing)) out.add(label + ".frame-esp", uint32_t(crossing), rd32(at+16));
+                if ((rd32(at+20) & 0xffff) != 0x83) out.add(label + ".frame-ss", 0x83, rd32(at+20));
+            }
+            if (crossing && mapped) {
+                if (rtl.ram[0x20fff] != 0xa5) out.add(label + ".partial-write", 0xa5, rtl.ram[0x20fff]);
+                if (rtl.ram[PD + 4092] & (A | D)) out.add(label + ".high-pde-ad", 0, rtl.ram[PD + 4092] & (A | D));
+                if (rtl.ram[PT1 + 4092] & (A | D)) out.add(label + ".high-pte-ad", 0, rtl.ram[PT1 + 4092] & (A | D));
+            }
+        }
+        if (label == "pg-r3-pushfw-inlimit-np" && s.cr2 != 0xfffffffeu) out.add(label + ".cr2-full", 0xfffffffeu, s.cr2);
+        if (label == "pg-r3-pushfd-inlimit-np" && s.cr2 != 0xfffffffcu) out.add(label + ".cr2-full", 0xfffffffcu, s.cr2);
         end_run(bus, rtl, outcome.halted, out);
         oracle.set_a20(true);
         rtl.top.a20m = 0;
@@ -10311,8 +10362,13 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
         void o32() { b.push_back(0x66); }
     };
     constexpr uint32_t CODE = 0x1000, HANDLER = 0x1800, DS = 0x7000;
-    struct Case { const char *label; std::function<void(Asm &)> body; };
-    const Case cases[] = {
+    struct Operand { uint16_t at; std::vector<uint8_t> bytes; };
+    struct Case {
+        std::string label;
+        std::function<void(Asm &)> body;
+        std::vector<Operand> operands{};
+    };
+    std::vector<Case> cases = {
         {"const", [](Asm &a) {
             a.op({0xdb, 0xe3});                                    // FNINIT
             for (uint8_t n = 0xe8; n <= 0xee; ++n) a.op({0xd9, n}); // FLD1 .. FLDZ
@@ -10705,6 +10761,78 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
         }},
     };
 
+    // Seeded guest programs exercise mixed x87 streams in the CPU, rather
+    // than only feeding the unit through its direct interface. Keep the
+    // operands finite and the exponents modest so these cases test the
+    // decode/uop/interlock path without depending on unmasked IRQ 13 wiring.
+    std::mt19937_64 random(0x1879'2026'1115ull);
+    auto random_ext80 = [&]() {
+        std::vector<uint8_t> bytes(10);
+        const uint64_t significand = random() | 0x8000000000000000ull;
+        const uint16_t exponent = uint16_t(0x3fff + int(random() % 25) - 12);
+        const uint16_t sign_exponent = uint16_t(exponent | ((random() & 1) << 15));
+        std::memcpy(bytes.data(), &significand, sizeof significand);
+        std::memcpy(bytes.data() + 8, &sign_exponent, sizeof sign_exponent);
+        return bytes;
+    };
+    auto ext80 = [](uint16_t sign_exponent, uint64_t significand) {
+        std::vector<uint8_t> bytes(10);
+        std::memcpy(bytes.data(), &significand, sizeof significand);
+        std::memcpy(bytes.data() + 8, &sign_exponent, sizeof sign_exponent);
+        return bytes;
+    };
+    const std::vector<uint8_t> one = ext80(0x3fff, 0x8000000000000000ull);
+    const std::vector<uint8_t> negative_one = ext80(0xbfff, 0x8000000000000000ull);
+    const std::array<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>, 8> operand_classes = {{
+        {ext80(0x0000, 0), ext80(0x8000, 0)},                                      // signed zero
+        {ext80(0x0000, 1), ext80(0x0000, 0x7fffffffffffffffull)},                 // denormals
+        {ext80(0x0000, 0x8000000000000000ull), ext80(0x8000, 0x8000000000000000ull)}, // pseudo-denormals
+        {ext80(0x3fff, 0x4000000000000000ull), one},                              // unnormal, normal
+        {ext80(0x7fff, 0x8000000000000000ull), ext80(0xffff, 0x8000000000000000ull)}, // infinities
+        {ext80(0x7fff, 0xc000000000000000ull), one},                              // quiet NaN
+        {ext80(0x7fff, 0xa000000000000000ull), negative_one},                     // signaling NaN
+        {one, negative_one},                                                      // finite random normals below
+    }};
+    constexpr std::array<const char *, 8> operand_names = {
+        "zero", "denormal", "pseudo-denormal", "unnormal", "infinity", "qnan", "snan", "normal"};
+    constexpr std::array<unsigned, 3> precision_fields = {0, 2, 3}; // 24, 53 and 64 bits
+    constexpr std::array<unsigned, 3> precision_bits = {24, 53, 64};
+    constexpr unsigned RANDOM_X87_CASES = 8 * 3 * 4;
+    constexpr unsigned RANDOM_X87_OPS = 24;
+    for (unsigned test = 0; test < RANDOM_X87_CASES; ++test) {
+        const unsigned operand_class = test / 12;
+        const unsigned control = test % 12;
+        const unsigned precision_index = control / 4;
+        const unsigned precision = precision_fields[precision_index];
+        const unsigned rounding = control % 4;
+        const uint16_t cw = uint16_t((0x037f & ~0x0300) | (precision << 8) | (rounding << 10));
+        const auto [lhs, rhs] = operand_class == 7
+                                    ? std::pair<std::vector<uint8_t>, std::vector<uint8_t>>{random_ext80(), random_ext80()}
+                                    : operand_classes[operand_class];
+        std::vector<std::array<uint8_t, 2>> ops;
+        ops.reserve(RANDOM_X87_OPS);
+        constexpr std::array<std::array<uint8_t, 2>, 6> choices = {{{0xd8, 0xc1}, // FADD ST,ST(1)
+                                                                    {0xd8, 0xc9}, // FMUL ST,ST(1)
+                                                                    {0xd8, 0xe1}, // FSUB ST,ST(1)
+                                                                    {0xd8, 0xe9}, // FSUBR ST,ST(1)
+                                                                    {0xd8, 0xd1}, // FCOM ST(1)
+                                                                    {0xd9, 0xfc}}}; // FRNDINT
+        for (unsigned n = 0; n < RANDOM_X87_OPS; ++n)
+            ops.push_back(choices[random() % choices.size()]);
+        cases.push_back({"random-" + std::string(operand_names[operand_class]) + "-pc" +
+                             std::to_string(precision_bits[precision_index]) + "-rc" + std::to_string(rounding), [ops](Asm &a) {
+            a.op({0xdb, 0xe3});
+            a.esc(0xd9, 5, 0x230); // FLDCW: the masked exceptions and this case's PC/RC
+            a.esc(0xdb, 5, 0x220); // load rhs first, then lhs as ST(0)
+            a.esc(0xdb, 5, 0x210);
+            for (const auto &op : ops) {
+                a.op({op[0], op[1]});
+                if (op[0] == 0xd8 && op[1] == 0xd1) a.op({0xdf, 0xe0}); // expose compare flags
+                a.op({0x90}); // let the unit finish before the next ESC
+            }
+        }, {{0x210, lhs}, {0x220, rhs}, {0x230, {uint8_t(cw), uint8_t(cw >> 8)}}}});
+    }
+
     const bool was_fitted = x87_fitted;
     x87_fitted = true;
     oracle.set_at_coprocessor(true);
@@ -10734,7 +10862,6 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
         // table cannot hand FLDCW a control word with an exception unmasked
         // (which would set ES, latch BUSY# and hold the run for ever: this
         // bench drives no IRQ 13).
-        struct Operand { uint16_t at; std::vector<uint8_t> bytes; };
         const Operand operands[] = {
             {0x100, {0x00, 0x00, 0xc0, 0x3f}},                                    // f32 1.5
             {0x104, {0x00, 0x00, 0x80, 0xbf}},                                    // f32 -1.0
@@ -10764,6 +10891,9 @@ int run_x87_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
             {0x1a0, {0x00, 0x00, 0x00, 0x00, 0xf0, 0xbd, 0x57, 0x93, 0xc7, 0x40}},
         };
         for (const Operand &o : operands)
+            for (unsigned i = 0; i < o.bytes.size(); ++i)
+                image.emplace_back(DS + o.at + i, o.bytes[i]);
+        for (const Operand &o : c.operands)
             for (unsigned i = 0; i < o.bytes.size(); ++i)
                 image.emplace_back(DS + o.at + i, o.bytes[i]);
         for (uint32_t i = 0x300; i < 0x460; ++i) image.emplace_back(DS + i, 0xcc);

@@ -422,6 +422,12 @@ One lease holder owns the kit for the duration of a test. The lease is sufficien
 for ordinary diagnostics; coordinate disruptive deployment, service replacement
 or reboot separately.
 
+Route DE25 package, runtime, board and image changes to Kit D25 (`de25-j8g`,
+serial `TRWU8J8G`) using the [DE25 kit HIL guide](de25-kit-hil.md). Route DE10
+paths to Kit A or B. DE25 remains Quartus Pro 26.3 only; prefer
+`fes-build-3090`. The exact-head HIL gate includes visible DE25 capture, input,
+Stop to idle, and a verified restore diff.
+
 Report component work with this short handoff:
 
 - Scope and changed behavior.

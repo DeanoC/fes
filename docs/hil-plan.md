@@ -1,6 +1,6 @@
 # HIL plan
 
-The kit HIL baseline tracks main through promote and rollback scripts, and ABI PRs use core+sw mode. See "Kit HIL baseline tracking" in `AGENTS.md`.
+The Kit A/B HIL baseline tracks main through promote and rollback scripts, and ABI PRs use core+sw mode. Kit D25 has a separate serial-bound baseline and promotion record. See "Kit HIL baseline tracking" in `AGENTS.md` and the [DE25 kit HIL guide](de25-kit-hil.md).
 
 ## Shared kits and Powerboat (READ FIRST)
 
@@ -9,18 +9,23 @@ Outside agent sessions have ignored these rules. Obey them.
 1. MUST claim the kit before you touch it, and log the result when you
    finish. There is no separate Powerboat host claim. Record owner, PR,
    and start time in that kit's Powerboat status file:
-   `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`. That
+   `~/kit-status/kitA-STATUS.md`, `kitB-STATUS.md`, or the serial ledger
+   `de25-TRWU8J8G-STATUS.md` for Kit D25. That
    log is the single source of truth. NEVER take a kit that is leased or
    claimed by someone else. NEVER use a Slack reservation, and NEVER
    require a person to be present.
 2. Kits A and B are both designated test kits. They are interchangeable.
+   Select Kit D25 (`de25-j8g`, serial `TRWU8J8G`) for DE25 paths; it is not a
+   substitute for a DE10 kit or vice versa.
 3. When a task installs a bundle, install that PR bundle on the kit's
    running image. A core-only run that does not change the bundle does not
    install one. Software goes before the image: before an image change,
    activate a bundle the new image accepts (`fes-update` refuses an image
    whose menu interfaces the selected bundle lacks). After use, restore the
    designated baseline image and bundle the status file names, and log that
-   restore. Activating the baseline bundle does not change the booted image.
+   restore. Kit D25 uses its separate `current-restore-de25.json` baseline;
+   it does not use the DE10 `current.json`. Activating the baseline bundle
+   does not change the booted image.
    If the booted image is not the named baseline, first activate the
    baseline bundle if the running image accepts it, then restore that image
    and verify the boot; otherwise restore and verify the image, then
@@ -79,6 +84,14 @@ Each changed path gets a class and a component:
   without a DE25 route must stop for that hardware check. Shared DE25 board
   code selects both packages, while computer-specific code selects ZX81.
   The captured ZX81 firmware generator also selects the ZX81 hardware check.
+  Select Kit D25 for those changes; a missing or held D25 route leaves HIL
+  open and never falls back to A or B. The repo planner and Powerboat HILQ select D25 only. HILQ supervises exact-head
+  D25 runs through lander-watch with an explicit cap.
+  DE25 HIL is a normal exact-head merge gate.
+  PASS requires package import and launch, visible capture from
+  `/dev/v4l/by-id/fes-ms2109-hil`, input, Stop to idle, and a verified restore
+  diff against the D25 baseline. Only N/A or Deano's explicit waiver can
+  replace PASS.
   Package changes alone remain `overlay` and do not require rebuilding Linux.
   Standalone LED, RAM-test and link-proof diagnostics remain separate from
   deployed-package testing. The regression checks the actual MENU and standard

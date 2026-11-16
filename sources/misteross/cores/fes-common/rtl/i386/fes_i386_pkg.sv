@@ -1201,8 +1201,8 @@ package fes_i386_pkg;
     // Slice 3's arithmetic memory forms are D8 and DC (a 32- or 64-bit real)
     // and DA and DE (a 32- or 16-bit integer), reg fields 0 to 5: add,
     // multiply, compare, compare-and-pop, subtract and reverse subtract.
-    // Reg fields 6 and 7 are the divides, which are slice 4's, so they stay
-    // out of this table and stop as not built.
+    // Reg fields 6 and 7 are the divides, which **slice 4 adds**: they are in
+    // this table, and they have to be, for the reason the case below gives.
     function automatic logic [2:0] x87_format(input logic [2:0] esc, input logic [2:0] rf);
         case ({esc, rf})
             // Reg fields 0 to 5 are slice 3's arithmetic and compares and 6

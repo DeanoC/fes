@@ -28,6 +28,9 @@
 #include <array>
 #include <random>
 #include <string>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
 #include <vector>
 
 namespace {
@@ -505,6 +508,12 @@ class StubPage {
     // The operands are a 16-byte-strided array at %rsi, and they are pushed
     // from the last to the first so that operand 0 ends up as ST(0).
     Stub build(unsigned pushes, const uint8_t *ops, unsigned nops) {
+        // A deliberate failure, so the counterexample can be built rather
+        // than argued: with FES_X87_NO_STUB set, every host stub is
+        // unavailable, which is what a denied mprotect(PROT_EXEC) looks like.
+        // Any row that reports a pass under it is a row that can pass without
+        // comparing anything.
+        if (std::getenv("FES_X87_NO_STUB")) return nullptr;
         if (!page_) return nullptr;
         if (mprotect(page_, 4096, PROT_READ | PROT_WRITE) != 0) return nullptr;
         std::vector<uint8_t> code;
@@ -539,13 +548,26 @@ void image_of(const uint8_t *raw, uint16_t sw, Image &out) {
 }
 
 // `stack` holds the operands ST(0) first, 10 bytes each.
+// Every host comparison in this bench goes through host_form, and it is the
+// only place that can tell a stub page was unavailable. **The invariant lives
+// here rather than at the call sites.** Nine call sites take its return value
+// and five of them used to `break` out of their loop without recording
+// anything, so a denied mprotect(PROT_EXEC) made those rows report a pass
+// having compared nothing -- 704 of them, measured with FES_X87_NO_STUB.
+// Guarding each site would have meant nine copies of one rule and a tenth
+// grid getting missed; counting here covers every present and future caller.
+unsigned stub_failures = 0;
+
 bool host_form(StubPage &page, uint16_t cw, const uint8_t (*stack)[10], unsigned pushes,
                const void *mem, const uint8_t *ops, unsigned nops, Image &out) {
     alignas(16) uint8_t raw[128] = {0};
     alignas(16) uint8_t operands[8][16] = {};
     for (unsigned n = 0; n < pushes && n < 8; ++n) std::memcpy(operands[n], stack[n], 10);
     Stub stub = page.build(pushes, ops, nops);
-    if (!stub) return false;
+    if (!stub) {
+        ++stub_failures;
+        return false;
+    }
     const unsigned sw = stub(&cw, operands, nullptr, mem, raw);
     image_of(raw, uint16_t(sw), out);
     return true;
@@ -613,10 +635,128 @@ void set_rc(Unit &u, unsigned rc) {
     u.settle();
 }
 
+std::array<uint8_t, 10> parse_ext80(const std::string &text) {
+    if (text.size() != 20) throw std::runtime_error("TestFloat extF80 value is not 20 hex digits: " + text);
+    const uint16_t se = uint16_t(std::stoul(text.substr(0, 4), nullptr, 16));
+    const uint64_t sig = std::stoull(text.substr(4), nullptr, 16);
+    std::array<uint8_t, 10> bytes{};
+    std::memcpy(bytes.data(), &sig, sizeof sig);
+    std::memcpy(bytes.data() + 8, &se, sizeof se);
+    return bytes;
+}
+
+uint16_t testfloat_control(unsigned precision, unsigned rc) {
+    const unsigned pc = precision == 32 ? 0 : precision == 64 ? 2 : 3;
+    return uint16_t((0x037f & ~0x0300) | (pc << 8) | (rc << 10));
+}
+
+uint16_t testfloat_flags(unsigned flags) {
+    // SoftFloat flags: inexact, underflow, overflow, infinite, invalid.
+    // x87 status has a separate denormal-operand bit, which TestFloat does
+    // not report, so compare the five corresponding architectural flags.
+    return uint16_t(((flags & 0x01) ? 0x20 : 0) | ((flags & 0x02) ? 0x10 : 0) |
+                    ((flags & 0x04) ? 0x08 : 0) | ((flags & 0x08) ? 0x04 : 0) |
+                    ((flags & 0x10) ? 0x01 : 0));
+}
+
+struct TestFloatManifest {
+    unsigned vectors = 0;
+    unsigned configs = 0;
+};
+
+TestFloatManifest run_testfloat_manifest(const std::string &manifest_path) {
+    std::ifstream manifest(manifest_path);
+    if (!manifest) throw std::runtime_error("cannot open TestFloat manifest: " + manifest_path);
+    TestFloatManifest total;
+    std::string operation, vector_path;
+    unsigned precision = 0, rc = 0, declared = 0;
+    std::string line;
+    while (std::getline(manifest, line)) {
+        if (line.empty()) continue;
+        std::istringstream fields(line);
+        if (!(fields >> operation >> precision >> rc >> declared >> std::quoted(vector_path)))
+            throw std::runtime_error("malformed TestFloat manifest line: " + line);
+        if (rc > 3 || (precision != 32 && precision != 64 && precision != 80))
+            throw std::runtime_error("invalid TestFloat precision or rounding mode: " + line);
+        std::ifstream vectors(vector_path);
+        if (!vectors) throw std::runtime_error("cannot open TestFloat vectors: " + vector_path);
+        Unit unit;
+        const uint16_t cw = testfloat_control(precision, rc);
+        unsigned count = 0, differences = 0;
+        std::string first;
+        std::string vector_line;
+        while (std::getline(vectors, vector_line)) {
+            if (vector_line.empty()) continue;
+            std::istringstream values(vector_line);
+            std::vector<std::string> v;
+            for (std::string token; values >> token;) v.push_back(token);
+            const bool unary = operation == "roundToInt";
+            const bool compare = operation == "eq" || operation == "le" || operation == "lt";
+            const size_t expected_fields = unary ? 3 : 4;
+            if (v.size() != expected_fields)
+                throw std::runtime_error("malformed TestFloat vector for " + operation + ": " + vector_line);
+            std::array<uint8_t, 10> a = parse_ext80(v[0]);
+            std::array<uint8_t, 10> b{};
+            if (!unary) b = parse_ext80(v[1]);
+            const std::string &expected = unary ? v[1] : v[2];
+            const unsigned expected_flags = std::stoul(v[expected_fields - 1], nullptr, 16);
+            unsigned op = 0;
+            if (operation == "add") op = 0xc1;          // D8 C1: FADD ST,ST(1)
+            else if (operation == "mul") op = 0xc9;     // D8 C9: FMUL ST,ST(1)
+            else if (operation == "sub") op = 0xe1;     // D8 E1: FSUB ST,ST(1)
+            else if (operation == "eq") op = 0x5e1;      // DD E1: FUCOM ST(1), quiet for QNaNs
+            else if (operation == "le" || operation == "lt") op = 0xd1; // D8 D1: ordered FCOM
+            else if (unary) op = 0x1fc;                  // D9 FC: FRNDINT
+            else throw std::runtime_error("unsupported TestFloat extF80 operation: " + operation);
+            const uint8_t stack[2][10] = {{a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]},
+                                          {b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8], b[9]}};
+            Image got;
+            unit_form(unit, cw, stack, unary ? 1 : 2, nullptr, op, 0, got);
+            bool mismatch = !got.setup_ok || (got.sw & 0x003d) != testfloat_flags(expected_flags);
+            if (compare) {
+                const unsigned condition = got.sw & 0x4500; // C0, C2, C3
+                const bool c0 = (condition & 0x0100) != 0, c2 = (condition & 0x0400) != 0;
+                const bool c3 = (condition & 0x4000) != 0;
+                const bool want = std::stoul(expected, nullptr, 16) != 0;
+                const bool have = operation == "eq" ? (c3 && !c0 && !c2)
+                                  : operation == "le" ? ((c0 || c3) && !c2)
+                                                       : (c0 && !c2);
+                mismatch = mismatch || have != want;
+            } else {
+                const auto expected_bytes = parse_ext80(expected);
+                mismatch = mismatch || std::memcmp(got.reg[0], expected_bytes.data(), expected_bytes.size()) != 0;
+            }
+            if (mismatch) {
+                if (!differences) {
+                    first = "vector=" + std::to_string(count) + " input=" + vector_line +
+                            " got=" + hex80(got.reg[0]) + "/" + hex(got.sw & 0x003d, 4) +
+                            " want=" + expected + "/" + hex(testfloat_flags(expected_flags), 4);
+                }
+                ++differences;
+            }
+            ++count;
+        }
+        if (count != declared)
+            throw std::runtime_error("TestFloat manifest count mismatch for " + vector_path + ": " +
+                                     std::to_string(count) + " != " + std::to_string(declared));
+        const std::string name = "testfloat-extF80-" + operation + "-p" + std::to_string(precision) + "-rc" +
+                                 std::to_string(rc);
+        if (differences) bad(name, std::to_string(differences) + " of " + std::to_string(count) + " " + first);
+        else ok(name);
+        total.vectors += count;
+        ++total.configs;
+    }
+    if (!total.configs) throw std::runtime_error("TestFloat manifest contains no configurations");
+    return total;
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
+    std::string testfloat_manifest;
+    if (argc == 3 && std::string(argv[1]) == "--testfloat-manifest") testfloat_manifest = argv[2];
+    else if (argc != 1) throw std::runtime_error("usage: x87_unit_tb [--testfloat-manifest path]");
 
     // The patterns every conversion runs: the classes the 387 PRM names,
     // then random bits.
@@ -2360,6 +2500,19 @@ int main(int argc, char **argv) {
         }
     }
 
+    if (!testfloat_manifest.empty()) {
+        const TestFloatManifest testfloat = run_testfloat_manifest(testfloat_manifest);
+        std::printf("TESTFLOAT %u %u\n", testfloat.vectors, testfloat.configs);
+    }
+    // A bench that compared nothing is not a bench that passed. Both of
+    // these are failures of the harness rather than of the unit, and both
+    // would otherwise be invisible: the run already printed COMPARED 0 and
+    // nothing gated on it.
+    if (stub_failures)
+        bad("protocol.stub", std::to_string(stub_failures)
+            + " host stubs were unavailable, so that many comparisons never ran");
+    if (compared == 0)
+        bad("protocol.compared", "no host comparison ran at all");
     if (held_for_ever) bad("protocol.hold", std::to_string(held_for_ever) + " uops held past the bench's wait");
     else ok("protocol.hold");
     std::printf("COMPARED %ld\n", compared);

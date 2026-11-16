@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from scripts import fes_i386_oracle as oracle
@@ -63,6 +64,17 @@ class RunRecordTest(unittest.TestCase):
             self.assertIn(f"parser.add_argument('--{name.replace('_', '-')}'", text)
         self.assertNotIn('jobs', lockstep.SUITE_ARGUMENTS)
         self.assertNotIn('netlist', lockstep.SUITE_ARGUMENTS)
+
+
+class PagingCountTest(unittest.TestCase):
+    def test_all_paging_cases_are_required(self):
+        self.assertEqual(lockstep.PAGING_CASES, 158)
+        result = subprocess.CompletedProcess(['testbench'], 0, stdout=json.dumps({'runs': 158}) + '\n', stderr='')
+        with mock.patch.object(lockstep.subprocess, 'run', return_value=result):
+            self.assertEqual(lockstep.run_paging('testbench', {})['summary']['runs'], 158)
+            result.stdout = json.dumps({'runs': 157}) + '\n'
+            with self.assertRaisesRegex(lockstep.LockstepError, '157 of 158'):
+                lockstep.run_paging('testbench', {})
 
 
 class FullCorpusTest(unittest.TestCase):

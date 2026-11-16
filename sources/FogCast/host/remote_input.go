@@ -37,6 +37,7 @@ var (
 	ErrRemoteInputInvalid     = errors.New("remote input configuration is invalid")
 	ErrRemoteInputNoStream    = errors.New("no live input stream")
 	ErrRemoteInputUnconfirmed = errors.New("input processing was not confirmed")
+	errTapUnsupported         = errors.New("target bridge does not support timed taps")
 )
 
 // BridgeSpec is the private identity handed to a per-session bridge. It is
@@ -137,6 +138,7 @@ type RemoteInput struct {
 	conn             net.Conn
 	reader           *bufio.Reader
 	receiptReady     bool
+	tapReady         bool
 	heartbeatCancel  context.CancelFunc
 	session          uint64
 	token            []byte
@@ -487,9 +489,9 @@ func (r *RemoteInput) sendEventModeLocked(ctx context.Context, event remoteinput
 	return nil
 }
 
-// TapKey sends both edges while owning one input attachment. Its interval
-// measures host processing, not when the target applied either edge.
-func (r *RemoteInput) TapKey(ctx context.Context, sessionID string, event remoteinput.Event, checkOwnership func() error) (time.Duration, error) {
+// TapKey asks a capable target to apply both edges in its own input session.
+// The returned duration is host processing time, not guest-visible timing.
+func (r *RemoteInput) TapKey(ctx context.Context, sessionID string, generation uint64, event remoteinput.Event, checkOwnership func() error) (time.Duration, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -506,7 +508,7 @@ func (r *RemoteInput) TapKey(ctx context.Context, sessionID string, event remote
 	if r.closed {
 		return 0, ErrRemoteInputClosed
 	}
-	if sessionID == "" || sessionID != r.sessionIDLocked() {
+	if sessionID == "" || sessionID != r.sessionIDLocked() || generation == 0 {
 		return 0, ErrRemoteInputInvalid
 	}
 	if r.source != "" && r.source != "desktop" {
@@ -529,7 +531,6 @@ func (r *RemoteInput) TapKey(ctx context.Context, sessionID string, event remote
 	if r.state != RemoteInputAttached || !r.connectionLiveLocked() {
 		return 0, ErrRemoteInputNoStream
 	}
-	r.source = "desktop"
 	started := time.Now()
 	failTap := func(err error) (time.Duration, error) {
 		// Disconnect first: the bridge releases its held controls. Clear the
@@ -543,52 +544,78 @@ func (r *RemoteInput) TapKey(ctx context.Context, sessionID string, event remote
 		r.state = RemoteInputFailed
 		return time.Since(started), err
 	}
-	if err := r.inputState.Apply(event); err != nil {
-		return 0, ErrRemoteInputInvalid
-	}
-	pressCtx, cancelPress := context.WithTimeout(ctx, 200*time.Millisecond)
-	pressErr := r.writeFrameLocked(pressCtx, r.frameForEventLocked(event, started), started)
-	cancelPress()
-	if pressErr != nil {
-		return failTap(pressErr)
-	}
-	timer := time.NewTimer(60 * time.Millisecond)
-	select {
-	case <-timer.C:
-	case <-ctx.Done():
-		pressErr = ctx.Err()
-		if !timer.Stop() {
-			select {
-			case <-timer.C:
-			default:
+	// A failed probe or unconfirmed tap closes this remote source. Require it
+	// to be neutral so that cleanup cannot release another remote hold. Holds
+	// from kit-local sources are maintained separately by the target.
+	for player := uint8(0); player < 2; player++ {
+		snapshot := r.inputState.SnapshotForPlayer(player)
+		if len(snapshot.Pressed) != 0 || snapshot.MouseButtons != 0 {
+			return time.Since(started), ErrRemoteInputBusy
+		}
+		for _, value := range snapshot.Axes {
+			if value != 0 {
+				return time.Since(started), ErrRemoteInputBusy
 			}
 		}
 	}
-	// Release independently of caller cancellation, before any other event or
-	// replacement attachment. An uncertain write disconnects the bridge.
-	event.Action = remoteinput.ActionRelease
-	if err := r.inputState.Apply(event); err != nil {
-		return failTap(err)
+	for _, pressed := range r.colecoOutput {
+		if pressed {
+			return time.Since(started), ErrRemoteInputBusy
+		}
 	}
-	releaseCtx, cancelRelease := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	releasedAt := time.Now()
-	releaseErr := r.writeFrameLocked(releaseCtx, r.frameForEventLocked(event, releasedAt), releasedAt)
-	cancelRelease()
-	elapsed := time.Since(started)
-	if releaseErr != nil {
-		return failTap(releaseErr)
+	if !r.tapReady {
+		// Optional capability probing is deferred until this explicit tap.
+		// An older bridge closes on the probe before input is dispatched.
+		nonce := r.nextPingLocked()
+		probe := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypePing, Flags: protocol.InputFlagTapProbe, Session: r.session}, Seq: r.sequence, ClientMonoNS: nonce}
+		probeFailed := func(err error) (time.Duration, error) {
+			// This probe carried no input. A legacy bridge may close on the
+			// new flag; permit later ordinary input to reconnect, but never
+			// replay holds which that disconnect may already have released.
+			r.closeConnLocked()
+			r.inputState.ReleaseAll()
+			r.colecoOutput = nil
+			r.source = ""
+			r.sourceGeneration++
+			r.state = RemoteInputReconnecting
+			r.ready = false
+			if ctx.Err() != nil {
+				return time.Since(started), ctx.Err()
+			}
+			return time.Since(started), err
+		}
+		if err := r.writeFrameLocked(ctx, probe, time.Time{}); err != nil {
+			return probeFailed(ErrRemoteInputNoStream)
+		}
+		if err := r.waitReceiptLocked(ctx, probe.Seq, nonce, protocol.InputFlagTapSupported, r.dial); err != nil {
+			if errors.Is(err, errTapUnsupported) {
+				return time.Since(started), ErrRemoteInputNoStream
+			}
+			return probeFailed(ErrRemoteInputNoStream)
+		}
+		r.tapReady = true
 	}
-
-	if pressErr != nil {
-		return elapsed, pressErr
+	// The probe can block; recheck ownership before the first mutating frame.
+	if err := checkOwnership(); err != nil {
+		return time.Since(started), err
 	}
 	if err := ctx.Err(); err != nil {
-		return elapsed, err
+		return time.Since(started), err
 	}
-	if elapsed > 400*time.Millisecond {
-		return elapsed, errors.New("input tap exceeded host timing bound")
+	r.source = "desktop"
+	frame := r.frameForEventLocked(event, time.Now())
+	frame.Header.Type = protocol.InputTypeTap
+	frame.ServerMonoNS = generation
+	frame.Value = protocol.InputTapHoldMS
+	if err := r.writeFrameLocked(ctx, frame, time.Time{}); err != nil {
+		return failTap(ErrRemoteInputUnconfirmed)
 	}
-	return elapsed, nil
+	// Wait for target sink completion, not just the TCP write. On a lost or
+	// canceled receipt the tap may have applied: disconnect, never replay.
+	if err := r.waitReceiptLocked(ctx, frame.Seq, frame.ClientMonoNS, 0, 3*time.Second); err != nil {
+		return failTap(ErrRemoteInputUnconfirmed)
+	}
+	return time.Since(started), nil
 }
 
 // Send is a convenience form for callers that do not have a separate capture
@@ -975,6 +1002,7 @@ func (r *RemoteInput) writeFrameLocked(ctx context.Context, frame protocol.Input
 
 func (r *RemoteInput) closeConnLocked() {
 	r.receiptReady = false
+	r.tapReady = false
 	if r.conn != nil {
 		_ = r.conn.Close()
 		r.conn = nil
@@ -1025,8 +1053,18 @@ func (r *RemoteInput) confirmSinkLocked(ctx context.Context) error {
 	if err := r.writeFrameLocked(ctx, ping, time.Time{}); err != nil {
 		return err
 	}
+	return r.waitReceiptLocked(ctx, ping.Seq, nonce, 0, r.dial)
+}
+
+// waitReceiptLocked consumes only the matching response; old heartbeat
+// PONGs may precede it. The caller owns r.mu and must invalidate uncertain
+// attachments after a mutating request.
+func (r *RemoteInput) waitReceiptLocked(ctx context.Context, sequence uint32, nonce uint64, flags uint16, timeout time.Duration) error {
+	if r.conn == nil || r.reader == nil {
+		return ErrRemoteInputNoStream
+	}
 	conn := r.conn
-	deadline := r.now().Add(r.dial)
+	deadline := r.now().Add(timeout)
 	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
 		deadline = d
 	}
@@ -1054,8 +1092,11 @@ func (r *RemoteInput) confirmSinkLocked(ctx context.Context) error {
 		if pong.Header.Session != r.session {
 			return ErrRemoteInputUnconfirmed
 		}
-		if pong.Header.Type == protocol.InputTypeReceipt && pong.Seq == ping.Seq && pong.ClientMonoNS == nonce {
-			if pong.Header.Flags != 0 {
+		if pong.Header.Type == protocol.InputTypeReceipt && pong.Seq == sequence && pong.ClientMonoNS == nonce {
+			if flags == protocol.InputFlagTapSupported && pong.Header.Flags == 0 {
+				return errTapUnsupported
+			}
+			if pong.Header.Flags != flags {
 				return ErrRemoteInputUnconfirmed
 			}
 			return ctx.Err()
