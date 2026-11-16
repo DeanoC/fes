@@ -302,6 +302,41 @@ values:
 This is what "the PC in force when arithmetic executes" means in practice:
 neither title simply runs at whatever `FNINIT` left.
 
+### Which evidence carries this conclusion, and which only accompanies it
+
+Worth its own note, because it is the most transferable thing this census
+produced and the correction trail below would otherwise read as three
+separate embarrassments rather than one lesson.
+
+Review removed **three** of this record's supporting columns in turn:
+
+1. the m80 traffic, which turned out to be **register spills** — 80.7% of it
+   carrying significands a 24-bit unit holds exactly;
+2. the register-form stores `FST`/`FSTP ST(i)`, which **move no memory
+   operand** and never belonged in a table about what reaches memory;
+3. the integer conversions `FIST`/`FISTP`/`FBSTP`, where a wide *source*
+   significand **says nothing about a floating-point datapath's width** —
+   and which were 64,586 of the 68,890 I had reported for Chris's benchmark.
+
+**The answer did not move once.** It is carried by **coverage**: four of the
+five computing titles never execute a single arithmetic operation at
+24-bit precision, and Screamer runs 424,703 at PC=53 with **zero** at 24 in
+a title that does not boot without a 387. Everything else in this record —
+the stored-value widths, the register-file widths, the area figures — is
+**corroboration that can be removed without touching the conclusion**, and
+two of those three have now been removed.
+
+The failure was not a claim drifting off its evidence, which is an error of
+maintenance. It was **decorating a sound conclusion with weak support**:
+that makes the conclusion look stronger than it is, hands a reviewer three
+things to knock down, and costs credibility on the parts that are solid. A
+record should say which evidence carries a conclusion and which merely
+accompanies it. This one now does.
+
+That the answer survived three withdrawals is itself worth something: a
+conclusion that holds after its supporting columns are taken away was never
+resting on them.
+
 ### A correction to this census's own classification
 
 **Dated 16 November 2026**, after the first two runs and before the rest.
