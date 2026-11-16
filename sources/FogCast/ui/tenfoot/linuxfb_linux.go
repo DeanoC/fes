@@ -739,31 +739,59 @@ func nativeDirectionButton(cmd Command) Button {
 	}
 }
 
-// key keeps a shared HID usage held until every connected evdev keyboard that
-// pressed it has released it, including during a session-display hand-off.
+// key keeps a shared core key held until every unsuppressed evdev
+// keyboard contributing that key releases it. Physical suppression belongs
+// to the keyboard, even when two keyboards use the same HID usage.
 func (ins *nativeInputs) key(app *App, in *nativeInput, code uint16, value int32, now time.Time) bool {
 	if value == 0 && in.kind == InputKeyboard && app != nil {
-		if usage := nativeHIDUsage(code); usage != 0 {
-			app.mu.Lock()
-			keyboardHID := app.session.CoreKeyboardHID
-			app.mu.Unlock()
-			if keyboardHID {
-				for _, other := range ins.devices {
-					if other == nil || other == in || other.kind != InputKeyboard {
-						continue
-					}
-					for heldCode := range other.keysHeld {
-						if nativeHIDUsage(heldCode) == usage {
-							delete(in.keysHeld, code)
-							if (code == 42 || code == 54) && in.shifts != nil {
-								in.shifts[code] = false
-							}
-							if in.commands != nil {
-								app.Release(in.commands[code])
-								delete(in.commands, code)
-							}
-							return false
+		app.mu.Lock()
+		hid := app.session.CoreKeyboardHID
+		keyboard := app.session.CoreKeyboard
+		app.mu.Unlock()
+		coreKey := func(code uint16, name string) (playHIDKey, bool) {
+			var event remoteinput.Event
+			var ok bool
+			if hid {
+				event, ok = hidkeys.Event(nativeHIDUsage(code), false)
+			} else {
+				event, ok = playhid.Event(name, false, keyboard)
+			}
+			return playHIDKey{event.Player, event.Device, event.Kind, event.Code}, ok
+		}
+		physical := physicalPlayKey{source: in.fd, key: playHeldKey(nativeKeyName(code), nativeHIDUsage(code))}
+		app.mu.Lock()
+		key, valid := app.playKeyAdmitted[physical]
+		app.mu.Unlock()
+		if !valid {
+			key, valid = coreKey(code, nativeKeyName(code))
+		}
+		if valid {
+			for _, other := range ins.devices {
+				if other == nil || other == in || other.kind != InputKeyboard {
+					continue
+				}
+				for heldCode, heldName := range other.keysHeld {
+					physical := physicalPlayKey{source: other.fd, key: playHeldKey(heldName, nativeHIDUsage(heldCode))}
+					app.mu.Lock()
+					otherKey, otherAdmitted := app.playKeyAdmitted[physical]
+					otherSuppressed := app.playKeySuppressed[physical]
+					app.mu.Unlock()
+					if otherAdmitted && otherKey == key && !otherSuppressed {
+						// Retire this physical hold and its menu command without
+						// releasing the core key that the other keyboard holds.
+						app.consumeSuppressedPlayKeyFrom(in.fd, nativeKeyName(code), nativeHIDUsage(code), false)
+						app.mu.Lock()
+						delete(app.playKeyAdmitted, physicalPlayKey{source: in.fd, key: playHeldKey(nativeKeyName(code), nativeHIDUsage(code))})
+						app.mu.Unlock()
+						delete(in.keysHeld, code)
+						if (code == 42 || code == 54) && in.shifts != nil {
+							in.shifts[code] = false
 						}
+						if in.commands != nil {
+							app.Release(in.commands[code])
+							delete(in.commands, code)
+						}
+						return false
 					}
 				}
 			}
@@ -784,10 +812,16 @@ func (in *nativeInput) key(app *App, code uint16, value int32, now time.Time) bo
 		if value == 2 {
 			return false
 		}
-		if value == 1 {
-			app.NoteInput(InputKeyboard, in.fd)
+		if in.keysHeld == nil {
+			in.keysHeld = make(map[uint16]string)
 		}
-		app.HandlePlayHIDScancode("f12", hidKeyboardF12, value != 0, now)
+		if value == 1 {
+			in.keysHeld[code] = "f12"
+			app.NoteInput(InputKeyboard, in.fd)
+		} else {
+			delete(in.keysHeld, code)
+		}
+		app.handlePlayHIDScancode(in.fd, "f12", hidKeyboardF12, value != 0, now)
 		return false
 	}
 	name := nativeKeyName(code)
@@ -806,7 +840,7 @@ func (in *nativeInput) key(app *App, code uint16, value int32, now time.Time) bo
 		}
 		in.shifts[code] = value != 0
 	}
-	if app.HandlePlayHIDScancode(name, nativeHIDUsage(code), value != 0, now) {
+	if app.handlePlayHIDScancode(in.fd, name, nativeHIDUsage(code), value != 0, now) {
 		return false
 	}
 	if modifier {
@@ -1080,51 +1114,44 @@ func (ins *nativeInputs) drop(app *App, lost *nativeInput) {
 
 func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
 	app.mu.Lock()
-	// The core sees a key's release only when no other keyboard still holds a
-	// key that sends the same core key; the suppression record goes with the
-	// lost keyboard's physical key unless another keyboard holds that key too.
-	release := func(code uint16, name string) (remoteinput.Event, bool) {
-		if app.session.CoreKeyboardHID {
-			return hidkeys.Event(nativeHIDUsage(code), false)
-		}
-		return playhid.Event(name, false, app.session.CoreKeyboard)
-	}
-	remainingKeys := map[string]bool{}
+	// Only an admitted contribution can keep a shared core key down. Use
+	// its original mapping rather than reinterpreting it after a mode change.
 	remainingCore := map[playHIDKey]bool{}
 	for _, in := range ins.devices {
 		for code, name := range in.keysHeld {
-			key := playHeldKey(name, nativeHIDUsage(code))
-			remainingKeys[key] = true
-			// A suppressed key never reached the core, and its release will
-			// not either, so it cannot keep the core's key down.
-			if app.playKeySuppressed[key] {
-				continue
-			}
-			if event, ok := release(code, name); ok {
-				remainingCore[playHIDKey{event.Player, event.Device, event.Kind, event.Code}] = true
+			key := physicalPlayKey{source: in.fd, key: playHeldKey(name, nativeHIDUsage(code))}
+			if coreKey, admitted := app.playKeyAdmitted[key]; admitted && !app.playKeySuppressed[key] {
+				remainingCore[coreKey] = true
 			}
 		}
 	}
 	padEvents := releasePortLocked(app, lost)
+	forward := localPadForwardLocked(app)
+	keyForward := forward && app.playHIDRouteReadyLocked()
 	var keyEvents []remoteinput.Event
 	for code, name := range lost.keysHeld {
-		if key := playHeldKey(name, nativeHIDUsage(code)); !remainingKeys[key] {
-			delete(app.playKeyHeld, key)
-			delete(app.playKeySuppressed, key)
-		}
-		event, ok := release(code, name)
-		if !ok {
+		key := physicalPlayKey{source: lost.fd, key: playHeldKey(name, nativeHIDUsage(code))}
+		coreKey, admitted := app.playKeyAdmitted[key]
+		delete(app.playKeyHeld, key)
+		delete(app.playKeySuppressed, key)
+		delete(app.playKeyAdmitted, key)
+		if !admitted {
 			continue
 		}
-		key := playHIDKey{event.Player, event.Device, event.Kind, event.Code}
-		if _, held := app.playHIDHeld[key]; held && !remainingCore[key] {
-			delete(app.playHIDHeld, key)
-			keyEvents = append(keyEvents, event)
+		if _, held := app.playHIDHeld[coreKey]; held && !remainingCore[coreKey] {
+			if !keyForward && app.session.State == "active" {
+				if app.playKeyPendingRelease == nil {
+					app.playKeyPendingRelease = make(map[physicalPlayKey]playHIDKey)
+				}
+				app.playKeyPendingRelease[key] = coreKey
+				continue
+			}
+			delete(app.playHIDHeld, coreKey)
+			keyEvents = append(keyEvents, remoteinput.Event{Player: coreKey.player, Device: coreKey.device, Kind: coreKey.kind, Code: coreKey.code, Action: remoteinput.ActionRelease})
 		}
 	}
 	feed := app.localFeed
-	forward := localPadForwardLocked(app)
-	if forward {
+	if keyForward {
 		app.queuePlayHIDLocked(keyEvents)
 	}
 	app.mu.Unlock()

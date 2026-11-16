@@ -52,11 +52,18 @@ func (a *App) kitSessionDisplayPlaneLocked() bool {
 
 func (a *App) suppressHeldPlayKeysLocked() {
 	if a.playKeySuppressed == nil {
-		a.playKeySuppressed = make(map[string]bool)
+		a.playKeySuppressed = make(map[physicalPlayKey]bool)
 	}
 	for key := range a.playKeyHeld {
 		a.playKeySuppressed[key] = true
 	}
+}
+
+// physicalPlayKey distinguishes identical usages held on different keyboards.
+// SDL and name-only callers use source -1; native evdev callers use their fd.
+type physicalPlayKey struct {
+	source int
+	key    string
 }
 
 // playHeldKey names one physical key in playKeyHeld and playKeySuppressed: its
@@ -75,15 +82,19 @@ func playHeldKey(name string, usage uint8) string {
 // be released before either the room or the machine can see another press.
 // usage is the key's HID usage, or 0 where the caller has only a name.
 func (a *App) consumeSuppressedPlayKey(name string, usage uint8, down bool) bool {
+	return a.consumeSuppressedPlayKeyFrom(-1, name, usage, down)
+}
+
+func (a *App) consumeSuppressedPlayKeyFrom(source int, name string, usage uint8, down bool) bool {
 	if a == nil {
 		return false
 	}
 	name = strings.ToLower(strings.TrimSpace(name))
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	key := playHeldKey(name, usage)
+	key := physicalPlayKey{source: source, key: playHeldKey(name, usage)}
 	if a.playKeyHeld == nil {
-		a.playKeyHeld = make(map[string]bool)
+		a.playKeyHeld = make(map[physicalPlayKey]bool)
 	}
 	if down {
 		a.playKeyHeld[key] = true
@@ -96,10 +107,12 @@ func (a *App) consumeSuppressedPlayKey(name string, usage uint8, down bool) bool
 	}
 	if a.sessionDisplayBusy || a.sessionDisplayUncertain && name != "home" && name != "escape" && name != "backspace" {
 		if down {
-			if a.playKeySuppressed == nil {
-				a.playKeySuppressed = make(map[string]bool)
+			if _, admitted := a.playKeyAdmitted[key]; !admitted {
+				if a.playKeySuppressed == nil {
+					a.playKeySuppressed = make(map[physicalPlayKey]bool)
+				}
+				a.playKeySuppressed[key] = true
 			}
-			a.playKeySuppressed[key] = true
 		}
 		return true
 	}
@@ -168,6 +181,7 @@ func (a *App) beginSessionDisplayLocked(target protocol.SessionDisplay, openTape
 	}
 	a.sessionDisplayEpoch++
 	a.sessionDisplayBusy = true
+	a.sessionDisplayNonHandoff = !handoff && from.Focus == protocol.SessionFocusMachine && target.Focus == protocol.SessionFocusMachine
 	prior, epoch := a.session, a.sessionDisplayEpoch
 	done := make(chan struct{})
 	a.sessionDisplayWait = done
@@ -219,6 +233,7 @@ func (a *App) beginSessionDisplayLocked(target protocol.SessionDisplay, openTape
 			return
 		}
 		a.sessionDisplayBusy = false
+		a.sessionDisplayNonHandoff = false
 		a.sessionDisplayWait = nil
 		a.bumpSessionGenLocked()
 		if err != nil {
@@ -288,6 +303,7 @@ func (a *App) beginSessionDisplayLocked(target protocol.SessionDisplay, openTape
 func (a *App) invalidateSessionDisplayLocked() {
 	a.sessionDisplayEpoch++
 	a.sessionDisplayBusy = false
+	a.sessionDisplayNonHandoff = false
 	a.sessionDisplay = protocol.SessionDisplayClosed
 	a.surroundFailed = false
 	a.sessionDisplayUncertain = false

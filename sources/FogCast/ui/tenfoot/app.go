@@ -529,14 +529,17 @@ type App struct {
 	firmwarePickerFromDetail bool
 	menuDisplay              *gfx.MenuDisplay
 	sessionDisplayBusy       bool
+	sessionDisplayNonHandoff bool
 	sessionDisplay           protocol.SessionDisplay
 	sessionDisplayUncertain  bool
 	surround, surroundFailed bool
 	sessionDisplayEpoch      uint64
 	sessionDisplayBinding    hostclient.SessionResult
 	sessionDisplayWait       chan struct{}
-	playKeyHeld              map[string]bool
-	playKeySuppressed        map[string]bool
+	playKeyHeld              map[physicalPlayKey]bool
+	playKeySuppressed        map[physicalPlayKey]bool
+	playKeyAdmitted          map[physicalPlayKey]playHIDKey
+	playKeyPendingRelease    map[physicalPlayKey]playHIDKey
 	playPadHeld              map[padKey]remoteinput.Event
 	playPadSuppressed        map[padKey]bool
 	playPadPair              chordPairs
@@ -1739,6 +1742,7 @@ func (a *App) Tick(now time.Time) Command {
 	a.drainResults()
 	a.drainAttractResults()
 	a.mu.Lock()
+	a.flushPendingPlayKeyReleasesLocked()
 	a.frameLua = rooms.StepTiming{}
 	a.flushSearchLocked(now)
 	a.tickAttractLocked(now)
@@ -2440,6 +2444,11 @@ func (a *App) openRunningMediaSelector(down bool, now time.Time) bool {
 }
 
 func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now time.Time) bool {
+	return a.handlePlayHIDScancode(-1, name, usage, down, now)
+}
+
+// source is the evdev fd for a native keyboard, or -1 for the SDL/legacy path.
+func (a *App) handlePlayHIDScancode(source int, name string, usage uint8, down bool, now time.Time) bool {
 	if a == nil {
 		return false
 	}
@@ -2449,9 +2458,12 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 	if waitingForHost {
 		return true
 	}
-	suppressed := a.consumeSuppressedPlayKey(name, usage, down)
+	suppressed := a.consumeSuppressedPlayKeyFrom(source, name, usage, down)
 	if !down {
-		a.releaseStoppedPlayKey(name, usage)
+		if a.releaseTransitionPlayKey(source, name, usage) {
+			return true
+		}
+		a.releaseStoppedPlayKey(source, name, usage)
 	}
 	if suppressed {
 		return true
@@ -2474,13 +2486,13 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 	hid := a.forwardsKeyboardHIDLocked()
 	a.mu.Unlock()
 	if !hid {
-		return a.handlePlayHIDKey(name, down, now)
+		return a.handlePlayHIDKey(source, name, usage, down, now)
 	}
 	if !a.ConsumePlayHID() {
 		return false
 	}
 	if event, ok := hidkeys.Event(usage, down); ok {
-		a.SendPlayHID(event)
+		a.sendPhysicalPlayKey(source, name, usage, event)
 	}
 	return true
 }
@@ -2545,18 +2557,21 @@ func (a *App) ConsumePlayHID() bool {
 func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
 	suppressed := a.consumeSuppressedPlayKey(name, 0, down)
 	if !down {
-		a.releaseStoppedPlayKey(name, 0)
+		if a.releaseTransitionPlayKey(-1, name, 0) {
+			return true
+		}
+		a.releaseStoppedPlayKey(-1, name, 0)
 	}
 	if suppressed {
 		return true
 	}
-	return a.handlePlayHIDKey(name, down, now)
+	return a.handlePlayHIDKey(-1, name, 0, down, now)
 }
 
 // Physical key-up must reach the same active route even when Stop suppresses
 // held keys or gives launcher navigation control. Key-down keeps that normal
 // navigation path, including Escape and Backspace for retry/recovery.
-func (a *App) releaseStoppedPlayKey(name string, usage uint8) {
+func (a *App) releaseStoppedPlayKey(source int, name string, usage uint8) {
 	a.mu.Lock()
 	blocked := a.playHIDInputBlockedLocked()
 	hid := a.session.CoreKeyboardHID
@@ -2573,11 +2588,11 @@ func (a *App) releaseStoppedPlayKey(name string, usage uint8) {
 		event, ok = playhid.Event(name, false, keyboard)
 	}
 	if ok {
-		a.SendPlayHID(event)
+		a.sendPhysicalPlayKey(source, name, usage, event)
 	}
 }
 
-func (a *App) handlePlayHIDKey(name string, down bool, now time.Time) bool {
+func (a *App) handlePlayHIDKey(source int, name string, usage uint8, down bool, now time.Time) bool {
 	if a.handlePlayingRoomKey(name, down, now) {
 		return true
 	}
@@ -2603,7 +2618,7 @@ func (a *App) handlePlayHIDKey(name string, down bool, now time.Time) bool {
 		return true
 	}
 	if event, ok := playhid.Event(name, down, a.ForwardsCoreKeyboard()); ok {
-		a.SendPlayHID(event)
+		a.sendPhysicalPlayKey(source, name, usage, event)
 	}
 	return true
 }
@@ -2672,6 +2687,86 @@ func (a *App) SendPlayHID(event remoteinput.Event) bool {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return a.sendPlayHIDLocked(event)
+}
+
+// releaseTransitionPlayKey sends only a previously admitted neutral key-up
+// while a same-session surround transition keeps input with the machine. It
+// never opens a route for new presses or crosses an actual focus handoff.
+func (a *App) releaseTransitionPlayKey(source int, name string, usage uint8) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	physical := physicalPlayKey{source: source, key: playHeldKey(name, usage)}
+	key, admitted := a.playKeyAdmitted[physical]
+	if !admitted || !a.sessionDisplayBusy || !a.sessionDisplayNonHandoff {
+		return false
+	}
+	if !samePlayHIDSession(a.session, a.sessionDisplayBinding) {
+		delete(a.playKeyAdmitted, physical)
+		return true
+	}
+	delete(a.playKeyAdmitted, physical)
+	if !a.playHIDRouteReadyLocked() || a.playHIDFailClosedLocked() || a.client == nil {
+		if a.playKeyPendingRelease == nil {
+			a.playKeyPendingRelease = make(map[physicalPlayKey]playHIDKey)
+		}
+		a.playKeyPendingRelease[physical] = key
+		return true
+	}
+	event := remoteinput.Event{Player: key.player, Device: key.device, Kind: key.kind, Code: key.code, Action: remoteinput.ActionRelease}
+	a.rememberPlayHIDLocked(event)
+	a.queuePlayHIDLocked([]remoteinput.Event{event})
+	return true
+}
+
+// Retry neutral releases only on the original active, machine-focused route.
+// Session replacement and explicit handoff clear these along with the holds.
+func (a *App) flushPendingPlayKeyReleasesLocked() {
+	if len(a.playKeyPendingRelease) == 0 || !a.forwardsPlayHIDLocked() || a.playHIDInputBlockedLocked() || a.playHIDFailClosedLocked() || a.client == nil {
+		return
+	}
+	for physical, key := range a.playKeyPendingRelease {
+		event := remoteinput.Event{Player: key.player, Device: key.device, Kind: key.kind, Code: key.code, Action: remoteinput.ActionRelease}
+		a.rememberPlayHIDLocked(event)
+		a.queuePlayHIDLocked([]remoteinput.Event{event})
+		delete(a.playKeyPendingRelease, physical)
+	}
+}
+
+func (a *App) sendPhysicalPlayKey(source int, name string, usage uint8, event remoteinput.Event) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	physical := physicalPlayKey{source: source, key: playHeldKey(name, usage)}
+	if event.Action == remoteinput.ActionRelease {
+		if admitted, ok := a.playKeyAdmitted[physical]; ok {
+			event = remoteinput.Event{Player: admitted.player, Device: admitted.device, Kind: admitted.kind, Code: admitted.code, Action: remoteinput.ActionRelease}
+		}
+	}
+	if !a.sendPlayHIDLocked(event) {
+		if event.Action == remoteinput.ActionRelease {
+			if key, ok := a.playKeyAdmitted[physical]; ok {
+				delete(a.playKeyAdmitted, physical)
+				if a.playKeyPendingRelease == nil {
+					a.playKeyPendingRelease = make(map[physicalPlayKey]playHIDKey)
+				}
+				a.playKeyPendingRelease[physical] = key
+			}
+		}
+		return false
+	}
+	if event.Action == remoteinput.ActionRelease {
+		delete(a.playKeyAdmitted, physical)
+	}
+	if event.Action == remoteinput.ActionPress {
+		if a.playKeyAdmitted == nil {
+			a.playKeyAdmitted = make(map[physicalPlayKey]playHIDKey)
+		}
+		a.playKeyAdmitted[physical] = playHIDKey{event.Player, event.Device, event.Kind, event.Code}
+	}
+	return true
+}
+
+func (a *App) sendPlayHIDLocked(event remoteinput.Event) bool {
 	ready := a.forwardsPlayHIDLocked()
 	blocked := a.playHIDInputBlockedLocked()
 	if blocked {
@@ -2687,6 +2782,7 @@ func (a *App) SendPlayHID(event remoteinput.Event) bool {
 	if a.playHIDPending >= maxPendingPlayHID && !a.neutralPlayHIDEventLocked(event) {
 		return false
 	}
+	a.flushPendingPlayKeyReleasesLocked()
 	a.rememberPlayHIDLocked(event)
 	a.queuePlayHIDLocked([]remoteinput.Event{event})
 	return true
