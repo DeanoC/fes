@@ -739,9 +739,9 @@ func nativeDirectionButton(cmd Command) Button {
 	}
 }
 
-// key keeps a shared core key held until every unsuppressed evdev
-// keyboard contributing that key releases it. Physical suppression belongs
-// to the keyboard, even when two keyboards use the same HID usage.
+// key keeps a shared core key held until every other unsuppressed evdev key
+// contributing it releases. Contributions stay distinct by physical key,
+// including left and right modifiers on one keyboard.
 func (ins *nativeInputs) key(app *App, in *nativeInput, code uint16, value int32, now time.Time) bool {
 	if value == 0 && in.kind == InputKeyboard && app != nil {
 		app.mu.Lock()
@@ -767,14 +767,17 @@ func (ins *nativeInputs) key(app *App, in *nativeInput, code uint16, value int32
 		}
 		if valid {
 			for _, other := range ins.devices {
-				if other == nil || other == in || other.kind != InputKeyboard {
+				if other == nil || other.kind != InputKeyboard {
 					continue
 				}
 				for heldCode, heldName := range other.keysHeld {
-					physical := physicalPlayKey{source: other.fd, key: playHeldKey(heldName, nativeHIDUsage(heldCode))}
+					otherPhysical := physicalPlayKey{source: other.fd, key: playHeldKey(heldName, nativeHIDUsage(heldCode))}
+					if otherPhysical == physical {
+						continue
+					}
 					app.mu.Lock()
-					otherKey, otherAdmitted := app.playKeyAdmitted[physical]
-					otherSuppressed := app.playKeySuppressed[physical]
+					otherKey, otherAdmitted := app.playKeyAdmitted[otherPhysical]
+					otherSuppressed := app.playKeySuppressed[otherPhysical]
 					app.mu.Unlock()
 					if otherAdmitted && otherKey == key && !otherSuppressed {
 						// Retire this physical hold and its menu command without

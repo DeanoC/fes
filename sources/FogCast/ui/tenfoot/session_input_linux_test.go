@@ -699,6 +699,28 @@ func TestNativeKeyboardsCoalesceOnlyAdmittedLegacyKeys(t *testing.T) {
 	if releases() != 2 {
 		t.Fatalf("legacy Shift reverse final release missing: %+v", feed.snapshot())
 	}
+	// The same keyboard can hold both physical Shift keys, which map to one
+	// legacy core key. Releasing either one must preserve the other hold.
+	send(a, 42, 1)
+	send(a, 54, 1)
+	send(a, 42, 0)
+	if releases() != 2 {
+		t.Fatalf("legacy Shift released while the same keyboard still held right Shift: %+v", feed.snapshot())
+	}
+	send(a, 54, 0)
+	if releases() != 3 {
+		t.Fatalf("same-keyboard legacy Shift final release missing: %+v", feed.snapshot())
+	}
+	send(a, 42, 1)
+	send(a, 54, 1)
+	send(a, 54, 0)
+	if releases() != 3 {
+		t.Fatalf("legacy Shift released while the same keyboard still held left Shift: %+v", feed.snapshot())
+	}
+	send(a, 42, 0)
+	if releases() != 4 {
+		t.Fatalf("same-keyboard legacy Shift reverse final release missing: %+v", feed.snapshot())
+	}
 
 	// If the keyboard capability observation changes before the physical
 	// release, neutralize the exact key admitted on the earlier route.
@@ -707,7 +729,7 @@ func TestNativeKeyboardsCoalesceOnlyAdmittedLegacyKeys(t *testing.T) {
 	app.session.CoreKeyboardHID = true
 	app.mu.Unlock()
 	send(a, 42, 0)
-	if releases() != 3 {
+	if releases() != 5 {
 		t.Fatalf("release did not use the admitted legacy key: %+v", feed.snapshot())
 	}
 	hidShift, _ := hidkeys.Code(0xe1)
@@ -729,7 +751,7 @@ func TestNativeKeyboardsCoalesceOnlyAdmittedLegacyKeys(t *testing.T) {
 	app.mu.Unlock()
 	send(a, 42, 2)
 	send(a, 42, 0)
-	if releases() != 4 {
+	if releases() != 6 {
 		t.Fatalf("repeat after a mode change replaced the admitted legacy key: %+v", feed.snapshot())
 	}
 	for _, e := range feed.snapshot() {
