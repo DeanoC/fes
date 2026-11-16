@@ -544,9 +544,28 @@ func (r *RemoteInput) TapKey(ctx context.Context, sessionID string, generation u
 		r.state = RemoteInputFailed
 		return time.Since(started), err
 	}
+	// A failed probe or unconfirmed tap closes this remote source. Require it
+	// to be neutral so that cleanup cannot release another remote hold. Holds
+	// from kit-local sources are maintained separately by the target.
+	for player := uint8(0); player < 2; player++ {
+		snapshot := r.inputState.SnapshotForPlayer(player)
+		if len(snapshot.Pressed) != 0 || snapshot.MouseButtons != 0 {
+			return time.Since(started), ErrRemoteInputBusy
+		}
+		for _, value := range snapshot.Axes {
+			if value != 0 {
+				return time.Since(started), ErrRemoteInputBusy
+			}
+		}
+	}
+	for _, pressed := range r.colecoOutput {
+		if pressed {
+			return time.Since(started), ErrRemoteInputBusy
+		}
+	}
 	if !r.tapReady {
 		// Optional capability probing is deferred until this explicit tap.
-		// An older bridge rejects the probe before any press is dispatched.
+		// An older bridge closes on the probe before input is dispatched.
 		nonce := r.nextPingLocked()
 		probe := protocol.InputFrame{Header: protocol.InputHeader{Type: protocol.InputTypePing, Flags: protocol.InputFlagTapProbe, Session: r.session}, Seq: r.sequence, ClientMonoNS: nonce}
 		probeFailed := func(err error) (time.Duration, error) {

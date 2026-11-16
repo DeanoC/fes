@@ -188,7 +188,9 @@ the error does not confirm remote release. Waiting adds a bridge round trip to
 each event. An explicit timed key tap probes support and requests one
 generation-bound operation with a 60 ms target-side hold; its receipt confirms
 target sink acceptance, not guest consumption or a hardware timing bound.
-Unsupported bridges receive no tap press. Separate event requests still have
+Unsupported bridges receive no tap press; taps require neutral
+remote controls so a disconnect cannot release another remote hold. Separate
+event requests still have
 transport jitter. Against
 an older kit bridge, ordinary session attachment still succeeds, but the first
 confirmed remote event fails closed before dispatch; install compatible kit

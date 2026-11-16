@@ -1611,7 +1611,9 @@ the bridge and clears host held input without replay. Its correlated receipt
 confirms accepted target sink posts, not guest consumption or a hardware timing
 bound. The response's `host_duration_ms` measures the host operation only.
 Legacy bridges attach normally, but decline or close on the optional probe and
-receive no tap input. Separate `/event` requests still have transport jitter.
+receive no tap input. Taps require neutral remote controls so a legacy disconnect or an
+unconfirmed tap cannot release another remote hold. Separate `/event`
+requests still have transport jitter.
 
 `GET /api/v1/session/events` keeps the existing protocol 1 event object.
 The host also sets an optional `flight_id` UUID on those events: one new id

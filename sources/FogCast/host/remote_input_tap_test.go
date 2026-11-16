@@ -303,3 +303,54 @@ func TestTapProbeUnsupportedNeverDispatches(t *testing.T) {
 		})
 	}
 }
+
+func TestTapDefersWhileRemoteControlsHeld(t *testing.T) {
+	otherKey := tapA
+	otherKey.Code++
+	for _, tc := range []struct {
+		name  string
+		event remoteinput.Event
+	}{
+		{"other-key", otherKey},
+		{"second-player-button", remoteinput.Event{Player: 1, Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: remoteinput.ActionPress, Code: remoteinput.ButtonA}},
+		{"axis", remoteinput.Event{Player: 1, Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindAxis, Action: remoteinput.ActionAbsolute, Code: remoteinput.AxisLeftX, Value: 100}},
+		{"mouse-button", remoteinput.Event{Device: remoteinput.DeviceMouse, Kind: remoteinput.KindRelative, Action: remoteinput.ActionRelative, Code: 1}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			left, right := net.Pipe()
+			t.Cleanup(func() { left.Close(); right.Close() })
+			r := &RemoteInput{conn: left, reader: bufio.NewReader(left), state: RemoteInputAttached, session: 7, now: time.Now, dial: time.Second}
+			if err := r.inputState.Apply(tc.event); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+			if _, err := r.TapKey(ctx, "7", 7, tapA, tapAllowed); !errors.Is(err, ErrRemoteInputBusy) {
+				t.Fatalf("tap: %v", err)
+			}
+			if r.conn == nil || r.state != RemoteInputAttached {
+				t.Fatal("held source was disconnected")
+			}
+		})
+	}
+}
+
+func TestSupportedTapDoesNotRiskOtherRemoteHolds(t *testing.T) {
+	left, right := net.Pipe()
+	defer left.Close()
+	defer right.Close()
+	r := &RemoteInput{conn: left, reader: bufio.NewReader(left), state: RemoteInputAttached, session: 7, now: time.Now, dial: time.Second, tapReady: true}
+	otherKey := tapA
+	otherKey.Code++
+	if err := r.inputState.Apply(otherKey); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	if _, err := r.TapKey(ctx, "7", 7, tapA, tapAllowed); !errors.Is(err, ErrRemoteInputBusy) {
+		t.Fatalf("tap: %v", err)
+	}
+	if !r.inputState.Pressed(otherKey.Code) || r.conn == nil {
+		t.Fatal("another remote hold was changed")
+	}
+}
