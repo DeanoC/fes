@@ -414,6 +414,15 @@ public:
 
     void write(std::ostream &out) const {
         std::map<std::string, uint64_t> all = counts;
+        // The x87 key set's version, so a reader can tell what a census file
+        // was able to record rather than inferring it from which keys happen
+        // to be present -- a run in which IRQ 13 never fires looks exactly
+        // like a file written before the key existed.
+        //   1: no version key. x87irq13 absent; x87sig read FST/FSTP ST(i)
+        //      from the wrong side of the step.
+        //   2: x87irq13 recorded in every mode; the register popping stores
+        //      read from the state before the step.
+        all["x87census:version"] = 2;
         all["paging:steps"] = paged_steps;
         all["paging:page-cross"] = page_cross;
         for (const Tlb *t : {&dtlb, &itlb}) {

@@ -491,10 +491,19 @@ meaningless denominator) and this replaced it with something worse: a
 confident list that contradicted the census's own rows.
 
 The list is now **generated over all nine runs, with mnemonics**, in
-[tables.md](tables.md). The 387 instructions no title executed are
-`FXTRACT`, `FPREM`, `FPREM1`, `FYL2XP1`, `FDECSTP`, `FINCSTP`, `FNCLEX`,
-`FRSTOR`, `FNSAVE`, `FFREE`, `FST ST(i)`, `FIST m16`, `FISTP m16`, `FBLD`,
-`FBSTP` and three of the constant loads (`FLDL2T`, `FLDPI`, `FLDLG2`).
+[tables.md](tables.md), which is the authoritative copy. A second review
+round then caught that the generator was filtering on which forms happened
+to have a mnemonic in its table, so the **eight m16 integer arithmetic
+instructions `FIADD`, `FIMUL`, `FICOM`, `FICOMP`, `FISUB`, `FISUBR`,
+`FIDIV` and `FIDIVR` were silently missing** from it, and the surrounding
+text described all the omitted entries as register spellings when they were
+not. The inventory is complete now.
+
+The 387 instructions no title executed: `FXTRACT`, `FPREM`, `FPREM1`,
+`FYL2XP1`, `FDECSTP`, `FINCSTP`, `FNCLEX`, `FRSTOR`, `FNSAVE`, `FFREE`,
+`FST ST(i)`, the eight m16 integer arithmetic forms above, `FIST m16`,
+`FISTP m16`, `FBLD`, `FBSTP` and three constant loads (`FLDL2T`, `FLDPI`,
+`FLDLG2`).
 
 For slice 6: those are what the census titles never reach, so optimising
 them buys nothing measurable here. They must still be *correct* — a 387

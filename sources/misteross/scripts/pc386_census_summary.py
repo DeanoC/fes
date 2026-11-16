@@ -184,6 +184,10 @@ X87_MNEMONIC = {
     'db.m3': 'FISTP m32', 'db.m5': 'FLD m80', 'db.m7': 'FSTP m80',
     'df.m0': 'FILD m16', 'df.m2': 'FIST m16', 'df.m3': 'FISTP m16', 'df.m4': 'FBLD',
     'df.m5': 'FILD m64', 'df.m6': 'FBSTP', 'df.m7': 'FISTP m64',
+    'd8.m0': 'FADD m32', 'd8.m1': 'FMUL m32', 'd8.m2': 'FCOM m32', 'd8.m3': 'FCOMP m32', 'd8.m4': 'FSUB m32', 'd8.m5': 'FSUBR m32', 'd8.m6': 'FDIV m32', 'd8.m7': 'FDIVR m32',
+    'dc.m0': 'FADD m64', 'dc.m1': 'FMUL m64', 'dc.m2': 'FCOM m64', 'dc.m3': 'FCOMP m64', 'dc.m4': 'FSUB m64', 'dc.m5': 'FSUBR m64', 'dc.m6': 'FDIV m64', 'dc.m7': 'FDIVR m64',
+    'da.m0': 'FIADD m32', 'da.m1': 'FIMUL m32', 'da.m2': 'FICOM m32', 'da.m3': 'FICOMP m32', 'da.m4': 'FISUB m32', 'da.m5': 'FISUBR m32', 'da.m6': 'FIDIV m32', 'da.m7': 'FIDIVR m32',
+    'de.m0': 'FIADD m16', 'de.m1': 'FIMUL m16', 'de.m2': 'FICOM m16', 'de.m3': 'FICOMP m16', 'de.m4': 'FISUB m16', 'de.m5': 'FISUBR m16', 'de.m6': 'FIDIV m16', 'de.m7': 'FIDIVR m16',
 }
 
 
@@ -276,6 +280,7 @@ def x87_summary(counts: dict[str, int]) -> dict:
     # delivery is counted directly rather than inferred from an ES transition:
     # a title that restores state with ES already set takes the interrupt
     # without a fresh transition.
+    version = counts.get('x87census:version', 1)
     irq13 = sum(n for k, n in counts.items() if k.startswith('x87irq13:'))
     r_es = any(k.startswith('x87es:') for k in counts)
     pc_sites: dict[str, Counter] = {}
@@ -351,8 +356,13 @@ def x87_summary(counts: dict[str, int]) -> dict:
         'frndint': ops.get('d9fc', 0),
         'frndint_by_pc': dict(sorted(frndint_pc.items())),
         'irq13': irq13,
-        'irq13_recorded': any(k.startswith('x87irq13:') for k in counts),
-        'register_store_widths_reliable': False,
+        'x87_key_version': version,
+        # Both from the key set's version, not from which keys happen to be
+        # present: a post-fix run in which IRQ 13 never fires has no
+        # x87irq13 key either, and would otherwise be indistinguishable from
+        # a file written before the key existed.
+        'irq13_recorded': version >= 2,
+        'register_store_widths_reliable': version >= 2,
         'significand_excluding_register_stores': dict(sorted(sig_conservative.items())),
         'relies_on_exceptions': bool(r_es or irq13),
         'fsqrt_by_pc': dict(sorted(pc_by_class.get('sqrt', Counter()).items())),

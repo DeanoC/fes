@@ -262,6 +262,23 @@ credited there.
    and FSCALE all ran. The "N of 162" fraction is gone for a separate reason
    — the denominator counted spellings the census cannot emit.
 
+### 16 November 2026, after the runs — two more, also from review
+
+8. **The never-executed list was filtered by which forms had a mnemonic**,
+   so the eight m16 integer arithmetic instructions (`FIADD`, `FIMUL`,
+   `FICOM`, `FICOMP`, `FISUB`, `FISUBR`, `FIDIV`, `FIDIVR`) were silently
+   missing, and the surrounding text described every omitted entry as a
+   register spelling when they were not. The mnemonic inventory is complete
+   and the unnamed remainder is now listed rather than characterised.
+9. **The provenance flags were sniffed from the keys present**, so a run
+   made with the fixed `census.h` in which IRQ 13 never fires was
+   indistinguishable from a file written before the key existed — which
+   defeats the point of having the flags. `census.h` now emits
+   `x87census:version`, and `irq13_recorded` and
+   `register_store_widths_reliable` are derived from it. **The nine runs in
+   this record are version 1**, so both flags are false for them, correctly
+   and for a stated reason rather than by inference.
+
 ### 16 November 2026 — one promise this record does not keep
 
 The method says each row will say "what the window reached (prompt, menu, or

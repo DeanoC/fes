@@ -246,10 +246,11 @@ def main(argv: list[str] | None = None) -> int:
                     f'{len(rows)} runs:', ''])
     for form in never:
         out.append(f'- {summary.x87_name(form)}')
-    out.extend(['', f'A further {len(unnamed)} register-form spellings in the classification '
-                    'went unexecuted; they are the `ST(i)` variants of forms above and '
-                    'encodings the census cannot emit, so they are not listed as '
-                    'instructions.',
+    out.extend(['', f'A further {len(unnamed)} unexecuted entries in the classification carry no '
+                    'mnemonic: they are `ST(i)` register spellings of forms above and '
+                    'encodings the census cannot emit. They are listed here so the set is '
+                    f'complete rather than described: {", ".join("`" + f + "`" for f in unnamed)}.'
+                    if unnamed else '',
                 '', 'For slice 6: the named instructions above are what the census titles never',
                 'reach, so optimising them buys nothing measurable here. They must still be',
                 '*correct* — a 387 that is missing a form is not a 387 — but they need not be',
