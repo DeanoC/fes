@@ -524,6 +524,10 @@ def become_subreaper() -> bool:
     from /proc, and any userspace scan of /proc races with a fork. As the
     subreaper the runner reaps those members itself, after which the kernel's
     own answer to "is the group empty" is exact and atomic.
+
+    Without it -- a caller that uses run() without having called this -- the
+    group reads as alive until whoever adopts the orphans reaps them, which
+    errs towards holding the lease.
     """
     try:
         import ctypes
@@ -720,7 +724,6 @@ def run(command: list[str], project: Path, output: Path, label: str, deadline: f
         # pending -- and releasing them only once the cleanup owns the pid.
         # `deliver_blocked_signals` is therefore called INSIDE the try, and is
         # where a signal from the launch window is raised.
-        become_subreaper()
         process, deliver_blocked_signals = start_stage(
             command, cwd=project, stdout=stream, stderr=subprocess.STDOUT,
             start_new_session=True, env=dict(os.environ, **(env or {})))
@@ -1305,5 +1308,10 @@ if __name__ == "__main__":
     # The handlers are installed around main rather than inside it so that a
     # signal arriving before the first stage, while the lease is being taken,
     # unwinds the same way as one arriving during a compile.
+    # Process-wide, so it is set here, where the process is the runner, and
+    # not in run(): a caller that imports this module would otherwise become
+    # the reaper of every orphan it ever has, and the tests of unrelated
+    # runners in the same process found exactly that.
+    become_subreaper()
     with terminating_signals():
         raise SystemExit(main())

@@ -460,6 +460,7 @@ class TerminationUnwinds(unittest.TestCase):
 import os, sys, time, pathlib
 sys.path.insert(0, {root!r})
 from scripts import fit_i386_device as fit
+fit.become_subreaper()  # as the runner's entry point does; this process is the runner
 out = pathlib.Path(sys.argv[1])
 command = ["sh", "-c", "while true; do sleep 0.2; done # " + sys.argv[2]]
 print("ready", flush=True)
@@ -755,17 +756,6 @@ import subprocess
         self.assertEqual(self.second_signal_during_the_grace(
             "FESFITCHOKE", reap=nothing, lease="with fit.compiler_lease():",
             signals=("SIGTERM",)), [])
-
-    def test_a_stage_that_leaves_members_behind_is_emptied_on_normal_exit(self):
-        # The normal-exit path. The leader exits 0 and a member of its group
-        # lives on; the stage may not return until the group is empty.
-        with tempfile.TemporaryDirectory() as temporary:
-            out = Path(temporary)
-            tag = "FESFITSTRAGGLER"
-            fit.run(["sh", "-c", f"(sh -c 'while true; do sleep 0.2; done # {tag}' &) ; exit 0"],
-                    out, out, "stage", time.monotonic() + 60)
-            self.assertEqual(self.surviving(tag), [])
-            self.assertEqual(fit._LIVE_GROUPS, set())
 
     def test_a_reaped_group_is_no_longer_registered_and_the_mask_is_restored(self):
         import signal

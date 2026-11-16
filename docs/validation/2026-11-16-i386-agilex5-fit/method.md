@@ -1210,3 +1210,25 @@ An earlier slip, corrected here: tests that shortened the reap's grace by
 assigning `REAP_GRACE_SECONDS` had no effect, because the default was bound
 when the function was defined. They passed at the full 15 seconds. The default
 is now read at call time.
+
+## Amendment, 2026-11-17: the subreaper belongs to the process entry
+
+`c95d488f5` failed this repository's own suite, and I pushed it before the
+full suite had finished: three tests of unrelated runners
+(`test_gpu_lease_runner`, `test_pcxt_dos_acceptance`) failed with
+`ProcessLookupError not raised`. The cause was the limit the previous
+amendment had just written down. `run()` set the subreaper flag, the flag is
+process-wide, and tests that call `run()` in the test process made that
+process the reaper of every later orphan, so other runners' killed orphans
+stayed as zombies where those tests expect them gone.
+
+The flag is now set once at the runner's entry point (`__main__`), where the
+process is the runner, and not in `run()`. A caller that imports the module
+and uses `run()` without it gets the kernel's answer without the reaping: the
+group reads as alive until whoever adopts the orphans reaps them, which errs
+towards holding the lease. The test helpers that stand in for the runner call
+`become_subreaper()` as the entry point does.
+`test_a_stage_that_leaves_members_behind_is_emptied_on_normal_exit` ran in the
+test process and is removed;
+`test_an_orphan_beneath_a_non_reaping_ancestor_does_not_stall_the_reap` covers
+the same path (a leader that exits 0 leaving a member) in a process of its own.
