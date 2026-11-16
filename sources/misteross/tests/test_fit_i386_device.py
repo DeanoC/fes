@@ -4,7 +4,10 @@ reader. These cover the parts that decide what a figure means -- which ports
 become virtual pins, which report row each resource came from, and the clock
 constraints -- with no Quartus, Yosys or device needed."""
 import json
+import os
 from pathlib import Path
+import subprocess
+import time
 import tempfile
 import unittest
 
@@ -431,3 +434,90 @@ class Flow(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TerminationUnwinds(unittest.TestCase):
+    """A termination signal must take the Quartus process group with it.
+
+    The stage runs with start_new_session=True so the runner can kill the
+    whole compiler group on purpose, which also means the group never receives
+    the signal the runner got. Python's default SIGTERM action exits without
+    raising, so the builder lease would be released by the dying parent while
+    the compile kept running and the next fit overlapped it. These tests are
+    the counterexample: a child that outlives its parent, and the same child
+    not outliving it once the signal is relayed.
+    """
+
+    HELPER = """
+import os, sys, time, pathlib
+sys.path.insert(0, {root!r})
+from scripts import fit_i386_device as fit
+out = pathlib.Path(sys.argv[1])
+command = ["sh", "-c", "while true; do sleep 0.2; done # " + sys.argv[2]]
+print("ready", flush=True)
+{body}
+"""
+    RELAYED = """
+with fit.terminating_signals():
+    try:
+        fit.run(command, out, out, "stage", time.monotonic() + 120)
+    except fit.FitTerminated as error:
+        print("unwound: %s" % error, flush=True)
+"""
+    BARE = """
+fit.run(command, out, out, "stage", time.monotonic() + 120)
+"""
+
+    def surviving(self, tag):
+        """Children still alive, found by cmdline rather than by `pgrep -f`,
+        which matches its own invocation."""
+        alive = []
+        for entry in Path("/proc").iterdir():
+            if not entry.name.isdigit():
+                continue
+            try:
+                command = (entry / "cmdline").read_bytes().replace(b"\0", b" ").decode()
+                name = (entry / "comm").read_text().strip()
+            except OSError:
+                continue
+            if tag in command and name == "sh":
+                alive.append(int(entry.name))
+        return alive
+
+    def kill_during_a_stage(self, body, tag):
+        import signal
+        import sys
+        root = str(Path(__file__).resolve().parent.parent)
+        with tempfile.TemporaryDirectory() as temporary:
+            script = Path(temporary) / "stage.py"
+            script.write_text(self.HELPER.format(root=root, body=body))
+            runner = subprocess.Popen([sys.executable, "-u", str(script), temporary, tag],
+                                      stdout=subprocess.PIPE, text=True)
+            try:
+                deadline = time.monotonic() + 30
+                while not self.surviving(tag) and time.monotonic() < deadline:
+                    time.sleep(0.1)
+                self.assertTrue(self.surviving(tag), "the stage's child never started")
+                runner.send_signal(signal.SIGTERM)
+                runner.wait(timeout=30)
+                deadline = time.monotonic() + 10
+                while self.surviving(tag) and time.monotonic() < deadline:
+                    time.sleep(0.1)
+                return self.surviving(tag)
+            finally:
+                if runner.poll() is None:
+                    runner.kill()
+                    runner.wait(timeout=10)
+                for pid in self.surviving(tag):
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except OSError:
+                        pass
+
+    def test_a_relayed_sigterm_takes_the_stage_group_with_it(self):
+        self.assertEqual(self.kill_during_a_stage(self.RELAYED, "FESFITRELAYED"), [])
+
+    def test_without_the_relay_the_stage_outlives_its_runner(self):
+        # The counterexample itself, kept as a test so that the fix is shown to
+        # be the thing that changed the outcome rather than asserted to be.
+        self.assertNotEqual(self.kill_during_a_stage(self.BARE, "FESFITBARE"), [])

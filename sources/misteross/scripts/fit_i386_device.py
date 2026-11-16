@@ -449,6 +449,51 @@ def write_project(output: Path, device: Device, design: dict, netlist: Path,
     return project
 
 
+class FitTerminated(BaseException):
+    """A termination signal, turned into an exception so cleanup can unwind.
+
+    Python's default action for SIGTERM and SIGHUP exits the interpreter
+    without raising, so no `finally` and no `except` runs. A Quartus stage is
+    started with start_new_session=True, which is what lets this runner kill
+    the whole compiler process group deliberately -- and also means the child
+    group never receives the signal the runner got. Without this, a job
+    timeout or a disconnected session kills the runner, the builder lease dies
+    with it, and Quartus keeps compiling: the next fit takes the lock and
+    overlaps an orphaned compile, which surfaces as inexplicable figures
+    rather than as an error. It derives from BaseException so that an
+    `except Exception` anywhere in a stage cannot swallow a termination.
+    """
+
+
+@contextmanager
+def terminating_signals():
+    """SIGTERM and SIGHUP raise FitTerminated for the duration.
+
+    One definition for the whole run rather than a handler per stage: the
+    lease, the heartbeat threads and the compiler group all unwind through the
+    same path a Ctrl-C already takes.
+    """
+    def relay(number, frame):
+        raise FitTerminated(f"terminated by {signal.Signals(number).name}")
+
+    previous = {}
+    for number in (signal.SIGTERM, signal.SIGHUP):
+        try:
+            previous[number] = signal.signal(number, relay)
+        except (ValueError, OSError):
+            # Not the main thread, or a platform without the signal: the
+            # default action stands and this is no worse than before.
+            pass
+    try:
+        yield
+    finally:
+        for number, handler in previous.items():
+            try:
+                signal.signal(number, handler)
+            except (ValueError, OSError):
+                pass
+
+
 def run(command: list[str], project: Path, output: Path, label: str, deadline: float,
         env: dict[str, str] | None = None) -> None:
     if deadline - time.monotonic() <= 0:
@@ -1026,10 +1071,15 @@ def main(argv: list[str] | None = None) -> int:
               + json.dumps(record["resources"], sort_keys=True), flush=True)
         print("fmax: " + json.dumps(record["timing"].get("fmax", {}), sort_keys=True), flush=True)
         return 0
-    except (OSError, RuntimeError, ValueError, subprocess.SubprocessError, KeyboardInterrupt) as error:
+    except (OSError, RuntimeError, ValueError, subprocess.SubprocessError,
+            KeyboardInterrupt, FitTerminated) as error:
         print(f"i386 fit FAIL: {error}; retained output {output}", flush=True)
         return 1
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # The handlers are installed around main rather than inside it so that a
+    # signal arriving before the first stage, while the lease is being taken,
+    # unwinds the same way as one arriving during a compile.
+    with terminating_signals():
+        raise SystemExit(main())

@@ -894,3 +894,62 @@ The lesson recorded rather than the patch: two independent sites treating
 `"unknown"` as present was not two bugs, it was one missing definition. A
 truthiness check replaced by a slightly different truthiness check would have
 looked fixed.
+
+## Amendment, 2026-11-16: per-clock timing coverage, and a relayed signal
+
+Both items were found by Codex review on `0b4820867`, after every figure in
+this record was published. The first bears on those figures and is resolved
+against them below; the second does not and is operational.
+
+### A clock object is not a clocked domain
+
+`fit_timing.tcl` required that the SDC's clock *count* match
+`FES_FIT_CLOCKS`, and that design-wide setup and hold queries return paths at
+every corner. Neither notices a design that keeps both clock *ports* -- so both
+`create_clock` objects exist and the count gate is satisfied -- while one
+domain's registers are swept or mis-elaborated: the design-wide queries are
+answered by the surviving domain, and the fit publishes as analysed at every
+corner having analysed one domain. The script's own comment claimed the count
+gate prevented exactly this. It did not.
+
+Counterexample first, as with the revision hole. `fit_timing.tcl` runs against
+a stubbed STA API (`tests/quartus_sta_stub.tcl`), which describes a design
+rather than fitting one; the alternative is sweeping a domain out of
+`pc386_system` and spending forty minutes watching the script wave it through.
+Presented with two clocks and one clocked domain, the published script exited 0
+and announced *setup/hold/minimum_pulse_width across all 2 published corners*.
+It now errors, naming the clock and saying the design-wide analysis was
+covering it from another domain. Nine tests hold the gate's claims, including
+the refusal on a hold-only corner (where it must come from hold, there being no
+setup model) and the single-clock CPU case.
+
+**The fits already published did analyse both domains**, confirmed from
+retained evidence and not assumed: every machine fit reports a finite
+restricted Fmax for both `clk_clock` and `pixel_clk_clock` at every published
+corner (8 corners on the Cyclone V, 4 on each Agilex 5 fit), and the fitter
+derives a clock's Fmax only from paths within that clock's domain. Recorded in
+the summary beside the Fmax table, where a reader meets the figures.
+
+### A lease released while the work it protects is still running
+
+The runner starts each Quartus stage with `start_new_session=True`, which is
+what lets it kill the whole compiler group deliberately -- and also means that
+group never receives a signal the runner gets. Python's default action for
+SIGTERM and SIGHUP exits without raising, so the `except BaseException` cleanup
+never ran: a job timeout or a disconnected session killed the runner, the
+builder lease died with it, and Quartus kept compiling. The next fit then took
+the lock and overlapped an orphaned compile, which presents as inexplicable
+figures rather than as an error -- and the sibling x87 session fits through
+this same runner, so it was exposed too.
+
+Counterexample first again, and kept as a test in both directions: a stage
+whose child outlives its SIGTERM'd parent, and the same child not outliving it
+once `terminating_signals()` turns the signal into `FitTerminated` and the
+existing cleanup unwinds. The bare case is retained as a test precisely so the
+fix is shown to be what changed the outcome rather than asserted to be.
+
+This is the same shape as the lease findings in
+[#1850](https://github.com/DeanoC/fes/pull/1850) -- a lease released while the
+work it protects continues -- now found independently in two places in this
+repository. That it took a reviewer rather than the lease's author to see it
+here is the pattern, not the exception.

@@ -16,7 +16,10 @@ update_timing_netlist
 # clock went virtual or was optimised away would otherwise be analysed on the
 # survivor alone and reported as covered.
 set clocks [get_clocks *]
-set expected [llength [split [string trim $::env(FES_FIT_CLOCKS)]]]
+# The SDC names each clock after its port, which is what FES_FIT_CLOCKS holds.
+set expected_clocks {}
+foreach port [split [string trim $::env(FES_FIT_CLOCKS)]] {lappend expected_clocks "${port}_clock"}
+set expected [llength $expected_clocks]
 if {[get_collection_size $clocks] != $expected} {
     error "expected exactly $expected clock(s), found [get_collection_size $clocks]"
 }
@@ -90,6 +93,36 @@ foreach_in_collection corner $corners {
                 -file [file join $output "corner${index}_${check}.rpt"]
         }
     }
+    # A clock object exists because the SDC created it, not because anything
+    # is clocked by it. The global setup and hold queries above are satisfied
+    # by whichever domain survives, so a design whose second domain was swept
+    # or mis-elaborated passes them and publishes as analysed at every corner
+    # on one domain's paths. Each expected clock must therefore show its own
+    # register-to-register paths, scoped to its domain.
+    foreach clock $expected_clocks {
+        foreach check {setup hold} {
+            if {$hold_only && $check eq "setup"} continue
+            set scoped [get_timing_paths -$check -npaths 1 \
+                -from_clock [get_clocks $clock] -to_clock [get_clocks $clock]]
+            if {[get_collection_size $scoped] < 1} {
+                error "clock $clock has no $check paths within its own domain at $name:\
+                       its registers were swept or mis-elaborated, and the design-wide\
+                       $check analysis is covering it from another domain"
+            }
+            foreach_in_collection path $scoped {
+                set slack [get_path_info -slack $path]
+                if {![string is double -strict $slack] || [regexp -nocase {nan|inf} $slack]} {
+                    error "nonfinite or nonnumeric $clock $check slack at $name"
+                }
+                if {$slack < 0 || [string match -* $slack]} {set failed 1}
+                puts $stream [join [list $name $hold_only "${clock}_$check" analyzed 1 $slack \
+                    [get_node_info -name [get_path_info -from $path]] \
+                    [get_node_info -name [get_path_info -to $path]]] "\t"]
+                lappend analyses "\"${clock}_$check\": {\"coverage\": \"analyzed\", \"paths\": 1, \"worst_slack_ns\": $slack}"
+            }
+            set analysed(per_clock_$check) 1
+        }
+    }
     # The register-to-register setup path: the design's own worst path, with
     # no virtual port path in it.
     if {!$hold_only} {
@@ -152,7 +185,8 @@ set skipped {}
 foreach check {setup hold recovery removal minimum_pulse_width} {
     if {![info exists analysed($check)]} {lappend skipped $check}
 }
-set message "PASS: [join $passed /] across all $index published corners"
+set message "PASS: [join $passed /] across all $index published corners,\
+              each of [join $expected_clocks /] analysed within its own domain"
 if {[llength $skipped] > 0} {
     append message "; [join $skipped /] had no paths to analyse and were not applicable"
 }

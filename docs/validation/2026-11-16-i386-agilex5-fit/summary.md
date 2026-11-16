@@ -142,6 +142,19 @@ Restricted Fmax at each device's worst slow corner, the fitter's own estimate:
 | M, Cyclone V (system clock) | **63.83 MHz** | 65.04 | — |
 | M, Agilex 5 (pixel clock) | 187.30 | 222.37 | — |
 
+Both clock domains were in fact analysed in every machine fit published here,
+and that is now confirmed from the retained evidence rather than assumed. The
+timing gate in the version that produced these fits required its clock *count*
+and its design-wide setup and hold paths, neither of which would have noticed a
+second domain with no registers; the gate now requires each clock's own
+register-to-register paths, scoped to its domain (see the amendment of
+2026-11-16 on per-clock coverage). Checking the fits already taken: every
+machine fit reports a finite restricted Fmax for **both** `clk_clock` and
+`pixel_clk_clock` at **every** published corner -- 8 corners for the Cyclone V
+fit, 4 for each Agilex 5 fit -- and the fitter produces a clock's Fmax only
+from paths inside that clock's domain. So the pixel domain carried registers
+and was analysed in all four. No figure in this record moves.
+
 The figures in that table are the **fitter's estimates at a 61.44 MHz
 constraint, not closures**. The closures come from the ladder below: the CPU
 closes at **130 MHz** on Agilex 5 and at **61.44 MHz** on the Cyclone V, which
