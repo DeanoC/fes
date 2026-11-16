@@ -16,6 +16,20 @@ d925085c1893bbac678ce93cc07fbf33280b8f9777637e5bc92542bfeb251e9c  ./forms/rtl.as
 ba7c7e0b1af1c4868b9d5859ba6820f8b24664a13355e4d1768d3ca60baddbaf  ./forms/rtl.json
 f1675b93c650fffecf2c7f89347c73da4b01d59ad2bb8b19459418a619214d01  ./forms/rtl.log
 0ad7d5c3290dbbbabe7d21c4d8b7997acf683e1c990b196a647fbcfa9117360c  ./forms/survey.py
+901886976d1efff75aaaa65c00ae0c61b1f117395bb20993b5af64b36bf4f487  ./rep-chunk-matrix/M1.TXT
+901886976d1efff75aaaa65c00ae0c61b1f117395bb20993b5af64b36bf4f487  ./rep-chunk-matrix/M2.TXT
+901886976d1efff75aaaa65c00ae0c61b1f117395bb20993b5af64b36bf4f487  ./rep-chunk-matrix/M3.TXT
+901886976d1efff75aaaa65c00ae0c61b1f117395bb20993b5af64b36bf4f487  ./rep-chunk-matrix/M4.TXT
+901886976d1efff75aaaa65c00ae0c61b1f117395bb20993b5af64b36bf4f487  ./rep-chunk-matrix/M5.TXT
+b30a3955e586769eb84bd2c0ef508eabe909d9eb723afb76a314664e09f30f66  ./rep-chunk-matrix/README.md
+74be4b77388d7a0b30e484790adb9d0d1bbea03a8ee1aa0a7e6a31e1fbe8c778  ./rep-chunk-matrix/cases.json
+10773353c95372e050c09e01ee2fa45a8bf82de3f8d1ddffa07f19686b3b18c8  ./rep-chunk-matrix/commands-matrix.jsonl
+c17e65a3495fd10154d9d74449d616408b6beb80ee81efe679ed2d2697764c70  ./rep-chunk-matrix/commands-repeat.jsonl
+09ffae84d0c0a407f64706307308f44b64ac7fa42ac32daf71586cbaa2cb313a  ./rep-chunk-matrix/comparison-fixed.json
+a42c6559be4cacc1b1b4b7a77e9eb87afd0dccecb51fbe5dbb1117c6f26c5125  ./rep-chunk-matrix/cpu.asm
+194bfbdbdf4dcab002e503f98300e56f3a1a9487c3100f93c6894878dd5aee94  ./rep-chunk-matrix/cpu.log
+6a30a7df0818daf5755d3107bc978e73cd8f9d2fc8d424e83a4edf7ffa99d646  ./rep-chunk-matrix/predictions.json
+3413fbe610d3057427dfbc8d6f1a769dd26fb5923ec6e7f457b1a1368d6fdc9f  ./rep-chunk-matrix/reference-fixed.asm
 d21e935ec4516243f9f89db23164833ca683cb6ce96315dd4319b108b1a61092  ./rep-chunks/C1.TXT
 d21e935ec4516243f9f89db23164833ca683cb6ce96315dd4319b108b1a61092  ./rep-chunks/C2.TXT
 d21e935ec4516243f9f89db23164833ca683cb6ce96315dd4319b108b1a61092  ./rep-chunks/C3.TXT
@@ -35,4 +49,4 @@ ad6129a35fba4b08e63b6200cb4f1bffecedb2ac75266abe72296976a4736850  ./sequence/H2.
 ad6129a35fba4b08e63b6200cb4f1bffecedb2ac75266abe72296976a4736850  ./sequence/H3.TXT
 60c33383543caf9bedffe92978a2efae7e3630ab3f1800b0ee7dd9775a60af9f  ./sequence/commands.jsonl
 a621ba4ef97cf91ea1df773cf6e5830ce74155483b9cb0bfb8e2f14eacaab286  ./sequence/heldout.asm
-d7f2c7412145a7847a5e91d41e3f48ba1de707d6f054512a7e0010e65531e49b  ./verify.py
+7b467e294b28a4098ac17be45bf5aadc4327cf9dae1592d1227e2478f7277e8c  ./verify.py

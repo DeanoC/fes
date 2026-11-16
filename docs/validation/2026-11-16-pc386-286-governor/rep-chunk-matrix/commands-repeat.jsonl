@@ -1,0 +1,8 @@
+{"op": "sleep", "s": 45}
+{"op": "grab", "name": "boot"}
+{"op": "type", "text": "MATRIX > M4.TXT\n"}
+{"op": "sleep", "s": 90}
+{"op": "grab", "name": "run4"}
+{"op": "type", "text": "MATRIX > M5.TXT\n"}
+{"op": "sleep", "s": 90}
+{"op": "grab", "name": "run5"}

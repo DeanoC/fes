@@ -60,6 +60,8 @@ def assemble(nasm):
         'rep-verified/cpu_rep': '108149fb8e4707bc3410aec00be6badadaa26343b92b53928bfd480b208f14e5',
         'rep-chunks/chunks': '4d3bd8e4c16c390bd60da22f0f9ca310580865f3d5b5af410ac72a74ef282523',
         'rep-chunks/cpu_chunks': '39ed6fe0a9ec6be804ac775988e538debadd9b651fef8a6f3f02ea83509beaaa',
+        'rep-chunk-matrix/reference-fixed': '0bca14dab1b9d01c8f7faf180147b32b9b6fbedfad6a9b61a8ca70271d4a5fdc',
+        'rep-chunk-matrix/cpu': 'fb7d6d834fcfa9405c71ffe8c344ee8c2841b62d72cc2cda33f4097bf1b7311f',
     }
     with tempfile.TemporaryDirectory(prefix='fes1902-probes-') as temp:
         for source, expected in sources.items():
@@ -94,6 +96,18 @@ def main():
     charges = marker_charges(HERE / 'rep-chunks/cpu-v4.log')
     if charges != [128.006, 132.004, 136.004, 140.004, 240.004, 244.004, 288.004]:
         raise SystemExit('unexpected chunk CPU charges')
+    matrix = rows('rep-chunk-matrix', [f'M{i}.TXT' for i in range(1, 6)],
+                  ['DS_ES_MATCH', 'FIRST_MOVS_WRITE_VERIFIED', 'FIRST_STOS_WRITE_VERIFIED', 'RAM_WRITE_VERIFIED'])
+    predictions = json.loads((HERE / 'rep-chunk-matrix/predictions.json').read_text())
+    comparison = json.loads((HERE / 'rep-chunk-matrix/comparison-fixed.json').read_text())
+    charges = marker_charges(HERE / 'rep-chunk-matrix/cpu.log')
+    if matrix.pop('BD', None) != 2436 or list(matrix) != list(predictions) or len(charges) != len(matrix):
+        raise SystemExit('REP matrix rows or markers differ')
+    for (key, count), charge in zip(matrix.items(), charges):
+        result = comparison[key]
+        if (result['count_blocks'] != count or abs(result['reference'] - clocks(count)) > 1e-8
+                or abs(result['charged'] - charge) > 1e-8 or predictions[key]['charged'] != charge):
+            raise SystemExit(f'REP matrix arithmetic mismatch: {key}')
     differential = json.loads((HERE / 'cpu-differential/default-off-differential.json').read_text())
     results = differential['results']
     if set(results) != {'0-0-0', '1-0-0', '3-0-0', '1-0-1'} or any(

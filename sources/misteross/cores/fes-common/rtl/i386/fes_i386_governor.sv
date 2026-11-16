@@ -212,12 +212,26 @@ module fes_i386_governor #(
     logic [8:0] execution_clocks;
     logic [7:0] refill_execution;
     logic [5:0] reference_fetch, reference_prefix;
-    logic       rep_active, reference_on, reference_first;
+    logic       rep_active, reference_on, reference_first, reference_chunkable, reference_chunk_restart;
+    logic [7:0] reference_element;
+    logic [7:0] reference_chunk_clocks;
     assign reference_on = REFERENCE_DIAGNOSTIC && on && p_id == 3'd1;
-    // This reference re-decodes CMPS once per element; its other REP
-    // strings run in chunks. The chunked surrogate is not yet qualified.
-    assign reference_first = !rep_active || s2_gov.rep && !s2_gov.two &&
+    // This emulator uses a bounded execution budget for each ordinary REP
+    // string chunk. CMPS is decoded per element, not by this chunk mechanism.
+    assign reference_chunkable = s2_gov.rep && !s2_gov.two &&
+        (s2_gov.op == 8'ha4 || s2_gov.op == 8'ha5 ||
+         s2_gov.op == 8'haa || s2_gov.op == 8'hab ||
+         s2_gov.op == 8'hac || s2_gov.op == 8'had ||
+         s2_gov.op == 8'hae || s2_gov.op == 8'haf);
+    assign reference_chunk_restart = rep_active && reference_chunkable && reference_chunk_clocks > 8'd100;
+    assign reference_first = !rep_active || reference_chunk_restart || s2_gov.rep && !s2_gov.two &&
                              (s2_gov.op == 8'ha6 || s2_gov.op == 8'ha7);
+    always_comb begin
+        reference_element = word[15:8];
+        if (reference_on && s2_gov.rep && !s2_gov.two &&
+            (s2_gov.op == 8'haa || s2_gov.op == 8'hab || s2_gov.op == 8'hac || s2_gov.op == 8'had))
+            reference_element = 8'd5;
+    end
     always_comb begin
         execution_clocks = s2_ends ? {1'b0, s2_column1 ? word[15:8] : word[7:0]} : 9'd0;
         if (reference_on && s2_ends && !s2_gov.two) begin
@@ -228,6 +242,8 @@ module fes_i386_governor #(
             if (s2_gov.op == 8'he2) execution_clocks = 9'd11;
             if (s2_gov.rep && (s2_gov.op == 8'ha4 || s2_gov.op == 8'ha5)) execution_clocks = 9'd0;
             if (s2_gov.rep && (s2_gov.op == 8'ha6 || s2_gov.op == 8'ha7 ||
+                               s2_gov.op == 8'haa || s2_gov.op == 8'hab ||
+                               s2_gov.op == 8'hac || s2_gov.op == 8'had ||
                                s2_gov.op == 8'hae || s2_gov.op == 8'haf)) execution_clocks = 9'd0;
             // Reference instruction-form costs. Restrict these to ordinary
             // 16-bit forms; unmeasured 386 extensions retain the table.
@@ -257,7 +273,7 @@ module fes_i386_governor #(
                 (s2_gov.op == 8'h80 || s2_gov.op == 8'h81 || s2_gov.op == 8'h82 || s2_gov.op == 8'h83))
                 execution_clocks = 9'd7;
         end
-        if (s2_element) execution_clocks = execution_clocks + {1'b0, word[15:8]};
+        if (s2_element) execution_clocks = execution_clocks + {1'b0, reference_element};
     end
     always_comb begin
         refill_execution = execution_clocks[8] ? 8'hff : execution_clocks[7:0];
@@ -270,10 +286,17 @@ module fes_i386_governor #(
     end
     assign reference_prefix = reference_on && s2_boundary && reference_first ? s2_gov.prefix286 : 6'd0;
     always_ff @(posedge clk) begin
-        if (reset || !reference_on || s2_abandon) rep_active <= 1'b0;
-        else if (s2_boundary) begin
-            if (s2_ends) rep_active <= 1'b0;
-            else if (s2_element) rep_active <= 1'b1;
+        if (reset || !reference_on || s2_abandon) begin
+            rep_active <= 1'b0;
+            reference_chunk_clocks <= 0;
+        end else if (s2_boundary) begin
+            if (s2_ends) begin rep_active <= 1'b0; reference_chunk_clocks <= 0; end
+            else if (s2_element) begin
+                rep_active <= 1'b1;
+                if (reference_chunkable)
+                    reference_chunk_clocks <= reference_first ? reference_element : reference_chunk_clocks + reference_element;
+                else reference_chunk_clocks <= 0;
+            end
         end
     end
     generate if (REFERENCE_DIAGNOSTIC) begin : gen_reference_queue
@@ -282,20 +305,27 @@ module fes_i386_governor #(
         logic [4:0] queue_bytes;
         logic [3:0] length;
         logic [5:0] missing, words, present, next_queue;
-        logic [7:0] spare;
+        logic [7:0] spare, spare_raw;
+        logic [8:0] spare_total;
+        logic spare_odd;
         assign length = reference_first ? s2_ilen : 4'd0;
         always_comb begin
             missing = {2'b0, length} > {1'b0, queue_bytes} ? {2'b0, length} - {1'b0, queue_bytes} : 0;
             words = (missing + 6'd1) >> 1;
             present = {1'b0, queue_bytes} + (words << 1) - {2'b0, length};
-            spare = refill_execution > s2_data_bus ? (refill_execution - s2_data_bus) >> 1 : 0;
+            spare_raw = refill_execution > s2_data_bus ? refill_execution - s2_data_bus : 0;
+            spare_total = {1'b0, spare_raw} + 9'(reference_chunkable && !reference_first && spare_odd);
+            spare = spare_total[8:1];
             next_queue = spare >= 8 ? 6'd16 : present + (6'(spare) << 1);
             if (next_queue > 16) next_queue = 16;
         end
         assign reference_fetch = reference_on && s2_boundary ? words << 1 : 0;
         always_ff @(posedge clk) begin
-            if (reset || s2_abandon || !reference_on) queue_bytes <= 0;
-            else if (s2_boundary) queue_bytes <= s2_redirect ? 0 : next_queue[4:0];
+            if (reset || s2_abandon || !reference_on) begin queue_bytes <= 0; spare_odd <= 0; end
+            else if (s2_boundary) begin
+                queue_bytes <= s2_redirect ? 0 : next_queue[4:0];
+                spare_odd <= reference_chunkable && !s2_ends ? spare_total[0] : 0;
+            end
         end
     end else begin : gen_no_reference_queue
         assign reference_fetch = 6'd0;

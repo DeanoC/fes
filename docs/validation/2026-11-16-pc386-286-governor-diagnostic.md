@@ -18,9 +18,11 @@ reference source code was copied into the FES implementation.
 
 `GOV_REFERENCE_DIAGNOSTIC` defaults to zero, and the pc386 producer does not
 enable it. The implementation is still incomplete: it substitutes costs for
-only some instruction forms, suppresses the existing 286 access wait charge
-globally when enabled, and does not yet model long REP chunks, all prefixes,
-I/O, faults, interruptions or 386-only instructions comprehensively. Matching
+only some instruction forms and suppresses the existing 286 access wait charge
+globally when enabled. A later diagnostic models bounded REP chunks, but word
+alignment, trap-flag stepping, MMIO and reference timing of interrupted or
+faulted strings remain unmeasured. It does not model all prefixes, I/O, faults,
+interruptions or 386-only instructions comprehensively. Matching
 selected sequences does not establish correct behavior for other instructions
 or queue histories. Max, turbo and non-286 behavior require continued
 regression protection. This record does not authorize promotion or relaxing
@@ -63,6 +65,17 @@ not an independent timestamp authority.
   charge predicted 142 at count 27, missing the reference by about 2.07 clocks
   (one-block quantization about 0.47). Reference chunking is a plausible
   explanation, but a general correction remains unproven.
+
+A later private chunk-budget model was fixed before a new 16-case byte-string
+reference matrix covering MOVS, STOS, LODS and REPNE SCAS. Five outputs across
+two boots were identical and contained segment, MOVS-write and STOS-write
+controls; all predeclared whole-loop predictions were within the larger of
+0.25 clock and twice one-block quantization of the reference. This was a
+predeclared diagnostic bound, not a tier threshold. The [chunk matrix](2026-11-16-pc386-286-governor/rep-chunk-matrix/README.md)
+retains sources, commands, raw output, predictions and limitations. A first
+attempt had prefilled its destination and could not prove a write; it was
+stopped and replaced before the corrected run. This improves the surrogate;
+it does not qualify unmeasured forms or justify promotion.
 
 An earlier REP run failed to restore ES after reading the DOS interrupt vector
 and is invalid for RAM-to-RAM conclusions. An intervening run checked segment
