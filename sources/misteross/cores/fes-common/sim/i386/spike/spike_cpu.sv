@@ -152,7 +152,7 @@ module spike_cpu (
     logic [fes_i386_pkg::PA-1:0] trace_pw_addr;
     logic [31:0]      trace_pw_data;
     logic             x87_irq13, trace_x87_busy, trace_x87_latched;
-    logic [3:0]       trace_x87_seq;
+    logic [4:0]       trace_x87_seq;
     logic [15:0]      arch_x87_cw, arch_x87_sw, arch_x87_tw;
     logic [10:0]      arch_x87_opcode;
     logic [639:0]     arch_x87_regs;
@@ -199,7 +199,7 @@ module spike_cpu (
                  ^ 32'({trace_store_pg1, trace_store_pg0}) ^ 32'({trace_pw, trace_pw_addr}) ^ trace_pw_data
                  ^ arch_x87_ip ^ arch_x87_dp ^ {arch_x87_cw, arch_x87_sw} ^ {arch_x87_tw, 5'd0, arch_x87_opcode}
                  ^ {arch_x87_cs, arch_x87_ds}
-                 ^ {25'd0, trace_x87_seq, trace_x87_latched, trace_x87_busy, x87_irq13};
+                 ^ {24'd0, trace_x87_seq, trace_x87_latched, trace_x87_busy, x87_irq13};
         for (int n = 0; n < 20; n++) observed ^= arch_x87_regs[n*32 +: 32];
         for (int n = 0; n < 8; n++) observed ^= arch_gpr[n];
         for (int n = 0; n < 6; n++) observed ^= arch_base[n] ^ arch_limit[n] ^ {arch_sel[n], arch_ar[n]};
