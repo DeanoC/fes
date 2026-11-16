@@ -25,7 +25,7 @@ GROUPS = {
         v1_firmware_licensing_doc'''),
     'build': names('''build_diagnostics dev_snapshot import_modules inputs
         image_artifacts kit_software module_sources native_dev receipt source_status staging status'''),
-    'packages': names('''artifact_cache bundle core_build core_catalog core_dev
+    'packages': names('''artifact_cache bundle design_cache core_build core_catalog core_dev
         core_dev_accept core_key_nightly factory_video_parts factory_video_publication
         optional_cores recipes rom_package_pipeline'''),
     'media': names('''appliance appliance_expand_dry_run appliance_media de25_appliance_workflow de25_source_workflow block_probe

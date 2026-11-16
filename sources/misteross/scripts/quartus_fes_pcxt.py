@@ -62,6 +62,13 @@ PINS = CORE / 'constraints-board50.qsf'
 AUDIO_PINS = CORE / 'constraints-audio.qsf'
 PACKAGE_PINS = Path('cores/fes-ramtest/constraints.qsf')
 DEVICE = '5CSEBA6U23I7'
+# PC/XT elaborates its whole top with Yosys and places and routes with Quartus.
+FRONT_END = 'yosys'
+# The recorded program and QSF carry neither the BUILD_ID, which is derived from
+# the record that holds their digests, nor the per-run paths and the seed.
+CANONICAL_BUILD_ID = '0' * 32
+SOURCE_ROOT, WORK_ROOT, LIBRARY_ROOT = '$SOURCE', '$WORK', '$YOSYS_LIB'
+SEED_ASSIGNMENT = 'set_global_assignment -name SEED '
 SDC = ('create_clock -name FPGA_CLK1_50 -period 20.000 [get_ports {FPGA_CLK1_50}]\n'
        'derive_pll_clocks\nderive_clock_uncertainty\n')
 
@@ -124,6 +131,46 @@ def elaboration(source: Path, work: Path, library: Path, *, package_profile=Fals
             parameters=parameters, netlist='elaborated.v') + '\n'
     except yosys_netlist.NetlistError as error:
         raise ValueError(str(error)) from error
+
+
+def canonical_elaboration(*, dos_profile=False) -> str:
+    """The recorded form of the package's Yosys program: elaboration() with
+    placeholder roots and a zeroed BUILD_ID. The executed program is this text
+    with the three roots and the real ID substituted, so one digest covers the
+    signoff and repeat runs, whose work trees sit under different paths."""
+    return elaboration(Path(SOURCE_ROOT), Path(WORK_ROOT), Path(LIBRARY_ROOT),
+                       package_profile=True, build_id=CANONICAL_BUILD_ID, dos_profile=dos_profile)
+
+
+def executed_elaboration(source: Path, work: Path, library: Path, *, build_id: str,
+                         dos_profile=False) -> str:
+    """The package program to run, checked against its recorded canonical form."""
+    program = elaboration(source, work, library, package_profile=True,
+                          build_id=build_id, dos_profile=dos_profile)
+    substituted = (canonical_elaboration(dos_profile=dos_profile)
+                   .replace(SOURCE_ROOT, str(source))
+                   .replace(WORK_ROOT, str(work))
+                   .replace(LIBRARY_ROOT, str(library))
+                   .replace("128'h" + CANONICAL_BUILD_ID, "128'h" + build_id))
+    if substituted != program:
+        raise ValueError('the elaboration program differs from its recorded canonical form')
+    return program
+
+
+def without_seed(qsf: str) -> str:
+    """A project QSF without its SEED assignment: the form one digest covers,
+    since a signoff's per-seed QSFs differ only in that line."""
+    lines = qsf.splitlines()
+    kept = [line for line in lines if not line.startswith(SEED_ASSIGNMENT)]
+    if len(kept) != len(lines) - 1:
+        raise ValueError('the project QSF must carry exactly one SEED assignment')
+    return '\n'.join(kept) + '\n'
+
+
+def canonical_project_qsf(source: Path, threads: int, *, dos_profile=False) -> str:
+    """The recorded form of the package project's QSF."""
+    return without_seed(project_qsf(source, 1, threads, package_profile=True,
+                                    video_mailbox_contract=True, audio_contract=dos_profile))
 
 
 def prepare_elaboration_inputs(source: Path, work: Path, *, dos_profile=False) -> dict:
@@ -566,9 +613,16 @@ def main(argv=None) -> int:
         dos_inputs = prepare_elaboration_inputs(source, work, dos_profile=args.dos_profile)
         if dos_inputs:
             record['hardware_dos_inputs'] = dos_inputs
-        (work / 'elaborate.ys').write_text(elaboration(
-            source, work, library, package_profile=args.package_profile,
-            build_id=args.build_id, dos_profile=args.dos_profile))
+        if args.package_profile:
+            program = executed_elaboration(source, work, library, build_id=args.build_id,
+                                           dos_profile=args.dos_profile)
+            record['front_end'] = FRONT_END
+            record['front_end_program_sha256'] = hashlib.sha256(
+                canonical_elaboration(dos_profile=args.dos_profile).encode()).hexdigest()
+        else:
+            program = elaboration(source, work, library, package_profile=False,
+                                  build_id=args.build_id, dos_profile=args.dos_profile)
+        (work / 'elaborate.ys').write_text(program)
         run([str(yosys), '-s', 'elaborate.ys'], work, 'elaborate.log', record)
         record['elaboration'] = validate_renaming(work, package_profile=args.package_profile, dos_profile=args.dos_profile)
         if args.video_mailbox_contract:
@@ -583,6 +637,10 @@ def main(argv=None) -> int:
             record['dont_replicate'] = mark_dont_replicate(work / 'elaborated.v', AUDIO_SINGLE_REGISTERS)
         record['generated'] = {p.name: sha(p) for p in work.iterdir() if p.suffix in ('.mem', '.hex', '.vh')}
         record['elaborated_verilog_sha256'] = sha(work / 'elaborated.v')
+        canonical_qsf = (canonical_project_qsf(source, args.threads, dos_profile=args.dos_profile)
+                         if args.package_profile else None)
+        if canonical_qsf is not None:
+            record['quartus_qsf_sha256'] = hashlib.sha256(canonical_qsf.encode()).hexdigest()
         for seed in seeds:
             fit = output / f'seed-{seed}'
             fit.mkdir()
@@ -592,6 +650,8 @@ def main(argv=None) -> int:
             (fit / 'top.qsf').write_text(project_qsf(
                 source, seed, args.threads, package_profile=args.package_profile,
                 video_mailbox_contract=args.video_mailbox_contract, audio_contract=args.dos_profile))
+            if canonical_qsf is not None and without_seed((fit / 'top.qsf').read_text()) != canonical_qsf:
+                raise ValueError(f'the QSF compiled at seed {seed} differs from the recorded canonical QSF')
             (fit / 'clocks.sdc').write_text(SDC)
             if args.dos_profile:
                 (fit / 'audio-audit.enabled').write_text('audio interstage checks enabled\n')

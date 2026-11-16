@@ -380,6 +380,17 @@ it does not change the physical-DDR, firmware or package-admission boundaries.
 
 ## DE25-Nano board diagnostic
 
+The standalone [DE25 x87 arithmetic backend](../boards/de25nano/x87/README.md)
+accepts decoded 80-bit add/subtract/multiply/compare requests at one per clock,
+with registered shared operand normalization, an iterative divide/square-root
+lane and a shared precision/rounding pipeline. A 16-entry synchronous completion
+RAM returns results in issue order under backpressure. Its private virtual-pin Quartus fit targets 200 MHz
+on `A5EB013BB23BE4SCS`; host simulation compares results and exception flags
+against real x87 instructions. It has no CPU or package consumer yet: stack
+state, conversion, retirement, unmasked exceptions and the remaining x87
+operations belong to future integration with the existing 387 architecture.
+This diagnostic supplies no board or game acceptance.
+
 The standard ZX81 machine/control/capture is `cores/fes-zx81/rtl/fes_zx81_core.v`.
 The DE10 `top.v` supplies its clocks, HPS GP transport, HDMI, audio serializer,
 registered expansion placement and session-plane memory adapter. The shared
@@ -986,16 +997,99 @@ remain separate gates. No normal runtime profile is admitted by these models.
 
 Pong, ZX81, Coleco, SMS and SG-1000 use functional
 identity 2 exclusively. Both Python and CLI entrypoints default to 2 and reject
-other identity versions. Quartus oracle and board-firmware records retain their
-current evidence schema. Rebuilt script closures receive new identities;
-existing artifacts and caches are never relabelled or deleted.
+other identity versions. Native oracle/diagnostic records without the design-v1
+policy retain their legacy identity semantics. Normal source-closed producers
+and board firmware use design-v1 while retaining record format 2. Design-input
+changes receive new embedded IDs; packaging/toolchain-only changes retain the
+design ID. Existing artifacts and caches are never relabelled or deleted.
 ZX81, SMS, SG-1000, Apple II, C64, Spectrum and Atari ST use format 3 to seal
 one ROM map. The factory Coleco package and its MegaCart development producer
 use format 4 for two ordered ROM sources and one sealed map. ROM-less producers
 keep format 2.
-The external `build-inputs.json` record is format 2.
-`build_identity` still hashes a format-1 record with the original full-record
-SHA256; a format-2 record uses the domain-separated functional projection.
+The external `build-inputs.json` record is format 2. New source-closed producers
+set `parameters.identity_policy = "design-v1"` and record three validated full
+SHA256 digests under `identities`:
+
+- `design` binds the ABI, design source inputs, producer recipe, explicit P&R
+  choices and synthesis/design parameters. Its first 32 hex characters are
+  the embedded `BUILD_ID` and its full digest indexes reusable artifacts.
+- `toolchain` binds authenticated tool versions, controlled execution,
+  compiler locks, toolchain helpers and backend selection. Drift is advisory
+  for an existing design; deliberately rebuilding adopts the selected tools.
+- `record` hashes canonical record bytes before adding the derived
+  `identities` object. It includes the entire source closure, packaging code,
+  repository/revision and all execution/recording data. The SHA256 of the final
+  record bytes remains a separate receipt integrity check.
+
+`scripts/input_identity.py` is the shared projection implementation for both
+board exporters and the parent cache. Its versioned exception lists classify
+only audited packaging/record modules and tool authentication/execution modules;
+unknown files and parameters remain design inputs. Producer scripts, shared
+build helpers, ROM/layout generators, constraints and firmware remain in the
+design closure. Packaging exceptions cover the codecs/exporters, URI and Git
+provenance helpers, closure enumeration and identity recording. Toolchain
+exceptions cover bootstrap/lock parsing/cache installation, controlled execution,
+read-audit wrappers, Quartus tool location and `toolchain.lock`/`quartus.lock`.
+This is a module-boundary audit, not an automatic semantic classification of
+arbitrary future Python edits. A helper that starts generating design inputs
+must move into the design class. Native compiler read auditing rejects reads
+of excluded packaging or toolchain source files; all existing Markdown and
+source-closure checks still apply. Python recording code may read those files
+to bind their exact bytes into provenance.
+
+The full original closure remains recorded and is verified against Git history
+on every cache hit. Packaging edits therefore change recording provenance
+without requiring a rebuild. They reuse an original sealed package, rather
+than relabelling its manifest or sidecar. Recording location and provenance do
+not enter the design/toolchain projections or the manifest's toolchain label.
+The exporter retains the original primary sidecar and writes additional
+`<package-id>.<record-digest>.build-inputs.json` attestations independently.
+The cache indexes the design and stores each immutable record separately by
+its digest, containing the unchanged content-addressed package. Thus identical
+package bytes can have multiple valid records without a provenance collision.
+Package wire formats and artifact keys are unchanged by recording metadata.
+Exact-shell composition continues to bind the package ID and payload SHA256 as
+well as BUILD_ID; a shared design ID does not make different routed artifacts
+interchangeable. Video-part cache keys bind the exact package and the part's
+design inputs. A complete sealed pair reuses its original toolchain and recipe
+provenance without authenticating a newly selected compiler. Its retained
+shell proof is checked against a sealed snapshot of every original proof file;
+part source history, archive hashes, timing, clock ownership and CRAM containment
+are still validated on reuse. Missing or changed proof files fail closed. A
+missing part still requires authenticated tools and the ordinary frozen-shell
+validation/build path. Source changes invalidate the part key. Runtime identity checks still correlate the loaded core with
+its selected manifest.
+
+A design-only selection request captures committed inputs and current lock pins
+before authenticating or installing any compiler. It is explicitly marked
+`parameters.selection_only = true`; both exporters, package inspection and
+cache publication reject such a request as build evidence. A cache hit keeps
+its original authenticated execution, with built-with and currently-selected
+pins in the selection provenance receipt. A miss authenticates tools, checks
+the design key again, builds, and runs the normal timing/seal gates. A forced
+build must select its exact new execution record and cannot fall back to an
+older toolchain's artifact. Different outcomes claiming the same design and
+toolchain identity fail closed. Nightly paired checks require equal execution
+identities and normalize only manifest Git provenance; they still compare RBF,
+ROM map and all other manifest bytes.
+
+`python3 tools/identity.py /absolute/build-inputs.json` reports the identities.
+Add `--source /absolute/committed/sources/misteross --core fes.zx81` (and
+`--board de25-nano` when needed) to report built-with versus currently selected
+pins without a compiler or build. Alternatively `--current /absolute/record`
+compares two captured records. A source-only report explicitly marks execution
+comparison unavailable: it does not pretend to authenticate installed tools.
+
+Historical format-1 and format-2 records retain their original identities and
+validation. Design-v1 cache entries use a separate `design-v1/` namespace;
+legacy entries are never relabelled or used as migrated builds. Each newly
+built design therefore needs one migration build with its new embedded ID,
+normal timing/seal checks and applicable hardware acceptance (or the existing
+measured D12 exception). A packaging-only change after migration needs none of
+that when the original sealed artifact is reused. A new toolchain merely
+being available is advisory; a committed pin bump is still deliberate adoption
+and must force-build every affected core before merge. No timing, seal or HIL
+gate is relaxed by the identity split.
 
 The package exporter and inspector also recognize format 4 with two ordered ROM
 requirements and one sealed map. The factory Coleco recipe selects
@@ -1005,9 +1099,9 @@ producer (`scripts/build_fes_coleco_megacart.py`) also emits format 4. Which
 format a new core uses, and when an older format is retired, is
 [core alignment](../../../docs/core-alignment.md).
 
-Record 2 keeps repository/revision and `source_path` as original build provenance, but derives
-its embedded 128-bit ID from a domain-separated functional projection excluding
-those provenance fields. For producers without an audited manifest entry, it
+Record 2 keeps repository/revision and `source_path` as original build provenance.
+The full source closure includes packaging and toolchain inputs even where
+they do not contribute to a design-v1 embedded ID. For producers without an audited manifest entry, it
 includes every tracked regular file under `scripts/` and the owning core/board
 modules of each declared input, including shared RTL, root or core compiler locks,
 the recipe/ABI digests, authenticated
@@ -1025,8 +1119,8 @@ their original semantics, including documentation in declared roots.
 
 Factory producers, including RISC-V, select committed per-producer roots from
 `scripts/source_closures.json`, setting `parameters.source_closure_mode` to
-`audited-v1`. Their source key covers the declared import, HDL, recipe, ABI and
-toolchain-lock closure rather than the entire scripts and shared-core trees.
+`audited-v1`. Their provenance closure covers the declared import, HDL, recipe,
+ABI and toolchain-lock inputs rather than the entire scripts and shared-core trees.
 Python and traced compiler reads and directory listings enforce these roots;
 an uncovered source access fails the build. Other producers retain the broad
 roots. RISC-V's closure includes its firmware, CPU, board constraints and tool
@@ -1072,8 +1166,10 @@ outside `gpu-run`, so a normal seal does not see a grant. The sealed execution
 record sets `gpu_device` and `gpu_selection` to `lease`: gpu-run chooses any
 free GPU while nextpnr routes, after the record is sealed. The requested
 `--gpu-device` index is not that device and is not part of the digest.
-`BUILD_ID` is a synthesis parameter, so recording the granted id in the sealed
-record would change placement and RBF bytes whenever a different GPU was free.
+GPU selection remains execution provenance and does not enter a design-v1
+`BUILD_ID`. The canonical execution record keeps the lease unbound rather than
+capturing transient scheduler state; the actual grant is retained in route logs.
+Historical combined-key records retain their original hashing semantics.
 HIP and CUDA routes match each other and the CPU reference, so the bitstream
 does not depend on which physical GPU was granted. The route log line
 `FES-GPU-GRANT <id>` names the physical GPU that routed. SMS `build-summary.json`
@@ -1088,8 +1184,8 @@ Only a single routing device is supported in this lane; use
 flags size or label the request. They do not pin the lease. Execution
 inputs are rechecked before sealing and their full description is retained in
 `build-summary.json`; the canonical record includes their digest. Installation
-paths remain part of this conservative identity, so tool relocation does not
-silently reuse hardware qualification. This is an input identity, not a promise
+paths remain in toolchain and recording identity. Relocation can reuse an
+existing sealed design, but a new execution inherits no hardware qualification. This is an input identity, not a promise
 of identical placement bytes across runs. Authentication probes remain the
 existing toolchain checks; actual compiler invocations use the controlled env.
 
@@ -1101,7 +1197,7 @@ before reusing it. `verify_record_source_at_revision(root, record)` reads the
 recorded commit's exact module closure from Git objects without changing HEAD,
 the index or working files; absent history and altered member sets fail closed.
 It does not substitute for current tool authentication or payload verification.
-Existing FES whole-record matching continues to distinguish
+FES recording provenance continues to distinguish
 commits until that coordinated change lands. No new hardware acceptance is
 claimed by these host-side identity and exporter tests.
 
@@ -2373,40 +2469,34 @@ Hard-fault close and execution hold remain blocked while controller responses
 or queued guard commands are stalled; both succeed only after physical drain.
 The existing BASIC and expansion simulations remain part of `make sim-fes-zx81`.
 
-## FES ZX81 Quartus bring-up
+## FES ZX81 Quartus package
 
-`make build-fes-zx81-quartus` is the Quartus Prime Lite 17.0.2 recipe for
-`fes.zx81` 1.2.0 oracle package. It is not a Mistral/nextpnr payload
-and is not the standard socketed package. The board shell
-`cores/fes-zx81/rtl/top.v` uses two `altera_pll` cells from the 50 MHz V11
-reference: 52 MHz system (`fes_z80_nmos`, ULA, mailbox) and 74.25 MHz pixel (HDMI
-1650×750). HDMI RGB/HS/VS/CLK pins and U10/AA4 match FES Pong. The HPS I2C
-cell is at `HPSINTERFACEPERIPHERALI2C_X52_Y60_N111`; `out_clk`/`out_data`
-pull SCL/SDA low and `scl`/`sda` read the pads (Quartus assign-to-Z in place
-of Pong's `MISTRAL_IO`). The Quartus oracle compiles the same `zx81_machine.sv`
-as product simulation and the OSS shell. That module instantiates `fes_z80_nmos`
-with no Quartus-specific CPU.
+`make build-fes-zx81-quartus MODEL=zx81|zx80|ts1000|ts1500` runs
+`scripts/build_fes_zx81_quartus.py`, the Quartus Prime Lite 17.0.2 producer for
+the ZX81 family (design and decisions D1-D6: DeanoC/fes#1873). It
+authenticates `quartus_sh` against `cores/fes-zx81/quartus.lock` and Quartus's
+own front end reads the RTL; no Yosys or nextpnr is involved. The board shell is
+the same `cores/fes-zx81/rtl/top.v` (`QUARTUS=1`: HPS I2C at
+`HPSINTERFACEPERIPHERALI2C_X52_Y60_N111` with assign-to-Z pads, two
+`altera_pll` cells for the 52.224/12.288 MHz system and audio clocks and the
+74.25 MHz pixel clock). It is built without the expansion socket; the carts
+move into the shell separately (DeanoC/fes#1875).
 
-The compile defines `QUARTUS=1`. ROM, 16 KB RAM and the 16 KB media blob
-instantiate `zx81_dpram`. Its Quartus branch is `altsyncram` bidirectional
-dual-port M10K: the address is registered, the output is unregistered, and
-a same-port write returns `NEW_DATA_NO_NBE_READ`, which is one clock of
-read latency. ROM init is the project's `zx81.mif`, written from
-`FES_ZX81_ROM` (`--rom`). Simulation registers `q_a` and `q_b` on that clock
-and uses the matching hex, with the same one-cycle read. The 720p
-capture buffer is a one-dimensional M10K array
-written on `clk_sys` and registered on `pixel_clk`.
+The ROM lanes come from `cores/fes-zx81/quartus/zx81_rom_link.v` instead of
+`rtl/zx81_rom_link.v`: the same 1024x10 lanes and two-stage read, as blank
+`altsyncram` ROMs placed on `M10K_X5_Y73_N0` and up, the blocks the OSS shell
+uses. The package is format 3 with the same `m10k-1024x10-v1` `rom-map.json`,
+so the kit links the user's ROM exactly as it does for the OSS package.
 
-The recipe requires `QUARTUS_ROOTDIR`, version 17.0.2, a clean checkout and
-tracked inputs. It writes canonical `build/fes-zx81-quartus/build-inputs.json`
-before compile, embeds that record's 128-bit id as `BUILD_ID`, runs
-`quartus_sh --flow compile top`, requires TimeQuest multicorner
-Setup/Hold/Recovery/Removal/Minimum Pulse Width worst-case slack ≥ 0, no
-illegal or unconstrained clocks, and the 52 MHz system clock and the
-derived 74.25/74.27 MHz pixel clock named, then seals `manifest.toml` + `core.rbf` through the existing format-2
-exporter. Failed compiles delete the RBF, manifest and passing summary.
-The command never programs hardware. Quartus remains the kit-proven
-bring-up lane.
+Every seed in `SEEDS` must pass the complete TimeQuest gate, and an
+independent rebuild of the first seed must reproduce its RBF. The producer
+also checks the PLL output frequencies, the ROM lane placement and blank
+init files, no MLAB, the three display-plane DSP blocks and the audio pins. A
+post-fit netlist (`quartus_eda`) feeds the shared HPS DDR layout and
+session-display checks (`scripts/quartus_vo_evidence.py`). A ROM self-test
+re-assembles the fitted design with a test pattern and requires the map to
+describe exactly the CRAM bits that change. The record is functional format 2
+with `"toolchain": "quartus"`. The command never programs hardware.
 
 ## FES ZX81 OSS package
 
