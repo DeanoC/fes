@@ -21,7 +21,17 @@ module fes_x87_fast (
         logic [2:0] cc;
     } meta_t;
 
-    meta_t decoded, meta [1:6];
+    // A PACKED array, not an unpacked one. The locked Yosys
+    // (cores/fes-common/rtl/i386/toolchain.lock) reads and writes a
+    // packed-struct member of an UNPACKED-array element as a fresh undriven
+    // identifier -- `\meta[1].value' -- with a warning rather than an error,
+    // so the netlist silently computes nonsense while the RTL simulation is
+    // correct. The same code against a packed array is handled properly.
+    // DeanoC/yosys#79 has the locked-binary repro; this is the workaround it
+    // names, and unlike the whole-element-read attempt it was tried before
+    // being believed.
+    meta_t decoded;
+    meta_t [6:1] meta;
     unpack_t ua, ub;
     logic b_sign, a_larger;
     logic [63:0] large_sig, small_sig;

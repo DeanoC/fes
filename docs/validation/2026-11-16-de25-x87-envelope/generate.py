@@ -177,13 +177,14 @@ def fit_table(fits: Path) -> str:
                  + f", {r.get('virtual_ports', '?')} virtual ports")
         rows.append(f"| {record.parent.name} | {label} | {r['seed']} | "
                     f"{r['period_ns']:.3f} | {r['status']} | {used('alms')} | {pct('alms')} | "
+                    f"{used('labs')} | {pct('labs')} | "
                     f"{used('registers')} | {used('dsp_blocks')} | {used('m20k_blocks')} | "
                     f"{'-' if worst is None else f'{worst:+.3f} ns'} | "
                     f"{'-' if worst_hold is None else f'{worst_hold:+.3f} ns'} |")
     if not rows:
         return '_no fit records found_'
-    return ('| Run | Top and parameters | Seed | Period (ns) | Status | ALMs | of device | Registers | DSP | M20K | Worst setup | Worst hold |\n'
-            '| --- | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n'
+    return ('| Run | Top and parameters | Seed | Period (ns) | Status | ALMs | of device | LABs | of device | Registers | DSP | M20K | Worst setup | Worst hold |\n'
+            '| --- | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n'
             + '\n'.join(rows))
 
 

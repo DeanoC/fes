@@ -248,6 +248,22 @@ def prepare(output: Path | None, backend: str, period_ns: float, seed: int,
     return output
 
 
+def lab_resources(text: str) -> dict:
+    """The fitter's LAB row. `Total LABs: partially or completely used`, with
+    the logic and memory split beneath it."""
+    out = {}
+    m = re.search(r'^;\s*Total LABs:\s*partially or completely used\s*;\s*([\d,]+)\s*/\s*([\d,]+)',
+                  text, re.M)
+    if m:
+        out['labs'] = {'used': float(m.group(1).replace(',', '')),
+                       'available': float(m.group(2).replace(',', ''))}
+    for key, name in (('logic_labs', 'Logic LABs'), ('memory_labs', 'Memory LABs')):
+        m = re.search(rf'^;\s*--\s*{name}[^;]*;\s*([\d,]+)', text, re.M)
+        if m:
+            out[key] = {'used': float(m.group(1).replace(',', ''))}
+    return out
+
+
 def entities(text: str) -> list[dict]:
     """The fitter's resource table by entity. This is the evidence that the
     arithmetic the selection did not choose is not merely unused but absent:
@@ -301,6 +317,12 @@ def compile_project(output: Path, tool: Path, version: str) -> dict:
             b.run(command, output, label, deadline)
         text = fitted.read_text(errors='replace')
         record['resources'] = b.resources(text)
+        # LABs as well as ALMs, because LAB occupancy is what refused the
+        # DE10 -- #1889's 4,292 against 4,191 was a LAB count -- and it runs
+        # well ahead of ALM occupancy, since ALMs sit sparsely across LABs
+        # until the fitter is under pressure. The board builder's resources()
+        # has no LAB row; this reads it from the same report.
+        record['resources'].update(lab_resources(text))
         record['entities'] = entities(text)
         record['timing'] = json.loads((output / 'timing.json').read_text())
         # Amended rule 7, matched on exact leaf names from the dump above.
@@ -336,6 +358,7 @@ def compile_project(output: Path, tool: Path, version: str) -> dict:
             try:
                 text = fitted.read_text(errors='replace')
                 record['resources'] = b.resources(text)
+                record['resources'].update(lab_resources(text))
                 record['entities'] = entities(text)
             except BaseException as parse_error:
                 record['resource_parse_error'] = str(parse_error)
