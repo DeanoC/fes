@@ -2914,16 +2914,22 @@ module fes_i386_x87 #(
                 // is what lets one mux renormalise every product. The seed is
                 // v/1024 with v in [513, 1022], so it is left-aligned to bit
                 // 63 with an exponent of -1.
-                Q_SEED: begin
-                    qy_s <= {rsq_q, 54'd0};
+                Q_SEED: if (X87_BACKEND == 0) begin
+                    // Guarded on the parameter for the reason A_SUM's arm gives: with
+                    // the DE25 core selected this state is unreachable and its
+                    // datapath is not built.
+                                        qy_s <= {rsq_q, 54'd0};
                     qy_e <= -6'sd1;
                     ua_mul <= oa_m;
                     ub_mul <= {rsq_q, 54'd0};
                     mul_start <= 1'b1;
                     seq <= Q_AY;
                 end
-                Q_AY: if (mul_done) begin
-                    // z = a*y, then start z*y.
+                Q_AY: if (X87_BACKEND == 0 && mul_done) begin
+                    // Guarded on the parameter for the reason A_SUM's arm gives: with
+                    // the DE25 core selected this state is unreachable and its
+                    // datapath is not built.
+                                        // z = a*y, then start z*y.
                     qz_s <= norm_hi(mul_p);
                     qz_e <= norm_e(6'sd1 + {5'd0, sq_p} + qy_e, mul_p[127]);
                     ua_mul <= norm_hi(mul_p);
@@ -2931,8 +2937,11 @@ module fes_i386_x87 #(
                     mul_start <= 1'b1;
                     seq <= Q_AY2;
                 end
-                Q_AY2: if (mul_done) begin
-                    // t = 3 - a*y^2, aligned by the exponent difference and
+                Q_AY2: if (X87_BACKEND == 0 && mul_done) begin
+                    // Guarded on the parameter for the reason A_SUM's arm gives: with
+                    // the DE25 core selected this state is unreachable and its
+                    // datapath is not built.
+                                        // t = 3 - a*y^2, aligned by the exponent difference and
                     // renormalised. 3 is 0xC000...  with an exponent of 1, and
                     // a*y^2 is close to one, so the difference is close to two
                     // and needs at most a couple of bits of normalisation.
@@ -2970,8 +2979,11 @@ module fes_i386_x87 #(
                     mul_start <= 1'b1;
                     seq <= Q_Y;
                 end
-                Q_Y: if (mul_done) begin
-                    // y <- y*t/2: the halving is one off the exponent.
+                Q_Y: if (X87_BACKEND == 0 && mul_done) begin
+                    // Guarded on the parameter for the reason A_SUM's arm gives: with
+                    // the DE25 core selected this state is unreachable and its
+                    // datapath is not built.
+                                        // y <- y*t/2: the halving is one off the exponent.
                     qy_s <= norm_hi(mul_p);
                     qy_e <= norm_e(qy_e + qt_e, mul_p[127]);
                     if (gs_it > 2'd1) begin
@@ -2987,8 +2999,11 @@ module fes_i386_x87 #(
                         seq <= Q_RES;
                     end
                 end
-                Q_RES: if (mul_done) begin
-                    // q = a*y, the square root's estimate. Its exponent is 0
+                Q_RES: if (X87_BACKEND == 0 && mul_done) begin
+                    // Guarded on the parameter for the reason A_SUM's arm gives: with
+                    // the DE25 core selected this state is unreachable and its
+                    // datapath is not built.
+                                        // q = a*y, the square root's estimate. Its exponent is 0
                     // where q is in [1, 2) and **-1 where q is just below
                     // one**, which is what happens when the true root is an
                     // exact power of two: the iteration converges to it from
@@ -3026,8 +3041,11 @@ module fes_i386_x87 #(
                 // one: the radicand shifts by 67 + parity - 2*drop, which is
                 // negative at PC 24, and the bits that shift out of it feed
                 // the sticky.
-                Q_REM: if (mul_done) begin
-                    logic signed [8:0] qsh;
+                Q_REM: if (X87_BACKEND == 0 && mul_done) begin
+                    // Guarded on the parameter for the reason A_SUM's arm gives: with
+                    // the DE25 core selected this state is unreachable and its
+                    // datapath is not built.
+                                        logic signed [8:0] qsh;
                     logic [31:0]       chi;
                     logic [95:0]       rad;
                     qsh = 9'sd67 + 9'($signed({1'b0, sq_p}))
@@ -3044,8 +3062,11 @@ module fes_i386_x87 #(
                     dv_pow <= 96'd1 << (2 * sq_steps(wprec) - 4'd2);
                     seq <= D_TAIL;
                 end
-                Q_FIN: begin
-                    logic [5:0] dr;
+                Q_FIN: if (X87_BACKEND == 0) begin
+                    // Guarded on the parameter for the reason A_SUM's arm gives: with
+                    // the DE25 core selected this state is unreachable and its
+                    // datapath is not built.
+                                        logic [5:0] dr;
                     dr = dv_drop(wprec);
 `ifndef SYNTHESIS
                     // The same contract for the square root: the remainder

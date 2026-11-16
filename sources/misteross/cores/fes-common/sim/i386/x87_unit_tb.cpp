@@ -1205,17 +1205,42 @@ int main(int argc, char **argv) {
             u.load(OP_FLD_M80, FMT_F80, four);   // ST(0) <- 4.0
             // FDIV ST(0),ST(1): D8 F1. Commit it, then squash a younger
             // instruction while its arithmetic is still running.
-            u.present(0x0f1, 0, true, true, 0);
-            u.commit(0, 0, true);
-            for (int n = 0; n < 4; ++n) u.tick();   // mid-operation
-            u.top.flush = 1;
-            u.tick();
-            u.top.flush = 0;
-            u.settle();
-            u.st0(got2);
-            if (u.top.busy_o) bad("flush-during-divide", "the unit stayed busy");
-            else if (got2[9] != 0x40 || got2[8] != 0x00) bad("flush-during-divide", hex80(got2));  // 4.0/2.0 = 2.0
+            // The flush is SWEPT across the operation rather than pulsed at one
+            // offset. A divide takes tens of clocks and the offset at which the
+            // backend is actually running is not something the bench should
+            // assume: the first version of this case pulsed at 4 clocks, which
+            // is still in the envelope's dispatch, and a deliberately wrong
+            // `.flush(flush)` mapping passed it. Sweeping means at least one
+            // offset lands inside the recurrence, and that mapping now fails.
+            int flush_bad = 0;
+            std::string flush_first;
+            for (int at : {2, 4, 8, 12, 16, 24, 32, 40, 48, 56, 64, 72, 80}) {
+                u.clear_latch();
+                u.reg_form(OP_FNINIT);
+                u.load(OP_FLD_M80, FMT_F80, two);
+                u.load(OP_FLD_M80, FMT_F80, four);
+                u.present(0x0f1, 0, true, true, 0);
+                u.commit(0, 0, true);
+                for (int n = 0; n < at; ++n) u.tick();
+                u.top.flush = 1;
+                u.tick();
+                u.top.flush = 0;
+                u.settle();
+                u.st0(got2);
+                const bool wrong = u.top.busy_o || got2[9] != 0x40 || got2[8] != 0x00;
+                if (wrong && !flush_bad++)
+                    flush_first = "at " + std::to_string(at) + " clocks: " +
+                                  (u.top.busy_o ? std::string("the unit stayed busy")
+                                                : hex80(got2));
+            }
+            if (flush_bad) bad("flush-during-divide",
+                               std::to_string(flush_bad) + " offsets, first " + flush_first);
             else ok("flush-during-divide");
+            u.clear_latch();
+            u.reg_form(OP_FNINIT);
+            u.load(OP_FLD_M80, FMT_F80, two);
+            u.load(OP_FLD_M80, FMT_F80, four);
+            u.reg_form(0x0f1);
             // And the unit takes a fresh operation afterwards.
             u.reg_form(OP_FCHS);
             u.st0(got2);
@@ -1236,7 +1261,7 @@ int main(int argc, char **argv) {
             u.load(OP_FLD_M80, FMT_F80, four);
             u.present(0x0f1, 0, true, true, 0);
             u.commit(0, 0, true);
-            for (int n = 0; n < 4; ++n) u.tick();
+            for (int n = 0; n < 40; ++n) u.tick();   // inside the recurrence
             u.top.f1 = 1;
             u.tick();
             u.top.f1 = 0;

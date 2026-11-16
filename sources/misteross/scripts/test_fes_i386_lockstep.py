@@ -540,14 +540,17 @@ def verilate(verilator: i386_verilator.LockedVerilator, linked: list[Path], jobs
         # A flattened, purged netlist has no hierarchy, so the bench cannot
         # read the x87's sim-only backend counters there; the define tells it
         # so, as the x87 unit runner's netlist mode already does.
-        warnings = [*frontend.NETLIST_WARNINGS, '+define+FES_I386_NETLIST']
+        warnings = [*frontend.NETLIST_WARNINGS]
     else:
         design = [RTL / path for path in CPU_RTL]
         warnings = []
     command = [str(verilator.path), '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', TOP,
                '-Wall', '-Wno-UNUSEDSIGNAL', *warnings, '--Mdir', str(output),
                *(f'-G{name}={value}' for name, value in sorted((parameters or {}).items()) if not yosys),
-               '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -I{DDR_MODEL}', '-LDFLAGS', '-pthread',
+               # -D, not +define+: the guard is in the C++ testbench, not the RTL. A
+               # flattened netlist has no hierarchy for the x87's backend counters.
+               '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -I{DDR_MODEL}'
+                         + (' -DFES_I386_NETLIST' if yosys else ''), '-LDFLAGS', '-pthread',
                *map(str, design), str(SIM / 'lockstep_tb.cpp'), *map(str, linked)]
     log = output / 'build.log'
     with log.open('w') as stream:
