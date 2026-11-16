@@ -1,0 +1,44 @@
+{
+  "status": "passed-actual-forward-and-rollback-wire-controls",
+  "rows": [
+    {
+      "source": "/home/deano/fes/out/dev/de25-source-release/out/usb-close-candidate-trial/attempt/forward",
+      "proof": {
+        "status": "passed-actual-nonce-bound-FIT-refresh-wire",
+        "direction": "forward",
+        "plan_sha256": "4a21f84187efab5abda2d4402e6d8a5abf9c7309186731d4cf8407a6c1627d05",
+        "raw_sha256": "454cb6b60e74bd3bb5be88e70f21c3d33adf31160bf01ccd35df565ac6b29982",
+        "raw_bytes": 242978,
+        "raw_commands": 813,
+        "readbacks_before": 17,
+        "readbacks_after": 17,
+        "target_FIT_sha256": "4831f267f89c66513c608c07ab720827f4f6df46a5d480c5fc5b4b82c179c7a4",
+        "SD_file_writes": 1,
+        "activation": false,
+        "native_boot_verified": false,
+        "Secure_SMMU_reset_qualified": false,
+        "DMA_authority": false
+      }
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-source-release/out/server-traced-warm-restoration/attempt/rollback",
+      "proof": {
+        "status": "passed-actual-nonce-bound-FIT-refresh-wire",
+        "direction": "rollback",
+        "plan_sha256": "f09448d89ed60d673d116394e7ebd5b429107df070cedfe26e4cb695f8e92ccc",
+        "raw_sha256": "e3625578ea5402d1b6c179122080a4f5c899bbe2fd9e8a3ff5d21ed105124848",
+        "raw_bytes": 242970,
+        "raw_commands": 813,
+        "readbacks_before": 17,
+        "readbacks_after": 17,
+        "target_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+        "SD_file_writes": 1,
+        "activation": false,
+        "native_boot_verified": false,
+        "Secure_SMMU_reset_qualified": false,
+        "DMA_authority": false
+      }
+    }
+  ],
+  "hardware_actions": false
+}

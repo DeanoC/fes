@@ -1,0 +1,10 @@
+{
+  "status": "passed",
+  "files": 3862,
+  "archive": "/home/deano/fes-retained/de25-rom-board-20261105-r1/evidence.tar.gz",
+  "archive_bytes": 1190047370,
+  "archive_sha256": "e3f22c472412f9eb92c954ee37848f767382e5a6c1e009655e6a3a058c4456df",
+  "all_members_read_back_and_hashed": true,
+  "source_restore": "source-restore-result.json",
+  "implementation": "c60747191ea560a83c43c96307f04ced0f180477"
+}

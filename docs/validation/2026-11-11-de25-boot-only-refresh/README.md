@@ -1,0 +1,16 @@
+# Refreshing only the staged native boot image
+
+The spare test card contains the prior fc2cec132701a0d8 staged FIT, while the current matched chain has boot ID 6f54fe7c04d34128. The old read-only existing-staging procedure therefore cannot validate the new target without a staged boot refresh. Re-uploading unchanged cores and the installer catalog is unnecessary for this CPU-image change.
+
+installer_boot_refresh.refresh_staged_boot consumes independently pinned immutable bytes for the previous FIT, the replacement FIT, all thirteen remaining staged sources and explicit installed records. It requires a fresh UploadSession, checks the complete old set before any download, uploads only FES/UPLOAD.BIN through the existing bounded Ethernet/write/readback implementation, and freshly checks the full set afterward. It uses one session throughout, closes on success or failure and retains partial evidence. The existing recovery boot files remain protected by UploadSession. Any uncertain write is terminal; there is no retry, rollback, activation, raw SD write or boot command.
+
+The source-bound plan preserves the fourteen-role catalog, its empty bootstrap and the existing 754-byte ZX81 record. It binds the old FIT to the prior physical upload evidence and pins the new FIT to the matched chain. Neither the plan nor this helper grants live execution authority. An operator still needs fresh source/claim/USB/UART/recovery admission and an outer time bound. Physical resolution of the prior disconnected USB startup remains required before another paired hardware attempt.
+
+Validation:
+
+- All 27 focused read-only recovery and boot-refresh tests pass. The nine new tests exercise complete success, corrupt prior/source bytes, invalid inputs/session adoption, interrupted download, download hash mismatch, uncertain/short writes, changed protected recovery files, changed preserved sources/records after a write, ownership loss, foreign receipts, close failures and receipt replay.
+- A controlled run using the actual old/new FITs and staged artifact bytes performs exactly one fixed staged-boot write, checks fifteen expected files before and after, and preserves the remaining files. Corrupt old FIT and alternate metadata cases stop before network/write; changing the installed record after the write prevents success. These are injected console/model results, not physical writes.
+- make test-changed passes against the base recorded in result.json. Its parent suite includes the new tests; generated-consumer consistency also passes.
+- Rechecking all selected native SDK, entry, BL31, U-Boot and composition inputs plus compiler/ELF/FIT/SOF hashes confirms this host-only change leaves the previously built chain valid. It requires no native rebuild, but does require fresh operator admission.
+
+The hardware USB failure, two-core installation/reboot-discovery acceptance and native Ethernet qualification remain open. No kit programming, SD write, recovery retry or factory restoration was performed during this work. The next integration step is to bind this boot-refresh phase into a newly admitted bounded installer operator, then perform the physical install and independent reboot/discovery test after resolving the USB connection check.

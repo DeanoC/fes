@@ -1,0 +1,284 @@
+{
+  "serial": "TRWU8CBL",
+  "source_commit": "c93ae266c46c8996a7a64073172d6563999aed91",
+  "phase": "native",
+  "native_build_source_commit": "c93ae266c46c8996a7a64073172d6563999aed91",
+  "sof_sha256": "b51aab8cd9e0b04b6c14b5df3833ba99f37af36080dc72e3932510cb1d82f950",
+  "initial_card_image_sha256": "42ac2e14fcb224fb8f39c38b0f26e7999b31c800180bd22489619fdc39f4bacf",
+  "card_reference_scope": "historical preparation only; live file verification is in the new upload receipt",
+  "fit_sha256": "1a842db7546192697270b59a2e346b60204184841dff27f9406bee83dff88da0",
+  "started_utc": "2026-11-01T21:00:00.924608+00:00",
+  "stage": "PASS native",
+  "programming_attempted": true,
+  "fesboot_sent": true,
+  "pass": true,
+  "sd_write_commands_sent": false,
+  "qualified_recovery_receipt_sha256": "7829154d78e60abbe092f0512d3ef4da2034ea233a30b0160844b6c15a1b181e",
+  "live_card_receipt_sha256": "636682e3c88911d4061e1b0d8f635959a9fb1dcaa7b0a6ac21e61e1c8693730d",
+  "prior_stop_receipt_sha256": "0de9c062090704d60cc8dc7f650bddbcb35829300e0614df7cfd86d96cdaed55",
+  "runner_sha256": "6c717268847e4aa56030e605300f3a514152678b0f0c937fd35dbd500ec36dee",
+  "clock_checks": [
+    {
+      "clock": "6M",
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    },
+    {
+      "clock": "6M",
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    }
+  ],
+  "jtag_id": "4362C0DD",
+  "boot_trace": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "447cbedd1ea129a9"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 6697396214834163159,
+          "epoch": 4404355723,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 41,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 45,
+        "values": {
+          "id": "447cbedd1ea129a9"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 49,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 61,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 62,
+        "values": {
+          "id": "447cbedd1ea129a9"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 63,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216373888,
+          "malloc_start": 3216408576,
+          "malloc_end": 3220611072,
+          "reloc": 3220611072,
+          "fdt": 3216383136
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 70,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 6697396214834163159,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 79,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 6697396214834163159,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 80,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 81,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 82,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 83,
+        "values": {}
+      },
+      {
+        "stage": "hps_context",
+        "line": 84,
+        "values": {
+          "sha256": "94da3557f175eae05144d70937c3afceda20c6c9f9ca9d25155535da3e0814fc",
+          "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+          "build_id": "e25bb65a1d14a2bbbddf4c770ea033e5",
+          "owner": 6697396214834163159,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "fpga_query",
+        "line": 85,
+        "values": {}
+      },
+      {
+        "stage": "fpga_status",
+        "line": 86,
+        "values": {
+          "status": 0,
+          "words": 6,
+          "state": 0,
+          "version": 1704704,
+          "pins": 3221225609,
+          "soft": 1,
+          "error_location": 0,
+          "error_details": 15,
+          "ready": 0
+        }
+      },
+      {
+        "stage": "fpga_status_closed",
+        "line": 87,
+        "values": {
+          "ready": 0,
+          "owner": 6697396214834163159,
+          "generation": 1
+        }
+      }
+    ],
+    "errors": [],
+    "loader_ready": true,
+    "complete": true,
+    "last_checkpoint": "fpga_status_closed",
+    "core_load_acceptance": false
+  },
+  "programming_complete": true,
+  "build_id": "447cbedd1ea129a9",
+  "secure_cold_boot_verified": true,
+  "native_fpga_status_expected": {
+    "sha256": "94da3557f175eae05144d70937c3afceda20c6c9f9ca9d25155535da3e0814fc",
+    "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+    "build_id": "e25bb65a1d14a2bbbddf4c770ea033e5",
+    "control_abi": 270544960,
+    "cpu_base": 536937472,
+    "map_sha256": "bc13d4774a2f80683d42d70e8440d487c20b232da4281d5a1706c337ba176796"
+  },
+  "physical_activation": false,
+  "endpoint_access_requested": false,
+  "ownership_snapshots": [
+    [
+      "before-entry",
+      "46424f31000000df",
+      "5cf1ee5f813c6dd7",
+      "1"
+    ],
+    [
+      "after-remove",
+      "46424f31000000df",
+      "5cf1ee5f813c6dd7",
+      "1"
+    ]
+  ],
+  "observed_markers": [
+    "spl",
+    "initial",
+    "scope",
+    "mmc",
+    "fit",
+    "spl_handoff",
+    "provider",
+    "uboot",
+    "dram",
+    "prompt",
+    "boot",
+    "memory",
+    "before-entry",
+    "after-remove",
+    "live",
+    "handoff",
+    "el2",
+    "el1",
+    "hps_context",
+    "fpga_query",
+    "fpga_status",
+    "fpga_status_closed"
+  ],
+  "usb_permissions_restored": true,
+  "console_sha256": "66872b6504bf919ec1aa4170e617c82f49eea9e6b7af13550562a1ad32c60397",
+  "finished_utc": "2026-11-01T21:00:25.777313+00:00",
+  "decoder_sha256": "b48e96e6d60596fe07a9a259a915cf3d3eac1e45c67912e5db55b09c8366d02d"
+}

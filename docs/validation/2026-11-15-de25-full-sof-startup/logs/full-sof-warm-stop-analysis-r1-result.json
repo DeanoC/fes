@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/publication/analyse-full-sof-warm-stop.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 1,
+  "timed_out": false,
+  "elapsed": 0.4014015211723745,
+  "log_sha256": "5e03fd4eec078259e6eb3f96ba4f6d0f1fc0e76c8b5e1e40cd610a5b271e3019"
+}

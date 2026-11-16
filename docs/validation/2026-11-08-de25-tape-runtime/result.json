@@ -1,0 +1,297 @@
+{
+  "base": "8f4769d8805fb5a7c241232e63f876134a844c0f",
+  "board_touched": false,
+  "boot_chain": {
+    "artifacts": {
+      "bl31": {
+        "bytes": 237893,
+        "path": "out/nano-tape-runtime-20261108/native-bl31/source/build/agilex5/release/bl31.bin",
+        "sha256": "f732d74fe6bbb23ea0a4b7b25c7385bae57cf0199f8c9ebc92738acbea854a20"
+      },
+      "core": {
+        "bytes": 1654784,
+        "path": "out/nano-tape-runtime-20261108/native-composition/native-hps-first.core.rbf",
+        "sha256": "1da457bc4afbfce297222fa8d85754fbd4533198be7dc9f706926ce21103b949"
+      },
+      "entry": {
+        "bytes": 7614464,
+        "path": "out/nano-tape-runtime-20261108/native-entry/entry.img",
+        "sha256": "87ec449ac622e50e1f5fa83a89eb0908545cb9f8e80efc800649660e4f4b31b5"
+      },
+      "fit": {
+        "bytes": 8309296,
+        "path": "out/nano-tape-runtime-20261108/native-uboot/build/u-boot.itb",
+        "sha256": "4551fed5bfe889aa22f1a85831a28c3725c8c8f16b169f1f161d8cd117c3c860"
+      },
+      "phase1": {
+        "bytes": 831488,
+        "path": "out/nano-tape-runtime-20261108/native-composition/native-hps-first.hps.rbf",
+        "sha256": "75f208f904e0cd1a2ee2d25489816a8d842e66a807528b9fae28528c1d3e3fd2"
+      },
+      "sdk": {
+        "bytes": 15737007,
+        "path": "out/nano-tape-runtime-20261108/native-sdk/fpgaload.elf",
+        "sha256": "52a4b2c382a705f0af439f9d238886fd2c8565fce873379c02d6bc0d27f0af32"
+      },
+      "sof": {
+        "bytes": 1578888,
+        "path": "out/nano-tape-runtime-20261108/native-composition/native-hps-first.sof",
+        "sha256": "e3603ca03d6ac5b7455d360bfcef148625efc4384583943432d5002b1214aa88"
+      },
+      "spl": {
+        "bytes": 461189,
+        "path": "out/nano-tape-runtime-20261108/native-uboot/build/spl/u-boot-spl-dtb.hex",
+        "sha256": "316b3f2a7328388de722885aaced58839dbcd9c9492b29232266eb144797b534"
+      }
+    },
+    "bl31_load_segments": [
+      [
+        327680,
+        385536
+      ],
+      [
+        2147483648,
+        2147721541
+      ]
+    ],
+    "chain_sha256": "0a330b775c69184142564aaa59667ae8e241d640ecd138e3412cdf8be1075ed9",
+    "composition_classification": "unqualified HPS-first native SPL file composition",
+    "core_payload_unchanged": true,
+    "embedded_spl_identity": {
+      "chunks": [
+        {
+          "address": 0,
+          "size": 65536
+        },
+        {
+          "address": 65536,
+          "size": 65536
+        },
+        {
+          "address": 131072,
+          "size": 32887
+        }
+      ],
+      "format": "nano-sof-gzip-hps-literals",
+      "hardware_programming_or_boot_acceptance": false,
+      "preserved_sections": 11,
+      "security_hash_and_configuration_crc_verified": false,
+      "spl_binary_sha256": "f9429762a9dae31c275c73af366de12324dfc226c1443d11def34a3d88153813",
+      "spl_bytes": 163959,
+      "spl_hex_sha256": "316b3f2a7328388de722885aaced58839dbcd9c9492b29232266eb144797b534"
+    },
+    "initial_tape": true,
+    "native_boot_id": "e93ab2e295f96494",
+    "ocram_limit": 393216,
+    "ocram_private_end": 385536,
+    "ocram_private_remaining_bytes": 7680,
+    "original_secure_ram_elf_checks": "passed",
+    "physical_programming_admission": false,
+    "post_composition_digest_count": 2259,
+    "post_composition_integrity_sha256": "82b0868981b6590574d5133dae38c81d5cc307bcdd819e6e983c4a111d78ffab",
+    "receipt_sha256": {
+      "native-bl31": "468ae2806bd025eed76812723a00918abbe0eb29c936fbc1f398b25b07bfd7a0",
+      "native-composition": "c3eb7ee0d31f1351781da7544f7211e5f15c8a513b25868b7723e7a58020b174",
+      "native-entry": "ace7a62a7938287f6ed7c2df5672a87e6a256e33cd7ab462f95532f50c066efe",
+      "native-sdk": "d711121ff2d69e5bba3cbcbef7ae649320ad008ffb3b5c60f3e6fb99828910d9",
+      "native-uboot": "5eeac260ae32a19e6fd64856033c3de7732237e0130fc5b1a49d4a2d6244ace1"
+    }
+  },
+  "build_provenance": {
+    "buildinfo_sha256": "ef075aa6c634d72850758d34fe2aa7cce939c59e85357ed4a28a04f3756065c9",
+    "embedded_go_vcs_modified": true,
+    "embedded_go_vcs_revision": "e3507371fd5cfa78ea9789e608f0df2da11c929b",
+    "note": "Source inputs were built before their commit. File SHA-256 closures match the recorded source commit; embedded Go VCS metadata differs and is not represented as a clean HEAD build.",
+    "source_digest_closures_match_committed_source": true
+  },
+  "changes": [
+    "Eligible native CPU transport implements InitialTapePlatform through the actual pinned ConfigurationArena publisher.",
+    "SDK, entry, firmware and cold boot profiles explicitly agree on initial_tape; incomplete, mixed or unlinked selections reject.",
+    "Secure tape invocation permits only fixed operation/owner/generation/cookie and zero unused arguments, with existing mapping checks.",
+    "Owned dispatch emits one cached failure record after containment, without extra MMIO or timer work.",
+    "Native verifier includes host race tests joining actual board wrapper, publisher and actual C service."
+  ],
+  "checks": {
+    "affected_commands": 11,
+    "board_actual_C_subcases": 6,
+    "board_top_level_race_tests": 3,
+    "fpga_existing_skips": 79,
+    "fpga_software_tests": 1595,
+    "incomplete_compile_selections_rejected": 5,
+    "jobs": {
+      "bl31-selected": {
+        "argv": [
+          "python3",
+          "out/nano-tape-runtime-20261108/bl31.py"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 242.34319134010002,
+        "log_sha256": "902b8019b4f6d2670b0ab934f60b142120e62f1ec497a9d72c0bd8241c2b9013",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "board-hook": {
+        "argv": [
+          "/bin/bash",
+          "-c",
+          "cd platform/embedded/tamago && /home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go test -race -count=1 -v ./board/de25nano"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 4.002615886973217,
+        "log_sha256": "32fd7688b03717f0d12fcefb28f199777de42f630622ad06129371be04a7fa37",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "composition-selected": {
+        "argv": [
+          "python3",
+          "out/nano-tape-runtime-20261108/compose.py"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 70.84135762508959,
+        "log_sha256": "4f5c24f12a73f48a17adb8696755cc5f3cb9ad82930fdd238f61a4a72b40b52c",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "consistency-committed": {
+        "argv": [
+          "make",
+          "check"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 10.007041451055557,
+        "log_sha256": "bf5f7269d6cdf27a6a66726a196436ec78b1a1b4de03ef8fb0467264b2578ff9",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "matched-file-integrity-2": {
+        "argv": [
+          "python3",
+          "out/nano-tape-runtime-20261108/admit-files-2.py"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 0.4008128729183227,
+        "log_sha256": "c3bf15d1c8a47e9bbf70c28dc31d606273cbc43ab33f3318118d276ba1f6c9f0",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "native-entry-selected": {
+        "argv": [
+          "python3",
+          "out/nano-tape-runtime-20261108/entry.py"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 64.83526659710333,
+        "log_sha256": "a690afcc549b9541ed5d47cba516f578e315b496c1deeebb55416f1311f2b6f9",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "selection-complete-2": {
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "-v",
+          "test_nano_initial_tape",
+          "test_nano_hps_context",
+          "test_nano_rom_context",
+          "test_nano_shared_usb_selection",
+          "test_nano_combined_program",
+          "test_nano_tenfoot_serial"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 1.001414777012542,
+        "log_sha256": "e046c71c97785449148549bd4f4288a245ab788225d6ad7af7af01529a47a083",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "selection-sdk": {
+        "argv": [
+          "python3",
+          "out/nano-tape-runtime-20261108/sdk.py"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 81.6436611590907,
+        "log_sha256": "11f6cb9ea3aae344005cea4fd7241a7c6e5429a17efe4f846ab612e45657d3ce",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "strong-diagnostics": {
+        "argv": [
+          "/bin/bash",
+          "-c",
+          "FES_NANO_MIXED_COLD_EVIDENCE=out/nano-tape-runtime-20261108/strong python3 -m unittest -v test_nano_mixed_cold"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 12.809274930041283,
+        "log_sha256": "f0f4306125db864718257d59bc228ef580829ea7a82e14084ef08409f7caa10d",
+        "returncode": 0,
+        "timed_out": false
+      },
+      "uboot-selected": {
+        "argv": [
+          "python3",
+          "out/nano-tape-runtime-20261108/uboot.py"
+        ],
+        "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+        "elapsed": 341.79235406406224,
+        "log_sha256": "4f07f7c9f7cdda7d15374d1acb27bd243e957d7ab15f212fd52fd033bacdb156",
+        "returncode": 0,
+        "timed_out": false
+      }
+    },
+    "make_check": "passed,52 generated consumers/37 fixture copies",
+    "parent_existing_skips": 3,
+    "parent_tests": 1706,
+    "selection_tests": 43,
+    "strong_provider_scenarios": 38
+  },
+  "classification": "native CPU hook, secure tape selection and matched boot-chain software validation",
+  "evidence_boundaries": [
+    "Actual matched firmware/runtime/entry/SPL/FIT/SOF files built; composition producer performed full native/context checks.",
+    "Post-composition proof independently checks source/artifact digests, receipt agreement, embedded SPL and unchanged core. It does not repeat full context derivation.",
+    "Board/C-service tests inject hardware responses; secure RAM link is not cumulative stack or physical timing acceptance.",
+    "Original one-second tape deadline and ownership guards unchanged. No hardware trial occurred in this milestone."
+  ],
+  "evidence_directory": "out/nano-tape-runtime-20261108",
+  "goal_complete": false,
+  "hardware_acceptance": "not-run",
+  "ordinary_core_load_acceptance": false,
+  "remaining": [
+    "Retain source and complete closed evidence.",
+    "Freeze a new bounded TRWU8CBL procedure with zero prior attempts on the changed native image; previous ba2f procedure remains consumed.",
+    "Verify917-byte tape publication, core launch and menu return on hardware within original bounds.",
+    "Physical ROM tape consumption, visible launcher/core output, physical input, ordinary package/media/network support and full DE10-equivalent appliance acceptance remain open."
+  ],
+  "retained_unsuccessful_checks": [
+    "selection-complete: incorrect test fixture key, fixed in selection-complete-2",
+    "matched-admission: additional full context-derivation audit timed out at180s without result; not passing evidence",
+    "matched-file-integrity: helper initially expected built instead of SDK cross-built status, corrected in matched-file-integrity-2"
+  ],
+  "source_commit": "211ab49464df5ed93c31f33312a6567f2c4b32e3",
+  "source_sha256": {
+    "platform/embedded/entry/build.py": "2a6fcbd7cf68f699a6a38727a5360a5de3b5a7780e9500ca62521808e45c00de",
+    "platform/embedded/firmware/README.md": "63dd75218ee28dea64d102ee8061c6c736294fc557f6cb44e8e2107ebc7ebc42",
+    "platform/embedded/firmware/nano_bridge_platform.h": "e322b9e2b1fba878921e32811076342847add55bf238b1d7c65774a16cac93e4",
+    "platform/embedded/firmware/nano_computer_control.inc": "bd66810294d2cd11f772327d4860e732b10914587a2da201a5cee3b22e9da031",
+    "platform/embedded/firmware/nano_tape_platform.inc": "73672946fca64dae3ba2ba54304a229ab5d57e3b634e826f8a4986595b7c582d",
+    "platform/embedded/nano/cold_profile.py": "8ed276dec0eac2b45b0fe60c513195fa3526a711e46a1c66ee3e7f2207fa71d6",
+    "platform/embedded/nano/hps_context.py": "d41c299c0e4be040d18b9ad6b7d4ea6f831064b5719f0afb5c9480a7f7281b68",
+    "platform/embedded/nano/initial_tape.py": "eadfedcb3dd4d2c96da830268a773fc5c631cc44f1eedeba669c343dce686e42",
+    "platform/embedded/tamago/README.md": "6eaf4fc223252bdf2b8c36e1278bf1e902b99335f7b9bcddd8f9849f66b7e16c",
+    "platform/embedded/tamago/board/de25nano/configuration.go": "690fac84b119b5150313da4b53b729537f24828307e8596eacc4e90d57a5a555",
+    "platform/embedded/tamago/board/de25nano/fabric.go": "55867d61c88ef57b07d305905539614780b16bca5f17c31b1e4dd034024538c5",
+    "platform/embedded/tamago/board/de25nano/initial_tape.go": "31093e8764fd031d3da6abcac06aaefaca4d72571525da8e261a22b107e63dcf",
+    "platform/embedded/tamago/board/de25nano/initial_tape_test.go": "293971cc1d2d02e48c9cca87b1a58ca211b0d33c23c78c6e03ffa01d63189c83",
+    "platform/embedded/tamago/build.py": "0059e3392b965c4e2c29ca6bb979128afe67f2698b372f69a6746559ee499e85",
+    "platform/embedded/tamago/cmd/fpgaload/main.go": "5d10b17d3da19365200b3aceb2b92b40eb3f574d082ad951b17943f6182ae21b",
+    "platform/embedded/tamago/nativefabric/README.md": "984e90bb87cdf2ea4f9e6aa7ae7113aad1926a6d58e44af3b436c9248aa13caa",
+    "platform/embedded/tamago/nativefabric/verify.py": "722a01660583aa423519662abefff9896e9a3ac6f34f3478d93cee37f19ac7b4",
+    "platform/embedded/tamago/run.py": "579d679acc4ce7274fd31c4f6ffc3a692ce2e6dbeb9042f6a4d23c2d95970643",
+    "sources/mister-packages/README.md": "d61c3ce2634519fd030a856e3f5a203717526b136c46b43857f80bf834f04437",
+    "sources/mister-packages/docs/embedded-tape.md": "b1ca09bf374b1834f3c60e123e93c49a5968a6d01fea2c2a9e834e7cb677553a",
+    "tests/test_nano_initial_tape.py": "663043d6e75860f613fecc22cd03f8a44e55bf4d0d624ae93888b88b677ea558",
+    "tests/test_nano_mixed_cold.py": "31673f6327b471d1442302ae944df434f11eea366ff579abddd3e2ec2c2ed9c2"
+  },
+  "status": "passed"
+}

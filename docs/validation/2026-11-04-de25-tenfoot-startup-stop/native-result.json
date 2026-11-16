@@ -1,0 +1,312 @@
+{
+  "serial": "TRWU8CBL",
+  "source_commit": "98fd021ad7a42c6fb22230e1bd66a6e1a2365f6e",
+  "phase": "native",
+  "native_build_source_commit": "e225ea89b002fcc53a90c743f66c592d1f8d35ff",
+  "sof_sha256": "439229392aab2293d23e7eff343f63597e9e0be339d13aa7e7ae5fa50f5bd299",
+  "initial_card_image_sha256": "42ac2e14fcb224fb8f39c38b0f26e7999b31c800180bd22489619fdc39f4bacf",
+  "card_reference_scope": "historical preparation only; live file verification is in the new upload receipt",
+  "fit_sha256": "c88c75e5829a59148c3ca962db945d179335b0763d142d0feaca924f27a3efc1",
+  "started_utc": "2026-11-04T12:55:22.124854+00:00",
+  "stage": "initial native Tenfoot Ready",
+  "programming_attempted": true,
+  "fesboot_sent": true,
+  "pass": false,
+  "sd_write_commands_sent": false,
+  "selected_programs": true,
+  "upload_receipts_sha256": {
+    "package": "569882a6affce84b46bd9d949b2b431c6b9fb08f9221b7c3fa6441e7ddc3c82b",
+    "metadata": "4a373b0d3644b330f6dc0a536a5d9c4a1260f48623ed6c45bac7e64a59a057f7",
+    "package-alt": "610e4b79362f84f82f8291a742ee0bfdd15fc34d7e9b83a8c8d13a1ebaa26f19",
+    "metadata-alt": "7b8823336ce625dec16c17ee2af461e1e58803f337672ae0c005bb659c27f568",
+    "selection": "830f7d14d8aec25f2bfc3ef36dc91cccb4896b544eefc36715eafc46b45a3d3b",
+    "ui-catalog": "f777419cd75522c19d49c5a503f5d9e2c05509c06c9bbe43c00116739272763d",
+    "boot": "e8d4aea3dd381968ca08ee0451a82f982494577ff91ae2e247175ac2c02b678c"
+  },
+  "fresh_receipts_sha256": {
+    "package": "1d935fccc3d62fa089f461b6a83045c54f041955f9488353cef4c47c9f2cf2f3",
+    "metadata": "41154bfb7b243611cc89604f1fa05d2416ab809ac462c8a4bbaf4c69c1d0d7ad",
+    "package-alt": "568e3865a9868f71921839e37f36a6a9ab34e040a5e6d3a97e470b2e0c172932",
+    "metadata-alt": "e9a3524eab6f8748ac112b6046e06f71dcaaab4bbe71910c65352b0efca29fef",
+    "selection": "348ec139df31eb8c7b51d887290ffcc1766d50f5fbb790f9c9df66bf8fda6646",
+    "ui-catalog": "f1b67bb526ae94ae7b1b529d0534acb57d5f7c86bcb89065d6a3a0f024fa37d9",
+    "boot": "023101c255c0799e83804307208ed60656a4d39518d9fec30a15739aa22e330c"
+  },
+  "qualified_recovery_receipt_sha256": "7177a4198960d98d48122f7c2843e48b32da15c7a3138d49624ef4aa15aead6b",
+  "live_card_receipt_sha256": "023101c255c0799e83804307208ed60656a4d39518d9fec30a15739aa22e330c",
+  "fresh_package_receipt_sha256": "569882a6affce84b46bd9d949b2b431c6b9fb08f9221b7c3fa6441e7ddc3c82b",
+  "prior_stop_receipt_sha256": "3216896eb0d0dfafaf47573e47b8d1038396b5715d30b2aab7de9f8f9b16402d",
+  "runner_sha256": "361968dd303272c10b0f715718941da5cc8b784a476764997c5f9dc8fe7a2f29",
+  "clock_checks": [
+    {
+      "clock": "6M",
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    }
+  ],
+  "jtag_id": "4362C0DD",
+  "boot_trace": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "ee5b92a7fc271fb8"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 2783182750957796215,
+          "epoch": 6450917821,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "spl_barrier_before",
+        "line": 36,
+        "values": {
+          "phase": "before"
+        }
+      },
+      {
+        "stage": "spl_barrier_after",
+        "line": 37,
+        "values": {
+          "phase": "after"
+        }
+      },
+      {
+        "stage": "spl_atf_entry",
+        "line": 38,
+        "values": {
+          "phase": "entry"
+        }
+      },
+      {
+        "stage": "spl_atf_hash_before",
+        "line": 39,
+        "values": {
+          "phase": "hash-before"
+        }
+      },
+      {
+        "stage": "spl_atf_hash_after",
+        "line": 40,
+        "values": {
+          "phase": "hash-after"
+        }
+      },
+      {
+        "stage": "spl_atf",
+        "line": 41,
+        "values": {
+          "target": 2147483648,
+          "bl32": 0,
+          "bl33": 2149580800,
+          "fdt": 0,
+          "params": 3220176904,
+          "cold": 138896,
+          "cookie": 5066060512865812482,
+          "el": 3,
+          "mpidr": 2164260864,
+          "sctlr": 12912696,
+          "scr": 15,
+          "daif": 960,
+          "bytes": 90173,
+          "sha256": "e13c2000c33daaf1ed96f8553c5d71666da93c668560e6ebf138db388222cbd6"
+        }
+      },
+      {
+        "stage": "el3_capture_before",
+        "line": 42,
+        "values": {
+          "phase": "before",
+          "pointer": 138896,
+          "cookie": 5066060512865812482
+        }
+      },
+      {
+        "stage": "el3_capture_after",
+        "line": 43,
+        "values": {
+          "phase": "after",
+          "pointer": 138896,
+          "cookie": 5066060512865812482
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 49,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "sd_platform",
+        "line": 50,
+        "values": {
+          "setup": 1,
+          "ready": 1
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 53,
+        "values": {
+          "id": "ee5b92a7fc271fb8"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 57,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 69,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 70,
+        "values": {
+          "id": "ee5b92a7fc271fb8"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 71,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216373872,
+          "malloc_start": 3216408576,
+          "malloc_end": 3220611072,
+          "reloc": 3220611072,
+          "fdt": 3216383520
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 78,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 2783182750957796215,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 87,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 2783182750957796215,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 88,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 89,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 90,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 98,
+        "values": {}
+      }
+    ],
+    "errors": [],
+    "loader_ready": true,
+    "complete": false,
+    "last_checkpoint": "el1",
+    "core_load_acceptance": false,
+    "atf_observation": {
+      "target": 2147483648,
+      "bl32": 0,
+      "bl33": 2149580800,
+      "fdt": 0,
+      "params": 3220176904,
+      "cold": 138896,
+      "cookie": 5066060512865812482,
+      "el": 3,
+      "mpidr": 2164260864,
+      "sctlr": 12912696,
+      "scr": 15,
+      "daif": 960,
+      "bytes": 90173,
+      "sha256": "e13c2000c33daaf1ed96f8553c5d71666da93c668560e6ebf138db388222cbd6"
+    }
+  },
+  "programming_complete": true,
+  "build_id": "ee5b92a7fc271fb8",
+  "secure_cold_boot_verified": true,
+  "startup_observation_seconds": 2.060335881076753,
+  "initial_capture_end": 6703,
+  "error": "unknown final startup checkpoint",
+  "usb_permissions_restored": true,
+  "console_sha256": "44dfe5405bc04bc57f74c68f85726f551cedc07cd123736787e84ea024fc7379",
+  "finished_utc": "2026-11-04T12:55:49.841432+00:00",
+  "decoder_sha256": "930cf2f87ecffc8fe22b7bc42c3b1c4fa95f51372b019f8cc947588111c0c593"
+}

@@ -1,0 +1,198 @@
+{
+  "format": 1,
+  "status": "paired-menu-computer-matched-build-software-passed",
+  "implementation_source": "ecd8042861bb1a9813da5509dd07ec157d2594a8",
+  "base_source": "1eb834346c06f4795456d13877e77ebe1c4f755e",
+  "source_sha256": {
+    "platform/embedded/entry/build.py": "cf2b44842fd9558cbe61b7e34c7d3af6cabef7b9aa7e8a0efdc6b16ca946693b",
+    "platform/embedded/firmware/README.md": "dea949e1e7063ec95dea92a55a039126161b18780f9a4b5eed85e555a3f6e47f",
+    "platform/embedded/firmware/nano_firmware_ram.py": "44b68aa3a03d935ac0f3cdc4c5213b2957e7cb812c9537590c5402fbe9d27048",
+    "platform/embedded/nano/README.md": "e69ef3c532a91e1f4a59f11583dbe77d21a4da25f92aa422bdb9541abb1b5b04",
+    "platform/embedded/nano/cold_profile.py": "199c8c8940c76ba46aca66e4ee266b5a0818d8af893d6b90df45b266eaed9054",
+    "platform/embedded/nano/hps_boot.py": "6c43eb0eb13d0266d9e81efe19c5721722eede8b515e532844b91b1330b0b035",
+    "platform/embedded/nano/hps_context.py": "7a42294dcc53d9809a9a6c566172a3d3628f5ccbd36c415ab3f655bb1b8466ba",
+    "platform/embedded/nano/prepare_uboot.py": "23bbd8671cb198386b74f65be46489eccf81c16bd82ed5381e0cef9d9cbb8587",
+    "platform/embedded/tamago/build.py": "d3eaf58018ff2e02e6b2b8d838b1c3e57bdc9966e5edb3e438619fc7f9b43fbb",
+    "platform/embedded/tamago/cmd/fpgaload/main.go": "2f026bd1e6585cc24d2fb1a1e667552d1dda217d6ce9357a4c9bf6d5e3d67a45",
+    "platform/embedded/tamago/nativefabric/built_menu_test.go": "8257798d5a311e498ad3f4f6678c0a95f4d469c0186475fb9af1ba6941240834",
+    "platform/embedded/tamago/nativefabric/selected_menu.go": "ba1fe7b0b3f475b9cf3b55f837f3ef0d97b4a056f0e928a80234e44c7b514efc",
+    "platform/embedded/tamago/nativefabric/selected_menu_test.go": "66ab02e885d2cb2cec2785e314abf0b7d252dd93cfa95e77fb0740de00e10cc2",
+    "platform/embedded/tamago/run.py": "19c1cac15a448bc823077f26ef5927940f61891455bc37da26d9b3ff898bab24",
+    "tests/test_nano_combined_program.py": "3189e8760f50aa1db993f309c699c2cf8335848daa1c827deb03cf89b7ec4d1f",
+    "tests/test_nano_hps_boot.py": "8f883501e16f0ee4d010db6835c20f595ec8428cf2fa9c692d0bdf8a29316303"
+  },
+  "validation_complete": true,
+  "selected_checks": 10,
+  "receipts": {
+    "native-sdk": {
+      "receipt_sha256": "069d6f31c2b198e5f394b859df51afb5c48154dddb0538db52cff1d52ec65623",
+      "log_sha256": "d8fe19b46787f23902aadd108c2918b1f6ebbd787fa57d0bf453fc0b255a6493",
+      "elapsed": 57.629659375175834
+    },
+    "native-entry-final": {
+      "receipt_sha256": "af1a76e1854f8a941def92581cd6fba5502b71ae3a7c0a1d429e1d20cdb19f47",
+      "log_sha256": "7e37bfd9cb40436a38b7e290df4fd30210d126fa6cc8bb1e40a9f9f0f10322ca",
+      "elapsed": 75.0389680028893
+    },
+    "bl31-final": {
+      "receipt_sha256": "01364496f78653e4e9668f3a9aded26bd28c1fa8a6141fc3621cd6c48a4b5e23",
+      "log_sha256": "1528887745e825557562b533b62195903b48a4d363e6d441464aed19dc86ab2c",
+      "elapsed": 240.11551200109534
+    },
+    "uboot-final": {
+      "receipt_sha256": "58437598e3dda6a367da251bc3aa89fbd8a659a06441ba3621120873b2f73891",
+      "log_sha256": "ce44bd4e8eafc42d48cecc2cb01dd376419ea52089b0de85c096afc47f5a0370",
+      "elapsed": 305.74853268498555
+    },
+    "derive": {
+      "receipt_sha256": "754bdd3c376404d6d461a6af835394de35261e0d0bc6b268d725b786c6f6e5c3",
+      "log_sha256": "ec072cff50ee5a84bbfde18ed5f83702c37b412b31bbc656d0d87e05a9b0a9b7",
+      "elapsed": 13.807228554971516
+    },
+    "focused-python-final": {
+      "receipt_sha256": "19f5ad635509f51e74aa873d98d28930c5bc44c73e175c398eca5c73511835e0",
+      "log_sha256": "f49769b61a4c66556d370a873f395473760372e98d4e13ae1d2aa58611c2cb92",
+      "elapsed": 0.20073395688086748
+    },
+    "parser-tests-r2": {
+      "receipt_sha256": "853babd0e31c64a98806e625517f234b2fc32a560ac8912e040e2709d893af27",
+      "log_sha256": "7f57508b1e9f0a3bd46977df12a8a66c429dae7011d2e602a8c2db32b129307f",
+      "elapsed": 8.004888247931376
+    },
+    "real-package-pair": {
+      "receipt_sha256": "b4d17284c64885b3e31554187510bdd4432d96a5ee4fffa1fcd11f3ba37ec21e",
+      "log_sha256": "5da60e80f7034a616d2e9a86d4b1f9bb3bd50dc79baeae1df9a032258f9d03a7",
+      "elapsed": 4.00230150599964
+    },
+    "composer-tests": {
+      "receipt_sha256": "6c2170569c3a45198edb3f69aee13dc8efc12835ff2f9cc3e1f67ff9ff7db4fb",
+      "log_sha256": "d5e6020140bde4d7bd5812d44daec0ed0fa0a1dc07b03f704849013a3af20218",
+      "elapsed": 9.605355344945565
+    },
+    "chain-proof-final": {
+      "receipt_sha256": "eaed67a440ce32152ad7abd56f1511c01f8378c3e1e72e0bad64fd2e541883e0",
+      "log_sha256": "f89749b5cbc9f60a22337d67260e97ad0879184333070d85062a3fef238ea838",
+      "elapsed": 0.20085005299188197
+    },
+    "software-2-final": {
+      "receipt_sha256": "5c677242dcbbe39ea0326bcbf37235058e73316f5cb3e2e455c4a66dbb7a86ac",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 0.2006132930982858
+    },
+    "software-4-final": {
+      "receipt_sha256": "ded63693ef390bea68d2824b4a17272be78e7f111fb6835bb3a964cb175290d0",
+      "log_sha256": "a8ab1d026ac63288ac51e64f44fa513e23cd758122674e8122fd7e5afeca0bf3",
+      "elapsed": 307.7829961308744
+    },
+    "software-0": {
+      "receipt_sha256": "1bb2aa2782f4a3ee20cb2de8f8163d51e58e42fed1904a8bbcb5c3b0045e06b4",
+      "log_sha256": "10cca896c37e5e0cea6b438e9979644c9cdc127b4499b70a016a6dbfe8785e78",
+      "elapsed": 0.20080954302102327
+    },
+    "software-1": {
+      "receipt_sha256": "350d4d9fb9b12f7dd800936cfb7c81160a8c039180a222e906b74c3dc7f31b90",
+      "log_sha256": "3ebda78c2e3e9880f82b310c613407c3deaac8d6d6c6a1f4a61d146ccc0c7a89",
+      "elapsed": 1.0008427519351244
+    },
+    "software-3": {
+      "receipt_sha256": "ee9bdf5f79c552b87bb3fb7635d205ea53da185cd9739dbd750e23bda2fcd87b",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed": 0.20038064592517912
+    },
+    "software-5": {
+      "receipt_sha256": "c6568b2f42829b73a0d50c172a4a4daacfe89ba2a7fd5de4232b0c73aae92799",
+      "log_sha256": "32fa862c66e279643aaedec99c30c9fcbe50fca9e6ffb849cd844c6a8d59a5a1",
+      "elapsed": 6.00464457180351
+    },
+    "software-6": {
+      "receipt_sha256": "38c15b98b413bdd39bd464b9cd53c5288eb4faf1d0553d579d1ce9f4361cb511",
+      "log_sha256": "a5f5e0dfa2be3cc54c4fc278a652e26573c6f2ddf47ca6fe02dc9590c6e16945",
+      "elapsed": 143.67300117900595
+    },
+    "software-7": {
+      "receipt_sha256": "04ef323a2daa3f8b309562c5541010f915a63c625d8af99209e1c0b6dcdd1a0d",
+      "log_sha256": "b4774cc18ba1a791b25e8340b17a0058fb241d85a4f2b2f5b96a44704e9c497b",
+      "elapsed": 29.618087889859453
+    },
+    "software-8": {
+      "receipt_sha256": "1cb81bde82c5ca39992b27e50ec86a98051bff52fe75a1ff2def6ac49f13102d",
+      "log_sha256": "93baa4ba439ee51088f7c70e989eeb83e40e26b3a49ab175d3fda31c877a88a4",
+      "elapsed": 6.203809606144205
+    },
+    "software-9": {
+      "receipt_sha256": "9c1455b630f5ce76c410fc717eb5fb1893ea80864b401e219f384e84f8bddb9d",
+      "log_sha256": "5ece316b77cc8bfd98a36bcf04bcc7949a92a5b00042ddc81057df0417c83f88",
+      "elapsed": 429.4169993698597
+    }
+  },
+  "parent_tests": 1647,
+  "parent_skips": 3,
+  "misteross_tests": 1595,
+  "misteross_skips": 79,
+  "chain": {
+    "status": "passed",
+    "scope": "matched compile/source/memory proof only; no physical boot or Tenfoot display cycle",
+    "inputs": {
+      "out/nano-combined-build-20261107/native-sdk/result.json": "e41b2b4da2f68d9cff9a33d1ba84ff9bc38012f9f4c5bb2e743ab37480454825",
+      "out/nano-combined-build-20261107/native-entry-final/result.json": "c234205939303f89418f96820fbb3ec1919c00e920d74811e1de78f1b75bf702",
+      "out/nano-combined-build-20261107/native-bl31-final/result.json": "18925f81840e9bef3f7f4cf9d8a7fa3005ce3d46296c4e854c0106188305d86d",
+      "out/nano-combined-build-20261107/native-uboot-final/result.json": "735431ca7423c9fef10e9b8213dd522363caa010fb0804842d3dd3340d8c570f"
+    },
+    "artifacts": {
+      "sdk": {
+        "path": "out/nano-combined-build-20261107/native-sdk/fpgaload.elf",
+        "sha256": "eab7b6cf38f3e7d1e2e354ccbcba8842c3ac4c62be12e26b7ac3b648511cc317",
+        "bytes": 15663279
+      },
+      "entry": {
+        "path": "out/nano-combined-build-20261107/native-entry-final/entry.img",
+        "sha256": "98777ac0ebb549e65345054b6e3036869989df0d1a455ec86b2378dd866b0683",
+        "bytes": 7585792
+      },
+      "BL31": {
+        "path": "out/nano-combined-build-20261107/native-bl31-final/source/build/agilex5/release/bl31.bin",
+        "sha256": "9f0ff7957687c91a4d02f8ea86b01ce2c193c16346caf0c80c54bb55ec2c9acc",
+        "bytes": 229701
+      },
+      "FIT": {
+        "path": "out/nano-combined-build-20261107/native-uboot-final/build/u-boot.itb",
+        "sha256": "cb915a99cd19071dff5ee9111efd6617f89b73b55404432e6819460235427195",
+        "bytes": 8272432
+      },
+      "SPL": {
+        "path": "out/nano-combined-build-20261107/native-uboot-final/build/spl/u-boot-spl-dtb.hex",
+        "sha256": "6326d93d6397dff7de7e5334da28e80058a95ad85dda5074e70a1bed0781c901",
+        "bytes": 461189
+      }
+    },
+    "boot_anchor_unchanged": true,
+    "union_reader_bytes": 8388608,
+    "original_computer_arena_bytes": 2097152,
+    "bl31_loaded_ocram_end": 384512,
+    "ocram_limit": 393216,
+    "FIT_bytes": 8272432,
+    "FIT_limit": 8388608,
+    "FIT_remaining_bytes": 116176,
+    "hardware_actions": false,
+    "goal_complete": false
+  },
+  "explicit_companion_option": "--menu-project",
+  "original_computer_boot_anchor": true,
+  "shared_HPS_DDR_fingerprints_checked": 6,
+  "separate_role_inventories": true,
+  "full_union8MiB_enforced": true,
+  "companion_canonical_source_parser": true,
+  "exact_single_link_assignment": true,
+  "HPS_composer_validated": true,
+  "real_menu_ZX80_ZX81_preflight_no_IO": true,
+  "cold_platform_mixed_roles_enabled": "explicit paired build only",
+  "native_combined_loader_constructed": true,
+  "matched_combined_boot_chain_built": true,
+  "shared_USB_compiled": true,
+  "shared_USB_with_menu_DDR_execution_qualified": false,
+  "actual_Tenfoot_menu_display_connected": false,
+  "new_FPGA_synthesis_or_PFG_conversion": false,
+  "hardware_actions": false,
+  "goal_complete": false,
+  "next": "Connect ProgramService private menu/frame ownership and actual Tenfoot Present; prepare/validate matched menu assets and bounded traces. Qualify shared USB during active menu DDR before a combined board test, then compose the hardware image under the shared Quartus lock and fresh kit/source admission. Keep the8MiB FIT bound and actual OCRAM stack/BSS gates; FIT has only116176bytes spare."
+}

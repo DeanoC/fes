@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/publication/run-independent-tape-arena-tests.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 6.403430131962523,
+  "log_sha256": "fe56a9c0c1a3da43358c1f3e8b8243af4c6ef8a06f1e8b8c9aa071d4b067a80f"
+}

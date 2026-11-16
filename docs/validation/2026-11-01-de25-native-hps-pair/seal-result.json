@@ -1,0 +1,42 @@
+{
+  "build_id": "e25bb65a1d14a2bbbddf4c770ea033e5",
+  "build_inputs_sha256": "3f41232c6d4ebd6095d9310148544f63140f7a442e401841c5c890045fd51b53",
+  "classification": "sealed diagnostic only; physical HPS reconfiguration not qualified",
+  "combined_sof_sha256": "13376fd387211e1b45d3dbf83425621627696b19cd16532d9d65ce0ad851bb5e",
+  "commands": [
+    [
+      "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+      "-c",
+      "/home/deano/fes-builds/de25-native-core-cpu16-20261101/code/out/native-core-build/board/hps/project/output_files/golden_top.sof",
+      "/home/deano/fes-builds/de25-native-core-cpu16-20261101/code/out/native-core-build/board/hps/diagnostic-with-vendor-spl.sof",
+      "-o",
+      "hps_path=/home/deano/fes-builds/de25-native-core-cpu16-20261101/code/out/native-core-build/board/hps/project/software/u-boot/spl/u-boot-spl-dtb.hex"
+    ],
+    [
+      "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+      "-c",
+      "/home/deano/fes-builds/de25-native-core-cpu16-20261101/code/out/native-core-build/board/hps/project/output_files/golden_top.sof",
+      "/home/deano/fes-builds/de25-native-core-cpu16-20261101/code/out/native-core-build/board/hps/hps-first.rbf",
+      "-o",
+      "hps_path=/home/deano/fes-builds/de25-native-core-cpu16-20261101/code/out/native-core-build/board/hps/project/software/u-boot/spl/u-boot-spl-dtb.hex",
+      "-o",
+      "hps=on"
+    ],
+    [
+      "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+      "-i",
+      "/home/deano/fes-builds/de25-native-core-cpu16-20261101/code/out/native-core-build/board/hps/hps-first.hps.rbf"
+    ],
+    [
+      "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+      "-i",
+      "/home/deano/fes-builds/de25-native-core-cpu16-20261101/code/out/native-core-build/board/hps/hps-first.core.rbf"
+    ]
+  ],
+  "hps_first_pair_sha256": "cb737f8abb4f935bb27c0d820e570512f16a1421619bcc530de3da8ad5e9b77c",
+  "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+  "raw_sof_sha256": "875427d135d32711e8cef6fb197d8c560d6e9b2a0b39aff15f598b9c9ff9d9f2",
+  "rbf_sha256": "415cc2d68955755d2de406b233e34fa2cd6cce755089ba842f10f62e6945320c",
+  "rbf_size": 2027520,
+  "vendor_spl_sha256": "096f53ea0bb0ba6e7449b2acf012eae734840dbcdd2943b506567bad2f72f823"
+}

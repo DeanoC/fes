@@ -1,0 +1,38 @@
+test_binding.py PASS
+test_native_session.py PASS
+test_flow.py PASS
+test_candidate_flow.py PASS
+test_native_preflight.py PASS
+test_recovery_safety.py PASS
+test_boot_boundary.py PASS
+test_failure_tail.py PASS
+test_rearm_session.py PASS
+test_dispatch_adapter.py PASS
+test_refresh_budget.py PASS
+test_transport_file_binding.py FAIL
+test_actual_four_role_bindings_use_identical_selected_images_without_devices (test_transport_file_binding.Tests.test_actual_four_role_bindings_use_identical_selected_images_without_devices) ... ok
+test_old_plan_binding_and_wrong_tool_bytes_reject_before_preflight (test_transport_file_binding.Tests.test_old_plan_binding_and_wrong_tool_bytes_reject_before_preflight) ... ok
+test_only_selected_candidate_and_failure_observation_change (test_transport_file_binding.Tests.test_only_selected_candidate_and_failure_observation_change) ... FAIL
+
+======================================================================
+FAIL: test_only_selected_candidate_and_failure_observation_change (test_transport_file_binding.Tests.test_only_selected_candidate_and_failure_observation_change)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/full-sof-loading-trial/test_transport_file_binding.py", line 36, in test_only_selected_candidate_and_failure_observation_change
+    self.assertEqual(after['roles'][1]['image']['sha256'],selected['outputs']['phase1']['sha256'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'ced3df3c0f3ba94b09f4732c8e95f17aa3abb8aac660fb04dbb9257d496d7e21' != 'c3b518b695649d33b14f7857f5a499f121283521ed2214fa47b62f832ff904fd'
+- ced3df3c0f3ba94b09f4732c8e95f17aa3abb8aac660fb04dbb9257d496d7e21
++ c3b518b695649d33b14f7857f5a499f121283521ed2214fa47b62f832ff904fd
+
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.104s
+
+FAILED (failures=1)
+
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-source-release/out/publication/check-full-sof-models.py", line 9, in <module>
+    assert r.returncode==0,name;assert b'skipped=' not in r.stdout;rows.append(dict(test=name,tests=int(re.search(rb'Ran (\d+) tests?',r.stdout)[1]),log_sha256=hashlib.sha256(r.stdout).hexdigest()))
+           ^^^^^^^^^^^^^^^
+AssertionError: test_transport_file_binding.py

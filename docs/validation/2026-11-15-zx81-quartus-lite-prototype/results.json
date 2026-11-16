@@ -1,0 +1,293 @@
+{
+  "fits": {
+    "ts1000-pin-s1": {
+      "alms": 3724,
+      "model": "ts1000",
+      "ram_blocks": 63,
+      "rbf_sha256": "9424f4c620e5347fd3fbc92e8cc7351906b3cd467e5e96a101a20e1dbbc83dc0",
+      "rom_lanes_pinned": true,
+      "seed": 1,
+      "slow_corner_fmax_mhz": {
+        "audio": 424.81,
+        "pixel": 106.16,
+        "system": 78.26
+      },
+      "timing_gate": [
+        {
+          "slack_ns": 3.685,
+          "tns_ns": 0.0,
+          "type": "Setup"
+        },
+        {
+          "slack_ns": 0.127,
+          "tns_ns": 0.0,
+          "type": "Hold"
+        },
+        {
+          "slack_ns": 77.901,
+          "tns_ns": 0.0,
+          "type": "Recovery"
+        },
+        {
+          "slack_ns": 0.736,
+          "tns_ns": 0.0,
+          "type": "Removal"
+        },
+        {
+          "slack_ns": 1.122,
+          "tns_ns": 0.0,
+          "type": "Minimum Pulse Width"
+        }
+      ]
+    },
+    "ts1500-pin-s1": {
+      "alms": 3724,
+      "model": "ts1500",
+      "ram_blocks": 77,
+      "rbf_sha256": "c756f6fb6bb410ae9bfb176675722d0379def3bd3dee3a42ff4bd982d11a154b",
+      "rom_lanes_pinned": true,
+      "seed": 1,
+      "slow_corner_fmax_mhz": {
+        "audio": 378.93,
+        "pixel": 96.76,
+        "system": 75.73
+      },
+      "timing_gate": [
+        {
+          "slack_ns": 2.97,
+          "tns_ns": 0.0,
+          "type": "Setup"
+        },
+        {
+          "slack_ns": 0.094,
+          "tns_ns": 0.0,
+          "type": "Hold"
+        },
+        {
+          "slack_ns": 75.784,
+          "tns_ns": 0.0,
+          "type": "Recovery"
+        },
+        {
+          "slack_ns": 1.472,
+          "tns_ns": 0.0,
+          "type": "Removal"
+        },
+        {
+          "slack_ns": 1.122,
+          "tns_ns": 0.0,
+          "type": "Minimum Pulse Width"
+        }
+      ]
+    },
+    "zx80-pin-s1": {
+      "alms": 3458,
+      "model": "zx80",
+      "ram_blocks": 42,
+      "rbf_sha256": "76756e1519edebcad906f869737ca5276df8a49841cf6acecbdd1301a9e7c3db",
+      "rom_lanes_pinned": true,
+      "seed": 1,
+      "slow_corner_fmax_mhz": {
+        "audio": 379.22,
+        "pixel": 103.34,
+        "system": 76.31
+      },
+      "timing_gate": [
+        {
+          "slack_ns": 3.02,
+          "tns_ns": 0.0,
+          "type": "Setup"
+        },
+        {
+          "slack_ns": 0.125,
+          "tns_ns": 0.0,
+          "type": "Hold"
+        },
+        {
+          "slack_ns": 78.393,
+          "tns_ns": 0.0,
+          "type": "Recovery"
+        },
+        {
+          "slack_ns": 0.608,
+          "tns_ns": 0.0,
+          "type": "Removal"
+        },
+        {
+          "slack_ns": 1.122,
+          "tns_ns": 0.0,
+          "type": "Minimum Pulse Width"
+        }
+      ]
+    },
+    "zx81-free-s1": {
+      "alms": 3749,
+      "model": "zx81",
+      "ram_blocks": 61,
+      "rbf_sha256": "4b89a2ee1fe3ddf768eb0e5279c91624f4788129f9eb861eea186415275537b7",
+      "rom_lanes_pinned": false,
+      "seed": 1,
+      "slow_corner_fmax_mhz": {
+        "audio": 427.9,
+        "pixel": 96.72,
+        "system": 75.87
+      },
+      "timing_gate": [
+        {
+          "slack_ns": 2.982,
+          "tns_ns": 0.0,
+          "type": "Setup"
+        },
+        {
+          "slack_ns": 0.137,
+          "tns_ns": 0.0,
+          "type": "Hold"
+        },
+        {
+          "slack_ns": 78.639,
+          "tns_ns": 0.0,
+          "type": "Recovery"
+        },
+        {
+          "slack_ns": 0.52,
+          "tns_ns": 0.0,
+          "type": "Removal"
+        },
+        {
+          "slack_ns": 1.122,
+          "tns_ns": 0.0,
+          "type": "Minimum Pulse Width"
+        }
+      ]
+    },
+    "zx81-pin-s1": {
+      "alms": 3744,
+      "model": "zx81",
+      "ram_blocks": 62,
+      "rbf_sha256": "4f5026bc51d1000c168aefbfc6afceb119dfbd243da8ba9da1d17b6f5ef90f8b",
+      "rom_lanes_pinned": true,
+      "seed": 1,
+      "slow_corner_fmax_mhz": {
+        "audio": 379.08,
+        "pixel": 102.56,
+        "system": 77.5
+      },
+      "timing_gate": [
+        {
+          "slack_ns": 3.67,
+          "tns_ns": 0.0,
+          "type": "Setup"
+        },
+        {
+          "slack_ns": 0.131,
+          "tns_ns": 0.0,
+          "type": "Hold"
+        },
+        {
+          "slack_ns": 78.158,
+          "tns_ns": 0.0,
+          "type": "Recovery"
+        },
+        {
+          "slack_ns": 0.674,
+          "tns_ns": 0.0,
+          "type": "Removal"
+        },
+        {
+          "slack_ns": 1.122,
+          "tns_ns": 0.0,
+          "type": "Minimum Pulse Width"
+        }
+      ]
+    },
+    "zx81-pin-s2": {
+      "alms": 3744,
+      "model": "zx81",
+      "ram_blocks": 62,
+      "rbf_sha256": "3645951804486b4da0a567a5e8178b43227174aefbb919d60acd6fb7c4afdc24",
+      "rom_lanes_pinned": true,
+      "seed": 2,
+      "slow_corner_fmax_mhz": {
+        "audio": 427.9,
+        "pixel": 96.86,
+        "system": 77.83
+      },
+      "timing_gate": [
+        {
+          "slack_ns": 3.14,
+          "tns_ns": 0.0,
+          "type": "Setup"
+        },
+        {
+          "slack_ns": 0.142,
+          "tns_ns": 0.0,
+          "type": "Hold"
+        },
+        {
+          "slack_ns": 76.276,
+          "tns_ns": 0.0,
+          "type": "Recovery"
+        },
+        {
+          "slack_ns": 1.347,
+          "tns_ns": 0.0,
+          "type": "Removal"
+        },
+        {
+          "slack_ns": 1.122,
+          "tns_ns": 0.0,
+          "type": "Minimum Pulse Width"
+        }
+      ]
+    },
+    "zx81-pin-s3": {
+      "alms": 3730,
+      "model": "zx81",
+      "ram_blocks": 62,
+      "rbf_sha256": "c2ca2803db82a7418aebb708cfff732e4673afd2cb087b4376b1cdd1dd488ed9",
+      "rom_lanes_pinned": true,
+      "seed": 3,
+      "slow_corner_fmax_mhz": {
+        "audio": 424.99,
+        "pixel": 99.27,
+        "system": 73.11
+      },
+      "timing_gate": [
+        {
+          "slack_ns": 2.733,
+          "tns_ns": 0.0,
+          "type": "Setup"
+        },
+        {
+          "slack_ns": 0.131,
+          "tns_ns": 0.0,
+          "type": "Hold"
+        },
+        {
+          "slack_ns": 77.444,
+          "tns_ns": 0.0,
+          "type": "Recovery"
+        },
+        {
+          "slack_ns": 0.949,
+          "tns_ns": 0.0,
+          "type": "Removal"
+        },
+        {
+          "slack_ns": 1.122,
+          "tns_ns": 0.0,
+          "type": "Minimum Pulse Width"
+        }
+      ]
+    }
+  },
+  "host": "chip-30x0-ai-dev",
+  "quartus": "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition",
+  "quartus_sh_sha256": "71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93",
+  "source_revision": "1a4bb8d41",
+  "targets_mhz": {
+    "audio": 12.288,
+    "pixel": 74.25,
+    "system": 52.224
+  }
+}

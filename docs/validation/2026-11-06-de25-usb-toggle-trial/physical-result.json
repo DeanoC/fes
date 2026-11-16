@@ -1,0 +1,1458 @@
+{
+  "format": 1,
+  "status": "bounded-native-test-stopped",
+  "classification": "one source-bound bounded physical diagnostic; no ordinary core-load acceptance",
+  "firmware_source": "c8ff50c2989f04e6a1f873923409d0165f94972d",
+  "native_source": "c8ff50c2989f04e6a1f873923409d0165f94972d",
+  "operator_source": "7fdaf6358833f3da6def1be1cb0ef8b860fa98b8",
+  "attempts": 1,
+  "failures_on_compiled_input": 1,
+  "stop_first_failure": true,
+  "replayed": false,
+  "hardware_command_passed": false,
+  "stopped_stage": "native App key 0d",
+  "error": "native failure marker; no further command",
+  "recovery_qualified": true,
+  "post_power_interruption_recovery_verified": true,
+  "verified_uploads": 8,
+  "fresh_sd_readbacks": 8,
+  "sd_writes": true,
+  "native_programming_complete": true,
+  "fit_verified_before_parsing": true,
+  "secure_entry_crossing_proven": true,
+  "physical_ram_guard_passed": true,
+  "runtime_startup": {
+    "records": [
+      {
+        "phase": "main-before",
+        "line": 73
+      },
+      {
+        "phase": "platform-before",
+        "line": 76
+      },
+      {
+        "phase": "owned-before",
+        "line": 77
+      },
+      {
+        "phase": "owned-after",
+        "line": 81
+      },
+      {
+        "phase": "gic-driver-before",
+        "line": 82
+      },
+      {
+        "phase": "gic-driver-after",
+        "line": 83
+      },
+      {
+        "phase": "gic-distributor-before",
+        "line": 84
+      },
+      {
+        "phase": "gic-distributor-after",
+        "line": 85
+      },
+      {
+        "phase": "gic-redistributor-before",
+        "line": 86
+      },
+      {
+        "phase": "gic-redistributor-after",
+        "line": 87
+      },
+      {
+        "phase": "gic-cpu-before",
+        "line": 88
+      },
+      {
+        "phase": "gic-cpu-after",
+        "line": 89
+      },
+      {
+        "phase": "mailbox-before",
+        "line": 90
+      },
+      {
+        "phase": "mailbox-after",
+        "line": 91
+      },
+      {
+        "phase": "platform-after",
+        "line": 92
+      },
+      {
+        "phase": "libraries-before",
+        "line": 93
+      },
+      {
+        "phase": "libraries-after",
+        "line": 94
+      },
+      {
+        "phase": "services-before",
+        "line": 95
+      },
+      {
+        "phase": "services-after",
+        "line": 96
+      },
+      {
+        "phase": "next-image-before",
+        "line": 97
+      },
+      {
+        "phase": "next-image-after",
+        "line": 98
+      },
+      {
+        "phase": "runtime-before",
+        "line": 99
+      },
+      {
+        "phase": "runtime-after",
+        "line": 100
+      },
+      {
+        "phase": "console-before",
+        "line": 101
+      },
+      {
+        "phase": "console-after",
+        "line": 102
+      },
+      {
+        "phase": "main-after",
+        "line": 103
+      },
+      {
+        "phase": "data-clean-before",
+        "line": 104
+      },
+      {
+        "phase": "data-clean-after",
+        "line": 105
+      },
+      {
+        "phase": "bss-clean-before",
+        "line": 106
+      },
+      {
+        "phase": "bss-clean-after",
+        "line": 109
+      },
+      {
+        "phase": "exit-before",
+        "line": 110
+      }
+    ],
+    "valid": true,
+    "complete": true
+  },
+  "exit_cache": {
+    "records": [
+      {
+        "phase": "clean-before",
+        "line": 107
+      },
+      {
+        "phase": "clean-after",
+        "line": 108
+      }
+    ],
+    "valid": true,
+    "complete": true,
+    "maintenance_may_have_started": true
+  },
+  "native_command_sent_once": true,
+  "native_entry_marker_observed": true,
+  "native_application_ready": true,
+  "service_cycles": 0,
+  "verified_native_launches": 0,
+  "verified_fetch_observations": [],
+  "firmware_master_stop_returns": [],
+  "USB_polling_drain_failed": false,
+  "USB_channel_halt_proven": false,
+  "last_checkpoint": "el1",
+  "loader_progress": {
+    "records": [
+      {
+        "phase": "memory-before",
+        "line": 131
+      },
+      {
+        "phase": "memory-after",
+        "line": 140
+      },
+      {
+        "phase": "snapshot-before",
+        "line": 141
+      },
+      {
+        "phase": "registers-before",
+        "line": 142
+      },
+      {
+        "phase": "registers-after",
+        "line": 143
+      },
+      {
+        "phase": "cpu0-before",
+        "line": 144
+      },
+      {
+        "phase": "cpu0-after",
+        "line": 151
+      },
+      {
+        "phase": "cpu1-before",
+        "line": 152
+      },
+      {
+        "phase": "cpu1-after",
+        "line": 159
+      },
+      {
+        "phase": "cpu2-before",
+        "line": 160
+      },
+      {
+        "phase": "cpu2-after",
+        "line": 167
+      },
+      {
+        "phase": "cpu3-before",
+        "line": 168
+      },
+      {
+        "phase": "cpu3-after",
+        "line": 175
+      },
+      {
+        "phase": "reset-before",
+        "line": 176
+      },
+      {
+        "phase": "reset-after",
+        "line": 177
+      },
+      {
+        "phase": "watchdog-before",
+        "line": 178
+      },
+      {
+        "phase": "watchdog-after",
+        "line": 179
+      },
+      {
+        "phase": "uart-before",
+        "line": 180
+      },
+      {
+        "phase": "uart-after",
+        "line": 181
+      },
+      {
+        "phase": "snapshot-after",
+        "line": 182
+      },
+      {
+        "phase": "cpu-check-before",
+        "line": 183
+      },
+      {
+        "phase": "cpu-check-after",
+        "line": 184
+      },
+      {
+        "phase": "watchdog-stop-before",
+        "line": 185
+      },
+      {
+        "phase": "watchdog-stop-after",
+        "line": 186
+      },
+      {
+        "phase": "owned-before",
+        "line": 187
+      },
+      {
+        "phase": "owned-after",
+        "line": 189
+      }
+    ],
+    "valid": true,
+    "complete": true,
+    "firmware_call_may_have_started": true
+  },
+  "last_loader_phase": "owned-after",
+  "firmware_reservation_gate_return_observed": true,
+  "affinity_calls": {
+    "records": [
+      {
+        "phase": "smc-before",
+        "line": 145,
+        "call": 0,
+        "cpu": 0,
+        "scope": "initial"
+      },
+      {
+        "phase": "affinity-enter",
+        "line": 146,
+        "call": 0,
+        "cpu": 0,
+        "scope": "initial"
+      },
+      {
+        "phase": "cache-before",
+        "line": 147,
+        "call": 0,
+        "cpu": 0,
+        "scope": "initial"
+      },
+      {
+        "phase": "cache-after",
+        "line": 148,
+        "call": 0,
+        "cpu": 0,
+        "scope": "initial"
+      },
+      {
+        "phase": "affinity-return",
+        "line": 149,
+        "call": 0,
+        "cpu": 0,
+        "scope": "initial"
+      },
+      {
+        "phase": "smc-after",
+        "line": 150,
+        "call": 0,
+        "cpu": 0,
+        "scope": "initial"
+      },
+      {
+        "phase": "smc-before",
+        "line": 153,
+        "call": 1,
+        "cpu": 1,
+        "scope": "initial"
+      },
+      {
+        "phase": "affinity-enter",
+        "line": 154,
+        "call": 1,
+        "cpu": 1,
+        "scope": "initial"
+      },
+      {
+        "phase": "cache-before",
+        "line": 155,
+        "call": 1,
+        "cpu": 1,
+        "scope": "initial"
+      },
+      {
+        "phase": "cache-after",
+        "line": 156,
+        "call": 1,
+        "cpu": 1,
+        "scope": "initial"
+      },
+      {
+        "phase": "affinity-return",
+        "line": 157,
+        "call": 1,
+        "cpu": 1,
+        "scope": "initial"
+      },
+      {
+        "phase": "smc-after",
+        "line": 158,
+        "call": 1,
+        "cpu": 1,
+        "scope": "initial"
+      },
+      {
+        "phase": "smc-before",
+        "line": 161,
+        "call": 2,
+        "cpu": 2,
+        "scope": "initial"
+      },
+      {
+        "phase": "affinity-enter",
+        "line": 162,
+        "call": 2,
+        "cpu": 2,
+        "scope": "initial"
+      },
+      {
+        "phase": "cache-before",
+        "line": 163,
+        "call": 2,
+        "cpu": 2,
+        "scope": "initial"
+      },
+      {
+        "phase": "cache-after",
+        "line": 164,
+        "call": 2,
+        "cpu": 2,
+        "scope": "initial"
+      },
+      {
+        "phase": "affinity-return",
+        "line": 165,
+        "call": 2,
+        "cpu": 2,
+        "scope": "initial"
+      },
+      {
+        "phase": "smc-after",
+        "line": 166,
+        "call": 2,
+        "cpu": 2,
+        "scope": "initial"
+      },
+      {
+        "phase": "smc-before",
+        "line": 169,
+        "call": 3,
+        "cpu": 3,
+        "scope": "initial"
+      },
+      {
+        "phase": "affinity-enter",
+        "line": 170,
+        "call": 3,
+        "cpu": 3,
+        "scope": "initial"
+      },
+      {
+        "phase": "cache-before",
+        "line": 171,
+        "call": 3,
+        "cpu": 3,
+        "scope": "initial"
+      },
+      {
+        "phase": "cache-after",
+        "line": 172,
+        "call": 3,
+        "cpu": 3,
+        "scope": "initial"
+      },
+      {
+        "phase": "affinity-return",
+        "line": 173,
+        "call": 3,
+        "cpu": 3,
+        "scope": "initial"
+      },
+      {
+        "phase": "smc-after",
+        "line": 174,
+        "call": 3,
+        "cpu": 3,
+        "scope": "initial"
+      },
+      {
+        "phase": "smc-before",
+        "line": 199,
+        "call": 4,
+        "cpu": 0,
+        "scope": "late"
+      },
+      {
+        "phase": "affinity-enter",
+        "line": 200,
+        "call": 4,
+        "cpu": 0,
+        "scope": "late"
+      },
+      {
+        "phase": "cache-before",
+        "line": 201,
+        "call": 4,
+        "cpu": 0,
+        "scope": "late"
+      },
+      {
+        "phase": "cache-after",
+        "line": 202,
+        "call": 4,
+        "cpu": 0,
+        "scope": "late"
+      },
+      {
+        "phase": "affinity-return",
+        "line": 203,
+        "call": 4,
+        "cpu": 0,
+        "scope": "late"
+      },
+      {
+        "phase": "smc-after",
+        "line": 204,
+        "call": 4,
+        "cpu": 0,
+        "scope": "late"
+      },
+      {
+        "phase": "smc-before",
+        "line": 205,
+        "call": 5,
+        "cpu": 1,
+        "scope": "late"
+      },
+      {
+        "phase": "affinity-enter",
+        "line": 206,
+        "call": 5,
+        "cpu": 1,
+        "scope": "late"
+      },
+      {
+        "phase": "cache-before",
+        "line": 207,
+        "call": 5,
+        "cpu": 1,
+        "scope": "late"
+      },
+      {
+        "phase": "cache-after",
+        "line": 208,
+        "call": 5,
+        "cpu": 1,
+        "scope": "late"
+      },
+      {
+        "phase": "affinity-return",
+        "line": 209,
+        "call": 5,
+        "cpu": 1,
+        "scope": "late"
+      },
+      {
+        "phase": "smc-after",
+        "line": 210,
+        "call": 5,
+        "cpu": 1,
+        "scope": "late"
+      },
+      {
+        "phase": "smc-before",
+        "line": 211,
+        "call": 6,
+        "cpu": 2,
+        "scope": "late"
+      },
+      {
+        "phase": "affinity-enter",
+        "line": 212,
+        "call": 6,
+        "cpu": 2,
+        "scope": "late"
+      },
+      {
+        "phase": "cache-before",
+        "line": 213,
+        "call": 6,
+        "cpu": 2,
+        "scope": "late"
+      },
+      {
+        "phase": "cache-after",
+        "line": 214,
+        "call": 6,
+        "cpu": 2,
+        "scope": "late"
+      },
+      {
+        "phase": "affinity-return",
+        "line": 215,
+        "call": 6,
+        "cpu": 2,
+        "scope": "late"
+      },
+      {
+        "phase": "smc-after",
+        "line": 216,
+        "call": 6,
+        "cpu": 2,
+        "scope": "late"
+      },
+      {
+        "phase": "smc-before",
+        "line": 217,
+        "call": 7,
+        "cpu": 3,
+        "scope": "late"
+      },
+      {
+        "phase": "affinity-enter",
+        "line": 218,
+        "call": 7,
+        "cpu": 3,
+        "scope": "late"
+      },
+      {
+        "phase": "cache-before",
+        "line": 219,
+        "call": 7,
+        "cpu": 3,
+        "scope": "late"
+      },
+      {
+        "phase": "cache-after",
+        "line": 220,
+        "call": 7,
+        "cpu": 3,
+        "scope": "late"
+      },
+      {
+        "phase": "affinity-return",
+        "line": 221,
+        "call": 7,
+        "cpu": 3,
+        "scope": "late"
+      },
+      {
+        "phase": "smc-after",
+        "line": 222,
+        "call": 7,
+        "cpu": 3,
+        "scope": "late"
+      }
+    ],
+    "valid": true,
+    "initial_complete": true,
+    "complete": true,
+    "instruction_may_have_started": true,
+    "cache_may_have_started": true,
+    "instruction_returns_observed": 8
+  },
+  "SMC_instruction_crossing_observed": true,
+  "cache_flush_returns_observed": 8,
+  "SMC_returns_observed": 8,
+  "last_call_phase": "smc-after",
+  "last_console_line": "\tgithub.com/DeanoC/fes/platform/embedded/tamago/cmd/fpgaload/main.go:136 +0x7d8",
+  "physical_cache_geometry_coverage_verified": false,
+  "physical_ram_reservation_verified": false,
+  "physical_cpu_halt_proven": false,
+  "independent_replay_matched": true,
+  "raw_console_bytes": 43171,
+  "raw_console_sha256": "56a4e2b64670f749eb8307ac9825b8ab96152efb5fff45e8e2ec85ce2956b01a",
+  "passive_failure_tail": {
+    "bound_seconds": 2,
+    "complete": true,
+    "restoration": "restored",
+    "affinity_calls": {
+      "records": [
+        {
+          "phase": "smc-before",
+          "line": 145,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 146,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 147,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 148,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 149,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 150,
+          "call": 0,
+          "cpu": 0,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 153,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 154,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 155,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 156,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 157,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 158,
+          "call": 1,
+          "cpu": 1,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 161,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 162,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 163,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 164,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 165,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 166,
+          "call": 2,
+          "cpu": 2,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 169,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 170,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-before",
+          "line": 171,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "cache-after",
+          "line": 172,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 173,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-after",
+          "line": 174,
+          "call": 3,
+          "cpu": 3,
+          "scope": "initial"
+        },
+        {
+          "phase": "smc-before",
+          "line": 199,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 200,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 201,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 202,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 203,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 204,
+          "call": 4,
+          "cpu": 0,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-before",
+          "line": 205,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 206,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 207,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 208,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 209,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 210,
+          "call": 5,
+          "cpu": 1,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-before",
+          "line": 211,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 212,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 213,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 214,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 215,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 216,
+          "call": 6,
+          "cpu": 2,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-before",
+          "line": 217,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-enter",
+          "line": 218,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-before",
+          "line": 219,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "cache-after",
+          "line": 220,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "affinity-return",
+          "line": 221,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        },
+        {
+          "phase": "smc-after",
+          "line": 222,
+          "call": 7,
+          "cpu": 3,
+          "scope": "late"
+        }
+      ],
+      "valid": true,
+      "initial_complete": true,
+      "complete": true,
+      "instruction_may_have_started": true,
+      "cache_may_have_started": true,
+      "instruction_returns_observed": 8
+    },
+    "partial_call_record": false,
+    "loader_progress": {
+      "records": [
+        {
+          "phase": "memory-before",
+          "line": 131
+        },
+        {
+          "phase": "memory-after",
+          "line": 140
+        },
+        {
+          "phase": "snapshot-before",
+          "line": 141
+        },
+        {
+          "phase": "registers-before",
+          "line": 142
+        },
+        {
+          "phase": "registers-after",
+          "line": 143
+        },
+        {
+          "phase": "cpu0-before",
+          "line": 144
+        },
+        {
+          "phase": "cpu0-after",
+          "line": 151
+        },
+        {
+          "phase": "cpu1-before",
+          "line": 152
+        },
+        {
+          "phase": "cpu1-after",
+          "line": 159
+        },
+        {
+          "phase": "cpu2-before",
+          "line": 160
+        },
+        {
+          "phase": "cpu2-after",
+          "line": 167
+        },
+        {
+          "phase": "cpu3-before",
+          "line": 168
+        },
+        {
+          "phase": "cpu3-after",
+          "line": 175
+        },
+        {
+          "phase": "reset-before",
+          "line": 176
+        },
+        {
+          "phase": "reset-after",
+          "line": 177
+        },
+        {
+          "phase": "watchdog-before",
+          "line": 178
+        },
+        {
+          "phase": "watchdog-after",
+          "line": 179
+        },
+        {
+          "phase": "uart-before",
+          "line": 180
+        },
+        {
+          "phase": "uart-after",
+          "line": 181
+        },
+        {
+          "phase": "snapshot-after",
+          "line": 182
+        },
+        {
+          "phase": "cpu-check-before",
+          "line": 183
+        },
+        {
+          "phase": "cpu-check-after",
+          "line": 184
+        },
+        {
+          "phase": "watchdog-stop-before",
+          "line": 185
+        },
+        {
+          "phase": "watchdog-stop-after",
+          "line": 186
+        },
+        {
+          "phase": "owned-before",
+          "line": 187
+        },
+        {
+          "phase": "owned-after",
+          "line": 189
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "firmware_call_may_have_started": true
+    },
+    "partial_loader_record": false,
+    "exit_cache": {
+      "records": [
+        {
+          "phase": "clean-before",
+          "line": 107
+        },
+        {
+          "phase": "clean-after",
+          "line": 108
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "maintenance_may_have_started": true
+    },
+    "runtime_startup": {
+      "records": [
+        {
+          "phase": "main-before",
+          "line": 73
+        },
+        {
+          "phase": "platform-before",
+          "line": 76
+        },
+        {
+          "phase": "owned-before",
+          "line": 77
+        },
+        {
+          "phase": "owned-after",
+          "line": 81
+        },
+        {
+          "phase": "gic-driver-before",
+          "line": 82
+        },
+        {
+          "phase": "gic-driver-after",
+          "line": 83
+        },
+        {
+          "phase": "gic-distributor-before",
+          "line": 84
+        },
+        {
+          "phase": "gic-distributor-after",
+          "line": 85
+        },
+        {
+          "phase": "gic-redistributor-before",
+          "line": 86
+        },
+        {
+          "phase": "gic-redistributor-after",
+          "line": 87
+        },
+        {
+          "phase": "gic-cpu-before",
+          "line": 88
+        },
+        {
+          "phase": "gic-cpu-after",
+          "line": 89
+        },
+        {
+          "phase": "mailbox-before",
+          "line": 90
+        },
+        {
+          "phase": "mailbox-after",
+          "line": 91
+        },
+        {
+          "phase": "platform-after",
+          "line": 92
+        },
+        {
+          "phase": "libraries-before",
+          "line": 93
+        },
+        {
+          "phase": "libraries-after",
+          "line": 94
+        },
+        {
+          "phase": "services-before",
+          "line": 95
+        },
+        {
+          "phase": "services-after",
+          "line": 96
+        },
+        {
+          "phase": "next-image-before",
+          "line": 97
+        },
+        {
+          "phase": "next-image-after",
+          "line": 98
+        },
+        {
+          "phase": "runtime-before",
+          "line": 99
+        },
+        {
+          "phase": "runtime-after",
+          "line": 100
+        },
+        {
+          "phase": "console-before",
+          "line": 101
+        },
+        {
+          "phase": "console-after",
+          "line": 102
+        },
+        {
+          "phase": "main-after",
+          "line": 103
+        },
+        {
+          "phase": "data-clean-before",
+          "line": 104
+        },
+        {
+          "phase": "data-clean-after",
+          "line": 105
+        },
+        {
+          "phase": "bss-clean-before",
+          "line": 106
+        },
+        {
+          "phase": "bss-clean-after",
+          "line": 109
+        },
+        {
+          "phase": "exit-before",
+          "line": 110
+        }
+      ],
+      "valid": true,
+      "complete": true
+    },
+    "cache_maintenance": {
+      "records": [
+        {
+          "phase": "setway-before",
+          "line": 57
+        },
+        {
+          "phase": "setway-after",
+          "line": 58
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "maintenance_may_have_started": true
+    },
+    "decode_log": {
+      "records": [
+        {
+          "phase": "idle",
+          "line": 44
+        },
+        {
+          "phase": "setup-before",
+          "line": 52
+        },
+        {
+          "phase": "baseline-zero",
+          "line": 53
+        },
+        {
+          "phase": "enable-before",
+          "line": 54
+        },
+        {
+          "phase": "enabled",
+          "line": 55
+        },
+        {
+          "phase": "restore-before",
+          "line": 59
+        },
+        {
+          "phase": "restored",
+          "line": 60
+        }
+      ],
+      "valid": true,
+      "complete": true,
+      "write_attempted": true,
+      "restore_attempted": true,
+      "restored": true,
+      "failed": false
+    },
+    "inventory_complete": false,
+    "ras_complete": false
+  },
+  "startup_bound_seconds": 100,
+  "prompt_bound_seconds": 50,
+  "prior_procedure_stops": 23,
+  "procedure_stops_including_this_attempt": 24,
+  "prior_pre_loader_stops": 11,
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "claim_retained": true,
+  "factory_card_touched": false,
+  "other_kit_touched": false,
+  "hardware_actions": true,
+  "ordinary_admission": false,
+  "core_load_acceptance": false,
+  "evidence_sha256": {
+    "docs/validation/2026-11-06-de25-usb-toggle-trial/operator-source.json": "3f63928b914b2ce2ce2ac4e62bbe9e31095437f59a7948d11374f22757fdad38",
+    "out/nano-usb-toggle-board-20261106/admission-fixtures-result.json": "6588a027ed26d12e92cc650d5af37bcc5579151e0306d1d699f8d8d2632fa508",
+    "out/nano-usb-toggle-board-20261106/admission-fixtures.log": "0db8db0ca66b260c396071cbf86bfc2a621100db7caed2953080218a934f48d1",
+    "out/nano-usb-toggle-board-20261106/call-tail-fixtures-v2-result.json": "91573d1fa435f38ef87674d614c03d45b27595044b59d35f4a2b2a3c384b8b66",
+    "out/nano-usb-toggle-board-20261106/call-tail-fixtures-v2.log": "e5a6677f52e368bdebf9c16900fefdc4b5f379029f3ee145eeb91983dd374edb",
+    "out/nano-usb-toggle-board-20261106/candidate-check-v5-result.json": "622f23ef0a32ac817c2e7dc57025623fcb202c74d5ba52d7b741286d6aaeadc0",
+    "out/nano-usb-toggle-board-20261106/candidate-check-v5.log": "1837a6ef137314484e2effb4a0baefea69c16a09971a7ee8312813aa59c38dd7",
+    "out/nano-usb-toggle-board-20261106/candidate-check.json": "be4e9ecac60fe6603d26bcbb5f27d5fb06a0e1af3925b802031f5f07bd49e4a0",
+    "out/nano-usb-toggle-board-20261106/candidate-proof-result.json": "b2af4c4d540412edd4a8e3d48836ce8b6c9dc300407e8701e4cc4a0b47c9755e",
+    "out/nano-usb-toggle-board-20261106/candidate-proof.json": "1a4e98370ac2b279395fac8262c0bb82c10be0772a1dbc097b74b145da9f9ea9",
+    "out/nano-usb-toggle-board-20261106/candidate-proof.log": "63c025c5ad98b4a0852b0a23ce47d77e5f3af55a7accf66b92717ee64aa211ff",
+    "out/nano-usb-toggle-board-20261106/catalogue-result.json": "9250051f820324fcb701927314362e3843a414e171a7124a4b408ae623ab722d",
+    "out/nano-usb-toggle-board-20261106/catalogue.log": "dd1dc58bbb77890f3d53b4aa2db475bcc37693f0a10c5658621889f7ef824f0e",
+    "out/nano-usb-toggle-board-20261106/cleanup-audit-result.json": "28c8753df580a7fd1d2c52a998556f8a7790cb5023cb9791823c266f11696ce8",
+    "out/nano-usb-toggle-board-20261106/cleanup-audit.log": "697f7641a68cae4a45acb61f8cffbb0fc7f26e06df604a89a911f458810ac9e5",
+    "out/nano-usb-toggle-board-20261106/cleanup-evidence.json": "7fecd92dbf5fcf639e54b7c9e3b602b1171d67c1e9529f2bf67e1ce82aedfe8c",
+    "out/nano-usb-toggle-board-20261106/decode-tail-fixtures-v4-result.json": "db314d0ba456bc9f215845a5684a26ad4374407fc45db431acae1d009f8d6915",
+    "out/nano-usb-toggle-board-20261106/decode-tail-fixtures-v4.log": "b9eed1fe6adb088666c8685cc6efb2572e17303dc4adb238ce3dc07cad0f1f06",
+    "out/nano-usb-toggle-board-20261106/device-admission-fixtures-result.json": "c20a746443498954b133799e8509fc8a647d8c0c3e14a98305f797523a279a1d",
+    "out/nano-usb-toggle-board-20261106/device-admission-fixtures.log": "da2829d484c80476081917e89711e8e2206fd1320900acc37b4c6185b2453745",
+    "out/nano-usb-toggle-board-20261106/exit-tail-fixtures-result.json": "8a70743e29a3e04f2800dcefb5379c8e6006baeca62bb7eee758763a557541b1",
+    "out/nano-usb-toggle-board-20261106/exit-tail-fixtures.log": "9f0a8dbaeec6ed9c8254b8b1b78f98618a3a3262fc2a7978be1a80df116fa439",
+    "out/nano-usb-toggle-board-20261106/freeze-result.json": "e9145bea91a500383cfdc59d8fd2ac5069836926dc376c8156ac3abf1693429e",
+    "out/nano-usb-toggle-board-20261106/freeze.log": "7d4de3ba6007c8441354a27ae8d2bf4e79dde5e63dc5b3d57f265e6b4ee709f7",
+    "out/nano-usb-toggle-board-20261106/hardware-result.json": "cf189c9db6ab796040f6fe49eeaa7dd670a491cb62f302e02368274eab47e9b5",
+    "out/nano-usb-toggle-board-20261106/hardware.log": "16dbaf40653c2f9f06e5926d47118b4d683641de053784b5a6cfbf954e6b4692",
+    "out/nano-usb-toggle-board-20261106/history.json": "970a3756fef9c7d5f3346d9a51cacdbd90a8dd9beb222ad34d4ac2a717901a77",
+    "out/nano-usb-toggle-board-20261106/independent-boot-replay.json": "5d4e331b81509bbb959f678dbfe4244ec55c986bf00526c9db09ae70e44b673c",
+    "out/nano-usb-toggle-board-20261106/loader-tail-fixtures-result.json": "534923d273a2651a5d61bd3265281e8320633b683ff59de27e93f0f30960346a",
+    "out/nano-usb-toggle-board-20261106/loader-tail-fixtures-v2-result.json": "9067932dbe19797bb14ceb3a2fb1daec44ef9a833cbc54ff5c34d6b9a2447447",
+    "out/nano-usb-toggle-board-20261106/loader-tail-fixtures-v2.log": "3ac5cd95ef411b5591a9c47acc213879f9a300e5c77d87941e09ebf322590afe",
+    "out/nano-usb-toggle-board-20261106/loader-tail-fixtures.log": "bb18cfbff0c42fedcd8aa3c0eb8ee29ba90115189448ae175b35735911c2d0a2",
+    "out/nano-usb-toggle-board-20261106/operator-fixtures-call-result.json": "1704fa6fbd3559a4f6b92049a6bdb2f8e35b9df15999d227c1265387e78ffce9",
+    "out/nano-usb-toggle-board-20261106/operator-fixtures-call.log": "da6a87e85cd409e0eeb96be6e4507a9d34ddd25f8c771fee245b9cf9344b39b7",
+    "out/nano-usb-toggle-board-20261106/percpu-fixtures-v2-result.json": "0f4e2a93f78107945501924fd308c7c72345b9b4e8ed99be107d21dfcdd4110f",
+    "out/nano-usb-toggle-board-20261106/percpu-fixtures-v2.log": "344ec5368078b8ef82adb88361a5c20555646548797df4f97fa2824ff739dd11",
+    "out/nano-usb-toggle-board-20261106/preflight-result.json": "ae73e117e72520607bf98ae855171213564fb74566b69f8f9f3d85a836802431",
+    "out/nano-usb-toggle-board-20261106/preflight.log": "65dd11f5d733a3bce43e3284dc2d375509710c25311c03d9535b741bb3f65720",
+    "out/nano-usb-toggle-board-20261106/record_observation.py": "f489a8c20abb27b1eb356d883cc4193ebfb500f86a7a78eb8eea26e525f18052",
+    "out/nano-usb-toggle-board-20261106/recovery-source-pin.json": "3af590f4e06f1094ca5193cb70c714a94f16e4c62258447b2e87e40427438800",
+    "out/nano-usb-toggle-board-20261106/remaining-fixtures-result.json": "4b375f6fbc7907ee82e72cdc3f3b83590971b705fc57b16710a77d536a0c0689",
+    "out/nano-usb-toggle-board-20261106/remaining-fixtures.log": "4765784a67a088f31c2bf1b6558640d3914061e07a503b9f4c299a87442dd641",
+    "out/nano-usb-toggle-board-20261106/runtime-tail-fixtures-result.json": "b1df1d511d765305742dc812f6bbc0863056cb57507a279da024c452bc9b1d6a",
+    "out/nano-usb-toggle-board-20261106/runtime-tail-fixtures.log": "66527f97842dcd14c535a5893ccea63ff9cc4e49eafbdb2d59359a271e7eaf0e",
+    "out/nano-usb-toggle-board-20261106/source-fixtures-v4-result.json": "0c26adc646b5a68bca60acda1c89cf5e9b3a70d0031cf91d2ff5512aa419c28f",
+    "out/nano-usb-toggle-board-20261106/source-fixtures-v4.log": "93c5f5db81810cd71ec55e4391c6f3f0d7166eb71c216519c2257e8331945298",
+    "out/nano-usb-toggle-board-20261106/source.json": "0a13f6c8e550151270a4e20663fa53cfadf768169dc81772ec5b8035c001c8a9",
+    "out/nano-usb-toggle-board-20261106/tail-fixtures-cache-result.json": "db402f7620b925ed587ae7baa7f352bdb24b647709b9a3b91fc2090c41efca07",
+    "out/nano-usb-toggle-board-20261106/tail-fixtures-cache.log": "e1aceb71e53365a7e3b9d734075592fc643b087264c2cc1a9872dce5d525b240",
+    "out/nano-usb-toggle-board-20261106/transport-fixtures-v4-result.json": "7fc20388c9af5a41bcf3f055a9aac38c3ba55188d85dd1230f2492d8a72c77dd",
+    "out/nano-usb-toggle-board-20261106/transport-fixtures-v4.log": "644872a3c36aa1d8dfbae8dbade7188af1c42345506f46c13b1092ce4d82b0d1",
+    "out/nano-usb-toggle-board-20261106/trial/clock-before-native.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-usb-toggle-board-20261106/trial/clock-before.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "out/nano-usb-toggle-board-20261106/trial/clock-confirm-6m.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-usb-toggle-board-20261106/trial/clock-restore-15m.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-usb-toggle-board-20261106/trial/clock-restored-readback.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "out/nano-usb-toggle-board-20261106/trial/clock-set-6m.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-usb-toggle-board-20261106/trial/clock_policy.py": "082ea1a2646bf9dbfecf0b378274801576600265282827cce48bbbaea8a6c4f5",
+    "out/nano-usb-toggle-board-20261106/trial/common.py": "6ade5c6efd0219bf08b5d39845cc512584b4374a4bafe3c1fe1d0101506f0fba",
+    "out/nano-usb-toggle-board-20261106/trial/experiment-progress.json": "82b82151ef11fa66ab214624121d29f9d8acc4fec75393a1ba94a71cc094c1b0",
+    "out/nano-usb-toggle-board-20261106/trial/experiment-result.json": "0076a69e3d9433c673bc48e92f80939ce93f40fe561d8c14135cd31d3f57b3ed",
+    "out/nano-usb-toggle-board-20261106/trial/experiment.py": "f067d9dcd4e1230f00fd9ce003ec40c17267140f3d222442cd4af0f19b312c47",
+    "out/nano-usb-toggle-board-20261106/trial/live-firmware-alt.json": "a30449a2692f3bcdef3ed6570bc250355ee1f2be4578f7b29ea75b2700367cc8",
+    "out/nano-usb-toggle-board-20261106/trial/live-firmware.json": "678faaca36e6f14b59d938873c688cfad2715a432837cb5a1f537fa847462719",
+    "out/nano-usb-toggle-board-20261106/trial/live-fit.json": "7442ccb1288465fb0f2cd854ff63fe5983b8e08a24fa98a1fef328f699bf79ca",
+    "out/nano-usb-toggle-board-20261106/trial/live-metadata-alt.json": "676cf53729486da47d6a2d7733e566608b9f5f4f685f213e147627a650465597",
+    "out/nano-usb-toggle-board-20261106/trial/live-metadata.json": "3e4284b3ab1267487dff5b3090e530e442894006ac5eca8c525fde8c1b94a9df",
+    "out/nano-usb-toggle-board-20261106/trial/live-package.json": "4eeaff20827c4152499dac1dd92bfab29be8007e414dfd786253b5d6b587faf8",
+    "out/nano-usb-toggle-board-20261106/trial/live-selection.json": "20f453b8147997b14d7f4c2016013ff1a85f945fb14f054e7126639a56ce58e4",
+    "out/nano-usb-toggle-board-20261106/trial/live-ui-catalog.json": "0c90b18dbc75d5a3504dbffbccc768f41ac46151b4944faab48b7364a0164a1e",
+    "out/nano-usb-toggle-board-20261106/trial/native-clock-before.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-usb-toggle-board-20261106/trial/native-console.log": "56a4e2b64670f749eb8307ac9825b8ab96152efb5fff45e8e2ec85ce2956b01a",
+    "out/nano-usb-toggle-board-20261106/trial/native-jtag-query.log": "0f812720b2c47bf3ad372d72fa190a1e3cd610d71db36ffde7ef2c39aafb34b4",
+    "out/nano-usb-toggle-board-20261106/trial/native-program.log": "3ee2a64c2daeae76fa416c75f5375fae58cdc323e14c12fbeaa78b127b8e05ef",
+    "out/nano-usb-toggle-board-20261106/trial/native-progress.json": "805a117c82b948fc24eff07f6413b137984ab1a3a0373a45a5ea6859bbe9d21a",
+    "out/nano-usb-toggle-board-20261106/trial/native-result.json": "e81ec07d006847550141331c2816503e53fd4cd45bb7c3367b4c0638a47bb249",
+    "out/nano-usb-toggle-board-20261106/trial/native.py": "076851707cabf94c6231347d0f14ff5436f14c5e372998b32f93036e515eee3e",
+    "out/nano-usb-toggle-board-20261106/trial/percpu_checks.py": "8853aef10b57e999bd0b2354961584bac99db9524315b66176c31f5a76402465",
+    "out/nano-usb-toggle-board-20261106/trial/preflight.json": "a1eb03df95acf7fce61643c61c5e7704fa459f8d11d20c845d7fae72881c56bc",
+    "out/nano-usb-toggle-board-20261106/trial/private-client-setup.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-usb-toggle-board-20261106/trial/private-device-admission.log": "ca11d3c2c870723620e2ce3e5e6813cd4874c917cbdead324ae31cc0b7a4a93a",
+    "out/nano-usb-toggle-board-20261106/trial/private-device-clock.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-usb-toggle-board-20261106/trial/private-server.log": "313024a2d27e45e1bf2ec046cf5695d802a800aa42e049777e9747e2299aa6ba",
+    "out/nano-usb-toggle-board-20261106/trial/private-top-enumeration.log": "ca11d3c2c870723620e2ce3e5e6813cd4874c917cbdead324ae31cc0b7a4a93a",
+    "out/nano-usb-toggle-board-20261106/trial/private_jtag.py": "c9b36356faf133d4a734d46743bf586eb0c74006c535a869e6a1fb36856e4023",
+    "out/nano-usb-toggle-board-20261106/trial/recovery-boot-clock-after.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-usb-toggle-board-20261106/trial/recovery-boot-clock-before.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-usb-toggle-board-20261106/trial/recovery-boot-console.log": "08f71211664d0b0670c09131e98e3574409bdcac5a9bcbf828ddf74c7e8fcbb6",
+    "out/nano-usb-toggle-board-20261106/trial/recovery-boot-jtag-query.log": "1c084167aef81706ade66d94739509c4e96ebfb774a35d291e5fd986c6533782",
+    "out/nano-usb-toggle-board-20261106/trial/recovery-boot-program.log": "efa5b843c162f8d113e528c7b7bf78ff2e282821588980696c5ad61b9da97dae",
+    "out/nano-usb-toggle-board-20261106/trial/recovery-boot-progress.json": "6c6b1f462efc8229d15426860e7e4ddfb04959bfaf6e5769c1baa83f8c68859c",
+    "out/nano-usb-toggle-board-20261106/trial/recovery-boot-result.json": "bede4adbeb8797cd02a46d07a442772e49077378a2eca8ec49ca91d8029a4727",
+    "out/nano-usb-toggle-board-20261106/trial/recovery.py": "90ed378a120d8eb4add927abf28b81f2b1d502453bb11a3e18b1936eda67b9c1",
+    "out/nano-usb-toggle-board-20261106/trial/recovery_pin.py": "20e169fe043d7d0d9d1073112577a7a95f1b077c8c4fd6af32ef20289b807f88",
+    "out/nano-usb-toggle-board-20261106/trial/service_checks.py": "2bd242d2b1322ddb1638eab51af3314a0688b89b684a3ef23d00310984e305ce",
+    "out/nano-usb-toggle-board-20261106/trial/transport.json": "2877b914a4d0494661f417f97c1d087eb617f73953a0bfc10b762669ca1a57c3",
+    "out/nano-usb-toggle-board-20261106/trial/trial_inputs.py": "7497ca8c357b291e5817e52b3ea24707926ac7c0198da1480edbb9fa5f7bae7f",
+    "out/nano-usb-toggle-board-20261106/trial/upload-boot/progress.json": "ee1dd782e8523d109aa76993a9c264ecafd164b090be5e69bfb4e81e3fc7b950",
+    "out/nano-usb-toggle-board-20261106/trial/upload-boot/result.json": "f5e9f21f568c138e7bdd9ebb1757c6478f41565150a8921a2c1c18bf968f434a",
+    "out/nano-usb-toggle-board-20261106/trial/upload-firmware/progress.json": "165e822c5dc2f602132cdd001c7b103e7742fcbdc44fdb0e73c9fe8b272e53b1",
+    "out/nano-usb-toggle-board-20261106/trial/upload-firmware/result.json": "23098fd7850b7f7da7fcef1a9eea578415d2321bcb14cba9d908ba159038a27e",
+    "out/nano-usb-toggle-board-20261106/trial/upload-firmware-alt/progress.json": "888ed882b094cbb7070081156961f0c646ad42002b3dd630c255deacaaff08a9",
+    "out/nano-usb-toggle-board-20261106/trial/upload-firmware-alt/result.json": "4c0001816287b2aa573949d80c2e47777f457bf5308101e24f640c950873a6ce",
+    "out/nano-usb-toggle-board-20261106/trial/upload-metadata/progress.json": "4759d37e21ee8701a700dfcad10d162941ea5a686a2914cf6fb3ca5e3507b3a2",
+    "out/nano-usb-toggle-board-20261106/trial/upload-metadata/result.json": "870870f20ea518ef98089cf2b70248860b5cbdad5bef8d35bfafeeb35936ee42",
+    "out/nano-usb-toggle-board-20261106/trial/upload-metadata-alt/progress.json": "5c8dcceaadcf357e85b1f95613747db6eb0de3b833e59aea538265a8c30b8523",
+    "out/nano-usb-toggle-board-20261106/trial/upload-metadata-alt/result.json": "c93481049ac5e2e95b12cabdc112363517a54aecb51705dc7f5cc19a73872a2c",
+    "out/nano-usb-toggle-board-20261106/trial/upload-package/progress.json": "7f9913caca795ed1142e42754ddbbb4ff71d2022defedcd25a7a91b1e04922ba",
+    "out/nano-usb-toggle-board-20261106/trial/upload-package/result.json": "bb65df9a8cb825f7f5b43506bc6d0b34b53f954a1063ea2024044e8072969f66",
+    "out/nano-usb-toggle-board-20261106/trial/upload-selection/progress.json": "6fba2a03a923279d5d912cc5f269b3bef3cf2fdc73e6d0cd5da1516f8efa042c",
+    "out/nano-usb-toggle-board-20261106/trial/upload-selection/result.json": "28f94eb1b67774322f48cd2959bce79bbf1546a213dd96d45b9ab20b2bc9d3d5",
+    "out/nano-usb-toggle-board-20261106/trial/upload-ui-catalog/progress.json": "899d691be5b24b8e3c5db9b0c104dff1a746c7be62558e6f11d0711c8e88f010",
+    "out/nano-usb-toggle-board-20261106/trial/upload-ui-catalog/result.json": "a9901b269b4975fd09857868be26d26515af4f3eb1efaf6c46ba4f6e5b000f0c",
+    "out/nano-usb-toggle-board-20261106/trial/upload_both.py": "efa98f82de6ca3607926b1badf38c97d2f203cb5b17963cc55cbcb0a5745f212",
+    "out/nano-usb-toggle-board-20261106/trial/upload_checks.py": "497636cad5390e8f6820d11d18c698efd7d8af3883a714b6dd112a6014e61fa3",
+    "out/nano-usb-toggle-board-20261106/trial/uploads/console.log": "1918fdf24493d3b85ec4069d6f278fbb897cb1912d536e90f5183dfe3ed38372",
+    "out/nano-usb-toggle-board-20261106/trial/uploads/progress.json": "b8bee6f1c5219550947f00a4631dfca0e7e53c8c2a6d09f03d58287cee90f841",
+    "out/nano-usb-toggle-board-20261106/trial/uploads/result.json": "3e12504b67f223a1882eea0499c662e2d95e952a73696604a94c915c6760346b",
+    "out/nano-usb-toggle-board-20261106/upload-receipt-fixtures-final-result.json": "a778e6b22ca2f3d55441bf1a5a07974c47d34ac68cc65c5c45205b768d979441",
+    "out/nano-usb-toggle-board-20261106/upload-receipt-fixtures-final.log": "13ab09d7d9e1965905765f34084820f0a7df11c67f9c6f2fa55bd12df5c94903",
+    "out/nano-usb-toggle-board-20261106/uploader-fixtures-final-result.json": "190ae1515bc74d449e87abd9dc8456e142c293c8951555e3d70b99c8000a722e",
+    "out/nano-usb-toggle-board-20261106/uploader-fixtures-final.log": "e65011cf9e6f3fb6cbe13b2de21593d65214c208e2f05e716d8073f9c2dfd814"
+  }
+}

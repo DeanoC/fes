@@ -1,0 +1,86 @@
+{
+  "warm-word-source-models-r2": {
+    "argv": [
+      "python3",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "/home/deano/fes/out/dev/de25-setup-release/tests",
+      "-p",
+      "test_nano_source_retirement.py",
+      "-v"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 182.64117526100017,
+    "log_sha256": "b70133964f17444b50273eca80688d66fb5820562c065fafc81e6819da19f039"
+  },
+  "warm-word-cost-portable-focused-r1": {
+    "argv": [
+      "python3",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "/home/deano/fes/out/dev/de25-setup-release/tests",
+      "-p",
+      "test_nano_source_retirement.py",
+      "-k",
+      "warm_expected",
+      "-v"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1.2012783871032298,
+    "log_sha256": "b9a86d4840cba814078ffccaab75c3f83f56965241a537d6ff16f0ccb454d8bc"
+  },
+  "warm-word-counterexample-r3": {
+    "argv": [
+      "python3",
+      "out/publication/check-warm-word-counterexample-v3.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 2.402101887157187,
+    "log_sha256": "d912fb8cbc5b65eda2cd8fa8911833fceb5e9af429a05af76f7ccb241cea8855"
+  },
+  "warm-word-vendor-object-r2": {
+    "argv": [
+      "python3",
+      "out/publication/compile-warm-word-vendor-v2.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 1.201239984948188,
+    "log_sha256": "92b6f5b42451b8f079a781460703e033d0c95eae28e08ac2ea3e483bff0a8650"
+  },
+  "warm-word-committed-check-r1": {
+    "argv": [
+      "make",
+      "-C",
+      "/home/deano/fes/out/dev/de25-setup-release",
+      "check"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 31.02644171193242,
+    "log_sha256": "4ffe37a0582de7ca316571feada015e041e0fcc1e04f967bf1c719a8c98bc0bc"
+  },
+  "warm-word-retain-r1": {
+    "argv": [
+      "python3",
+      "out/publication/retain-warm-word-models.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 3.6020241130609065,
+    "log_sha256": "11d8cc3e83412a363851061adb4fac41f2501386c63b765985d5bb140d2bfc80"
+  }
+}

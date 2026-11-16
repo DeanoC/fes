@@ -1,0 +1,10 @@
+test_both_workers_and_final_file_check_precede_effect_and_never_cache_PASS (test_native_preflight.Tests.test_both_workers_and_final_file_check_precede_effect_and_never_cache_PASS) ... ok
+test_each_role_failure_prevents_attempt_reservation_or_effect (test_native_preflight.Tests.test_each_role_failure_prevents_attempt_reservation_or_effect) ... ok
+test_production_entry_and_forward_worker_order_the_checks_before_actions (test_native_preflight.Tests.test_production_entry_and_forward_worker_order_the_checks_before_actions) ... ok
+test_real_outer_frozen_files_PASS_but_stale_native_closure_stops_before_effect (test_native_preflight.Tests.test_real_outer_frozen_files_PASS_but_stale_native_closure_stops_before_effect) ... ok
+test_source_change_after_workers_or_lost_claim_cannot_reach_effect (test_native_preflight.Tests.test_source_change_after_workers_or_lost_claim_cannot_reach_effect) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 3.103s
+
+OK

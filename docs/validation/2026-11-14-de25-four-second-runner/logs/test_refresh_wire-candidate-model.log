@@ -1,0 +1,9 @@
+test_actual_forward_and_original_rollback_require_all_readbacks (test_refresh_wire.Tests.test_actual_forward_and_original_rollback_require_all_readbacks) ... ok
+test_changed_receipt_output_cannot_substitute_for_actual_UART (test_refresh_wire.Tests.test_changed_receipt_output_cannot_substitute_for_actual_UART) ... ok
+test_missing_reordered_duplicate_nonce_and_raw_failure_reject (test_refresh_wire.Tests.test_missing_reordered_duplicate_nonce_and_raw_failure_reject) ... ok
+test_unreceipted_flash_or_second_SD_write_cannot_hide_in_wire (test_refresh_wire.Tests.test_unreceipted_flash_or_second_SD_write_cannot_hide_in_wire) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 3.645s
+
+OK

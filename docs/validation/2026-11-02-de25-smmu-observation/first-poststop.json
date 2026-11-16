@@ -1,0 +1,19 @@
+{
+  "queries": [
+    {
+      "returncode": 0,
+      "identity": true,
+      "sha256": "7185e666c3ff599df68e80ac35954ae90c29fd24a685318a1b72692791d2c6cb"
+    },
+    {
+      "returncode": 0,
+      "identity": true,
+      "sha256": "6bd855c160b4135b69af873e7a50f69230cbef6d64a52fab6f38a7f167516dd1"
+    }
+  ],
+  "factory_restored": false,
+  "boot_state_verified": false,
+  "uart_holders": "",
+  "usb_permissions_restored": true,
+  "utc": "2026-11-02T05:27:12.368169+00:00"
+}

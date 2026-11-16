@@ -1,0 +1,78 @@
+{
+  "status": "passed",
+  "classification": "actual RTL plus patched TF-A C functions with simulated platform operations; no hardware acceptance",
+  "commands": [
+    [
+      "cc",
+      "-std=c11",
+      "-Wall",
+      "-Werror",
+      "-fsanitize=undefined",
+      "-fno-sanitize-recover=all",
+      "-I/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/tests",
+      "-c",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/embedded-control-db37e18378a24de8a4dfa5935b786392/tfa_subset.c",
+      "-o",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/embedded-control-db37e18378a24de8a4dfa5935b786392/tfa_subset.o"
+    ],
+    [
+      "verilator",
+      "--cc",
+      "--exe",
+      "--build",
+      "--top-module",
+      "fes_embedded_control",
+      "-Wall",
+      "--Mdir",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/embedded-control-db37e18378a24de8a4dfa5935b786392/obj",
+      "-I/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/cores/fes-common/generated",
+      "-GBUILD_ID=128'h00112233445566778899aabbccddeeff",
+      "-CFLAGS",
+      "-std=c++14 -O2 -fsanitize=undefined -fno-sanitize-recover=all -I/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware",
+      "-LDFLAGS",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/embedded-control-db37e18378a24de8a4dfa5935b786392/tfa_subset.o -fsanitize=undefined",
+      "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv",
+      "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/control.cpp",
+      "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/firmware/tests/endpoint_tb.cpp"
+    ],
+    [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/embedded-control-db37e18378a24de8a4dfa5935b786392/obj/Vfes_embedded_control"
+    ]
+  ],
+  "source_sha256": {
+    "platform/embedded/firmware/control.hpp": "c84f8c5aebb8a15286651b1536e78121b690ff4778dc1ca393d8bb8d56064bb0",
+    "platform/embedded/firmware/control.cpp": "897bd6cab9addd84efd3be52d0ddfb51fbb217bb9f626a0bf244af78107297d4",
+    "platform/embedded/firmware/tests/contained_path.hpp": "c3e9da659c491930bc33c1cffb27a72d490035635077933079a6b18f43726dd0",
+    "platform/embedded/firmware/tests/tfa_stubs.h": "ac58dc5b86983c8f53b8335ac29dd0d6b241b1c4cbe89e5b2df305e7a5e79221",
+    "platform/embedded/firmware/tests/endpoint_tb.cpp": "0d4cfe02608baebc02a33f79d5932f820b0cf1ac27990132afbcf0b6e344e5f6",
+    "platform/embedded/firmware/tests/terasic_reset_test.h": "4246d7ac753b5a40f1c44373d2b9a7de21621bad7dea582eeced9dc4e30543e5",
+    "platform/embedded/firmware/verify.py": "c31a902bebb6b48808e58063c6623931fb19693c297d4bc3679623125f1c51bf",
+    "platform/embedded/firmware/prepare_tfa.py": "511db177f046c0ac4e2d8987cb1f26707e362e0175fdd254f39a7ef081295329",
+    "platform/embedded/firmware/generated/fes_embedded_control.hpp": "8856d106e50c7b3a8394c8e1442568446087195dfd3e6f3099ad63931dd41df1",
+    "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv": "95bc4ef8f470612d71dfa2737e96a988e8a8508e5db56857455bf294654667f3",
+    "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh": "20e1f042865b54a4cc6a7334b874fedc9f95aa87deb2757ce04a35cc023fc597",
+    "platform/embedded/firmware/nano_bridge_diag.h": "b80c4442198cbbdff4781d66ace85ab4a930804114176e5927e8984d1e78e904",
+    "platform/embedded/firmware/nano_bridge_diag.inc": "4d6a679e495b06dbda6d40db269492faf6ffa20aa2024262d57c6d648fd7c946",
+    "platform/embedded/firmware/tests/bridge_diag_service.c": "fe81728b0e347cc099e18b9cda98add94b2d2ac9898a071a580ebbb6e6e9beb3"
+  },
+  "reference_git_blob": "3c223c1498e3a412e075e4f921cd78acd3d0fcd6",
+  "reference_profile": "upstream-v2.12",
+  "reference_sha256": "92607ef0382fd57501c38f254b04c246e94fff1f1d60bb97e3d3d1284dbbf17a",
+  "patched_tfa_sha256": "83280780a2e0c9ea3639692008bb0f66413357442acd55dde67a5cee27c32634",
+  "reset_reference_git_blob": null,
+  "reset_reference_sha256": null,
+  "reset_patched_sha256": null,
+  "cross_compiler_sha256": null,
+  "aarch64_object_sha256": null,
+  "not_run": [
+    "AArch64 freestanding adapter compilation"
+  ],
+  "checks": [
+    "PASS actual-TFA-contained-reload",
+    "PASS AXI-fault-reset-generation-cookie",
+    "PASS identity-firmware-deadline-failures",
+    "PASS outstanding-queue-and-CSR-backpressure",
+    "PASS forwarding-profile-and-late-response",
+    "PASS simultaneous-AR-RLAST-and-256-beat-burst"
+  ]
+}

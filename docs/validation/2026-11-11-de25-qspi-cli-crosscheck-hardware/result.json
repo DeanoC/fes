@@ -1,0 +1,67 @@
+{
+  "scope": "fresh-CLI-window-crosscheck-against-preserved-console-read",
+  "whole_attempt_passed": true,
+  "operator_source": "b1809903980688d148c6a1fff9f15808984a6e8e",
+  "board": "TRWU8CBL",
+  "previous_mixed_transport_attempt_remains_failed": true,
+  "console_repeated": false,
+  "fresh_private_server": true,
+  "fresh_vendor_first_and_forced_scan": true,
+  "AF_identity": "20bb18",
+  "status_before_reads": [
+    0,
+    0
+  ],
+  "configuration_unchanged": true,
+  "QSPI_close_acknowledged": true,
+  "root_packet_grants_checked": 22,
+  "bytes_compared": 12288,
+  "concatenated_sha256": "cc8eb4bcf7a09e04ed259b57fabaa3a656698faf75276b79e0f535175aacdc56",
+  "windows": [
+    {
+      "offset": 0,
+      "bytes": 4096,
+      "sha256": "b20398f8fe201dce733f34935660c7d2e18fae3d075daae6dfa2b69ccc7a3cd9"
+    },
+    {
+      "offset": 2097152,
+      "bytes": 4096,
+      "sha256": "7c55cd44890b919ed78850d6c54ecf6e526231fe13e309ec7443d07b0204c549"
+    },
+    {
+      "offset": 16773120,
+      "bytes": 4096,
+      "sha256": "f47a8ec3e9aff2318d896942282ad4fe37d6391c82914f54a5da8a37de1300c6"
+    }
+  ],
+  "console_and_CLI_bytes_match": true,
+  "array_window_qualification": true,
+  "complete_backup": false,
+  "flash_write_commands_sent": false,
+  "sd_write_commands_sent": false,
+  "image_programming_attempted": false,
+  "reset_or_reboot_attempted": false,
+  "CPU_Park_reobserved": false,
+  "independent_cleanup": {
+    "status": "passed-independent-CLI-readback-and-cleanup",
+    "whole_attempt_passed": true,
+    "array_windows_qualified": true,
+    "bytes_compared": 12288,
+    "packet_and_CLI_bytes_match": true,
+    "private_namespace_members": [],
+    "private_server_absent": true,
+    "clock_restored": true,
+    "private_client_mode_restored": true,
+    "exact_usb_permissions_restored": true,
+    "uart_owners": [],
+    "flash_array_read_attempted": true,
+    "flash_write_commands_sent": false,
+    "sd_write_commands_sent": false,
+    "complete_backup": false,
+    "attempt_error": null
+  },
+  "raw_result_sha256": "6f94fb06f019f091b8b33d69714144cb3d15386b9071783c806b8109e6188d9f",
+  "model_proof_sha256": "1536312cedc386966fe7f064e203707515f2e510d1e379764c1b356d85f2358f",
+  "auditor_correction": "Initial post-auditor expected a console-only mode field absent from CLI receipt; corrected auditor directly verifies unchanged private client bytes and mode600. Both auditors and logs retained.",
+  "experiment_elapsed_seconds": 15.435419850982726
+}

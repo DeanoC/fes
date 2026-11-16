@@ -1,0 +1,176 @@
+{
+  "format": 1,
+  "status": "candidate-built-not-qualified",
+  "implementation_source": "b997f60eaf4cc1345a3c40fe87744c1bb31a2d76",
+  "validation_source": "c5e000aada1a4ce28bc1849adc5385013b1b12ea",
+  "fixture_correction_source": "546c6e68b",
+  "classification": "Fresh source-bound standard-ABI Nano package candidate; host compatibility/ROM link and source/RTL checks; no native boot or hardware acceptance",
+  "hardware_actions": false,
+  "physical_activation": false,
+  "ordinary_native_runtime_wired": false,
+  "core_load_acceptance": false,
+  "package_id": "5979c94889c6e3ee824656f1b7656c81b6a5c2df862a03db7bd8ecf0491311f0",
+  "build_id": "e415ec96ebc1148e4d7e813ae9f42bfb",
+  "payload_sha256": "4dd694cd5e327aa4d9db9b10f597a8a3ef71d897bfce94efbf041a0bf0a173e5",
+  "payload_bytes": 1654784,
+  "ABI": {
+    "id": "fes.computer",
+    "major": 1,
+    "minor": 0
+  },
+  "interfaces": [
+    {
+      "id": "fes.embedded.rom",
+      "major": 1,
+      "minor": 0,
+      "required": true
+    },
+    {
+      "id": "fes.video.fixed-720p60",
+      "major": 1,
+      "minor": 0,
+      "required": true
+    },
+    {
+      "id": "fes.keyboard.hid",
+      "major": 1,
+      "minor": 0,
+      "required": true
+    },
+    {
+      "id": "fes.media.zx81-tape",
+      "major": 1,
+      "minor": 0,
+      "required": true
+    }
+  ],
+  "archive_sha256": "24a0ace1d82ebf387f2f4323760b7ffb2a74d4a70c735af23700d9a0d8520054",
+  "firmware_sha256": "14ad84f4243efcd41587ff46ab932d11087043e8d455a1ed2a227b9657828dfa",
+  "activation_receipt_sha256": "55f88d9242b4c28b0a8ee11b621bd9ca915a555445d427a841fd1254b8b38a28",
+  "remote_builder": "fes-build-3090",
+  "shared_quartus_lock": "/tmp/lander-quartus-3090.lock",
+  "quartus_elapsed_seconds": 576.1119099459611,
+  "copied_files": 1422,
+  "source_inputs_checked": 190,
+  "source_input_manifest_sha256": "63f5da43a2d2e4042a6dff7a8cf6e88914577b21ab9f5a44fc9db26b110136f4",
+  "timing_report_sha256": "dc92847f8862c3bbc1423792c6179111310b497d2cbe8b8a306fc2908b38f239",
+  "timing_signoff": false,
+  "constrained_setup_min_ns": 2.002,
+  "constrained_hold_min_ns": 0.002,
+  "unconstrained_summary": {
+    "Illegal Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Input Ports": [
+      2,
+      2
+    ],
+    "Paths from Unconstrained Input Ports (Pairs-Only)": [
+      9,
+      9
+    ],
+    "Unconstrained Output Ports": [
+      30,
+      30
+    ],
+    "Paths to Unconstrained Output Ports (Pairs-Only)": [
+      2470,
+      2470
+    ]
+  },
+  "signoff_failures": [
+    {
+      "rule": "TMC-20012 - Missing Output Delay Constraint",
+      "severity": "High",
+      "violations": 30,
+      "waived": "0"
+    },
+    {
+      "rule": "TMC-20011 - Missing Input Delay Constraint",
+      "severity": "High",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+      "severity": "Medium",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "TMC-20026 - Empty Collection Due To Unmatched Filter",
+      "severity": "Medium",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "LNT-30023 - Reset Nets with Polarity Conflict",
+      "severity": "Medium",
+      "violations": 1,
+      "waived": "0"
+    },
+    {
+      "rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+      "severity": "Low",
+      "violations": 3,
+      "waived": "0"
+    }
+  ],
+  "software_aggregate_green": false,
+  "parent_tests": 1572,
+  "generated_consumers": 48,
+  "cpp_go_parity_cases": 657,
+  "FPGA_unique_cases_covered": 1581,
+  "FPGA_remaining_cases_passed": 207,
+  "known_inherited_failure": {
+    "test": "test_pnr_recipes.PnrRecipeTests.test_recipe_and_legacy_argv_goldens_for_every_registered_producer",
+    "core": "fes.coleco",
+    "base": "bc8e4624d1d821c2d7cee2eddc3d8d2e6bc84905",
+    "actual": "36aea678cbf9d9df26f0b7bfd6dc409c96c36c7c7c740d737c50b49688819c90",
+    "expected": "5a6fccb367857e0282be870b60298989f1d845023f9198e79d979e06755c927d",
+    "previous_source_control_reproduced": true
+  },
+  "test_execution_notes": "Aggregate 900s run timed out during runtime active-tree checks. Runtime tail/contracts completed separately. FPGA 240s run and an incorrectly selected continuation timed out; corrected 207-case continuation passed. One diagnostic metadata fixture was corrected and its four cases passed. All 1581 unique FPGA cases are covered, including the separately reproduced inherited failure; aggregate is not green.",
+  "matched_boot_chain_prepared": false,
+  "physical_input_verified": false,
+  "physical_video_verified": false,
+  "native_Ethernet_verified": false,
+  "next_steps": [
+    "Implement the ordinary native boot/firmware and driver contract using this retained package; current constructors still reject its profile.",
+    "Close external timing coverage and all six signoff findings without waivers; rebuild and revalidate if producer inputs change.",
+    "Build a matched native chain and requalify TRWU8CBL after its power interruption before a bounded hardware load."
+  ],
+  "evidence_sha256": {
+    "out/nano-computer-package-20261106/producer-current-result.json": "ee4ffab2fd7fb7061e34f6bb6dcef88d6430035224c34749d6cf25221a09a6b9",
+    "out/nano-computer-package-20261106/native-final-focused-result.json": "985ea6607197f1ec9140e452bb4ffc715e71a264b66b89abdd8c22d544981bec",
+    "out/nano-computer-package-20261106/planner-current-result.json": "53838174d9798d740b5f13c9a082d93f50d8a04346c9941b7d3e004f78c8f50d",
+    "out/nano-computer-package-20261106/runner-prerequisite-tests-result.json": "1c749adb5a35ec66fc2d41e123b5ea66050a29e2168a00d4008ddc2689fee29b",
+    "out/nano-computer-package-20261106/generated-final-result.json": "277fc22ef410e73123c1a17890f1b1daafcb7e435aebb7f60b08b8b996186fe8",
+    "out/nano-computer-package-20261106/project-fetch-result.json": "45bd6185edf11cb129561a91908cc5d573dd691b5031a1b133697f9c9dbbc677",
+    "out/nano-computer-package-20261106/actual-package-result.json": "08fd5e757ce8c66e9173db692658063095da681eb5a1353f6f078ed24f8df79f",
+    "out/nano-computer-package-20261106/actual-rtl-model-result.json": "448e279f00973d061dbd2c132aa0a4be55ef0b234826b2435bb51530c1a6163b",
+    "out/nano-computer-package-20261106/runtime-tail-result.json": "df090fe900e07732defa4cda9b26d2a8f077751724ecdd5d9e43d3f3a715c8b4",
+    "out/nano-computer-package-20261106/remaining-contracts-result.json": "99a5952fdb9450c640b2bd0217ac83bc4b7682998ffbe011f2504722ff985c21",
+    "out/nano-computer-package-20261106/nano-registry-schema-result.json": "7b17087d9701cd266b0c26dc9b167818a958643d0930214ea5451ee69b9c5c4b",
+    "out/nano-computer-package-20261106/sealed-regression-fixed-result.json": "7faae4d07c4a03af19cd73fe366c786f14c03f0e645ef42938e6c32ec6b5f0a0",
+    "out/nano-computer-package-20261106/fpga-tail-corrected-result.json": "0c184abe14de10497256e33f77210257eedcb91a482cebe6eca9fe6fc23a642f",
+    "out/nano-computer-package-20261106/affected-fixed-result.json": "745c9d087f4513bf6afd494a472a815170ed473e282e598058b517f60b5e6bd3",
+    "out/nano-computer-package-20261106/fpga-tail-result.json": "b492557fc0a909d1126429dc9103ec028d9696b2f413c9806c87967503ff67a0",
+    "out/nano-computer-package-20261106/fpga-tail-index.json": "1b3492593baaf3c2cb2fbface5b12d1b5ea04ff8a581fba13d1df7f87ea4aa4b",
+    "out/nano-computer-package-20261106/pnr-matrix-tail-result.json": "b9d1aad07172383e145d5b13e166a3d2a9be6db38106531bf5bf89dedc043687",
+    "out/nano-computer-package-20261106/pnr-base-control-result.json": "f63468f3666d333798a22def0e8e1adbbbc5302e7489659c06b1ef175c50aa36",
+    "out/nano-computer-package-20261106/remote-evidence/result.json": "934e1096ff864ecdfebb5ffbc3f3073b02d7aee2cb6c031259e3a19759bc5dea",
+    "out/nano-computer-package-20261106/remote-evidence/project-transfer-manifest.json": "05eb4ed3d42761c4f2ba28c50e5b28da4e7a1a7f8ec0fd533c22ec402fa8c380",
+    "out/nano-computer-package-20261106/sealed-project/board/hps/seal-result.json": "761686955e67cc29b58960bb1f8ca16d780224b5d9429b220feb6270b98222dc",
+    "out/nano-computer-package-20261106/sealed-project/board/hps/build-inputs.json": "63f5da43a2d2e4042a6dff7a8cf6e88914577b21ab9f5a44fc9db26b110136f4",
+    "out/nano-computer-package-20261106/sealed-project/board/hps/hps-first-pair.json": "bc21b291b4c588bd1a65b2180b6fc4dc4910c8fe7e1eebc7d91053d2d3875f37",
+    "out/nano-computer-package-20261106/sealed-project/board/hps/project/output_files/golden_top.sta.rpt": "dc92847f8862c3bbc1423792c6179111310b497d2cbe8b8a306fc2908b38f239",
+    "out/nano-computer-package-20261106/actual-package.log": "a5e2c075b651950af12eb65f288431110816c1a1f46e84bf240dd7bee15b249b",
+    "out/nano-computer-package-20261106/producer-model/result.json": "110911e9ffe518d41889a5420ae9525c8751e4b358711cf080f732b878256366"
+  }
+}

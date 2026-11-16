@@ -1,0 +1,424 @@
+{
+  "utc": "2026-11-04T11:00:11.404762+00:00",
+  "classification": "bounded physical persistent-window request diagnostic; full App/backend, ordinary admission and HDMI remain open",
+  "hardware_passed": true,
+  "host_cleanup_passed": true,
+  "startup": {
+    "records": [
+      {
+        "line": 91,
+        "phase": "loader_begin",
+        "ticks": 6978900608,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818219056
+      },
+      {
+        "line": 92,
+        "phase": "decode_begin",
+        "ticks": 7006602608,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 93,
+        "phase": "inflate_end",
+        "ticks": 7470163078,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 94,
+        "phase": "checksum_end",
+        "ticks": 7477566655,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 95,
+        "phase": "decode_end",
+        "ticks": 7481095468,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 96,
+        "phase": "copy_end",
+        "ticks": 7487385301,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818223157
+      },
+      {
+        "line": 97,
+        "phase": "handoff",
+        "ticks": 7505199536,
+        "hz": 400000000,
+        "el": 2,
+        "sctlr": 818219056
+      },
+      {
+        "line": 99,
+        "phase": "go_hwinit",
+        "ticks": 7514540281,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 100,
+        "phase": "go_vectors",
+        "ticks": 7517967928,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 101,
+        "phase": "go_main",
+        "ticks": 7525086184,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 102,
+        "phase": "verifier_ready",
+        "ticks": 7529435107,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 103,
+        "phase": "sd_open_begin",
+        "ticks": 7533032972,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 104,
+        "phase": "sd_open_end",
+        "ticks": 7549173341,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 105,
+        "phase": "fat_mount_end",
+        "ticks": 7561739278,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 106,
+        "phase": "retain_begin",
+        "ticks": 7565304517,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      },
+      {
+        "line": 107,
+        "phase": "retain_end",
+        "ticks": 29708837597,
+        "hz": 400000000,
+        "el": 1,
+        "sctlr": 818944005
+      }
+    ],
+    "errors": [],
+    "complete": true,
+    "rejected": false,
+    "last_checkpoint": "retain_end",
+    "timings_us": {
+      "loader_begin": 0,
+      "decode_begin": 69255,
+      "inflate_end": 1228156,
+      "checksum_end": 1246665,
+      "decode_end": 1255487,
+      "copy_end": 1271211,
+      "handoff": 1315747,
+      "go_hwinit": 1339099,
+      "go_vectors": 1347668,
+      "go_main": 1365463,
+      "verifier_ready": 1376336,
+      "sd_open_begin": 1385330,
+      "sd_open_end": 1425681,
+      "fat_mount_end": 1457096,
+      "retain_begin": 1466009,
+      "retain_end": 56824842
+    },
+    "core_load_acceptance": false
+  },
+  "startup_verified": true,
+  "startup_decoder_sha256": "1d1ad0534233e301785a411fb372b13b92815b701b3c04230199dd749ef4053d",
+  "board": "TRWU8CBL",
+  "source_commit": "f7e4a5bc3f041f83479c64ef9e585629bc6df53e",
+  "fpga_source_commit": "df234b524d0e1340b343df411c841bd1dc553817",
+  "prior_window_procedure_failures": 7,
+  "new_procedure_attempts": 1,
+  "new_physical_attempts": 1,
+  "new_physical_failures": 0,
+  "retries": 0,
+  "error": null,
+  "observation": {
+    "cycles": 3,
+    "commands": 19,
+    "owner": "bfd8436271e81aaf",
+    "closures": [
+      7,
+      13,
+      19
+    ],
+    "final": {
+      "scope": "nano-contained-window-service-v1",
+      "op": "park",
+      "ok": true,
+      "state": "parked",
+      "owner": "bfd8436271e81aaf",
+      "generation": 6,
+      "frames": 2,
+      "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+      "last_frame": {
+        "source_generation": 16,
+        "reader_generation": 3,
+        "cookie": 1,
+        "bytes": 3686400,
+        "published_crc32": 1202889335,
+        "read_crc32": 1202889335,
+        "frame_sha256": "ca61e5504ffb7b1af1a3f28eafb8dde5315d57c57db4632982be52896b3c5ca1",
+        "drain_generation": 3,
+        "drain_cookie": 3
+      },
+      "last_return": {
+        "source_generation": 16,
+        "closed_generation": 19,
+        "frames": 2,
+        "reset": 15,
+        "masters_contained": true
+      },
+      "storage": {
+        "generation": 16,
+        "active": false,
+        "prepared": false
+      }
+    },
+    "expected_rejections": 6,
+    "memory_released": false,
+    "ordinary_admission": false,
+    "hdmi_qualified": false
+  },
+  "original_jtag_clock": "15M",
+  "exact_usb_permissions_restored": true,
+  "private_server_gone": true,
+  "uart_free": true,
+  "exclusive_claim_retained": true,
+  "spare_card_retained": true,
+  "window_storage_return": true,
+  "native_build_source_commit": "dc2cf47604ce003744ce2b1cf0e1e53beb1e4738",
+  "factory_restore_performed": false,
+  "ordinary_runtime_admission": false,
+  "hdmi_qualified": false,
+  "files": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/clock-before-native.log": {
+      "bytes": 3,
+      "sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/clock-before.log": {
+      "bytes": 4,
+      "sha256": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/clock-confirm-6M.log": {
+      "bytes": 3,
+      "sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/clock-restore.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/clock-restored-readback.log": {
+      "bytes": 4,
+      "sha256": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/clock-set-6M.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/common.py": {
+      "bytes": 7635,
+      "sha256": "4ce0e8b050abf7f91c88b8844a4c1668b7b7569316c9c1d895959269d0d68dd5"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/experiment-progress.json": {
+      "bytes": 3798,
+      "sha256": "f4dc7e1e2a94bba40dcd118a2f880ac37755ece661f05722235806a51c280d37"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/experiment-result.json": {
+      "bytes": 3984,
+      "sha256": "8c4d2b9740f410d5adaf0f148e7b7c3cbab42af053ef262f033aa288e2d3044f"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/experiment.py": {
+      "bytes": 9024,
+      "sha256": "74cdda9e52ab43b4fefd742f044d0559c85d83ada024fd624b1015542b52c1cf"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/live-fit.json": {
+      "bytes": 7314,
+      "sha256": "d203dd8870a07f911559ab0f3d219d29911b222581881a436780759e9bba544d"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/live-package.json": {
+      "bytes": 7320,
+      "sha256": "db83e2f44b4ef8403980e85d7d6dbbc09a5c41be1484500997fe7d3f7c78c619"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/native-clock-after.log": {
+      "bytes": 3,
+      "sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/native-clock-before.log": {
+      "bytes": 3,
+      "sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/native-console.log": {
+      "bytes": 42441,
+      "sha256": "ab4d5f46781083a8bfb32f49f3f2ceee2757a2a68198f6f081acaee41b1d991d"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/native-jtag-query.log": {
+      "bytes": 1918,
+      "sha256": "64158708498cd731bbdd85c703e5baff08104d06c9e9047f7f70f51425de3e6a"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/native-program.log": {
+      "bytes": 3318,
+      "sha256": "e31e13063f191993e53f4dcfde27d29a10061e5d7d6b31d833989361979bc4ce"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/native-progress.json": {
+      "bytes": 115917,
+      "sha256": "b2b0d3e77e860e08d663708329bb80da3998ec757b98066538ea86331eba7184"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/native-result.json": {
+      "bytes": 123008,
+      "sha256": "be91d5edefe04676e6abeaf652e8fc74da37c2f09527b803f1feacb8b31e7357"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/native.py": {
+      "bytes": 16567,
+      "sha256": "ce47d82ae5598f31bb946f9f8ac85494e8b012e585c06210f428abce00663735"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/preflight.json": {
+      "bytes": 18784,
+      "sha256": "2a85d8b9f0c36eea6e435bce7c9093d597c069192ff971f6fddac9a3eadad97f"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/private-client-setup.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/private-client.conf": {
+      "bytes": 318,
+      "sha256": "28c6563f7f14000fe94d11d86b1f6fe10dbcdccfa08e57f779aaad056ff8339e"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/private-pid": {
+      "bytes": 8,
+      "sha256": "d0e76b341bad47df86f2e6ab607a3622ce6fd49e3d335510e3d54164f2981210"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/private-port": {
+      "bytes": 6,
+      "sha256": "2fcaa346be33c35399750f4196f94569f718cecc48ae1b3a1a354c770712df6a"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/private-server.log": {
+      "bytes": 20,
+      "sha256": "313024a2d27e45e1bf2ec046cf5695d802a800aa42e049777e9747e2299aa6ba"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/private-top-enumeration.log": {
+      "bytes": 263,
+      "sha256": "fae37f462f5ff7c4da091cd89320f639907674f362a931b4b52991427bd4e8c9"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/private_jtag.py": {
+      "bytes": 4225,
+      "sha256": "e9979de505d409a7b723bc47aa962384e4b8b664f37c6011059f056e2471f23d"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/recovery-boot-clock-after.log": {
+      "bytes": 3,
+      "sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/recovery-boot-clock-before.log": {
+      "bytes": 3,
+      "sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/recovery-boot-console.log": {
+      "bytes": 2143,
+      "sha256": "08f71211664d0b0670c09131e98e3574409bdcac5a9bcbf828ddf74c7e8fcbb6"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/recovery-boot-jtag-query.log": {
+      "bytes": 1918,
+      "sha256": "1f469927737db9af0cf2f427389d1daef80b8f6cb5819da1a0d1925d63f00135"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/recovery-boot-program.log": {
+      "bytes": 3009,
+      "sha256": "d4dd78b50bd63d8a4bac4d5d4300b4407b8f3f08bd11fd09aa83f291f0e9e0d7"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/recovery-boot-progress.json": {
+      "bytes": 988,
+      "sha256": "560c30a67f189bc702c5a1b548a2b3265bf8019a9571e2a0ef05d7053f2ffefc"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/recovery-boot-result.json": {
+      "bytes": 1420,
+      "sha256": "980d6dcdf8033e1999b38b95244b16dd78d746ab650dbb50b3c8993219a3daf1"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/recovery.py": {
+      "bytes": 9255,
+      "sha256": "6e5ccd595d3bea71f85abe41b3ba562a24119f69dac9f4df577140b2a2fdb8bc"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/service_checks.py": {
+      "bytes": 3920,
+      "sha256": "3292381043b6cb79ee4a5310bcabacfadabe50b1a3fc6ab0ca0264a7595333cd"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/transport.json": {
+      "bytes": 1417,
+      "sha256": "681254df92a6088680888a01e7a53548b437268523ebb04821d62feedf8d2e8a"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/trial_inputs.py": {
+      "bytes": 776,
+      "sha256": "a227779072671d727ac5e240efb96f2aa63fa28fb24ffe18994656243e700b9f"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/upload-boot/progress.json": {
+      "bytes": 415,
+      "sha256": "c44b98f649522e4ccf0c8d6e1ae5df73ef521535aaa68d603721bf386c76c515"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/upload-boot/result.json": {
+      "bytes": 21619,
+      "sha256": "987c18aa527ae952c2d9a2fe2b6fc1e78e80b374744946222cdbad8c8fea88ee"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/upload-package/progress.json": {
+      "bytes": 418,
+      "sha256": "a8e268563a5b4bea21955c4e71d3d3c1f934b5e77769af952f50dec499dddba6"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/upload-package/result.json": {
+      "bytes": 18343,
+      "sha256": "e26a8bb1ec7cd244b05fb0cdb403d2c840268d07683aa19b60f88f91f6fd20f5"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/upload_both.py": {
+      "bytes": 7298,
+      "sha256": "dc654b63034d1eb00c70d61dbb9b4d89c2351b40cebe3cb3b0fbeb684ce580c2"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/upload_checks.py": {
+      "bytes": 3188,
+      "sha256": "23ad29e6df47dc44ad808acc620bd8ff2929b6b11f92cf69c26c83994d6aa734"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/uploads/console.log": {
+      "bytes": 31098,
+      "sha256": "885874c043ad62fdb2743d0e06061680e1065008b09d483cddcc3699e8e77167"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/uploads/progress.json": {
+      "bytes": 391,
+      "sha256": "58074bd0e7863a80650b2421a039a53c8e4b5cd5ebc37e73964f24c3c0a99b42"
+    },
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-window-service-trial-20261104/trial/uploads/result.json": {
+      "bytes": 1259,
+      "sha256": "62dcf8045c78a5c99ba30583fdef49f1f4ccda7618f3797f8417474e64d7e101"
+    }
+  }
+}

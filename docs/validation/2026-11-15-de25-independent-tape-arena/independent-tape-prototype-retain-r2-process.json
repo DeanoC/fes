@@ -1,0 +1,10 @@
+{
+  "pid": 1494527,
+  "process_start_ticks": "177444496",
+  "cap_seconds": 120,
+  "start_monotonic": 1774444.967311165,
+  "argv": [
+    "python3",
+    "out/publication/retain-independent-tape-prototype-v2.py"
+  ]
+}

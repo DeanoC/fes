@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/publication/check-preparation-runner-source-reuse.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-setup-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.2007465590722859,
+  "log_sha256": "879cba4ccca9f73b1e00eb2004c0df496c2e1016f381954de6f6ba88ce0aad16"
+}

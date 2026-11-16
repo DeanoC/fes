@@ -3,7 +3,8 @@
   "intro": [
     "This page is the board and toolchain matrix. It is taken from `config/core-recipes.toml`, `config/core-library.toml`, `profiles/native-integration-dev.toml`, the per-core `toolchain.lock` files, the misteross producers, and the docs those files point at. A cell that is not in those sources is marked unverified or TBD.",
     "The bootstrap image installs `fes.menu` and the pinned splash bitstream. Every playable core is a catalog install. Library standing `supported` is not a claim that the current bitstream has kit acceptance. Dated notes under `docs/validation/` accept only the artifact they name.",
-    "Tiers are derived from the tier role, owned RTL dates and media generation; kit notes are recorded but do not set a tier. Catalog standing is stored on each row as a weak signal and is not an input. The owned-RTL activity snapshot is as of 2026-10-29; role, media and dated kit notes may be updated later. The recent cutoff is 2026-10-16. The window starts 2026-08-30. A tier_override with reason Deano 2026-10-29 replaces the derived tier."
+    "Tiers are derived from the tier role, owned RTL dates and media generation; kit notes are recorded but do not set a tier. Catalog standing is stored on each row as a weak signal and is not an input. The owned-RTL activity snapshot is as of 2026-10-29; role, media and dated kit notes may be updated later. The recent cutoff is 2026-10-16. The window starts 2026-08-30. A tier_override with reason Deano 2026-10-29 replaces the derived tier.",
+    "`quality_tier` on each row records the quality ladder that [the forward plan](plans/forward-plan.md) already decided for DE10-Nano cells. It is not the freshness `tier`, and it is not release scope. `check_level` says how much per-change evidence each row is expected to carry, under the hard rule beside D12 in [AGENTS.md](../AGENTS.md) that Deano accepted on 2026-11-15. It never lowers a gate on work being done to a core."
   ],
   "tiers": [
     {
@@ -29,7 +30,7 @@
     {
       "id": "bring-up",
       "label": "Bring-up",
-      "meaning": "No recipe. Diagnostic RTL or host simulation in progress."
+      "meaning": "The machine is still in bring-up. Its package is a diagnostic or development profile, and what it is accepted for is the dated evidence on the row."
     },
     {
       "id": "bring-up-queued",
@@ -120,7 +121,9 @@
         "media_gen": "none",
         "image_role": "bootstrap",
         "catalog_standing": null
-      }
+      },
+      "quality_tier": null,
+      "check_level": "full"
     },
     {
       "id": "splash",
@@ -174,7 +177,9 @@
         "media_gen": "none",
         "image_role": "idle",
         "catalog_standing": null
-      }
+      },
+      "quality_tier": null,
+      "check_level": "full"
     },
     {
       "id": "fes.pong",
@@ -237,7 +242,10 @@
         "media_gen": "none",
         "image_role": "none",
         "catalog_standing": "supported"
-      }
+      },
+      "quality_tier": "utility",
+      "check_level": "reduced",
+      "check_note": "No owned RTL of its own in any window: the newest commit to touch its `rtl/` is `3a1d20fad`, the eight-core repository consolidation of 2026-09-20. The 2026-10-20 lock move (#888) changed no RTL."
     },
     {
       "id": "fes.ramtest",
@@ -305,7 +313,10 @@
         "media_gen": "none",
         "image_role": "none",
         "catalog_standing": "supported"
-      }
+      },
+      "quality_tier": "utility",
+      "check_level": "reduced",
+      "check_note": "A utility outside the ladder, but under active work (#1832, #1767 on 2026-11-13 and 14): `reduced` exempts only sweeps it is not about."
     },
     {
       "id": "fes.zx81",
@@ -375,11 +386,13 @@
         "image_role": "none",
         "catalog_standing": "supported"
       },
-      "primary_toolchain": "quartus",
+      "quality_tier": "1",
+      "check_level": "full",
       "quartus_lock": {
         "path": "sources/misteross/cores/fes-zx81/quartus.lock",
         "version": "17.0.2 Build 602"
-      }
+      },
+      "primary_toolchain": "quartus"
     },
     {
       "id": "fes.zx80",
@@ -444,11 +457,13 @@
         "image_role": "none",
         "catalog_standing": "experimental"
       },
-      "primary_toolchain": "quartus",
+      "quality_tier": "1",
+      "check_level": "full",
       "quartus_lock": {
         "path": "sources/misteross/cores/fes-zx81/quartus.lock",
         "version": "17.0.2 Build 602"
-      }
+      },
+      "primary_toolchain": "quartus"
     },
     {
       "id": "fes.ts1000",
@@ -513,11 +528,13 @@
         "image_role": "none",
         "catalog_standing": "experimental"
       },
-      "primary_toolchain": "quartus",
+      "quality_tier": "1",
+      "check_level": "full",
       "quartus_lock": {
         "path": "sources/misteross/cores/fes-zx81/quartus.lock",
         "version": "17.0.2 Build 602"
-      }
+      },
+      "primary_toolchain": "quartus"
     },
     {
       "id": "fes.ts1500",
@@ -582,11 +599,13 @@
         "image_role": "none",
         "catalog_standing": "experimental"
       },
-      "primary_toolchain": "quartus",
+      "quality_tier": "1",
+      "check_level": "full",
       "quartus_lock": {
         "path": "sources/misteross/cores/fes-zx81/quartus.lock",
         "version": "17.0.2 Build 602"
-      }
+      },
+      "primary_toolchain": "quartus"
     },
     {
       "id": "fes.coleco",
@@ -664,7 +683,10 @@
         "tier": "aging",
         "reason": "Deano 2026-10-29",
         "note": "Work toward Current is in progress and still needs work (media handling and the wider Coleco work)."
-      }
+      },
+      "quality_tier": "2-pending",
+      "check_level": "reduced",
+      "check_note": "Under active work (native shell and format 4, through 2026-10-28), so `reduced` here exempts only sweeps it is not about. Tier 2 once it meets the port."
     },
     {
       "id": "fes.sms",
@@ -726,7 +748,10 @@
         "media_gen": "linked-rom",
         "image_role": "none",
         "catalog_standing": null
-      }
+      },
+      "quality_tier": "2-pending",
+      "check_level": "reduced",
+      "check_note": "Last RTL `162e91d35` (2026-10-06, synchronous cartridge M10K lanes). `565eebdbc` (2026-10-14) is a shared-pin reseal with no RTL. Outside the first-party catalog."
     },
     {
       "id": "fes.sg1000",
@@ -791,7 +816,10 @@
         "media_gen": "linked-rom",
         "image_role": "none",
         "catalog_standing": null
-      }
+      },
+      "quality_tier": "2-pending",
+      "check_level": "reduced",
+      "check_note": "Last feature RTL `3afe947c7` (2026-10-06, synchronous cartridge M10K lanes). `c0deb8e39` (2026-11-12) is newer owned RTL but is the application-controller ABI migration, not SG-1000 work."
     },
     {
       "id": "fes.apple2",
@@ -859,7 +887,10 @@
         "media_gen": "live",
         "image_role": "none",
         "catalog_standing": "experimental"
-      }
+      },
+      "quality_tier": "2-pending",
+      "check_level": "reduced",
+      "check_note": "Last feature RTL `03b040d02` (2026-10-06, synchronous firmware and font M10Ks). `e5e63d786` (2026-11-14) is the original-glyph campaign, not Apple II work."
     },
     {
       "id": "fes.c64",
@@ -929,7 +960,9 @@
         "media_gen": "live",
         "image_role": "none",
         "catalog_standing": "experimental"
-      }
+      },
+      "quality_tier": "1",
+      "check_level": "full"
     },
     {
       "id": "fes.c64-ntsc",
@@ -978,7 +1011,9 @@
         "media_gen": "none",
         "image_role": "none",
         "catalog_standing": null
-      }
+      },
+      "quality_tier": null,
+      "check_level": "none"
     },
     {
       "id": "fes.spectrum",
@@ -1050,7 +1085,9 @@
         "tier": "current",
         "reason": "Deano 2026-10-29",
         "note": "Stays Current. Kit HIL pass on the latest RTL is pending and expected soon."
-      }
+      },
+      "quality_tier": "1",
+      "check_level": "full"
     },
     {
       "id": "fes.spectrum128",
@@ -1129,7 +1166,9 @@
           "kind": "rom",
           "note": "Same core and the same model as the 128K, with a different ROM. Deano 2026-10-29."
         }
-      ]
+      ],
+      "quality_tier": "1",
+      "check_level": "full"
     },
     {
       "id": "fes.spectrum-plus3",
@@ -1197,7 +1236,9 @@
         "tier": "current",
         "reason": "Deano 2026-10-29",
         "note": "Stays Current. Kit HIL pass on the latest RTL is pending and expected soon."
-      }
+      },
+      "quality_tier": "1",
+      "check_level": "full"
     },
     {
       "id": "fes.pentagon",
@@ -1265,7 +1306,9 @@
         "tier": "current",
         "reason": "Deano 2026-10-29",
         "note": "Stays Current. Kit HIL pass on the latest RTL is pending and expected soon."
-      }
+      },
+      "quality_tier": "1",
+      "check_level": "full"
     },
     {
       "id": "fes.atari-st",
@@ -1341,7 +1384,9 @@
         "tier": "current",
         "reason": "Deano 2026-10-29",
         "note": "Stays Current. Kit HIL pass on the latest RTL is pending and expected soon."
-      }
+      },
+      "quality_tier": "1",
+      "check_level": "full"
     },
     {
       "id": "fes.atari-ste",
@@ -1390,7 +1435,9 @@
         "media_gen": "none",
         "image_role": "none",
         "catalog_standing": null
-      }
+      },
+      "quality_tier": null,
+      "check_level": "none"
     },
     {
       "id": "fes.riscv",
@@ -1456,7 +1503,10 @@
         "media_gen": "none",
         "image_role": "none",
         "catalog_standing": "experimental"
-      }
+      },
+      "quality_tier": "utility",
+      "check_level": "reduced",
+      "check_note": "A demonstration machine outside the ladder. Its own core directory has had no RTL change since `71d8ce600` (2026-10-05) except the #1714 sweep; `dcfa92c98` (2026-10-21) retimed the shared `fes_rv32_cpu` this row names under `paths`."
     },
     {
       "id": "sim.pong",
@@ -1501,7 +1551,9 @@
         "media_gen": "none",
         "image_role": "none",
         "catalog_standing": null
-      }
+      },
+      "quality_tier": null,
+      "check_level": "none"
     },
     {
       "id": "fes.pcxt",
@@ -1530,7 +1582,7 @@
       "router": "Quartus is the normal diagnostic package producer. Nextpnr remains an explicit advisory diagnostic.",
       "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. Quartus Lite 17.0.2 Build 602: common 100 MHz package profile, three-seed reported internal timing gate and independent RBF repeat. External IO/HPS/reset and exact-artifact hardware acceptance remain separate.",
       "features": "Media: read-only 360 KiB floppy through fes.computer 1.1 live media, with a guest FDC/DMA diagnostic. Input: no HID keyboard frontend. HDMI: fixed CGA Direct 720p diagnostic on the DE10-Nano shell. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Experimental Quartus format-2 diagnostic package outside the bootstrap image. Parent-merge package 187f31cefecc14e48c30868acb128d08dbafa703d8a352eb53b6b71a7e8d2a6f passed the Kit B empty, wrong, matching and ejected disk sector diagnostic. This diagnostic profile has no bootable BIOS, host keyboard or write support; those are provided by the separate experimental fes.pcxt-dos profile. External board qualification remains open (#835); #840 tracks advisory nextpnr timing.",
+      "notes": "Experimental Quartus format-2 diagnostic package outside the bootstrap image. On Kit B, exact package 65dd840f from source a54ea0cd passed the empty, wrong, matching, eject and Stop disk sector diagnostic on 31 October, after #1286; the earlier parent-merge package 187f31ce passed the same sequence. Kit A accepted package 9d46fefc through normal import, launch and Stop. This diagnostic profile has no bootable BIOS, host keyboard or write support; those are provided by the separate experimental fes.pcxt-dos profile, which shares this core's RTL and carries PC/XT's qualification evidence. PC/XT is tier 1 by quality in the forward plan (decided) and is scoped to the release after v1. External board qualification remains open (#835); #840 tracks advisory nextpnr timing.",
       "evidence": [
         "sources/misteross/cores/fes-pcxt/README.md",
         "sources/misteross/cores/fes-pcxt/toolchain.lock",
@@ -1540,7 +1592,10 @@
         "config/core-library.toml",
         "sources/misteross/docs/cores.md",
         "docs/design/quartus-cores.md",
-        "docs/validation/2026-10-29-pcxt-quartus-package/result.json"
+        "docs/validation/2026-10-29-pcxt-quartus-package/result.json",
+        "docs/core-status.md",
+        "docs/plans/forward-plan.md",
+        "docs/validation/2026-10-30-pcxt-floppy-media/result-current-parent-merge.json"
       ],
       "tier_role": "bring-up",
       "family": "pc",
@@ -1557,9 +1612,9 @@
         "last_host_change": null,
         "last_host_sha": null,
         "last_host_subject": null,
-        "last_hil_pass": null,
-        "hil_note": null,
-        "hil_scope": null,
+        "last_hil_pass": "2026-10-31",
+        "hil_note": "docs/validation/2026-10-30-pcxt-floppy-media/result-current-parent-merge.json",
+        "hil_scope": "exact package 65dd840f from source a54ea0cd: a single read-only floppy sector read by the guest through the FDC and DMA2, across the empty, wrong, matching, eject and Stop sequence on Kit B. No DOS boot, no writes, no external interface timing",
         "open_issues": [
           "#835",
           "#840",
@@ -1572,7 +1627,9 @@
       "quartus_lock": {
         "path": "sources/misteross/cores/fes-pcxt/quartus.lock",
         "version": "17.0.2 Build 602"
-      }
+      },
+      "quality_tier": "1",
+      "check_level": "full"
     },
     {
       "id": "fes.pcxt-dos",
@@ -1597,9 +1654,9 @@
       "board": "de10",
       "primary_toolchain": "quartus",
       "router": "Quartus is the FreeDOS package producer. The floppy image is loaded at runtime through the media mailbox; Nextpnr remains advisory for the PC/XT core.",
-      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. The DOS recipe uses Quartus Lite 17.0.2 Build 602, a three-seed reported internal timing gate and an independent RBF repeat. On 2026-11-05 Kit B tested package 87fd8149 from producer bb87b9b6, selected for then-current main 6f49758f. External IO/HPS/reset timing remains separate.",
+      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. The DOS recipe uses Quartus Lite 17.0.2 Build 602, a three-seed reported internal timing gate and an independent RBF repeat. The qualification package e73a0e87 was sealed from main 8d9b71fab with three passing seeds after #1569, #1565 and #1619. External IO/HPS/reset timing remains separate.",
       "features": "Media: a 360 KiB floppy is loaded at runtime through the mailbox into SDRAM; the guest can write sectors and bound library disks support explicit Save and restore. Unbound raw inserts are volatile and unsaved writes can be lost on power loss. Input: host HID snapshots are translated into XT set-1 keyboard bytes. HDMI: CGA Direct 720p and PC speaker audio.",
-      "notes": "Package-only DOS recipe; catalog standing remains experimental. On 2026-11-05 Kit B booted FreeDOS, passed a keyboard-driven COM test, saved and read back a guest file after Stop and relaunch, and ran a short Digger and speaker smoke on package 87fd8149, produced at bb87b9b6 and selected for then-current main 6f49758f. The smoke observed a facing change after one guarded input and a signal/near-silence/signal pattern across F9 windows. Deano found a listening excerpt identifiable and acceptable, without an original-audio reference. Sustained gameplay, power-cycle persistence and physical timing are separate.",
+      "notes": "Package-only DOS recipe; catalog standing remains experimental. The 8-10 November Kit B reruns (#1529) pass every case in the precommitted plan on package e73a0e87, sealed from main 8d9b71fab, superseding the 7 November fails: Ctrl+Alt+Del warm-boots to A:\\> and the next library launch cold-boots, Rogue's map draws and two runs reach level 2, Paratrooper and Alley Cat each play two 10-minute sessions, library Save and readback and Rogue's own save/restore pass, and speed and speaker pitch match MAME ibm5150. The power-loss case ran on the earlier package 4dd6d431 because it tests the library record, not the core, so it is not exact-artifact acceptance of e73a0e87. Five tenfoot relaunches passed on Kit B's own host with main's bundle 7ddb0bfb; on the baseline bundle the kit keyboard did not reach the core, which #1614 fixed. External interface timing (#835) and physical ISA containment stay open.",
       "evidence": [
         "sources/misteross/cores/fes-pcxt/README.md",
         "sources/misteross/cores/fes-pcxt/quartus.lock",
@@ -1609,7 +1666,11 @@
         "docs/design/quartus-cores.md",
         "docs/validation/2026-11-04-pcxt-game-and-speaker-kit-a.md",
         "docs/validation/2026-11-05-pcxt-kit-b-partial.md",
-        "docs/validation/2026-11-05-pcxt-kit-b-short-smoke.md"
+        "docs/validation/2026-11-05-pcxt-kit-b-short-smoke.md",
+        "docs/validation/2026-11-07-pcxt-qualification/summary.md",
+        "docs/validation/2026-11-08-pcxt-qualification-reruns/summary.md",
+        "docs/core-status.md",
+        "docs/plans/forward-plan.md"
       ],
       "tier_role": "play",
       "family": "pc",
@@ -1626,11 +1687,11 @@
         "last_host_change": null,
         "last_host_sha": null,
         "last_host_subject": null,
-        "last_hil_pass": "2026-11-05",
-        "hil_note": "docs/validation/2026-11-05-pcxt-kit-b-short-smoke.md",
-        "hil_scope": "exact selected package: DOS, keyboard, Save/readback and one-direction game/speaker smoke; listening excerpt accepted without original reference",
+        "last_hil_pass": "2026-11-10",
+        "hil_note": "docs/validation/2026-11-08-pcxt-qualification-reruns/summary.md",
+        "hil_scope": "exact selected package e73a0e87: every case in the precommitted #1529 plan, including sustained play, library Save and readback, Ctrl+Alt+Del, and speed and pitch against MAME; the power-loss case ran on the earlier package 4dd6d431",
         "open_issues": [
-          "#1402",
+          "#835",
           "#1429"
         ],
         "media_gen": "live",
@@ -1640,7 +1701,9 @@
       "quartus_lock": {
         "path": "sources/misteross/cores/fes-pcxt/quartus.lock",
         "version": "17.0.2 Build 602"
-      }
+      },
+      "quality_tier": "1",
+      "check_level": "full"
     },
     {
       "id": "fes.pc386",
@@ -1660,19 +1723,27 @@
         "mistral": "8fcc4cb4",
         "nextpnr": "bd7a1c0d"
       },
-      "board": "device",
+      "board": "de10",
       "primary_toolchain": "quartus",
       "router": "No nextpnr route of the machine with its CPU; nextpnr builds of pc386 are parked (#1235). `scripts/synth_fes_pc386.py` packs the machine without the CPU and does not route. Not a recipe row.",
       "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker. `scripts/build_fes_pc386_quartus.py` seals the development package `fes.pc386`, the machine with `fes_i386_cpu`, with Quartus 17.0.2 from the pc386 lock's Yosys netlist.",
-      "features": "Media: ATA disk image staged in the DDR window by the HPS until the fes.computer 1.1 contracts. Input: fes.keyboard.hid through the HID row model to the 8042's PS/2 keyboard (set 2 with XLAT, typematic), and fes.mouse.relative to the PS/2 aux mouse. HDMI: 720p presenter and display plane. Audio: OPL2 and Sound Blaster. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Phases M1\u2013M4 done (M4's diagnostic package passed on Kit B). M5 puts `fes_i386_cpu` in the machine as the development package `fes.pc386`, which boots FreeDOS on Kit B; not a catalog package.",
+      "features": "Media: the runtime writes an ATA disk image into the DDR window through the fes.computer 1.1 mailbox and `fes_computer_storage` while execution is held, with a commit CRC pass (`pc386_disk`); the floppy controller (`pc386_fdc`) serves drives A: and B: on IRQ 6 and DMA channel 2. Input: fes.keyboard.hid through the HID row model (`pc386_hid_keyboard` inside the 8042) to the PS/2 keyboard (set 2 with XLAT, typematic), and fes.mouse.relative to the PS/2 aux mouse. HDMI: 720p presenter and display plane. Audio: PC speaker, OPL2 and Sound Blaster. CPU: `fes_i386_cpu` with a speed governor that takes its preset, frequency and turbo from the `fes.pc386.machine` record. x87: since slice 2 (#1768) the 387's state, its interface to the CPU, the AT board's error path and the loads, stores and conversions are built inside `fes_i386_cpu`; its arithmetic is slices 3 to 5 and is not built. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Phases M1-M5 are done. M5's development package `fes.pc386` (`make build-fes-pc386-quartus`, not a registered recipe and not a catalog package) puts `fes_i386_cpu` in the machine. Each kit result names its own artifact. On seal 254b2bf5 of merge 317310c81 (6 November, Kit B, `max`): a DOOM level played to its exit switch and on into E1M2, a Wolfenstein 3D level played through to floor 2, and Ultima VII Black Gate and Serpent Isle saves loaded after a relaunch. On seal 650bc477 of main 65ec1f22a (10 November, Kit B): FreeDOS with the kit's date and time, Wolfenstein 3D above 30 fps, Ultima VI's speaker pitch at 286-12 and the Black Gate save and load at 386DX-25 pass again; the Wolfenstein 3D playthrough was not rerun, and Serpent Isle's save and load passed in seven launches of eight, the eighth black throughout (#1494). That pitch pass is a regression comparison against the earlier kit run, not a reference: against the named 86Box 286-12 reference the effects play about 2.4 semitones flat, which fails (#1837). Windows for Workgroups 3.11 reaches Program Manager in 386 enhanced mode on build 6ef05309, and Linux 0.99.15, 1.2.13 and 2.0.0 reach a login and a root shell on build 9d784de2, each its own 12 November seal of main; Windows 3.11 is a standing check on each change's seal. Also owed on #1368: Ultima VI's walking speed at 286-12, which is not measurable by any method tried so far and is qualified by how well that preset is calibrated (#1840), and Ultima VII's NPC pace, which is not established and is carried forward as #1853. Serpent Isle's black capture is #1494. The forward plan puts pc386 at tier 1 when #1368 and #1494 close.",
       "evidence": [
         "sources/misteross/cores/fes-pc386/README.md",
         "sources/misteross/scripts/build_fes_pc386_quartus.py",
         "sources/misteross/scripts/synth_fes_pc386.py",
         "sources/misteross/docs/pc386-machine-design.md",
         "sources/misteross/cores/fes-pc386/toolchain.lock",
-        "docs/design/quartus-cores.md"
+        "docs/design/quartus-cores.md",
+        "docs/core-status.md",
+        "docs/plans/forward-plan.md",
+        "docs/validation/2026-11-12-pc386-windows-kit/summary.md",
+        "docs/validation/2026-11-12-pc386-linux-kit/summary.md",
+        "docs/validation/2026-11-06-pc386-game-acceptance/summary.md",
+        "docs/validation/2026-11-10-pc386-game-acceptance-rerun/summary.md",
+        "docs/validation/2026-11-14-pc386-u6-u7-reference/summary.md",
+        "docs/validation/2026-11-14-i386-x87-s2/summary.md"
       ],
       "tier_role": "bring-up",
       "family": "pc",
@@ -1689,18 +1760,20 @@
         "last_host_change": null,
         "last_host_sha": null,
         "last_host_subject": null,
-        "last_hil_pass": null,
-        "hil_note": null,
-        "hil_scope": null,
+        "last_hil_pass": "2026-11-12",
+        "hil_note": "docs/validation/2026-11-12-pc386-windows-kit/summary.md",
+        "hil_scope": "Kit B on a seal of main: Windows for Workgroups 3.11 to Program Manager in 386 enhanced mode, with the DOS prompt, Minesweeper and a Notepad save, and 32-bit disk access through WDCTRL. The games and the early Linux kernels have their own dated records.",
         "open_issues": [
-          "#1246",
-          "#1224",
-          "#1152"
+          "#1368",
+          "#1494",
+          "#1235"
         ],
-        "media_gen": "sim",
+        "media_gen": "live",
         "image_role": "none",
         "catalog_standing": null
-      }
+      },
+      "quality_tier": "1-pending",
+      "check_level": "full"
     },
     {
       "id": "i386",
@@ -1721,16 +1794,18 @@
       },
       "board": "device",
       "primary_toolchain": "quartus",
-      "router": "CPU timing spikes use this lock with the GPU router. Not a package producer and not a recipe row.",
-      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker. Quartus 17.0.2 fits the same Yosys netlist (`scripts/quartus_fes_i386.py`). The far-transfer record is about 69\u201374 MHz nextpnr and about 98\u2013104 MHz Quartus. A nextpnr-only gap is filed on the flow (DeanoC/nextpnr#300, `docs/i386-cpu-design.md`). Recipe and package selection for a labelled variant are not implemented.",
-      "features": "Not a system package. No media, HDMI, Bluetooth or mesh of its own. Phase 1 real-mode pipeline is in progress in the CPU design doc. The pc386 machine is its consumer: the development package `fes.pc386` (pc386 M5) seals it with Quartus 17.0.2.",
+      "router": "nextpnr routes of this CPU are parked (#1235), and the Phase 1 spike numbers in the CPU design doc are labelled historical. Not a package producer and not a recipe row.",
+      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker; since #1235 no new nextpnr route of this CPU is made at all. Quartus 17.0.2 fits the same Yosys netlist (`scripts/quartus_fes_i386.py`), and every current seal of the CPU comes through the pc386 package. The far-transfer record, about 69-74 MHz nextpnr against about 98-104 MHz Quartus, is the historical spike behind that policy (DeanoC/nextpnr#300, `docs/i386-cpu-design.md`). Recipe and package selection for a labelled variant are not implemented.",
+      "features": "Not a system package. No media, HDMI, Bluetooth or mesh of its own. The twelve-stage F1-WB pipeline, the L1s and BIU, protected mode and Phase 4's speed work (BTB, return stack, indirect prediction, early ALU and load forwarding) are built; Phase 5 (paging, V86, task switches and the debug registers) is in progress under tracker #1548. The 387 is further on than a plan: since x87 slice 2 (#1768) its state, CPU interface, AT error path, loads, stores and conversions are built in `fes_i386_cpu`, with the arithmetic in slices 3 to 5. The pc386 machine is its consumer: the development package `fes.pc386` seals it with Quartus 17.0.2, and that seal is where this RTL's kit evidence is recorded.",
       "notes": "Shared CPU RTL. Device `5CSEBA6U23I7` in the spike harness. Yosys pin `e240a465` is newer than the repository lock's `3a5accbd`; it is the pc386 lock's pin, so one Yosys reads the CPU (#1581 D2, S4).",
       "evidence": [
         "sources/misteross/docs/i386-cpu-design.md",
         "sources/misteross/cores/fes-common/rtl/i386/toolchain.lock",
         "sources/misteross/scripts/quartus_fes_i386.py",
         "sources/misteross/docs/validation/2026-10-26-i386-far.md",
-        "docs/design/quartus-cores.md"
+        "docs/design/quartus-cores.md",
+        "docs/core-status.md",
+        "docs/validation/2026-11-14-i386-x87-s2/summary.md"
       ],
       "tier_role": "shared",
       "family": "pc",
@@ -1753,7 +1828,9 @@
         "media_gen": "none",
         "image_role": "none",
         "catalog_standing": null
-      }
+      },
+      "quality_tier": null,
+      "check_level": "via-consumer"
     },
     {
       "id": "z80",
@@ -1798,7 +1875,9 @@
         "media_gen": "none",
         "image_role": "none",
         "catalog_standing": null
-      }
+      },
+      "quality_tier": null,
+      "check_level": "via-consumer"
     },
     {
       "id": "cpu6502",
@@ -1843,7 +1922,9 @@
         "media_gen": "none",
         "image_role": "none",
         "catalog_standing": null
-      }
+      },
+      "quality_tier": null,
+      "check_level": "via-consumer"
     },
     {
       "id": "fx68k",
@@ -1888,7 +1969,9 @@
         "media_gen": "none",
         "image_role": "none",
         "catalog_standing": null
-      }
+      },
+      "quality_tier": null,
+      "check_level": "via-consumer"
     },
     {
       "id": "tv80",
@@ -1934,7 +2017,9 @@
         "media_gen": "none",
         "image_role": "none",
         "catalog_standing": null
-      }
+      },
+      "quality_tier": null,
+      "check_level": "via-consumer"
     }
   ],
   "unverified": [
@@ -1970,14 +2055,24 @@
     "Coleco derives to unresolved and is Aging by that override. Work toward Current is in progress and still needs work (media handling and the wider Coleco work).",
     "Spectrum and Atari ST derive to current. The same override confirms that tier. Their kit HIL pass on the latest RTL is pending and expected soon.",
     "C64 NTSC and Atari STE have no package. Their override tier is bring-up-queued.",
-    "Spectrum +2 is a ROM variant of fes.spectrum128 (kind rom). It is the same core and the same model, with a different ROM. Deano 2026-10-29."
+    "Spectrum +2 is a ROM variant of fes.spectrum128 (kind rom). It is the same core and the same model, with a different ROM. Deano 2026-10-29.",
+    "quality_tier and check_level are not inputs to the tier rule. quality_tier cites the forward plan's ladder; check_level is derived from it, from tier_role and from the bring-up-queued tier, which is the one place a tier feeds the check level. check_level carries the hard rule beside D12 in AGENTS.md, accepted by Deano 2026-11-15."
   ],
   "needs_deano": [
     "SMS and SG-1000 are outside the first-party catalog; their development recipes remain registered. Tier aging uses owned RTL on 2026-10-06 and kit diagnostics on 2026-09-29. The catalog flag was not used.",
     "Pong catalog standing is supported. No owned RTL in the 60-day window, so the tier is stale. The catalog flag was not used.",
     "ZX80, TS1000 and TS1500 share the ZX81 shell. Kit notes name fes.zx81 (2026-10-22), not those three. The 2026-10-25 model commit is after that note.",
     "Apple II kit diagnostic is 2026-09-27. Owned RTL is 2026-10-06 (#549). No later kit note was found.",
-    "Open issues on each row are title matches, not a full blocker audit."
+    "Open issues on each row are title matches, not a full blocker audit.",
+    "ColecoVision is check_level reduced by the ladder (2-pending) while being under active work. Reduced exempts only sweeps it is not about, but if Coleco should carry full evidence for every sweep as well, the ladder has to place it rather than name its condition.",
+    "RAM Tester is outside the ladder as a utility and is under active timing work (#1832, #1767). The same question as Coleco: reduced for sweeps, or full because the memory path is shared.",
+    "SG-1000's newest owned RTL is an ABI migration (#1755) and Apple II's is the original-glyph campaign (#1819). The owned-RTL rule counts both as core activity, so the freshness tier cannot be read as development activity on either row.",
+    "Does a mechanical RTL sweep count as touching a core? #1714 edited eight RTL files across five cores to remove one obsolete mailbox. Under the wording here it touches each core's own RTL, so every gate applies and reduced buys nothing on it. If sweeps like that should also be exempt, the wording has to say so, and D12 does not cover them because they change RTL.",
+    "Should the 2-pending rows (Coleco, SMS, SG-1000, Apple II) carry full evidence on a closure sweep anyway? They are reduced here because the forward plan names no tier for them until they meet the port.",
+    "Should the per-family representative scoping be a rule as well? On PR #1862 the sibling variants (zx80, ts1000, ts1500, spectrum128, spectrum-plus3, pentagon) were dropped from the route conditions along with the held-back cores; check_level keeps them at full because they are tier 1.",
+    "fes.riscv's snapshot last_rtl_change (2026-10-05) reads its core directory only. `dcfa92c98` (2026-10-21) changed `fes_rv32_cpu.sv` in the shared riscv directory that this row holds under `paths`, and the subject names riscv, so whether that commit should move the row to Current inside the same snapshot is open. The owned-RTL check runs on shared rows only, so nothing catches it either way.",
+    "A pending quality_tier has to be re-read by hand when its condition closes. The checker reads the forward plan's Tiers section and fails if a cited sentence moves, goes or is restated, and if the plan stops naming #1368, #1494 or the port condition; it cannot see a superseding decision written in new words. So when #1368 and #1494 close, pc386's 1-pending becomes tier 1 and its check level does not change, but the row still needs editing.",
+    "fes.pc386 keeps tier_role bring-up, so its tier stays Bring-up although its package runs games, Windows and Linux on a kit. The alternative is tier_role play, which would derive Current from its RTL dates; it is not a registered recipe or a catalog package, so this page kept bring-up and reworded that tier's meaning instead."
   ],
   "display_groups": [
     {
@@ -1998,5 +2093,64 @@
         "fes.ts1500"
       ]
     }
-  ]
+  ],
+  "check_policy": {
+    "status": "accepted",
+    "proposed_on": "2026-11-15",
+    "decided_by": "Deano 2026-11-15",
+    "ladder_source": "docs/plans/forward-plan.md",
+    "note": [
+      "In force. Deano accepted it on 2026-11-15, and the rule itself is the hard rule beside D12 in [AGENTS.md](../AGENTS.md): a core at `check_level: reduced` owes a closure sweep only D12's netlist comparison, which is still measured and recorded, and not the RBF reproduction, the timing and seal gate or the HIL. This page is where the levels are listed; AGENTS.md is where the obligation is written. Neither lowers a gate on work being done to a core.",
+      "`quality_tier` cites a decision rather than inventing a taxonomy: the ladder, its bars, the tier 1 set, the two pending placements and the utilities outside it are all decided in [the forward plan](plans/forward-plan.md) (tiers apply per (core, board) cell; DE10-Nano is the tier 1 board). Where the plan names a condition rather than a tier, this page records the condition: pc386 is `1-pending` and not tier 2, and Coleco, SMS, SG-1000 and Apple II are `2-pending`, because the plan names no tier for any of them before their condition is met. The freshness `tier` on each row answers a different question and stays derived from dates, so a tier 1 cell can be Aging and a row off the ladder can have RTL from this week.",
+      "`check_level` says what a change owes each row, and the D12 conditions are what it is about. `full`: every change that moves the core's `BUILD_ID` carries that core's own evidence, all three D12 conditions included. `reduced`: on a change that does not touch the core's own RTL, programs, lock or placement recipe, the netlist comparison (D12's first condition, which needs no GPU route) is still expected, and the RBF reproduction, the timing and seal gate and the HIL (its second and third, and the reseal the rule falls back to) are not. If that comparison fails, the core counts as touched and keeps every gate, which is what D12 already says. A change aimed at the core, and any change that ships it, keeps every gate. `via-consumer`: the row is RTL, not a package, so its evidence rides with the packages that embed it. `none`: there is no built artifact to carry evidence for yet.",
+      "The cost this answers is a closure sweep, which is what D12 covers: a change with no RTL that moves a core's `BUILD_ID` through its build record or source closure. As of 2026-11-15, PR #1862 edits five producer scripts and one shared helper, touches no RTL, QSF, SDC, lock or placement recipe, and moves the `BUILD_ID` of all 14 cores whose producers import a changed file, so D12 applies to each of them. Its first condition was measured for all 14; Deano scoped the route-based second and third on 2026-11-15 to the firmware plus one representative per affected machine family, leaving `fes.pong`, `fes.ramtest`, `fes.coleco` and `fes.riscv` unmeasured because they are not shipped. This rule is close to that call but not the same one: it drops the same two conditions for the same held-back cores by rule, while it keeps at full the sibling variants that call also dropped (zx80, ts1000, ts1500, spectrum128, spectrum-plus3, pentagon). Whether the representative scoping should be a rule too is a separate question.",
+      "The levels never lower a gate on work being done to a core: a netlist that is not byte-identical, a change that touches the core's own RTL, programs, lock or placement recipe, and any change that ships it, all put that core back under the full rule. AGENTS.md's hard rule against relaxing a timing or seal check stands above this one and is unchanged."
+    ],
+    "levels": [
+      {
+        "id": "full",
+        "label": "Full",
+        "meaning": "Every change that moves the core's `BUILD_ID` carries that core's own evidence."
+      },
+      {
+        "id": "reduced",
+        "label": "Reduced",
+        "meaning": "On a sweep the core is not about, its netlist comparison still holds; the RBF repeat, seal gate and HIL do not. A moved netlist keeps every gate."
+      },
+      {
+        "id": "via-consumer",
+        "label": "Via consumer",
+        "meaning": "Not a package. Evidence rides with the packages that embed it."
+      },
+      {
+        "id": "none",
+        "label": "None",
+        "meaning": "No built artifact yet."
+      }
+    ],
+    "quality_tiers": [
+      {
+        "id": "1",
+        "label": "Tier 1",
+        "meaning": "Release quality and supported. Decided set: ZX81 family, Spectrum family, C64, Atari ST, PC/XT."
+      },
+      {
+        "id": "1-pending",
+        "label": "Tier 1 pending",
+        "meaning": "The plan puts pc386 at tier 1 once #1368 and #1494 close, and names no tier before that."
+      },
+      {
+        "id": "2-pending",
+        "label": "Tier 2 pending",
+        "meaning": "The plan puts Coleco, SMS, SG-1000 and Apple II at tier 2 once they meet the port, and names no tier before that."
+      },
+      {
+        "id": "utility",
+        "label": "Outside the ladder",
+        "meaning": "Utilities and demos: Pong, RAM Tester and RISC-V."
+      }
+    ],
+    "decided_on": "2026-11-15",
+    "rule": "AGENTS.md, the hard rule beside D12"
+  }
 }

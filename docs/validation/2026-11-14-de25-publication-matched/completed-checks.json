@@ -1,0 +1,48 @@
+{
+  "status": "passed-retained-post-publication-checks",
+  "implementation_source": "0c8fd0d37e0b36bc6fe1924b519dd6b1b219d756",
+  "checked_publication_head": "45c87eec01572b6d108307a46c83088b2c6c7f5f",
+  "checks": {
+    "publication-compact-profile-traces": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "/home/deano/fes/out/dev/de25-setup-release/tests",
+        "-p",
+        "test_nano_sdm_*.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.6009234800003469,
+      "log_sha256": "0b64b392236197cef7b23f22014157d9be3373711d136e04de63b417f39168fe"
+    },
+    "publication-compact-final-check": {
+      "argv": [
+        "make",
+        "-C",
+        "/home/deano/fes/out/dev/de25-setup-release",
+        "check"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-source-release",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 10.807437586132437,
+      "log_sha256": "4ffe37a0582de7ca316571feada015e041e0fcc1e04f967bf1c719a8c98bc0bc"
+    }
+  },
+  "retained_files": {
+    "publication-compact-profile-traces.log": "0b64b392236197cef7b23f22014157d9be3373711d136e04de63b417f39168fe",
+    "publication-compact-profile-traces-result.json": "1ebe36aba808f7c74b6689b79176ac7fe3b97748c1e28b53a6c82b4f1ae4884e",
+    "publication-compact-profile-traces-process.json": "d68cd2cce761e43eae33ccbb9589dc9ba4ddf920fa1adca9b695c4ac5609e4b5",
+    "publication-compact-final-check.log": "4ffe37a0582de7ca316571feada015e041e0fcc1e04f967bf1c719a8c98bc0bc",
+    "publication-compact-final-check-result.json": "5abb001d65938a1b7e1f1f09eb13f9100386ff7b5159cc621ba2ab806417e244",
+    "publication-compact-final-check-process.json": "26854a0e6351e350c492311d366623dcd85cbd743701423902f099cf95839426"
+  },
+  "retained_directory": "/home/deano/fes-retained/de25-publication-matched-20261114-r1/completed-checks",
+  "hardware_actions": false
+}

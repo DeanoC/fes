@@ -1,0 +1,18 @@
+{
+  "source_commit": "9237c375a7f20a1eb41ad60888461215fae4eb2b",
+  "baseline_source_commit": "9ce1af2a6e65426a759d7240722845a425d820b3",
+  "first_digest_seconds": 1.164858275,
+  "baseline_first_digest_seconds": 3.2163195875,
+  "first_digest_speedup": 2.7611252428970383,
+  "confirmed_completed_bytes": 786432,
+  "outstanding_bytes": 65536,
+  "retained_core_bytes": 2027520,
+  "same_pending_buffer_polls": 86,
+  "same_pending_buffer_observed_seconds": 10.5238788975,
+  "cause": "not determined; command/response accounting and SDM state need diagnosis",
+  "transfer_accepted": false,
+  "identity_requested": false,
+  "bridge_open_observed": false,
+  "retry_performed": false,
+  "scope": "One paired cold digest observation on unchanged core bytes; not a full-transfer or production performance result."
+}

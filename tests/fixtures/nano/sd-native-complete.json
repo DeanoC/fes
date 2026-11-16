@@ -1,0 +1,13 @@
+{
+  "classification": "retained physical read-only SD diagnostic trace; original runner rejected its 15-byte CID width",
+  "firmware_source_commit": "0b55ff3826e85e0da3ee2d7ddf9c79d54861cf5e",
+  "build_id": "db7c01de309270e7",
+  "owner_seed": 3642898363703405011,
+  "console_sha256": "eaf04da7fa540be1bc57ab2fc7dd0e7a67488eebae7eacf626e4f4d9afd84b95",
+  "card_sectors": 7774208,
+  "storage": {
+    "bytes": 1098,
+    "sha256": "1a345ddfefc37e1fcfc5cebd17c2cb33dea8b2b70c921b32aac36aec9fe93035"
+  },
+  "console_path": "docs/validation/2026-11-01-de25-sd-platform/native-sd-console.log"
+}

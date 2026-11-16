@@ -1,0 +1,320 @@
+{
+  "format": 1,
+  "head": "e5aa8d617f9879587f00bc01d903a9848a3f2b3b",
+  "base": "4534d74bad19203851f4617c29546dc810b80742",
+  "plan_sha256": "7924a64a9668460a17450147ee828f344e1f38bf9635381a916ea936e8c90b38",
+  "status": "passed",
+  "dispatch": "two independent software workers; stop scheduling after failure",
+  "results": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ],
+      "index": 0,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4014995211036876,
+      "cap_seconds": 300,
+      "log": "software-00.log",
+      "log_sha256": "43a5cbf6c565bd2a2eaee6dbc5c84b8849396361bc0b6bd876a405cba2035e89"
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ],
+      "index": 1,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.2016834450187162,
+      "cap_seconds": 300,
+      "log": "software-01.log",
+      "log_sha256": "f72025d7f7c99476cbeb5bfa609516d35a45566c9c937f80aed47ebd5345c028"
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "4534d74bad19203851f4617c29546dc810b80742",
+        "--head",
+        "e5aa8d617f9879587f00bc01d903a9848a3f2b3b"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [],
+      "index": 2,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20075002207886428,
+      "cap_seconds": 300,
+      "log": "software-02.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": [],
+      "index": 3,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20116385607980192,
+      "cap_seconds": 300,
+      "log": "software-03.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/generated/fes_de25_ddr_probe.h\", \"platform/embedded/firmware/nano_probe_stop.c\", \"platform/embedded/firmware/nano_probe_stop.h\", \"platform/embedded/firmware/tests/nano_probe_stop_test.cpp\", \"platform/embedded/firmware/verify_probe_stop.py\", \"scripts/consistency.py\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/prototypes/de25_board_control/README.md\", \"sources/misteross/prototypes/de25_board_control/build.py\", \"sources/misteross/prototypes/de25_board_control/ddr_probe.cpp\", \"sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv\", \"sources/misteross/prototypes/de25_board_control/fes_de25_embedded_hw.tcl\", \"sources/misteross/prototypes/de25_board_control/integrate.tcl\", \"sources/misteross/prototypes/de25_board_control/test_handoff.py\", \"sources/misteross/prototypes/de25_board_control/verify_ddr.py\", \"tests/test_affected.py\", \"tests/test_consistency.py\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ],
+      "index": 4,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 196.54191429598723,
+      "cap_seconds": 300,
+      "log": "software-04.log",
+      "log_sha256": "37a51a02b4f8d6e915d606d76a6b063d50e334b87962553451f3b74d42445d01"
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ],
+      "index": 5,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.002810753998347,
+      "cap_seconds": 300,
+      "log": "software-05.log",
+      "log_sha256": "a27a95cb58aa34d9c8e98e59f0255fc7fe461ff37727a511ae8796a8303622c9"
+    },
+    {
+      "lane": "parent",
+      "label": "native runtime firmware and FPGA launch integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "go",
+        "verilator"
+      ],
+      "files": [
+        "platform/embedded/tamago/nativefabric/verify.py",
+        "platform/embedded/firmware/tests/native_rpc.cpp"
+      ],
+      "index": 6,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 50.83594890590757,
+      "cap_seconds": 300,
+      "log": "software-06.log",
+      "log_sha256": "28236f38f410df535aae72f22ecfd01ab33d2b5294552e2b8cd6a348a2c038a6"
+    },
+    {
+      "lane": "parent",
+      "label": "embedded producer identity and native control integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "g++",
+        "git",
+        "go",
+        "make",
+        "verilator",
+        "verilator_bin"
+      ],
+      "files": [
+        "sources/misteross/prototypes/embedded_control/producer.py",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "index": 7,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 9.006124436040409,
+      "cap_seconds": 300,
+      "log": "software-07.log",
+      "log_sha256": "c0820fceb670237d1c39c2a950d2ef7fba1d2796a676d4314ae23c12af48d531"
+    },
+    {
+      "lane": "parent",
+      "label": "DE25 Avalon control and native integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "sources/misteross/prototypes/de25_board_control/verify.py",
+        "--standalone"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "g++",
+        "git",
+        "go",
+        "make",
+        "tclsh",
+        "verilator",
+        "verilator_bin"
+      ],
+      "files": [
+        "sources/misteross/prototypes/de25_board_control/verify.py",
+        "sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv"
+      ],
+      "index": 8,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 13.41347215406131,
+      "cap_seconds": 300,
+      "log": "software-08.log",
+      "log_sha256": "cd535568156e59b127c62916d1c0ab851f2ea16256c6a62d18468d3397307c7f"
+    },
+    {
+      "lane": "fpga",
+      "label": "embedded firmware and identity/drain RTL integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/firmware/verify.py"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "verilator"
+      ],
+      "files": [
+        "platform/embedded/firmware/verify.py",
+        "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"
+      ],
+      "index": 9,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.004741394077428,
+      "cap_seconds": 840,
+      "log": "software-09.log",
+      "log_sha256": "e9a0203426a00f67fce544894792a761cb6cea75ab38ee3e17275c4863129517"
+    },
+    {
+      "lane": "fpga",
+      "label": "test_*.py",
+      "cwd": "sources/misteross",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "strace"
+      ],
+      "files": [
+        "tests/test_*.py"
+      ],
+      "index": 10,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 310.631269035046,
+      "cap_seconds": 840,
+      "log": "software-reused-fpga.log",
+      "log_sha256": "44bf1e3318754f3fa358538a618589f08aca6e75e60494c4e7a2a49859b1db47",
+      "evidence_head": "97d31dc534c4f0bcd429aa895c5c2462bee6f8ae",
+      "reused": true,
+      "reuse_basis": "only parent test consumer expectations changed; all FPGA/firmware/producer inputs unchanged"
+    }
+  ],
+  "reused_command_count": 1
+}

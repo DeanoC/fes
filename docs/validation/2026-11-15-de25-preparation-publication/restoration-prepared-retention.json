@@ -1,0 +1,14 @@
+{
+  "status": "passed-self-contained-restoration-only-retention",
+  "procedure_sha256": "c34868fb09ff76d083e985960acd8b5073ebe08c4572c1e288e8ce67ee446dbf",
+  "archive": "/home/deano/fes-retained/de25-full-sof-warm-files-restoration-prepared-20261115-r1/prepared-procedure.tar.gz",
+  "archive_sha256": "2952155bac58c97bddf1be13360f2b3f7a5c24c8f665df55bd9e1255fc89b46b",
+  "archive_bytes": 282924733,
+  "logical_files": 12264,
+  "verified_unique_blobs": 5134,
+  "hardware_actions": false,
+  "attempt_reserved": false,
+  "execution_approval_created": false,
+  "diagnostic_authority": false,
+  "human_reset_confirmed": true
+}

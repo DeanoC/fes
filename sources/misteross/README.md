@@ -21,6 +21,15 @@ Build contracts — identity, lanes, compilers, package bytes — live in
 Per-experiment results live in [the experiment catalog](docs/oss-experiments.md).
 Files under `docs/validation/` are dated records, not current instructions.
 The doc index is [docs/README.md](docs/README.md).
+The experimental embedded control/drain RTL is a standalone component under
+`cores/fes-common/rtl/fes_embedded_control.sv`. The FES
+[firmware verifier](../../platform/embedded/firmware/README.md) tests it against
+prepared TF-A functions. It has no RBF producer or shipped-core consumer.
+The [identity producer prototype](docs/architecture.md#embedded-control-endpoint)
+builds a source-bound host simulation of that component, not a DE25 bitstream.
+The separate [DE25 board-control diagnostic](prototypes/de25_board_control/README.md)
+can overlay the endpoint on an explicitly selected board build for integration
+experiments; it does not create a production package or program a board.
 
 ## What this module does not do
 

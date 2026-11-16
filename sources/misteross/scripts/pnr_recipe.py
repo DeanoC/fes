@@ -547,6 +547,14 @@ def recipe_digest(core_id: str, binary: str | Path | None = None) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+def design_recipe_digest(core_id: str) -> str:
+    """Bind explicit routing choices, leaving compiler defaults/backend advisory."""
+    recipe = {key: value for key, value in _selected(core_id)[0].items()
+              if key not in ('backend', 'gpu_device')}
+    payload = json.dumps(recipe, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
 def required_clocks(core_id: str) -> tuple[tuple[str | None, float], ...]:
     """Return the producer's required clock matcher list from its recipe."""
     return tuple((None if clock["name"] == "*" else clock["name"], clock["mhz"])

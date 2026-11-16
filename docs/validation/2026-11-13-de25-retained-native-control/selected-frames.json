@@ -1,0 +1,61 @@
+{
+  "status": "passed-current-linked-selected-frame-measurements",
+  "source_commit": "90f7db3e7247d52ffe7ebd507e9a119912d836dd",
+  "linked_elf_sha256": "f80f5a63f8f7a1dce2c54beb1437986fb1d9f0f7f042c0a9e91615dc4a749c0f",
+  "files": {
+    "native-bl31/source/build/agilex5/release/bl31/command_queue.su": "b613d7527006c53fbe2589dde0efe1f3dd16171c8a7df06c48867914f871a5b7",
+    "native-bl31/source/build/agilex5/release/bl31/input_tables.su": "3be93fbdba872c7bd61d6456e01ece12bf1e366596cd90a3f5acfc60663b077a",
+    "native-bl31/source/build/agilex5/release/bl31/input_transfer.su": "4ebfa7c7f9faa900dc6053f5b9e2d19b382e3c5d1e67b7665d218a1f9146c3fa",
+    "native-bl31/source/build/agilex5/release/bl31/input_transfer_service.su": "6b44f51570a797104ae60c99e7b95ebfd5c65586906a0e4e4ab8644bc86026f2",
+    "native-bl31/source/build/agilex5/release/bl31/nano_cold_platform.su": "e1ce162049f70fa625ad25afce3bbabd2400ab7606fab60f0dcf74c2dceb8497",
+    "native-bl31/source/build/agilex5/release/bl31/probe_setup.su": "012c969ff9bd40dd5c18663f41e9b4a1e94aff98040d5232d15f0c0bcc4ddc31",
+    "native-bl31/source/build/agilex5/release/bl31/socfpga_mailbox.su": "7fb215a9998bee5995718e2cfd0008e6e323d8a5c95312e810b46614a485ea08",
+    "native-bl31/source/build/agilex5/release/bl31/socfpga_sip_svc.su": "3ebcce05df681b66effeb37569dfe448f254b3fe26a32e11573575e67e84c343",
+    "native-bl31/source/build/agilex5/release/bl31/source_retire.su": "c1fc77499e48db60bc6a85882f76b51aad3639025c2ade9a60ab2b75ecd74c98"
+  },
+  "selected_frames": [
+    {
+      "function": "plat/intel/soc/common/input_transfer_service.c:83:5:fes_nano_sdm_transfer_control_begin",
+      "bytes": 32,
+      "kind": "static"
+    },
+    {
+      "function": "plat/intel/soc/common/input_transfer_service.c:95:5:fes_nano_sdm_transfer_control_finish",
+      "bytes": 48,
+      "kind": "static"
+    },
+    {
+      "function": "plat/intel/soc/common/nano_cold_platform.c:702:12:identity_configured",
+      "bytes": 96,
+      "kind": "static"
+    },
+    {
+      "function": "plat/intel/soc/common/include/nano_sdm_source_platform.inc:62:12:sdm_probe_owns_mode.constprop",
+      "bytes": 64,
+      "kind": "static"
+    },
+    {
+      "function": "plat/intel/soc/common/include/nano_sdm_control_platform.inc:5:12:retained_control_owned",
+      "bytes": 48,
+      "kind": "static"
+    },
+    {
+      "function": "plat/intel/soc/common/include/nano_sdm_control_platform.inc:22:12:retained_control_view",
+      "bytes": 32,
+      "kind": "static"
+    },
+    {
+      "function": "plat/intel/soc/common/include/nano_sdm_control_platform.inc:37:5:fes_nano_sdm_source_control_ready",
+      "bytes": 352,
+      "kind": "static"
+    },
+    {
+      "function": "plat/intel/soc/common/include/nano_sdm_control_mailbox.inc:4:5:fes_nano_sdm_control_mailbox_idle",
+      "bytes": 64,
+      "kind": "static"
+    }
+  ],
+  "largest_selected_frame": 352,
+  "complete_EL3_stack_bound": false,
+  "hardware_actions": false
+}

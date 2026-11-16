@@ -1,0 +1,13 @@
+{
+  "status": "passed-independent-full-SOF-loading-physical-retention",
+  "procedure_sha256": "7631401dd5864fce9281dc5f30e20ca0dc8c566c89361645299fc4e35305b4fb",
+  "archive": "/home/deano/fes-retained/de25-full-sof-loading-physical-20261115-r1/physical-trial.tar.gz",
+  "archive_sha256": "bce8f6f856a6ed5f213ecdf7f23dd4ffa89a136ad2cda5c33a6d6d5aa483e71a",
+  "files": 165,
+  "candidate_cycle_Park_verified": false,
+  "candidate_left_installed": false,
+  "all_hardware_handles_closed": true,
+  "physical_reset_required": true,
+  "hardware_acceptance": false,
+  "general_core_load_acceptance": false
+}

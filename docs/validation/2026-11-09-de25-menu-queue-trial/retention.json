@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "source_head": "9e3edbbb4df078aa06b3d5ee7f5e3f5c67f745fb",
+  "operator_source": "6a83d7d7282d43bf3fa6670c8aa0d018034a305d",
+  "path": "/home/deano/fes-retained/de25-menu-queue-trial-hardware-20261109-r1",
+  "files": 6128,
+  "full_archive_readback": true,
+  "archive_modes_verified": true,
+  "bundle_import_and_pack_verified": true,
+  "standalone_source_restore_and_strict_fsck": true,
+  "hardware_actions": false
+}

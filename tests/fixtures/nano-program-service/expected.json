@@ -1,0 +1,44 @@
+{
+  "build_id": "145213088b9b4dbb",
+  "owner_seed": 4057622628184755807,
+  "atf": {
+    "bl32": 0,
+    "bl33": 2149580800,
+    "bytes": 86077,
+    "fdt": 0,
+    "format": 2,
+    "params_base": 3220176896,
+    "params_bytes": 1048576,
+    "scope": "loaded-bl31-handoff-v2",
+    "sha256": "5a4649aa549cfd2ff3ed9c4b90db8db289009caa393aa6d301bece3d30f5b489",
+    "target": 2147483648
+  },
+  "configuration": {
+    "base": 2491416576,
+    "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+    "chunk_bytes": 1048512,
+    "chunk_sha384": [
+      "87974f75e7d4132a4a1c214881be42736a22e333e393c3673cd733fbf126e8dcaf42dabbbcc1c3a57eef9f1511e9466f",
+      "f5a0d1746d7d0206eb4b231e0fdf4d3e2d38e417463ce9170d2f5b20782fff856431d5bde5e9398ae5909e2b43cb93da"
+    ],
+    "core_sha256": "e9255d3dc149e7db17f012c3032f8c1da245d913ded3947a2342034eb1927ac0",
+    "core_sha384": "82af3f15d7bb41aa102c9cc8e7414b7588e202433c47a7a177ca5d49a8648474e23ea8a48f27c99d672950115b18def2",
+    "core_size": 1646592,
+    "dram_base": 2147483648,
+    "format": 1,
+    "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+    "scope": "sealed-cold-configuration-v1",
+    "size": 8388608
+  },
+  "identity": {
+    "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+    "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+    "core_id": "fes.de25-embedded-diagnostic"
+  },
+  "package": {
+    "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+    "payload_sha256": "e9255d3dc149e7db17f012c3032f8c1da245d913ded3947a2342034eb1927ac0",
+    "payload_bytes": 1646592,
+    "build_id": "dda236646bb868e63c72bd0e777f3dd6"
+  }
+}

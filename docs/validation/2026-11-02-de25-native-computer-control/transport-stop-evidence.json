@@ -1,0 +1,23 @@
+{
+  "verification_status": "passed",
+  "hardware_result": "stopped-before-recovery-programming",
+  "classification": "transport gate failed; no native candidate was programmed or run",
+  "source_commit": "3b38d09b67fc7c9d6b153583855b6eaf15d85d95",
+  "native_build_source_commit": "5b00f0486576bb192e3de1cb09569c59902cca2b",
+  "programming_attempted": false,
+  "sd_writes": false,
+  "native_candidate_attempted": false,
+  "core_load_acceptance": false,
+  "execution_observed": false,
+  "runtime_admission": false,
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "uart_free": true,
+  "private_server_stopped": true,
+  "claim_retained": true,
+  "factory_restore_requested": false,
+  "query_sha256": "c2bf6c2d2a25a757103898b7215fd3302d05f64e2a87c5002fed517dac8ac108",
+  "experiment_sha256": "51f41b645217cdb107231438fb6a30f984bd8936db610e516711969369776674",
+  "recovery_sha256": "dde6c68eba4077c93524f94c7ac7c0fab6e937ba0a3975acef1d4961d1e62b0b",
+  "transport_sha256": "6712e29b2c137dba423ec0f460e47ec8b6e7d8686676a5efdea32fd3c8210fea"
+}

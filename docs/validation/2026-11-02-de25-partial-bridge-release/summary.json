@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "status": "passed",
+  "classification": "host native lifecycle/tenfoot with C Nano bridge service, actual pinned vendor bridge functions, prepared TF-A functions and Verilated FPGA RTL; injected registers, ownership, memory and SDM; no physical acceptance",
+  "base": "59ddb433e1d9805586d2c907edf07c549c62a640",
+  "production_source_head": "425cfcaf14b8657e1ebbfb43b56cc19b85feeb42",
+  "final_source_head": "7a30ebdc72079212c330cd0befc76a261266aaf3",
+  "contract": "fes.fabric.embedded.bridges 1.8",
+  "data_masks_in_native_and_actor_cycles": [
+    8,
+    13
+  ],
+  "native_lifecycle_cases": 28,
+  "tenfoot_actor_cases": 10,
+  "actual_vendor_driver_cases": 42,
+  "standalone_c_service_cases": 62,
+  "cold_provider_python_tests": 5,
+  "strong_provider_python_tests": 3,
+  "full_software_commands": 12,
+  "full_software_head": "425cfcaf14b8657e1ebbfb43b56cc19b85feeb42",
+  "hardware_access": false,
+  "new_fpga_artifacts": false,
+  "physical_acceptance": false,
+  "runtime_admission": false
+}

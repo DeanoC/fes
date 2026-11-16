@@ -1,0 +1,20 @@
+{
+  "scope": "matched-native-full-SOF-selection-v1",
+  "source_root": "/home/deano/fes/out/dev/de25-preparation-clock-proof",
+  "source_head": "5c5a9a5b48470c45dc450fb1834540209c333891",
+  "composition": "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-composition",
+  "composition_result_sha256": "2a1a0275cc9b089204b5d4f72b4d902428804d504e6573c291079c98a90b6ed3",
+  "image": {
+    "path": "/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-composition/native-hps-first.sof",
+    "sha256": "ced3df3c0f3ba94b09f4732c8e95f17aa3abb8aac660fb04dbb9257d496d7e21",
+    "bytes": 1578912,
+    "kind": "matched-native-sof",
+    "operation": "p;/home/deano/fes/out/dev/de25-preparation-clock-proof/out/publication-boot/native-composition/native-hps-first.sof@1",
+    "volatile": true,
+    "flash_operation": false
+  },
+  "fit_sha256": "8d6aa12358f19ce4932eecc39b9dbb5c97bb733613d848a4b1ae04a8baffde4a",
+  "spl_sha256": "fa1e6735f95e47e0658e5761caa6132247a070ae2c1663fa2653f22b2c5f1cca",
+  "inspector_path": "/home/deano/fes/out/dev/de25-preparation-clock-proof/platform/embedded/nano/sof_hps.py",
+  "inspector_sha256": "11c9c21d46f28219accfd5a08d9a27486df84845ef4fee3573b2a0f6e72df70d"
+}

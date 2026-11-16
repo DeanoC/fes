@@ -1,0 +1,191 @@
+{
+  "format": 1,
+  "source_head": "64157280e2e7b06d08c1e43fb7ceff6c0214e3ed",
+  "classification": "software and bounded physical SMMU/CPU diagnostic; no DDR traffic or core admission",
+  "files": {
+    "README.md": {
+      "size": 6616,
+      "sha256": "0846209657cfc4624a8a717bc9d78d90bb7743dc4d50b438a0f37da625a174e6"
+    },
+    "bl31.json": {
+      "size": 18072,
+      "sha256": "24cd5e1ec4d5b54234d78fc7d726bc7f1dbc3c89174b7baadd29201d1c062b83"
+    },
+    "boot-cross-result.json": {
+      "size": 316,
+      "sha256": "83e4b0af59d7e8e9e6773cf562e38d51a333cadc6c29ca13dca86029fcd63107"
+    },
+    "boot-profile-cold.log": {
+      "size": 984,
+      "sha256": "1f5c2c70c42cdc8d53dd5609bb504cfd6d62dcce5fc544ea68d4fc88a366b3d5"
+    },
+    "boot-profile-handoff.log": {
+      "size": 2271,
+      "sha256": "574de76c809e47bc8108b4a284d48eac10fb81700831dfe9dc8f21cf0595e5a0"
+    },
+    "entry.json": {
+      "size": 234266,
+      "sha256": "780fb4fbee6b089100db361b6638ac339f975bdfea8257c876f613a903b076da"
+    },
+    "first-experiment-result.json": {
+      "size": 1560,
+      "sha256": "444b9a7c2c7e32303b30f2bd57fce57a70c033455a69128667bbece67ceaeb1a"
+    },
+    "first-native-console.log": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "first-native-program.log": {
+      "size": 3021,
+      "sha256": "4a26c76b41f4fc257ad4082b7213d5280bbfbd9e848ada24f3e10b7ce7a3c5dc"
+    },
+    "first-native-result.json": {
+      "size": 1154,
+      "sha256": "5975d69607ec8e20905920eca504532e374d2cdc88c0bda180c604f216313586"
+    },
+    "first-poststop-jtag-1.log": {
+      "size": 1690,
+      "sha256": "7185e666c3ff599df68e80ac35954ae90c29fd24a685318a1b72692791d2c6cb"
+    },
+    "first-poststop-jtag-2.log": {
+      "size": 1690,
+      "sha256": "6bd855c160b4135b69af873e7a50f69230cbef6d64a52fab6f38a7f167516dd1"
+    },
+    "first-poststop.json": {
+      "size": 472,
+      "sha256": "f7d00b1bba1ea9daedb58e10e65f99cefa0fb9b691c8e1571469d74babfb5df5"
+    },
+    "first-preflight.json": {
+      "size": 3919,
+      "sha256": "d189e0986361ef176ae2ca6db6d966f86a459fd8b321751a9fef5c89500d3e6c"
+    },
+    "make-check-result.json": {
+      "size": 202,
+      "sha256": "e1d2075385094e1c698bd56db08403689ff615467e3f759d4b9650c49dee231e"
+    },
+    "make-check.log": {
+      "size": 137,
+      "sha256": "e9d8989316f5311365a429c5c6221f9e058490da8f0fb7a5a1e219c90aee6aaa"
+    },
+    "package.json": {
+      "size": 29822,
+      "sha256": "9dbddc7426473ab59598e034d98f741f60ab7e0a492c8a8680af5a2298d4b90c"
+    },
+    "postcheck.json": {
+      "size": 4712,
+      "sha256": "6f8c9130736aec30d71b8cfe252810b8df8bfa47b25bce0fc080046c895c59a0"
+    },
+    "profile-context.log": {
+      "size": 1701,
+      "sha256": "8a54c7c26074b470f2ebcc771db258dd70b07124ea82318afef894e1b4de051c"
+    },
+    "recovery.json": {
+      "size": 1270,
+      "sha256": "662809ffa84e3d983a3c80bb91150f8f5a278363bd8908927b8936d2e1afb805"
+    },
+    "register-audit.json": {
+      "size": 948,
+      "sha256": "445ade55dec6c5013837da71d0653a0ba00308ad34ce1d20e39de8eebaeed1d5"
+    },
+    "resume-experiment-result.json": {
+      "size": 1913,
+      "sha256": "a2160614dab4fbe377ca59e7649ee73f845d5b08f2a21967cd7d332b66fe7f3a"
+    },
+    "resume-native-console.log": {
+      "size": 4034,
+      "sha256": "7095188f5c9c8508314233c3a496d5252f6d7710f0a3e1ff969de539d75b6fa8"
+    },
+    "resume-native-program.log": {
+      "size": 2955,
+      "sha256": "632005534aa4601214ce41e986ab17434e61621094f2de5f8e63f94c395ca438"
+    },
+    "resume-native-result.json": {
+      "size": 5925,
+      "sha256": "ace4c775513be03509d8ad3b61c55e027402cfdbe3eb64b20efee20066958264"
+    },
+    "resume-preflight.json": {
+      "size": 4092,
+      "sha256": "8a9e150cea956cf7be6080da959ff7a881d424cf2e426ab0d66c1cec9d6e392d"
+    },
+    "sdk.json": {
+      "size": 234702,
+      "sha256": "28e20a459f08f071aff0f95348175a981b2f49a4b3771012fe266c348fa9e73f"
+    },
+    "smmu-hardware-trial-result.json": {
+      "size": 280,
+      "sha256": "a97d4d31c1c1bd45e33eed33e9c3a82cf88c0f0216b0dd1d26c1879fbab7c244"
+    },
+    "smmu-native-resume-result.json": {
+      "size": 288,
+      "sha256": "ece7b658e37277d6a0b98ca2cfb7e2490d82b5d7f0c14bd17ec885e7f45cab26"
+    },
+    "smmu-trace.log": {
+      "size": 6995,
+      "sha256": "e6bc097d27f7dc3825fcf5d0601cbe995b276fd855693d953810c81f0413c339"
+    },
+    "software-00.log": {
+      "size": 4605,
+      "sha256": "8c959fd55b93d2eda4359f35c0319f27ff6a001e817086805e5b302242cd0941"
+    },
+    "software-01.log": {
+      "size": 5823,
+      "sha256": "6be998a9d68f0bce6bead19bab9b56523c40b3629ee88d8a606f58c135073373"
+    },
+    "software-02.log": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-03.log": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-04.log": {
+      "size": 346906,
+      "sha256": "392ad951695773271ac9153895aa115e1e95cf94934c5f1d4f404499c042caca"
+    },
+    "software-05.log": {
+      "size": 70,
+      "sha256": "a27a95cb58aa34d9c8e98e59f0255fc7fe461ff37727a511ae8796a8303622c9"
+    },
+    "software-06.log": {
+      "size": 104,
+      "sha256": "63d23b71bc3a8b10e6b02f10d7e3af7ea0159b9501489f810fa8f161e70c7c71"
+    },
+    "software-07.log": {
+      "size": 104,
+      "sha256": "20b651b274858eee1165d7505964578503d937b6f4de342e9a900d2950286d5a"
+    },
+    "software-08.log": {
+      "size": 101,
+      "sha256": "44487328ee2ac3a426816b1f5369fa319ec842c2ce0563dd43aa354075736814"
+    },
+    "software-09.log": {
+      "size": 241658,
+      "sha256": "4302c81dc1ab5b354fd475cde8d47a1ed58db560b21aa3735e0c20d3cc28d9f4"
+    },
+    "software-plan.json": {
+      "size": 8567,
+      "sha256": "37c9a1518a2bb5e18dec4e848f3229d1ea522ee5246b63b261291629f7e54ecf"
+    },
+    "software-result.json": {
+      "size": 7834,
+      "sha256": "4eef57be689fe0e2d156b21af03de05e21ec169ef05cf0f344ae8235f265b734"
+    },
+    "software-run-result.json": {
+      "size": 250,
+      "sha256": "ef323dd924485f77fa52fc85e58c2bd32e2764ad53c1ad0b3427c0faf89f5e1f"
+    },
+    "uboot-smmu-package-result.json": {
+      "size": 696,
+      "sha256": "adceb2528d706138adcfd92cbaeece964a5f170bbb9b589a3553c0464520dbf1"
+    },
+    "uboot.json": {
+      "size": 41976,
+      "sha256": "acdd60a563ab0958565ce065cfe4a2e4590caa8a48b79080172507d391f83cea"
+    },
+    "upload-boot.json": {
+      "size": 14754,
+      "sha256": "58ba6d151675b7a57f9486844efdd211ed216e1a1c973435744b864f56bc1162"
+    }
+  }
+}

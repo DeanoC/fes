@@ -1,0 +1,93 @@
+{
+  "status": "passed",
+  "source_commit": "7b05f14719cd5ef5733f9f5a78e69e4f54347c0c",
+  "base": "2b3dca63b3d6e6ae04b863dbf8891ad883c0862e",
+  "groups": [
+    {
+      "label": "test_affected.py",
+      "status": "passed",
+      "elapsed_seconds": 0.40080633491743356,
+      "log_sha256": "5635410b4f06c45d9e57bfbc593d59a44aa70d8a65e41c53b2c511788b2248a8"
+    },
+    {
+      "label": "test_test_changed.py",
+      "status": "passed",
+      "elapsed_seconds": 1.2018508409382775,
+      "log_sha256": "78f844ad523c6962787a45c98af33042a239a0ffc6861aa77d382d371a628c64"
+    },
+    {
+      "label": "committed whitespace",
+      "status": "passed",
+      "elapsed_seconds": 0.2008266650373116,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "working whitespace",
+      "status": "passed",
+      "elapsed_seconds": 0.20073727704584599,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "parent Python regressions",
+      "status": "passed",
+      "elapsed_seconds": 224.36543044203427,
+      "log_sha256": "f589ae53b50b2fa7745e645a8facecceef6938ceaf6f4ad0381bcffadb0e69ad"
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "status": "passed",
+      "elapsed_seconds": 4.403068455052562,
+      "log_sha256": "0abb26569563f932801c46ce2685573dd4f24c3301287f939963f0e6407a41cd"
+    },
+    {
+      "label": "native SD firmware lease and PIO lifecycle",
+      "status": "passed",
+      "elapsed_seconds": 6.005204244051129,
+      "log_sha256": "e31166188c67b0a7dfd1272b30f86806514751fd09874bc39e11661d894ae7c7"
+    },
+    {
+      "label": "native runtime firmware and FPGA launch integration",
+      "status": "passed",
+      "elapsed_seconds": 54.84180744900368,
+      "log_sha256": "911667345a9989780f15755cd52a60f4077851a4480b1d1db04e9e505c12f040"
+    },
+    {
+      "label": "embedded producer identity and native control integration",
+      "status": "passed",
+      "elapsed_seconds": 9.408926047966816,
+      "log_sha256": "de4b2c2b106e8f8a4105b6415826b4dce420181739b3a88b62fb7d483ab832ce"
+    },
+    {
+      "label": "contract schemas and generated fixtures",
+      "status": "passed",
+      "elapsed_seconds": 3.2042395159369335,
+      "log_sha256": "efda4044a2228b863f75c643c35f269580136319bb35bdc3aa9766884bae9788"
+    },
+    {
+      "label": "embedded firmware and identity/drain RTL integration",
+      "status": "passed",
+      "elapsed_seconds": 5.205328910029493,
+      "log_sha256": "88f1693db7ea055aa1fdd6706b0b922e43a17d27cb05870c55241c2e5765426e"
+    },
+    {
+      "label": "test_*.py",
+      "status": "passed",
+      "elapsed_seconds": 324.01492353202775,
+      "log_sha256": "7ab163949156113ae1d09f91d4b20368a086c696949fd7c656f9a00945f6261c"
+    }
+  ],
+  "parent_caps_seconds": 300,
+  "parent_module_partitions": 3,
+  "parent_skips": 2,
+  "classifications": [
+    "software and RTL model tests",
+    "separate hardware diagnostic recorded in hardware-evidence.json"
+  ],
+  "original_failure": {
+    "source": "4b62ea3234f6d9ae427327d80033594a1100d4b8",
+    "scope": "native SD firmware lease and PIO lifecycle",
+    "reason": "SD-only host wire fixture did not define the new optional HPS I/O provider",
+    "repair": "unbound NOT_READY stub in fixture; no deployed image bytes changed"
+  },
+  "parent_tests_count": 1314
+}

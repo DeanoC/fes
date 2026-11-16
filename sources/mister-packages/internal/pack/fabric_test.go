@@ -1,11 +1,43 @@
 package pack
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestDe25ComputerMatchesCapturedBoardContract(t *testing.T) {
+	root := repoRoot(t)
+	fabric, err := LoadFabric(filepath.Join(root, "packages/fabric/fes_fabric_embedded_computer.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var oracle struct {
+		Fabric struct {
+			ID           string
+			Major, Minor uint16
+		}
+		Constants map[string]uint32
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "testdata/oracles/fes-embedded-computer.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(raw, &oracle); err != nil {
+		t.Fatal(err)
+	}
+	if fabric.ID != oracle.Fabric.ID || fabric.Major != oracle.Fabric.Major || fabric.Minor != oracle.Fabric.Minor ||
+		len(fabric.Constants) != len(oracle.Constants) {
+		t.Fatal("captured computer contract changed")
+	}
+	for name, want := range oracle.Constants {
+		if got, ok := fabric.Constant(name); !ok || got != want {
+			t.Errorf("%s: %x %t, want %x", name, got, ok, want)
+		}
+	}
+}
 
 func TestLoadTimedVideoFabricContract(t *testing.T) {
 	fabric, err := LoadFabric(filepath.Join(repoRoot(t), "packages/fabric/fes_fabric_video_raster_rgb888.yaml"))

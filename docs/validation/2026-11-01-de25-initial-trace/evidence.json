@@ -1,0 +1,296 @@
+{
+  "affected_checks": 6,
+  "artifacts": {
+    "config_sha256": "d6bff1aa1219a75823dd879fc928d4d8729f39a8e6a5c02fcd3726d16c75295b",
+    "sof_sha256": "c24f01011c18b87e75dccc47288ced97c15ada63ee97532d18f26fa145d65e1f",
+    "spl_elf_sha256": "88b5ac280e505a31b4280e680b12dc96fd6654805ddcc1d6aa691f15ff27479e",
+    "spl_sha256": "3dc1890123e4875104c17a9cd1fc0bd64d91d8d1a29fc2d32d905cef8889f8d7"
+  },
+  "build_base": "a7b045916e969390b8eb73e940c337ff5dd67ee2",
+  "checks": [
+    {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_cpu_diagnostic.py",
+        "-v"
+      ],
+      "label": "focused",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "a7b045916"
+      ],
+      "label": "affected",
+      "returncode": 0
+    }
+  ],
+  "classification": "hardware diagnostic PASS; initial native admission REJECT; no native/core-load acceptance",
+  "diagnostic_id": "ec0cdc1da979aca3",
+  "end_state": "diagnostic loaded and unconditionally parked; original factory card inserted; exclusive continuing claim held; no factory restore",
+  "focused_tests": 4,
+  "native_admission_gate_changed": false,
+  "post_trial_jtag": {
+    "finished_utc": "2026-11-01T09:17:56.294147+00:00",
+    "helper_sha256": "ad8bfff3c367c05e607e7ab0a5edd3d04858aa3146e7568b45e33ea9ecb67dbe",
+    "jtag_id": "4362C0DD",
+    "jtag_id_observed": true,
+    "returncode": 0,
+    "scope": "one read-only exact-cable identity query; diagnostic image retained",
+    "serial": "TRWU8CBL",
+    "started_utc": "2026-11-01T09:17:55.390285+00:00",
+    "usb_node": "/dev/bus/usb/003/061",
+    "usb_permissions_restored": true
+  },
+  "receipts": {
+    "out/nano-initial-trace-prep-20261101/candidate-v1/result.json": "b86793bad8bf679f8ffec303144144a7fbe516c71db9b8f6df76294e167b67e1",
+    "out/nano-initial-trace-prep-20261101/checks-result.json": "6cd92395b0a903a0bcf36dd2671b8a054e9b75da04caa19837ff1b2ed39083ef",
+    "out/nano-initial-trace-trial-20261101/cpu-console.log": "c5d16220283cc33cbc9acb3db7c94bc24dfc634014b6729cc68ff37538e886e5",
+    "out/nano-initial-trace-trial-20261101/cpu-result.json": "8aa07fa39146381f5c87fbc7af9e808698562f53928b35e8c9f9a9bfcd62f62a",
+    "out/nano-initial-trace-trial-20261101/preflight.json": "dab99cbee985e422c1542383862273e5224df0159890ed958de9c885efd99f0b",
+    "out/nano-initial-trace-trial-20261101/retained-jtag-result.json": "8f81a9f70b94ffb1e29a884a5540353f5c66b38c3694cb922c533d016d051afd"
+  },
+  "remaining": [
+    "qualify primary/secondary CPU inventory despite CPUINRESET=0xf",
+    "real DDR/native owned handoff and master containment",
+    "verified package/core loading and real launch/return"
+  ],
+  "retention": "/home/deano/fes-retained/de25-nano-initial-trace-20261101/",
+  "source_commit": "d3ec4a3928eac87477b67d7c92d6e63c4a0d1bc7",
+  "startup_objects": {
+    "arch/arm/cpu/armv8/start.o": {
+      "seed_match": true,
+      "text_sha256": "9d182da39984cdb6656c6bed8647e96f79b5238f6a476ddc654861ebdedadbd4"
+    },
+    "arch/arm/lib/crt0_64.o": {
+      "seed_match": true,
+      "text_sha256": "34615c1f545ff5f1cb5d7ea64f1e93cb0fdd750dfc7957f88e480903ed471c92"
+    },
+    "arch/arm/mach-socfpga/lowlevel_init_agilex5.o": {
+      "seed_match": true,
+      "text_sha256": "6ed9e4594da13144a3dc38df69c5ca7befb7549b43417ea0992fc879db1f9073"
+    }
+  },
+  "trace_record": {
+    "bytes": 304,
+    "capacity": 32,
+    "early_readback_over_jtag_qualified": false,
+    "line_poll_limit": 262144,
+    "ocram_address": 125672,
+    "serial_before_clocks": false,
+    "stages": {
+      "01": "c-entry",
+      "02": "sample-done",
+      "03": "dm-begin",
+      "04": "dm-done",
+      "05": "managers-done",
+      "06": "pinmux-done",
+      "07": "timer-begin",
+      "08": "timer-done",
+      "09": "mailbox-begin",
+      "0a": "mailbox-done",
+      "0b": "notify-begin",
+      "0c": "notify-done",
+      "0d": "clock-begin",
+      "0e": "clock-done",
+      "0f": "console-begin",
+      "10": "console-done",
+      "11": "report-begin",
+      "12": "park",
+      "e0": "dm-error",
+      "e1": "clock-error"
+    },
+    "uart_configuration_modified": false
+  },
+  "trial": {
+    "console_sha256": "c5d16220283cc33cbc9acb3db7c94bc24dfc634014b6729cc68ff37538e886e5",
+    "diagnostic_id": "ec0cdc1da979aca3",
+    "factory_card_retained": true,
+    "fesboot_sent": false,
+    "finished_utc": "2026-11-01T09:15:22.364871+00:00",
+    "first_sample": {
+      "bridge": "0000004f",
+      "cause": "00000004",
+      "cpus": "0000000f",
+      "kind": "4",
+      "per0": "ff7fbfff",
+      "release": "00000000",
+      "valid": "0"
+    },
+    "fresh_sample": {
+      "cause": "00000004",
+      "core": "0",
+      "cpus": "0000000f",
+      "mpidr": "81000000",
+      "release": "00000000",
+      "reset_timeouts": "00000000"
+    },
+    "initial_proof_observed": true,
+    "jtag_id": "4362C0DD",
+    "native_admission": false,
+    "pass": true,
+    "phase": "cpu",
+    "preflight_sha256": "dab99cbee985e422c1542383862273e5224df0159890ed958de9c885efd99f0b",
+    "programming_attempted": true,
+    "programming_complete": true,
+    "runner_sha256": "ae522d7f7844ceed9f885064a0a5018c937ad3a3a9df25b00029229d2cb36b6a",
+    "sd_write_commands_sent": false,
+    "serial": "TRWU8CBL",
+    "sof_sha256": "c24f01011c18b87e75dccc47288ced97c15ada63ee97532d18f26fa145d65e1f",
+    "source_commit": "d3ec4a3928eac87477b67d7c92d6e63c4a0d1bc7",
+    "stage": "observation captured",
+    "started_utc": "2026-11-01T09:15:14.836743+00:00",
+    "trace": {
+      "complete": true,
+      "identity_mismatch": false,
+      "last_checkpoint": {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "park",
+        "stage": "12",
+        "value": 0
+      },
+      "native_admission": false,
+      "records": [
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "c-entry",
+          "stage": "01",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "sample-done",
+          "stage": "02",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "dm-begin",
+          "stage": "03",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "dm-done",
+          "stage": "04",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "managers-done",
+          "stage": "05",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "pinmux-done",
+          "stage": "06",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "timer-begin",
+          "stage": "07",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "timer-done",
+          "stage": "08",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "mailbox-begin",
+          "stage": "09",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "mailbox-done",
+          "stage": "0a",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "notify-begin",
+          "stage": "0b",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "notify-done",
+          "stage": "0c",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "clock-begin",
+          "stage": "0d",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "clock-done",
+          "stage": "0e",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "console-begin",
+          "stage": "0f",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "console-done",
+          "stage": "10",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "report-begin",
+          "stage": "11",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "park",
+          "stage": "12",
+          "value": 0
+        }
+      ],
+      "sequence_valid": true
+    },
+    "unconditional_park_observed": true,
+    "usb_permissions_restored": true
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "/usr/bin/python3",
+    "platform/embedded/firmware/build_terasic.py",
+    "--reference-repo",
+    "out/terasic-git-restore-tfa",
+    "--cross-prefix",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+    "--output",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-reader-memory-final-20261102/serial-bl31",
+    "--jobs",
+    "4",
+    "--nano-owned-bridges",
+    "--nano-cold-serial-entry",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-reader-memory-20261102/serial-entry-v2"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 2.2014710099902004,
+  "log_sha256": "5e9eb8ef06d1568a2b5f089c004f9bd2113b8494c068fad3513c66d335856c55"
+}

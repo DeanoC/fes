@@ -1,0 +1,67 @@
+
+/home/deano/fes/out/dev/de25-embedded-os/out/nano-spl-barrier-20261102/native-uboot/build/spl/u-boot-spl:     file format elf64-littleaarch64
+
+
+Disassembly of section .text:
+
+0000000000006bb8 <schedule>:
+    6bb8:	b4000772 	cbz	x18, 6ca4 <schedule+0xec>
+    6bbc:	f9401a41 	ldr	x1, [x18, #48]
+    6bc0:	37880721 	tbnz	w1, #17, 6ca4 <schedule+0xec>
+    6bc4:	a9bc7bfd 	stp	x29, x30, [sp, #-64]!
+    6bc8:	910003fd 	mov	x29, sp
+    6bcc:	a90153f3 	stp	x19, x20, [sp, #16]
+    6bd0:	a9025bf5 	stp	x21, x22, [sp, #32]
+    6bd4:	a90363f7 	stp	x23, x24, [sp, #48]
+    6bd8:	f9401a41 	ldr	x1, [x18, #48]
+    6bdc:	f9409a53 	ldr	x19, [x18, #304]
+    6be0:	b26f0021 	orr	x1, x1, #0x20000
+    6be4:	f9001a41 	str	x1, [x18, #48]
+    6be8:	b40004f3 	cbz	x19, 6c84 <schedule+0xcc>
+    6bec:	b00000d5 	adrp	x21, 1f000 <_ctype+0x1587>
+    6bf0:	d100e273 	sub	x19, x19, #0x38
+    6bf4:	9112e6b5 	add	x21, x21, #0x4b9
+    6bf8:	d2827117 	mov	x23, #0x1388                	// #5000
+    6bfc:	52800038 	mov	w24, #0x1                   	// #1
+    6c00:	b4000433 	cbz	x19, 6c84 <schedule+0xcc>
+    6c04:	f9401e76 	ldr	x22, [x19, #56]
+    6c08:	94001c6a 	bl	ddb0 <timer_get_us>
+    6c0c:	aa0003f4 	mov	x20, x0
+    6c10:	f9401a60 	ldr	x0, [x19, #48]
+    6c14:	eb00029f 	cmp	x20, x0
+    6c18:	54000304 	b.mi	6c78 <schedule+0xc0>  // b.first
+    6c1c:	f9400a60 	ldr	x0, [x19, #16]
+    6c20:	f9400261 	ldr	x1, [x19]
+    6c24:	8b140000 	add	x0, x0, x20
+    6c28:	f9001a60 	str	x0, [x19, #48]
+    6c2c:	aa1303e0 	mov	x0, x19
+    6c30:	d63f0020 	blr	x1
+    6c34:	f9401660 	ldr	x0, [x19, #40]
+    6c38:	91000400 	add	x0, x0, #0x1
+    6c3c:	f9001660 	str	x0, [x19, #40]
+    6c40:	94001c5c 	bl	ddb0 <timer_get_us>
+    6c44:	cb140002 	sub	x2, x0, x20
+    6c48:	f9401260 	ldr	x0, [x19, #32]
+    6c4c:	8b020000 	add	x0, x0, x2
+    6c50:	f9001260 	str	x0, [x19, #32]
+    6c54:	eb17005f 	cmp	x2, x23
+    6c58:	54000109 	b.ls	6c78 <schedule+0xc0>  // b.plast
+    6c5c:	39412260 	ldrb	w0, [x19, #72]
+    6c60:	370000c0 	tbnz	w0, #0, 6c78 <schedule+0xc0>
+    6c64:	f9400661 	ldr	x1, [x19, #8]
+    6c68:	aa1503e0 	mov	x0, x21
+    6c6c:	52827103 	mov	w3, #0x1388                	// #5000
+    6c70:	940020eb 	bl	f01c <printf>
+    6c74:	39012278 	strb	w24, [x19, #72]
+    6c78:	b4000076 	cbz	x22, 6c84 <schedule+0xcc>
+    6c7c:	d100e2d3 	sub	x19, x22, #0x38
+    6c80:	17ffffe0 	b	6c00 <schedule+0x48>
+    6c84:	f9401a40 	ldr	x0, [x18, #48]
+    6c88:	926ef800 	and	x0, x0, #0xfffffffffffdffff
+    6c8c:	f9001a40 	str	x0, [x18, #48]
+    6c90:	a94153f3 	ldp	x19, x20, [sp, #16]
+    6c94:	a9425bf5 	ldp	x21, x22, [sp, #32]
+    6c98:	a94363f7 	ldp	x23, x24, [sp, #48]
+    6c9c:	a8c47bfd 	ldp	x29, x30, [sp], #64
+    6ca0:	d65f03c0 	ret
+    6ca4:	d65f03c0 	ret

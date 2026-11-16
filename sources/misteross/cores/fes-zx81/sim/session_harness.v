@@ -38,6 +38,7 @@ module zx81_session_harness (
     wire ce_6m5, video_pixel, hblank, vblank, ram_we;
     zx81_machine #(.FIRMWARE_INIT("build/sim/fes-zx81-session/session-rom.hex")) machine (
         .clk_sys(clk_sys), .reset(exec_reset), .keyboard(keyboard),
+        .rom_address(), .external_rom_data(8'd0),
         .tape_ready(tape_ready), .tape_size(tape_size), .tape_data(tape_data),
         .tape_addr_out(tape_addr), .tape_busy(tape_busy),
         .save_ready(), .save_busy(), .save_changed(), .save_size(),

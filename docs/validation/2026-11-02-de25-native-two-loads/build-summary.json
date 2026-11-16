@@ -1,0 +1,178 @@
+{
+  "source_commit": "169d54c4899beb265b2d3136188ca45216b1ed64",
+  "native_boot_id": "1d8d771dc74c712c",
+  "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+  "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+  "computer_reload": true,
+  "active_ddr": false,
+  "sdk_elf_sha256": "0def960983486e8ae7b225fa4badbae7f629ae50635424e1fe2027684f85a450",
+  "entry_image_sha256": "8575b7ed5bbf66efc34894f46c95ddbe7660d1878e04b57a998c48db75915257",
+  "chain_sha256": "030f7e70144c6628057f0a00d916ece81d6f779648be319504603ce26d2d2627",
+  "atf_handoff": {
+    "bl32": 0,
+    "bl33": 2149580800,
+    "bytes": 86077,
+    "fdt": 0,
+    "format": 2,
+    "params_base": 3220176896,
+    "params_bytes": 1048576,
+    "scope": "loaded-bl31-handoff-v2",
+    "sha256": "dde46c6b12e8abe11fce509ac07d3c31108ad4104f0f6216e8603222b681c1c1",
+    "target": 2147483648
+  },
+  "fit_sha256": "fb285c0fb3a08ff5dbeedfb25f42cbb5d7ac76f03df858083de69f50332cab1b",
+  "sof_sha256": "8003d7f89519b8ec91e8776658dbfb65206f918f2a72e79c8a2b200cfb475899",
+  "core_sha256": "e9255d3dc149e7db17f012c3032f8c1da245d913ded3947a2342034eb1927ac0",
+  "core_size": 1646592,
+  "core_payload_unchanged": true,
+  "selection_passed": true,
+  "vendor_assembly_files_unchanged": 32,
+  "vendor_entry_executable_sections_unchanged": {
+    ".text": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    ".text.asm.bl31_entrypoint": "171df27c2fed4751f2fe291c9ef0351421d363c6b55cdc26865fafab29569156",
+    ".text.asm.bl31_warm_entrypoint": "cf4073cb483297bfad9d2306afa911ba663c91bd0244887230669f4fc3d41a2c"
+  },
+  "startup_relocation_functions_verified": 6,
+  "contained_console": {
+    "scope": "bounded-uart1-v1",
+    "roots": [
+      "fes_nano_spl_cold_printf",
+      "fes_nano_spl_cold_puts.part.0",
+      "fes_nano_spl_cold_wait",
+      "fes_nano_spl_cold_write"
+    ],
+    "reachable_callees": {
+      "fes_nano_spl_cold_write": [
+        "fes_nano_spl_cold_wait"
+      ],
+      "fes_nano_spl_cold_wait": [],
+      "fes_nano_spl_cold_puts.part.0": [
+        "fes_nano_spl_cold_write"
+      ],
+      "fes_nano_spl_cold_printf": [
+        "fes_nano_spl_cold_write",
+        "vsnprintf"
+      ],
+      "vsnprintf": [
+        "memcpy",
+        "vsnprintf_internal"
+      ],
+      "memcpy": [],
+      "vsnprintf_internal": [
+        "number",
+        "put_dec_trunc",
+        "strcpy",
+        "string",
+        "uuid_bin_to_str",
+        "uuid_guid_get_str"
+      ],
+      "uuid_guid_get_str": [],
+      "uuid_bin_to_str": [
+        "memcpy",
+        "sprintf"
+      ],
+      "sprintf": [
+        "vsprintf"
+      ],
+      "vsprintf": [
+        "memcpy",
+        "vsnprintf_internal"
+      ],
+      "strcpy": [],
+      "number": [
+        "put_dec"
+      ],
+      "put_dec": [
+        "put_dec_trunc"
+      ],
+      "put_dec_trunc": [],
+      "string": [
+        "strnlen"
+      ],
+      "strnlen": []
+    },
+    "local_format_switches": [
+      {
+        "branch_address": 59916,
+        "table_address": 120896,
+        "entries": 22,
+        "table_sha256": "4dce0a4e2863e048b8a9bcd308e31fbe561b480e007dcad79197e33316670298",
+        "destinations": [
+          59920,
+          61092,
+          59728,
+          59728,
+          59728,
+          59728,
+          61112,
+          59728,
+          59728,
+          59728,
+          59728,
+          60916,
+          61208,
+          60252,
+          59728,
+          59728,
+          60148,
+          59728,
+          61116,
+          59728,
+          59728,
+          61080
+        ],
+        "function_start": 59088,
+        "function_size": 2348,
+        "all_destinations_inside_formatter": true,
+        "index_bound": 21,
+        "context": [
+          {
+            "address": 59888,
+            "instruction": "sub\tw1, w1, #0x63"
+          },
+          {
+            "address": 59892,
+            "instruction": "cmp\tw1, #0x15"
+          },
+          {
+            "address": 59896,
+            "instruction": "b.hi\te950 <vsnprintf_internal+0x280>  // b.pmore"
+          },
+          {
+            "address": 59900,
+            "instruction": "ldr\tx2, [sp, #120]"
+          },
+          {
+            "address": 59904,
+            "instruction": "ldrh\tw1, [x2, w1, uxtw #1]"
+          },
+          {
+            "address": 59908,
+            "instruction": "adr\tx2, ea10 <vsnprintf_internal+0x340>"
+          },
+          {
+            "address": 59912,
+            "instruction": "add\tx1, x2, w1, sxth #2"
+          },
+          {
+            "address": 59916,
+            "instruction": "br\tx1"
+          }
+        ]
+      }
+    ],
+    "indirect_callback_calls_absent": true,
+    "scheduler_and_device_callback_paths_absent": true,
+    "uart_base": 281026816,
+    "uart_lsr": 281026836,
+    "register_shift": 2,
+    "register_io_bytes": 4,
+    "poll_cap_per_wait": 100000,
+    "message_buffer_bytes": 384,
+    "source_sha256": "52a5a7ad6d564635eea4c37cd542392dfd760ca07bad123d3fe581f903dc9204",
+    "vendor_uart_register_map_sha256": "d0b1f1376291208d49422a1175f7cc3e14212bafcc4ef8b53f53af1a55c8fdb2"
+  },
+  "quartus_compile": false,
+  "quartus_pfg_host": "Powerboat",
+  "ordinary_runtime_admission": false
+}

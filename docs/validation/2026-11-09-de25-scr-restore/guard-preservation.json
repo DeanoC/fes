@@ -1,0 +1,19 @@
+{
+  "status": "passed",
+  "base": "0842d6e6ab24013ba482d765dd1db515a2fb7146",
+  "source_sha256": {
+    "platform/embedded/firmware/nano_mmu.c": "b61e116ae3d9cfa6dd185cd8100cabba8d24e9d8248fe60d8a732c762104b43b",
+    "platform/embedded/firmware/nano_mmu.h": "29f0749723a1f023973faa3a4abe2f699c54a65340efe9151826b69f70e33085",
+    "platform/embedded/firmware/nano_mmu_platform.c": "25b0130ffbc3de6e4d78311b60ec7a2d5dc74a243890bfb0657672cccddffbac",
+    "platform/embedded/firmware/nano_mmu_platform.h": "79d5ff7d776bdea94729aae61a91bd1f90c00003926d6f7fe33f66aa60e451a0",
+    "platform/embedded/firmware/nano_cpu_mode.h": "d57cc52824c7337c068663906aed5e962bce8faa95f76231bcfd827f6e278fe6",
+    "platform/embedded/firmware/nano_cold_platform.c": "eb5144e3ecb8f51fbadc66aea804a76716dbaac55d1d806903dfafbfd2fa7676",
+    "platform/embedded/firmware/nano_owned_sip.inc": "4189cac447804e3c04d5cf4de12d93ea0bed5613febc8d42d7a3074a120f253d",
+    "platform/embedded/firmware/nano_tape.c": "d61aa0e655a9ea4692721e376df002941f2fc6aa246d798fcd174ca308b9b1c5",
+    "platform/embedded/firmware/nano_tape_service.c": "b9da6f960608f93ec76f3bc10d8d881a799260b35b3081769c8e3630d09fee91",
+    "platform/embedded/firmware/nano_tape_platform.inc": "94e3946f6bb34b0cff830863d423ecb873192d832d7b9be9b9bbe6df42c8a4f9"
+  },
+  "mmu_cpu_owned_channel_and_tape_code_unchanged": true,
+  "deadline_seconds": 1,
+  "hardware_actions": false
+}

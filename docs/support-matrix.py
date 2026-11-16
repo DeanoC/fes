@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import re
 import subprocess
 import tomllib
 
@@ -67,7 +68,7 @@ HIGHLIGHTS = {
     'sim.pong': '—',
     'fes.pcxt': 'disk, HDMI',
     'fes.pcxt-dos': 'disk, keys, HDMI',
-    'fes.pc386': 'sim',
+    'fes.pc386': 'disk, keys, mouse, HDMI',
     'i386': '—',
     'z80': '—',
     'cpu6502': '—',
@@ -107,6 +108,56 @@ DETAILS = {
     'fx68k': ('sources/misteross/cores/fes-common/rtl/fx68k/README.md', 'README'),
     'tv80': ('docs/core-alignment.md', 'alignment'),
 }
+FORWARD_PLAN = Path('docs/plans/forward-plan.md')
+# The ladder, its bars and its tier 1 set are decided in the forward plan.
+# These sets mirror that decision; the wording check below fails if it moves.
+LADDER_QUOTES = (
+    'Tier 1 set on DE10 (decided): ZX81 family, Spectrum family, C64, Atari ST, PC/XT.',
+    'pc386 joins when #1368 and #1494 close.',
+    'Coleco, SMS, SG-1000 and Apple II are tier 2 once they meet the port',
+    'Pong, RAM Tester and RISC-V are utilities and demos, outside the ladder',
+)
+# Where the plan names a condition rather than a tier, the id names the
+# condition: it does not place the core at a tier the plan never gave it.
+LADDER_HEADING = '## Tiers'
+# The conditions the pending placements hang on. If the plan stops naming one,
+# that placement may have been decided and the rows need re-reading.
+LADDER_CONDITIONS = ('#1368', '#1494', 'once they meet the port')
+QUALITY_TIER_IDS = {
+    '1': frozenset({
+        'fes.zx81', 'fes.zx80', 'fes.ts1000', 'fes.ts1500',
+        'fes.spectrum', 'fes.spectrum128', 'fes.spectrum-plus3', 'fes.pentagon',
+        'fes.c64', 'fes.atari-st', 'fes.pcxt', 'fes.pcxt-dos',
+    }),
+    '1-pending': frozenset({'fes.pc386'}),
+    '2-pending': frozenset({'fes.coleco', 'fes.sms', 'fes.sg1000', 'fes.apple2'}),
+    'utility': frozenset({'fes.pong', 'fes.ramtest', 'fes.riscv'}),
+}
+# Checked as tier 1 is: the decided set, and the row whose only named
+# condition is tier 1.
+QUALITY_TIER_FULL = frozenset({'1', '1-pending'})
+CHECK_LEVELS = frozenset({'full', 'reduced', 'via-consumer', 'none'})
+CHECK_PROPOSED = 'proposed'
+CHECK_ACCEPTED = 'accepted'
+CHECK_STATUSES = frozenset({CHECK_PROPOSED, CHECK_ACCEPTED})
+CHECK_HEADINGS = {
+    CHECK_PROPOSED: 'Quality tier and checks (proposed)',
+    CHECK_ACCEPTED: 'Quality tier and checks',
+}
+CHECK_NOT_IN_FORCE = 'Proposed, not in force.'
+CHECK_IN_FORCE = 'In force.'
+# The obligation itself lives in AGENTS.md. While the matrix says accepted,
+# that rule has to be there: this is the phrase it is written with.
+AGENTS = Path('AGENTS.md')
+# Its unique citation finds the bullet. The rule is then compared whole, on
+# normalised whitespace: testing for clauses would pass a bullet that keeps
+# every clause and appends an exception or a negation to them. Rewording the
+# rule in AGENTS.md means updating this constant in the same change, which is
+# the point: the matrix cannot say accepted against a rule that moved under it.
+AGENTS_RULE_CITE = '(#1863, accepted 2026-11-15)'
+AGENTS_RULE = (
+    "For a core the support matrix records at `check_level: reduced`, that same closure change owes only the first of those three: its netlist comparison is still measured and recorded exactly as the rule above says, and the RBF reproduction, the timing and seal gate and the HIL are not expected of it. A netlist that is not byte-identical puts that core back under the full rule, as does any change that touches the core's own RTL, programs, toolchain lock or placement recipe, and as does any change that ships it. The levels are derived in `docs/support-matrix.py` from the quality ladder in `docs/plans/forward-plan.md` and are listed in [the support matrix](docs/support-matrix.md): they say which cores a sweep is not about, and they never lower a gate on work being done to a core, which the rule above this one still forbids. (#1863, accepted 2026-11-15)"
+)
 AS_OF = '2026-10-29'
 # Main's first-parent tip at the end of AS_OF. Keep the history snapshot fixed
 # so later merges with backdated author dates cannot change the matrix.
@@ -148,6 +199,187 @@ def derive_tier(row: dict) -> str:
     if rtl and rtl >= WINDOW_START:
         return 'aging'
     return 'stale'
+
+
+# A level-two ATX heading as CommonMark defines it: up to three leading
+# spaces, then exactly two hashes, then whitespace or the end of the line, and
+# optionally a closing hash sequence. `##Tiers` is ordinary text, not a
+# heading, and `## Tiers ##` is the closed form of the same heading.
+HEADING2 = re.compile(r'^ {0,3}##(?!#)(?:[ \t]+(.*?))?[ \t]*$')
+# A section ends at any heading of its own level or above, so a level-two
+# section ends at `#` as well as at `##`.
+HEADING_UPTO2 = re.compile(r'^ {0,3}#{1,2}(?!#)(?:[ \t]+.*?)?[ \t]*$')
+HEADING_CLOSE = re.compile(r'[ \t]+#+$')
+# A Setext heading is a paragraph line underlined with `=` or `-`, so the
+# heading is the line ABOVE the underline and a section ends before it, not
+# after it. Boundary detection has to be permissive like this, because missing
+# a boundary folds a later section into this one and fails open. Identifying
+# `## Tiers` stays strict ATX on purpose: if the plan were ever rewritten in
+# Setext form the heading simply is not found, which fails closed with an
+# error naming the section.
+SETEXT_UNDERLINE = re.compile(r'^ {0,3}(?:=+|-+)[ \t]*$')
+LIST_ITEM = re.compile(r'^ {0,3}[-*+] +')
+# A fenced code block holds example Markdown, not Markdown: a `## Tiers` inside
+# one is neither a heading to read nor a second heading to complain about. This
+# repository's docs are full of fenced examples, so blanking fences keeps a
+# legitimate example from failing the build as well as from satisfying it.
+FENCE = re.compile(r'^ {0,3}(?P<fence>`{3,}|~{3,})(?P<info>.*)$')
+
+
+def outside_markdown(lines: list[str]) -> list[str]:
+    """Blank fenced blocks and HTML comments, preserving line indices.
+
+    The rule and ladder scanners consume Markdown, not examples or commented
+    text. Blanking rather than dropping keeps every index aligned with the
+    list-item walk. Fence and comment state are tracked together so fence
+    markers inside comments, and comment markers inside fences, stay inert.
+    """
+    out = []
+    fence = None
+    comment = False
+    for line in lines:
+        found = FENCE.match(line)
+        if fence is not None:
+            # A closing fence is the same character, at least as long, info-free.
+            closing = (
+                found
+                and found.group('fence')[0] == fence[0]
+                and len(found.group('fence')) >= len(fence)
+                and not found.group('info').strip()
+            )
+            out.append('')
+            if closing:
+                fence = None
+            continue
+
+        # A backtick fence's info string may not contain a backtick; a tilde
+        # fence's may contain anything. Fence openers inside comments are text.
+        if not comment and found and not (
+            found.group('fence')[0] == '`' and '`' in found.group('info')
+        ):
+            fence = found.group('fence')
+            out.append('')
+            continue
+
+        visible = []
+        cursor = 0
+        while cursor < len(line):
+            if comment:
+                end = line.find('-->', cursor)
+                if end < 0:
+                    break
+                visible.append(' ')
+                cursor = end + 3
+                comment = False
+                continue
+            start = line.find('<!--', cursor)
+            if start < 0:
+                visible.append(line[cursor:])
+                break
+            visible.append(line[cursor:start])
+            visible.append(' ')
+            cursor = start + 4
+            comment = True
+        out.append(''.join(visible))
+    return out
+
+
+def heading2(line: str) -> str | None:
+    """The text of a level-two heading, or None if this is not one."""
+    found = HEADING2.match(line)
+    if not found:
+        return None
+    return HEADING_CLOSE.sub('', found.group(1) or '').strip()
+
+
+def ends_section(line: str) -> bool:
+    """Whether this ATX heading line closes a level-two section."""
+    return HEADING_UPTO2.match(line) is not None
+
+
+def setext_underline(line: str) -> bool:
+    """Whether this line underlines the paragraph above it into a heading."""
+    return SETEXT_UNDERLINE.match(line) is not None
+
+
+def take_until_heading(lines: list[str]) -> list[str]:
+    """`lines` up to the next heading of level one or two, ATX or Setext.
+
+    A Setext underline makes a heading of the line before it, so that line is
+    dropped as well: it is the heading, not part of this section.
+    """
+    body: list[str] = []
+    for line in lines:
+        if ends_section(line):
+            break
+        if setext_underline(line) and body and body[-1].strip():
+            body.pop()
+            break
+        body.append(line)
+    return body
+
+
+def ladder_section(text: str) -> str | None:
+    """The forward plan's own Tiers section, flattened.
+
+    The heading has to be that heading exactly and appear once: a section
+    renamed `## Tiers (superseded)` beside a new one would otherwise keep
+    answering for the ladder.
+    """
+    lines = outside_markdown(text.splitlines())
+    wanted = LADDER_HEADING.removeprefix('## ')
+    starts = [i for i, line in enumerate(lines) if heading2(line) == wanted]
+    if len(starts) != 1:
+        return None
+    body = take_until_heading(lines[starts[0] + 1:])
+    return ' '.join(' '.join(body).split())
+
+
+def markdown_list_item(lines: list[str], index: int) -> str | None:
+    """The whole list item that line `index` is part of, flattened.
+
+    A bullet may be wrapped over continuation lines, so comparing only the
+    physical line holding the citation would reject a formatting-only edit.
+    """
+    start = index
+    while start >= 0 and not LIST_ITEM.match(lines[start]):
+        if not lines[start].strip() or ends_section(lines[start]):
+            return None
+        start -= 1
+    if start < 0:
+        return None
+    item = [LIST_ITEM.sub('', lines[start])]
+    for line in lines[start + 1:]:
+        if not line.strip() or LIST_ITEM.match(line) or ends_section(line):
+            break
+        if setext_underline(line):
+            # The line before it was a heading, not part of this item.
+            item.pop()
+            break
+        item.append(line)
+    return ' '.join(' '.join(item).split())
+
+
+def derive_check_level(row: dict) -> str:
+    """Proposed per-change evidence level. From the role and the quality ladder.
+
+    Shared RTL is checked through the packages that embed it; a row with no
+    built artifact has nothing to check; bootstrap firmware always carries its
+    own evidence. A known reduced ladder placement carries reduced evidence;
+    missing or unknown placements fail closed at full evidence until classified.
+    """
+    if row['tier_role'] == 'shared':
+        return 'via-consumer'
+    if row['tier_role'] == 'reference' or row['tier'] == 'bring-up-queued':
+        return 'none'
+    if row['tier_role'] == 'firmware':
+        return 'full'
+    quality = row.get('quality_tier')
+    if quality in QUALITY_TIER_FULL:
+        return 'full'
+    if quality in QUALITY_TIER_IDS:
+        return 'reduced'
+    return 'full'
 
 
 def _git(root: Path, *args: str) -> str:
@@ -244,7 +476,7 @@ def render(data: dict) -> str:
         lines.append(f"| {cell(tier['label'])} | {cell(tier['meaning'])} |")
     lines += [
         '',
-        f'**DE10-Nano** (MiSTer, Cyclone V) **OSS** is Yosys + nextpnr-mistral, the installed toolchain. i386, pc386 and PC/XT are {QUARTUS_PRIMARY} ({POLICY_CITE}), and so is the ZX81 family ({ZX81_POLICY_CITE}, where nextpnr closure is hard). nextpnr builds there are advisory; a miss is filed as a nextpnr issue, not a blocker. A dash means this row has no DE10-Nano bitstream. pc386 and i386 are Cyclone V spikes; Quartus is still their primary toolchain.',
+        f'**DE10-Nano** (MiSTer, Cyclone V) **OSS** is Yosys + nextpnr-mistral, the installed toolchain. i386, pc386 and PC/XT are {QUARTUS_PRIMARY} ({POLICY_CITE}), and so is the ZX81 family ({ZX81_POLICY_CITE}, where nextpnr closure is hard). nextpnr builds there are advisory; a miss is filed as a nextpnr issue, not a blocker. A dash means this row has no DE10-Nano bitstream. i386 is a CPU spike with no board shell of its own; the sealed pc386 development package runs on the DE10-Nano.',
         '',
         f'**DE25-Nano** (Agilex 5) follows {DE25_CELL} ({POLICY_CITE}). Rows with a board bitstream show Quartus; rows without one show a dash. Agilex 5 has no OSS reverse-engineering. Per-core ports are re-checked only after the shell is on this branch.',
         '',
@@ -296,6 +528,7 @@ def render(data: dict) -> str:
     for scope, title in RELEASE_SCOPES.items():
         names = [row['label'] for row in data['cores'] if row.get('release') == scope]
         lines.append(f"- **{title}:** {', '.join(names)}")
+    lines += render_check_policy(data)
     lines += [
         '',
         '## Open',
@@ -310,6 +543,32 @@ def render(data: dict) -> str:
         lines.append(f"- {item}")
     lines.append('')
     return '\n'.join(lines)
+
+
+def render_check_policy(data: dict) -> list[str]:
+    """The quality ladder and the proposed per-change evidence level."""
+    policy = data['check_policy']
+    heading = CHECK_HEADINGS[policy['status']]
+    lines = ['', f'## {heading}', '']
+    lines += [paragraph for note in policy['note'] for paragraph in (cell(note), '')]
+    lines += [
+        '| Quality tier | Meaning |',
+        '| --- | --- |',
+    ]
+    for item in policy['quality_tiers']:
+        lines.append(f"| {cell(item['label'])} | {cell(item['meaning'])} |")
+    lines += ['', '| Checks | Expected evidence |', '| --- | --- |']
+    for item in policy['levels']:
+        lines.append(f"| {cell(item['label'])} | {cell(item['meaning'])} |")
+    lines.append('')
+    for item in policy['quality_tiers']:
+        names = [row['label'] for row in data['cores'] if row.get('quality_tier') == item['id']]
+        lines.append(f"- **{item['label']}:** {', '.join(names) or 'none'}")
+    lines.append('')
+    for item in policy['levels']:
+        names = [row['label'] for row in data['cores'] if row.get('check_level') == item['id']]
+        lines.append(f"- **{item['label']} checks:** {', '.join(names) or 'none'}")
+    return lines
 
 
 def feature_union(ids: list[str]) -> str:
@@ -675,11 +934,166 @@ def validate(root: Path, data: dict) -> list[str]:
     for phrase in (POLICY_CITE, QUARTUS_PRIMARY, DE25_CELL, 'empty-library status'):
         if phrase not in policy:
             errors.append(f'policy section is missing {phrase!r}')
+    errors += validate_check_policy(root, data, by_id, rendered)
     coleco = by_id.get('fes.coleco') or {}
     coleco_notes = coleco.get('notes') or ''
     for phrase in (POLICY_CITE, 'empty-library status', 'low priority', 'Adam'):
         if phrase not in coleco_notes:
             errors.append(f'fes.coleco notes are missing {phrase!r}')
+    return errors
+
+
+def agents_rule_errors(text: str) -> list[str]:
+    """Check the accepted rule is still in AGENTS.md, whole.
+
+    The citation identifies the one bullet, and every clause of the rule has to
+    be in that bullet, so the policy cannot stay accepted while the rule around
+    the marker has been weakened or removed.
+    """
+    lines = outside_markdown(text.splitlines())
+    cited = [i for i, line in enumerate(lines) if AGENTS_RULE_CITE in line]
+    if not cited:
+        return [
+            f'{AGENTS} no longer carries the rule cited {AGENTS_RULE_CITE}; the check policy '
+            'cannot say accepted while nothing states the obligation'
+        ]
+    if len(cited) > 1:
+        return [f'{AGENTS} states {AGENTS_RULE_CITE} {len(cited)} times; one of them may contradict the other']
+    found = markdown_list_item(lines, cited[0])
+    if found is None:
+        return [f'{AGENTS} rule {AGENTS_RULE_CITE} is not in a list item; the hard rules are a list']
+    if found != AGENTS_RULE:
+        return [
+            f'{AGENTS} rule {AGENTS_RULE_CITE} is not the rule this page was accepted against; '
+            're-read it and update AGENTS_RULE in the same change'
+        ]
+    return []
+
+
+def validate_check_policy(root: Path, data: dict, by_id: dict, rendered: str | None) -> list[str]:
+    """The ladder is a citation and the check level is derived from it.
+
+    The quality tier must match the forward plan's decided sets, and the
+    forward plan must still say so in those words. The check level must be
+    derived, never hand-set, and while the proposal is unaccepted the rendered
+    page must say that it is not in force.
+    """
+    errors = []
+    policy = data.get('check_policy')
+    if not policy:
+        return ['support-matrix.json has no check_policy block']
+    plan = root / FORWARD_PLAN
+    if not plan.is_file():
+        errors.append(f'{FORWARD_PLAN} is missing, so the quality ladder has no source')
+    else:
+        raw = plan.read_text()
+        flat = ' '.join(' '.join(outside_markdown(raw.splitlines())).split())
+        section = ladder_section(raw)
+        if section is None:
+            errors.append(
+                f'{FORWARD_PLAN} does not have exactly one {LADDER_HEADING!r} section to read '
+                'the ladder from'
+            )
+            section = ''
+        for quote in LADDER_QUOTES:
+            # In the ladder's own section, so a decision recorded elsewhere in
+            # the plan cannot satisfy this check, and exactly once in the file,
+            # so an appended restatement of the same placement trips it. A
+            # superseding decision written in new words cannot be caught by
+            # reading text: when a pending row's condition closes, quality_tier
+            # has to be re-read by hand. needs_deano says so.
+            if quote not in section:
+                errors.append(
+                    f'{FORWARD_PLAN} no longer says {quote!r} under {LADDER_HEADING!r}; '
+                    're-read the ladder before trusting quality_tier'
+                )
+            if flat.count(quote) > 1:
+                errors.append(
+                    f'{FORWARD_PLAN} states {quote!r} {flat.count(quote)} times; '
+                    'a second statement may supersede the ladder this page cites'
+                )
+        for condition in LADDER_CONDITIONS:
+            if condition not in section:
+                errors.append(
+                    f'{FORWARD_PLAN} no longer names {condition} under {LADDER_HEADING!r}, '
+                    'so a pending quality_tier may have been decided'
+                )
+    if policy.get('ladder_source') != str(FORWARD_PLAN):
+        errors.append(f'check_policy ladder_source must be {FORWARD_PLAN}')
+    status = policy.get('status')
+    if status not in CHECK_STATUSES:
+        errors.append(f'check_policy status {status!r} is not one of {sorted(CHECK_STATUSES)}')
+    elif status == CHECK_PROPOSED and policy.get('decided_by'):
+        errors.append('check_policy is proposed but records a decided_by')
+    elif status == CHECK_ACCEPTED:
+        # Accepted means a rule exists in AGENTS.md. Without it the levels on
+        # this page would claim an obligation nothing carries.
+        if not str(policy.get('decided_by') or '').strip():
+            errors.append('check_policy is accepted but does not say who decided it')
+        agents = root / AGENTS
+        if not agents.is_file():
+            errors.append(f'{AGENTS} is missing, so the accepted check policy has no rule')
+        else:
+            errors += agents_rule_errors(agents.read_text())
+    level_ids = [item['id'] for item in policy.get('levels') or []]
+    if set(level_ids) != CHECK_LEVELS or len(level_ids) != len(CHECK_LEVELS):
+        errors.append(f'check_policy levels {sorted(level_ids)} != {sorted(CHECK_LEVELS)}')
+    tier_ids = [item['id'] for item in policy.get('quality_tiers') or []]
+    if set(tier_ids) != set(QUALITY_TIER_IDS) or len(tier_ids) != len(QUALITY_TIER_IDS):
+        errors.append(f'check_policy quality_tiers {sorted(tier_ids)} != {sorted(QUALITY_TIER_IDS)}')
+    for item in (policy.get('levels') or []) + (policy.get('quality_tiers') or []):
+        if not str(item.get('label') or '').strip() or not str(item.get('meaning') or '').strip():
+            errors.append(f"check_policy entry {item.get('id')!r} needs a label and a meaning")
+    if not policy.get('note'):
+        errors.append('check_policy needs its note prose')
+
+    for quality, expected in QUALITY_TIER_IDS.items():
+        recorded = {cid for cid, row in by_id.items() if row.get('quality_tier') == quality}
+        if recorded != set(expected):
+            errors.append(
+                f'quality_tier {quality} rows {sorted(recorded)} != the forward plan\'s {sorted(expected)}'
+            )
+    laddered = {cid for ids in QUALITY_TIER_IDS.values() for cid in ids}
+    for cid, row in by_id.items():
+        quality = row.get('quality_tier')
+        if (
+            row.get('tier_role') == 'play'
+            and row.get('tier') != 'bring-up-queued'
+            and quality is None
+        ):
+            errors.append(f'{cid} is playable but has no quality_tier placement')
+        if cid not in laddered and quality is not None:
+            errors.append(f'{cid} is not on the forward plan\'s ladder but records quality_tier {quality!r}')
+        if 'check_level' not in row:
+            errors.append(f'{cid} has no check_level')
+            continue
+        derived = derive_check_level(row)
+        if row['check_level'] != derived:
+            errors.append(f"{cid} check_level {row['check_level']!r} != derived {derived!r}")
+        if row['check_level'] == 'reduced':
+            if not str(row.get('check_note') or '').strip() and quality == 'utility':
+                errors.append(f'{cid} is reduced as a utility and needs a check_note')
+            if row.get('in_bootstrap_image'):
+                errors.append(f'{cid} is in the bootstrap image and cannot be reduced')
+            if row.get('release') not in (None, 'held-back'):
+                errors.append(f"{cid} is release {row.get('release')!r} and cannot be reduced")
+        # The ladder and the proposal must not move the freshness tier.
+        shifted = dict(row)
+        shifted['quality_tier'] = '1' if quality != '1' else '3'
+        shifted['check_level'] = 'full' if row['check_level'] != 'full' else 'reduced'
+        if derive_tier(shifted) != derive_tier(row) or effective_tier(shifted) != effective_tier(row):
+            errors.append(f'{cid} freshness tier changes when the quality tier or check level changes')
+    if rendered is not None:
+        heading = CHECK_HEADINGS.get(status)
+        if heading and f'## {heading}\n' not in rendered:
+            errors.append(f'human page is missing the {heading!r} section')
+        if status == CHECK_PROPOSED and CHECK_NOT_IN_FORCE not in rendered:
+            errors.append(f'human page must say {CHECK_NOT_IN_FORCE!r} while the check policy is proposed')
+        if status == CHECK_ACCEPTED:
+            if CHECK_NOT_IN_FORCE in rendered:
+                errors.append('human page still calls the accepted check policy a proposal')
+            if CHECK_IN_FORCE not in rendered:
+                errors.append(f'human page must say {CHECK_IN_FORCE!r} once the check policy is accepted')
     return errors
 
 

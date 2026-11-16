@@ -1,0 +1,953 @@
+{
+  "format": 1,
+  "status": "stopped-before-native-startup",
+  "firmware_source": "f7e915eb27c2a6e6968eaf226f30dda8d1072f7e",
+  "native_source": "31d716957759c3dede3330877dac2ce7bcd2d643",
+  "operator_source": "53892975db880ae21eccb63d92fc0a1998287b16",
+  "attempts": 1,
+  "failures_on_compiled_input": 1,
+  "stop_first_failure": true,
+  "replayed": false,
+  "recovery_qualified": true,
+  "verified_uploads": 8,
+  "fresh_sd_readbacks": 8,
+  "sd_writes": true,
+  "native_programming_complete": true,
+  "fit_verified_before_parsing": true,
+  "atf_trace_bl31_sha256": "bb0ed4a4a531e625521b7b3f1d2a84b99d73f8c4132a5189c5aa08a81f67a03b",
+  "secure_entry_crossing_proven": true,
+  "physical_ram_guard_passed": true,
+  "physical_ram_access_verified": false,
+  "native_cpu_exclusion_exercised": false,
+  "early_exception_observed": true,
+  "vendor_assembly_progress_observed": true,
+  "vendor_c_startup_observed": false,
+  "vendor_startup_completed": false,
+  "matched_prompt": false,
+  "fesboot_sent": false,
+  "native_startup": false,
+  "rom_completion": false,
+  "cpu_run": false,
+  "core_return": false,
+  "error": "native failure marker; no further command",
+  "raw_console_bytes": 6888,
+  "raw_console_sha256": "290326a5d1f1dc46c80f57e253a52a8cb5f310b1a4a6f6f1fcf9ca8876a2bb4a",
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "diagnosis": "Eight ordered vendor markers follow early guard acceptance. The private handler captured EL3 SError, EC0x2f/ESR0xbe000011, at linked DC IVAC x0 in the original NOBITS invalidation loop. Saved PC and r0 do not establish the originating instruction/transaction; FAR is not treated as valid. Ordered post-fault CPU/CCU/OCRAM reads are retained separately; their completion is never startup permission and sticky registers may predate this exception. No retry, BSS/stack/setup/native startup or core load is proved.",
+  "status_probe": {
+    "records": [
+      {
+        "index": 0,
+        "name": "midr",
+        "source": "cpu",
+        "target": "midr_el1",
+        "value": 1093652560,
+        "before_line": 53,
+        "line": 54
+      },
+      {
+        "index": 1,
+        "name": "pfr0",
+        "source": "cpu",
+        "target": "id_aa64pfr0_el1",
+        "value": 286335522,
+        "before_line": 55,
+        "line": 56
+      },
+      {
+        "index": 2,
+        "name": "sctlr",
+        "source": "cpu",
+        "target": "sctlr_el3",
+        "value": 12916794,
+        "before_line": 57,
+        "line": 58
+      },
+      {
+        "index": 3,
+        "name": "scr",
+        "source": "cpu",
+        "target": "scr_el3",
+        "value": 568,
+        "before_line": 59,
+        "line": 60
+      },
+      {
+        "index": 4,
+        "name": "tcr",
+        "source": "cpu",
+        "target": "tcr_el3",
+        "value": 0,
+        "before_line": 61,
+        "line": 62
+      },
+      {
+        "index": 5,
+        "name": "mair",
+        "source": "cpu",
+        "target": "mair_el3",
+        "value": 4963046916272786084,
+        "before_line": 63,
+        "line": 64
+      },
+      {
+        "index": 6,
+        "name": "ttbr0",
+        "source": "cpu",
+        "target": "ttbr0_el3",
+        "value": 1041354450870282,
+        "before_line": 65,
+        "line": 66
+      },
+      {
+        "index": 7,
+        "name": "dsu_status_before",
+        "source": "mmio",
+        "target": 469762312,
+        "value": 0,
+        "before_line": 67,
+        "line": 68
+      },
+      {
+        "index": 8,
+        "name": "dsu_location0",
+        "source": "mmio",
+        "target": 469762316,
+        "value": 0,
+        "before_line": 69,
+        "line": 70
+      },
+      {
+        "index": 9,
+        "name": "dsu_location1",
+        "source": "mmio",
+        "target": 469762320,
+        "value": 0,
+        "before_line": 71,
+        "line": 72
+      },
+      {
+        "index": 10,
+        "name": "dsu_status_after",
+        "source": "mmio",
+        "target": 469762312,
+        "value": 0,
+        "before_line": 73,
+        "line": 74
+      },
+      {
+        "index": 11,
+        "name": "boot_attributes",
+        "source": "mmio",
+        "target": 469762960,
+        "value": 3228567040,
+        "before_line": 75,
+        "line": 76
+      },
+      {
+        "index": 12,
+        "name": "boot_base_low",
+        "source": "mmio",
+        "target": 469762964,
+        "value": 0,
+        "before_line": 77,
+        "line": 78
+      },
+      {
+        "index": 13,
+        "name": "boot_base_high",
+        "source": "mmio",
+        "target": 469762968,
+        "value": 0,
+        "before_line": 79,
+        "line": 80
+      },
+      {
+        "index": 14,
+        "name": "ocram_status_before",
+        "source": "mmio",
+        "target": 469811488,
+        "value": 0,
+        "before_line": 81,
+        "line": 82
+      },
+      {
+        "index": 15,
+        "name": "ocram_location0",
+        "source": "mmio",
+        "target": 469811492,
+        "value": 0,
+        "before_line": 83,
+        "line": 84
+      },
+      {
+        "index": 16,
+        "name": "ocram_location1",
+        "source": "mmio",
+        "target": 469811496,
+        "value": 0,
+        "before_line": 85,
+        "line": 86
+      },
+      {
+        "index": 17,
+        "name": "ocram_status_after",
+        "source": "mmio",
+        "target": 469811488,
+        "value": 0,
+        "before_line": 87,
+        "line": 88
+      },
+      {
+        "index": 18,
+        "name": "ecc_config",
+        "source": "mmio",
+        "target": 277659652,
+        "value": 536720,
+        "before_line": 89,
+        "line": 90
+      },
+      {
+        "index": 19,
+        "name": "ecc_control",
+        "source": "mmio",
+        "target": 277659656,
+        "value": 3,
+        "before_line": 91,
+        "line": 92
+      },
+      {
+        "index": 20,
+        "name": "ecc_initialized",
+        "source": "mmio",
+        "target": 277659660,
+        "value": 1,
+        "before_line": 93,
+        "line": 94
+      },
+      {
+        "index": 21,
+        "name": "ecc_pending",
+        "source": "mmio",
+        "target": 277659680,
+        "value": 0,
+        "before_line": 95,
+        "line": 96
+      },
+      {
+        "index": 22,
+        "name": "ecc_mode",
+        "source": "mmio",
+        "target": 277659688,
+        "value": 0,
+        "before_line": 97,
+        "line": 98
+      },
+      {
+        "index": 23,
+        "name": "ecc_double_address_a",
+        "source": "mmio",
+        "target": 277659692,
+        "value": 0,
+        "before_line": 99,
+        "line": 100
+      },
+      {
+        "index": 24,
+        "name": "ecc_double_address_b",
+        "source": "mmio",
+        "target": 277659700,
+        "value": 0,
+        "before_line": 101,
+        "line": 102
+      },
+      {
+        "index": 25,
+        "name": "ecc_decoder",
+        "source": "mmio",
+        "target": 277659780,
+        "value": 0,
+        "before_line": 103,
+        "line": 104
+      },
+      {
+        "index": 26,
+        "name": "firewall_enabled",
+        "source": "mmio",
+        "target": 277660672,
+        "value": 1,
+        "before_line": 105,
+        "line": 106
+      },
+      {
+        "index": 27,
+        "name": "firewall0_base",
+        "source": "mmio",
+        "target": 277660688,
+        "value": 0,
+        "before_line": 107,
+        "line": 108
+      },
+      {
+        "index": 28,
+        "name": "firewall0_limit",
+        "source": "mmio",
+        "target": 277660692,
+        "value": 524287,
+        "before_line": 109,
+        "line": 110
+      },
+      {
+        "index": 29,
+        "name": "firewall0_access",
+        "source": "mmio",
+        "target": 277660696,
+        "value": 0,
+        "before_line": 111,
+        "line": 112
+      },
+      {
+        "index": 30,
+        "name": "firewall1_base",
+        "source": "mmio",
+        "target": 277660700,
+        "value": 0,
+        "before_line": 113,
+        "line": 114
+      },
+      {
+        "index": 31,
+        "name": "firewall1_limit",
+        "source": "mmio",
+        "target": 277660704,
+        "value": 524287,
+        "before_line": 115,
+        "line": 116
+      },
+      {
+        "index": 32,
+        "name": "firewall1_access",
+        "source": "mmio",
+        "target": 277660708,
+        "value": 1,
+        "before_line": 117,
+        "line": 118
+      },
+      {
+        "index": 33,
+        "name": "firewall2_base",
+        "source": "mmio",
+        "target": 277660712,
+        "value": 0,
+        "before_line": 119,
+        "line": 120
+      },
+      {
+        "index": 34,
+        "name": "firewall2_limit",
+        "source": "mmio",
+        "target": 277660716,
+        "value": 524287,
+        "before_line": 121,
+        "line": 122
+      },
+      {
+        "index": 35,
+        "name": "firewall2_access",
+        "source": "mmio",
+        "target": 277660720,
+        "value": 1,
+        "before_line": 123,
+        "line": 124
+      },
+      {
+        "index": 36,
+        "name": "firewall3_base",
+        "source": "mmio",
+        "target": 277660724,
+        "value": 0,
+        "before_line": 125,
+        "line": 126
+      },
+      {
+        "index": 37,
+        "name": "firewall3_limit",
+        "source": "mmio",
+        "target": 277660728,
+        "value": 524287,
+        "before_line": 127,
+        "line": 128
+      },
+      {
+        "index": 38,
+        "name": "firewall3_access",
+        "source": "mmio",
+        "target": 277660732,
+        "value": 1,
+        "before_line": 129,
+        "line": 130
+      }
+    ],
+    "pending": null,
+    "complete": true,
+    "valid": true
+  },
+  "status_probe_reads": 39,
+  "status_probe_complete": true,
+  "status_probe_pending": null,
+  "status_acknowledged": false,
+  "sticky_status_freshness_proven": false,
+  "diagnostic_guard_trace": {
+    "records": [
+      {
+        "kind": "entry",
+        "line": 42,
+        "phase": null
+      },
+      {
+        "kind": "pass",
+        "line": 43,
+        "phase": null
+      }
+    ],
+    "complete": true,
+    "valid": false,
+    "vendor_records": [
+      {
+        "phase": "enter",
+        "line": 44
+      },
+      {
+        "phase": "reset-before",
+        "line": 45
+      },
+      {
+        "phase": "reset-after",
+        "line": 46
+      },
+      {
+        "phase": "cpu-data-before",
+        "line": 47
+      },
+      {
+        "phase": "cpu-data-after",
+        "line": 48
+      },
+      {
+        "phase": "rw-cache-before",
+        "line": 49
+      },
+      {
+        "phase": "rw-cache-after",
+        "line": 50
+      },
+      {
+        "phase": "nobits-cache-before",
+        "line": 51
+      }
+    ],
+    "vendor_complete": false,
+    "exceptions": [
+      {
+        "line": 52,
+        "vector": 7,
+        "esr": 3187671057,
+        "elr": 2147594744,
+        "far": 16559832166252679170,
+        "spsr": 2147484365,
+        "r0": 328256,
+        "r1": 384704,
+        "r2": 64,
+        "r3": 63
+      }
+    ],
+    "status_probe": {
+      "records": [
+        {
+          "index": 0,
+          "name": "midr",
+          "source": "cpu",
+          "target": "midr_el1",
+          "value": 1093652560,
+          "before_line": 53,
+          "line": 54
+        },
+        {
+          "index": 1,
+          "name": "pfr0",
+          "source": "cpu",
+          "target": "id_aa64pfr0_el1",
+          "value": 286335522,
+          "before_line": 55,
+          "line": 56
+        },
+        {
+          "index": 2,
+          "name": "sctlr",
+          "source": "cpu",
+          "target": "sctlr_el3",
+          "value": 12916794,
+          "before_line": 57,
+          "line": 58
+        },
+        {
+          "index": 3,
+          "name": "scr",
+          "source": "cpu",
+          "target": "scr_el3",
+          "value": 568,
+          "before_line": 59,
+          "line": 60
+        },
+        {
+          "index": 4,
+          "name": "tcr",
+          "source": "cpu",
+          "target": "tcr_el3",
+          "value": 0,
+          "before_line": 61,
+          "line": 62
+        },
+        {
+          "index": 5,
+          "name": "mair",
+          "source": "cpu",
+          "target": "mair_el3",
+          "value": 4963046916272786084,
+          "before_line": 63,
+          "line": 64
+        },
+        {
+          "index": 6,
+          "name": "ttbr0",
+          "source": "cpu",
+          "target": "ttbr0_el3",
+          "value": 1041354450870282,
+          "before_line": 65,
+          "line": 66
+        },
+        {
+          "index": 7,
+          "name": "dsu_status_before",
+          "source": "mmio",
+          "target": 469762312,
+          "value": 0,
+          "before_line": 67,
+          "line": 68
+        },
+        {
+          "index": 8,
+          "name": "dsu_location0",
+          "source": "mmio",
+          "target": 469762316,
+          "value": 0,
+          "before_line": 69,
+          "line": 70
+        },
+        {
+          "index": 9,
+          "name": "dsu_location1",
+          "source": "mmio",
+          "target": 469762320,
+          "value": 0,
+          "before_line": 71,
+          "line": 72
+        },
+        {
+          "index": 10,
+          "name": "dsu_status_after",
+          "source": "mmio",
+          "target": 469762312,
+          "value": 0,
+          "before_line": 73,
+          "line": 74
+        },
+        {
+          "index": 11,
+          "name": "boot_attributes",
+          "source": "mmio",
+          "target": 469762960,
+          "value": 3228567040,
+          "before_line": 75,
+          "line": 76
+        },
+        {
+          "index": 12,
+          "name": "boot_base_low",
+          "source": "mmio",
+          "target": 469762964,
+          "value": 0,
+          "before_line": 77,
+          "line": 78
+        },
+        {
+          "index": 13,
+          "name": "boot_base_high",
+          "source": "mmio",
+          "target": 469762968,
+          "value": 0,
+          "before_line": 79,
+          "line": 80
+        },
+        {
+          "index": 14,
+          "name": "ocram_status_before",
+          "source": "mmio",
+          "target": 469811488,
+          "value": 0,
+          "before_line": 81,
+          "line": 82
+        },
+        {
+          "index": 15,
+          "name": "ocram_location0",
+          "source": "mmio",
+          "target": 469811492,
+          "value": 0,
+          "before_line": 83,
+          "line": 84
+        },
+        {
+          "index": 16,
+          "name": "ocram_location1",
+          "source": "mmio",
+          "target": 469811496,
+          "value": 0,
+          "before_line": 85,
+          "line": 86
+        },
+        {
+          "index": 17,
+          "name": "ocram_status_after",
+          "source": "mmio",
+          "target": 469811488,
+          "value": 0,
+          "before_line": 87,
+          "line": 88
+        },
+        {
+          "index": 18,
+          "name": "ecc_config",
+          "source": "mmio",
+          "target": 277659652,
+          "value": 536720,
+          "before_line": 89,
+          "line": 90
+        },
+        {
+          "index": 19,
+          "name": "ecc_control",
+          "source": "mmio",
+          "target": 277659656,
+          "value": 3,
+          "before_line": 91,
+          "line": 92
+        },
+        {
+          "index": 20,
+          "name": "ecc_initialized",
+          "source": "mmio",
+          "target": 277659660,
+          "value": 1,
+          "before_line": 93,
+          "line": 94
+        },
+        {
+          "index": 21,
+          "name": "ecc_pending",
+          "source": "mmio",
+          "target": 277659680,
+          "value": 0,
+          "before_line": 95,
+          "line": 96
+        },
+        {
+          "index": 22,
+          "name": "ecc_mode",
+          "source": "mmio",
+          "target": 277659688,
+          "value": 0,
+          "before_line": 97,
+          "line": 98
+        },
+        {
+          "index": 23,
+          "name": "ecc_double_address_a",
+          "source": "mmio",
+          "target": 277659692,
+          "value": 0,
+          "before_line": 99,
+          "line": 100
+        },
+        {
+          "index": 24,
+          "name": "ecc_double_address_b",
+          "source": "mmio",
+          "target": 277659700,
+          "value": 0,
+          "before_line": 101,
+          "line": 102
+        },
+        {
+          "index": 25,
+          "name": "ecc_decoder",
+          "source": "mmio",
+          "target": 277659780,
+          "value": 0,
+          "before_line": 103,
+          "line": 104
+        },
+        {
+          "index": 26,
+          "name": "firewall_enabled",
+          "source": "mmio",
+          "target": 277660672,
+          "value": 1,
+          "before_line": 105,
+          "line": 106
+        },
+        {
+          "index": 27,
+          "name": "firewall0_base",
+          "source": "mmio",
+          "target": 277660688,
+          "value": 0,
+          "before_line": 107,
+          "line": 108
+        },
+        {
+          "index": 28,
+          "name": "firewall0_limit",
+          "source": "mmio",
+          "target": 277660692,
+          "value": 524287,
+          "before_line": 109,
+          "line": 110
+        },
+        {
+          "index": 29,
+          "name": "firewall0_access",
+          "source": "mmio",
+          "target": 277660696,
+          "value": 0,
+          "before_line": 111,
+          "line": 112
+        },
+        {
+          "index": 30,
+          "name": "firewall1_base",
+          "source": "mmio",
+          "target": 277660700,
+          "value": 0,
+          "before_line": 113,
+          "line": 114
+        },
+        {
+          "index": 31,
+          "name": "firewall1_limit",
+          "source": "mmio",
+          "target": 277660704,
+          "value": 524287,
+          "before_line": 115,
+          "line": 116
+        },
+        {
+          "index": 32,
+          "name": "firewall1_access",
+          "source": "mmio",
+          "target": 277660708,
+          "value": 1,
+          "before_line": 117,
+          "line": 118
+        },
+        {
+          "index": 33,
+          "name": "firewall2_base",
+          "source": "mmio",
+          "target": 277660712,
+          "value": 0,
+          "before_line": 119,
+          "line": 120
+        },
+        {
+          "index": 34,
+          "name": "firewall2_limit",
+          "source": "mmio",
+          "target": 277660716,
+          "value": 524287,
+          "before_line": 121,
+          "line": 122
+        },
+        {
+          "index": 35,
+          "name": "firewall2_access",
+          "source": "mmio",
+          "target": 277660720,
+          "value": 1,
+          "before_line": 123,
+          "line": 124
+        },
+        {
+          "index": 36,
+          "name": "firewall3_base",
+          "source": "mmio",
+          "target": 277660724,
+          "value": 0,
+          "before_line": 125,
+          "line": 126
+        },
+        {
+          "index": 37,
+          "name": "firewall3_limit",
+          "source": "mmio",
+          "target": 277660728,
+          "value": 524287,
+          "before_line": 127,
+          "line": 128
+        },
+        {
+          "index": 38,
+          "name": "firewall3_access",
+          "source": "mmio",
+          "target": 277660732,
+          "value": 1,
+          "before_line": 129,
+          "line": 130
+        }
+      ],
+      "pending": null,
+      "complete": true,
+      "valid": true
+    }
+  },
+  "last_vendor_checkpoint": "nobits-cache-before",
+  "compiled_nobits_range": [
+    327680,
+    384704
+  ],
+  "independent_replay_matched": true,
+  "exception": {
+    "line": 52,
+    "vector": 7,
+    "esr": 3187671057,
+    "elr": 2147594744,
+    "far": 16559832166252679170,
+    "spsr": 2147484365,
+    "r0": 328256,
+    "r1": 384704,
+    "r2": 64,
+    "r3": 63
+  },
+  "saved_pc_instruction_word": 3574101536,
+  "saved_pc_instruction": "dc ivac, x0",
+  "exception_class": 47,
+  "asynchronous_error": true,
+  "far_interpreted_as_fault_address": false,
+  "causing_instruction_proven": false,
+  "evidence_sha256": {
+    "out/nano-status-probe-board-20261106/candidate-check-v3-result.json": "88c01d68e815de71b8ef6a8bd242b4cd0775c0fd06dfcefa48fdd0b2592212bc",
+    "out/nano-status-probe-board-20261106/candidate-check-v3.log": "1837a6ef137314484e2effb4a0baefea69c16a09971a7ee8312813aa59c38dd7",
+    "out/nano-status-probe-board-20261106/candidate-proof.json": "fb3fb027986648d98674729eb6d35b76accbd16ffd2556ed295b786641c98a6b",
+    "out/nano-status-probe-board-20261106/cleanup-audit-result.json": "2b2a9ebcd26418203c023ca9246d6172481cb675afe4c5e9e53d818c0ca0f02e",
+    "out/nano-status-probe-board-20261106/cleanup-audit.log": "697f7641a68cae4a45acb61f8cffbb0fc7f26e06df604a89a911f458810ac9e5",
+    "out/nano-status-probe-board-20261106/cleanup-evidence.json": "7fecd92dbf5fcf639e54b7c9e3b602b1171d67c1e9529f2bf67e1ce82aedfe8c",
+    "out/nano-status-probe-board-20261106/hardware-result.json": "b62c6fd499633f8b461f4c1e5c5b49186834d99412833a848b461014cfde7d7b",
+    "out/nano-status-probe-board-20261106/hardware.log": "c03710dcad206f8bc3d740a044125cbe1c2ca50f9ff7a917c42a238b7441ea29",
+    "out/nano-status-probe-board-20261106/history.json": "a962c78f3a6602b7936605d4b9c843b26691c8d68ca79414c193480c03ce92d6",
+    "out/nano-status-probe-board-20261106/independent-boot-replay.json": "2719dc7ce9c68da2507818068d2274cb12facc2e9fdcbc2238724d8a9dcb7bde",
+    "out/nano-status-probe-board-20261106/record_stop.py": "7adcb93f72ca2e6fc152980c234726cecd92e2761432619907f3ecccad914ca4",
+    "out/nano-status-probe-board-20261106/recovery-source-pin.json": "3af590f4e06f1094ca5193cb70c714a94f16e4c62258447b2e87e40427438800",
+    "out/nano-status-probe-board-20261106/source-fixtures-v2-result.json": "f6266405842f4b275b9025122e255b3191dc3b6e5059ec2a3bbf1d48b076240a",
+    "out/nano-status-probe-board-20261106/source-fixtures-v2.log": "14069a0367f6622b52c45f8e5f9c5bd39d7d514b0167183c2dd6b31e47500193",
+    "out/nano-status-probe-board-20261106/source-fixtures.json": "053143f68fbff8ed2bbe14c4ab33320fff71761ac79a92f6cd06fed86b66ccff",
+    "out/nano-status-probe-board-20261106/source.json": "0b20479da918c815d8228a10b5172d823db3e8fbe94a0b3666451c7b862ff7e9",
+    "out/nano-status-probe-board-20261106/trial/clock-before-native.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-status-probe-board-20261106/trial/clock-before.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "out/nano-status-probe-board-20261106/trial/clock-confirm-6m.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-status-probe-board-20261106/trial/clock-restore-15m.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-status-probe-board-20261106/trial/clock-restored-readback.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "out/nano-status-probe-board-20261106/trial/clock-set-6m.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-status-probe-board-20261106/trial/clock_policy.py": "082ea1a2646bf9dbfecf0b378274801576600265282827cce48bbbaea8a6c4f5",
+    "out/nano-status-probe-board-20261106/trial/common.py": "62634fa14751926440703ddcc6374a4c92ef72318282438438ebd0e05c734800",
+    "out/nano-status-probe-board-20261106/trial/experiment-progress.json": "805a9976079d88e2ace4efc99116240c77bc5a31dec64c18e8d2510fc169774f",
+    "out/nano-status-probe-board-20261106/trial/experiment-result.json": "5b9667b0d380f8cb54f52a7f93d75c2bba4ffb73417505ff8b9c5278ffd9977b",
+    "out/nano-status-probe-board-20261106/trial/experiment.py": "e05a7a4a26890e43afa14d1b6f8700834390a2127e9308f2fcfb0dd81e67d0d4",
+    "out/nano-status-probe-board-20261106/trial/live-firmware-alt.json": "2bf5f353c1430ff04ada6b78fa8ac8213967a585b96c2279fff73e60ed4829f7",
+    "out/nano-status-probe-board-20261106/trial/live-firmware.json": "b601eef21e06a6336478ea71b007d0c7afa86812ec7adf3133e544ef54bfcff4",
+    "out/nano-status-probe-board-20261106/trial/live-fit.json": "5e0200f07de56c79880623fd80834590979584608dd35c9c3fd51d1862d9312d",
+    "out/nano-status-probe-board-20261106/trial/live-metadata-alt.json": "6629acac077430a5d826a3403b109cedb048e5fd559d35968bb8638db678ecf0",
+    "out/nano-status-probe-board-20261106/trial/live-metadata.json": "3a9e3005f847c5c4ad355c0e81ffbc04d98eb15fc64c23b82ee334df7ffb2f84",
+    "out/nano-status-probe-board-20261106/trial/live-package.json": "3b6f49366dca41f81a6dd5730bf016555c56fc99bb6ca452489c3dbc86fb595d",
+    "out/nano-status-probe-board-20261106/trial/live-selection.json": "18dbfa6488b0a933f2f6303a632f70e6124f60c243f7c0e43c875460ab43b821",
+    "out/nano-status-probe-board-20261106/trial/live-ui-catalog.json": "3e3b973d583156ed7e50e5e4b87bd8f120e33382bffe2cda4b47af1569074cd9",
+    "out/nano-status-probe-board-20261106/trial/native-clock-before.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-status-probe-board-20261106/trial/native-console.log": "290326a5d1f1dc46c80f57e253a52a8cb5f310b1a4a6f6f1fcf9ca8876a2bb4a",
+    "out/nano-status-probe-board-20261106/trial/native-jtag-query.log": "3059760a240131562930591101812009357ea43a0a67bb75377241fa0286178b",
+    "out/nano-status-probe-board-20261106/trial/native-program.log": "4b0f13ba100c2eb60d91a8b8c570bf684d0c7a662888fc7a52b49d24e28a6313",
+    "out/nano-status-probe-board-20261106/trial/native-progress.json": "8ac18f28abe9bba13a8dd97bb801b6cd2e558ef0a04f0732cbf2de82828353de",
+    "out/nano-status-probe-board-20261106/trial/native-result.json": "d8dce2b61d9875a866aefcc8bcb875a979bcf3d7a8c952e45cc5b080d5fd3bd8",
+    "out/nano-status-probe-board-20261106/trial/native.py": "f6f424772fedd152a95fa3ee7aa4ffdf686a12e396843c6e35edee14d07f247f",
+    "out/nano-status-probe-board-20261106/trial/preflight.json": "64a4f66be3011902b050cc5bdba5a6f40b1aee468424486e5ba22c6c41b27d9c",
+    "out/nano-status-probe-board-20261106/trial/private-client-setup.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-status-probe-board-20261106/trial/private-device-admission.log": "7a46f1c6f44cdc3e65d12a134a57f585934c87a4bca9cb14d0434a1909ce2f01",
+    "out/nano-status-probe-board-20261106/trial/private-device-clock.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-status-probe-board-20261106/trial/private-server.log": "313024a2d27e45e1bf2ec046cf5695d802a800aa42e049777e9747e2299aa6ba",
+    "out/nano-status-probe-board-20261106/trial/private-top-enumeration.log": "7a46f1c6f44cdc3e65d12a134a57f585934c87a4bca9cb14d0434a1909ce2f01",
+    "out/nano-status-probe-board-20261106/trial/private_jtag.py": "c9b36356faf133d4a734d46743bf586eb0c74006c535a869e6a1fb36856e4023",
+    "out/nano-status-probe-board-20261106/trial/recovery-boot-clock-after.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-status-probe-board-20261106/trial/recovery-boot-clock-before.log": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc",
+    "out/nano-status-probe-board-20261106/trial/recovery-boot-console.log": "aa8f098ed97ec965f67da81edc4ffb00eb2a6efe5f34d06a8913c973b6c8ca13",
+    "out/nano-status-probe-board-20261106/trial/recovery-boot-jtag-query.log": "0a825ce2f2a14e9f09537f8a7119a8a26d2da970a9cee6f8eec00f1ad808e6c0",
+    "out/nano-status-probe-board-20261106/trial/recovery-boot-program.log": "f522caeb4bf306004edf05bb3a267ad1a3526d12fbc6016ef7110836c86d23d4",
+    "out/nano-status-probe-board-20261106/trial/recovery-boot-progress.json": "e36a6da1784877c903d5b3704551c89b696a9c143fb37a832e4d22fd88ae8975",
+    "out/nano-status-probe-board-20261106/trial/recovery-boot-result.json": "00a299282da8d582507724e0794a59ab01655c02c5c1c6138d0601130487e592",
+    "out/nano-status-probe-board-20261106/trial/recovery.py": "90ed378a120d8eb4add927abf28b81f2b1d502453bb11a3e18b1936eda67b9c1",
+    "out/nano-status-probe-board-20261106/trial/recovery_pin.py": "20e169fe043d7d0d9d1073112577a7a95f1b077c8c4fd6af32ef20289b807f88",
+    "out/nano-status-probe-board-20261106/trial/service_checks.py": "2f7c54d48723311b12ca535849c46a2d2c13e564f91a02a4a36a621403076ab9",
+    "out/nano-status-probe-board-20261106/trial/transport.json": "984b063f965e5d6cf30d8f1170937eddc97242b520249c556e23b380d173972b",
+    "out/nano-status-probe-board-20261106/trial/trial_inputs.py": "2e81534cfb31672b560c7f232ae655de5fc41a8396b2c5b77c482a7fc96a9d46",
+    "out/nano-status-probe-board-20261106/trial/upload-boot/progress.json": "448914226af9c75f8dd89dbb57ee886482b202aacaa48298917ab034b37028da",
+    "out/nano-status-probe-board-20261106/trial/upload-boot/result.json": "0df3f84ab88c946da149e7a1b388a23d1b2493bf70f29329efcefffdfbd6456b",
+    "out/nano-status-probe-board-20261106/trial/upload-firmware/progress.json": "3afffcc31a9fa8022919ddf6fd6fb150dae3d9542323422d5517dc9bae47a12e",
+    "out/nano-status-probe-board-20261106/trial/upload-firmware/result.json": "d20f34b033ab5097742c2cf3ecd889c93c3cf6ab0252797769406c1e81089cb5",
+    "out/nano-status-probe-board-20261106/trial/upload-firmware-alt/progress.json": "39b809b25d298d3b04ab6cd04b9257414fbf2a39438badea48ce6a2016a98b68",
+    "out/nano-status-probe-board-20261106/trial/upload-firmware-alt/result.json": "7f67ed6c08247e9880ddb47f7e31c8958d62be47847d21dbede25d49d805f1e8",
+    "out/nano-status-probe-board-20261106/trial/upload-metadata/progress.json": "da1592d4657441f6545d632e0b953d74b87c78607cba9fc54f3383b3cf524d84",
+    "out/nano-status-probe-board-20261106/trial/upload-metadata/result.json": "8ac33b7782e8480b3d9dc15343a6a7f510eed181f4a6c428e0912462995d8edd",
+    "out/nano-status-probe-board-20261106/trial/upload-metadata-alt/progress.json": "0ba585b3bcff0831cabc5b2cf7b2a9b18f8dadfe2d7b4f4ed1b3888271c00de9",
+    "out/nano-status-probe-board-20261106/trial/upload-metadata-alt/result.json": "40715f9164efa19f84e5132e9d9d35b83032e2742af9bd898c075bbc949c5dac",
+    "out/nano-status-probe-board-20261106/trial/upload-package/progress.json": "c78935f0429a346429b816e868320e9fb019120c278b713f63b8028e8b9c902f",
+    "out/nano-status-probe-board-20261106/trial/upload-package/result.json": "94c5cd36e5b36a66cac58b8e9d59276580de747f7160eaa2348c42afe8f67ad2",
+    "out/nano-status-probe-board-20261106/trial/upload-selection/progress.json": "3892024d1c4043aaebf7aa4833cf100dc48b0c324427ebe174d613b22400f970",
+    "out/nano-status-probe-board-20261106/trial/upload-selection/result.json": "a12eb568d74cf211f2d343d3a2f15bc4ce562c3505eae142a34c3ae286320380",
+    "out/nano-status-probe-board-20261106/trial/upload-ui-catalog/progress.json": "dfe58c21e67413c7f1b267a52e09fce95b072bb2bf987af050b82a17fd50dd0a",
+    "out/nano-status-probe-board-20261106/trial/upload-ui-catalog/result.json": "76210edb77c81034c34bcbd929989ae033179d271e663c8b2812125527b622fd",
+    "out/nano-status-probe-board-20261106/trial/upload_both.py": "efa98f82de6ca3607926b1badf38c97d2f203cb5b17963cc55cbcb0a5745f212",
+    "out/nano-status-probe-board-20261106/trial/upload_checks.py": "497636cad5390e8f6820d11d18c698efd7d8af3883a714b6dd112a6014e61fa3",
+    "out/nano-status-probe-board-20261106/trial/uploads/console.log": "cd0018bea8e16fd8d6f21d931ee6f3e5b9e6f86485f0f06bd1fa102ee2c61a88",
+    "out/nano-status-probe-board-20261106/trial/uploads/progress.json": "689305d290cda5a0ee1327ab150a411da8a678186bd4c58f4b8b9d2a768560a5",
+    "out/nano-status-probe-board-20261106/trial/uploads/result.json": "16516f473b61341aab388d01e24eb27680faf3374064557e5812e65312496109",
+    "out/nano-status-probe-board-20261106/status_diagnosis.py": "68fe1fc9322b95338caf56492e21d386b860d9e250aae5a5a227e662a4a8c4dd",
+    "out/nano-status-probe-board-20261106/status-diagnosis.json": "149ab29b60697f458b0f7593df121ea07119f6885c56a710f398c4f1c3789b56",
+    "out/nano-status-probe-board-20261106/status-diagnosis-result.json": "1dc1cd227b7cbcba80f17efeed2d312580fbcecda4edab64995fcbce5d83c3a2",
+    "out/nano-status-probe-board-20261106/status-diagnosis.log": "9352f6e1dc7d55a0dfb7e3e499ee8d2683c152f0c9ebf224758eabf19c991674"
+  },
+  "hardware_actions": true,
+  "ordinary_admission": false,
+  "core_load_acceptance": false,
+  "physical_cpu_halt_proven": false,
+  "claim_retained": true,
+  "factory_card_touched": false,
+  "other_kit_touched": false,
+  "status_diagnosis_sha256": "149ab29b60697f458b0f7593df121ea07119f6885c56a710f398c4f1c3789b56",
+  "status_diagnosis_scope": "offline interpretation of one post-fault snapshot; not causal or memory-access proof"
+}

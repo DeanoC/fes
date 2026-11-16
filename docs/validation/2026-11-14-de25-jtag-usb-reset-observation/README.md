@@ -1,0 +1,19 @@
+# DE25 volatile JTAG recovery after final USB Close failure
+
+Later hardware state and candidate results are recorded in [USB recovery and warm preparation stop](../2026-11-14-de25-usb-recovered-warm-stop/README.md). Board-state statements below describe this earlier checkpoint.
+
+One newly authorized probe `37f7d99a0b2da2780fa58b5cf59f1605f9d776f832eee2d2b76808a2f743ca01` reached a fresh recovery-loader prompt and observed USB0's module and packet-RAM reset bits held, without another physical power cycle after the failed original-baseline Quit. It completed in 86.565 seconds. This is a full volatile FPGA/HPS recovery reload through the existing admitted JTAG path; it is not an isolated USB peripheral toggle or recovery of the old runtime.
+
+The preceding host-adapter reset had returned but could not establish on-kit recovery. The new probe admitted only the archived original-FIT final USB Close failure: all seventeen files had passed read-only verification, fifty App commands and two core launches replayed, and final reader/master/menu closure was observed. It rejects the private SMMU/rearm/recovery failure class. The old failed procedure stayed consumed and was not retried.
+
+The frozen scope allows only the original recovery image and read-only reset observations, with no native dispatch, SD/QSPI write or firmware DATA command. Four off-board tests cover actual starting evidence, negative lifecycle/private-diagnostic cases, reset-word parsing and rejection of every non-recovery worker role before procedure construction. User/root default checks and prepared-input byte/hash/mode retention pass. The first model run exposed a missing imported UART helper; the exact frozen helper was copied, and final checks pass. The failed import record remains retained.
+
+The admitted recovery image SHA-256 is `ce143f50e05c9895381047f921be4a0c38d9a7eacfa75b3c0709be4ff7eafe75`. Independent joins verify the image/grant, programming output, private transport epoch and fresh captured recovery prompt. Raw nonce-bound UART replay verifies exactly nine read-only commands: the existing nineteen Non-secure SMMU reset-register observations, then two `md.l 10d11024 1` reads. Both PER0 samples are `0xff7fbe3e`; mask `0x808` is held in each. No USB-controller register was read while held in reset.
+
+The Secure SMMU bank was not examined. These observations do not qualify the full reset domain, authorize DMA/source reuse or establish USB enumeration, native runtime resumption, final application Park or generic recovery after a private source/SMMU failure.
+
+All three recorded owned processes are independently stopped, root UART FD scan is clear, auto/15 MHz JTAG settings and exact USB identity/inode/permissions are restored, and the continuing top-kit claim remains held. QSPI, the factory card and bottom kit remain untouched. The spare card still contains the original FIT; this probe made no SD write and does not claim a new post-boot file audit.
+
+[Actual independent result](result.json), [root process scan](owned-process-root-scan.json), [UART scan](uart-fd-scan.json), and [retention proof](retention-proof.json) describe the evidence. Archive SHA-256 `82eb39589c41760f96d55d01cc1a798febb2aa6319c64292e492c8af459e9564` independently verifies all 80 entries. Its initial retainer compared integer parser keys with JSON string keys; the correction normalizes that comparison, preserves the failed script/log and reruns only retention. The physical probe ran once.
+
+Current verified board state is the fresh recovery-loader prompt, parked, with USB0's reset pair held and all host handles closed. The old panicked runtime has been replaced by this loader. No additional physical reset is requested. The separately built [USB Close repair](../2026-11-14-de25-usb-close-drain/README.md) has not been programmed; its new native boot and core-cycle acceptance remain next.

@@ -1,0 +1,621 @@
+{
+  "status": "memory-request-device-reset-shared-not-qualified",
+  "compiled_source": "dce9831fd6b190a1b6e973a986ab0fa30ca09204",
+  "package_id": "2b1b597f585bad63b43956b72113af9311c8be535581d101714686d65f2f49a2",
+  "build_id": "8e1cec97fef788596e276bba530a9a7f",
+  "payload_bytes": 1654784,
+  "payload_sha256": "79828b61e1d609715608328896955f14af5d5bcf378e7e235ba04ec75b98819f",
+  "source_inputs_checked": 200,
+  "generated_SDCS_checked": 4,
+  "multicorner_before": {
+    "slacks": [
+      1.881,
+      0.0,
+      7.259,
+      0.084,
+      0.22
+    ],
+    "tns": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "clocks": {
+      "EMIF_REF_CLOCK": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "2.220"
+      ],
+      "adv7513_config": [
+        "16.451",
+        "0.106",
+        "18.412",
+        "0.084",
+        "50018.510"
+      ],
+      "altera_reserved_tck": [
+        "12.809",
+        "0.096",
+        "60.852",
+        "0.172",
+        "28.581"
+      ],
+      "fes_video_inst|video_clock|iopll_0_n_cnt_clk": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "49.563"
+      ],
+      "fes_video_inst|video_clock|iopll_0_outclk0": [
+        "3.283",
+        "0.035",
+        "12.056",
+        "0.254",
+        "5.857"
+      ],
+      "fes_video_inst|video_clock|iopll_0_refclk": [
+        "16.631",
+        "0.111",
+        "17.007",
+        "0.778",
+        "9.590"
+      ],
+      "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "8.583"
+      ],
+      "pll_inst|iopll_0_outclk0": [
+        "1.881",
+        "0.000",
+        "7.259",
+        "0.204",
+        "4.407"
+      ],
+      "pll_inst|iopll_0_refclk": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "9.231"
+      ],
+      "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "8.313"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0": [
+        "N/A",
+        "0.376",
+        "N/A",
+        "N/A",
+        "0.419"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "0.272"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "0.220"
+      ]
+    }
+  },
+  "multicorner_after": {
+    "slacks": [
+      1.688,
+      0.0,
+      6.599,
+      0.198,
+      0.22
+    ],
+    "tns": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "clocks": {
+      "EMIF_REF_CLOCK": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "2.220"
+      ],
+      "adv7513_config": [
+        "18.048",
+        "0.023",
+        "18.230",
+        "0.205",
+        "50018.492"
+      ],
+      "altera_reserved_tck": [
+        "12.809",
+        "0.094",
+        "60.879",
+        "0.203",
+        "28.581"
+      ],
+      "fes_video_inst|video_clock|iopll_0_n_cnt_clk": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "49.563"
+      ],
+      "fes_video_inst|video_clock|iopll_0_outclk0": [
+        "3.401",
+        "0.017",
+        "12.037",
+        "0.333",
+        "5.860"
+      ],
+      "fes_video_inst|video_clock|iopll_0_refclk": [
+        "16.484",
+        "0.108",
+        "16.747",
+        "0.832",
+        "9.591"
+      ],
+      "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "8.583"
+      ],
+      "pll_inst|iopll_0_outclk0": [
+        "1.688",
+        "0.000",
+        "6.599",
+        "0.198",
+        "4.402"
+      ],
+      "pll_inst|iopll_0_refclk": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "9.231"
+      ],
+      "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "8.313"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "4.905"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0": [
+        "N/A",
+        "0.376",
+        "N/A",
+        "N/A",
+        "0.419"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "0.272"
+      ],
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0": [
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A",
+        "0.220"
+      ]
+    }
+  },
+  "clock_inventory_unchanged": true,
+  "reset_chains_before": {
+    "pll_inst|iopll_0_outclk0": {
+      "count": 5,
+      "registers": [
+        "fes_top_reset_inst|sync_regs[0]",
+        "soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1",
+        "soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1"
+      ],
+      "sources": "pll_inst|iopll_0|tennm_ph2_iopll~pll_ctrl_reg   auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg   fes_top_reset_inst|sync_regs[1]   soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n   soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n"
+    },
+    "fes_video_inst|video_clock|iopll_0_outclk0": {
+      "count": 2,
+      "registers": [
+        "fes_video_inst|pixel_reset|sync_regs[0]",
+        "soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_reset_release[0]"
+      ],
+      "sources": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~pll_ctrl_reg   auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg   soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out"
+    }
+  },
+  "reset_chains_after": {
+    "pll_inst|iopll_0_outclk0": {
+      "count": 4,
+      "registers": [
+        "fes_top_reset_inst|sync_regs[0]",
+        "soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1",
+        "soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1"
+      ],
+      "sources": "pll_inst|iopll_0|tennm_ph2_iopll~pll_ctrl_reg   auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg   fes_top_reset_inst|sync_regs[1]   soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n   soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n"
+    },
+    "fes_video_inst|video_clock|iopll_0_outclk0": {
+      "count": 2,
+      "registers": [
+        "fes_video_inst|pixel_reset|sync_regs[0]",
+        "soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_reset_release[0]"
+      ],
+      "sources": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~pll_ctrl_reg   auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg   soc_inst|rst_controller|r_sync_rst   soc_inst|rst_controller|r_early_rst~_Duplicate_2"
+    }
+  },
+  "remaining_signoff_failures": [
+    {
+      "rule": "TMC-20012 - Missing Output Delay Constraint",
+      "severity": "High",
+      "violations": 30,
+      "waived": "0"
+    },
+    {
+      "rule": "TMC-20011 - Missing Input Delay Constraint",
+      "severity": "High",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+      "severity": "Medium",
+      "violations": 2,
+      "waived": "0"
+    },
+    {
+      "rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+      "severity": "Low",
+      "violations": 1,
+      "waived": "0"
+    }
+  ],
+  "unconstrained": {
+    "Illegal Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Clocks": [
+      0,
+      0
+    ],
+    "Unconstrained Input Ports": [
+      2,
+      2
+    ],
+    "Paths from Unconstrained Input Ports (Pairs-Only)": [
+      9,
+      9
+    ],
+    "Unconstrained Output Ports": [
+      30,
+      30
+    ],
+    "Paths to Unconstrained Output Ports (Pairs-Only)": [
+      2473,
+      2473
+    ]
+  },
+  "timing_signoff": false,
+  "hardware_actions": false,
+  "core_load_acceptance": false,
+  "native_chain_for_new_package_built": false,
+  "Quartus_elapsed": 551.1374680310255,
+  "phase_limit_seconds": 120,
+  "worker_count": 8,
+  "artifacts": {
+    "out/nano-reset-domains-20261107/sealed-project/board/hps/project/output_files/golden_top.sta.rpt": "7a859dbb104a47119f0f533f99f0f47fdcf9bb88ba77e504a0fb4c8d0d16664f",
+    "out/nano-reset-domains-20261107/sealed-project/board/hps/build.json": "7c54cee01a3883420e4a55cff654d618f7b64ee40addda4b14c76c57b5a624ff",
+    "out/nano-reset-domains-20261107/sealed-project/board/hps/seal-result.json": "9b2a938de084e01910bf21979c4d5766c9e2260a6e2e31c836ddb86c683ede00",
+    "out/nano-reset-domains-20261107/sealed-project/board/hps/build-inputs.json": "183d4ed0a1e69c524f56575172eb3b371c9ce0c34211f22a960ba19ef3321db0",
+    "out/nano-reset-domains-20261107/sealed-project/board/hps/inputs.json": "756cdaae888586627a8fd364f33830d761c4528645dbf607a4534b3df6a141a5",
+    "out/nano-reset-domains-20261107/sealed-project/board/hps/generation.json": "4c19a208fa90698a3c2bd41c2b0eb5facff5ddee44de61db1647651eaf68881c",
+    "out/nano-reset-domains-20261107/sealed-project/board/hps/packages/2b1b597f585bad63b43956b72113af9311c8be535581d101714686d65f2f49a2.fcore": "a6464941b79329ebe76a516aac0bbab96133f53e074b1cb55754c5e11e14b9d6"
+  },
+  "software_aggregate_green": true,
+  "focused_DE25_tests": {
+    "total": 69,
+    "skipped": 1
+  },
+  "parent_tests": {
+    "total": 1582,
+    "skipped": 3
+  },
+  "FPGA_tests": {
+    "total": 1587,
+    "skipped": 75
+  },
+  "exact_compiled_commit_checked": true,
+  "actual_native_package_preflight": true,
+  "actual_preflight_firmware_calls": 0,
+  "reset_model": {
+    "scenarios": 128,
+    "naive_share_failure_after_live_epoch_cycle": 77,
+    "compiled_source_binding": true,
+    "physical_metastability_proof": false
+  },
+  "HDMI_diagnostics": {
+    "status": "diagnostic-timing-failures-not-qualified",
+    "compiled_source": "dce9831fd6b190a1b6e973a986ab0fa30ca09204",
+    "receiver_setup_ns": 1.8,
+    "receiver_hold_ns": 1.3,
+    "symbolic_PCB_delta_reference_ns": 0.0,
+    "board_trace_delays_and_output_load_qualified": false,
+    "sealed_SDC_changed": false,
+    "original_artifacts_unchanged": true,
+    "queries": {
+      "hdmi-window": {
+        "scope": "all launch clocks",
+        "corners": [
+          "Slow fix4 100C Model",
+          "Slow fix4 0C Model",
+          "Slow fix4a 0C Model",
+          "Fast fix4 0C Model"
+        ],
+        "pad_count": 27,
+        "rows": 108,
+        "worst": {
+          "setup": {
+            "corner": "Slow fix4a 0C Model",
+            "port": "HDMI_TX_D[20]",
+            "setup_ns": "-11.013",
+            "hold_ns": "1.586",
+            "path": {
+              "From Node": "soc_inst|rst_controller|r_sync_rst",
+              "To Node": "HDMI_TX_D[20]",
+              "Launch Clock": "pll_inst|iopll_0_outclk0",
+              "Latch Clock": "diagnostic_hdmi_pad",
+              "Slack": "-11.013 (VIOLATED)"
+            },
+            "report": "out/nano-reset-domains-20261107/hdmi-window/setup-2.rpt",
+            "report_sha256": "936ab4d5f8558ba1c80199ac2c3ed1b96c560bb7e47a67647c592c4926b2ee6e"
+          },
+          "hold": {
+            "corner": "Fast fix4 0C Model",
+            "port": "HDMI_TX_VS",
+            "setup_ns": "-6.952",
+            "hold_ns": "-1.084",
+            "path": {
+              "From Node": "soc_inst|rst_controller|r_early_rst~_DuplicateDUPLICATE",
+              "To Node": "HDMI_TX_VS",
+              "Launch Clock": "pll_inst|iopll_0_outclk0",
+              "Latch Clock": "diagnostic_hdmi_pad",
+              "Slack": "-1.084 (VIOLATED)"
+            },
+            "report": "out/nano-reset-domains-20261107/hdmi-window/hold-3.rpt",
+            "report_sha256": "d0ad5bb4df81cf28c8c076345b0522dfaffe3183a5ff821152ae340402c8b695"
+          }
+        },
+        "source_sha256": {
+          "hdmi-window.tcl": "7cdf85eddb6bd2b73248efe905d6a644df18a2b1c75c985a227e55e8776b3fe1",
+          "setup-2.rpt": "936ab4d5f8558ba1c80199ac2c3ed1b96c560bb7e47a67647c592c4926b2ee6e",
+          "hdmi_query.py": "c56127465f2710a849e1c484f8a929dfb8dce8401ac6e5625230140c4b9e46fe",
+          "hold-1.rpt": "ad1ceb080ee5961ea37b09e36962008d5d6cf337586ff13ad5c0895dfec80826",
+          "diagnostic-clocks.rpt": "5080586d0cc888d1b2aab3c8a0b3ad4687a4288b9bda6b55b5fdaff119c558b0",
+          "hold-3.rpt": "d0ad5bb4df81cf28c8c076345b0522dfaffe3183a5ff821152ae340402c8b695",
+          "setup-1.rpt": "5a0277a17642cf84902ca4faf0021960eafd0ada88d1c2af118c1120e5b2faef",
+          "pad-window.tsv": "6f197f983067d76d6fd2099398191c40bfc6119736d3c19ebd1ebf0dad23a976",
+          "hold-0.rpt": "8cf7cd28072999f0c5f4cc0c2e7af51e2b75ff53a9dd96527425d47c774abbdb",
+          "query.log": "5b40c8927c0f809f966cd9f9c97b478c6a07d72a60f201609452a8d12ffafc6c",
+          "setup-0.rpt": "cedd0effc79cbecbd00cb64e29a4848501821544535408945af521d4efe9f8a6",
+          "hold-2.rpt": "39783cf9a22328a2fb0a795405f3cd0cde6cc67b6a6d4becf7d106e16831e9bc",
+          "input-identity.json": "d738aabe6ef868bd92bbd6086b1685626b90a8e10946a7c1332f7eb9443bec34",
+          "result.json": "d3480ca149570e1191d9639286f64c1ac919866f96e5f1721ea8a2f222b87512",
+          "setup-3.rpt": "36520fb29d5c746a9cbe7500fbf73bab7f55076c49bd9179462bcad3d78f711c"
+        }
+      },
+      "hdmi-pixel-window": {
+        "scope": "pixel-clock launch paths only; reset paths excluded by query selection, not a signoff exception",
+        "corners": [
+          "Slow fix4 100C Model",
+          "Slow fix4 0C Model",
+          "Slow fix4a 0C Model",
+          "Fast fix4 0C Model"
+        ],
+        "pad_count": 27,
+        "rows": 108,
+        "worst": {
+          "setup": {
+            "corner": "Slow fix4a 0C Model",
+            "port": "HDMI_TX_D[20]",
+            "setup_ns": "2.454",
+            "hold_ns": "1.634",
+            "path": {
+              "From Node": "soc_inst|subsys_periph|fes_computer|fes_computer|video|fb_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a17~reg1",
+              "To Node": "HDMI_TX_D[20]",
+              "Launch Clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+              "Latch Clock": "diagnostic_hdmi_pad",
+              "Slack": "2.454"
+            },
+            "report": "out/nano-reset-domains-20261107/hdmi-pixel-window/setup-2.rpt",
+            "report_sha256": "f7716961dbb6c2b2f242a5e76b87e4c1b3ccbe632e69005812ab6463dd8a084b"
+          },
+          "hold": {
+            "corner": "Fast fix4 0C Model",
+            "port": "HDMI_TX_D[9]",
+            "setup_ns": "6.266",
+            "hold_ns": "0.065",
+            "path": {
+              "From Node": "soc_inst|subsys_periph|fes_computer|fes_computer|video|valid_q",
+              "To Node": "HDMI_TX_D[9]",
+              "Launch Clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+              "Latch Clock": "diagnostic_hdmi_pad",
+              "Slack": "0.065"
+            },
+            "report": "out/nano-reset-domains-20261107/hdmi-pixel-window/hold-3.rpt",
+            "report_sha256": "0c94d97d9ea8fdd74aab5835b68ff7f43ae0c571ebae56416f99078967880d68"
+          }
+        },
+        "source_sha256": {
+          "hdmi-window.tcl": "89fa64a763e639320dbc407475fbcd11c42f17253c8dcff1a5ec76089d4e700f",
+          "setup-2.rpt": "f7716961dbb6c2b2f242a5e76b87e4c1b3ccbe632e69005812ab6463dd8a084b",
+          "hdmi_query.py": "c56127465f2710a849e1c484f8a929dfb8dce8401ac6e5625230140c4b9e46fe",
+          "hold-1.rpt": "cb0e906621343b3eadc34dd6a980f487b5ba952624daa5f4349f1c4832dcf4b1",
+          "diagnostic-clocks.rpt": "5080586d0cc888d1b2aab3c8a0b3ad4687a4288b9bda6b55b5fdaff119c558b0",
+          "hold-3.rpt": "0c94d97d9ea8fdd74aab5835b68ff7f43ae0c571ebae56416f99078967880d68",
+          "setup-1.rpt": "bdca0247557a8875bf85861ca9ab7374d92e615477ffd9c4dd3d4b7fcbf15536",
+          "pad-window.tsv": "356bb952d3c8de3d9e2a9adf0704405081712e9b2f3ee56feb898ff3bcdd1aab",
+          "hold-0.rpt": "056711922413cb4c25123c1c900c68870a0979ce9db500605df7b6663b7018c5",
+          "query.log": "2139dd00001fc57411d8ea4bd0eb575de708d15695db67ef9b9be782be45ab55",
+          "setup-0.rpt": "089dcd9711f57a44d164c4041dfb780f036e88bde0495eb3df7f427a921e35ee",
+          "hold-2.rpt": "165458c98671fc2f5b29f77dff63a0bcd93f7162fd26417ac4aed0ad6432d24d",
+          "input-identity.json": "ebda5d03fde037ecb764390440b2cc66f7d021ce514b920c386e96104906e0b9",
+          "result.json": "c14089c6403e49cf5dd96b270ae1587cfb048c6568bf2423c895da4503bc1952",
+          "setup-3.rpt": "f2cf74f8061a7cde3994b965b066b94ee49611ff0935f7f48f05963d4b57d415"
+        }
+      }
+    },
+    "hardware_actions": false,
+    "HDMI_timing_signoff": false,
+    "finding": "system-clock reset gate reaches HDMI data/control pads directly; pixel-only reference has a 0.065 ns rounded hold minimum",
+    "next_work": "qualify output masking in the pixel domain, recheck all launch clocks, then establish board skew/load and complete pad timing",
+    "sources": [
+      "https://www.analog.com/media/en/technical-documentation/data-sheets/ADV7513.pdf",
+      "https://www.analog.com/media/en/technical-documentation/user-guides/adv7513_programming_guide.pdf"
+    ]
+  },
+  "board_state": "no board action; CPU/FPGA state still requires requalification after user power interruption",
+  "evidence_sha256": {
+    "out/nano-reset-domains-20261107/candidate-analysis.json": "4b17f2e3889de505629d4b3708c71fd81e5b7d65077db9b9d311d66dea03611b",
+    "out/nano-reset-domains-20261107/compiled-model-binding.json": "486f4ca6d1c258e1def947ceca759d116e1c27c5089feaf7e0b0a4b200bf8bc2",
+    "out/nano-reset-domains-20261107/recovery-pin-check.json": "a55e5aaa2e716759748ca026e6613a3be888fec1e508fd6abe4fee594596af25",
+    "out/nano-reset-domains-20261107/hdmi-analysis.json": "cd71c14f8b3dd684dd66ed985cbf26455b136ed498c409538a29c0ce6accb69f",
+    "out/nano-reset-domains-20261107/ownership-model-qualified/result.json": "b434f76e7d100dfaf3593661332eaa1f46b8e224adf8def68c0086b3f3eebb89",
+    "out/nano-reset-domains-20261107/generated-reset-contract-v4.json": "d528c4f317c9fd5aa557495fc8b7e11b47df9849cebae04940ce650bfb3a93ad",
+    "out/nano-reset-domains-20261107/transfer-v4-result.json": "9f5c69ef56eea3bb63837fbede57761378a5231aac0b529d62df175a94712ed3",
+    "out/nano-reset-domains-20261107/transfer-result.json": "9db834a5d03ce6375eeb493f793801019ea2ea5dc755537e39cc0b414d1f4f38",
+    "out/nano-reset-domains-20261107/de25-tests-result.json": "73180bc211e46a0baadc15486886a92ea1e929d2e91df5ffd8dc1301a7657751",
+    "out/nano-reset-domains-20261107/native-source-closure-tests-result.json": "8f1e341e93983d8b48864384412ba47cf7d8e6202742b777e9fd9034239c75fa",
+    "out/nano-reset-domains-20261107/affected-result.json": "a717138039a10d87d604473d096bb644f9ae0b4931a9dc8a2ee63fbae741dfb2",
+    "out/nano-reset-domains-20261107/candidate-analysis-result.json": "5420773b7530181cc5ee0831fc7a8464842559660dc6df582ddaca6bf06876ba",
+    "out/nano-reset-domains-20261107/export-actual-fixture-result.json": "1cc8acfdaefd562e6b8a2d8efcbe88ca132d134021a0f804b400f8fc7bfee6cc",
+    "out/nano-reset-domains-20261107/actual-native-preflight-result.json": "7e55ed83a24b8875f3ffa8ebb154c9b37531d8e8a775680dda42117c7ad847a3",
+    "out/nano-reset-domains-20261107/hdmi-analysis-checked-result.json": "0062edbbe022eece5ad23c5993ea66c4396ce053bf5c0c4c4132af647194e26f",
+    "out/nano-reset-domains-20261107/de25-tests.log": "20e3f46a7e63397369197669a741111227fb53ba1ff9f83429e2e8491cc44689",
+    "out/nano-reset-domains-20261107/native-source-closure-tests.log": "c315f60b525c52291b4e10684853ff145283faf8db42b940a358efa67c91aefa",
+    "out/nano-reset-domains-20261107/affected.log": "0f3899670fe60ea2d9c7fd9250a8fd527bdb33ff1cad015ab61f261f43df660b",
+    "out/nano-reset-domains-20261107/candidate-analysis.log": "b7fcc04b36b92bd664bcd718770c3d5ba6d3aa6a5e349c906c2f860a0661275b",
+    "out/nano-reset-domains-20261107/export-actual-fixture.log": "6f67cd452f89e1620843afdf5830dc563d6a198a442aa894db6c6fe92e9f9692",
+    "out/nano-reset-domains-20261107/actual-native-preflight.log": "40e2ed019a33a18e5df8dc6ec65ec8431212ba30e3891e2440a8308267760458",
+    "out/nano-reset-domains-20261107/hdmi-analysis-checked.log": "14a0c291563905e1329bc493d23c0005f40524596a8c7fc99b94e5c4ec04b141"
+  },
+  "integration_evidence_directories": [
+    "out/de25-board-control-check-a58878d62e3449a9b2812cfc9246a243",
+    "out/de25-video-equivalence-8b7f960100894fbdb300a640ff46d796",
+    "out/nano-fabric-stop-a37fb59d4c2b46e190240aab09d7a261"
+  ],
+  "outstanding": [
+    "Remove direct system-clock reset gating of HDMI pads through a pixel-qualified mask and prove it",
+    "Complete board skew/load and HDMI/I2C/LED pin timing contract; no diagnostic query waiver",
+    "Resolve remaining vendor/outer HDMI reset ownership and reconvergence",
+    "Rebuild a matched native boot chain, requalify TRWU8CBL, then bounded ordinary core/ROM/input/return acceptance",
+    "Physical menu/core display, media and native networking toward full DE10-style behavior"
+  ]
+}

@@ -5,6 +5,7 @@ they provide no compiler, timing, package or hardware acceptance.
 """
 from pathlib import Path
 import importlib.util
+import json
 import subprocess
 import tempfile
 import unittest
@@ -107,7 +108,7 @@ class ProductionIdentityTests(unittest.TestCase):
                 self.assertNotEqual(build_identity(original), build_identity(changed))
                 verify_record_source_at_revision(root, changed)
 
-    def test_transitive_imported_producer_helper_changes_identity(self):
+    def test_provenance_helper_changes_record_without_moving_design(self):
         for producer in (menu, zx81):
             with self.subTest(recipe=producer.RECIPE), tempfile.TemporaryDirectory() as temp:
                 directory = Path(temp)
@@ -117,7 +118,8 @@ class ProductionIdentityTests(unittest.TestCase):
                 path.write_bytes(path.read_bytes() + b'\n# Changed transitive producer helper.\n')
                 self.commit(directory)
                 changed = self.record(producer, root, captured)
-                self.assertNotEqual(build_identity(original), build_identity(changed))
+                self.assertEqual(build_identity(original), build_identity(changed))
+                self.assertNotEqual(json.loads(original)['identities']['record'], json.loads(changed)['identities']['record'])
                 verify_record_source_at_revision(root, changed)
 
     def test_relocated_common_helper_changes_zx81_identity(self):

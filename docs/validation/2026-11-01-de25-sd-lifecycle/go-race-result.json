@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "go",
+    "-C",
+    "platform/embedded/tamago",
+    "test",
+    "-race",
+    "-timeout",
+    "90s",
+    "./sdhci",
+    "./fat"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 1.6015261089196429,
+  "log_sha256": "a9e5b65d50aabe014098c78558e060510e86963b93f624eba39ffd83e56d1de8"
+}

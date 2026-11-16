@@ -1,0 +1,425 @@
+
+U-Boot SPL 2025.01-fes-nano-0f121dd65e2abc81 (Jun 27 2025 - 01:40:35 +0000)
+FES_NANO_SPL BEGIN cause=00000004 per0=ff7fbfff bridge=0000004f cpus=0000000f release=00000000 kind=4 valid=1
+FES_NANO_SPL SCOPE mpidr=81000000 core=0 cause_now=00000004 cpus_now=0000000f release_now=00000000 reset_timeouts=00000000
+Reset state: Cold
+MPU           800000 kHz
+L4 Main	      400000 kHz
+L4 sys free   100000 kHz
+L4 MP         200000 kHz
+L4 SP         100000 kHz
+SDMMC         200000 kHz
+is_ddr_csr_clkgen_locked: ddr csr io96b_0 clkgenA is successfully locked
+io96b_cal_status: Calibration for IO96B instance 0x18400400 done at 0 msec!
+init_mem_cal: Initial DDR calibration IO96B_0 succeed
+DDR: Calibration success
+io96b_mb_init: num_instance 1
+io96b_mb_init: get memory interface IO96B 0
+io96b_mb_init: IO96B 0 mem_interface 0: ip_type_ret: 0x1
+io96b_mb_init: IO96B 0 mem_interface 0: instance_id_ret: 0x0
+io96b_mb_init: IO96B 0: num_mem_interface: 0x1
+LPDDR4: 1024 MiB
+ecc_enable_status: ECC enable status: 0
+DDR: size check success
+DDR: firewall init success
+DDR: init success
+Bloblist at 72000 not found (err=-2)
+WDT:   Not starting watchdog@10d00200
+Trying to boot from MMC1
+FES_NANO_SPL FIT verified before parsing
+## Checking hash(es) for config board-0 ... OK
+## Checking hash(es) for Image atf ... crc32+ OK
+## Checking hash(es) for Image uboot ... crc32+ OK
+## Checking hash(es) for Image fdt-0 ... crc32+ OK
+## Checking hash(es) for Image fes-entry ... crc32+ OK
+FES_NANO_SPL HANDOFF owner=48c48d7f293eea9d epoch=10ef6c4e1 per0=ff7fbfbf bridge=0000000f sd=01f700f0
+FES_NANO_SPL BARRIER phase=before
+FES_NANO_SPL BARRIER phase=after
+FES_NANO_SPL ATF_STEP phase=entry
+FES_NANO_SPL ATF_STEP phase=hash-before
+FES_NANO_SPL ATF_STEP phase=hash-after
+FES_NANO_SPL ATF target=80000000 bl32=0 bl33=80200000 fdt=0 params=bff00008 cold=21e90 cookie=464e433200000002 el=3 mpidr=81000000 sctlr=c50838 scr=f daif=3c0 bytes=53309 sha256=712f1c19f93e794e23093ca31e72d13fa0ffe2e76cc576fde1f48e1fc2b4d803
+NOTICE:  FES_NANO_EL3_CAPTURE phase=before pointer=21e90 cookie=464e433200000002
+NOTICE:  FES_NANO_EL3_CAPTURE phase=after pointer=21e90 cookie=464e433200000002
+NOTICE:  SOCFPGA: Boot Core = 0
+NOTICE:  SOCFPGA: CPU ID = 0
+NOTICE:  SOCFPGA: Setting CLUSTERECTRL_EL1
+NOTICE:  BL31: v2.12.0(release):fes-nano-owned-unready-580dcb5c4e10
+NOTICE:  BL31: Built : 08:42:23, Jun 11 2025
+NOTICE:  FES_NANO_OWNED_BOOT provider=1 result=0 reset=0000000f
+NOTICE:  FES_NANO_SD_PLATFORM setup=0 ready=0
+
+
+U-Boot 2025.01-fes-nano-0f121dd65e2abc81 (Jun 27 2025 - 01:40:35 +0000)socfpga_agilex5
+
+CPU:   Intel FPGA SoCFPGA Platform (ARMv8 64bit Cortex-A55/A76)
+Model: SoCFPGA Agilex5 Terasic DE25-Nano
+DRAM:  1 GiB
+Core:  30 devices, 17 uclasses, devicetree: separate
+WDT:   Not starting watchdog@10d00200
+WDT:   Not starting watchdog@10d00300
+WDT:   Not starting watchdog@10d00400
+WDT:   Not starting watchdog@10d00500
+WDT:   Not starting watchdog@10d00600
+Loading Environment from <NULL>... OK
+In:    serial1@10c02100
+Out:   serial1@10c02100
+Err:   serial1@10c02100
+Fail to read JTAG Usercode. Default Board ID to 0
+SOCFPGA_AGILEX5 # fesboot
+FES_NANO_BOOT id=0f121dd65e2abc81
+FES_NANO_MEMORY ram_top=c0000000 sp=bfb5f880 malloc=bfb68000..bff6a000 reloc=bff6a000 fdt=bfb61dc0
+lmb_dump_all:
+ memory.count = 0x1
+ memory[0]	[0x80000000-0xbfffffff], 0x40000000 bytes, flags: none
+ reserved.count = 0x2
+ reserved[0]	[0x0-0xffffff], 0x1000000 bytes, flags: no-map
+ reserved[1]	[0xbeb5fff0-0xbfffffff], 0x14a0010 bytes, flags: no-overwrite
+FES_NANO_OWNED phase=before-entry status=0 flags=46424f31000000df owner=48c48d7f293eea9d generation=1
+## Flattened Device Tree blob at bfb61dc0
+   Booting using the fdt blob at 0xbfb61dc0
+Working FDT set to bfb61dc0
+   Loading Device Tree to 00000000beb56000, end 00000000beb5f01f ... OK
+Working FDT set to beb56000
+
+Starting kernel ...
+
+FES_NANO_OWNED phase=after-remove status=0 flags=46424f31000000df owner=48c48d7f293eea9d generation=1
+FES_NANO_HANDOFF affinity=0 counter=400000000 cpus=0,1,1,1 per0=ff7fbfbf bridges=0000000f
+FES_NANO_HANDOFF PASS serial-only
+FES_ENTRY EL2 CLEAN
+FES_ENTRY EL1 HANDOFF
+FES_NATIVE_HPS_CONTEXT PASS sha256=e9fa95a8d645d900f4cb5b60d9aeaeae5da1c76145800cce9370004db3224def package_id=b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37 build_id=dda236646bb868e63c72bd0e777f3dd6 owner=48c48d7f293eea9d generation=1 programming=unavailable
+NOTICE:  FES_NANO_HPS_IO_BEGIN part=0 owner=48c48d7f293eea9d generation=1 count=164 busy=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=0 offset=1000 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=1 offset=1004 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=2 offset=1008 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=3 offset=100c expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=4 offset=1010 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=5 offset=1014 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=6 offset=1018 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=7 offset=101c expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=8 offset=1020 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=9 offset=1024 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=10 offset=1028 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=11 offset=102c expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=12 offset=1030 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=13 offset=1034 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=14 offset=1038 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=15 offset=103c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=16 offset=1040 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=17 offset=1044 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=18 offset=1048 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=19 offset=104c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=20 offset=1050 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=21 offset=1054 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=22 offset=1058 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=23 offset=105c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=24 offset=1060 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=25 offset=1064 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=26 offset=1068 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=27 offset=106c expected=9 observed=9
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=28 offset=1070 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=29 offset=1074 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=30 offset=1078 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=31 offset=107c expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=32 offset=1080 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=33 offset=1084 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=34 offset=1088 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=35 offset=108c expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=36 offset=1090 expected=4 observed=4
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=37 offset=1094 expected=4 observed=4
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=38 offset=1098 expected=5 observed=5
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=39 offset=109c expected=5 observed=5
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=40 offset=1100 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=41 offset=1104 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=42 offset=1108 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=43 offset=110c expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=44 offset=1110 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=45 offset=1114 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=46 offset=1118 expected=5 observed=5
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=47 offset=111c expected=5 observed=5
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=48 offset=1130 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=49 offset=1134 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=50 offset=1138 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=51 offset=113c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=52 offset=1140 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=53 offset=1144 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=54 offset=1148 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=55 offset=114c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=56 offset=1150 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=57 offset=1154 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=58 offset=1158 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=59 offset=115c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=60 offset=1160 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=61 offset=1164 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=62 offset=1168 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=63 offset=116c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=64 offset=1170 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=65 offset=1174 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=66 offset=1178 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=67 offset=117c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=68 offset=1180 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=69 offset=1184 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=70 offset=1188 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=71 offset=118c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=72 offset=1190 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=73 offset=1194 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=74 offset=1198 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=75 offset=119c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=76 offset=1200 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=77 offset=1204 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=78 offset=1208 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=79 offset=120c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=80 offset=1210 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=81 offset=1214 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=82 offset=1218 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=83 offset=121c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=84 offset=1220 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=85 offset=1224 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=86 offset=1228 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=87 offset=122c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=88 offset=1230 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=89 offset=1234 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=90 offset=1238 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=91 offset=123c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=92 offset=1240 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=93 offset=1244 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=94 offset=1248 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=95 offset=124c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=96 offset=1300 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=97 offset=1304 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=98 offset=1308 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=99 offset=130c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=100 offset=1310 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=101 offset=1314 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=102 offset=1318 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=103 offset=131c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=104 offset=1320 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=105 offset=1328 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=106 offset=132c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=107 offset=1330 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=108 offset=1334 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=109 offset=1338 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=110 offset=133c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=111 offset=1340 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=112 offset=1344 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=113 offset=1348 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=114 offset=1350 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=115 offset=1354 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=116 offset=1400 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=117 offset=1404 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=118 offset=1408 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=119 offset=140c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=120 offset=1410 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=121 offset=1414 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=122 offset=1418 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=123 offset=141c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=124 offset=1420 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=125 offset=1424 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=126 offset=1428 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=127 offset=142c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=128 offset=1430 expected=7500 observed=7500
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=129 offset=1434 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=130 offset=1438 expected=75 observed=75
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=131 offset=143c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=132 offset=1440 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=133 offset=1444 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=134 offset=1448 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=135 offset=144c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=136 offset=1450 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=137 offset=1454 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=138 offset=1458 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=139 offset=145c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=140 offset=1460 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=141 offset=1464 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=142 offset=1468 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=143 offset=146c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=144 offset=1470 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=145 offset=1474 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=146 offset=1478 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=147 offset=147c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=148 offset=1480 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=149 offset=1484 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=150 offset=1488 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=151 offset=148c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=152 offset=1490 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=153 offset=1494 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=154 offset=1498 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=155 offset=149c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=156 offset=14a0 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=157 offset=14a4 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=158 offset=14a8 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=159 offset=14ac expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=160 offset=14b0 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=161 offset=14b4 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=162 offset=14b8 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=0 index=163 offset=14bc expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=0 offset=1000 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=1 offset=1004 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=2 offset=1008 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=3 offset=100c expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=4 offset=1010 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=5 offset=1014 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=6 offset=1018 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=7 offset=101c expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=8 offset=1020 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=9 offset=1024 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=10 offset=1028 expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=11 offset=102c expected=1 observed=1
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=12 offset=1030 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=13 offset=1034 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=14 offset=1038 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=15 offset=103c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=16 offset=1040 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=17 offset=1044 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=18 offset=1048 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=19 offset=104c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=20 offset=1050 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=21 offset=1054 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=22 offset=1058 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=23 offset=105c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=24 offset=1060 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=25 offset=1064 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=26 offset=1068 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=27 offset=106c expected=9 observed=9
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=28 offset=1070 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=29 offset=1074 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=30 offset=1078 expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=31 offset=107c expected=3 observed=3
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=32 offset=1080 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=33 offset=1084 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=34 offset=1088 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=35 offset=108c expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=36 offset=1090 expected=4 observed=4
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=37 offset=1094 expected=4 observed=4
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=38 offset=1098 expected=5 observed=5
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=39 offset=109c expected=5 observed=5
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=40 offset=1100 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=41 offset=1104 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=42 offset=1108 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=43 offset=110c expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=44 offset=1110 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=45 offset=1114 expected=8 observed=8
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=46 offset=1118 expected=5 observed=5
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=47 offset=111c expected=5 observed=5
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=48 offset=1130 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=49 offset=1134 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=50 offset=1138 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=51 offset=113c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=52 offset=1140 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=53 offset=1144 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=54 offset=1148 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=55 offset=114c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=56 offset=1150 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=57 offset=1154 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=58 offset=1158 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=59 offset=115c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=60 offset=1160 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=61 offset=1164 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=62 offset=1168 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=63 offset=116c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=64 offset=1170 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=65 offset=1174 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=66 offset=1178 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=67 offset=117c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=68 offset=1180 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=69 offset=1184 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=70 offset=1188 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=71 offset=118c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=72 offset=1190 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=73 offset=1194 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=74 offset=1198 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=75 offset=119c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=76 offset=1200 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=77 offset=1204 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=78 offset=1208 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=79 offset=120c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=80 offset=1210 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=81 offset=1214 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=82 offset=1218 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=83 offset=121c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=84 offset=1220 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=85 offset=1224 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=86 offset=1228 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=87 offset=122c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=88 offset=1230 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=89 offset=1234 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=90 offset=1238 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=91 offset=123c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=92 offset=1240 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=93 offset=1244 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=94 offset=1248 expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=95 offset=124c expected=34 observed=34
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=96 offset=1300 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=97 offset=1304 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=98 offset=1308 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=99 offset=130c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=100 offset=1310 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=101 offset=1314 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=102 offset=1318 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=103 offset=131c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=104 offset=1320 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=105 offset=1328 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=106 offset=132c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=107 offset=1330 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=108 offset=1334 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=109 offset=1338 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=110 offset=133c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=111 offset=1340 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=112 offset=1344 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=113 offset=1348 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=114 offset=1350 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=115 offset=1354 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=116 offset=1400 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=117 offset=1404 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=118 offset=1408 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=119 offset=140c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=120 offset=1410 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=121 offset=1414 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=122 offset=1418 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=123 offset=141c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=124 offset=1420 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=125 offset=1424 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=126 offset=1428 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=127 offset=142c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=128 offset=1430 expected=7500 observed=7500
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=129 offset=1434 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=130 offset=1438 expected=75 observed=75
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=131 offset=143c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=132 offset=1440 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=133 offset=1444 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=134 offset=1448 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=135 offset=144c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=136 offset=1450 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=137 offset=1454 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=138 offset=1458 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=139 offset=145c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=140 offset=1460 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=141 offset=1464 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=142 offset=1468 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=143 offset=146c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=144 offset=1470 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=145 offset=1474 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=146 offset=1478 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=147 offset=147c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=148 offset=1480 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=149 offset=1484 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=150 offset=1488 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=151 offset=148c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=152 offset=1490 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=153 offset=1494 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=154 offset=1498 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=155 offset=149c expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=156 offset=14a0 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=157 offset=14a4 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=158 offset=14a8 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=159 offset=14ac expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=160 offset=14b0 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=161 offset=14b4 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=162 offset=14b8 expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_ROW pass=1 index=163 offset=14bc expected=0 observed=0
+NOTICE:  FES_NANO_HPS_IO_END part=0 status=0 reads=328 error=0 owner=48c48d7f293eea9d generation=1 data=held
+NOTICE:  FES_NANO_HPS_IO_BEGIN part=1 owner=48c48d7f293eea9d generation=1 count=164 busy=0
+NOTICE:  FES_NANO_HPS_IO_END part=1 status=0 reads=328 error=0 owner=48c48d7f293eea9d generation=1 data=held
+FES_NATIVE_HPS_IO PASS map_sha256=03e83b579fc5edd07a52dd6b58ea27481c43733dcd72eb8f2b66422b454640c5 count=164 reads=328 owner=48c48d7f293eea9d generation=1 data_held=1 runtime_admission=unavailable

@@ -1,0 +1,46 @@
+{
+  "status": "passed",
+  "default_machine_code_and_relocations_unchanged": true,
+  "sctlr_write_followed_by_isb": true,
+  "runtime_boot_installed": false,
+  "hardware_actions": false,
+  "records": [
+    {
+      "label": "default-baseline",
+      "returncode": 0,
+      "source_sha256": "970127716a75a5f2a7e6dd22e5ffc2ab0518693f148f5adff00afabc50182805",
+      "object_sha256": "556bd09508e5213ab67d1716f00f022a73540c9ae7be604e398b39d06bc67262",
+      "command_sha256": "3efc9cba3b5753819abeea45488fda369200de594bf460e172d85beec6ed5e58"
+    },
+    {
+      "label": "default-current",
+      "returncode": 0,
+      "source_sha256": "eb5144e3ecb8f51fbadc66aea804a76716dbaac55d1d806903dfafbfd2fa7676",
+      "object_sha256": "a017a1367acf2e20a7f68afa2c2216811c70f7b94c706f28ab22871bc38a99c1",
+      "command_sha256": "d88cc08bb86e8a9e8ceaf663f95aa2ddcad5252c1c17649b9b45c0471b574992"
+    },
+    {
+      "label": "mmu-core",
+      "returncode": 0,
+      "source_sha256": "e3dfeb0de29701994de15289278d2231150f7097f744e64612500e94834ed394",
+      "object_sha256": "5be433279be6ffb01e5661ff7d6cd883192eebfebcea52b90c691afacbbe6a45",
+      "command_sha256": "7f022e54857a54209a07f31d95d79c3402f46f7174090d5b8eb6df756f454a15"
+    },
+    {
+      "label": "mmu-platform",
+      "returncode": 0,
+      "source_sha256": "1155372bce81409feece2000cf18df1d749deac82860cca43b43089420b59fea",
+      "object_sha256": "f38903f80258cfbec2995f6e84ec8581970fac74e567b0aad39bc011e7495995",
+      "command_sha256": "b618a119f8a00f5ee1537737f64f3b4225eadc94d0559ad93b18b2f1ce986cca"
+    },
+    {
+      "label": "mmu-cold",
+      "returncode": 0,
+      "source_sha256": "eb5144e3ecb8f51fbadc66aea804a76716dbaac55d1d806903dfafbfd2fa7676",
+      "object_sha256": "d60d85c6d378a6b6d7cb6f132685f4cc3dd6b6825c891db97121560f121b7384",
+      "command_sha256": "6b7993afd547863d494aa37e5b7036e161cb76081fd0ab01888e33fb4a625d9c"
+    }
+  ],
+  "full_command_receipt": "out/nano-mmu-runtime-20261108/cross-final/cross-proof.json",
+  "full_command_receipt_sha256": "22b64ed712814a25846e5a6519e8a6da3982558c64b2f7de7e6d49a08cff8ebd"
+}
