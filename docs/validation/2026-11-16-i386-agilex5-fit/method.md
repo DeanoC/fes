@@ -1162,3 +1162,51 @@ Two rows join the release-path table:
 The second of those tests simulates the surviving member, because a process
 that survives SIGKILL cannot be made on demand; it shows the reap does not
 return or raise while members are reported, not that the kernel behaves so.
+
+## Amendment, 2026-11-17: the kernel answers whether the group is empty
+
+From review of `9a2abbf5a`, round six on the stage process group. No figure in
+this record moves, and none of the sixteen fits depends on how a stage that
+forks while being killed is cleaned up.
+
+The `/proc` scan of the previous amendment had a race of its own: a listing is
+a snapshot, so a member forked after the listing is absent from it while its
+exited parent is read as a zombie and discounted, and the group is called
+empty with a member running. A second scan would narrow that and not close
+it. The scan existed only because `killpg(group, 0)` counts zombies, and the
+zombies existed only because nobody reaped orphaned members.
+
+So the scan is deleted and the cause removed. The runner makes itself a child
+subreaper (`PR_SET_CHILD_SUBREAPER`) before it starts a stage. Orphaned
+members then reparent to the runner, not to PID 1, and the reap collects them
+with `waitpid(-group, WNOHANG)`. With exited members reaped, `killpg(group, 0)`
+is the kernel's own atomic answer: a member forked at any moment is in the
+group and is seen. Nothing in the reap reads `/proc`, and what PID 1 does no
+longer matters.
+
+Tests for the two cases:
+
+| Case | Test |
+| --- | --- |
+| An orphan beneath an ancestor that never reaps | `test_an_orphan_beneath_a_non_reaping_ancestor_does_not_stall_the_reap` |
+| A stage that forks a replacement on SIGTERM and exits | `test_a_member_forked_during_termination_is_still_seen` |
+
+These replace `test_a_zombie_member_does_not_keep_the_group_alive` in the
+earlier table. The scan's race itself was not reproduced: it needs a fork to
+land inside one directory listing. The second test shows the property that
+makes it moot, that the replacement keeps the group alive until SIGKILL.
+
+Limits, added to those already stated:
+
+- Off Linux there is no subreaper. Orphans go to PID 1 and the group reads as
+  alive until PID 1 reaps them, which errs towards holding the lease.
+- The check is of the stage's process group. A member that moves itself to
+  another group or session is outside it, as it was in every earlier version.
+- Being a subreaper is process-wide: any orphaned descendant of the runner,
+  not only a stage's, is reparented to it and stays a zombie until the runner
+  exits.
+
+An earlier slip, corrected here: tests that shortened the reap's grace by
+assigning `REAP_GRACE_SECONDS` had no effect, because the default was bound
+when the function was defined. They passed at the full 15 seconds. The default
+is now read at call time.

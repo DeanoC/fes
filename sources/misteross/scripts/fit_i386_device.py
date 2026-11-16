@@ -514,37 +514,38 @@ REAP_GRACE_SECONDS = 15.0
 REAP_REPORT_SECONDS = 30.0
 
 
-def group_members(group: int) -> list[int] | None:
-    """The running members of a process group, or None where /proc cannot say.
+def become_subreaper() -> bool:
+    """Make this process the reaper of its orphaned descendants (Linux).
 
-    A zombie is not running: it holds no file, no licence and no core, and it
-    cannot overlap the next fit. `killpg(group, 0)` counts one as alive, and
-    under a parent that never reaps -- a container's PID 1 often does not --
-    a killed stage would then look alive for ever.
+    A stage member whose parent has died is otherwise reparented to PID 1, and
+    whether it is ever reaped then depends on what PID 1 is: a container's
+    often never reaps. An unreaped zombie still counts as a member of its
+    group, so the group could not be told empty without reading process state
+    from /proc, and any userspace scan of /proc races with a fork. As the
+    subreaper the runner reaps those members itself, after which the kernel's
+    own answer to "is the group empty" is exact and atomic.
     """
     try:
-        entries = os.listdir("/proc")
-    except OSError:
-        return None
-    members = []
-    for entry in entries:
-        if not entry.isdigit():
-            continue
-        try:
-            # The command name is in parentheses and may itself contain spaces
-            # or parentheses; the fields after the last ")" are state, ppid, pgrp.
-            fields = Path(f"/proc/{entry}/stat").read_text().rsplit(")", 1)[1].split()
-        except (OSError, IndexError):
-            continue
-        if len(fields) > 2 and fields[2] == str(group) and fields[0] not in ("Z", "X"):
-            members.append(int(entry))
-    return members
+        import ctypes
+        return ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0) == 0  # PR_SET_CHILD_SUBREAPER
+    except (OSError, AttributeError):
+        # Not Linux. Orphans go to PID 1, and the group reads as alive until
+        # PID 1 reaps them, which errs towards holding the lease.
+        return False
 
 
 def group_alive(group: int) -> bool:
-    members = group_members(group)
-    if members is not None:
-        return bool(members)
+    """Whether the process group has any member, as the kernel sees it.
+
+    Members that have exited are reaped first, so a zombie does not count; a
+    member forked at any moment is in the group and does.
+    """
+    while True:
+        try:
+            if os.waitpid(-group, os.WNOHANG)[0] == 0:
+                break
+        except ChildProcessError:
+            break
     try:
         os.killpg(group, 0)
     except ProcessLookupError:
@@ -555,7 +556,7 @@ def group_alive(group: int) -> bool:
 
 
 def reap_group(group: int, process: subprocess.Popen | None = None,
-               grace: float = REAP_GRACE_SECONDS) -> None:
+               grace: float | None = None) -> None:
     """Terminate a stage's process group and return only once it is empty.
 
     The invariant this serves is that the builder lease is never released
@@ -582,7 +583,7 @@ def reap_group(group: int, process: subprocess.Popen | None = None,
     is visible to everyone waiting on it and an overlapped fit is visible to
     nobody. Ending it is an operator's decision, made by killing this runner.
     """
-    deadline = time.monotonic() + grace
+    deadline = time.monotonic() + (REAP_GRACE_SECONDS if grace is None else grace)
     polite = False
     killed_at = None
     reported = time.monotonic()
@@ -598,7 +599,9 @@ def reap_group(group: int, process: subprocess.Popen | None = None,
                 pass
             while True:
                 if process is not None:
-                    process.poll()  # reap the leader, or its zombie keeps the group alive
+                    # Before group_alive, so Popen and not the group reap takes
+                    # the leader's exit status.
+                    process.poll()
                 if not group_alive(group):
                     break
                 if not polite:
@@ -615,9 +618,8 @@ def reap_group(group: int, process: subprocess.Popen | None = None,
                         pass
                 elif killed_at is not None and time.monotonic() - reported >= REAP_REPORT_SECONDS:
                     reported = time.monotonic()
-                    print(f"i386 fit: process group {group} survives SIGKILL "
-                          f"(members {group_members(group)}); holding the builder lease "
-                          "until it is gone", flush=True)
+                    print(f"i386 fit: process group {group} survives SIGKILL; "
+                          "holding the builder lease until it is gone", flush=True)
                 time.sleep(0.05)
             break
         except BaseException:
@@ -718,6 +720,7 @@ def run(command: list[str], project: Path, output: Path, label: str, deadline: f
         # pending -- and releasing them only once the cleanup owns the pid.
         # `deliver_blocked_signals` is therefore called INSIDE the try, and is
         # where a signal from the launch window is raised.
+        become_subreaper()
         process, deliver_blocked_signals = start_stage(
             command, cwd=project, stdout=stream, stderr=subprocess.STDOUT,
             start_new_session=True, env=dict(os.environ, **(env or {})))

@@ -777,32 +777,87 @@ import subprocess
         self.assertEqual(fit._LIVE_GROUPS, set())
         self.assertEqual(signal.pthread_sigmask(signal.SIG_BLOCK, []), before)
 
-    ZOMBIE = """
-import ctypes, signal, subprocess
-# A parent that never reaps, as a container's PID 1 often does not: this
-# process becomes the subreaper, so the stage's orphan reparents here and
-# stays a zombie once killed.
-ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0)
+    INNER = """
 fit.REAP_GRACE_SECONDS = 1.0
-started = time.monotonic()
-fit.run(["sh", "-c", "sleep 300 & exit 0"], out, out, "stage", time.monotonic() + 60)
-print("returned in %.1f" % (time.monotonic() - started), flush=True)
+fit.run(["sh", "-c", {stage!r} + " # " + sys.argv[2]], out, out, "stage",
+        time.monotonic() + 60)
 print("registered %r" % sorted(fit._LIVE_GROUPS), flush=True)
 """
+    # An ancestor that adopts orphans and never reaps them, as a container's
+    # PID 1 often does not. The runner runs beneath it.
+    OUTER = """
+import ctypes, subprocess, sys
+ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0)
+raise SystemExit(subprocess.run([sys.executable, "-u"] + sys.argv[1:], timeout=40).returncode)
+"""
 
-    def test_a_zombie_member_does_not_keep_the_group_alive(self):
-        # killpg(group, 0) counts a zombie as alive, so under a parent that
-        # never reaps a killed stage looked alive for ever and the reap never
-        # finished. A zombie runs nothing and cannot overlap the next fit.
+    def run_stage_beneath_a_non_reaping_ancestor(self, stage, tag):
         import sys
         root = str(Path(__file__).resolve().parent.parent)
         with tempfile.TemporaryDirectory() as temporary:
-            script = Path(temporary) / "zombie.py"
-            script.write_text(self.HELPER.format(root=root, body=self.ZOMBIE))
-            finished = subprocess.run([sys.executable, "-u", str(script), temporary, "unused"],
-                                      capture_output=True, text=True, timeout=45)
+            inner = Path(temporary) / "inner.py"
+            inner.write_text(self.HELPER.format(root=root, body=self.INNER.format(stage=stage)))
+            outer = Path(temporary) / "outer.py"
+            outer.write_text(self.OUTER)
+            try:
+                finished = subprocess.run(
+                    [sys.executable, "-u", str(outer), str(inner), temporary, tag],
+                    capture_output=True, text=True, timeout=60)
+                return finished, self.surviving(tag)
+            finally:
+                import signal
+                for pid in self.surviving(tag):
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except OSError:
+                        pass
+
+    def test_an_orphan_beneath_a_non_reaping_ancestor_does_not_stall_the_reap(self):
+        # The leader exits and leaves an orphan in its group. Unreaped, the
+        # killed orphan would stay a zombie member and the group would read as
+        # alive for ever. The runner adopts and reaps it, with no /proc read.
+        finished, survivors = self.run_stage_beneath_a_non_reaping_ancestor(
+            "sleep 300 & exit 0", "FESFITORPHAN")
         self.assertEqual(finished.returncode, 0, finished.stderr)
         self.assertIn("registered []", finished.stdout)
+        self.assertEqual(survivors, [])
+
+    def test_a_member_forked_during_termination_is_still_seen(self):
+        # The runtime cap expires and the reap sends SIGTERM; on receiving it
+        # the stage forks a replacement into its group and exits.
+        # The replacement never saw the SIGTERM. A scan of /proc taken before
+        # the fork would miss it and call the group empty; the kernel's answer
+        # cannot, so the reap goes on to SIGKILL and the stage does not return
+        # while the replacement runs.
+        stage = ("trap \"sh -c 'trap : TERM; while true; do sleep 0.2; done # $0' & exit 0\" TERM;"
+                 " while true; do sleep 0.2; done")
+        import sys
+        root = str(Path(__file__).resolve().parent.parent)
+        tag = "FESFITREPLACEMENT"
+        body = ("fit.REAP_GRACE_SECONDS = 1.0\n"
+                "try:\n"
+                "    fit.run(['sh', '-c', " + repr(stage) + ", sys.argv[2]], out, out, 'stage',"
+                " time.monotonic() + 3)\n"
+                "except fit.FitError as error:\n"
+                "    print('stage ended: %s' % error, flush=True)\n"
+                "print('registered %r' % sorted(fit._LIVE_GROUPS), flush=True)\n")
+        with tempfile.TemporaryDirectory() as temporary:
+            script = Path(temporary) / "replacement.py"
+            script.write_text(self.HELPER.format(root=root, body=body))
+            try:
+                finished = subprocess.run([sys.executable, "-u", str(script), temporary, tag],
+                                          capture_output=True, text=True, timeout=60)
+                survivors = self.surviving(tag)
+            finally:
+                import signal
+                for pid in self.surviving(tag):
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except OSError:
+                        pass
+        self.assertEqual(finished.returncode, 0, finished.stderr)
+        self.assertIn("registered []", finished.stdout)
+        self.assertEqual(survivors, [])
 
     def test_a_group_that_survives_sigkill_holds_the_reap_and_says_so(self):
         # The policy for a member nothing can end: stay, holding the lease,
@@ -810,10 +865,10 @@ print("registered %r" % sorted(fit._LIVE_GROUPS), flush=True)
         # let the next fit start over a live compile.
         import contextlib
         import io
-        answers = iter([[4242]] * 40)
-        original = (fit.group_members, fit.REAP_REPORT_SECONDS, os.killpg)
+        answers = iter([True] * 40)
+        original = (fit.group_alive, fit.REAP_REPORT_SECONDS, os.killpg)
         sent = []
-        fit.group_members = lambda group: next(answers, [])
+        fit.group_alive = lambda group: next(answers, False)
         fit.REAP_REPORT_SECONDS = 0.2
         os.killpg = lambda group, number: sent.append(number)
         try:
@@ -821,7 +876,7 @@ print("registered %r" % sorted(fit._LIVE_GROUPS), flush=True)
             with contextlib.redirect_stdout(printed):
                 fit.reap_group(999999, grace=0.1)
         finally:
-            fit.group_members, fit.REAP_REPORT_SECONDS, os.killpg = original
+            fit.group_alive, fit.REAP_REPORT_SECONDS, os.killpg = original
         import signal
         self.assertEqual(sent, [signal.SIGTERM, signal.SIGKILL])
         self.assertIn("survives SIGKILL", printed.getvalue())
