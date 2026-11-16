@@ -130,9 +130,9 @@ the image digest checked against the serial-bound recovery record. Never select
 a device node by enumeration; positively identify J8G's SD device before an
 SD reflash. After image recovery, restore or activate the named baseline bundle
 as image compatibility requires, boot and identify J8G, and rerun
-`scripts/de25_restore.py` before FREE. Reimage/reflash is allowed for this
-disposable J8G dev kit. This does not authorize touching TRWU8CBL or its
-ttyUSB0/ttyUSB1 ports.
+`scripts/de25_restore.py` before FREE. Reimage/reflash is a destructive kit
+action and needs Deano's explicit OK first (see `AGENTS.md`), even though J8G
+is a disposable dev kit. Never touch TRWU8CBL or its ttyUSB0/ttyUSB1 ports.
 
 ## Add the second DE25 board later
 
