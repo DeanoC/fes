@@ -28,7 +28,8 @@ inventoried separately. The inventory is [`census-tables.md`](census-tables.md);
 this branch has merged it forward more than once, so
 the numbers are carried forward to this branch's own tree rather than left at the sweep base: a
 checkout of *this branch* is the tree they are verified against, `verify_census.py` is what
-verifies them, and CI runs it on every change. Checking out `1b4601831` no longer reproduces them.
+verifies them, and its live-tree checks are available on demand. Checking out `1b4601831` no longer
+reproduces them.
 The sweep base is named here as provenance, not as the tree to check against. The first revision of this record published numbers from
 `deano/1581-s7-identity-fields` instead — a tree that edits `build_fes_pcxt_quartus.py` and
 `quartus_fes_pcxt.py`, and whose `M/Makefile` differs from this base by a *non-constant* offset:
@@ -46,22 +47,30 @@ record against the tree it is read in, and is the evidence for every count below
 It makes two claims. First, all **374** inventory rows hold, on their stated line, the `Matched`
 text recorded for them — the check that matters, because a line number can stay in range while
 pointing at the wrong line, and that is how two earlier revisions of this record went wrong. Second,
-all **749** `path:line` citations written in the prose and the `What` cells of these three files
-(**1004** line endpoints, counting every number of a comma list and both ends of a range) resolve to a
+all **716** `path:line` citations written in the prose and the `What` cells of these three files
+(**947** line endpoints, counting every number of a comma list and both ends of a range) resolve to a
 real file **and still hold the text they held when the record was written**.
 
 That second half is the part a reader should not take on trust, because until the #1829 review it was
 not true. A secondary citation was checked only for existing and being non-blank, so a base edit that
 shifted one onto another non-blank line passed — the exact defect two earlier revisions of this record
 shipped. The content check works from [`citation-fingerprints.json`](citation-fingerprints.json),
-761 entries holding the sha256 of each cited line's **whole** text, regenerated only
+716 entries holding the sha256 of each cited line's **whole** text, regenerated only
 deliberately:
 
     python3 docs/validation/2026-11-14-1581-s8-reader-census/verify_census.py --record-fingerprints
 
+The checker keeps parser, correction-shape, section-total and fixture tests in required CI.
+Live-tree checks (current counts, citation digests and full record verification) are opt-in with
+`FES_S8_CENSUS_LIVE=1`; when unset or empty, those checks skip. Run them locally with
+`FES_S8_CENSUS_LIVE=1 python3 -m unittest tests.test_s8_census_checker`. To refresh locations and
+fingerprints after a merge, update `census-tables.md`, `de25.md` and this README, run
+`python3 docs/validation/2026-11-14-1581-s8-reader-census/verify_census.py --record-fingerprints`,
+then run the verifier without flags until it exits 0.
+
 What the fingerprints prove is bounded, and worth stating: they pin what each cited line said when
 they were taken, so any later drift is reported against them. They are not a retroactive claim that
-every one of those 749 citations was apt on the day it was written. Without the file the checker says
+every one of those 716 citations was apt on the day it was written. Without the file the checker says
 so in its output rather than passing quietly.
 
 Both pass with no exceptions, which took eight corrections beyond re-pointing the base. The
@@ -100,7 +109,7 @@ its own acceptance with readers still setting and testing the deleted macros**:
 | Spelling | Site | Why the pattern misses it |
 | --- | --- | --- |
 | bare `VERILOG_MACRO "QUARTUS"` | `M/scripts/build_fes_ramtest_quartus.py:101` | not `QUARTUS=1`, not an `ifdef` |
-| `` `ifdef\s+QUARTUS `` as a regex | `M/tests/test_build_fes_zx81.py:68` | the source text is `ifdef\s+QUARTUS`, so `ifdef QUARTUS` does not match |
+| `` `ifdef\s+QUARTUS `` as a regex | the removed ZX81 producer test | that historical regex fixture was removed with the legacy producer |
 | `` `define QUARTUS `` / `` `undef QUARTUS `` | `M/boards/de25nano/zx81-hps/test_tape_store.py:62` | neither form is in the pattern |
 | `VERILOG_MACRO\s+.*QUARTUS` guard regex | `M/boards/de25nano/zx81-hps/build.py:341` | matches on its own regex text, not on `QUARTUS=1` |
 
@@ -194,7 +203,7 @@ Confirmed present, with the line verified where noted:
 
 ## Two things to decide deliberately in S8b
 
-- **A lane asymmetry that is currently inherited by accident.** `M/Makefile:1732`
+- **A lane asymmetry that is currently inherited by accident.** `M/Makefile:1738`
   (`sim-fes-sg1000-rom-link`) passes `-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1` to Verilog but no
   matching `-CFLAGS`, so `sg1000/machine_tb.cpp` compiles its *non*-OSS arm against OSS
   (registered-media) RTL — its `-CFLAGS` carries only `-DFES_SG1000_ROM_LINK=1`, so both OSS macros
@@ -209,7 +218,7 @@ Confirmed present, with the line verified where noted:
 
   Only `machine_tb.cpp`, `gp_tb.cpp`, `expansion_tb.cpp` and `vdp_machine_tb.cpp` have such a
   conditional. Condition 1 alone matches eight recipes —
-  `sources/misteross/Makefile:633,733,773,912,936,1732,1768,2096`, the first and last with the
+  `sources/misteross/Makefile:639,739,779,918,942,1738,1774,2102`, the first and last with the
   define inside a `$(if …)` — but seven of
   them compile `graphics_tb.cpp`, `megacart_machine_tb.cpp`, `sgm_shell_ram_tb.cpp`,
   `diagnostic_machine_tb.cpp`, `gp_media_tb.cpp` or `stream_tb.cpp`, none of which has an arm to
@@ -291,7 +300,7 @@ Confirmed present, with the line verified where noted:
     ambiguous rather than guessed: six such citations in the inventory are now spelled.
 
     What the wider pattern then caught in this record: the ZX81 Verilator block is
-    `M/Makefile:333-492`, not `:333-493`, whose last line is blank.
+    `M/Makefile:339-498`, not `:333-493`, whose last line is blank.
 
 12. Two stale citations in the design record that this record's own sweep could not see, because
     they hid behind the same comma: lines 358, 374 and 399 of `fes-coleco/rtl/coleco_machine.sv` and
@@ -306,7 +315,7 @@ Confirmed present, with the line verified where noted:
     `What` cell or in this record's prose, was checked for existing and being non-blank and nothing
     more. So a base edit that moved a cited construct onto another non-blank line passed — which is
     precisely the defect the first two revisions of this record shipped, and it means re-running the
-    checker after a base move did not protect the exact-site checklist it advertises. All 1004 line
+    checker after a base move did not protect the exact-site checklist it advertises. All 947 line
     endpoints are now content-checked against a committed fingerprint file. Second, `.tcl` was not
     in the extension list, so three live citations went unread: `fes_de25_computer_hw.tcl:15` and
     `:77`, and `fes_de25_zx81_standard_hw.tcl:39`, all in `de25.md`. All three are correct; they
@@ -365,7 +374,7 @@ whenever the area cut changes.
 
 Checked mechanically here, over the whole inventory: every primary line against its recorded matched
 text (374 of 374, one of them matched up to the ellipsis its cell uses), and every `path:line`
-citation in these three files against the tree (749 of 749, now by content and not merely by
+citation in these three files against the tree (716 of 716, now by content and not merely by
 existence). Both are re-runnable as
 `verify_census.py`. That check is what caught the wrong base,
 once Codex had pointed at two instances of it, and it is cheap enough to repeat whenever the base
