@@ -28,11 +28,13 @@ interfaces and do not replace the kit claim.
 Use the sealed DE25 package from the exact PR head. Automatic exact-head HIL
 currently exercises the playable ZX81 package through the normal
 install/launch lifecycle, compatibility checks, and supported input path. The
-locked idle MENU is captured before and after as restore evidence. The current
-J8G agent rejects MENU `core-load` at admission with
-`UNSUPPORTED_OPERATION`; until the runtime supports that operation, a MENU
-package has not passed exact-head HIL and main-baseline promotion must remain
-gated. Both paths compare the serial-bound target state before and after. For
+locked idle MENU is captured before and after as restore evidence. The D25
+smoke reads named ROM state only when the package descriptor declares a ROM,
+and checks post-stop idleness through the paired session API. The current J8G
+agent rejects MENU `core-load` at admission with `UNSUPPORTED_OPERATION`; until
+the runtime supports that operation, a MENU package has not passed exact-head
+HIL and main-baseline promotion must remain gated. Both paths compare the
+serial-bound target state before and after. For
 a full image or boot-path change, build the exact DE25 image and run the
 corresponding boot checks as well; a package run does not qualify an image
 change.
