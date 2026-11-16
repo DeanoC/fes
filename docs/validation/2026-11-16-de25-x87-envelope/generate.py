@@ -152,24 +152,38 @@ def fit_table(fits: Path) -> str:
         def pct(k):
             v, total = res.get(k, {}).get('used'), res.get(k, {}).get('available')
             return '-' if not (v and total) else f'{100.0 * v / total:.1f}%'
+        # Slack lives under corners[].analyses.<kind>.worst_slack_ns. Reading
+        # a wrong key here printed '-' silently for the first three seeds,
+        # which is why the generator now fails on a missing one rather than
+        # dashing it out.
         corners = r.get('timing', {}).get('corners', [])
-        worst = min((c.get('setup') for c in corners if c.get('setup') is not None), default=None)
+        slacks = [c['analyses']['setup']['worst_slack_ns'] for c in corners
+                  if c.get('analyses', {}).get('setup', {}).get('worst_slack_ns') is not None]
+        if corners and not slacks:
+            raise SystemExit(f'{record}: timing record has corners but no setup slack; '
+                             'the key this generator reads has moved')
+        worst = min(slacks, default=None)
+        holds = [c['analyses']['hold']['worst_slack_ns'] for c in corners
+                 if c.get('analyses', {}).get('hold', {}).get('worst_slack_ns') is not None]
+        worst_hold = min(holds, default=None)
         # The label carries X87_BACKEND and x87_present, not just the run
         # name. The sibling machine measurement produces a similar-looking
         # ALM delta at X87_BACKEND=0, and a reader who meets two unlabelled
         # deltas will average them.
         backend_n = 1 if r['x87_backend'] == 'de25' else 0
         kind = r.get('x87_present')
-        label = (f"{r.get('top', '?')} , X87_BACKEND={backend_n}"
-                 + (f", x87_present={kind}" if kind is not None else ""))
+        label = (f"`{r.get('top', '?')}`, X87_BACKEND={backend_n}"
+                 + (f", x87_present={kind}" if kind is not None else "")
+                 + f", {r.get('virtual_ports', '?')} virtual ports")
         rows.append(f"| {record.parent.name} | {label} | {r['seed']} | "
                     f"{r['period_ns']:.3f} | {r['status']} | {used('alms')} | {pct('alms')} | "
                     f"{used('registers')} | {used('dsp_blocks')} | {used('m20k_blocks')} | "
-                    f"{'-' if worst is None else f'{worst:+.3f} ns'} |")
+                    f"{'-' if worst is None else f'{worst:+.3f} ns'} | "
+                    f"{'-' if worst_hold is None else f'{worst_hold:+.3f} ns'} |")
     if not rows:
         return '_no fit records found_'
-    return ('| Run | Top and parameters | Seed | Period (ns) | Status | ALMs | of device | Registers | DSP | M20K | Worst setup |\n'
-            '| --- | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |\n'
+    return ('| Run | Top and parameters | Seed | Period (ns) | Status | ALMs | of device | Registers | DSP | M20K | Worst setup | Worst hold |\n'
+            '| --- | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n'
             + '\n'.join(rows))
 
 

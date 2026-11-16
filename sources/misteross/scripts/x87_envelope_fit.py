@@ -278,6 +278,10 @@ def compile_project(output: Path, tool: Path, version: str) -> dict:
             raise SystemExit(f'missing executable {path}')
     record = {'quartus_version': version, 'device': inputs['device'],
               'x87_backend': inputs['x87_backend'], 'period_ns': inputs['period_ns'],
+              'top': inputs['top'], 'fit_kind': inputs['fit_kind'],
+              'x87_present': inputs.get('x87_present'),
+              'virtual_ports': len(inputs['virtual_data_ports']),
+              'flow': 'quartus-pro-systemverilog-direct',
               'clock_hz': inputs['clock_hz'], 'seed': inputs['seed'],
               'evidence_scope': inputs['evidence_scope'], 'hardware_acceptance': 'not-run',
               'programming_artifact': None,
