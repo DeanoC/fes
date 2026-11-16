@@ -778,3 +778,30 @@ This is a wording correction to a precommitted rule, which is worth flagging
 as such: the rule's *effect* is unchanged, every recorded verdict stands, and
 the coverage words in [timing.tsv](timing.tsv) let a reader check that for
 themselves rather than take this paragraph's word for it.
+
+## Amendment, 16 November 2026: a design with asynchronous resets must show them
+
+What had been seen: all sixteen fits recorded; the closure rule corrected to
+"every applicable analysis".
+
+That correction opened a hole the previous wording had closed by accident. The
+gate labels **any** zero-path recovery or removal check
+`not_applicable_synchronous_reset`, and the rule now accepts that as not
+applicable. But `pc386_system` **has** asynchronous resets, and all four
+machine fits analysed those checks. If a machine fit's asynchronous resets
+were swept or mis-elaborated, their paths would vanish, the gate would label
+them not applicable, and the rule would accept it — hiding exactly the kind of
+loss the gate exists to catch.
+
+So the runner now declares, per design, whether the design has asynchronous
+resets — `pc386_system` yes, `fes_i386_cpu` no — and the gate **errors** on a
+zero-path recovery or removal check for a design declared to have them,
+instead of recording it as not applicable. The guard was **run both ways**
+against a retained CPU project rather than assumed: with
+`FES_FIT_ASYNC_RESET=0` it passes all four corners, and with
+`FES_FIT_ASYNC_RESET=1` on the same project it stops with "this design is
+declared to have asynchronous resets: they were swept or mis-elaborated".
+
+No recorded verdict changes: all four machine fits already have analysed
+recovery and removal rows at every corner, worst +0.302 ns, and the CPU fits
+are declared synchronous, which is what they are.

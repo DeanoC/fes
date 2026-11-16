@@ -244,11 +244,17 @@ that neither fit placed so there is no ALM figure at all. The fit reports here
 have no "LABs required" row; the row they have is a post-placement fact. The
 two are different quantities and this record does not put them on one scale.
 
-**Nor is the *outcome* comparable with #1889, because it is not the same
+**Nor is M+'s *outcome* comparable with #1889, because M+ is not the same
 design.** #1889's identity-on machine carries slice 3 and slice 4's
 arithmetic; M+ carries `main`'s slice 2, which the DE10 seals without
-difficulty. "Agilex 5 placed what the DE10 could not" would need #1889's head
-fitted here, and it has not been.
+difficulty. "Agilex 5 placed what the DE10 could not" cannot rest on M+.
+
+**It rests on the slice-4 fit instead, which has since been run**: #1889's own
+head, [fitted here](#the-design-the-de10-refused-does-fit-on-agilex-5--and-it-adds-no-labs)
+at 41,387 ALMs, 88.43%, placing, routing and closing. So the outcome
+comparison is now available and it is a like-for-like one — the same design on
+both devices, refused on the Cyclone V and closing on Agilex 5 — rather than
+the mismatched one this paragraph originally warned against.
 
 **And the DE10 settles it directly, on a fit whose total independently
 validates this method.** `pc386_system` there comes out at **88.54% of ALMs**,

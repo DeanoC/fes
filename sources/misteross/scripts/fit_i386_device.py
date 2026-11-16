@@ -116,12 +116,19 @@ DEVICES = {
 # (pc386_system.sv:66-67) and is cut like the rest; the pixel domain's own
 # register-to-register paths are analysed as the system domain's are.
 DESIGNS = {
-    "cpu": {"top": "fes_i386_cpu", "clocks": ("clk",), "asynchronous": False},
-    "machine": {"top": "pc386_system", "clocks": ("clk", "pixel_clk"), "asynchronous": True},
+    "cpu": {"top": "fes_i386_cpu", "clocks": ("clk",), "asynchronous": False,
+            "asynchronous_resets": False},
+    "machine": {"top": "pc386_system", "clocks": ("clk", "pixel_clk"), "asynchronous": True,
+                "asynchronous_resets": True},
 }
 # The method's runtime caps, which a fit reported as "not measured within the
 # cap" must actually have been given.
 DEFAULT_TIMEOUT_MINUTES = {"cpu": 90, "machine": 240}
+# Designs known to have asynchronous resets, where recovery and removal must
+# have paths: finding none would mean those resets were swept or
+# mis-elaborated, and the gate must say so instead of recording the checks as
+# not applicable. fes_i386_cpu's resets are all synchronous.
+ASYNCHRONOUS_RESETS = {"machine": True, "cpu": False}
 # pc386_system's pixel clock is 74.25 MHz in the shell, fixed; only the system
 # clock moves with --period-ns.
 PIXEL_PERIOD_NS = 1000.0 / 74.25
@@ -433,6 +440,7 @@ def write_project(output: Path, device: Device, design: dict, netlist: Path,
         "clock_hz": round(1e9 / period_ns), "real_clocks": list(design["clocks"]),
         "pixel_period_ns": PIXEL_PERIOD_NS if len(design["clocks"]) > 1 else None,
         "virtual_ports": virtual, "virtual_port_count": len(virtual),
+        "asynchronous_resets": design["asynchronous_resets"],
         "host": socket.gethostname(), "fes_revision": fes_revision(), "quartus": metadata,
         "netlist_sha256": sha(netlist.read_bytes()),
         "project_sha256": {path.name: sha(path.read_bytes()) for path in sorted(project.iterdir())},
@@ -655,7 +663,8 @@ def compile_project(output: Path, project: Path, top: str, quartus_sh: Path,
             record["commands"].append(command)
             # The gate checks the clock count against the SDC's own clocks.
             run(command, project, output, label, deadline,
-                env={"FES_FIT_CLOCKS": " ".join(inputs["real_clocks"])})
+                env={"FES_FIT_CLOCKS": " ".join(inputs["real_clocks"]),
+                     "FES_FIT_ASYNC_RESET": "1" if inputs["asynchronous_resets"] else "0"})
         fit_text = fit_report.read_text(errors="replace")
         record["resources"] = resources(fit_text)
         check_envelope(record, fit_text, inputs)
@@ -768,6 +777,7 @@ def write_sv_project(output: Path, device: "Device", design: dict, period_ns: fl
         "clock_hz": round(1e9 / period_ns), "real_clocks": list(design["clocks"]),
         "pixel_period_ns": None,
         "virtual_ports": virtual, "virtual_port_count": len(virtual),
+        "asynchronous_resets": design["asynchronous_resets"],
         "host": socket.gethostname(), "fes_revision": fes_revision(), "quartus": metadata,
         "netlist_sha256": None,
         "ram_attribute": (f'renamed {renamed} occurrences of {M10K_ATTRIBUTE!r} to '

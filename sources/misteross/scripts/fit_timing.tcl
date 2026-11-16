@@ -70,7 +70,16 @@ foreach_in_collection corner $corners {
             }
         } elseif {$coverage ne "unsupported_hold_only_model"} {
             if {$check in {setup hold}} {error "missing $check timing paths at $name"}
-            # Recovery and removal have no paths when every reset is synchronous.
+            # Recovery and removal have no paths when every reset is
+            # synchronous. A design that is known to have asynchronous resets
+            # must not have them vanish: zero paths there would mean the resets
+            # were swept or mis-elaborated, and labelling that "not applicable"
+            # would hide it. FES_FIT_ASYNC_RESET names such a design.
+            if {[info exists ::env(FES_FIT_ASYNC_RESET)]
+                && $::env(FES_FIT_ASYNC_RESET) ne "0"} {
+                error "$check has no paths at $name, but this design is declared to have\
+                       asynchronous resets: they were swept or mis-elaborated"
+            }
             set coverage not_applicable_synchronous_reset
         }
         puts $stream [join [list $name $hold_only $check $coverage $count $slack $from $to] "\t"]
