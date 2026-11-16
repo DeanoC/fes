@@ -595,6 +595,7 @@ package fes_i386_pkg;
         logic       o32;
         logic       rep;
         logic       ea3;
+        logic       ref_test_excluded;  // unmeasured TEST encoding: 32-bit code or any prefix
         logic [5:0] prefix286;  // diagnostic reference prefix clocks
     } gov_t;
 

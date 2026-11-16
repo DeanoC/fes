@@ -246,8 +246,12 @@ module fes_i386_governor #(
                                s2_gov.op == 8'hac || s2_gov.op == 8'had ||
                                s2_gov.op == 8'hae || s2_gov.op == 8'haf)) execution_clocks = 9'd0;
             // Reference instruction-form costs. Restrict these to ordinary
-            // 16-bit forms; unmeasured 386 extensions retain the table.
+            // effective 16-bit operands. Other encoding and memory contexts
+            // remain diagnostic and require separate validation.
             if (!s2_gov.o32) begin
+                if (!s2_gov.ref_test_excluded && !s2_gov.rm_reg && (s2_gov.op == 8'h84 || s2_gov.op == 8'h85 ||
+                    ((s2_gov.op == 8'hf6 || s2_gov.op == 8'hf7) && s2_gov.mreg == 3'd0)))
+                    execution_clocks = 9'd5;
                 if (!s2_gov.rm_reg && (s2_gov.op == 8'h3a || s2_gov.op == 8'h3b)) execution_clocks = 9'd7;
                 if (s2_gov.op == 8'h9c) execution_clocks = 9'd4;
                 if (s2_gov.op == 8'he8 || s2_gov.op == 8'he9 || s2_gov.op == 8'heb) execution_clocks = 9'd7;
@@ -277,6 +281,8 @@ module fes_i386_governor #(
     end
     always_comb begin
         refill_execution = execution_clocks[8] ? 8'hff : execution_clocks[7:0];
+        if (reference_on && s2_ends && !s2_gov.two && !s2_gov.o32 && !s2_gov.ref_test_excluded && !s2_gov.rm_reg &&
+            (s2_gov.op == 8'h84 || s2_gov.op == 8'h85)) refill_execution = 8'd7;
         // The reference's word ALU memory-destination forms have a different
         // overlap budget from their execution charge. Keep this diagnostic
         // adjustment by opcode/form rather than by a program or loop.

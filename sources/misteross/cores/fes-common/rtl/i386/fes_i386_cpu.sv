@@ -757,6 +757,7 @@ module fes_i386_cpu #(
     assign dc_q.gov = '{two: q_two, op: q_two ? q.bytes[1] : q.bytes[0], mreg: q_modrm[5:3],
                         rm_reg: q_modrm[7:6] == 2'b11, o32: q_opsize32, rep: q.prefixes.rep != 2'b00,
                         ea3: am_has_base && am_has_index && q_modrm[7] != q_modrm[6] && !q_direct,
+                        ref_test_excluded: GOV_REFERENCE_DIAGNOSTIC && (code32 || q.prefix_count != 4'd0),
                         prefix286: q.prefix286};
     assign dc_q.seq = q_seq;
     assign dc_q.step = 3'd0;

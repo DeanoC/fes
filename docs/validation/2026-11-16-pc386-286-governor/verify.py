@@ -62,6 +62,11 @@ def assemble(nasm):
         'rep-chunks/cpu_chunks': '39ed6fe0a9ec6be804ac775988e538debadd9b651fef8a6f3f02ea83509beaaa',
         'rep-chunk-matrix/reference-fixed': '0bca14dab1b9d01c8f7faf180147b32b9b6fbedfad6a9b61a8ca70271d4a5fdc',
         'rep-chunk-matrix/cpu': 'fb7d6d834fcfa9405c71ffe8c344ee8c2841b62d72cc2cda33f4097bf1b7311f',
+        'memory-test/training/reference-checked': '661c882492ee9dcbbcb5637cd1fa01a0c14b573e6ab8db37a5897fc1ba0192aa',
+        'memory-test/training/rtl': 'c929594504447a532bef1ba7175a0c4ef75fba14cfbb79f5109b6f318e51a361',
+        'memory-test/holdout/reference-checked': 'cb4b3bd1447dea20b6169578246cf1e8b19bbf21a7f407b60f3754cbfcf2c663',
+        'memory-test/holdout/rtl': '94a81138307f170f18fd144e8630357ad42e1f515fe32f38bfc16686bd6d180e',
+        'memory-test/modes/rtl': '09bd73545228847ea684c6d22adbea2a142e800a809e4a62727f7bcddb852ca9',
     }
     with tempfile.TemporaryDirectory(prefix='fes1902-probes-') as temp:
         for source, expected in sources.items():
@@ -108,6 +113,40 @@ def main():
         if (result['count_blocks'] != count or abs(result['reference'] - clocks(count)) > 1e-8
                 or abs(result['charged'] - charge) > 1e-8 or predictions[key]['charged'] != charge):
             raise SystemExit(f'REP matrix arithmetic mismatch: {key}')
+    for group, prefix, count in [('training', 'MEM', 14), ('holdout', 'HOLD', 8)]:
+        directory = HERE / 'memory-test' / group
+        measurements = rows(f'memory-test/{group}', [f'{prefix}{i}.TXT' for i in range(1, 4)], ['SCRATCH_RAM_VERIFIED'])
+        comparison = json.loads((directory / 'comparison.json').read_text())
+        baseline = marker_charges(directory / 'rtl.log')
+        candidate = marker_charges(directory / 'candidate.log')
+        if len(measurements) != count or list(measurements) != list(comparison) or len(baseline) != count or len(candidate) != count:
+            raise SystemExit(f'memory {group} rows or markers differ')
+        for (name, blocks), old, revised in zip(measurements.items(), baseline, candidate):
+            entry = comparison[name]
+            if entry['blocks'] != blocks or abs(entry['reference_whole_loop'] - clocks(blocks)) > 1e-8:
+                raise SystemExit(f'memory {group} arithmetic mismatch: {name}')
+            if group == 'training' and abs(entry['rtl_whole_loop'] - old) > 1e-8:
+                raise SystemExit(f'memory training marker mismatch: {name}')
+            if group == 'holdout' and (abs(entry['old_rtl'] - old) > 1e-8 or abs(entry['split_rtl'] - revised) > 1e-8):
+                raise SystemExit(f'memory holdout marker mismatch: {name}')
+        if group == 'holdout' and marker_charges(directory / 'final-candidate.log') != candidate:
+            raise SystemExit('memory final candidate differs from fixed prospective prediction')
+    old_modes = marker_charges(HERE / 'memory-test/modes/baseline.log')
+    final_modes = marker_charges(HERE / 'memory-test/modes/v3.log')
+    if len(old_modes) != 6 or len(final_modes) != 6 or abs(old_modes[0] - final_modes[0] - 1) > .005:
+        raise SystemExit('memory unprefixed TEST comparison differs')
+    if any(abs(a - b) > .0021 for a, b in zip(old_modes[1:], final_modes[1:])):
+        raise SystemExit('memory prefixed TEST did not retain prior diagnostic path')
+    memory_off = json.loads((HERE / 'memory-test/default-off/default-off-comparison.json').read_text())['results']
+    if set(memory_off) != {'0-0-0', '1-0-0', '3-0-0', '1-0-1'}:
+        raise SystemExit('memory default-off configurations differ')
+    for mode, result in memory_off.items():
+        for side in ('before', 'after'):
+            raw = (HERE / f'memory-test/default-off/off-{mode}-{side}.log').read_text().split('\nSTDERR\n', 1)[0]
+            if hashlib.sha256(raw.encode()).hexdigest() != result[side]:
+                raise SystemExit(f'memory default-off stdout hash mismatch: {mode} {side}')
+        if not result['identical'] or result['before'] != result['after']:
+            raise SystemExit(f'memory default-off result differs: {mode}')
     differential = json.loads((HERE / 'cpu-differential/default-off-differential.json').read_text())
     results = differential['results']
     if set(results) != {'0-0-0', '1-0-0', '3-0-0', '1-0-1'} or any(

@@ -77,6 +77,19 @@ attempt had prefilled its destination and could not prove a write; it was
 stopped and replaced before the corrected run. This improves the surrogate;
 it does not qualify unmeasured forms or justify promotion.
 
+A separate [memory TEST experiment](2026-11-16-pc386-286-governor/memory-test/README.md)
+uses distinct execution and fetch-overlap budgets for unprefixed default-16
+TEST. On eight prospective held-out forms the whole-loop estimates differed
+from the fixed predictions by 0.017–0.033 clocks; they include setup and ISR
+overhead, and the reference speed was sampled rather than continuously
+recorded. The review-narrowed candidate reproduced those predicted charges.
+All prefixed TEST forms retain the prior diagnostic table and queue path,
+which still suppresses global 286 wait charges. A sampled whole-CPU comparison
+with the diagnostic off matched before and after source changes in max, 286,
+386 and turbo modes; it does not establish netlist or artifact equivalence.
+The packed CPU metadata changed, so previous artifact and timing evidence does
+not test the new source.
+
 An earlier REP run failed to restore ES after reading the DOS interrupt vector
 and is invalid for RAM-to-RAM conclusions. An intervening run checked segment
 equality but did not verify nonzero data. The measurements above use the later

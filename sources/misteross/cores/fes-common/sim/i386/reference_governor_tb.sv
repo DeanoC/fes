@@ -167,6 +167,70 @@ module governor_integration_tb;
     accesses=2; boundary=1; eoi=1; element=1;
     @(negedge clk); element=0; boundary=0; eoi=0; accesses=0;
     finish_trial(167,116,"REP MOVS replay preserves chunk budget");
+    // TEST with a memory operand has separate execution and overlap clocks.
+    restart;
+    instruction(8'hf6,0,3,1,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 5 || candidate.refill_execution != 5)
+      $fatal(1,"immediate byte TEST timing");
+    finish_trial(7,9,"immediate byte TEST");
+    restart;
+    instruction(8'hf7,0,4,1,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 5 || candidate.refill_execution != 5)
+      $fatal(1,"immediate word TEST timing");
+    finish_trial(7,9,"immediate word TEST");
+    restart;
+    instruction(8'h84,0,2,1,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 5 || candidate.refill_execution != 7)
+      $fatal(1,"register/memory byte TEST timing");
+    finish_trial(7,7,"register/memory byte TEST");
+    restart;
+    instruction(8'h85,0,2,1,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 5 || candidate.refill_execution != 7)
+      $fatal(1,"register/memory word TEST timing");
+    finish_trial(7,7,"register/memory word TEST");
+    restart;
+    instruction(8'hf6,1,3,1,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 6 || candidate.refill_execution != 6)
+      $fatal(1,"unmeasured TEST extension changed");
+    finish_trial(7,10,"unmeasured TEST extension");
+    restart;
+    instruction(8'hf7,2,2,2,0);
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 7 || candidate.refill_execution != 7)
+      $fatal(1,"unrelated F7 unary form changed");
+    finish_trial(9,9,"unrelated unary memory form");
+    restart;
+    instruction(8'h85,0,2,0,0); gov.rm_reg=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 2 || candidate.refill_execution != 2)
+      $fatal(1,"register-only TEST changed");
+    finish_trial(2,4,"register-only TEST");
+    restart;
+    instruction(8'hf7,0,6,1,0); gov.o32=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 6 || candidate.refill_execution != 6)
+      $fatal(1,"32-bit TEST fallback changed");
+    finish_trial(7,12,"32-bit TEST fallback");
+    restart;
+    instruction(8'h84,0,4,1,0); gov.ref_test_excluded=1;
+    @(negedge clk); boundary=0; eoi=0; accesses=0;
+    @(negedge clk);
+    if (candidate.execution_clocks != 6 || candidate.refill_execution != 6)
+      $fatal(1,"32-bit address TEST fallback changed");
+    finish_trial(7,10,"32-bit address TEST fallback");
     preset=3; restart;
     instruction(8'hff,0,4,2,0); instruction(8'h83,7,5,1,0); instruction(8'h75,0,2,0,1);
     finish_trial(19,19,"non-286");
