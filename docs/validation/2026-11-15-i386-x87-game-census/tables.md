@@ -98,26 +98,30 @@ the full rounding path on them.
 
 ## What the titles store
 
-Stored values whose significand needs more than 24 bits, by the width of
-the **memory** slot they went to. `FST`/`FSTP ST(i)` (`dd.r2`, `dd.r3`) are
-register stores that move no memory operand, so they are not here; their
-own width buckets in these runs are unreliable (see the record's note).
-the slot they went to. The m64 and m80 columns are direct evidence that a
-24-bit datapath could not have produced the bytes in memory. The m32
-column cannot settle anything: a store to m32 rounds to 24 bits under
-rounding control whatever the register held.
+Stored values whose significand needs more than 24 bits, by what they were
+stored as. **Only the real m64 and m80 columns are evidence** that a
+24-bit datapath could not have produced the bytes in memory.
 
-| Title | wide into m64 | wide into m80 | wide into m32 (rounds) |
-| --- | ---: | ---: | ---: |
-| Quake timedemo (DOSBench) | 6,727 | 3,887 | 14,716 |
-| Screamer (1995) | 9,303 | 0 | 10,854 |
-| Chris's 3D Benchmark | 68,890 | 4,221 | 879,285 |
-| Terminal Velocity (1995) | 0 | 0 | 3 |
-| DOOM (1993) | 0 | 0 | 0 |
-| Wolfenstein 3D (1992) | 2,343 | 0 | 240 |
-| Ultima VI: The False Prophet (1990) | 0 | 0 | 0 |
-| Ultima VII: The Black Gate (1992) | 0 | 0 | 0 |
-| Ultima VII Part Two: Serpent Isle (1993) | 0 | 0 | 0 |
+- **real m32** rounds to 24 bits under rounding control whatever the
+  register held, so a wide register value may land on exactly the bytes a
+  24-bit unit would have written.
+- **integer** is `FIST`/`FISTP`/`FBSTP`: a conversion to an integer or BCD,
+  so a wide source significand says nothing about the width a
+  floating-point datapath needs to hold the result.
+- `FST`/`FSTP ST(i)` move no memory operand and are not here; their own
+  width buckets in these runs are unreliable (see the record's note).
+
+| Title | **real m64** | **real m80** | real m32 (rounds) | integer conversions |
+| --- | ---: | ---: | ---: | ---: |
+| Quake timedemo (DOSBench) | 6,727 | 3,887 | 11,549 | 3,167 |
+| Screamer (1995) | 9,303 | 0 | 10,854 | 0 |
+| Chris's 3D Benchmark | 4,304 | 4,221 | 556,971 | 386,900 |
+| Terminal Velocity (1995) | 0 | 0 | 3 | 0 |
+| DOOM (1993) | 0 | 0 | 0 | 0 |
+| Wolfenstein 3D (1992) | 1,202 | 0 | 240 | 1,141 |
+| Ultima VI: The False Prophet (1990) | 0 | 0 | 0 | 0 |
+| Ultima VII: The Black Gate (1992) | 0 | 0 | 0 | 0 |
+| Ultima VII Part Two: Serpent Isle (1993) | 0 | 0 | 0 | 0 |
 
 ## FSQRT by precision control
 

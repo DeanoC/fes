@@ -92,27 +92,38 @@ closed, and closing it cost a census rather than a slice.
 `x87sig` is read from the state **before** a popping store, so the value
 stored is the one reported. Wide values going to memory, by store width:
 
-| Title | wide into m64 (memory only) | wide into m80 | wide into m32 (rounds — see below) |
-| --- | ---: | ---: | ---: |
-| Chris's 3D Benchmark | 68,890 | 4,221 | 879,285 |
-| Quake timedemo (DOSBench) | 6,727 | 3,887 | 14,716 |
-| Screamer (1995) | 9,303 | 0 | 10,854 |
-| Wolfenstein 3D (1992) | 2,343 | 0 | 240 |
-| Terminal Velocity (1995) | 0 | 0 | 3 |
+| Title | **real m64** | **real m80** | real m32 (rounds) | integer conversions |
+| --- | ---: | ---: | ---: | ---: |
+| Chris's 3D Benchmark | 4,304 | 4,221 | 556,971 | 386,900 |
+| Quake timedemo (DOSBench) | 6,727 | 3,887 | 11,549 | 3,167 |
+| Screamer (1995) | 9,303 | 0 | 10,854 | 0 |
+| Wolfenstein 3D (1992) | 1,202 | 0 | 240 | 1,141 |
+| Terminal Velocity (1995) | 0 | 0 | 3 | 0 |
 
-**The m64 and m80 columns are direct evidence**: a value needing more than
-24 significand bits, stored into a **memory** slot wide enough to keep it. Chris's
-benchmark puts 68,890 such values into 64-bit memory and Screamer 9,303.
-A 24-bit datapath could not have produced them.
+**Only the real m64 and m80 columns are evidence**: a value needing more
+than 24 significand bits, stored as a real into a memory slot wide enough to
+keep it. **Screamer 9,303, Quake 6,727 plus 3,887 as m80, Chris's
+benchmark 4,304 plus 4,221, Wolfenstein 3D 1,202.** A 24-bit datapath
+could not have produced those bytes.
 
-**The m32 column cannot settle anything, and the record says so.** A store
-to `m32` rounds under rounding control to 24 bits whatever the register
-held, so a wide register value stored to `m32` may land on exactly the bytes
-a 24-bit unit would have written. Whether those particular stores would
-differ is **not established** by this census; settling it needs a value
-replay — the same program run against a 24-bit-significand model, comparing
-the bytes stored — which is a different experiment and not one worth running
-given the m64 column above.
+Two columns that look like evidence and are not, both separated out after
+review found them folded in:
+
+- **real m32 rounds.** A store to `m32` rounds to 24 bits under rounding
+  control whatever the register held, so a wide register value stored to
+  `m32` may land on exactly the bytes a 24-bit unit would have written.
+  Whether those particular stores would differ is **not established** here;
+  settling it needs a value replay against a 24-bit model, a different
+  experiment and not one worth running given the real m64 column.
+- **integer conversions are not a datapath width.** `FIST`, `FISTP` and
+  `FBSTP` convert to an integer or BCD, so a wide *source* significand says
+  nothing about the width a floating-point datapath needs. This mattered: an
+  earlier revision reported Chris's benchmark at **68,890** wide m64 stores,
+  of which **64,586 were `FISTP m64`**. Its real m64 figure is 4,304.
+
+So this column is much smaller than this record first said, and the
+stored-value evidence is real but modest. The coverage result — four of five
+computing titles never using PC=24 at all — is what carries the conclusion.
 
 ### Exceptions: three titles run with them unmasked
 

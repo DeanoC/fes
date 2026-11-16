@@ -147,27 +147,39 @@ def main(argv: list[str] | None = None) -> int:
     # x87sig reads the state before a popping store, so this is the value
     # stored. A store to m32 rounds to 24 bits under rounding control whatever
     # the register held, so that column cannot settle anything by itself.
-    M64 = ('dd.m2', 'dd.m3', 'df.m7')
-    M80 = ('db.m7',)
-    M32 = ('d9.m2', 'd9.m3', 'db.m2', 'db.m3', 'df.m2', 'df.m3')
+    # What the titles store: wide values by what they were stored AS.
+    # x87sig reads the state before a popping store, so this is the value
+    # stored. Integer conversions are kept apart from real stores: FIST and
+    # FISTP convert to an integer, so a wide source significand is not
+    # evidence about the width of a floating-point datapath in the way a real
+    # store is. A store to m32 rounds to 24 bits under rounding control
+    # whatever the register held, so it cannot settle anything either.
+    REAL64 = ('dd.m2', 'dd.m3')
+    REAL80 = ('db.m7',)
+    REAL32 = ('d9.m2', 'd9.m3')
+    INTEGER = ('db.m2', 'db.m3', 'df.m2', 'df.m3', 'df.m6', 'df.m7')
     out.extend(['## What the titles store', '',
-                'Stored values whose significand needs more than 24 bits, by the width of',
-                'the **memory** slot they went to. `FST`/`FSTP ST(i)` (`dd.r2`, `dd.r3`) are',
-                'register stores that move no memory operand, so they are not here; their',
-                "own width buckets in these runs are unreliable (see the record's note).",
-                'the slot they went to. The m64 and m80 columns are direct evidence that a',
-                '24-bit datapath could not have produced the bytes in memory. The m32',
-                'column cannot settle anything: a store to m32 rounds to 24 bits under',
-                'rounding control whatever the register held.', '',
-                '| Title | wide into m64 | wide into m80 | wide into m32 (rounds) |',
-                '| --- | ---: | ---: | ---: |'])
+                'Stored values whose significand needs more than 24 bits, by what they were',
+                'stored as. **Only the real m64 and m80 columns are evidence** that a',
+                '24-bit datapath could not have produced the bytes in memory.', '',
+                '- **real m32** rounds to 24 bits under rounding control whatever the',
+                '  register held, so a wide register value may land on exactly the bytes a',
+                '  24-bit unit would have written.',
+                '- **integer** is `FIST`/`FISTP`/`FBSTP`: a conversion to an integer or BCD,',
+                '  so a wide source significand says nothing about the width a',
+                '  floating-point datapath needs to hold the result.',
+                '- `FST`/`FSTP ST(i)` move no memory operand and are not here; their own',
+                "  width buckets in these runs are unreliable (see the record's note).", '',
+                '| Title | **real m64** | **real m80** | real m32 (rounds) | integer conversions |',
+                '| --- | ---: | ---: | ---: | ---: |'])
     for name, row in rows:
         r = row['x87']
         wide = {}
-        for group, forms in (('m64', M64), ('m80', M80), ('m32', M32)):
+        for group, forms in (('r64', REAL64), ('r80', REAL80), ('r32', REAL32), ('int', INTEGER)):
             wide[group] = sum(v for bucket, fs in r['significand_forms'].items() if bucket in ('le53', 'le64')
                               for f, v in fs.items() if f in forms)
-        out.append(f"| {TITLES.get(name, name)} | {wide['m64']:,} | {wide['m80']:,} | {wide['m32']:,} |")
+        out.append(f"| {TITLES.get(name, name)} | {wide['r64']:,} | {wide['r80']:,} | "
+                   f"{wide['r32']:,} | {wide['int']:,} |")
     out.append('')
 
     out.extend(['## FSQRT by precision control', '',
