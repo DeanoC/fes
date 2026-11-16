@@ -28,8 +28,10 @@ sealed package, 36,298 ALMs, has the identity **off**, so it is the DE10
 equivalent of fit M rather than of M+.)
 [#1889](https://github.com/DeanoC/fes/pull/1889)'s refusal was its own head,
 slice 4 stacked on slice 3, whose 387 has divide, square root and the
-remainders: 8,073 ALMs for the standalone unit against the merge base's 4,076,
-requiring 4,292 LABs of 4,191 and never placing. **That design has since been
+remainders. Its standalone unit is **6,923 ALMs** in the form #1889 settled on
+— the 8,073 in that PR is the slice "as first written", a form it rebuilt —
+against the merge base's 4,076, and its identity-on machine required 4,292 LABs
+of 4,191 and never placed. **That design has since been
 fitted here** — see [the section on it](#the-design-the-de10-refused-does-fit-on-agilex-5--and-it-adds-no-labs):
 it closes on Agilex 5 at 41,387 ALMs, 88.43%.
 
@@ -340,14 +342,33 @@ though it is one seed, and 88.43% is the highest ALM utilisation anyone has
 fitted on this device.
 
 So **the design the DE10 could not place does place, route and close on
-Agilex 5.** The DE10 refused it needing 4,292 LABs of 4,191; Agilex 5 has
-4,680 and uses 4,590 of them.
+Agilex 5.** That is an **outcome** comparison, and it is the only form this
+record will make of it. It deliberately does not set #1889's "4,292 LABs
+required of 4,191" against this fit's "4,590 LABs used of 4,680": those are the
+two different quantities the section above refuses to put on one scale, and
+doing it here would be the same error with a nicer conclusion.
+
+**Two differences that stop this being like-for-like, both naming themselves:**
+#1889's refusal is the **sealed core with its board shell**, through the pc386
+producer; this is `pc386_system` alone in the virtual-pin envelope, which has
+no shell and 651 ALMs of pin cells instead. And it is a different fitter and
+device. The strictly controlled pair would be this same netlist
+(`machine-s4.netlist.v`) fitted on the **DE10** through this runner, which
+would isolate the device from the flow. **That fit has not been run**, and is
+listed with the other unmeasured items.
 
 **And this fit is the cleanest demonstration in the record that LAB occupancy
 is not capacity.** Slices 3 and 4 add **4,132 ALMs** over M+ — an eleventh of
-the device — and **exactly zero LABs**: 4,590 before, 4,590 after, 98.08%
-both times. The arithmetic packed entirely into LABs that were already
-occupied. Any reading of 98.08% as "nearly full" would have predicted this fit
+the device — and **exactly zero LABs**. Not approximately: the two fits report
+**4,590 total, 4,580 logic and 10 memory LABs, identically**, across a
+4,132-ALM difference.
+
+The slot arithmetic is at least consistent with it — 4,590 LABs hold 45,900 ALM
+slots, M+ places 40,550 and this fit 43,308, so the extra ALMs fit in free
+slots of the same LABs. But **this record does not claim that is what the
+placer did**, and an identical count down to the logic/memory split is odd
+enough that the row's meaning should not be leaned on at all, which is the
+conclusion either way. Any reading of 98.08% as "nearly full" would have predicted this fit
 could not happen; the capacity row, which went 79.60% → 88.43%, predicted it
 comfortably. That is the whole argument of the section above, occurring.
 
@@ -362,33 +383,48 @@ four seeds at **40,986 / 41,055 / 41,122 / 41,054 ALMs, 87.58–87.87%**, every
 corner, setup never below +7.58 ns. That is the configuration the 16 November
 decision ships.
 
-**The evidential status of those five numbers, stated because this record
-leans on them:** they were **relayed to this session in a message** and are
-**not verified here**. At the time of writing they appear in no committed
-artifact that could be found — not on
-[#1907](https://github.com/DeanoC/fes/pull/1907), that session's PR, and
-nowhere under `docs/validation/` on its branch — and no fit output of theirs
-was read. So they are **cited as that session's report, not as measured
-evidence in this record.** What would substantiate them is their own
-validation record carrying the per-seed figures and timing, which is theirs to
-publish; until it exists, a reader should treat the complete-387 conclusion as
-resting on their report rather than on anything here. Nothing in this record's
-own figures depends on them: the 41,387 below is measured here, and the A/B
-comparison is explicitly unresolved either way.
+**The evidential status of those figures.** They were first relayed to this
+session in a message, and that session has since published them: they are in
+`docs/validation/2026-11-16-de25-x87-envelope/summary.md` on
+`deano/de25-x87-envelope` ([#1907](https://github.com/DeanoC/fes/pull/1907)),
+with per-seed JSON under `integration-fit/`. Those rows have been read and
+they match what was relayed — 40,986 / 41,055 / 41,122 ALMs at 87.58 / 87.72 /
+87.87%, LABs 97.39–98.33%, **42 DSP**, setup never below +7.58 ns. They remain
+**that record's measurement, cited here, not re-measured here**, and nothing
+in this record's own figures depends on them.
+
+**What "a complete 387" does and does not mean**, since this record uses the
+phrase: it is the pipelined backend's **envelope integrated with it**, as that
+record reports. By its own account the backend does not implement remainder,
+scale, round-to-integer, transcendentals or BCD, so "complete" means complete
+relative to what ships in that configuration, not relative to the 387
+instruction set. This record should be read as "the DE25 holds the
+backend-plus-envelope configuration, as reported there" and not as a claim
+about a whole 387.
 
 What this fit is, therefore, is the **A/B of the two arithmetic
 implementations on one device**, same envelope, same front end, same rung:
 
 - **Sequencer, slices 3+4: 41,387 ALMs, 33 DSP, 140 M20K** (one seed, here).
-- **Pipelined backend: 40,986–41,122 ALMs** (four seeds, theirs; its DSP and
-  M20K figures are theirs to state).
+- **Pipelined backend: 40,986–41,122 ALMs, 42 DSP** (four seeds, from their
+  record).
+
+**And the A/B is not a controlled comparison, which has to be said before
+anyone leans on it.** The two fits differ in more than the arithmetic: this one
+is #1889's head, which sits on #1879's branch, while theirs is their own branch
+carrying #1889's work plus #1892 plus eleven main commits. So the **base varies
+as well as the implementation**. The controlled pair is `X87_BACKEND` 0 against
+1 **on their branch**, which only they can run; this comparison is the
+cross-branch approximation to it.
 
 In ALMs the two land within a few hundred of each other — about 330 between
 this fit and the backend's four-seed mean, against a 136-ALM spread across
 those four seeds and this lane's ±200 fit-to-fit noise. **That is not a
-resolved difference**, and one seed on this side cannot make it one: what the
-A/B establishes is that **the two implementations cost about the same ALMs on
-this fabric**, not that either is cheaper. Slice 6 should take the comparison
+resolved difference**, and one seed plus a varying base cannot make it one:
+what the A/B supports is that **the two implementations cost about the same
+ALMs on this fabric**, not that either is cheaper. Where they clearly do
+differ is **DSP: 33 against 42**, nine blocks, which is the backend's own
+FMUL products on top of the shared multiplier the sequencer reuses. Slice 6 should take the comparison
 as "roughly equal in ALMs, so decide on the other axes" — DSP, memory, latency
 and the duplicated 64×64 multiplier — rather than as a ranking. A seed sweep
 on this side would be needed to rank them, and has not been run.
@@ -407,12 +443,18 @@ Worth one line on its own: this design's worst-corner Fmax estimate is
 estimate at the same rung. Both are estimates at 61.44 MHz, not closures; no
 machine ladder has been run on either.
 
+**`machine-s4.netlist.v` on the DE10** — the slice-4 netlist through this
+runner on the Cyclone V. That is the controlled pair that would isolate the
+device from the flow in the comparison against #1889's refusal, and it has
+**not been run**.
+
+**A seed sweep of the slice-4 fit**, which is what would turn its A/B against
+the pipelined backend from "about the same ALMs" into a ranking. Not run.
+
 **`pc386_system` from #1889's head on Agilex 5 — run, and reported
 [above](#the-design-the-de10-refused-does-fit-on-agilex-5--and-it-adds-no-labs):
 it fits and closes at 41,387 ALMs, 88.43%.** Every other fit in this record is
-`main`, whose 387 has no arithmetic. What is still unmeasured here is a **seed
-sweep** of that design, which is what would turn its A/B against the pipelined
-backend from "about the same" into a ranking.
+`main`, whose 387 has no arithmetic.
 
 ### The ladder
 
@@ -613,7 +655,12 @@ figures stand.
 ## Files
 
 [host.json](host.json) names the revision each fit was prepared from, the
-hosts and the comparison rule. [quartus.json](quartus.json) is every fit's
+hosts and the comparison rule. One nuance it does not capture: its
+`fits_from_a_modified_checkout` lists only `machineplus-de25`, because that
+field reads the checkout that *ran the fitter*. The slice-4 fit's fitting
+checkout was clean while its **netlist** carries the same one-character scratch
+flip, recorded in that fit's own `netlist.json` as `source_scratch_diff`. Both
+fits are scratch-flip fits; only one of them says so in that field. [quartus.json](quartus.json) is every fit's
 figures with the report row each was read from and that device's totals.
 [quartus-inputs.json](quartus-inputs.json) binds each fit's netlist, rewrites,
 seed, constraint and Quartus. [timing.tsv](timing.tsv) is every corner's worst
