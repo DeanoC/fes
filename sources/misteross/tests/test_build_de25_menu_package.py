@@ -156,7 +156,7 @@ class DE25MenuPackageTests(unittest.TestCase):
         fields = json.loads(record)
         fields['parameters'].pop('hdmi_video_timing_policy')
         fields['parameters'].pop('hdmi_output_reset_review_policy')
-        record = producer.encode_build_record(fields)
+        record = producer.encode_build_record(producer.with_identities(fields))
         (self.root.parent / 'build-inputs.json').write_bytes(record)
         hps = self.root / 'combined/hps'
         (hps / 'inputs.json').write_text(json.dumps({'fes_revision': revision,
@@ -391,8 +391,9 @@ class DE25MenuPackageTests(unittest.TestCase):
         self.assertEqual(verify_record_source_at_revision(self.root, original)['source_inputs'], json.loads(original)['source_inputs'])
         self.assertEqual(build_identity(original), build_identity(record(selected='b' * 40)))
         changed = dict(identities, quartus='different actual compiler')
-        self.assertNotEqual(build_identity(original), build_identity(record(ids=changed)))
-        self.assertNotEqual(build_identity(original), build_identity(record(run=dict(execution, test_execution=False))))
+        for other in (record(ids=changed), record(run=dict(execution, test_execution=False))):
+            self.assertEqual(build_identity(original), build_identity(other))
+            self.assertNotEqual(json.loads(original)['identities']['toolchain'], json.loads(other)['identities']['toolchain'])
         captured['sources/misteross/' + producer.ABI] = b'changed ABI'
         with self.assertRaisesRegex(producer.BuildError, 'differs from canonical closure'):
             record()

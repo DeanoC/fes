@@ -29,7 +29,7 @@ Merge only when all of these hold:
 - CI is green: `gh pr checks N --json name,bucket --jq 'if length==0 then error("no checks") else map(select(.bucket!="pass" and .bucket!="skipping")) | length end'` exits 0 and prints `0`. Any error, no checks, or a non-zero count means not green.
 - 0 unresolved review threads.
 - A clean SuperGrok or Codex review on the exact head. One exception: a clean review carries over to a new head that only adds a merge from the base branch, when the PR's own diff against its base is unchanged and CI is green on the new head.
-- HIL is PASS on the exact head, N/A, or waived. HIL N/A means no kit test applies: the PR changes no kit-run bitstream, firmware or runtime (docs, CI, host tooling only), or the core has no kit (pc386/i386). DE25 HIL is waived until Deano says the boards are ready. A pass on a diagnostic build does not count.
+- HIL is PASS on the exact head, N/A, or explicitly waived by Deano. HIL N/A means no kit test applies: the PR changes no kit-run bitstream, firmware or runtime (docs, CI, host tooling only), or the core has no kit (pc386/i386). DE25 hardware changes use Kit D25 (`de25-j8g`, serial TRWU8J8G) and require PASS on the exact head with the restore diff verified. A pass on a diagnostic build does not count.
 - The base branch is live, and no open PR uses this head branch as its base.
 - Stacks merge top-down. After each merge, the next PR's tree must equal the reviewed tree, or it needs a fresh review.
 
@@ -55,12 +55,14 @@ Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and m
 
 ### HIL
 - Run HIL in parallel with review. Use kit A if kit B is busy.
+- Select Kit D25 for DE25 board, package, runtime or image paths. The repo HIL planner reports this target, but the Powerboat HILQ queue and watcher still need D25 dispatch support; an automatic queue run does not yet cover DE25. DE25 work stays on Quartus Pro 26.3 and uses the managed DE25 HIL flow; a DE10 pass does not satisfy it. Select Kit A or Kit B for DE10 paths.
 - Stop after 2 FAILs on the same head and fix instead.
 - Report HIL as started only once the kit is claimed in its status file (see Shared kits below) and the test bundle, image or core under test is loaded on it. A core-only run does not need a bundle install or reflash.
 - Afterwards, restore each kit to exactly the baseline bundle and image that kitA-STATUS.md / kitB-STATUS.md names. Activate the named bundle; reflash only if the booted image differs from the named image (then follow the bundle/image order in the kit procedure (step 3) below) and verify the boot. Verify the active bundle before logging the kit restored. Baselines are promoted only from main HIL passes.
 
 ### Kit HIL baseline tracking
 - The kit HIL baseline (shared host plus kit agent and software, recorded in `current.json` in Powerboat's hil-queue) tracks main. Do not pin it to an old host.
+- DE25 has a separate `current-restore-de25.json` baseline in Powerboat's HIL baselines; it is keyed by `de25-j8g` and records the managed image, active bundle, target identity and verified restore evidence. DE25 baseline promotion must be separate from the two-kit DE10 `current.json` promotion; its automation still needs implementation.
 - Powerboat's `lander-baseline-promote.timer` checks every 15 minutes; `lander-baseline-nightly.timer` is the 02:30 Europe/Sofia backstop. Both start `lander-baseline-promote.service`, which runs `baseline-auto.py`. It passes the cumulative unchecked `origin/main` range to `post-merge-promote.sh` with `--since <last_checked>`. Let this automation handle main updates; do not run a manual promote after each qualifying merge. The promotion lock is non-blocking: if another run holds it, the timer records `AUTO_WAIT` and leaves the candidate for a later pass. A direct run without `--since` checks only the tip commit, so it does not catch up multiple unchecked commits.
 - Baseline promotion considers every non-documentation, non-test file under `sources/FogCast/`, `sources/libmister-runtime/`, `sources/mister-packages/`, `platform/` and `image/`, plus `Makefile`, `scripts/build.py`, `scripts/kit_software.py` and `scripts/environment.py`. ABI or capability changes, and any `abi_path` edit, select hil-queue `core+sw`; that classification does not decide whether to promote the baseline.
 - `promote-baseline.sh` builds from fetched main only. It smokes available kits and logs busy kits as `BUSY`; if neither kit is free, maintenance waits for Kit B's lock until it is `FREE`, then continues. It publishes `current.json` only after smoke and activation succeed and keeps the previous baseline. A failed candidate is latched and reported rather than retried automatically.
@@ -78,7 +80,9 @@ Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and m
 ### Hard rules
 - No rebase, force-push or amend.
 - Never relax timing or seal checks.
+- For design-v1 records, audited packaging/recording edits do not move `BUILD_ID` and require no rebuild, reseal or HIL when the original sealed package and record are reused unchanged. Toolchain drift is advisory for reuse; rebuilding with a different execution needs fresh timing/seal checks and applicable exact-artifact HIL. A design ID alone is never exact artifact acceptance. The following measured D12 exception still applies to legacy records, the one-time design-ID migration, and design-generating producer changes without RTL edits.
 - A change that moves a core's `BUILD_ID` only through its build record or source closure (a producer script, lock or helper edit, with no RTL change) needs no reseal or HIL when the PR shows all of: the core's Yosys netlist (for a native Quartus front end, its QSF) is byte-identical to main apart from the `BUILD_ID` constant and from file paths in `src` attributes (the checkout and the tool install directory: a toolchain at the same commit is the same toolchain wherever it is installed); a build with the PR's tooling and main's `BUILD_ID` reproduces main's RBF byte for byte; and the PR's own build passes the core's normal timing and seal gates. "Main" in those comparisons means the PR's current merge base. Merging main forward does not by itself void recorded evidence: a comparison still holds for a core whose compiled source set is unchanged between the old base and the new one and whose route-deciding inputs are unchanged too — its toolchain lock, its timing and pin constraints, and its placement recipe. Where any of those moved, the RBF comparison must be re-measured for that core even where its netlist is byte-identical, because a different router, constraint or seed list places the same netlist differently. A core whose compiled source set did change still keeps its recorded comparison where main's own netlist is byte-identical at the old base and the new one, apart from the `BUILD_ID` constant and the paths this rule already exempts. Run both sides with one tool install, and in the same checkout path where that is possible, so the comparison is byte-identical with nothing normalised away. Record both digests, and the command that produced them, in the PR's validation record. That measurement is the only thing that carries: that a change looks inert is not evidence that it is. Where the netlist moved, the comparison is re-measured however small the source change was. Quartus maps a different `BUILD_ID` constant differently, so resource counts and the RBF may differ; that alone does not need a reseal. Any other difference needs the core's normal reseal and HIL. (#1581, D12)
+- For a core the support matrix records at `check_level: reduced`, that same closure change owes only the first of those three: its netlist comparison is still measured and recorded exactly as the rule above says, and the RBF reproduction, the timing and seal gate and the HIL are not expected of it. A netlist that is not byte-identical puts that core back under the full rule, as does any change that touches the core's own RTL, programs, toolchain lock or placement recipe, and as does any change that ships it. The levels are derived in `docs/support-matrix.py` from the quality ladder in `docs/plans/forward-plan.md` and are listed in [the support matrix](docs/support-matrix.md): they say which cores a sweep is not about, and they never lower a gate on work being done to a core, which the rule above this one still forbids. (#1863, accepted 2026-11-15)
 - Do not close PRs without Deano's OK.
 
 ### Ops
@@ -106,11 +110,14 @@ Outside agent sessions have ignored these rules. Obey them.
 1. MUST claim the kit before you touch it, and log the result when you
    finish. There is no separate Powerboat host claim. Record owner, PR,
    and start time in that kit's Powerboat status file:
-   `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`. That
+   `~/kit-status/kitA-STATUS.md`, `kitB-STATUS.md`, or
+   `de25-TRWU8J8G-STATUS.md` for Kit D25. That
    log is the single source of truth. NEVER take a kit that is leased or
    claimed by someone else. NEVER use a Slack reservation, and NEVER
    require a person to be present.
 2. Kits A and B are both designated test kits. They are interchangeable.
+   DE25 paths use Kit D25 (`de25-j8g`, serial `TRWU8J8G`); never substitute
+   a DE10 kit for its HIL gate.
 3. When a task installs a bundle, install that PR bundle on the kit's
    running image. A core-only run that does not change the bundle does not
    install one. Software goes before the image: before an image change,
@@ -196,7 +203,7 @@ never infer persistence from a display name, package path or raw RBF.
 
 ## Toolchain pin bump checklist
 
-- A toolchain pin bump must build every core it touches before merging.
+- A committed toolchain pin bump is deliberate adoption and must force-build every core it touches before merging; a design-cache hit does not satisfy this check. A newer available compiler alone is advisory and does not require moving a lock.
 
 ## Pre-release development and review
 
@@ -282,9 +289,10 @@ equivalence only; production builds, promotion and seal evidence still require a
 authenticated live HIP or CUDA backend as producer validators require, and they do
 not accept Metal yet. Registered producers reject CPU-reference fallback
 (`NEXTPNR_REQUIRE_GPU=1`), so CPU replays can inform experiments only. HIP, CUDA
-and Metal builds keep distinct `BUILD_ID`s and artifact identities because backend
-is part of functional execution identity, even though their timing and route
-evidence is interchangeable. Among current core
+and Metal builds share a design-v1 `BUILD_ID` when their design inputs match;
+backend remains part of toolchain and recording identity. Exact artifacts are
+identified by package/payload hashes, and hardware acceptance follows those
+exact bytes even though timing and route evidence is interchangeable. Historical combined identities are unchanged. Among current core
 package producers, Apple II, Atari ST, C64, Coleco socket-v2, SG-1000, SMS,
 Spectrum and ZX81 accept `--gpu-router {HIP,CUDA}`. The pc386 Quartus sealer
 accepts it too, but only to select which toolchain slot it authenticates; it

@@ -73,9 +73,10 @@ equivalence only; production builds, promotion and seal evidence still require a
 authenticated live HIP or CUDA backend as producer validators require, and they do
 not accept Metal yet. Registered producers reject CPU-reference fallback
 (`NEXTPNR_REQUIRE_GPU=1`), so CPU replays can inform experiments only. HIP, CUDA
-and Metal builds keep distinct `BUILD_ID`s and artifact identities because backend
-is part of functional execution identity, even though their timing and route
-evidence is interchangeable. Among current core
+and Metal builds share a design-v1 `BUILD_ID` when their design inputs match;
+backend remains part of toolchain and recording identity. Exact artifacts are
+identified by package/payload hashes, and hardware acceptance follows those
+exact bytes even though timing and route evidence is interchangeable. Historical combined identities are unchanged. Among current core
 package producers, Apple II, Atari ST, C64, Coleco socket-v2, SG-1000, SMS,
 Spectrum and ZX81 accept `--gpu-router {HIP,CUDA}`. The pc386 Quartus sealer
 accepts it too, but only to select which toolchain slot it authenticates; it

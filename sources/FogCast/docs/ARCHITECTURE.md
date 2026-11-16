@@ -1436,7 +1436,8 @@ Stop. A rejected changed-session action triggers a refresh; a subsequent
 explicit Stop uses the refreshed identity. Returning to a reused room calls
 its resume hook immediately, retaining navigation focus while refreshing the
 host snapshot. Failed saves and lost Stop responses retain their existing
-retry behavior.
+retry behavior. Before its first full picture, the workbench prewarms its
+standard description wrapping at the same text size used for display.
 See [hardware rooms](../../../docs/hardware-rooms.md) for the complete scope.
 
 When an entry has no selected expansion and its package lacks session display,

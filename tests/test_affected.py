@@ -14,6 +14,18 @@ from scripts.affected import native_compatibility_input
 
 
 class AffectedTests(unittest.TestCase):
+    def test_identity_report_selects_software_without_core_simulations(self):
+        result = plan(['sources/misteross/tools/identity.py'])
+        self.assertTrue(result['lanes']['fpga'])
+        self.assertEqual(result['cores'], [])
+
+    def test_identity_and_closure_recording_helpers_select_fpga_software(self):
+        for name in ('input_identity.py', 'source_closure.py', 'source_closures.json', 'build_fes_menu_package.py'):
+            with self.subTest(name=name):
+                result = plan(['sources/misteross/scripts/' + name])
+                self.assertTrue(result['lanes']['fpga'])
+                self.assertEqual(result['cores'], [])
+
     def test_hil_inventory_selects_only_parent(self):
         result = plan(['config/hil-go-consumers.json'])
         self.assertEqual({name for name, enabled in result['lanes'].items() if enabled}, {'parent'})
@@ -194,6 +206,25 @@ class AffectedTests(unittest.TestCase):
         self.assertTrue(all(result['lanes'].values()))
         self.assertEqual(result['cores'], [])
         self.assertFalse(any(result['test_modes'].values()))
+
+    def test_de25_x87_sources_and_regressions_select_only_their_simulation(self):
+        for path in ('boards/de25nano/x87/rtl/fes_x87_fast.sv',
+                     'boards/de25nano/x87/rtl/new_unit.sv',
+                     'boards/de25nano/x87/sim/x87_pipe_tb.cpp',
+                     'boards/de25nano/x87/run.py',
+                     'tests/test_de25_x87.py', 'tests/test_de25_x87_build.py'):
+            with self.subTest(path=path):
+                result = plan(['sources/misteross/' + path])
+                self.assertEqual(result['cores'], ['de25-x87'])
+                self.assertEqual({lane for lane, selected in result['lanes'].items() if selected},
+                                 {'parent', 'fpga'})
+        mixed = plan(['sources/misteross/boards/de25nano/x87/rtl/fes_x87_fast.sv',
+                      'sources/misteross/cores/fes-zx81/new_unit.sv'])
+        self.assertEqual(set(mixed['cores']), {'de25-x87', 'zx81'})
+        for path in ('boards/de25nano/x87-other/rtl/unit.sv',
+                     'tests/test_other_x87.py', 'tests/test_de25_x87.py.backup'):
+            with self.subTest(unrelated=path):
+                self.assertEqual(plan(['sources/misteross/' + path])['cores'], [])
 
     def test_de25_ddr_definition_consumers_are_standalone_only(self):
         definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml'
@@ -630,7 +661,7 @@ class AffectedTests(unittest.TestCase):
                 sources.append(root / 'scripts/sim_fes_zx81_session.py')
                 sources.append(root / 'scripts/sim_fes_display_plane.py')
             recipe += ''.join(path.read_text() for path in sources if path.exists())
-            references = set(re.findall(r'cores/[A-Za-z0-9_./-]+', recipe))
+            references = set(re.findall(r'(?:cores/|boards/de25nano/x87/)[A-Za-z0-9_./-]+', recipe))
             self.assertTrue(references, core)
             for path in references:
                 with self.subTest(core=core, path=path):
