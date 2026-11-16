@@ -58,6 +58,7 @@ from scripts import quartus_timing_summary, quartus_vo_evidence, rom_map
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.cyclonev_rbf import rbf_load
 from scripts.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
+from scripts.input_identity import with_identities
 from scripts.fes_build_common import BuildError, _require_clean_source as require_clean_source
 from scripts.functional_execution import execution_digest, execution_environment
 from scripts.quartus_tools import RebuildError, load_quartus_lock, locate_quartus
@@ -97,7 +98,7 @@ SOURCE_ROOTS = tuple(sorted({
     'cores/fes-zx81/rtl/zx81_model.vh', 'cores/fes-zx81/rtl/zx81_bus_pack.vh',
     *(f'scripts/{name}.py' for name in (
         'compiler_read_audit', 'core_package', 'cyclonev_rbf', 'export_core_package', 'fes_build_common',
-        'fes_de10nano_evidence', 'functional_execution', 'lockfile', 'nextpnr_lease', 'quartus_timing_summary',
+        'fes_de10nano_evidence', 'functional_execution', 'input_identity', 'lockfile', 'nextpnr_lease', 'quartus_timing_summary',
         'quartus_tools', 'quartus_vo_evidence', 'rfc3986_validator', 'rom_map', 'source_closure',
         'source_provenance', 'source_repository'))}))
 
@@ -183,6 +184,18 @@ def selected_recipe(root=ROOT, core_id: str = 'fes.zx81') -> dict:
     if quartus['version'] != load_quartus_lock(root, LOCK).version:
         raise BuildError(f'{machine.core_id} registry Quartus version differs from {LOCK}')
     return rows[0]
+
+
+def quartus_recipe_parameters(quartus: dict) -> dict:
+    """Split the registered [recipes.quartus] table as the PC/XT producer does.
+
+    The Quartus version and the fitter thread count are toolchain identity;
+    every other field, including the ordered seed list, is hashed into the
+    design identity.
+    """
+    design = {key: value for key, value in quartus.items() if key not in ('version', 'threads')}
+    return {'quartus_recipe_sha256': hashlib.sha256(json.dumps(design, sort_keys=True).encode()).hexdigest(),
+            'quartus_version': quartus['version'], 'quartus_threads': quartus['threads']}
 
 
 def recipe_seeds(recipe: dict) -> tuple[int, ...]:
@@ -343,8 +356,6 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
     parameters = {
         'core_id': machine.core_id, 'model': machine.key, 'model_define': machine.define or 'none',
         'device': TARGET, 'top': TOP, 'compiler': lock.compiler,
-        'seeds': ','.join(str(seed) for seed in recipe_seeds(recipe)), 'threads': recipe_threads(recipe),
-        'quartus_recipe_sha256': hashlib.sha256(json.dumps(recipe, sort_keys=True).encode()).hexdigest(),
         'sys_clock_hz': 52224000, 'pixel_clock_hz': 74250000, 'audio_clock_hz': 12288000,
         'reference_clock_hz': 50000000, 'machine_clock_hz': 6500000, 'cpu_clock_hz': 3250000,
         'expansion_socket': 'none',
@@ -354,13 +365,16 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
         'rom_database_sha256': json.dumps(ROM_DATABASE_SHA256, sort_keys=True, separators=(',', ':')),
         'rom_selftest': SELFTEST_DOMAIN.decode(),
         'execution_sha256': execution_digest(execution)}
+    parameters.update(quartus_recipe_parameters(recipe['quartus']))
     fields = {'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,
               'source_path': root.relative_to(top).as_posix(), 'source_roots': roots,
               'source_inputs': source_input_closure(root, roots),
               'recipe': RECIPE, 'recipe_sha256': sha(root / RECIPE),
               'abi_definition': ABI, 'abi_definition_sha256': sha(root / ABI),
               'dependencies': {}, 'tools': dict(tool_identities), 'parameters': parameters}
-    return encode_build_record(fields)
+    if execution.get('selection_only'):
+        fields['parameters']['selection_only'] = True
+    return encode_build_record(with_identities(fields, root=root))
 
 
 def blank_mif() -> str:
