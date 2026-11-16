@@ -290,7 +290,16 @@ authenticated live HIP or CUDA backend as producer validators require, and they 
 not accept Metal yet. Registered producers reject CPU-reference fallback
 (`NEXTPNR_REQUIRE_GPU=1`), so CPU replays can inform experiments only. HIP, CUDA
 and Metal builds share a design-v1 `BUILD_ID` when their design inputs match;
-backend remains part of toolchain and recording identity. Exact artifacts are
+backend remains part of toolchain and recording identity. The front end that
+elaborates the logic is the same kind of input: on a design-v1 record `front_end`
+(`yosys`, `quartus-lite`, `quartus-pro`) and its program digest are toolchain
+parameters, so which compiler elaborates a design does not move that design's
+`BUILD_ID`, and a front-end change is advisory for an already sealed design
+rather than a rebuild. The record's `device_family` parameter is the deliberate exception (distinct
+from the `device_family` a toolchain lock entry carries, which rides in
+`toolchain_pins`): it names what the design is compiled *for* rather than what compiled
+it, so it is a design input and a Cyclone V build and an Agilex 5 build of one
+source set do not share a design identity. Exact artifacts are
 identified by package/payload hashes, and hardware acceptance follows those
 exact bytes even though timing and route evidence is interchangeable. Historical combined identities are unchanged. Among current core
 package producers, Apple II, Atari ST, C64, Coleco socket-v2, SG-1000, SMS,
