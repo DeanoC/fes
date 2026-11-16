@@ -79,8 +79,9 @@ elaborates the logic is the same kind of input: on a design-v1 record `front_end
 (`yosys`, `quartus-lite`, `quartus-pro`) and its program digest are toolchain
 parameters, so which compiler elaborates a design does not move that design's
 `BUILD_ID`, and a front-end change is advisory for an already sealed design
-rather than a rebuild. `device_family` is the deliberate exception on that
-record: it names what the design is compiled *for* rather than what compiled
+rather than a rebuild. The record's `device_family` parameter is the deliberate exception (distinct
+from the `device_family` a toolchain lock entry carries, which rides in
+`toolchain_pins`): it names what the design is compiled *for* rather than what compiled
 it, so it is a design input and a Cyclone V build and an Agilex 5 build of one
 source set do not share a design identity. Exact artifacts are
 identified by package/payload hashes, and hardware acceptance follows those
