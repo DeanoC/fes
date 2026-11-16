@@ -571,6 +571,29 @@ def tool_names(metadata: dict) -> tuple[str, ...]:
     return ("quartus_syn",) if metadata["edition"] == "pro" else ("quartus_map",)
 
 
+def check_envelope(record: dict, fit_text: str, inputs: dict) -> None:
+    """The envelope is only an envelope if the virtual pins took effect.
+
+    Quartus 17.0.2 ignores a VIRTUAL_PIN whose node name is braced, and then
+    every port is a real pin: the fit is a different experiment, and on a
+    device with pins to spare it would fail silently. This runs before the
+    timing gate and again on the failure path, so a fit whose timing missed --
+    a ladder rung above the closure -- still has its envelope verified before
+    its area is quoted beside the rungs that passed.
+    """
+    if "real_pins" in record:
+        return
+    pins = re.search(r"^;\s*Total pins\s*;\s*([\d,]+)\s*/", fit_text, re.M)
+    if pins is None:
+        raise FitError("fit report has no total pin count, so the virtual-pin envelope "
+                       "cannot be confirmed")
+    record["real_pins"] = int(pins.group(1).replace(",", ""))
+    if record["real_pins"] > len(inputs["real_clocks"]):
+        raise FitError(f"{record['real_pins']} real pins against "
+                       f"{len(inputs['real_clocks'])} real clocks: the VIRTUAL_PIN assignments "
+                       "did not take effect, so this is not the intended envelope")
+
+
 def compile_project(output: Path, project: Path, top: str, quartus_sh: Path,
                     metadata: dict, timeout_seconds: int) -> dict:
     inputs = json.loads((output / "inputs.json").read_text())
@@ -603,19 +626,7 @@ def compile_project(output: Path, project: Path, top: str, quartus_sh: Path,
             run(command, project, output, label, deadline)
         fit_text = fit_report.read_text(errors="replace")
         record["resources"] = resources(fit_text)
-        # The envelope is only an envelope if the virtual pins took effect.
-        # Quartus 17.0.2 ignores a VIRTUAL_PIN whose node name is braced, and
-        # then every port is a real pin: the fit is a different experiment, and
-        # on a device with pins to spare it would fail silently.
-        pins = re.search(r"^;\s*Total pins\s*;\s*([\d,]+)\s*/", fit_text, re.M)
-        if pins is None:
-            raise FitError("fit report has no total pin count, so the virtual-pin envelope "
-                           "cannot be confirmed")
-        record["real_pins"] = int(pins.group(1).replace(",", ""))
-        if record["real_pins"] > len(inputs["real_clocks"]):
-            raise FitError(f"{record['real_pins']} real pins against "
-                           f"{len(inputs['real_clocks'])} real clocks: the VIRTUAL_PIN assignments "
-                           "did not take effect, so this is not the intended envelope")
+        check_envelope(record, fit_text, inputs)
         record["timing"] = json.loads((output / "timing.json").read_text())
         sta = (project / "output_files" / f"{top}.sta.rpt").read_text(errors="replace")
         clocks = re.findall(r"^;\s*(Illegal Clocks|Unconstrained Clocks)\s*;\s*(\d+)\s*;\s*(\d+)\s*;",
@@ -637,7 +648,11 @@ def compile_project(output: Path, project: Path, top: str, quartus_sh: Path,
                     break
         if fit_report.is_file():
             try:
-                record["resources"] = resources(fit_report.read_text(errors="replace"))
+                failed_text = fit_report.read_text(errors="replace")
+                record["resources"] = resources(failed_text)
+                # A missed rung's area is quoted beside the rungs that passed,
+                # so its envelope is verified here too.
+                check_envelope(record, failed_text, inputs)
             except (FitError, OSError) as parse_error:
                 record["resource_parse_error"] = str(parse_error)
         if (output / "timing.json").is_file():

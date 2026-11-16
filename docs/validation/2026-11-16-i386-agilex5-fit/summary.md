@@ -31,15 +31,19 @@ amendment dated and stating what had already been seen. Tracker:
 
 ## What was measured
 
-Fourteen internal virtual-pin characterisation fits: the three designs below at
-61.44 MHz, the CPU's clock ladder on Agilex 5, and one superseded envelope
-kept for comparison. No board shell, no pins, no
-HPS, no PLL, no reset-release IP, no programming artifact, no seal and no
-hardware acceptance. Every fit passed setup, hold, recovery, removal and
-minimum pulse width at **every published operating condition** of its device —
-four on Agilex 5, six on Cyclone V — at a **61.44 MHz** system clock, the
-pc386 seal's — four published corners on Agilex 5 and eight on Cyclone V.
-Nothing was relaxed.
+Fourteen internal virtual-pin characterisation fits: the three designs below
+at the **61.44 MHz** system clock the pc386 seal uses, the CPU's clock ladder
+on Agilex 5 from 75 to 170 MHz, the direct-SystemVerilog cross-check, and one
+superseded envelope kept for comparison. No board shell, no pins, no HPS, no
+PLL, no reset-release IP, no programming artifact, no seal and no hardware
+acceptance.
+
+**Twelve of the fourteen passed** setup, hold, recovery, removal and minimum
+pulse width at **every published operating condition** of their device — four
+on Agilex 5, eight on Cyclone V. The other two are the ladder's **150 and
+170 MHz rungs, which miss**, and they are in the record precisely because they
+do: they are what bounds the closure from above. Nothing was relaxed for any
+of them, and no rung's verdict was revisited.
 
 | Fit | Top | 387 | Device |
 | --- | --- | --- | --- |
@@ -234,7 +238,7 @@ this record is `main`, whose 387 has no arithmetic.
 | Rung | Device | Closed? | ALMs | % | LABs | % | Worst-corner Fmax estimate |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | 61.44 MHz | Agilex 5 | **yes**, all 4 corners | 29,300 | 62.61% | 3,626 | 77.48% | 124.35 MHz |
-| 61.44 MHz, seed 2 | Agilex 5 | **yes**, all 4 corners | 29,373 | 62.76% | 3,607 | 77.07% | 144.03 MHz |
+| 61.44 MHz, seed 2 | Agilex 5 | **yes**, all 4 corners | 29,373 | 62.76% | 3,607 | 77.07% | 128.12 MHz |
 | 75 MHz | Agilex 5 | **yes**, all 4 corners | 29,360 | 62.74% | 3,611 | 77.16% | 132.01 MHz |
 | 90 MHz | Agilex 5 | **yes**, all 4 corners | 29,304 | 62.62% | 3,590 | 76.71% | 125.69 MHz |
 | 110 MHz | Agilex 5 | **yes**, all 4 corners | 29,348 | 62.71% | 3,592 | 76.75% | 133.23 MHz |

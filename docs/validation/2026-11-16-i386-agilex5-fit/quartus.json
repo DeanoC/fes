@@ -916,7 +916,7 @@
       "real_clocks": [
         "clk"
       ],
-      "real_pins": null,
+      "real_pins": 1,
       "resources": {
         "alms": {
           "available": 46800.0,
@@ -1058,7 +1058,7 @@
       "real_clocks": [
         "clk"
       ],
-      "real_pins": null,
+      "real_pins": 1,
       "resources": {
         "alms": {
           "available": 46800.0,

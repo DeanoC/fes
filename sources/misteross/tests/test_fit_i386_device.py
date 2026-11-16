@@ -161,6 +161,33 @@ class Envelope(unittest.TestCase):
         self.assertEqual(fit.parse_ports(NETLIST, "other"), [("a", "input"), ("b", "output")])
 
 
+class Envelope2(unittest.TestCase):
+    """The pin gate, which is what makes the envelope a claim rather than an
+    assertion. It must also run for a fit whose timing missed, because a missed
+    rung's area is quoted beside the rungs that passed."""
+
+    REPORT = "; Total pins                       ; 1 / 351 ( < 1 % ) ;\n"
+
+    def test_one_real_pin_against_one_real_clock_passes(self):
+        record = {}
+        fit.check_envelope(record, self.REPORT, {"real_clocks": ["clk"]})
+        self.assertEqual(record["real_pins"], 1)
+
+    def test_more_real_pins_than_real_clocks_is_a_failure(self):
+        with self.assertRaisesRegex(fit.FitError, "not the intended envelope"):
+            fit.check_envelope({}, "; Total pins ; 314 / 314 ;\n", {"real_clocks": ["clk"]})
+
+    def test_a_report_without_a_pin_count_is_refused(self):
+        with self.assertRaisesRegex(fit.FitError, "cannot be confirmed"):
+            fit.check_envelope({}, "; Logic utilization (in ALMs) ; 1 / 2 ;\n",
+                               {"real_clocks": ["clk"]})
+
+    def test_it_does_not_run_twice(self):
+        record = {"real_pins": 2}
+        fit.check_envelope(record, "; Total pins ; 314 / 314 ;\n", {"real_clocks": ["clk"]})
+        self.assertEqual(record["real_pins"], 2)
+
+
 class Caps(unittest.TestCase):
     def test_each_design_gets_the_cap_the_method_promised(self):
         # A fit reported as "not measured within the cap" must have been given
