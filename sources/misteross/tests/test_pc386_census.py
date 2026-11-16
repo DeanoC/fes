@@ -633,6 +633,39 @@ class SummaryTest(unittest.TestCase):
         self.assertEqual(row['interrupts_with_error_pending'], 1)
         self.assertTrue(row['relies_on_exceptions'])
 
+    @staticmethod
+    def census_form(op: int, modrm: int) -> str:
+        """census.h's form name for an ESC, reimplemented from the header's
+        rule so the inventory can be checked against what it can emit."""
+        reg = (modrm >> 3) & 7
+        form = f'{op:02x}'
+        if (modrm >> 6) != 3:
+            return form + f'.m{reg}'
+        if ((op == 0xd9 and reg >= 2) or (op == 0xdb and reg == 4) or (op == 0xde and reg == 3)
+                or (op == 0xdf and reg == 4) or (op == 0xda and reg == 5) or (op == 0xdd and reg >= 4)):
+            return form + f'{modrm:02x}'
+        return form + f'.r{reg}'
+
+    def test_the_form_inventory_covers_everything_the_census_can_emit(self):
+        """Every form census.h can emit must be in X87_FORMS, so nothing is
+        counted as `unknown` and nothing is silently missing from the
+        generated never-executed list.
+
+        This check is the one that should have existed from the start: three
+        separate review rounds found gaps in this inventory by inspection --
+        the m16 integer arithmetic forms (`de.m0`-`de.m7`) and FNOP
+        (`d9d0`) -- and each time a hand-maintained table was the cause.
+        """
+        missing = sorted({self.census_form(op, modrm)
+                          for op in range(0xd8, 0xe0) for modrm in range(0x100)} - set(summary.X87_FORMS))
+        self.assertEqual(missing, [], f'forms the census can emit but the inventory lacks: {missing}')
+
+    def test_fnop_is_in_the_inventory(self):
+        """D9 D0 is FNOP, a valid 387 instruction the census emits as `d9d0`.
+        Its absence kept it out of the generated never-executed list."""
+        self.assertEqual(summary.X87_FORMS['d9d0'], ('simple', 'none'))
+        self.assertEqual(summary.x87_name('d9d0'), 'FNOP (`d9d0`)')
+
     def test_the_rows_are_stable(self):
         with tempfile.TemporaryDirectory() as tmp:
             Path(tmp, 'census.txt').write_text(self.CENSUS)

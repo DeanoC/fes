@@ -104,7 +104,7 @@ def summarize(counts: dict[str, int]) -> dict:
 #
 # class: load, store, fxch, arith, compare, trans, control, image, simple.
 # operand: real32, real64, real80, int16, int32, int64, bcd80, image, none.
-X87_FORMS = {
+X87_FORMS: dict[str, tuple[str, str]] = {
     # D8/DC: real arithmetic, memory (m32 / m64) and register.
     **{f'd8.m{r}': (('arith' if r in (0, 1, 4, 5, 6, 7) else 'compare'), 'real32') for r in range(8)},
     **{f'dc.m{r}': (('arith' if r in (0, 1, 4, 5, 6, 7) else 'compare'), 'real64') for r in range(8)},
@@ -129,7 +129,7 @@ X87_FORMS = {
     'df.m4': ('load', 'bcd80'), 'df.m5': ('load', 'int64'),
     'df.m6': ('store', 'bcd80'), 'df.m7': ('store', 'int64'),
     # D9 register forms.
-    'd9.r0': ('load', 'none'), 'd9.r1': ('fxch', 'none'),
+    'd9.r0': ('load', 'none'), 'd9.r1': ('fxch', 'none'), 'd9d0': ('simple', 'none'),
     'd9e0': ('simple', 'none'), 'd9e1': ('simple', 'none'), 'd9e4': ('compare', 'none'),
     'd9e5': ('compare', 'none'), 'd9e8': ('load', 'none'), 'd9e9': ('load', 'none'),
     'd9ea': ('load', 'none'), 'd9eb': ('load', 'none'), 'd9ec': ('load', 'none'),
@@ -161,6 +161,28 @@ X87_FORMS = {
 # control only and ignore precision control (387 PRM; the x87 plan record's
 # "Accuracy" section), so FRNDINT has its own class, `round`, and is counted
 # in the mix but not in the PC distribution.
+# The encodings census.h can name that are NOT 387 instructions: reserved or
+# undefined ModRM values inside the ESC groups. They are listed explicitly
+# rather than left absent, so that
+# test_the_form_inventory_covers_everything_the_census_can_emit can require
+# every emittable form to be either a named instruction or listed here. A new
+# instruction therefore has to be taken OUT of this list to be added, which is
+# what makes the check able to catch an omission -- three review rounds found
+# gaps in this inventory by inspection before it existed.
+X87_RESERVED = (
+    'd9.m1', 'd9d1', 'd9d2', 'd9d3', 'd9d4', 'd9d5', 'd9d6', 'd9d7',
+    'd9d8', 'd9d9', 'd9da', 'd9db', 'd9dc', 'd9dd', 'd9de', 'd9df',
+    'd9e2', 'd9e3', 'd9e6', 'd9e7', 'd9ef', 'dae8', 'daea', 'daeb',
+    'daec', 'daed', 'daee', 'daef', 'db.m1', 'db.m4', 'db.m6', 'dbe5',
+    'dbe6', 'dbe7', 'dd.m1', 'dd.m5', 'ddf0', 'ddf1', 'ddf2', 'ddf3',
+    'ddf4', 'ddf5', 'ddf6', 'ddf7', 'ddf8', 'ddf9', 'ddfa', 'ddfb',
+    'ddfc', 'ddfd', 'ddfe', 'ddff', 'ded8', 'deda', 'dedb', 'dedc',
+    'dedd', 'dede', 'dedf', 'df.m1', 'dfe1', 'dfe2', 'dfe3', 'dfe4',
+    'dfe5', 'dfe6', 'dfe7',
+)
+
+X87_FORMS.update({form: ('reserved', 'none') for form in X87_RESERVED})
+
 X87_ARITH_PC = ('arith',)
 PRECISION = {0: '24', 1: 'reserved', 2: '53', 3: '64'}
 ROUNDING = {0: 'nearest', 1: 'down', 2: 'up', 3: 'zero'}
@@ -172,7 +194,7 @@ X87_MNEMONIC = {
     'd9f0': 'F2XM1', 'd9f1': 'FYL2X', 'd9f2': 'FPTAN', 'd9f3': 'FPATAN', 'd9f4': 'FXTRACT',
     'd9f5': 'FPREM1', 'd9f6': 'FDECSTP', 'd9f7': 'FINCSTP', 'd9f8': 'FPREM', 'd9f9': 'FYL2XP1',
     'd9fa': 'FSQRT', 'd9fb': 'FSINCOS', 'd9fc': 'FRNDINT', 'd9fd': 'FSCALE', 'd9fe': 'FSIN',
-    'd9ff': 'FCOS', 'd9e0': 'FCHS', 'd9e1': 'FABS', 'd9e4': 'FTST', 'd9e5': 'FXAM',
+    'd9ff': 'FCOS', 'd9d0': 'FNOP', 'd9e0': 'FCHS', 'd9e1': 'FABS', 'd9e4': 'FTST', 'd9e5': 'FXAM',
     'd9e8': 'FLD1', 'd9e9': 'FLDL2T', 'd9ea': 'FLDL2E', 'd9eb': 'FLDPI', 'd9ec': 'FLDLG2',
     'd9ed': 'FLDLN2', 'd9ee': 'FLDZ', 'dbe2': 'FNCLEX', 'dbe3': 'FNINIT', 'dbe4': 'FSETPM',
     'dfe0': 'FNSTSW AX', 'ded9': 'FCOMPP', 'dae9': 'FUCOMPP',

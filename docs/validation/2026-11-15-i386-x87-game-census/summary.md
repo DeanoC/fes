@@ -514,11 +514,23 @@ instructions `FIADD`, `FIMUL`, `FICOM`, `FICOMP`, `FISUB`, `FISUBR`,
 text described all the omitted entries as register spellings when they were
 not. The inventory is complete now.
 
+A third round then found `FNOP` (`d9d0`) missing from the inventory the same
+way. **The inventory is now checked mechanically rather than maintained by
+inspection**: a test enumerates every form `census.h` can emit, from the
+header's own naming rule, and requires each to be either a named instruction
+or an explicitly listed reserved encoding. That check found 67 further gaps
+at once — all of them reserved ModRM values inside the ESC groups, now
+classified as such. Adding a real instruction means taking it *out* of the
+reserved list, which is what gives the check teeth. It is the check that
+should have existed before the first version of this list.
+
 The 387 instructions no title executed: `FXTRACT`, `FPREM`, `FPREM1`,
-`FYL2XP1`, `FDECSTP`, `FINCSTP`, `FNCLEX`, `FRSTOR`, `FNSAVE`, `FFREE`,
-`FST ST(i)`, the eight m16 integer arithmetic forms above, `FIST m16`,
-`FISTP m16`, `FBLD`, `FBSTP` and three constant loads (`FLDL2T`, `FLDPI`,
-`FLDLG2`).
+`FYL2XP1`, `FDECSTP`, `FINCSTP`, `FNOP`, `FNCLEX`, `FRSTOR`, `FNSAVE`,
+`FFREE`, `FST ST(i)`, the eight m16 integer arithmetic forms above,
+`FIST m16`, `FISTP m16`, `FBLD`, `FBSTP` and three constant loads
+(`FLDL2T`, `FLDPI`, `FLDLG2`). [tables.md](tables.md) is the generated and
+authoritative copy. **No title executed a reserved encoding**, which the
+same classification now reports rather than leaving as an unknown form.
 
 For slice 6: those are what the census titles never reach, so optimising
 them buys nothing measurable here. They must still be *correct* — a 387
