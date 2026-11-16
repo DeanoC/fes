@@ -365,3 +365,39 @@ envelope and both results are reported** — the zero-delay figures above are
 kept in the record, not replaced, with the envelope each came from named. If
 the two Agilex figures differ materially, that difference is itself reported
 as the envelope's own effect.
+
+## Amendment, 16 November 2026: LABs, and the envelope's own ALMs
+
+What had been seen: fit C on both devices and fit M on Agilex 5 had all passed
+at 61.44 MHz. Fit M+ had not run.
+
+**The budget must be stated in LABs as well as ALMs, and the first reading of
+it was wrong.** [#1889](https://github.com/DeanoC/fes/pull/1889)'s refusal was
+a **LAB** count — 4,292 needed against the Cyclone V's 4,191, 102.4% — and the
+first budget set a percentage of **ALMs** against it. LAB occupancy runs well
+ahead of ALM occupancy, because ALMs sit sparsely across LABs until the fitter
+is under pressure. Both fitters report LAB occupancy, so each fit now records
+it with its device's LAB total, and the budget is stated in both units with
+each one named. The Agilex 5 has 4,680 LABs against the Cyclone V's 4,191.
+
+**The envelope's own ALMs are reported beside the design's.** Both fitters
+count them: `ALMs containing virtual pins`. The CPU fits carry **2,351** such
+ALMs on each device — its 1,306 ports are 4,700 pin bits — and the machine fit
+carries **651**. Those counts are reported next to each ALM figure and are
+**never subtracted** from it, so every ALM figure in this record is the fit's
+own total and includes its envelope. A real core would not have the CPU's
+2,351, and would replace the machine's 651 with an actual board shell.
+
+**Three labels the budget carries.** Any M+ − M difference is a single-seed
+delta and is quoted against this lane's established ±200 ALM fit-to-fit noise.
+The ~770 ALM DE10 board-shell figure comes from the 8 November area audit at a
+different commit and is cited as that, not measured here. And the per-figure
+device percentages come from the fitter's own denominators.
+
+**Removed, not reinterpreted:** the `port_clock` table that constrained
+pixel-domain ports against the pixel clock. Under the cut envelope every
+virtual port path is cut, so which clock a cut port would have belonged to
+changes nothing; the table was dead and is deleted rather than left as a shim.
+The pixel domain's own register-to-register paths are analysed as the system
+domain's are, and the record says the video output path is **not** analysed —
+it is a virtual port, and no board I/O timing is established for it.

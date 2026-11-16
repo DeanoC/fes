@@ -39,7 +39,8 @@ AGILEX_REPORT = """\
 ; DSP Blocks Needed [=A+B+C-D]             ; 9 / 188 ( 5 % )  ;
 ; M20K blocks                              ; 37 / 358 ( 10 % );
 ; Total block memory bits                  ; 215,040          ;
-; Virtual pins                             ; 1,306            ;
+; Total virtual pins                       ; 4,700            ;
+;   * ALMs containing virtual pins         ; 2,351 / 46,800 ( 5 % ) ;
 """
 CYCLONE_REPORT = """\
 ; Logic utilization (in ALMs)              ; 19,870 / 41,910 ( 47 % ) ;
@@ -48,6 +49,7 @@ CYCLONE_REPORT = """\
 ; Total DSP Blocks                         ; 4 / 112 ( 4 % )  ;
 ; Total RAM Blocks                         ; 110 / 553 ( 20 % ) ;
 ; Total block memory bits                  ; 198,912          ;
+; Total LABs:  partially or completely used                   ; 3,494 / 4,191         ; 83 %  ;
 """
 
 
@@ -108,8 +110,7 @@ class Envelope(unittest.TestCase):
             self.assertIn("no hardware acceptance", inputs["classification"])
 
     def test_the_cpu_envelope_has_one_clock_and_cuts_every_virtual_port(self):
-        sdc = fit.clock_constraints(fit.DESIGNS["cpu"], 1000.0 / 61.44,
-                                    [("clk", "input"), ("cold_reset", "input")])
+        sdc = fit.clock_constraints(fit.DESIGNS["cpu"], 1000.0 / 61.44)
         self.assertIn("create_clock -name clk_clock -period 16.2760 [get_ports clk]", sdc)
         self.assertNotIn("set_clock_groups", sdc)
         self.assertIn("derive_clock_uncertainty", sdc)
@@ -123,9 +124,7 @@ class Envelope(unittest.TestCase):
         self.assertIn("set_false_path -to [all_outputs]", sdc)
 
     def test_the_machine_envelope_keeps_both_clocks_out_of_the_cut(self):
-        ports = [(name + "[*]" if name in {"video", "gpo", "gpi"} else name, direction)
-                 for name, direction in MACHINE_PORTS]
-        sdc = fit.clock_constraints(fit.DESIGNS["machine"], 1000.0 / 61.44, ports)
+        sdc = fit.clock_constraints(fit.DESIGNS["machine"], 1000.0 / 61.44)
         self.assertIn("create_clock -name clk_clock -period 16.2760 [get_ports clk]", sdc)
         # The pixel clock is the shell's fixed 74.25 MHz and does not move with
         # the system clock; cores/fes-pc386/clocks.sdc times no path between them.
@@ -135,11 +134,6 @@ class Envelope(unittest.TestCase):
         self.assertIn("-group [get_clocks {pixel_clk_clock}]", sdc)
         # Both clocks are real inputs and must not be cut with the virtual ports.
         self.assertIn("[add_to_collection [get_ports clk] [get_ports pixel_clk]]", sdc)
-
-    def test_a_port_clock_table_naming_a_port_the_netlist_lacks_is_refused(self):
-        design = dict(fit.DESIGNS["machine"], port_clock={"nonexistent": "pixel_clk"})
-        with self.assertRaisesRegex(fit.FitError, "does not have: nonexistent"):
-            fit.clock_constraints(design, 16.276, [("clk", "input"), ("pixel_clk", "input")])
 
     def test_port_directions_come_from_the_netlist(self):
         self.assertEqual(fit.parse_ports(NETLIST, "other"), [("a", "input"), ("b", "output")])
@@ -212,10 +206,21 @@ class Resources(unittest.TestCase):
                 self.assertGreater(found["aluts"]["used"], 0)
                 self.assertGreater(found["registers"]["used"], 0)
 
-    def test_virtual_pins_are_reported_when_the_fitter_gives_them(self):
-        # Each virtual pin is built in the fabric, so part of the ALMs is
-        # envelope. The count is reported beside them and never subtracted.
-        self.assertEqual(fit.resources(AGILEX_REPORT)["virtual_pins"]["used"], 1_306)
+    def test_the_envelope_share_of_the_alms_is_reported(self):
+        # Each virtual pin is built in the fabric, so part of the ALM figure is
+        # envelope. The fitter's own count of it is reported beside the ALMs
+        # and never subtracted from them.
+        found = fit.resources(AGILEX_REPORT)
+        self.assertEqual(found["virtual_pins"]["used"], 4_700)
+        self.assertEqual(found["alms_with_virtual_pins"]["used"], 2_351)
+
+    def test_labs_are_read_where_the_fitter_reports_them(self):
+        # Quartus 17.0.2 reports LAB occupancy and the Agilex 5 fitter does
+        # not, so this figure exists on one side only -- which is why no LAB
+        # comparison between the two devices is possible.
+        self.assertEqual(fit.resources(CYCLONE_REPORT)["labs"]["used"], 3_494)
+        self.assertEqual(fit.resources(CYCLONE_REPORT)["labs"]["available"], 4_191)
+        self.assertNotIn("labs", fit.resources(AGILEX_REPORT))
 
     def test_a_missing_optional_row_is_not_a_failure(self):
         self.assertNotIn("virtual_pins", fit.resources(CYCLONE_REPORT))

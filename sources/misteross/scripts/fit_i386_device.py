@@ -106,17 +106,14 @@ DEVICES = {
 # a virtual pin. pc386_system's two clocks come from two separate PLLs in the
 # board shell and cores/fes-pc386/clocks.sdc does not time paths between
 # them, so they are declared asynchronous here too.
-# port_clock names the clock each non-clock port is constrained to. The two
-# machine clocks are asynchronous, so a pixel-domain port constrained to the
-# system clock would have its paths cut rather than analysed, and the fit could
-# report closure without ever looking at the video output.
-# pc386_system.sv:66-67 puts video in pixel_clk, and pixel_locked is that
-# domain's own reset input.
+# Every port but the clocks is virtual and every virtual port path is cut, so
+# no port needs a domain: which clock a cut port would have belonged to does
+# not change the fit. pc386_system's video output is in pixel_clk
+# (pc386_system.sv:66-67) and is cut like the rest; the pixel domain's own
+# register-to-register paths are analysed as the system domain's are.
 DESIGNS = {
-    "cpu": {"top": "fes_i386_cpu", "clocks": ("clk",), "asynchronous": False,
-            "port_clock": {}},
-    "machine": {"top": "pc386_system", "clocks": ("clk", "pixel_clk"), "asynchronous": True,
-                "port_clock": {"video[*]": "pixel_clk", "pixel_locked": "pixel_clk"}},
+    "cpu": {"top": "fes_i386_cpu", "clocks": ("clk",), "asynchronous": False},
+    "machine": {"top": "pc386_system", "clocks": ("clk", "pixel_clk"), "asynchronous": True},
 }
 # pc386_system's pixel clock is 74.25 MHz in the shell, fixed; only the system
 # clock moves with --period-ns.
@@ -291,8 +288,7 @@ def prepare_netlist(netlist: Path, device: "Device", work: Path) -> tuple[Path, 
     return retargeted, record
 
 
-def clock_constraints(design: dict, period_ns: float,
-                      ports: list[tuple[str, str]] | None = None) -> str:
+def clock_constraints(design: dict, period_ns: float) -> str:
     """The SDC: the clocks, and every virtual port path cut.
 
     A virtual pin is not a board pin. It has no package, no board trace and no
@@ -306,9 +302,7 @@ def clock_constraints(design: dict, period_ns: float,
     this measurement is about. No board I/O contract is established either
     way; the earlier zero-delay form established none either.
 
-    The clocks themselves are real inputs and are not cut. Where a design has
-    two, port_clock names which ports belong to the second one, so the record
-    can say which domain each cut port came from.
+    The clocks themselves are real inputs and are not cut.
     """
     clocks = design["clocks"]
     periods = {clocks[0]: period_ns}
@@ -322,12 +316,6 @@ def clock_constraints(design: dict, period_ns: float,
     if design["asynchronous"]:
         groups = " \\\n".join(f"    -group [get_clocks {{{clock}_clock}}]" for clock in clocks)
         lines.append("set_clock_groups -asynchronous \\\n" + groups + "\n")
-    domains = design["port_clock"]
-    if ports is not None:
-        unknown = set(domains) - {name for name, _direction in ports}
-        if unknown:
-            raise FitError("port_clock names ports the netlist does not have: "
-                           + ", ".join(sorted(unknown)))
     held = " ".join(f"[get_ports {clock}]" for clock in clocks)
     collection = f"[add_to_collection {held}]" if len(clocks) > 1 else held
     lines.append(f"set virtual_inputs [remove_from_collection [all_inputs] {collection}]\n")
@@ -358,7 +346,7 @@ def write_project(output: Path, device: Device, design: dict, netlist: Path,
     (project / f"{top}.qpf").write_text(
         f'QUARTUS_VERSION = "{metadata["series"]}"\nPROJECT_REVISION = "{top}"\n')
     ports = parse_ports(text, top)
-    (project / f"{top}.sdc").write_text(clock_constraints(design, period_ns, ports))
+    (project / f"{top}.sdc").write_text(clock_constraints(design, period_ns))
     virtual = [port for port, _direction in ports if port not in design["clocks"]]
     assignments = [("FAMILY", f'"{device.family}"'), ("DEVICE", device.part),
                    ("TOP_LEVEL_ENTITY", top), ("PROJECT_OUTPUT_DIRECTORY", "output_files"),
@@ -442,7 +430,16 @@ RESOURCE_LABELS = {
 # ALMs is envelope rather than design. The count is reported beside the ALMs so
 # a reader can judge that, and it is never subtracted from them.
 OPTIONAL_LABELS = {
-    "virtual_pins": ("Virtual pins", "Total virtual pins"),
+    "virtual_pins": ("Total virtual pins", "Virtual pins"),
+    # The fitter's own count of how much of the ALM figure is envelope. It is
+    # reported beside the ALMs and never subtracted from them.
+    "alms_with_virtual_pins": ("* ALMs containing virtual pins", "ALMs containing virtual pins"),
+    # Quartus 17.0.2 reports LAB occupancy; the Agilex 5 fitter does not report
+    # LABs at all, so a LAB figure exists on one side only and no LAB
+    # comparison between the devices is possible. #1889's 102.4% refusal was a
+    # LAB count, so this matters for reading that number against these.
+    "labs": ("Total LABs:  partially or completely used",
+             "Total LABs: partially or completely used"),
     "mlabs": ("MLAB blocks", "Total MLAB memory bits"),
 }
 _FRACTION = re.compile(r"^([\d,]+(?:\.\d+)?)\s*(?:/\s*([\d,]+(?:\.\d+)?))?\s*(?:\(\s*([<>]?\s*[\d.]+)\s*%\s*\))?")
@@ -453,6 +450,24 @@ def _number(text: str) -> float | None:
         return float(text.replace(",", ""))
     except ValueError:
         return None
+
+
+def _entry(label: str, value: str) -> dict | None:
+    """One figure: the count, and the device total and percentage where the
+    report row states a denominator. Quartus gives no denominator for ALUTs or
+    dedicated logic registers, so those are counts alone and no percentage is
+    invented for them here."""
+    match = _FRACTION.match(value)
+    if match is None or _number(match.group(1)) is None:
+        return None
+    entry = {"report_label": label, "used": _number(match.group(1))}
+    if match.group(2) is not None:
+        entry["available"] = _number(match.group(2))
+        if entry["available"]:
+            entry["percent_of_device"] = round(100.0 * entry["used"] / entry["available"], 2)
+    if match.group(3) is not None:
+        entry["report_percent"] = match.group(3).replace(" ", "")
+    return entry
 
 
 def resources(text: str) -> dict:
@@ -467,16 +482,9 @@ def resources(text: str) -> dict:
         for label in labels:
             if label not in rows:
                 continue
-            match = _FRACTION.match(rows[label])
-            if match is None or _number(match.group(1)) is None:
+            entry = _entry(label, rows[label])
+            if entry is None:
                 continue
-            entry = {"report_label": label, "used": _number(match.group(1))}
-            if match.group(2) is not None:
-                entry["available"] = _number(match.group(2))
-                if entry["available"]:
-                    entry["percent_of_device"] = round(100.0 * entry["used"] / entry["available"], 2)
-            if match.group(3) is not None:
-                entry["report_percent"] = match.group(3).replace(" ", "")
             found[resource] = entry
             break
         else:
@@ -486,9 +494,9 @@ def resources(text: str) -> dict:
                        + "; its rows: " + ", ".join(sorted(rows)[:40]))
     for resource, labels in OPTIONAL_LABELS.items():
         for label in labels:
-            match = _FRACTION.match(rows.get(label, ""))
-            if match is not None and _number(match.group(1)) is not None:
-                found[resource] = {"report_label": label, "used": _number(match.group(1))}
+            entry = _entry(label, rows[label]) if label in rows else None
+            if entry is not None:
+                found[resource] = entry
                 break
     return found
 
