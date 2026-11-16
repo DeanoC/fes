@@ -87,11 +87,30 @@ only, and the split puts them where they belong:
 the core whose front-end identity this branch exists to record. That is the reseal this branch
 owes, and it replaces the twelve-core question entirely.
 
+**Four ZX81-family Quartus packages move too, and this record claims no seal for them
+either.** `build_fes_zx81_quartus` lists both `scripts/export_core_package.py` and
+`scripts/input_identity.py` in its closure roots and its records are **legacy** -- no
+`identity_policy` -- so `functional_key()` hashes every source input and `zx81`, `zx80`,
+`ts1000` and `ts1500` get new `BUILD_ID`s from this branch. Reverting the producer change did not
+remove that, because the exposure is through the shared helpers, not the producer
+(DeanoC/fes#1806 review). The other five legacy producers were checked for the same thing and are
+clear, `build_fes_pc386_quartus` among them:
+
+| legacy producer | roots | hits from this branch |
+| --- | ---: | --- |
+| `build_fes_zx81_quartus` | 50 | **`export_core_package.py`, `input_identity.py`** |
+| `build_fes_pc386_quartus` | 122 | none |
+| `build_fes_coleco` | 31 | none |
+| `build_fes_sg1000` | 28 | none |
+| `build_fes_sms` | 29 | none |
+| `build_fes_splash` | 11 | none |
+
 **Deano's decision (16 Nov 2026): this lands with the PC/XT reseal to follow**, the same call he
 made for the earlier PC/XT front-end work. So this record does **not** claim a PC/XT seal, and
 nothing here should be read as one: the design identity in a PC/XT package built from this branch
-is new and unsealed until that reseal runs. It is tracked in DeanoC/fes#1893 rather than left to
-this record, because a reseal needs its own timing and seal evidence and a kit HIL, none of which
+is new and unsealed until that reseal runs. It is tracked in DeanoC/fes#1893 -- which also carries the
+four ZX81-family Quartus packages above, on the reading that his decision covers the same
+situation in kind -- rather than left to this record, because a reseal needs its own timing and seal evidence and a kit HIL, none of which
 is in scope here. The thin margins this campaign measured on `coleco_v2` and `sms`, which #1882
 does not address because it removes identity churn without adding margin, are DeanoC/fes#1894.
 
