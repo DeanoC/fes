@@ -92,9 +92,13 @@ for:
 | FRNDINT | 22 | 22 | 0 |
 | FPREM | 17 | 17 | 0 |
 
-The last three are the forms that stay on the sequencer in both
-configurations, and they are identical, as they must be. **The backend is
-slower on every form it answers.**
+**The last three rows are a positive control, not a footnote.** FSCALE,
+FRNDINT and FPREM stay on the sequencer in *both* configurations, so identical
+numbers there are what a sound measurement must produce — and a difference
+would have meant the harness was measuring something other than the backend.
+They are what licenses reading the other five rows at all.
+
+**The backend is slower on every form it answers.**
 
 There are **two** causes, and they have different remedies — which is why the
 per-form measurement was worth making rather than reasoning from the
@@ -117,9 +121,17 @@ architecture:
 "the remedy is envelope work, not backend work — let more than one ESC be in
 flight". That is **half right and was asserted before it was measured**: more
 ESCs in flight would help the fast forms, and then only where the code has
-independent x87 operations, which x87 code chaining through ST(0) often does
-not. It would do nothing for FDIV, whose gap is the backend's divide
-algorithm. Closing that is backend work.
+independent x87 operations. **Whether the game workloads contain independent
+x87 pairs at all is unmeasured** — x87 code chains through ST(0), and if the
+census titles' x87 streams are mostly dependent then the concurrency remedy is
+not available to them. It would do nothing for FDIV in any case, whose gap is
+the backend's divide algorithm; closing that is backend work.
+
+The shape of this is worth more than the numbers. **The architecture argument
+predicted a uniform pipeline penalty; the measurement found two causes with
+different remedies, and the one carrying the most absolute cost is the one the
+argument got backwards.** The per-form table is the finding; the 5.4%
+aggregate is one suite's instance of it.
 
 What the 5.4% is **not**: it is measured on a 24-case x87 lockstep suite,
 which is about as x87-dense as a workload gets, and it is **not** 5.4% on
@@ -181,7 +193,7 @@ from 2 to 80 clocks: with the wrong mapping 11 of 13 offsets hang the unit,
 with the right one all pass. **The case is only known to work because it was
 made to fail on purpose.**
 
-## The pattern: three checks that reported without checking
+## The pattern: four checks that reported without checking
 
 These are listed together because the pattern is the finding, not any one of
 them. In each case a check existed, ran, and reported success while being
@@ -197,6 +209,11 @@ structurally incapable of failing:
 3. **The Quartus timing gate** took the wrong argument count and opened the
    wrong project name, so it errored before analysing anything — and the first
    fit produced a complete resource count with **no timing behind it**.
+4. **The exclusion query**, written to prove the unselected arithmetic was
+   gone, was wrong three ways at once and would have failed *every* DE25 fit:
+   its wildcard needed a hierarchy separator the unit top does not have, `pa*`
+   also matched `pa_e0`, and it counted `dv_rem` — which FPREM writes, and
+   FPREM is kept, so it is present by design rather than by leakage.
 
 All three were found the same way: by making the check fail on purpose, or by
 a tool refusing loudly. None would have been found by reading the code, and
@@ -205,7 +222,7 @@ Quartus refusal is worth its own line — **a check that fails loudly beat a
 check that reports** — and it is why the exclusion evidence is now a query
 that fails the build rather than a table for a reader to inspect.
 
-A fourth, of the same family, is in the next section: a lockstep that passed
+A fifth, of the same family, is in the next section: a lockstep that passed
 while the count it was gated on was never measured.
 
 ## Two gates that had stopped covering what they named
