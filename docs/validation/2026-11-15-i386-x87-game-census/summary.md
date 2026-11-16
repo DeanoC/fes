@@ -3,8 +3,9 @@
 15–16 November 2026. Oracle-only: no RTL, no kit, no fits.
 
 **All nine runs are complete and the negative control passed.** DOOM
-retires 11 ESCs, every one of them a control form — `FNINIT` ×5, `FNCLEX`
-×4, `FNSTCW m16`, `FNSTSW m16` — and **zero** real or integer memory
+retires 11 ESCs, every one of them a control form — `FNINIT` (DB E3) ×5,
+`FSETPM` (DB E4) ×4, `FNSTCW m16` ×1, `FNSTSW m16` ×1, which is the classic
+287/387 detection sequence — and **zero** real or integer memory
 operands, zero FXCH and zero transcendentals, which is the committed
 control exactly. It also reproduces the 12 November census's 11. Tracker:
 [#1886](https://github.com/DeanoC/fes/issues/1886). Phase 6's plan is
@@ -74,9 +75,43 @@ A third argument, that the area saving is smaller than the width suggests,
 is **weaker than this record first claimed**; [area.md](area.md) now gives
 only the component that is isolated by a measurement.
 
-**So there is no defensible reduced design** — not a narrower one, not a
-hybrid with a wide fallback, and not a per-title variant. The idea is
+**And the 53-bit case fails too**, which is worth stating because it is the
+obvious retreat from 24. A 53-bit-significand unit would cover Screamer and
+Terminal Velocity exactly, but **Chris's benchmark and Wolfenstein 3D run
+every arithmetic operation at PC=64**, and Quake has 462,063 there. So the
+only width that covers the corpus is the 387's own 64, which is the unit
+slices 2 and 3 are already building.
+
+**So there is no defensible reduced design** — not a narrower one at either
+width, not a hybrid with a wide fallback, and not a per-title variant. The idea is
 closed, and closing it cost a census rather than a slice.
+
+### What the titles actually store, which is the brief's question
+
+`x87sig` is read from the state **before** a popping store, so the value
+stored is the one reported. Wide values going to memory, by store width:
+
+| Title | wide into m64 (`FST`/`FSTP m64`, `FISTP m64`, `FSTP ST(i)`) | wide into m80 | wide into m32 (rounds — see below) |
+| --- | ---: | ---: | ---: |
+| Chris's 3D Benchmark | 153,330 | 4,221 | 879,285 |
+| Quake timedemo | 8,455 | 3,887 | 14,716 |
+| Screamer | 19,077 | 0 | 10,854 |
+| Wolfenstein 3D | 2,343 | 0 | 240 |
+| Terminal Velocity | 0 | 0 | 3 |
+
+**The m64 and m80 columns are direct evidence**: a value needing more than
+24 significand bits, stored into a slot wide enough to keep it. Chris's
+benchmark puts 153,330 such values into 64-bit memory and Screamer 19,077.
+A 24-bit datapath could not have produced them.
+
+**The m32 column cannot settle anything, and the record says so.** A store
+to `m32` rounds under rounding control to 24 bits whatever the register
+held, so a wide register value stored to `m32` may land on exactly the bytes
+a 24-bit unit would have written. Whether those particular stores would
+differ is **not established** by this census; settling it needs a value
+replay — the same program run against a 24-bit-significand model, comparing
+the bytes stored — which is a different experiment and not one worth running
+given the m64 column above.
 
 ### Exceptions: three titles run with them unmasked
 
@@ -115,14 +150,27 @@ Wolfenstein 3D is a first-acceptance game and a fixed-point engine, and the
 memory operands, and leaves significands above 24 bits on 9,942 steps — with
 invalid, divide-by-zero and overflow unmasked throughout.
 
-**What this does not establish:** that Wolfenstein 3D *needs* a 387.
-[#1533](https://github.com/DeanoC/fes/pull/1533) plays it on an empty
-socket, so with no 387 it evidently takes another path. A run with a
-coprocessor fitted measures what the title does *when one is present*,
-which is the right question for this census — a reduced unit would be
-selected by the same identity bit — but it cannot say what the title would
-do without one. Separating those needs the empty-socket run beside this one,
-and this record does not have it.
+**And the census explains how it also runs without one.** Wolfenstein 3D
+executes **201 emulator fixup interrupts** in its window — INT 3Eh ×152, and
+INT 34h, 35h, 37h–3Bh and 3Dh for the rest — which is **Borland's
+floating-point emulator fixup protocol**. So its floating point goes through
+an emulator library: with no 387 the library emulates in software, and with
+one fitted each fixup runs once and is patched to its ESC. That is why
+[#1533](https://github.com/DeanoC/fes/pull/1533) plays it on an empty socket,
+and it needed no second run to establish.
+
+It also corrects the 12 November record, which concluded that "no run
+executed an INT 34h–3Eh emulator fixup, so none of these titles was built
+with Borland's or Microsoft's fixup emulation". That conclusion was sound
+for the titles it ran; **it never ran Wolfenstein 3D**, and Wolfenstein 3D
+is built that way.
+
+**What this still does not establish:** that Wolfenstein 3D *needs*
+extended precision. Its arithmetic is at PC=64 because that is Borland's
+emulator library's default, not necessarily because the game's own
+computation requires it. What the measurement does say is what a reduced
+unit would have to reproduce when the identity bit is set — which is the
+question for this census, since the same bit selects the unit.
 
 ### A classification error the review caught
 
@@ -193,10 +241,10 @@ the PC in force when arithmetic executes rather than the value at `FNINIT`.
 Measured directly, from control-word writes rather than inferred from
 values:
 
-- **Quake writes it 148,000 times in 25 seconds**, and the dominant pair is
-  `033f>0c3f` **25,735 times** with `0c3f>033f` **25,734 times** — the title
-  switching **to** PC=24 and back **to** PC=64, about 2,060 round trips a
-  simulated second. So Quake's PC=24 arithmetic is deliberate and bracketed,
+- **Quake writes it 353,466 times in 25 seconds**, 353,462 of them by
+  `FLDCW`, and the dominant pair is `033f>0c3f` **25,735 times** with
+  `0c3f>033f` **25,734 times** — the title switching **to** PC=24 and back
+  **to** PC=64, about 1,030 round trips a simulated second. So Quake's PC=24 arithmetic is deliberate and bracketed,
   and its PC=64 arithmetic runs outside those brackets. It also makes
   rounding-mode changes (`033f>073f` and `033f>0b3f`, 10,644 each).
 - **Screamer** writes it heavily too, consistent with the earlier census's
@@ -272,9 +320,10 @@ to is worse off than one with software emulation behind it.
   (`1001a`) interleaved in a single code region. DJGPP links the engine and
   its libraries into one flat segment, so CS cannot separate them and the
   page numbers do not either. **Not established**, and a plausible
-  attribution is not offered. Settling it would need Quake's own symbols, or
-  a run instrumented to bracket its `Sys_LowFPPrecision` and
-  `Sys_HighFPPrecision` calls.
+  attribution is not offered. The brackets themselves **are**
+  measured — the 25,735 matched `033f>0c3f` / `0c3f>033f` pairs above — so
+  what is open is only the attribution of the code *between and outside*
+  them to the engine or to a library, which needs Quake's own symbols.
 - **What a 24-bit-significand unit would actually save.** That needs a fit
   of such a unit, and no fits are run here. [area.md](area.md) gives the
   measured floor and an upper bound instead.
@@ -309,13 +358,29 @@ confirms slice 4's decline, and it is no longer a close call.
 early. The free 8-clock saving lands on the overwhelming majority of the
 hottest non-trivial FP operation in the corpus.
 
-### 71 of 162 forms are never executed
+### Which 387 operations no title executed
 
-The per-form table is a full histogram, not a top-N, and **71 of the 162
-forms the classification names were executed by no title in this census**
-([tables.md](tables.md) lists them). They must still be *correct* — a 387
-missing a form is not a 387 — but they need not be fast, and slice 6 should
-not spend area making them so.
+The per-form table is a full histogram, not a top-N, so it can say what was
+never reached. An earlier revision of this record gave a fraction, "71 of
+162 forms"; that is withdrawn, because the denominator counted key spellings
+the census cannot emit and encodings that are not 387 instructions, so the
+ratio was not meaningful.
+
+Named instead, the 387 operations **no title in this census executed**:
+
+- **every transcendental except `FSIN` and `FCOS`** — no `FPTAN`,
+  `FPATAN`, `F2XM1`, `FYL2X`, `FYL2XP1` or `FSINCOS`;
+- **`FPREM` and `FPREM1`**, and `FSCALE` and `FXTRACT`;
+- **the BCD forms `FBLD` and `FBSTP`**;
+- **`FSAVE` and `FRSTOR`** (no title in these windows took a full save or
+  restore image; `FLDENV` and `FNSTENV` ran twice in Quake);
+- **the 16-bit integer stores `FIST`/`FISTP m16`**, and `FILD m16` outside
+  Screamer.
+
+They must still be *correct* — a 387 missing a form is not a 387 — but they
+need not be fast, and slice 6 should not spend area making them so. The
+caveat is the window's: a title that reaches these only in later play is not
+represented.
 
 ### What is hot
 
@@ -339,21 +404,27 @@ because sufficiency is a question about computation.
 
 ## Calibration and reproduction
 
-Both decisive runs calibrate exactly: Σ`x87op` equals the run's D8–DF stem
-total (Quake 31,997,318, Screamer 1,266,208).
+**All nine runs calibrate exactly**: Σ`x87op` equals the run's D8–DF stem
+total in every one, with no faulted or held ESC steps outside that identity
+except Quake's 443 faults. **No run has an unknown form**: every form that
+executed is named by the classification, so no count is silently dropped.
+All nine ended on `limit`. [tables.md](tables.md) carries both tables.
 
 **Screamer reproduces the 12 November run exactly** at 1,266,208 retired
 x87 instructions, which is a useful check on both runs given the tree has
 moved and the census code is a reimplementation.
 
-**Quake does not, and the reason is known.** This run retires 31,997,318
-against the earlier 45,787,636. The earlier census ran Quake from a
-`bench-q` scratch copy with its own `Q.BAT`; this run uses the store's
-`quakes` title on the pinned `bench` drive, which is a different launch.
-The method says such a difference is reported rather than reconciled away,
-and it is. Nothing in the conclusion depends on the total: the m80 counts,
-the PC distribution and the verdict are all properties of the run that was
-made.
+**Quake does not, and the reason is _not_ established.** This run retires
+31,997,318 against the earlier 45,787,636. The two runs used different
+launches — the earlier census ran Quake from a `bench-q` scratch copy with
+its own `Q.BAT`, this one the store's `quakes` title on the pinned `bench`
+drive — and that is the obvious candidate, but it is an **inference**: I did
+not compare the two runs' drives or step totals to confirm it, and a
+different launch is not the only thing that could move the figure. The
+method says such a difference is reported rather than reconciled away, so it
+is reported as unexplained. Nothing in the conclusion depends on the total:
+the PC distribution, the stored-value widths and the verdict are properties
+of the run that was made.
 
 ## A tool fix the census needed
 
@@ -367,8 +438,11 @@ shift-grave are still unreachable.
 
 ## Method
 
-[method.md](method.md), committed before the runs, with six dated
-amendments each stating what had been seen when it was made. It discloses
+[method.md](method.md), committed in `5b03a4c41` **before** any run, amended
+in `a9227d9be` still before the first run, and amended again after the runs
+with the classification fixes and one omission. Every amendment is dated and
+states what had been seen when it was made. The runs themselves were made on
+`b76aab67f`. It discloses
 that the 12 November record's per-title precision table had been read before
 any rule was written, so the precision result is **not** a blind
 measurement; what is new here is this tree's re-measurement, the operand-

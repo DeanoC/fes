@@ -207,6 +207,48 @@ writing the rules down showed them to be wrong or unmeasurable as stated:
 6. **Form names are lowercase** in the census keys (`d9.m0`, not `D9.m0`);
    the table above is the mapping, not the spelling.
 
+### 16 November 2026, after the runs — classification fixes
+
+What I had seen: all nine runs. These are **classification and
+instrumentation** corrections, not rule changes; each is a case where the
+code did not implement the rule the method states. Every verdict is
+unchanged by all of them. Four came from the Codex review of this PR and are
+credited there.
+
+1. **`FRNDINT` was counted as precision-controlled arithmetic.** It rounds
+   under *rounding* control and ignores precision control, so it entered the
+   PC distribution wrongly and inflated the first published PC=64 figures by
+   exactly its executions (Quake 25,400, Screamer 39,902). It now has its own
+   `round` class.
+2. **The DD register group was all classed `simple`.** DD /2 and /3 are
+   `FST` and `FSTP ST(i)` and DD /4 and /5 are `FUCOM` and `FUCOMP ST(i)`.
+   This understated Quake's store share by about 1.9 points and dropped
+   thousands of compares. The fix is self-checking: with it the mix
+   reproduces the 12 November census's load/store/FXCH percentages exactly
+   for three titles, which it did not before.
+3. **IRQ 13 delivery was not counted at all.** The reliance rule above is
+   "ES set **or** IRQ 13 delivered", and the generic event keys are recorded
+   only in protected mode, so the rule was not implementable from the output.
+   A direct `x87irq13` key now counts it in every mode. **The nine runs in
+   this record predate that key**, so their IRQ 13 figures are "not
+   recorded", and the conclusion that none fired is an inference from the
+   raised-and-unmasked counts, which are `unmasked=00` in every row.
+4. **The FRNDINT precision column** in the generated tables was taken from
+   the census's `other` class, which holds every load, store, compare and
+   control form; it reported 19.6M operations beside an actual FRNDINT count
+   of 25,400. It now comes from FRNDINT's own rows.
+
+### 16 November 2026 — one promise this record does not keep
+
+The method says each row will say "what the window reached (prompt, menu, or
+play)". **It does not.** All nine runs ended on `limit` — they ran out of
+simulated time rather than returning to the prompt — and that is reported,
+but I did not classify each run's frames into menu or play. The frames exist
+in the run directories and were not examined. Recorded as an omission rather
+than quietly dropped; it weakens the per-title window description and
+nothing else, since no claim here rests on how far a title got beyond the
+fact that it launched.
+
 ### Predictions registered before the runs
 
 Written down now so that the record states whether they held, rather than

@@ -143,6 +143,30 @@ def main(argv: list[str] | None = None) -> int:
                    f"{counts(r['frndint_by_pc'])} | {counts(r['rc_all'])} |")
     out.append('')
 
+    # What the titles store: wide values by the width of the slot they went to.
+    # x87sig reads the state before a popping store, so this is the value
+    # stored. A store to m32 rounds to 24 bits under rounding control whatever
+    # the register held, so that column cannot settle anything by itself.
+    M64 = ('dd.m2', 'dd.m3', 'df.m7', 'dd.r2', 'dd.r3')
+    M80 = ('db.m7',)
+    M32 = ('d9.m2', 'd9.m3', 'db.m2', 'db.m3', 'df.m2', 'df.m3')
+    out.extend(['## What the titles store', '',
+                'Stored values whose significand needs more than 24 bits, by the width of',
+                'the slot they went to. The m64 and m80 columns are direct evidence that a',
+                '24-bit datapath could not have produced the bytes in memory. The m32',
+                'column cannot settle anything: a store to m32 rounds to 24 bits under',
+                'rounding control whatever the register held.', '',
+                '| Title | wide into m64 | wide into m80 | wide into m32 (rounds) |',
+                '| --- | ---: | ---: | ---: |'])
+    for name, row in rows:
+        r = row['x87']
+        wide = {}
+        for group, forms in (('m64', M64), ('m80', M80), ('m32', M32)):
+            wide[group] = sum(v for bucket, fs in r['significand_forms'].items() if bucket in ('le53', 'le64')
+                              for f, v in fs.items() if f in forms)
+        out.append(f"| {TITLES.get(name, name)} | {wide['m64']:,} | {wide['m80']:,} | {wide['m32']:,} |")
+    out.append('')
+
     out.extend(['## FSQRT by precision control', '',
                 'For slice 6: square-root early termination saves 12 clocks at PC=24 and',
                 'costs 37 bits of remainder width on every square root.', '',
