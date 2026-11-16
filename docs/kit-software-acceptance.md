@@ -12,6 +12,12 @@ HDMI observations use the separate [package acceptance](package-acceptance.md)
 path. Skipped optional stages stay `skipped`; a successful default run does not
 claim overall hardware acceptance.
 
+For DE25, this software API check is only one part of the normal kit gate.
+Select Kit D25 (`de25-j8g`, serial `TRWU8J8G`) and complete the package launch,
+input, HDMI capture and verified restore flow in the
+[DE25 kit HIL guide](de25-kit-hil.md). The Kit A/B `current.json` baseline is
+not used for DE25; the serial-bound `current-restore-de25.json` is separate.
+
 ## Default run
 
 Use the designated kit only with its existing hardware authorization and
