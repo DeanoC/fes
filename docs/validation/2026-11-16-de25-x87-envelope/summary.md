@@ -64,7 +64,8 @@ shared normalising front end, the two arithmetic lanes and their arbitration,
 delivering a result before rounding. `fes_x87_pipe` keeps its interface and
 its behaviour exactly, as that core plus `fes_x87_round` and the 16-entry
 completion RAM. One core, two wrappers; no duplicated RTL, and **#1892's RTL
-is unchanged apart from the lift**.
+differs from PR #1892 by one declaration and nothing else** — the packed array
+described below.
 
 The CPU's `flush` does **not** reach the backend. Arithmetic is entered after
 the instruction commits, and the envelope deliberately lets a retired
@@ -75,7 +76,10 @@ leave the unit waiting for a result that was thrown away.
 ## The pipelined backend is slower here, and why
 
 Measured on the x87 lockstep suite, both configurations, same clock:
-**DE10 10,993 cycles, DE25 11,584** — about **5.4% more** on that suite.
+the generated results below give the aggregate cycle counts and the per-form
+table. On the x87 lockstep suite the DE25 configuration takes about **5.4%
+more cycles**; the counts themselves are in the table rather than typed here,
+because a typed figure drifts from the run that produced it.
 
 Where the cycles go, measured per form **at each precision** in the unit
 bench, as clocks from the instruction's commit to `busy_o` falling — which is
@@ -202,9 +206,15 @@ the backend's flush deliberately wrong — straight from the CPU's `flush`, the
 mapping that hangs a committed operation — still passed all 763 cases, because
 the case pulsed flush four clocks after commit, inside the envelope's dispatch
 and before the backend is ever offered the operation. The flush is now swept
-from 2 to 80 clocks: with the wrong mapping 11 of 13 offsets hang the unit,
-with the right one all pass. **The case is only known to work because it was
-made to fail on purpose.**
+from 2 to 80 clocks: with the wrong mapping **the first hang is at 8 clocks**,
+and with the right one all thirteen pass. **The case is only known to work
+because it was made to fail on purpose.**
+
+*(The thirteen offsets are not independent trials: the loop reuses one `Unit`,
+so once an offset hangs the unit everything after it fails too. An earlier
+version of this record said "11 of 13 offsets hang", which read as a count of
+independent failures and was not one. The first failing offset is the claim
+the bench supports.)*
 
 ## The pattern: five checks that reported without checking
 
@@ -248,8 +258,9 @@ interlock until the abandoned one drains — so it can never see a stale result.
 A *fast* form is accepted at once, and `raw = fast_valid ? fast_raw : slow_raw`
 hands `B_WAIT` the old quotient if the abandoned divide completes first.
 Chaining an **FADD** instead, swept across every clock of the divide, the same
-two breaks fail at **nine offsets, first at 36 clocks**, returning the
-abandoned divide's quotient 2.0 as the sum of 4.0 and 4.0.
+two breaks fail, **the first at 36 clocks**, returning the abandoned divide's
+quotient 2.0 as the sum of 4.0 and 4.0. (Same caveat as above: the loop shares
+one `Unit`, so the first failing offset is the figure, not a count.)
 
 So the `f1` cancel is **load-bearing**, and the case now chains a fast form.
 The first version of the case was vacuous in exactly the way the flush case
