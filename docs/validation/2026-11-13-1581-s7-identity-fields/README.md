@@ -108,9 +108,10 @@ clear, `build_fes_pc386_quartus` among them:
 **Deano's decision (16 Nov 2026): this lands with the PC/XT reseal to follow**, the same call he
 made for the earlier PC/XT front-end work. So this record does **not** claim a PC/XT seal, and
 nothing here should be read as one: the design identity in a PC/XT package built from this branch
-is new and unsealed until that reseal runs. It is tracked in DeanoC/fes#1893 -- which also carries the
-four ZX81-family Quartus packages above, on the reading that his decision covers the same
-situation in kind -- rather than left to this record, because a reseal needs its own timing and seal evidence and a kit HIL, none of which
+is new and unsealed until that reseal runs. It is tracked in DeanoC/fes#1893, which also carries the
+four ZX81-family Quartus packages above: Deano confirmed on 16 Nov 2026 that the same decision
+applies to them, so the reseal for all five follows the merge. That is his call, not an inference
+from the PC/XT one. The record is tracked there rather than left to this record, because a reseal needs its own timing and seal evidence and a kit HIL, none of which
 is in scope here. The thin margins this campaign measured on `coleco_v2` and `sms`, which #1882
 does not address because it removes identity churn without adding margin, are DeanoC/fes#1894.
 
