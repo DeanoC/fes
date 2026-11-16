@@ -19,11 +19,27 @@ independently checkable.
 | Netlist **as fitted**, SHA-256 | `a4a8a146f6d85cb4…` |
 | Fit host | `chip-30x0-ai-dev`, Quartus Pro 26.3.0 Build 114 |
 
-The two netlist digests differ because the runner's `prepare_netlist`
-retargets `ramstyle = "M10K"` to `"M20K"` for Agilex 5 — 57 occurrences — and
-then drops duplicate attributes. All four seeds record the same fitted digest,
-which is what makes the seed comparison a comparison of placements rather than
-of designs.
+**Both netlist digests are recorded because neither can be derived from the
+other.** The runner's `prepare_netlist` retargets `ramstyle = "M10K"` to
+`"M20K"` for Agilex 5 — 57 occurrences here — **and** then drops duplicate
+attributes. So "the fitted netlist is the elaborated one retargeted" is
+**false** for any run through that function, not just this one: applying the
+rename alone to `95b72a8d…` produces a third digest, neither of the two
+recorded. That was found by trying it, after this README's first draft was
+about to assert the derivation.
+
+The practical consequence, which generalises past this record: a fit that
+records only one of the two digests cannot be tied to its source, and a reader
+cannot recover the missing one by reasoning about what the retarget does.
+
+All four seeds record the same **fitted** digest, which is what makes the seed
+comparison a comparison of placements rather than of designs.
+
+`real_pins: 2` on every seed is the machine's two clocks staying real under
+this envelope. The harness now asserts that count **exactly** rather than as a
+maximum, so an envelope change that silently demoted `pixel_clk` to a virtual
+pin would refuse these fits instead of re-basing them quietly — the survivor
+alone would otherwise have been analysed and reported as full coverage.
 
 The scratch edits are the two lines that define what was fitted: the identity
 on (`x87_present = 1'b1`, as the sibling's M+ does it) and the DE25 arithmetic
