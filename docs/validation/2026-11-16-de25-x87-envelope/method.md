@@ -140,13 +140,31 @@ after a result is worthless unless the change is auditable.
   that argument is **unverified and may be false**: `P_SH` and `P_FIN` use
   `dv_rem` and a wide subtractor the slice 2 envelope did not have. It is
   settled by an A/B fit with those arms held off, against the same seeds. The
-  threshold is committed here **before** that fit is run: a delta that falls
-  **inside the seed 1–4 ALM spread is not measurable**, and is reported as
-  such rather than as cheap; a delta larger than that spread is material, and
+  rule is committed here **before either arm is fit**, verbatim as the
+  coordinating session set it:
+
+  > Fit both arms over the *same* seed set (1–4). For each arm take the median
+  > ALM count and the within-arm spread (max − min). Let S = the larger of the
+  > two arms' spreads. The A/B delta is **measurable only if
+  > |median(A) − median(B)| > S**. Otherwise the result is recorded as **not
+  > measurable** — not "cheap", not "no cost", not "within noise so effectively
+  > free". Those are different claims and only the first is supported.
+
+  This is safe to commit unseen because it fixes the *comparison*, not a
+  threshold: S is computed from the same fits that produce the medians, so
+  there is no later choice for a result to influence. **Both arms' per-seed
+  counts go in the record, not only the medians** — if the delta lands inside
+  S, the per-seed table is what lets someone else see how far inside, which
+  "not measurable" alone throws away.
+
+  If the delta is material, the form **stops** in the DE25 configuration —
+  through decode and the lockstep SCOPE, not by disabling the sequencer arms —
   since the census finds no title in the corpus that executes FPREM, FPREM1 or
-  FXTRACT at all, a material cost means the form stops in the DE25
-  configuration — through decode and the lockstep SCOPE, not by disabling the
-  sequencer arms. What had been seen when this was written: no fit had
+  FXTRACT at all. If it is not measurable, **that does not retroactively
+  justify keeping the forms on cost grounds.** The reason to keep them is that
+  FPREM reuses the divide tail's primitive rather than adding a divider, which
+  is an argument about structure and stands or falls on its own; a null A/B is
+  not support for it. What had been seen when this was written: no fit had
   completed and no ALM figure existed.
 - **The lockstep count's depth**, 16 Nov 2026. Rule 4 says every reachable
   `req_op` must be non-zero. A provisional run met it (ADD 8, SUB 10, MUL 12,
