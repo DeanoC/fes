@@ -77,69 +77,82 @@ leave the unit waiting for a result that was thrown away.
 Measured on the x87 lockstep suite, both configurations, same clock:
 **DE10 10,993 cycles, DE25 11,584** — about **5.4% more** on that suite.
 
-Where the cycles go, measured per form in the unit bench as clocks from the
-instruction's commit to `busy_o` falling — which is what the next ESC waits
-for:
+Where the cycles go, measured per form **at each precision** in the unit
+bench, as clocks from the instruction's commit to `busy_o` falling — which is
+what the next ESC waits for. The table itself is in the generated results
+below; what follows is what it says.
 
-| Form | DE10 sequencer | DE25 backend | Difference |
-| --- | ---: | ---: | ---: |
-| FADD | 10 | 19 | +9 |
-| FSUB | 17 | 19 | +2 |
-| FMUL | 15 | 19 | +4 |
-| FDIV | 64 | 79 | **+15** |
-| FSQRT | 72 | 79 | +7 |
-| FSCALE | 15 | 15 | 0 |
-| FRNDINT | 22 | 22 | 0 |
-| FPREM | 17 | 17 | 0 |
+**Precision reverses the divide's direction, and a PC64-only table would have
+hidden that.** The backend's digit recurrence stops at 25, 54 or 65 clocks by
+precision, while the sequencer's Goldschmidt barely improves as precision
+falls (49, 59, 64 clocks for FDIV). So:
 
-**The last three rows are a positive control, not a footnote.** FSCALE,
-FRNDINT and FPREM stay on the sequencer in *both* configurations, so identical
-numbers there are what a sound measurement must produce — and a difference
-would have meant the harness was measuring something other than the backend.
-They are what licenses reading the other five rows at all.
+- **At PC24 the backend is faster** — FDIV by 10 clocks, FSQRT by 14.
+- At PC53 they are close: FDIV +9, FSQRT level.
+- At PC64 the backend loses: FDIV +15, FSQRT +7.
 
-**The backend is slower on every form it answers.**
+The census (PR #1887) measured that only Quake uses PC24 at all and four
+titles use PC64 or PC53, so the corpus sits mostly where the backend loses —
+but the loss is a **precision-dependent** property, not a flat algorithmic
+defeat.
 
-There are **two** causes, and they have different remedies — which is why the
-per-form measurement was worth making rather than reasoning from the
-architecture:
+**The fast forms are flat across precision and lose by a fixed amount:** FADD
++9, FSUB +2, FMUL +4 at every precision. That is the pipeline's fixed ~15-clock
+response against a sequencer that finishes a dependent add in 10. #1892's
+backend is built for throughput — one operation accepted per clock — and the
+envelope holds one ESC instruction in flight, so there is never a second
+operation in the pipe. #1892's headline rate of 200 million independent fast
+operations a second assumes a concurrency this consumer does not have.
 
-1. **A pipeline latency that nothing amortises.** For add, subtract and
-   multiply the gap is the backend's fixed ~15-clock response against a
-   sequencer that finishes a dependent add in 10. #1892's backend is built for
-   throughput — one operation accepted per clock — and the envelope holds one
-   ESC instruction in flight, so there is never a second operation in the
-   pipe. #1892's headline rate of 200 million independent fast operations a
-   second assumes a concurrency this consumer does not have.
-2. **An algorithmic difference on divide and square root.** The backend's exact
-   digit recurrence takes 65 clocks at PC64 where the sequencer's Goldschmidt
-   converges in a few multiplies. FDIV is the **largest absolute gap in the
-   table**, and no amount of concurrency closes it: it is not a pipeline that
-   is empty, it is a different algorithm.
+**FSCALE, FRNDINT and FPREM are a positive control, not a footnote.** They
+stay on the sequencer in *both* configurations, so their rows must read zero —
+and a difference there would have meant the harness was measuring something
+other than the backend. They are what licenses reading the other rows at all.
 
-**So the remedy is not one thing.** An earlier version of this record said
-"the remedy is envelope work, not backend work — let more than one ESC be in
-flight". That is **half right and was asserted before it was measured**: more
-ESCs in flight would help the fast forms, and then only where the code has
-independent x87 operations. **Whether the game workloads contain independent
-x87 pairs at all is unmeasured** — x87 code chains through ST(0), and if the
-census titles' x87 streams are mostly dependent then the concurrency remedy is
-not available to them. It would do nothing for FDIV in any case, whose gap is
-the backend's divide algorithm; closing that is backend work.
+### What the remedy is, after two corrections
+
+This section has been wrong twice, and both versions were asserted before
+being measured. They are recorded rather than deleted, because the pattern is
+the point:
+
+1. First claim: *"the remedy is envelope work, not backend work — let more than
+   one ESC be in flight."* Half right. It would help the fast forms, and only
+   where the code has independent x87 operations.
+2. Second claim: *"the divide gap is algorithmic and closing it is backend
+   work."* **Also wrong as stated**, because it was measured at PC64 only: at
+   PC24 the backend's divide is the faster of the two.
+
+What the measurement actually supports:
+
+- The **fast forms'** gap is a fixed pipeline latency. More ESCs in flight
+  would help it. **Whether the game workloads contain independent x87 pairs at
+  all is unmeasured** — x87 code chains through ST(0), and if the census
+  titles' streams are mostly dependent then that remedy is not available to
+  them.
+- The **divide and square root's** gap exists at PC53 and PC64 and is reversed
+  at PC24. It is a property of two different algorithms scaling differently
+  with precision, so there is no single remedy: a backend that chose its
+  algorithm by precision would win at every precision, and nobody has costed
+  that.
 
 The shape of this is worth more than the numbers. **The architecture argument
-predicted a uniform pipeline penalty; the measurement found two causes with
-different remedies, and the one carrying the most absolute cost is the one the
-argument got backwards.** The per-form table is the finding; the 5.4%
-aggregate is one suite's instance of it.
+predicted a uniform pipeline penalty. The first measurement found two causes.
+The second measurement found that one of those two reverses sign with
+precision.** Each round of measuring contradicted the previous round's
+explanation, and none of the explanations was wrong in a way that reading the
+code would have exposed.
 
-What the 5.4% is **not**: it is measured on a 24-case x87 lockstep suite,
-which is about as x87-dense as a workload gets, and it is **not** 5.4% on
-anything a game does. The x87 share of clocks in the census titles is nowhere
-near saturating. **The game-level consequence has not been measured.** What
-would measure it is the pc386 RTL game suite's preset benchmarks with the
-DE25 configuration selected, against the same titles on the DE10
-configuration — frames, not cycles.
+The **5.4% aggregate** on the x87 lockstep suite is one instance of all this,
+at one precision mix and one clock. **The cycle counts are the primary result
+and the percentage is derived at 61.44 MHz**, which is the DE10's rung and not
+necessarily the DE25's: the sibling measurement found the CPU closes 61.44 MHz
+on Agilex 5 with worst-corner Fmax 124.35 MHz, so the same cycle gap costs
+less wall time if an integrated DE25 CPU is eventually targeted higher. **The
+clock the DE25 configuration would run at is not settled**, and a percentage
+quoted without its clock will be read as portable when it is not. The
+game-level consequence is **not measured**; what would measure it is the pc386
+RTL game suite's preset benchmarks with the DE25 configuration selected,
+against the same titles on the DE10 configuration — frames, not cycles.
 
 This does not reopen the DE25 decision. That decision was about **area**: the
 DE10 cannot hold the 387 at any speed, so a few per cent on x87-bound work

@@ -106,6 +106,17 @@ def verilate(verilator: i386_verilator.LockedVerilator, jobs: int, yosys: Path |
     return output / ('V' + TOP)
 
 
+def latencies(text: str) -> dict[str, int]:
+    """The bench's per-form latency lines, so the record's table is generated
+    from the run rather than typed out of a terminal."""
+    out = {}
+    for line in text.splitlines():
+        if line.startswith('LATENCY '):
+            _, form, pc, clocks = line.split()
+            out[f'{form}.{pc}'] = int(clocks)
+    return out
+
+
 def parse(text: str) -> tuple[int, int, list[str]]:
     """The bench's passed and failed counts, and its failure lines."""
     failures = [line for line in text.splitlines() if line.startswith('FAIL ')]
@@ -148,6 +159,7 @@ def main(argv: list[str] | None = None) -> int:
         'passed': passed,
         'failed': failed,
         'failures': failures,
+        'latency_clocks': latencies(result.stdout),
     }
     (OUTPUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(f'fes_i386_x87 against the host x87: {passed} passed, {failed} failed'

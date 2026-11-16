@@ -105,6 +105,40 @@ def hash_compare(evidence: Path) -> str:
     return ('| Suite | DE10 | DE25 | |\n| --- | --- | --- | --- |\n' + '\n'.join(lines))
 
 
+FORMS = ('fadd', 'fsub', 'fmul', 'fdiv', 'fsqrt', 'fscale', 'frndint', 'fprem')
+SEQUENCER_BOTH = ('fscale', 'frndint', 'fprem')
+
+
+def latency_table(evidence: Path) -> str:
+    """Clocks from the instruction's commit to `busy_o` falling, which is what
+    the next ESC waits for, at each precision. FSCALE, FRNDINT and FPREM stay
+    on the sequencer in BOTH configurations, so their rows are a positive
+    control: a difference there would mean the harness was measuring something
+    other than the backend."""
+    a, b = load(evidence / 'unit-de10.json'), load(evidence / 'unit-de25.json')
+    if not (a and b and a.get('latency_clocks') and b.get('latency_clocks')):
+        return '_both unit-bench reports with latency lines are needed_'
+    la, lb = a['latency_clocks'], b['latency_clocks']
+    out = ['| Form | PC | DE10 sequencer | DE25 backend | Difference | |',
+           '| --- | ---: | ---: | ---: | ---: | --- |']
+    for form in FORMS:
+        for bits in (24, 53, 64):
+            key = f'{form}.pc{bits}'
+            if key not in la or key not in lb:
+                continue
+            d = lb[key] - la[key]
+            if form in SEQUENCER_BOTH:
+                note = 'positive control: must be 0' if d == 0 else '**control broken**'
+            elif d < 0:
+                note = '**the backend is faster**'
+            elif d == 0:
+                note = 'equal'
+            else:
+                note = ''
+            out.append(f'| {form.upper()} | {bits} | {la[key]} | {lb[key]} | {d:+d} | {note} |')
+    return '\n'.join(out)
+
+
 def fit_table(fits: Path) -> str:
     rows = []
     for record in sorted(fits.glob('*/build.json')):
@@ -152,6 +186,8 @@ def main() -> int:
     print('about whether the arithmetic agrees. That evidence is the x87 state')
     print('comparison in the table above, and the unit bench.\n')
     print(hash_compare(args.evidence))
+    print('\n### Per-form latency, in CPU clocks\n')
+    print(latency_table(args.evidence))
     print('\n### The Agilex 5 fit\n')
     print(fit_table(args.fits))
     return 0

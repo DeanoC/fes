@@ -2356,16 +2356,28 @@ int main(int argc, char **argv) {
         const uint8_t two[10]  = {0,0,0,0,0,0,0,0x80,0x00,0x40};
         const uint8_t three[10] = {0,0,0,0,0,0,0,0xc0,0x00,0x40};
         Unit u;
-        for (const LForm &f : forms) {
-            u.clear_latch();
-            u.reg_form(OP_FNINIT);
-            u.load(OP_FLD_M80, FMT_F80, two);
-            u.load(OP_FLD_M80, FMT_F80, three);
-            u.present(f.op, 0, true, true, 0);
-            u.commit(0, 0, true);
-            int clocks = 0;
-            while (u.top.busy_o && clocks < 4000) { u.tick(); ++clocks; }
-            std::printf("LATENCY %s %d\n", f.name, clocks);
+        // Over all three precisions, because the divide and the square root
+        // are precision-dependent on BOTH sides and in different ways: the
+        // backend's digit recurrence stops at 25, 54 or 65 clocks by
+        // precision, while the sequencer's Goldschmidt drops an iteration
+        // only at PC24. A PC64-only table would have made "the divide gap is
+        // algorithmic" look larger and more uniform than it is.
+        for (unsigned pc : {0u, 2u, 3u}) {
+            const unsigned bits = pc == 0 ? 24 : pc == 2 ? 53 : 64;
+            for (const LForm &f : forms) {
+                u.clear_latch();
+                u.reg_form(OP_FNINIT);
+                u.present(OP_FLDCW, FMT_I16, true, true, 0);
+                u.commit(0, cw_of(0, pc), true);
+                u.settle();
+                u.load(OP_FLD_M80, FMT_F80, two);
+                u.load(OP_FLD_M80, FMT_F80, three);
+                u.present(f.op, 0, true, true, 0);
+                u.commit(0, 0, true);
+                int clocks = 0;
+                while (u.top.busy_o && clocks < 4000) { u.tick(); ++clocks; }
+                std::printf("LATENCY %s pc%u %d\n", f.name, bits, clocks);
+            }
         }
     }
     std::printf("SUMMARY %d %d\n", passed, failed);
