@@ -216,7 +216,7 @@ version of this record said "11 of 13 offsets hang", which read as a count of
 independent failures and was not one. The first failing offset is the claim
 the bench supports.)*
 
-## The pattern: six checks that reported without checking
+## The pattern: six checks that reported without checking, and one that worked
 
 These are listed together because the pattern is the finding, not any one of
 them. In each case a check existed, ran, and reported success while being
@@ -253,6 +253,17 @@ not run yet (Codex on PR #1907):
    at a natural ladder value — 13.333333 ns for 75 MHz — the SDC would have
    constrained 13.333 and the gate would have rejected a valid fit. **It would
    have fired on the clock ladder, which has not run.**
+
+A seventh, and the one that says most about the pattern: the integration fit
+**waited about two hours for the shared Quartus lock, took it, and then
+refused on disk space** — "16.6 GiB free; at least 30 GiB required" — because
+its output was on `/tmp`, a shared 32 GB tmpfs that other fits were filling.
+That guard behaved exactly as it should: it refused *before* starting rather
+than half-running and producing a partial report, and it named both the number
+and the threshold. What makes it belong here is that **this exact failure had
+already been pointed out and already been fixed for the unit fits**, and the
+integration fit was then queued with the old path anyway. Knowing about a
+failure mode did not prevent reproducing it; the check did.
 
 All of the first three were found the same way: by making the check fail on
 purpose, or by a tool refusing loudly. The last two were found by someone
