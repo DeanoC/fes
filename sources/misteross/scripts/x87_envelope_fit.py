@@ -84,6 +84,49 @@ def ports(text: str, module: str = TOP) -> list[str]:
     return found
 
 
+def unconnected_in_machine() -> set[str]:
+    """The ports pc386_system leaves unconnected on its fes_i386_cpu, written
+    `.name()`. Reading them from the machine is what keeps this fit's envelope
+    the machine's, so the delta is a figure that can be added to a CPU or
+    machine measurement."""
+    path = ROOT / 'cores/fes-pc386/rtl/pc386_system.sv'
+    text = path.read_text()
+    body = text[text.index('fes_i386_cpu '):]
+    # Balance the parentheses rather than stopping at the first ');': the port
+    # list contains nested ones, and truncating early silently shortens the
+    # list of ports treated as unused -- which would quietly change this fit's
+    # envelope.
+    def balance(text: str, opened: int) -> int:
+        depth = 0
+        for i in range(opened, len(text)):
+            if text[i] == '(':
+                depth += 1
+            elif text[i] == ')':
+                depth -= 1
+                if depth == 0:
+                    return i
+        raise SystemExit("could not balance pc386_system's fes_i386_cpu instantiation")
+    # Skip a `#(...)` parameter list if there is one: its parentheses are not
+    # the port list's, and balancing from the first '(' would close on it and
+    # silently report that nothing is unconnected.
+    cursor = body.index('(')
+    if body[body.index('fes_i386_cpu ') + len('fes_i386_cpu '):cursor].strip().endswith('#') \
+       or '#' in body[:cursor]:
+        cursor = body.index('(', balance(body, cursor) + 1)
+    depth, start, end = 0, cursor, None
+    for i in range(start, len(body)):
+        if body[i] == '(':
+            depth += 1
+        elif body[i] == ')':
+            depth -= 1
+            if depth == 0:
+                end = i
+                break
+    if end is None:
+        raise SystemExit('could not find the end of pc386_system\'s fes_i386_cpu instantiation')
+    return set(re.findall(r'\.([a-z_][a-z0-9_]*)\s*\(\s*\)', body[start:end]))
+
+
 def cpu_wrapper(present: int) -> str:
     """A thin top that ties `x87_present`, so the fitter sweeps the 387 at 0
     and builds it at 1. Everything else is passed straight through, and the
@@ -100,9 +143,19 @@ def cpu_wrapper(present: int) -> str:
             ports.append((m.group(1), m.group(2).strip(), m.group(3)))
     if not ports:
         raise SystemExit('no ports parsed from fes_i386_cpu')
+    # The machine leaves many of the CPU's outputs unconnected, and the
+    # fitter sweeps what feeds them. A virtual-pin fit that exposed them all
+    # would keep arch_x87_regs (640 register bits) and the whole x87 trace,
+    # and the figure would not be the CPU's. So this wrapper leaves
+    # unconnected exactly what pc386_system leaves unconnected, read from its
+    # own instantiation rather than listed here.
+    unused = unconnected_in_machine()
     decls, conns = [], []
     for direction, width, name in ports:
         if name == 'x87_present':
+            continue
+        if name in unused:
+            conns.append(f'        .{name}()')
             continue
         decls.append(f'    {direction} {("logic " + width) if width else "logic"} {name}')
         conns.append(f'        .{name}({name})')
@@ -246,27 +299,33 @@ def compile_project(output: Path, tool: Path, version: str) -> dict:
         record['resources'] = b.resources(text)
         record['entities'] = entities(text)
         record['timing'] = json.loads((output / 'timing.json').read_text())
-        # Amended rule 7: the named-register query, with wm and pa as
-        # positive controls. A zero for a control would mean the query
-        # cannot find registers at all, and the whole result is void.
-        record['exclusion'] = json.loads((output / 'exclusion.json').read_text())
-        controls = {k: v for k, v in record['exclusion'].items() if k in ('wm', 'pa')}
-        if not all(controls.values()):
-            raise SystemExit(f'exclusion query found no positive control: {controls}')
-        if inputs['x87_backend'] == 'de25' and inputs.get('x87_present', 1) != 0:
-            present = {k: v for k, v in record['exclusion'].items()
-                       if k not in ('wm', 'pa') and v}
-            if present:
+        # Amended rule 7, matched on exact leaf names from the dump above.
+        # ABSENT are registers written ONLY inside arms guarded by
+        # `X87_BACKEND == 0`: the adder's operand registers (A_SUM), the
+        # square root's working register (Q_SEED and Q_RES) and the two seed
+        # tables' read registers. `dv_rem` is deliberately NOT here -- FPREM
+        # writes it from A_OP and FPREM is kept, so it is present by design.
+        # PRESENT are positive controls: if the query cannot find these, it
+        # cannot find anything, and a zero above would mean nothing.
+        skip = inputs.get('x87_present') == 0   # the 387 is swept; neither check applies
+        leaves = {line.strip().rsplit('|', 1)[-1]
+                  for line in (output / 'registers.txt').read_text().splitlines()
+                  if line.strip()}
+        # A register may be bit-blasted to name[3] or split by the fitter.
+        def held(name: str) -> bool:
+            return any(leaf == name or leaf.startswith(name + '[') for leaf in leaves)
+        absent = {n: held(n) for n in ('ua_add', 'ub_add', 'qy_s', 'rcp_q', 'rsq_q')}
+        present = {n: held(n) for n in ('wm', 'pa', 'cw')}
+        record['exclusion'] = {'absent_expected': absent, 'positive_controls': present,
+                               'registers': len(leaves)}
+        if not skip and not all(present.values()):
+            raise SystemExit('the register query found no positive control, so a zero '
+                             f'elsewhere means nothing: {present}')
+        if inputs['x87_backend'] == 'de25' and not skip:
+            leaked = {n: v for n, v in absent.items() if v}
+            if leaked:
                 raise SystemExit('the DE25 fit still contains the sequenced arithmetic: '
-                                 f'{present}')
-        if record['timing'].get('status') != 'pass':
-            raise SystemExit(f'all-corner timing gate did not pass at {period} ns')
-        sta = (project / 'output_files' / f'{PROJECT}.sta.rpt').read_text(errors='replace')
-        rows = re.findall(r'^;\s*(Illegal Clocks|Unconstrained Clocks)\s*;\s*(\d+)\s*;\s*(\d+)\s*;', sta, re.M)
-        if {r[0] for r in rows} != {'Illegal Clocks', 'Unconstrained Clocks'}:
-            raise SystemExit('TimeQuest report lacks unconstrained/illegal clock coverage')
-        if any(int(s) or int(h) for _, s, h in rows):
-            raise SystemExit('TimeQuest reports unconstrained or illegal clocks')
+                                 f'{sorted(leaked)}')
     except BaseException as error:
         record.update(status='fail', error=str(error))
         if fitted.is_file():

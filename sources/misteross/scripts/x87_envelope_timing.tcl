@@ -14,18 +14,17 @@ create_timing_netlist
 read_sdc
 update_timing_netlist
 # Amended rule 7's exclusion evidence. The DE10 arithmetic is inline in the
-# sequencer's always_ff, so no entity table can show its absence; these are
-# its named registers, which must not be in a DE25 fit. `wm` and `pa` are
-# POSITIVE CONTROLS: they must be found, so that a zero above means the
-# register is absent rather than merely renamed by the fitter.
-set exclusion {}
-foreach name {ua_add ub_add qy_s dv_rem rcp_q rsq_q wm pa} {
-    set found [get_registers -nowarn "*|$name*"]
-    lappend exclusion "\"$name\": [get_collection_size $found]"
+# sequencer's always_ff, so no entity table can show its absence. Dump EVERY
+# register name the fit kept and let the caller match exact leaf names: a
+# wildcard match here was wrong three ways at once -- it needed a hierarchy
+# separator the unit top does not have, `pa*` also matched `pa_e0`, and it
+# counted `dv_rem`, which FPREM writes and which is therefore present by
+# design rather than by leakage.
+set rf [open [file join $output registers.txt] w]
+foreach_in_collection r [get_registers -nowarn *] {
+    puts $rf [get_register_info -name $r]
 }
-set xf [open [file join $output exclusion.json] w]
-puts $xf "{[join $exclusion ,]}"
-close $xf
+close $rf
 
 set clocks [get_clocks *]
 if {[get_collection_size $clocks] != 1} {error "expected exactly one x87 clock"}
