@@ -512,13 +512,32 @@ most expensive form.
 5. **A test that could pass having tested nothing.** The QEMU grid's
    stub-page failure only broke the inner loop, leaving the difference count
    at zero, so the row reported success having compared no cases.
+6. **The same hole in five more places, and the fix had been applied once
+   rather than to the invariant.** Codex found it again at the precision
+   grid, which is what made it worth measuring properly: **with every host
+   stub denied, 704 rows reported PASS and the bench printed `COMPARED 0`.**
+   Five of the nine `host_form` call sites broke out of their loop without
+   recording anything. The evidence was already on screen and nothing gated
+   on it.
 
-**The last two are the expensive class, because they remove a gate while
+   **The fix is at the helper, not the call sites.** `host_form` is the only
+   place that can tell a stub was unavailable, so it counts the failures and
+   one check at the end fails the run — which covers all nine callers and any
+   grid added later. Guarding each site would have been nine copies of one
+   rule, and the tenth grid would have been missed the same way. The
+   counterexample is reproducible: `FES_X87_NO_STUB=1` makes every stub
+   unavailable, and the run now fails with `protocol.stub` and
+   `protocol.compared` where it previously reported 704 passes.
+
+**The last three are the expensive class, because they remove a gate while
 appearing to add one.** A test that cannot fail is worse than no test: the
 record counts it as coverage, and the thing it was supposed to catch goes
-unmeasured with a passing line beside it. Both were found by review, not by
+unmeasured with a passing line beside it. All three were found by review, not by
 the tests themselves — which is the argument for reviewing a gate's
-*construction* and not only its verdict.
+*construction* and not only its verdict. And the sixth adds a second lesson:
+**fixing an instance is not fixing the invariant.** The QEMU grid's guard was
+correct and local, and five other call sites kept the hole for another day
+because the fix went where the finding was rather than where the rule lives.
 
 ## The thing worth measuring was the thing nobody runs
 

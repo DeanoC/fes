@@ -508,6 +508,12 @@ class StubPage {
     // The operands are a 16-byte-strided array at %rsi, and they are pushed
     // from the last to the first so that operand 0 ends up as ST(0).
     Stub build(unsigned pushes, const uint8_t *ops, unsigned nops) {
+        // A deliberate failure, so the counterexample can be built rather
+        // than argued: with FES_X87_NO_STUB set, every host stub is
+        // unavailable, which is what a denied mprotect(PROT_EXEC) looks like.
+        // Any row that reports a pass under it is a row that can pass without
+        // comparing anything.
+        if (std::getenv("FES_X87_NO_STUB")) return nullptr;
         if (!page_) return nullptr;
         if (mprotect(page_, 4096, PROT_READ | PROT_WRITE) != 0) return nullptr;
         std::vector<uint8_t> code;
@@ -542,13 +548,26 @@ void image_of(const uint8_t *raw, uint16_t sw, Image &out) {
 }
 
 // `stack` holds the operands ST(0) first, 10 bytes each.
+// Every host comparison in this bench goes through host_form, and it is the
+// only place that can tell a stub page was unavailable. **The invariant lives
+// here rather than at the call sites.** Nine call sites take its return value
+// and five of them used to `break` out of their loop without recording
+// anything, so a denied mprotect(PROT_EXEC) made those rows report a pass
+// having compared nothing -- 704 of them, measured with FES_X87_NO_STUB.
+// Guarding each site would have meant nine copies of one rule and a tenth
+// grid getting missed; counting here covers every present and future caller.
+unsigned stub_failures = 0;
+
 bool host_form(StubPage &page, uint16_t cw, const uint8_t (*stack)[10], unsigned pushes,
                const void *mem, const uint8_t *ops, unsigned nops, Image &out) {
     alignas(16) uint8_t raw[128] = {0};
     alignas(16) uint8_t operands[8][16] = {};
     for (unsigned n = 0; n < pushes && n < 8; ++n) std::memcpy(operands[n], stack[n], 10);
     Stub stub = page.build(pushes, ops, nops);
-    if (!stub) return false;
+    if (!stub) {
+        ++stub_failures;
+        return false;
+    }
     const unsigned sw = stub(&cw, operands, nullptr, mem, raw);
     image_of(raw, uint16_t(sw), out);
     return true;
@@ -2267,6 +2286,15 @@ int main(int argc, char **argv) {
         const TestFloatManifest testfloat = run_testfloat_manifest(testfloat_manifest);
         std::printf("TESTFLOAT %u %u\n", testfloat.vectors, testfloat.configs);
     }
+    // A bench that compared nothing is not a bench that passed. Both of
+    // these are failures of the harness rather than of the unit, and both
+    // would otherwise be invisible: the run already printed COMPARED 0 and
+    // nothing gated on it.
+    if (stub_failures)
+        bad("protocol.stub", std::to_string(stub_failures)
+            + " host stubs were unavailable, so that many comparisons never ran");
+    if (compared == 0)
+        bad("protocol.compared", "no host comparison ran at all");
     if (held_for_ever) bad("protocol.hold", std::to_string(held_for_ever) + " uops held past the bench's wait");
     else ok("protocol.hold");
     std::printf("COMPARED %ld\n", compared);
