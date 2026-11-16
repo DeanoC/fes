@@ -1,9 +1,9 @@
 # How large is the 386 on Agilex 5? 16 November 2026
 
 **The DE25 holds the CPU, the pc386 machine and main's 387 together, where the
-DE10 does not — and it holds them at 98.1% of its LABs.** That is the answer
-to Deano's question, in both directions at once, and the second half of it is
-why this record leads with it.
+DE10 does not — and after doing so it has about 9,500 of its 46,800 ALMs
+left.** The 386 is smaller on Agilex 5 in ALM terms and roughly twice as fast.
+That is the answer to Deano's question.
 
 The question, in his words: *"we need see the entire size of the 386 on the
 agilex 5, it may be bigger or smaller as different fabric and toolchain."* It
@@ -25,12 +25,13 @@ HPS, no PLL, no reset-release IP, no programming artifact, no seal and no
 hardware acceptance. Every fit passed setup, hold, recovery, removal and
 minimum pulse width at **every published operating condition** of its device —
 four on Agilex 5, six on Cyclone V — at a **61.44 MHz** system clock, the
-pc386 seal's. Nothing was relaxed.
+pc386 seal's — four published corners on Agilex 5 and eight on Cyclone V.
+Nothing was relaxed.
 
 | Fit | Top | 387 | Device |
 | --- | --- | --- | --- |
 | **C** | `fes_i386_cpu` | `x87_present` a live virtual input, so main's slice-2 387 is in it | both |
-| **M** | `pc386_system` | as main ties it, `wire x87_present = 1'b0` | both |
+| **M** | `pc386_system` | as main ties it, `wire x87_present = 1'b0` | Agilex 5 (the DE10 fit is queued, see below) |
 | **M+** | `pc386_system`, one-character scratch change to `1'b1` | identity on | Agilex 5 |
 
 `pc386_system` **contains** `fes_i386_cpu`, so M is a superset of M's CPU — but
@@ -112,25 +113,24 @@ round-to-integer, transcendentals, BCD or unmasked exception results.
 
 ## The budget
 
-At the 61.44 MHz rung, seed 1, on `A5EB013BB23BE4SCS`:
+At the 61.44 MHz rung, seed 1, on `A5EB013BB23BE4SCS`. The capacity figure is
+Quartus's own `ALMs needed [=A-B+C]`: ALMs used in final placement, less what
+dense packing would recover, plus what is unavailable. That is the row the
+fitter's `Logic utilization` percentage is computed from.
 
-| | ALMs | % of 46,800 | LABs | % of 4,680 |
-| --- | ---: | ---: | ---: | ---: |
-| The device has | 46,800 | — | 4,680 | — |
-| The machine takes, with the 387 off (**measured**, fit M) | 35,492 | 75.84% | 4,424 | 94.53% |
-| The machine takes, with main's 387 on (**measured**, fit M+) | 37,255 | 79.60% | 4,590 | **98.08%** |
-| Left after M+ | **9,545** | **20.40%** | **90** | **1.92%** |
+| | ALMs needed | % of 46,800 | Left |
+| --- | ---: | ---: | ---: |
+| The device has | 46,800 | — | — |
+| The machine, 387 off (**measured**, fit M) | 35,492 | 75.84% | 11,308 |
+| The machine, main's 387 on (**measured**, fit M+) | 37,255 | 79.60% | **9,545** |
 
-**Read the LAB column, not the ALM column.** #1889's refusal was a LAB count,
-and LAB occupancy runs well ahead of ALM occupancy because ALMs sit sparsely
-across LABs until the fitter is under pressure. The two columns disagree by
-18 points here, and the one that refused the DE10 is the right of the two.
-
-Against those 90 LABs sit three things, and only one of them is measured:
+Against those 9,545 ALMs sit three things, and only one is measured:
 
 - **#1892's arithmetic backend: 2,660 ALMs, 9 DSP, 4 M20K at 200 MHz.**
-  Measured, on this same device and toolchain, so it belongs in this budget
-  directly — but as a floor for the arithmetic part alone.
+  Measured on this same device and toolchain, so it belongs in this budget
+  directly — but as a floor for the arithmetic part alone, and whether it
+  combines arithmetically with M+'s 387 is for an integration fit, since both
+  carry their own significand multiplier and rounding.
 - **The rest of a complete 387: not measured.** Remainder, scale,
   round-to-integer, transcendentals, BCD, unmasked exception results.
 - **A DE25 board shell: not measured anywhere.** HPS bridge, EMIF, scanout,
@@ -140,21 +140,42 @@ Against those 90 LABs sit three things, and only one of them is measured:
   different commit — cited, not measured here. The machine fits stand in for
   it with 651 ALMs of virtual-pin cells.
 
-**So, plainly: the DE25 being the 387's home is supported, and the DE25
-holding a complete 387 without area work is not.** The machine plus main's
-partial 387 already sits at 98.1% of LABs. This measurement's own density —
-1,763 ALMs per 166 LABs, about 10.6 ALMs per LAB — puts #1892's 2,660 ALMs at
-roughly 250 LABs against the 90 that remain. **That last figure is inference
-from a measured density, not a measurement**, and only an integration fit
-settles it; but it points one way, and it is not the comfortable direction.
+**So: 2,660 measured ALMs of arithmetic backend against 9,545 left, with the
+rest of a 387 and a board shell unmeasured.** That is room, and it is the
+first time this plan has had any. It is not a clearance to assume the whole
+387 fits: the two unmeasured lines are the ones that would consume it, and
+only an integration fit on this device settles the question.
 
-What is **not** claimed: that the fitter would refuse. 98.08% is LABs
-*partially or completely used* after a placement and routing that succeeded
-with passing timing, and a fitter under more pressure packs ALMs into LABs
-more tightly — which is exactly why the ALM and LAB columns diverge. The
-honest statement is that the room is about 2% of LABs and the next piece looks
-larger than that, so the plan should be made on an integration fit rather than
-on this remainder.
+### Why this record does not quote a LAB percentage as the budget
+
+M+ uses **4,590 of 4,680 LABs, 98.08%** — and that figure is *not* the
+capacity figure, which is why it is here rather than in the table above. A LAB
+holds exactly **10 ALMs on both devices** (46,800/4,680 and 41,910/4,191), and
+a LAB counts as used when one ALM in it is used. M+ places 40,550 ALMs across
+those 4,590 LABs: **8.1 of every 10 slots**, with the fitter estimating
+**4,210 ALMs recoverable by dense packing** and 915 unavailable. So 98% of
+LABs are touched while a fifth of their slots are free. The same CPU netlist
+used 3,512 LABs under one envelope and 3,626 under the other, a 114-LAB swing
+on identical logic — larger than the 90 LABs that remain untouched.
+
+**And it is not what #1889 refused on.** That record reports **LABs
+*required*, 4,292 of 4,191**, a pre-placement requirement, and says plainly
+that neither fit placed so there is no ALM figure at all. The fit reports here
+have no "LABs required" row; the row they have is a post-placement fact. The
+two are different quantities and this record does not put them on one scale.
+
+**What is comparable with #1889 is the outcome, not a percentage.** On the
+DE10 the identity-on machine required more LABs than the device has and never
+placed. On Agilex 5 it placed, routed and closed timing at every published
+corner. That is the comparison, and it is the one that matters for the plan.
+
+For the record, the LAB occupancy and packing density of every Agilex fit:
+
+| Fit | ALMs needed | % | ALMs in final placement | LABs used | % | ALMs per LAB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| C | 29,300 | 62.6% | — | 3,626 | 77.5% | 8.1 |
+| M | 35,492 | 75.8% | 38,750 | 4,424 | 94.5% | 8.0 |
+| M+ | 37,255 | 79.6% | 40,550 | 4,590 | 98.1% | 8.1 |
 
 ## The clock ladder, and what is not measured
 
@@ -162,9 +183,13 @@ The method precommitted a ladder — 61.44 MHz headline, then 75, 90, 110 and
 130 MHz, seeds 1–4 at the headline — because reported Fmax at one constraint
 is the fitter's estimate and not a closure. **"Closes at" means the highest
 rung passing every analysis at every published corner.** Those rungs, the
-extra seeds, and fit M on the DE10 are queued; any that have not produced a
-result when this record is read are **not measured**, and are listed as that
-rather than trimmed quietly.
+extra seeds, and **fit M on the DE10** are queued; any that have not produced
+a result when this record is read are **not measured**, and are listed as that
+rather than trimmed quietly. So this record contains **no "closes at" figure**
+for either device — only the fitter's per-corner estimates above, labelled as
+estimates. Extra seeds of M and M+ were added beyond the precommitted set,
+because the budget rests on those two fits: an addition at the same rung, not
+a relaxation of anything.
 
 Also not measured, and stated as such:
 
@@ -175,9 +200,10 @@ Also not measured, and stated as such:
 - **Any board I/O timing.** Every virtual port path is cut, including the video
   output. No pin, package or external-device timing is established on either
   device.
-- **LABs across devices as a like-for-like.** Both fitters report them, but
-  Cyclone V LABs and Agilex 5 LABs hold different ALMs, so the two LAB
-  percentages are each read against their own device and never divided.
+- **Anything that would make the LAB percentages comparable to #1889's.**
+  Both fitters report LABs partially or completely used, and that is a
+  different row from the LABs-required figure #1889 refused on. No fit here
+  reproduces #1889's measurement, and none is claimed to.
 
 ## The two netlist rewrites
 

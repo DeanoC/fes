@@ -438,3 +438,60 @@ result** rather than reported as a second figure. If it refuses, the record
 says so concretely with the error and the construct, as a "not measurable
 without X" with X named. Either outcome is reported; neither replaces the
 primary.
+
+## Amendment, 16 November 2026: which row is the capacity figure, and the
+## secondary's threshold
+
+What had been seen: fits C (both devices), M and M+ had all passed at
+61.44 MHz. Fit M on the DE10, the ladder, the extra seeds and the
+direct-SystemVerilog secondary had produced nothing. Two budget readings had
+already been sent to the coordinating session, the second of which this
+amendment retracts.
+
+**`Total LABs: partially or completely used` is not the capacity figure, and
+is not what #1889 refused on.** The checks:
+
+- A LAB holds exactly 10 ALMs on **both** devices (46,800 / 4,680 and
+  41,910 / 4,191), so a LAB percentage and an ALM percentage are not two views
+  of the same occupancy — they differ by how densely the fitter packed.
+- M+ places 40,550 ALMs across 4,590 LABs: **8.1 of every 10** ALM slots, and
+  the fitter's own estimate is that **4,210 ALMs are recoverable by dense
+  packing** (9% of the device) with 915 unavailable. The LAB row counts a LAB
+  as used when one ALM in it is used.
+- The same CPU netlist used 3,512 LABs under one envelope and 3,626 under the
+  other, a 114-LAB swing — larger than the 90 LABs the second budget reading
+  called the remaining room.
+- [#1889](https://github.com/DeanoC/fes/pull/1889) reports **LABs *required*,
+  4,292 of 4,191**, before placement, and states that neither fit placed so
+  there is no ALM figure at all. The fit reports in this record have no
+  "LABs required" row; the row they have is a post-placement fact. **The two
+  are different quantities and this record will not put them on one scale.**
+
+So the capacity figure is Quartus's own: **`ALMs needed [=A-B+C]`** — ALMs
+used in final placement, less what dense packing would recover, plus what is
+unavailable — which is the row the `Logic utilization` percentage is computed
+from. The budget is stated in that row. LAB occupancy is reported beside it as
+what it is: how sparsely the fitter spread the design, not how full the device
+is.
+
+**What remains comparable with #1889 is not a percentage but an outcome.** On
+the DE10 the identity-on machine required more LABs than the device has and
+never placed. On Agilex 5 it placed, routed and closed timing at every corner.
+That is the comparison this record makes.
+
+**The secondary front end's threshold, fixed before its fit prints anything.**
+The comparison quantity is **dedicated logic registers**, against the primary
+`cpu-de25` fit on the same device at the same constraint and seed (20,842).
+The threshold is **±5%**, that is 19,800 to 21,884. Inside it, the
+direct-SystemVerilog fit is reported as a labelled secondary cross-check.
+Outside it, it is **withdrawn as an area result** and reported only as a
+front-end difference, because a gap that large means swept or mis-elaborated
+logic. ±5% is chosen because the primary's own register count moved by 2,182
+(10.5%) between the two envelopes on identical input, so a threshold tighter
+than the known envelope sensitivity would be meaningless, and one looser than
+this would not catch a swept block.
+
+**An addition, not a relaxation:** extra seeds of M and M+ were queued beyond
+the precommitted set (which gave the machine the headline rung at seed 1
+only), because the budget rests on those two fits. More evidence at the same
+rung; no rule changed.
