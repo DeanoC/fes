@@ -217,33 +217,53 @@ wrong number, and both are corrected here: that FSQRT would compute at the
 extended target always, and that slice 6 might reconsider it. There is
 nothing to reconsider.
 
-**The census's final figure is emphatic, and it is worth stating for what it
-actually bears on now.** Across the whole nine-title corpus, **164 of 68,626
-square roots are at PC 24 — 0.24%**, with Chris's 3D Benchmark's 67,292 all
-at PC 64. (The earlier Quake-only reading, 328 at PC 24 against 1,018, is
-superseded.)
+**A figure this record quoted and has now withdrawn.** It said "164 of
+68,626 square roots are at PC 24 — 0.24%, with Chris's 3D Benchmark's 67,292
+all at PC 64". **That figure is not derivable from anything in this tree.**
+Codex could not reproduce it; a repo-wide search finds `68,626` only in this
+file. It came to this session as a figure in a message, from a later census
+run whose artifact is not committed here — which is a claim resting on
+evidence nobody else can see, and exactly what this record spends a section
+warning about.
 
-That figure was gathered to test the decline's premise, and the premise it
-tested is **gone**: the decline was withdrawn because early termination for
-the square root costs nothing, not because the saving was judged worth
-buying. So the 0.24% does not justify a decline any more — **it measures how
-little the early termination this slice did take for FSQRT is worth in
-practice: about one square root in four hundred.** Which is the honest
-reading, and it is a different claim from the one the number was originally
-wanted for. It is kept because a later reader deciding what to optimise should
-know that FSQRT's precision path is almost never the short one, and because
-the contrast with divide is the interesting part.
+**Re-derived from the committed census instead**, by
+`model/census_sqrt_pc.py` over
+`docs/validation/2026-11-12-i386-x87-plan/census.jsonl`, so these are checker
+output rather than recollection:
+
+| class | total | PC 24 | PC 53 | PC 64 | PC 24 share |
+|---|---:|---:|---:|---:|---:|
+| square root | 69,214 | **328** | 576 | 68,310 | **0.47%** |
+| divide | 1,067,615 | **809,340** | 5,843 | 252,432 | **75.81%** |
+
+So the shape of the conclusion survives and the numbers change: square roots
+at PC 24 are **0.47%** of the corpus, not 0.24%, and about one in two hundred
+rather than one in four hundred.
+
+**A later census exists and is not in this tree.** #1887, the x87 game
+census, is a separate and later run with different totals, recorded at
+`docs/validation/2026-11-15-i386-x87-game-census/`. If a reader wants the
+newer figures they belong there and should be cited there; this record cites
+only what it can re-derive from what it ships beside.
+
+The premise the figure was originally gathered to test is **gone** either way:
+the decline was withdrawn because early termination for the square root costs
+nothing, not because the saving was judged too small. So neither 0.24% nor
+0.47% justifies a decline — both measure how little the early termination this
+slice **did** take for FSQRT is worth in practice.
 
 ### What the census does make load-bearing
 
-The same census reports **Quake's 835,000 divides at 97% PC 24**. So the
+The same census, re-derived the same way, reports **Quake's 809,340 of
+835,649 divides at PC 24 — 96.8%**, which is the 97% this record has been
+quoting and is derivable. Corpus-wide the divide is 75.81% PC 24. So the
 divide's two-iteration path — 8 clocks saved, free in area — lands on roughly
 810,000 divides in one title.
 
 **So the two early terminations this slice implements are at opposite extremes
 of usefulness, and both were taken because both are free.** Divide's lands on
-97% of the hottest FP operation in the corpus; the square root's lands on
-0.24% of its square roots. Neither was decided on that basis, and that is the
+96.8% of Quake's divides and 75.8% of the corpus's; the square root's lands on
+0.47% of its square roots. Neither was decided on that basis, and that is the
 point: deciding them on area made the measurement unnecessary, where deciding
 them on predicted usage would have got the square root wrong in the direction
 that *felt* safe.
@@ -257,29 +277,27 @@ comes back "library", the picture is consistent.
 
 ## FPREM's partial step is the divide's primitive
 
-`model/fprem_primitive.py` runs the **actual datapath** at the step's variable
-scale — the Goldschmidt estimate, the fixed error bound and the restoring
-tail, with `n = (expDiff & 31) | 32` — and compares against exact arithmetic
-computed independently of it. 120,000 step evaluations, exponent differences 0
-to 399, both the truncating and the round-to-nearest quotient: **zero
-mismatches**. Widest quotient 64 bits, widest remainder 64 bits, and **10
-multiplier passes** for one step.
+`model/fprem_primitive.py` runs the datapath **as it was first built** at the
+step's variable scale — the Goldschmidt estimate, the fixed error bound and
+the restoring tail, with `n = (expDiff & 31) | 32` — and compares against
+exact arithmetic computed independently of it. 120,000 step evaluations,
+exponent differences 0 to 399, both the truncating and the round-to-nearest
+quotient: **zero mismatches**. Widest quotient 64 bits, widest remainder 64
+bits, and 10 multiplier passes for one step.
 
-An earlier version of this check compared Python's `divmod` against its own
-remainder, which is true by definition and proved nothing; its reported
-"zero violations" carried no information and the 7,860 violations before that
-were its own range bug. Both are superseded by the run above.
+**That is not the landed datapath, and this section describes the model rather
+than the RTL.** The restructure replaced it: FPREM's quotient is never used
+beyond its low three bits, so there is nothing to estimate, and `A_OP` reduces
+the dividend once while `P_SH` takes `n` doublings with a conditional
+subtract — no seed, no iterations, no candidate, no error bound, no divide
+tail and no multiplier passes at all.
+[The restructure](restructure.md#why-that-number-is-not-the-algorithms-cost)
+has it. The model's run is kept because it is what established that the
+remainders needed no divider *before* the better answer was found, and because
+its 10-pass figure is the thing the landed path improves on.
 
-The three remainder ranges genuinely differ, and the RTL carries this at the
-point of use: a partial step's remainder and a completing **FPREM**'s are in
-`[0, B)`, and only a completing **FPREM1**'s is the IEEE `[-B/2, B/2]`.
-Applying one range everywhere is the plausible wrong fix, and this record made
-it before the check was written properly.
-
-So **FPREM and FPREM1 need no divider of their own.** What they add over the
-divide tail is the variable shift by `n`, the quotient-bit capture for
-C0/C3/C1, the round-to-nearest quotient for FPREM1, and the C2 decision on the
-exponent difference.
+An earlier version of this section called the model's form "the actual
+datapath" after the RTL had moved. Codex found it.
 
 ## Clocks per form, derived and to be measured
 
@@ -375,9 +393,9 @@ the remainder's value ever gets; nothing in the slice needs a 131-bit adder.
 ## What is in the branch
 
 All three operations are built and exact: FDIV and FDIVR in every ST(i),
-integer, memory and popping form, FSQRT, and FPREM and FPREM1. 738 unit-bench
-cases pass against the host's own x87 on the RTL and 730 on the locked-Yosys
-netlist, with the tail's remainder assertions armed.
+integer, memory and popping form, FSQRT, and FPREM and FPREM1. **740
+unit-bench cases pass against the host's own x87 on the RTL and 740 on the
+locked-Yosys netlist**, with the tail's remainder assertions armed.
 
 **The decode landed per operation with the unit that runs it**, not in one
 commit, and it was written and reverted once on purpose. Adding `X87_SQRT` or
@@ -395,11 +413,17 @@ accepted by one table and missing from the other raises
 because it supplies the format itself. Codex found it on PR #1889, and the
 `div-mem` lockstep program is what catches it now.
 
-**What is not in the branch**: the seal, the kit run, the identity-on seed
-sweep, QEMU's fprem test, and a TestFloat harness. The seal and the kit run
-are blocked by [the escalation](STOP-RULE-FIRED.md) rather than unfinished:
-the identity-on machine does not fit the device, and the rule this slice set
-before any fit existed says escalate before sealing.
+**The seal and the kit run are done, and QEMU's fprem test is ported and
+passes.** This section said otherwise in the present tense long after
+[the results table](summary.md#results) recorded all three — which is the
+first failure mode in this record's own taxonomy, in this record, for the
+second time. The table is the single place those states are kept; this
+section defers to it rather than restating it.
+
+What is genuinely outstanding: the identity-on seed sweep, which has nothing
+to sweep because the fitter stopped before placement, and
+[the escalation](STOP-RULE-FIRED.md), which is **resolved** as Deano's phase
+decision rather than open.
 
 ## Three more census results, which bear on what this slice built
 
