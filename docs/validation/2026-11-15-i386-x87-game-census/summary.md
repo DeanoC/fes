@@ -160,11 +160,25 @@ one fitted each fixup runs once and is patched to its ESC. That is why
 [#1533](https://github.com/DeanoC/fes/pull/1533) plays it on an empty socket,
 and it needed no second run to establish.
 
+**And the fixups sharpen the no-fallback argument rather than weakening
+it**, which is worth saying because the finding reads the other way at first
+glance. An emulator fixup *is* a fallback — but only for a 387 that is
+**absent**. The game has exactly two paths: "no 387 present", which runs the
+emulator in software, and "387 present", which it then trusts. There is no
+path for "387 present but imprecise". A reduced unit would be selected onto
+the second path by the identity bit and would be unable to honour it, and
+the fixups it had already patched away are no longer there to catch it. So
+Wolfenstein 3D is not the one title that would tolerate a narrow unit; it is
+a title with a working fallback that a narrow unit would route *around*.
+
 It also corrects the 12 November record, which concluded that "no run
 executed an INT 34h–3Eh emulator fixup, so none of these titles was built
-with Borland's or Microsoft's fixup emulation". That conclusion was sound
-for the titles it ran; **it never ran Wolfenstein 3D**, and Wolfenstein 3D
-is built that way.
+with Borland's or Microsoft's fixup emulation". That conclusion was **sound
+for the titles that run had, and silent about the one it never ran** — which
+is the distinction worth keeping, rather than calling the earlier census
+wrong. The same shape as the top-N forms above: a census answers for its
+own corpus and its own cut, and both have to be read before a design
+decision leans on it.
 
 **What this still does not establish:** that Wolfenstein 3D *needs*
 extended precision. Its arithmetic is at PC=64 because that is Borland's
