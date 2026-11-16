@@ -442,6 +442,20 @@ quantity against its own definition rather than against its plausibility.*
 Only the first is fixed by "generate rather than type", which is why that
 rule alone was not enough here.
 
+**A fourth, and it bit the gate's own tooling rather than the census.** A
+check can *report without checking*. The watcher script I used to wait for
+the review gate polled for a marker at a given head and then printed the
+anchored-finding and unanswered-thread counts **unconditionally** — so when
+its head was superseded and the marker never arrived, it still exited 0 and
+printed `ANCHORED=0 UNANSWERED=0`, which reads exactly like a pass for a
+head it had never confirmed. The counts were true; the thing they appeared
+to certify was not measured. That is mis-attachment again, but in the
+instrument rather than the record, and it is the more serious place to have
+it: a wrong figure in a record gets reviewed, while a green check gets
+believed. The remedy is that a check which cannot distinguish "verified" from
+"never ran" must fail rather than report, and must print *which* head it
+confirmed beside any count it gives.
+
 **And every one of these findings left the conclusion intact.** Three
 evidence columns were withdrawn, the area argument was weakened to a single
 isolated figure, and the 53-bit case was rebuilt on a different measurement
