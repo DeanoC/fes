@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "make",
+    "-C",
+    "sources/libmister-runtime",
+    "-j2",
+    "active-tree-test",
+    "hardware-support-truth-test"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 125.65723251202144,
+  "log_sha256": "c148eeff9627ad77ae4c5c34ec04cbcb3d0a011b8d8b16fd1fa5072ce5d0c2a9"
+}

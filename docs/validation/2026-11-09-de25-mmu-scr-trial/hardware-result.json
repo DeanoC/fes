@@ -1,0 +1,46 @@
+{
+  "status": "physical-native-startup-stopped-during-mmu-transition",
+  "source_commit": "ea0f6c8bee1d249422ca65538314b08e24dc23eb",
+  "candidate": "7efa0304ddd339aa",
+  "provider_succeeded": true,
+  "scr_before": 568,
+  "mmu_before_seen": true,
+  "mmu_after_seen": false,
+  "register_writes_after_before_record": "unknown",
+  "private_memory_probe_completed": false,
+  "private_memory_probe_outcome": "unknown",
+  "fesboot_sent": false,
+  "launcher_started": false,
+  "tape_attempted": false,
+  "verified_uploads": 13,
+  "fresh_sd_reads": 13,
+  "native_error": "stage timeout: matched native prompt",
+  "cleanup": {
+    "status": "passed",
+    "usb_node_unchanged": true,
+    "usb_permissions_exact": true,
+    "clock_readback": "15M",
+    "owned_private_server_gone": true,
+    "uart_owners": [],
+    "board_operations": false,
+    "native_rom_acceptance": false
+  },
+  "retention": {
+    "status": "passed",
+    "source_head": "ea0f6c8bee1d249422ca65538314b08e24dc23eb",
+    "operator_source": "ea0f6c8bee1d249422ca65538314b08e24dc23eb",
+    "path": "/home/deano/fes-retained/de25-mmu-scr-trial-hardware-20261109-r1",
+    "files": 88516,
+    "full_archive_readback": true,
+    "bundle_import_and_pack_verified": true,
+    "hardware_actions": false
+  },
+  "logs": {
+    "out/nano-mmu-scr-trial-20261109/trial/native-console.log": "b7c044b5de5c5c2f1456d1149e579b399bed0304fd3e87929ac2c4cb0fa7551a",
+    "out/nano-mmu-scr-trial-20261109/trial/native-result.json": "a6bb6911449b0217f9c559e086ecaa116207b8fc52db2e1545190ee830fdac8b",
+    "out/nano-mmu-scr-trial-20261109/trial/experiment-result.json": "ab565b5033044faf93825bc8399b74c48f56b612a49f87fe8a22dfb5cf1c7bd4"
+  },
+  "consumed_image_retired": true,
+  "core_load_acceptance": false,
+  "pass": false
+}

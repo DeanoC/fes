@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/recovery-chain-reset-probe/freeze.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 1,
+  "timed_out": false,
+  "elapsed": 1.6014313739724457,
+  "log_sha256": "e8734ce7753c004632fd0dae5ccb1997bfdac64d864f0edbbc6a606cb43fc41a"
+}

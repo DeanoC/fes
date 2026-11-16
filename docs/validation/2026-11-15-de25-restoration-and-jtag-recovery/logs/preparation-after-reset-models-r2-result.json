@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/publication/check-preparation-after-reset-models.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 20.412949620047584,
+  "log_sha256": "1f65f32fc4afe5ae940cbee3c5777e930c0bd7e613a2002aae30bffd36422603"
+}

@@ -1,0 +1,33 @@
+{
+  "source_commit": "42f2586b24a07dbbf1cfb8fd40dadf07ec7b6e65",
+  "base": "09c5c6317071649bcad7c2c327251a299640522d",
+  "files": {
+    "platform/embedded/firmware/README.md": "afb87b7c8b992bf299d150a91c78016d9de98dd39f9c76f90b54b95612913037",
+    "platform/embedded/firmware/generated/fes_embedded_bridges.h": "bdddef6581ff96a9c86cde9be5c82552f91b71736c53e819c90cd2b9d9170899",
+    "platform/embedded/firmware/nano_cold_platform.c": "786b6d639be4f795727d71d656b19a5e8b73a58023b00810d47cc6304713de59",
+    "platform/embedded/firmware/nano_configuration.c": "5218587aac46abc992dcf128ac7598a8cb96c308a7e94adab900bffc79dc5d0f",
+    "platform/embedded/firmware/nano_configuration.h": "5f11e8fe67877db4acd57a8ebb2f6f8ca22894e5c6d65463193d89a5214698e2",
+    "platform/embedded/firmware/nano_mailbox.py": "3f4272f1bf1224e8216974f304532c0ecadd54642c15fc2d94271b868d43c7ef",
+    "platform/embedded/firmware/nano_mailbox_observe.h": "9a94ca09a822c1305905fe8d403f8d41f4d8e905c939ec64920bdf5d87873194",
+    "platform/embedded/firmware/nano_mailbox_status.inc": "185225e3d31d1135d7c06bec70dd433c3071742bd11e8d72c118b8c454715c8a",
+    "platform/embedded/firmware/nano_owned_sip.inc": "8678ee9292c8854a83f034da8a45931db6f8ef70584691886492921e35ff6ff0",
+    "platform/embedded/firmware/prepare_nano_owned.py": "468e00455ffe5fd58d0006b4cd0fa53c83d7188570b7a016a276ba9f4faff68c",
+    "platform/embedded/firmware/tests/nano_cold_platform_test.c": "532b94da6a72f520b3983bc31ded7965e919b9cf210ea563f24c5733428e29f3",
+    "platform/embedded/firmware/tests/nano_configuration_test.c": "7e997b69a1d55d76b158ce939a428b4f4c946ae4677c479a5b9b1873cb2f2006",
+    "platform/embedded/firmware/tests/nano_mailbox_status_test.c": "6924eefc025f8333da119463a025c3127d05ece222e26b7ae34012923411e7c9",
+    "platform/embedded/nano/README.md": "0e2332e196156604a119db79353c1d1cfa0aa8a73a6fac7ae5e8cad0964ba57c",
+    "platform/embedded/nano/cold_profile.py": "35a6977f7da92d7dd3cd546153ebb4de104ea9cbb93e273f43cf16775cf923a0",
+    "platform/embedded/tamago/cmd/fpgaload/main.go": "0cc79f16e3188666282251412b11bb974ec94fc54b0195655a3e3e2d7c04227d",
+    "platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_bridges.go": "6658b5eb2e6292bc07e8c0b1a95a320fdbc9e83c739a987c357b223620eb5d39",
+    "platform/embedded/tamago/nativefabric/README.md": "f5d93643f3d2fb7a0dee9555eea52704934f18a0fa4b9477251b054455a1517a",
+    "platform/embedded/tamago/nativefabric/retire_configuration.go": "5a5da407dd6cd4e1e691e5d57a749129b8f066db76f2f6c7f9aca9a8a2ede556",
+    "platform/embedded/tamago/nativefabric/retire_configuration_test.go": "b0ebb637d12b34c232d492a34e554ba14acf14313bbbb53b5b0e4fd29205f365",
+    "platform/embedded/tamago/nativefabric/transfer.go": "04070136aa429ed7653b1129d4de389704801487d6770e6cb121bc473416490a",
+    "sources/mister-packages/docs/embedded-bridges.md": "4b0c8f780377bd2c4364645200bd3a543020850b66ca8fa03f0051ac50dc3ca0",
+    "sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml": "552b01c437c0cfc41b6b3ec85f34b0daf2e33a845b844391cdf62c2cb491dafa",
+    "sources/mister-packages/testdata/oracles/fes-embedded-bridges.json": "85219f57c5c0bb427f750936237bd6c59099b8bea2d8de90c84229d9554e0e46",
+    "tests/test_nano_configuration.py": "783f1db330f7bb522443d5e252e2d74fd0abb234cd68ba39644881bea3fb2ea5",
+    "tests/test_nano_mailbox.py": "be4d141d7ffac0b438ab36d53ef99be87055083b288e1c64bbdc83bd98804c0d"
+  },
+  "scope": "committed changed-source snapshot; compiled component receipts bind their complete selected inputs"
+}

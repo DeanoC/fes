@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "source_head": "031ab26fca2a1a5e3726940e2a4ba637a2322c31",
+  "operator_source": "78f72761cd914430e1ce88b38c7407239d39ee49",
+  "path": "/home/deano/fes-retained/de25-mmu-scalar-trial-hardware-20261109-r1",
+  "files": 5906,
+  "full_archive_readback": true,
+  "archive_modes_verified": true,
+  "bundle_import_and_pack_verified": true,
+  "standalone_source_restore_and_strict_fsck": true,
+  "hardware_actions": false
+}

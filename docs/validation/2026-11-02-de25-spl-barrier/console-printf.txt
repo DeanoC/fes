@@ -1,0 +1,28 @@
+
+/home/deano/fes/out/dev/de25-embedded-os/out/nano-spl-barrier-20261102/native-uboot/build/spl/u-boot-spl:     file format elf64-littleaarch64
+
+
+Disassembly of section .text:
+
+000000000000f01c <printf>:
+    f01c:	a9b77bfd 	stp	x29, x30, [sp, #-144]!
+    f020:	910003fd 	mov	x29, sp
+    f024:	a9058be1 	stp	x1, x2, [sp, #88]
+    f028:	910243e1 	add	x1, sp, #0x90
+    f02c:	a90307e1 	stp	x1, x1, [sp, #48]
+    f030:	910143e1 	add	x1, sp, #0x50
+    f034:	f90023e1 	str	x1, [sp, #64]
+    f038:	128006e1 	mov	w1, #0xffffffc8            	// #-56
+    f03c:	b9004be1 	str	w1, [sp, #72]
+    f040:	910043e1 	add	x1, sp, #0x10
+    f044:	b9004fff 	str	wzr, [sp, #76]
+    f048:	a90693e3 	stp	x3, x4, [sp, #104]
+    f04c:	a9430fe2 	ldp	x2, x3, [sp, #48]
+    f050:	a9010fe2 	stp	x2, x3, [sp, #16]
+    f054:	a9440fe2 	ldp	x2, x3, [sp, #64]
+    f058:	a9020fe2 	stp	x2, x3, [sp, #32]
+    f05c:	a9079be5 	stp	x5, x6, [sp, #120]
+    f060:	f90047e7 	str	x7, [sp, #136]
+    f064:	97ffffd8 	bl	efc4 <vprintf>
+    f068:	a8c97bfd 	ldp	x29, x30, [sp], #144
+    f06c:	d65f03c0 	ret

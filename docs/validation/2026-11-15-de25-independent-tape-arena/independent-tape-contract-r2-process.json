@@ -1,0 +1,10 @@
+{
+  "pid": 1494483,
+  "process_start_ticks": "177444391",
+  "cap_seconds": 120,
+  "start_monotonic": 1774443.918073528,
+  "argv": [
+    "python3",
+    "out/publication/check-independent-tape-contract.py"
+  ]
+}

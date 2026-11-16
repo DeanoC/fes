@@ -1,0 +1,1404 @@
+{
+  "pass": false,
+  "audit_passed": true,
+  "source_commit": "42f2586b24a07dbbf1cfb8fd40dadf07ec7b6e65",
+  "native_build_source_commit": "42f2586b24a07dbbf1cfb8fd40dadf07ec7b6e65",
+  "scope": "one cold contained phase-two transfer and live identity/reclose diagnostic; no runtime admission",
+  "trace": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "eff3e21e316e011c"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 12745192039937803877,
+          "epoch": 5976570429,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 41,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 45,
+        "values": {
+          "id": "eff3e21e316e011c"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 49,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 61,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 62,
+        "values": {
+          "id": "eff3e21e316e011c"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 63,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216373888,
+          "malloc_start": 3216408576,
+          "malloc_end": 3220611072,
+          "reloc": 3220611072,
+          "fdt": 3216383136
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 70,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 12745192039937803877,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 79,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 12745192039937803877,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 80,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 81,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 82,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 83,
+        "values": {}
+      },
+      {
+        "stage": "hps_context",
+        "line": 84,
+        "values": {
+          "sha256": "94da3557f175eae05144d70937c3afceda20c6c9f9ca9d25155535da3e0814fc",
+          "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+          "build_id": "e25bb65a1d14a2bbbddf4c770ea033e5",
+          "owner": 12745192039937803877,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "configuration_arm",
+        "line": 85,
+        "values": {
+          "phase": "arm",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 0,
+          "pending": 0,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 9369842093,
+          "hash_ticks": 464102515
+        }
+      },
+      {
+        "stage": "configuration_start",
+        "line": 86,
+        "values": {
+          "phase": "start",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 0,
+          "pending": 0,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 9994902074,
+          "hash_ticks": 928247004
+        }
+      },
+      {
+        "stage": "configuration_engine",
+        "line": 87,
+        "values": {
+          "credits": 4,
+          "block_bytes": 1048560,
+          "next_job": 0,
+          "owner": 12745192039937803877,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 88,
+        "values": {
+          "phase": 1,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 0,
+          "pending": 0,
+          "job": 0,
+          "cin": 5,
+          "cout": 5,
+          "rin": 6,
+          "rout": 6,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 89,
+        "values": {
+          "phase": "write",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 0,
+          "pending": 65536,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 10510167621,
+          "hash_ticks": 1407396196
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 90,
+        "values": {
+          "phase": 2,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 0,
+          "pending": 65536,
+          "job": 0,
+          "cin": 5,
+          "cout": 5,
+          "rin": 6,
+          "rout": 6,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 91,
+        "values": {
+          "phase": "write",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 0,
+          "pending": 131072,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 10585899455,
+          "hash_ticks": 1452531611
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 92,
+        "values": {
+          "phase": 2,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 0,
+          "pending": 131072,
+          "job": 1,
+          "cin": 9,
+          "cout": 9,
+          "rin": 7,
+          "rout": 6,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 93,
+        "values": {
+          "phase": "write",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 0,
+          "pending": 196608,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 10702489847,
+          "hash_ticks": 1527751798
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 94,
+        "values": {
+          "phase": 2,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 0,
+          "pending": 196608,
+          "job": 2,
+          "cin": 13,
+          "cout": 13,
+          "rin": 8,
+          "rout": 6,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 95,
+        "values": {
+          "phase": "write",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 0,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 10859865050,
+          "hash_ticks": 1633063383
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 96,
+        "values": {
+          "phase": 2,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 0,
+          "pending": 262144,
+          "job": 3,
+          "cin": 17,
+          "cout": 17,
+          "rin": 9,
+          "rout": 6,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 97,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 0,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 11037688944,
+          "hash_ticks": 1753409365
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 98,
+        "values": {
+          "phase": 3,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 196608,
+          "pending": 65536,
+          "job": 4,
+          "cin": 21,
+          "cout": 21,
+          "rin": 10,
+          "rout": 9,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 99,
+        "values": {
+          "phase": "write",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 196608,
+          "pending": 131072,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 11174900849,
+          "hash_ticks": 1843664920
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 100,
+        "values": {
+          "phase": 2,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 196608,
+          "pending": 131072,
+          "job": 4,
+          "cin": 21,
+          "cout": 21,
+          "rin": 10,
+          "rout": 9,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 101,
+        "values": {
+          "phase": "write",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 196608,
+          "pending": 196608,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 11291887809,
+          "hash_ticks": 1918884500
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 102,
+        "values": {
+          "phase": 2,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 196608,
+          "pending": 196608,
+          "job": 5,
+          "cin": 25,
+          "cout": 25,
+          "rin": 11,
+          "rout": 9,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 103,
+        "values": {
+          "phase": "write",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 196608,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 11449662809,
+          "hash_ticks": 2024181111
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 104,
+        "values": {
+          "phase": 2,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 196608,
+          "pending": 262144,
+          "job": 6,
+          "cin": 29,
+          "cout": 29,
+          "rin": 12,
+          "rout": 9,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 105,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 196608,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 11627836883,
+          "hash_ticks": 2144533305
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 106,
+        "values": {
+          "phase": 3,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 393216,
+          "pending": 65536,
+          "job": 7,
+          "cin": 1,
+          "cout": 1,
+          "rin": 13,
+          "rout": 12,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 107,
+        "values": {
+          "phase": "write",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 393216,
+          "pending": 131072,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 11765167217,
+          "hash_ticks": 2234789688
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 108,
+        "values": {
+          "phase": 2,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 393216,
+          "pending": 131072,
+          "job": 7,
+          "cin": 1,
+          "cout": 1,
+          "rin": 13,
+          "rout": 12,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 109,
+        "values": {
+          "phase": "write",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 393216,
+          "pending": 196608,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 11882077014,
+          "hash_ticks": 2309999565
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 110,
+        "values": {
+          "phase": 2,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 393216,
+          "pending": 196608,
+          "job": 8,
+          "cin": 5,
+          "cout": 5,
+          "rin": 14,
+          "rout": 12,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 111,
+        "values": {
+          "phase": "write",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 393216,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 12039781355,
+          "hash_ticks": 2415294130
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 112,
+        "values": {
+          "phase": 2,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 393216,
+          "pending": 262144,
+          "job": 9,
+          "cin": 9,
+          "cout": 9,
+          "rin": 15,
+          "rout": 12,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 113,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 393216,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 12217868172,
+          "hash_ticks": 2535630265
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 114,
+        "values": {
+          "phase": 3,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 589824,
+          "pending": 65536,
+          "job": 10,
+          "cin": 13,
+          "cout": 13,
+          "rin": 0,
+          "rout": 15,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 115,
+        "values": {
+          "phase": "write",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 589824,
+          "pending": 131072,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 12355209453,
+          "hash_ticks": 2625880084
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 116,
+        "values": {
+          "phase": 2,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 589824,
+          "pending": 131072,
+          "job": 10,
+          "cin": 13,
+          "cout": 13,
+          "rin": 0,
+          "rout": 15,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 117,
+        "values": {
+          "phase": "write",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 589824,
+          "pending": 196608,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 12472168589,
+          "hash_ticks": 2701105695
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 118,
+        "values": {
+          "phase": 2,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 589824,
+          "pending": 196608,
+          "job": 11,
+          "cin": 17,
+          "cout": 17,
+          "rin": 1,
+          "rout": 15,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 119,
+        "values": {
+          "phase": "write",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 589824,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 12629987978,
+          "hash_ticks": 2806413114
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 120,
+        "values": {
+          "phase": 2,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 589824,
+          "pending": 262144,
+          "job": 12,
+          "cin": 21,
+          "cout": 21,
+          "rin": 2,
+          "rout": 15,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 121,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 589824,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 12808186656,
+          "hash_ticks": 2926755146
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 122,
+        "values": {
+          "phase": 3,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 65536,
+          "job": 13,
+          "cin": 25,
+          "cout": 25,
+          "rin": 2,
+          "rout": 2,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 123,
+        "values": {
+          "phase": "write",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 131072,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 12945611648,
+          "hash_ticks": 3017021456
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 124,
+        "values": {
+          "phase": 2,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 131072,
+          "job": 13,
+          "cin": 25,
+          "cout": 25,
+          "rin": 2,
+          "rout": 2,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 125,
+        "values": {
+          "phase": "write",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 196608,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 13062632733,
+          "hash_ticks": 3092237000
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 126,
+        "values": {
+          "phase": 2,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 196608,
+          "job": 0,
+          "cin": 29,
+          "cout": 29,
+          "rin": 2,
+          "rout": 2,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 127,
+        "values": {
+          "phase": "write",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 13220403159,
+          "hash_ticks": 3197531404
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 128,
+        "values": {
+          "phase": 2,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "job": 1,
+          "cin": 1,
+          "cout": 1,
+          "rin": 2,
+          "rout": 2,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 129,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 13398493574,
+          "hash_ticks": 3317869058
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 130,
+        "values": {
+          "phase": 3,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "job": 2,
+          "cin": 5,
+          "cout": 5,
+          "rin": 2,
+          "rout": 2,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 131,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 13576983768,
+          "hash_ticks": 3438215167
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 132,
+        "values": {
+          "phase": 3,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "job": 2,
+          "cin": 5,
+          "cout": 5,
+          "rin": 2,
+          "rout": 2,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 133,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 13755456849,
+          "hash_ticks": 3558560748
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 134,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 13926715113,
+          "hash_ticks": 3678906194
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 135,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 14097966164,
+          "hash_ticks": 3799244496
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 136,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 14269214010,
+          "hash_ticks": 3919580356
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 137,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 14440468211,
+          "hash_ticks": 4039920819
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 138,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 14611727795,
+          "hash_ticks": 4160265900
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 139,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 14782980800,
+          "hash_ticks": 4280608095
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 140,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 14954225357,
+          "hash_ticks": 4400941669
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 141,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 15125512679,
+          "hash_ticks": 4521282667
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 142,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 15296806127,
+          "hash_ticks": 4641627691
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 143,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 15468099374,
+          "hash_ticks": 4761971791
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 144,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 15639410585,
+          "hash_ticks": 4882321114
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 145,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 15810701900,
+          "hash_ticks": 5002660055
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 146,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 15981998139,
+          "hash_ticks": 5123006871
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 147,
+        "values": {
+          "phase": 3,
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "job": 2,
+          "cin": 5,
+          "cout": 5,
+          "rin": 2,
+          "rout": 2,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 148,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 16160498502,
+          "hash_ticks": 5243349483
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 149,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 16331785596,
+          "hash_ticks": 5363690153
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 150,
+        "values": {
+          "phase": "poll",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 16503079547,
+          "hash_ticks": 5484035618
+        }
+      },
+      {
+        "stage": "configuration_FAIL",
+        "line": 151,
+        "values": {
+          "phase": "FAIL",
+          "owner": 12745192039937803877,
+          "generation": 1,
+          "completed": 786432,
+          "pending": 262144,
+          "total": 2027520,
+          "base": 2491416576,
+          "counter": 16592484138,
+          "hash_ticks": 5544205051
+        }
+      }
+    ],
+    "errors": [
+      "malformed or unexpected probe marker at line 152",
+      "failure marker at line 154",
+      "failed or unknown configuration phase"
+    ],
+    "loader_ready": false,
+    "complete": false,
+    "last_checkpoint": "configuration_FAIL",
+    "core_load_acceptance": false,
+    "configuration_transfer": {
+      "complete": false,
+      "completed_bytes": 786432,
+      "core_sha256": "415cc2d68955755d2de406b233e34fa2cd6cce755089ba842f10f62e6945320c",
+      "arena_base": 2491416576,
+      "arena_size": 8388608
+    },
+    "configuration_timing": {
+      "counter_frequency": 400000000,
+      "first_counter": 9369842093,
+      "last_counter": 16592484138,
+      "hash_ticks": 5544205051,
+      "interval_ticks": 7222642045,
+      "interval_hash_ticks": 5080102536
+    }
+  },
+  "configuration_sha256": "815b65b3276daa6901b4f00b563afe1d5f6cf29d77eac36bccaecd995cd4ef34",
+  "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+  "core_sha256": "415cc2d68955755d2de406b233e34fa2cd6cce755089ba842f10f62e6945320c",
+  "core_size": 2027520,
+  "console_sha256": "9a3e8ca64ad1121412a007dd9558a286f9e87a29e1848b5d789de05bdead561c",
+  "error": "phase stopped: native",
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "usb_node": "/dev/bus/usb/003/061",
+  "uart_free": true,
+  "claim_retained": true,
+  "factory_restore_requested": false,
+  "runtime_admission": false,
+  "data_release_requested": false,
+  "core_load_acceptance": false,
+  "finished_utc": "2026-11-02T00:42:12.484487+00:00"
+}

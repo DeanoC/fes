@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/full-sof-loading-trial/freeze_selected.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 3.8038458549417555,
+  "log_sha256": "37c1ae7539e4037622aa36a0e524584f95049c07459682ce672a6ec0b91ceee8"
+}

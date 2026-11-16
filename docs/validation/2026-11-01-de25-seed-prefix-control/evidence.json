@@ -1,0 +1,159 @@
+{
+  "affected_checks": 6,
+  "build_artifacts": {
+    "config_sha256": "743790e8e79e709d06bba8feb9eb1555e5b6e7250ce1e5829d33a73cfdd983be",
+    "sof_sha256": "f9747d52dc2b2b35496c37587b361233f14d5f098653640c70cc7051721af899",
+    "spl_elf_sha256": "473b5d0e117bc1a125e479e5a61874d8a616e85cdd7771fe19af951ffa7a404f",
+    "spl_sha256": "c46f1cc87e56b75ae18ede0120fc199527f6e1d73c466fa04bf62579ab92e39a"
+  },
+  "build_base": "6a2bb09ac0fcb1857d9cea29c7530d3b60ef248d",
+  "checks": [
+    {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_cpu_diagnostic.py",
+        "-v"
+      ],
+      "label": "focused",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "6a2bb09ac"
+      ],
+      "label": "affected",
+      "returncode": 0
+    }
+  ],
+  "classification": "physical contained SPL console/register/park diagnostic PASS; no native admission",
+  "diagnostic_id": "eeff478768a18617",
+  "end_state": "diagnostic parked and retained; original factory card inserted; continuing exclusive claim held",
+  "failed_preparation": "candidate-v1 retained; linked initr_watchdog guard failed before PFG/programming; candidate-v2 independently stops later SPL initializer",
+  "first_sample_proof": false,
+  "focused_tests": 4,
+  "native_gate_changed": false,
+  "open_gates": [
+    "initial CPU/reset inventory proof",
+    "DDR/native owned handoff and peripheral ownership",
+    "real package/core loading and launch/return"
+  ],
+  "post_trial_jtag": {
+    "finished_utc": "2026-11-01T09:03:41.603489+00:00",
+    "helper_sha256": "ad8bfff3c367c05e607e7ab0a5edd3d04858aa3146e7568b45e33ea9ecb67dbe",
+    "jtag_id": "4362C0DD",
+    "jtag_id_observed": true,
+    "returncode": 0,
+    "scope": "one read-only exact-cable identity query; diagnostic image retained",
+    "serial": "TRWU8CBL",
+    "started_utc": "2026-11-01T09:03:40.900665+00:00",
+    "usb_node": "/dev/bus/usb/003/061",
+    "usb_permissions_restored": true
+  },
+  "pre_console_trace": false,
+  "receipt_hashes": {
+    "out/nano-seed-prefix-checks-final-20261101/checks-result.json": "3eea037f474e2ca34bd33459f9416409415149b0b8bdbd0567a9ad934fa104a3",
+    "out/nano-seed-prefix-prep-20261101/candidate-v2/result.json": "856a934154c0a25b079b4824f34a018138359cda3832a494ecec02e09edeea3d",
+    "out/nano-seed-prefix-trial-20261101/cpu-console.log": "27dd0ec6dbb44beaaa0422640570904f3101ee150c5286feaf9f1df56168e63f",
+    "out/nano-seed-prefix-trial-20261101/cpu-result.json": "86ab2bd54f39e73885418c35cc713e8f7a12e4da8dccef5f2e57f9680c53d55a",
+    "out/nano-seed-prefix-trial-20261101/preflight.json": "f2971428296c2afcfc361dbd5c6d35a5c7b4ee253380c09ce3c215c18d7ecb73",
+    "out/nano-seed-prefix-trial-20261101/retained-jtag-result.json": "4e7165574f51cd3737331348ce285490abeeaa6aceec37967a0d5994c4865ece"
+  },
+  "retention": "/home/deano/fes-retained/de25-nano-seed-prefix-control-20261101/",
+  "seed_configuration_retained_except_identity": true,
+  "source_commit": "a7b045916e969390b8eb73e940c337ff5dd67ee2",
+  "startup_objects": {
+    "arch/arm/cpu/armv8/start.o": {
+      "seed_match": true,
+      "text_sha256": "9d182da39984cdb6656c6bed8647e96f79b5238f6a476ddc654861ebdedadbd4"
+    },
+    "arch/arm/lib/crt0_64.o": {
+      "seed_match": true,
+      "text_sha256": "34615c1f545ff5f1cb5d7ea64f1e93cb0fdd750dfc7957f88e480903ed471c92"
+    },
+    "arch/arm/mach-socfpga/lowlevel_init_agilex5.o": {
+      "seed_match": true,
+      "text_sha256": "6ed9e4594da13144a3dc38df69c5ca7befb7549b43417ea0992fc879db1f9073"
+    }
+  },
+  "trial": {
+    "console_sha256": "27dd0ec6dbb44beaaa0422640570904f3101ee150c5286feaf9f1df56168e63f",
+    "diagnostic_id": "eeff478768a18617",
+    "factory_card_retained": true,
+    "fesboot_sent": false,
+    "finished_utc": "2026-11-01T09:03:23.106620+00:00",
+    "initial_proof_attempted": false,
+    "jtag_id": "4362C0DD",
+    "native_admission": false,
+    "pass": true,
+    "phase": "cpu",
+    "post_console_registers": {
+      "bridge": "0000004f",
+      "cause": "00000004",
+      "cpus": "0000000f",
+      "kind": "00000004",
+      "per0": "ff7fbfff",
+      "release": "00000000"
+    },
+    "post_console_scope": {
+      "el": 3,
+      "mpidr": "81000000"
+    },
+    "preflight_sha256": "f2971428296c2afcfc361dbd5c6d35a5c7b4ee253380c09ce3c215c18d7ecb73",
+    "programming_attempted": true,
+    "programming_complete": true,
+    "runner_sha256": "4b95ca6be7e2e26bde316f1c7df91b941ae4c4f6011fa19bcf839002596f8a5c",
+    "sd_write_commands_sent": false,
+    "serial": "TRWU8CBL",
+    "sof_sha256": "f9747d52dc2b2b35496c37587b361233f14d5f098653640c70cc7051721af899",
+    "source_commit": "a7b045916e969390b8eb73e940c337ff5dd67ee2",
+    "stage": "observation captured",
+    "started_utc": "2026-11-01T09:03:15.384659+00:00",
+    "trace": {
+      "complete": true,
+      "identity_mismatch": false,
+      "last_checkpoint": {
+        "el": 3,
+        "mpidr": "0000000081000000",
+        "name": "park",
+        "stage": "12",
+        "value": 0
+      },
+      "native_admission": false,
+      "records": [
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "console-done",
+          "stage": "10",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "report-begin",
+          "stage": "11",
+          "value": 0
+        },
+        {
+          "el": 3,
+          "mpidr": "0000000081000000",
+          "name": "park",
+          "stage": "12",
+          "value": 0
+        }
+      ],
+      "sequence_valid": true
+    },
+    "unconditional_park_observed": true,
+    "usb_permissions_restored": true
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "status": "passed",
+  "clock_readback_logs": [
+    {
+      "parameter": "JtagClock",
+      "value": "15M",
+      "log_sha256": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18"
+    },
+    {
+      "parameter": "JtagClockAutoAdjust",
+      "value": 1,
+      "log_sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    }
+  ],
+  "owned_private_server_gone": true,
+  "usb_permissions_exact": true,
+  "usb_node_unchanged": true,
+  "uart_owners": [],
+  "board_operations": false,
+  "experiment_result_sha256": "7e4a9488c923ac4f8ceea497eb5f45f99f89d6b74070e9ca6196dc93097a8f38"
+}

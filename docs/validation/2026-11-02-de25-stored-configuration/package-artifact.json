@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "elf_bytes": 5896314,
+  "canonical_package_bytes": 2030592,
+  "canonical_package_sha256": "c75abfe867e7f20e4fba527a53db157df3f524465084871936acbe24addcf2ff",
+  "core_not_embedded": true,
+  "core_sha256": "415cc2d68955755d2de406b233e34fa2cd6cce755089ba842f10f62e6945320c",
+  "controlled_sd": true,
+  "scope": "built artifact and upload-package checks; no hardware execution"
+}

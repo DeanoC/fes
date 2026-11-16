@@ -318,7 +318,7 @@ class BuildFesPongTests(unittest.TestCase):
         self.assertEqual(
             {k: v for k, v in fields["parameters"].items() if k not in (
                 "execution_sha256", "gpu_device", "source_closure_policy",
-                "source_closure_mode", "pnr_recipe_sha256")},
+                "source_closure_mode", "pnr_recipe_sha256", "identity_policy", "toolchain_pins", "pnr_design_sha256")},
             {
                 "device": "5CSEBA6U23I7",
                 "gpu_architectures": "gfx1100;gfx1201",

@@ -1,0 +1,21 @@
+{
+  "status": "passed-completed-setup-final-repair-source-and-check-retention",
+  "source_head": "bfdac3256789536dacfdf5a38d83a1d1ead99903",
+  "source_parent": "87352ad4576308fb2139f9dbb80c7b5691de31e4",
+  "archive": "/home/deano/fes-retained/de25-setup-final-focused-20261114-r1/software.tar.gz",
+  "archive_sha256": "f49afbfb03fd266e9bf3bc74dd3f455f532c60eb627c9012cda41b48f56beb16",
+  "archive_bytes": 12643588,
+  "focused_tests": 27,
+  "focused_skips": 0,
+  "delayed_setup_cases": 43,
+  "predecessor_counterexample_reproduced": true,
+  "vendor_AArch64_objects": 3,
+  "whole_affected_campaign_passed": false,
+  "matched_repair_build_claimed": false,
+  "hardware_repair_accepted": false,
+  "CI_assessed": false,
+  "dependencies": {
+    "matched_control_archive": "29318ff0ca32a9dddd07987cde8fc20e07a1c3270c3c505c7fe98306399ebe2e",
+    "physical_failure_archive": "e4a1a63cf7e81b85d8b81773819966cae52e608a4918792ee009f67aada40331"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "status": "passed",
+  "base": "fd14f9f8658c2babb3784e563a2770b391304f6b",
+  "hardware_actions": false,
+  "ordinary_admission": false,
+  "hardware_acceptance": false,
+  "targeted_tests": 8,
+  "shared_rom_scope_cases": 47,
+  "cold_reads": {
+    "qualified_shared": 52,
+    "duplicated_audit": 104
+  },
+  "fresh_proof_per_callback": true,
+  "rom_tick_hz": 400000000,
+  "rom_max_ticks": 400000000,
+  "rom_max_polls": 64,
+  "new_timer_reads": 0,
+  "rom_model_phases": 23,
+  "rom_sizes": [
+    4096,
+    8192
+  ],
+  "source_sha256": {
+    "platform/embedded/firmware/README.md": "b9bef4bd88f7741f2146d1028e27a01db4d68379a1ea7805a38139105c39c1f4",
+    "platform/embedded/firmware/nano_rom_platform.inc": "41007ca3e90645fb819e7641257212489a9e4e4a42a3f4a261ada2821a1349fc",
+    "platform/embedded/firmware/tests/nano_owner_snapshot_test.c": "54fecec20f621c37f055dba7da39ee102fa09a47123494b28e8889e3a8c47b72",
+    "platform/embedded/firmware/tests/nano_rom_platform_test.c": "22396326e36343d378a86749eba5b69883da93a76538646a2d11b9c3b779530e",
+    "platform/embedded/firmware/tests/nano_rom_owner_test.c": "b4b98b5c080aaf2dad9efa3a3ccb49c4a4648ff5b73a3972ee796659e5d028c7",
+    "tests/test_nano_rom_owner.py": "f917e0775e1a6375bc04a43d29cdc7d4acc24b387085412e393256a846f55e5b"
+  },
+  "logs_sha256": {
+    "out/nano-rom-shared-owner-20261105/ownership-tests-v2.log": "e5538a4091de67cf8d9e1c226cac22fdd523f4f0255cfaa7f86c486c5cd4a9ae",
+    "out/nano-rom-shared-owner-20261105/rom-model-final/result.json": "72d861289e0e0c58163b1d68e279eee722923f8e63a8bf862d4b14dd1e7e1578"
+  }
+}

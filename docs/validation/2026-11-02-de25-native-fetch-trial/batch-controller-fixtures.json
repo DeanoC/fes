@@ -1,0 +1,597 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "case": "positive",
+      "accepted": true,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "original-clock",
+      "accepted": false,
+      "phases": []
+    },
+    {
+      "case": "clock-set",
+      "accepted": false,
+      "phases": []
+    },
+    {
+      "case": "clock-confirm",
+      "accepted": false,
+      "phases": []
+    },
+    {
+      "case": "clock-before-native",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "clock-restore",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "restore-readback",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "permissions",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "transport-start",
+      "accepted": false,
+      "phases": []
+    },
+    {
+      "case": "transport-stop",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "missing-boot",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot"
+      ]
+    },
+    {
+      "case": "missing-package",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "missing-fit",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "missing-native",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "fit-boot-reference",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "fit-package-reference",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "fit-recovery-reference",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "fail-recovery-boot",
+      "accepted": false,
+      "phases": [
+        "recovery-boot"
+      ]
+    },
+    {
+      "case": "fail-upload-boot",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot"
+      ]
+    },
+    {
+      "case": "fail-upload-package",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "fail-native",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "boot-status",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot"
+      ]
+    },
+    {
+      "case": "boot-purpose",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot"
+      ]
+    },
+    {
+      "case": "boot-readback",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot"
+      ]
+    },
+    {
+      "case": "boot-protection",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot"
+      ]
+    },
+    {
+      "case": "boot-manifest",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot"
+      ]
+    },
+    {
+      "case": "boot-prompt",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot"
+      ]
+    },
+    {
+      "case": "package-status",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "package-purpose",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "package-readback",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "package-protection",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "package-manifest",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "package-prompt",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "fit-status",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "fit-stale",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "fit-writable",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "fit-purpose",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "fit-readback",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "fit-prompt",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "fit-write",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package"
+      ]
+    },
+    {
+      "case": "native-not-passed",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "native-no-fesboot",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "native-sd-write",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "native-activation",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "native-no-endpoint",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "native-no-queue",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "native-no-window",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "native-ddr-request",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "native-no-control",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "native-no-execution",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "native-core-admission",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "master-incomplete",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "trace-incomplete",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "trace-error",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "trace-core-admission",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "trace-checkpoint",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "transfer-incomplete",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "bad-frequency",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "control-no-cycle",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "control-no-execution",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "control-runtime",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "activity-incomplete",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "activity-kind",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "activity-short",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    },
+    {
+      "case": "activity-runtime",
+      "accepted": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "upload-package",
+        "native"
+      ]
+    }
+  ],
+  "helper_sha256": "1a911b3429c60dc04e951e9338dbfa65c49b8ddc1671a7094bd65b1343de948a"
+}

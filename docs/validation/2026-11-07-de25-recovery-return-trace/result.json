@@ -1,0 +1,131 @@
+{
+  "status": "off-board-return-trace-build-passed-hardware-unqualified",
+  "implementation_source": "dfd4863c02f571c0875cd5c30b5163d9f58a6eef",
+  "base": "522233b181b1bd18faff2d045a009284d305c3b1",
+  "software_aggregate_green": true,
+  "unittest_runs": [
+    {
+      "total": 33,
+      "seconds": 0.271,
+      "skipped": 0
+    },
+    {
+      "total": 39,
+      "seconds": 1.179,
+      "skipped": 0
+    },
+    {
+      "total": 1590,
+      "seconds": 293.635,
+      "skipped": 3
+    },
+    {
+      "total": 1590,
+      "seconds": 338.105,
+      "skipped": 78
+    }
+  ],
+  "parent_tests": {
+    "total": 1590,
+    "skipped": 3
+  },
+  "focused_tests": 16,
+  "trace_specific_tests": 7,
+  "ordered_observations": 34,
+  "actual_vendor_callback_sequences_compared": true,
+  "actual_UART_helper_host_cases": 6,
+  "source_inverse_verified": true,
+  "linked_ARM_instructions_audited": true,
+  "actual_ARM_execution": false,
+  "UART_poll_limit": 100000,
+  "string_limit_bytes": 96,
+  "compiled_helpers": {
+    "fes_return_wait": {
+      "linked_address": "0x8028e568",
+      "bytes": 52,
+      "sha256": "9153337479d449a5afadc9eeed30f2a34b151739ad540f5a1527d0c8b2a86390"
+    },
+    "fes_return_text": {
+      "linked_address": "0x8028e59c",
+      "bytes": 96,
+      "sha256": "6361ac3589d42562071dbb6cdca22c8ae6da84bc0743860558d637d99aa9064c"
+    },
+    "fes_recovery_return_begin": {
+      "linked_address": "0x8028e644",
+      "bytes": 40,
+      "sha256": "e483e7c0c09121d2050d476866e223cfb275f533eb4ea569dedea9cb4e8e6240"
+    },
+    "fes_recovery_return_mark": {
+      "linked_address": "0x8028e5fc",
+      "bytes": 72,
+      "sha256": "dc565c5888c83970ec86e4b9c0928c85c61e94ca078ec8b130423ecd7ebb0f1c"
+    },
+    "fes_recovery_return_end": {
+      "linked_address": "0x8028e66c",
+      "bytes": 36,
+      "sha256": "d4fb3b7dcd793c778f451e57040f0db5679bc7b1238cd1d7b2fbad8a84b3e521"
+    },
+    "xgmac_stop": {
+      "linked_address": "0x8025a8a4",
+      "bytes": 492,
+      "sha256": "0e245f1a7ee1db1c35f10337103daad0fedc9fe7a908cc5658bdf1aff5450eeb"
+    },
+    "net_loop": {
+      "linked_address": "0x8028c40c",
+      "bytes": 756,
+      "sha256": "e84dd0fd46c274d5710b09c078da7f7bb93db4c50a1c4287889aa1b07e9a8175"
+    },
+    "netboot_common": {
+      "linked_address": "0x80221634",
+      "bytes": 688,
+      "sha256": "b8ba6f4e793dd27bace21c62e5a704b7c737424e713a402cb37a5c862de2797e"
+    }
+  },
+  "strict_BL31_identical": true,
+  "SPL_identical": true,
+  "recovery_configuration_identical": true,
+  "fit_changed": true,
+  "fit_bytes": 954288,
+  "fit_sha256": "0f15b11576e91a6cb705de1f1b97e0960a03437b1821628abbd74bd4367f9855",
+  "SPL_sha256": "83e1f29015c8f07a95d439f9e6e8f93be6f76a918121e2fd658462e7deca3e23",
+  "BL31_sha256": "96889cbd3412b0458cdcf6b43d24462f6f40a7850b508e08f00d61569c8a26d5",
+  "default_package_validator_rejected": true,
+  "default_recovery_profile_compatible": false,
+  "qualified_recovery_source_validator_still_passes": true,
+  "initial_BL31_argument_rejection_retained": true,
+  "UART_upgrade_operator_prepared": false,
+  "hardware_actions": false,
+  "SD_writes": false,
+  "physical_qualification": false,
+  "exact_stall_cause_proven": false,
+  "core_load_acceptance": false,
+  "timing_signoff": false,
+  "board_state": "TRWU8CBL claim retained; no confirmed recovery prompt after the consumed prior upload failure; no new board operations",
+  "integration_evidence_directories": [
+    "out/nano-fabric-stop-ba232e87529c49b39cbd76260c4397de",
+    "out/native-fabric-hooks-0c2ddec7e64341b4ad06735a32ef64cd",
+    "out/de25-producer-check-b7cfc9c1737b40dc99e960ec7d641b02",
+    "out/embedded-control-f8e2d939c83240b79565a16781864770"
+  ],
+  "evidence_sha256": {
+    "out/nano-recovery-return-20261107/focused.log": "6906823e1e6a07c4881af51e4e411c6fa3efeb9913127f9855270f5cc9e97e48",
+    "out/nano-recovery-return-20261107/focused-result.json": "f07c4bc66fb44132896da0fd8a733c80a16666d76244bbb5cb9532a60b7f4ff0",
+    "out/nano-recovery-return-20261107/bl31-v2.log": "2e23fa1f3bd6c5cc548403d09533115a5940867323bdec5480afa99dcffdc133",
+    "out/nano-recovery-return-20261107/bl31-v2-result.json": "d4f44696643c65f8e707ff1c32431b2e7a36f86e1c90c98ee297ab1b77581959",
+    "out/nano-recovery-return-20261107/uboot.log": "616cda7d0d5033a8b759ea932e2f4f1b02c566df8eb7f08832f17ec9234c04ef",
+    "out/nano-recovery-return-20261107/uboot-result.json": "8ca63ffa36783e7f2d5d309d33553c278da4395183131d61f5d75c635e4d319c",
+    "out/nano-recovery-return-20261107/audit.log": "60a07c29c59427bcb9ce289a42f3b036b3c784d1e933a45d4f06773e88b329e5",
+    "out/nano-recovery-return-20261107/audit-result.json": "7a7a5ff69e8f02f78897fe46b9e7c08240c378e4d3b1d88ce799f72647cc26b6",
+    "out/nano-recovery-return-20261107/affected.log": "d3d464dfd93fc40043adafd125da3f856a2cc9db2bb884f34bcee6054b1dc819",
+    "out/nano-recovery-return-20261107/affected-result.json": "af74f86d49fb466428e391b535ae55bedfeb9175e9b6357ab06f28e4fa26c699",
+    "out/nano-recovery-return-20261107/bl31.log": "fff968fc48e7f404227c6b818e4025437e2e5c25df467bd3c81c44d0fb89be71",
+    "out/nano-recovery-return-20261107/bl31-result.json": "23c9cd59aa306b9692c73672d0e65a4083aa1b5e7c1d31ebdbfbf859c692c434",
+    "out/nano-recovery-return-20261107/source.json": "45a45f44d72a6ced5be6c5207f03726be3d4b111d40d8e47a2b6ee84a204ca68",
+    "out/nano-recovery-return-20261107/audit.json": "477ddd1c655c7f15f69847e489504923d3bef3c44633547b8e879240c778a4e0",
+    "out/nano-recovery-return-20261107/delivery-plan.json": "00e4a1ca445950b7da888f3e4228d6ba2ea88333c340684be8a9f011b076903f",
+    "out/nano-recovery-return-20261107/audit.py": "2b7c20a136f4a1b239b48fa5ef7118550717a64d332068af684a49831b669550",
+    "out/nano-recovery-return-20261107/summarize.py": "4fdce51cc197eb168471eeee37dbfeef10d0579b1c1d00ccfd34287e0bd1d71d"
+  },
+  "raw_evidence": "out/nano-recovery-return-20261107",
+  "retention_target": "/home/deano/fes-retained/de25-recovery-return-20261107-r1"
+}

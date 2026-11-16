@@ -1,0 +1,19 @@
+{
+  "scope": "read-only exact-cable identification after the preserved programmer failure; no programming or UART access",
+  "usb_node": "/dev/bus/usb/003/061",
+  "queries": [
+    {
+      "returncode": 0,
+      "identified": true,
+      "log_sha256": "723aa8746cfb1705437440702890ee5f40320bce552a7021cba965ad1be88ce1"
+    },
+    {
+      "returncode": 0,
+      "identified": true,
+      "log_sha256": "12b4de1ba1a326555ab392a604898f6e042a71a8bb3d3f118b220672d9548b8c"
+    }
+  ],
+  "pass": true,
+  "usb_permissions_restored": true,
+  "finished_utc": "2026-11-02T02:39:21.559771+00:00"
+}

@@ -1,0 +1,22 @@
+{
+  "status": "passed",
+  "scope": "captured-schema regression correction and early native USB toggle/channel-halt failure; exact artifacts, procedures and source verified",
+  "head": "430cac1a42eeb62226e7950a10b9d6a23468a79a",
+  "hardware_observers": [
+    "9cb14393c"
+  ],
+  "native_source": "9cb14393c",
+  "archive_bytes": 37610104,
+  "archive_sha256": "51c8aebe5fc4fa61a154e39ed10ffe449229af19c65fdb782bb9d542a472cda6",
+  "archive_regular_files": 241,
+  "source_update_sha256": "20254a84866e4b73f5c9493090193295e64c9a4587108fb2736f69adad6bb060",
+  "source_restore_and_strict_fsck": true,
+  "required_prior_files": {
+    "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/source.bundle": "daeee37ba8c039ffc165c2c92d7a639af01c441099fe1359ae207846fa75216f",
+    "/home/deano/fes-retained/de25-tenfoot-core-cycle-20261104-r2/source-update.bundle": "1def434cc2e97d68da24158e8b153e238ecdcf024c060c60c62c8f8a68b8d497",
+    "/home/deano/fes-retained/de25-tenfoot-native-boot-20261104-r3/matched-candidate.tar.gz": "1479d5fa439c77457a3c19959a97b810b8ce5a6aa0672bb4567519f2d7229d17"
+  },
+  "claim_retained": true,
+  "USB_stop_proven": false,
+  "hardware_qualification": false
+}

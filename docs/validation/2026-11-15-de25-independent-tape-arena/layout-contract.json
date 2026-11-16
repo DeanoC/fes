@@ -1,0 +1,36 @@
+{
+  "status": "passed-independent-tape-Go-Python-layout-agreement",
+  "layout": {
+    "format": 1,
+    "scope": "nano-independent-initial-tape-memory-v1",
+    "base": 2508193792,
+    "bytes": 2097152,
+    "payload_bytes": 16384,
+    "metadata_base": 2510286848,
+    "metadata_bytes": 4096,
+    "mapping": "normal-uncached-XN",
+    "lifetime": "pinned-until-reboot",
+    "configuration_reused": false,
+    "physical_authority": false
+  },
+  "compiled_Go_constants": {
+    "base": 2508193792,
+    "bytes": 2097152,
+    "metadata_base": 2510286848,
+    "metadata_bytes": 4096,
+    "payload_bytes": 16384
+  },
+  "source_commit": "382d722ab68d427c1230b57e1df802a0b908b479",
+  "source_modified": true,
+  "inputs": {
+    "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/nano/initial_tape.py": "c55d30084b8e53aab1487494bb1cefc1164b43ff1aba3e173e364acfc7c0c1d1",
+    "/home/deano/fes/out/dev/de25-setup-release/platform/embedded/tamago/nativefabric/initial_tape_arena.go": "4a3ef76d91f69f2fc16caf87ffe8f104eb207446c814c0ca643e841eb9bc1f95",
+    "/home/deano/fes/out/dev/de25-preparation-publication-proof/out/publication-boot/native-sdk/result.json": "703f7f6d9171f9da46df762e77b670df1d0acd316f07f47fb1fb9efa6efd797a",
+    "/home/deano/fes/out/dev/de25-preparation-publication-proof/out/publication-boot/native-entry/entry.img": "fb858f4d68e8b9d9407d80d220d66f72ffe52527a4ba11cbf6e8b336860ae332",
+    "/home/deano/fes/out/dev/de25-source-release/out/independent-tape-prototype/layout.go": "912661d85a0603f2f2c9669b84ecb9660a3dcf825566b587e63b674b832a3960"
+  },
+  "board_mapper_wired": false,
+  "fixed_firmware_supplier_wired": false,
+  "physical_qualification": false,
+  "hardware_actions": false
+}

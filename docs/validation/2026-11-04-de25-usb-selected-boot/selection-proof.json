@@ -1,0 +1,19 @@
+{
+  "status": "passed",
+  "source": "a5c7382c2fb09a468c4441dbce11c008e9e1e82a",
+  "exact_committed_native_source": true,
+  "strong_firmware_functions": [
+    "fes_nano_platform_usb_setup",
+    "fes_nano_usb_board_init",
+    "fes_nano_usb_platform_acquire",
+    "fes_nano_usb_platform_confirm",
+    "fes_nano_usb_platform_stop",
+    "fes_nano_usb_service_sip"
+  ],
+  "matched_usb_selection": true,
+  "entry_USB_contained": true,
+  "SD_or_FPGA_data_permission": false,
+  "symbols_sha256": "33787d457ae521f382aa03dead291ea25ce8ccd1a5a0ed837909379d1251f13b",
+  "chain_sha256": "618363f24f0c10272aeff25419b68463d9ab0073a39b0192fa45a782e4c769ee",
+  "hardware_execution": false
+}

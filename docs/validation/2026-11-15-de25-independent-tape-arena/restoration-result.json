@@ -1,0 +1,88 @@
+{
+  "status": "passed-independent-original-files-restoration-after-initial-tape-failure",
+  "procedure_sha256": "fbe754ce00877f8ecc61c4b911742b318c6b8701c2d80f05ca6da07976a4d564",
+  "failed_procedure_sha256": "16fe97ce2214c8c8526cb2b610b7b454a4455f06bfa9ff508ca18e433e9e1978",
+  "human_reset": {
+    "scope": "top-TRWU8CBL-physical-power-cycle-for-native-initial-tape-files-restoration-only",
+    "completed": true,
+    "original_procedure_sha256": "16fe97ce2214c8c8526cb2b610b7b454a4455f06bfa9ff508ca18e433e9e1978",
+    "failure_archive_sha256": "618b5f4bd3fdf76acf933892a01f54ebf62acb7702d00617313a36aeaf320a41",
+    "human_quote": "TRWU8CBL power-cycled; test card stays in",
+    "confirmation_question_id": "request_user_input_async/call_abdbe8480acc4622b8b89b080a97545c/0",
+    "confirmation_source": "fresh human reply after 16fe warm-core initial-tape stop",
+    "recorded_utc": "2026-11-15T11:24:31.664155+00:00"
+  },
+  "wrapper": {
+    "argv": [
+      "sudo",
+      "-n",
+      "python3",
+      "out/initial-tape-files-restoration/run_restoration.py",
+      "--procedure-sha256",
+      "fbe754ce00877f8ecc61c4b911742b318c6b8701c2d80f05ca6da07976a4d564",
+      "--execute"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-source-release",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 267.9836225339677,
+    "log_sha256": "5ecb3c5838ec3fa46ba972f2dc274e1bac0282f492e744eceed642e83dee333c"
+  },
+  "nonce_bound_restoration_wire": {
+    "status": "passed-actual-nonce-bound-FIT-refresh-wire",
+    "direction": "rollback",
+    "plan_sha256": "06b12eea36e6538ef3dfb1b4f2dd117045fb883997b2c9b0a08a76b8220d55a3",
+    "raw_sha256": "a92b1818880f52f9db0d2be44707199400aa94ae06351f1b173ee3da9dd5e17c",
+    "raw_bytes": 243161,
+    "raw_commands": 815,
+    "readbacks_before": 17,
+    "readbacks_after": 17,
+    "target_FIT_sha256": "d79a8e7216962dcdb2a72214d8e937a39e4f7039a45600775bf2d6c1319e95f1",
+    "SD_file_writes": 1,
+    "activation": false,
+    "native_boot_verified": false,
+    "Secure_SMMU_reset_qualified": false,
+    "DMA_authority": false
+  },
+  "root_process_scan": [
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/initial-tape-files-restoration/attempt/recovery-rollback/owned-programmer.json",
+      "record_sha256": "984f2ea05c5ffdc4ad937646d169478dff0277cbbb0b4de76071e4005e4708d3",
+      "pid": 1473064,
+      "start_ticks": "177369514",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/initial-tape-files-restoration/attempt/recovery-rollback/owned-worker.json",
+      "record_sha256": "1402755ca6a38fb67389437a0436e9e90afe46687cc9b7b2a78fb23322f324b4",
+      "pid": 1472493,
+      "start_ticks": "177369011",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/initial-tape-files-restoration/attempt/recovery-rollback/transport.json",
+      "record_sha256": "68ae9efd545d6104aaa0c62779938977a849b82090c692cbdb7dd29ba420e652",
+      "pid": 1472569,
+      "start_ticks": "177369114",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/initial-tape-files-restoration/attempt/rollback/owned-worker.json",
+      "record_sha256": "00fc09cbc9bca489123736512ccab4119783bf406b9ebec210c463f9547df398",
+      "pid": 1473736,
+      "start_ticks": "177370943",
+      "original_process_stopped": true
+    }
+  ],
+  "root_adapter_UART_FD_scan": {
+    "open_handles": [],
+    "device_opened": false
+  },
+  "USB_identity_inode_permissions_restored": true,
+  "JTAG_auto_1_15M_restored": true,
+  "original_FIT_restored": true,
+  "original_native_runtime_booted": false,
+  "last_verified_board_state": "fresh recovery loader parked with exact original FIT restored",
+  "diagnostic_retry": false,
+  "hardware_acceptance": false
+}

@@ -1,0 +1,91 @@
+{
+  "plan_sha256": "2977eeafedfe32ff53e65f3f46dec57386e419549c580190f98b5776985c5157",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4005919679766521,
+      "log": "affected-0.log",
+      "log_sha256": "723947440aebaea15c81f338a92171736e0393bc47cf226d2aabf958684c5046"
+    },
+    {
+      "label": "test_test_changed.py",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.201755788992159,
+      "log": "affected-1.log",
+      "log_sha256": "51f41a0ec073b30066c3f6c7ab408cce1cea63d0b07b1712ba867574b763a0ec"
+    },
+    {
+      "label": "committed whitespace",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20149888703599572,
+      "log": "affected-2.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "working whitespace",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2010356440441683,
+      "log": "affected-3.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "parent Python regressions",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 174.52847674000077,
+      "log": "affected-4.log",
+      "log_sha256": "4c1a123e8196a9e4f03e47780874dc2f802719b4a87e7044d7fe01aca1fb2c58"
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.8033749759197235,
+      "log": "affected-5.log",
+      "log_sha256": "f9cc139c06246c66ea8eb711f63bd695036b7a1019be50d8dacc5b37b851757e"
+    },
+    {
+      "label": "native SD firmware lease and PIO lifecycle",
+      "returncode": 0,
+      "reused_receipt": "sd-go-result.json"
+    },
+    {
+      "label": "native runtime firmware and FPGA launch integration",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 57.654770597000606,
+      "log": "affected-7.log",
+      "log_sha256": "c14c3f9ccc63476739d18a0e8b82521a3ef9161d296b7217c411f6c35934a975"
+    },
+    {
+      "label": "embedded producer identity and native control integration",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 11.013717732974328,
+      "log": "affected-8.log",
+      "log_sha256": "2baaccfe2bdac619c288eba2ef4129a454f9acca0980e633adba21d99e6784f0"
+    },
+    {
+      "label": "embedded firmware and identity/drain RTL integration",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.410902663017623,
+      "log": "affected-9.log",
+      "log_sha256": "825995d81f79ae74ed0a6d85e132ff9ba7ce42bd1b620c29baf6aee5cb4e673a"
+    },
+    {
+      "label": "test_*.py",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 321.4600787120871,
+      "log": "affected-10.log",
+      "log_sha256": "3918d6edea741b0bfad90b0dfee0ff095c4f6fd372297b9df0c47b34a334d287"
+    }
+  ],
+  "pass": true
+}

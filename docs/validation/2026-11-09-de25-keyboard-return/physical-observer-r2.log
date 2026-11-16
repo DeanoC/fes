@@ -1,0 +1,17 @@
+test_absent_duplicate_and_foreign_observations_cannot_complete_an_action (test_nano_input_action_trace.InputActionTraceTests.test_absent_duplicate_and_foreign_observations_cannot_complete_an_action) ... ok
+test_actions_never_replace_firmware_or_drain_evidence (test_nano_input_action_trace.InputActionTraceTests.test_actions_never_replace_firmware_or_drain_evidence) ... ok
+test_actual_go_emitter_matches_captured_host_fixture (test_nano_input_action_trace.InputActionTraceTests.test_actual_go_emitter_matches_captured_host_fixture) ... ok
+test_current_producer_records_complete_both_collectors (test_nano_input_action_trace.InputActionTraceTests.test_current_producer_records_complete_both_collectors) ... ok
+test_early_quit_and_action_after_pause_are_rejected (test_nano_input_action_trace.InputActionTraceTests.test_early_quit_and_action_after_pause_are_rejected) ... ok
+test_explicit_physical_stop_preserves_all_other_receipts (test_nano_input_action_trace.InputActionTraceTests.test_explicit_physical_stop_preserves_all_other_receipts) ... ok
+test_malformed_or_unselected_sources_are_rejected (test_nano_input_action_trace.InputActionTraceTests.test_malformed_or_unselected_sources_are_rejected) ... ok
+test_missing_action_in_full_exchange_retires_before_another_key (test_nano_input_action_trace.InputActionTraceTests.test_missing_action_in_full_exchange_retires_before_another_key) ... ok
+test_physical_stop_cannot_be_satisfied_by_uart_or_missing_closure (test_nano_input_action_trace.InputActionTraceTests.test_physical_stop_cannot_be_satisfied_by_uart_or_missing_closure) ... ok
+test_physical_stop_requires_the_selected_source_before_exchange (test_nano_input_action_trace.InputActionTraceTests.test_physical_stop_requires_the_selected_source_before_exchange) ... ok
+test_startup_action_is_rejected_before_transport (test_nano_input_action_trace.InputActionTraceTests.test_startup_action_is_rejected_before_transport) ... ok
+test_valid_lexical_usb_record_does_not_authorize_a_uart_action (test_nano_input_action_trace.InputActionTraceTests.test_valid_lexical_usb_record_does_not_authorize_a_uart_action) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.678s
+
+OK

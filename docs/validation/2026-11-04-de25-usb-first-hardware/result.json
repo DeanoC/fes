@@ -1,0 +1,147 @@
+{
+  "status": "failed-hardware-diagnostic-with-verified-replay-and-host-cleanup",
+  "scope": "independent verification of retained first USB failure; diagnostic itself failed",
+  "observer_source": "b025abc263c520a9159833c1829342a7ce0787c0",
+  "native_source": "aaa45acfc708ed8fa5b177d6daac1ebcaf88adaf",
+  "chain_sha256": "49679d09a2475e6bbeaa7c5f3e9b4778496017c08e9db0a7fc692486a99d8005",
+  "hardware_attempts": 1,
+  "retries": 0,
+  "recovery_boot": "passed",
+  "one_boot_upload_and_fresh_readback": "passed",
+  "matched_boot_and_USB_setup": "passed",
+  "startup_checkpoints": 9,
+  "HPS_IO_samples": 328,
+  "USB_ready": false,
+  "USB_stop_proven": false,
+  "runtime_halt_observed": false,
+  "input_observed": false,
+  "core_load_acceptance": false,
+  "error": "unsupported RX status 0; channel containment timed out at HCCHAR=0xc0128008; firmware status 4",
+  "host_cleanup": {
+    "status": "passed",
+    "scope": "independent read-only bounded-procedure host cleanup",
+    "clock_readback": "15M",
+    "exact_usb_permissions_restored": true,
+    "private_JTAG_process_gone": true,
+    "UART_free": true,
+    "claim_retained": true,
+    "hardware_retry": false,
+    "factory_restore": false,
+    "original_factory_card_untouched": true
+  },
+  "claim_retained": true,
+  "factory_restore": false,
+  "trace_sha256": "b90e192006cac5e72ef0e2252e3bc1747ce6beb3813d6294d74642a142868b36",
+  "native_receipt_sha256": "634dff91785e944af8c204ad638032e94ec751913892e04a6f35ed9f6435e658",
+  "outer_receipt_sha256": "1f80da3a92a67004701294bfdeac9cf9141cf4b032de93094b3f979c9e77ca11",
+  "upload_receipts_sha256": {
+    "boot": "7275f097ffbb963237b52a3da2d57dbb3c298e2c2d122892dc466ca13e0045f3"
+  },
+  "fresh_receipts_sha256": {
+    "boot": "7cf79c788cc5b4ff0e2a3357dd165f0a329b9e23b97b7d9958c0fe1ef0275f74"
+  },
+  "decoder_sha256": "640803687247551205b49dd21f3591928fa085ea582a2921c7657f3c30f7fd92",
+  "diagnostic_outcome": "failed",
+  "preparation_cases": {
+    "observer_context_pin_tests": 71,
+    "actual_upload_runner_cases": 15,
+    "receipt_mutations": 54,
+    "operator_success_and_failure_cases": 6,
+    "bare_prompt_gate": true
+  },
+  "preparation_receipts": {
+    "observer-halt-fixed": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "test_nano_usb_trace",
+        "test_nano_native_trace",
+        "test_nano_hps_io",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.0026422089431435,
+      "log_sha256": "f53577c2eb794eeaa8f27e733a4a895381e56ef258aa281f6e8005c60f635b62"
+    },
+    "uploader-fixtures": {
+      "argv": [
+        "python3",
+        "out/nano-usb-trial-20261104/upload_both_fixtures.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.8014538149582222,
+      "log_sha256": "2f26da5c6b667d3ed1ec631b5be6e3ac7d7e6167111da0942afe9750fa44403b"
+    },
+    "upload-receipt-fixtures": {
+      "argv": [
+        "python3",
+        "out/nano-usb-trial-20261104/upload_checks_fixtures.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20101011206861585,
+      "log_sha256": "ffc38f2c5014f652080fc921658ae2693b7ad3a103e1c5163f0b9f18007ef402"
+    },
+    "operator-fixtures": {
+      "argv": [
+        "python3",
+        "out/nano-usb-trial-20261104/operator_fixtures.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20083839003928006,
+      "log_sha256": "03383bddabc8faf17a24c2bb0f5a25fba9ca5134b99b3d2afe91adf3c2fc029a"
+    },
+    "preflight": {
+      "argv": [
+        "sudo",
+        "-n",
+        "python3",
+        "out/nano-usb-trial-20261104/preflight.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 10.807375952019356,
+      "log_sha256": "c2a8980f99514a5326d90a42ca4fcfd24e7f977d1250c43e5ffc064158b970a7"
+    },
+    "recovery-check-only": {
+      "argv": [
+        "sudo",
+        "-n",
+        "python3",
+        "out/nano-usb-trial-20261104/trial/recovery.py",
+        "recovery-new",
+        "--check-only"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2008335479767993,
+      "log_sha256": "a523ee42fffd96488cac636afde76466e2c62a69ac76a868226b466cf5b94836"
+    }
+  },
+  "files": {
+    "out/nano-usb-trial-20261104/source.json": "c1fc397226f69149e0219af96a8206463d8d31c9dadbdc4df47a7f7ec0494906",
+    "out/nano-usb-trial-20261104/trial/preflight.json": "b1f0ddde56c0e17d0c8f2e4c639afd956800652e75264f51edb41367bfebcf37",
+    "out/nano-usb-trial-20261104/trial/native-console.log": "b90e192006cac5e72ef0e2252e3bc1747ce6beb3813d6294d74642a142868b36",
+    "out/nano-usb-trial-20261104/trial/native-result.json": "634dff91785e944af8c204ad638032e94ec751913892e04a6f35ed9f6435e658",
+    "out/nano-usb-trial-20261104/trial/experiment-result.json": "1f80da3a92a67004701294bfdeac9cf9141cf4b032de93094b3f979c9e77ca11",
+    "out/nano-usb-trial-20261104/trial/transport.json": "c61e209561e58a40005cd12919841523742f6fae80b24574e2530c4ecff67c36",
+    "out/nano-usb-trial-20261104/trial/recovery-boot-result.json": "b0286639d2381177295cb35bab9d8c7d025dda12f0921a74885af51c396948e6",
+    "out/nano-usb-trial-20261104/trial/uploads/result.json": "bfd3ab3d1799f64dec935021c53f95101b4979078dca427e48aa40acdfb1dae6",
+    "out/nano-usb-trial-20261104/trial/upload-boot/result.json": "7275f097ffbb963237b52a3da2d57dbb3c298e2c2d122892dc466ca13e0045f3",
+    "out/nano-usb-trial-20261104/trial/live-fit.json": "7cf79c788cc5b4ff0e2a3357dd165f0a329b9e23b97b7d9958c0fe1ef0275f74",
+    "out/nano-usb-trial-20261104/cleanup-evidence.json": "42ab82fbdd4edcec6d5513e261f4718bad74780fa21a155bc55d97539c398a64",
+    "out/nano-usb-trial-20261104/post-failure-passive-tail.json": "c1e08f85884c8690231583962ed4ceefd10d5fdab74dc8e5642960a186e79da2",
+    "out/nano-usb-trial-20261104/post-failure-passive-tail.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/nano-usb-trial-20261104/replay.json": "090985813fe47f24e775cf7b513f262847af5fe4e845a805bf19d9455db884bf"
+  }
+}

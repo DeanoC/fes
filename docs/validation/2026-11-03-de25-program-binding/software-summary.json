@@ -1,0 +1,201 @@
+{
+  "status": "passed",
+  "head": "d9ddb6ce43d8e2b514f6bdec0624ef2fedcc7c7c",
+  "base": "a99072d32bab2b4503b1566fc4974f455dba84a5",
+  "plan_sha256": "d5cce98a41857cf62acbdf6ecd948b78c55217b5845266de9a78248877e1095c",
+  "results": [
+    {
+      "index": 0,
+      "label": "test_affected.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "log": "software-0.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20038485899567604,
+      "log_sha256": "b3cc35c538553003998ebcfe0b98a323d86ddd59f2eec0354c261345fb78bb42",
+      "child_receipt_sha256": "2ac2f6a4bc5aa6359fae704404478effc8fcf252c23c8ddf52a68ef5db2a151b"
+    },
+    {
+      "index": 1,
+      "label": "test_test_changed.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "log": "software-1.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.20090865297243,
+      "log_sha256": "f0ae75549ac6b895969298db5aed917f579eee0ca1f7b7fd8f6477ef201da0c6",
+      "child_receipt_sha256": "e025fbd33e19a6bd466e36b6ae8ac6140e667b54506f89475d12d3ef49533c77"
+    },
+    {
+      "index": 2,
+      "label": "committed whitespace",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "a99072d32bab2b4503b1566fc4974f455dba84a5",
+        "--head",
+        "d9ddb6ce43d8e2b514f6bdec0624ef2fedcc7c7c"
+      ],
+      "log": "software-2.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20051335101015866,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "43a3d6478e886090e2e4a5d534ee6870ac92933260812588232fc03881747201"
+    },
+    {
+      "index": 3,
+      "label": "working whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "log": "software-3.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20048987097106874,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "ae65c46837b1fa469e63f591199e51e274061219095a993bc10ba2f5a7f597d2"
+    },
+    {
+      "index": 4,
+      "label": "parent Python regressions",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-program-binding-20261103/parent_partitions.py"
+      ],
+      "log": "software-4.log",
+      "planned_argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/nano_cold_platform.c\", \"platform/embedded/firmware/nano_configuration.c\", \"platform/embedded/firmware/nano_configuration.h\", \"platform/embedded/firmware/nano_program.c\", \"platform/embedded/firmware/nano_program.h\", \"platform/embedded/firmware/prepare_nano_owned.py\", \"platform/embedded/firmware/tests/nano_cold_platform_test.c\", \"platform/embedded/firmware/tests/nano_configuration_test.c\", \"platform/embedded/firmware/tests/nano_program_test.c\", \"platform/embedded/nano/README.md\", \"platform/embedded/nano/hps_context.py\", \"platform/embedded/tamago/board/de25nano/configuration.go\", \"platform/embedded/tamago/nativefabric/README.md\", \"platform/embedded/tamago/nativefabric/computer_reload_test.go\", \"platform/embedded/tamago/nativefabric/configuration_arena.go\", \"platform/embedded/tamago/nativefabric/endpoint.go\", \"platform/embedded/tamago/nativefabric/prepare_configuration.go\", \"platform/embedded/tamago/nativefabric/prepare_configuration_test.go\", \"platform/embedded/tamago/nativefabric/program_binding.go\", \"platform/embedded/tamago/nativefabric/program_binding_test.go\", \"platform/embedded/tamago/nativefabric/reconfiguration_test.go\", \"platform/embedded/tamago/nativefabric/storage_return_test.go\", \"platform/embedded/tamago/nativefabric/stored_configuration_test.go\", \"platform/embedded/tamago/nativefabric/stored_preflight_test.go\", \"tests/test_nano_cold.py\", \"tests/test_nano_configuration.py\", \"tests/test_nano_program.py\"]"
+      ],
+      "verification_mode": "same-selected-suite-partitioned-by-module",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 254.35558214993216,
+      "log_sha256": "ebe2670d99614e1b6d0ad27fc686c7af6e1c8ccd3ae59ef4bc937fc713b3ff03",
+      "child_receipt_sha256": "e742f9ea000b3cd84a2f0465c4aa809045939c80fc1adb062ecb198328b4b43f"
+    },
+    {
+      "index": 5,
+      "label": "working-tree generated consumer consistency",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "log": "software-5.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.803576896083541,
+      "log_sha256": "0abb26569563f932801c46ce2685573dd4f24c3301287f939963f0e6407a41cd",
+      "child_receipt_sha256": "5cede1d3868dfeb9a7bd616ba89082f8a386bd3020b36a2792174bca3fe9f5e1"
+    },
+    {
+      "index": 6,
+      "label": "native runtime firmware and FPGA launch integration",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "log": "software-6.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 85.45706357294694,
+      "log_sha256": "dd36d06975508fd9711c6fc11c497bc7c6fa11be2dabd1ad7415392f56f57104",
+      "child_receipt_sha256": "bfc101a88fea5f3310977bd5f412191dcf147959b04e25052c1565a2d368319f"
+    },
+    {
+      "index": 7,
+      "label": "embedded producer identity and native control integration",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "log": "software-7.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 13.608889376977459,
+      "log_sha256": "e85a1f3a16d6ba1d4f81ba7d5e8d073b8f0d79563b4ed29c833d49100c4ebbbd",
+      "child_receipt_sha256": "45e811a411cc0636cc6dc82e9a76a709a7dd15c3d32a9b9592377c51b4a3eac2"
+    },
+    {
+      "index": 8,
+      "label": "embedded firmware and identity/drain RTL integration",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/firmware/verify.py"
+      ],
+      "log": "software-8.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 7.83513296302408,
+      "log_sha256": "083c151088bd6e4284ec4ffb36aade99aaa0bd8b99a1785c293eca798f375754",
+      "child_receipt_sha256": "fcf66220d0373513562abb2e8f40d8ab1d520e28ab2987063a17252f1bd9b06e"
+    },
+    {
+      "index": 9,
+      "label": "test_*.py",
+      "argv": [
+        "python3",
+        "out/nano-program-binding-20261103/fpga_partitions.py"
+      ],
+      "log": "fpga-partitions.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 477.50764594995417,
+      "log_sha256": "ceb306d2b9ee3ced8a97856de76bf4ab84df91e074528ae60da5d77015aa7b65",
+      "child_receipt_sha256": "b74590f86f9fe7b24decb0b470a097ca829431610370e1cab2bb7a23eb0f4160",
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "verification_mode": "same-selected-suite-partitioned-by-module",
+      "planned_argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ]
+    }
+  ],
+  "preserved_failed_aggregate": {
+    "path": "software-result-initial.json",
+    "sha256": "7bf38ee2d15d754056c20fd8d3eb6c58488f20b84c395f5883fd9c6651333946",
+    "scope9_receipt": "software-9-result-initial.json",
+    "scope9_receipt_sha256": "32f8850ccffab7c491fbda286eaded6ce0952016b22dc70b4e4aeba072ab5ffb",
+    "reason": "300-second aggregate timeout; complete selected suite rerun in intact modules; no bound widened"
+  }
+}

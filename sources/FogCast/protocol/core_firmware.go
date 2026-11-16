@@ -20,16 +20,24 @@ func FirmwareAdmissionError(message string) *APIError {
 // CoreComposition is catalog-side slot fill for one library title. Ready
 // requires every required slot to be fillable on the current setup.
 type CoreComposition struct {
-	ROMRequired      bool   `json:"rom_required,omitempty"`
-	ROMReady         bool   `json:"rom_ready,omitempty"`
-	ROMID            string `json:"rom_id,omitempty"`
-	ROMMediaID       string `json:"rom_media_id,omitempty"`
-	ROMRole          string `json:"rom_role,omitempty"`
-	ROMSourceSize    int64  `json:"rom_source_size,omitempty"`
-	ExpansionID      string `json:"expansion_id,omitempty"`
-	ExpansionReady   bool   `json:"expansion_ready,omitempty"`
-	FirmwareRequired bool   `json:"firmware_required"`
-	FirmwareReady    bool   `json:"firmware_ready"`
+	// PackageUnavailable means the installed shell cannot be inspected. Its
+	// requirements are unknown, so catalog Play must fail closed.
+	PackageUnavailable bool   `json:"package_unavailable,omitempty"`
+	ROMRequired        bool   `json:"rom_required,omitempty"`
+	ROMReady           bool   `json:"rom_ready,omitempty"`
+	ROMID              string `json:"rom_id,omitempty"`
+	ROMMediaID         string `json:"rom_media_id,omitempty"`
+	ROMRole            string `json:"rom_role,omitempty"`
+	ROMSourceSize      int64  `json:"rom_source_size,omitempty"`
+	ExpansionID        string `json:"expansion_id,omitempty"`
+	ExpansionReady     bool   `json:"expansion_ready,omitempty"`
+	FirmwareRequired   bool   `json:"firmware_required"`
+	FirmwareReady      bool   `json:"firmware_ready"`
+	// VideoRequired is set when this shell has a selectable video output.
+	// VideoReady describes the current host catalog's selected output or its
+	// permitted fallback; launch still performs full composition admission.
+	VideoRequired bool `json:"video_required,omitempty"`
+	VideoReady    bool `json:"video_ready,omitempty"`
 	// SlotExpansions lists the cards a multi-socket shell title selects, in
 	// ascending slot order. Every card must be ready for the title to launch.
 	SlotExpansions []SlotExpansionStatus `json:"slot_expansions,omitempty"`

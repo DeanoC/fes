@@ -1,0 +1,45 @@
+=== RUN   TestExplicitIdentityVersionsAndBuildByteOrder
+--- PASS: TestExplicitIdentityVersionsAndBuildByteOrder (0.00s)
+=== RUN   TestOpenRejectsAdapterAndUnknownState
+--- PASS: TestOpenRejectsAdapterAndUnknownState (0.00s)
+=== RUN   TestUncertainCommandsAreNeverReplayed
+=== RUN   TestUncertainCommandsAreNeverReplayed/timeout
+=== RUN   TestUncertainCommandsAreNeverReplayed/write-error
+=== RUN   TestUncertainCommandsAreNeverReplayed/cancel
+=== RUN   TestUncertainCommandsAreNeverReplayed/fault
+=== RUN   TestUncertainCommandsAreNeverReplayed/wrong-gpo
+=== RUN   TestUncertainCommandsAreNeverReplayed/bad-signature
+=== RUN   TestUncertainCommandsAreNeverReplayed/error-ack
+=== RUN   TestUncertainCommandsAreNeverReplayed/reserved-gpi
+=== RUN   TestUncertainCommandsAreNeverReplayed/nonzero-success
+=== RUN   TestUncertainCommandsAreNeverReplayed/read-error
+=== RUN   TestUncertainCommandsAreNeverReplayed/read-busy-error
+--- PASS: TestUncertainCommandsAreNeverReplayed (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/timeout (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/write-error (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/cancel (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/fault (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/wrong-gpo (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/bad-signature (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/error-ack (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/reserved-gpi (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/nonzero-success (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/read-error (0.00s)
+    --- PASS: TestUncertainCommandsAreNeverReplayed/read-busy-error (0.00s)
+=== RUN   TestPartialKeyboardFailureRetiresWithoutNeutralizationRetry
+--- PASS: TestPartialKeyboardFailureRetiresWithoutNeutralizationRetry (0.00s)
+=== RUN   TestClockDeadlineAndCancellation
+--- PASS: TestClockDeadlineAndCancellation (0.00s)
+=== RUN   TestValidationAndSerialization
+--- PASS: TestValidationAndSerialization (0.00s)
+=== RUN   TestSelectedRTLLaunchInputMediaReturnAndRelaunch
+--- PASS: TestSelectedRTLLaunchInputMediaReturnAndRelaunch (2.87s)
+=== RUN   TestSelectedRTLIdentityAndEpochFailures
+=== RUN   TestSelectedRTLIdentityAndEpochFailures/mismatch-before-release
+=== RUN   TestSelectedRTLIdentityAndEpochFailures/reset-poisons-epoch
+--- PASS: TestSelectedRTLIdentityAndEpochFailures (0.03s)
+    --- PASS: TestSelectedRTLIdentityAndEpochFailures/mismatch-before-release (0.01s)
+    --- PASS: TestSelectedRTLIdentityAndEpochFailures/reset-poisons-epoch (0.02s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/computer	2.901s
+?   	github.com/DeanoC/fes/platform/embedded/tamago/computer/generated	[no test files]

@@ -1,0 +1,99 @@
+{
+  "status": "passed",
+  "proof": {
+    "write": {
+      "address": 2147491840,
+      "bytes": 776,
+      "sha256": "c082f03a523ce7f8f0dd1931c2c49928aeab116c336fcf49de2c2b7810cfa136"
+    },
+    "restore": {
+      "address": 2147492616,
+      "bytes": 760,
+      "sha256": "2d9373262476b43adbd4bbf01a42d6e1b076d057d9d8bf7321f84f7615515d83"
+    },
+    "capture": {
+      "address": 2147497984,
+      "bytes": 2492,
+      "sha256": "9ab04f388adf0e6fbabc1b6f68b0b7a60a4baf5ad935f520a3c4d6e539409ced"
+    },
+    "vectors": {
+      "address": 2147493888,
+      "bytes": 2048,
+      "sha256": "d5eec3fa5e0825d21c5e5cd9747bf8e5ad94b582f97a326bd659c35719938fd4"
+    },
+    "park_vectors": {
+      "address": 2147495936,
+      "bytes": 2048,
+      "sha256": "d58c714d4669c0e21eb323d658b294a362caa2814e72347f4b1436aa5cbf183d"
+    },
+    "park": {
+      "address": 2147500476,
+      "bytes": 8,
+      "sha256": "fdc95702e8d3b97ca2ed814ad9925c0c237f85219e2929085b10d960f9b1d7f3"
+    },
+    "runtime_vectors": 2147485696,
+    "saved_vbar": 2147758080,
+    "saved_bytes": 8,
+    "uart_data": 281026816,
+    "uart_status": 281026836,
+    "uart_polls": 100000,
+    "uart_bytes": 384
+  },
+  "negative_cases": [
+    {
+      "case": "missing-sctlr",
+      "error": "MMU transition register write/barrier/readback differs"
+    },
+    {
+      "case": "missing-sctlr-isb",
+      "error": "MMU transition register write/barrier/readback differs"
+    },
+    {
+      "case": "missing-vector-restore",
+      "error": "MMU transition register write/barrier/readback differs"
+    },
+    {
+      "case": "missing-restore-readback",
+      "error": "MMU transition register write/barrier/readback differs"
+    },
+    {
+      "case": "stack-write",
+      "error": "MMU transition diagnostic must remain stack-free and leaf"
+    },
+    {
+      "case": "stack-change",
+      "error": "MMU transition diagnostic must remain stack-free and leaf"
+    },
+    {
+      "case": "c-call",
+      "error": "MMU transition diagnostic must remain stack-free and leaf"
+    },
+    {
+      "case": "vector-fallthrough",
+      "error": "MMU transition vector route or padding differs"
+    },
+    {
+      "case": "park-return",
+      "error": "MMU transition failure must park permanently"
+    },
+    {
+      "case": "saved-state-replay",
+      "error": "MMU transition original vector or one-use saved state differs"
+    },
+    {
+      "case": "uart-data",
+      "error": "MMU transition UART sink or polling bound differs"
+    },
+    {
+      "case": "uart-polls",
+      "error": "MMU transition UART sink or polling bound differs"
+    },
+    {
+      "case": "cpu-identity",
+      "error": "MMU transition UART sink or polling bound differs"
+    }
+  ],
+  "elf_sha256": "50875e3ef692947d30d615142eb69850cabdc4f33911fd7e75eea81fb390a7cf",
+  "actual_assembly_source_sha256": "754cc6240bd6322b72a868c0e7fb0ff9f7b006564d4d80995495ad0739f8e945",
+  "hardware_actions": false
+}

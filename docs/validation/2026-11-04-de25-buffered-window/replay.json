@@ -1,0 +1,105 @@
+{
+  "status": "passed",
+  "raw_capture_sha256": "f3f2a0a4f041d19bf5ebea77fba8dadfc001b9d7a0f144f27ae860f7dd5db516",
+  "raw_capture_bytes": 22705,
+  "full_capture_matches_native_receipt": true,
+  "last_checkpoint": "window_present_closed",
+  "frame": {
+    "package_id": "a2388c4d7d8640d6e70d51c4d164e3c803157e3fb21e91451d6febd74faf6017",
+    "build_id": "7fa7e3c27ec2fb055e148514b8dac7a2",
+    "owner": 3999376763935618413,
+    "source_generation": 4,
+    "closed_generation": 7,
+    "frames": 12,
+    "last_reader_generation": 13,
+    "last_cookie": 1,
+    "bytes": 3686400,
+    "crc32": 3797385264,
+    "frame_sha256": "0c3993f08059326535cd43fe2643f8abe26f36e7eefaf6057f390fb8abe952d5",
+    "access_map_sha256": "e9b4f9f3c82a44e0a457245843d3ad9f9a9ea42522548eac764c31fb8d5e5e27"
+  },
+  "rejected_captures": [
+    {
+      "case": "cpu-publication",
+      "accepted": false
+    },
+    {
+      "case": "full-window-gates",
+      "accepted": false
+    },
+    {
+      "case": "frame-result",
+      "accepted": false
+    },
+    {
+      "case": "final-reader-drain",
+      "accepted": false
+    },
+    {
+      "case": "all-master-stop",
+      "accepted": false
+    },
+    {
+      "case": "hardware-closure",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-1",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-2",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-3",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-4",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-5",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-6",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-7",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-8",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-9",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-10",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-11",
+      "accepted": false
+    },
+    {
+      "case": "missing-frame-12",
+      "accepted": false
+    },
+    {
+      "case": "final-frame-crc",
+      "accepted": false
+    },
+    {
+      "case": "firmware-drain-cookie",
+      "accepted": false
+    }
+  ],
+  "hardware_access": false,
+  "decoder_sha256": "930cf2f87ecffc8fe22b7bc42c3b1c4fa95f51372b019f8cc947588111c0c593"
+}

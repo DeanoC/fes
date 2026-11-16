@@ -1,0 +1,186 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "case": "positive",
+      "accepted": true,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-0",
+      "accepted": false,
+      "entry_commands": 0
+    },
+    {
+      "case": "mutation-1",
+      "accepted": false,
+      "entry_commands": 0
+    },
+    {
+      "case": "mutation-2",
+      "accepted": false,
+      "entry_commands": 0
+    },
+    {
+      "case": "mutation-3",
+      "accepted": false,
+      "entry_commands": 0
+    },
+    {
+      "case": "mutation-4",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-5",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-6",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-7",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-8",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-9",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-10",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-11",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-12",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-13",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-14",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-15",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-16",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-17",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "mutation-18",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "partial",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "late-panic",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "late-duplicate",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "clock-change",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "missing-loader-proof",
+      "accepted": false,
+      "entry_commands": 0
+    },
+    {
+      "case": "missing-programmed",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "missing-closed",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "missing-timing",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "bad-counter",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "missing-engine",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "bad-engine",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "late-transport",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "missing-mailbox",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "missing-queue-poll",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "late-queue-state",
+      "accepted": false,
+      "entry_commands": 1
+    },
+    {
+      "case": "serial-window",
+      "accepted": false,
+      "entry_commands": 1
+    }
+  ],
+  "helper_sha256": "159061c7ca7d3582e9b315c91937c6bdfbe38d2b6b8f379b105bb68fed1e2418"
+}

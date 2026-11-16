@@ -1,0 +1,10 @@
+{
+  "status": "passed",
+  "build_status": "built",
+  "native_boot_id": "59e96369a749fc7d",
+  "supervisor_exit_code_unknown": true,
+  "producer_finished_receipt": true,
+  "fresh_complete_native_validation": true,
+  "receipt_sha256": "d98783b45e16fa6d8fea8feeaf62ff8f23186646da0b7d570ed2f9499b8289ff",
+  "hardware_actions": false
+}

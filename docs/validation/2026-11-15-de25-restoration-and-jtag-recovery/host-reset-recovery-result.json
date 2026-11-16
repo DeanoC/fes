@@ -1,0 +1,51 @@
+{
+  "status": "passed-independent-recovery-only-observation",
+  "procedure_sha256": "cd52d5e8790fe6d31cb31e85e8c4fa27c522ef364042f8e03008cfb06fd311ca",
+  "elapsed_seconds": 80.45111609995365,
+  "observation": {
+    "fresh_recovery_verified": true,
+    "read_only_registers_verified": true,
+    "ordinary_runtime_admission": false,
+    "Secure_SMMU_reset_qualified": false,
+    "source_reuse_authorized": false,
+    "SD_or_QSPI_writes": 0,
+    "NS_reset_reads": 19,
+    "USB0_reset_pair_held": true,
+    "USB0_reset_samples": [
+      4286561854,
+      4286561854
+    ],
+    "last_verified_board_state": "fresh recovery loader prompt parked"
+  },
+  "root_process_scan": [
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/recovery-chain-reset-probe/attempt/recovery-rollback/owned-programmer.json",
+      "record_sha256": "ab75f4285b042f746db8cfb5c54b49638acc4fb6545e08cb8f53421fc38f884c",
+      "pid": 55316,
+      "start_ticks": "176254845",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/recovery-chain-reset-probe/attempt/recovery-rollback/owned-worker.json",
+      "record_sha256": "09414c0d6a66cc34d7d89c68380eca60a6958f2e8947fbd1d2f5ecec8b8592e5",
+      "pid": 53780,
+      "start_ticks": "176254363",
+      "original_process_stopped": true
+    },
+    {
+      "record": "/home/deano/fes/out/dev/de25-source-release/out/recovery-chain-reset-probe/attempt/recovery-rollback/transport.json",
+      "record_sha256": "7c50fcab61043f4e54b8db14f96621d9586a8caf41b4f477a8a094afa5fb39e1",
+      "pid": 54120,
+      "start_ticks": "176254457",
+      "original_process_stopped": true
+    }
+  ],
+  "root_adapter_and_UART_FD_scan": {
+    "open_handles": [],
+    "device_opened": false
+  },
+  "USB_identity_inode_permissions_restored": true,
+  "JTAG_auto_1_15M_restored": true,
+  "consumed_diagnostic_retried": false,
+  "hardware_acceptance": false
+}

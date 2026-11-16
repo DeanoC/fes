@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/nano-keyboard-return-trial-20261109/hardware-replay.py.txt"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.20113724214024842,
+  "log_sha256": "a62e23b3987ab098ba626440f96db3016599053cebdd152f3dc5204e6967f05e"
+}

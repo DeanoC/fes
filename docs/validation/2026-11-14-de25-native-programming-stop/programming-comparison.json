@@ -1,0 +1,37 @@
+{
+  "scope": "saved-programming-record-comparison",
+  "records": {
+    "failed-candidate": {
+      "image_sha256": "5dec3d316891248e29f2a536a6782c9cf38b1422b5949bbbcf92077cffb88c20",
+      "live_scan_sha256": "d9f32abb8044de46ae3d7eb84a6e580ef3f7d018abe37b326781c92a2ca7378b",
+      "clock": "3M",
+      "auto_adjust": 0,
+      "client_sha256": {
+        "/data/altera_pro/26.3/quartus/linux64/libjtag_client.so": "83894ac5bb2e3e18809372e32940ccaf834a4de790e0c240b4068cab0de42fd9",
+        "/data/altera_pro/26.3/quartus/linux64/libjtag_client_dcrt.so": "03c1733b7fa5e87c64e0d83ff7796d67deed0b303b1eb9649a9de98a182505d5"
+      },
+      "probe_sha256": "025c30f4900a9e07c9ff0c202285cacba9f62936ffcea2cd211f4309caa1d01c",
+      "program_log_sha256": "d62d91b959f37d43a3b640cfee641a786179146d49665f3135d2e155c358f5c5",
+      "programmer_success": false,
+      "jtag_chain_broken": true
+    },
+    "restored-baseline": {
+      "image_sha256": "c01c97dde2fe75ce7e6145ccce2a52b6fa8449f43731ba0bd2ce94cbfc3d91d4",
+      "live_scan_sha256": "073104b08e9ea78b251d00147df72180529b252fe93066f4988e1d1ad0e23a62",
+      "clock": "3M",
+      "auto_adjust": 0,
+      "client_sha256": {
+        "/data/altera_pro/26.3/quartus/linux64/libjtag_client.so": "83894ac5bb2e3e18809372e32940ccaf834a4de790e0c240b4068cab0de42fd9",
+        "/data/altera_pro/26.3/quartus/linux64/libjtag_client_dcrt.so": "03c1733b7fa5e87c64e0d83ff7796d67deed0b303b1eb9649a9de98a182505d5"
+      },
+      "probe_sha256": "025c30f4900a9e07c9ff0c202285cacba9f62936ffcea2cd211f4309caa1d01c",
+      "program_log_sha256": "aa7cf086dc499bf794919240697eec51d00811b886e93dfe89e500a493516245",
+      "programmer_success": true,
+      "jtag_chain_broken": false
+    }
+  },
+  "same_fixed_clock_vendor_libraries_and_probe": true,
+  "root_cause_identified": false,
+  "diagnostic_retried": false,
+  "hardware_actions": false
+}

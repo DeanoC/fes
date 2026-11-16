@@ -1,0 +1,182 @@
+{
+  "status": "passed",
+  "head": "4dc3e376de5b453240531f40fa72cb5271669bca",
+  "base": "fc3650ed520a1d9b8373e1f3eaf601a774abb04e",
+  "plan_sha256": "c7f42ff68cc02bca7b7a9f29b3ae5c45ab3a170905ea36ef4848302710164265",
+  "results": [
+    {
+      "index": 0,
+      "label": "test_affected.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "log": "software-0.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.200601274962537,
+      "log_sha256": "a46c26ae134798a3b7a926c16a5b6eb08829dde8bc80e2d95bab5f8370ee2c59",
+      "child_receipt_sha256": "ca1c03683b4abcb437d69b83a26c6f51b70270b95cacff314a7ff77d1bb188e9"
+    },
+    {
+      "index": 1,
+      "label": "test_test_changed.py",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "log": "software-1.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.8006919940235093,
+      "log_sha256": "37b6c77cc61ade16be259b3033c4b5fb7484cafb0bd1f20d0ee57d9474e20c35",
+      "child_receipt_sha256": "7d9b402d3412ee99a8f6b7694e2ae2b71afbca8aa0c7ae33d4e7a33983f912d9"
+    },
+    {
+      "index": 2,
+      "label": "committed whitespace",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "fc3650ed520a1d9b8373e1f3eaf601a774abb04e",
+        "--head",
+        "4dc3e376de5b453240531f40fa72cb5271669bca"
+      ],
+      "log": "software-2.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20059192192275077,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "c149ec19c6a12ed582a54bf619df247c5bcac0436e2f71f04aa56bd6d6529caa"
+    },
+    {
+      "index": 3,
+      "label": "working whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "log": "software-3.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20036284695379436,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "child_receipt_sha256": "21f72a6f6ccdbe7fb7930608deb6801b240bf84748f5d84b6a9b6d662a2050d1"
+    },
+    {
+      "index": 4,
+      "label": "parent Python regressions",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/nano-stored-preflight-20261103/parent_partitions.py"
+      ],
+      "log": "software-4.log",
+      "planned_argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/nano/README.md\", \"platform/embedded/tamago/cmd/fpgaload/main.go\", \"platform/embedded/tamago/nativefabric/README.md\", \"platform/embedded/tamago/nativefabric/prepare_configuration.go\", \"platform/embedded/tamago/nativefabric/storage_return_test.go\", \"platform/embedded/tamago/nativefabric/stored_configuration.go\", \"platform/embedded/tamago/nativefabric/stored_configuration_test.go\", \"platform/embedded/tamago/nativefabric/stored_preflight_test.go\", \"platform/embedded/tamago/packagestore/README.md\"]"
+      ],
+      "verification_mode": "same-selected-suite-partitioned-by-module",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 222.14043471904006,
+      "log_sha256": "71311ec8cf17d7bb502d0c870a9c0bddda44b6e4e54d1c768697cbf8e6aca3c5",
+      "child_receipt_sha256": "43ccf13a3fe402551d9e6a50f9e374d1625b089e6358072ebb9c1d76f6a071e0"
+    },
+    {
+      "index": 5,
+      "label": "working-tree generated consumer consistency",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "log": "software-5.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.2023402149789035,
+      "log_sha256": "0abb26569563f932801c46ce2685573dd4f24c3301287f939963f0e6407a41cd",
+      "child_receipt_sha256": "873df928523f451fcb62c31c0af98569fb25cb43a9b3dbe0b2db0067c22b586f"
+    },
+    {
+      "index": 6,
+      "label": "native SD firmware lease and PIO lifecycle",
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "90s",
+        "./sdcontrol",
+        "./sdhci",
+        "./fat",
+        "./packagestore"
+      ],
+      "log": "software-6.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.404595018015243,
+      "log_sha256": "2406adacaa9db84468d8985ec6abb9fcd5960509c90166d042493eb66124acdf",
+      "child_receipt_sha256": "6bc4daaafafc13815b01219ce5d2c728c353b7fd0ffa69a8c63d42f0e92a5b43"
+    },
+    {
+      "index": 7,
+      "label": "native runtime firmware and FPGA launch integration",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "log": "software-7.log",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 58.24170892010443,
+      "log_sha256": "ca70ea4c19cde95ec66df83816228ce48580190567d02681124bf64638b419b2",
+      "child_receipt_sha256": "eb1ec27f7f7e87c62b53524f1c7e83b41c27040fb8c8f8a7e8d7e11f829d5865"
+    }
+  ],
+  "new_preflight_cases": [
+    "TestStoredPreflightRejectsBeforeRetiringStorage/nil-verifier",
+    "TestStoredPreflightRejectsBeforeRetiringStorage/nil-selection",
+    "TestStoredPreflightRejectsBeforeRetiringStorage/empty-selection",
+    "TestStoredPreflightRejectsBeforeRetiringStorage/control-map",
+    "TestStoredPreflightRejectsBeforeRetiringStorage/configuration-map",
+    "TestStoredPreflightRejectsBeforeRetiringStorage/package",
+    "TestStoredPreflightRejectsBeforeRetiringStorage/build",
+    "TestStoredPreflightRejectsBeforeRetiringStorage/whole-digest",
+    "TestStoredPreflightRejectsBeforeRetiringStorage/chunk-digest",
+    "TestStoredPreflightFreezesMapsBeforeContainmentAndNeverReopensFiles",
+    "TestStoredPlanConsumesFailuresWithoutAnotherReservationOrFirmwareCall/success",
+    "TestStoredPlanConsumesFailuresWithoutAnotherReservationOrFirmwareCall/missing-handoff",
+    "TestStoredPlanConsumesFailuresWithoutAnotherReservationOrFirmwareCall/different-selection",
+    "TestStoredPlanConsumesFailuresWithoutAnotherReservationOrFirmwareCall/missing-reservation",
+    "TestStoredPlanConsumesFailuresWithoutAnotherReservationOrFirmwareCall/reservation-error",
+    "TestStoredPlanConsumesFailuresWithoutAnotherReservationOrFirmwareCall/changed-source",
+    "TestStoredPlanConsumesFailuresWithoutAnotherReservationOrFirmwareCall/changed-generation",
+    "TestStoredPlanConsumesFailuresWithoutAnotherReservationOrFirmwareCall/changed-storage",
+    "TestStoredPlanRejectsConcurrentConsumptionBeforeTheFirstReservationReturns"
+  ]
+}

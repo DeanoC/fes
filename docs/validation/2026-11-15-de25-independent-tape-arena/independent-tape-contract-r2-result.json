@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/publication/check-independent-tape-contract.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 1.0011875471100211,
+  "log_sha256": "a2982b63d6e975c6108e633592c2239dc7b402ab406382216251f73b2ef50789"
+}

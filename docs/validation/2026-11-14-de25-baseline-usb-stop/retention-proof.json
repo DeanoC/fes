@@ -1,0 +1,17 @@
+{
+  "status": "passed-independent-restoration-USB-stop-retention",
+  "archive": "/home/deano/fes-retained/de25-server-warm-restoration-usb-stop-20261114-r1/restoration-stop.tar.gz",
+  "archive_sha256": "866fb7e48e13785d7c43d35b608a2cbdf0f57bbdc88f9f89625edb78ccc39ed2",
+  "archive_bytes": 1037440,
+  "files": 149,
+  "restoration_procedure_sha256": "229e1b113a24512c792b1a7b3a388b1a587b4f3b0c364158614ca1ff91b5a60e",
+  "original_FIT_restored": true,
+  "full_baseline_cycle_Park_verified": false,
+  "all_hardware_handles_closed": true,
+  "physical_reset_required": true,
+  "failed_diagnostic_retried": false,
+  "dependencies": {
+    "/home/deano/fes-retained/de25-server-warm-restoration-prepared-20261114-r1/prepared-procedure.tar.gz": "b3adcfc2e04b9cc94fbb3ce0c051dee94618d0b7e793649313334b6888c1e3ef",
+    "/home/deano/fes-retained/de25-server-traced-warm-prepare-stop-physical-20261114-r1/physical-trial.tar.gz": "f367d5b6e0aedaabef0a43ccaa1fd81f13f001741d5963229fe83b80df034f29"
+  }
+}

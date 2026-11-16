@@ -1,0 +1,50 @@
+{
+  "status": "corrected-operator-source-frozen",
+  "compiled_source": "9fd40a21b334fb0f1b63dc3a1eabac2bd2065ea9",
+  "operator_revision": "completed-process-returncode-v2-with-device-admission",
+  "prior_programmer_failures": 1,
+  "prior_host_setup_failures": 1,
+  "prior_procedure_stops": 2,
+  "native_candidate_executions": 0,
+  "attempt_limit": 1,
+  "programmer_or_native_failure_limit": 2,
+  "clock": {
+    "original": "15M",
+    "target": "6M",
+    "restore": "15M"
+  },
+  "bounds": {
+    "work_seconds": 740,
+    "host_including_cleanup_seconds": 850
+  },
+  "source_sha256": {
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/audit_cleanup.py": "319804470838b2ccf3c94654989afa2c704e2c37423c3e237d16c9c6992502d0",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/candidate_check.py": "0658df18b85814a431afaac4ce2126af19af28939a671ac584ce540a78d77faa",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/clock_fixtures.py": "acd72c32b49bdb07c2b5e48d6fa4c74431e57f5e9bb8ee300514fab1422e7258",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/device_admission_fixtures.py": "998f6376cbc725de34319b975418a732735cff5a0e2079c67106c05144d892f7",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/fixtures-group.py": "a1cebd4192b5de25ddab0038b6c95a79740b2e1112c5ad161ca83af9108d6e3a",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/make_upload_plan.py": "b7c956f7a386ccf6da94ce76c6218b0c5d61185397da95b14063942dcefeea76",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/operator_fixtures.py": "27b17de58cfa696827dca95bbcd7cd1a53df2273e5125eabb7b11a3b5e5f0591",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/preflight.py": "bdf1a32e7d9412ed53625e09182461d36cfe711e4a942927ac484a53fa86b064",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/run.py": "8dea93a99adab57fd4721de0379fa6fbbcd75877d64f4d7e8ed80a041df6ed3c",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/tail_fixtures.py": "26af4eb6f6f89ab8813d627605862661c778f6133bd63c6e9ebcd5330521d03f",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/transport_fixtures.py": "fe6625178eae4a9a1710968e3ebcebd15cb17c11651e9bcf66f00892d5631a3f",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/upload_both_fixtures.py": "e8cdb5bde01d4110d240bb5785348f29720d2f9b2f8bad702e3b6148b2aa54c5",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/upload_checks_fixtures.py": "6723c0eefa49cf8e409a95217303c54e76df6cc170e96a0ffcd95f5e37107c95",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/upload_fixture_tools.py": "46792cd6a0e63444e730d21be1753f012d27d0128f9169b7b3e84f7ba129486c",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/trial/clock_policy.py": "082ea1a2646bf9dbfecf0b378274801576600265282827cce48bbbaea8a6c4f5",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/trial/common.py": "ab7dc656654012faf8fa8de14bc6817b123cd314c9fc0e839d4da5750c9a9ff3",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/trial/experiment.py": "7515e7147426661c4b254f33ea3d87dbde341508d97b1657fa710fb0c3d4d9f4",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/trial/native.py": "ca6be03d345fca20acdb488068319ac29963223aa7cdf6193b593b18886b56ba",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/trial/private_jtag.py": "b55d206fdbd3fdb705cb6f1a3c785a4ebfe6fb433f702489bdeaf85cfd7c21a0",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/trial/recovery.py": "90ed378a120d8eb4add927abf28b81f2b1d502453bb11a3e18b1936eda67b9c1",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/trial/service_checks.py": "66143305c2e6992cdb980c96854df1689e3bdde6c30c55ed0f0249c8d8612e15",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/trial/trial_inputs.py": "7435c668d685d87fc20ec0c41a62535b70a4f71620a050234235fee5435e2a6c",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/trial/upload_both.py": "efa98f82de6ca3607926b1badf38c97d2f203cb5b17963cc55cbcb0a5745f212",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/trial/upload_checks.py": "497636cad5390e8f6820d11d18c698efd7d8af3883a714b6dd112a6014e61fa3",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/upload-plan.json": "c27ae0ae89f88b022b76c768dd963e774d9bce473ce10f789cfbd56efc2dcacf",
+    "out/nano-rom-cost-split-6m-fixed-board-20261105/pending-operator-review.json": "ec8be5999aa17d86b209a467716df043ebbe82688e440a5318fd616a4037c9cd"
+  },
+  "hardware_actions": false,
+  "policy": "one new corrected-operator attempt; preserve both old fuses; stop first failed target-rate chip admission, programmer or native proof; no replay"
+}

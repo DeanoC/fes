@@ -1,0 +1,387 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "case": 0,
+      "passed": true,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 1,
+      "passed": false,
+      "phases": [],
+      "restore_attempted": false
+    },
+    {
+      "case": 2,
+      "passed": false,
+      "phases": [],
+      "restore_attempted": true
+    },
+    {
+      "case": 3,
+      "passed": false,
+      "phases": [],
+      "restore_attempted": true
+    },
+    {
+      "case": 4,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 5,
+      "passed": false,
+      "phases": [
+        "recovery-boot"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 6,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 7,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 8,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 9,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 10,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 11,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 12,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 13,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 14,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 15,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 16,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 17,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 18,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 19,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 20,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 21,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 22,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 23,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 24,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 25,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 26,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 27,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 28,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 29,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 30,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 31,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 32,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 33,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    },
+    {
+      "case": 34,
+      "passed": false,
+      "phases": [
+        "recovery-boot",
+        "upload-boot",
+        "recovery-package",
+        "upload-package",
+        "native"
+      ],
+      "restore_attempted": true
+    }
+  ],
+  "helper_sha256": "7d3cb8c4c28a9cb07007ffb40b114b11955441261735c91dff10c2e1506441b3"
+}

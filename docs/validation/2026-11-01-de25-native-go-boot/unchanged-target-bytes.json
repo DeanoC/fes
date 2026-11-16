@@ -1,0 +1,14 @@
+{
+  "pass": true,
+  "source_target_build_commit": "c07188ea36467f7c7abfa911819e6c7ede9c550b",
+  "new_packaging_host_commit": "6107628ca2f6aa24da167c25191dd3a1e22c9e0b",
+  "sof_sha256": "062e2ea14d2ede08cbfb07e1b7b9467d8d98c93cd17b2ed198fee33f310e0c4f",
+  "fit_sha256": "2d9442589c50832a7c42b8c89add714eaba2b69cc49365a9ae7655df15708ae4",
+  "files_compared": [
+    "native-probe.sof",
+    "u-boot.itb",
+    "u-boot-spl-dtb.hex",
+    "ENTRY.IMG"
+  ],
+  "scope": "Only host uploader/receipt changed. These bytes have not yet had a native-v16 boot attempt."
+}

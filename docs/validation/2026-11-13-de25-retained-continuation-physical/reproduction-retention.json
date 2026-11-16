@@ -1,0 +1,10 @@
+{
+  "status": "passed-exact-software-reproduction-retention",
+  "archive": "/home/deano/fes-retained/de25-retained-status-reproduction-20261113-r1/status-reproduction.tar.gz",
+  "archive_sha256": "4e2d21d007f27c7c8530cc2ff7b4b2befd5f49c4b859383e7a4e0b16a02a9a9b",
+  "dependencies": {
+    "/home/deano/fes-retained/de25-retained-continuation-procedure-prepared-20261113-r1/prepared-procedure.tar.gz": "51da02f34419e3db391672b87cd219ac36c88046f3fe14214a18fb4c2a7d7fcc",
+    "/home/deano/fes-retained/de25-command-snapshot-procedure-prepared-20261113-r1/prepared-procedure.tar.gz": "1b5b82ea534a6af428682a59cad431042173292d3269735fc3b8215dff1bc793"
+  },
+  "hardware_actions": false
+}

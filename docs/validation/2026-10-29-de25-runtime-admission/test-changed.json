@@ -1,0 +1,241 @@
+{
+  "format": 1,
+  "root": "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os",
+  "base": "c8fec7acf677b9080cef1c17d0acf335524f8848",
+  "head": "c8fec7acf677b9080cef1c17d0acf335524f8848",
+  "checkout_head": "c8fec7acf677b9080cef1c17d0acf335524f8848",
+  "merge_base": "c8fec7acf677b9080cef1c17d0acf335524f8848",
+  "local_paths": [
+    "platform/embedded/README.md",
+    "platform/embedded/runtime/admission_oracle.cpp",
+    "platform/embedded/tamago/README.md",
+    "platform/embedded/tamago/admission_fixtures.py",
+    "platform/embedded/tamago/admissioncheck/checks.go",
+    "platform/embedded/tamago/admissioncheck/checks_test.go",
+    "platform/embedded/tamago/cmd/admission/main.go",
+    "platform/embedded/tamago/fabricmodel/README.md",
+    "platform/embedded/tamago/fabricmodel/checks.go",
+    "platform/embedded/tamago/fabricmodel/model.go",
+    "platform/embedded/tamago/run.py",
+    "platform/embedded/tamago/runtimeadmission/admission.go",
+    "platform/embedded/tamago/runtimeadmission/admission_test.go"
+  ],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": false,
+      "runtime": false,
+      "contracts": false,
+      "fpga": false
+    },
+    "skipped": [
+      "host",
+      "runtime",
+      "contracts",
+      "fpga"
+    ],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": true,
+      "full_race": false
+    },
+    "paths": [
+      "platform/embedded/README.md",
+      "platform/embedded/runtime/admission_oracle.cpp",
+      "platform/embedded/tamago/README.md",
+      "platform/embedded/tamago/admission_fixtures.py",
+      "platform/embedded/tamago/admissioncheck/checks.go",
+      "platform/embedded/tamago/admissioncheck/checks_test.go",
+      "platform/embedded/tamago/cmd/admission/main.go",
+      "platform/embedded/tamago/fabricmodel/README.md",
+      "platform/embedded/tamago/fabricmodel/checks.go",
+      "platform/embedded/tamago/fabricmodel/model.go",
+      "platform/embedded/tamago/run.py",
+      "platform/embedded/tamago/runtimeadmission/admission.go",
+      "platform/embedded/tamago/runtimeadmission/admission_test.go"
+    ],
+    "reasons": [
+      "platform/embedded/runtime/admission_oracle.cpp: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/admission_fixtures.py: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/admissioncheck/checks.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/admissioncheck/checks_test.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/cmd/admission/main.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/fabricmodel/checks.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/fabricmodel/model.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/run.py: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/runtimeadmission/admission.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/runtimeadmission/admission_test.go: parent orchestration/tests/assembly; component sources unchanged"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "c8fec7acf677b9080cef1c17d0acf335524f8848",
+        "--head",
+        "c8fec7acf677b9080cef1c17d0acf335524f8848"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "true",
+        "--paths-json",
+        "[\"platform/embedded/README.md\", \"platform/embedded/runtime/admission_oracle.cpp\", \"platform/embedded/tamago/README.md\", \"platform/embedded/tamago/admission_fixtures.py\", \"platform/embedded/tamago/admissioncheck/checks.go\", \"platform/embedded/tamago/admissioncheck/checks_test.go\", \"platform/embedded/tamago/cmd/admission/main.go\", \"platform/embedded/tamago/fabricmodel/README.md\", \"platform/embedded/tamago/fabricmodel/checks.go\", \"platform/embedded/tamago/fabricmodel/model.go\", \"platform/embedded/tamago/run.py\", \"platform/embedded/tamago/runtimeadmission/admission.go\", \"platform/embedded/tamago/runtimeadmission/admission_test.go\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "docker",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "passed",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    }
+  ]
+}

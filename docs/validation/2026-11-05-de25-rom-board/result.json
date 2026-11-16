@@ -1,0 +1,531 @@
+{
+  "status": "diagnostic-producer-and-model-checks-passed",
+  "base": "d07bb7474eaa6d0d61dec82f1292340f3c5322dc",
+  "implementation": "c60747191ea560a83c43c96307f04ced0f180477",
+  "board_revision": "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+  "parent": {
+    "selected": 1360,
+    "passed": 1357,
+    "skipped": 3,
+    "aggregate_executed": false,
+    "batches": 20
+  },
+  "fpga_software": {
+    "selected": 1580,
+    "passed": 1505,
+    "skipped": 75
+  },
+  "checks": {
+    "0": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20040143094956875,
+      "log_sha256": "08283c9d623fc0676226e80b11503330f723fcd28d87736cb28af1dad19c3bf3"
+    },
+    "1": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.0007625949801877,
+      "log_sha256": "c02e2f95e8ea8617e679a30297977484a39ce0cc573157a41af0b5c936ad6a25"
+    },
+    "2": {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "d07bb7474eaa6d0d61dec82f1292340f3c5322dc",
+        "--head",
+        "c60747191ea560a83c43c96307f04ced0f180477"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2007234989432618,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "3": {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20064595201984048,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "5": {
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.8033986310474575,
+      "log_sha256": "fb2406c721df08d5af4a6daf4dd6d92e6398456a181f782ade1b0cb36cd6c671"
+    },
+    "6": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 148.56946626107674,
+      "log_sha256": "30472b2c8daf5700b2283ad23048cc8d3027819c892912630d8a56e8b31cce05"
+    },
+    "7": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 33.02230387798045,
+      "log_sha256": "4ed985ae5b58c960cde933e779220aefb86982c63d042887af7c301cb19edaa2"
+    },
+    "8": {
+      "argv": [
+        "/usr/bin/python3",
+        "sources/misteross/prototypes/de25_board_control/verify.py",
+        "--standalone"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 52.826464108075015,
+      "log_sha256": "b00a50c2d20afb5399700060b71fcb1d243db88457262ff9fe1dc6953a85fa22"
+    },
+    "9": {
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/firmware/verify.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 7.8047141750575975,
+      "log_sha256": "e2b6b5a4aac227aef1b378b09149b2d8f372eed0ce521e8bbc587780dd8aca8d"
+    },
+    "10": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 453.69615083991084,
+      "log_sha256": "eb4598e7b0f9da66a6c49dfdef77fe38b9c4eff35dfef1c280117f5c4b36fdc4"
+    }
+  },
+  "default_zx81_regressions": {
+    "argv": [
+      "make",
+      "-C",
+      "sources/misteross",
+      "sim-fes-zx81"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-os",
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 321.99865253292955,
+    "log_sha256": "6e89eeecdb0335c29c5d0a1638fa7417839026164cebaeca51faf7ade7797413"
+  },
+  "model_source_binding": {
+    "source": "c60747191ea560a83c43c96307f04ced0f180477",
+    "status": "passed",
+    "model_result": "out/nano-rom-board-final-model-20261105/result.json",
+    "model_result_sha256": "d236b25e1b0a9ea2a0ff55cf5441f3b746094a8db51681df9e69c188f4b9cd88",
+    "input_count": 68
+  },
+  "project_check_result_sha256": "866d2702881e779db6ddd62b909d5710bd51a488d2e911da0981ce57b6f756b5",
+  "project_transfer": {
+    "status": "passed",
+    "files": 1862,
+    "source": "fes-build-3090:/data/projects/fes-de25-rom-c60747191ea5/out/rom-zx81-jobs4",
+    "all_bytes_sha256_match": true
+  },
+  "source_restore": {
+    "status": "passed",
+    "heads": {
+      "producer": "c60747191ea560a83c43c96307f04ced0f180477",
+      "board": "79d616e85e19d65f0d645b67a85ffe7e142dcdfc"
+    },
+    "bundles": {
+      "source.bundle": "ec4ed36d98886482a61d9127f899d5e8c49cd862ca1cc70ea02f49c6779660f6",
+      "board-source.bundle": "4684f807822fdd263e5285a3db0698ffbad9934988a848889ab163adbc0e117c"
+    }
+  },
+  "quartus_attempts": {
+    "1": {
+      "status": "failed",
+      "source": "c60747191ea560a83c43c96307f04ced0f180477",
+      "argv": [
+        "python3",
+        "sources/misteross/prototypes/de25_board_control/build.py",
+        "build",
+        "--board-revision",
+        "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+        "--vendor-archive",
+        "/data/scratch/fes-de25-rom-c60747191ea5/vendor.zip",
+        "--output",
+        "out/rom-zx81",
+        "--quartus-root",
+        "/data/altera_pro/26.3/quartus",
+        "--sealed-diagnostic",
+        "--hps-first",
+        "--reader-memory",
+        "hps-ddr",
+        "--ddr-bus-base",
+        "0x95000000",
+        "--ddr-bytes",
+        "8192",
+        "--external-rom",
+        "--jobs",
+        "2"
+      ],
+      "returncode": 1,
+      "timed_out": false,
+      "elapsed": 0.7262619839748368,
+      "quartus_started": true,
+      "build_log_sha256": "3f0f2d687f6158c8cca51fa8ad9e4d1fa5b29bdd2bf17b6778d2a1949495bccc",
+      "output": "/data/projects/fes-de25-rom-c60747191ea5/out/rom-zx81",
+      "hardware_actions": false
+    },
+    "2": {
+      "status": "failed",
+      "source": "c60747191ea560a83c43c96307f04ced0f180477",
+      "argv": [
+        "python3",
+        "sources/misteross/prototypes/de25_board_control/build.py",
+        "build",
+        "--board-revision",
+        "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+        "--vendor-archive",
+        "/data/scratch/fes-de25-rom-c60747191ea5/attempt-2/vendor.zip",
+        "--output",
+        "out/rom-zx81-r2",
+        "--quartus-root",
+        "/data/altera_pro/26.3/quartus",
+        "--sealed-diagnostic",
+        "--hps-first",
+        "--reader-memory",
+        "hps-ddr",
+        "--ddr-bus-base",
+        "0x95000000",
+        "--ddr-bytes",
+        "8192",
+        "--external-rom",
+        "--jobs",
+        "2"
+      ],
+      "returncode": 1,
+      "timed_out": false,
+      "elapsed": 396.03403217496816,
+      "producer_started": true,
+      "build_log_sha256": "f2484aace89f2e440c1328ee55f293e7be49996a15a428a3f5b899ff8d3e7544",
+      "output": "/data/projects/fes-de25-rom-c60747191ea5/out/rom-zx81-r2",
+      "hardware_actions": false
+    },
+    "3": {
+      "status": "passed",
+      "source": "c60747191ea560a83c43c96307f04ced0f180477",
+      "argv": [
+        "python3",
+        "sources/misteross/prototypes/de25_board_control/build.py",
+        "build",
+        "--board-revision",
+        "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+        "--vendor-archive",
+        "/data/scratch/fes-de25-rom-c60747191ea5/attempt-3/vendor.zip",
+        "--output",
+        "out/rom-zx81-jobs4",
+        "--quartus-root",
+        "/data/altera_pro/26.3/quartus",
+        "--sealed-diagnostic",
+        "--hps-first",
+        "--reader-memory",
+        "hps-ddr",
+        "--ddr-bus-base",
+        "0x95000000",
+        "--ddr-bytes",
+        "8192",
+        "--external-rom",
+        "--jobs",
+        "4"
+      ],
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 582.7200421950547,
+      "producer_started": true,
+      "build_log_sha256": "bfa6bf2b757f95178818857ab31051749118840472989357ced3eef49975d014",
+      "output": "/data/projects/fes-de25-rom-c60747191ea5/out/rom-zx81-jobs4",
+      "hardware_actions": false
+    }
+  },
+  "seal": {
+    "build_id": "cb63a0a04c6ca842320a760df7e3ef30",
+    "build_inputs_sha256": "6ad7978248c5a6d869304eca9b98381617a8f0f9f9fdda259f188bbab528ee9c",
+    "classification": "sealed diagnostic only; physical HPS reconfiguration not qualified",
+    "combined_sof_sha256": "337912ad185be52688609d85a61eca61a479755747810c647930ac44dc1cc888",
+    "commands": [
+      [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-c",
+        "/data/projects/fes-de25-rom-c60747191ea5/out/rom-zx81-jobs4/board/hps/project/output_files/golden_top.sof",
+        "/data/projects/fes-de25-rom-c60747191ea5/out/rom-zx81-jobs4/board/hps/diagnostic-with-vendor-spl.sof",
+        "-o",
+        "hps_path=/data/projects/fes-de25-rom-c60747191ea5/out/rom-zx81-jobs4/board/hps/project/software/u-boot/spl/u-boot-spl-dtb.hex"
+      ],
+      [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-c",
+        "/data/projects/fes-de25-rom-c60747191ea5/out/rom-zx81-jobs4/board/hps/project/output_files/golden_top.sof",
+        "/data/projects/fes-de25-rom-c60747191ea5/out/rom-zx81-jobs4/board/hps/hps-first.rbf",
+        "-o",
+        "hps_path=/data/projects/fes-de25-rom-c60747191ea5/out/rom-zx81-jobs4/board/hps/project/software/u-boot/spl/u-boot-spl-dtb.hex",
+        "-o",
+        "hps=on"
+      ],
+      [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-i",
+        "/data/projects/fes-de25-rom-c60747191ea5/out/rom-zx81-jobs4/board/hps/hps-first.hps.rbf"
+      ],
+      [
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "-i",
+        "/data/projects/fes-de25-rom-c60747191ea5/out/rom-zx81-jobs4/board/hps/hps-first.core.rbf"
+      ]
+    ],
+    "hps_first_pair_sha256": "6e2c5d6a29a609cea0a73e9d480f6d3dcf3da5f7d8e906a8da20a6f1fd55bc68",
+    "package_id": "4bcf0e0a3b79335502afa8c2388284ec8180a6d3894d77bae3e7f97cdec6e31b",
+    "raw_sof_sha256": "b6b4724397987000da741724f43b792ea9e12c8b19ae4377fb30e5d2fe0b12b6",
+    "rbf_sha256": "98f7438aeacf5f7930663f4041220759e57c4447572850d1e851ce62284f9b31",
+    "rbf_size": 1654784,
+    "vendor_spl_sha256": "096f53ea0bb0ba6e7449b2acf012eae734840dbcdd2943b506567bad2f72f823"
+  },
+  "rom_transport": {
+    "bytes": 8192,
+    "clock_hz": 100000000,
+    "held_conduit": "fes_computer.rom/fes_rom.rom",
+    "kind": "cpu-csr-v1",
+    "new_dma_master": false,
+    "peripheral_offset": 66816,
+    "span": 128
+  },
+  "quartus": {
+    "parallel_processors": 4,
+    "phase_limit_seconds": 120,
+    "commands": [
+      {
+        "argv": [
+          "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+          "--flow",
+          "compile",
+          "golden_top",
+          "-start",
+          "dni_ipgenerate",
+          "-end",
+          "dni_ipgenerate"
+        ],
+        "elapsed_seconds": 4.206792084034532,
+        "log_sha256": "fa78ef6b29593f7fc82c94680d19421e7cbab4c6a258d2f613e1b4d6d3b55dae",
+        "returncode": 0
+      },
+      {
+        "argv": [
+          "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+          "--flow",
+          "compile",
+          "golden_top",
+          "-start",
+          "dni_elaboration",
+          "-end",
+          "dni_elaboration"
+        ],
+        "elapsed_seconds": 52.14801219897345,
+        "log_sha256": "0def65abd5957e8f08e3913461c41665dd84979896cbe8955f2893f1d4243cf4",
+        "returncode": 0
+      },
+      {
+        "argv": [
+          "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+          "--flow",
+          "compile",
+          "golden_top",
+          "-start",
+          "dni_synthesis",
+          "-end",
+          "dni_synthesis"
+        ],
+        "elapsed_seconds": 34.330593319027685,
+        "log_sha256": "7aa4f57f93036e622c107540abf83b2bdfee4c161b49d9987129a0a2091d1875",
+        "returncode": 0
+      },
+      {
+        "argv": [
+          "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+          "--flow",
+          "compile",
+          "golden_top",
+          "-start",
+          "fitter_plan",
+          "-end",
+          "fitter_plan"
+        ],
+        "elapsed_seconds": 76.37069623090792,
+        "log_sha256": "7b5fe4c0698523163f54360ce4cdab96c5a4f4c4ca84a282b62588875807612c",
+        "returncode": 0
+      },
+      {
+        "argv": [
+          "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+          "--flow",
+          "compile",
+          "golden_top",
+          "-start",
+          "fitter_place",
+          "-end",
+          "fitter_place"
+        ],
+        "elapsed_seconds": 112.50625842693262,
+        "log_sha256": "fafb365c536d9c30019212207e5db83e10cd742883188827eb7e8c8dbaaca332",
+        "returncode": 0
+      },
+      {
+        "argv": [
+          "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+          "--flow",
+          "compile",
+          "golden_top",
+          "-start",
+          "fitter_route",
+          "-end",
+          "fitter_route"
+        ],
+        "elapsed_seconds": 61.55800321302377,
+        "log_sha256": "b9ebb4ab02cfd8559c2fa18828a0d6151f0ec47c9c5947d4b688ee0049ace929",
+        "returncode": 0
+      },
+      {
+        "argv": [
+          "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+          "--flow",
+          "compile",
+          "golden_top",
+          "-start",
+          "fitter_retime",
+          "-end",
+          "fitter_retime"
+        ],
+        "elapsed_seconds": 49.54557295702398,
+        "log_sha256": "effadde4a3bbf1ff1f25adc2ce37ec82820058e1273768c254cdd90f13946c9d",
+        "returncode": 0
+      },
+      {
+        "argv": [
+          "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+          "--flow",
+          "compile",
+          "golden_top",
+          "-start",
+          "fitter_finalize",
+          "-end",
+          "fitter_finalize"
+        ],
+        "elapsed_seconds": 52.747937944950536,
+        "log_sha256": "eb9cbe5df555254f98b68e1448eb07a3741aa91cbed3d1eafeb29d406d94a32e",
+        "returncode": 0
+      },
+      {
+        "argv": [
+          "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+          "--flow",
+          "compile",
+          "golden_top",
+          "-start",
+          "sta_signoff",
+          "-end",
+          "sta_signoff"
+        ],
+        "elapsed_seconds": 13.715639456990175,
+        "log_sha256": "fab429a59013a52749811030253426d9758256f6a6d43865503a79b39316a10a",
+        "returncode": 0
+      },
+      {
+        "argv": [
+          "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+          "--flow",
+          "compile",
+          "golden_top",
+          "-start",
+          "assembler",
+          "-end",
+          "assembler"
+        ],
+        "elapsed_seconds": 16.817380837979726,
+        "log_sha256": "2c7b1ce9d5097b792d3343b87d3d9651668d67628554725d4aa41f167dc51440",
+        "returncode": 0
+      }
+    ],
+    "timing_acceptance": "not-qualified",
+    "hardware_acceptance": "not-run",
+    "boot_firmware_compatibility": "not-qualified",
+    "sta_summary_sha256": "6f6d44db68195dfc37de2f89559c69cd80676f6d53fb6b44455fa5c49772c57b",
+    "drc_sha256": "7a2c3d74b0e4cce7046f19e0d77f18e848ad4330d009b326b3a266ed1bee1db5",
+    "reported_setup_slack_ns": 1.965,
+    "reported_hold_slack_ns": 0.0,
+    "remaining_drc_rules": [
+      "TMC-20012",
+      "TMC-20011",
+      "RDC-50003",
+      "TMC-20026",
+      "LNT-30023",
+      "RES-50101"
+    ]
+  },
+  "hardware_actions": false,
+  "ordinary_rom_admission": false,
+  "boot_profile_ready": false,
+  "retained": "/home/deano/fes-retained/de25-rom-board-20261105-r1/"
+}

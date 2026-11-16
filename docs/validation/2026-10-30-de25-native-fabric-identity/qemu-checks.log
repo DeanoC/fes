@@ -1,0 +1,6 @@
+FES_NATIVE_FABRIC_CHECK launch-return-drain PASS
+FES_NATIVE_FABRIC_CHECK unknown-firmware PASS
+FES_NATIVE_FABRIC_CHECK foreign-completion PASS
+FES_NATIVE_FABRIC_CHECK identity-recovery PASS
+FES_NATIVE_FABRIC_CHECK bound-package PASS
+FES_NATIVE_FABRIC_CHECK unmapped-package PASS

@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/publication/prepare-preparation-publication-build-v2.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-source-release",
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 7.005048281047493,
+  "log_sha256": "f51e950a8aa1c4862baf19cfbc83f9cdacaa972fc53fa03d9b27e446613dad8e"
+}

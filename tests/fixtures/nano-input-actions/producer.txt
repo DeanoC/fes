@@ -1,0 +1,7 @@
+FES_NATIVE_INPUT_ACTION source=uart action=select state=ready owner=384f924975e309b3 native_generation=0
+FES_NATIVE_INPUT_ACTION source=uart action=stop state=running owner=384f924975e309b3 native_generation=1
+FES_NATIVE_INPUT_ACTION source=uart action=select state=ready owner=384f924975e309b3 native_generation=2
+FES_NATIVE_INPUT_ACTION source=uart action=stop state=running owner=384f924975e309b3 native_generation=3
+FES_NATIVE_INPUT_ACTION source=uart action=select state=ready owner=384f924975e309b3 native_generation=4
+FES_NATIVE_INPUT_ACTION source=uart action=stop state=running owner=384f924975e309b3 native_generation=5
+FES_NATIVE_INPUT_ACTION source=uart action=quit state=ready owner=384f924975e309b3 native_generation=6
